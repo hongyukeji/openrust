@@ -1,0 +1,1393 @@
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -65,17 +65,6 @@
+  "anstyle",
+  "once_cell_polyfill",
+  "windows-sys 0.61.2",
+-]
+-
+-[[package]]
+-name = "async-trait"
+-version = "0.1.92"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "82f6aeea286b8eb4dd3431a1be1b59d290ace00f5bfd8e2a159bc2a05e2c1667"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "syn 3.0.10",
+ ]
+ 
+ [[package]]
+@@ -131,12 +120,6 @@
+ ]
+ 
+ [[package]]
+-name = "base64"
+-version = "0.22.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+-
+-[[package]]
+ name = "bitflags"
+ version = "2.13.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -218,12 +201,6 @@
+ checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
+ 
+ [[package]]
+-name = "equivalent"
+-version = "1.0.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "00d174d5400e5e8fd687ad1049e2f578285fa914201b1af7e8b112a4546bd826"
+-
+-[[package]]
+ name = "errno"
+ version = "0.3.14"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -240,12 +217,6 @@
+ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+ 
+ [[package]]
+-name = "fnv"
+-version = "1.0.7"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+-
+-[[package]]
+ name = "fs-set-times"
+ version = "0.20.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -253,16 +224,7 @@
+ dependencies = [
+  "io-lifetimes 2.0.4",
+  "rustix",
+- "windows-sys 0.52.0",
+-]
+-
+-[[package]]
+-name = "futures-channel"
+-version = "0.3.34"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "b1f9e3d69d39e4862ffed03ed071a76f9a13ba1d9109d355b0f0aa6b15e393c4"
+-dependencies = [
+- "futures-core",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -294,31 +256,6 @@
+  "pin-project-lite",
+  "slab",
+ ]
+-
+-[[package]]
+-name = "h2"
+-version = "0.4.20"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7d29020232d6aa3fb1daca64c1127cf662cf97f254ae16c18c05b8ab635fc118"
+-dependencies = [
+- "atomic-waker",
+- "bytes",
+- "fnv",
+- "futures-core",
+- "futures-sink",
+- "http",
+- "indexmap",
+- "slab",
+- "tokio",
+- "tokio-util",
+- "tracing",
+-]
+-
+-[[package]]
+-name = "hashbrown"
+-version = "0.17.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+ 
+ [[package]]
+ name = "http"
+@@ -373,9 +310,7 @@
+ dependencies = [
+  "atomic-waker",
+  "bytes",
+- "futures-channel",
+  "futures-core",
+- "h2",
+  "http",
+  "http-body",
+  "httparse",
+@@ -402,23 +337,13 @@
+ ]
+ 
+ [[package]]
+-name = "indexmap"
+-version = "2.14.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cc4e190f5d26ca7051642629da2c52fc03bde85a03197c99408dcd291734c855"
+-dependencies = [
+- "equivalent",
+- "hashbrown",
+-]
+-
+-[[package]]
+ name = "io-extras"
+ version = "0.19.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "20fd6de4ccfcc187e38bc21cfa543cb5a302cb86a8b114eb7f0bf0dc9f8ac00f"
+ dependencies = [
+  "io-lifetimes 3.0.1",
+- "windows-sys 0.52.0",
++ "windows-sys 0.60.2",
+ ]
+ 
+ [[package]]
+@@ -548,9 +473,7 @@
+  "regex",
+  "serde_json",
+  "tokio",
+- "tokio-stream",
+  "tokio-util",
+- "tonic",
+ ]
+ 
+ [[package]]
+@@ -558,26 +481,6 @@
+ version = "2.3.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+-
+-[[package]]
+-name = "pin-project"
+-version = "1.1.13"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2466b2336ed02bcdca6b294417127b90ec92038d1d5c4fbeac971a922e0e0924"
+-dependencies = [
+- "pin-project-internal",
+-]
+-
+-[[package]]
+-name = "pin-project-internal"
+-version = "1.1.13"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "c96395f0a926bc13b1c17622aaddda1ecb55d49c8f1bf9777e4d877800a43f8b"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "syn 2.0.119",
+-]
+ 
+ [[package]]
+ name = "pin-project-lite"
+@@ -690,7 +593,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn 3.0.10",
++ "syn",
+ ]
+ 
+ [[package]]
+@@ -743,17 +646,6 @@
+ version = "0.11.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
+-
+-[[package]]
+-name = "syn"
+-version = "2.0.119"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "unicode-ident",
+-]
+ 
+ [[package]]
+ name = "syn"
+@@ -796,18 +688,7 @@
+ dependencies = [
+  "proc-macro2",
+  "quote",
+- "syn 3.0.10",
+-]
+-
+-[[package]]
+-name = "tokio-stream"
+-version = "0.1.19"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "a3d06f0b082ba57c26b79407372e57cf2a1e28124f78e9479fe80322cf53420b"
+-dependencies = [
+- "futures-core",
+- "pin-project-lite",
+- "tokio",
++ "syn",
+ ]
+ 
+ [[package]]
+@@ -819,38 +700,8 @@
+  "bytes",
+  "futures-core",
+  "futures-sink",
+- "libc",
+  "pin-project-lite",
+  "tokio",
+-]
+-
+-[[package]]
+-name = "tonic"
+-version = "0.14.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e2cdfc673aabd30fe8fee92e65837b644c37c5d47f0f97ae6d5e0f1237d15e1b"
+-dependencies = [
+- "async-trait",
+- "axum",
+- "base64",
+- "bytes",
+- "h2",
+- "http",
+- "http-body",
+- "http-body-util",
+- "hyper",
+- "hyper-util",
+- "percent-encoding",
+- "pin-project",
+- "socket2",
+- "sync_wrapper",
+- "tokio",
+- "tokio-stream",
+- "tokio-util",
+- "tower",
+- "tower-layer",
+- "tower-service",
+- "tracing",
+ ]
+ 
+ [[package]]
+@@ -864,10 +715,8 @@
+  "pin-project-lite",
+  "sync_wrapper",
+  "tokio",
+- "tokio-util",
+  "tower-layer",
+  "tower-service",
+- "tracing",
+ ]
+ 
+ [[package]]
+@@ -883,37 +732,6 @@
+ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
+ 
+ [[package]]
+-name = "tracing"
+-version = "0.1.44"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
+-dependencies = [
+- "pin-project-lite",
+- "tracing-attributes",
+- "tracing-core",
+-]
+-
+-[[package]]
+-name = "tracing-attributes"
+-version = "0.1.31"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
+-dependencies = [
+- "proc-macro2",
+- "quote",
+- "syn 2.0.119",
+-]
+-
+-[[package]]
+-name = "tracing-core"
+-version = "0.1.36"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+-dependencies = [
+- "once_cell",
+-]
+-
+-[[package]]
+ name = "unicase"
+ version = "2.10.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+@@ -945,11 +763,20 @@
+ 
+ [[package]]
+ name = "windows-sys"
+-version = "0.52.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "282be5f36a8ce781fad8c8ae18fa3f9beff57ec1b52cb3de0789201425d9a33d"
+-dependencies = [
+- "windows-targets",
++version = "0.59.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1e38bc4d79ed67fd075bcc251a1c39b32a1776bbe92e5bef1f0bf1f8c531853b"
++dependencies = [
++ "windows-targets 0.52.6",
++]
++
++[[package]]
++name = "windows-sys"
++version = "0.60.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
++dependencies = [
++ "windows-targets 0.53.5",
+ ]
+ 
+ [[package]]
+@@ -967,14 +794,31 @@
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "9b724f72796e036ab90c1021d4780d4d3d648aca59e491e6b98e725b84e99973"
+ dependencies = [
+- "windows_aarch64_gnullvm",
+- "windows_aarch64_msvc",
+- "windows_i686_gnu",
+- "windows_i686_gnullvm",
+- "windows_i686_msvc",
+- "windows_x86_64_gnu",
+- "windows_x86_64_gnullvm",
+- "windows_x86_64_msvc",
++ "windows_aarch64_gnullvm 0.52.6",
++ "windows_aarch64_msvc 0.52.6",
++ "windows_i686_gnu 0.52.6",
++ "windows_i686_gnullvm 0.52.6",
++ "windows_i686_msvc 0.52.6",
++ "windows_x86_64_gnu 0.52.6",
++ "windows_x86_64_gnullvm 0.52.6",
++ "windows_x86_64_msvc 0.52.6",
++]
++
++[[package]]
++name = "windows-targets"
++version = "0.53.5"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4945f9f551b88e0d65f3db0bc25c33b8acea4d9e41163edf90dcd0b19f9069f3"
++dependencies = [
++ "windows-link",
++ "windows_aarch64_gnullvm 0.53.1",
++ "windows_aarch64_msvc 0.53.1",
++ "windows_i686_gnu 0.53.1",
++ "windows_i686_gnullvm 0.53.1",
++ "windows_i686_msvc 0.53.1",
++ "windows_x86_64_gnu 0.53.1",
++ "windows_x86_64_gnullvm 0.53.1",
++ "windows_x86_64_msvc 0.53.1",
+ ]
+ 
+ [[package]]
+@@ -984,55 +828,103 @@
+ checksum = "32a4622180e7a0ec044bb555404c800bc9fd9ec262ec147edd5989ccd0c02cd3"
+ 
+ [[package]]
++name = "windows_aarch64_gnullvm"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "a9d8416fa8b42f5c947f8482c43e7d89e73a173cead56d044f6a56104a6d1b53"
++
++[[package]]
+ name = "windows_aarch64_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "09ec2a7bb152e2252b53fa7803150007879548bc709c039df7627cabbd05d469"
+ 
+ [[package]]
++name = "windows_aarch64_msvc"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "b9d782e804c2f632e395708e99a94275910eb9100b2114651e04744e9b125006"
++
++[[package]]
+ name = "windows_i686_gnu"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8e9b5ad5ab802e97eb8e295ac6720e509ee4c243f69d781394014ebfe8bbfa0b"
+ 
+ [[package]]
++name = "windows_i686_gnu"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "960e6da069d81e09becb0ca57a65220ddff016ff2d6af6a223cf372a506593a3"
++
++[[package]]
+ name = "windows_i686_gnullvm"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "0eee52d38c090b3caa76c563b86c3a4bd71ef1a819287c19d586d7334ae8ed66"
+ 
+ [[package]]
++name = "windows_i686_gnullvm"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fa7359d10048f68ab8b09fa71c3daccfb0e9b559aed648a8f95469c27057180c"
++
++[[package]]
+ name = "windows_i686_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "240948bc05c5e7c6dabba28bf89d89ffce3e303022809e73deaefe4f6ec56c66"
+ 
+ [[package]]
++name = "windows_i686_msvc"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "1e7ac75179f18232fe9c285163565a57ef8d3c89254a30685b57d83a38d326c2"
++
++[[package]]
+ name = "windows_x86_64_gnu"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "147a5c80aabfbf0c7d901cb5895d1de30ef2907eb21fbbab29ca94c5b08b1a78"
+ 
+ [[package]]
++name = "windows_x86_64_gnu"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "9c3842cdd74a865a8066ab39c8a7a473c0778a3f29370b5fd6b4b9aa7df4a499"
++
++[[package]]
+ name = "windows_x86_64_gnullvm"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "24d5b23dc417412679681396f2b49f3de8c1473deb516bd34410872eff51ed0d"
+ 
+ [[package]]
++name = "windows_x86_64_gnullvm"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "0ffa179e2d07eee8ad8f57493436566c7cc30ac536a3379fdf008f47f6bb7ae1"
++
++[[package]]
+ name = "windows_x86_64_msvc"
+ version = "0.52.6"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
+ 
+ [[package]]
++name = "windows_x86_64_msvc"
++version = "0.53.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d6bbff5f0aada427a1e5a6da5f1f98158182f26556f345ac9e04d36d0ebed650"
++
++[[package]]
+ name = "winx"
+ version = "0.36.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "3f3fd376f71958b862e7afb20cfe5a22830e1963462f3a17f49d82a6c1d1f42d"
+ dependencies = [
+  "bitflags",
+- "windows-sys 0.52.0",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+--- a/docs/en/digging-deeper/artisan.md
++++ b/docs/en/digging-deeper/artisan.md
+@@ -34,15 +34,3 @@
+ The compiled entry accepts no mode argument for HTTP, or `artisan` for console commands. Any other first argument prints the outer usage and exits with status 2, before creating the application. Artisan dispatch errors exit with status 1. This outer selection is a Rust single-binary adaptation; Laravel has separate HTTP and `artisan` entry files. The Console Kernel's handle/terminate sequence remains the responsibility of `Application::handleCommand`.
+ 
+ The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented. General custom command I/O and localization are delivered by later Artisan units. `artisan.bat` has not yet been accepted on a Windows machine.
+-
+-## Optional Route Installers {#optional-route-installers}
+-
+-Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.
+-
+-```sh
+-./artisan install:api
+-./artisan install:broadcasting
+-./artisan install:grpc
+-```
+-
+-API routes default to the `/api` prefix and use the `api` middleware group. Add your own endpoints and authentication. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
+--- a/docs/zh-Hans/digging-deeper/artisan.md
++++ b/docs/zh-Hans/digging-deeper/artisan.md
+@@ -34,15 +34,3 @@
+ 编译入口不带模式参数时启动 HTTP，使用 `artisan` 时执行控制台命令。其他首参数会在创建应用前显示外层用法并返回退出码 2。Artisan 分派错误返回 1。外层分流是 Rust 单二进制的语言适配；Laravel 使用独立的 HTTP 和 `artisan` 入口文件。Console Kernel 的 handle/terminate 顺序仍由 `Application::handleCommand` 负责。
+ 
+ 命令清单同时包含待实现条目。名称和帮助用于保留预定契约，不代表对应模块已经完成。通用自定义命令输入输出与本地化由后续 Artisan 单元交付。`artisan.bat` 尚未通过 Windows 实机验收。
+-
+-## 按需安装路由 {#optional-route-installers}
+-
+-在源码目录运行以下命令，生成路由文件并更新模块声明和启动配置，然后重新构建。已有路由文件会保留。
+-
+-```sh
+-./artisan install:api
+-./artisan install:broadcasting
+-./artisan install:grpc
+-```
+-
+-API 默认挂载到 `/api` 并使用 `api` 中间件组，端点和认证由应用补充。广播接入后会注册 `/broadcasting/auth`，授权需要广播驱动和频道规则。gRPC 需要注册 Tonic 服务，并设置 `GRPC_HOST` 和 `GRPC_PORT` 才开启监听。
+--- a/docs/zh-Hant/digging-deeper/artisan.md
++++ b/docs/zh-Hant/digging-deeper/artisan.md
+@@ -34,15 +34,3 @@
+ 編譯入口不帶模式參數時啟動 HTTP，使用 `artisan` 時執行主控台命令。其他首參數會在建立應用前顯示外層用法並回傳結束碼 2。Artisan 分派錯誤回傳 1。外層分流是 Rust 單二進位檔的語言適配；Laravel 使用獨立的 HTTP 和 `artisan` 入口檔案。Console Kernel 的 handle/terminate 順序仍由 `Application::handleCommand` 負責。
+ 
+ 命令清單同時包含待實作條目。名稱和說明用於保留預定契約，不代表對應模組已經完成。通用自訂命令輸入輸出與本地化由後續 Artisan 單元交付。`artisan.bat` 尚未通過 Windows 實機驗收。
+-
+-## 按需安裝路由 {#optional-route-installers}
+-
+-在原始碼目錄執行下列命令，產生路由檔案並更新模組宣告與啟動設定，然後重新建置。既有路由檔案會保留。
+-
+-```sh
+-./artisan install:api
+-./artisan install:broadcasting
+-./artisan install:grpc
+-```
+-
+-API 預設掛載到 `/api` 並使用 `api` 中介軟體群組，端點與驗證由應用程式補充。廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
+--- a/tests/startup.rs
++++ b/tests/startup.rs
+@@ -26,70 +26,6 @@
+ mod config;
+ 
+ struct TestRoot(PathBuf);
+-
+-#[test]
+-fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
+-    let root = TestRoot::new("install-routes");
+-    fs::write(root.0.join("Cargo.toml"), "").unwrap();
+-    fs::create_dir(root.0.join("routes")).unwrap();
+-    fs::create_dir(root.0.join("bootstrap")).unwrap();
+-    let modules = root.0.join("routes/mod.rs");
+-    let bootstrap = root.0.join("bootstrap/app.rs");
+-    fs::write(&modules, "pub(crate) mod console;\npub(crate) mod web;\n").unwrap();
+-    fs::write(&bootstrap, "custom bootstrap\n").unwrap();
+-    let run = |command: &str| {
+-        Command::new(env!("CARGO_BIN_EXE_main"))
+-            .args(["artisan", command])
+-            .env("APP_BASE_PATH", &root.0)
+-            .output()
+-            .unwrap()
+-    };
+-    let result = run("install:api");
+-    assert_eq!(result.status.code(), Some(1));
+-    assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
+-    assert!(!root.0.join("routes/api.rs").exists());
+-    assert!(!fs::read_to_string(&modules).unwrap().contains("mod api;"));
+-
+-    fs::write(&bootstrap, include_str!("../bootstrap/app.rs")).unwrap();
+-    for (command, module, registration) in [
+-        ("install:api", "api", ".api(routes::api::register)"),
+-        (
+-            "install:broadcasting",
+-            "channels",
+-            ".channels(routes::channels::register)",
+-        ),
+-        ("install:grpc", "grpc", ".withGrpc(routes::grpc::register)"),
+-    ] {
+-        let result = run(command);
+-        assert!(
+-            result.status.success(),
+-            "{}",
+-            String::from_utf8_lossy(&result.stderr)
+-        );
+-        let routes = root.0.join(format!("routes/{module}.rs"));
+-        assert!(fs::read_to_string(&routes).unwrap().contains("fn register"));
+-        fs::write(&routes, "// Existing application routes\n").unwrap();
+-        assert!(run(command).status.success());
+-        assert_eq!(
+-            fs::read_to_string(&routes).unwrap(),
+-            "// Existing application routes\n"
+-        );
+-        assert_eq!(
+-            fs::read_to_string(&modules)
+-                .unwrap()
+-                .matches(&format!("mod {module};"))
+-                .count(),
+-            1
+-        );
+-        assert_eq!(
+-            fs::read_to_string(&bootstrap)
+-                .unwrap()
+-                .matches(registration)
+-                .count(),
+-            1
+-        );
+-    }
+-}
+ 
+ impl TestRoot {
+     fn new(name: &str) -> Self {
+@@ -272,42 +208,6 @@
+             "first.boot",
+             "second.boot",
+             "routes"
+-        ]
+-    );
+-}
+-
+-#[tokio::test]
+-async fn grpc_registration_runs_after_providers_and_only_once() {
+-    let root = TestRoot::new("grpc-registration");
+-    let events = Arc::new(Mutex::new(Vec::new()));
+-    let mut application = Application::configure(root.0.clone())
+-        .withConfig(|_, _| {
+-            Ok(BTreeMap::from([(
+-                "app".into(),
+-                json!({"name": "test app"}),
+-            )]))
+-        })
+-        .withProviders(vec![
+-            Box::new(First(events.clone())),
+-            Box::new(Second(events.clone())),
+-        ])
+-        .withGrpc(|app, _services| {
+-            let events = app.container().make::<Mutex<Vec<&'static str>>>()?;
+-            events.lock().unwrap().push("grpc.register");
+-            Ok(())
+-        })
+-        .create()
+-        .unwrap();
+-    application.boot().await.unwrap();
+-    application.boot().await.unwrap();
+-    assert_eq!(
+-        *events.lock().unwrap(),
+-        [
+-            "first.register",
+-            "second.register",
+-            "first.boot",
+-            "second.boot",
+-            "grpc.register"
+         ]
+     );
+ }
+--- a/vendor/openrust/framework/Cargo.toml
++++ b/vendor/openrust/framework/Cargo.toml
+@@ -25,7 +25,5 @@
+ quick-xml = { version = "0.42", default-features = false }
+ regex = "1.12"
+ serde_json = "1.0"
+-tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "rt", "signal", "sync"] }
+-tokio-stream = { version = "0.1", features = ["net"] }
++tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "rt", "signal"] }
+ tokio-util = { version = "0.7.20", features = ["io"] }
+-tonic = { version = "~0.14.6", default-features = false, features = ["codegen", "router", "server"] }
+--- a/vendor/openrust/framework/src/auth/middleware/mod.rs
++++ b/vendor/openrust/framework/src/auth/middleware/mod.rs
+@@ -2,10 +2,8 @@
+ 
+ mod authenticate;
+ mod authorize;
+-mod ensure_email_is_verified;
+ mod redirect_if_authenticated;
+ 
+ pub use authenticate::Authenticate;
+ pub use authorize::Authorize;
+-pub use ensure_email_is_verified::EnsureEmailIsVerified;
+ pub use redirect_if_authenticated::RedirectIfAuthenticated;
+--- a/vendor/openrust/framework/src/auth/mod.rs
++++ b/vendor/openrust/framework/src/auth/mod.rs
+@@ -6,8 +6,6 @@
+ mod database_user_provider;
+ mod eloquent_user_provider;
+ pub mod middleware;
+-pub mod notifications;
+-pub mod passwords;
+ mod request_guard;
+ mod session_guard;
+ mod token_guard;
+--- a/vendor/openrust/framework/src/cache/mod.rs
++++ b/vendor/openrust/framework/src/cache/mod.rs
+@@ -15,8 +15,6 @@
+ mod memcached_lock;
+ mod memcached_store;
+ mod null_store;
+-mod rate_limiter;
+-pub mod rate_limiting;
+ mod redis_lock;
+ mod redis_store;
+ mod repository;
+@@ -40,7 +38,6 @@
+ pub use memcached_lock::MemcachedLock;
+ pub use memcached_store::MemcachedStore;
+ pub use null_store::NullStore;
+-pub use rate_limiter::RateLimiter;
+ pub use redis_lock::RedisLock;
+ pub use redis_store::RedisStore;
+ pub use repository::Repository;
+--- a/vendor/openrust/framework/src/console/planned.rs
++++ b/vendor/openrust/framework/src/console/planned.rs
+@@ -61,6 +61,11 @@
+     ("event:cache", "Cache event and listener registrations"),
+     ("event:clear", "Remove the cached event registrations"),
+     ("event:list", "Show events and their registered listeners"),
++    ("install:api", "Install the application API scaffolding"),
++    (
++        "install:broadcasting",
++        "Install the broadcasting scaffolding",
++    ),
+     ("key:generate", "Generate an application encryption key"),
+     (
+         "lang:publish",
+--- a/vendor/openrust/framework/src/contracts/auth/mod.rs
++++ b/vendor/openrust/framework/src/contracts/auth/mod.rs
+@@ -2,19 +2,13 @@
+ 
+ pub mod access;
+ mod authenticatable;
+-mod can_reset_password;
+ mod factory;
+ mod guard;
+-mod must_verify_email;
+-mod password_broker;
+ mod stateful_guard;
+ mod user_provider;
+ 
+ pub use authenticatable::Authenticatable;
+-pub use can_reset_password::CanResetPassword;
+ pub use factory::Factory;
+ pub use guard::Guard;
+-pub use must_verify_email::MustVerifyEmail;
+-pub use password_broker::{PasswordBroker, ResetCallback, ResetLinkCallback};
+ pub use stateful_guard::StatefulGuard;
+ pub use user_provider::UserProvider;
+--- a/vendor/openrust/framework/src/contracts/mod.rs
++++ b/vendor/openrust/framework/src/contracts/mod.rs
+@@ -1,7 +1,6 @@
+ //! Contracts for services exposed by the framework.
+ 
+ pub mod auth;
+-pub mod broadcasting;
+ pub mod cache;
+ pub mod config;
+ pub mod console;
+@@ -9,20 +8,15 @@
+ pub mod cookie;
+ pub mod database;
+ pub mod debug;
+-pub mod encryption;
+ pub mod events;
+ pub mod filesystem;
+ pub mod foundation;
+-pub mod hashing;
+ pub mod http;
+-pub mod log;
+ pub mod mail;
+ pub mod notifications;
+-pub mod pagination;
+ pub mod queue;
+ pub mod redis;
+ pub mod routing;
+ pub mod session;
+ pub mod translation;
+ pub mod validation;
+-pub mod view;
+--- a/vendor/openrust/framework/src/contracts/routing.rs
++++ b/vendor/openrust/framework/src/contracts/routing.rs
+@@ -1,8 +1,4 @@
+ use std::sync::Arc;
+-
+-mod url_generator;
+-
+-pub use url_generator::UrlGenerator;
+ 
+ use crate::{
+     http::{HttpError, HttpFuture, Method, Request, Response},
+--- a/vendor/openrust/framework/src/foundation/application.rs
++++ b/vendor/openrust/framework/src/foundation/application.rs
+@@ -26,7 +26,6 @@
+         debug::{Exception, ExceptionHandler as _},
+         foundation,
+     },
+-    grpc,
+     routing::Router,
+     support::ServiceProvider,
+ };
+@@ -50,8 +49,6 @@
+     pub(super) command_routes: Option<CommandRoutes>,
+     pub(super) exceptions: Arc<Handler>,
+     pub(super) routes: Router,
+-    pub(super) grpc_registrar: Option<grpc::Registrar>,
+-    pub(super) grpc_routes: Option<tonic::service::Routes>,
+ }
+ 
+ enum BootState {
+@@ -173,8 +170,6 @@
+             command_routes,
+             exceptions: Arc::new(Handler::new(exceptions)),
+             routes: Router::new(),
+-            grpc_registrar: None,
+-            grpc_routes: None,
+         }
+     }
+ 
+@@ -240,12 +235,6 @@
+             Some(routing) => routing.register(self).map_err(routing_failed)?,
+             None => Router::new(),
+         };
+-        if let Some(register) = self.grpc_registrar.take() {
+-            let mut routes = grpc::RoutesBuilder::default();
+-            register(self, &mut routes)
+-                .map_err(|source| BootstrapError::GrpcRegistrationFailed { source })?;
+-            self.grpc_routes = Some(routes.routes());
+-        }
+         self.providers = providers;
+         self.state = BootState::Booted;
+         Ok(())
+--- a/vendor/openrust/framework/src/foundation/bootstrap_error.rs
++++ b/vendor/openrust/framework/src/foundation/bootstrap_error.rs
+@@ -18,9 +18,6 @@
+     },
+     RoutingFailed {
+         source: RoutingError,
+-    },
+-    GrpcRegistrationFailed {
+-        source: Box<dyn Error + Send + Sync>,
+     },
+     CommandRegistrationFailed {
+         source: ConsoleError,
+@@ -52,7 +49,6 @@
+             }
+             Self::ConfigurationFailed { source } => write!(f, "configuration failed: {source}"),
+             Self::RoutingFailed { source } => write!(f, "route registration failed: {source}"),
+-            Self::GrpcRegistrationFailed { .. } => f.write_str("gRPC service registration failed"),
+             Self::CommandRegistrationFailed { source } => {
+                 write!(f, "command registration failed: {source}")
+             }
+@@ -76,7 +72,6 @@
+             Self::RoutingFailed { source } => Some(source),
+             Self::CommandRegistrationFailed { source } => Some(source),
+             Self::ProviderRegistrationFailed { source, .. }
+-            | Self::GrpcRegistrationFailed { source }
+             | Self::ProviderBootFailed { source, .. } => Some(source.as_ref()),
+             _ => None,
+         }
+--- a/vendor/openrust/framework/src/foundation/configuration/application_builder.rs
++++ b/vendor/openrust/framework/src/foundation/configuration/application_builder.rs
+@@ -1,6 +1,5 @@
+ use std::{collections::BTreeMap, io, path::PathBuf};
+ 
+-use super::routing::ChannelRoutes;
+ use super::{Exceptions, Middleware, Routing};
+ use crate::{
+     foundation::{
+@@ -8,7 +7,6 @@
+         application::{CommandRegistrar, MiddlewareConfigurator},
+         bootstrap::ConfigLoader,
+     },
+-    grpc,
+     support::ServiceProvider,
+ };
+ 
+@@ -18,10 +16,8 @@
+     load_config: ConfigLoader,
+     providers: Vec<Box<dyn ServiceProvider>>,
+     routing: Option<Routing>,
+-    channels: Option<ChannelRoutes>,
+     middleware_configurators: Vec<MiddlewareConfigurator>,
+     commands: CommandRegistrar,
+-    grpc: Option<grpc::Registrar>,
+     exceptions: Option<Exceptions>,
+ }
+ 
+@@ -36,10 +32,8 @@
+             load_config: |_, _| Ok(BTreeMap::new()),
+             providers: Vec::new(),
+             routing: None,
+-            channels: None,
+             middleware_configurators: Vec::new(),
+             commands: |_| Ok(()),
+-            grpc: None,
+             exceptions: None,
+         }
+     }
+@@ -56,18 +50,6 @@
+ 
+     pub fn withRouting(mut self, routing: Routing) -> Self {
+         self.routing = Some(routing);
+-        self
+-    }
+-
+-    /// Enables broadcast authentication and loads the application's channel rules.
+-    pub fn withBroadcasting(mut self, register: ChannelRoutes) -> Self {
+-        self.channels = Some(register);
+-        self
+-    }
+-
+-    /// Registers gRPC services during application boot.
+-    pub fn withGrpc(mut self, register: grpc::Registrar) -> Self {
+-        self.grpc = Some(register);
+         self
+     }
+ 
+@@ -104,20 +86,14 @@
+                 "expected a directory",
+             )));
+         }
+-        let routing = match self.channels {
+-            Some(register) => Some(self.routing.unwrap_or_default().channels(register)),
+-            None => self.routing,
+-        };
+-        let mut application = Application::new(
++        Ok(Application::new(
+             base_path,
+             self.load_config,
+             self.providers,
+-            routing,
++            self.routing,
+             self.middleware_configurators,
+             self.commands,
+             self.exceptions,
+-        );
+-        application.grpc_registrar = self.grpc;
+-        Ok(application)
++        ))
+     }
+ }
+--- a/vendor/openrust/framework/src/foundation/configuration/routing.rs
++++ b/vendor/openrust/framework/src/foundation/configuration/routing.rs
+@@ -1,5 +1,4 @@
+ use crate::{
+-    broadcasting::{BroadcastController, BroadcastResult},
+     console::ConsoleError,
+     contracts::foundation::Application as _,
+     foundation::{Application, http::HealthCheck},
+@@ -11,7 +10,6 @@
+ type GroupRoutes = fn(&mut Router) -> Result<(), RoutingError>;
+ type WebRoutes = fn() -> Result<(), RoutingError>;
+ pub(in crate::foundation) type CommandRoutes = fn() -> Result<(), ConsoleError>;
+-pub(super) type ChannelRoutes = fn() -> BroadcastResult<()>;
+ 
+ /// Declares the application's HTTP routes, console routes and health endpoint.
+ #[derive(Default)]
+@@ -19,8 +17,6 @@
+     custom: Option<CustomRoutes>,
+     web: Option<WebRoutes>,
+     api: Option<GroupRoutes>,
+-    api_prefix: Option<String>,
+-    channels: Option<ChannelRoutes>,
+     health: Option<String>,
+     pub(in crate::foundation) command_routes: Option<CommandRoutes>,
+ }
+@@ -43,19 +39,6 @@
+         self
+     }
+ 
+-    /// Overrides the default `api` URL prefix for API routes.
+-    #[allow(non_snake_case, reason = "Matches Laravel's apiPrefix option")]
+-    pub fn apiPrefix(mut self, prefix: impl Into<String>) -> Self {
+-        self.api_prefix = Some(prefix.into());
+-        self
+-    }
+-
+-    /// Enables broadcast authentication and loads the application's channel rules.
+-    pub fn channels(mut self, register: ChannelRoutes) -> Self {
+-        self.channels = Some(register);
+-        self
+-    }
+-
+     /// Declares console routes to load after the console kernel boots the application.
+     pub fn commands(mut self, register: CommandRoutes) -> Self {
+         self.command_routes = Some(register);
+@@ -74,9 +57,7 @@
+         };
+         if let Some(register) = self.api {
+             router.group(
+-                RouteGroup::new()
+-                    .prefix(self.api_prefix.as_deref().unwrap_or("api"))
+-                    .middleware_name("api"),
++                RouteGroup::new().prefix("api").middleware_name("api"),
+                 register,
+             )?;
+         }
+@@ -88,9 +69,6 @@
+                 Route::register(router, app, register)
+             })?;
+         }
+-        if let Some(register) = self.channels {
+-            BroadcastController::register(app, &mut router, register)?;
+-        }
+         router.resolve_static_directories(app.base_path());
+         Ok(router)
+     }
+--- a/vendor/openrust/framework/src/foundation/console/mod.rs
++++ b/vendor/openrust/framework/src/foundation/console/mod.rs
+@@ -1,7 +1,6 @@
+ //! Artisan lifecycle for a bootstrapped application.
+ 
+ mod console_make_command;
+-mod install_routes_command;
+ 
+ use std::ffi::OsString;
+ 
+@@ -54,7 +53,6 @@
+                     .get_or_insert_with(|| {
+                         if self.register_planned {
+                             self.artisan.register_planned_commands()?;
+-                            install_routes_command::register(&mut self.artisan)?;
+                         }
+                         (self.application.commands)(&mut self.artisan)?;
+                         if let Some(register) = self.application.command_routes {
+--- a/vendor/openrust/framework/src/foundation/http/server.rs
++++ b/vendor/openrust/framework/src/foundation/http/server.rs
+@@ -5,15 +5,13 @@
+     handler::Handler as _,
+     response::Response as TransportResponse,
+ };
+-use tokio::{net::TcpListener, signal, sync::watch};
++use tokio::{net::TcpListener, signal};
+ 
+ use super::Kernel;
+ use crate::{
+     config::{ConfigError, Value},
+     contracts::{config::Repository, foundation::Application as _, http::Kernel as _},
+-    grpc,
+     http::Request,
+-    support::ProviderResult,
+ };
+ 
+ impl Kernel {
+@@ -31,10 +29,6 @@
+ 
+     pub(in crate::foundation) async fn serve(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+         let listener = self.listen().await?;
+-        let grpc = match self.application.grpc_routes.take() {
+-            Some(routes) => grpc::Runner::bind(routes, self.application.config()).await?,
+-            None => None,
+-        };
+ 
+         #[cfg(unix)]
+         let mut terminate = signal::unix::signal(signal::unix::SignalKind::terminate())?;
+@@ -55,36 +49,10 @@
+ 
+         let service = handle.with_state(Arc::new(self)).into_make_service();
+         println!("OpenRust listening on http://{}", listener.local_addr()?);
+-
+-        let (stop, mut http_stop) = watch::channel(false);
+-        let mut grpc_stop = http_stop.clone();
+-        let http = async {
+-            axum::serve(listener, service)
+-                .with_graceful_shutdown(async move {
+-                    let _ = http_stop.changed().await;
+-                })
+-                .await?;
+-            ProviderResult::Ok(())
+-        };
+-        let serve = async {
+-            if let Some(grpc) = grpc {
+-                let grpc = grpc.serve(async move {
+-                    let _ = grpc_stop.changed().await;
+-                });
+-                tokio::try_join!(http, grpc)?;
+-            } else {
+-                http.await?;
+-            }
+-            Ok(())
+-        };
+-        tokio::pin!(serve);
+-        tokio::select! {
+-            result = &mut serve => result,
+-            () = shutdown => {
+-                stop.send_replace(true);
+-                serve.await
+-            }
+-        }
++        axum::serve(listener, service)
++            .with_graceful_shutdown(shutdown)
++            .await?;
++        Ok(())
+     }
+ }
+ 
+--- a/vendor/openrust/framework/src/foundation/mod.rs
++++ b/vendor/openrust/framework/src/foundation/mod.rs
+@@ -1,7 +1,6 @@
+ //! Application assembly and lifecycle.
+ 
+ mod application;
+-pub mod auth;
+ pub mod bootstrap;
+ mod bootstrap_error;
+ pub mod configuration;
+--- a/vendor/openrust/framework/src/http/error.rs
++++ b/vendor/openrust/framework/src/http/error.rs
+@@ -11,7 +11,6 @@
+ #[non_exhaustive]
+ pub enum HttpError {
+     InvalidRequest,
+-    Forbidden,
+     NotFound,
+     MethodNotAllowed {
+         allowed: Vec<Method>,
+@@ -25,7 +24,6 @@
+     pub(crate) fn status(&self) -> StatusCode {
+         match self {
+             Self::InvalidRequest => StatusCode::BAD_REQUEST,
+-            Self::Forbidden => StatusCode::FORBIDDEN,
+             Self::NotFound => StatusCode::NOT_FOUND,
+             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
+             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+--- a/vendor/openrust/framework/src/http/mod.rs
++++ b/vendor/openrust/framework/src/http/mod.rs
+@@ -6,7 +6,6 @@
+ mod error;
+ mod next;
+ mod request;
+-pub mod resources;
+ mod response;
+ mod uploaded_file;
+ 
+--- a/vendor/openrust/framework/src/lib.rs
++++ b/vendor/openrust/framework/src/lib.rs
+@@ -1,7 +1,6 @@
+ //! Public module layout and contracts for the OpenRust framework.
+ 
+ pub mod auth;
+-pub mod broadcasting;
+ pub mod cache;
+ pub mod config;
+ pub mod console;
+@@ -9,17 +8,13 @@
+ pub mod contracts;
+ pub mod cookie;
+ pub mod database;
+-pub mod encryption;
+ pub mod events;
+ pub mod filesystem;
+ pub mod foundation;
+-pub mod grpc;
+-pub mod hashing;
+ pub mod http;
+ pub mod log;
+ pub mod mail;
+ pub mod notifications;
+-pub mod pagination;
+ pub mod queue;
+ pub mod redis;
+ pub mod routing;
+--- a/vendor/openrust/framework/src/redis/mod.rs
++++ b/vendor/openrust/framework/src/redis/mod.rs
+@@ -2,7 +2,6 @@
+ 
+ pub mod connections;
+ pub mod connectors;
+-pub mod limiters;
+ mod redis_manager;
+ mod redis_service_provider;
+ 
+--- a/vendor/openrust/framework/src/routing/error.rs
++++ b/vendor/openrust/framework/src/routing/error.rs
+@@ -1,15 +1,12 @@
+ use std::{error::Error, fmt};
+ 
+-use crate::{broadcasting::BroadcastException, config::ConfigError};
++use crate::config::ConfigError;
+ 
+ /// An invalid route registration or middleware reference.
+ #[derive(Debug)]
+ #[non_exhaustive]
+ pub enum RoutingError {
+     NoRegistrationScope,
+-    BroadcastRegistration {
+-        source: BroadcastException,
+-    },
+     InvalidUri {
+         uri: String,
+     },
+@@ -42,9 +39,6 @@
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+             Self::NoRegistrationScope => f.write_str("no active route registration scope"),
+-            Self::BroadcastRegistration { source } => {
+-                write!(f, "broadcast channel registration failed: {source}")
+-            }
+             Self::InvalidUri { uri } => write!(f, "invalid route URI {uri:?}"),
+             Self::EmptyStaticDirectory => f.write_str("a static mount requires a directory"),
+             Self::StaticMountConfiguration { source } => source.fmt(f),
+@@ -74,7 +68,6 @@
+     fn source(&self) -> Option<&(dyn Error + 'static)> {
+         match self {
+             Self::InvalidRoutePattern { source, .. } => Some(source),
+-            Self::BroadcastRegistration { source } => Some(source),
+             Self::StaticMountConfiguration { source } => Some(source),
+             _ => None,
+         }
+--- a/vendor/openrust/framework/src/routing/middleware.rs
++++ b/vendor/openrust/framework/src/routing/middleware.rs
+@@ -1,12 +1,6 @@
+ mod substitute_bindings;
+-mod throttle_requests;
+-mod throttle_requests_with_redis;
+-mod validate_signature;
+ 
+ pub use substitute_bindings::SubstituteBindings;
+-pub use throttle_requests::ThrottleRequests;
+-pub use throttle_requests_with_redis::ThrottleRequestsWithRedis;
+-pub use validate_signature::ValidateSignature;
+ 
+ use std::{
+     any::TypeId,
+--- a/vendor/openrust/framework/src/routing/mod.rs
++++ b/vendor/openrust/framework/src/routing/mod.rs
+@@ -3,24 +3,15 @@
+ pub(crate) mod binding;
+ mod error;
+ pub mod middleware;
+-mod redirector;
+ mod route;
+ mod route_group;
+ mod route_pattern;
+-mod route_url_generator;
+ mod router;
+ mod static_mount;
+-mod url_generator;
+ 
+ pub use binding::BindingContext;
+ pub use error::RoutingError;
+ pub use middleware::MiddlewareEntry;
+-pub use redirector::{RedirectOptions, Redirector};
+ pub use route::Route;
+ pub use route_group::RouteGroup;
+-pub use route_url_generator::RouteUrlGenerator;
+ pub use router::{IntoRouteHandler, Router};
+-pub use url_generator::{
+-    RouteParameter, RouteParameters, SignatureMode, SignatureQueryFilter, UrlError, UrlGenerator,
+-    UrlResult, UrlValue,
+-};
+--- a/vendor/openrust/framework/src/support/facades.rs
++++ b/vendor/openrust/framework/src/support/facades.rs
+@@ -13,66 +13,16 @@
+ use http::Uri;
+ 
+ use crate::{
+-    broadcasting::{BroadcastException, BroadcastResult, ChannelRegistry},
+     config::{ConfigError, Value},
+     console::{Application, ConsoleError, Output},
+-    contracts::{broadcasting::ChannelHandler, config::Repository},
++    contracts::config::Repository,
+     foundation,
+     routing::{IntoRouteHandler, Router, RoutingError},
+ };
+ 
+-/// Registers broadcast channels for the current application.
+-pub struct Broadcast;
+-
+-/// Resolves the encrypter bound to the current application.
+-pub struct Crypt;
+-
+-/// Resolves the hash manager bound to the current application.
+-pub struct Hash;
+-
+-/// Resolves the application's password broker.
+-pub struct Password;
+-
+-/// Resolves the current application's cache-backed rate limiter.
+-pub struct RateLimiter;
+-
+-/// Resolves the current application's log manager.
+-pub struct Log;
+-
+-/// Accesses the context for the current request or job.
+-pub struct Context;
+-
+-/// Resolves the view factory for the current application.
+-pub struct View;
+-
+-/// Resolves the current application's URL generator.
+-pub struct URL;
+-
+-/// Resolves the current application's redirector.
+-pub struct Redirect;
+-
+ tokio::task_local! {
+     static ROUTER: RouteRegistration;
+     static CONSOLE: RefCell<Application>;
+-    static CHANNELS: RefCell<ChannelRegistry>;
+-}
+-
+-impl Broadcast {
+-    /// Registers a channel authorization rule on the current application.
+-    pub fn channel(pattern: &str, handler: impl ChannelHandler + 'static) -> BroadcastResult<()> {
+-        CHANNELS
+-            .try_with(|channels| channels.borrow_mut().register(pattern, handler))
+-            .map_err(|_| BroadcastException::NoRegistrationScope)?
+-    }
+-
+-    pub(crate) fn register(
+-        register: fn() -> BroadcastResult<()>,
+-    ) -> BroadcastResult<ChannelRegistry> {
+-        CHANNELS.sync_scope(RefCell::default(), || {
+-            register()?;
+-            Ok(CHANNELS.with(|channels| std::mem::take(&mut *channels.borrow_mut())))
+-        })
+-    }
+ }
+ 
+ struct RouteRegistration {
+--- a/vendor/openrust/framework/src/support/mod.rs
++++ b/vendor/openrust/framework/src/support/mod.rs
+@@ -1,16 +1,10 @@
+ //! Shared framework extension points.
+ 
+-mod collection;
+-mod enumerable;
+ pub mod facades;
+-mod lazy_collection;
+ mod message_bag;
+ mod service_provider;
+ mod view_error_bag;
+ 
+-pub use collection::{ArrayKey, Collection, CollectionError, CollectionResult};
+-pub use enumerable::Enumerable;
+-pub use lazy_collection::{LazyCollection, LazySource};
+ pub use message_bag::MessageBag;
+ pub use service_provider::{ProviderResult, ServiceProvider};
+ pub use view_error_bag::ViewErrorBag;
+--- a/vendor/openrust/framework/src/view/mod.rs
++++ b/vendor/openrust/framework/src/view/mod.rs
+@@ -2,11 +2,8 @@
+ 
+ use std::{
+     borrow::Cow,
+-    fs,
+-    future::Future,
+-    io,
++    fs, io,
+     path::{Path, PathBuf},
+-    pin::Pin,
+     sync::Arc,
+ };
+ 
+@@ -17,38 +14,7 @@
+     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+ };
+ 
+-pub mod compilers;
+-mod component;
+-pub mod engines;
+-mod factory;
+-mod file_view_finder;
+ pub mod middleware;
+-mod view_finder;
+-mod view_service_provider;
+-
+-pub use component::{Component, ComponentOutput};
+-pub use factory::Factory;
+-pub use file_view_finder::FileViewFinder;
+-pub use view_finder::ViewFinder;
+-pub use view_service_provider::ViewServiceProvider;
+-
+-pub type ViewValue = serde_json::Value;
+-pub type ViewData = serde_json::Map<String, ViewValue>;
+-pub type ViewFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+-pub type ViewResult<T> = Result<T, ViewError>;
+-
+-/// A lookup, compilation, or rendering failure.
+-#[derive(Debug)]
+-#[non_exhaustive]
+-pub enum ViewError {
+-    InvalidName,
+-    NotFound,
+-    OutsideRoot,
+-    UnknownEngine,
+-    ReadFailed(io::Error),
+-    CompileFailed(Box<dyn std::error::Error + Send + Sync>),
+-    RenderFailed(Box<dyn std::error::Error + Send + Sync>),
+-}
+ 
+ #[derive(Clone)]
+ pub(crate) struct ViewRoot(Arc<[PathBuf]>);

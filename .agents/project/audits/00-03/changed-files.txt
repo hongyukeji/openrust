@@ -1,0 +1,8 @@
+docs/en/digging-deeper/artisan.md
+docs/en/getting-started/deployment.md
+docs/zh-Hans/digging-deeper/artisan.md
+docs/zh-Hans/getting-started/deployment.md
+docs/zh-Hant/digging-deeper/artisan.md
+docs/zh-Hant/getting-started/deployment.md
+tests/artisan_entry.rs
+tests/feature/main.rs

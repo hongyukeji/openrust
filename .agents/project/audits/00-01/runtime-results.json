@@ -1,0 +1,62 @@
+[
+  {
+    "name": "standalone without .env, foreign cwd",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "HEAD .env.example plus process APP_PORT override",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "file APP_PORT supplies default app.url",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "explicit APP_URL independent of process listener port",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "process APP_URL overrides file URL",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "APP_ENV selects .env.acceptance",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "missing selected file falls back to .env",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "relocated standalone directory",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "APP_BASE_PATH absolute override",
+    "http_requests": 2,
+    "artisan_invocations": 3
+  },
+  {
+    "name": "relative APP_BASE_PATH rejected by both entries"
+  },
+  {
+    "name": "invalid HTTP port rejected by listener, Artisan remains available"
+  },
+  {
+    "name": "source binary from foreign cwd"
+  },
+  {
+    "name": "documented source Artisan script"
+  },
+  {
+    "name": "documented cargo run entry"
+  }
+]

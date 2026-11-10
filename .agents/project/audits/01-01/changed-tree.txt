@@ -1,0 +1,51 @@
+.
+├── Cargo.toml
+├── docs
+│   ├── en
+│   │   ├── architecture-concepts
+│   │   │   ├── container.md
+│   │   │   ├── facades.md
+│   │   │   └── providers.md
+│   │   └── digging-deeper
+│   │       └── contracts.md
+│   ├── zh-Hans
+│   │   ├── architecture-concepts
+│   │   │   ├── container.md
+│   │   │   ├── facades.md
+│   │   │   └── providers.md
+│   │   └── digging-deeper
+│   │       └── contracts.md
+│   └── zh-Hant
+│       ├── architecture-concepts
+│       │   ├── container.md
+│       │   ├── facades.md
+│       │   └── providers.md
+│       └── digging-deeper
+│           └── contracts.md
+├── tests
+│   ├── container_lifecycle.rs
+│   └── container_process.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── mod.rs
+            │   │   └── service_key.rs
+            │   ├── contracts
+            │   │   ├── container
+            │   │   │   └── binding_resolution_error.rs
+            │   │   └── container.rs
+            │   ├── foundation
+            │   │   ├── application.rs
+            │   │   ├── console
+            │   │   │   └── mod.rs
+            │   │   └── http.rs
+            │   └── support
+            │       ├── facades
+            │       │   └── facade.rs
+            │       ├── facades.rs
+            │       └── service_provider.rs
+            └── tests
+                └── unit
+                    └── container.rs

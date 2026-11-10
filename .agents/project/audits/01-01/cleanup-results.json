@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-11-10T17:07:13.191720+00:00",
+  "active_rust_builds": 0,
+  "removed": [
+    {
+      "path": "/private/tmp/openrust-00-01-g1eo5443/checkout/target",
+      "removed_kib": 787472,
+      "source_preserved": true,
+      "release_preserved": true
+    },
+    {
+      "path": "/private/tmp/openrust-00-01-reproduced-20261111/target",
+      "removed_kib": 93828,
+      "source_preserved": true,
+      "release_preserved": false
+    },
+    {
+      "path": "/private/tmp/openrust-00-02-review-20261111/target",
+      "removed_kib": 771840,
+      "source_preserved": true,
+      "release_preserved": true
+    },
+    {
+      "path": "/private/tmp/openrust-00-03-review-20261111/target",
+      "removed_kib": 777368,
+      "source_preserved": true,
+      "release_preserved": true
+    },
+    {
+      "path": "/private/tmp/openrust-01-01-review-20261111/target",
+      "removed_kib": 875488,
+      "source_preserved": true,
+      "release_preserved": true
+    }
+  ],
+  "removed_kib": 3305996,
+  "available_bytes": 67047616512,
+  "retained": [
+    "root shared target",
+    "Cargo registry/download cache",
+    "all candidate source trees",
+    "candidate .artifacts/release"
+  ]
+}

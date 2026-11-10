@@ -1,0 +1,353 @@
+{
+  "http": [
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage/collision.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/storage/collision.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/storage/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/site.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage/disk.txt",
+      "status": 304
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/storage/disk.txt",
+      "status": 304
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/api/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/api/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/storage/",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/%2e%2e/private.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/escape.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "POST",
+      "path": "/site.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage",
+      "method": "POST",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "prefix": "/storage",
+      "method": "GET",
+      "path": "/",
+      "status": 500
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/up",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp/collision.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/storage/tmp/collision.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/storage/tmp/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/site.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp/disk.txt",
+      "status": 200
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp/disk.txt",
+      "status": 304
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/storage/tmp/disk.txt",
+      "status": 304
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/api/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/api/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "HEAD",
+      "path": "/missing",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/storage/tmp/",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/%2e%2e/private.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/escape.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "POST",
+      "path": "/site.txt",
+      "status": 404
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "POST",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "prefix": "/storage/tmp/",
+      "method": "GET",
+      "path": "/",
+      "status": 500
+    }
+  ],
+  "artisan_invocations": 6
+}
