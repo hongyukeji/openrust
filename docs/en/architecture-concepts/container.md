@@ -4,7 +4,7 @@
 
 Register services in a provider's `register` method through `app.container()`. `bind::<T, _>` invokes its factory on every resolution, `singleton::<T, _>` shares the first successful result, and `instance::<T>` supplies an existing `Arc<T>`. Factories receive the same container so they can resolve dependencies explicitly.
 
-Rust does not provide PHP constructor reflection. Bind a trait as `dyn Trait` and return a concrete implementation from its factory. Rust verifies the interface implementation at compilation, while container failures are returned as `BindingResolutionError`. An unregistered type is not implicitly constructed.
+Rust does not provide PHP constructor reflection. Bind a trait as `dyn Trait` and return a concrete implementation from its factory. Rust verifies the interface implementation at compilation, while container failures are returned as `BindingResolutionError`. A type without a binding or compiled constructor metadata is not implicitly constructed.
 
 ```rust
 use std::sync::Arc;
@@ -377,4 +377,56 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `downcast` requires the declared Rust type; a wrong type or null returns `ParameterTypeMismatch` without exposing payload contents. This carrier performs no PHP scalar coercion. Errors, panics and cancellation restore the previous frame. Pending factory cleanup sees its own arguments; retired argument payloads are dropped with an empty argument frame so they cannot read another call's parameters. Caller-retained snapshots and service references remain owned by the caller.
 
-This delivers factory argument overrides. Automatic constructor descriptors, primitive/default/variadic parameter injection and container method calls remain separate pending work; this interface does not claim reflection-based construction is complete.
+## Automatic Constructor Injection
+
+Rust has no PHP runtime constructor reflection. Register `ClassDescriptor` metadata in a provider's `register` hook through `app.container().registerClass(...)`. A descriptor declares named parameter types and a compiled constructor, replacing reflection's inspection and dynamic invocation. Once registered, normal `make` / `makeAsync` automatically resolve its dependencies; no service factory binding is required. Types with neither metadata nor a binding return `NotBound`.
+
+`ClassDescriptor::concrete::<T, _>` accepts a synchronous constructor; `concreteAsync` accepts an awaited constructor. Synchronous lookup cannot initialize an async constructor or dependency and returns the existing async-required error. The async path automatically loads deferred dependency providers. Metadata is application-local and immutable: registering the same descriptor clone is idempotent, while a different definition for the same type is rejected. Metadata alone does not make `bound` or `isShared` true. Ordinary successful resolution records history, while explicit nonempty parameter overrides do not.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+struct Client;
+struct Service { client: Arc<Client>, name: String }
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.registerClass(ClassDescriptor::concreteAsync::<Client, _>(vec![], |_| Box::pin(async {
+        tokio::task::yield_now().await;
+        Ok(Arc::new(Client))
+    }))?)?;
+    app.registerClass(ClassDescriptor::concrete::<Service, _>(vec![
+        ConstructorParam::class::<Client>("client"),
+        ConstructorParam::scalar::<String>("name")
+            .withDefault(|| Ok(ParameterValue::new(String::from("default")))),
+    ], |args| Ok(Arc::new(Service {
+        client: args.service(0)?, name: (*args.get::<String>(1)?).clone(),
+    })))?)?;
+    assert!(!app.bound::<Service>());
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("name"), ParameterValue::new(String::from("custom")));
+    assert_eq!(app.makeWithAsync::<Service>(parameters).await?.name, "custom");
+    app.singletonAsync::<Service, _>(|container| Box::pin(async move {
+        container.buildAsync::<Service>().await
+    })).await?;
+    let service = app.makeAsync::<Service>().await?;
+    assert_eq!(service.name, "default");
+    let cached = app.makeAsync::<Service>().await?;
+    assert!(Arc::ptr_eq(&service.client, &cached.client));
+    assert!(Arc::ptr_eq(&service, &cached));
+    Ok(())
+}
+```
+
+`ConstructorParam::scalar::<T>("name")` selects a value of the declared Rust type. `class::<T>("name")` selects an `Arc<T>`, including `dyn Trait` contracts. `ResolvedArgs::get` reads scalar slots, `service` returns the original service `Arc`, and `value` exposes the typed carrier. Slots follow declaration order; duplicate or empty names are rejected before registration.
+
+Selection follows the fixed baseline: a matching explicit named override wins. A primitive next uses its `$name` contextual binding, then `withDefault`, then a null value if `nullable` is enabled; otherwise it fails. A class default is used only when that class has no explicit binding or direct contextual binding. Otherwise it resolves the class through the container. A nullable class without a default still attempts dependency resolution; it does not silently turn an unresolved class into null. Use `nullable().withDefault(|| Ok(ParameterValue::null()))` for an optional default. Read nullable slots through `optional` or `optionalService`.
+
+Dependencies and defaults are evaluated in declaration order, then the selected arguments are type-checked before invoking the constructor. Default functions are lazy and evaluated afresh when selected. Constructor arguments retain strict Rust types; this adapter does not implement PHP weak scalar coercion. Nested ordinary dependency resolution starts with empty overrides. The normal context, extenders, resolution callbacks and readiness protection remain in effect.
+
+`build::<T>()` / `buildAsync::<T>().await` directly invoke the compiled constructor, bypassing the target binding, cache, extenders, resolving callbacks and resolved history. Its dependencies still use ordinary container resolution. Use `singleton(|container| container.build::<T>())`, `scoped`, or their async equivalents to give a described class a shared lifetime. `build` uses the active parameter snapshot, so a parameterized factory can forward arguments without copying them into a global registry.
+
+Variadic injection, method invocation, SelfBuilding and contextual/class attributes or automatic interface projections remain pending; metadata registration does not imply those capabilities are available.

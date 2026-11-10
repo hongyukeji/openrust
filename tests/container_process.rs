@@ -3,7 +3,10 @@ use openrust::{
     console::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
-    container::{ParameterKey, ParameterOverrides, ParameterValue, ServiceKey},
+    container::{
+        ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue,
+        ServiceKey,
+    },
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
     support::{
@@ -113,6 +116,30 @@ impl FrameworkCommand for ParametersProbeCommand {
         })
     }
 }
+struct CompiledProbe(Arc<Greeting>);
+struct ConstructionCommand(CommandDefinition);
+impl FrameworkCommand for ConstructionCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let value = app
+                .make::<CompiledProbe>()
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output
+                .stdout
+                .push_str(&format!("constructed:{}", value.0.0));
+            Ok(0)
+        })
+    }
+}
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(
@@ -120,6 +147,11 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container()
+                .registerClass(ClassDescriptor::concrete::<CompiledProbe, _>(
+                    vec![ConstructorParam::class::<Greeting>("greeting")],
+                    |args| Ok(Arc::new(CompiledProbe(args.service(0)?))),
+                )?)?;
             app.container()
                 .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
                     Box::pin(async move {
@@ -247,6 +279,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(ConstructionCommand(CommandDefinition::new(
+                clap::Command::new("construction:probe"),
+            ))))?;
             artisan.add_command(Box::new(ParametersProbeCommand(CommandDefinition::new(
                 clap::Command::new("parameters:probe"),
             ))))?;
@@ -272,6 +307,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "rebind:probe"], 0),
         (vec!["artisan", "async:probe"], 0),
         (vec!["artisan", "parameters:probe"], 0),
+        (vec!["artisan", "construction:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -299,6 +335,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"construction:probe") {
+                    b"constructed:from provider".as_slice()
                 } else if args.last() == Some(&"parameters:probe") {
                     b"12:0".as_slice()
                 } else if args.last() == Some(&"async:probe") {

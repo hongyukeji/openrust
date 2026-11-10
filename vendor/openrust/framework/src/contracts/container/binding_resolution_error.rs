@@ -6,6 +6,17 @@ use crate::container::ServiceKey;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BindingResolutionError {
+    InvalidConstructor {
+        service: ServiceKey,
+        reason: &'static str,
+    },
+    UnresolvableParameter {
+        parameter: &'static str,
+        service: Option<ServiceKey>,
+    },
+    InvalidArgumentSlot {
+        index: usize,
+    },
     ParameterTypeMismatch {
         expected: &'static str,
         actual: Option<&'static str>,
@@ -48,6 +59,19 @@ pub enum BindingResolutionError {
 impl fmt::Display for BindingResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::InvalidConstructor { service, reason } => {
+                write!(f, "invalid constructor for {service}: {reason}")
+            }
+            Self::UnresolvableParameter { parameter, service } => {
+                write!(f, "constructor parameter {parameter} is unresolvable")?;
+                if let Some(service) = service {
+                    write!(f, " while building {service}")?;
+                }
+                Ok(())
+            }
+            Self::InvalidArgumentSlot { index } => {
+                write!(f, "constructor argument slot {index} does not exist")
+            }
             Self::ParameterTypeMismatch { expected, actual } => write!(
                 f,
                 "parameter returns {}, expected {expected}",

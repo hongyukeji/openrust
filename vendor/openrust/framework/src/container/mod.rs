@@ -28,6 +28,8 @@ mod async_resolution;
 pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
+mod class_descriptor;
+pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
 mod parameters;
 mod scope;
 pub use parameters::{ParameterKey, ParameterOverrides, ParameterValue};
@@ -51,6 +53,7 @@ pub struct Container {
 
 #[derive(Default)]
 struct Registry {
+    classes: HashMap<ServiceKey, ClassDescriptor>,
     bindings: HashMap<ServiceKey, RegisteredBinding>,
     aliases: HashMap<ServiceKey, ServiceKey>,
     abstract_aliases: HashMap<ServiceKey, Vec<ServiceKey>>,
@@ -1241,6 +1244,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
     {
+        let need = self.getAlias(need)?;
         let entry = Self::entry(Binding::AsyncFactory(Arc::new(factory)));
         let previous = self
             .registry
@@ -1249,7 +1253,7 @@ impl container::Container for Container {
             .contextual
             .entry(consumer.into())
             .or_default()
-            .insert(need.into(), entry);
+            .insert(need, entry);
         drop(previous);
         Ok(())
     }
@@ -1260,6 +1264,20 @@ impl container::Container for Container {
 
     fn make<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>, BindingResolutionError> {
         self.get(ServiceKey::typed::<T>())
+    }
+
+    #[allow(non_snake_case, reason = "Static Rust reflection adapter")]
+    fn registerClass(&self, descriptor: ClassDescriptor) -> Result<(), BindingResolutionError> {
+        self.register_class(descriptor)
+    }
+    fn build<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>, BindingResolutionError> {
+        self.build_class()
+    }
+    #[allow(non_snake_case, reason = "Asynchronous Rust build adapter")]
+    async fn buildAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> Result<Arc<T>, BindingResolutionError> {
+        self.build_class_async().await
     }
 
     #[allow(non_snake_case, reason = "Laravel parameter override API")]
@@ -1325,7 +1343,7 @@ impl Container {
             } else {
                 (id, false)
             };
-            let (key, entry, scoped, contextual) = self.select_entry(id, canonical)?;
+            let (key, entry, scoped, contextual) = self.select_entry(id, canonical, false)?;
             self.resolve_entry(key, entry, scoped, contextual)
         })
     }
@@ -1361,8 +1379,14 @@ impl Container {
                 && cached
                     .as_ref()
                     .is_some_and(|cached| Arc::ptr_eq(&cached.value, &entry.value))
+        } else if let Some(root) = root {
+            Arc::ptr_eq(&root.value, &entry.value)
         } else {
-            root.is_some_and(|root| Arc::ptr_eq(&root.value, &entry.value))
+            registry.classes.get(key).is_some_and(|record| {
+                Arc::ptr_eq(&record.sync.version, &entry.version)
+                    && (Arc::ptr_eq(&record.sync.value, &entry.value)
+                        || Arc::ptr_eq(&record.asynchronous.value, &entry.value))
+            })
         };
         drop(registry);
         current
@@ -1372,6 +1396,7 @@ impl Container {
         &self,
         id: ServiceKey,
         canonical: bool,
+        asynchronous: bool,
     ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
         let consumer = self.consumer();
         let parameters = parameters::current(self);
@@ -1404,6 +1429,15 @@ impl Container {
             let mut entry = contextual
                 .or(provided)
                 .or_else(|| root.cloned())
+                .or_else(|| {
+                    registry.classes.get(&key).map(|record| {
+                        if asynchronous {
+                            record.asynchronous.clone()
+                        } else {
+                            record.sync.clone()
+                        }
+                    })
+                })
                 .ok_or_else(|| BindingResolutionError::NotBound {
                     service: key.clone(),
                 })?;

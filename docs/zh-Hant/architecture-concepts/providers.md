@@ -69,3 +69,5 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 只消耗觸發鍵，同一 Provider 的其他鍵保留到 `loadDeferredProviders()` 成功結束。註冊失敗保留貢獻並消耗該鍵；後續尚未消耗的鍵透過編譯型工廠建構新實例重試。如果直接登記已建構物件並覆寫 `isDeferred()`、`provides()`，重試使用原物件；需要重新執行建構時使用 `DeferredProvider`。
 
 在 boot 階段開始前首次載入的 Provider，同時進入 booting 回呼和已註冊 Provider 清單，因此 boot 會執行兩次，保留固定 Laravel 基線的行為。在一般 Provider 的 boot 中首次使用時，進入剩餘啟動清單一次；應用 boot 完成後首次使用，會等待註冊和 boot 均完成再回傳服務。事件觸發載入及其他生命週期回呼依後續單元推進。
+
+需要讓具體型別無需服務工廠即可自動注入時，在 `register` 登記編譯建構中繼資料；它不會把型別標為已綁定，也不會實例化。參閱[自動建構式注入](container.md#自動建構式注入)。

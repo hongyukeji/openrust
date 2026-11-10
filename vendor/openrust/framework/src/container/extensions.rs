@@ -248,7 +248,7 @@ impl Container {
         let key = self.getAlias(key)?;
         let extender = Self::extender(closure);
         loop {
-            match self.extend_change::<T>(key.clone(), extender.clone())? {
+            match self.extend_change::<T>(key.clone(), extender.clone(), false)? {
                 ExtensionChange::None => return Ok(()),
                 ExtensionChange::Recipe(entry, callbacks) => {
                     return self.dispatch_rebound::<T>(key, entry, callbacks);
@@ -275,7 +275,7 @@ impl Container {
         let key = self.getAlias(key)?;
         let extender = Self::extender(closure);
         loop {
-            match self.extend_change::<T>(key.clone(), extender.clone())? {
+            match self.extend_change::<T>(key.clone(), extender.clone(), true)? {
                 ExtensionChange::None => return Ok(()),
                 ExtensionChange::Recipe(entry, callbacks) => {
                     return self
@@ -293,6 +293,7 @@ impl Container {
         &self,
         key: ServiceKey,
         extender: RegisteredExtender,
+        asynchronous: bool,
     ) -> Result<ExtensionChange<T>, BindingResolutionError> {
         let _extension = Extension::enter(self, &key)?;
 
@@ -305,7 +306,16 @@ impl Container {
                     .or_else(|| registry.bindings.get(&key))
             } else {
                 registry.bindings.get(&key)
-            };
+            }
+            .or_else(|| {
+                registry.classes.get(&key).map(|record| {
+                    if asynchronous {
+                        &record.asynchronous
+                    } else {
+                        &record.sync
+                    }
+                })
+            });
             let original = scope::lookup(self, &key).or_else(|| root.cloned());
             let mut entry = original.clone();
             let notify = registry.resolved.contains(&key)

@@ -61,6 +61,19 @@ pub trait Container: Send + Sync + Sized {
     /// Tests whether a typed or named entry is bound or registered as an alias.
     fn has(&self, id: impl Into<ServiceKey>) -> bool;
 
+    /// Registers immutable constructor metadata without marking the service bound.
+    #[allow(non_snake_case, reason = "Static Rust reflection adapter")]
+    fn registerClass(
+        &self,
+        descriptor: crate::container::ClassDescriptor,
+    ) -> Result<(), BindingResolutionError>;
+    /// Constructs directly, bypassing the target's binding, cache, extenders and resolution callbacks.
+    fn build<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<T>, BindingResolutionError>;
+    #[allow(non_snake_case, reason = "Async Rust build adapter")]
+    fn buildAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> impl Future<Output = Result<Arc<T>, BindingResolutionError>> + Send;
+
     #[allow(non_snake_case, reason = "Laravel parameter override API")]
     fn getLastParameterOverride(&self) -> crate::container::ParameterOverrides;
     #[allow(non_snake_case, reason = "Laravel parameter override API")]

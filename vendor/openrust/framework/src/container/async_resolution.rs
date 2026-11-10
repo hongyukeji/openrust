@@ -43,6 +43,15 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
     match error.as_ref() {
         FacadeNotSet => FacadeNotSet,
         ScopeClosed => ScopeClosed,
+        InvalidConstructor { service, reason } => InvalidConstructor {
+            service: service.clone(),
+            reason,
+        },
+        UnresolvableParameter { parameter, service } => UnresolvableParameter {
+            parameter,
+            service: service.clone(),
+        },
+        InvalidArgumentSlot { index } => InvalidArgumentSlot { index: *index },
         ParameterTypeMismatch { expected, actual } => ParameterTypeMismatch {
             expected,
             actual: *actual,
@@ -234,7 +243,7 @@ impl Container {
         })
         .await
     }
-    async fn with_resolution<T>(
+    pub(super) async fn with_resolution<T>(
         &self,
         key: &ServiceKey,
         recipe: usize,
@@ -276,7 +285,7 @@ impl Container {
                 &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
                 Phase::Before,
             )?;
-            let (key, entry, scoped, contextual) = self.select_entry(key, true)?;
+            let (key, entry, scoped, contextual) = self.select_entry(key, true, true)?;
             self.resolve_entry_async(key, entry, scoped, contextual)
                 .await
         })

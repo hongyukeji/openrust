@@ -7,3 +7,5 @@ mod resolving_hooks;
 mod scoped;
 
 mod parameter_overrides;
+
+mod class_construction;

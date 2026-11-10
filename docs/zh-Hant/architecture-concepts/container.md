@@ -4,7 +4,7 @@
 
 在 Provider 的 `register` 中透過 `app.container()` 註冊服務。`bind::<T, _>` 每次解析都會呼叫工廠，`singleton::<T, _>` 共用首次成功結果，`instance::<T>` 提供已有的 `Arc<T>`。工廠接收同一個容器，可顯式解析依賴。
 
-Rust 沒有 PHP 的建構函式反射。將介面綁定為 `dyn Trait`，由工廠回傳具體實作。Rust 在編譯時驗證介面實作，容器失敗透過 `BindingResolutionError` 回傳。未註冊類型不會自動建構。
+Rust 沒有 PHP 的建構函式反射。將介面綁定為 `dyn Trait`，由工廠回傳具體實作。Rust 在編譯時驗證介面實作，容器失敗透過 `BindingResolutionError` 回傳。沒有綁定或編譯建構中繼資料的型別不會自動建構。
 
 ```rust
 use std::sync::Arc;
@@ -377,4 +377,56 @@ async fn main() -> Result<(), BindingResolutionError> {
 
 `downcast` 要求宣告的 Rust 型別；型別錯誤或 null 回傳 `ParameterTypeMismatch`，不暴露承載內容。此載體不執行 PHP 純量隱式轉換。錯誤、panic、取消後還原原參數框架。暫停工廠清理可讀取自己的參數；退役參數內容在空參數框架內釋放，不借用另一呼叫的參數。呼叫者明確保留的快照與服務參考仍由呼叫者持有。
 
-本節完成工廠參數覆寫。自動建構描述、原始值/預設值/可變參數注入與容器方法呼叫仍待後續單元，不能據此認為反射式建構已完成。
+## 自動建構式注入
+
+Rust 沒有 PHP 的執行期建構式反射。可在 Provider 的 `register` 中透過 `app.container().registerClass(...)` 登記 `ClassDescriptor`。描述器宣告具名參數型別與編譯後的建構函式，取代反射檢查與動態呼叫。登記後，普通 `make` / `makeAsync` 自動解析其相依服務，無需額外綁定服務工廠。既無中繼資料也無綁定的型別回傳 `NotBound`。
+
+`ClassDescriptor::concrete::<T, _>` 接收同步建構函式，`concreteAsync` 接收可等待的建構函式。同步解析無法初始化非同步建構式或相依服務，會回傳既有非同步解析錯誤；非同步通道自動載入相依服務的延遲 Provider。中繼資料屬於目前應用且不可變：重複登記同一描述器複本是冪等的，同型別的不同定義則拒絕。中繼資料本身不會讓 `bound` 或 `isShared` 成為 true。普通成功解析記錄歷史，明確非空參數覆寫則不記錄。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    container::{Container, ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::{BindingResolutionError, Container as _},
+};
+struct Client;
+struct Service { client: Arc<Client>, name: String }
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), BindingResolutionError> {
+    let app = Container::default();
+    app.registerClass(ClassDescriptor::concreteAsync::<Client, _>(vec![], |_| Box::pin(async {
+        tokio::task::yield_now().await;
+        Ok(Arc::new(Client))
+    }))?)?;
+    app.registerClass(ClassDescriptor::concrete::<Service, _>(vec![
+        ConstructorParam::class::<Client>("client"),
+        ConstructorParam::scalar::<String>("name")
+            .withDefault(|| Ok(ParameterValue::new(String::from("default")))),
+    ], |args| Ok(Arc::new(Service {
+        client: args.service(0)?, name: (*args.get::<String>(1)?).clone(),
+    })))?)?;
+    assert!(!app.bound::<Service>());
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("name"), ParameterValue::new(String::from("custom")));
+    assert_eq!(app.makeWithAsync::<Service>(parameters).await?.name, "custom");
+    app.singletonAsync::<Service, _>(|container| Box::pin(async move {
+        container.buildAsync::<Service>().await
+    })).await?;
+    let service = app.makeAsync::<Service>().await?;
+    assert_eq!(service.name, "default");
+    let cached = app.makeAsync::<Service>().await?;
+    assert!(Arc::ptr_eq(&service.client, &cached.client));
+    assert!(Arc::ptr_eq(&service, &cached));
+    Ok(())
+}
+```
+
+`ConstructorParam::scalar::<T>("name")` 選擇宣告的 Rust 型別值；`class::<T>("name")` 選擇 `Arc<T>`，包括 `dyn Trait` 契約。`ResolvedArgs::get` 讀取原始值槽，`service` 回傳原服務 Arc，`value` 暴露型別化載體。槽位按宣告順序排列；空參數名、重複名稱在登記前拒絕。
+
+選參遵循固定基線：同名明確覆寫優先。原始值隨後選擇 `$name` 情境綁定、`withDefault`、啟用 `nullable` 時的空值，否則失敗。類別預設值僅在該類別沒有明確綁定或直接情境綁定時使用；否則透過容器解析類別。沒有預設值的可空類別仍嘗試解析相依服務，不會把無法解析的類別靜默改成 null。可選預設值使用 `nullable().withDefault(|| Ok(ParameterValue::null()))`，透過 `optional` 或 `optionalService` 讀取可空槽。
+
+相依服務與預設值按宣告順序求值，再對已選參數驗證型別後呼叫建構函式。預設函式只在選中時執行，每次重新求值。參數保持嚴格 Rust 型別，不實作 PHP 弱純量隱式轉換。普通巢狀相依服務使用空覆寫；既有情境、裝飾器、解析回呼與就緒保護繼續有效。
+
+`build::<T>()` / `buildAsync::<T>().await` 直接呼叫編譯建構函式，繞過目標的綁定、快取、裝飾器、解析回呼與歷史；其相依服務仍使用普通容器解析。可用 `singleton(|container| container.build::<T>())`、`scoped` 或對應非同步介面為描述類別設定共用生命週期。`build` 使用目前參數快照，帶參數工廠可直接轉交，不把參數寫入全域註冊表。
+
+可變參數注入、方法呼叫、SelfBuilding、情境/類別屬性與自動介面投影仍待交付，登記中繼資料不代表這些能力已可用。
