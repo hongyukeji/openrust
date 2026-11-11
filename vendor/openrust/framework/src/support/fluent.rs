@@ -1,11 +1,9 @@
-mod data;
-
 use std::fmt;
 
 use serde::Serialize;
 use serde_json::Value;
 
-const MAX_DEPTH: usize = 127;
+use super::data;
 
 /// Ordered attributes with Laravel-style dot-path access.
 #[derive(Clone, PartialEq, Serialize)]
@@ -31,13 +29,13 @@ impl Fluent {
         if !matches!(attributes, Value::Array(_) | Value::Object(_)) {
             return Err(FluentError::Shape);
         }
-        check_depth(&attributes, 0)?;
+        data::check_depth(&attributes, 0)?;
         Ok(Self(data::normalize(attributes)))
     }
 
     /// Reads a dot path with wildcard, first and last selectors.
     pub fn get(&self, key: &str) -> Option<Value> {
-        data::read(&self.0, &segments(key).ok()?)
+        data::read(&self.0, &data::segments(key).ok()?)
     }
 
     /// Reads an exact key, including keys that contain dots.
@@ -52,11 +50,11 @@ impl Fluent {
 
     /// Updates a dot path. A wildcard writes to each existing child.
     pub fn set(&mut self, key: &str, value: Value) -> Result<&mut Self, FluentError> {
-        let parts = segments(key)?;
-        check_depth(&value, 0)?;
+        let parts = data::segments(key)?;
+        data::check_depth(&value, 0)?;
         let mut attributes = self.0.clone();
-        data::write(&mut attributes, &parts, &data::normalize(value));
-        check_depth(&attributes, 0)?;
+        data::write(&mut attributes, &parts, &data::normalize(value), true, true);
+        data::check_depth(&attributes, 0)?;
         self.0 = attributes;
         Ok(self)
     }
@@ -95,32 +93,6 @@ impl Fluent {
     }
 }
 
-fn segments(key: &str) -> Result<Vec<&str>, FluentError> {
-    let parts: Vec<_> = key.split('.').take(MAX_DEPTH + 1).collect();
-    if parts.len() > MAX_DEPTH {
-        return Err(FluentError::Depth);
-    }
-    Ok(parts)
-}
-
-fn check_depth(value: &Value, depth: usize) -> Result<(), FluentError> {
-    if !matches!(value, Value::Array(_) | Value::Object(_)) {
-        return Ok(());
-    }
-    if depth >= MAX_DEPTH {
-        return Err(FluentError::Depth);
-    }
-    match value {
-        Value::Array(items) => items
-            .iter()
-            .try_for_each(|value| check_depth(value, depth + 1)),
-        Value::Object(items) => items
-            .values()
-            .try_for_each(|value| check_depth(value, depth + 1)),
-        _ => Ok(()),
-    }
-}
-
 /// An invalid Fluent attribute bag or path.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FluentError {
@@ -138,3 +110,9 @@ impl fmt::Display for FluentError {
 }
 
 impl std::error::Error for FluentError {}
+
+impl From<data::DataPathError> for FluentError {
+    fn from(_: data::DataPathError) -> Self {
+        Self::Depth
+    }
+}

@@ -33,6 +33,46 @@ impl Stringable {
         self.0
     }
 
+    pub fn lower(self) -> Self {
+        Self(super::Str::lower(&self.0))
+    }
+
+    pub fn upper(self) -> Self {
+        Self(super::Str::upper(&self.0))
+    }
+
+    pub fn after(self, search: &str) -> Self {
+        Self::from(super::Str::after(&self.0, search))
+    }
+
+    pub fn before(self, search: &str) -> Self {
+        Self::from(super::Str::before(&self.0, search))
+    }
+
+    pub fn length(&self) -> usize {
+        super::Str::length(&self.0)
+    }
+
+    pub fn between(self, from: &str, to: &str) -> Self {
+        Self::from(super::Str::between(&self.0, from, to))
+    }
+
+    pub fn snake(self, delimiter: &str) -> Self {
+        Self(super::Str::snake(&self.0, delimiter))
+    }
+
+    pub fn camel(self) -> Self {
+        Self(super::Str::camel(&self.0))
+    }
+
+    pub fn substr(self, start: isize, length: Option<isize>) -> Self {
+        Self::from(super::Str::substr(&self.0, start, length))
+    }
+
+    pub fn words(self, limit: usize, end: &str) -> Self {
+        Self(super::Str::words(&self.0, limit, end))
+    }
+
     /// 用固定 Unicode 字符集合裁剪首尾空白和不可见字符。
     ///
     /// 包括 Unicode 空白、BOM、零宽字符和 NUL；内部字符保持原样。
