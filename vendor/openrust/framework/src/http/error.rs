@@ -7,6 +7,7 @@ use super::{Method, Response, StatusCode};
 #[non_exhaustive]
 pub enum HttpError {
     InvalidRequest,
+    PayloadTooLarge,
     NotFound,
     MethodNotAllowed {
         allowed: Vec<Method>,
@@ -20,6 +21,7 @@ impl HttpError {
     pub(crate) fn status(&self) -> StatusCode {
         match self {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
+            Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,

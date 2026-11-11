@@ -1,5 +1,11 @@
 # HTTP Responses
 
+## Creating Responses
+
+Use `Response::json` for a JSON payload and an explicit status. Use `header` or `withHeaders` with typed HTTP header values. Use `Response::stream` to send chunks from a Rust stream.
+
+See the [controller example](./controllers.md) for input handling and a JSON response.
+
 ## JSON business responses
 
 Use `ApiResponse` in a route when clients need a shared business response format. The envelope contains `success`, `code` and `message`. It includes `data`, pagination `meta` or field `errors` when supplied. `success(data)` defaults to HTTP 200. Pass a status to `failure` or set it with `with_status`.

@@ -1,4 +1,7 @@
-use std::{borrow::Cow, sync::Arc};
+use std::{
+    borrow::Cow,
+    sync::{Arc, OnceLock},
+};
 
 use ::http::header::ACCEPT;
 use percent_encoding::percent_decode_str;
@@ -12,12 +15,19 @@ use crate::{
 use super::{Body, HeaderMap, Method, RequestParts, Uri};
 
 pub(crate) mod context;
+mod input;
+mod query;
+mod variables;
 pub use context::RequestAttributes;
 
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
     parts: RequestParts,
     body: Body,
+    query_cache: OnceLock<serde_json::Value>,
+    raw_input: input::RawBody,
+    payload_input: Option<Result<input::Payload, input::InputFailure>>,
+    json_input: Option<Result<serde_json::Value, input::InputFailure>>,
     attributes: RequestAttributes,
     route_parameters: context::RouteParameters,
     pub(crate) route_models: RouteModels,
@@ -30,6 +40,10 @@ impl Request {
         Self {
             parts,
             body,
+            query_cache: OnceLock::new(),
+            raw_input: input::RawBody::Unread,
+            payload_input: None,
+            json_input: None,
             attributes: RequestAttributes::default(),
             route_parameters: Arc::default(),
             route_models: RouteModels::new(),
@@ -41,6 +55,8 @@ impl Request {
         &self.parts
     }
     pub fn parts_mut(&mut self) -> &mut RequestParts {
+        self.query_cache.take();
+        self.payload_input.take();
         &mut self.parts
     }
     pub fn take_body(&mut self) -> Body {
@@ -55,6 +71,28 @@ impl Request {
     pub fn uri(&self) -> &Uri {
         &self.parts.uri
     }
+    /// Returns the query bag or an exact top-level key, independently of the body.
+    pub fn query(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
+        let values = match self.query_cache.get() {
+            Some(values) => values,
+            None => {
+                let parsed = query::parse(self.uri().query().unwrap_or_default())?;
+                self.query_cache.get_or_init(|| parsed)
+            }
+        };
+        let value = match (key, values) {
+            (None, values) => Some(values),
+            (Some(key), serde_json::Value::Object(fields)) => fields.get(key),
+            (Some(key), serde_json::Value::Array(fields)) => key
+                .parse::<usize>()
+                .ok()
+                .filter(|index| index.to_string() == key)
+                .and_then(|index| fields.get(index)),
+            _ => None,
+        };
+        Ok(value.cloned())
+    }
+
     pub fn headers(&self) -> &HeaderMap {
         &self.parts.headers
     }

@@ -2,6 +2,7 @@
 
 pub(crate) mod binding;
 pub(crate) mod console;
+mod controller_dispatcher;
 mod error;
 pub mod middleware;
 mod route;
@@ -11,6 +12,7 @@ mod router;
 mod static_mount;
 
 pub use binding::BindingContext;
+pub use controller_dispatcher::ControllerDispatcher;
 pub use error::RoutingError;
 pub use middleware::MiddlewareEntry;
 pub use route::Route;

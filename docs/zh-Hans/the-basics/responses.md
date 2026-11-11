@@ -1,5 +1,11 @@
 # HTTP 响应
 
+## 创建响应
+
+用 `Response::json` 返回 JSON 数据和明确的状态码。通过 `header` 或 `withHeaders` 设置类型化 HTTP 响应头。用 `Response::stream` 从 Rust 流逐块发送正文。
+
+输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
+
 ## JSON 业务响应
 
 需要统一业务响应格式的路由可以使用 `ApiResponse`。响应包含 `success`、`code` 和 `message`，按需附带 `data`、分页 `meta` 或字段 `errors`。`success(data)` 默认返回 HTTP 200。使用 `failure` 时传入状态码，也可以通过 `with_status` 设置。
