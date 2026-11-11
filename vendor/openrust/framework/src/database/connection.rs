@@ -23,6 +23,7 @@ pub(super) enum Pool {
 #[derive(Clone)]
 pub struct Connection {
     pub(super) name: Arc<str>,
+    pub(super) grammar: super::query::grammars::Grammar,
     pub(super) database: Arc<str>,
     pub(super) pool: Pool,
     pub(super) read_pool: Option<(Arc<str>, Pool)>,
@@ -329,6 +330,10 @@ impl PhysicalConnection {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Connection API")]
 impl Connection {
+    pub fn table(&self, table: &str) -> super::query::Builder<'static> {
+        super::query::Builder::connection(self.clone(), self.grammar.clone(), table)
+    }
+
     pub fn getName(&self) -> &str {
         &self.name
     }

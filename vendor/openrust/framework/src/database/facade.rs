@@ -26,6 +26,14 @@ macro_rules! statements {
 
 #[allow(non_snake_case, reason = "Matches Laravel's DB Facade API")]
 impl DB {
+    pub fn table(table: &str) -> DatabaseResult<super::query::Builder<'static>> {
+        Ok(Self::connection(None)?.table(table))
+    }
+
+    pub fn raw(sql: impl Into<String>) -> super::query::Expression {
+        super::query::Expression::new(sql)
+    }
+
     pub fn connection(name: Option<&str>) -> DatabaseResult<Connection> {
         Self::getFacadeRoot()
             .map_err(DatabaseError::Unavailable)?

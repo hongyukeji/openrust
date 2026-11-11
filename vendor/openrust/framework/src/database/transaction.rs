@@ -78,6 +78,11 @@ impl Connection {
 
 #[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
 impl Transaction {
+    pub fn table(&mut self, table: &str) -> super::query::Builder<'_> {
+        let grammar = self.connection.grammar.clone();
+        super::query::Builder::transaction(self, grammar, table)
+    }
+
     fn physical(&mut self) -> DatabaseResult<&mut PhysicalConnection> {
         self.physical
             .as_mut()

@@ -9,6 +9,7 @@ use sqlx::{
 
 use super::super::{
     Connection, DatabaseError, DatabaseResult, configuration_url_parser, connection::Pool,
+    query::grammars::Grammar,
 };
 
 /// Creates logical connections from configuration and driver connectors.
@@ -30,8 +31,14 @@ impl ConnectionFactory {
                 make_pool(&options, root).map(|(name, pool)| (name.into(), pool))
             })
             .transpose()?;
+        let prefix = write_options.string("prefix", "")?;
+        let grammar = match &pool {
+            Pool::Mysql(_) => Grammar::mysql(prefix),
+            Pool::Sqlite(_) => Grammar::sqlite(prefix),
+        };
         Ok(Connection {
             name: Arc::from(name),
+            grammar,
             database: database.into(),
             pool,
             read_pool,

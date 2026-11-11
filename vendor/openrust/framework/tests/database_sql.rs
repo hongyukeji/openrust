@@ -301,7 +301,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, serde_json::Valu
 
 async fn probe_value() -> Result<Value, DatabaseError> {
     DB::transaction(
-        |transaction| Box::pin(transaction.scalar("SELECT id FROM probe", &[])),
+        |transaction| Box::pin(transaction.table("probe").value("id")),
         1,
     )
     .await
@@ -309,16 +309,25 @@ async fn probe_value() -> Result<Value, DatabaseError> {
 
 fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let write = request.is("replica/write");
+    let force_writer = request.is("replica/primary");
     Box::pin(async move {
-        async fn read(write: bool) -> Result<Value, DatabaseError> {
+        async fn read(write: bool, force_writer: bool) -> Result<Value, DatabaseError> {
             if write {
                 DB::update("UPDATE probe SET id = id + 1", &[]).await?;
             }
-            DB::scalar("SELECT id FROM probe", &[]).await
+            let query = DB::table("probe")?;
+            let query = if force_writer {
+                query.useWritePdo()
+            } else {
+                query
+            };
+            query.value("id").await
         }
-        let id = read(write).await.map_err(|source| HttpError::Internal {
-            source: source.into(),
-        })?;
+        let id = read(write, force_writer)
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
         let Value::Integer(id) = id else {
             panic!("expected integer")
         };
@@ -475,6 +484,7 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
         send(b, "/replica/read", "420")
     );
     send(a, "/replica/read", "170").await;
+    send(a, "/replica/primary", "18").await;
     for server in [x, y] {
         server.abort();
         assert!(server.await.unwrap_err().is_cancelled());
