@@ -81,6 +81,7 @@ async fn verify(mysql: Option<&str>) {
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
     for name in [
+        "failed_jobs",
         "jobs",
         "cache_locks",
         "cache",
@@ -123,12 +124,16 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("cache_locks").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
+    assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 3);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 4);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(!schema.hasTable("failed_jobs").await.unwrap());
+    assert!(schema.hasTable("jobs").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("cache").await.unwrap());
@@ -218,7 +223,8 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("cache_locks").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 3);
+    assert!(schema.hasTable("failed_jobs").await.unwrap());
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 4);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

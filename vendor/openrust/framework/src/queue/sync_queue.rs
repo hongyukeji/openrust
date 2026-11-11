@@ -23,6 +23,7 @@ impl SyncQueue {
             queue: queue.into(),
             attempts: 1,
             transaction,
+            release_after: None,
         };
         self.registry.fire(&mut context, payload).await?;
         Ok(None)

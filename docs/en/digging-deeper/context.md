@@ -36,3 +36,17 @@ fn main() {
 Use `addHidden`, `getHidden` and the corresponding hidden methods for values that should stay out of log metadata. Log records carry public Context fields in a second JSON object, after the fields passed to the individual log call. Only the individual fields participate in placeholder substitution.
 
 Use `openrust::container::attributes::Context::<T>::new(key)` in compiled injection metadata. Add `.hidden()` to read hidden context, and `.withDefault(value)` or `.withDefaultUsing(factory)` for missing or null values. Values must deserialize to the declared Rust type. [Logging](../the-basics/logging.md)
+
+## Queue context
+
+`Queue::dispatch` captures public and hidden context before enqueueing. The worker hydrates it in a fresh execution scope for every attempt. Hidden fields stay out of log output. They are still part of the queue payload unless a `dehydrating` hook removes them. Register `dehydrating` and `hydrated` callbacks during application boot.
+
+```rust
+use openrust::support::facades::Context;
+
+fn configure_queue_context() -> Result<(), openrust::log::context::ContextError> {
+    Context::dehydrating(|context| context.forgetHidden("secret"))?;
+    Context::hydrated(|context| context.add("hydrated", serde_json::json!(true)))?;
+    Ok(())
+}
+```

@@ -305,22 +305,34 @@ impl Container {
         if active(self) {
             future.await
         } else {
-            let mut contexts = CURRENT
-                .try_with(|contexts| contexts.as_ref().clone())
-                .unwrap_or_default();
-            let context = Arc::new(Context {
-                cache: Mutex::default(),
-                closed: AtomicBool::new(false),
-                changed: tokio::sync::watch::channel(false).0,
-            });
-            self.scopes.register(&context);
-            contexts.insert(self.identity.clone(), context.clone());
-            let _close = CloseContext {
+            let (contexts, _close) = self.open_scope();
+            CURRENT.scope(contexts, future).await
+        }
+    }
+
+    pub(crate) async fn isolated_scope<F: Future>(&self, future: F) -> F::Output {
+        let (contexts, _close) = self.open_scope();
+        CURRENT.scope(contexts, future).await
+    }
+
+    fn open_scope(&self) -> (Arc<HashMap<Identity, Arc<Context>>>, CloseContext<'_>) {
+        let mut contexts = CURRENT
+            .try_with(|contexts| contexts.as_ref().clone())
+            .unwrap_or_default();
+        let context = Arc::new(Context {
+            cache: Mutex::default(),
+            closed: AtomicBool::new(false),
+            changed: tokio::sync::watch::channel(false).0,
+        });
+        self.scopes.register(&context);
+        contexts.insert(self.identity.clone(), context.clone());
+        (
+            Arc::new(contexts),
+            CloseContext {
                 context,
                 container: self,
-            };
-            CURRENT.scope(Arc::new(contexts), future).await
-        }
+            },
+        )
     }
 }
 

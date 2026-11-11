@@ -29,3 +29,19 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 ## 在資料庫交易中派送
 
 將使用中的交易作為 `Queue::dispatch` 的最後一個參數。連線啟用 `after_commit` 時，工作於最外層提交後派送。可以使用 `DispatchOptions.after_commit` 覆寫連線設定。復原會捨棄待派送工作。立即派送時，同一連線的資料庫佇列在交易內寫入，sync 處理器可使用 `JobContext::transaction` 存取目前交易。
+
+## 執行佇列 Worker
+
+執行 `./artisan queue:work database --stop-when-empty` 處理待執行工作並結束。`--once` 嘗試一個工作。使用 `--tries`、`--backoff` 和 `--timeout` 設定 Worker，工作可透過 `JobOptions` 覆寫。收到 SIGTERM 時，Worker 停止領取新工作並完成目前嘗試。
+
+## 工作中介軟體
+
+透過 `JobHandler::middleware` 傳回中介軟體。使用 `JobNext::run` 繼續執行，或以 `JobContext::release` 安排下一次嘗試。`WithoutOverlapping` 使用設定的快取鎖，可延後釋放衝突的工作。未完成的鎖會在租期結束時到期。
+
+## 失敗工作
+
+執行 `./artisan migrate` 建立 `failed_jobs`。使用 `./artisan queue:failed --json` 查看失敗記錄，以 `./artisan queue:retry <uuid>` 將工作重新送至原連線與佇列。`queue:forget` 和 `queue:flush` 可移除失敗記錄。逾時會取消目前的 Rust future，工作需自行管理在該 future 外啟動的作業。
+
+## 佇列監聽器
+
+透過 `ListenerRegistry::listenQueued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。

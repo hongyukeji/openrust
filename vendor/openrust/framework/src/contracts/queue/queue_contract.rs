@@ -38,4 +38,10 @@ pub trait Queue: Send + Sync {
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>>;
+    fn pop_now<'a>(
+        &'a self,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
+        self.pop(queue)
+    }
 }

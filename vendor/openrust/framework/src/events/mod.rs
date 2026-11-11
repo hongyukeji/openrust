@@ -132,6 +132,7 @@ impl Error for EventError {
         match self {
             Self::Unavailable(source) => Some(source),
             Self::Transaction(source) => Some(source),
+            Self::Queue(source) => Some(source),
             Self::Listener { source } => Some(source.as_ref()),
             _ => None,
         }

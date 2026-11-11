@@ -18,6 +18,7 @@ impl ServiceProvider for LogServiceProvider {
             let root = application.base_path().to_path_buf();
             let owner = Arc::downgrade(&application.container_handle());
             let container = application.container();
+            container.instance(Arc::new(super::context::Hooks::default()))?;
             container.scopedIf::<Repository, _>(|container| {
                 if !container.has_active_scope() {
                     return Err(crate::contracts::container::BindingResolutionError::ScopeClosed);

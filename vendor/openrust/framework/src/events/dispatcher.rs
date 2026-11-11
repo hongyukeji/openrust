@@ -1,10 +1,12 @@
 use std::{
     any::TypeId,
     collections::HashSet,
-    sync::{Arc, RwLock},
+    sync::{Arc, RwLock, Weak},
 };
 
 use crate::{
+    container::Container,
+    contracts::container::Container as _,
     contracts::events::{
         Dispatcher as Contract, Event, Listener, ShouldDispatchAfterCommit, Subscriber,
     },
@@ -27,6 +29,7 @@ struct Registrations {
 #[derive(Clone, Default)]
 pub struct Dispatcher {
     registrations: Arc<RwLock<Registrations>>,
+    owner: Weak<Container>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's dispatcher names")]
@@ -35,12 +38,33 @@ impl Dispatcher {
         Self::default()
     }
 
+    pub(crate) fn for_application(owner: Weak<Container>) -> Self {
+        Self {
+            owner,
+            ..Self::default()
+        }
+    }
+
+    fn queue(&self) -> EventResult<Arc<crate::queue::QueueManager>> {
+        self.owner
+            .upgrade()
+            .ok_or(EventError::QueueUnavailable)?
+            .make::<crate::queue::QueueManager>()
+            .map_err(EventError::Unavailable)
+    }
+
     pub fn register(
         &self,
         configure: impl FnOnce(&mut ListenerRegistry) -> EventResult<()>,
     ) -> EventResult<()> {
         let mut registry = ListenerRegistry::default();
         configure(&mut registry)?;
+        let handlers = registry.queued_handlers();
+        if !handlers.is_empty() {
+            self.queue()?
+                .register_listeners(handlers)
+                .map_err(EventError::Queue)?;
+        }
         self.write().listeners.extend(registry);
         Ok(())
     }
@@ -112,7 +136,22 @@ impl Dispatcher {
         let listeners = self.read().listeners.selected(event.name());
         let mut responses = Vec::with_capacity(listeners.len());
         for registration in listeners {
-            let response = if registration.after_commit
+            let response = if let Some(queued) = registration.queued {
+                let payload =
+                    crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
+                        .map_err(EventError::Queue)?;
+                let options = crate::queue::DispatchOptions {
+                    connection: queued.options.connection.clone(),
+                    queue: queued.options.queue.clone(),
+                    delay: queued.options.delay.map(crate::queue::Delay::For),
+                    after_commit: queued.options.after_commit,
+                };
+                self.queue()?
+                    .dispatch(payload, options, context.active_transaction())
+                    .await
+                    .map_err(EventError::Queue)?;
+                None
+            } else if registration.after_commit
                 && let Some(transaction) = context.active_transaction()
             {
                 let event = event.clone();

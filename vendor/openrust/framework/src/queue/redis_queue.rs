@@ -173,6 +173,7 @@ impl RedisQueue {
                 queue: queue.into(),
                 attempts: job.attempts,
                 transaction: None,
+                release_after: None,
             },
             payload,
             deleted: false,
@@ -256,6 +257,12 @@ impl Contract for RedisQueue {
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
         Box::pin(async move { self.pop_waiting(self.queue_name(queue)?).await })
+    }
+    fn pop_now<'a>(
+        &'a self,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
+        Box::pin(async move { self.reserve(self.queue_name(queue)?).await })
     }
 }
 

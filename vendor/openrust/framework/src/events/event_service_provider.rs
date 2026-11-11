@@ -16,7 +16,10 @@ impl ServiceProvider for EventServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> EventFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container_handle();
-            container.instanceNamed("events", Arc::new(Dispatcher::new()))?;
+            container.instanceNamed(
+                "events",
+                Arc::new(Dispatcher::for_application(Arc::downgrade(&container))),
+            )?;
             container.alias("events", ServiceKey::typed::<Dispatcher>())?;
             Ok(())
         })

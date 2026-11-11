@@ -61,6 +61,7 @@ impl Job for ReservedJob {
             context.queue.clone_from(&self.context.queue);
             context.attempts = self.context.attempts;
             context.transaction = None;
+            context.release_after = None;
             self.registry.fire(context, &self.payload).await
         })
     }

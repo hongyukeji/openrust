@@ -2,7 +2,12 @@ use std::{future::Future, sync::Arc};
 
 use serde_json::Value;
 
-use crate::{container::ServiceKey, log::LogContext, support::facades::Facade};
+use crate::{
+    container::ServiceKey,
+    contracts::container::Container as _,
+    log::LogContext,
+    support::facades::{Facade, current_container},
+};
 
 use super::{ContextError, Repository};
 
@@ -31,6 +36,29 @@ macro_rules! forward {
 impl Context {
     pub fn repository() -> Result<Arc<Repository>, ContextError> {
         Self::getFacadeRoot().map_err(ContextError::Unavailable)
+    }
+
+    pub fn dehydrating(
+        hook: impl Fn(&Repository) + Send + Sync + 'static,
+    ) -> Result<(), ContextError> {
+        Self::hooks()?.on_dehydrating(Arc::new(hook));
+        Ok(())
+    }
+
+    pub fn hydrated(
+        hook: impl Fn(&Repository) + Send + Sync + 'static,
+    ) -> Result<(), ContextError> {
+        Self::hooks()?.on_hydrated(Arc::new(hook));
+        Ok(())
+    }
+
+    pub(crate) fn hooks() -> Result<Arc<super::Hooks>, ContextError> {
+        current_container()
+            .ok_or(ContextError::Unavailable(
+                crate::contracts::container::BindingResolutionError::FacadeNotSet,
+            ))?
+            .make::<super::Hooks>()
+            .map_err(ContextError::Unavailable)
     }
 
     forward! {

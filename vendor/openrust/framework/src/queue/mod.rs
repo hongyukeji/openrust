@@ -6,6 +6,7 @@ mod database_queue;
 mod facade;
 pub mod failed;
 pub mod jobs;
+pub mod middleware;
 mod queue_base;
 mod queue_manager;
 mod queue_service_provider;
@@ -28,7 +29,7 @@ pub use queue_manager::QueueManager;
 pub use queue_service_provider::QueueServiceProvider;
 pub use redis_queue::RedisQueue;
 pub use sync_queue::SyncQueue;
-pub use worker::Worker;
+pub use worker::{WorkResult, Worker};
 pub use worker_options::WorkerOptions;
 
 /// An asynchronous queue operation.
@@ -45,6 +46,8 @@ pub enum QueueError {
         name: String,
     },
     InvalidPayload,
+    Timeout,
+    MaxAttempts,
     InvalidConfiguration,
     UnsupportedDriver(String),
     Unavailable(crate::contracts::container::BindingResolutionError),
@@ -67,6 +70,8 @@ impl std::fmt::Display for QueueError {
             Self::UnsupportedDriver(name) => write!(f, "queue driver {name:?} is unavailable"),
             Self::UnknownJob(name) => write!(f, "queued job {name:?} is not registered"),
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
+            Self::Timeout => f.write_str("queued job timed out"),
+            Self::MaxAttempts => f.write_str("queued job exceeded its allowed attempts"),
             Self::InvalidPayload => f.write_str("invalid queue payload"),
             Self::LostReservation => f.write_str("queue job reservation has expired or changed"),
             Self::Unavailable(_) => f.write_str("application queue manager is unavailable"),
@@ -113,6 +118,10 @@ pub struct JobOptions {
     pub max_tries: Option<u32>,
     pub timeout: Option<Duration>,
     pub backoff: Vec<Duration>,
+    #[serde(default)]
+    pub retry_until: Option<SystemTime>,
+    #[serde(default)]
+    pub fail_on_timeout: bool,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -122,6 +131,13 @@ pub struct Payload {
     name: String,
     data: serde_json::Value,
     options: JobOptions,
+    #[serde(
+        default,
+        skip_serializing_if = "crate::log::context::DehydratedContext::is_empty"
+    )]
+    context: crate::log::context::DehydratedContext,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    delivery_id: Option<String>,
 }
 
 impl Payload {
@@ -136,6 +152,8 @@ impl Payload {
             name,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
+            context: Default::default(),
+            delivery_id: None,
         })
     }
 
@@ -161,6 +179,11 @@ impl Payload {
         &self.options
     }
 
+    pub(super) fn renewed(mut self) -> QueueResult<Self> {
+        self.delivery_id = Some(new_id()?);
+        Ok(self)
+    }
+
     pub(super) fn encode(&self) -> QueueResult<String> {
         serde_json::to_string(self).map_err(|_| QueueError::InvalidPayload)
     }
@@ -184,9 +207,14 @@ pub struct JobContext<'tx> {
     queue: String,
     attempts: u32,
     transaction: Option<&'tx mut crate::database::Transaction>,
+    release_after: Option<Duration>,
 }
 
 impl JobContext<'_> {
+    pub fn release(&mut self, delay: Duration) {
+        self.release_after = Some(delay);
+    }
+
     pub fn transaction(&mut self) -> Option<&mut crate::database::Transaction> {
         self.transaction.as_deref_mut()
     }

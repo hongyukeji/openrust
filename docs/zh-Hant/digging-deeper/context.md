@@ -36,3 +36,17 @@ fn main() {
 透過 `addHidden`、`getHidden` 與對應方法保存不應進入日誌中繼資料的欄位。公開 Context 欄位作為第二個 JSON 物件附加到日誌，排在單筆日誌欄位之後。預留位置替換只讀取單筆日誌欄位。
 
 在編譯後的參數注入中繼資料中使用 `openrust::container::attributes::Context::<T>::new(key)`。透過 `.hidden()` 讀取隱藏欄位，透過 `.withDefault(value)` 或 `.withDefaultUsing(factory)` 為缺少或 null 設定預設值。欄位須可反序列化為宣告的 Rust 型別。 [日誌](../the-basics/logging.md)
+
+## 佇列 Context
+
+`Queue::dispatch` 在加入佇列前擷取公開與隱藏 Context。Worker 在每次嘗試的獨立作用域中恢復這些欄位。隱藏欄位不會寫入記錄，但會進入佇列承載資料，可使用 `dehydrating` 回呼移除。在應用程式啟動時登記 `dehydrating` 和 `hydrated` 回呼。
+
+```rust
+use openrust::support::facades::Context;
+
+fn configure_queue_context() -> Result<(), openrust::log::context::ContextError> {
+    Context::dehydrating(|context| context.forgetHidden("secret"))?;
+    Context::hydrated(|context| context.add("hydrated", serde_json::json!(true)))?;
+    Ok(())
+}
+```

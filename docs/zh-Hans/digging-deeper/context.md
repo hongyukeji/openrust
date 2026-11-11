@@ -36,3 +36,17 @@ fn main() {
 通过 `addHidden`、`getHidden` 和对应方法保存不应进入日志元数据的字段。公开 Context 字段作为第二个 JSON 对象追加到日志，排在单条日志字段之后。占位符替换只读取单条日志字段。
 
 在编译后的参数注入元数据中使用 `openrust::container::attributes::Context::<T>::new(key)`。通过 `.hidden()` 读取隐藏字段，通过 `.withDefault(value)` 或 `.withDefaultUsing(factory)` 为缺失或 null 设置默认值。字段必须能反序列化为声明的 Rust 类型。 [日志](../the-basics/logging.md)
+
+## 队列 Context
+
+`Queue::dispatch` 在入队前捕获公开和隐藏 Context。Worker 在每次尝试的独立作用域中恢复它们。隐藏字段不会写入日志，但会进入队列载荷，可用 `dehydrating` 回调移除。应用启动时注册 `dehydrating` 和 `hydrated` 回调。
+
+```rust
+use openrust::support::facades::Context;
+
+fn configure_queue_context() -> Result<(), openrust::log::context::ContextError> {
+    Context::dehydrating(|context| context.forgetHidden("secret"))?;
+    Context::hydrated(|context| context.add("hydrated", serde_json::json!(true)))?;
+    Ok(())
+}
+```

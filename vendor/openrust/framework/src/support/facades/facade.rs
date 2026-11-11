@@ -300,18 +300,30 @@ pub(crate) async fn application_scope<F: Future>(
     {
         future.await
     } else {
-        let context = Arc::new(Context {
-            identity: Arc::new(()),
-            container,
-            resolved: Mutex::default(),
-            closed: AtomicBool::new(false),
-            database: Default::default(),
-            changed: tokio::sync::watch::channel(false).0,
-        });
-        let _close = CloseContext(context.clone());
+        let (context, _close) = open_context(container);
         APPLICATION.scope(Some(context), future).await
     }
 }
+
+fn open_context(container: Arc<Container>) -> (Arc<Context>, CloseContext) {
+    let context = Arc::new(Context {
+        identity: Arc::new(()),
+        container,
+        resolved: Mutex::default(),
+        closed: AtomicBool::new(false),
+        database: Default::default(),
+        changed: tokio::sync::watch::channel(false).0,
+    });
+    (context.clone(), CloseContext(context))
+}
+
+pub(crate) async fn isolated_scope<F: Future>(container: Arc<Container>, future: F) -> F::Output {
+    let (context, _close) = open_context(container.clone());
+    container
+        .isolated_scope(APPLICATION.scope(Some(context), future))
+        .await
+}
+
 pub(crate) async fn scope<F: Future>(container: Arc<Container>, future: F) -> F::Output {
     container
         .scope(application_scope(container.clone(), future))

@@ -60,16 +60,34 @@ impl QueueManager {
         self.registry.register(name, handler)
     }
 
+    pub(crate) fn register_listeners(
+        &self,
+        registrations: Vec<(String, Arc<dyn JobHandler>)>,
+    ) -> QueueResult<()> {
+        self.registry.register_listeners(registrations)
+    }
+
     pub fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {
         Ok(self.resolve(name)?.queue.clone())
     }
 
     pub async fn dispatch(
         &self,
-        payload: Payload,
+        mut payload: Payload,
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<DispatchResult> {
+        if let Some((owner, active)) = self
+            .owner
+            .upgrade()
+            .zip(crate::support::facades::current_container())
+            && Arc::ptr_eq(&owner, &active)
+            && let Ok(context) = crate::log::context::Context::repository()
+        {
+            payload.context = crate::log::context::Context::hooks()
+                .map_err(backend)?
+                .dehydrate(&context);
+        }
         let configured = self.resolve(options.connection.as_deref())?;
         let queue = configured.queue.clone();
         let selected = options.queue.as_deref();

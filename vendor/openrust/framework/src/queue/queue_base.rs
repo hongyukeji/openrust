@@ -24,7 +24,7 @@ impl Queue {
     }
 
     pub fn register(&self, name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
-        if name.trim().is_empty() {
+        if name.trim().is_empty() || name.starts_with("events.listener:") {
             return Err(QueueError::InvalidPayload);
         }
         let previous = self
@@ -33,6 +33,25 @@ impl Queue {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(name.to_owned(), handler);
         drop(previous);
+        Ok(())
+    }
+
+    pub(super) fn register_listeners(
+        &self,
+        registrations: Vec<(String, Arc<dyn JobHandler>)>,
+    ) -> QueueResult<()> {
+        let mut handlers = self
+            .handlers
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut names = std::collections::HashSet::new();
+        if registrations
+            .iter()
+            .any(|(name, _)| handlers.contains_key(name) || !names.insert(name))
+        {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        handlers.extend(registrations);
         Ok(())
     }
 
@@ -52,6 +71,12 @@ impl Queue {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        application_scope(owner, handler.handle(context, payload)).await
+        application_scope(owner, async {
+            let middleware = handler.middleware();
+            super::middleware::JobNext::new(handler.as_ref(), &middleware)
+                .run(context, payload)
+                .await
+        })
+        .await
     }
 }

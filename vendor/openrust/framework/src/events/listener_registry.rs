@@ -2,15 +2,26 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use crate::contracts::events::{Listener, ShouldHandleEventsAfterCommit};
+use crate::contracts::{
+    events::{Event, Listener, ShouldHandleEventsAfterCommit},
+    queue::JobHandler,
+};
 
-use super::{Delivery, EventError, EventResult};
+use super::{CallQueuedListener, Delivery, EventError, EventResult, QueuedListenerOptions};
 
 #[derive(Clone)]
 pub(super) struct Registration {
     pub listener: Arc<dyn Listener>,
     label: &'static str,
     pub after_commit: bool,
+    pub queued: Option<Arc<QueuedRegistration>>,
+}
+
+pub(super) struct QueuedRegistration {
+    pub name: String,
+    pub options: QueuedListenerOptions,
+    pub encode: fn(&dyn Event) -> EventResult<serde_json::Value>,
+    handler: Arc<dyn JobHandler>,
 }
 
 #[derive(Default)]
@@ -34,6 +45,19 @@ impl ListenerRegistry {
             Delivery::AfterCommit => true,
             Delivery::Queued(_) => return Err(EventError::QueueUnavailable),
         };
+        self.add(
+            event,
+            Registration {
+                label: listener.name(),
+                listener,
+                after_commit,
+                queued: None,
+            },
+        );
+        Ok(())
+    }
+
+    fn add(&mut self, event: &str, registration: Registration) {
         let registrations = if event.contains('*') {
             &mut self.wildcard
         } else {
@@ -42,12 +66,50 @@ impl ListenerRegistry {
         registrations
             .entry(event.to_owned())
             .or_default()
-            .push(Registration {
+            .push(registration);
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's queued listener naming")]
+    pub fn listenQueued<E: Event + serde::Serialize + serde::de::DeserializeOwned>(
+        &mut self,
+        event: &str,
+        listener: Arc<dyn Listener>,
+        options: QueuedListenerOptions,
+    ) -> EventResult<()> {
+        if event.trim().is_empty() || options.listener_id.trim().is_empty() {
+            return Err(EventError::InvalidRegistration);
+        }
+        let queued = QueuedRegistration {
+            name: format!("events.listener:{}", options.listener_id),
+            options,
+            encode: |event| {
+                let event = event
+                    .downcast_ref::<E>()
+                    .ok_or(EventError::InvalidPayload)?;
+                serde_json::to_value(event).map_err(|_| EventError::InvalidPayload)
+            },
+            handler: Arc::new(CallQueuedListener::<E>::new(listener.clone())),
+        };
+        self.add(
+            event,
+            Registration {
                 label: listener.name(),
                 listener,
-                after_commit,
-            });
+                after_commit: false,
+                queued: Some(Arc::new(queued)),
+            },
+        );
         Ok(())
+    }
+
+    pub(super) fn queued_handlers(&self) -> Vec<(String, Arc<dyn JobHandler>)> {
+        self.exact
+            .values()
+            .chain(self.wildcard.values())
+            .flatten()
+            .filter_map(|registration| registration.queued.as_ref())
+            .map(|queued| (queued.name.clone(), queued.handler.clone()))
+            .collect()
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's after-commit terminology")]
