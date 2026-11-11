@@ -29,6 +29,8 @@ pub struct Connection {
     pub(super) pool: Pool,
     pub(super) read_pool: Option<(Arc<str>, Pool)>,
     pub(super) sticky: bool,
+    pub(super) model_timezone: chrono_tz::Tz,
+    pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) routing: Arc<ReadRouting>,
 }
 
@@ -370,6 +372,15 @@ impl PhysicalConnection {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Connection API")]
 impl Connection {
+    pub(super) fn model_container(
+        connection: Option<&Self>,
+    ) -> Option<Arc<crate::container::Container>> {
+        match connection {
+            Some(connection) => connection.model_container.upgrade(),
+            None => crate::support::facades::current_container(),
+        }
+    }
+
     pub fn getSchemaBuilder(&self) -> super::schema::Builder<'static> {
         super::schema::Builder::connection(self.clone())
     }

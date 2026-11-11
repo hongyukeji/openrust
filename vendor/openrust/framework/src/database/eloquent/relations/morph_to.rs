@@ -43,7 +43,7 @@ impl MorphTarget {
     }
 
     pub fn downcast_ref<M: Model>(&self) -> Option<&M> {
-        self.model.as_ref().downcast_ref()
+        self.model.as_ref().as_any().downcast_ref()
     }
 }
 
@@ -276,7 +276,22 @@ impl<P: Model> MorphTo<P> {
     }
 }
 
-type ErasedModel = Arc<dyn Any + Send + Sync>;
+type ErasedModel = Arc<dyn ProjectableModel>;
+
+trait ProjectableModel: Send + Sync {
+    fn as_any(&self) -> &dyn Any;
+    fn project(&self) -> DatabaseResult<serde_json::Value>;
+}
+
+impl<M: Model> ProjectableModel for M {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn project(&self) -> DatabaseResult<serde_json::Value> {
+        self.toArray().map(serde_json::Value::Object)
+    }
+}
 
 trait Target<P: Model>: Send + Sync {
     fn model_type(&self) -> TypeId;
@@ -328,6 +343,13 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
 impl<P: Model> Relation for MorphTo<P> {
     type Parent = P;
     type Output = Option<MorphTarget>;
+
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        output
+            .as_ref()
+            .map_or(Ok(serde_json::Value::Null), |target| target.model.project())
+            .map(Some)
+    }
 
     fn matchResults<'a>(
         &'a self,

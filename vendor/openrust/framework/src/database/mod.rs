@@ -66,6 +66,9 @@ pub enum DatabaseError {
         relation: String,
     },
     InvalidQuery(&'static str),
+    AttributeEncryption(crate::encryption::EncryptException),
+    AttributeDecryption(crate::encryption::DecryptException),
+    AttributeHashing(crate::hashing::HashError),
     InvalidSchema(&'static str),
     UnsupportedSchema(&'static str),
     TransactionClosed,
@@ -109,6 +112,13 @@ impl std::fmt::Display for DatabaseError {
                 write!(formatter, "unsupported schema operation: {operation}")
             }
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
+            Self::AttributeEncryption(_) => {
+                formatter.write_str("could not encrypt model attribute")
+            }
+            Self::AttributeDecryption(_) => {
+                formatter.write_str("could not decrypt model attribute")
+            }
+            Self::AttributeHashing(_) => formatter.write_str("could not hash model attribute"),
             Self::UnknownSeeder(name) => write!(formatter, "seeder {name:?} is not registered"),
             Self::InvalidSeeder(part) => write!(formatter, "invalid seeder {part}"),
             Self::SeederFailed { seeder, source } => write!(formatter, "{seeder}: {source}"),
@@ -162,6 +172,9 @@ impl std::error::Error for DatabaseError {
             }
             Self::Driver { source, .. } => Some(source),
             Self::Unavailable(source) => Some(source),
+            Self::AttributeEncryption(source) => Some(source),
+            Self::AttributeDecryption(source) => Some(source),
+            Self::AttributeHashing(source) => Some(source),
             _ => None,
         }
     }

@@ -7,6 +7,7 @@ use openrust::{
         eloquent::{
             Attributes, Builder, Collection, EagerLoads, Model, ModelMetadata, ModelState,
             RelationAggregate, RelationAggregateQuery,
+            casts::AttributeCast,
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
                 MorphMany, MorphOne, MorphPivot, MorphTarget, MorphTo, MorphToMany,
@@ -273,7 +274,10 @@ async fn verify_through_and_morph(
 
     let baseline = if mysql { select_count(db).await } else { 0 };
     let authors = Author::queryOn(db)
-        .with("recentComments", COMMENTS_THROUGH)
+        .with(
+            "recentComments",
+            COMMENTS_THROUGH.constrain(|query| query.withCasts([("id", AttributeCast::String)])),
+        )
         .orderBy("id", "asc")
         .get()
         .await
@@ -281,6 +285,14 @@ async fn verify_through_and_morph(
     if mysql {
         assert_eq!(select_count(db).await - baseline, 2);
     }
+    assert!(matches!(
+        authors.all()[0]
+            .getRelation::<Vec<Arc<Comment>>>("recentComments")
+            .unwrap()[0]
+            .getAttributeValue("id")
+            .unwrap(),
+        Some(Value::Text(_))
+    ));
     assert_eq!(
         authors
             .iter()
@@ -291,6 +303,24 @@ async fn verify_through_and_morph(
             .collect::<Vec<_>>(),
         vec![1, 0, 0]
     );
+    let before_projection = if mysql { select_count(db).await } else { 0 };
+    {
+        let json: Json = serde_json::from_str(&authors.toJson().unwrap()).unwrap();
+        assert_eq!(json[0]["recent_comments"][0]["body"], "visible");
+        assert_eq!(json[1]["recent_comments"], json!([]));
+        assert!(
+            !authors.all()[0]
+                .attributesToArray()
+                .unwrap()
+                .contains_key("recent_comments")
+        );
+        let mut first = authors.into_iter().next().unwrap();
+        first.makeHidden(&["recentComments"]);
+        assert!(!first.toArray().unwrap().contains_key("recent_comments"));
+    }
+    if mysql {
+        assert_eq!(select_count(db).await, before_projection);
+    }
     assert_eq!(
         COMMENTS_THROUGH
             .withTrashedParents()
@@ -334,11 +364,13 @@ async fn verify_through_and_morph(
         .as_ref()
         .unwrap();
     assert_eq!(target.alias(), "post");
+    assert!(first.toArray().unwrap()["subject"].is_object());
     assert_eq!(
         target.downcast_ref::<Post>().unwrap().getKey(),
         post.getKey()
     );
     let second = comments.next().unwrap();
+    assert_eq!(second.toArray().unwrap()["subject"], Json::Null);
     assert!(
         second
             .getRelation::<Option<MorphTarget>>("subject")
@@ -2061,7 +2093,12 @@ async fn verify(db: Connection, mysql: bool) {
         .unwrap();
     let baseline = if mysql { select_count(&db).await } else { 0 };
     let featured = Author::queryOn(&db)
-        .with("featured", FEATURED_POSTS.withPivot(["label"]))
+        .with(
+            "featured",
+            FEATURED_POSTS
+                .withPivot(["label"])
+                .constrain(|query| query.withCasts([("id", AttributeCast::String)])),
+        )
         .orderBy("id", "asc")
         .get()
         .await
@@ -2069,6 +2106,19 @@ async fn verify(db: Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(&db).await - baseline, 2);
     }
+    {
+        let array = featured.toArray().unwrap();
+        assert_eq!(array[0]["featured"][0]["pivot"]["label"], "featured");
+        assert_eq!(array[2]["featured"], json!([]));
+    }
+    assert!(matches!(
+        featured.all()[0]
+            .getRelation::<Vec<Arc<Post>>>("featured")
+            .unwrap()[0]
+            .getAttributeValue("id")
+            .unwrap(),
+        Some(Value::Text(_))
+    ));
     assert_eq!(
         featured
             .iter()

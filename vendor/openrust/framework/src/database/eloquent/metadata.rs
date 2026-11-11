@@ -10,6 +10,10 @@ pub struct ModelMetadata {
     pub(super) created_at: Option<&'static str>,
     pub(super) updated_at: Option<&'static str>,
     pub(super) deleted_at: Option<&'static str>,
+    pub(super) date_format: &'static str,
+    pub(super) hidden: &'static [&'static str],
+    pub(super) visible: &'static [&'static str],
+    pub(super) appends: &'static [&'static str],
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent model options")]
@@ -25,6 +29,10 @@ impl ModelMetadata {
             created_at: Some("created_at"),
             updated_at: Some("updated_at"),
             deleted_at: None,
+            date_format: "%Y-%m-%d %H:%M:%S",
+            hidden: &[],
+            visible: &[],
+            appends: &[],
         }
     }
 
@@ -65,6 +73,26 @@ impl ModelMetadata {
 
     pub const fn softDeletes(mut self, deleted_at: &'static str) -> Self {
         self.deleted_at = Some(deleted_at);
+        self
+    }
+
+    pub const fn dateFormat(mut self, format: &'static str) -> Self {
+        self.date_format = format;
+        self
+    }
+
+    pub const fn hidden(mut self, attributes: &'static [&'static str]) -> Self {
+        self.hidden = attributes;
+        self
+    }
+
+    pub const fn visible(mut self, attributes: &'static [&'static str]) -> Self {
+        self.visible = attributes;
+        self
+    }
+
+    pub const fn appends(mut self, attributes: &'static [&'static str]) -> Self {
+        self.appends = attributes;
         self
     }
 }

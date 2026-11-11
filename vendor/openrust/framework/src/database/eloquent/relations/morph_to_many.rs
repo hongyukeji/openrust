@@ -66,6 +66,10 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
     type Parent = P;
     type Output = <BelongsToMany<P, R> as Relation>::Output;
 
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        super::super::serialization::many(output)
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a P],

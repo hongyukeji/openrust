@@ -150,6 +150,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let mut query = query.restrict_relation(&join.match_key, batch);
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();
+                let casts = query.casts.clone();
                 let match_column = format!("{} as laravel_through_key", join.match_key);
                 let rows = join
                     .apply(query.scoped()?.0)
@@ -170,6 +171,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                         related.push(R::from_state(ModelState::hydrated_attributes(
                             attributes,
                             connection.clone(),
+                            casts.clone(),
                         )));
                     }
                 }
@@ -210,6 +212,10 @@ impl ThroughJoin {
 impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
     type Parent = P;
     type Output = Vec<Arc<R>>;
+
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        super::super::serialization::many(output)
+    }
 
     fn matchResults<'a>(
         &'a self,

@@ -63,6 +63,50 @@ impl<M: Model> Collection<M> {
         &self.models
     }
 
+    pub fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.makeHidden(attributes);
+        }
+        self
+    }
+
+    pub fn setHidden(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.setHidden(attributes);
+        }
+        self
+    }
+
+    pub fn makeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.makeVisible(attributes);
+        }
+        self
+    }
+
+    pub fn setVisible(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.setVisible(attributes);
+        }
+        self
+    }
+
+    pub fn append(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.append(attributes);
+        }
+        self
+    }
+
+    pub fn toArray(&self) -> DatabaseResult<Vec<serde_json::Map<String, serde_json::Value>>> {
+        self.iter().map(Model::toArray).collect()
+    }
+
+    pub fn toJson(&self) -> DatabaseResult<String> {
+        serde_json::to_string(&self.toArray()?)
+            .map_err(|_| DatabaseError::InvalidQuery("model collection JSON"))
+    }
+
     /// Opens a related batch, loading the first relationship if needed.
     pub async fn relatedModels<R>(
         &mut self,
@@ -261,11 +305,15 @@ impl<M: Model> Collection<M> {
             }
         }
         let bindings: Vec<_> = bindings.into_values().collect();
+        let casts = self.models.first().map(|model| &model.state().casts);
         let mut refreshed = HashMap::new();
         for batch in bindings.chunks(500) {
             let mut query = M::queryOn(&connection)
                 .withOnly(|relations| relations)
                 .withoutGlobalScopes();
+            if let Some(casts) = casts {
+                query.casts.clone_from(casts);
+            }
             query.whereIn(M::metadata().primary_key, batch.to_vec());
             for model in query.get().await? {
                 if let Some(key) = dictionary_key(model.getKey())? {
@@ -284,6 +332,7 @@ impl<M: Model> Collection<M> {
                 let state = ModelState::hydrated_attributes(
                     original.attributes.clone(),
                     connection.clone(),
+                    original.casts.clone(),
                 );
                 models.push(M::from_state(state));
             }

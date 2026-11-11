@@ -2,12 +2,12 @@ use std::{
     collections::HashMap,
     future::Future,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 
 use serde_json::Value;
 
-use crate::contracts::config::Repository;
+use crate::{container::Container, contracts::config::Repository};
 
 use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
@@ -23,6 +23,7 @@ pub struct DatabaseManager {
     config: Arc<dyn Repository>,
     root: PathBuf,
     connections: Mutex<HashMap<String, Connection>>,
+    container: Weak<Container>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's DatabaseManager API")]
@@ -32,7 +33,13 @@ impl DatabaseManager {
             config,
             root: root.into(),
             connections: Mutex::default(),
+            container: Weak::new(),
         }
+    }
+
+    pub(super) fn with_container(mut self, container: Weak<Container>) -> Self {
+        self.container = container;
+        self
     }
 
     /// Uses the selected default connection while polling this future.
@@ -107,6 +114,14 @@ impl DatabaseManager {
             return Ok(connection.clone());
         }
         let mut connection = ConnectionFactory.make(base, config, &self.root)?;
+        connection.model_container.clone_from(&self.container);
+        connection.model_timezone = match self.config.get("app.timezone") {
+            None => chrono_tz::UTC,
+            Some(Value::String(zone)) => zone
+                .parse()
+                .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
+            _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
+        };
         match role {
             Some("read") => {
                 if let Some((database, read)) = connection.read_pool.take() {

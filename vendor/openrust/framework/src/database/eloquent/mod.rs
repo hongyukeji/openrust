@@ -10,6 +10,7 @@ mod persistence;
 mod related_batch;
 pub mod relations;
 mod scope;
+mod serialization;
 mod soft_deletes;
 mod soft_deleting_scope;
 
@@ -28,6 +29,7 @@ pub use metadata::ModelMetadata;
 pub use model::Model;
 pub use related_batch::{RelatedBatch, RelatedModels};
 pub use scope::Scope;
+pub use serialization::VisibilityCondition;
 
 /// The raw attributes of a model, keyed by column name.
 pub type Attributes = BTreeMap<String, Value>;

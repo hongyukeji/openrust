@@ -16,10 +16,13 @@ impl ServiceProvider for DatabaseServiceProvider {
     fn register<'a>(&'a mut self, application: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let root = application.base_path().to_path_buf();
+            let owner = Arc::downgrade(&application.container_handle());
             let container = application.container();
             container.singletonNamed("db", move |container| {
                 let config = container.get::<dyn crate::contracts::config::Repository>("config")?;
-                Ok(Arc::new(DatabaseManager::new(config, root.clone())))
+                Ok(Arc::new(
+                    DatabaseManager::new(config, root.clone()).with_container(owner.clone()),
+                ))
             })?;
             container.alias(
                 "db",

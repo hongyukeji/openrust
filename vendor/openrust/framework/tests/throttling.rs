@@ -233,7 +233,11 @@ async fn cache_throttling_returns_headers_retries_and_conditional_custom_respons
     assert!(probe.contains("x-ratelimit-remaining: 2"));
     let manual = send(address, "/manual").await;
     assert_eq!(status(&manual), 200);
-    assert!(manual.ends_with(r#"{"remaining":1,"value":7}"#));
+    let (_, body) = manual.split_once("\r\n\r\n").unwrap();
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(body).unwrap(),
+        json!({"remaining":1,"value":7})
+    );
     server.abort();
 }
 

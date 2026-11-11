@@ -72,6 +72,10 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
 
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        super::super::serialization::one(output)
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a P],

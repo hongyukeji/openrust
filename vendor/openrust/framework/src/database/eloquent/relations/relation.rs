@@ -16,6 +16,10 @@ pub trait Relation: Send + Sync + 'static {
     type Output: Send + Sync + 'static;
 
     /// Projects a loaded relationship into its JSON representation.
+    fn serialize(_output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        Ok(None)
+    }
+
     /// Returns one result per parent, in the original order.
     fn matchResults<'a>(
         &'a self,

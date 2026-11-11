@@ -61,7 +61,18 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        let mut model = R::newInstance(attributes)?;
+        let mut model = if attributes.keys().any(|name| {
+            super::super::casts::needs_async::<R>(
+                name,
+                &super::super::casts::CastOverrides::default(),
+            )
+        }) {
+            let mut model = R::newInstanceOn(&self.0.connection(parent)?, Attributes::new())?;
+            Box::pin(model.fillAsync(attributes)).await?;
+            model
+        } else {
+            R::newInstance(attributes)?
+        };
         self.save(parent, &mut model).await?;
         Ok(model)
     }
@@ -71,6 +82,10 @@ impl<P: Model, R: Model> HasMany<P, R> {
 impl<P: Model, R: Model> Relation for HasMany<P, R> {
     type Parent = P;
     type Output = Vec<Arc<R>>;
+
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        super::super::serialization::many(output)
+    }
 
     fn matchResults<'a>(
         &'a self,

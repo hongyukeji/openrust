@@ -26,7 +26,7 @@ pub(super) async fn save<M: Model>(model: &mut M) -> DatabaseResult<bool> {
     let state = model.state();
     let exists = state.exists;
     let mut attributes = if exists {
-        state.getDirty()
+        model.getDirty()?
     } else {
         state.attributes.clone()
     };
@@ -43,7 +43,7 @@ pub(super) async fn save<M: Model>(model: &mut M) -> DatabaseResult<bool> {
     let missing =
         timestamp_columns.map(|column| column.filter(|column| !attributes.contains_key(*column)));
     if missing.iter().any(Option::is_some) {
-        let time = timestamp();
+        let time = timestamp(&connection, metadata.date_format)?;
         attributes.extend(
             missing
                 .into_iter()
@@ -92,7 +92,7 @@ pub(super) async fn update<M: Model>(
     if !model.state().exists {
         return Ok(false);
     }
-    model.fill(attributes)?;
+    model.fillAsync(attributes).await?;
     save(model).await
 }
 
@@ -107,7 +107,7 @@ pub(super) async fn delete<M: Model>(model: &mut M, force: bool) -> DatabaseResu
             .table(metadata.table)
             .r#where(metadata.primary_key, "=", persisted_key(model)?);
     if let Some(column) = metadata.deleted_at.filter(|_| !force) {
-        let attributes = soft_deletes::deletion_attributes(metadata, column);
+        let attributes = soft_deletes::deletion_attributes(metadata, column, &connection)?;
         query.update(attributes.clone()).await?;
         sync_columns(model.state_mut(), attributes);
     } else {

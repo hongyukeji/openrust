@@ -278,6 +278,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .restrict_relation(&parent_column, batch);
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();
+                let casts = query.casts.clone();
                 let query = query
                     .scoped()?
                     .0
@@ -300,16 +301,21 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     if let Some(owner) = dictionary_key(Some(&pivot[0].1))? {
                         let mut model_attributes = columns.into_iter().collect();
                         cast_existence(&mut model_attributes, &existence);
-                        let mut state =
-                            ModelState::hydrated_attributes(model_attributes, connection.clone());
+                        let mut state = ModelState::hydrated_attributes(
+                            model_attributes,
+                            connection.clone(),
+                            casts.clone(),
+                        );
                         let attributes = pivot_names
                             .iter()
                             .zip(pivot)
                             .map(|(name, (_, value))| ((*name).into(), value))
                             .collect();
-                        state
-                            .relations
-                            .insert(self.pivot_accessor.into(), Pivot::new(attributes));
+                        state.relations.insert(
+                            self.pivot_accessor.into(),
+                            Pivot::new(attributes),
+                            Pivot::serialize,
+                        );
                         owners.push(owner);
                         models.push(R::from_state(state));
                     }
@@ -328,6 +334,10 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
     type Parent = P;
     type Output = Vec<Arc<R>>;
+
+    fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
+        super::super::serialization::many(output)
+    }
 
     fn matchResults<'a>(
         &'a self,

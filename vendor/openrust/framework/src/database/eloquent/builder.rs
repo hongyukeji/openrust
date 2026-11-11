@@ -7,6 +7,7 @@ use crate::database::{Connection, DatabaseError, DatabaseResult, Value, query};
 use super::concerns::queries_relationships::cast_existence;
 use super::{
     Attributes, Collection, EagerLoads, Model, ModelState, RelationAggregate, Scope,
+    casts::{AttributeCast, CastOverrides},
     concerns::{has_relationships::load_eager, has_timestamps::timestamp},
     relations::{BelongsTo, BelongsToMany, ExistenceRelation, MorphIdentity, MorphTo, Relation},
     soft_deletes,
@@ -19,6 +20,7 @@ pub struct Builder<'connection, M: Model> {
     connection: Connection,
     table_alias: Option<String>,
     existence_attributes: HashSet<String>,
+    pub(super) casts: CastOverrides,
     predicates: query::Conditions,
     eager_load: EagerLoads<M>,
     default_counts: bool,
@@ -35,6 +37,7 @@ impl<M: Model> Builder<'static, M> {
             connection,
             table_alias: None,
             existence_attributes: HashSet::new(),
+            casts: CastOverrides::default(),
             predicates: query::Conditions::default(),
             eager_load: EagerLoads::default(),
             default_counts: false,
@@ -95,6 +98,16 @@ impl<M: Model> Builder<'_, M> {
     pub fn select(mut self, columns: impl IntoIterator<Item = impl Into<query::Column>>) -> Self {
         self.default_counts = false;
         self.select_relation_columns(columns)
+    }
+
+    /// Applies attribute casts to models retrieved or created by this query.
+    #[must_use]
+    pub fn withCasts(
+        mut self,
+        casts: impl IntoIterator<Item = (impl Into<String>, AttributeCast)>,
+    ) -> Self {
+        self.casts.merge(casts);
+        self
     }
 
     pub(super) fn select_relation_columns(
@@ -571,12 +584,30 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub fn make(&self, attributes: Attributes) -> DatabaseResult<M> {
-        M::newInstanceOn(&self.connection, attributes)
+        if self.casts.is_empty() {
+            return M::newInstanceOn(&self.connection, attributes);
+        }
+        let mut model = M::newInstanceOn(&self.connection, Attributes::new())?;
+        model.state_mut().casts.merge_from(&self.casts);
+        model.fill(attributes)?;
+        Ok(model)
     }
 
     pub async fn create(self, attributes: Attributes) -> DatabaseResult<M> {
-        let mut model = self.make(attributes)?;
+        let mut model = self.makeAsync(attributes).await?;
         model.save().await?;
+        Ok(model)
+    }
+
+    pub async fn makeAsync(&self, attributes: Attributes) -> DatabaseResult<M> {
+        if !attributes
+            .keys()
+            .any(|name| super::casts::needs_async::<M>(name, &self.casts))
+        {
+            return self.make(attributes);
+        }
+        let mut model = self.make(Attributes::new())?;
+        model.fillAsync(attributes).await?;
         Ok(model)
     }
 
@@ -584,6 +615,7 @@ impl<M: Model> Builder<'static, M> {
         let mut query = self.apply_default_counts()?;
         let eager_load = query.take_eager_load();
         let existence = query.take_existence_attributes();
+        let casts = mem::take(&mut query.casts);
         let (query, connection) = query.scoped()?;
         let mut models: Vec<_> = query
             .get()
@@ -595,6 +627,7 @@ impl<M: Model> Builder<'static, M> {
                 M::from_state(ModelState::hydrated_attributes(
                     attributes,
                     connection.clone(),
+                    casts.clone(),
                 ))
             })
             .collect();
@@ -626,14 +659,18 @@ impl<M: Model> Builder<'static, M> {
         if let Some(column) = M::metadata().updated_at
             && !attributes.contains_key(column)
         {
-            attributes.insert(column.into(), timestamp());
+            attributes.insert(
+                column.into(),
+                timestamp(&self.connection, M::metadata().date_format)?,
+            );
         }
         self.scoped()?.0.update(attributes).await
     }
 
     pub async fn delete(self) -> DatabaseResult<u64> {
         if let Some(column) = M::metadata().deleted_at {
-            let attributes = soft_deletes::deletion_attributes(M::metadata(), column);
+            let attributes =
+                soft_deletes::deletion_attributes(M::metadata(), column, &self.connection)?;
             return self.scoped()?.0.update(attributes).await;
         }
         self.scoped()?.0.delete().await

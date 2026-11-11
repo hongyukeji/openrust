@@ -1,6 +1,7 @@
 use std::{any::Any, collections::BTreeMap};
 
 use indexmap::IndexMap;
+use serde_json::{Map, Value as Json};
 
 use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
 
@@ -8,7 +9,27 @@ use super::super::{Model, relations::Relation};
 
 #[derive(Default)]
 pub(in crate::database::eloquent) struct LoadedRelations {
-    values: BTreeMap<String, Box<dyn Any + Send + Sync>>,
+    values: BTreeMap<String, Box<dyn LoadedRelation>>,
+}
+
+trait LoadedRelation: Send + Sync {
+    fn value(&self) -> &dyn Any;
+    fn project(&self) -> DatabaseResult<Option<Json>>;
+}
+
+struct LoadedValue<T> {
+    value: T,
+    project: fn(&T) -> DatabaseResult<Option<Json>>,
+}
+
+impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
+    fn value(&self) -> &dyn Any {
+        &self.value
+    }
+
+    fn project(&self) -> DatabaseResult<Option<Json>> {
+        (self.project)(&self.value)
+    }
 }
 
 impl LoadedRelations {
@@ -16,7 +37,7 @@ impl LoadedRelations {
         &self,
         name: &str,
     ) -> Option<&T> {
-        self.values.get(name)?.downcast_ref()
+        self.values.get(name)?.value().downcast_ref()
     }
 
     pub(in crate::database::eloquent) fn contains(&self, name: &str) -> bool {
@@ -27,8 +48,23 @@ impl LoadedRelations {
         &mut self,
         name: String,
         value: T,
+        project: fn(&T) -> DatabaseResult<Option<Json>>,
     ) {
-        self.values.insert(name, Box::new(value));
+        self.values
+            .insert(name, Box::new(LoadedValue { value, project }));
+    }
+
+    pub(in crate::database::eloquent) fn project(
+        &self,
+        include: impl Fn(&str) -> bool,
+    ) -> DatabaseResult<Map<String, Json>> {
+        let mut output = Map::new();
+        for (name, relation) in self.values.iter().filter(|(name, _)| include(name)) {
+            if let Some(value) = relation.project()? {
+                output.insert(super::super::serialization::snake_relation(name), value);
+            }
+        }
+        Ok(output)
     }
 
     pub(in crate::database::eloquent) fn remove(&mut self, name: &str) {
@@ -66,7 +102,7 @@ where
         models[index]
             .state_mut()
             .relations
-            .insert(name.to_owned(), value);
+            .insert(name.to_owned(), value, R::serialize);
     }
     Ok(())
 }
