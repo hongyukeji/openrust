@@ -11,7 +11,7 @@ mod serve_file;
 
 use std::{error::Error, future::Future, pin::Pin};
 
-pub use aws_s3_v3_adapter::AwsS3V3Adapter;
+pub use aws_s3_v3_adapter::{AwsS3V3Adapter, S3DiskConfig};
 pub use filesystem_adapter::FilesystemAdapter;
 pub use filesystem_manager::{FilesystemManager, LocalDiskConfig};
 pub use filesystem_service_provider::FilesystemServiceProvider;
@@ -21,6 +21,9 @@ pub use serve_file::ServeFile;
 
 /// An asynchronous filesystem operation.
 pub type FilesystemFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// A readable object stream from any configured disk.
+pub type FilesystemReader = Box<dyn tokio::io::AsyncRead + Send + Unpin>;
 
 /// The result of a filesystem operation.
 pub type FilesystemResult<T> = Result<T, FilesystemError>;

@@ -13,6 +13,15 @@ pub(super) fn load(
     env: &Environment,
     app: &app::Loaded<'_>,
 ) -> Result<Value, ConfigError> {
+    let optional_aws = |key| {
+        get(env, key, Value::Null).map(|value| {
+            if value.as_str().is_some_and(str::is_empty) {
+                Value::Null
+            } else {
+                value
+            }
+        })
+    };
     let default_url = format!("{}/storage", app.url.trim_end_matches('/'));
     let public_root = env
         .get_utf8("PUBLIC_STORAGE_ROOT")?
@@ -41,12 +50,13 @@ pub(super) fn load(
             },
             "s3": {
                 "driver": "s3",
-                "key": get(env, "AWS_ACCESS_KEY_ID", Value::Null)?,
-                "secret": get(env, "AWS_SECRET_ACCESS_KEY", Value::Null)?,
-                "region": get(env, "AWS_DEFAULT_REGION", Value::Null)?,
-                "bucket": get(env, "AWS_BUCKET", Value::Null)?,
-                "url": get(env, "AWS_URL", Value::Null)?,
-                "endpoint": get(env, "AWS_ENDPOINT", Value::Null)?,
+                "key": optional_aws("AWS_ACCESS_KEY_ID")?,
+                "secret": optional_aws("AWS_SECRET_ACCESS_KEY")?,
+                "token": optional_aws("AWS_SESSION_TOKEN")?,
+                "region": get(env, "AWS_DEFAULT_REGION", "us-east-1")?,
+                "bucket": optional_aws("AWS_BUCKET")?,
+                "url": optional_aws("AWS_URL")?,
+                "endpoint": optional_aws("AWS_ENDPOINT")?,
                 "use_path_style_endpoint": get(env, "AWS_USE_PATH_STYLE_ENDPOINT", false)?,
                 "throw": false,
                 "report": false,

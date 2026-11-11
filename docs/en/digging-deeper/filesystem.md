@@ -36,6 +36,26 @@ Application routes take precedence over static files. Static mounts are searched
 
 See [routing](../the-basics/routing.md#mounting-a-static-directory) and [public file configuration](../getting-started/configuration.md#public-files).
 
+### Amazon S3 Compatible Filesystems
+
+Set `AWS_BUCKET` and `AWS_DEFAULT_REGION` for the `s3` disk. Provide `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` together, with `AWS_SESSION_TOKEN` for temporary credentials. When both keys are omitted, the AWS SDK resolves credentials through its provider chain. Set `AWS_ENDPOINT` for a compatible service and enable `AWS_USE_PATH_STYLE_ENDPOINT` when the service uses path-style bucket URLs.
+
+Select the disk by name from an application request or command. Set `FILESYSTEM_DISK=s3` to use it as the default. An optional `root` in the disk configuration prefixes object keys. Object paths remain relative to the disk.
+
+```rust
+use openrust::{filesystem::FilesystemResult, support::facades::Storage};
+
+pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
+    let disk = Storage::disk(Some("s3"))?;
+    if !disk.put("reports/summary.txt", b"Ready").await? {
+        return Ok(None);
+    }
+    disk.get("reports/summary.txt").await
+}
+```
+
+`readStream` returns an async reader shared by local and S3 disks. S3 writes stream in 8 MiB parts and publish when multipart upload completes. The driver can upload up to 10,000 parts, about 78 GiB per object. Interrupted uploads are aborted when possible. If the server may have completed a write after the connection failed, `throw = true` exposes `PublishOutcomeUnknown`. Read the target to check its state before retrying.
+
 ## Obtaining Disk Instances
 
 Call `Storage::disk(Some("public"))` to select a disk from the current application. Call `Storage::disk(None)` or use `Storage::put` and `Storage::get` to work with the default disk. This example runs within a request or command scope.
@@ -56,7 +76,7 @@ Use `Storage::build(LocalDiskConfig)` for an on-demand local disk. The named dis
 
 ## Retrieving Files
 
-`get` returns file contents. Use `readStream` for a Tokio file handle when reading large files. The default `throw = false` returns `None` for a failed read or `false` for a failed write. Set `throw = true` to return the error. Set `report = true` to log failures handled by the default policy. Invalid paths return an error in either mode.
+`get` returns file contents. Use `readStream` for an asynchronous reader when reading large files. The default `throw = false` returns `None` for a failed read or `false` for a failed write. Set `throw = true` to return the error. Set `report = true` to log failures handled by the default policy. Invalid paths return an error in either mode.
 
 ## Storing Files
 
@@ -65,3 +85,5 @@ Use `Storage::build(LocalDiskConfig)` for an on-demand local disk. The named dis
 ### File Visibility
 
 On Unix, the public and private file modes are `0644` and `0600`. New subdirectories use the disk’s configured directory visibility. Override the visibility of a single write with `WriteOptions`. Use `getVisibility` and `setVisibility` on an existing file. Windows writes use the filesystem ACL. Explicit visibility changes are currently supported on Unix.
+
+S3 visibility uses object ACLs. If no visibility is specified, the write leaves access control to the bucket. An explicit visibility request requires an ACL-capable bucket, and confirmation requires reading the ACL back. Bucket policies and the provider’s ACL enforcement determine whether an object is actually accessible anonymously.

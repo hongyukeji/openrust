@@ -4,6 +4,7 @@ use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
     FilesystemAdapter, FilesystemError, FilesystemManager, FilesystemResult, LocalDiskConfig,
+    S3DiskConfig,
 };
 
 /// Resolves storage disks in the current application scope.
@@ -28,6 +29,16 @@ impl Storage {
         Self::getFacadeRoot()
             .map_err(FilesystemError::Unavailable)?
             .build(config)
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Typed counterpart of Laravel's Storage::build"
+    )]
+    pub fn buildS3(config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        Self::getFacadeRoot()
+            .map_err(FilesystemError::Unavailable)?
+            .buildS3(config)
     }
 
     pub async fn put(path: &str, contents: impl AsRef<[u8]>) -> FilesystemResult<bool> {

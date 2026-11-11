@@ -52,7 +52,7 @@ async fn named_and_on_demand_disks_isolate_files_and_honor_error_policy() {
     ));
     assert!(matches!(
         manager.disk(Some("s3")),
-        Err(FilesystemError::UnsupportedOperation)
+        Err(FilesystemError::InvalidConfiguration)
     ));
     assert!(private.put("logs/data", b"first").await.unwrap());
     assert!(public.put("logs/data", b"second").await.unwrap());
@@ -163,7 +163,9 @@ async fn stream_failures_and_cancellation_leave_existing_file_intact() {
     let mut first = [0; 17];
     stream.read_exact(&mut first).await.unwrap();
     assert_eq!(first, [b'x'; 17]);
-    assert_eq!(stream.metadata().await.unwrap().len(), 512 * 1024);
+    let mut rest = Vec::new();
+    stream.read_to_end(&mut rest).await.unwrap();
+    assert_eq!(first.len() + rest.len(), 512 * 1024);
 }
 
 #[cfg(unix)]

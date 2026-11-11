@@ -9,7 +9,8 @@ use serde::Deserialize;
 use crate::contracts::config::Repository;
 
 use super::{
-    FilesystemAdapter, FilesystemError, FilesystemResult, LocalFilesystemAdapter, Visibility,
+    AwsS3V3Adapter, FilesystemAdapter, FilesystemError, FilesystemResult, LocalFilesystemAdapter,
+    S3DiskConfig, Visibility,
 };
 
 /// Resolves and caches named filesystem disks for one application.
@@ -63,14 +64,18 @@ impl FilesystemManager {
             .get("filesystems.disks")
             .and_then(|disks| disks.get(name).cloned())
             .ok_or_else(|| FilesystemError::UnknownDisk { name: name.into() })?;
-        match config.get("driver").and_then(serde_json::Value::as_str) {
-            Some("local") => {}
+        let disk = match config.get("driver").and_then(serde_json::Value::as_str) {
+            Some("local") => self.build(
+                serde_json::from_value(config)
+                    .map_err(|_| FilesystemError::InvalidConfiguration)?,
+            )?,
+            Some("s3") => self.buildS3(
+                serde_json::from_value(config)
+                    .map_err(|_| FilesystemError::InvalidConfiguration)?,
+            )?,
             Some(_) => return Err(FilesystemError::UnsupportedOperation),
             None => return Err(FilesystemError::InvalidConfiguration),
-        }
-        let disk = self.build(
-            serde_json::from_value(config).map_err(|_| FilesystemError::InvalidConfiguration)?,
-        )?;
+        };
         disks.insert(name.to_owned(), Arc::clone(&disk));
         Ok(disk)
     }
@@ -96,6 +101,13 @@ impl FilesystemManager {
             config.throw,
             config.report,
         )))
+    }
+
+    pub fn buildS3(&self, config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        let throw = config.throw;
+        let report = config.report;
+        let driver = AwsS3V3Adapter::new(config)?;
+        Ok(Arc::new(FilesystemAdapter::s3(driver, throw, report)))
     }
 
     pub fn forgetDisk(&self, name: &str) {

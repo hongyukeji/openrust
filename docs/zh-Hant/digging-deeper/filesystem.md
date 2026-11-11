@@ -36,6 +36,26 @@ OpenRust HTTP 服務也可以直接提供公共磁碟檔案。在 Unix 上，磁
 
 參閱[路由](../the-basics/routing.md#掛載靜態目錄)和[公共檔案設定](../getting-started/configuration.md#公開檔案)。
 
+### 相容 Amazon S3 的檔案系統
+
+為 `s3` 磁碟設定 `AWS_BUCKET` 和 `AWS_DEFAULT_REGION`。如需明確的憑證，同時設定 `AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY`。暫時憑證另需 `AWS_SESSION_TOKEN`。省略兩項金鑰時，由 AWS SDK 的憑證鏈解析。相容服務可設定 `AWS_ENDPOINT`，服務使用路徑式儲存貯體 URL 時啟用 `AWS_USE_PATH_STYLE_ENDPOINT`。
+
+在應用程式請求或命令中依名稱選取磁碟。設定 `FILESYSTEM_DISK=s3` 可作為預設磁碟。磁碟設定中的選用 `root` 用作物件鍵前綴，操作路徑相對於磁碟。
+
+```rust
+use openrust::{filesystem::FilesystemResult, support::facades::Storage};
+
+pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
+    let disk = Storage::disk(Some("s3"))?;
+    if !disk.put("reports/summary.txt", b"Ready").await? {
+        return Ok(None);
+    }
+    disk.get("reports/summary.txt").await
+}
+```
+
+`readStream` 為本機磁碟和 S3 磁碟提供相同的非同步讀取介面。S3 每段寫入 8 MiB，完成分段上傳後發布物件。目前最多上傳 10,000 段，單一物件約 78 GiB。上傳中斷後會盡量取消未完成的上傳。連線失敗後遠端可能已完成寫入，此時 `throw = true` 會傳回 `PublishOutcomeUnknown`。重試前可讀取目標核對狀態。
+
 ## 取得磁碟實例
 
 呼叫 `Storage::disk(Some("public"))` 從目前應用程式選擇具名磁碟。`Storage::disk(None)`、`Storage::put` 和 `Storage::get` 使用預設磁碟。下例在請求或命令作用域內執行。
@@ -56,7 +76,7 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 ## 讀取檔案
 
-`get` 傳回檔案內容。讀取大型檔案時可透過 `readStream` 取得 Tokio 檔案控制代碼。預設 `throw = false` 時讀取失敗傳回 `None`，寫入失敗傳回 `false`。設定 `throw = true` 可傳回錯誤，設定 `report = true` 可記錄預設策略處理的錯誤。無效路徑一律傳回錯誤。
+`get` 傳回檔案內容。讀取大型檔案時可透過 `readStream` 取得非同步讀取器。預設 `throw = false` 時讀取失敗傳回 `None`，寫入失敗傳回 `false`。設定 `throw = true` 可傳回錯誤，設定 `report = true` 可記錄預設策略處理的錯誤。無效路徑一律傳回錯誤。
 
 ## 儲存檔案
 
@@ -65,3 +85,5 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 ### 檔案可見性
 
 Unix 上公開和私有檔案權限分別是 `0644` 和 `0600`。新子目錄使用磁碟的目錄可見性設定。可用 `WriteOptions` 覆寫單次寫入的可見性，透過 `getVisibility` 和 `setVisibility` 管理既有檔案。Windows 寫入使用檔案系統 ACL，明確的可見性變更目前支援 Unix。
+
+S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體的存取控制。明確設定可見性需要儲存貯體支援 ACL，確認設定結果還需要讀取 ACL 的權限。實際匿名存取取決於儲存貯體政策及服務是否執行 ACL。

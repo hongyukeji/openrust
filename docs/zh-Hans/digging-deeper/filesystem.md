@@ -36,6 +36,26 @@ OpenRust HTTP 服务也可以直接提供公共磁盘文件。在 Unix 上，磁
 
 参阅[路由](../the-basics/routing.md#挂载静态目录)和[公共文件配置](../getting-started/configuration.md#公共文件)。
 
+### 兼容 Amazon S3 的文件系统
+
+为 `s3` 磁盘设置 `AWS_BUCKET` 和 `AWS_DEFAULT_REGION`。如需显式凭据，同时设置 `AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY`。临时凭据还需 `AWS_SESSION_TOKEN`。省略两项密钥时，由 AWS SDK 的凭据链解析。兼容服务可设置 `AWS_ENDPOINT`，服务使用路径式存储桶 URL 时启用 `AWS_USE_PATH_STYLE_ENDPOINT`。
+
+在应用请求或命令中按名称选取磁盘。设置 `FILESYSTEM_DISK=s3` 可作为默认磁盘。磁盘配置中的可选 `root` 用作对象键前缀，操作路径相对于磁盘。
+
+```rust
+use openrust::{filesystem::FilesystemResult, support::facades::Storage};
+
+pub async fn store_report() -> FilesystemResult<Option<Vec<u8>>> {
+    let disk = Storage::disk(Some("s3"))?;
+    if !disk.put("reports/summary.txt", b"Ready").await? {
+        return Ok(None);
+    }
+    disk.get("reports/summary.txt").await
+}
+```
+
+`readStream` 为本地磁盘和 S3 磁盘提供相同的异步读取接口。S3 每段写入 8 MiB，完成分段上传后发布对象。当前最多上传 10,000 段，单对象约 78 GiB。上传中断后会尽量取消未完成的上传。连接失败后远端可能已经完成写入，此时 `throw = true` 会返回 `PublishOutcomeUnknown`。重试前可读取目标核对状态。
+
 ## 获取磁盘实例
 
 调用 `Storage::disk(Some("public"))` 从当前应用选择具名磁盘。`Storage::disk(None)`、`Storage::put` 和 `Storage::get` 使用默认磁盘。下例运行在请求或命令作用域内。
@@ -56,7 +76,7 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 ## 读取文件
 
-`get` 返回文件内容。读取大文件时可通过 `readStream` 获取 Tokio 文件句柄。默认 `throw = false` 时读取失败返回 `None`，写入失败返回 `false`。设置 `throw = true` 可返回错误，设置 `report = true` 可记录默认策略处理的错误。无效路径始终返回错误。
+`get` 返回文件内容。读取大文件时可通过 `readStream` 获取异步读取器。默认 `throw = false` 时读取失败返回 `None`，写入失败返回 `false`。设置 `throw = true` 可返回错误，设置 `report = true` 可记录默认策略处理的错误。无效路径始终返回错误。
 
 ## 存储文件
 
@@ -65,3 +85,5 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 ### 文件可见性
 
 Unix 上公开和私有文件权限分别是 `0644` 和 `0600`。新子目录使用磁盘的目录可见性配置。可用 `WriteOptions` 覆盖单次写入的可见性，通过 `getVisibility` 和 `setVisibility` 管理已有文件。Windows 写入使用文件系统 ACL，显式可见性变更目前支持 Unix。
+
+S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的访问控制。显式可见性需要存储桶支持 ACL，确认设置结果还需要读取 ACL 的权限。实际匿名可访问性取决于存储桶策略及服务是否执行 ACL。
