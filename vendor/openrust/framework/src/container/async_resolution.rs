@@ -79,6 +79,10 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
             parameter,
             service: service.clone(),
         },
+        InvalidAttributeArguments { parameter } => InvalidAttributeArguments { parameter },
+        AttributeHandlerMissing { attribute } => AttributeHandlerMissing {
+            attribute: attribute.clone(),
+        },
         InvalidArgumentShape { index } => InvalidArgumentShape { index: *index },
         InvalidArgumentSlot { index } => InvalidArgumentSlot { index: *index },
         ParameterTypeMismatch { expected, actual } => ParameterTypeMismatch {
@@ -373,14 +377,27 @@ impl Container {
                 match binding.as_ref() {
                     Binding::Factory(_) => self.resolve_entry(key, entry, contextual),
                     Binding::AsyncFactory(factory) => {
+                        let recipe = Arc::as_ptr(&entry.version).addr();
+                        let attributes = entry.class_attributes.is_some();
                         let value = self
-                            .with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
+                            .with_resolution(&key, recipe, async {
                                 self.check_extenders::<T>(&key)?;
                                 let value = factory(self).await?;
                                 scope::check_open(self)?;
-                                self.decorate(&key, value, None)
+                                if attributes {
+                                    Ok(value)
+                                } else {
+                                    self.decorate(&key, value, None)
+                                }
                             })
                             .await?;
+                        let value = if attributes {
+                            self.after_class(&key, &entry, &value)?;
+                            let _resolution = self.resolve(&key, recipe)?;
+                            self.decorate(&key, value, None)?
+                        } else {
+                            value
+                        };
                         let current = self.current_recipe(&key, &entry, contextual);
                         self.fire_constructed(&key, value.clone())?;
                         if current {

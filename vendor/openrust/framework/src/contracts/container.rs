@@ -6,6 +6,27 @@ mod binding_resolution_error;
 
 pub use binding_resolution_error::BindingResolutionError;
 
+/// An attribute that participates in contextual parameter resolution.
+pub trait ContextualAttribute: Send + Sync + 'static {
+    fn resolve(
+        &self,
+        _container: &crate::container::Container,
+        _parameter: crate::container::AttributeParameter,
+    ) -> Result<crate::container::AttributeValue, BindingResolutionError> {
+        Err(BindingResolutionError::AttributeHandlerMissing {
+            attribute: ServiceKey::typed::<Self>(),
+        })
+    }
+
+    fn after(
+        &self,
+        _value: &crate::container::AttributeValue,
+        _container: &crate::container::Container,
+    ) -> Result<(), BindingResolutionError> {
+        Ok(())
+    }
+}
+
 /// A concrete class whose construction entry point is a static method.
 pub trait SelfBuilding: Sized + Send + Sync + 'static {
     #[allow(non_snake_case, reason = "Matches Laravel's self-building contract")]

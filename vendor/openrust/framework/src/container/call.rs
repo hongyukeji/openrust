@@ -77,16 +77,21 @@ pub(super) async fn arguments(
         .collect();
     let mut values = Vec::with_capacity(signature.len());
     for parameter in signature {
-        let explicit = take(&mut inputs, &ParameterKey::name(parameter.name)).or_else(|| {
-            parameter
-                .class
-                .as_ref()
-                .and_then(|key| take(&mut inputs, &ParameterKey::name(key.name())))
-        });
-        let argument = if let Some(value) = explicit {
+        let argument = if let Some(value) = take(&mut inputs, &ParameterKey::name(parameter.name)) {
             Argument::One(value)
+        } else if let Some(value) = parameter.attribute_value(c)? {
+            match value {
+                Argument::One(_) => value,
+                Argument::Many(_) => {
+                    return Err(BindingResolutionError::InvalidAttributeArguments {
+                        parameter: parameter.name,
+                    });
+                }
+            }
         } else if let Some(key) = &parameter.class {
-            if parameter.variadic {
+            if let Some(value) = take(&mut inputs, &ParameterKey::name(key.name())) {
+                Argument::One(value)
+            } else if parameter.variadic {
                 Argument::Many((parameter.call_many)(c, key.clone()).await?)
             } else if parameter.default.is_some() && !c.has_key_for_call(key) {
                 (Argument::One)((parameter
@@ -106,6 +111,14 @@ pub(super) async fn arguments(
                 service: c.consumer(),
             });
         };
+        match &argument {
+            Argument::One(_) => parameter.observe(c, &argument)?,
+            Argument::Many(values) => {
+                for value in values {
+                    parameter.observe(c, &Argument::One(value.clone()))?;
+                }
+            }
+        }
         values.push(argument);
     }
     let mut remaining: Vec<_> = inputs.into_iter().map(|(_, value)| value).collect();

@@ -4,12 +4,12 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        Callback, ClassDescriptor, ConstructorParam, Container, EnvironmentQuery,
-        EnvironmentResult, FactoryFuture, MethodCall, ParameterKey, ParameterOverrides,
-        ParameterValue, ResolvedArgs, ServiceKey,
+        AttributeParameter, AttributeValue, Callback, ClassAttribute, ClassDescriptor,
+        ConstructorParam, Container, EnvironmentQuery, EnvironmentResult, FactoryFuture,
+        MethodCall, ParameterKey, ParameterOverrides, ParameterValue, ResolvedArgs, ServiceKey,
     },
     contracts::{
-        container::{Container as _, SelfBuilding},
+        container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
         foundation::Application as _,
     },
     foundation::{Application, configuration::Routing},
@@ -118,6 +118,18 @@ impl FrameworkCommand for ParametersProbeCommand {
             output.stdout.push_str(&format!("{value}:{cached}"));
             Ok(0)
         })
+    }
+}
+struct ProbeGreeting;
+impl ContextualAttribute for ProbeGreeting {
+    fn resolve(
+        &self,
+        container: &Container,
+        parameter: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        assert_eq!(parameter.name, "greeting");
+        let greeting = container.make::<Greeting>()?;
+        Ok(ParameterValue::new(Arc::new(Greeting(format!("attribute:{}", greeting.0)))).into())
     }
 }
 struct CompiledProbe(Arc<Greeting>);
@@ -363,7 +375,10 @@ impl ServiceProvider for Provider {
                 .registerClass(ClassDescriptor::selfBuilding::<CompiledProbe>(
                     vec![ConstructorParam::class::<Greeting>("greeting")],
                     |args| Ok(Arc::new(CompiledProbe(args.service(0)?))),
-                    vec![ConstructorParam::class::<Greeting>("greeting")],
+                    vec![
+                        ConstructorParam::class::<Greeting>("greeting")
+                            .withAttribute(ClassAttribute::contextual(|| Ok(ProbeGreeting))),
+                    ],
                 )?)?;
             app.container()
                 .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
@@ -575,11 +590,11 @@ async fn main() -> ExitCode {
                 } else if args.last() == Some(&"lazy:probe") {
                     b"lazy:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"method:probe") {
-                    b"called:from provider:from provider".as_slice()
+                    b"called:attribute:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"variadic:probe") {
                     b"first,second".as_slice()
                 } else if args.last() == Some(&"construction:probe") {
-                    b"constructed:from provider".as_slice()
+                    b"constructed:attribute:from provider".as_slice()
                 } else if args.last() == Some(&"parameters:probe") {
                     b"12:0".as_slice()
                 } else if args.last() == Some(&"async:probe") {

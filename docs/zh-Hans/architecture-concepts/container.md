@@ -753,3 +753,47 @@ async fn main() {
 ```
 
 使用 `makeAsync` 或 `buildAsync` 解析自构造类。`makeWithAsync` 的构造参数覆盖不会传给静态方法。若 `newInstance` 在构造期间再次解析同一类型，内层构建走普通构造函数。普通构造中的循环依赖仍会返回解析错误。可用 `bindStaticMethod` 绑定 `newInstance`，替换容器构建时调用的静态方法。
+
+## 上下文属性
+
+使用 `ConstructorParam::withAttribute` 为构造函数、方法或 `newInstance` 的参数声明上下文属性。实现 `ContextualAttribute` 定义如何解析值。可通过 `whenHasAttribute` 为指定容器覆盖解析器。
+
+```rust
+use openrust::{
+    container::{
+        AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor,
+        ConstructorParam, Container, ParameterValue,
+    },
+    contracts::container::{BindingResolutionError, Container as _, ContextualAttribute},
+};
+use std::sync::Arc;
+
+struct Port;
+impl ContextualAttribute for Port {
+    fn resolve(
+        &self,
+        _: &Container,
+        _: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        Ok(ParameterValue::new(8080_u16).into())
+    }
+}
+
+struct Server(u16);
+fn main() {
+    let container = Container::default();
+    let port = ConstructorParam::scalar::<u16>("port")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Port)));
+    let descriptor = ClassDescriptor::concrete(vec![port], |args| {
+        Ok(Arc::new(Server(*args.get::<u16>(0)?)))
+    })
+    .unwrap();
+
+    container.registerClass(descriptor).unwrap();
+    assert_eq!(container.make::<Server>().unwrap().0, 8080);
+}
+```
+
+构造函数先查显式命名参数，再使用第一个上下文属性。属性返回空值时回退到普通构造参数解析。方法调用依次检查命名参数、属性、类名参数或普通解析。方法的可空参数会保留属性返回的空值。
+
+使用 `ClassAttribute::marker` 声明标记，使用 `afterResolvingAttribute` 按属性类型或声明的服务类型观察解析结果。参数回调在构造或调用前执行，显式构造参数会跳过其回调。类属性回调在构造完成后、扩展器和服务解析回调之前执行。属性回调使用同步 Rust 函数，也会在异步解析中执行。

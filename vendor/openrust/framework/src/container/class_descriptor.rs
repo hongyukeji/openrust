@@ -1,7 +1,8 @@
 //! Static constructor metadata replaces PHP reflection without creating service bindings.
 use super::{
-    Binding, Container, FactoryFuture, ParameterKey, ParameterOverrides, ParameterValue,
-    RegisteredBinding, ServiceKey, StaticCall, method_call::RegisteredMethod, scope,
+    AttributeParameter, AttributeValue, Binding, ClassAttribute, Container, FactoryFuture,
+    ParameterKey, ParameterOverrides, ParameterValue, RegisteredBinding, ServiceKey, StaticCall,
+    method_call::RegisteredMethod, scope,
 };
 use crate::contracts::container::{BindingResolutionError, Container as _, SelfBuilding};
 use std::{any::type_name, collections::HashSet, future::Future, pin::Pin, sync::Arc};
@@ -19,6 +20,7 @@ type ResolveManyAsync = dyn for<'a> Fn(&'a Container, ServiceKey) -> ManyFuture<
 #[derive(Clone)]
 pub struct ConstructorParam {
     pub(super) name: &'static str,
+    attributes: Vec<ClassAttribute>,
     pub(super) class: Option<ServiceKey>,
     check: fn(&ParameterValue) -> Result<()>,
     resolve: Arc<Resolve>,
@@ -34,6 +36,7 @@ impl ConstructorParam {
     pub fn scalar<T: Send + Sync + 'static>(name: &'static str) -> Self {
         Self {
             name,
+            attributes: Vec::new(),
             class: None,
             check: |value| value.downcast::<T>().map(drop),
             resolve: Arc::new(super::variadic::primitive::<T>),
@@ -51,6 +54,7 @@ impl ConstructorParam {
     pub fn class<T: ?Sized + Send + Sync + 'static>(name: &'static str) -> Self {
         Self {
             name,
+            attributes: Vec::new(),
             class: Some(ServiceKey::typed::<T>()),
             check: |value| value.downcast::<Arc<T>>().map(drop),
             resolve: Arc::new(|c, key| c.get::<T>(key).map(ParameterValue::new)),
@@ -86,6 +90,65 @@ impl ConstructorParam {
     pub fn name(&self) -> &'static str {
         self.name
     }
+    #[allow(non_snake_case, reason = "Compiled attribute declaration")]
+    pub fn withAttribute(mut self, attribute: ClassAttribute) -> Self {
+        self.attributes.push(attribute);
+        self
+    }
+
+    fn attribute_parameter(&self) -> AttributeParameter {
+        AttributeParameter {
+            name: self.name,
+            variadic: self.variadic,
+        }
+    }
+
+    pub(super) fn attribute_value(&self, container: &Container) -> Result<Option<Argument>> {
+        self.attributes
+            .iter()
+            .find(|attribute| attribute.is_contextual())
+            .map(|attribute| container.resolveFromAttribute(attribute, self.attribute_parameter()))
+            .transpose()
+    }
+
+    pub(super) fn observe(&self, container: &Container, value: &Argument) -> Result<()> {
+        let service = match value {
+            Argument::One(value) if !value.is_null() => self.class.as_ref(),
+            _ => None,
+        };
+        container.fire_attribute_callbacks(
+            &self.attributes,
+            value,
+            Some(self.attribute_parameter()),
+            service,
+        )
+    }
+
+    fn override_value(&self, container: &Container) -> Option<ParameterValue> {
+        container
+            .getLastParameterOverride()
+            .get(&ParameterKey::name(self.name))
+            .cloned()
+    }
+
+    fn constructor_attribute(&self, container: &Container) -> Result<Option<Argument>> {
+        match self.attribute_value(container)? {
+            Some(Argument::One(value)) if value.is_null() => Ok(None),
+            Some(Argument::Many(_)) if !self.variadic => {
+                Err(BindingResolutionError::InvalidAttributeArguments {
+                    parameter: self.name,
+                })
+            }
+            result => Ok(result),
+        }
+    }
+
+    fn variadic_key(&self) -> ServiceKey {
+        self.class
+            .clone()
+            .unwrap_or_else(|| ServiceKey::named(format!("${}", self.name)))
+    }
+
     fn validate(&self, value: &ParameterValue) -> Result<()> {
         if value.is_null() && self.nullable {
             Ok(())
@@ -94,12 +157,6 @@ impl ConstructorParam {
         }
     }
     fn select(&self, c: &Container) -> Result<Selection> {
-        if let Some(value) = c
-            .getLastParameterOverride()
-            .get(&ParameterKey::name(self.name))
-        {
-            return Ok(Selection::Value(value.clone()));
-        }
         if let Some(key) = &self.class {
             if self.default.is_some() && !c.has(key.clone()) && !c.has_contextual_direct(key) {
                 return Ok(Selection::Default);
@@ -136,10 +193,7 @@ enum Selection {
 }
 
 /// Owns validated constructor slots. Values and service references may be retained by the result.
-pub(super) enum Argument {
-    One(ParameterValue),
-    Many(Vec<ParameterValue>),
-}
+pub(super) type Argument = AttributeValue;
 pub struct ResolvedArgs {
     values: Vec<Argument>,
     variadic: Vec<bool>,
@@ -243,58 +297,44 @@ pub(super) fn validate_arguments(
 fn resolve(c: &Container, parameters: &[ConstructorParam]) -> Result<ResolvedArgs> {
     let mut values = Vec::with_capacity(parameters.len());
     for parameter in parameters {
-        let argument = if parameter.variadic {
-            if let Some(value) = c
-                .getLastParameterOverride()
-                .get(&ParameterKey::name(parameter.name))
-            {
-                Argument::One(value.clone())
-            } else {
-                Argument::Many((parameter.many)(
-                    c,
-                    parameter
-                        .class
-                        .clone()
-                        .unwrap_or_else(|| ServiceKey::named(format!("${}", parameter.name))),
-                )?)
-            }
+        if let Some(value) = parameter.override_value(c) {
+            values.push(Argument::One(value));
+            continue;
+        }
+        let argument = if let Some(value) = parameter.constructor_attribute(c)? {
+            value
+        } else if parameter.variadic {
+            Argument::Many((parameter.many)(c, parameter.variadic_key())?)
         } else {
             Argument::One(match parameter.select(c)? {
                 Selection::Service(key) => (parameter.resolve)(c, key)?,
                 fixed => parameter.fixed(fixed)?,
             })
         };
+        parameter.observe(c, &argument)?;
         values.push(argument);
     }
     validate_arguments(parameters, values)
 }
+
 async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result<ResolvedArgs> {
     let mut values = Vec::with_capacity(parameters.len());
     for parameter in parameters {
-        let argument = if parameter.variadic {
-            if let Some(value) = c
-                .getLastParameterOverride()
-                .get(&ParameterKey::name(parameter.name))
-            {
-                Argument::One(value.clone())
-            } else {
-                Argument::Many(
-                    (parameter.many_async)(
-                        c,
-                        parameter
-                            .class
-                            .clone()
-                            .unwrap_or_else(|| ServiceKey::named(format!("${}", parameter.name))),
-                    )
-                    .await?,
-                )
-            }
+        if let Some(value) = parameter.override_value(c) {
+            values.push(Argument::One(value));
+            continue;
+        }
+        let argument = if let Some(value) = parameter.constructor_attribute(c)? {
+            value
+        } else if parameter.variadic {
+            Argument::Many((parameter.many_async)(c, parameter.variadic_key()).await?)
         } else {
             Argument::One(match parameter.select(c)? {
                 Selection::Service(key) => (parameter.resolve_async)(c, key).await?,
                 fixed => parameter.fixed(fixed)?,
             })
         };
+        parameter.observe(c, &argument)?;
         values.push(argument);
     }
     validate_arguments(parameters, values)
@@ -395,6 +435,19 @@ impl ClassDescriptor {
         Ok(descriptor)
     }
 
+    /// Attaches an attribute to objects produced by this class descriptor.
+    #[allow(non_snake_case, reason = "Compiled attribute declaration")]
+    pub fn withAttribute(mut self, attribute: ClassAttribute) -> Self {
+        let mut attributes = self.sync.class_attributes.clone().unwrap_or_default();
+        Arc::make_mut(&mut attributes).push(attribute);
+        self.sync.class_attributes = Some(attributes.clone());
+        self.asynchronous.class_attributes = Some(attributes.clone());
+        if let Some(builder) = &mut self.self_building {
+            builder.entry.class_attributes = Some(attributes);
+        }
+        self
+    }
+
     pub fn key(&self) -> &ServiceKey {
         &self.key
     }
@@ -477,7 +530,16 @@ impl Container {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let descriptor = pending.as_ref().expect("pending descriptor");
             if let Some(previous) = registry.classes.get(&descriptor.key) {
-                if Arc::ptr_eq(&previous.sync.version, &descriptor.sync.version) {
+                if Arc::ptr_eq(&previous.sync.version, &descriptor.sync.version)
+                    && match (
+                        &previous.sync.class_attributes,
+                        &descriptor.sync.class_attributes,
+                    ) {
+                        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    }
+                {
                     Ok(())
                 } else {
                     Err(BindingResolutionError::InvalidConstructor {
@@ -522,18 +584,23 @@ impl Container {
         scope::check_open(self)?;
         let key = ServiceKey::typed::<T>();
         let entry = self.constructor(&key, false)?;
-        let _frame = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
-        match entry.value.downcast_ref::<Binding<T>>() {
+        let frame = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
+        let value = match entry.value.downcast_ref::<Binding<T>>() {
             Some(Binding::Factory(factory)) => factory(self),
             Some(Binding::AsyncFactory(_)) => {
-                Err(BindingResolutionError::AsyncResolutionRequired { service: key })
+                Err(BindingResolutionError::AsyncResolutionRequired {
+                    service: key.clone(),
+                })
             }
             _ => Err(BindingResolutionError::TypeMismatch {
-                service: key,
+                service: key.clone(),
                 expected: type_name::<T>(),
                 actual: entry.output,
             }),
-        }
+        }?;
+        drop(frame);
+        self.after_class(&key, &entry, &value)?;
+        Ok(value)
     }
     pub(super) async fn build_class_async<T: ?Sized + Send + Sync + 'static>(
         &self,
@@ -542,18 +609,39 @@ impl Container {
         let key = ServiceKey::typed::<T>();
         let entry = self.constructor(&key, true)?;
         scope::preserve(self, async {
-            self.with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
-                match entry.value.downcast_ref::<Binding<T>>() {
-                    Some(Binding::AsyncFactory(factory)) => factory(self).await,
-                    _ => Err(BindingResolutionError::TypeMismatch {
-                        service: key.clone(),
-                        expected: type_name::<T>(),
-                        actual: entry.output,
-                    }),
-                }
-            })
-            .await
+            let value = self
+                .with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
+                    match entry.value.downcast_ref::<Binding<T>>() {
+                        Some(Binding::AsyncFactory(factory)) => factory(self).await,
+                        _ => Err(BindingResolutionError::TypeMismatch {
+                            service: key.clone(),
+                            expected: type_name::<T>(),
+                            actual: entry.output,
+                        }),
+                    }
+                })
+                .await?;
+            scope::check_open(self)?;
+            self.after_class(&key, &entry, &value)?;
+            Ok(value)
         })
         .await
+    }
+
+    pub(super) fn after_class<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: &ServiceKey,
+        entry: &RegisteredBinding,
+        value: &Arc<T>,
+    ) -> Result<()> {
+        if let Some(attributes) = &entry.class_attributes {
+            self.fire_attribute_callbacks(
+                attributes,
+                &AttributeValue::One(ParameterValue::new(value.clone())),
+                None,
+                Some(key),
+            )?;
+        }
+        Ok(())
     }
 }

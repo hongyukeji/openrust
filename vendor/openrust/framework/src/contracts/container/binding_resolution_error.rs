@@ -25,6 +25,12 @@ pub enum BindingResolutionError {
         expected: &'static str,
         actual: &'static str,
     },
+    InvalidAttributeArguments {
+        parameter: &'static str,
+    },
+    AttributeHandlerMissing {
+        attribute: ServiceKey,
+    },
     InvalidArgumentShape {
         index: usize,
     },
@@ -101,6 +107,18 @@ impl fmt::Display for BindingResolutionError {
                 f,
                 "method {service}@{method} has contract {actual}, expected {expected}"
             ),
+            Self::InvalidAttributeArguments { parameter } => {
+                write!(
+                    f,
+                    "attribute cannot return multiple values for parameter {parameter}"
+                )
+            }
+            Self::AttributeHandlerMissing { attribute } => {
+                write!(
+                    f,
+                    "contextual attribute {attribute} has no registered handler"
+                )
+            }
             Self::InvalidArgumentShape { index } => {
                 write!(f, "constructor argument slot {index} has a different shape")
             }

@@ -753,3 +753,47 @@ async fn main() {
 ```
 
 Use `makeAsync` or `buildAsync` for self-building classes. Constructor overrides supplied to `makeWithAsync` do not become method arguments. If `newInstance` resolves the same type during construction, the ordinary constructor handles that nested build. An ordinary constructor cycle still produces a resolution error. Use `bindStaticMethod` with the name `newInstance` to replace the static method for container-driven construction.
+
+## Contextual Attributes
+
+Use `ConstructorParam::withAttribute` to attach a contextual attribute to a constructor, method, or `newInstance` parameter. Implement `ContextualAttribute` to define how it resolves a value. `whenHasAttribute` overrides that resolver for a particular container.
+
+```rust
+use openrust::{
+    container::{
+        AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor,
+        ConstructorParam, Container, ParameterValue,
+    },
+    contracts::container::{BindingResolutionError, Container as _, ContextualAttribute},
+};
+use std::sync::Arc;
+
+struct Port;
+impl ContextualAttribute for Port {
+    fn resolve(
+        &self,
+        _: &Container,
+        _: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        Ok(ParameterValue::new(8080_u16).into())
+    }
+}
+
+struct Server(u16);
+fn main() {
+    let container = Container::default();
+    let port = ConstructorParam::scalar::<u16>("port")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Port)));
+    let descriptor = ClassDescriptor::concrete(vec![port], |args| {
+        Ok(Arc::new(Server(*args.get::<u16>(0)?)))
+    })
+    .unwrap();
+
+    container.registerClass(descriptor).unwrap();
+    assert_eq!(container.make::<Server>().unwrap().0, 8080);
+}
+```
+
+Constructors check explicit named overrides first, then the first contextual attribute. A null attribute result falls back to ordinary constructor resolution. Method calls check the named override, then the attribute, then the class-name override or normal resolution. Methods preserve an attribute's null result for a nullable slot.
+
+Attach a marker with `ClassAttribute::marker` and use `afterResolvingAttribute` to observe attributes or their declared service type. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.

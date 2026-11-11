@@ -32,9 +32,11 @@ mod environment;
 pub use environment::{EnvironmentQuery, EnvironmentResolver, EnvironmentResult};
 mod bindings;
 pub use bindings::{BindingDefinition, Bindings, FactoryHandle};
+mod attributes;
 mod call;
 mod call_context;
 mod class_descriptor;
+pub use attributes::{AttributeEvent, AttributeParameter, AttributeValue, ClassAttribute};
 pub use call::{CallArguments, CallFuture, Callable, Callback};
 mod method_call;
 pub use method_call::{MethodCall, StaticCall};
@@ -64,6 +66,7 @@ pub struct Container {
 
 #[derive(Default)]
 struct Registry {
+    attributes: attributes::Attributes,
     environment_resolver: Option<EnvironmentResolver>,
     methods: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
     method_bindings: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
@@ -84,6 +87,7 @@ struct Registry {
 
 #[derive(Clone)]
 struct RegisteredBinding {
+    class_attributes: Option<Arc<Vec<ClassAttribute>>>,
     services: Option<Arc<Vec<ServiceKey>>>,
     value: ErasedBinding,
     output: &'static str,
@@ -298,6 +302,7 @@ impl Container {
             _ => None,
         };
         RegisteredBinding {
+            class_attributes: None,
             services: None,
             value: Arc::new(binding),
             output: type_name::<T>(),
@@ -1669,7 +1674,15 @@ impl Container {
             }
             Binding::Factory(factory) => {
                 self.check_extenders::<T>(&key)?;
-                let value = self.decorate(&key, factory(self)?, None)?;
+                let value = factory(self)?;
+                let resolution = if entry.class_attributes.is_some() {
+                    drop(resolution);
+                    self.after_class(&key, &entry, &value)?;
+                    self.resolve(&key, Arc::as_ptr(&entry.version).addr())?
+                } else {
+                    resolution
+                };
+                let value = self.decorate(&key, value, None)?;
                 drop(resolution);
                 let current = self.current_recipe(&key, &entry, contextual);
                 self.fire_constructed(&key, value.clone())?;

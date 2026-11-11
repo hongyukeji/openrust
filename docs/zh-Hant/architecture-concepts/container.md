@@ -753,3 +753,47 @@ async fn main() {
 ```
 
 使用 `makeAsync` 或 `buildAsync` 解析自建構類別。`makeWithAsync` 的建構參數覆寫不會傳給靜態方法。若 `newInstance` 在建構期間再次解析同一型別，內層建構會使用一般建構函式。一般建構中的循環相依仍會回傳解析錯誤。可用 `bindStaticMethod` 繫結 `newInstance`，替換容器建構時呼叫的靜態方法。
+
+## 內容屬性
+
+使用 `ConstructorParam::withAttribute` 為建構函式、方法或 `newInstance` 的參數宣告內容屬性。實作 `ContextualAttribute` 定義如何解析值。可透過 `whenHasAttribute` 為指定容器覆寫解析器。
+
+```rust
+use openrust::{
+    container::{
+        AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor,
+        ConstructorParam, Container, ParameterValue,
+    },
+    contracts::container::{BindingResolutionError, Container as _, ContextualAttribute},
+};
+use std::sync::Arc;
+
+struct Port;
+impl ContextualAttribute for Port {
+    fn resolve(
+        &self,
+        _: &Container,
+        _: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        Ok(ParameterValue::new(8080_u16).into())
+    }
+}
+
+struct Server(u16);
+fn main() {
+    let container = Container::default();
+    let port = ConstructorParam::scalar::<u16>("port")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Port)));
+    let descriptor = ClassDescriptor::concrete(vec![port], |args| {
+        Ok(Arc::new(Server(*args.get::<u16>(0)?)))
+    })
+    .unwrap();
+
+    container.registerClass(descriptor).unwrap();
+    assert_eq!(container.make::<Server>().unwrap().0, 8080);
+}
+```
+
+建構函式先查明確指定的具名參數，再使用第一個內容屬性。屬性回傳空值時，會回退到一般建構參數解析。方法呼叫依序檢查具名參數、屬性、類別名稱參數或一般解析。方法的可空參數會保留屬性回傳的空值。
+
+使用 `ClassAttribute::marker` 宣告標記，使用 `afterResolvingAttribute` 依屬性型別或宣告的服務型別觀察解析結果。參數回呼會在建構或呼叫前執行，明確指定的建構參數會略過其回呼。類別屬性回呼在建構完成後、擴充器和服務解析回呼之前執行。屬性回呼使用同步 Rust 函式，也會在非同步解析時執行。

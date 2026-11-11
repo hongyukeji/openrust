@@ -1,11 +1,11 @@
 use openrust::{
     config::{ConfigError, Environment, Value},
     container::{
-        ClassDescriptor, ConstructorParam, Container, FactoryFuture, ParameterValue, ResolvedArgs,
-        ServiceKey,
+        AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
+        Container, FactoryFuture, ParameterValue, ResolvedArgs, ServiceKey,
     },
     contracts::{
-        container::{BindingResolutionError, Container as _, SelfBuilding},
+        container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
         foundation::Application as _,
         http::Kernel as _,
         support::DeferrableProvider,
@@ -60,6 +60,18 @@ struct Client {
     name: &'static str,
     attempt: usize,
 }
+struct RequestLabel;
+impl ContextualAttribute for RequestLabel {
+    fn resolve(
+        &self,
+        _: &Container,
+        parameter: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        assert_eq!(parameter.name, "label");
+        Ok(ParameterValue::new(String::from("attribute")).into())
+    }
+}
+
 struct SelfBuilt(String);
 impl SelfBuilding for SelfBuilt {
     #[allow(non_snake_case)]
@@ -68,8 +80,11 @@ impl SelfBuilding for SelfBuilt {
             let client = args.service::<Client>(0)?;
             let ordinary = container.make::<Self>()?;
             Ok(Arc::new(Self(format!(
-                "{}:{}:{}",
-                client.name, client.attempt, ordinary.0
+                "{}:{}:{}:{}",
+                client.name,
+                client.attempt,
+                ordinary.0,
+                args.get::<String>(1)?
             ))))
         })
     }
@@ -110,7 +125,11 @@ impl ServiceProvider for Constructors {
                 .registerClass(ClassDescriptor::selfBuilding::<SelfBuilt>(
                     vec![],
                     |_| Ok(Arc::new(SelfBuilt("ordinary".into()))),
-                    vec![ConstructorParam::class::<Client>("client")],
+                    vec![
+                        ConstructorParam::class::<Client>("client"),
+                        ConstructorParam::scalar::<String>("label")
+                            .withAttribute(ClassAttribute::contextual(|| Ok(RequestLabel))),
+                    ],
                 )?)?;
             assert!(!app.container().bound::<Worker>());
             Ok(())
@@ -266,14 +285,17 @@ async fn real_http_automatically_constructs_metadata_and_loads_deferred_dependen
             .await
             .contains("private client constructor failure")
     );
-    assert_eq!(send(bad, "/self-building", 200).await, "retry:2:ordinary");
+    assert_eq!(
+        send(bad, "/self-building", 200).await,
+        "retry:2:ordinary:attribute"
+    );
     assert_eq!(send(bad, "/worker", 200).await, "retry:2:1:1");
     let (first_result, second_result) = tokio::join!(
         send(first, "/self-building", 200),
         send(second, "/self-building", 200),
     );
-    assert_eq!(first_result, "a:1:ordinary");
-    assert_eq!(second_result, "b:1:ordinary");
+    assert_eq!(first_result, "a:1:ordinary:attribute");
+    assert_eq!(second_result, "b:1:ordinary:attribute");
     for task in [x, y, z] {
         task.abort();
         let _ = task.await;
