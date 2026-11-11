@@ -1,4 +1,5 @@
 use openrust::{
+    class_projection,
     config::{ConfigError, Environment, Value},
     container::{
         AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
@@ -94,6 +95,15 @@ struct Worker {
     sequence: usize,
     number: u32,
 }
+trait WorkerView: Send + Sync {
+    fn sequence(&self) -> usize;
+}
+impl WorkerView for Worker {
+    fn sequence(&self) -> usize {
+        self.sequence
+    }
+}
+
 struct Workers;
 impl Facade for Workers {
     type Service = Worker;
@@ -121,7 +131,8 @@ impl ServiceProvider for Constructors {
                         }))
                     },
                 )?
-                .withLifetime(Lifetime::Scoped),
+                .withLifetime(Lifetime::Scoped)
+                .withProjection(class_projection!(Worker => dyn WorkerView)),
             )?;
             app.container()
                 .registerClass(ClassDescriptor::selfBuilding::<SelfBuilt>(
@@ -133,6 +144,8 @@ impl ServiceProvider for Constructors {
                             .withAttribute(ClassAttribute::contextual(|| Ok(RequestLabel))),
                     ],
                 )?)?;
+            app.container()
+                .alias(ServiceKey::typed::<Worker>(), "worker.view")?;
             assert!(!app.container().bound::<Worker>());
             Ok(())
         })
@@ -193,6 +206,15 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 source: source.into(),
             })?;
         assert!(Arc::ptr_eq(&a, &direct));
+        let expected: Arc<dyn WorkerView> = direct;
+        let view = Container::getInstance()
+            .getAsync::<dyn WorkerView>("worker.view")
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        assert_eq!(view.sequence(), a.sequence);
+        assert!(Arc::ptr_eq(&view, &expected));
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!(

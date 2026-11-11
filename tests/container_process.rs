@@ -1,5 +1,6 @@
 //! Runs the actual framework entry in child processes with a test provider.
 use openrust::{
+    class_projection,
     console::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
@@ -134,6 +135,14 @@ impl ContextualAttribute for ProbeGreeting {
     }
 }
 struct CompiledProbe(Arc<Greeting>);
+trait CompiledProbeView: Send + Sync {
+    fn greeting(&self) -> &str;
+}
+impl CompiledProbeView for CompiledProbe {
+    fn greeting(&self) -> &str {
+        &self.0.0
+    }
+}
 impl SelfBuilding for CompiledProbe {
     #[allow(non_snake_case)]
     fn newInstance(args: ResolvedArgs, _: &Container) -> FactoryFuture<'_, Self> {
@@ -153,12 +162,12 @@ impl FrameworkCommand for ConstructionCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let value = app
-                .make::<CompiledProbe>()
+                .get::<dyn CompiledProbeView>("compiled.probe")
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
             output
                 .stdout
-                .push_str(&format!("constructed:{}", value.0.0));
+                .push_str(&format!("constructed:{}", value.greeting()));
             Ok(0)
         })
     }
@@ -395,15 +404,19 @@ impl ServiceProvider for Provider {
                 .when::<VariadicProbe>()?
                 .needs::<Greeting>()
                 .giveServices(["variadic-first", "variadic-second"])?;
-            app.container()
-                .registerClass(ClassDescriptor::selfBuilding::<CompiledProbe>(
+            app.container().registerClass(
+                ClassDescriptor::selfBuilding::<CompiledProbe>(
                     vec![ConstructorParam::class::<Greeting>("greeting")],
                     |args| Ok(Arc::new(CompiledProbe(args.service(0)?))),
                     vec![
                         ConstructorParam::class::<Greeting>("greeting")
                             .withAttribute(ClassAttribute::contextual(|| Ok(ProbeGreeting))),
                     ],
-                )?)?;
+                )?
+                .withProjection(class_projection!(CompiledProbe => dyn CompiledProbeView)),
+            )?;
+            app.container()
+                .alias(ServiceKey::typed::<CompiledProbe>(), "compiled.probe")?;
             app.container()
                 .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
                     Box::pin(async move {

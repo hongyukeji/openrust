@@ -25,6 +25,10 @@ pub enum BindingResolutionError {
         expected: &'static str,
         actual: &'static str,
     },
+    InvalidProjection {
+        source: ServiceKey,
+        target: ServiceKey,
+    },
     InvalidAttributeArguments {
         parameter: &'static str,
     },
@@ -107,6 +111,12 @@ impl fmt::Display for BindingResolutionError {
                 f,
                 "method {service}@{method} has contract {actual}, expected {expected}"
             ),
+            Self::InvalidProjection { source, target } => {
+                write!(
+                    f,
+                    "invalid compiled service projection from {source} to {target}"
+                )
+            }
             Self::InvalidAttributeArguments { parameter } => {
                 write!(
                     f,

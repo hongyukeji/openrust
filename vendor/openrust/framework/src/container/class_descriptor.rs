@@ -1,8 +1,8 @@
 //! Static constructor metadata replaces PHP reflection without creating service bindings.
 use super::{
-    AttributeParameter, AttributeValue, Binding, ClassAttribute, Container, FactoryFuture,
-    Lifetime, ParameterKey, ParameterOverrides, ParameterValue, RegisteredBinding, ServiceKey,
-    StaticCall, method_call::RegisteredMethod, scope,
+    AttributeParameter, AttributeValue, Binding, ClassAttribute, ClassProjection, Container,
+    FactoryFuture, Lifetime, ParameterKey, ParameterOverrides, ParameterValue, RegisteredBinding,
+    ServiceKey, StaticCall, method_call::RegisteredMethod, scope,
 };
 use crate::contracts::container::{BindingResolutionError, Container as _, SelfBuilding};
 use std::{any::type_name, collections::HashSet, future::Future, pin::Pin, sync::Arc};
@@ -343,6 +343,7 @@ async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result
 /// Immutable metadata for one compiled concrete type; registration does not mark it bound.
 #[derive(Clone)]
 pub struct ClassDescriptor {
+    pub(super) projections: Option<Arc<Vec<ClassProjection>>>,
     lifetime: Option<Lifetime>,
     key: ServiceKey,
     sync: RegisteredBinding,
@@ -376,6 +377,7 @@ impl ClassDescriptor {
         })))
         .with_version(sync.version.clone());
         Ok(Self {
+            projections: None,
             lifetime: None,
             key,
             sync,
@@ -397,6 +399,7 @@ impl ClassDescriptor {
             Box::pin(async move { new(resolve_async(c, &signature).await?).await })
         })));
         Ok(Self {
+            projections: None,
             lifetime: None,
             key,
             sync: asynchronous.clone(),
@@ -467,6 +470,32 @@ impl ClassDescriptor {
         let mut recipe = self.sync.clone();
         recipe.asynchronous_value = Some(self.asynchronous.value.clone());
         recipe.promoted()
+    }
+
+    /// Attaches a trait view to this concrete class.
+    #[allow(non_snake_case, reason = "Compiled class metadata")]
+    pub fn withProjection(mut self, projection: ClassProjection) -> Self {
+        Arc::make_mut(self.projections.get_or_insert_with(Arc::default)).push(projection);
+        self
+    }
+
+    fn validate_projections(&self) -> Result<()> {
+        let Some(projections) = &self.projections else {
+            return Ok(());
+        };
+        let mut targets = HashSet::new();
+        for projection in projections.iter() {
+            if projection.source != self.key
+                || projection.target == self.key
+                || !targets.insert(&projection.target)
+            {
+                return Err(BindingResolutionError::InvalidProjection {
+                    source: projection.source.clone(),
+                    target: projection.target.clone(),
+                });
+            }
+        }
+        Ok(())
     }
 
     pub fn key(&self) -> &ServiceKey {
@@ -546,6 +575,7 @@ impl Container {
             .is_some_and(|needs| needs.contains_key(key))
     }
     pub(super) fn register_class(&self, descriptor: ClassDescriptor) -> Result<()> {
+        descriptor.validate_projections()?;
         let mut pending = Some(descriptor);
         let mut retired = None;
         let result = {
@@ -554,6 +584,11 @@ impl Container {
             if let Some(previous) = registry.classes.get(&descriptor.key) {
                 if Arc::ptr_eq(&previous.sync.version, &descriptor.sync.version)
                     && previous.lifetime == descriptor.lifetime
+                    && match (&previous.projections, &descriptor.projections) {
+                        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                        (None, None) => true,
+                        _ => false,
+                    }
                     && match (
                         &previous.sync.class_attributes,
                         &descriptor.sync.class_attributes,

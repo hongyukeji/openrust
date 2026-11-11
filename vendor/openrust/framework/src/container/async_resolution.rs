@@ -79,6 +79,10 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
             parameter,
             service: service.clone(),
         },
+        InvalidProjection { source, target } => InvalidProjection {
+            source: source.clone(),
+            target: target.clone(),
+        },
         InvalidAttributeArguments { parameter } => InvalidAttributeArguments { parameter },
         AttributeHandlerMissing { attribute } => AttributeHandlerMissing {
             attribute: attribute.clone(),
@@ -335,13 +339,12 @@ impl Container {
         entry: RegisteredBinding,
         contextual: bool,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        let binding = entry.value.clone().downcast::<Binding<T>>().map_err(|_| {
-            BindingResolutionError::TypeMismatch {
-                service: key.clone(),
-                expected: std::any::type_name::<T>(),
-                actual: entry.output,
-            }
-        })?;
+        let Ok(binding) = entry.value.clone().downcast::<Binding<T>>() else {
+            return self
+                .projection_for::<T>(&key, &entry)?
+                .resolve_async(self, key, entry, contextual)
+                .await;
+        };
         if matches!(binding.as_ref(), Binding::Factory(_)) {
             return self.resolve_entry(key, entry, contextual);
         }

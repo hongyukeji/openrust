@@ -8,8 +8,8 @@ use std::{
 use crate::contracts::container::{BindingResolutionError, Container as _};
 
 use super::{
-    Binding, Container, EnvironmentQuery, RegisteredBinding, Registry, ServiceKey, parameters,
-    scope,
+    Binding, Container, EnvironmentQuery, FactoryFuture, ParameterValue, RegisteredBinding,
+    Registry, ServiceKey, parameters, scope,
 };
 
 type Result<T> = std::result::Result<T, BindingResolutionError>;
@@ -91,27 +91,62 @@ impl Bind {
         let same_class = key == ServiceKey::typed::<C>();
         let project = Arc::new(project);
         let synchronous = project.clone();
-        let mut entry = Container::entry(Binding::Factory(Arc::new(move |container| {
-            let value = if same_class {
-                container.build::<C>()?
-            } else {
-                container.makeWith::<C>(parameters::current(container))?
-            };
-            Ok(synchronous(value))
-        })));
-        let asynchronous = Container::entry(Binding::AsyncFactory(Arc::new(move |container| {
-            let project = project.clone();
-            Box::pin(async move {
+        Self::from_factories::<T>(
+            move |container| {
                 let value = if same_class {
-                    container.buildAsync::<C>().await?
+                    container.build::<C>()?
                 } else {
-                    container
-                        .makeWithAsync::<C>(parameters::current(container))
-                        .await?
+                    container.makeWith::<C>(parameters::current(container))?
                 };
-                Ok(project(value))
-            })
-        })));
+                Ok(synchronous(value))
+            },
+            move |container| {
+                let project = project.clone();
+                Box::pin(async move {
+                    let value = if same_class {
+                        container.buildAsync::<C>().await?
+                    } else {
+                        container
+                            .makeWithAsync::<C>(parameters::current(container))
+                            .await?
+                    };
+                    Ok(project(value))
+                })
+            },
+        )
+    }
+
+    /// Declares a concrete implementation using the projection on its class descriptor.
+    pub fn implementation<T, C>() -> Self
+    where
+        T: ?Sized + Send + Sync + 'static,
+        C: Send + Sync + 'static,
+    {
+        Self::from_factories::<T>(
+            |container| {
+                let projection = container.required_projection::<C, T>()?;
+                let value = container.makeWith::<C>(parameters::current(container))?;
+                projection.view(&ParameterValue::new(value))
+            },
+            |container| {
+                Box::pin(async move {
+                    let projection = container.required_projection::<C, T>()?;
+                    let value = container
+                        .makeWithAsync::<C>(parameters::current(container))
+                        .await?;
+                    projection.view(&ParameterValue::new(value))
+                })
+            },
+        )
+    }
+
+    fn from_factories<T: ?Sized + Send + Sync + 'static>(
+        synchronous: impl Fn(&Container) -> Result<Arc<T>> + Send + Sync + 'static,
+        asynchronous: impl for<'a> Fn(&'a Container) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    ) -> Self {
+        let key = ServiceKey::typed::<T>();
+        let mut entry = Container::entry(Binding::Factory(Arc::new(synchronous)));
+        let asynchronous = Container::entry(Binding::AsyncFactory(Arc::new(asynchronous)));
         entry.asynchronous_value = Some(asynchronous.value);
         Self {
             key,

@@ -872,3 +872,44 @@ fn main() {
 `Lifetime::Singleton` reuses the instance in its application container. `Lifetime::Scoped` reuses it within the active request or command lifecycle. Outside an active lifecycle, scoped instances use the container's root cache, which `forgetScopedInstances` can clear.
 
 Sync and async resolution share the same cache. Use async resolution if construction needs asynchronous dependencies. `build` and `buildAsync` construct directly, and explicit constructor overrides use a fresh instance. An implicit concrete class appears as bound after its instance has been cached. `getBindings` lists registered bindings, including those selected by `Bind` and `BindWhen`.
+
+## Compiled Interface Views
+
+Declare a trait view on its concrete class with `withProjection(class_projection!(Concrete => dyn Contract))`. Rust checks the coercion at compile time. When a named key or alias selects a binding of that concrete type, `get::<dyn Contract>` and `getAsync::<dyn Contract>` can return the same object through its trait view.
+
+```rust
+use openrust::{
+    class_projection,
+    container::{Bind, BindWhen, ClassDescriptor, Container, Lifetime, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+trait Report: Send + Sync {}
+struct DailyReport;
+impl Report for DailyReport {}
+
+fn main() {
+    let container = Container::default();
+    let descriptor = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
+        .unwrap()
+        .withProjection(class_projection!(DailyReport => dyn Report))
+        .withLifetime(Lifetime::Singleton);
+    container.registerClass(descriptor).unwrap();
+    container
+        .alias(ServiceKey::typed::<DailyReport>(), "daily")
+        .unwrap();
+    container
+        .registerBindingAttributes::<dyn Report>(vec![
+            BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true))
+                .into(),
+        ])
+        .unwrap();
+
+    let named = container.get::<dyn Report>("daily").unwrap();
+    let injected = container.make::<dyn Report>().unwrap();
+    assert!(Arc::ptr_eq(&named, &injected));
+}
+```
+
+A projection preserves the selected service key, lifetime, and object identity. An incompatible view fails before constructing the selected service. To inject the interface by its own key, declare a binding such as `Bind::implementation::<dyn Contract, Concrete>()`. The binding can reuse the projection in a `BindWhen` rule.

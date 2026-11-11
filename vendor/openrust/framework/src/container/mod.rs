@@ -1,7 +1,7 @@
 //! The framework's service container.
 
 use std::{
-    any::{Any, type_name},
+    any::{Any, TypeId, type_name},
     cell::RefCell,
     collections::{HashMap, HashSet},
     panic::{self, AssertUnwindSafe},
@@ -38,8 +38,10 @@ mod attributes;
 mod call;
 mod call_context;
 mod class_descriptor;
+mod class_projection;
 pub use attributes::{AttributeEvent, AttributeParameter, AttributeValue, ClassAttribute};
 pub use call::{CallArguments, CallFuture, Callable, Callback};
+pub use class_projection::ClassProjection;
 mod lifetime_attributes;
 pub use lifetime_attributes::Lifetime;
 mod method_call;
@@ -103,6 +105,7 @@ struct RegisteredBinding {
     services: Option<Arc<Vec<ServiceKey>>>,
     value: ErasedBinding,
     output: &'static str,
+    output_type: TypeId,
     version: Arc<()>,
     instance: bool,
     shared: bool,
@@ -351,6 +354,7 @@ impl Container {
             services: None,
             value: Arc::new(binding),
             output: type_name::<T>(),
+            output_type: TypeId::of::<T>(),
             version: Arc::new(()),
             instance,
             shared,
@@ -1734,13 +1738,11 @@ impl Container {
         entry: RegisteredBinding,
         contextual: bool,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        let binding = entry.value.downcast_ref::<Binding<T>>().ok_or_else(|| {
-            BindingResolutionError::TypeMismatch {
-                service: key.clone(),
-                expected: type_name::<T>(),
-                actual: entry.output,
-            }
-        })?;
+        let Some(binding) = entry.value.downcast_ref::<Binding<T>>() else {
+            return self
+                .projection_for::<T>(&key, &entry)?
+                .resolve(self, key, entry, contextual);
+        };
         if let Binding::Instance { state, ready, .. } = binding {
             return self.read_instance(&key, state, ready);
         }

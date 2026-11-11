@@ -872,3 +872,44 @@ fn main() {
 `Lifetime::Singleton` 在目前的應用程式容器中重複使用執行個體。`Lifetime::Scoped` 在目前請求或命令的生命週期中重複使用執行個體。作用域之外使用容器的根快取，可用 `forgetScopedInstances` 清除。
 
 同步與非同步解析共用快取。建構需要非同步相依服務時，請使用非同步解析。`build` 和 `buildAsync` 直接建構，明確指定建構參數也會使用新的執行個體。隱式建構的具體類別會在執行個體快取後顯示為已繫結。`getBindings` 列出已註冊的繫結，包括 `Bind` 和 `BindWhen` 選中的繫結。
+
+## 編譯介面投影
+
+使用 `withProjection(class_projection!(Concrete => dyn Contract))` 在具體類別上宣告 trait 檢視。Rust 在編譯時檢查型別轉換。具名鍵或別名選中該具體型別的繫結後，`get::<dyn Contract>` 和 `getAsync::<dyn Contract>` 可回傳同一個物件的 trait 檢視。
+
+```rust
+use openrust::{
+    class_projection,
+    container::{Bind, BindWhen, ClassDescriptor, Container, Lifetime, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+trait Report: Send + Sync {}
+struct DailyReport;
+impl Report for DailyReport {}
+
+fn main() {
+    let container = Container::default();
+    let descriptor = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
+        .unwrap()
+        .withProjection(class_projection!(DailyReport => dyn Report))
+        .withLifetime(Lifetime::Singleton);
+    container.registerClass(descriptor).unwrap();
+    container
+        .alias(ServiceKey::typed::<DailyReport>(), "daily")
+        .unwrap();
+    container
+        .registerBindingAttributes::<dyn Report>(vec![
+            BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true))
+                .into(),
+        ])
+        .unwrap();
+
+    let named = container.get::<dyn Report>("daily").unwrap();
+    let injected = container.make::<dyn Report>().unwrap();
+    assert!(Arc::ptr_eq(&named, &injected));
+}
+```
+
+投影保留已選服務鍵、生命週期及物件身分。所請求的檢視不相容時，會在建構該服務前回傳錯誤。需要依介面本身的鍵注入時，可宣告 `Bind::implementation::<dyn Contract, Concrete>()`，也可在 `BindWhen` 條件中使用這項宣告。
