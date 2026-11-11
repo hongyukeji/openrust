@@ -57,6 +57,50 @@ impl Response {
         self
     }
 
+    /// Attaches a cookie using the given request's HTTPS setting.
+    pub fn cookie(
+        mut self,
+        cookie: &crate::cookie::Cookie,
+        request: &super::Request,
+    ) -> Result<Self, HttpError> {
+        self.setCookie(cookie, request.is_secure())?;
+        Ok(self)
+    }
+
+    /// Sets a cookie, replacing an existing cookie with the same name, path and domain.
+    #[allow(non_snake_case, reason = "Matches Laravel's response cookie API")]
+    pub fn setCookie(
+        &mut self,
+        cookie: &crate::cookie::Cookie,
+        secure_default: bool,
+    ) -> Result<(), HttpError> {
+        use ::http::header::SET_COOKIE;
+
+        let header = cookie.to_header(secure_default)?;
+        let identity = cookie_identity(&header);
+        let headers = &mut self.parts.headers;
+        let existing = headers
+            .get_all(SET_COOKIE)
+            .iter()
+            .filter(|current| cookie_identity(current) != identity)
+            .cloned()
+            .collect::<Vec<_>>();
+        headers.remove(SET_COOKIE);
+        for current in existing {
+            headers.append(SET_COOKIE, current);
+        }
+        headers.append(SET_COOKIE, header.clone());
+        let values = self
+            .parts
+            .extensions
+            .get_or_insert_default::<crate::cookie::ResponseCookies>();
+        values
+            .0
+            .retain(|(current, _)| cookie_identity(current) != identity);
+        values.0.push((header, cookie.clone()));
+        Ok(())
+    }
+
     pub(crate) fn with_allow(mut self, methods: &[Method], separator: &str) -> Self {
         let allow = methods
             .iter()
@@ -82,7 +126,10 @@ impl Response {
     pub fn take_body(&mut self) -> Body {
         std::mem::replace(&mut self.body, Body::empty())
     }
-    pub fn into_parts(self) -> (ResponseParts, Body) {
+    pub fn into_parts(mut self) -> (ResponseParts, Body) {
+        self.parts
+            .extensions
+            .remove::<crate::cookie::ResponseCookies>();
         (self.parts, self.body)
     }
     pub fn status(&self) -> StatusCode {
@@ -91,4 +138,21 @@ impl Response {
     pub fn headers(&self) -> &HeaderMap {
         &self.parts.headers
     }
+}
+
+fn cookie_identity(header: &HeaderValue) -> Option<(&str, &str, &str)> {
+    let mut parts = header.to_str().ok()?.split(';');
+    let (name, _) = parts.next()?.split_once('=')?;
+    let mut domain = "";
+    let mut path = "/";
+    for attribute in parts {
+        if let Some((key, value)) = attribute.trim().split_once('=') {
+            if key.eq_ignore_ascii_case("domain") {
+                domain = value.trim_start_matches('.');
+            } else if key.eq_ignore_ascii_case("path") {
+                path = value;
+            }
+        }
+    }
+    Some((name, domain, path))
 }

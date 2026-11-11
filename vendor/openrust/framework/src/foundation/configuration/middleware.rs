@@ -1,11 +1,16 @@
-use std::{any::TypeId, sync::Arc};
+use std::{any::TypeId, collections::HashSet, sync::Arc};
 
 use crate::{
-    contracts::http::Middleware as HttpMiddleware,
+    config::{ConfigError, Value},
+    contracts::{config::Repository, http::Middleware as HttpMiddleware},
+    cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
+    foundation::http::middleware::PreventRequestForgery,
     routing::{
         MiddlewareEntry,
         middleware::{MiddlewareRegistry, SubstituteBindings},
     },
+    session::middleware::StartSession,
+    view::middleware::ShareErrorsFromSession,
 };
 
 /// Configures global and route middleware during application assembly.
@@ -13,6 +18,9 @@ pub struct Middleware {
     pub(crate) global: Vec<Arc<dyn HttpMiddleware>>,
     pub(crate) prepended: usize,
     pub(crate) registry: MiddlewareRegistry,
+    default_web: bool,
+    cookie_exceptions: Arc<HashSet<String>>,
+    csrf: PreventRequestForgery,
 }
 
 impl Default for Middleware {
@@ -21,6 +29,9 @@ impl Default for Middleware {
             global: Vec::new(),
             prepended: 0,
             registry: MiddlewareRegistry::default(),
+            default_web: true,
+            cookie_exceptions: Arc::default(),
+            csrf: PreventRequestForgery::default(),
         };
         let bindings = Arc::new(SubstituteBindings);
         middleware.registry.groups.insert(
@@ -82,6 +93,63 @@ impl Middleware {
         self.alias(name, crate::foundation::http::terminable(middleware))
     }
 
+    /// Excludes the named cookies from encryption in the default web group.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn encryptCookies(
+        &mut self,
+        except: impl IntoIterator<Item = impl Into<String>>,
+    ) -> &mut Self {
+        Arc::make_mut(&mut self.cookie_exceptions).extend(except.into_iter().map(Into::into));
+        self
+    }
+
+    /// Configures request forgery protection in the default web group.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn preventRequestForgery(
+        &mut self,
+        except: impl IntoIterator<Item = impl Into<String>>,
+        origin_only: bool,
+        allow_same_site: bool,
+    ) -> &mut Self {
+        self.csrf
+            .except(except)
+            .useOriginOnly(origin_only)
+            .allowSameSite(allow_same_site);
+        self
+    }
+
+    pub(crate) fn configure_web(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
+        if !self.default_web || matches!(config.get("session.driver"), None | Some(Value::Null)) {
+            return Ok(());
+        }
+        let name = config.get("session.cookie");
+        let name = name
+            .as_ref()
+            .and_then(Value::as_str)
+            .unwrap_or("openrust_session");
+        if self.cookie_exceptions.contains(name) || self.cookie_exceptions.contains("XSRF-TOKEN") {
+            return Err(ConfigError::InvalidType {
+                key: "session.cookie".into(),
+                expected: "encrypted session and XSRF cookies in the web middleware group",
+            });
+        }
+        let stack: [Arc<dyn HttpMiddleware>; 6] = [
+            Arc::new(EncryptCookies::for_application(
+                self.cookie_exceptions.clone(),
+            )),
+            Arc::new(AddQueuedCookiesToResponse),
+            Arc::new(StartSession),
+            Arc::new(ShareErrorsFromSession),
+            Arc::new(self.csrf.clone()),
+            Arc::new(SubstituteBindings),
+        ];
+        self.registry.groups.insert(
+            "web".into(),
+            stack.into_iter().map(MiddlewareEntry::Instance).collect(),
+        );
+        Ok(())
+    }
+
     /// Resolves the throttle alias through the Redis duration limiter.
     #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
     pub fn throttleWithRedis(&mut self) -> &mut Self {
@@ -94,9 +162,13 @@ impl Middleware {
         name: impl Into<String>,
         entries: impl IntoIterator<Item = MiddlewareEntry>,
     ) -> &mut Self {
+        let name = name.into();
+        if name == "web" {
+            self.default_web = false;
+        }
         self.registry
             .groups
-            .insert(name.into(), entries.into_iter().collect());
+            .insert(name, entries.into_iter().collect());
         self
     }
 

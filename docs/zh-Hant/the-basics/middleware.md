@@ -19,3 +19,7 @@
 核心先按解析後的順序呼叫相符路由的終止回呼，再呼叫全域回呼。請求處理與終止階段使用同一個已註冊實例。傳輸層消費串流本文期間，終止回呼會等待。用戶端斷線且傳輸層釋放本文時也會執行回呼。服務正常關閉時會等待未完成的回呼。
 
 直接呼叫 `Kernel::handle` 的應用應在傳輸結束後，用請求和回應組件呼叫 `Kernel::terminate`。內建 HTTP 服務會自動處理。
+
+## 預設 Web 和 API 群組
+
+設定工作階段驅動程式後，預設 `web` 群組依序執行 `EncryptCookies`、`AddQueuedCookiesToResponse`、`StartSession`、`ShareErrorsFromSession`、`PreventRequestForgery` 和 `SubstituteBindings`。預設 `api` 群組執行 `SubstituteBindings`。

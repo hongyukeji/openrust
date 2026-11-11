@@ -243,6 +243,16 @@ impl ServiceProvider for FailingProvider {
     }
 }
 
+fn web_config(
+    base: &std::path::Path,
+    environment: &Environment,
+) -> Result<BTreeMap<String, Value>, ConfigError> {
+    let mut config = config::load(base, environment)?;
+    config.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
+    config.get_mut("session").unwrap()["driver"] = "array".into();
+    Ok(config)
+}
+
 fn listener_config(
     base: &std::path::Path,
     _: &Environment,
@@ -327,7 +337,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
 
     let application = Application::configure(root.0.clone())
         .withConfig(|base, env| {
-            let mut config = config::load(base, env)?;
+            let mut config = web_config(base, env)?;
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
@@ -416,7 +426,7 @@ async fn public_mount_serves_files_after_application_routes() {
     }
 
     let application = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .withConfig(web_config)
         .withRouting(
             Routing::new(|_| {
                 let mut router = Router::new();
@@ -538,7 +548,7 @@ async fn public_mount_serves_files_after_application_routes() {
     }
 
     let application = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .withConfig(web_config)
         .withRouting(Routing::default().web(web::register))
         .create()
         .unwrap();
@@ -590,7 +600,7 @@ async fn public_mount_revalidates_get_and_head_using_file_modification_time() {
     };
     set_file("body{}", 1_700_000_000_123);
     let application = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .withConfig(web_config)
         .withRouting(Routing::default().web(web::register))
         .create()
         .unwrap();
@@ -672,7 +682,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
     let settings = "APP_URL=http://localhost:8000\nPUBLIC_PATH=assets\nPUBLIC_URL_PREFIX=/assets\nPUBLIC_STORAGE_ROOT=uploads\n";
     let application = |register: fn() -> Result<(), openrust::routing::RoutingError>| {
         Application::configure(root.0.clone())
-            .withConfig(config::load)
+            .withConfig(web_config)
             .withRouting(Routing::default().web(register))
             .create()
             .unwrap()

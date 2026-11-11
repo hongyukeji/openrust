@@ -48,7 +48,9 @@ impl Kernel {
         };
 
         let termination_tasks = self.termination_tasks.clone();
-        let service = handle.with_state(Arc::new(self)).into_make_service();
+        let service = handle
+            .with_state(Arc::new(self))
+            .into_make_service_with_connect_info::<std::net::SocketAddr>();
         println!("OpenRust listening on http://{}", listener.local_addr()?);
         let result = axum::serve(listener, service)
             .with_graceful_shutdown(shutdown)

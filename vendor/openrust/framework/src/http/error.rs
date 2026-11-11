@@ -8,6 +8,8 @@ use super::{Method, Response, StatusCode};
 pub enum HttpError {
     InvalidRequest,
     PayloadTooLarge,
+    OriginMismatch,
+    TokenMismatch,
     Throttled {
         headers: super::HeaderMap,
     },
@@ -25,6 +27,8 @@ impl HttpError {
         match self {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::OriginMismatch => StatusCode::FORBIDDEN,
+            Self::TokenMismatch => StatusCode::from_u16(419).expect("valid HTTP status"),
             Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,

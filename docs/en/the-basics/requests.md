@@ -11,3 +11,7 @@ OpenRust preserves the body bytes for subsequent reads after successful collecti
 Use `request.file("attachments.0").await` for a multipart upload, or `request.hasFile("attachments").await` to check whether a field contains an upload. The upload provides bytes and client-supplied filename and media type. Check the content before storing it.
 
 See the [controller example](./controllers.md) for input handling and a JSON response.
+
+## Cookies
+
+Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. In a stack containing `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A cookie with invalid ciphertext or a mismatched name binding has a null value.

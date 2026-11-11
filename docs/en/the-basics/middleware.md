@@ -19,3 +19,7 @@ Implement `TerminableMiddleware` to receive request and response metadata after 
 The kernel calls the selected route hooks in resolved order, then the global hooks. The same registered instance handles both phases. A stream may keep the hook pending while the transport consumes it. Hooks also run when a client disconnects and the transport drops the body. The server waits for pending hooks during graceful shutdown.
 
 An application using `Kernel::handle` directly must call `Kernel::terminate` with the request and response parts after its transport finishes. The built-in HTTP server handles this automatically.
+
+## Default Web and API Groups
+
+With a configured session driver, the default `web` group runs `EncryptCookies`, `AddQueuedCookiesToResponse`, `StartSession`, `ShareErrorsFromSession`, `PreventRequestForgery` and `SubstituteBindings` in that order. The default `api` group runs `SubstituteBindings`.

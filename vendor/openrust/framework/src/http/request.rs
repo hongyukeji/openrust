@@ -15,6 +15,7 @@ use crate::{
 use super::{Body, HeaderMap, Method, RequestParts, Uri};
 
 pub(crate) mod context;
+mod cookies;
 mod input;
 mod query;
 mod variables;
@@ -25,15 +26,19 @@ pub struct Request {
     parts: RequestParts,
     body: Body,
     query_cache: OnceLock<serde_json::Value>,
+    cookie_cache: OnceLock<serde_json::Value>,
+    decrypted_cookies: Option<serde_json::Value>,
+    pub(crate) cookie_encryption: Option<crate::cookie::CookieEncryption>,
+    session: Option<crate::session::Store>,
     raw_input: input::RawBody,
     payload_input: Option<Result<input::Payload, input::InputFailure>>,
     json_input: Option<Result<serde_json::Value, input::InputFailure>>,
     attributes: RequestAttributes,
     route_parameters: context::RouteParameters,
-    pub(crate) route_terminators: Vec<Arc<dyn crate::contracts::http::Middleware>>,
     pub(crate) route_models: RouteModels,
     pub(crate) binding_plan: BindingPlan,
     pub(crate) exceptions: Option<Arc<Handler>>,
+    pub(crate) route_terminators: Vec<Arc<dyn crate::contracts::http::Middleware>>,
 }
 
 impl Request {
@@ -42,15 +47,19 @@ impl Request {
             parts,
             body,
             query_cache: OnceLock::new(),
+            cookie_cache: OnceLock::new(),
+            decrypted_cookies: None,
+            cookie_encryption: None,
+            session: None,
             raw_input: input::RawBody::Unread,
             payload_input: None,
             json_input: None,
             attributes: RequestAttributes::default(),
             route_parameters: Arc::default(),
-            route_terminators: Vec::new(),
             route_models: RouteModels::new(),
             binding_plan: BindingPlan::default(),
             exceptions: None,
+            route_terminators: Vec::new(),
         }
     }
     pub fn parts(&self) -> &RequestParts {
@@ -58,6 +67,7 @@ impl Request {
     }
     pub fn parts_mut(&mut self) -> &mut RequestParts {
         self.query_cache.take();
+        self.cookie_cache.take();
         self.payload_input.take();
         &mut self.parts
     }
@@ -99,6 +109,77 @@ impl Request {
         &self.parts.headers
     }
 
+    /// Reads the cookie bag or an exact top-level cookie name.
+    pub fn cookie(&self, key: Option<&str>) -> Result<Option<serde_json::Value>, super::HttpError> {
+        let cookies = match self
+            .decrypted_cookies
+            .as_ref()
+            .or_else(|| self.cookie_cache.get())
+        {
+            Some(cookies) => cookies,
+            None => {
+                let parsed = cookies::parse(self.headers())?;
+                self.cookie_cache.get_or_init(|| parsed)
+            }
+        };
+        Ok(match (key, cookies) {
+            (None, cookies) => Some(cookies),
+            (Some(key), serde_json::Value::Object(cookies)) => cookies.get(key),
+            (Some(key), serde_json::Value::Array(cookies)) => key
+                .parse::<usize>()
+                .ok()
+                .filter(|index| index.to_string() == key)
+                .and_then(|index| cookies.get(index)),
+            _ => None,
+        }
+        .cloned())
+    }
+
+    pub(crate) fn replace_cookies(
+        &mut self,
+        cookies: Option<serde_json::Value>,
+    ) -> Option<serde_json::Value> {
+        std::mem::replace(&mut self.decrypted_cookies, cookies)
+    }
+
+    pub(crate) fn cookie_is_protected(&self, name: &str) -> bool {
+        self.cookie_encryption
+            .as_ref()
+            .is_some_and(|encryption| !encryption.exceptions.contains(name))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub fn hasSession(&self) -> bool {
+        self.session.is_some()
+    }
+
+    pub fn session(&self) -> Result<&crate::session::Store, crate::session::SessionError> {
+        self.session
+            .as_ref()
+            .ok_or(crate::session::SessionError::Configuration)
+    }
+
+    pub fn session_mut(
+        &mut self,
+    ) -> Result<&mut crate::session::Store, crate::session::SessionError> {
+        self.session
+            .as_mut()
+            .ok_or(crate::session::SessionError::Configuration)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
+    pub(crate) fn setLaravelSession(&mut self, session: crate::session::Store) {
+        self.session = Some(session);
+    }
+
+    pub(crate) fn take_session(&mut self) -> Option<crate::session::Store> {
+        self.session.take()
+    }
+
+    pub(crate) fn is_secure(&self) -> bool {
+        self.uri().scheme_str() == Some("https")
+    }
+
     /// Returns the decoded URL path without surrounding slashes, or `/` for the root.
     #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
     pub fn decodedPath(&self) -> Cow<'_, str> {
@@ -108,25 +189,31 @@ impl Request {
 
     /// Matches the decoded request path against a pattern where `*` spans any characters.
     pub fn is(&self, pattern: &str) -> bool {
-        let path = self.decodedPath();
-        let Some((prefix, rest)) = pattern.split_once('*') else {
-            return path == pattern;
+        matches_pattern(&self.decodedPath(), pattern)
+    }
+
+    pub(crate) fn matches_url_or_path(&self, pattern: &str) -> bool {
+        let pattern = if pattern == "/" {
+            pattern
+        } else {
+            pattern.trim_matches('/')
         };
-        let Some(path) = path.strip_prefix(prefix) else {
-            return false;
-        };
-        let Some((middle, suffix)) = rest.rsplit_once('*') else {
-            return path.ends_with(rest);
-        };
-        let Some(path) = path.strip_suffix(suffix) else {
-            return false;
-        };
-        middle
-            .split('*')
-            .try_fold(path, |remaining, part| {
-                remaining.split_once(part).map(|(_, tail)| tail)
-            })
-            .is_some()
+        if self.is(pattern) {
+            return true;
+        }
+        let authority = self
+            .uri()
+            .authority()
+            .map(|value| value.as_str())
+            .or_else(|| self.headers().get(::http::header::HOST)?.to_str().ok());
+        authority.is_some_and(|authority| {
+            let scheme = self.uri().scheme_str().unwrap_or("http");
+            let target = self
+                .uri()
+                .path_and_query()
+                .map_or("/", ::http::uri::PathAndQuery::as_str);
+            matches_pattern(&format!("{scheme}://{authority}{target}"), pattern)
+        })
     }
 
     /// Determines whether the request prefers a JSON response.
@@ -221,4 +308,25 @@ fn split_header(value: &str, separator: char) -> impl Iterator<Item = &str> {
         }
         false
     })
+}
+
+fn matches_pattern(path: &str, pattern: &str) -> bool {
+    let Some((prefix, rest)) = pattern.split_once('*') else {
+        return path == pattern;
+    };
+    let Some(path) = path.strip_prefix(prefix) else {
+        return false;
+    };
+    let Some((middle, suffix)) = rest.rsplit_once('*') else {
+        return path.ends_with(rest);
+    };
+    let Some(path) = path.strip_suffix(suffix) else {
+        return false;
+    };
+    middle
+        .split('*')
+        .try_fold(path, |remaining, part| {
+            remaining.split_once(part).map(|(_, tail)| tail)
+        })
+        .is_some()
 }

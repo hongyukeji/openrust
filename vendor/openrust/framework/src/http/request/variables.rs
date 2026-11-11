@@ -97,6 +97,19 @@ impl VariableBag {
         Ok(())
     }
 
+    pub(super) fn insert_cookie(&mut self, name: &str, value: String) -> Result<(), HttpError> {
+        if let Some(path) = path(name)? {
+            let duplicate = path.len() == 1
+                && path[0]
+                    .as_ref()
+                    .is_some_and(|key| self.entries.iter().any(|(existing, _)| existing == key));
+            if !duplicate {
+                self.insert_path(&path, value, name);
+            }
+        }
+        Ok(())
+    }
+
     fn insert_path(&mut self, path: &[Option<Key>], value: String, original: &str) {
         let Some((head, tail)) = path.split_first() else {
             return;

@@ -19,3 +19,7 @@
 内核先按解析后的顺序调用匹配路由的终止回调，再调用全局回调。请求处理与终止阶段使用同一个已注册实例。传输层消费流式正文期间，终止回调会等待。客户端断开并且传输层释放正文时也会执行回调。服务优雅关闭时会等待未完成的回调。
 
 直接调用 `Kernel::handle` 的应用应在传输结束后，用请求和响应部件调用 `Kernel::terminate`。内置 HTTP 服务会自动处理。
+
+## 默认 Web 和 API 组
+
+配置会话驱动后，默认 `web` 组依次运行 `EncryptCookies`、`AddQueuedCookiesToResponse`、`StartSession`、`ShareErrorsFromSession`、`PreventRequestForgery` 和 `SubstituteBindings`。默认 `api` 组运行 `SubstituteBindings`。

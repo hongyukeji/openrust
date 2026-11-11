@@ -2,6 +2,7 @@
 
 mod facade;
 pub use crate::cache::Cache;
+pub use crate::cookie::facade::Cookie;
 pub use crate::database::{DB, schema::Schema};
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::Storage;

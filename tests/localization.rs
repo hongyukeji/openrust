@@ -115,7 +115,12 @@ async fn transport(
 
 async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let application = Application::configure(root.0.clone())
-        .withConfig(config::load)
+        .withConfig(|base, environment| {
+            let mut config = config::load(base, environment)?;
+            config.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
+            config.get_mut("session").unwrap()["driver"] = "array".into();
+            Ok(config)
+        })
         .withRouting(Routing::default().web(|| {
             for route in ["/en", "/zh_Hans", "/zh_Hant"] {
                 Route::get(route, translate)?;

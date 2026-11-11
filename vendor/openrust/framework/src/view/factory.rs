@@ -190,6 +190,9 @@ impl Factory {
         self.callCreator(&mut view)?;
         self.call_events(&mut view, |events| &events.composers)?;
         let mut data = self.events.read().unwrap().shared.clone();
+        if let Some(errors) = super::middleware::shared_errors() {
+            data.insert("errors".into(), errors);
+        }
         data.extend(view.data);
         self.render_contents(&view.name, &data, context)
     }

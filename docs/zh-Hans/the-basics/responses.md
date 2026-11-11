@@ -6,6 +6,26 @@
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
 
+## 向响应附加 Cookie
+
+在包含 `AddQueuedCookiesToResponse` 的中间件栈中，用 `Cookie::queue` 将 Cookie 加入队列，处理器返回后由中间件写入响应。也可以用 `response.cookie(&cookie, request)?` 直接附加。把 `EncryptCookies` 放在队列中间件之前，让它同时保护直接附加和排队写入的 Cookie。 工厂从 Session 配置继承路径、域、Secure 和 SameSite 默认值。有效期设为零会创建浏览器会话 Cookie。
+
+```rust
+use openrust::{
+    cookie::CookieOptions,
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Cookie,
+};
+
+fn remember(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let cookie = Cookie::make("theme", "dark", 30, &CookieOptions::default())?;
+        Cookie::queue(cookie)?;
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
+}
+```
+
 ## JSON 业务响应
 
 需要统一业务响应格式的路由可以使用 `ApiResponse`。响应包含 `success`、`code` 和 `message`，按需附带 `data`、分页 `meta` 或字段 `errors`。`success(data)` 默认返回 HTTP 200。使用 `failure` 时传入状态码，也可以通过 `with_status` 设置。

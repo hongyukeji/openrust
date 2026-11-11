@@ -33,7 +33,12 @@ impl Drop for Root {
 
 fn application(path: PathBuf) -> Application {
     Application::configure(path)
-        .withConfig(config::load)
+        .withConfig(|base, environment| {
+            let mut config = config::load(base, environment)?;
+            config.get_mut("app").unwrap()["key"] = "a".repeat(32).into();
+            config.get_mut("session").unwrap()["driver"] = "array".into();
+            Ok(config)
+        })
         .withRouting(Routing::default().web(|| Route::get("/cache", cache_http)))
         .create()
         .unwrap()

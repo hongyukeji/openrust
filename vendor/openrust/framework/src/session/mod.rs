@@ -17,7 +17,7 @@ use std::{future::Future, pin::Pin};
 pub use array_session_handler::ArraySessionHandler;
 pub use cache_based_session_handler::CacheBasedSessionHandler;
 pub use cookie_session_handler::CookieSessionHandler;
-pub use database_session_handler::DatabaseSessionHandler;
+pub use database_session_handler::{DatabaseSessionHandler, DatabaseSessionMetadata};
 pub use encrypted_store::EncryptedStore;
 pub use file_session_handler::FileSessionHandler;
 pub use null_session_handler::NullSessionHandler;
@@ -33,11 +33,40 @@ pub type SessionResult<T> = Result<T, SessionError>;
 
 /// A session configuration, encoding, or storage failure.
 #[derive(Debug)]
-pub struct SessionError {
-    _private: (),
+#[non_exhaustive]
+pub enum SessionError {
+    Configuration,
+    Encoding,
+    PayloadTooLarge,
+    Storage,
+    Clock,
+    Random,
+    UnprotectedCookie,
 }
 
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Configuration => "invalid session configuration",
+            Self::Encoding => "invalid session payload",
+            Self::PayloadTooLarge => "session payload exceeds the configured limit",
+            Self::Storage => "session storage is unavailable",
+            Self::Clock => "session clock is unavailable",
+            Self::Random => "session randomness is unavailable",
+            Self::UnprotectedCookie => "session cookie requires encryption",
+        })
+    }
+}
+
+impl std::error::Error for SessionError {}
+
 /// A typed attribute stored in a session.
-pub struct Value {
-    _private: (),
+pub type Value = serde_json::Value;
+
+impl From<SessionError> for crate::http::HttpError {
+    fn from(source: SessionError) -> Self {
+        Self::Internal {
+            source: Box::new(source),
+        }
+    }
 }

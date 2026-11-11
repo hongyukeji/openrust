@@ -18,6 +18,8 @@ pub(super) fn default_response(
 ) -> Response {
     let status = error.map_or(StatusCode::INTERNAL_SERVER_ERROR, HttpError::status);
     let message = match error {
+        Some(HttpError::OriginMismatch) => "Origin mismatch.",
+        Some(HttpError::TokenMismatch) => "CSRF token mismatch.",
         Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
         _ => status.canonical_reason().unwrap_or("HTTP Error"),
     };

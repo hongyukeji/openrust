@@ -66,6 +66,9 @@ impl http::Kernel for Kernel {
                     .application
                     .config()
                     .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                self.middleware
+                    .configure_web(config.as_ref())
+                    .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
                 let cors = crate::http::middleware::HandleCors::from_config(config.get("cors"))
                     .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
                 self.views = Some(
@@ -126,11 +129,15 @@ impl http::Kernel for Kernel {
                 let mut response = crate::http::request_context::scope(
                     self.application.container_handle(),
                     attributes,
-                    Next::new(
-                        &self.middleware.global,
-                        self.routes.as_ref().expect("ready kernel has routes"),
-                    )
-                    .run(request),
+                    crate::view::middleware::request_scope(
+                        crate::cookie::middleware::request_scope(
+                            Next::new(
+                                &self.middleware.global,
+                                self.routes.as_ref().expect("ready kernel has routes"),
+                            )
+                            .run(request),
+                        ),
+                    ),
                 )
                 .await;
                 request.exceptions = previous_exceptions;

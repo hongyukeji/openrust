@@ -3,12 +3,13 @@ use std::collections::BTreeMap;
 use crate::session::{SessionFuture, SessionResult, Value};
 
 /// Accesses the state loaded for an HTTP request.
+#[allow(non_snake_case, reason = "Matches Laravel's Session API")]
 pub trait Session: Send + Sync {
-    fn get_name(&self) -> &str;
-    fn set_name(&mut self, name: &str) -> SessionResult<()>;
-    fn get_id(&self) -> &str;
-    fn set_id(&mut self, id: Option<&str>) -> SessionResult<()>;
-    fn is_started(&self) -> bool;
+    fn getName(&self) -> &str;
+    fn setName(&mut self, name: &str) -> SessionResult<()>;
+    fn getId(&self) -> &str;
+    fn setId(&mut self, id: Option<&str>) -> SessionResult<()>;
+    fn isStarted(&self) -> bool;
     fn start(&mut self) -> SessionFuture<'_, SessionResult<()>>;
     fn save(&mut self) -> SessionFuture<'_, SessionResult<()>>;
 
@@ -26,7 +27,7 @@ pub trait Session: Send + Sync {
     fn keep(&mut self, keys: &[&str]);
 
     fn token(&self) -> Option<&str>;
-    fn regenerate_token(&mut self) -> SessionResult<()>;
+    fn regenerateToken(&mut self) -> SessionResult<()>;
     fn migrate(&mut self, destroy: bool) -> SessionFuture<'_, SessionResult<()>>;
     fn regenerate(&mut self, destroy: bool) -> SessionFuture<'_, SessionResult<()>>;
     fn invalidate(&mut self) -> SessionFuture<'_, SessionResult<()>>;

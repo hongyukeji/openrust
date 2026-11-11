@@ -127,15 +127,17 @@ impl View {
                         .into(),
                 })?;
             let context = crate::support::facades::context_snapshot();
-            let html =
-                tokio::task::spawn_blocking(move || context.run(|| factory.renderView(self)))
-                    .await
-                    .map_err(|source| HttpError::Internal {
-                        source: source.into(),
-                    })?
-                    .map_err(|source| HttpError::Internal {
-                        source: source.into(),
-                    })?;
+            let errors = middleware::shared_errors();
+            let html = tokio::task::spawn_blocking(move || {
+                middleware::render_scope(errors, || context.run(|| factory.renderView(self)))
+            })
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
 
             let mut response = Response::new(StatusCode::OK, Body::from(html));
             response.parts_mut().headers.insert(

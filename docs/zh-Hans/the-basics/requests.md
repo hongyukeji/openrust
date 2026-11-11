@@ -11,3 +11,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 用 `request.file("attachments.0").await` 读取 multipart 上传文件，用 `request.hasFile("attachments").await` 检查字段是否包含文件。上传对象提供文件字节以及客户端给出的文件名和媒体类型。保存前应检查文件内容。
 
 输入读取和 JSON 响应的完整示例见[控制器](./controllers.md)。
+
+## Cookie
+
+用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。密文无效或名称绑定不符时，读取到的值为 null。
