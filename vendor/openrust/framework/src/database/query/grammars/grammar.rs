@@ -42,7 +42,7 @@ impl Grammar {
         }
     }
 
-    pub(in crate::database::query) fn quote(&self, name: &str) -> DatabaseResult<String> {
+    pub(crate) fn quote(&self, name: &str) -> DatabaseResult<String> {
         if name.is_empty() || name.contains('\0') {
             return Err(DatabaseError::InvalidQuery("identifier"));
         }

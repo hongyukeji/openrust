@@ -47,6 +47,8 @@ pub enum DatabaseError {
     InvalidConfiguration(&'static str),
     InvalidScalar,
     InvalidQuery(&'static str),
+    InvalidSchema(&'static str),
+    UnsupportedSchema(&'static str),
     TransactionClosed,
     InvalidTransactionAttempts,
     TransactionInterrupted,
@@ -83,6 +85,10 @@ impl std::fmt::Display for DatabaseError {
             }
             Self::UnsupportedDriver => formatter.write_str("database driver is unavailable"),
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
+            Self::InvalidSchema(part) => write!(formatter, "invalid schema {part}"),
+            Self::UnsupportedSchema(operation) => {
+                write!(formatter, "unsupported schema operation: {operation}")
+            }
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")

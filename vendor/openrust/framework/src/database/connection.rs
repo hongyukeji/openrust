@@ -23,6 +23,7 @@ pub(super) enum Pool {
 #[derive(Clone)]
 pub struct Connection {
     pub(super) name: Arc<str>,
+    pub(super) prefix_indexes: bool,
     pub(super) grammar: super::query::grammars::Grammar,
     pub(super) database: Arc<str>,
     pub(super) pool: Pool,
@@ -65,6 +66,7 @@ pub(super) enum PhysicalConnection {
 pub(super) struct Lease<D: Database> {
     connection: PoolConnection<D>,
     dirty: bool,
+    retire: bool,
 }
 
 impl<D: Database> Lease<D> {
@@ -76,6 +78,7 @@ impl<D: Database> Lease<D> {
         Ok(Self {
             connection,
             dirty: false,
+            retire: false,
         })
     }
 
@@ -105,6 +108,13 @@ impl<D: Database> Lease<D> {
             TransactionCommand::Begin => {
                 D::TransactionManager::begin(&mut self.connection, None).await
             }
+            TransactionCommand::BeginImmediate => {
+                D::TransactionManager::begin(
+                    &mut self.connection,
+                    Some(sqlx::AssertSqlSafe("BEGIN IMMEDIATE").into_sql_str()),
+                )
+                .await
+            }
             TransactionCommand::Commit => D::TransactionManager::commit(&mut self.connection).await,
             TransactionCommand::RollBack => {
                 D::TransactionManager::rollback(&mut self.connection).await
@@ -118,7 +128,7 @@ impl<D: Database> Lease<D> {
 impl<D: Database> Drop for Lease<D> {
     fn drop(&mut self) {
         let depth = D::TransactionManager::get_transaction_depth(&self.connection);
-        if D::NAME == "MySQL" && (self.dirty || depth > 0) {
+        if self.retire || (D::NAME == "MySQL" && (self.dirty || depth > 0)) {
             // An abandoned command may leave an incomplete MySQL protocol exchange.
             self.connection.close_on_drop();
         } else if D::NAME == "SQLite" {
@@ -134,6 +144,7 @@ impl<D: Database> Drop for Lease<D> {
 #[derive(Clone, Copy)]
 pub(super) enum TransactionCommand {
     Begin,
+    BeginImmediate,
     Commit,
     RollBack,
 }
@@ -254,6 +265,13 @@ impl PhysicalConnection {
         }
     }
 
+    pub(super) fn retire_on_drop(&mut self, retire: bool) {
+        match self {
+            Self::Sqlite(lease) => lease.retire = retire,
+            Self::Mysql(lease) => lease.retire = retire,
+        }
+    }
+
     pub(super) fn interrupted(&self) -> bool {
         match self {
             Self::Sqlite(lease) => lease.dirty,
@@ -352,6 +370,10 @@ impl PhysicalConnection {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Connection API")]
 impl Connection {
+    pub fn getSchemaBuilder(&self) -> super::schema::Builder<'static> {
+        super::schema::Builder::connection(self.clone())
+    }
+
     pub fn table(&self, table: &str) -> super::query::Builder<'static> {
         super::query::Builder::connection(self.clone(), self.grammar.clone(), table)
     }

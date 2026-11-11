@@ -13,6 +13,7 @@ pub struct Transaction {
     connection: Connection,
     physical: Option<PhysicalConnection>,
     level: u32,
+    retain_physical: bool,
 }
 
 pub(super) fn mysql_deadlock(error: &sqlx::Error) -> bool {
@@ -47,9 +48,81 @@ impl Connection {
             connection: self.clone(),
             physical: Some(self.pool.acquire().await?),
             level: 0,
+            retain_physical: false,
         };
         transaction.beginTransaction().await?;
         Ok(transaction)
+    }
+
+    pub(super) async fn sqlite_schema_transaction(
+        &self,
+        callback: impl for<'a> FnOnce(
+            &'a mut Transaction,
+            bool,
+        ) -> DatabaseFuture<'a, DatabaseResult<()>>
+        + Send
+        + 'static,
+    ) -> DatabaseResult<()> {
+        let connection = self.clone();
+        // Let the owning task restore its session state even when the caller is cancelled.
+        let result = tokio::spawn(async move {
+            let mut physical = connection.pool.acquire().await?;
+            let foreign_keys = sqlite_pragma(&mut physical, "pragma foreign_keys").await?;
+            let legacy_alter = sqlite_pragma(&mut physical, "pragma legacy_alter_table").await?;
+            physical.retire_on_drop(true);
+            physical.unprepared("pragma foreign_keys = off").await?;
+            physical
+                .unprepared("pragma legacy_alter_table = on")
+                .await?;
+            let mut transaction = Transaction {
+                connection,
+                physical: Some(physical),
+                level: 0,
+                retain_physical: true,
+            };
+            let result = match transaction
+                .physical()?
+                .control(
+                    "begin schema transaction",
+                    TransactionCommand::BeginImmediate,
+                )
+                .await
+            {
+                Ok(()) => {
+                    transaction.level = 1;
+                    transaction
+                        .run(|transaction| callback(transaction, foreign_keys))
+                        .await
+                }
+                Err(error) => Err(error),
+            };
+            if transaction.level == 0
+                && let Some(physical) = &mut transaction.physical
+            {
+                physical
+                    .unprepared(if legacy_alter {
+                        "pragma legacy_alter_table = on"
+                    } else {
+                        "pragma legacy_alter_table = off"
+                    })
+                    .await?;
+                physical
+                    .unprepared(if foreign_keys {
+                        "pragma foreign_keys = on"
+                    } else {
+                        "pragma foreign_keys = off"
+                    })
+                    .await?;
+                physical.retire_on_drop(false);
+            }
+            result
+        })
+        .await
+        .map_err(|_| DatabaseError::InvalidSchema("SQLite schema task interrupted"))?;
+        if result.is_ok() {
+            self.setRecordModificationState(true);
+        }
+        result
     }
 
     pub async fn transaction<T>(
@@ -78,6 +151,10 @@ impl Connection {
 
 #[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
 impl Transaction {
+    pub fn getSchemaBuilder(&mut self) -> super::schema::Builder<'_> {
+        super::schema::Builder::transaction(self)
+    }
+
     pub fn table(&mut self, table: &str) -> super::query::Builder<'_> {
         let grammar = self.connection.grammar.clone();
         super::query::Builder::transaction(self, grammar, table)
@@ -125,7 +202,7 @@ impl Transaction {
             .control("commit", TransactionCommand::Commit)
             .await?;
         self.level -= 1;
-        if self.level == 0 {
+        if self.level == 0 && !self.retain_physical {
             self.physical.take();
         }
         Ok(())
@@ -139,7 +216,7 @@ impl Transaction {
                 .await?;
             self.level -= 1;
         }
-        if self.level == 0 {
+        if self.level == 0 && !self.retain_physical {
             self.physical.take();
         }
         Ok(())
@@ -245,4 +322,15 @@ impl Transaction {
         self.connection.setRecordModificationState(true);
         Ok(result)
     }
+}
+
+async fn sqlite_pragma(physical: &mut PhysicalConnection, sql: &str) -> DatabaseResult<bool> {
+    let row = physical
+        .select_one(sql, &[])
+        .await?
+        .ok_or(DatabaseError::InvalidSchema("SQLite session setting"))?;
+    Ok(matches!(
+        row.get_at(0),
+        Some(Value::Integer(1) | Value::Bool(true))
+    ))
 }

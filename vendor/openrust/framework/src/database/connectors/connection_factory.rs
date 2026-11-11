@@ -40,6 +40,7 @@ impl ConnectionFactory {
         };
         Ok(Connection {
             name: Arc::from(name),
+            prefix_indexes: write_options.boolean("prefix_indexes", false)?,
             grammar,
             database: database.into(),
             pool,

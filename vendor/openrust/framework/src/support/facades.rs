@@ -1,7 +1,7 @@
 //! Static entry points for application services, routes and commands.
 
 mod facade;
-pub use crate::database::DB;
+pub use crate::database::{DB, schema::Schema};
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
