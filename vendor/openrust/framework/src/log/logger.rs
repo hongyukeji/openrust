@@ -1,6 +1,14 @@
-use std::{borrow::Cow, sync::Arc, time::SystemTime};
+use std::{
+    borrow::Cow,
+    sync::{Arc, Weak},
+    time::SystemTime,
+};
 
 use chrono::{DateTime, Utc};
+
+use crate::{
+    container::Container, contracts::container::Container as _, support::facades::current_container,
+};
 
 use super::{
     Level, LogContext, LogError, LogResult,
@@ -13,8 +21,18 @@ pub(super) struct Emergency {
 
 impl Emergency {
     pub fn write(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
-        let record = Record::new("openrust", level, message, context, false);
-        if sink::write(&self.handlers, &record).is_err() {
+        self.write_record(&Record::new(
+            "openrust",
+            level,
+            message,
+            context,
+            &LogContext::new(),
+            false,
+        ))
+    }
+
+    fn write_record(&self, record: &Record<'_>) -> LogResult<()> {
+        if sink::write(&self.handlers, record).is_err() {
             use std::io::Write as _;
             std::io::stderr()
                 .lock()
@@ -31,6 +49,7 @@ pub struct Logger {
     pub(super) handlers: Option<Handlers>,
     pub(super) replace_placeholders: bool,
     pub(super) emergency: Arc<Emergency>,
+    pub(super) context_owner: Weak<Container>,
 }
 
 impl Logger {
@@ -39,14 +58,45 @@ impl Logger {
     }
 
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
+        let extra = self
+            .context_owner
+            .upgrade()
+            .and_then(|container| {
+                if !container.has_active_scope()
+                    || current_container().is_some_and(|active| !Arc::ptr_eq(&container, &active))
+                {
+                    return None;
+                }
+                container
+                    .make::<super::context::Repository>()
+                    .ok()
+                    .map(|repository| repository.all())
+            })
+            .unwrap_or_default();
+        self.write(level, message, context, &extra)
+    }
+
+    fn write(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: &LogContext,
+    ) -> LogResult<()> {
+        let fallback = || {
+            self.emergency.write_record(&Record::new(
+                "openrust", level, message, context, extra, false,
+            ))
+        };
         let Some(handlers) = &self.handlers else {
-            return self.emergency.write(level, message, context);
+            return fallback();
         };
         let record = Record::new(
             &self.name,
             level,
             message,
             context,
+            extra,
             self.replace_placeholders,
         );
         if sink::write(handlers, &record).is_err() {
@@ -55,7 +105,7 @@ impl Logger {
                 "Unable to write configured logger. Using emergency logger.",
                 &LogContext::new(),
             )?;
-            self.emergency.write(level, message, context)?;
+            fallback()?;
         }
         Ok(())
     }
@@ -67,12 +117,23 @@ impl crate::contracts::log::Logger for Logger {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
     }
+    #[allow(non_snake_case)]
+    fn logWithContext(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: &LogContext,
+    ) -> LogResult<()> {
+        self.write(level, message, context, extra)
+    }
 }
 
 pub(super) struct Record<'a> {
     pub at: DateTime<Utc>,
     pub level: Level,
     pub context: &'a LogContext,
+    pub extra: &'a LogContext,
     channel: &'a str,
     message: &'a str,
     replace: bool,
@@ -84,12 +145,14 @@ impl<'a> Record<'a> {
         level: Level,
         message: &'a str,
         context: &'a LogContext,
+        extra: &'a LogContext,
         replace: bool,
     ) -> Self {
         Self {
             at: DateTime::from(SystemTime::now()),
             level,
             context,
+            extra,
             channel,
             message,
             replace,
@@ -111,23 +174,29 @@ impl<'a> Record<'a> {
         line.push_str(self.level.label());
         line.push_str(": ");
         append_single_line(&mut line, message);
-        let context = self.context;
-        if !context.is_empty() {
-            line.push(' ');
-            for character in serde_json::to_string(context)
-                .expect("JSON values serialize")
-                .chars()
-            {
-                match character {
-                    '\u{0085}' => line.push_str(r"\u0085"),
-                    '\u{2028}' => line.push_str(r"\u2028"),
-                    '\u{2029}' => line.push_str(r"\u2029"),
-                    _ => line.push(character),
-                }
-            }
+        if !self.context.is_empty() || !self.extra.is_empty() {
+            append_json(&mut line, self.context);
+        }
+        if !self.extra.is_empty() {
+            append_json(&mut line, self.extra);
         }
         line.push('\n');
         line
+    }
+}
+
+fn append_json(line: &mut String, context: &LogContext) {
+    line.push(' ');
+    for character in serde_json::to_string(context)
+        .expect("JSON values serialize")
+        .chars()
+    {
+        match character {
+            '\u{0085}' => line.push_str(r"\u0085"),
+            '\u{2028}' => line.push_str(r"\u2028"),
+            '\u{2029}' => line.push_str(r"\u2029"),
+            _ => line.push(character),
+        }
     }
 }
 

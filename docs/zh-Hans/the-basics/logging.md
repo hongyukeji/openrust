@@ -62,3 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## 上下文信息
+
+[Context Facade](../digging-deeper/context.md) 捕获的公开字段以独立 JSON 元数据写在单条日志字段之后。自定义写入端可以实现 `logWithContext` 接收两组字段。隐藏字段保存在上下文仓库中。

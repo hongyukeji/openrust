@@ -146,7 +146,7 @@ impl Handler {
                 bubble,
             } if level >= *minimum => {
                 logger
-                    .log(level, message, record.context)
+                    .logWithContext(level, message, record.context, record.extra)
                     .map_err(io::Error::other)?;
                 Ok(!bubble)
             }

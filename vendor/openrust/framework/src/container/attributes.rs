@@ -7,6 +7,8 @@ use crate::contracts::container::{BindingResolutionError, ContextualAttribute};
 use super::{CallFuture, Container, ParameterValue, ServiceKey};
 mod builtin;
 pub use builtin::{Config, CurrentResolving, Give, Tag};
+mod context;
+pub use context::Context;
 mod request;
 pub use request::{RequestAttribute, RouteParameter};
 

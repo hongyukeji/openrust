@@ -2,7 +2,7 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 
 use serde::Deserialize;
@@ -64,6 +64,7 @@ pub enum StackChannel<'a> {
 pub struct LogManager {
     config: Arc<dyn Repository>,
     root: PathBuf,
+    context_owner: Weak<crate::container::Container>,
     channels: Mutex<ChannelDirectory>,
     drivers: Factories,
     factories: Factories,
@@ -81,10 +82,16 @@ impl LogManager {
         Self {
             config,
             root: root.into(),
+            context_owner: Weak::new(),
             channels: Mutex::default(),
             drivers: Mutex::default(),
             factories: Mutex::default(),
         }
+    }
+
+    pub(super) fn with_context_owner(mut self, owner: Weak<crate::container::Container>) -> Self {
+        self.context_owner = owner;
+        self
     }
 
     /// Registers a named driver. Existing cached channels retain their current driver.
@@ -199,6 +206,7 @@ impl LogManager {
                 handlers: Some(handlers),
                 replace_placeholders,
                 emergency: resolution.settings.emergency.clone(),
+                context_owner: resolution.settings.context_owner.clone(),
             }))
         })
     }
@@ -252,6 +260,7 @@ impl LogManager {
         });
         Settings {
             config,
+            context_owner: &self.context_owner,
             root: &self.root,
             environment: self
                 .config
@@ -267,10 +276,22 @@ impl crate::contracts::log::Logger for LogManager {
     fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         Self::log(self, level, message, context)
     }
+    #[allow(non_snake_case)]
+    fn logWithContext(
+        &self,
+        level: Level,
+        message: &str,
+        context: &LogContext,
+        extra: &LogContext,
+    ) -> LogResult<()> {
+        self.channel(None)?
+            .logWithContext(level, message, context, extra)
+    }
 }
 
 struct Settings<'a> {
     config: Value,
+    context_owner: &'a Weak<crate::container::Container>,
     root: &'a std::path::Path,
     environment: String,
     emergency: Arc<Emergency>,
@@ -283,6 +304,7 @@ impl Settings<'_> {
             handlers: None,
             replace_placeholders: false,
             emergency: self.emergency.clone(),
+            context_owner: self.context_owner.clone(),
         })
     }
 }
@@ -359,6 +381,7 @@ impl Resolution<'_, '_> {
             handlers: Some(handlers),
             replace_placeholders,
             emergency: self.settings.emergency.clone(),
+            context_owner: self.settings.context_owner.clone(),
         }))
     }
 

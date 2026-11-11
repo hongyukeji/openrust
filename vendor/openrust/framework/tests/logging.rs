@@ -16,7 +16,7 @@ use openrust::{
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     log::{LogContext, LogManager},
     routing::RoutingError,
-    support::facades::{Artisan, Log, Route},
+    support::facades::{Artisan, Context, Log, Route},
 };
 use serde_json::json;
 
@@ -210,8 +210,18 @@ fn routes() -> Result<(), RoutingError> {
 
 fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
-        let context = LogContext::from_iter([("id".into(), json!(request.route("id")))]);
-        Log::info("request {id}", &context).map_err(|source| HttpError::Internal {
+        assert!(Context::isEmpty().unwrap());
+        let id = request.route("id").unwrap();
+        Context::add("id", json!(format!("request-{id}"))).unwrap();
+        Context::add("scope_only", json!("public")).unwrap();
+        Context::addHidden("token", json!("private-http-token")).unwrap();
+        tokio::task::yield_now().await;
+        assert_eq!(
+            Context::get("id").unwrap(),
+            Some(json!(format!("request-{id}")))
+        );
+        let context = LogContext::from_iter([("id".into(), json!(id))]);
+        Log::info("request {id} {scope_only}", &context).map_err(|source| HttpError::Internal {
             source: source.into(),
         })?;
         let container = openrust::container::Container::getInstance();
@@ -282,17 +292,25 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
     let (a, first_task) = server(&first).await;
     let (b, second_task) = server(&second).await;
     tokio::join!(send(a, 101), send(a, 102), send(b, 201));
+    send(a, 103).await;
     let first_log = first.read("storage/logs/openrust.log");
     let second_log = second.read("storage/logs/openrust.log");
-    assert_eq!(first_log.lines().count(), 2);
+    assert_eq!(first_log.lines().count(), 3);
     assert_eq!(second_log.lines().count(), 1);
-    for id in [101, 102] {
-        assert!(first_log.contains(&format!("test.INFO: request {id}")));
+    for (log, ids) in [
+        (&first_log, &[101, 102, 103][..]),
+        (&second_log, &[201][..]),
+    ] {
+        assert!(!log.contains("private-http-token"));
+        for id in ids {
+            assert!(log.contains(&format!(
+                r#"test.INFO: request {id} {{scope_only}} {{"id":"{id}"}} {{"id":"request-{id}","scope_only":"public"}}"#
+            )));
+        }
     }
-    assert!(second_log.contains("test.INFO: request 201"));
     let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
     let daily = format!("http-{}.log", date.format("%Y-%m-%d"));
-    assert_eq!(first.read(&daily).lines().count(), 2);
+    assert_eq!(first.read(&daily).lines().count(), 3);
     assert_eq!(second.read(&daily).lines().count(), 1);
     for task in [first_task, second_task] {
         task.abort();
@@ -302,6 +320,17 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
 
 fn console_routes() -> Result<(), ConsoleError> {
     Artisan::command("log:probe", |_| {
+        assert!(Context::isEmpty().unwrap());
+        Context::add("command", json!("log:probe")).unwrap();
+        Context::addHidden("token", json!("private-artisan-token")).unwrap();
+        Context::scopeSync(
+            || {
+                assert_eq!(Context::get("command").unwrap(), Some(json!("nested")));
+            },
+            LogContext::from_iter([("command".into(), json!("nested"))]),
+            LogContext::new(),
+        )
+        .unwrap();
         Log::warning("artisan wrote a file", &LogContext::new()).unwrap();
         let manager = openrust::container::Container::getInstance()
             .make::<LogManager>()
@@ -364,10 +393,17 @@ async fn artisan_logs_to_file_and_stderr() {
         String::from_utf8_lossy(&output.stdout)
     );
     assert!(stderr.contains("test.NOTICE: artisan stderr probe"));
+    assert!(stderr.contains(r#"artisan stderr probe {} {"command":"log:probe"}"#));
+    assert!(!stderr.contains("private-artisan-token"));
+    assert!(
+        !root
+            .read("storage/logs/openrust.log")
+            .contains("private-artisan-token")
+    );
     let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
     assert!(
         root.read(&format!("console-{}.log", date.format("%Y-%m")))
-            .contains("monthly Artisan")
+            .contains(r#"monthly Artisan {} {"command":"log:probe"}"#)
     );
     assert!(stderr.contains("openrust.EMERGENCY: Unable to create configured logger"));
     assert!(stderr.contains("openrust.WARNING: emergency stderr probe"));

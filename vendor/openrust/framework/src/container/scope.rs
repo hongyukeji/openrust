@@ -295,6 +295,10 @@ pub(super) fn clear(container: &Container) {
 }
 
 impl Container {
+    pub(crate) fn has_active_scope(&self) -> bool {
+        active(self)
+    }
+
     /// Runs a request or command lifecycle with an isolated scoped-instance cache.
     /// Nested execution for the same container shares the current lifecycle.
     pub async fn scope<F: Future>(&self, future: F) -> F::Output {

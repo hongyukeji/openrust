@@ -62,3 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## Contextual Information
+
+The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.
