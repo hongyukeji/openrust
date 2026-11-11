@@ -5,10 +5,11 @@ use std::{
 };
 
 use percent_encoding::percent_decode_str;
+use serde::Serialize;
 
 use crate::{
     contracts::routing::{Handler, Registrar, UrlRoutable},
-    http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
+    http::{ApiResponse, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     view::View,
 };
 
@@ -52,6 +53,28 @@ impl<F: Fn() -> View + Send + Sync> Handler for ViewHandler<F> {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         (self.0)().render(request)
+    }
+}
+
+impl<F, T> IntoRouteHandler<(ApiResponse<T>,)> for F
+where
+    F: Fn() -> ApiResponse<T> + Send + Sync + 'static,
+    T: Serialize,
+{
+    fn into_route_handler(self) -> Arc<dyn Handler> {
+        Arc::new(ApiResponseHandler(self))
+    }
+}
+
+struct ApiResponseHandler<F>(F);
+
+impl<F, T> Handler for ApiResponseHandler<F>
+where
+    F: Fn() -> ApiResponse<T> + Send + Sync,
+    T: Serialize,
+{
+    fn handle<'a>(&'a self, _: &'a mut Request) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async { (self.0)().into_response() })
     }
 }
 
