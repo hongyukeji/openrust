@@ -313,7 +313,9 @@ fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
     Box::pin(async move {
         async fn read(write: bool, force_writer: bool) -> Result<Value, DatabaseError> {
             if write {
-                DB::update("UPDATE probe SET id = id + 1", &[]).await?;
+                DB::table("probe")?
+                    .increment("id", 1, Default::default())
+                    .await?;
             }
             let query = DB::table("probe")?;
             let query = if force_writer {

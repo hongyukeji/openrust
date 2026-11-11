@@ -83,6 +83,22 @@ impl Transaction {
         super::query::Builder::transaction(self, grammar, table)
     }
 
+    pub(super) fn query_connection(&self) -> &Connection {
+        &self.connection
+    }
+
+    pub(super) async fn insert_get_id(
+        &mut self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Value> {
+        self.connection.setRecordModificationState(true);
+        self.physical()?
+            .execute_statement(sql, bindings)
+            .await
+            .map(|result| result.insert_id)
+    }
+
     fn physical(&mut self) -> DatabaseResult<&mut PhysicalConnection> {
         self.physical
             .as_mut()

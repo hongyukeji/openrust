@@ -367,7 +367,7 @@ impl Conditions {
     }
 }
 
-fn operator(value: &str, grammar: &Grammar) -> DatabaseResult<String> {
+pub(super) fn operator(value: &str, grammar: &Grammar) -> DatabaseResult<String> {
     let value = value.to_ascii_lowercase();
     match value.as_str() {
         "<=>" => Ok(grammar.null_safe_operator().into()),

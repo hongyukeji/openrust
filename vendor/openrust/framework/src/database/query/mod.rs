@@ -13,6 +13,4 @@ pub use expression::Expression;
 pub use join_clause::JoinClause;
 
 /// Named column values for an insert or update.
-pub struct Record {
-    _private: (),
-}
+pub type Record = std::collections::BTreeMap<String, crate::database::Value>;

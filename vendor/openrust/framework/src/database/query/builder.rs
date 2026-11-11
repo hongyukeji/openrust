@@ -6,9 +6,24 @@ use super::{
     grammars::{DatePart, Grammar},
 };
 
+mod subqueries;
+mod writes;
+
+use subqueries::{Join, Source};
+
 enum Executor<'connection> {
     Connection(Connection),
     Transaction(&'connection mut Transaction),
+    Detached(Connection),
+}
+
+impl Executor<'_> {
+    fn source(&self) -> &Connection {
+        match self {
+            Self::Connection(connection) | Self::Detached(connection) => connection,
+            Self::Transaction(transaction) => transaction.query_connection(),
+        }
+    }
 }
 
 /// A selected column name or an explicitly trusted expression.
@@ -39,7 +54,13 @@ enum Order {
 pub struct Builder<'connection> {
     executor: Executor<'connection>,
     grammar: Grammar,
-    table: String,
+    source: Source,
+    joins: Vec<Join>,
+    unions: Vec<(bool, Expression)>,
+    union_orders: Vec<Order>,
+    union_limit: Option<u64>,
+    union_offset: Option<u64>,
+    lock: Option<bool>,
     columns: Vec<Column>,
     distinct: bool,
     predicates: Conditions,
@@ -73,7 +94,13 @@ impl<'connection> Builder<'connection> {
         Self {
             executor,
             grammar,
-            table: table.into(),
+            source: Source::Table(table.into()),
+            joins: Vec::new(),
+            unions: Vec::new(),
+            union_orders: Vec::new(),
+            union_limit: None,
+            union_offset: None,
+            lock: None,
             columns: Vec::new(),
             distinct: false,
             predicates: Conditions::default(),
@@ -93,7 +120,7 @@ impl<'connection> Builder<'connection> {
     predicate_methods!();
 
     pub fn from(mut self, table: &str) -> Self {
-        self.table = table.into();
+        self.source = Source::Table(table.into());
         self
     }
 
@@ -159,7 +186,7 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn orderBy(mut self, column: &str, direction: &str) -> Self {
-        self.orders
+        self.active_orders()
             .push(Order::Column(column.into(), direction.into()));
         self
     }
@@ -169,13 +196,13 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn orderByRaw(mut self, sql: &str, bindings: Vec<Value>) -> Self {
-        self.orders
+        self.active_orders()
             .push(Order::Raw(Expression::new(sql).with_bindings(bindings)));
         self
     }
 
     pub fn reorder(mut self) -> Self {
-        self.orders.clear();
+        self.active_orders().clear();
         self
     }
 
@@ -188,7 +215,11 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn limit(mut self, rows: u64) -> Self {
-        self.limit = Some(rows);
+        if self.unions.is_empty() {
+            self.limit = Some(rows);
+        } else {
+            self.union_limit = Some(rows);
+        }
         self
     }
 
@@ -197,7 +228,11 @@ impl<'connection> Builder<'connection> {
     }
 
     pub fn offset(mut self, rows: u64) -> Self {
-        self.offset = Some(rows);
+        if self.unions.is_empty() {
+            self.offset = Some(rows);
+        } else {
+            self.union_offset = Some(rows);
+        }
         self
     }
 
@@ -213,6 +248,16 @@ impl<'connection> Builder<'connection> {
     pub fn useWritePdo(mut self) -> Self {
         self.use_write = true;
         self
+    }
+
+    pub fn lockForUpdate(mut self) -> Self {
+        self.lock = Some(true);
+        self.useWritePdo()
+    }
+
+    pub fn sharedLock(mut self) -> Self {
+        self.lock = Some(false);
+        self.useWritePdo()
     }
 
     pub fn toSql(&self) -> DatabaseResult<String> {
@@ -253,6 +298,10 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn exists(mut self) -> DatabaseResult<bool> {
+        self.exists_query().await
+    }
+
+    async fn exists_query(&mut self) -> DatabaseResult<bool> {
         let (sql, bindings) = self.compile(None)?;
         let alias = self.grammar.column("exists")?;
         let sql = format!("select exists({sql}) as {alias}");
@@ -315,10 +364,30 @@ impl<'connection> Builder<'connection> {
             }
             Executor::Connection(connection) => connection.select(sql, bindings).await,
             Executor::Transaction(transaction) => transaction.select(sql, bindings).await,
+            Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery")),
         }
     }
 
     fn compile(&self, aggregate: Option<(&str, &str)>) -> DatabaseResult<(String, Vec<Value>)> {
+        if let Some((function, column)) = aggregate
+            && !self.unions.is_empty()
+        {
+            let (sql, bindings) = self.compile(None)?;
+            let distinct = if self.distinct && column != "*" {
+                "distinct "
+            } else {
+                ""
+            };
+            let column = self.grammar.column(column)?;
+            let alias = self.grammar.column("aggregate")?;
+            let subquery = self.grammar.table("temp_table")?;
+            return Ok((
+                format!(
+                    "select {function}({distinct}{column}) as {alias} from ({sql}) as {subquery}"
+                ),
+                bindings,
+            ));
+        }
         let mut sql = String::from("select ");
         let mut bindings = Vec::new();
 
@@ -343,14 +412,10 @@ impl<'connection> Builder<'connection> {
         }
 
         sql.push_str(" from ");
-        sql.push_str(&self.grammar.table(&self.table)?);
+        sql.push_str(&self.source.compile(&self.grammar, &mut bindings)?);
+        self.compile_joins(&mut sql, &mut bindings)?;
 
-        if !self.predicates.is_empty() {
-            sql.push_str(" where ");
-            self.predicates
-                .compile(&self.grammar, &mut sql, &mut bindings)?;
-        }
-
+        self.compile_predicates(&mut sql, &mut bindings)?;
         if !self.groups.is_empty() {
             sql.push_str(" group by ");
             self.compile_columns(&self.groups, &mut sql, &mut bindings, false)?;
@@ -363,11 +428,36 @@ impl<'connection> Builder<'connection> {
         }
 
         if !self.orders.is_empty() && (aggregate.is_none() || !self.groups.is_empty()) {
-            self.compile_orders(&mut sql, &mut bindings)?;
+            self.compile_orders(&self.orders, &mut sql, &mut bindings)?;
         }
 
         Grammar::pagination(&mut sql, self.limit, self.offset);
+        if let Some(exclusive) = self.lock {
+            sql.push_str(self.grammar.lock(exclusive));
+        }
+        if !self.unions.is_empty() {
+            sql = self.compile_unions(sql, &mut bindings)?;
+        }
         Ok((sql, bindings))
+    }
+
+    fn compile_joins(&self, sql: &mut String, bindings: &mut Vec<Value>) -> DatabaseResult<()> {
+        for join in &self.joins {
+            join.compile(&self.grammar, sql, bindings)?;
+        }
+        Ok(())
+    }
+
+    fn compile_predicates(
+        &self,
+        sql: &mut String,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<()> {
+        if !self.predicates.is_empty() {
+            sql.push_str(" where ");
+            self.predicates.compile(&self.grammar, sql, bindings)?;
+        }
+        Ok(())
     }
 
     fn compile_columns(
@@ -399,9 +489,17 @@ impl<'connection> Builder<'connection> {
         Ok(())
     }
 
-    fn compile_orders(&self, sql: &mut String, bindings: &mut Vec<Value>) -> DatabaseResult<()> {
+    fn compile_orders(
+        &self,
+        orders: &[Order],
+        sql: &mut String,
+        bindings: &mut Vec<Value>,
+    ) -> DatabaseResult<()> {
+        if orders.is_empty() {
+            return Ok(());
+        }
         sql.push_str(" order by ");
-        for (index, order) in self.orders.iter().enumerate() {
+        for (index, order) in orders.iter().enumerate() {
             if index != 0 {
                 sql.push_str(", ");
             }

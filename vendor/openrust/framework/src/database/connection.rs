@@ -237,6 +237,11 @@ macro_rules! query {
     };
 }
 
+pub(super) struct StatementResult {
+    pub(super) affected: u64,
+    pub(super) insert_id: Value,
+}
+
 impl PhysicalConnection {
     pub(super) async fn control(
         &mut self,
@@ -295,15 +300,32 @@ impl PhysicalConnection {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<u64> {
+        self.execute_statement(sql, bindings)
+            .await
+            .map(|result| result.affected)
+    }
+
+    pub(super) async fn execute_statement(
+        &mut self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<StatementResult> {
         query!(
             self,
             sql,
             bindings,
             execute,
             "execute",
-            |result, affected: fn(_) -> u64| Ok(affected(result)),
-            |result: sqlx::sqlite::SqliteQueryResult| result.rows_affected(),
-            |result: sqlx::mysql::MySqlQueryResult| result.rows_affected()
+            |result, map: fn(_) -> StatementResult| Ok(map(result)),
+            |result: sqlx::sqlite::SqliteQueryResult| StatementResult {
+                affected: result.rows_affected(),
+                insert_id: result.last_insert_rowid().into(),
+            },
+            |result: sqlx::mysql::MySqlQueryResult| StatementResult {
+                affected: result.rows_affected(),
+                insert_id: i64::try_from(result.last_insert_id())
+                    .map_or_else(|_| Value::Unsigned(result.last_insert_id()), Value::Integer,),
+            }
         )
     }
 
@@ -332,6 +354,23 @@ impl PhysicalConnection {
 impl Connection {
     pub fn table(&self, table: &str) -> super::query::Builder<'static> {
         super::query::Builder::connection(self.clone(), self.grammar.clone(), table)
+    }
+
+    pub(super) fn same_query_source(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.routing, &other.routing)
+    }
+
+    pub(super) async fn insert_get_id(
+        &self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Value> {
+        let mut connection = self.pool.acquire().await?;
+        self.setRecordModificationState(true);
+        connection
+            .execute_statement(sql, bindings)
+            .await
+            .map(|result| result.insert_id)
     }
 
     pub fn getName(&self) -> &str {

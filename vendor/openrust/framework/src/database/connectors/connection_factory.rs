@@ -33,7 +33,9 @@ impl ConnectionFactory {
             .transpose()?;
         let prefix = write_options.string("prefix", "")?;
         let grammar = match &pool {
-            Pool::Mysql(_) => Grammar::mysql(prefix),
+            Pool::Mysql(_) => {
+                Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?)
+            }
             Pool::Sqlite(_) => Grammar::sqlite(prefix),
         };
         Ok(Connection {

@@ -22,12 +22,14 @@ pub(in crate::database::query) enum DatePart {
 pub(crate) struct Grammar {
     dialect: Dialect,
     prefix: Arc<str>,
+    upsert_alias: bool,
 }
 
 impl Grammar {
-    pub(crate) fn mysql(prefix: &str) -> Self {
+    pub(crate) fn mysql(prefix: &str, upsert_alias: bool) -> Self {
         Self {
             dialect: Dialect::MySql,
+            upsert_alias,
             prefix: prefix.into(),
         }
     }
@@ -35,11 +37,12 @@ impl Grammar {
     pub(crate) fn sqlite(prefix: &str) -> Self {
         Self {
             dialect: Dialect::Sqlite,
+            upsert_alias: false,
             prefix: prefix.into(),
         }
     }
 
-    fn quote(&self, name: &str) -> DatabaseResult<String> {
+    pub(in crate::database::query) fn quote(&self, name: &str) -> DatabaseResult<String> {
         if name.is_empty() || name.contains('\0') {
             return Err(DatabaseError::InvalidQuery("identifier"));
         }
@@ -157,6 +160,33 @@ impl Grammar {
                 }
                 ("glob", glob)
             }
+        }
+    }
+
+    pub(crate) fn table_prefix(&self) -> &str {
+        &self.prefix
+    }
+
+    pub(crate) fn is_mysql(&self) -> bool {
+        self.dialect == Dialect::MySql
+    }
+
+    pub(crate) fn uses_upsert_alias(&self) -> bool {
+        self.upsert_alias
+    }
+
+    pub(crate) fn lock(&self, exclusive: bool) -> &'static str {
+        match (self.dialect, exclusive) {
+            (Dialect::MySql, true) => " for update",
+            (Dialect::MySql, false) => " lock in share mode",
+            (Dialect::Sqlite, _) => "",
+        }
+    }
+
+    pub(crate) fn wrap_union(&self, sql: &str) -> String {
+        match self.dialect {
+            Dialect::MySql => format!("({sql})"),
+            Dialect::Sqlite => format!("select * from ({sql})"),
         }
     }
 
