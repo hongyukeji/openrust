@@ -22,7 +22,7 @@ pub enum ArrayKey {
 }
 
 impl ArrayKey {
-    fn normalized(self) -> Self {
+    pub(super) fn normalized(self) -> Self {
         match self {
             Self::String(value) => Self::from(value),
             key => key,
@@ -322,6 +322,7 @@ pub enum CollectionError {
     MultipleItemsFound,
     Source(Box<dyn std::error::Error + Send + Sync>),
     Serialization(serde_json::Error),
+    Shared(std::sync::Arc<CollectionError>),
 }
 
 impl fmt::Display for CollectionError {
@@ -333,6 +334,7 @@ impl fmt::Display for CollectionError {
             Self::MultipleItemsFound => "multiple collection items found",
             Self::Source(_) => "collection source failed",
             Self::Serialization(_) => "collection serialization failed",
+            Self::Shared(error) => return error.fmt(formatter),
         })
     }
 }
@@ -342,6 +344,7 @@ impl std::error::Error for CollectionError {
         match self {
             Self::Source(error) => Some(error.as_ref()),
             Self::Serialization(error) => Some(error),
+            Self::Shared(error) => Some(error.as_ref()),
             _ => None,
         }
     }
