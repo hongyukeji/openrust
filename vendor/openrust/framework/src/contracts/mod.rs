@@ -12,6 +12,7 @@ pub mod encryption;
 pub mod events;
 pub mod filesystem;
 pub mod foundation;
+pub mod hashing;
 pub mod http;
 pub mod log;
 pub mod mail;

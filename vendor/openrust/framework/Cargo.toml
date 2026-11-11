@@ -13,11 +13,13 @@ publish = false
 name = "openrust"
 
 [dependencies]
+argon2 = "0.6.0"
 axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio"] }
 aws-config = { version = "=1.8.18", default-features = false, features = ["rt-tokio", "default-https-client", "credentials-process"] }
 aws-lc-rs = { version = "1.19.0", default-features = false, features = ["alloc", "non-fips"] }
 aws-sdk-s3 = { version = "=1.137.0", default-features = false, features = ["rt-tokio", "default-https-client", "http-1x"] }
 base64 = "0.22.1"
+bcrypt = "0.19.3"
 cap-std = "4.0.3"
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 clap = "4.6.1"

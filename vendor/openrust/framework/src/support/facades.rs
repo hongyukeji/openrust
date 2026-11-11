@@ -3,6 +3,7 @@
 mod facade;
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::Storage;
+pub use crate::hashing::Hash;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
 pub use facade::Facade;
