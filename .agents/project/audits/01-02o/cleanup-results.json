@@ -1,0 +1,18 @@
+{
+  "removed": [
+    "/private/tmp/openrust-01-02o-review-20261111/target"
+  ],
+  "removed_kib": 1283852,
+  "preserved": [
+    "candidate source",
+    ".artifacts/release/main",
+    "resources/views/welcome.html",
+    "shared dependency caches",
+    "all workspace WIP"
+  ],
+  "free_bytes": 51769044992,
+  "free_gb": 51.77,
+  "usage_remaining_percent": 93,
+  "process_check": "ps comm actual executable names; no build/test processes active",
+  "note": "Initial args-text guard matched its own shell and stopped before deletion; rechecked actual comm names."
+}

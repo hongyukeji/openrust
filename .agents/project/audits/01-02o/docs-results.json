@@ -1,0 +1,6 @@
+{
+  "build": "passed",
+  "browser_checks": 12,
+  "rust_examples": 54,
+  "notes": "All three languages; root and /docs/, desktop and mobile"
+}

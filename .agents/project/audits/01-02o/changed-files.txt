@@ -1,0 +1,10 @@
+docs/en/architecture-concepts/container.md
+docs/zh-Hans/architecture-concepts/container.md
+docs/zh-Hant/architecture-concepts/container.md
+tests/container_process.rs
+tests/environment_lifecycle.rs
+vendor/openrust/framework/src/container/environment.rs
+vendor/openrust/framework/src/container/mod.rs
+vendor/openrust/framework/src/contracts/container.rs
+vendor/openrust/framework/tests/unit/environment_resolution.rs
+vendor/openrust/framework/tests/unit/main.rs

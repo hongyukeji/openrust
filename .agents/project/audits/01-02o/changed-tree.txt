@@ -1,0 +1,27 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           └── container.md
+├── tests
+│   ├── container_process.rs
+│   └── environment_lifecycle.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── environment.rs
+            │   │   └── mod.rs
+            │   └── contracts
+            │       └── container.rs
+            └── tests
+                └── unit
+                    ├── environment_resolution.rs
+                    └── main.rs
