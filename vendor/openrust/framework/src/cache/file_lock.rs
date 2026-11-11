@@ -1,4 +1,2 @@
-/// An atomic lock for the file driver.
-pub struct FileLock {
-    _private: (),
-}
+/// An owner-aware lock backed by the file store.
+pub type FileLock = super::Lock;

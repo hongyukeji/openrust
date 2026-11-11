@@ -1,4 +1,2 @@
-/// An atomic lock for the array driver.
-pub struct ArrayLock {
-    _private: (),
-}
+/// An owner-aware lock backed by the array store.
+pub type ArrayLock = super::Lock;

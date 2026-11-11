@@ -19,6 +19,13 @@ pub trait Store: Send + Sync {
         values: &'a [(String, Value)],
         seconds: NonZeroU64,
     ) -> CacheFuture<'a, CacheResult<bool>>;
+    fn add<'a>(
+        &'a self,
+        key: &'a str,
+        value: &'a Value,
+        seconds: Option<NonZeroU64>,
+    ) -> CacheFuture<'a, CacheResult<bool>>;
+    fn pull<'a>(&'a self, key: &'a str) -> CacheFuture<'a, CacheResult<Option<Value>>>;
     fn forever<'a>(&'a self, key: &'a str, value: &'a Value) -> CacheFuture<'a, CacheResult<bool>>;
     fn touch<'a>(&'a self, key: &'a str, seconds: NonZeroU64)
     -> CacheFuture<'a, CacheResult<bool>>;

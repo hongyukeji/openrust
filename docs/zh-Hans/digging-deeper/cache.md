@@ -1,0 +1,46 @@
+# 缓存
+
+## 配置
+
+在 `config/cache.rs` 通过 `CACHE_STORE` 选择默认存储。 `array` 使用应用内存，`file` 使用本机进程可共享的目录，`database` 使用共享的 SQLite 或 MySQL 数据库。默认迁移创建 `cache` 和 `cache_locks` 表。启用数据库存储前，请对配置的数据库运行迁移。
+
+```sh
+./artisan migrate
+```
+
+## 缓存用法
+
+用 `Cache::store(Some("file"))` 选择具名存储，也可以直接调用门面使用默认存储。缓存值支持 JSON 和字节。正数 `Ttl::Seconds` 设置有效期，`None` 表示永久保存。传给 `put` 的 TTL 为零或负数时会删除该项。`add` 原子插入缺失项，`touch` 延长或调整有效期，`pull` 原子读取并移除。
+
+`cache:forget` 移除一个缓存项。`cache:clear` 清空所选数据存储，包括共用同一数据库表的所有前缀。锁使用独立命名空间。文件及数据库缓存使用 OpenRust 编码。
+
+```sh
+./artisan cache:forget reports/latest file
+./artisan cache:clear file
+```
+
+## 原子锁
+
+用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。
+
+```rust
+use std::time::Duration;
+
+use openrust::{
+    cache::{CacheResult, Ttl, Value},
+    support::facades::Cache,
+};
+
+pub async fn cache_report() -> CacheResult<bool> {
+    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?;
+    if !lock.get().await? {
+        return Ok(false);
+    }
+
+    let written = Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await;
+    let released = lock.release().await;
+    let written = written?;
+    released?;
+    Ok(written)
+}
+```

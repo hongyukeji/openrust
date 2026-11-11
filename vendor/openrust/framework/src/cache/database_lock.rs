@@ -1,4 +1,2 @@
-/// An atomic lock for the database driver.
-pub struct DatabaseLock {
-    _private: (),
-}
+/// An owner-aware lock backed by the database store.
+pub type DatabaseLock = super::Lock;

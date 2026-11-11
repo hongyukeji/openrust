@@ -1,0 +1,46 @@
+# 快取
+
+## 設定
+
+在 `config/cache.rs` 透過 `CACHE_STORE` 選擇預設儲存。`array` 使用應用程式記憶體，`file` 使用本機處理程序可共用的目錄，`database` 使用共用的 SQLite 或 MySQL 資料庫。預設遷移建立 `cache` 和 `cache_locks` 資料表。啟用資料庫儲存前，請在設定的資料庫執行遷移。
+
+```sh
+./artisan migrate
+```
+
+## 快取用法
+
+用 `Cache::store(Some("file"))` 選擇具名儲存，也可直接呼叫門面使用預設儲存。快取值支援 JSON 和位元組。正數 `Ttl::Seconds` 設定有效期，`None` 表示永久儲存。傳給 `put` 的 TTL 為零或負數時會刪除該項。`add` 原子插入缺少的項目，`touch` 延長或調整有效期，`pull` 原子讀取並移除。
+
+`cache:forget` 移除一個快取項目。`cache:clear` 清空所選資料儲存，包括共用同一資料表的所有前綴。鎖使用獨立命名空間。檔案及資料庫快取使用 OpenRust 編碼。
+
+```sh
+./artisan cache:forget reports/latest file
+./artisan cache:clear file
+```
+
+## 原子鎖
+
+用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。
+
+```rust
+use std::time::Duration;
+
+use openrust::{
+    cache::{CacheResult, Ttl, Value},
+    support::facades::Cache,
+};
+
+pub async fn cache_report() -> CacheResult<bool> {
+    let mut lock = Cache::lock("report", Some(Duration::from_secs(10)))?;
+    if !lock.get().await? {
+        return Ok(false);
+    }
+
+    let written = Cache::put("reports/latest", &Value::from("ready"), Some(Ttl::Seconds(60))).await;
+    let released = lock.release().await;
+    let written = written?;
+    released?;
+    Ok(written)
+}
+```

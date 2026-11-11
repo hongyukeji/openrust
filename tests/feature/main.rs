@@ -144,7 +144,7 @@ fn artisan_lists_descriptions_and_filters_all_output_formats() {
     assert!(output.status.success());
     let output = String::from_utf8(output.stdout).unwrap();
     assert!(output.lines().all(|line| line.starts_with("cache:")));
-    assert!(output.contains("Clear application cache entries"));
+    assert!(output.contains("Flush the application cache"));
     assert!(output.contains("cache:table"));
 
     let output = artisan(&["list", "cache", "--format=json", "--short"]);
@@ -152,7 +152,7 @@ fn artisan_lists_descriptions_and_filters_all_output_formats() {
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let commands = json["commands"].as_array().unwrap();
     assert_eq!(commands[0]["name"], "cache:clear");
-    assert_eq!(commands[0]["implemented"], false);
+    assert_eq!(commands[0]["implemented"], true);
     assert!(commands[0].get("usage").is_none());
 
     let output = artisan(&["list", "cache", "--format=xml"]);
