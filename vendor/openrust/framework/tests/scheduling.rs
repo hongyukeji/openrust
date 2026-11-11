@@ -2,7 +2,10 @@ use std::{
     ffi::OsString,
     path::{Path, PathBuf},
     process::{Output, Stdio},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
     time::{Duration, UNIX_EPOCH},
 };
 
@@ -196,12 +199,14 @@ async fn scheduler_artisan_fixture() {
 }
 
 fn root(port: Option<u16>) -> PathBuf {
-    let id = std::time::SystemTime::now()
+    static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);
+    let sequence = NEXT_FIXTURE.fetch_add(1, Ordering::Relaxed);
+    let timestamp = std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let root =
-        std::env::temp_dir().join(format!("openrust-scheduling-{}-{id}", std::process::id()));
+    let id = format!("{}-{timestamp}-{sequence}", std::process::id());
+    let root = std::env::temp_dir().join(format!("openrust-scheduling-{id}"));
     std::fs::create_dir(&root).unwrap();
     let config = json!({
         "app":{"env":"testing", "timezone":"UTC", "schedule_timezone":"Asia/Tokyo"},
