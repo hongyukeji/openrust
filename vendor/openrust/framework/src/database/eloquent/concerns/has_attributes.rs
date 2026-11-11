@@ -1,10 +1,11 @@
 use crate::database::{Connection, Value};
 
-use super::super::Attributes;
+use super::{super::Attributes, has_relationships::LoadedRelations};
 
 /// Raw attributes and snapshots for one model instance.
 #[derive(Default)]
 pub struct ModelState {
+    pub(in crate::database::eloquent) relations: LoadedRelations,
     pub(in crate::database::eloquent) attributes: Attributes,
     pub(in crate::database::eloquent) original: Attributes,
     pub(in crate::database::eloquent) changes: Attributes,

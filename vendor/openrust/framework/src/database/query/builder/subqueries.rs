@@ -102,6 +102,49 @@ impl Builder<'_> {
         Ok(self.selectRaw(&format!("({}) as {alias}", query.sql), query.bindings))
     }
 
+    pub(in crate::database) fn select_exists(
+        self,
+        query: &Builder<'_>,
+        alias: &str,
+    ) -> DatabaseResult<Self> {
+        let query = self.subquery_expression(query)?;
+        let alias = self.grammar.quote(alias)?;
+        Ok(self.selectRaw(
+            &format!("exists ({}) as {alias}", query.sql),
+            query.bindings,
+        ))
+    }
+
+    pub(in crate::database) fn select_related_aggregate(
+        self,
+        function: &'static str,
+        column: &str,
+    ) -> DatabaseResult<Self> {
+        let column = if column == "*" {
+            column.to_owned()
+        } else if column.contains('.') {
+            self.grammar.column(column)?
+        } else {
+            let table = self.source.table_name()?;
+            let alias = table
+                .as_bytes()
+                .windows(4)
+                .position(|part| part.eq_ignore_ascii_case(b" as "));
+            let qualifier = alias.map_or(table, |index| &table[index + 4..]);
+            self.grammar.column(&format!("{qualifier}.{column}"))?
+        };
+        Ok(self
+            .reorder()
+            .select([Expression::new(format!("{function}({column})"))]))
+    }
+
+    pub(in crate::database) fn select_default(mut self, column: &str) -> Self {
+        if self.columns.is_empty() {
+            self.columns.push(column.into());
+        }
+        self
+    }
+
     pub fn fromSub(mut self, query: &Builder<'_>, alias: &str) -> DatabaseResult<Self> {
         self.source = Source::Query(self.subquery_expression(query)?, alias.into());
         Ok(self)
@@ -222,6 +265,72 @@ impl Builder<'_> {
         self
     }
 
+    pub(in crate::database) fn where_related_count(
+        mut self,
+        query: &Builder<'_>,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<Self> {
+        let (operator, count) = related_count_comparison(operator, count)?;
+        let query = self.subquery_expression(query)?;
+        let mut bindings = query.bindings;
+        bindings.push(count.into());
+        self.predicates.raw(
+            false,
+            Expression::new(format!("({}) {operator} ?", query.sql)).with_bindings(bindings),
+        );
+        Ok(self)
+    }
+
+    pub(in crate::database) fn where_morph_count(
+        mut self,
+        column: &str,
+        queries: Vec<(&str, Builder<'_>)>,
+        operator: &str,
+        count: u64,
+        include_null: bool,
+    ) -> DatabaseResult<Self> {
+        let (operator, count) = related_count_comparison(operator, count)?;
+        let column = self.grammar.column(column)?;
+        let mut bindings = Vec::new();
+        let mut branches = Vec::with_capacity(queries.len());
+        for (alias, query) in queries {
+            bindings.push(alias.into());
+            let use_exists = count == 1 && matches!(operator, ">=" | "<");
+            let query = if use_exists {
+                query.reorder()
+            } else {
+                query.select_related_aggregate("count", "*")?
+            };
+            let query = self.subquery_expression(&query)?;
+            bindings.extend(query.bindings);
+            let comparison = if use_exists {
+                let prefix = if operator == "<" {
+                    "not exists"
+                } else {
+                    "exists"
+                };
+                format!("{prefix} ({})", query.sql)
+            } else {
+                bindings.push(count.into());
+                format!("({}) {operator} ?", query.sql)
+            };
+            branches.push(format!("({column} = ? and {comparison})"));
+        }
+        let predicate = if branches.is_empty() {
+            bindings.push(count.into());
+            format!("0 {operator} ?")
+        } else {
+            if include_null {
+                branches.push(format!("{column} is null"));
+            }
+            format!("({})", branches.join(" or "))
+        };
+        self.predicates
+            .raw(false, Expression::new(predicate).with_bindings(bindings));
+        Ok(self)
+    }
+
     pub fn whereExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {
         self.where_exists(query, false, false)
     }
@@ -332,4 +441,14 @@ impl Builder<'_> {
             &mut self.union_orders
         }
     }
+}
+
+fn related_count_comparison(operator: &str, count: u64) -> DatabaseResult<(&str, i64)> {
+    let operator = match operator {
+        "=" | "!=" | "<>" | "<" | "<=" | ">" | ">=" => operator,
+        _ => return Err(DatabaseError::InvalidQuery("relationship count operator")),
+    };
+    let count = i64::try_from(count)
+        .map_err(|_| DatabaseError::InvalidQuery("relationship count range"))?;
+    Ok((operator, count))
 }

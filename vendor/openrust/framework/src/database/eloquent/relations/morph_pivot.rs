@@ -1,4 +1,2 @@
-/// A model record for a polymorphic intermediate table.
-pub struct MorphPivot {
-    _private: (),
-}
+/// Intermediate-table attributes including the polymorphic type discriminator.
+pub type MorphPivot = super::Pivot;

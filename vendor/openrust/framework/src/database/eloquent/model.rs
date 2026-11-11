@@ -1,10 +1,10 @@
 use std::future::Future;
 
-use crate::database::{Connection, DB, DatabaseResult, Value};
+use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Value};
 
 use super::{
-    Attributes, Builder, Collection, ModelMetadata, ModelState, Scope, concerns, persistence,
-    soft_deletes,
+    Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, Scope, concerns,
+    persistence, relations::Relation, soft_deletes,
 };
 
 /// A model type implemented by the application.
@@ -19,12 +19,41 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
+    fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
+        relations
+    }
+
+    /// Adds the relationship counts selected by default when reading this model.
+    fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'static, Self>> {
+        Ok(query)
+    }
+
+    /// Enables first-access relationship batching for collections of this model.
+    fn automaticallyEagerLoadRelationships() -> bool {
+        false
+    }
+
+    /// Prevents implicit single-model relationship queries during access.
+    fn preventsLazyLoading(&self) -> bool {
+        false
+    }
+
+    /// Handles a prohibited lazy access. Returning success permits the query.
+    fn handleLazyLoadingViolationUsing(&self, violation: DatabaseError) -> DatabaseResult<()> {
+        if !self.state().exists() || self.state().wasRecentlyCreated() {
+            return Ok(());
+        }
+        Err(violation)
+    }
+
     fn query() -> DatabaseResult<Builder<'static, Self>> {
         Ok(Self::queryOn(&DB::connection(Self::metadata().connection)?))
     }
 
     fn queryOn(connection: &Connection) -> Builder<'static, Self> {
         Builder::new(connection.clone())
+            .withOnly(Self::withDefaultRelations)
+            .enable_default_counts()
     }
 
     fn all() -> impl Future<Output = DatabaseResult<Collection<Self>>> + Send {
@@ -97,6 +126,41 @@ pub trait Model: Sized + Send + Sync + 'static {
             .as_ref()
             .map(Connection::getName)
             .or(Self::metadata().connection)
+    }
+
+    fn relationLoaded(&self, name: &str) -> bool {
+        self.state().relations.contains(name)
+    }
+
+    fn getRelation<T: Send + Sync + 'static>(&self, name: &str) -> Option<&T> {
+        self.state().relations.get(name)
+    }
+
+    /// Reads a relationship, querying once if it has not been loaded.
+    fn getRelationOrLoad<'a, R: Relation<Parent = Self>>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a R,
+    ) -> impl Future<Output = DatabaseResult<&'a R::Output>> + Send + 'a {
+        async move {
+            if !self.relationLoaded(name) {
+                concerns::has_relationships::load_on_access(self, name, relation).await?;
+            }
+            self.getRelation(name)
+                .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+        }
+    }
+
+    fn unsetRelation(&mut self, name: &str) {
+        self.state_mut().relations.remove(name);
+    }
+
+    fn load<'a, R: Relation<Parent = Self>>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a R,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false)
     }
 
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {

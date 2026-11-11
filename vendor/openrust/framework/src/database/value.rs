@@ -48,6 +48,10 @@ impl Row {
         self.0
     }
 
+    pub(super) fn remove_last_column(&mut self) {
+        self.0.pop();
+    }
+
     pub fn columns(&self) -> &[(String, Value)] {
         &self.0
     }

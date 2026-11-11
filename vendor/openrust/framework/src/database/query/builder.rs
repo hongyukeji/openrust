@@ -69,6 +69,7 @@ pub struct Builder<'connection> {
     orders: Vec<Order>,
     limit: Option<u64>,
     offset: Option<u64>,
+    group_limit: Option<String>,
     use_write: bool,
 }
 
@@ -109,6 +110,7 @@ impl<'connection> Builder<'connection> {
             orders: Vec::new(),
             limit: None,
             offset: None,
+            group_limit: None,
             use_write: false,
         }
     }
@@ -214,6 +216,13 @@ impl<'connection> Builder<'connection> {
         self.orderBy(column, "asc")
     }
 
+    pub(in crate::database) fn group_limit(mut self, partition: &str) -> Self {
+        if self.limit.is_some() || self.offset.is_some() {
+            self.group_limit = Some(partition.into());
+        }
+        self
+    }
+
     pub fn limit(mut self, rows: u64) -> Self {
         if self.unions.is_empty() {
             self.limit = Some(rows);
@@ -269,8 +278,40 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
+        if let Some(partition) = self.group_limit.take() {
+            return self.get_group_limited(&partition).await;
+        }
         let (sql, bindings) = self.compile(None)?;
         self.execute(&sql, &bindings).await
+    }
+
+    async fn get_group_limited(mut self, partition: &str) -> DatabaseResult<Vec<Row>> {
+        let partition = self.grammar.column(partition)?;
+        let rank = self.grammar.quote("laravel_row")?;
+        let alias = self.grammar.quote("laravel_table")?;
+        let mut window = format!("row_number() over (partition by {partition}");
+        let mut window_bindings = Vec::new();
+        self.compile_orders(&self.orders, &mut window, &mut window_bindings)?;
+        use std::fmt::Write as _;
+        write!(window, ") as {rank}").expect("writing to String");
+        self = self.select_default("*").selectRaw(&window, window_bindings);
+        self.orders.clear();
+        let offset = self.offset.take().unwrap_or(0);
+        let limit = self.limit.take();
+        let (sql, mut bindings) = self.compile(None)?;
+        let mut wrapped = format!("select * from ({sql}) as {alias} where {rank} > ?");
+        let bound = |value: u64| Value::Integer(i64::try_from(value).unwrap_or(i64::MAX));
+        bindings.push(bound(offset));
+        if let Some(limit) = limit {
+            write!(wrapped, " and {rank} <= ?").expect("writing to String");
+            bindings.push(bound(offset.saturating_add(limit)));
+        }
+        write!(wrapped, " order by {rank}").expect("writing to String");
+        let mut rows = self.execute(&wrapped, &bindings).await?;
+        for row in &mut rows {
+            row.remove_last_column();
+        }
+        Ok(rows)
     }
 
     pub async fn first(self) -> DatabaseResult<Option<Row>> {

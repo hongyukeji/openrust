@@ -61,6 +61,10 @@ pub enum DatabaseError {
     InvalidScalar,
     MassAssignment(String),
     ModelNotFound(&'static str),
+    LazyLoadingViolation {
+        model: &'static str,
+        relation: String,
+    },
     InvalidQuery(&'static str),
     InvalidSchema(&'static str),
     UnsupportedSchema(&'static str),
@@ -115,6 +119,12 @@ impl std::fmt::Display for DatabaseError {
             Self::MassAssignment(name) => write!(formatter, "attribute {name:?} is guarded"),
             Self::ModelNotFound(table) => {
                 write!(formatter, "model for table {table:?} was not found")
+            }
+            Self::LazyLoadingViolation { model, relation } => {
+                write!(
+                    formatter,
+                    "lazy loading {relation:?} on model {model} is prohibited"
+                )
             }
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")
