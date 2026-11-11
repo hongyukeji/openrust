@@ -59,7 +59,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("env:encrypt", "Encrypt an environment file"),
     ("event:cache", "Cache event and listener registrations"),
     ("event:clear", "Remove the cached event registrations"),
-    ("event:list", "Show events and their registered listeners"),
     ("install:api", "Install the application API scaffolding"),
     (
         "install:broadcasting",

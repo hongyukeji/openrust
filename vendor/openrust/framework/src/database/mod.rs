@@ -73,6 +73,9 @@ pub enum DatabaseError {
     InvalidSchema(&'static str),
     UnsupportedSchema(&'static str),
     TransactionClosed,
+    AfterCommit {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     InvalidTransactionAttempts,
     TransactionInterrupted,
     TransactionLevelChanged,
@@ -144,6 +147,9 @@ impl std::fmt::Display for DatabaseError {
             Self::InvalidTransactionAttempts => {
                 formatter.write_str("database transaction requires at least one attempt")
             }
+            Self::AfterCommit { .. } => {
+                formatter.write_str("database committed but a commit callback failed")
+            }
             Self::TransactionClosed => formatter.write_str("database transaction has ended"),
             Self::TransactionInterrupted => {
                 formatter.write_str("database transaction was interrupted")
@@ -173,6 +179,7 @@ impl std::error::Error for DatabaseError {
                 Some(source.as_ref())
             }
             Self::Driver { source, .. } => Some(source),
+            Self::AfterCommit { source } => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),

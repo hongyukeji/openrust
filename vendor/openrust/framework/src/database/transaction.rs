@@ -1,7 +1,8 @@
 use sqlx::error::DatabaseError as _;
 
 use super::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Row, Value,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, DatabaseTransactionsManager, Row,
+    Value,
     connection::{PhysicalConnection, TransactionCommand},
 };
 
@@ -14,6 +15,7 @@ pub struct Transaction {
     physical: Option<PhysicalConnection>,
     level: u32,
     retain_physical: bool,
+    transactions: DatabaseTransactionsManager,
 }
 
 pub(super) fn mysql_deadlock(error: &sqlx::Error) -> bool {
@@ -49,6 +51,7 @@ impl Connection {
             physical: Some(self.pool.acquire().await?),
             level: 0,
             retain_physical: false,
+            transactions: DatabaseTransactionsManager::default(),
         };
         transaction.beginTransaction().await?;
         Ok(transaction)
@@ -79,6 +82,7 @@ impl Connection {
                 physical: Some(physical),
                 level: 0,
                 retain_physical: true,
+                transactions: DatabaseTransactionsManager::default(),
             };
             let result = match transaction
                 .physical()?
@@ -194,6 +198,14 @@ impl Transaction {
         Ok(())
     }
 
+    /// Runs an owned callback after the outermost successful commit.
+    pub fn afterCommit(
+        &mut self,
+        callback: impl FnOnce() -> DatabaseFuture<'static, DatabaseResult<()>> + Send + 'static,
+    ) -> DatabaseResult<()> {
+        self.transactions.add(self.level, Box::new(callback))
+    }
+
     pub async fn commit(&mut self) -> DatabaseResult<()> {
         if self.level == 0 {
             return Err(DatabaseError::TransactionClosed);
@@ -205,7 +217,7 @@ impl Transaction {
         if self.level == 0 && !self.retain_physical {
             self.physical.take();
         }
-        Ok(())
+        self.transactions.commit(self.level + 1).await
     }
 
     pub async fn rollBack(&mut self, toLevel: Option<u32>) -> DatabaseResult<()> {
@@ -215,6 +227,7 @@ impl Transaction {
                 .control("roll back", TransactionCommand::RollBack)
                 .await?;
             self.level -= 1;
+            self.transactions.rollback(self.level);
         }
         if self.level == 0 && !self.retain_physical {
             self.physical.take();
@@ -230,11 +243,13 @@ impl Transaction {
         match callback(self).await {
             Ok(result) if self.level == level => match self.commit().await {
                 Ok(()) => Ok(result),
+                Err(error @ DatabaseError::AfterCommit { .. }) => Err(error),
                 Err(error) => self.abort(level, error).await,
             },
             Ok(_) => {
                 self.physical.take();
                 self.level = 0;
+                self.transactions.rollback(0);
                 Err(DatabaseError::TransactionLevelChanged)
             }
             Err(error) => self.abort(level, error).await,
@@ -249,6 +264,7 @@ impl Transaction {
         {
             self.physical.take();
             self.level = 0;
+            self.transactions.rollback(0);
         } else {
             self.rollBack(Some(level - 1)).await?;
         }

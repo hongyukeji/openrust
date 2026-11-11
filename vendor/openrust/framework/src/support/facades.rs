@@ -1,6 +1,8 @@
 //! Static entry points for application services, routes and commands.
 
+mod event;
 mod facade;
+pub use event::Event;
 mod redirect;
 mod url;
 pub use crate::auth::{Auth, access::GateFacade as Gate};

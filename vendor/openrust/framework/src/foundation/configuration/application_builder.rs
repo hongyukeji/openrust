@@ -48,6 +48,14 @@ impl ApplicationBuilder {
         self
     }
 
+    /// Adds a compiled manifest of event listeners to application boot.
+    pub fn withEvents(mut self, manifest: crate::foundation::events::DiscoverEvents) -> Self {
+        self.providers.push(Box::new(
+            crate::foundation::support::providers::EventServiceProvider::new(manifest),
+        ));
+        self
+    }
+
     pub fn withRouting(mut self, routing: Routing) -> Self {
         self.routing = Some(routing);
         self
