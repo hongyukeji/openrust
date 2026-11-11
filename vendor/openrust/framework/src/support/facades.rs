@@ -11,6 +11,7 @@ pub use crate::log::Log;
 pub use crate::log::context::Context;
 pub use crate::redis::Redis;
 pub use crate::translation::Lang;
+pub use crate::validation::facade::Validator;
 pub use facade::Facade;
 pub(crate) use facade::{
     ContextSnapshot, application_scope, context_snapshot, current_container, database_routing,

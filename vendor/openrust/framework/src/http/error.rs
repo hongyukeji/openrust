@@ -8,6 +8,8 @@ use super::{Method, Response, StatusCode};
 pub enum HttpError {
     InvalidRequest,
     PayloadTooLarge,
+    AuthorizationDenied(String),
+    Validation(Box<crate::validation::ValidationException>),
     OriginMismatch,
     TokenMismatch,
     Throttled {
@@ -27,6 +29,8 @@ impl HttpError {
         match self {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
+            Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::OriginMismatch => StatusCode::FORBIDDEN,
             Self::TokenMismatch => StatusCode::from_u16(419).expect("valid HTTP status"),
             Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
@@ -59,6 +63,7 @@ impl Error for HttpError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Internal { source } => Some(source.as_ref()),
+            Self::Validation(source) => Some(source.as_ref()),
             _ => None,
         }
     }
@@ -71,6 +76,18 @@ impl From<crate::filesystem::FilesystemError> for HttpError {
         match error {
             FilesystemError::InvalidPath => Self::InvalidRequest,
             FilesystemError::NotFound => Self::NotFound,
+            source => Self::Internal {
+                source: Box::new(source),
+            },
+        }
+    }
+}
+
+impl From<crate::validation::ValidationError> for HttpError {
+    fn from(error: crate::validation::ValidationError) -> Self {
+        match error {
+            crate::validation::ValidationError::Invalid(exception) => Self::Validation(exception),
+            crate::validation::ValidationError::LimitsExceeded => Self::PayloadTooLarge,
             source => Self::Internal {
                 source: Box::new(source),
             },

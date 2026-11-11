@@ -4,7 +4,7 @@ use crate::validation::{RuleContext, RuleFailure, ValidationFuture, ValidationRe
 pub trait ValidationRule: Send + Sync {
     fn validate<'a>(
         &'a self,
-        context: &'a RuleContext,
+        context: &'a RuleContext<'_>,
         attribute: &'a str,
         value: Option<&'a Value>,
     ) -> ValidationFuture<'a, ValidationResult<Vec<RuleFailure>>>;

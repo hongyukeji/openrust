@@ -20,6 +20,8 @@ pub(super) fn default_response(
     let message = match error {
         Some(HttpError::OriginMismatch) => "Origin mismatch.",
         Some(HttpError::TokenMismatch) => "CSRF token mismatch.",
+        Some(HttpError::AuthorizationDenied(message)) if !message.is_empty() => message,
+        Some(HttpError::Validation(exception)) => exception.message(),
         Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
         _ => status.canonical_reason().unwrap_or("HTTP Error"),
     };
@@ -38,6 +40,9 @@ pub(super) fn default_response(
             message
         };
         let mut payload = serde_json::json!({"message": message});
+        if let Some(HttpError::Validation(exception)) = error {
+            payload["errors"] = serde_json::json!(exception.errors().messages());
+        }
         if let Some(sources) = sources {
             payload["sources"] = serde_json::json!(sources);
         }

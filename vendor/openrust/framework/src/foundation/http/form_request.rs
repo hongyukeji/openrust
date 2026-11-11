@@ -1,6 +1,7 @@
 use crate::{
     auth::access::AuthorizationError,
-    http::Request,
+    contracts::validation::Validator as _,
+    http::{HttpError, HttpFuture, Request},
     validation::{
         Data, RuleSet, ValidatedInput, ValidationError, ValidationFuture, ValidationResult,
     },
@@ -14,20 +15,56 @@ pub enum FormRequestError {
 }
 
 /// Defines the authorization and validation of a handler's input.
+#[allow(non_snake_case, reason = "Matches Laravel's FormRequest lifecycle")]
 pub trait FormRequest: Send + Sync {
-    fn prepare_for_validation(&mut self, input: &mut Data) -> ValidationResult<()>;
+    fn validateResolved<'a>(
+        &'a mut self,
+        request: &'a mut Request,
+    ) -> HttpFuture<'a, Result<ValidatedInput, HttpError>> {
+        Box::pin(async move {
+            let mut data = Data::new(
+                request
+                    .input(None)
+                    .await?
+                    .unwrap_or_else(|| serde_json::json!({})),
+            )?;
+            self.prepareForValidation(&mut data)?;
+            self.authorize(request, &data)
+                .await
+                .map_err(|error| match error {
+                    AuthorizationError::Denied(denial) => {
+                        HttpError::AuthorizationDenied(denial.into_message())
+                    }
+                    AuthorizationError::Evaluation(_) => HttpError::Internal {
+                        source: std::io::Error::other("form request authorization failed").into(),
+                    },
+                })?;
+            let mut validator = crate::support::facades::Validator::make(data, self.rules()?)?;
+            let validated = validator.validate().await?;
+            self.passedValidation(request, &validated)?;
+            Ok(validated)
+        })
+    }
+
+    fn prepareForValidation(&mut self, _input: &mut Data) -> ValidationResult<()> {
+        Ok(())
+    }
 
     fn authorize<'a>(
         &'a self,
-        request: &'a mut Request,
-        input: &'a Data,
-    ) -> ValidationFuture<'a, Result<(), AuthorizationError>>;
+        _request: &'a mut Request,
+        _input: &'a Data,
+    ) -> ValidationFuture<'a, Result<(), AuthorizationError>> {
+        Box::pin(async { Ok(()) })
+    }
 
     fn rules(&self) -> ValidationResult<RuleSet>;
 
-    fn passed_validation(
+    fn passedValidation(
         &mut self,
-        request: &mut Request,
-        input: &ValidatedInput,
-    ) -> ValidationResult<()>;
+        _request: &mut Request,
+        _input: &ValidatedInput,
+    ) -> ValidationResult<()> {
+        Ok(())
+    }
 }
