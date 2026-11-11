@@ -86,3 +86,35 @@ curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
   -H 'Origin: https://example.com' \
   -H 'Access-Control-Request-Method: GET'
 ```
+
+## Defining Rate Limiters
+
+Register a policy in a service provider’s boot hook, then attach it to a route with `middleware_name("throttle:uploads")`. Use `Limit::by` for separate buckets, `response` for a custom rejection, or `after` to count selected responses. Rejected requests return HTTP 429 with `Retry-After`, `X-RateLimit-Reset`, `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
+
+```rust
+use openrust::{
+    cache::{CacheResult, rate_limiting::Limit},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    routing::{RouteGroup, RoutingError},
+    support::facades::{RateLimiter, Route},
+};
+
+fn register_limits() -> CacheResult<()> {
+    RateLimiter::r#for("uploads", |_| Limit::perMinute(5))
+}
+
+fn routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new(), |router| {
+        router.get("/uploads", upload)?.middleware_name("throttle:uploads");
+        Ok(())
+    })
+}
+
+fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+}
+```
+
+### Throttling With Redis
+
+Call `middleware.throttleWithRedis()` in `withMiddleware` to resolve named throttle aliases through the default Redis connection. Processes sharing the same Redis connection settings and key prefix share their quota. Redis checks and charges the configured limits atomically. Limits using `after` are charged after the response.

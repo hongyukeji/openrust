@@ -1,5 +1,6 @@
 //! Named limiter results and request limit policies.
 
+pub(crate) mod counters;
 mod limit;
 mod unlimited;
 
@@ -29,4 +30,28 @@ pub enum LimiterResponse {
 pub enum Attempt<T> {
     Throttled,
     Executed(T),
+}
+
+impl From<Limit> for LimiterResponse {
+    fn from(limit: Limit) -> Self {
+        Self::Limit(limit)
+    }
+}
+
+impl From<Vec<Limit>> for LimiterResponse {
+    fn from(limits: Vec<Limit>) -> Self {
+        Self::Limits(limits)
+    }
+}
+
+impl From<Unlimited> for LimiterResponse {
+    fn from(unlimited: Unlimited) -> Self {
+        Self::Unlimited(unlimited)
+    }
+}
+
+impl From<Response> for LimiterResponse {
+    fn from(response: Response) -> Self {
+        Self::Response(response)
+    }
 }

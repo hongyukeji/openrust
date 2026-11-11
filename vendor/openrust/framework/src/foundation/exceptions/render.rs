@@ -17,7 +17,10 @@ pub(super) fn default_response(
     debug: impl FnOnce() -> bool,
 ) -> Response {
     let status = error.map_or(StatusCode::INTERNAL_SERVER_ERROR, HttpError::status);
-    let message = status.canonical_reason().unwrap_or("HTTP Error");
+    let message = match error {
+        Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
+        _ => status.canonical_reason().unwrap_or("HTTP Error"),
+    };
     let json = configuration.map_or_else(
         || request.expectsJson(),
         |config| config.renders_json(request, error),

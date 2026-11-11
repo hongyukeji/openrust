@@ -1,11 +1,15 @@
 mod substitute_bindings;
+mod throttle_requests;
+mod throttle_requests_with_redis;
 
 pub use substitute_bindings::SubstituteBindings;
+pub use throttle_requests::ThrottleRequests;
+pub use throttle_requests_with_redis::ThrottleRequestsWithRedis;
 
 use std::{
     any::TypeId,
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use crate::contracts::http::Middleware;
@@ -37,6 +41,8 @@ pub(crate) struct MiddlewareRegistry {
     pub(crate) groups: HashMap<String, Vec<MiddlewareEntry>>,
     pub(crate) aliases: HashMap<String, Arc<dyn Middleware>>,
     pub(crate) priority: Vec<TypeId>,
+    pub(crate) throttle_with_redis: bool,
+    throttle_aliases: Mutex<HashMap<String, Arc<dyn Middleware>>>,
 }
 
 impl MiddlewareRegistry {
@@ -76,6 +82,31 @@ impl MiddlewareRegistry {
         Ok(())
     }
 
+    fn alias(&self, name: &str) -> Option<Arc<dyn Middleware>> {
+        if let Some(alias) = self.aliases.get(name) {
+            return Some(alias.clone());
+        }
+        let limiter = name
+            .strip_prefix("throttle:")
+            .filter(|name| !name.is_empty())?;
+        let mut aliases = self
+            .throttle_aliases
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Some(
+            aliases
+                .entry(limiter.into())
+                .or_insert_with(|| {
+                    if self.throttle_with_redis {
+                        Arc::new(ThrottleRequestsWithRedis::new(limiter))
+                    } else {
+                        Arc::new(ThrottleRequests::new(limiter))
+                    }
+                })
+                .clone(),
+        )
+    }
+
     fn expand(
         &self,
         entries: &[MiddlewareEntry],
@@ -88,8 +119,8 @@ impl MiddlewareRegistry {
                 MiddlewareEntry::Named(name) => {
                     if let Some(group) = groups.get(name) {
                         stack.extend(group.iter().cloned());
-                    } else if let Some(instance) = self.aliases.get(name) {
-                        stack.push(instance.clone());
+                    } else if let Some(instance) = self.alias(name) {
+                        stack.push(instance);
                     } else {
                         return Err(RoutingError::UnknownMiddleware { name: name.clone() });
                     }
@@ -111,8 +142,8 @@ impl MiddlewareRegistry {
             for name in excluded {
                 if let Some(group) = groups.get(name) {
                     instances.extend(group.iter().map(middleware_identity));
-                } else if let Some(alias) = self.aliases.get(name) {
-                    instances.insert(middleware_identity(alias));
+                } else if let Some(alias) = self.alias(name) {
+                    instances.insert(middleware_identity(&alias));
                 }
             }
             stack.retain(|item| !instances.contains(&middleware_identity(item)));

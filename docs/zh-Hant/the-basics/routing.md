@@ -86,3 +86,35 @@ curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
   -H 'Origin: https://example.com' \
   -H 'Access-Control-Request-Method: GET'
 ```
+
+## 定義限流器
+
+在服務提供者的 boot 階段註冊策略，再用 `middleware_name("throttle:uploads")` 附加到路由。用 `Limit::by` 劃分計數鍵，`response` 自訂拒絕回應，或用 `after` 選擇哪些回應消耗額度。拒絕回傳 HTTP 429，並附帶 `Retry-After`、`X-RateLimit-Reset`、`X-RateLimit-Limit` 和 `X-RateLimit-Remaining`。
+
+```rust
+use openrust::{
+    cache::{CacheResult, rate_limiting::Limit},
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    routing::{RouteGroup, RoutingError},
+    support::facades::{RateLimiter, Route},
+};
+
+fn register_limits() -> CacheResult<()> {
+    RateLimiter::r#for("uploads", |_| Limit::perMinute(5))
+}
+
+fn routes() -> Result<(), RoutingError> {
+    Route::group(RouteGroup::new(), |router| {
+        router.get("/uploads", upload)?.middleware_name("throttle:uploads");
+        Ok(())
+    })
+}
+
+fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+}
+```
+
+### 使用 Redis 節流
+
+在 `withMiddleware` 中呼叫 `middleware.throttleWithRedis()`，讓命名節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。

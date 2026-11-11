@@ -32,6 +32,96 @@ use crate::{
     routing::{IntoRouteHandler, Router, RoutingError},
 };
 
+/// Resolves the current application's named rate limit policies.
+pub struct RateLimiter;
+
+impl Facade for RateLimiter {
+    type Service = crate::cache::RateLimiter;
+
+    fn getFacadeAccessor() -> crate::container::ServiceKey {
+        "rateLimiter".into()
+    }
+}
+
+impl RateLimiter {
+    pub fn r#for<R>(
+        name: impl Into<String>,
+        callback: impl Fn(&crate::http::Request) -> R + Send + Sync + 'static,
+    ) -> crate::cache::CacheResult<()>
+    where
+        R: Into<crate::cache::rate_limiting::LimiterResponse>,
+    {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .r#for(name, callback);
+        Ok(())
+    }
+
+    pub async fn attempt<T>(
+        key: &str,
+        max_attempts: u64,
+        action: impl std::future::Future<Output = crate::cache::CacheResult<T>>,
+        decay_seconds: u64,
+    ) -> crate::cache::CacheResult<crate::cache::rate_limiting::Attempt<T>> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .attempt(key, max_attempts, action, decay_seconds)
+            .await
+    }
+
+    pub async fn hit(key: &str, decay_seconds: u64) -> crate::cache::CacheResult<u64> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .hit(key, decay_seconds)
+            .await
+    }
+
+    pub async fn attempts(key: &str) -> crate::cache::CacheResult<u64> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .attempts(key)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    pub async fn tooManyAttempts(key: &str, max_attempts: u64) -> crate::cache::CacheResult<bool> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .tooManyAttempts(key, max_attempts)
+            .await
+    }
+
+    pub async fn remaining(key: &str, max_attempts: u64) -> crate::cache::CacheResult<u64> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .remaining(key, max_attempts)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's RateLimiter API")]
+    pub async fn availableIn(key: &str) -> crate::cache::CacheResult<u64> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .availableIn(key)
+            .await
+    }
+
+    pub async fn clear(key: &str) -> crate::cache::CacheResult<()> {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .clear(key)
+            .await
+    }
+
+    pub fn limiter(
+        name: &str,
+    ) -> crate::cache::CacheResult<Option<Arc<crate::cache::rate_limiting::Limiter>>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .limiter(name))
+    }
+}
+
 /// Resolves the view factory for the current application.
 pub struct View;
 

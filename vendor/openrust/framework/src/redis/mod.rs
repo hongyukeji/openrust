@@ -3,6 +3,7 @@
 pub mod connections;
 pub mod connectors;
 mod facade;
+pub mod limiters;
 mod redis_manager;
 mod redis_service_provider;
 

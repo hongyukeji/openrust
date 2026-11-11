@@ -8,6 +8,9 @@ use super::{Method, Response, StatusCode};
 pub enum HttpError {
     InvalidRequest,
     PayloadTooLarge,
+    Throttled {
+        headers: super::HeaderMap,
+    },
     NotFound,
     MethodNotAllowed {
         allowed: Vec<Method>,
@@ -22,6 +25,7 @@ impl HttpError {
         match self {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
@@ -35,6 +39,7 @@ impl HttpError {
     pub(crate) fn with_response_headers(&self, response: Response) -> Response {
         match self {
             Self::MethodNotAllowed { allowed } => response.with_allow(allowed, ", "),
+            Self::Throttled { headers } => response.withHeaders(headers.clone()),
             _ => response,
         }
     }

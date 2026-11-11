@@ -12,7 +12,7 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::CacheManager;
+use super::{CacheManager, RateLimiter};
 
 /// Registers the cache manager in the application container.
 pub struct CacheServiceProvider;
@@ -33,6 +33,20 @@ impl ServiceProvider for CacheServiceProvider {
             container.alias(
                 "cache",
                 crate::container::ServiceKey::typed::<CacheManager>(),
+            )?;
+            container.singletonNamed("rateLimiter", |container| {
+                let config = container.get::<dyn Config>("config")?;
+                let store = config
+                    .get("cache.limiter")
+                    .and_then(|value| value.as_str().map(str::to_owned));
+                Ok(Arc::new(RateLimiter::with_cache(
+                    container.get::<CacheManager>("cache")?,
+                    store,
+                )))
+            })?;
+            container.alias(
+                "rateLimiter",
+                crate::container::ServiceKey::typed::<RateLimiter>(),
             )?;
             container.singleton::<dyn Factory, _>(|container| {
                 let manager = container.get::<CacheManager>("cache")?;

@@ -82,6 +82,13 @@ impl Middleware {
         self.alias(name, crate::foundation::http::terminable(middleware))
     }
 
+    /// Resolves the throttle alias through the Redis duration limiter.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn throttleWithRedis(&mut self) -> &mut Self {
+        self.registry.throttle_with_redis = true;
+        self
+    }
+
     pub fn group(
         &mut self,
         name: impl Into<String>,
