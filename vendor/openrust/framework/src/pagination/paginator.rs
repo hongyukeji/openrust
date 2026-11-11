@@ -89,15 +89,11 @@ impl<T> Paginator<T> {
             more: self.more,
         }
     }
-    pub(crate) fn serialize_fields<S: serde::ser::SerializeMap>(
+    pub(crate) fn serialize_metadata<S: serde::ser::SerializeMap>(
         &self,
         fields: &mut S,
-    ) -> Result<(), S::Error>
-    where
-        T: Serialize,
-    {
+    ) -> Result<(), S::Error> {
         fields.serialize_entry("current_page", &self.currentPage())?;
-        fields.serialize_entry("data", &self.items)?;
         fields.serialize_entry("first_page_url", &self.url(1))?;
         fields.serialize_entry("from", &self.firstItem())?;
         fields.serialize_entry("next_page_url", &self.nextPageUrl())?;
@@ -111,7 +107,8 @@ impl<T> Paginator<T> {
 impl<T: Serialize> Serialize for Paginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(9))?;
-        self.serialize_fields(&mut fields)?;
+        self.serialize_metadata(&mut fields)?;
+        fields.serialize_entry("data", &self.items)?;
         fields.end()
     }
 }

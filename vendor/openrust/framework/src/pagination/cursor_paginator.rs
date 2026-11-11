@@ -84,9 +84,19 @@ impl<T> CursorPaginator<T> {
 
 impl<T: Serialize> Serialize for CursorPaginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        use serde::ser::Error as _;
         let mut fields = serializer.serialize_map(Some(7))?;
+        self.serialize_metadata(&mut fields)?;
         fields.serialize_entry("data", &self.items)?;
+        fields.end()
+    }
+}
+
+impl<T> CursorPaginator<T> {
+    pub(crate) fn serialize_metadata<S: serde::ser::SerializeMap>(
+        &self,
+        fields: &mut S,
+    ) -> Result<(), S::Error> {
+        use serde::ser::Error as _;
         fields.serialize_entry("path", &self.links.path)?;
         fields.serialize_entry("per_page", &self.per_page)?;
         fields.serialize_entry(
@@ -112,7 +122,6 @@ impl<T: Serialize> Serialize for CursorPaginator<T> {
         fields.serialize_entry(
             "prev_page_url",
             &self.previousPageUrl().map_err(S::Error::custom)?,
-        )?;
-        fields.end()
+        )
     }
 }

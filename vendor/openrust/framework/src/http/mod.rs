@@ -8,6 +8,7 @@ mod error;
 pub mod middleware;
 mod next;
 mod request;
+pub mod resources;
 mod response;
 mod uploaded_file;
 

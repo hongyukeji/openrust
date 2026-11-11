@@ -71,17 +71,25 @@ impl<T> std::ops::DerefMut for LengthAwarePaginator<T> {
 impl<T: Serialize> Serialize for LengthAwarePaginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(13))?;
-        self.inner.serialize_fields(&mut fields)?;
-        let last = self.lastPage();
-        fields.serialize_entry("last_page", &last)?;
-        fields.serialize_entry("last_page_url", &self.url(last))?;
-        fields.serialize_entry("links", &self.link_window())?;
-        fields.serialize_entry("total", &self.total)?;
+        self.serialize_metadata(&mut fields)?;
+        fields.serialize_entry("data", self.items())?;
         fields.end()
     }
 }
 
 impl<T> LengthAwarePaginator<T> {
+    pub(crate) fn serialize_metadata<S: serde::ser::SerializeMap>(
+        &self,
+        fields: &mut S,
+    ) -> Result<(), S::Error> {
+        self.inner.serialize_metadata(fields)?;
+        let last = self.lastPage();
+        fields.serialize_entry("last_page", &last)?;
+        fields.serialize_entry("last_page_url", &self.url(last))?;
+        fields.serialize_entry("links", &self.link_window())?;
+        fields.serialize_entry("total", &self.total)
+    }
+
     fn link_window(&self) -> Vec<serde_json::Value> {
         use serde_json::json;
         let page = self.currentPage();

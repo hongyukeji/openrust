@@ -62,7 +62,7 @@ impl<'a> RelationAggregate<'a> {
         }
     }
 
-    pub(in crate::database::eloquent) fn alias(self, name: &str) -> DatabaseResult<String> {
+    pub(crate) fn alias(self, name: &str) -> DatabaseResult<String> {
         let words: Vec<_> = name.split_ascii_whitespace().collect();
         let (name, alias) = match words.as_slice() {
             [name] => (*name, None),
