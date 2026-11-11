@@ -539,6 +539,15 @@ impl Container {
         })
     }
 
+    fn is_resolving(&self, key: &ServiceKey, recipe: usize) -> bool {
+        let container = std::ptr::from_ref(self).addr();
+        RESOLVING.with_borrow(|stack| {
+            stack.iter().any(|frame| {
+                frame.container == container && frame.key == *key && frame.recipe == recipe
+            })
+        })
+    }
+
     fn resolve(
         &self,
         key: &ServiceKey,
@@ -1539,11 +1548,10 @@ impl Container {
         } else if let Some(root) = root {
             Arc::ptr_eq(&root.value, &entry.value)
         } else {
-            registry.classes.get(key).is_some_and(|record| {
-                Arc::ptr_eq(&record.sync.version, &entry.version)
-                    && (Arc::ptr_eq(&record.sync.value, &entry.value)
-                        || Arc::ptr_eq(&record.asynchronous.value, &entry.value))
-            })
+            registry
+                .classes
+                .get(key)
+                .is_some_and(|record| record.owns_entry(entry))
         };
         drop(registry);
         current
@@ -1553,12 +1561,15 @@ impl Container {
     // A cache reset preserves the recipe version, while a replacement changes it.
     fn mark_resolved(&self, key: &ServiceKey, entry: &RegisteredBinding) {
         let mut registry = self.registry.write().expect("container lock poisoned");
-        let current = registry
-            .bindings
-            .get(key)
-            .map(|binding| &binding.version)
-            .or_else(|| registry.classes.get(key).map(|record| &record.sync.version));
-        if current.is_some_and(|version| Arc::ptr_eq(version, &entry.version)) {
+        let current = if let Some(binding) = registry.bindings.get(key) {
+            Arc::ptr_eq(&binding.version, &entry.version)
+        } else {
+            registry
+                .classes
+                .get(key)
+                .is_some_and(|record| record.owns_version(entry))
+        };
+        if current {
             registry.resolved.insert(key.clone());
         }
     }
@@ -1597,18 +1608,15 @@ impl Container {
                 .as_ref()
                 .and_then(|consumer| registry.contextual_binding(self, consumer, &key));
             let has_contextual = contextual.is_some();
+            let class = registry.classes.get(&key);
+            // Reentering an active class factory uses the ordinary constructor
+            // without waiting on that same factory's shared cache.
+            let root =
+                root.filter(|root| !class.is_some_and(|class| class.reenters_binding(self, root)));
             let mut entry = contextual
                 .or(provided)
                 .or_else(|| root.cloned())
-                .or_else(|| {
-                    registry.classes.get(&key).map(|record| {
-                        if asynchronous {
-                            record.asynchronous.clone()
-                        } else {
-                            record.sync.clone()
-                        }
-                    })
-                })
+                .or_else(|| class.map(|record| record.entry(self, asynchronous).clone()))
                 .ok_or_else(|| BindingResolutionError::NotBound {
                     service: key.clone(),
                 })?;

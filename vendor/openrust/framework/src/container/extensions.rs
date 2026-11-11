@@ -308,13 +308,10 @@ impl Container {
                 registry.bindings.get(&key)
             }
             .or_else(|| {
-                registry.classes.get(&key).map(|record| {
-                    if asynchronous {
-                        &record.asynchronous
-                    } else {
-                        &record.sync
-                    }
-                })
+                registry
+                    .classes
+                    .get(&key)
+                    .map(|record| record.entry(self, asynchronous))
             });
             let original = scope::lookup(self, &key).or_else(|| root.cloned());
             let mut entry = original.clone();

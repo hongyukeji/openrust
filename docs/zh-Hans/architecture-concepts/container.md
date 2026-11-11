@@ -710,3 +710,46 @@ fn main() {
 ```
 
 `offsetUnset` 按原始键移除绑定、共享实例和解析记录，同时清理活动作用域中的缓存值。别名保留，读取目标已删除的别名会返回解析错误，直至重新绑定目标。Rust 使用具名方法表达可失败的类型化读取和修改。删除前已在执行的解析仍可向发起者返回结果，后续解析使用当前注册表。
+
+## 自构造类
+
+类型需要静态构造方法时，实现 `SelfBuilding::newInstance` 并注册 `ClassDescriptor::selfBuilding`。描述符分别声明普通构造函数和 `newInstance` 的参数。容器按静态方法的参数声明注入依赖并调用 `newInstance`。
+
+```rust
+use openrust::{
+    container::{ClassDescriptor, ConstructorParam, Container, FactoryFuture, ResolvedArgs},
+    contracts::container::{Container as _, SelfBuilding},
+};
+use std::sync::Arc;
+
+struct Report(u32);
+
+impl SelfBuilding for Report {
+    #[allow(non_snake_case)]
+    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+        Box::pin(async move {
+            let base = container.build::<Self>()?;
+            Ok(Arc::new(Self(base.0 + *args.service::<u32>(0)?)))
+        })
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.instance(Arc::new(7_u32)).unwrap();
+    container
+        .registerClass(
+            ClassDescriptor::selfBuilding::<Report>(
+                vec![],
+                |_| Ok(Arc::new(Report(1))),
+                vec![ConstructorParam::class::<u32>("increment")],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(container.makeAsync::<Report>().await.unwrap().0, 8);
+}
+```
+
+使用 `makeAsync` 或 `buildAsync` 解析自构造类。`makeWithAsync` 的构造参数覆盖不会传给静态方法。若 `newInstance` 在构造期间再次解析同一类型，内层构建走普通构造函数。普通构造中的循环依赖仍会返回解析错误。可用 `bindStaticMethod` 绑定 `newInstance`，替换容器构建时调用的静态方法。

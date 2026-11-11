@@ -5,10 +5,13 @@ use openrust::{
     },
     container::{
         Callback, ClassDescriptor, ConstructorParam, Container, EnvironmentQuery,
-        EnvironmentResult, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
-        ServiceKey,
+        EnvironmentResult, FactoryFuture, MethodCall, ParameterKey, ParameterOverrides,
+        ParameterValue, ResolvedArgs, ServiceKey,
     },
-    contracts::{container::Container as _, foundation::Application as _},
+    contracts::{
+        container::{Container as _, SelfBuilding},
+        foundation::Application as _,
+    },
     foundation::{Application, configuration::Routing},
     support::{
         ProviderResult, ServiceProvider,
@@ -118,6 +121,12 @@ impl FrameworkCommand for ParametersProbeCommand {
     }
 }
 struct CompiledProbe(Arc<Greeting>);
+impl SelfBuilding for CompiledProbe {
+    #[allow(non_snake_case)]
+    fn newInstance(args: ResolvedArgs, _: &Container) -> FactoryFuture<'_, Self> {
+        Box::pin(async move { Ok(Arc::new(Self(args.service(0)?))) })
+    }
+}
 struct ConstructionCommand(CommandDefinition);
 impl FrameworkCommand for ConstructionCommand {
     fn definition(&self) -> &CommandDefinition {
@@ -351,9 +360,10 @@ impl ServiceProvider for Provider {
                 .needs::<Greeting>()
                 .giveServices(["variadic-first", "variadic-second"])?;
             app.container()
-                .registerClass(ClassDescriptor::concrete::<CompiledProbe, _>(
+                .registerClass(ClassDescriptor::selfBuilding::<CompiledProbe>(
                     vec![ConstructorParam::class::<Greeting>("greeting")],
                     |args| Ok(Arc::new(CompiledProbe(args.service(0)?))),
+                    vec![ConstructorParam::class::<Greeting>("greeting")],
                 )?)?;
             app.container()
                 .singletonAsyncNamed::<u32, _>("parameter-number", |c| {

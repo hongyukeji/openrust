@@ -6,6 +6,15 @@ mod binding_resolution_error;
 
 pub use binding_resolution_error::BindingResolutionError;
 
+/// A concrete class whose construction entry point is a static method.
+pub trait SelfBuilding: Sized + Send + Sync + 'static {
+    #[allow(non_snake_case, reason = "Matches Laravel's self-building contract")]
+    fn newInstance(
+        args: crate::container::ResolvedArgs,
+        container: &crate::container::Container,
+    ) -> crate::container::FactoryFuture<'_, Self>;
+}
+
 /// Registers services by type and resolves them through explicit factories.
 pub trait Container: Send + Sync + Sized {
     /// Register a factory that is invoked for each resolution.

@@ -1,8 +1,11 @@
 use openrust::{
     config::{ConfigError, Environment, Value},
-    container::{ClassDescriptor, ConstructorParam, ParameterValue, ServiceKey},
+    container::{
+        ClassDescriptor, ConstructorParam, Container, FactoryFuture, ParameterValue, ResolvedArgs,
+        ServiceKey,
+    },
     contracts::{
-        container::{BindingResolutionError, Container as _},
+        container::{BindingResolutionError, Container as _, SelfBuilding},
         foundation::Application as _,
         http::Kernel as _,
         support::DeferrableProvider,
@@ -57,6 +60,20 @@ struct Client {
     name: &'static str,
     attempt: usize,
 }
+struct SelfBuilt(String);
+impl SelfBuilding for SelfBuilt {
+    #[allow(non_snake_case)]
+    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+        Box::pin(async move {
+            let client = args.service::<Client>(0)?;
+            let ordinary = container.make::<Self>()?;
+            Ok(Arc::new(Self(format!(
+                "{}:{}:{}",
+                client.name, client.attempt, ordinary.0
+            ))))
+        })
+    }
+}
 struct Worker {
     client: Arc<Client>,
     sequence: usize,
@@ -88,6 +105,12 @@ impl ServiceProvider for Constructors {
                             number: *args.get::<u32>(1)?,
                         }))
                     },
+                )?)?;
+            app.container()
+                .registerClass(ClassDescriptor::selfBuilding::<SelfBuilt>(
+                    vec![],
+                    |_| Ok(Arc::new(SelfBuilt("ordinary".into()))),
+                    vec![ConstructorParam::class::<Client>("client")],
                 )?)?;
             assert!(!app.container().bound::<Worker>());
             Ok(())
@@ -151,8 +174,21 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         ))
     })
 }
+fn read_self_built(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let result = Container::getInstance()
+            .makeAsync::<SelfBuilt>()
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        Ok(Response::new(StatusCode::OK, Body::from(result.0.clone())))
+    })
+}
+
 fn routes() -> Result<(), RoutingError> {
-    Route::get("/worker", read)
+    Route::get("/worker", read)?;
+    Route::get("/self-building", read_self_built)
 }
 fn application(root: &Root, name: &'static str, counts: Arc<Counts>, fail: bool) -> Application {
     let owned = counts.clone();
@@ -226,11 +262,18 @@ async fn real_http_automatically_constructs_metadata_and_loads_deferred_dependen
     assert_eq!(send(first, "/worker", 200).await, "a:1:2:1");
     assert_eq!(send(second, "/worker", 200).await, "b:1:1:1");
     assert!(
-        !send(bad, "/worker", 500)
+        !send(bad, "/self-building", 500)
             .await
             .contains("private client constructor failure")
     );
+    assert_eq!(send(bad, "/self-building", 200).await, "retry:2:ordinary");
     assert_eq!(send(bad, "/worker", 200).await, "retry:2:1:1");
+    let (first_result, second_result) = tokio::join!(
+        send(first, "/self-building", 200),
+        send(second, "/self-building", 200),
+    );
+    assert_eq!(first_result, "a:1:ordinary");
+    assert_eq!(second_result, "b:1:ordinary");
     for task in [x, y, z] {
         task.abort();
         let _ = task.await;

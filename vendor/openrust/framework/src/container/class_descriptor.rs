@@ -1,9 +1,9 @@
 //! Static constructor metadata replaces PHP reflection without creating service bindings.
 use super::{
-    Binding, Container, FactoryFuture, ParameterKey, ParameterValue, RegisteredBinding, ServiceKey,
-    scope,
+    Binding, Container, FactoryFuture, ParameterKey, ParameterOverrides, ParameterValue,
+    RegisteredBinding, ServiceKey, StaticCall, method_call::RegisteredMethod, scope,
 };
-use crate::contracts::container::{BindingResolutionError, Container as _};
+use crate::contracts::container::{BindingResolutionError, Container as _, SelfBuilding};
 use std::{any::type_name, collections::HashSet, future::Future, pin::Pin, sync::Arc};
 
 type Result<T> = std::result::Result<T, BindingResolutionError>;
@@ -304,9 +304,18 @@ async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result
 #[derive(Clone)]
 pub struct ClassDescriptor {
     key: ServiceKey,
-    pub(super) sync: RegisteredBinding,
-    pub(super) asynchronous: RegisteredBinding,
+    sync: RegisteredBinding,
+    asynchronous: RegisteredBinding,
+    self_building: Option<SelfBuildingDescriptor>,
 }
+#[derive(Clone)]
+struct SelfBuildingDescriptor {
+    entry: RegisteredBinding,
+    method: RegisteredMethod,
+}
+pub(super) const NEW_INSTANCE: &str = "newInstance";
+static SELF_BUILDING_FRAME: u8 = 0;
+
 impl ClassDescriptor {
     pub fn concrete<T, F>(parameters: Vec<ConstructorParam>, construct: F) -> Result<Self>
     where
@@ -329,6 +338,7 @@ impl ClassDescriptor {
             key,
             sync,
             asynchronous,
+            self_building: None,
         })
     }
     #[allow(non_snake_case, reason = "Asynchronous Rust constructor adapter")]
@@ -348,10 +358,93 @@ impl ClassDescriptor {
             key,
             sync: asynchronous.clone(),
             asynchronous,
+            self_building: None,
         })
     }
+
+    /// Declares an ordinary constructor and an independent static newInstance signature.
+    #[allow(non_snake_case, reason = "Matches Laravel's SelfBuilding name")]
+    pub fn selfBuilding<T: SelfBuilding>(
+        parameters: Vec<ConstructorParam>,
+        construct: impl Fn(ResolvedArgs) -> Result<Arc<T>> + Send + Sync + 'static,
+        method_parameters: Vec<ConstructorParam>,
+    ) -> Result<Self> {
+        let mut descriptor = Self::concrete(parameters, construct)?;
+        validate_signature(&descriptor.key, &method_parameters)?;
+        let key = descriptor.key.clone();
+        let entry = Container::entry(Binding::<T>::AsyncFactory(Arc::new(move |container| {
+            let key = key.clone();
+            Box::pin(async move {
+                container
+                    .with_resolution(
+                        &key,
+                        std::ptr::from_ref(&SELF_BUILDING_FRAME).addr(),
+                        container.call(
+                            StaticCall::<T>::array(NEW_INSTANCE),
+                            ParameterOverrides::new(),
+                        ),
+                    )
+                    .await
+            })
+        })));
+        let method = RegisteredMethod::static_declaration::<T, Arc<T>>(
+            method_parameters,
+            |args, container| T::newInstance(args.resolved, container),
+        );
+        descriptor.self_building = Some(SelfBuildingDescriptor { entry, method });
+        Ok(descriptor)
+    }
+
     pub fn key(&self) -> &ServiceKey {
         &self.key
+    }
+
+    pub(super) fn new_instance_method(&self) -> Option<&RegisteredMethod> {
+        self.self_building.as_ref().map(|builder| &builder.method)
+    }
+
+    fn building_instance(&self, container: &Container) -> bool {
+        container.is_resolving(&self.key, std::ptr::from_ref(&SELF_BUILDING_FRAME).addr())
+    }
+
+    pub(super) fn reenters_binding(
+        &self,
+        container: &Container,
+        binding: &RegisteredBinding,
+    ) -> bool {
+        self.building_instance(container)
+            && container.is_resolving(&self.key, Arc::as_ptr(&binding.version).addr())
+    }
+
+    pub(super) fn entry(&self, container: &Container, asynchronous: bool) -> &RegisteredBinding {
+        if let Some(builder) = &self.self_building
+            && !self.building_instance(container)
+            && !container.is_resolving(&self.key, Arc::as_ptr(&self.sync.version).addr())
+        {
+            return &builder.entry;
+        }
+        if asynchronous {
+            &self.asynchronous
+        } else {
+            &self.sync
+        }
+    }
+
+    pub(super) fn owns_version(&self, entry: &RegisteredBinding) -> bool {
+        Arc::ptr_eq(&self.sync.version, &entry.version)
+            || self
+                .self_building
+                .as_ref()
+                .is_some_and(|builder| Arc::ptr_eq(&builder.entry.version, &entry.version))
+    }
+
+    pub(super) fn owns_entry(&self, entry: &RegisteredBinding) -> bool {
+        Arc::ptr_eq(&self.sync.value, &entry.value)
+            || Arc::ptr_eq(&self.asynchronous.value, &entry.value)
+            || self
+                .self_building
+                .as_ref()
+                .is_some_and(|builder| Arc::ptr_eq(&builder.entry.value, &entry.value))
     }
 }
 impl Container {
@@ -392,6 +485,17 @@ impl Container {
                         reason: "a different constructor is already registered",
                     })
                 }
+            } else if descriptor.self_building.is_some()
+                && registry.methods.contains_key(&(
+                    descriptor.key.clone(),
+                    Arc::from(NEW_INSTANCE.to_ascii_lowercase()),
+                ))
+            {
+                Err(BindingResolutionError::InvalidMethod {
+                    service: descriptor.key.clone(),
+                    method: Arc::from(NEW_INSTANCE),
+                    reason: "newInstance already has a method declaration",
+                })
             } else {
                 registry.classes.insert(
                     descriptor.key.clone(),
@@ -409,13 +513,7 @@ impl Container {
             .expect("container lock poisoned")
             .classes
             .get(key)
-            .map(|record| {
-                if asynchronous {
-                    record.asynchronous.clone()
-                } else {
-                    record.sync.clone()
-                }
-            })
+            .map(|record| record.entry(self, asynchronous).clone())
             .ok_or_else(|| BindingResolutionError::NotBound {
                 service: key.clone(),
             })

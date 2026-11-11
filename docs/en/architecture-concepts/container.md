@@ -710,3 +710,46 @@ fn main() {
 ```
 
 `offsetUnset` removes the exact key's binding, shared instances and resolution record, including cached values in live scopes. Aliases remain registered. Reading an alias whose target was removed returns a resolution error until the target is bound again. Rust uses named methods for fallible, typed lookup and mutation. An in-flight caller can still receive its result after deletion, while subsequent lookups use the current registry.
+
+## Self-building Classes
+
+Implement `SelfBuilding::newInstance` and register a `ClassDescriptor::selfBuilding` when a type needs a static construction method. The descriptor declares independent parameter lists for the ordinary constructor and for `newInstance`. The container calls `newInstance` with the static method's injected arguments.
+
+```rust
+use openrust::{
+    container::{ClassDescriptor, ConstructorParam, Container, FactoryFuture, ResolvedArgs},
+    contracts::container::{Container as _, SelfBuilding},
+};
+use std::sync::Arc;
+
+struct Report(u32);
+
+impl SelfBuilding for Report {
+    #[allow(non_snake_case)]
+    fn newInstance(args: ResolvedArgs, container: &Container) -> FactoryFuture<'_, Self> {
+        Box::pin(async move {
+            let base = container.build::<Self>()?;
+            Ok(Arc::new(Self(base.0 + *args.service::<u32>(0)?)))
+        })
+    }
+}
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.instance(Arc::new(7_u32)).unwrap();
+    container
+        .registerClass(
+            ClassDescriptor::selfBuilding::<Report>(
+                vec![],
+                |_| Ok(Arc::new(Report(1))),
+                vec![ConstructorParam::class::<u32>("increment")],
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(container.makeAsync::<Report>().await.unwrap().0, 8);
+}
+```
+
+Use `makeAsync` or `buildAsync` for self-building classes. Constructor overrides supplied to `makeWithAsync` do not become method arguments. If `newInstance` resolves the same type during construction, the ordinary constructor handles that nested build. An ordinary constructor cycle still produces a resolution error. Use `bindStaticMethod` with the name `newInstance` to replace the static method for container-driven construction.

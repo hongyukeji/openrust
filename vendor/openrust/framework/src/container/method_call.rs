@@ -41,6 +41,19 @@ pub(super) struct RegisteredMethod {
     form: Form,
 }
 impl RegisteredMethod {
+    pub(super) fn static_declaration<C: ?Sized + 'static, R: Send + 'static>(
+        signature: Vec<ConstructorParam>,
+        callback: impl for<'a> Fn(CallArguments, &'a Container) -> CallFuture<'a, R>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self::new::<R>(
+            Declaration::<C, R>::Static(signature, Box::new(callback)),
+            Form::Static,
+        )
+    }
+
     fn new<R: 'static>(value: impl Any + Send + Sync, form: Form) -> Self {
         Self {
             value: Arc::new(value),
@@ -175,6 +188,18 @@ impl Container {
         let mut pending = Some(RegisteredMethod::new::<R>(callback, form));
         let result = {
             let mut registry = self.registry.write().expect("container lock poisoned");
+            if name.eq_ignore_ascii_case(super::class_descriptor::NEW_INSTANCE)
+                && registry
+                    .classes
+                    .get(&class)
+                    .is_some_and(|descriptor| descriptor.new_instance_method().is_some())
+            {
+                return Err(BindingResolutionError::InvalidMethod {
+                    service: class,
+                    method: Arc::from(name),
+                    reason: "newInstance already has a method declaration",
+                });
+            }
             let key = key::<C>(name, true);
             match registry.methods.entry(key) {
                 std::collections::hash_map::Entry::Occupied(_) => {
@@ -273,8 +298,18 @@ impl Container {
         name: &str,
     ) -> (Option<RegisteredMethod>, Option<RegisteredMethod>) {
         let registry = self.registry.read().expect("container lock poisoned");
+        let declared = if name.eq_ignore_ascii_case(super::class_descriptor::NEW_INSTANCE) {
+            registry
+                .classes
+                .get(&ServiceKey::typed::<C>())
+                .and_then(|descriptor| descriptor.new_instance_method())
+        } else {
+            None
+        };
         (
-            registry.methods.get(&key::<C>(name, true)).cloned(),
+            declared
+                .or_else(|| registry.methods.get(&key::<C>(name, true)))
+                .cloned(),
             registry
                 .method_bindings
                 .get(&key::<C>(name, false))
@@ -383,6 +418,7 @@ impl Container {
             call_context::run(self, parent, async move {
                 let class = ServiceKey::typed::<C>();
                 let (declared, binding) = self.selected::<C>(target.name);
+                let has_declaration = declared.is_some();
                 let binding = if target.binding { binding } else { None };
                 let binding = binding
                     .map(|value| {
@@ -408,7 +444,7 @@ impl Container {
                 } else {
                     None
                 };
-                let stack = if self.selected::<C>(target.name).0.is_some() {
+                let stack = if has_declaration {
                     context(self, &class)
                 } else {
                     call_context::stack(self)
