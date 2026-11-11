@@ -7,6 +7,8 @@ use crate::support::MessageBag;
 pub struct ValidationException {
     errors: MessageBag,
     message: String,
+    error_bag: Option<String>,
+    redirect_target: Option<String>,
 }
 
 impl ValidationException {
@@ -39,7 +41,32 @@ impl ValidationException {
             message.push(' ');
             message.push_str(&suffix);
         }
-        Self { errors, message }
+        Self {
+            errors,
+            message,
+            error_bag: None,
+            redirect_target: None,
+        }
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's ValidationException API")]
+    pub fn errorBag(&mut self, name: impl Into<String>) -> &mut Self {
+        self.error_bag = Some(name.into());
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's ValidationException API")]
+    pub fn redirectTo(&mut self, path: impl Into<String>) -> &mut Self {
+        self.redirect_target = Some(path.into());
+        self
+    }
+
+    pub(crate) fn error_bag(&self) -> &str {
+        self.error_bag.as_deref().unwrap_or("default")
+    }
+
+    pub(crate) fn redirect_target(&self) -> Option<&str> {
+        self.redirect_target.as_deref()
     }
 
     pub fn errors(&self) -> &MessageBag {

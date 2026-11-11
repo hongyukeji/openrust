@@ -38,6 +38,7 @@ pub struct Request {
     pub(crate) route_models: RouteModels,
     pub(crate) binding_plan: BindingPlan,
     pub(crate) exceptions: Option<Arc<Handler>>,
+    pub(crate) matched_route: bool,
     pub(crate) route_terminators: Vec<Arc<dyn crate::contracts::http::Middleware>>,
 }
 
@@ -59,6 +60,7 @@ impl Request {
             route_models: RouteModels::new(),
             binding_plan: BindingPlan::default(),
             exceptions: None,
+            matched_route: false,
             route_terminators: Vec::new(),
         }
     }
@@ -174,6 +176,11 @@ impl Request {
 
     pub(crate) fn take_session(&mut self) -> Option<crate::session::Store> {
         self.session.take()
+    }
+
+    /// Retrieves flashed input from the current session.
+    pub fn old(&self, key: Option<&str>) -> Option<&serde_json::Value> {
+        self.session.as_ref()?.getOldInput(key)
     }
 
     pub(crate) fn is_secure(&self) -> bool {

@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use crate::contracts::{
-    debug::{Exception, ExceptionHandler as _},
-    http::Middleware,
-    routing::Handler,
-};
+use crate::contracts::{http::Middleware, routing::Handler};
 
 use super::{Request, Response};
 
@@ -31,16 +27,12 @@ impl<'a> Next<'a> {
             }
             None => self.handler.handle(request).await,
         };
-        let error = match result {
-            Ok(response) => return response,
-            Err(error) => error,
-        };
-        if let Some(handler) = &request.exceptions {
-            let exception = Exception::Http(&error);
-            let _ = handler.report(&exception).await;
-            handler.render(request, &exception)
-        } else {
-            error.bare_response()
+        match result {
+            Ok(response) => response,
+            Err(error) => match request.exceptions.clone() {
+                Some(handler) => handler.render_http(request, &error).await,
+                None => error.bare_response(),
+            },
         }
     }
 }

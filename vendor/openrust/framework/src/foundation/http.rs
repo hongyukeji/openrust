@@ -125,6 +125,7 @@ impl http::Kernel for Kernel {
                 let head = request.method() == Method::HEAD;
                 request.set_route_parameters(Vec::new());
                 request.route_terminators.clear();
+                request.matched_route = false;
                 let attributes = request.attributes().clone();
                 let mut response = crate::http::request_context::scope(
                     self.application.container_handle(),

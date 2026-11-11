@@ -286,6 +286,7 @@ impl Router {
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
+        request.matched_route = false;
         let path = request.uri().path().trim_end_matches('/');
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()
@@ -302,6 +303,7 @@ impl Router {
             .unwrap_or_default();
         if let Some(route) = self.matched(request.method(), host, &path) {
             let parameters = route.parameters(host, &path);
+            request.matched_route = true;
             let plan = route.binding_plan(&self.bindings, &parameters);
             request.set_route_parameters(parameters);
             request.binding_plan = plan;

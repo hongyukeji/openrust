@@ -4,7 +4,6 @@ use ::http::{HeaderValue, header::CONTENT_TYPE};
 
 use crate::{
     contracts::debug::Exception,
-    foundation::configuration::Exceptions,
     http::{Body, HttpError, Request, Response, StatusCode},
     view::Factory,
 };
@@ -13,22 +12,18 @@ pub(super) fn default_response(
     request: &Request,
     exception: &Exception<'_>,
     error: Option<&HttpError>,
-    configuration: Option<&Exceptions>,
+    json: bool,
     debug: impl FnOnce() -> bool,
 ) -> Response {
     let status = error.map_or(StatusCode::INTERNAL_SERVER_ERROR, HttpError::status);
     let message = match error {
         Some(HttpError::OriginMismatch) => "Origin mismatch.",
+        Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
         Some(HttpError::TokenMismatch) => "CSRF token mismatch.",
         Some(HttpError::AuthorizationDenied(message)) if !message.is_empty() => message,
         Some(HttpError::Validation(exception)) => exception.message(),
-        Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
         _ => status.canonical_reason().unwrap_or("HTTP Error"),
     };
-    let json = configuration.map_or_else(
-        || request.expectsJson(),
-        |config| config.renders_json(request, error),
-    );
     let sources = (status.is_server_error() && debug()).then(|| debug_sources(exception));
     let (content_type, body) = if json {
         let message = if status.is_server_error() {

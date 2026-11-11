@@ -15,3 +15,7 @@ OpenRust 成功讀取本文後會保留原始位元組，供後續讀取。預�
 ## Cookie
 
 用 `request.cookie(Some("theme"))?` 讀取指定 Cookie，用 `request.cookie(None)?` 讀取整個 Cookie 集合。啟用 `EncryptCookies` 後，受保護的 Cookie 會在進入處理器前解密並驗證。密文無效或名稱綁定不符時，讀取到的值為 null。
+
+## 舊輸入
+
+用 `request.old(Some("profile.name"))` 讀取巢狀舊輸入，用 `request.old(None)` 讀取整個舊輸入集合。快閃值在下一次請求可用，明確的 null 會保留。

@@ -35,6 +35,47 @@ impl Store {
         self.handler.gc(lifetime).await
     }
 
+    /// Flashes input so it is available on the following request.
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn flashInput(&mut self, input: Value) -> SessionResult<()> {
+        self.flash("_old_input", input)
+    }
+
+    /// Retrieves all old input or one nested field.
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn getOldInput(&self, key: Option<&str>) -> Option<&Value> {
+        match key {
+            Some(key) => self.get(&format!("_old_input.{key}")),
+            None => self.get("_old_input"),
+        }
+    }
+
+    /// Flashes one error bag while preserving other bags from this request.
+    #[allow(non_snake_case, reason = "Matches Laravel's error bag conventions")]
+    pub fn flashErrors(
+        &mut self,
+        bag: &str,
+        messages: &crate::support::MessageBag,
+    ) -> SessionResult<()> {
+        let mut errors = self
+            .get("errors")
+            .and_then(Value::as_object)
+            .cloned()
+            .unwrap_or_default();
+        errors.insert(bag.to_owned(), serde_json::json!(messages.messages()));
+        self.flash("errors", Value::Object(errors))
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn previousUrl(&self) -> Option<&str> {
+        self.get("_previous.url").and_then(Value::as_str)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Session API")]
+    pub fn setPreviousUrl(&mut self, url: &str) -> SessionResult<()> {
+        self.put("_previous.url", url.into())
+    }
+
     fn flash_keys(&self, key: &str) -> Vec<String> {
         flash_keys(&self.attributes, key)
     }

@@ -40,6 +40,16 @@ impl Validator {
         }
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Validator API")]
+    pub async fn validateWithBag(&mut self, error_bag: &str) -> ValidationResult<ValidatedInput> {
+        self.validate().await.map_err(|mut error| {
+            if let ValidationError::Invalid(exception) = &mut error {
+                exception.errorBag(error_bag);
+            }
+            error
+        })
+    }
+
     async fn run(&mut self) -> ValidationResult<()> {
         self.result = None;
         self.errors = MessageBag::default();

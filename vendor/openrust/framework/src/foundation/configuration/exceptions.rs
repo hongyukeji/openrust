@@ -61,6 +61,7 @@ pub struct Exceptions {
     without_duplicates: bool,
     renderers: Vec<Arc<Renderer>>,
     responder: Option<Arc<Responder>>,
+    dont_flash: Vec<String>,
 }
 
 impl Exceptions {
@@ -212,6 +213,20 @@ impl Exceptions {
     ) -> &mut Self {
         self.responder = Some(Arc::new(callback));
         self
+    }
+
+    /// Excludes additional input paths from validation redirects.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's exception configuration API"
+    )]
+    pub fn dontFlash(&mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> &mut Self {
+        self.dont_flash.extend(fields.into_iter().map(Into::into));
+        self
+    }
+
+    pub(crate) fn flash_exclusions(&self) -> &[String] {
+        &self.dont_flash
     }
 
     /// Overrides the default request-based JSON decision.

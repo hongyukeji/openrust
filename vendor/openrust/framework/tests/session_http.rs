@@ -25,11 +25,24 @@ use tokio::{
 fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let action = request.route("action").unwrap_or("read").to_owned();
+        if action == "old" {
+            return Response::json(
+                StatusCode::OK,
+                json!({
+                    "name": request.old(Some("profile.name")),
+                    "explicit_null": request.old(Some("profile.description")).is_some(),
+                    "all": request.old(None),
+                }),
+            );
+        }
         let session = request.session_mut()?;
         match action.as_str() {
             "seed" => {
                 session.put("profile.name", json!("Ada"))?;
                 session.flash("message", json!("Saved"))?;
+            }
+            "flash-input" => {
+                session.flashInput(json!({"profile":{"name":"Ada","description":null}}))?
             }
             "keep" => session.keep(&["message"]),
             "rotate" => session.regenerate(true).await?,
@@ -328,4 +341,26 @@ async fn a_failed_save_preserves_flash_state_for_retry() {
     reader.save().await.unwrap();
     reader.start().await.unwrap();
     assert!(reader.get("message").is_none());
+}
+
+#[tokio::test]
+async fn old_input_can_be_read_once_through_the_http_request() {
+    let (address, server, _) = start("array", true).await;
+    let flashed = send(address, "flash-input", "").await;
+    let (cookie, _) = read(&flashed);
+    let next = send(address, "old", cookie).await;
+    let (cookie, values) = read(&next);
+    assert_eq!(
+        values,
+        json!({
+            "name":"Ada","explicit_null":true,"all":{"profile":{"name":"Ada","description":null}}
+        })
+    );
+    let expired = send(address, "old", cookie).await;
+    let (_, values) = read(&expired);
+    assert_eq!(
+        values,
+        json!({"name":null,"explicit_null":false,"all":null})
+    );
+    server.abort();
 }

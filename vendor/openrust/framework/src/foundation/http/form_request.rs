@@ -40,7 +40,15 @@ pub trait FormRequest: Send + Sync {
                     },
                 })?;
             let mut validator = crate::support::facades::Validator::make(data, self.rules()?)?;
-            let validated = validator.validate().await?;
+            let validated = validator.validate().await.map_err(|mut error| {
+                if let ValidationError::Invalid(exception) = &mut error {
+                    exception.errorBag(self.errorBag());
+                    if let Some(path) = self.redirectTo() {
+                        exception.redirectTo(path);
+                    }
+                }
+                error
+            })?;
             self.passedValidation(request, &validated)?;
             Ok(validated)
         })
@@ -56,6 +64,14 @@ pub trait FormRequest: Send + Sync {
         _input: &'a Data,
     ) -> ValidationFuture<'a, Result<(), AuthorizationError>> {
         Box::pin(async { Ok(()) })
+    }
+
+    fn errorBag(&self) -> &str {
+        "default"
+    }
+
+    fn redirectTo(&self) -> Option<&str> {
+        None
     }
 
     fn rules(&self) -> ValidationResult<RuleSet>;

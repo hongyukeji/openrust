@@ -15,3 +15,7 @@ OpenRust 成功读取正文后保留原始字节，供后续读取。默认上�
 ## Cookie
 
 用 `request.cookie(Some("theme"))?` 读取指定 Cookie，用 `request.cookie(None)?` 读取整个 Cookie 集合。启用 `EncryptCookies` 后，受保护的 Cookie 会在进入处理器前解密并校验。密文无效或名称绑定不符时，读取到的值为 null。
+
+## 旧输入
+
+用 `request.old(Some("profile.name"))` 读取嵌套旧输入，用 `request.old(None)` 读取整个旧输入集合。闪存值在下一次请求可用，显式 null 会保留。

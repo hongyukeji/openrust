@@ -55,3 +55,23 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 ## Validation Error Response Format
 
 For requests that expect JSON, a validation failure returns HTTP 422 with `message` and an `errors` object keyed by field. Expanded keys use dot notation, such as `users.0.email`. Override rule messages and attribute labels in the active locale’s `lang/<locale>/validation.json`.
+
+## Displaying Validation Errors
+
+A failed validation on a session-backed web route redirects to the form and flashes its errors and submitted input for the next request. Blade views receive the request’s error bags as `$errors`. Use `request.old(Some("profile.name"))` to repopulate a field.
+
+### Named Error Bags
+
+Use `validateWithBag("profile")` on a validator or override `FormRequest::errorBag` to name the bag. In Blade, `$errors->profile->name` selects the messages for the name field in that bag.
+
+### Excluding Sensitive Input
+
+Password fields are omitted from flashed input. Register additional paths in `withExceptions` with `dontFlash`.
+
+```rust
+use openrust::foundation::configuration::Exceptions;
+
+fn configure(exceptions: &mut Exceptions) {
+    exceptions.dontFlash(["profile.secret"]);
+}
+```

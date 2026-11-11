@@ -15,3 +15,7 @@ See the [controller example](./controllers.md) for input handling and a JSON res
 ## Cookies
 
 Use `request.cookie(Some("theme"))?` to retrieve a cookie or `request.cookie(None)?` to retrieve the cookie bag. In a stack containing `EncryptCookies`, protected cookies are decrypted and validated before the handler runs. A cookie with invalid ciphertext or a mismatched name binding has a null value.
+
+## Old Input
+
+Call `request.old(Some("profile.name"))` to retrieve a nested flashed field or `request.old(None)` to retrieve the input bag. The value is available on the next request. An explicit null is preserved.

@@ -1,6 +1,6 @@
 use crate::{
     contracts::{container::Container as _, http::Middleware, session::Session},
-    http::{HttpError, HttpFuture, Next, Request, Response},
+    http::{HttpError, HttpFuture, Method, Next, Request, Response},
     session::{SessionError, SessionManager},
     support::facades::current_container,
 };
@@ -37,6 +37,31 @@ impl Middleware for StartSession {
             request.setLaravelSession(session);
             let mut response = next.run(request).await;
             let mut session = request.take_session().ok_or(SessionError::Configuration)?;
+            if request.matched_route
+                && request.method() == Method::GET
+                && request
+                    .headers()
+                    .get("x-requested-with")
+                    .is_none_or(|value| value != "XMLHttpRequest")
+                && !["purpose", "sec-purpose", "x-purpose"]
+                    .into_iter()
+                    .any(|name| {
+                        request
+                            .headers()
+                            .get(name)
+                            .and_then(|value| value.to_str().ok())
+                            .is_some_and(|value| value.contains("prefetch"))
+                    })
+                && request
+                    .headers()
+                    .get("precognition")
+                    .is_none_or(|value| value != "true")
+                && let Some(path) = request.uri().path_and_query()
+                && path.as_str().starts_with('/')
+                && !path.as_str().starts_with("//")
+            {
+                session.setPreviousUrl(path.as_str())?;
+            }
             let cookie = manager.cookie(&session)?;
             response.setCookie(&cookie, request.is_secure())?;
             session.save().await?;

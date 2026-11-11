@@ -38,6 +38,63 @@ impl Handler {
         }
     }
 
+    pub(crate) async fn render_http(&self, request: &mut Request, error: &HttpError) -> Response {
+        let exception = Exception::Http(error);
+        let _ = self.report(&exception).await;
+        let config = self.configuration.as_ref();
+        let response = if let Some(custom) =
+            config.and_then(|config| config.render_using(&exception, request))
+        {
+            custom
+        } else {
+            let json = self.renders_json(request, Some(error));
+            let redirect = match error {
+                HttpError::Validation(validation) if !json => {
+                    super::validation_redirect::response(request, validation, config).await
+                }
+                _ => None,
+            };
+            redirect.unwrap_or_else(|| self.render_default(request, &exception, json))
+        };
+        self.respond(response, &exception, request)
+    }
+
+    fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
+        self.configuration.as_ref().map_or_else(
+            || request.expectsJson(),
+            |config| config.renders_json(request, error),
+        )
+    }
+
+    fn render_default(&self, request: &Request, exception: &Exception<'_>, json: bool) -> Response {
+        let error = exception.downcast_ref::<HttpError>();
+        let debug = || {
+            self.owner
+                .upgrade()
+                .and_then(|owner| {
+                    owner
+                        .get::<dyn crate::contracts::config::Repository>("config")
+                        .ok()
+                })
+                .is_some_and(|config| {
+                    config.get("app.debug") == Some(serde_json::Value::Bool(true))
+                })
+        };
+        super::render::default_response(request, exception, error, json, debug)
+    }
+
+    fn respond(
+        &self,
+        response: Response,
+        exception: &Exception<'_>,
+        request: &Request,
+    ) -> Response {
+        match self.configuration.as_ref() {
+            Some(config) => config.respond_using(response, exception, request),
+            None => response,
+        }
+    }
+
     fn duplicate(&self, exception: &Exception<'_>, claim: bool) -> bool {
         if !self
             .configuration
@@ -168,29 +225,15 @@ impl ExceptionHandler for Handler {
     }
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {
-        let configuration = self.configuration.as_ref();
-        let response = configuration
+        let response = self
+            .configuration
+            .as_ref()
             .and_then(|config| config.render_using(exception, request))
             .unwrap_or_else(|| {
-                let error = exception.downcast_ref::<HttpError>();
-                let debug = || {
-                    self.owner
-                        .upgrade()
-                        .and_then(|owner| {
-                            owner
-                                .get::<dyn crate::contracts::config::Repository>("config")
-                                .ok()
-                        })
-                        .is_some_and(|config| {
-                            config.get("app.debug") == Some(serde_json::Value::Bool(true))
-                        })
-                };
-                super::render::default_response(request, exception, error, configuration, debug)
+                let json = self.renders_json(request, exception.downcast_ref::<HttpError>());
+                self.render_default(request, exception, json)
             });
-        match configuration {
-            Some(config) => config.respond_using(response, exception, request),
-            None => response,
-        }
+        self.respond(response, exception, request)
     }
 
     fn renderForConsole(&self, output: &mut Output, exception: &Exception<'_>) {

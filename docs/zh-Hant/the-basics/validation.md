@@ -55,3 +55,23 @@ fn store(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 ## 驗證錯誤回應格式
 
 請求預期 JSON 時，驗證失敗回傳 HTTP 422，本文包含 `message` 和依欄位索引的 `errors`。展開後的欄位用點路徑表示，例如 `users.0.email`。可在目前語言的 `lang/<locale>/validation.json` 中覆寫規則訊息和欄位名稱。
+
+## 顯示驗證錯誤
+
+啟用工作階段的 Web 路由驗證失敗時，會重新導向表單，並將錯誤及送出的輸入快閃至下一次請求。Blade 檢視透過 `$errors` 取得目前請求的錯誤包。可用 `request.old(Some("profile.name"))` 回填欄位。
+
+### 命名錯誤包
+
+在驗證器上呼叫 `validateWithBag("profile")`，或覆寫 `FormRequest::errorBag`，即可指定錯誤包。在 Blade 中，`$errors->profile->name` 選取該包內 name 欄位的訊息。
+
+### 排除敏感輸入
+
+密碼欄位會從舊輸入排除。可在 `withExceptions` 中用 `dontFlash` 註冊額外路徑。
+
+```rust
+use openrust::foundation::configuration::Exceptions;
+
+fn configure(exceptions: &mut Exceptions) {
+    exceptions.dontFlash(["profile.secret"]);
+}
+```
