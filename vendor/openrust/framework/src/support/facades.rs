@@ -13,6 +13,7 @@ pub use crate::database::{DB, schema::Schema};
 pub use crate::encryption::Crypt;
 pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
+pub use crate::http::client::Http;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
 pub use crate::mail::Mail;

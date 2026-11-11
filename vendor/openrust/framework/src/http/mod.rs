@@ -4,6 +4,7 @@ use std::{future::Future, pin::Pin};
 
 mod api_response;
 mod body;
+pub mod client;
 mod error;
 pub mod middleware;
 mod next;
