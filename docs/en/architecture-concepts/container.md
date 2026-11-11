@@ -598,3 +598,49 @@ async fn main() {
 ```
 
 `Callback::reusable` gives Rust 1.94 closure inference the repeatable `Fn` contract. `Callback::new` still supports `FnOnce` for ordinary calls. A wrapped callback requires `Send + Sync`; use synchronized shared state for mutation. Wrapper closures borrow their Container/Application and cannot outlive it. Each invocation returns its own Send future and may return externally borrowed data. Concrete returned closures avoid a boxed wrapper; shared callback ownership uses an Arc, and asynchronous dispatch retains the boxed-future adaptation described above. No performance measurement is claimed.
+
+## Binding Directory and Flush
+
+`getBindings()` returns an owned insertion-ordered `Bindings` snapshot. `get(&ServiceKey)` performs exact lookup, while `iter`, `keys` and owned iteration preserve registration order. Replacing a binding keeps its position. Each `BindingDefinition` exposes the original `concrete` factory and declared `shared` flag; an explicit instance override does not change that flag. Alias-only keys, instance-only keys, contextual bindings and automatic class metadata are excluded. Reading or modifying the snapshot does not resolve services or mutate the container.
+
+The retained `FactoryHandle` corresponds to invoking the concrete closure from Laravel's binding array. `call::<T>(&container, parameters)` and `callAsync::<T>(...)` use the supplied container and explicit parameter frame, without adding the target class context. They bypass the target cache, decorators, events and resolution history; dependency lookups still use ordinary behavior with fresh parameter frames. A raw shared factory therefore constructs a fresh result every time. Wrong output types fail before executing user code, and synchronous invocation rejects an asynchronous factory even if normal resolution has already cached its result. `sameFactory` compares retained recipe identity.
+
+```rust
+use openrust::{
+    container::{Container, ParameterOverrides, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
+    container.extend::<u32, _>(ServiceKey::typed::<u32>(), |value, _| {
+        Ok(Arc::new(*value + 10))
+    }).unwrap();
+    let definitions = container.getBindings();
+    let definition = definitions.get(&ServiceKey::typed::<u32>()).unwrap();
+    assert!(definition.shared);
+    assert_eq!(*definition.concrete.callAsync::<u32>(
+        &container, ParameterOverrides::new(),
+    ).await.unwrap(), 1);
+    assert!(!container.resolved(ServiceKey::typed::<u32>()).unwrap());
+    assert_eq!(*container.make::<u32>().unwrap(), 11);
+
+    container.flush();
+    assert!(container.getBindings().is_empty());
+    assert!(!container.bound::<u32>());
+    assert_eq!(*definition.concrete.call::<u32>(
+        &container, ParameterOverrides::new(),
+    ).unwrap(), 1);
+    container.bind::<u32, _>(|_| Ok(Arc::new(2))).unwrap();
+    assert_eq!(*container.make::<u32>().unwrap(), 12);
+}
+```
+
+`flush()` clears bindings, aliases and reverse aliases, explicit/shared/scoped instances, scoped registration and resolution history. It preserves contextual rules, tags, decorators, resolution/rebinding callbacks, method declarations/bindings and compiled class metadata, as in the base Laravel Container. It also detaches caches from every active lifecycle of this container without closing those lifecycles. User values are released after the state change and outside registry/cache locks, allowing destructor reentry. Scoped cache values retire with neutral Facade, parameter and class contexts, both during flush and normal lifecycle closure. A destructor panic leaves the directory cleared and does not poison its lock.
+
+Existing values held by application code and original factory snapshots remain usable. Already admitted constructions may finish with their old values, but cannot repopulate a removed/replaced binding or its history. This base-container operation does not reboot Application providers or clear independent Facade caches. Application teardown has its own lifecycle responsibility.
+
+Rust uses typed definitions and owned ServiceKeys instead of a dynamically typed PHP array. Snapshot lookup is linear in the number of definitions; it is an explicit inspection operation, not part of ordinary request resolution. To support flush across concurrent requests, lifecycles register/unregister a Weak reference under a short mutex operation; flush traverses those active records. Reading a warmed shared binding retains its recipe rather than its cached object. No performance benchmark or zero-cost claim is made.

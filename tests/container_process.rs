@@ -4,8 +4,8 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        Callback, ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
-        ParameterValue, ServiceKey,
+        Callback, ClassDescriptor, ConstructorParam, Container, MethodCall, ParameterKey,
+        ParameterOverrides, ParameterValue, ServiceKey,
     },
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
@@ -136,6 +136,47 @@ impl FrameworkCommand for ConstructionCommand {
             output
                 .stdout
                 .push_str(&format!("constructed:{}", value.0.0));
+            Ok(0)
+        })
+    }
+}
+struct DirectoryCommand(CommandDefinition);
+impl FrameworkCommand for DirectoryCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let definitions = app.container().getBindings();
+            let original = &definitions
+                .get(&ServiceKey::typed::<Greeting>())
+                .expect("provider factory")
+                .concrete;
+            let value = original
+                .callAsync::<Greeting>(app.container(), ParameterOverrides::new())
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            let directory = Container::default();
+            directory
+                .instance(Arc::new(1u32))
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            directory.flush();
+            assert!(!directory.bound::<u32>());
+            directory
+                .bind::<u32, _>(|_| Ok(Arc::new(2)))
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output.stdout.push_str(&format!(
+                "directory:{}:{}",
+                value.0,
+                directory
+                    .make::<u32>()
+                    .map_err(|e| ConsoleError::new(e.to_string()))?
+            ));
             Ok(0)
         })
     }
@@ -399,6 +440,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(DirectoryCommand(CommandDefinition::new(
+                clap::Command::new("directory:probe"),
+            ))))?;
             artisan.add_command(Box::new(LazyCommand(CommandDefinition::new(
                 clap::Command::new("lazy:probe"),
             ))))?;
@@ -440,6 +484,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "variadic:probe"], 0),
         (vec!["artisan", "method:probe"], 0),
         (vec!["artisan", "lazy:probe"], 0),
+        (vec!["artisan", "directory:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -467,6 +512,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"directory:probe") {
+                    b"directory:from provider:2".as_slice()
                 } else if args.last() == Some(&"lazy:probe") {
                     b"lazy:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"method:probe") {
@@ -488,6 +535,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("14 container/provider Artisan process checks passed");
+    println!("15 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

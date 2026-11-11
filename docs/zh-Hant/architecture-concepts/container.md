@@ -598,3 +598,49 @@ async fn main() {
 ```
 
 `Callback::reusable` 向 Rust 1.94 的閉包推斷提供可重複執行的 `Fn` 契約，一般呼叫的 `Callback::new` 繼續支援 `FnOnce`。包裝回呼需要 `Send + Sync`，可變共享狀態使用同步機制。回傳閉包借用 Container/Application，不能比它存活更久。每次回傳獨立 Send Future，可回傳外部借用值。具體閉包型別避免包裝器本身的 Box，共享回呼使用 Arc，非同步分派保留前述 Box Future 介接；不宣稱實測效能收益。
+
+## 綁定目錄與清理
+
+`getBindings()` 回傳擁有所有權、保留插入順序的 `Bindings` 快照。`get(&ServiceKey)` 精確查鍵，`iter`、`keys` 與所有權迭代保留登記順序；替換綁定不移動位置。每個 `BindingDefinition` 暴露原始 `concrete` 工廠及宣告的 `shared`，明確執行個體覆寫不改變該旗標。別名單獨鍵、僅執行個體鍵、情境綁定及自動類別中繼資料不在其中。讀取或修改快照不會解析服務或修改容器。
+
+保留的 `FactoryHandle` 對應直接執行 Laravel 綁定陣列中的 concrete 閉包。`call::<T>(&container, parameters)` 與 `callAsync::<T>(...)` 使用傳入容器及明確參數框架，不加入目標類別情境。它們繞過目標快取、裝飾器、事件和解析歷史；工廠內部相依仍正常解析，使用新參數框架。因此共享原工廠每次也產生新結果。輸出型別錯誤在執行使用者程式碼前拒絕；同步呼叫非同步工廠會失敗，即使一般解析已快取結果。`sameFactory` 比較保留配方的身分。
+
+```rust
+use openrust::{
+    container::{Container, ParameterOverrides, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
+    container.extend::<u32, _>(ServiceKey::typed::<u32>(), |value, _| {
+        Ok(Arc::new(*value + 10))
+    }).unwrap();
+    let definitions = container.getBindings();
+    let definition = definitions.get(&ServiceKey::typed::<u32>()).unwrap();
+    assert!(definition.shared);
+    assert_eq!(*definition.concrete.callAsync::<u32>(
+        &container, ParameterOverrides::new(),
+    ).await.unwrap(), 1);
+    assert!(!container.resolved(ServiceKey::typed::<u32>()).unwrap());
+    assert_eq!(*container.make::<u32>().unwrap(), 11);
+
+    container.flush();
+    assert!(container.getBindings().is_empty());
+    assert!(!container.bound::<u32>());
+    assert_eq!(*definition.concrete.call::<u32>(
+        &container, ParameterOverrides::new(),
+    ).unwrap(), 1);
+    container.bind::<u32, _>(|_| Ok(Arc::new(2))).unwrap();
+    assert_eq!(*container.make::<u32>().unwrap(), 12);
+}
+```
+
+`flush()` 清空綁定、別名及反向別名、明確/共享/scoped 執行個體、scoped 登記和解析歷史。按 Laravel 基礎 Container 保留情境規則、標籤、裝飾器、解析/重新綁定回呼、方法宣告/綁定及編譯類別中繼資料。同時解除本容器所有活動生命週期的快取，不關閉這些生命週期。使用者值於狀態提交後、登錄表與快取鎖外釋放，允許解構重入。flush 與正常生命週期結束均在中立的 Facade、參數及類別情境中釋放 scoped 快取值。解構 panic 不回滾清理，也不污染登錄表鎖。
+
+應用自行持有的物件及原工廠快照仍有效，已准入建構可回傳舊值，但不能回填已移除或替換的綁定及其歷史。此基礎容器操作不重新啟動 Application Provider，也不清除獨立 Facade 快取；應用終止由生命週期職責負責。
+
+Rust 使用型別化定義與擁有所有權的 ServiceKey 替代動態 PHP 陣列。快照查詢按定義數量線性查找，屬於明確檢查，不加入一般請求解析路徑。為支援並行請求的全域 flush，每個生命週期在登記/註銷時以短 Mutex 操作維護 Weak 參考，flush 遍歷活動記錄。讀取已預熱共享綁定僅保留配方，不保留快取物件。未做效能基準，不宣稱零成本。

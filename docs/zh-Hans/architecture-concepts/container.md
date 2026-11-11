@@ -598,3 +598,49 @@ async fn main() {
 ```
 
 `Callback::reusable` 向 Rust 1.94 的闭包推断提供可重复执行的 `Fn` 契约，普通调用的 `Callback::new` 继续支持 `FnOnce`。包装回调需要 `Send + Sync`，可变共享状态使用同步机制。返回闭包借用 Container/Application，不能比它存活更久。每次返回独立 Send Future，可返回外部借用值。具体闭包类型避免包装器本身的 Box，共享回调使用 Arc，异步分派保留前述 Box Future 适配；不宣称实测性能收益。
+
+## 绑定目录与清理
+
+`getBindings()` 返回拥有所有权、保留插入顺序的 `Bindings` 快照。`get(&ServiceKey)` 精确查键，`iter`、`keys` 和所有权迭代保留登记顺序；替换绑定不移动位置。每个 `BindingDefinition` 暴露原始 `concrete` 工厂及声明的 `shared`，显式实例覆盖不改变该标志。别名单独键、仅实例键、上下文绑定和自动类元数据不在其中。读取或修改快照不会解析服务或修改容器。
+
+保留的 `FactoryHandle` 对应直接执行 Laravel 绑定数组中的 concrete 闭包。`call::<T>(&container, parameters)` 与 `callAsync::<T>(...)` 使用传入容器及显式参数帧，不添加目标类上下文。它们绕过目标缓存、装饰器、事件和解析历史；工厂内部依赖仍正常解析，使用新参数帧。因此共享原工厂每次也产生新结果。输出类型错误在执行用户代码前拒绝；同步调用异步工厂会失败，即使普通解析已缓存结果。`sameFactory` 比较保留配方的身份。
+
+```rust
+use openrust::{
+    container::{Container, ParameterOverrides, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.singleton::<u32, _>(|_| Ok(Arc::new(1))).unwrap();
+    container.extend::<u32, _>(ServiceKey::typed::<u32>(), |value, _| {
+        Ok(Arc::new(*value + 10))
+    }).unwrap();
+    let definitions = container.getBindings();
+    let definition = definitions.get(&ServiceKey::typed::<u32>()).unwrap();
+    assert!(definition.shared);
+    assert_eq!(*definition.concrete.callAsync::<u32>(
+        &container, ParameterOverrides::new(),
+    ).await.unwrap(), 1);
+    assert!(!container.resolved(ServiceKey::typed::<u32>()).unwrap());
+    assert_eq!(*container.make::<u32>().unwrap(), 11);
+
+    container.flush();
+    assert!(container.getBindings().is_empty());
+    assert!(!container.bound::<u32>());
+    assert_eq!(*definition.concrete.call::<u32>(
+        &container, ParameterOverrides::new(),
+    ).unwrap(), 1);
+    container.bind::<u32, _>(|_| Ok(Arc::new(2))).unwrap();
+    assert_eq!(*container.make::<u32>().unwrap(), 12);
+}
+```
+
+`flush()` 清空绑定、别名及反向别名、显式/共享/scoped 实例、scoped 登记和解析历史。按 Laravel 基础 Container 保留上下文规则、标签、装饰器、解析/重绑定回调、方法声明/绑定及编译类元数据。同时解除本容器所有活动生命周期的缓存，不关闭这些生命周期。用户值在状态提交后、注册表与缓存锁外释放，允许析构重入。flush 和正常生命周期结束均在中立的 Facade、参数及类上下文中释放 scoped 缓存值。析构 panic 不回滚清理，也不污染注册表锁。
+
+应用自行持有的对象及原工厂快照仍有效，已准入构造可返回旧值，但不能回填已移除或替换的绑定及其历史。此基础容器操作不重新启动 Application Provider，也不清除独立 Facade 缓存；应用终止由生命周期职责负责。
+
+Rust 使用类型化定义和拥有所有权的 ServiceKey 替代动态 PHP 数组。快照查询按定义数量线性查找，属于显式检查，不加入普通请求解析路径。为支持并发请求的全局 flush，每个生命周期在登记/注销时以短 Mutex 操作维护 Weak 引用，flush 遍历活动记录。读取已预热共享绑定仅保留配方，不保留缓存对象。未做性能基准，不宣称零成本。

@@ -28,6 +28,8 @@ mod async_resolution;
 pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
+mod bindings;
+pub use bindings::{BindingDefinition, Bindings, FactoryHandle};
 mod call;
 mod call_context;
 mod class_descriptor;
@@ -50,6 +52,7 @@ type Wait = (usize, ServiceKey, usize);
 #[derive(Default)]
 pub struct Container {
     identity: scope::Identity,
+    scopes: scope::Lifecycles,
     deferred: OnceLock<Arc<dyn deferred::DeferredServices>>,
     registry: RwLock<Registry>,
     waiting: Mutex<HashMap<(OwnerKey, OwnerKey), Wait>>,
@@ -63,6 +66,7 @@ struct Registry {
     method_bindings: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
     classes: HashMap<ServiceKey, ClassDescriptor>,
     bindings: HashMap<ServiceKey, RegisteredBinding>,
+    binding_order: Vec<ServiceKey>,
     aliases: HashMap<ServiceKey, ServiceKey>,
     abstract_aliases: HashMap<ServiceKey, Vec<ServiceKey>>,
     instances: HashMap<ServiceKey, RegisteredBinding>,
@@ -372,7 +376,7 @@ impl Container {
             } else {
                 let instance = registry.instances.remove(&key);
                 (
-                    registry.bindings.insert(key.clone(), entry.clone()),
+                    registry.insert_binding(key.clone(), entry.clone()),
                     instance,
                     None,
                 )
@@ -427,7 +431,7 @@ impl Container {
                         .cloned()
                         .unwrap_or_default();
                 }
-                registry.bindings.insert(key.clone(), entry.clone());
+                registry.insert_binding(key.clone(), entry.clone());
                 None
             }
         };
@@ -503,7 +507,7 @@ impl Container {
                 registry.scoped.insert(key.clone());
                 registry.remove_alias(&key);
                 let instance = registry.instances.remove(&key);
-                (registry.bindings.insert(key, entry), instance)
+                (registry.insert_binding(key, entry), instance)
             }
         };
         if applied {
@@ -1344,6 +1348,13 @@ impl container::Container for Container {
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
         self.invoke_static_binding::<C, R>(name)
+    }
+    #[allow(non_snake_case, reason = "Matches Laravel's binding directory API")]
+    fn getBindings(&self) -> Bindings {
+        self.bindings_snapshot()
+    }
+    fn flush(&self) {
+        self.flush_bindings();
     }
     fn factory<T: ?Sized + Send + Sync + 'static>(
         &self,

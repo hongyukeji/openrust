@@ -3,7 +3,7 @@ use std::{
     future::Future,
     hash::{Hash, Hasher},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, Weak,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -37,20 +37,98 @@ struct Context {
     changed: tokio::sync::watch::Sender<bool>,
 }
 impl Context {
-    fn close(&self) {
+    fn close(&self, container: &Container) {
         if !self.closed.swap(true, Ordering::AcqRel) {
             self.changed.send_replace(true);
             let retired = std::mem::take(&mut *self.cache.lock().expect("scope cache poisoned"));
-            crate::support::facades::ContextSnapshot::empty()
-                .run(|| CURRENT.sync_scope(Arc::default(), || drop(retired)));
+            retire(container, retired);
         }
     }
 }
-struct CloseContext(Arc<Context>);
-impl Drop for CloseContext {
-    fn drop(&mut self) {
-        self.0.close();
+/// Weak records let a global container flush detach live request caches without closing requests.
+#[derive(Default)]
+pub(super) struct Lifecycles(Mutex<HashMap<usize, Weak<Context>>>);
+pub(super) struct FlushedScopes<'a> {
+    container: &'a Container,
+    _contexts: Vec<Arc<Context>>,
+    _caches: Vec<Cache>,
+}
+impl Lifecycles {
+    fn register(&self, context: &Arc<Context>) {
+        self.0
+            .lock()
+            .expect("scope records poisoned")
+            .insert(Arc::as_ptr(context).addr(), Arc::downgrade(context));
     }
+    pub(super) fn detach<'a>(&self, container: &'a Container) -> FlushedScopes<'a> {
+        let mut records = self.0.lock().expect("scope records poisoned");
+        let mut retired = FlushedScopes {
+            container,
+            _contexts: Vec::new(),
+            _caches: Vec::new(),
+        };
+        records.retain(|_, record| {
+            if let Some(context) = record.upgrade() {
+                let cache =
+                    std::mem::take(&mut *context.cache.lock().expect("scope cache poisoned"));
+                retired._caches.push(cache);
+                retired._contexts.push(context);
+                true
+            } else {
+                false
+            }
+        });
+        retired
+    }
+}
+impl Drop for FlushedScopes<'_> {
+    fn drop(&mut self) {
+        let values = (
+            std::mem::take(&mut self._contexts),
+            std::mem::take(&mut self._caches),
+        );
+        retire(self.container, values);
+    }
+}
+// This guard closes the request before retained Arc snapshots can outlive it.
+struct CloseContext<'a> {
+    context: Arc<Context>,
+    container: &'a Container,
+}
+struct RemoveRecord<'a> {
+    records: &'a Lifecycles,
+    key: usize,
+}
+impl Drop for RemoveRecord<'_> {
+    fn drop(&mut self) {
+        self.records
+            .0
+            .lock()
+            .expect("scope records poisoned")
+            .remove(&self.key);
+    }
+}
+impl Drop for CloseContext<'_> {
+    fn drop(&mut self) {
+        let _remove = RemoveRecord {
+            records: &self.container.scopes,
+            key: Arc::as_ptr(&self.context).addr(),
+        };
+        self.context.close(self.container);
+    }
+}
+fn retire<T>(container: &Container, values: T) {
+    super::parameters::with_snapshot(
+        container.identity.clone(),
+        super::ParameterOverrides::new(),
+        || {
+            crate::support::facades::ContextSnapshot::empty().run(|| {
+                CURRENT.sync_scope(Arc::default(), || {
+                    super::call_context::neutral(container, || drop(values))
+                })
+            })
+        },
+    );
 }
 
 tokio::task_local! { static CURRENT: Arc<HashMap<Identity, Arc<Context>>>; }
@@ -225,8 +303,12 @@ impl Container {
                 closed: AtomicBool::new(false),
                 changed: tokio::sync::watch::channel(false).0,
             });
+            self.scopes.register(&context);
             contexts.insert(self.identity.clone(), context.clone());
-            let _close = CloseContext(context);
+            let _close = CloseContext {
+                context,
+                container: self,
+            };
             CURRENT.scope(Arc::new(contexts), future).await
         }
     }
@@ -350,9 +432,4 @@ where
         cancelled,
     }
     .await
-}
-impl Drop for Context {
-    fn drop(&mut self) {
-        self.close();
-    }
 }

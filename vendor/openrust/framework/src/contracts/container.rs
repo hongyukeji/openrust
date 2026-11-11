@@ -135,6 +135,12 @@ pub trait Container: Send + Sync + Sized {
         &'a self,
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+    /// Return an owned ordered snapshot of explicit factories and their declared shared flags.
+    #[allow(non_snake_case, reason = "Matches Laravel's binding directory API")]
+    fn getBindings(&self) -> crate::container::Bindings;
+    /// Clear bindings, aliases, instances and resolution history, retaining extension rules.
+    fn flush(&self);
+
     /// Return a lazy closure that resolves the current binding on every invocation.
     fn factory<T: ?Sized + Send + Sync + 'static>(
         &self,

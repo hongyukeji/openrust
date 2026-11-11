@@ -103,3 +103,9 @@ pub(super) async fn run<F: Future>(
     }
     .await
 }
+
+/// Cached lifecycle values retire without borrowing the clearing caller's consumer context.
+pub(super) fn neutral<R>(container: &Container, operation: impl FnOnce() -> R) -> R {
+    let _frame = enter(container, Arc::default());
+    operation()
+}
