@@ -4,9 +4,10 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        AttributeParameter, AttributeValue, Callback, ClassAttribute, ClassDescriptor,
-        ConstructorParam, Container, EnvironmentQuery, EnvironmentResult, FactoryFuture,
-        MethodCall, ParameterKey, ParameterOverrides, ParameterValue, ResolvedArgs, ServiceKey,
+        AttributeParameter, AttributeValue, Bind, BindWhen, Callback, ClassAttribute,
+        ClassDescriptor, ConstructorParam, Container, EnvironmentQuery, EnvironmentResult,
+        FactoryFuture, MethodCall, ParameterKey, ParameterOverrides, ParameterValue, ResolvedArgs,
+        ServiceKey,
     },
     contracts::{
         container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
@@ -182,6 +183,24 @@ impl FrameworkCommand for EnvironmentCommand {
                     EnvironmentQuery::Names(names) => names.contains(&"local").into(),
                 })
             })));
+            c.registerClass(
+                ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(16_u16)))
+                    .map_err(|error| ConsoleError::new(error.to_string()))?,
+            )
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
+            c.registerBindingAttributes::<u16>(vec![
+                BindWhen::new(Bind::new::<u16, u16>(|value| value), |container| {
+                    container.currentEnvironmentIs("local").map(bool::from)
+                })
+                .into(),
+            ])
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
+            assert_eq!(
+                *c.makeAsync::<u16>()
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))?,
+                16
+            );
             let EnvironmentResult::String(name) = c
                 .currentEnvironmentIs(&[])
                 .map_err(|e| ConsoleError::new(e.to_string()))?

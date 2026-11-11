@@ -797,3 +797,47 @@ fn main() {
 Constructors check explicit named overrides first, then the first contextual attribute. A null attribute result falls back to ordinary constructor resolution. Method calls check the named override, then the attribute, then the class-name override or normal resolution. Methods preserve an attribute's null result for a nullable slot.
 
 Attach a marker with `ClassAttribute::marker` and use `afterResolvingAttribute` to observe attributes or their declared service type. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.
+
+## Conditional Binding Attributes
+
+Register ordered binding metadata with `registerBindingAttributes`. `Bind` matches the application environment, and `BindWhen` evaluates a synchronous predicate with the current container. Use a typed Rust coercion to declare which concrete class implements a service.
+
+```rust
+use openrust::{
+    container::{Bind, BindWhen, ClassDescriptor, Container},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+trait Reporter: Send + Sync {
+    fn label(&self) -> &'static str;
+}
+
+struct LocalReporter;
+impl Reporter for LocalReporter {
+    fn label(&self) -> &'static str {
+        "local"
+    }
+}
+
+fn main() {
+    let container = Container::default();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(LocalReporter))).unwrap(),
+        )
+        .unwrap();
+    container
+        .registerBindingAttributes::<dyn Reporter>(vec![
+            BindWhen::new(
+                Bind::new::<dyn Reporter, LocalReporter>(|reporter| reporter),
+                |_| Ok(true),
+            )
+            .into(),
+        ])
+        .unwrap();
+    assert_eq!(container.make::<dyn Reporter>().unwrap().label(), "local");
+}
+```
+
+The first matching declaration wins. A wildcard `Bind` is the fallback after all conditions and specific environments have been checked. Environment declarations require an environment resolver, which the application installs during boot. An existing explicit binding takes precedence. A successful selection is registered and reused until the binding is removed. An unmatched `BindWhen` is retried on the next resolution.

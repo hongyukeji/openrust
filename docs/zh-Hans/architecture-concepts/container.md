@@ -797,3 +797,47 @@ fn main() {
 构造函数先查显式命名参数，再使用第一个上下文属性。属性返回空值时回退到普通构造参数解析。方法调用依次检查命名参数、属性、类名参数或普通解析。方法的可空参数会保留属性返回的空值。
 
 使用 `ClassAttribute::marker` 声明标记，使用 `afterResolvingAttribute` 按属性类型或声明的服务类型观察解析结果。参数回调在构造或调用前执行，显式构造参数会跳过其回调。类属性回调在构造完成后、扩展器和服务解析回调之前执行。属性回调使用同步 Rust 函数，也会在异步解析中执行。
+
+## 条件绑定属性
+
+通过 `registerBindingAttributes` 登记按顺序排列的绑定元数据。`Bind` 匹配应用环境，`BindWhen` 使用当前容器执行同步条件。通过 Rust 类型转换声明具体类实现的服务接口。
+
+```rust
+use openrust::{
+    container::{Bind, BindWhen, ClassDescriptor, Container},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+trait Reporter: Send + Sync {
+    fn label(&self) -> &'static str;
+}
+
+struct LocalReporter;
+impl Reporter for LocalReporter {
+    fn label(&self) -> &'static str {
+        "local"
+    }
+}
+
+fn main() {
+    let container = Container::default();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(LocalReporter))).unwrap(),
+        )
+        .unwrap();
+    container
+        .registerBindingAttributes::<dyn Reporter>(vec![
+            BindWhen::new(
+                Bind::new::<dyn Reporter, LocalReporter>(|reporter| reporter),
+                |_| Ok(true),
+            )
+            .into(),
+        ])
+        .unwrap();
+    assert_eq!(container.make::<dyn Reporter>().unwrap().label(), "local");
+}
+```
+
+容器使用第一个命中的声明。通配 `Bind` 在检查完条件和具体环境后作为回退。环境声明依赖应用启动时安装的环境解析器。已有的显式绑定优先。选择成功后登记并复用绑定，直至该绑定被移除。`BindWhen` 未命中时，下次解析会重新检查。

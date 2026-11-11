@@ -30,6 +30,8 @@ pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
 mod environment;
 pub use environment::{EnvironmentQuery, EnvironmentResolver, EnvironmentResult};
+mod binding_attributes;
+pub use binding_attributes::{Bind, BindWhen, BindingAttribute};
 mod bindings;
 pub use bindings::{BindingDefinition, Bindings, FactoryHandle};
 mod attributes;
@@ -62,10 +64,13 @@ pub struct Container {
     waiting: Mutex<HashMap<(OwnerKey, OwnerKey), Wait>>,
     hook_phases: AtomicU8,
     has_extenders: AtomicBool,
+    has_binding_attributes: AtomicBool,
 }
 
 #[derive(Default)]
 struct Registry {
+    binding_attributes: HashMap<ServiceKey, Arc<[BindingAttribute]>>,
+    binding_attribute_misses: HashSet<ServiceKey>,
     attributes: attributes::Attributes,
     environment_resolver: Option<EnvironmentResolver>,
     methods: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
@@ -87,6 +92,7 @@ struct Registry {
 
 #[derive(Clone)]
 struct RegisteredBinding {
+    asynchronous_value: Option<ErasedBinding>,
     class_attributes: Option<Arc<Vec<ClassAttribute>>>,
     services: Option<Arc<Vec<ServiceKey>>>,
     value: ErasedBinding,
@@ -99,6 +105,21 @@ struct RegisteredBinding {
 }
 
 impl RegisteredBinding {
+    fn for_mode(mut self, asynchronous: bool) -> Self {
+        if asynchronous && let Some(value) = self.asynchronous_value.take() {
+            self.value = value;
+        }
+        self
+    }
+
+    fn matches_value(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.value, &other.value)
+            || self
+                .asynchronous_value
+                .as_ref()
+                .is_some_and(|value| Arc::ptr_eq(value, &other.value))
+    }
+
     fn with_version(mut self, version: Arc<()>) -> Self {
         self.version = version;
         self
@@ -302,6 +323,7 @@ impl Container {
             _ => None,
         };
         RegisteredBinding {
+            asynchronous_value: None,
             class_attributes: None,
             services: None,
             value: Arc::new(binding),
@@ -539,7 +561,12 @@ impl Container {
             stack
                 .iter()
                 .rev()
-                .find(|frame| frame.container == owner)
+                .find(|frame| {
+                    frame.container == owner
+                        && frame.recipe
+                            != std::ptr::from_ref(&binding_attributes::BINDING_ATTRIBUTE_FRAME)
+                                .addr()
+                })
                 .map(|frame| frame.key.clone())
         })
     }
@@ -1551,7 +1578,7 @@ impl Container {
                     .as_ref()
                     .is_some_and(|cached| Arc::ptr_eq(&cached.value, &entry.value))
         } else if let Some(root) = root {
-            Arc::ptr_eq(&root.value, &entry.value)
+            root.matches_value(entry)
         } else {
             registry
                 .classes
@@ -1588,6 +1615,13 @@ impl Container {
         let consumer = self.consumer();
         let parameters = parameters::current(self);
         let parameterized = !parameters.is_empty();
+        let (id, canonical) = if self.has_binding_attributes.load(Ordering::Acquire) {
+            let key = if canonical { id } else { self.getAlias(id)? };
+            self.install_attribute_binding(&key, consumer.as_ref(), parameterized)?;
+            (key, true)
+        } else {
+            (id, canonical)
+        };
         let (selected, retired) = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = if canonical {
@@ -1636,7 +1670,14 @@ impl Container {
             } else {
                 (entry, None)
             };
-            ((key, entry, has_contextual || parameterized), retired)
+            (
+                (
+                    key,
+                    entry.for_mode(asynchronous),
+                    has_contextual || parameterized,
+                ),
+                retired,
+            )
         };
         drop(retired);
         Ok(selected)

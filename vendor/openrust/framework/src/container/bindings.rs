@@ -128,10 +128,14 @@ impl FactoryHandle {
     pub fn sameFactory(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.entry.version, &other.entry.version)
     }
-    fn typed<T: ?Sized + Send + Sync + 'static>(&self) -> Result<Arc<Binding<T>>> {
+    fn typed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        asynchronous: bool,
+    ) -> Result<Arc<Binding<T>>> {
         self.entry
-            .value
             .clone()
+            .for_mode(asynchronous)
+            .value
             .downcast()
             .map_err(|_| BindingResolutionError::TypeMismatch {
                 service: self.key.clone(),
@@ -147,7 +151,7 @@ impl FactoryHandle {
     ) -> Result<Arc<T>> {
         parameters::run(container, parameters, || {
             scope::check_open(container)?;
-            let binding = self.typed::<T>()?;
+            let binding = self.typed::<T>(false)?;
             match binding.as_ref() {
                 Binding::Factory(factory) | Binding::Singleton { factory, .. } => {
                     factory(container)
@@ -174,7 +178,7 @@ impl FactoryHandle {
             parameters,
             scope::preserve(container, async {
                 scope::check_open(container)?;
-                let binding = self.typed::<T>()?;
+                let binding = self.typed::<T>(true)?;
                 match binding.as_ref() {
                     Binding::Factory(factory) | Binding::Singleton { factory, .. } => {
                         factory(container)
@@ -244,6 +248,7 @@ impl Registry {
         if !self.bindings.contains_key(&key) {
             self.binding_order.push(key.clone());
         }
+        super::binding_attributes::record_write(self, &key, &entry);
         self.bindings.insert(key, entry)
     }
 }
@@ -281,6 +286,7 @@ impl Container {
         let retired = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             registry.binding_order.clear();
+            registry.binding_attribute_misses.clear();
             (
                 std::mem::take(&mut registry.aliases),
                 std::mem::take(&mut registry.abstract_aliases),

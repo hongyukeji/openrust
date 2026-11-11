@@ -797,3 +797,47 @@ fn main() {
 建構函式先查明確指定的具名參數，再使用第一個內容屬性。屬性回傳空值時，會回退到一般建構參數解析。方法呼叫依序檢查具名參數、屬性、類別名稱參數或一般解析。方法的可空參數會保留屬性回傳的空值。
 
 使用 `ClassAttribute::marker` 宣告標記，使用 `afterResolvingAttribute` 依屬性型別或宣告的服務型別觀察解析結果。參數回呼會在建構或呼叫前執行，明確指定的建構參數會略過其回呼。類別屬性回呼在建構完成後、擴充器和服務解析回呼之前執行。屬性回呼使用同步 Rust 函式，也會在非同步解析時執行。
+
+## 條件繫結屬性
+
+透過 `registerBindingAttributes` 登記依序排列的繫結中繼資料。`Bind` 比對應用程式環境，`BindWhen` 使用目前的容器執行同步條件。透過 Rust 型別轉換宣告具體類別實作的服務介面。
+
+```rust
+use openrust::{
+    container::{Bind, BindWhen, ClassDescriptor, Container},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+trait Reporter: Send + Sync {
+    fn label(&self) -> &'static str;
+}
+
+struct LocalReporter;
+impl Reporter for LocalReporter {
+    fn label(&self) -> &'static str {
+        "local"
+    }
+}
+
+fn main() {
+    let container = Container::default();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(LocalReporter))).unwrap(),
+        )
+        .unwrap();
+    container
+        .registerBindingAttributes::<dyn Reporter>(vec![
+            BindWhen::new(
+                Bind::new::<dyn Reporter, LocalReporter>(|reporter| reporter),
+                |_| Ok(true),
+            )
+            .into(),
+        ])
+        .unwrap();
+    assert_eq!(container.make::<dyn Reporter>().unwrap().label(), "local");
+}
+```
+
+容器使用第一個符合條件的宣告。萬用字元 `Bind` 會在檢查條件與具體環境後作為預設選項。環境宣告依賴應用程式啟動時安裝的環境解析器。既有的明確繫結優先。選擇成功後會登記並重複使用該繫結，直到繫結被移除。`BindWhen` 未符合條件時，下次解析會重新檢查。

@@ -185,7 +185,7 @@ impl Container {
             }
             let mut delivery = Box::pin(async {
                 self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
-                let entry = self.rebound_entry(&key, entry);
+                let entry = self.rebound_entry(&key, entry).for_mode(true);
                 let value = self
                     .resolve_entry_async::<T>(key.clone(), entry, false)
                     .await?;

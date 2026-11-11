@@ -1,6 +1,8 @@
 use openrust::{
     config::{ConfigError, Environment, Value},
-    container::{EnvironmentQuery, EnvironmentResult, ServiceKey},
+    container::{
+        Bind, ClassDescriptor, Container, EnvironmentQuery, EnvironmentResult, ServiceKey,
+    },
     contracts::{
         container::{BindingResolutionError, Container as _},
         foundation::Application as _,
@@ -63,6 +65,22 @@ impl Facade for Reports {
         ServiceKey::typed::<Report>()
     }
 }
+trait Selected: Send + Sync {
+    fn label(&self) -> &'static str;
+}
+struct Testing;
+struct DefaultSelection;
+impl Selected for Testing {
+    fn label(&self) -> &'static str {
+        "testing"
+    }
+}
+impl Selected for DefaultSelection {
+    fn label(&self) -> &'static str {
+        "fallback"
+    }
+}
+
 struct Provider(&'static str);
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -85,6 +103,19 @@ impl ServiceProvider for Provider {
                         EnvironmentQuery::Names(names) => names.contains(&current.as_str()).into(),
                     })
                 })));
+            let container = app.container();
+            container.registerClass(ClassDescriptor::concrete(vec![], |_| {
+                Ok(Arc::new(Testing))
+            })?)?;
+            container.registerClass(ClassDescriptor::concrete(vec![], |_| {
+                Ok(Arc::new(DefaultSelection))
+            })?)?;
+            container.registerBindingAttributes::<dyn Selected>(vec![
+                Bind::new::<dyn Selected, DefaultSelection>(|value| value).into(),
+                Bind::new::<dyn Selected, Testing>(|value| value)
+                    .forEnvironments(["testing"])
+                    .into(),
+            ])?;
             app.container().bind::<Report, _>(|c| {
                 let EnvironmentResult::String(current) = c.currentEnvironmentIs(&[])? else {
                     panic!("custom resolver must return string for empty array");
@@ -125,10 +156,20 @@ fn fix(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         read(request).await
     })
 }
+fn read_binding(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let selected = Container::getInstance()
+            .makeAsync::<dyn Selected>()
+            .await
+            .map_err(internal)?;
+        Ok(Response::new(StatusCode::OK, Body::from(selected.label())))
+    })
+}
 fn routes() -> Result<(), RoutingError> {
     Route::get("/environment", read)?;
     Route::get("/bad", bad)?;
-    Route::get("/fix", fix)
+    Route::get("/fix", fix)?;
+    Route::get("/binding", read_binding)
 }
 fn application(root: &Root, name: &'static str) -> Application {
     Application::configure(root.0.clone())
@@ -185,7 +226,16 @@ async fn explicit_environment_resolvers_work_over_http_propagate_failures_retry_
     assert_eq!(send(second, "/environment", 200).await, "production:false");
     let failure = send(first, "/bad", 500).await;
     assert!(!failure.contains("private invalid environment"));
+    assert!(
+        !send(first, "/binding", 500)
+            .await
+            .contains("private invalid environment")
+    );
     assert_eq!(send(first, "/fix", 200).await, "testing:true");
+    let (testing, production) =
+        tokio::join!(send(first, "/binding", 200), send(second, "/binding", 200));
+    assert_eq!(testing, "testing");
+    assert_eq!(production, "fallback");
     assert_eq!(send(second, "/environment", 200).await, "production:false");
     assert_eq!(send(first, "/environment", 200).await, "testing:true");
     for task in [x, y] {
