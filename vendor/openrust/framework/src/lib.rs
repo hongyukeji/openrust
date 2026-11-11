@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod cache;
+pub mod concurrency;
 pub mod config;
 pub mod console;
 pub mod container;

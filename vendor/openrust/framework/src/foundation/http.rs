@@ -19,6 +19,7 @@ use axum::body::HttpBody as _;
 
 use super::{Application, BootstrapError, configuration::Middleware};
 use crate::{
+    concurrency::DeferredCallbacks,
     contracts::{container::Container as _, foundation::Application as _, http},
     http::{HttpFuture, Method, Next, Request, RequestParts, Response, ResponseParts, StatusCode},
     view::Factory,
@@ -128,7 +129,8 @@ impl http::Kernel for Kernel {
                 request.route_terminators.clear();
                 request.matched_route = false;
                 let attributes = request.attributes().clone();
-                let mut response = crate::http::request_context::scope(
+                let deferred = DeferredCallbacks::default();
+                let request_lifecycle = Box::pin(crate::http::request_context::scope(
                     self.application.container_handle(),
                     request.uri().clone(),
                     request.headers().get(::http::header::HOST).cloned(),
@@ -142,8 +144,8 @@ impl http::Kernel for Kernel {
                             .run(request),
                         ),
                     ),
-                )
-                .await;
+                ));
+                let mut response = deferred.scope(request_lifecycle).await;
                 request.exceptions = previous_exceptions;
                 let mut middleware = std::mem::take(&mut request.route_terminators);
                 middleware.extend(
@@ -154,6 +156,11 @@ impl http::Kernel for Kernel {
                         .cloned(),
                 );
                 let extensions = &mut request.parts_mut().extensions;
+                if deferred.is_empty() {
+                    extensions.remove::<DeferredCallbacks>();
+                } else {
+                    extensions.insert(deferred);
+                }
                 if middleware.is_empty() {
                     extensions.remove::<Termination>();
                 } else {
@@ -191,17 +198,26 @@ impl http::Kernel for Kernel {
         response: &'a ResponseParts,
     ) -> HttpFuture<'a, ()> {
         Box::pin(async move {
-            if let Some(termination) = request.extensions.get::<Termination>() {
-                let middleware = termination.take();
-                crate::support::facades::scope(self.application.container_handle(), async move {
-                    for middleware in middleware {
+            let termination = request.extensions.get::<Termination>();
+            let deferred = request.extensions.get::<DeferredCallbacks>();
+            if termination.is_none() && deferred.is_none() {
+                return;
+            }
+            crate::support::facades::scope(self.application.container_handle(), async move {
+                if let Some(termination) = termination {
+                    for middleware in termination.take() {
                         if let Some(terminable) = middleware.terminable() {
                             terminable.terminate(request, response).await;
                         }
                     }
-                })
-                .await;
-            }
+                }
+                if let Some(deferred) = deferred {
+                    deferred
+                        .invoke(&self.application, response.status.as_u16() < 400)
+                        .await;
+                }
+            })
+            .await;
         })
     }
 }

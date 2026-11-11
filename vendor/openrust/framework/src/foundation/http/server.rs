@@ -81,6 +81,11 @@ impl Kernel {
             .extensions
             .get::<super::Termination>()
             .is_none()
+            && request
+                .parts()
+                .extensions
+                .get::<crate::concurrency::DeferredCallbacks>()
+                .is_none()
         {
             return TransportResponse::from_parts(parts, body);
         }
