@@ -40,7 +40,7 @@ impl ServiceProvider for TranslationServiceProvider {
                 let make = || {
                     let selected = locale(config.as_ref(), "app.locale")?;
                     let fallback = locale(config.as_ref(), "app.fallback_locale")?;
-                    Translator::new((*loader).clone(), selected, fallback)
+                    Translator::with_loader(loader, selected, fallback)
                 };
                 make()
                     .map(Arc::new)

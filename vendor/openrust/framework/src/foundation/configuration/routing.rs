@@ -1,6 +1,5 @@
 use crate::{
     console::ConsoleError,
-    contracts::foundation::Application as _,
     foundation::{Application, http::HealthCheck},
     routing::{RouteGroup, Router, RoutingError},
     support::facades::Route,
@@ -69,7 +68,6 @@ impl Routing {
                 Route::register(router, app, register)
             })?;
         }
-        router.resolve_static_directories(app.base_path());
         Ok(router)
     }
 }

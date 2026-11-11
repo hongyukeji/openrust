@@ -85,6 +85,16 @@ impl Kernel {
                             crate::database::console::seeds::register(&mut self.artisan)?;
                         }
                         let schedule = scheduling::Schedule::collect(|| {
+                            let package_commands = self
+                                .application
+                                .shared
+                                .package_commands
+                                .lock()
+                                .expect("package command list lock poisoned")
+                                .clone();
+                            for register in package_commands {
+                                facades::Artisan::register(&mut self.artisan, register)?;
+                            }
                             (self.application.shared.commands)(&mut self.artisan)?;
                             if let Some(register) = self.application.shared.command_routes {
                                 facades::Artisan::register(&mut self.artisan, register)?;

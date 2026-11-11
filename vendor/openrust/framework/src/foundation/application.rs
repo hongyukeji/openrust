@@ -35,6 +35,8 @@ use crate::{
 };
 
 pub(super) type CommandRegistrar = fn(&mut Artisan) -> Result<(), ConsoleError>;
+pub(crate) type PackageRoutes = fn() -> Result<(), crate::routing::RoutingError>;
+pub(crate) type PackageCommands = fn() -> Result<(), ConsoleError>;
 pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send + Sync>;
 
 /// Owns the application root, service container, and provider lifecycle.
@@ -54,6 +56,8 @@ pub(super) struct ApplicationState {
     state: AtomicU8,
     booting_started: AtomicBool,
     routing: Mutex<Option<Routing>>,
+    package_routes: Mutex<Option<Vec<PackageRoutes>>>,
+    pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     pub(super) middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     pub(super) commands: CommandRegistrar,
     pub(super) command_routes: Option<CommandRoutes>,
@@ -125,6 +129,27 @@ impl Application {
         patterns: Option<EnvironmentQuery<'_>>,
     ) -> Result<EnvironmentResult, crate::contracts::container::BindingResolutionError> {
         environment_detector::query(&self.shared.container, patterns)
+    }
+
+    pub(crate) fn register_package_routes(&self, register: PackageRoutes) -> std::io::Result<()> {
+        self.shared
+            .package_routes
+            .lock()
+            .expect("package route list lock poisoned")
+            .as_mut()
+            .ok_or_else(|| {
+                io::Error::other("Package routes must be registered before route assembly.")
+            })?
+            .push(register);
+        Ok(())
+    }
+
+    pub(crate) fn register_package_commands(&self, register: PackageCommands) {
+        self.shared
+            .package_commands
+            .lock()
+            .expect("package command list lock poisoned")
+            .push(register);
     }
 
     pub(crate) fn route_info(&self) -> Vec<crate::routing::RouteInfo> {
@@ -241,6 +266,8 @@ impl Application {
             state: AtomicU8::new(PENDING),
             booting_started: AtomicBool::new(false),
             routing: Mutex::new(routing),
+            package_routes: Mutex::new(Some(Vec::new())),
+            package_commands: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
             commands,
             command_routes,
@@ -554,6 +581,18 @@ impl Application {
             Some(routing) => routing.register(self).map_err(routing_failed)?,
             None => Router::new(),
         };
+        let package_routes = self
+            .shared
+            .package_routes
+            .lock()
+            .expect("package route list lock poisoned")
+            .take()
+            .expect("package routes assembled once");
+        for register in package_routes {
+            crate::support::facades::Route::register(&mut routes, self, register)
+                .map_err(routing_failed)?;
+        }
+        routes.resolve_static_directories(&self.shared.basePath);
         let config = self
             .configuration_repository()
             .map_err(|source| BootstrapError::ContainerFailed { source })?;

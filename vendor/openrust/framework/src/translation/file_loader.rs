@@ -4,6 +4,7 @@ use std::{
     collections::HashMap,
     io,
     path::{Path, PathBuf},
+    sync::RwLock,
 };
 
 use cap_std::{ambient_authority, fs::Dir};
@@ -13,17 +14,25 @@ use crate::contracts::translation::Loader;
 use super::{Line, Lines, TranslationError, TranslationFuture, TranslationResult};
 
 /// Loads application and package translations from configured directories.
-#[derive(Clone)]
 pub struct FileLoader {
     paths: Vec<PathBuf>,
-    namespaces: HashMap<String, PathBuf>,
+    namespaces: RwLock<HashMap<String, PathBuf>>,
+}
+
+impl Clone for FileLoader {
+    fn clone(&self) -> Self {
+        Self {
+            paths: self.paths.clone(),
+            namespaces: RwLock::new(self.namespaces.read().unwrap().clone()),
+        }
+    }
 }
 
 impl FileLoader {
     pub fn new(path: PathBuf) -> Self {
         Self {
             paths: vec![path],
-            namespaces: HashMap::new(),
+            namespaces: RwLock::default(),
         }
     }
 
@@ -32,7 +41,11 @@ impl FileLoader {
     }
 
     pub fn addNamespace(&mut self, namespace: impl Into<String>, path: PathBuf) {
-        self.namespaces.insert(namespace.into(), path);
+        self.add_namespace(namespace.into(), path);
+    }
+
+    pub(super) fn add_namespace(&self, namespace: String, path: PathBuf) {
+        self.namespaces.write().unwrap().insert(namespace, path);
     }
 
     pub(super) fn load_lines(
@@ -61,10 +74,10 @@ impl FileLoader {
         }
         let relative = Path::new(locale).join(format!("{group}.json"));
         if let Some(namespace) = namespace {
-            let Some(package) = self.namespaces.get(namespace) else {
+            let Some(package) = self.namespaces.read().unwrap().get(namespace).cloned() else {
                 return Ok(lines);
             };
-            lines = read(package, &relative)?;
+            lines = read(&package, &relative)?;
             for root in &self.paths {
                 merge(
                     &mut lines,

@@ -12,7 +12,7 @@ use super::{ViewError, ViewFinder, ViewResult};
 /// Resolves file names through ordered application roots and namespace hints.
 pub struct FileViewFinder {
     paths: Vec<PathBuf>,
-    hints: HashMap<String, Vec<PathBuf>>,
+    hints: RwLock<HashMap<String, Vec<PathBuf>>>,
     extensions: Vec<String>,
     resolved: RwLock<HashMap<String, ViewLocation>>,
 }
@@ -33,7 +33,7 @@ impl FileViewFinder {
     pub fn new(paths: impl IntoIterator<Item = PathBuf>) -> Self {
         Self {
             paths: paths.into_iter().collect(),
-            hints: HashMap::new(),
+            hints: RwLock::default(),
             extensions: vec![String::from("html")],
             resolved: RwLock::default(),
         }
@@ -58,6 +58,22 @@ impl FileViewFinder {
         &self.paths
     }
 
+    pub(crate) fn add_package_namespace(&self, namespace: &str, path: &Path) -> ViewResult<()> {
+        if !valid_segment(namespace) {
+            return Err(ViewError::InvalidName);
+        }
+        let mut hints = self.hints.write().unwrap();
+        let mut paths: Vec<_> = self
+            .paths()
+            .iter()
+            .map(|root| root.join("vendor").join(namespace))
+            .collect();
+        paths.push(path.to_owned());
+        hints.entry(namespace.to_owned()).or_default().extend(paths);
+        self.flush();
+        Ok(())
+    }
+
     pub(super) fn source(&self, view: &str) -> ViewResult<ViewSource> {
         let (location, resolved) = self.resolve(view)?;
         Ok(ViewSource {
@@ -69,17 +85,23 @@ impl FileViewFinder {
 
     fn resolve(&self, view: &str) -> ViewResult<(ViewLocation, PathBuf)> {
         let view = view.trim();
-        let (name, paths) = match view.split_once("::") {
-            Some((namespace, name)) if valid_segment(namespace) => (
-                name,
-                self.hints
-                    .get(namespace)
-                    .ok_or(ViewError::NotFound)?
-                    .as_slice(),
-            ),
-            Some(_) => return Err(ViewError::InvalidName),
-            None => (view, self.paths.as_slice()),
-        };
+        match view.split_once("::") {
+            Some((namespace, name)) if valid_segment(namespace) => {
+                let hints = self.hints.read().unwrap();
+                let paths = hints.get(namespace).ok_or(ViewError::NotFound)?;
+                self.resolve_in(view, name, paths)
+            }
+            Some(_) => Err(ViewError::InvalidName),
+            None => self.resolve_in(view, view, &self.paths),
+        }
+    }
+
+    fn resolve_in(
+        &self,
+        view: &str,
+        name: &str,
+        paths: &[PathBuf],
+    ) -> ViewResult<(ViewLocation, PathBuf)> {
         let name = relative_name(name)?;
 
         let cached = self.resolved.read().unwrap().get(view).cloned();
@@ -112,6 +134,8 @@ impl ViewFinder for FileViewFinder {
     fn addNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         let hints = owned_hints(namespace, hints)?;
         self.hints
+            .get_mut()
+            .unwrap()
             .entry(namespace.to_owned())
             .or_default()
             .extend(hints);
@@ -121,7 +145,12 @@ impl ViewFinder for FileViewFinder {
 
     fn prependNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         let mut hints = owned_hints(namespace, hints)?;
-        let current = self.hints.entry(namespace.to_owned()).or_default();
+        let current = self
+            .hints
+            .get_mut()
+            .unwrap()
+            .entry(namespace.to_owned())
+            .or_default();
         hints.append(current);
         *current = hints;
         self.flush();
@@ -130,6 +159,8 @@ impl ViewFinder for FileViewFinder {
 
     fn replaceNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
         self.hints
+            .get_mut()
+            .unwrap()
             .insert(namespace.to_owned(), owned_hints(namespace, hints)?);
         self.flush();
         Ok(())

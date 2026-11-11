@@ -3,6 +3,7 @@
 use std::{
     collections::{BTreeMap, HashMap},
     future::Future,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
 
@@ -28,7 +29,7 @@ tokio::task_local! {
 
 /// Resolves translations using one application's catalog and locale defaults.
 pub struct Translator {
-    loader: FileLoader,
+    loader: Arc<FileLoader>,
     locale: String,
     fallback: String,
     loaded: Mutex<HashMap<CatalogKey, Arc<Lines>>>,
@@ -37,6 +38,14 @@ pub struct Translator {
 
 impl Translator {
     pub fn new(loader: FileLoader, locale: String, fallback: String) -> TranslationResult<Self> {
+        Self::with_loader(Arc::new(loader), locale, fallback)
+    }
+
+    pub(super) fn with_loader(
+        loader: Arc<FileLoader>,
+        locale: String,
+        fallback: String,
+    ) -> TranslationResult<Self> {
         if !valid_segment(&locale) || !valid_segment(&fallback) {
             return Err(TranslationError::InvalidLocale);
         }
@@ -47,6 +56,20 @@ impl Translator {
             loaded: Mutex::default(),
             identity: Arc::new(()),
         })
+    }
+
+    pub(crate) fn add_package_namespace(
+        &self,
+        namespace: &str,
+        path: PathBuf,
+    ) -> TranslationResult<()> {
+        if !valid_segment(namespace) {
+            return Err(TranslationError::InvalidKey);
+        }
+        let mut loaded = self.loaded.lock().unwrap();
+        self.loader.add_namespace(namespace.to_owned(), path);
+        loaded.retain(|key, _| key.namespace.as_deref() != Some(namespace));
+        Ok(())
     }
 
     pub fn locale(&self) -> String {
@@ -209,17 +232,13 @@ impl Translator {
             group: group.to_owned(),
             namespace: namespace.map(str::to_owned),
         };
-        if let Some(lines) = self.loaded.lock().unwrap().get(&key).cloned() {
-            return Ok(lines);
+        let mut loaded = self.loaded.lock().unwrap();
+        if let Some(lines) = loaded.get(&key) {
+            return Ok(lines.clone());
         }
         let lines = Arc::new(self.loader.load_lines(locale, group, namespace)?);
-        Ok(self
-            .loaded
-            .lock()
-            .unwrap()
-            .entry(key)
-            .or_insert(lines)
-            .clone())
+        loaded.insert(key, lines.clone());
+        Ok(lines)
     }
 }
 

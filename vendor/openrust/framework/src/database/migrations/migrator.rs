@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, RwLock},
 };
 
 use crate::database::{DatabaseError, DatabaseManager, DatabaseResult};
@@ -15,6 +15,7 @@ use super::{
 pub struct Migrator {
     manager: Arc<DatabaseManager>,
     registry: Arc<MigrationRegistry>,
+    packages: RwLock<Vec<&'static MigrationEntry>>,
     table: String,
     root: PathBuf,
     execution: tokio::sync::Mutex<()>,
@@ -54,10 +55,18 @@ impl Migrator {
         Self {
             manager,
             registry,
+            packages: RwLock::default(),
             table,
             root,
             execution: tokio::sync::Mutex::new(()),
         }
+    }
+
+    pub(crate) fn add_package_migrations(&self, migrations: &'static [MigrationEntry]) {
+        self.packages
+            .write()
+            .expect("package migrations lock poisoned")
+            .extend(migrations);
     }
 
     fn repository(&self, database: Option<&str>) -> DatabaseMigrationRepository {
@@ -66,7 +75,11 @@ impl Migrator {
 
     fn files(&self, paths: &[PathBuf]) -> DatabaseResult<BTreeMap<String, &MigrationEntry>> {
         let mut files = BTreeMap::new();
-        for entry in self.registry.0 {
+        let packages = self
+            .packages
+            .read()
+            .expect("package migrations lock poisoned");
+        for entry in self.registry.0.iter().chain(packages.iter().copied()) {
             let path = self.root.join(entry.path);
             if !paths.is_empty() && !paths.iter().any(|wanted| path.starts_with(wanted)) {
                 continue;

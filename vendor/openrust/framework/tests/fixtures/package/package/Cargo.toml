@@ -1,0 +1,12 @@
+[package]
+name = "package-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+openrust = { package = "openrust-framework", path = "../../../.." }
+serde_json = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
