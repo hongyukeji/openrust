@@ -1,0 +1,29 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           └── container.md
+├── tests
+│   ├── binding_directory_lifecycle.rs
+│   └── container_process.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── bindings.rs
+            │   │   ├── call_context.rs
+            │   │   ├── mod.rs
+            │   │   └── scope.rs
+            │   └── contracts
+            │       └── container.rs
+            └── tests
+                └── unit
+                    ├── binding_directory.rs
+                    └── main.rs

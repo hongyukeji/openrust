@@ -1,0 +1,14 @@
+{
+  "docs/en/architecture-concepts/container.md": "e3b6accc4e521c6453df8ef7c47045db5fffe7a5858ddd0d08920d04d602bc17",
+  "docs/zh-Hans/architecture-concepts/container.md": "4466e0de3dc6cd891ec8da3ceea8d1491c867474dcb8901092445b331ddf2585",
+  "docs/zh-Hant/architecture-concepts/container.md": "e63cd76914a1fde9033c1e6978cde44aa9853d89bf6fd6f18bf4d18aaddbb144",
+  "tests/binding_directory_lifecycle.rs": "2d2127926769e80b19c1313014fa6fe65edcc5b48df32d626bae954c4b80f0cb",
+  "tests/container_process.rs": "eddad378995f719cf98dc45a0446c192e69649365ec78320de73ac072efba08b",
+  "vendor/openrust/framework/src/container/bindings.rs": "df67f36e8248cf6a607d62d1c95218c9757bcf3231c2ff7bea60d0a064a0db5d",
+  "vendor/openrust/framework/src/container/call_context.rs": "67395bb8df6fe4e59ca8a0382a37dc6138712248159f8b5de575037976c29d50",
+  "vendor/openrust/framework/src/container/mod.rs": "eaba7a2b40dfa049d8c3c63b70d9eed602a00f9fc38d42a1cac78456d861112e",
+  "vendor/openrust/framework/src/container/scope.rs": "132852d2e2870ec4c15b132e1dfa5bfb7d58c0d07159db9814ab3ec2be4a5bf3",
+  "vendor/openrust/framework/src/contracts/container.rs": "de96da46c5f17caf6a248e05902d39d7e03607fbe5a5dd64cd53fd188aee349f",
+  "vendor/openrust/framework/tests/unit/binding_directory.rs": "94122ca28589e2d224e9222c111bad0926051dabcee4cba9ff2228ca07c04c8d",
+  "vendor/openrust/framework/tests/unit/main.rs": "95f1a38e06adf74351b083589daa647e90a45a079b4bcc02f57ee1ecb4127bba"
+}

@@ -1,0 +1,12 @@
+docs/en/architecture-concepts/container.md
+docs/zh-Hans/architecture-concepts/container.md
+docs/zh-Hant/architecture-concepts/container.md
+tests/binding_directory_lifecycle.rs
+tests/container_process.rs
+vendor/openrust/framework/src/container/bindings.rs
+vendor/openrust/framework/src/container/call_context.rs
+vendor/openrust/framework/src/container/mod.rs
+vendor/openrust/framework/src/container/scope.rs
+vendor/openrust/framework/src/contracts/container.rs
+vendor/openrust/framework/tests/unit/binding_directory.rs
+vendor/openrust/framework/tests/unit/main.rs
