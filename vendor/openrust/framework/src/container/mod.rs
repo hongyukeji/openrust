@@ -28,7 +28,12 @@ mod async_resolution;
 pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
+mod call;
+mod call_context;
 mod class_descriptor;
+pub use call::{CallArguments, CallFuture, Callable, Callback};
+mod method_call;
+pub use method_call::{MethodCall, StaticCall};
 mod variadic;
 pub use class_descriptor::{ClassDescriptor, ConstructorParam, ResolvedArgs};
 mod parameters;
@@ -54,6 +59,8 @@ pub struct Container {
 
 #[derive(Default)]
 struct Registry {
+    methods: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
+    method_bindings: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
     classes: HashMap<ServiceKey, ClassDescriptor>,
     bindings: HashMap<ServiceKey, RegisteredBinding>,
     aliases: HashMap<ServiceKey, ServiceKey>,
@@ -512,6 +519,9 @@ impl Container {
     }
 
     fn consumer(&self) -> Option<ServiceKey> {
+        if let Some(consumer) = call_context::consumer(self) {
+            return consumer;
+        }
         let owner = std::ptr::from_ref(self).addr();
         RESOLVING.with_borrow(|stack| {
             stack
@@ -1269,6 +1279,79 @@ impl container::Container for Container {
         services: Vec<ServiceKey>,
     ) -> Result<(), BindingResolutionError> {
         self.contextual_services::<T>(consumer.into(), need.into(), services)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn registerMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        signature: Vec<ConstructorParam>,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(Arc<C>, CallArguments, &'a Self) -> CallFuture<'a, R> + Send + Sync + 'static,
+    {
+        self.declare_method::<C, R, F>(name, signature, callback)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn registerStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        signature: Vec<ConstructorParam>,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(CallArguments, &'a Self) -> CallFuture<'a, R> + Send + Sync + 'static,
+    {
+        self.declare_static::<C, R, F>(name, signature, callback)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn bindMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(Arc<C>, &'a Self) -> CallFuture<'a, R> + Send + Sync + 'static,
+    {
+        self.bind_method::<C, R, F>(name, callback)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn bindStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(ServiceKey, &'a Self) -> CallFuture<'a, R> + Send + Sync + 'static,
+    {
+        self.bind_static::<C, R, F>(name, callback)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn hasMethodBinding<C: ?Sized + 'static>(&self, name: &str) -> bool {
+        self.has_method::<C>(name)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn callMethodBinding<'a, C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
+        &'a self,
+        name: &'a str,
+        receiver: Arc<C>,
+    ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
+        self.invoke_binding(name, receiver)
+    }
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn callStaticMethodBinding<'a, C: ?Sized + 'static, R: Send + 'static>(
+        &'a self,
+        name: &'a str,
+    ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
+        self.invoke_static_binding::<C, R>(name)
+    }
+    async fn call<'a, R: Send + 'a, Target: Callable<'a, R> + 'a>(
+        &'a self,
+        target: Target,
+        parameters: ParameterOverrides,
+    ) -> Result<R, BindingResolutionError> {
+        scope::check_open(self)?;
+        target.invoke(self, parameters).await
     }
     fn bound<T: ?Sized + Send + Sync + 'static>(&self) -> bool {
         self.has(ServiceKey::typed::<T>())

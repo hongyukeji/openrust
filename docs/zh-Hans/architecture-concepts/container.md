@@ -473,3 +473,85 @@ Laravel 的类服务 `give(array)` 对应 `needs::<T>().giveServices(keys)`。�
 原始值上下文闭包在构造上下文内直接执行，对应 Laravel 的原始值解析器；保留构造参数快照，不为 `$name` 增加服务事件、缓存或解析历史。闭包内的普通依赖仍按容器机制解析，异步闭包可在相同上下文等待初始化。
 
 类变参遇到缺少绑定或依赖中的原始值不可解析错误时，将整个参数回退为空列表，包括已经部分解析的服务数组。业务失败、类型错误、依赖/别名环、异步解析要求、Provider 失败和生命周期关闭仍传播；原始值变参的错误也传播。取消在原上下文释放部分条目，共享服务和应用主动保留的值仍按原所有权存活。
+
+## 方法调用
+
+在 Container 或 Application 上使用 `call(target, parameters).await`。Rust 没有 PHP 运行时反射：`Callback` 提供闭包参数元数据，`registerMethod` 和 `registerStaticMethod` 登记编译后的方法适配器。闭包可以借用数据并返回普通 Future。登记方法的返回值要求 `Send + 'static`，不要求 `Sync`；匿名闭包可返回借用值。
+
+```rust
+use openrust::{
+    container::{Callback, ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::Container as _,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    let signature = [ConstructorParam::scalar::<u32>("number")];
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(7u32));
+    let mut result = String::new();
+    let result = &mut result;
+    let value = container.call(Callback::new(&signature, move |args| async move {
+        result.push_str(&args.resolved.get::<u32>(0)?.to_string());
+        Ok(result.as_str())
+    }), parameters).await.unwrap();
+    assert_eq!(value, "7");
+}
+```
+
+BoundMethod 使用独立的选参规则。同名覆盖优先，其次 `ParameterKey::class::<T>()`，再解析类依赖，每个显式键仅消费一次。类未绑定时使用默认值，即使存在仅上下文绑定；原始值使用默认值，nullable 本身不补缺失值，也不读取 `$name` 上下文绑定。整数键及其他未消费输入按插入顺序保留在 `CallArguments.remaining`，不替代缺失的命名参数。末尾变参接收这些剩余值。显式数组仍是一项，计算类集合会展开，构造用的 `giveServices` 数组不适用于方法注入；缺失类依赖继续报错。
+
+```rust
+use openrust::{
+    container::{ConstructorParam, Container, MethodCall, ParameterOverrides, StaticCall},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Worker;
+struct Client(&'static str);
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.instance(Arc::new(Worker)).unwrap();
+    container.instance(Arc::new(Client("ready"))).unwrap();
+    container.registerMethod::<Worker, String, _>("run",
+        vec![ConstructorParam::class::<Client>("client")],
+        |_, args, _| Box::pin(async move {
+            Ok(args.resolved.service::<Client>(0)?.0.to_owned())
+        }),
+    ).unwrap();
+    let value: String = container.call(
+        MethodCall::<Worker>::class("run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "ready");
+    container.bindMethod::<Worker, String, _>("run", |_, _| {
+        Box::pin(async { Ok("replacement".to_owned()) })
+    }).unwrap();
+    assert!(container.hasMethodBinding::<Worker>("run"));
+    let value: String = container.call(
+        MethodCall::on(Arc::new(Worker), "run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "replacement");
+    container.registerStaticMethod::<Worker, u32, _>("version", vec![], |_, _| {
+        Box::pin(async { Ok(1) })
+    }).unwrap();
+    container.bindStaticMethod::<Worker, u32, _>("version", |_, _| {
+        Box::pin(async { Ok(2) })
+    }).unwrap();
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::qualified("version"),
+        ParameterOverrides::new()).await.unwrap(), 1);
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::array("version"),
+        ParameterOverrides::new()).await.unwrap(), 2);
+}
+```
+
+`MethodCall::on(receiver, method)` 对应对象数组调用；`class(method)` 对应 `Class@method`，先构造接收者再读取替代绑定。`defaultMethod(method)` 与 `invokable()` 对应类默认方法和已声明的 `__invoke`，仅登记替代绑定不算方法声明。空字符串和 "0" 默认名走 invokable。方法声明按 ASCII 忽略大小写查找，替代绑定按调用者原始拼写匹配。
+
+`bindMethod` 替代原方法体，并跳过原参数注入与校验。`hasMethodBinding` 检查替代绑定，`callMethodBinding` 直接执行它，不额外建立类上下文。静态重载为 `bindStaticMethod`、`callStaticMethodBinding`。`StaticCall::qualified` 对应 `Class::method` 字符串，不查询方法绑定；`StaticCall::array` 对应类数组调用，会查询绑定。错误的接收者形式或返回类型返回类型化错误。
+
+实际可调用的对象或静态方法，只在逻辑构造栈尚无该类时添加类上下文。`Class@method` 按 Laravel BoundMethod.callClass 保留父上下文；依赖仍建立自己的正常构造上下文。逐次异步 poll 和取消时恢复上下文，保证并发与多应用隔离。Application 入口同时建立该应用的 Facade 上下文。进行中的调用保留选定绑定、原始参数与接收者，直到完成或取消。
+
+编译类型 `C` 替代 PHP 类名反射；Rust trait 别名与具体类之间不自动投影方法。适配器以 `Result<R, BindingResolutionError>` 传播注入错误，`R` 本身可为业务 Result。为支持 Rust 1.94 的异步借用，存储回调和调用分派 Future 使用 Box。未做性能基准，不宣称零分配。本节尚不包含参数属性或 SelfBuilding。

@@ -18,16 +18,17 @@ type ResolveManyAsync = dyn for<'a> Fn(&'a Container, ServiceKey) -> ManyFuture<
 /// One named constructor parameter with an explicit Rust output contract.
 #[derive(Clone)]
 pub struct ConstructorParam {
-    name: &'static str,
-    class: Option<ServiceKey>,
+    pub(super) name: &'static str,
+    pub(super) class: Option<ServiceKey>,
     check: fn(&ParameterValue) -> Result<()>,
     resolve: Arc<Resolve>,
-    resolve_async: Arc<ResolveAsync>,
-    variadic: bool,
+    pub(super) resolve_async: Arc<ResolveAsync>,
+    pub(super) variadic: bool,
     many: Arc<ResolveMany>,
     many_async: Arc<ResolveManyAsync>,
+    pub(super) call_many: Arc<ResolveManyAsync>,
     nullable: bool,
-    default: Option<Arc<dyn Fn() -> Result<ParameterValue> + Send + Sync>>,
+    pub(super) default: Option<Arc<dyn Fn() -> Result<ParameterValue> + Send + Sync>>,
 }
 impl ConstructorParam {
     pub fn scalar<T: Send + Sync + 'static>(name: &'static str) -> Self {
@@ -40,6 +41,7 @@ impl ConstructorParam {
                 Box::pin(super::variadic::primitive_async::<T>(c, key))
             }),
             variadic: false,
+            call_many: Arc::new(|_, _| Box::pin(async { Ok(Vec::new()) })),
             many: Arc::new(super::variadic::scalars::<T>),
             many_async: Arc::new(|c, key| Box::pin(super::variadic::scalars_async::<T>(c, key))),
             nullable: false,
@@ -56,6 +58,9 @@ impl ConstructorParam {
                 Box::pin(async move { c.getAsync::<T>(key).await.map(ParameterValue::new) })
             }),
             variadic: false,
+            call_many: Arc::new(|c, key| {
+                Box::pin(super::variadic::method_classes_async::<T>(c, key))
+            }),
             many: Arc::new(super::variadic::classes::<T>),
             many_async: Arc::new(|c, key| Box::pin(super::variadic::classes_async::<T>(c, key))),
             nullable: false,
@@ -131,7 +136,7 @@ enum Selection {
 }
 
 /// Owns validated constructor slots. Values and service references may be retained by the result.
-enum Argument {
+pub(super) enum Argument {
     One(ParameterValue),
     Many(Vec<ParameterValue>),
 }
@@ -193,7 +198,7 @@ impl ResolvedArgs {
             .map(|value| value.map(|value| (*value).clone()))
     }
 }
-fn validate_signature(key: &ServiceKey, parameters: &[ConstructorParam]) -> Result<()> {
+pub(super) fn validate_signature(key: &ServiceKey, parameters: &[ConstructorParam]) -> Result<()> {
     let mut names = HashSet::new();
     if parameters
         .iter()
@@ -216,7 +221,7 @@ fn validate_signature(key: &ServiceKey, parameters: &[ConstructorParam]) -> Resu
     }
     Ok(())
 }
-fn validate_arguments(
+pub(super) fn validate_arguments(
     parameters: &[ConstructorParam],
     values: Vec<Argument>,
 ) -> Result<ResolvedArgs> {

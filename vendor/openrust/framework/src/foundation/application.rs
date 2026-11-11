@@ -252,6 +252,48 @@ impl Application {
         .await
     }
 
+    /// Invoke a compiled callable inside this application's Facade context.
+    pub async fn call<'a, R: Send + 'a, Target: crate::container::Callable<'a, R> + 'a>(
+        &'a self,
+        target: Target,
+        parameters: crate::container::ParameterOverrides,
+    ) -> Result<R, crate::contracts::container::BindingResolutionError> {
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared.container.call(target, parameters),
+        )
+        .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's application API")]
+    pub async fn callMethodBinding<C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
+        &self,
+        method: &str,
+        receiver: Arc<C>,
+    ) -> Result<R, crate::contracts::container::BindingResolutionError> {
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared
+                .container
+                .callMethodBinding::<C, R>(method, receiver),
+        )
+        .await
+    }
+
+    #[allow(non_snake_case, reason = "Typed Rust static method overload")]
+    pub async fn callStaticMethodBinding<C: ?Sized + 'static, R: Send + 'static>(
+        &self,
+        method: &str,
+    ) -> Result<R, crate::contracts::container::BindingResolutionError> {
+        crate::support::facades::application_scope(
+            self.container_handle(),
+            self.shared
+                .container
+                .callStaticMethodBinding::<C, R>(method),
+        )
+        .await
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's application API")]
     pub fn isDeferredService(&self, key: impl Into<ServiceKey>) -> bool {
         use crate::container::deferred::DeferredServices as _;

@@ -473,3 +473,85 @@ For primitives, bind `$name` to `Vec<Arc<T>>` or `Vec<ParameterValue>`. For exam
 Primitive contextual closures execute inline in the constructor context, as in Laravel's primitive resolver. They keep the constructor's parameter snapshot and do not create an additional service event/cache/history for `$name`. Normal dependency lookups inside the closure still follow ordinary container behavior. Async primitive closures can await initialization in that same context.
 
 A class variadic catches missing bindings and unresolved primitive dependency errors and returns an empty list for the whole argument, including a partially resolved service array. Business failures, type mismatches, dependency/alias cycles, async-required errors, provider failures and closed lifecycles propagate. Primitive variadic errors also propagate. Cancellation releases partial values under the originating context. Shared services and any values explicitly retained by application code keep their usual ownership.
+
+## Method Invocation
+
+Use `call(target, parameters).await` on a Container or Application. Rust has no PHP runtime reflection: `Callback` supplies closure parameter metadata, while `registerMethod` and `registerStaticMethod` register compiled method adapters. The callback can borrow data and return a generic future. Registered method results require `Send + 'static`, but do not require `Sync`; anonymous callbacks may return borrowed results.
+
+```rust
+use openrust::{
+    container::{Callback, ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::Container as _,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    let signature = [ConstructorParam::scalar::<u32>("number")];
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(7u32));
+    let mut result = String::new();
+    let result = &mut result;
+    let value = container.call(Callback::new(&signature, move |args| async move {
+        result.push_str(&args.resolved.get::<u32>(0)?.to_string());
+        Ok(result.as_str())
+    }), parameters).await.unwrap();
+    assert_eq!(value, "7");
+}
+```
+
+BoundMethod has its own parameter policy. A matching name wins, then `ParameterKey::class::<T>()`, then class injection. Each explicit key is consumed once. A class default applies when that class is not bound, even if a contextual-only entry exists. Scalar defaults apply; nullable alone does not supply a missing value, and scalar method parameters do not use `$name` contextual bindings. Integer keys and other unconsumed inputs are retained in insertion order in `CallArguments.remaining`; they do not replace missing named parameters. A final variadic slot receives those remaining values. An explicit array remains one value; computed class collections are spread, constructor `giveServices` arrays are not, and missing class dependencies propagate errors.
+
+```rust
+use openrust::{
+    container::{ConstructorParam, Container, MethodCall, ParameterOverrides, StaticCall},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Worker;
+struct Client(&'static str);
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.instance(Arc::new(Worker)).unwrap();
+    container.instance(Arc::new(Client("ready"))).unwrap();
+    container.registerMethod::<Worker, String, _>("run",
+        vec![ConstructorParam::class::<Client>("client")],
+        |_, args, _| Box::pin(async move {
+            Ok(args.resolved.service::<Client>(0)?.0.to_owned())
+        }),
+    ).unwrap();
+    let value: String = container.call(
+        MethodCall::<Worker>::class("run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "ready");
+    container.bindMethod::<Worker, String, _>("run", |_, _| {
+        Box::pin(async { Ok("replacement".to_owned()) })
+    }).unwrap();
+    assert!(container.hasMethodBinding::<Worker>("run"));
+    let value: String = container.call(
+        MethodCall::on(Arc::new(Worker), "run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "replacement");
+    container.registerStaticMethod::<Worker, u32, _>("version", vec![], |_, _| {
+        Box::pin(async { Ok(1) })
+    }).unwrap();
+    container.bindStaticMethod::<Worker, u32, _>("version", |_, _| {
+        Box::pin(async { Ok(2) })
+    }).unwrap();
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::qualified("version"),
+        ParameterOverrides::new()).await.unwrap(), 1);
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::array("version"),
+        ParameterOverrides::new()).await.unwrap(), 2);
+}
+```
+
+`MethodCall::on(receiver, method)` represents an object array callable. `class(method)` represents `Class@method`: it resolves the receiver before looking up an override. `defaultMethod(method)` and `invokable()` represent the class default and declared `__invoke`; a binding alone does not establish that declaration. Empty and "0" default method names use the invokable path. Registered declarations use ASCII case-insensitive lookup; method bindings use the exact caller spelling.
+
+`bindMethod` replaces the declared body and skips its parameter injection and validation. `hasMethodBinding` checks the override; `callMethodBinding` invokes it directly without adding a class context. Static adapters use `bindStaticMethod` and `callStaticMethodBinding`. `StaticCall::qualified` corresponds to a `Class::method` string and ignores method bindings, while `StaticCall::array` corresponds to a class-array callable and consults them. Invalid receiver forms or result contracts return typed errors.
+
+An actual callable object or static method establishes a class context only if that class is absent from the logical build stack. `Class@method` retains the parent context, as in Laravel BoundMethod.callClass. Dependencies still enter their own normal construction contexts. Contexts are restored on every async poll and cancellation; separate applications and concurrent calls remain isolated. Application entry methods also establish the application Facade context. Running calls keep their selected override, original parameter ownership and receiver alive until completion or cancellation.
+
+The compiled type `C` replaces PHP class-name reflection; Rust trait aliases and concrete classes do not gain automatic method projection. Callback adapters return `Result<R, BindingResolutionError>` for injection failures; `R` may itself be a domain result. Stored callbacks and the callable dispatch future are boxed to support asynchronous borrowing on Rust 1.94. No performance benchmark or zero-allocation claim is made. Parameter attributes and SelfBuilding remain outside this accepted section.

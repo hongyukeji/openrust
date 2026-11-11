@@ -6,6 +6,25 @@ use crate::container::ServiceKey;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum BindingResolutionError {
+    MethodNotFound {
+        service: ServiceKey,
+        method: Arc<str>,
+    },
+    MethodBindingNotFound {
+        service: ServiceKey,
+        method: Arc<str>,
+    },
+    InvalidMethod {
+        service: ServiceKey,
+        method: Arc<str>,
+        reason: &'static str,
+    },
+    MethodContractMismatch {
+        service: ServiceKey,
+        method: Arc<str>,
+        expected: &'static str,
+        actual: &'static str,
+    },
     InvalidArgumentShape {
         index: usize,
     },
@@ -62,6 +81,26 @@ pub enum BindingResolutionError {
 impl fmt::Display for BindingResolutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::MethodNotFound { service, method } => {
+                write!(f, "method {service}@{method} is not declared")
+            }
+            Self::MethodBindingNotFound { service, method } => {
+                write!(f, "method {service}@{method} has no binding")
+            }
+            Self::InvalidMethod {
+                service,
+                method,
+                reason,
+            } => write!(f, "invalid method {service}@{method}: {reason}"),
+            Self::MethodContractMismatch {
+                service,
+                method,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "method {service}@{method} has contract {actual}, expected {expected}"
+            ),
             Self::InvalidArgumentShape { index } => {
                 write!(f, "constructor argument slot {index} has a different shape")
             }

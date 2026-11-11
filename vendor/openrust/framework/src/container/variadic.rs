@@ -265,3 +265,37 @@ pub(super) async fn classes_async<T: ?Sized + Send + Sync + 'static>(
         .await,
     )
 }
+
+/// BoundMethod spreads factory-returned arrays, but does not use constructor array resolution or recovery.
+pub(super) async fn method_classes_async<T: ?Sized + Send + Sync + 'static>(
+    c: &Container,
+    key: ServiceKey,
+) -> Result<Vec<ParameterValue>> {
+    let collection = ServiceKey::typed::<Vec<Arc<T>>>();
+    let key = if c.contextual_argument(&key)?.is_none()
+        && c.contextual_argument(&collection)?.is_some()
+    {
+        collection
+    } else {
+        key
+    };
+    super::parameters::run_async(c, super::ParameterOverrides::default(), async {
+        let (key, entry, scoped, contextual) = c.prepare_async(key).await?;
+        if entry.services.is_none() && entry.value.is::<Binding<Vec<Arc<T>>>>() {
+            return c
+                .resolve_entry_async::<Vec<Arc<T>>>(key, entry, scoped, contextual)
+                .await
+                .map(|values| values.iter().cloned().map(ParameterValue::new).collect());
+        }
+        if entry.services.is_none() && entry.value.is::<Binding<Vec<ParameterValue>>>() {
+            return c
+                .resolve_entry_async::<Vec<ParameterValue>>(key, entry, scoped, contextual)
+                .await
+                .map(|values| (*values).clone());
+        }
+        c.resolve_entry_async::<T>(key, entry, scoped, contextual)
+            .await
+            .map(|value| vec![ParameterValue::new(value)])
+    })
+    .await
+}

@@ -4,8 +4,8 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        ClassDescriptor, ConstructorParam, ParameterKey, ParameterOverrides, ParameterValue,
-        ServiceKey,
+        ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
+        ParameterValue, ServiceKey,
     },
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
@@ -140,6 +140,30 @@ impl FrameworkCommand for ConstructionCommand {
         })
     }
 }
+struct MethodCommand(CommandDefinition);
+impl FrameworkCommand for MethodCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let value: String = app
+                .call(
+                    MethodCall::<CompiledProbe>::class("describe"),
+                    ParameterOverrides::new(),
+                )
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output.stdout.push_str(&value);
+            Ok(0)
+        })
+    }
+}
 struct VariadicProbe(Vec<Arc<Greeting>>);
 struct VariadicCommand(CommandDefinition);
 impl FrameworkCommand for VariadicCommand {
@@ -176,6 +200,20 @@ impl ServiceProvider for Provider {
         app: &'a Application,
     ) -> openrust::http::HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            app.container().registerMethod::<CompiledProbe, String, _>(
+                "describe",
+                vec![ConstructorParam::class::<Greeting>("greeting")],
+                |receiver, args, _| {
+                    Box::pin(async move {
+                        tokio::task::yield_now().await;
+                        Ok(format!(
+                            "called:{}:{}",
+                            receiver.0.0,
+                            args.resolved.service::<Greeting>(0)?.0
+                        ))
+                    })
+                },
+            )?;
             app.container()
                 .bindNamed::<Greeting, _>("variadic-first", |_| {
                     Ok(Arc::new(Greeting("first".into())))
@@ -325,6 +363,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(MethodCommand(CommandDefinition::new(
+                clap::Command::new("method:probe"),
+            ))))?;
             artisan.add_command(Box::new(VariadicCommand(CommandDefinition::new(
                 clap::Command::new("variadic:probe"),
             ))))?;
@@ -358,6 +399,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "parameters:probe"], 0),
         (vec!["artisan", "construction:probe"], 0),
         (vec!["artisan", "variadic:probe"], 0),
+        (vec!["artisan", "method:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -385,6 +427,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"method:probe") {
+                    b"called:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"variadic:probe") {
                     b"first,second".as_slice()
                 } else if args.last() == Some(&"construction:probe") {
@@ -402,6 +446,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("9 container/provider Artisan process checks passed");
+    println!("13 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

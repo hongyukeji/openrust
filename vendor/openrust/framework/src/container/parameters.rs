@@ -21,6 +21,9 @@ impl ParameterKey {
     pub fn name(name: impl Into<Arc<str>>) -> Self {
         Self::Name(name.into())
     }
+    pub fn class<T: ?Sized + 'static>() -> Self {
+        Self::name(type_name::<T>())
+    }
 }
 
 /// Shared typed value, or an explicit null. Debug output never includes the payload.

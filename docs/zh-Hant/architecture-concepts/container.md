@@ -473,3 +473,85 @@ Laravel 的類別服務 `give(array)` 對應 `needs::<T>().giveServices(keys)`�
 原始值情境閉包在建構情境內直接執行，對應 Laravel 的原始值解析器；保留建構參數快照，不為 `$name` 增加服務事件、快取或解析歷史。閉包內的普通相依服務仍按容器機制解析，非同步閉包可在相同情境等待初始化。
 
 類別可變參數遇到缺少綁定或相依服務的原始值無法解析錯誤時，將整個參數退回空清單，包括已部分解析的服務陣列。業務失敗、型別錯誤、相依/別名環、非同步解析要求、Provider 失敗與生命週期關閉仍傳播；原始值可變參數的錯誤亦傳播。取消時在原情境釋放部分項目，共用服務與應用主動保留的值仍按原所有權存活。
+
+## 方法呼叫
+
+在 Container 或 Application 上使用 `call(target, parameters).await`。Rust 沒有 PHP 執行期反射：`Callback` 提供閉包參數中繼資料，`registerMethod` 與 `registerStaticMethod` 登記編譯後的方法介接器。閉包可以借用資料並回傳一般 Future。登記方法的回傳值要求 `Send + 'static`，不要求 `Sync`；匿名閉包可回傳借用值。
+
+```rust
+use openrust::{
+    container::{Callback, ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::Container as _,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    let signature = [ConstructorParam::scalar::<u32>("number")];
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("number"), ParameterValue::new(7u32));
+    let mut result = String::new();
+    let result = &mut result;
+    let value = container.call(Callback::new(&signature, move |args| async move {
+        result.push_str(&args.resolved.get::<u32>(0)?.to_string());
+        Ok(result.as_str())
+    }), parameters).await.unwrap();
+    assert_eq!(value, "7");
+}
+```
+
+BoundMethod 使用獨立選參規則。同名覆寫優先，其次 `ParameterKey::class::<T>()`，再解析類別相依，每個明確鍵僅消費一次。類別未綁定時使用預設值，即使存在僅情境綁定；原始值使用預設值，nullable 本身不補缺失值，也不讀取 `$name` 情境綁定。整數鍵及其他未消費輸入按插入順序保留於 `CallArguments.remaining`，不替代缺失的具名參數。末尾變參接收這些剩餘值。明確陣列仍是一項，計算類別集合會展開，建構用的 `giveServices` 陣列不適用於方法注入；缺失類別相依繼續報錯。
+
+```rust
+use openrust::{
+    container::{ConstructorParam, Container, MethodCall, ParameterOverrides, StaticCall},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Worker;
+struct Client(&'static str);
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    container.instance(Arc::new(Worker)).unwrap();
+    container.instance(Arc::new(Client("ready"))).unwrap();
+    container.registerMethod::<Worker, String, _>("run",
+        vec![ConstructorParam::class::<Client>("client")],
+        |_, args, _| Box::pin(async move {
+            Ok(args.resolved.service::<Client>(0)?.0.to_owned())
+        }),
+    ).unwrap();
+    let value: String = container.call(
+        MethodCall::<Worker>::class("run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "ready");
+    container.bindMethod::<Worker, String, _>("run", |_, _| {
+        Box::pin(async { Ok("replacement".to_owned()) })
+    }).unwrap();
+    assert!(container.hasMethodBinding::<Worker>("run"));
+    let value: String = container.call(
+        MethodCall::on(Arc::new(Worker), "run"), ParameterOverrides::new(),
+    ).await.unwrap();
+    assert_eq!(value, "replacement");
+    container.registerStaticMethod::<Worker, u32, _>("version", vec![], |_, _| {
+        Box::pin(async { Ok(1) })
+    }).unwrap();
+    container.bindStaticMethod::<Worker, u32, _>("version", |_, _| {
+        Box::pin(async { Ok(2) })
+    }).unwrap();
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::qualified("version"),
+        ParameterOverrides::new()).await.unwrap(), 1);
+    assert_eq!(container.call::<u32, _>(StaticCall::<Worker>::array("version"),
+        ParameterOverrides::new()).await.unwrap(), 2);
+}
+```
+
+`MethodCall::on(receiver, method)` 對應物件陣列呼叫；`class(method)` 對應 `Class@method`，先建構接收者再讀取替代綁定。`defaultMethod(method)` 與 `invokable()` 對應類別預設方法和已宣告的 `__invoke`，僅登記替代綁定不算方法宣告。空字串與 "0" 預設名走 invokable。方法宣告以 ASCII 忽略大小寫查找，替代綁定按呼叫者原始拼寫匹配。
+
+`bindMethod` 替代原方法本體，並跳過原參數注入與驗證。`hasMethodBinding` 檢查替代綁定，`callMethodBinding` 直接執行它，不額外建立類別情境。靜態重載為 `bindStaticMethod`、`callStaticMethodBinding`。`StaticCall::qualified` 對應 `Class::method` 字串，不查詢方法綁定；`StaticCall::array` 對應類別陣列呼叫，會查詢綁定。錯誤的接收者形式或回傳型別回傳型別化錯誤。
+
+實際可呼叫的物件或靜態方法，只在邏輯建構堆疊尚無該類別時加入類別情境。`Class@method` 按 Laravel BoundMethod.callClass 保留父情境；相依仍建立自己的正常建構情境。逐次非同步 poll 與取消時恢復情境，確保並行與多應用隔離。Application 入口同時建立該應用的 Facade 情境。進行中的呼叫保留選定綁定、原始參數與接收者，直到完成或取消。
+
+編譯型別 `C` 替代 PHP 類名反射；Rust trait 別名與具體類別間不自動投影方法。介接器以 `Result<R, BindingResolutionError>` 傳播注入錯誤，`R` 本身可為業務 Result。為支援 Rust 1.94 的非同步借用，儲存回呼及呼叫分派 Future 使用 Box。未做效能基準，不宣稱零配置。本節尚不包含參數屬性或 SelfBuilding。

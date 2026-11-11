@@ -69,6 +69,78 @@ pub trait Container: Send + Sync + Sized {
         services: Vec<ServiceKey>,
     ) -> Result<(), BindingResolutionError>;
 
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn registerMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        signature: Vec<crate::container::ConstructorParam>,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(
+                Arc<C>,
+                crate::container::CallArguments,
+                &'a Self,
+            ) -> crate::container::CallFuture<'a, R>
+            + Send
+            + Sync
+            + 'static;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn registerStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        signature: Vec<crate::container::ConstructorParam>,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(
+                crate::container::CallArguments,
+                &'a Self,
+            ) -> crate::container::CallFuture<'a, R>
+            + Send
+            + Sync
+            + 'static;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn bindMethod<C: ?Sized + Send + Sync + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(Arc<C>, &'a Self) -> crate::container::CallFuture<'a, R>
+            + Send
+            + Sync
+            + 'static;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn bindStaticMethod<C: ?Sized + 'static, R: Send + 'static, F>(
+        &self,
+        name: &str,
+        callback: F,
+    ) -> Result<(), BindingResolutionError>
+    where
+        F: for<'a> Fn(ServiceKey, &'a Self) -> crate::container::CallFuture<'a, R>
+            + Send
+            + Sync
+            + 'static;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn hasMethodBinding<C: ?Sized + 'static>(&self, name: &str) -> bool;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn callMethodBinding<'a, C: ?Sized + Send + Sync + 'static, R: Send + 'static>(
+        &'a self,
+        name: &'a str,
+        receiver: Arc<C>,
+    ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+    #[allow(non_snake_case, reason = "Laravel method API and typed Rust overloads")]
+    fn callStaticMethodBinding<'a, C: ?Sized + 'static, R: Send + 'static>(
+        &'a self,
+        name: &'a str,
+    ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+    fn call<'a, R: Send + 'a, Target: crate::container::Callable<'a, R> + 'a>(
+        &'a self,
+        target: Target,
+        parameters: crate::container::ParameterOverrides,
+    ) -> impl Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+
     /// Registers immutable constructor metadata without marking the service bound.
     #[allow(non_snake_case, reason = "Static Rust reflection adapter")]
     fn registerClass(

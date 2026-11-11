@@ -42,6 +42,34 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
     use BindingResolutionError::*;
     match error.as_ref() {
         FacadeNotSet => FacadeNotSet,
+        MethodNotFound { service, method } => MethodNotFound {
+            service: service.clone(),
+            method: method.clone(),
+        },
+        MethodBindingNotFound { service, method } => MethodBindingNotFound {
+            service: service.clone(),
+            method: method.clone(),
+        },
+        InvalidMethod {
+            service,
+            method,
+            reason,
+        } => InvalidMethod {
+            service: service.clone(),
+            method: method.clone(),
+            reason,
+        },
+        MethodContractMismatch {
+            service,
+            method,
+            expected,
+            actual,
+        } => MethodContractMismatch {
+            service: service.clone(),
+            method: method.clone(),
+            expected,
+            actual,
+        },
         ScopeClosed => ScopeClosed,
         InvalidConstructor { service, reason } => InvalidConstructor {
             service: service.clone(),
@@ -273,24 +301,30 @@ impl Container {
         parameters: super::ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError> {
         super::parameters::run_async(self, parameters, async move {
-            scope::check_open(self)?;
-            let key = match self.require_sync(id.clone()) {
-                Ok(key) => key,
-                Err(BindingResolutionError::DeferredServiceRequiresAsync { .. }) => {
-                    scope::preserve(self, self.load_deferred(id)).await?
-                }
-                Err(error) => return Err(error),
-            };
-            let key = self.getAlias(key)?;
-            self.fire_hooks(
-                &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
-                Phase::Before,
-            )?;
-            let (key, entry, scoped, contextual) = self.select_entry(key, true, true)?;
+            let (key, entry, scoped, contextual) = self.prepare_async(id).await?;
             self.resolve_entry_async(key, entry, scoped, contextual)
                 .await
         })
         .await
+    }
+    pub(super) async fn prepare_async(
+        &self,
+        id: ServiceKey,
+    ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
+        scope::check_open(self)?;
+        let key = match self.require_sync(id.clone()) {
+            Ok(key) => key,
+            Err(BindingResolutionError::DeferredServiceRequiresAsync { .. }) => {
+                scope::preserve(self, self.load_deferred(id)).await?
+            }
+            Err(error) => return Err(error),
+        };
+        let key = self.getAlias(key)?;
+        self.fire_hooks(
+            &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
+            Phase::Before,
+        )?;
+        self.select_entry(key, true, true)
     }
     pub(super) async fn resolve_entry_async<T: ?Sized + Send + Sync + 'static>(
         &self,
