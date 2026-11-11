@@ -1,0 +1,44 @@
+# 本地化
+
+## 配置语言
+
+通过 `APP_LOCALE` 设置应用默认语言，通过 `APP_FALLBACK_LOCALE` 设置分组翻译的回退语言。使用 `Lang::withLocale` 为一次请求或任务操作指定语言，操作结束后恢复之前的语言。
+
+## 定义翻译字符串
+
+分组翻译放在 `lang/en/messages.json` 等文件中，嵌套条目使用点号访问。以完整句子为键的翻译放在 `lang/en.json`。应用存在 `resources/lang` 时，使用该目录作为语言目录。
+
+```json
+{
+  "welcome": "Hello, :Name",
+  "items": "{0} No items|{1} One item|[2,*] :count items"
+}
+```
+
+## 获取翻译字符串
+
+使用 `__` 读取文本。占位符支持 `:name`、`:Name` 和 `:NAME`。分组和列表使用 `Lang::array` 读取。缺失翻译返回键本身。JSON 字面键在所选语言内查找，分组键可以回退到配置的语言。
+
+## 复数
+
+使用 `trans_choice` 选择形式。先匹配 `{0}`、`[2,*]` 等显式条件，其余情况按命中翻译的地区复数规则选择。函数自动提供 `:count`。
+
+```rust
+use std::collections::BTreeMap;
+
+use openrust::{
+    support::facades::Lang,
+    translation::{TranslationResult, __, trans_choice},
+};
+
+pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
+    Lang::withLocale(locale, async {
+        let replacements = BTreeMap::from([("name".into(), "ada".into())]);
+        Ok((
+            __("messages.welcome", &replacements)?,
+            trans_choice("messages.items", 2_i64, &replacements)?,
+        ))
+    })
+    .await?
+}
+```

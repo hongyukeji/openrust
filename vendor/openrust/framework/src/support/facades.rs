@@ -6,6 +6,7 @@ pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
+pub use crate::translation::Lang;
 pub use facade::Facade;
 pub(crate) use facade::{
     ContextSnapshot, application_scope, context_snapshot, current_container, scope,
