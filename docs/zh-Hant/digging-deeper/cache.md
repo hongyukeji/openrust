@@ -44,3 +44,9 @@ pub async fn cache_report() -> CacheResult<bool> {
     Ok(written)
 }
 ```
+
+## Redis 儲存
+
+設定 `CACHE_STORE=redis`，使用 [Redis 連線](../database/redis.md)儲存快取。原子取出使用 Redis `GETDEL`，此操作需要 Redis 6.2 或更新版本。
+
+`cache:clear redis` 清空快取儲存所用的整個邏輯資料庫，包括同一資料庫內其他前綴的鍵。使用獨立邏輯資料庫的鎖連線仍保留其鎖。

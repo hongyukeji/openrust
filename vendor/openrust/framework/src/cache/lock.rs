@@ -24,20 +24,7 @@ impl Lock {
         owner: Option<&str>,
         database: bool,
     ) -> CacheResult<Self> {
-        let owner = match owner {
-            Some(owner) if !owner.is_empty() && owner.len() <= 255 => owner.to_owned(),
-            Some(_) => return Err(CacheError::InvalidOwner),
-            None => {
-                let mut bytes = [0; 20];
-                aws_lc_rs::rand::fill(&mut bytes)
-                    .map_err(|_| backend(std::io::Error::other("lock owner generation failed")))?;
-                let mut owner = String::with_capacity(40);
-                for byte in bytes {
-                    let _ = write!(owner, "{byte:02x}");
-                }
-                owner
-            }
-        };
+        let owner = lock_owner(owner)?;
         Ok(Self {
             engine,
             key,
@@ -74,24 +61,7 @@ impl LockContract for Lock {
     }
 
     fn block(&mut self, wait: Duration) -> CacheFuture<'_, CacheResult<()>> {
-        Box::pin(async move {
-            let deadline = tokio::time::Instant::now()
-                .checked_add(wait)
-                .ok_or(CacheError::InvalidValue)?;
-            loop {
-                if self.get().await? {
-                    return Ok(());
-                }
-                let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
-                if remaining.is_zero() {
-                    return Err(CacheError::LockTimeout);
-                }
-                tokio::time::sleep(remaining.min(Duration::from_millis(250))).await;
-                if tokio::time::Instant::now() >= deadline {
-                    return Err(CacheError::LockTimeout);
-                }
-            }
-        })
+        Box::pin(block_lock(self, wait))
     }
 
     fn release(&mut self) -> CacheFuture<'_, CacheResult<bool>> {
@@ -128,5 +98,41 @@ impl LockContract for Lock {
 
     fn owner(&self) -> &str {
         &self.owner
+    }
+}
+
+pub(super) fn lock_owner(owner: Option<&str>) -> CacheResult<String> {
+    Ok(match owner {
+        Some(owner) if !owner.is_empty() && owner.len() <= 255 => owner.to_owned(),
+        Some(_) => return Err(CacheError::InvalidOwner),
+        None => {
+            let mut bytes = [0; 20];
+            aws_lc_rs::rand::fill(&mut bytes)
+                .map_err(|_| backend(std::io::Error::other("lock owner generation failed")))?;
+            let mut owner = String::with_capacity(40);
+            for byte in bytes {
+                let _ = write!(owner, "{byte:02x}");
+            }
+            owner
+        }
+    })
+}
+
+pub(super) async fn block_lock(lock: &mut dyn LockContract, wait: Duration) -> CacheResult<()> {
+    let deadline = tokio::time::Instant::now()
+        .checked_add(wait)
+        .ok_or(CacheError::InvalidValue)?;
+    loop {
+        if lock.get().await? {
+            return Ok(());
+        }
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Err(CacheError::LockTimeout);
+        }
+        tokio::time::sleep(remaining.min(Duration::from_millis(250))).await;
+        if tokio::time::Instant::now() >= deadline {
+            return Err(CacheError::LockTimeout);
+        }
     }
 }

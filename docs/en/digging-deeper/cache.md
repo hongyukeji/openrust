@@ -44,3 +44,9 @@ pub async fn cache_report() -> CacheResult<bool> {
     Ok(written)
 }
 ```
+
+## Redis Store
+
+Set `CACHE_STORE=redis` to use the [Redis connections](../database/redis.md) for caching. Cache pull uses the Redis `GETDEL` command. Redis 6.2 or later is required for that operation.
+
+`cache:clear redis` clears the entire logical database selected by the Redis cache store, including keys from other prefixes in that database. A lock connection using a separate database retains its locks.

@@ -8,6 +8,7 @@ use crate::{
     database::DatabaseManager,
     foundation::Application,
     http::HttpFuture,
+    redis::RedisManager,
     support::{ProviderResult, ServiceProvider},
 };
 
@@ -24,7 +25,10 @@ impl ServiceProvider for CacheServiceProvider {
             container.singletonNamed("cache", move |container| {
                 let config = container.get::<dyn Config>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
-                Ok(Arc::new(CacheManager::new(config, database, base.clone())))
+                let redis = container.get::<RedisManager>("redis")?;
+                Ok(Arc::new(
+                    CacheManager::new(config, database, base.clone()).with_redis(redis),
+                ))
             })?;
             container.alias(
                 "cache",

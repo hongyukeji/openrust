@@ -44,3 +44,9 @@ pub async fn cache_report() -> CacheResult<bool> {
     Ok(written)
 }
 ```
+
+## Redis 存储
+
+设置 `CACHE_STORE=redis` 使用 [Redis 连接](../database/redis.md)存储缓存。原子取出使用 Redis `GETDEL`，该操作要求 Redis 6.2 或更高版本。
+
+`cache:clear redis` 清空该缓存存储所用的整个逻辑库，包括该库内其他前缀的键。使用独立逻辑库的锁连接仍保留其锁。
