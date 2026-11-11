@@ -1,5 +1,5 @@
 //! Explicit heterogeneous arguments and per-resolution parameter frames.
-use super::{Container, scope::Identity};
+use super::{Container, ServiceKey, scope::Identity};
 use crate::contracts::container::BindingResolutionError;
 use std::{
     any::{Any, type_name},
@@ -31,6 +31,7 @@ impl ParameterKey {
 pub struct ParameterValue {
     value: Option<Arc<dyn Any + Send + Sync>>,
     output: Option<&'static str>,
+    pub(super) service_key: Option<ServiceKey>,
 }
 impl ParameterValue {
     pub fn null() -> Self {
@@ -43,7 +44,15 @@ impl ParameterValue {
         Self {
             value: Some(value),
             output: Some(type_name::<T>()),
+            service_key: None,
         }
+    }
+
+    /// A shared object carrying its service type for attribute callbacks and projections.
+    pub fn service<T: ?Sized + Send + Sync + 'static>(value: Arc<T>) -> Self {
+        let mut parameter = Self::new(value);
+        parameter.service_key = Some(ServiceKey::typed::<T>());
+        parameter
     }
     pub(crate) fn downcast_ref<T: Any>(&self) -> Option<&T> {
         self.value.as_deref()?.downcast_ref()

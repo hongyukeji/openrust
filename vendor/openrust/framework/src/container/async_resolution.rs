@@ -446,7 +446,7 @@ impl Container {
                             })
                             .await?;
                         let value = if attributes {
-                            self.after_class(&key, &entry, &value.value)?;
+                            self.after_class(&entry, &value.value)?;
                             let _resolution = self.resolve(&key, recipe)?;
                             value.decorate(|value| self.decorate(&key, value, None))?
                         } else {
@@ -557,7 +557,7 @@ impl Container {
                             .map_err(|error| owner.fail(error))?;
                         let value = if attributes {
                             let finish = || {
-                                self.after_class(&key, &entry, &value.value)?;
+                                self.after_class(&entry, &value.value)?;
                                 let _resolution = self.resolve(&key, recipe)?;
                                 value.decorate(|value| {
                                     self.decorate(&key, value, Some((state, &entry, owner.clone())))

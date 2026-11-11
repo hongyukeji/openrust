@@ -129,15 +129,26 @@ impl ConstructorParam {
     }
 
     pub(super) fn observe(&self, container: &Container, value: &Argument) -> Result<()> {
-        let service = match value {
-            Argument::One(value) if !value.is_null() => self.class.as_ref(),
+        if self.attributes.is_empty() {
+            return Ok(());
+        }
+        // Class parameters also accept legacy values that wrap Arc<T> without service metadata.
+        let typed = match (value, &self.class) {
+            (Argument::One(value), Some(key))
+                if value.service_key.is_none()
+                    && !value.is_null()
+                    && (self.check)(value).is_ok() =>
+            {
+                let mut value = value.clone();
+                value.service_key = Some(key.clone());
+                Some(Argument::One(value))
+            }
             _ => None,
         };
-        container.fire_attribute_callbacks(
+        container.fireAfterResolvingAttributeCallbacks(
             &self.attributes,
-            value,
+            typed.as_ref().unwrap_or(value),
             Some(self.attribute_parameter()),
-            service,
         )
     }
 
@@ -166,7 +177,13 @@ impl ConstructorParam {
             .unwrap_or_else(|| ServiceKey::named(format!("${}", self.name)))
     }
 
-    fn validate(&self, value: &ParameterValue) -> Result<()> {
+    fn validate(&self, container: &Container, value: &mut ParameterValue) -> Result<()> {
+        if let (Some(source), Some(target)) = (&value.service_key, &self.class)
+            && source != target
+            && let Some(projection) = container.projection(source, target)
+        {
+            *value = projection.project(value)?;
+        }
         if value.is_null() && self.nullable {
             Ok(())
         } else {
@@ -293,15 +310,16 @@ pub(super) fn validate_signature(key: &ServiceKey, parameters: &[ConstructorPara
     Ok(())
 }
 pub(super) fn validate_arguments(
+    container: &Container,
     parameters: &[ConstructorParam],
-    values: Vec<Argument>,
+    mut values: Vec<Argument>,
 ) -> Result<ResolvedArgs> {
-    for (parameter, argument) in parameters.iter().zip(&values) {
+    for (parameter, argument) in parameters.iter().zip(&mut values) {
         match argument {
-            Argument::One(value) => parameter.validate(value)?,
+            Argument::One(value) => parameter.validate(container, value)?,
             Argument::Many(values) => {
                 for value in values {
-                    parameter.validate(value)?;
+                    parameter.validate(container, value)?;
                 }
             }
         }
@@ -332,7 +350,7 @@ fn resolve(c: &Container, parameters: &[ConstructorParam]) -> Result<ResolvedArg
         parameter.observe(c, &argument)?;
         values.push(argument);
     }
-    validate_arguments(parameters, values)
+    validate_arguments(c, parameters, values)
 }
 
 async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result<ResolvedArgs> {
@@ -357,7 +375,7 @@ async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result
         parameter.observe(c, &argument)?;
         values.push(argument);
     }
-    validate_arguments(parameters, values)
+    validate_arguments(c, parameters, values)
 }
 
 /// Immutable metadata for one compiled concrete type; registration does not mark it bound.
@@ -681,7 +699,7 @@ impl Container {
             }),
         }?;
         drop(frame);
-        self.after_class(&key, &entry, &value)?;
+        self.after_class(&entry, &value)?;
         Ok(value)
     }
     pub(super) async fn build_class_async<T: ?Sized + Send + Sync + 'static>(
@@ -706,7 +724,7 @@ impl Container {
                 })
                 .await?;
             scope::check_open(self)?;
-            self.after_class(&key, &entry, &value)?;
+            self.after_class(&entry, &value)?;
             Ok(value)
         })
         .await
@@ -714,16 +732,14 @@ impl Container {
 
     pub(super) fn after_class<T: ?Sized + Send + Sync + 'static>(
         &self,
-        key: &ServiceKey,
         entry: &RegisteredBinding,
         value: &Arc<T>,
     ) -> Result<()> {
         if let Some(attributes) = &entry.class_attributes {
-            self.fire_attribute_callbacks(
+            self.fireAfterResolvingAttributeCallbacks(
                 attributes,
-                &AttributeValue::One(ParameterValue::new(value.clone())),
+                &ParameterValue::service(value.clone()).into(),
                 None,
-                Some(key),
             )?;
         }
         Ok(())

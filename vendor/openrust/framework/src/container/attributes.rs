@@ -101,6 +101,31 @@ pub struct AttributeEvent<'a> {
     pub parameter: Option<AttributeParameter>,
 }
 
+impl AttributeEvent<'_> {
+    /// Returns the resolved service through its original type or a declared trait view.
+    pub fn service<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        container: &Container,
+    ) -> Result<Option<Arc<T>>> {
+        let AttributeValue::One(value) = self.value else {
+            return Ok(None);
+        };
+        let Some(source) = &value.service_key else {
+            return Ok(None);
+        };
+        let target = ServiceKey::typed::<T>();
+        if *source == target {
+            return value
+                .downcast::<Arc<T>>()
+                .map(|value| Some((*value).clone()));
+        }
+        container
+            .projection(source, &target)
+            .map(|projection| projection.view(value))
+            .transpose()
+    }
+}
+
 #[derive(Default)]
 pub(super) struct Attributes {
     resolvers: std::collections::HashMap<ServiceKey, Arc<Resolve>>,
@@ -196,13 +221,19 @@ impl Container {
         }
     }
 
-    pub(super) fn fire_attribute_callbacks(
+    /// Runs the post-resolution callbacks for already resolved attribute metadata and value.
+    /// Pass parameter metadata for an injected argument, or `None` for a class.
+    pub fn fireAfterResolvingAttributeCallbacks(
         &self,
         attributes: &[ClassAttribute],
         value: &AttributeValue,
         parameter: Option<AttributeParameter>,
-        service: Option<&ServiceKey>,
     ) -> Result<()> {
+        super::scope::check_open(self)?;
+        let service = match value {
+            AttributeValue::One(value) => value.service_key.as_ref(),
+            AttributeValue::Many(_) => None,
+        };
         for attribute in attributes {
             let invoke = |callback: &After| {
                 let instance = (attribute.instantiate)()?;
@@ -218,6 +249,7 @@ impl Container {
             if let Some(callback) = &attribute.after {
                 invoke(callback.as_ref())?;
             }
+            let projections = service.and_then(|key| self.class_projections(key));
             let callbacks: Vec<_> = self
                 .registry
                 .read()
@@ -225,7 +257,13 @@ impl Container {
                 .attributes
                 .after
                 .iter()
-                .filter(|(key, _)| key == &attribute.key || Some(key) == service)
+                .filter(|(key, _)| {
+                    key == &attribute.key
+                        || Some(key) == service
+                        || projections
+                            .as_ref()
+                            .is_some_and(|views| views.iter().any(|view| view.target == *key))
+                })
                 .flat_map(|(_, callbacks)| callbacks.iter().cloned())
                 .collect();
             for callback in callbacks {

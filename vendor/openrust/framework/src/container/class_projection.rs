@@ -49,7 +49,7 @@ impl ClassProjection {
                         target: target.clone(),
                     });
                 }
-                Ok(ParameterValue::new(projected))
+                Ok(ParameterValue::service(projected))
             }),
             resolve: |container, key, entry, options| {
                 container
@@ -67,11 +67,15 @@ impl ClassProjection {
         }
     }
 
+    pub(super) fn project(&self, value: &ParameterValue) -> Result<ParameterValue> {
+        (self.project)(value)
+    }
+
     pub(super) fn view<T: ?Sized + Send + Sync + 'static>(
         &self,
         value: &ParameterValue,
     ) -> Result<Arc<T>> {
-        (self.project)(value)?
+        self.project(value)?
             .downcast::<Arc<T>>()
             .map(|value| (*value).clone())
     }

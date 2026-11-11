@@ -1795,7 +1795,7 @@ impl Container {
                 let value = factory(self)?;
                 let resolution = if entry.class_attributes.is_some() {
                     drop(resolution);
-                    self.after_class(&key, &entry, &value.value)?;
+                    self.after_class(&entry, &value.value)?;
                     self.resolve(&key, Arc::as_ptr(&entry.version).addr())?
                 } else {
                     resolution
@@ -1854,7 +1854,7 @@ impl Container {
                     let value = factory(self)?;
                     if entry.class_attributes.is_some() {
                         drop(resolution.take());
-                        self.after_class(&key, &entry, &value.value)?;
+                        self.after_class(&entry, &value.value)?;
                         resolution = Some(self.resolve(&key, Arc::as_ptr(&entry.version).addr())?);
                     }
                     value.decorate(|value| {

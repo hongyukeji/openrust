@@ -135,6 +135,7 @@ impl ContextualAttribute for ProbeGreeting {
         Ok(ParameterValue::new(Arc::new(Greeting(format!("attribute:{}", greeting.0)))).into())
     }
 }
+struct ObserveConstruction;
 struct CompiledProbe(Arc<Greeting>);
 trait CompiledProbeView: Send + Sync {
     fn greeting(&self) -> &str;
@@ -176,6 +177,18 @@ impl FrameworkCommand for ConstructionCommand {
                 .offsetGet::<dyn CompiledProbeView>("projection.event")
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             assert!(Arc::ptr_eq(&event, &value));
+            app.container()
+                .fireAfterResolvingAttributeCallbacks(
+                    &[ClassAttribute::marker(|| Ok(ObserveConstruction))],
+                    &ParameterValue::service(value.clone()).into(),
+                    None,
+                )
+                .map_err(|source| ConsoleError::new(source.to_string()))?;
+            let observed = app
+                .container()
+                .offsetGet::<dyn CompiledProbeView>("projection.attribute")
+                .map_err(|source| ConsoleError::new(source.to_string()))?;
+            assert!(Arc::ptr_eq(&observed, &value));
             output
                 .stdout
                 .push_str(&format!("constructed:{}", value.greeting()));
@@ -440,6 +453,13 @@ impl ServiceProvider for Provider {
             )?;
             app.container()
                 .alias(ServiceKey::typed::<CompiledProbe>(), "compiled.probe")?;
+            app.container()
+                .afterResolvingAttribute::<ObserveConstruction>(|event, container| {
+                    let view = event
+                        .service::<dyn CompiledProbeView>(container)?
+                        .expect("probe view");
+                    container.offsetSet("projection.attribute", view)
+                });
             app.container().afterResolving(
                 Some(ServiceKey::typed::<dyn CompiledProbeView>()),
                 |event, container| {

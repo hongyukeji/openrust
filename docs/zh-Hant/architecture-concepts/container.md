@@ -796,7 +796,38 @@ fn main() {
 
 建構函式先查明確指定的具名參數，再使用第一個內容屬性。屬性回傳空值時，會回退到一般建構參數解析。方法呼叫依序檢查具名參數、屬性、類別名稱參數或一般解析。方法的可空參數會保留屬性回傳的空值。
 
-使用 `ClassAttribute::marker` 宣告標記，使用 `afterResolvingAttribute` 依屬性型別或宣告的服務型別觀察解析結果。參數回呼會在建構或呼叫前執行，明確指定的建構參數會略過其回呼。類別屬性回呼在建構完成後、擴充器和服務解析回呼之前執行。屬性回呼使用同步 Rust 函式，也會在非同步解析時執行。
+使用 `ClassAttribute::marker` 宣告標記，使用 `afterResolvingAttribute` 依屬性型別、具體服務型別或已宣告的 trait 檢視觀察解析結果。參數回呼會在建構或呼叫前執行，明確指定的建構參數會略過其回呼。類別屬性回呼在建構完成後、擴充器和服務解析回呼之前執行。屬性回呼使用同步 Rust 函式，也會在非同步解析時執行。
+
+### 派發屬性回呼
+
+自行解析參數的元件可以呼叫 `fireAfterResolvingAttributeCallbacks`，傳入編譯後的屬性和解析結果。參數傳 `Some(AttributeParameter { .. })`，類別傳 `None`。每個屬性先執行自己的 `after`，再執行已註冊的回呼。發生錯誤時停止派發並將錯誤傳回呼叫端。
+
+用 `ParameterValue::service(arc)` 包裝物件可保留具體型別。回呼可透過 `event.service::<T>(container)` 取得原物件或指向同一配置的已註冊 trait 檢視。已抹除為 trait 的值保留傳入的 trait 型別。上下文屬性提供具體服務時，建構函式和方法呼叫可以套用已宣告的投影。
+
+```rust
+use openrust::container::{ClassAttribute, Container, ParameterValue};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
+struct Audited;
+struct Service(AtomicBool);
+
+fn main() {
+    let container = Container::default();
+    container.afterResolvingAttribute::<Audited>(|event, container| {
+        let service = event.service::<Service>(container)?.unwrap();
+        service.0.store(true, Ordering::Relaxed);
+        Ok(())
+    });
+
+    let service = Arc::new(Service(AtomicBool::new(false)));
+    container.fireAfterResolvingAttributeCallbacks(
+        &[ClassAttribute::marker(|| Ok(Audited))],
+        &ParameterValue::service(service.clone()).into(),
+        None,
+    ).unwrap();
+    assert!(service.0.load(Ordering::Relaxed));
+}
+```
 
 ## 條件繫結屬性
 

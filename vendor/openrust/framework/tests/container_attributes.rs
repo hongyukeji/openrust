@@ -262,3 +262,161 @@ fn missing_handlers_can_be_registered_and_default_resolvers_stay_container_local
     );
     assert_eq!(*trace.lock().unwrap(), ["default resolver"]);
 }
+
+trait ItemView: Send + Sync {
+    fn number(&self) -> u32;
+}
+impl ItemView for Item {
+    fn number(&self) -> u32 {
+        self.0
+    }
+}
+
+struct ChooseItem(Arc<Item>);
+impl ContextualAttribute for ChooseItem {
+    fn resolve(
+        &self,
+        _: &Container,
+        _: AttributeParameter,
+    ) -> Result<AttributeValue, BindingResolutionError> {
+        Ok(ParameterValue::service(self.0.clone()).into())
+    }
+}
+struct UsesView(Arc<dyn ItemView>);
+
+#[tokio::test]
+async fn contextual_service_preserves_the_concrete_object_when_projecting_an_argument() {
+    let container = Container::default();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Item(0))))
+                .unwrap()
+                .withProjection(openrust::class_projection!(Item => dyn ItemView)),
+        )
+        .unwrap();
+    let item = Arc::new(Item(23));
+    let register = item.clone();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(
+                vec![
+                    ConstructorParam::class::<dyn ItemView>("item").withAttribute(
+                        ClassAttribute::contextual(move || Ok(ChooseItem(register.clone()))),
+                    ),
+                ],
+                |args| Ok(Arc::new(UsesView(args.service(0)?))),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let concrete = item.clone();
+    let hits = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let recorded = hits.clone();
+    container.afterResolvingAttribute::<Item>(move |event, container| {
+        assert_eq!(event.parameter.unwrap().name, "item");
+        assert!(Arc::ptr_eq(
+            &concrete,
+            &event.service::<Item>(container)?.unwrap()
+        ));
+        let expected: Arc<dyn ItemView> = concrete.clone();
+        assert!(Arc::ptr_eq(
+            &expected,
+            &event.service::<dyn ItemView>(container)?.unwrap()
+        ));
+        recorded.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Ok(())
+    });
+    let method_item = item.clone();
+    let expected: Arc<dyn ItemView> = item;
+    assert!(Arc::ptr_eq(
+        &container.make::<UsesView>().unwrap().0,
+        &expected
+    ));
+    assert!(Arc::ptr_eq(
+        &container.makeAsync::<UsesView>().await.unwrap().0,
+        &expected
+    ));
+    let method = [
+        ConstructorParam::class::<dyn ItemView>("item").withAttribute(ClassAttribute::contextual(
+            move || Ok(ChooseItem(method_item.clone())),
+        )),
+    ];
+    assert_eq!(
+        container
+            .call(
+                Callback::new(&method, |args| async move {
+                    Ok(args.resolved.service::<dyn ItemView>(0)?.number())
+                }),
+                ParameterOverrides::new(),
+            )
+            .await
+            .unwrap(),
+        23
+    );
+    assert_eq!(hits.load(std::sync::atomic::Ordering::Relaxed), 3);
+}
+
+#[test]
+fn public_dispatch_preserves_order_and_stops_on_failure_without_leaking_callbacks() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let container = Container::default();
+    container
+        .registerClass(
+            ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Item(0))))
+                .unwrap()
+                .withProjection(openrust::class_projection!(Item => dyn ItemView)),
+        )
+        .unwrap();
+    let log = Arc::new(Mutex::new(Vec::new()));
+    let fail = AtomicBool::new(true);
+    container.afterResolvingAttribute::<dyn ItemView>({
+        let log = log.clone();
+        move |event, container| {
+            assert_eq!(
+                event.service::<dyn ItemView>(container)?.unwrap().number(),
+                5
+            );
+            log.lock().unwrap().push("view");
+            if fail.swap(false, Ordering::Relaxed) {
+                return Err(BindingResolutionError::NotBound {
+                    service: "missing".into(),
+                });
+            }
+            Ok(())
+        }
+    });
+    container.afterResolvingAttribute::<Pick>({
+        let log = log.clone();
+        move |_, _| {
+            log.lock().unwrap().push("attribute");
+            Ok(())
+        }
+    });
+    let trace = log.clone();
+    let attributes = [ClassAttribute::contextual(move || Ok(Pick(trace.clone())))];
+    let value = ParameterValue::service(Arc::new(Item(5))).into();
+    assert!(
+        container
+            .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+            .is_err()
+    );
+    assert_eq!(*log.lock().unwrap(), ["attribute after", "view"]);
+    container
+        .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+        .unwrap();
+    Container::default()
+        .fireAfterResolvingAttributeCallbacks(&attributes, &value, None)
+        .unwrap();
+    assert_eq!(
+        *log.lock().unwrap(),
+        [
+            "attribute after",
+            "view",
+            "attribute after",
+            "view",
+            "attribute",
+            "attribute after",
+        ]
+    );
+}

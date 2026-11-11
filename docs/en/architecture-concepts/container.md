@@ -796,7 +796,38 @@ fn main() {
 
 Constructors check explicit named overrides first, then the first contextual attribute. A null attribute result falls back to ordinary constructor resolution. Method calls check the named override, then the attribute, then the class-name override or normal resolution. Methods preserve an attribute's null result for a nullable slot.
 
-Attach a marker with `ClassAttribute::marker` and use `afterResolvingAttribute` to observe attributes or their declared service type. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.
+Attach a marker with `ClassAttribute::marker` and use `afterResolvingAttribute` to observe attributes, concrete service types or declared trait views. Parameter callbacks run before construction or invocation. Explicit constructor overrides skip those callbacks. Class callbacks run after construction and before extenders and service resolving callbacks. Attribute callbacks are synchronous Rust functions and also run in asynchronous resolution.
+
+### Dispatching Attribute Callbacks
+
+A component that resolves its own arguments can call `fireAfterResolvingAttributeCallbacks` with the compiled attributes and the resolved value. Pass `Some(AttributeParameter { .. })` for a parameter, or `None` for a class. Each attribute's `after` runs before registered callbacks. An error stops dispatch and propagates to the caller.
+
+Wrap an object with `ParameterValue::service(arc)` to retain its concrete type. Callbacks can use `event.service::<T>(container)` to obtain the original object or a registered trait view of the same allocation. A value already erased to a trait retains the supplied trait type. Constructors and method calls can apply a declared projection when a contextual attribute supplies the concrete service.
+
+```rust
+use openrust::container::{ClassAttribute, Container, ParameterValue};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
+struct Audited;
+struct Service(AtomicBool);
+
+fn main() {
+    let container = Container::default();
+    container.afterResolvingAttribute::<Audited>(|event, container| {
+        let service = event.service::<Service>(container)?.unwrap();
+        service.0.store(true, Ordering::Relaxed);
+        Ok(())
+    });
+
+    let service = Arc::new(Service(AtomicBool::new(false)));
+    container.fireAfterResolvingAttributeCallbacks(
+        &[ClassAttribute::marker(|| Ok(Audited))],
+        &ParameterValue::service(service.clone()).into(),
+        None,
+    ).unwrap();
+    assert!(service.0.load(Ordering::Relaxed));
+}
+```
 
 ## Conditional Binding Attributes
 

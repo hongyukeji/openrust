@@ -796,7 +796,38 @@ fn main() {
 
 构造函数先查显式命名参数，再使用第一个上下文属性。属性返回空值时回退到普通构造参数解析。方法调用依次检查命名参数、属性、类名参数或普通解析。方法的可空参数会保留属性返回的空值。
 
-使用 `ClassAttribute::marker` 声明标记，使用 `afterResolvingAttribute` 按属性类型或声明的服务类型观察解析结果。参数回调在构造或调用前执行，显式构造参数会跳过其回调。类属性回调在构造完成后、扩展器和服务解析回调之前执行。属性回调使用同步 Rust 函数，也会在异步解析中执行。
+使用 `ClassAttribute::marker` 声明标记，使用 `afterResolvingAttribute` 按属性类型、具体服务类型或已声明的 trait 视图观察解析结果。参数回调在构造或调用前执行，显式构造参数会跳过其回调。类属性回调在构造完成后、扩展器和服务解析回调之前执行。属性回调使用同步 Rust 函数，也会在异步解析中执行。
+
+### 派发属性回调
+
+自行解析参数的组件可以调用 `fireAfterResolvingAttributeCallbacks`，传入编译后的属性和解析结果。参数传 `Some(AttributeParameter { .. })`，类传 `None`。每个属性先运行自己的 `after`，再运行已注册的回调。出错时停止派发并向调用方传递错误。
+
+用 `ParameterValue::service(arc)` 包装对象可保留具体类型。回调可通过 `event.service::<T>(container)` 取得原对象或指向同一分配的已登记 trait 视图。已经擦除为 trait 的值保留传入的 trait 类型。上下文属性提供具体服务时，构造函数和方法调用可以应用已声明的投影。
+
+```rust
+use openrust::container::{ClassAttribute, Container, ParameterValue};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+
+struct Audited;
+struct Service(AtomicBool);
+
+fn main() {
+    let container = Container::default();
+    container.afterResolvingAttribute::<Audited>(|event, container| {
+        let service = event.service::<Service>(container)?.unwrap();
+        service.0.store(true, Ordering::Relaxed);
+        Ok(())
+    });
+
+    let service = Arc::new(Service(AtomicBool::new(false)));
+    container.fireAfterResolvingAttributeCallbacks(
+        &[ClassAttribute::marker(|| Ok(Audited))],
+        &ParameterValue::service(service.clone()).into(),
+        None,
+    ).unwrap();
+    assert!(service.0.load(Ordering::Relaxed));
+}
+```
 
 ## 条件绑定属性
 

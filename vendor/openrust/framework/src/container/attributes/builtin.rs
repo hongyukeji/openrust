@@ -96,7 +96,7 @@ impl<T: ?Sized + Send + Sync + 'static> ContextualAttribute for Give<T> {
     fn resolve(&self, container: &Container, _: AttributeParameter) -> Result<AttributeValue> {
         container
             .makeWithNamed::<T>(self.key.clone(), self.parameters.clone())
-            .map(|value| ParameterValue::new(value).into())
+            .map(|value| ParameterValue::service(value).into())
     }
 
     fn resolveAsync<'a>(
@@ -108,7 +108,7 @@ impl<T: ?Sized + Send + Sync + 'static> ContextualAttribute for Give<T> {
             container
                 .makeWithAsyncNamed::<T>(self.key.clone(), self.parameters.clone())
                 .await
-                .map(|value| ParameterValue::new(value).into())
+                .map(|value| ParameterValue::service(value).into())
         })
     }
 }

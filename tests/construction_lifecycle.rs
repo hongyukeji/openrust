@@ -25,7 +25,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 struct Root(PathBuf);
@@ -83,6 +83,7 @@ impl SelfBuilding for SelfBuilt {
     }
 }
 struct Worker {
+    observed: AtomicBool,
     client: Arc<Client>,
     sequence: usize,
     number: u32,
@@ -96,6 +97,7 @@ impl WorkerView for Worker {
     }
 }
 
+struct ObserveWorker;
 struct Workers;
 impl Facade for Workers {
     type Service = Worker;
@@ -117,6 +119,7 @@ impl ServiceProvider for Constructors {
                     ],
                     move |args| {
                         Ok(Arc::new(Worker {
+                            observed: AtomicBool::new(false),
                             client: args.service(0)?,
                             sequence: counts.workers.fetch_add(1, Ordering::SeqCst) + 1,
                             number: *args.get::<u32>(1)?,
@@ -124,6 +127,7 @@ impl ServiceProvider for Constructors {
                     },
                 )?
                 .withLifetime(Lifetime::Scoped)
+                .withAttribute(ClassAttribute::marker(|| Ok(ObserveWorker)))
                 .withProjection(class_projection!(Worker => dyn WorkerView)),
             )?;
             app.container()
@@ -149,6 +153,20 @@ impl ServiceProvider for Constructors {
             app.container().tag(["tagged.number"], ["probe"]);
             app.container()
                 .alias(ServiceKey::typed::<Worker>(), "worker.view")?;
+            app.container()
+                .afterResolvingAttribute::<dyn WorkerView>(|event, container| {
+                    event.attribute.downcast::<ObserveWorker>()?;
+                    let view = event
+                        .service::<dyn WorkerView>(container)?
+                        .expect("worker view");
+                    let concrete = event
+                        .service::<Worker>(container)?
+                        .expect("concrete worker");
+                    let expected: Arc<dyn WorkerView> = concrete.clone();
+                    assert!(Arc::ptr_eq(&view, &expected));
+                    assert!(!concrete.observed.swap(true, Ordering::SeqCst));
+                    Ok(())
+                });
             assert!(!app.container().bound::<Worker>());
             Ok(())
         })
@@ -218,6 +236,7 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             })?;
         assert_eq!(view.sequence(), a.sequence);
         assert!(Arc::ptr_eq(&view, &expected));
+        assert!(a.observed.load(Ordering::SeqCst));
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!(

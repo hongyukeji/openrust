@@ -132,7 +132,7 @@ pub(super) async fn arguments(
         values.push(Argument::Many(items));
     }
     Ok(CallArguments {
-        resolved: validate_arguments(signature, values)?,
+        resolved: validate_arguments(c, signature, values)?,
         remaining,
     })
 }
