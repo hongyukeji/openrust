@@ -8,6 +8,7 @@ use super::{Method, Response, StatusCode};
 pub enum HttpError {
     InvalidRequest,
     PayloadTooLarge,
+    Unauthenticated,
     AuthorizationDenied(String),
     Validation(Box<crate::validation::ValidationException>),
     OriginMismatch,
@@ -29,6 +30,7 @@ impl HttpError {
         match self {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+            Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::OriginMismatch => StatusCode::FORBIDDEN,

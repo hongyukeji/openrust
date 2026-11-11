@@ -15,6 +15,14 @@ pub trait UserProvider: Send + Sync {
         token: &'a str,
     ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>>;
 
+    fn retrieve_by_api_token<'a>(
+        &'a self,
+        _column: &'a str,
+        _token: &'a str,
+    ) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>> {
+        Box::pin(async { Ok(None) })
+    }
+
     fn update_remember_token<'a>(
         &'a self,
         user: &'a mut dyn Authenticatable,

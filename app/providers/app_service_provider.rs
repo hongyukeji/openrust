@@ -1,4 +1,5 @@
 use openrust::{
+    auth::AuthManager,
     contracts::{container::Container as _, foundation::Application as _},
     database::{migrations::MigrationRegistry, seeder::SeederRegistry},
     foundation::Application,
@@ -23,6 +24,9 @@ impl ServiceProvider for AppServiceProvider {
                 .instance::<SeederRegistry>(std::sync::Arc::new(SeederRegistry(
                     crate::database::seeders::ENTRIES,
                 )))?;
+            app.container()
+                .make::<AuthManager>()?
+                .registerModel::<crate::app::models::User>("app::models::User");
             Ok(())
         })
     }

@@ -39,6 +39,18 @@ impl Default for Middleware {
             vec![MiddlewareEntry::Instance(bindings.clone())],
         );
         middleware.group("api", [MiddlewareEntry::Instance(bindings)]);
+        middleware.registry.priority.extend([
+            TypeId::of::<crate::auth::middleware::Authenticate>(),
+            TypeId::of::<SubstituteBindings>(),
+        ]);
+        middleware.alias(
+            "auth",
+            Arc::new(crate::auth::middleware::Authenticate::default()),
+        );
+        middleware.alias(
+            "guest",
+            Arc::new(crate::auth::middleware::RedirectIfAuthenticated::default()),
+        );
         middleware
     }
 }

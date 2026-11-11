@@ -61,6 +61,27 @@ impl RateLimiter {
         }
     }
 
+    pub(crate) async fn reserve(
+        &self,
+        key: &str,
+        max: u64,
+        decay: u64,
+    ) -> CacheResult<Option<u64>> {
+        let quota = Quota {
+            key: counters::key("manual", "", key),
+            max,
+            decay,
+            charge: true,
+        };
+        let repository = self.repository()?;
+        Ok(
+            match counters::admit(repository.as_ref(), &[quota]).await? {
+                Admission::Allowed(_) => None,
+                Admission::Denied { bucket, .. } => Some(bucket.remaining_seconds),
+            },
+        )
+    }
+
     pub async fn hit(&self, key: &str, decay_seconds: u64) -> CacheResult<u64> {
         let repository = self.repository()?;
         let quota = Quota {

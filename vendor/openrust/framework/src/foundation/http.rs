@@ -123,6 +123,7 @@ impl http::Kernel for Kernel {
                         .clone(),
                 );
                 let head = request.method() == Method::HEAD;
+                crate::auth::reset_request(request);
                 request.set_route_parameters(Vec::new());
                 request.route_terminators.clear();
                 request.matched_route = false;

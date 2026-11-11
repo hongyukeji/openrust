@@ -1,9 +1,13 @@
-use crate::auth::AuthResult;
+use crate::{auth::AuthResult, http::Request};
 
 use super::Guard;
 
-/// Resolves and selects named authentication guards for the current scope.
-pub trait Factory: Send {
-    fn guard(&mut self, name: Option<&str>) -> AuthResult<&mut dyn Guard>;
-    fn should_use(&mut self, name: &str) -> AuthResult<()>;
+/// Resolves named authentication guards for one HTTP request.
+pub trait Factory: Send + Sync {
+    fn guard<'a>(
+        &self,
+        request: &'a mut Request,
+        name: Option<&str>,
+    ) -> AuthResult<Box<dyn Guard + 'a>>;
+    fn should_use(&self, request: &mut Request, name: &str) -> AuthResult<()>;
 }
