@@ -31,14 +31,7 @@ pub trait FormRequest: Send + Sync {
             self.prepareForValidation(&mut data)?;
             self.authorize(request, &data)
                 .await
-                .map_err(|error| match error {
-                    AuthorizationError::Denied(denial) => {
-                        HttpError::AuthorizationDenied(denial.into_message())
-                    }
-                    AuthorizationError::Evaluation(_) => HttpError::Internal {
-                        source: std::io::Error::other("form request authorization failed").into(),
-                    },
-                })?;
+                .map_err(HttpError::from)?;
             let mut validator = crate::support::facades::Validator::make(data, self.rules()?)?;
             let validated = validator.validate().await.map_err(|mut error| {
                 if let ValidationError::Invalid(exception) = &mut error {

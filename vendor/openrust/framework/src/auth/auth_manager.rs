@@ -128,6 +128,16 @@ impl AuthManager {
         self.session(request, name, &config)
     }
 
+    /// Resolves the selected identity without borrowing the request after lookup.
+    pub async fn user(
+        &self,
+        request: &mut Request,
+    ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
+        let (name, _) = self.guard_config(request, None)?;
+        self.guard(request, Some(&name))?.user().await?;
+        Ok(AuthContext::state(request, &name).and_then(|state| state.user.clone()))
+    }
+
     fn guard_config(&self, request: &Request, name: Option<&str>) -> AuthResult<(String, Value)> {
         let name = name
             .map(str::to_owned)

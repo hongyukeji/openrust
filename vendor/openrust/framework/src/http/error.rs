@@ -10,6 +10,10 @@ pub enum HttpError {
     PayloadTooLarge,
     Unauthenticated,
     AuthorizationDenied(String),
+    AuthorizationDeniedWithStatus {
+        status: StatusCode,
+        message: String,
+    },
     Validation(Box<crate::validation::ValidationException>),
     OriginMismatch,
     TokenMismatch,
@@ -32,6 +36,7 @@ impl HttpError {
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
+            Self::AuthorizationDeniedWithStatus { status, .. } => *status,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::OriginMismatch => StatusCode::FORBIDDEN,
             Self::TokenMismatch => StatusCode::from_u16(419).expect("valid HTTP status"),

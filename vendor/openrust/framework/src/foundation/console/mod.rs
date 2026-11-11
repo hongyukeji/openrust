@@ -4,6 +4,7 @@ mod console_make_command;
 mod environment_command;
 mod key_generate_command;
 mod model_make_command;
+mod policy_make_command;
 mod storage_link_command;
 mod storage_unlink_command;
 
@@ -64,6 +65,7 @@ impl Kernel {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
+                            policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::view::console::register(&mut self.artisan)?;

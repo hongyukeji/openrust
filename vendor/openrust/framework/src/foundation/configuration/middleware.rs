@@ -42,6 +42,7 @@ impl Default for Middleware {
         middleware.registry.priority.extend([
             TypeId::of::<crate::auth::middleware::Authenticate>(),
             TypeId::of::<SubstituteBindings>(),
+            TypeId::of::<crate::auth::middleware::Authorize>(),
         ]);
         middleware.alias(
             "auth",

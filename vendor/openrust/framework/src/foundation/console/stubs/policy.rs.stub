@@ -1,0 +1,25 @@
+use openrust::{
+    auth::{AuthFuture, AuthResult, access::{Argument, Policy, Response}},
+    contracts::auth::Authenticatable,
+};
+
+{{declaration}}
+
+pub struct {{policy}};
+
+impl Policy<{{model}}> for {{policy}} {
+    fn has_ability(&self, ability: &str) -> bool {
+        let _ = ability;
+        {{abilities}}
+    }
+
+    fn evaluate<'a>(
+        &'a self,
+        _ability: &'a str,
+        _user: Option<&'a dyn Authenticatable>,
+        _resource: Option<&'a {{model}}>,
+        _arguments: &'a [&'a Argument],
+    ) -> AuthFuture<'a, AuthResult<Option<Response>>> {
+        Box::pin(async { Ok(Some(Response::deny("This action is unauthorized."))) })
+    }
+}

@@ -22,6 +22,13 @@ impl ServiceProvider for AuthServiceProvider {
                 Ok(Arc::new(AuthManager::new(app_container.clone(), config)))
             })?;
             container.alias("auth", crate::container::ServiceKey::typed::<AuthManager>())?;
+            container.singletonNamed("gate", |_| {
+                Ok(Arc::new(super::access::GateRegistry::default()))
+            })?;
+            container.alias(
+                "gate",
+                crate::container::ServiceKey::typed::<super::access::GateRegistry>(),
+            )?;
             Ok(())
         })
     }

@@ -42,7 +42,7 @@ pub(crate) struct MiddlewareRegistry {
     pub(crate) aliases: HashMap<String, Arc<dyn Middleware>>,
     pub(crate) priority: Vec<TypeId>,
     pub(crate) throttle_with_redis: bool,
-    throttle_aliases: Mutex<HashMap<String, Arc<dyn Middleware>>>,
+    parameterized_aliases: Mutex<HashMap<String, Arc<dyn Middleware>>>,
 }
 
 impl MiddlewareRegistry {
@@ -86,25 +86,27 @@ impl MiddlewareRegistry {
         if let Some(alias) = self.aliases.get(name) {
             return Some(alias.clone());
         }
-        let limiter = name
-            .strip_prefix("throttle:")
-            .filter(|name| !name.is_empty())?;
+        let (alias, parameters) = name.split_once(':')?;
+        if parameters.is_empty() {
+            return None;
+        }
         let mut aliases = self
-            .throttle_aliases
+            .parameterized_aliases
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        Some(
-            aliases
-                .entry(limiter.into())
-                .or_insert_with(|| {
-                    if self.throttle_with_redis {
-                        Arc::new(ThrottleRequestsWithRedis::new(limiter))
-                    } else {
-                        Arc::new(ThrottleRequests::new(limiter))
-                    }
-                })
-                .clone(),
-        )
+        if let Some(middleware) = aliases.get(name) {
+            return Some(middleware.clone());
+        }
+        let middleware: Arc<dyn Middleware> = match alias {
+            "throttle" if self.throttle_with_redis => {
+                Arc::new(ThrottleRequestsWithRedis::new(parameters))
+            }
+            "throttle" => Arc::new(ThrottleRequests::new(parameters)),
+            "can" => Arc::new(crate::auth::middleware::Authorize::parse(parameters)?),
+            _ => return None,
+        };
+        aliases.insert(name.into(), middleware.clone());
+        Some(middleware)
     }
 
     fn expand(

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     container::ServiceKey,
-    contracts::auth::{Factory, Guard},
+    contracts::auth::{Authenticatable, Factory, Guard},
     http::Request,
     support::facades::Facade,
 };
@@ -37,6 +37,10 @@ impl Auth {
         name: Option<&str>,
     ) -> AuthResult<SessionGuard<'a>> {
         Self::manager()?.sessionGuard(request, name)
+    }
+
+    pub async fn user(request: &mut Request) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
+        Self::manager()?.user(request).await
     }
 
     pub fn shouldUse(request: &mut Request, name: &str) -> AuthResult<()> {

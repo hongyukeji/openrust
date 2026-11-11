@@ -54,6 +54,10 @@ impl ParameterValue {
         parameter.service_key = Some(ServiceKey::typed::<T>());
         parameter
     }
+    pub(crate) fn as_argument(&self) -> Option<&(dyn Any + Send + Sync)> {
+        self.value.as_deref()
+    }
+
     pub(crate) fn downcast_ref<T: Any>(&self) -> Option<&T> {
         self.value.as_deref()?.downcast_ref()
     }

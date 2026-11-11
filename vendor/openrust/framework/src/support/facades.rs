@@ -1,7 +1,7 @@
 //! Static entry points for application services, routes and commands.
 
 mod facade;
-pub use crate::auth::Auth;
+pub use crate::auth::{Auth, access::GateFacade as Gate};
 pub use crate::cache::Cache;
 pub use crate::cookie::facade::Cookie;
 pub use crate::database::{DB, schema::Schema};

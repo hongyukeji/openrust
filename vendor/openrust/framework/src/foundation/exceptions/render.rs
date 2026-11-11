@@ -22,6 +22,9 @@ pub(super) fn default_response(
         Some(HttpError::Throttled { .. }) => "Too Many Attempts.",
         Some(HttpError::TokenMismatch) => "CSRF token mismatch.",
         Some(HttpError::AuthorizationDenied(message)) if !message.is_empty() => message,
+        Some(HttpError::AuthorizationDeniedWithStatus { message, .. }) if !message.is_empty() => {
+            message
+        }
         Some(HttpError::Validation(exception)) => exception.message(),
         _ => status.canonical_reason().unwrap_or("HTTP Error"),
     };

@@ -84,6 +84,16 @@ impl Route {
         self
     }
 
+    /// Applies the named authorization ability after resolving its route arguments.
+    pub fn can(&mut self, ability: &str, parameters: &[&str]) -> &mut Self {
+        let mut alias = format!("can:{ability}");
+        for parameter in parameters {
+            alias.push(',');
+            alias.push_str(parameter);
+        }
+        self.middleware_name(alias)
+    }
+
     pub fn middleware_name(&mut self, name: impl Into<String>) -> &mut Self {
         self.middleware.push(MiddlewareEntry::named(name));
         self.resolved_middleware = None;
