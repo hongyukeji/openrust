@@ -82,6 +82,38 @@ impl<M: Model> Builder<'_, M> {
         self
     }
 
+    pub fn whereFullText(&mut self, columns: &[&str], value: &str) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).whereFullText(columns, value);
+        self
+    }
+
+    pub fn orWhereFullText(&mut self, columns: &[&str], value: &str) -> &mut Self {
+        self.predicates = mem::take(&mut self.predicates).orWhereFullText(columns, value);
+        self
+    }
+
+    pub fn whereFullTextWith(
+        &mut self,
+        columns: &[&str],
+        value: &str,
+        options: query::FullTextOptions,
+    ) -> &mut Self {
+        self.predicates =
+            mem::take(&mut self.predicates).whereFullTextWith(columns, value, options);
+        self
+    }
+
+    pub fn orWhereFullTextWith(
+        &mut self,
+        columns: &[&str],
+        value: &str,
+        options: query::FullTextOptions,
+    ) -> &mut Self {
+        self.predicates =
+            mem::take(&mut self.predicates).orWhereFullTextWith(columns, value, options);
+        self
+    }
+
     pub fn whereKey(&mut self, value: impl Into<Value>) -> &mut Self {
         self.r#where(M::metadata().primary_key, "=", value)
     }

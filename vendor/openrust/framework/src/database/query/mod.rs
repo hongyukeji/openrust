@@ -8,7 +8,7 @@ mod join_clause;
 pub mod processors;
 
 pub use builder::{Builder, Column};
-pub use conditions::Conditions;
+pub use conditions::{Conditions, FullTextOptions};
 pub use expression::Expression;
 pub use join_clause::JoinClause;
 

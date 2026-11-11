@@ -1,6 +1,6 @@
 use std::{fmt::Write as _, sync::Arc};
 
-use crate::database::{DatabaseError, DatabaseResult};
+use crate::database::{DatabaseError, DatabaseResult, query::FullTextOptions};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Dialect {
@@ -141,6 +141,40 @@ impl Grammar {
             Dialect::MySql => format!("{function}({column}) {operator} ?"),
             Dialect::Sqlite => format!("strftime('{format}', {column}) {operator} cast(? as text)"),
         })
+    }
+
+    pub(in crate::database::query) fn full_text(
+        &self,
+        columns: &[String],
+        options: FullTextOptions,
+    ) -> DatabaseResult<String> {
+        if self.dialect != Dialect::MySql {
+            return Err(DatabaseError::InvalidQuery(
+                "full-text search is unavailable for this database driver",
+            ));
+        }
+        if columns.is_empty()
+            || columns
+                .iter()
+                .any(|column| column.rsplit('.').next() == Some("*"))
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "full-text search requires indexed columns",
+            ));
+        }
+        let columns = columns
+            .iter()
+            .map(|column| self.column(column))
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        let options = match options {
+            FullTextOptions::NaturalLanguage => "in natural language mode",
+            FullTextOptions::Boolean => "in boolean mode",
+            FullTextOptions::QueryExpansion => "in natural language mode with query expansion",
+        };
+        Ok(format!(
+            "match ({}) against (? {options})",
+            columns.join(", ")
+        ))
     }
 
     pub(crate) fn like(&self, pattern: &str, case_sensitive: bool) -> (&'static str, String) {

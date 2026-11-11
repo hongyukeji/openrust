@@ -20,6 +20,8 @@ use std::collections::BTreeMap;
 
 use crate::database::Value;
 
+mod searchable;
+
 pub use builder::Builder;
 pub use collection::Collection;
 pub use concerns::{
@@ -35,3 +37,5 @@ pub use serialization::VisibilityCondition;
 
 /// The raw attributes of a model, keyed by column name.
 pub type Attributes = BTreeMap<String, Value>;
+
+pub use searchable::{SearchBuilder, SearchColumn, Searchable};

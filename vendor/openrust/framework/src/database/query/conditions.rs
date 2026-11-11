@@ -5,6 +5,15 @@ use super::{
     grammars::{DatePart, Grammar},
 };
 
+/// The search mode for MySQL-compatible full-text indexes.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum FullTextOptions {
+    #[default]
+    NaturalLanguage,
+    Boolean,
+    QueryExpansion,
+}
+
 #[derive(Clone, Copy)]
 enum Boolean {
     And,
@@ -20,6 +29,7 @@ enum Predicate {
     Between(String, [Value; 2], bool),
     Group(Conditions, bool),
     Like(String, String, bool, bool),
+    FullText(Vec<String>, String, FullTextOptions),
     Date(DatePart, String, String, String),
     BetweenColumns(String, [String; 2], bool),
     Raw(Expression),
@@ -141,6 +151,24 @@ macro_rules! predicate_methods {
         pub fn orWhereNotLike(mut self, column: &str, pattern: &str, case_sensitive: bool) -> Self {
             self.conditions()
                 .like(true, column, pattern, case_sensitive, true);
+            self
+        }
+
+        pub fn whereFullText(self, columns: &[&str], value: &str) -> Self {
+            self.whereFullTextWith(columns, value, $crate::database::query::FullTextOptions::default())
+        }
+
+        pub fn orWhereFullText(self, columns: &[&str], value: &str) -> Self {
+            self.orWhereFullTextWith(columns, value, $crate::database::query::FullTextOptions::default())
+        }
+
+        pub fn whereFullTextWith(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
+            self.conditions().full_text(false, columns, value, options);
+            self
+        }
+
+        pub fn orWhereFullTextWith(mut self, columns: &[&str], value: &str, options: $crate::database::query::FullTextOptions) -> Self {
+            self.conditions().full_text(true, columns, value, options);
             self
         }
 
@@ -335,6 +363,23 @@ impl Conditions {
         );
     }
 
+    pub(super) fn full_text(
+        &mut self,
+        or: bool,
+        columns: &[&str],
+        value: &str,
+        options: FullTextOptions,
+    ) {
+        self.push(
+            or,
+            Predicate::FullText(
+                columns.iter().map(|column| (*column).to_owned()).collect(),
+                value.to_owned(),
+                options,
+            ),
+        );
+    }
+
     pub(super) fn date(
         &mut self,
         or: bool,
@@ -458,6 +503,10 @@ impl Predicate {
                 let not = if *negated { " not " } else { " " };
                 sql.push_str(&format!("{}{not}{operator} ?", grammar.column(column)?));
                 bindings.push(pattern.into());
+            }
+            Self::FullText(columns, value, options) => {
+                sql.push_str(&grammar.full_text(columns, *options)?);
+                bindings.push(value.clone().into());
             }
             Self::Raw(expression) => {
                 sql.push_str(&expression.sql);
