@@ -8,5 +8,7 @@ pub trait Notifiable: Send + Sync {
         notification: &dyn Notification,
     ) -> NotificationResult<Option<NotificationRoute>>;
 
-    fn preferred_locale(&self) -> Option<&str>;
+    fn preferred_locale(&self) -> Option<&str> {
+        None
+    }
 }

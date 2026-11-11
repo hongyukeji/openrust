@@ -21,7 +21,7 @@ aws-sdk-s3 = { version = "=1.137.0", default-features = false, features = ["rt-t
 base64 = "0.22.1"
 bcrypt = "0.19.3"
 cap-std = "4.0.3"
-chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
 clap = "4.6.1"
 deunicode = "1.6.2"
 dotenvy = "0.15.7"
@@ -32,6 +32,7 @@ http-body = "1.0"
 httpdate = "1.0.3"
 indexmap = "=2.14.2"
 infer = { version = "0.19.0", default-features = false }
+lettre = { version = "=0.11.23", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls"] }
 mime_guess = "2.0.5"
 multer = "3.1.0"
 percent-encoding = "2.3"

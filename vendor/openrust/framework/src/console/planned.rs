@@ -93,10 +93,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("make:migration", "Generate a database migration"),
     ("make:model", "Generate a database model"),
     ("make:notification", "Generate a notification"),
-    (
-        "make:notifications-table",
-        "Generate a migration for database notifications",
-    ),
     ("make:observer", "Generate a model observer"),
     ("make:policy", "Generate an authorization policy"),
     ("make:provider", "Generate a service provider"),
@@ -200,7 +196,6 @@ const SKELETON_PACKAGES: &[(&str, &str)] = &[
 const ALIASES: &[(&str, &str)] = &[
     ("make:cache-table", "cache:table"),
     ("make:config", "config:make"),
-    ("make:notifications-table", "notifications:table"),
     ("make:queue-batches-table", "queue:batches-table"),
     ("make:queue-failed-table", "queue:failed-table"),
     ("make:queue-table", "queue:table"),

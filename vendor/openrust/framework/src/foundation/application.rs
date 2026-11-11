@@ -198,7 +198,7 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let base_providers: [Box<dyn ServiceProvider>; 16] = [
+        let base_providers: [Box<dyn ServiceProvider>; 18] = [
             Box::new(crate::log::LogServiceProvider),
             Box::new(crate::events::EventServiceProvider),
             Box::new(crate::database::DatabaseServiceProvider),
@@ -213,6 +213,8 @@ impl Application {
             Box::new(crate::cache::CacheServiceProvider),
             Box::new(crate::view::ViewServiceProvider),
             Box::new(crate::translation::TranslationServiceProvider),
+            Box::new(crate::mail::MailServiceProvider),
+            Box::new(crate::notifications::NotificationServiceProvider),
             Box::new(crate::validation::ValidationServiceProvider),
             Box::new(crate::auth::AuthServiceProvider),
         ];

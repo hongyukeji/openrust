@@ -15,6 +15,8 @@ pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
+pub use crate::mail::Mail;
+pub use crate::notifications::NotificationFacade as Notification;
 pub use crate::queue::QueueFacade as Queue;
 pub use crate::redis::Redis;
 pub use crate::translation::Lang;

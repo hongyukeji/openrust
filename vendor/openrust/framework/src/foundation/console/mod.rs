@@ -71,6 +71,7 @@ impl Kernel {
                             key_generate_command::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::queue::console::register(&mut self.artisan)?;
+                            crate::notifications::console::register(&mut self.artisan)?;
                             crate::view::console::register(&mut self.artisan)?;
                             crate::routing::console::route_list_command::register(
                                 &mut self.artisan,

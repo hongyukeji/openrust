@@ -15,6 +15,17 @@ impl MigrationCreator {
         table: Option<&str>,
         create: bool,
     ) -> io::Result<PathBuf> {
+        self.create_with_body(name, directory, table, create, None)
+    }
+
+    pub(crate) fn create_with_body(
+        &self,
+        name: &str,
+        directory: &Path,
+        table: Option<&str>,
+        create: bool,
+        body: Option<(&str, &str)>,
+    ) -> io::Result<PathBuf> {
         let name = snake_case(name);
         if name.is_empty()
             || !name
@@ -59,7 +70,7 @@ impl MigrationCreator {
             "{}{suffix}",
             chrono::Utc::now().format("%Y_%m_%d_%H%M%S")
         ));
-        let (up, down) = match table {
+        let (up, down) = body.map(|(up, down)| (up.to_owned(), down.to_owned())).unwrap_or_else(|| match table {
             Some(table) if create => (
                 format!(
                     "connection.getSchemaBuilder().create({table:?}, |table| {{\n                table.id();\n                table.timestamps();\n            }}).await"
@@ -71,7 +82,7 @@ impl MigrationCreator {
                 format!("connection.getSchemaBuilder().table({table:?}, |_table| {{}}).await"),
             ),
             None => ("Ok(())".into(), "Ok(())".into()),
-        };
+        });
         let code = format!(
             "use openrust::database::{{DatabaseFuture, DatabaseResult, migrations::{{Migration, MigrationContext}}}};\n\n\
              pub struct Definition;\n\nimpl Migration for Definition {{\n    \
