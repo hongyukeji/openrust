@@ -16,6 +16,7 @@ use aws_sdk_s3::{
 use openrust::{
     config::Repository,
     filesystem::{FilesystemError, FilesystemManager, S3DiskConfig, Visibility, WriteOptions},
+    http::HeaderMap,
 };
 use serde_json::json;
 use tokio::io::{AsyncRead, AsyncReadExt as _, ReadBuf};
@@ -65,6 +66,10 @@ impl Service {
             json!({
                 "default": "s3", "disks": {
                     "s3": disk("tenant-a", true), "isolated": disk("tenant-b", false),
+                    "cdn": {
+                        "driver": "s3", "bucket": self.bucket, "region": "us-east-1",
+                        "root": "tenant-a", "url": "https://cdn.example.test/files/",
+                    },
                 }
             }),
         )]));
@@ -158,6 +163,33 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
         Err(FilesystemError::InvalidPath)
     ));
     assert!(disk.put("a/space + 你好.txt", b"hello").await.unwrap());
+    let suffix = "tenant-a/a/space%20%2B%20%E4%BD%A0%E5%A5%BD.txt";
+    assert_eq!(
+        disk.url("a/space + 你好.txt").unwrap(),
+        format!("{}/{}/{suffix}", service.endpoint, service.bucket)
+    );
+    assert_eq!(
+        manager
+            .disk(Some("cdn"))
+            .unwrap()
+            .url("a/space + 你好.txt")
+            .unwrap(),
+        format!("https://cdn.example.test/files/{suffix}")
+    );
+    let (headers, body) = disk
+        .download("a/space + 你好.txt", Some("report.txt"), HeaderMap::new())
+        .await
+        .unwrap()
+        .into_parts();
+    assert_eq!(headers.headers["content-length"], "5");
+    assert_eq!(
+        headers.headers["content-disposition"],
+        "attachment; filename=report.txt"
+    );
+    assert_eq!(
+        axum::body::to_bytes(body, 5).await.unwrap().as_ref(),
+        b"hello"
+    );
     assert_eq!(
         disk.get("a/space + 你好.txt").await.unwrap().unwrap(),
         b"hello"

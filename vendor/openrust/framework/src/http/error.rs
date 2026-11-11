@@ -54,3 +54,17 @@ impl Error for HttpError {
         }
     }
 }
+
+impl From<crate::filesystem::FilesystemError> for HttpError {
+    fn from(error: crate::filesystem::FilesystemError) -> Self {
+        use crate::filesystem::FilesystemError;
+
+        match error {
+            FilesystemError::InvalidPath => Self::InvalidRequest,
+            FilesystemError::NotFound => Self::NotFound,
+            source => Self::Internal {
+                source: Box::new(source),
+            },
+        }
+    }
+}

@@ -78,9 +78,51 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 `get` 傳回檔案內容。讀取大型檔案時可透過 `readStream` 取得非同步讀取器。預設 `throw = false` 時讀取失敗傳回 `None`，寫入失敗傳回 `false`。設定 `throw = true` 可傳回錯誤，設定 `report = true` 可記錄預設策略處理的錯誤。無效路徑一律傳回錯誤。
 
+### 下載檔案
+
+使用 `download` 產生附件回應，或用 `response` 在瀏覽器內顯示。兩者均以串流方式讀取檔案，可傳入下載名稱及回應標頭。介面卡會補充內容類型、已知長度及內容處置標頭。下載私有檔案前，由應用程式授權。處理器回傳 `HttpError` 時，檔案不存在會轉為 HTTP 404。
+
+```rust
+use openrust::{
+    http::{HeaderMap, HttpError, Response},
+    support::facades::Storage,
+};
+
+pub async fn download_report() -> Result<Response, HttpError> {
+    Ok(Storage::disk(Some("public"))?
+        .download("reports/summary.txt", Some("summary.txt"), HeaderMap::new())
+        .await?)
+}
+```
+
+### 檔案 URL
+
+`Storage::url` 使用預設磁碟。具名磁碟優先使用設定的 `url`，本機磁碟未設定時使用 `/storage`。本機 URL 請使用適合 URL 的檔名。S3 可透過 `AWS_URL` 設定公開基底網址。未設定時由 AWS SDK 解析儲存貯體端點，介面卡附加編碼後的物件鍵與設定前綴。檔案是否可存取由磁碟掛載或儲存貯體控制。
+
 ## 儲存檔案
 
 `writeStream` 從非同步讀取器複製資料。本機驅動程式先寫入同目錄暫存檔，串流完成後重新命名並發布。來源失敗或發布前取消會保留原檔。重新命名操作已經發出後，即使呼叫端取消，完整寫入仍可能發布。
+
+### 檔案上傳
+
+透過 `Request::file` 取得 multipart 上傳。可呼叫上傳物件的 `store` 或 `storeAs`，也可使用磁碟的 `putFile` 或 `putFileAs`。`storePublicly` 和 `storePubliclyAs` 會要求公開可見性。自動檔名使用 40 個隨機字元，辨識出類型時附加由內容推斷的副檔名。用戶端檔名與媒體類型屬於中繼資料，儲存前應執行應用程式的上傳驗證。
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Storage,
+};
+
+pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpError> {
+    let attachment = request.file("attachment").await?.ok_or(HttpError::InvalidRequest)?;
+    let disk = Storage::disk(Some("public"))?;
+    let path = attachment.storePublicly("attachments", Some("public")).await?
+        .ok_or_else(|| HttpError::Internal {
+            source: std::io::Error::other("Could not store attachment").into(),
+        })?;
+    Response::json(StatusCode::CREATED, disk.url(&path)?)
+}
+```
 
 ### 檔案可見性
 

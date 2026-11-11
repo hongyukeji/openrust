@@ -64,14 +64,21 @@ impl FilesystemManager {
             .get("filesystems.disks")
             .and_then(|disks| disks.get(name).cloned())
             .ok_or_else(|| FilesystemError::UnknownDisk { name: name.into() })?;
+        let url = match config.get("url") {
+            Some(serde_json::Value::String(url)) if !url.is_empty() => Some(url.clone()),
+            None | Some(serde_json::Value::Null) => None,
+            _ => return Err(FilesystemError::InvalidConfiguration),
+        };
         let disk = match config.get("driver").and_then(serde_json::Value::as_str) {
-            Some("local") => self.build(
+            Some("local") => self.build_local(
                 serde_json::from_value(config)
                     .map_err(|_| FilesystemError::InvalidConfiguration)?,
+                url,
             )?,
-            Some("s3") => self.buildS3(
+            Some("s3") => self.build_s3(
                 serde_json::from_value(config)
                     .map_err(|_| FilesystemError::InvalidConfiguration)?,
+                url,
             )?,
             Some(_) => return Err(FilesystemError::UnsupportedOperation),
             None => return Err(FilesystemError::InvalidConfiguration),
@@ -88,6 +95,14 @@ impl FilesystemManager {
     }
 
     pub fn build(&self, config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        self.build_local(config, None)
+    }
+
+    fn build_local(
+        &self,
+        config: LocalDiskConfig,
+        url: Option<String>,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
         if config.root.as_os_str().is_empty() {
             return Err(FilesystemError::InvalidConfiguration);
         }
@@ -100,14 +115,23 @@ impl FilesystemManager {
             local,
             config.throw,
             config.report,
+            url,
         )))
     }
 
     pub fn buildS3(&self, config: S3DiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        self.build_s3(config, None)
+    }
+
+    fn build_s3(
+        &self,
+        config: S3DiskConfig,
+        url: Option<String>,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
         let throw = config.throw;
         let report = config.report;
         let driver = AwsS3V3Adapter::new(config)?;
-        Ok(Arc::new(FilesystemAdapter::s3(driver, throw, report)))
+        Ok(Arc::new(FilesystemAdapter::s3(driver, throw, report, url)))
     }
 
     pub fn forgetDisk(&self, name: &str) {

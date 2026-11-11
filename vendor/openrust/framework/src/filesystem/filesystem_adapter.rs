@@ -2,14 +2,17 @@ use std::path::PathBuf;
 
 use tokio::io::{AsyncRead, AsyncReadExt as _};
 
+use crate::http::{HeaderMap, Response, UploadedFile};
+
 use super::{
     AwsS3V3Adapter, FilesystemError, FilesystemReader, FilesystemResult, LocalFilesystemAdapter,
-    Visibility, WriteOptions, is_staging_name,
+    Visibility, WriteOptions, download::OpenedFile, is_staging_name,
 };
 
 /// Applies disk configuration and exposes filesystem operations.
 pub struct FilesystemAdapter {
     driver: Driver,
+    url: Option<String>,
     throw: bool,
     report: bool,
 }
@@ -21,17 +24,29 @@ enum Driver {
 
 #[allow(non_snake_case, reason = "Matches Laravel's filesystem adapter API")]
 impl FilesystemAdapter {
-    pub(super) fn local(local: LocalFilesystemAdapter, throw: bool, report: bool) -> Self {
+    pub(super) fn local(
+        local: LocalFilesystemAdapter,
+        throw: bool,
+        report: bool,
+        url: Option<String>,
+    ) -> Self {
         Self {
             driver: Driver::Local(local),
+            url,
             throw,
             report,
         }
     }
 
-    pub(super) fn s3(driver: AwsS3V3Adapter, throw: bool, report: bool) -> Self {
+    pub(super) fn s3(
+        driver: AwsS3V3Adapter,
+        throw: bool,
+        report: bool,
+        url: Option<String>,
+    ) -> Self {
         Self {
             driver: Driver::S3(Box::new(driver)),
+            url,
             throw,
             report,
         }
@@ -52,6 +67,61 @@ impl FilesystemAdapter {
         let mut bytes = Vec::new();
         let result = reader.read_to_end(&mut bytes).await.map(|_| Some(bytes));
         self.or_default(result.map_err(FilesystemError::from))
+    }
+
+    /// Builds an object URL using the disk configuration.
+    pub fn url(&self, path: &str) -> FilesystemResult<String> {
+        validate_path(path)?;
+        match &self.driver {
+            Driver::Local(_) => Ok(match self.url.as_deref() {
+                Some(base) => format!("{}/{path}", base.trim_end_matches('/')),
+                None => format!("/storage/{}", path.strip_prefix("public/").unwrap_or(path)),
+            }),
+            Driver::S3(disk) => disk.url(path, self.url.as_deref()),
+        }
+    }
+
+    /// Streams an attachment. The caller authorizes access before invoking this method.
+    pub async fn download(
+        &self,
+        path: &str,
+        name: Option<&str>,
+        headers: HeaderMap,
+    ) -> FilesystemResult<Response> {
+        self.file_response(path, name, headers, "attachment").await
+    }
+
+    /// Streams a file with an inline disposition.
+    pub async fn response(
+        &self,
+        path: &str,
+        name: Option<&str>,
+        headers: HeaderMap,
+    ) -> FilesystemResult<Response> {
+        self.file_response(path, name, headers, "inline").await
+    }
+
+    async fn file_response(
+        &self,
+        path: &str,
+        name: Option<&str>,
+        headers: HeaderMap,
+        disposition: &str,
+    ) -> FilesystemResult<Response> {
+        validate_path(path)?;
+        let file = match &self.driver {
+            Driver::Local(disk) => {
+                let reader = disk.read(path.into()).await?;
+                let length = reader.metadata().await?.len();
+                OpenedFile {
+                    length: Some(length),
+                    content_type: None,
+                    reader: Box::new(reader.take(length)),
+                }
+            }
+            Driver::S3(disk) => disk.open(path).await?,
+        };
+        file.response(path, name, headers, disposition)
     }
 
     pub async fn readStream(&self, path: &str) -> FilesystemResult<Option<FilesystemReader>> {
@@ -79,6 +149,33 @@ impl FilesystemAdapter {
     ) -> FilesystemResult<bool> {
         self.writeStreamWithOptions(path, &mut contents.as_ref(), options)
             .await
+    }
+
+    pub async fn putFile(
+        &self,
+        directory: &str,
+        file: &UploadedFile,
+        options: WriteOptions,
+    ) -> FilesystemResult<Option<String>> {
+        self.putFileAs(directory, file, file.hashName()?, options)
+            .await
+    }
+
+    pub async fn putFileAs(
+        &self,
+        directory: &str,
+        file: &UploadedFile,
+        name: &str,
+        options: WriteOptions,
+    ) -> FilesystemResult<Option<String>> {
+        let directory = directory.trim_matches('/');
+        let path = if directory.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{directory}/{name}")
+        };
+        let stored = self.putWithOptions(&path, file.get(), options).await?;
+        Ok(stored.then_some(path))
     }
 
     pub async fn writeStream(

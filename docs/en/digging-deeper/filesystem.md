@@ -78,9 +78,51 @@ Use `Storage::build(LocalDiskConfig)` for an on-demand local disk. The named dis
 
 `get` returns file contents. Use `readStream` for an asynchronous reader when reading large files. The default `throw = false` returns `None` for a failed read or `false` for a failed write. Set `throw = true` to return the error. Set `report = true` to log failures handled by the default policy. Invalid paths return an error in either mode.
 
+### Downloading Files
+
+Use `download` for an attachment or `response` for inline display. Both stream the file and accept a download name and response headers. The adapter supplies content type, length when known, and disposition. Authorize the request before calling these methods for private files. A missing file converts to HTTP 404 when the handler returns `HttpError`.
+
+```rust
+use openrust::{
+    http::{HeaderMap, HttpError, Response},
+    support::facades::Storage,
+};
+
+pub async fn download_report() -> Result<Response, HttpError> {
+    Ok(Storage::disk(Some("public"))?
+        .download("reports/summary.txt", Some("summary.txt"), HeaderMap::new())
+        .await?)
+}
+```
+
+### File URLs
+
+`Storage::url` uses the default disk. A named disk uses its configured `url` when present. A local disk without a configured URL uses `/storage`. Use URL-safe names for local URLs. For S3, set `AWS_URL` for a custom public base. With no custom base, the AWS SDK resolves the bucket endpoint, and the adapter appends the encoded object key including its configured prefix. Generating a URL leaves access control to the disk mount or bucket.
+
 ## Storing Files
 
 `writeStream` copies from an asynchronous reader. The local driver writes a sibling temporary file and publishes it by rename after the stream completes. A source failure or cancellation before publication preserves an existing file. A cancellation after the rename has been dispatched can still publish the completed write.
+
+### File Uploads
+
+Get an upload from a multipart request with `Request::file`. Use `store` and `storeAs` on the uploaded file, or `putFile` and `putFileAs` on the disk. `storePublicly` and `storePubliclyAs` request public visibility. Generated names use 40 random characters and a content-derived extension when recognized. The client filename and media type are metadata. Apply your application’s upload validation before saving.
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Storage,
+};
+
+pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpError> {
+    let attachment = request.file("attachment").await?.ok_or(HttpError::InvalidRequest)?;
+    let disk = Storage::disk(Some("public"))?;
+    let path = attachment.storePublicly("attachments", Some("public")).await?
+        .ok_or_else(|| HttpError::Internal {
+            source: std::io::Error::other("Could not store attachment").into(),
+        })?;
+    Response::json(StatusCode::CREATED, disk.url(&path)?)
+}
+```
 
 ### File Visibility
 

@@ -237,7 +237,7 @@ async fn application_scope_and_public_mount_work_over_http() {
         config::{ConfigError, Environment, Value},
         contracts::http::Kernel as _,
         foundation::{Application, configuration::Routing, http::Kernel},
-        http::{HttpError, HttpFuture, Request, Response, StatusCode},
+        http::{HeaderMap, HttpError, HttpFuture, Method, Request, Response, StatusCode},
         support::facades::{Route, Storage},
     };
 
@@ -262,18 +262,22 @@ async fn application_scope_and_public_mount_work_over_http() {
         axum::response::Response::from_parts(parts, body)
     }
 
-    async fn get(address: std::net::SocketAddr, path: &str) -> String {
+    async fn send(address: std::net::SocketAddr, request: &str, body: &[u8]) -> Vec<u8> {
         let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
         socket
             .write_all(
-                format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
-                    .as_bytes(),
+                format!("{request}\r\nHost: {address}\r\nConnection: close\r\n\r\n").as_bytes(),
             )
             .await
             .unwrap();
-        let mut response = String::new();
-        socket.read_to_string(&mut response).await.unwrap();
+        socket.write_all(body).await.unwrap();
+        let mut response = Vec::new();
+        socket.read_to_end(&mut response).await.unwrap();
         response
+    }
+
+    async fn get(address: std::net::SocketAddr, path: &str) -> String {
+        String::from_utf8(send(address, &format!("GET {path} HTTP/1.1"), b"").await).unwrap()
     }
 
     fn write(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -300,7 +304,48 @@ async fn application_scope_and_public_mount_work_over_http() {
                 .await
                 .unwrap()
             );
+            disk.put("nested/large.txt", vec![b'x'; 256 * 1024]).await?;
             Ok(Response::empty(StatusCode::NO_CONTENT))
+        })
+    }
+
+    fn upload(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let file = request
+                .file("attachment")
+                .await?
+                .ok_or(HttpError::InvalidRequest)?;
+            let name = file.hashName()?;
+            assert_eq!(file.clone().hashName()?, name);
+            assert_eq!(file.extension(), Some("png"));
+            let path = file
+                .storePublicly("incoming", Some("public"))
+                .await?
+                .unwrap();
+            assert_eq!(path, format!("incoming/{name}"));
+            file.storeAs("incoming", "private.png", None)
+                .await?
+                .unwrap();
+            let disk = Storage::disk(Some("public"))?;
+            assert!(matches!(
+                disk.putFileAs("incoming", &file, "../escape.png", WriteOptions::default())
+                    .await,
+                Err(FilesystemError::InvalidPath)
+            ));
+            Response::json(StatusCode::CREATED, json!({"url": disk.url(&path)?}))
+        })
+    }
+
+    fn download(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let disk = Storage::disk(Some("public"))?;
+            let (path, name) = match request.route("file") {
+                Some("public") => ("nested/public.txt", "привет%.txt"),
+                Some("large") => ("nested/large.txt", "large.txt"),
+                Some("invalid") => ("nested/public.txt", "invalid\r\nname.txt"),
+                _ => ("missing.txt", "missing.txt"),
+            };
+            Ok(disk.download(path, Some(name), HeaderMap::new()).await?)
         })
     }
 
@@ -309,7 +354,9 @@ async fn application_scope_and_public_mount_work_over_http() {
             .withConfig(config)
             .withRouting(Routing::default().web(|| {
                 Route::staticDisk("public")?;
-                Route::get("/write", write)
+                Route::get("/write", write)?;
+                Route::r#match(&[Method::POST], "/upload", upload)?;
+                Route::get("/download/{file}", download)
             }))
             .create()
             .unwrap();
@@ -350,6 +397,68 @@ async fn application_scope_and_public_mount_work_over_http() {
     assert_eq!(
         std::fs::read(first.0.join("private/notes/example.txt")).unwrap(),
         b"Hello"
+    );
+
+    let downloaded = get(address, "/download/public").await;
+    let (headers, body) = downloaded.split_once("\r\n\r\n").unwrap();
+    assert!(headers.starts_with("HTTP/1.1 200"));
+    assert!(headers.contains("\r\ncontent-length: 14\r\n"));
+    assert!(headers.contains("\r\ncontent-type: text/plain\r\n"));
+    assert!(headers.contains("content-disposition: attachment; filename=privet.txt; filename*=utf-8''%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82%25.txt"));
+    assert_eq!(body, "public content");
+    let large = get(address, "/download/large").await;
+    let (headers, body) = large.split_once("\r\n\r\n").unwrap();
+    assert!(headers.contains("\r\ncontent-length: 262144\r\n"));
+    assert_eq!(body.len(), 256 * 1024);
+    assert!(body.bytes().all(|byte| byte == b'x'));
+    assert!(
+        get(address, "/download/invalid")
+            .await
+            .starts_with("HTTP/1.1 400")
+    );
+    assert!(
+        get(address, "/download/missing")
+            .await
+            .starts_with("HTTP/1.1 404")
+    );
+    assert!(
+        get(address, "/download/private")
+            .await
+            .starts_with("HTTP/1.1 404")
+    );
+
+    let png = b"\x89PNG\r\n\x1a\nfixture";
+    let mut body = b"--upload\r\nContent-Disposition: form-data; name=\"attachment\"; filename=\"fake.txt\"\r\nContent-Type: text/plain\r\n\r\n".to_vec();
+    body.extend_from_slice(png);
+    body.extend_from_slice(b"\r\n--upload--\r\n");
+    let request = format!(
+        "POST /upload HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=upload\r\nContent-Length: {}",
+        body.len()
+    );
+    let uploaded = String::from_utf8(send(address, &request, &body).await).unwrap();
+    assert!(uploaded.starts_with("HTTP/1.1 201"), "{uploaded}");
+    let payload: serde_json::Value =
+        serde_json::from_str(uploaded.split_once("\r\n\r\n").unwrap().1).unwrap();
+    let url = payload["url"].as_str().unwrap();
+    let name = url
+        .strip_prefix("/storage/incoming/")
+        .unwrap()
+        .strip_suffix(".png")
+        .unwrap();
+    assert_eq!(name.len(), 40);
+    assert!(name.bytes().all(|byte| byte.is_ascii_alphanumeric()));
+    let fetched = send(address, &format!("GET {url} HTTP/1.1"), b"").await;
+    assert!(fetched.starts_with(b"HTTP/1.1 200"));
+    assert!(fetched.ends_with(png));
+    assert!(get(other, url).await.starts_with("HTTP/1.1 404"));
+    assert!(
+        get(address, "/storage/incoming/private.png")
+            .await
+            .starts_with("HTTP/1.1 404")
+    );
+    assert_eq!(
+        std::fs::read(first.0.join("private/incoming/private.png")).unwrap(),
+        png
     );
 
     server.abort();

@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
-use crate::{container::ServiceKey, support::facades::Facade};
+use crate::{
+    container::ServiceKey,
+    http::{HeaderMap, Response, UploadedFile},
+    support::facades::Facade,
+};
 
 use super::{
     FilesystemAdapter, FilesystemError, FilesystemManager, FilesystemResult, LocalDiskConfig,
-    S3DiskConfig,
+    S3DiskConfig, WriteOptions,
 };
 
 /// Resolves storage disks in the current application scope.
@@ -45,8 +49,41 @@ impl Storage {
         Self::disk(None)?.put(path, contents).await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn putFile(
+        directory: &str,
+        file: &UploadedFile,
+        options: WriteOptions,
+    ) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?.putFile(directory, file, options).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn putFileAs(
+        directory: &str,
+        file: &UploadedFile,
+        name: &str,
+        options: WriteOptions,
+    ) -> FilesystemResult<Option<String>> {
+        Self::disk(None)?
+            .putFileAs(directory, file, name, options)
+            .await
+    }
+
     pub async fn get(path: &str) -> FilesystemResult<Option<Vec<u8>>> {
         Self::disk(None)?.get(path).await
+    }
+
+    pub fn url(path: &str) -> FilesystemResult<String> {
+        Self::disk(None)?.url(path)
+    }
+
+    pub async fn download(
+        path: &str,
+        name: Option<&str>,
+        headers: HeaderMap,
+    ) -> FilesystemResult<Response> {
+        Self::disk(None)?.download(path, name, headers).await
     }
 
     pub async fn exists(path: &str) -> FilesystemResult<bool> {

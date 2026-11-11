@@ -4,7 +4,9 @@ use aws_sdk_s3::{
     Client,
     config::{
         BehaviorVersion, Credentials, Region, RequestChecksumCalculation,
-        StalledStreamProtectionConfig, timeout::TimeoutConfig,
+        StalledStreamProtectionConfig,
+        endpoint::{DefaultResolver, Params, ResolveEndpoint as _},
+        timeout::TimeoutConfig,
     },
     error::{ProvideErrorMetadata, SdkError},
     primitives::ByteStream,
@@ -12,6 +14,7 @@ use aws_sdk_s3::{
         CompletedMultipartUpload, CompletedPart, Grant, ObjectCannedAcl, ObjectOwnership, Owner,
     },
 };
+use futures_util::FutureExt as _;
 use serde::Deserialize;
 use tokio::{
     io::{AsyncRead, AsyncReadExt as _},
@@ -19,7 +22,9 @@ use tokio::{
 };
 use url::Url;
 
-use super::{FilesystemError, FilesystemReader, FilesystemResult, Visibility};
+use super::{
+    FilesystemError, FilesystemReader, FilesystemResult, Visibility, download::OpenedFile,
+};
 
 const PART_SIZE: usize = 8 * 1024 * 1024;
 const MAX_PARTS: i32 = 10_000;
@@ -140,6 +145,10 @@ impl AwsS3V3Adapter {
     }
 
     pub(super) async fn read(&self, path: &str) -> FilesystemResult<FilesystemReader> {
+        Ok(self.open(path).await?.reader)
+    }
+
+    pub(super) async fn open(&self, path: &str) -> FilesystemResult<OpenedFile> {
         let result = self
             .client()
             .await
@@ -149,7 +158,42 @@ impl AwsS3V3Adapter {
             .send()
             .await
             .map_err(|error| classify_error(&error))?;
-        Ok(Box::new(result.body.into_async_read()))
+        Ok(OpenedFile {
+            length: result
+                .content_length
+                .and_then(|size| u64::try_from(size).ok()),
+            content_type: result.content_type,
+            reader: Box::new(result.body.into_async_read()),
+        })
+    }
+
+    pub(super) fn url(&self, path: &str, base: Option<&str>) -> FilesystemResult<String> {
+        use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
+
+        const ENCODE: &percent_encoding::AsciiSet = &NON_ALPHANUMERIC
+            .remove(b'-')
+            .remove(b'_')
+            .remove(b'.')
+            .remove(b'~')
+            .remove(b'/');
+        let key = self.key(path);
+        let key = utf8_percent_encode(&key, ENCODE);
+        if let Some(base) = base {
+            return Ok(format!("{}/{key}", base.trim_end_matches('/')));
+        }
+        let params = Params::builder()
+            .bucket(&self.config.bucket)
+            .region(&self.config.region)
+            .force_path_style(self.config.use_path_style_endpoint)
+            .set_endpoint(self.config.endpoint.clone())
+            .build()
+            .map_err(|_| FilesystemError::InvalidConfiguration)?;
+        let endpoint = DefaultResolver::new()
+            .resolve_endpoint(&params)
+            .now_or_never()
+            .ok_or(FilesystemError::InvalidConfiguration)?
+            .map_err(|source| FilesystemError::Backend { source })?;
+        Ok(format!("{}/{key}", endpoint.url().trim_end_matches('/')))
     }
 
     pub(super) async fn file_exists(&self, path: &str) -> FilesystemResult<bool> {

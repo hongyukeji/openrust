@@ -78,9 +78,51 @@ pub async fn store_note() -> FilesystemResult<Option<Vec<u8>>> {
 
 `get` 返回文件内容。读取大文件时可通过 `readStream` 获取异步读取器。默认 `throw = false` 时读取失败返回 `None`，写入失败返回 `false`。设置 `throw = true` 可返回错误，设置 `report = true` 可记录默认策略处理的错误。无效路径始终返回错误。
 
+### 下载文件
+
+用 `download` 生成附件响应，或用 `response` 在浏览器内显示。两者都流式读取文件，可传入下载名称及响应头。适配器补充内容类型、已知长度及内容处置头。下载私有文件前，由应用授权。处理器返回 `HttpError` 时，文件不存在会转换为 HTTP 404。
+
+```rust
+use openrust::{
+    http::{HeaderMap, HttpError, Response},
+    support::facades::Storage,
+};
+
+pub async fn download_report() -> Result<Response, HttpError> {
+    Ok(Storage::disk(Some("public"))?
+        .download("reports/summary.txt", Some("summary.txt"), HeaderMap::new())
+        .await?)
+}
+```
+
+### 文件 URL
+
+`Storage::url` 使用默认磁盘。具名磁盘优先使用配置的 `url`，本地磁盘未配置时使用 `/storage`。本地 URL 请使用适合 URL 的文件名。S3 可通过 `AWS_URL` 指定公共基址。未指定时由 AWS SDK 解析存储桶地址，适配器追加编码后的对象键及其配置前缀。文件是否可访问由磁盘挂载或存储桶控制。
+
 ## 存储文件
 
 `writeStream` 从异步读取器复制数据。本地驱动先写同目录临时文件，流写完后通过重命名发布。源失败或发布前取消会保留原文件。重命名操作已经发出后，即使调用方取消，完整写入仍可能发布。
+
+### 文件上传
+
+通过 `Request::file` 获取 multipart 上传。可调用上传对象的 `store` 或 `storeAs`，也可用磁盘的 `putFile` 或 `putFileAs`。`storePublicly` 和 `storePubliclyAs` 请求公开可见性。自动文件名使用 40 个随机字符，识别出类型时附加由内容推断的扩展名。客户端文件名与媒体类型属于元数据，保存前应执行应用的上传验证。
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response, StatusCode},
+    support::facades::Storage,
+};
+
+pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpError> {
+    let attachment = request.file("attachment").await?.ok_or(HttpError::InvalidRequest)?;
+    let disk = Storage::disk(Some("public"))?;
+    let path = attachment.storePublicly("attachments", Some("public")).await?
+        .ok_or_else(|| HttpError::Internal {
+            source: std::io::Error::other("Could not store attachment").into(),
+        })?;
+    Response::json(StatusCode::CREATED, disk.url(&path)?)
+}
+```
 
 ### 文件可见性
 
