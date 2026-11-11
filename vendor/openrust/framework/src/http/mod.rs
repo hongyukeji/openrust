@@ -5,6 +5,7 @@ use std::{future::Future, pin::Pin};
 mod api_response;
 mod body;
 mod error;
+pub mod middleware;
 mod next;
 mod request;
 mod response;

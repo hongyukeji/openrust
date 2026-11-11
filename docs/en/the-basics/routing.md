@@ -74,3 +74,15 @@ fn register() -> Result<(), RoutingError> {
     )
 }
 ```
+
+## Cross-Origin Resource Sharing (CORS)
+
+Set the paths, origins, methods and headers in `config/cors.rs`. The global `HandleCors` middleware answers matching browser preflights with an empty HTTP 204 and applies the policy to actual responses, including 404 errors. For a denied origin in a dynamic policy, the browser receives no origin grant. A single configured origin may be sent as a fixed value, which only grants that origin.
+
+The default paths are `api/*` and `sanctum/csrf-cookie`. An empty path list disables CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
+
+```bash
+curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
+  -H 'Origin: https://example.com' \
+  -H 'Access-Control-Request-Method: GET'
+```

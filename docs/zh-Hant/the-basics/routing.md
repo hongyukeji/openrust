@@ -74,3 +74,15 @@ fn register() -> Result<(), RoutingError> {
     )
 }
 ```
+
+## 跨來源資源共享（CORS）
+
+在 `config/cors.rs` 中設定路徑、來源、方法和請求標頭。全域 `HandleCors` 中介軟體對相符的瀏覽器預檢回傳空本文 HTTP 204，也會為實際回應套用策略，包括 404。在動態策略中，被拒絕的來源不會收到來源許可。只設定一個來源時可傳送固定值，瀏覽器僅允許該來源。
+
+預設路徑為 `api/*` 和 `sanctum/csrf-cookie`。空路徑清單會停用 CORS。路徑映射可按主機覆寫路徑，用數字字串鍵表示共用路徑。`allowed_origins_patterns` 使用 Rust 正規表示式引擎支援的模式。HTTP 核心在啟動時載入並驗證策略。
+
+```bash
+curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
+  -H 'Origin: https://example.com' \
+  -H 'Access-Control-Request-Method: GET'
+```

@@ -74,3 +74,15 @@ fn register() -> Result<(), RoutingError> {
     )
 }
 ```
+
+## 跨源资源共享（CORS）
+
+在 `config/cors.rs` 中配置路径、来源、方法和请求头。全局 `HandleCors` 中间件对匹配的浏览器预检返回空正文 HTTP 204，也会为实际响应应用策略，包括 404。在动态策略中，被拒绝的来源不会收到来源许可。只配置一个来源时可发送固定值，浏览器仅允许该来源。
+
+默认路径为 `api/*` 和 `sanctum/csrf-cookie`。空路径列表会禁用 CORS。路径映射可按主机覆盖路径，用数字字符串键表示共用路径。`allowed_origins_patterns` 使用 Rust 正则引擎支持的模式。HTTP 内核在启动时加载并校验策略。
+
+```bash
+curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
+  -H 'Origin: https://example.com' \
+  -H 'Access-Control-Request-Method: GET'
+```

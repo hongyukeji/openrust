@@ -20,6 +20,11 @@ pub enum MiddlewareEntry {
 }
 
 impl MiddlewareEntry {
+    /// Registers a concrete middleware with its post-response hook.
+    pub fn terminable<M: crate::contracts::http::TerminableMiddleware>(middleware: Arc<M>) -> Self {
+        Self::Instance(crate::foundation::http::terminable(middleware))
+    }
+
     pub fn named(name: impl Into<String>) -> Self {
         Self::Named(name.into())
     }
@@ -97,21 +102,40 @@ impl MiddlewareRegistry {
     pub(crate) fn resolve_stack(
         &self,
         entries: &[MiddlewareEntry],
+        excluded: &[String],
         groups: &HashMap<String, MiddlewareStack>,
     ) -> Result<MiddlewareStack, RoutingError> {
         let mut stack = self.expand(entries, groups)?;
+        if !excluded.is_empty() {
+            let mut instances = HashSet::new();
+            for name in excluded {
+                if let Some(group) = groups.get(name) {
+                    instances.extend(group.iter().map(middleware_identity));
+                } else if let Some(alias) = self.aliases.get(name) {
+                    instances.insert(middleware_identity(alias));
+                }
+            }
+            stack.retain(|item| !instances.contains(&middleware_identity(item)));
+        }
         sort_by_priority(&mut stack, &self.priority);
         let mut seen = HashSet::new();
-        stack.retain(|instance| seen.insert(Arc::as_ptr(instance).cast::<()>()));
+        stack.retain(|instance| seen.insert(middleware_identity(instance)));
         Ok(stack)
     }
+}
+
+fn middleware_identity(middleware: &Arc<dyn Middleware>) -> *const () {
+    middleware.terminable().map_or_else(
+        || Arc::as_ptr(middleware).cast(),
+        |terminable| std::ptr::from_ref(terminable).cast(),
+    )
 }
 
 fn sort_by_priority(stack: &mut [Arc<dyn Middleware>], priority: &[TypeId]) {
     loop {
         let mut previous = None;
         let inversion = stack.iter().enumerate().find_map(|(index, middleware)| {
-            let id = middleware.as_ref().type_id();
+            let id = middleware.middleware_type_id();
             let rank = priority.iter().position(|candidate| *candidate == id)?;
             let preceding = previous.replace((index, rank));
             preceding

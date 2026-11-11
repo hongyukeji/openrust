@@ -47,20 +47,45 @@ impl Kernel {
             }
         };
 
+        let termination_tasks = self.termination_tasks.clone();
         let service = handle.with_state(Arc::new(self)).into_make_service();
         println!("OpenRust listening on http://{}", listener.local_addr()?);
-        axum::serve(listener, service)
+        let result = axum::serve(listener, service)
             .with_graceful_shutdown(shutdown)
-            .await?;
+            .await;
+        termination_tasks.close();
+        termination_tasks.wait().await;
+        result?;
         Ok(())
     }
 }
 
 async fn handle(State(kernel): State<Arc<Kernel>>, request: TransportRequest) -> TransportResponse {
-    let (parts, body) = request.into_parts();
-    let mut request = Request::from_parts(parts, body);
-    let (parts, body) = kernel.handle(&mut request).await.into_parts();
-    TransportResponse::from_parts(parts, body)
+    kernel.handleTransport(request).await
+}
+
+impl Kernel {
+    /// Dispatches an HTTP transport request and schedules any post-response middleware.
+    #[allow(
+        non_snake_case,
+        reason = "Matches the framework HTTP entry point naming"
+    )]
+    pub async fn handleTransport(self: Arc<Self>, incoming: TransportRequest) -> TransportResponse {
+        let (parts, body) = incoming.into_parts();
+        let mut request = Request::from_parts(parts, body);
+        let (parts, body) = self.handle(&mut request).await.into_parts();
+        if request
+            .parts()
+            .extensions
+            .get::<super::Termination>()
+            .is_none()
+        {
+            return TransportResponse::from_parts(parts, body);
+        }
+        let (request, _) = request.into_parts();
+        let body = super::termination::ResponseBody::wrap(body, self, request, parts.clone());
+        TransportResponse::from_parts(parts, body)
+    }
 }
 
 fn listener_address(config: &dyn Repository) -> Result<(String, u16), ConfigError> {

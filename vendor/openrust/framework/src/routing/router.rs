@@ -266,7 +266,11 @@ impl Router {
         let active_routes: HashSet<_> = self.by_method.values().flatten().copied().collect();
         for index in active_routes {
             let route = &mut self.routes[index];
-            route.resolved_middleware = Some(registry.resolve_stack(&route.middleware, &groups)?);
+            route.resolved_middleware = Some(registry.resolve_stack(
+                &route.middleware,
+                &route.excluded_middleware,
+                &groups,
+            )?);
         }
         Ok(())
     }
@@ -281,6 +285,7 @@ impl Router {
 
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
         request.set_route_parameters(Vec::new());
+        request.route_terminators.clear();
         let path = request.uri().path().trim_end_matches('/');
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()
@@ -305,12 +310,22 @@ impl Router {
                 stack
             } else {
                 resolved = MiddlewareRegistry::default()
-                    .resolve_stack(&route.middleware, &HashMap::new())
+                    .resolve_stack(
+                        &route.middleware,
+                        &route.excluded_middleware,
+                        &HashMap::new(),
+                    )
                     .map_err(|source| HttpError::Internal {
                         source: Box::new(source),
                     })?;
                 &resolved
             };
+            request.route_terminators.extend(
+                middleware
+                    .iter()
+                    .filter(|middleware| middleware.terminable().is_some())
+                    .cloned(),
+            );
             return Ok(Next::new(middleware, route.handler.as_ref())
                 .run(request)
                 .await);
@@ -397,6 +412,11 @@ impl Registrar for Router {
             .groups
             .iter()
             .map(|group| group.name.as_str())
+            .collect();
+        route.excluded_middleware = self
+            .groups
+            .iter()
+            .flat_map(|group| group.excluded_middleware.iter().cloned())
             .collect();
         self.has_domains |= route.domain.is_some();
         let index = self.routes.len();

@@ -12,6 +12,7 @@ pub struct RouteGroup {
     pub(super) domain: Option<String>,
     pub(super) constraints: HashMap<String, String>,
     pub(super) middleware: Vec<MiddlewareEntry>,
+    pub(super) excluded_middleware: Vec<String>,
 }
 
 impl RouteGroup {
@@ -42,6 +43,12 @@ impl RouteGroup {
 
     pub fn middleware(mut self, middleware: Arc<dyn Middleware>) -> Self {
         self.middleware.push(MiddlewareEntry::Instance(middleware));
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's route middleware API")]
+    pub fn withoutMiddleware(mut self, name: impl Into<String>) -> Self {
+        self.excluded_middleware.push(name.into());
         self
     }
 

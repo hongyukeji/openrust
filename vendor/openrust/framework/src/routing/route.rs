@@ -22,6 +22,7 @@ pub struct Route {
     host_pattern: Option<RoutePattern>,
     pub(super) handler: Arc<dyn Handler>,
     pub(super) middleware: Vec<MiddlewareEntry>,
+    pub(super) excluded_middleware: Vec<String>,
     pub(super) resolved_middleware: Option<MiddlewareStack>,
     constraints: HashMap<String, String>,
     defaults: HashMap<String, String>,
@@ -54,6 +55,7 @@ impl Route {
             host_pattern,
             handler,
             middleware,
+            excluded_middleware: Vec::new(),
             resolved_middleware: None,
             constraints,
             defaults: HashMap::new(),
@@ -82,6 +84,13 @@ impl Route {
 
     pub fn middleware_name(&mut self, name: impl Into<String>) -> &mut Self {
         self.middleware.push(MiddlewareEntry::named(name));
+        self.resolved_middleware = None;
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's route middleware API")]
+    pub fn withoutMiddleware(&mut self, name: impl Into<String>) -> &mut Self {
+        self.excluded_middleware.push(name.into());
         self.resolved_middleware = None;
         self
     }

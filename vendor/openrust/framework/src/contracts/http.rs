@@ -19,6 +19,16 @@ pub trait Kernel: Send + Sync {
 
 /// Handles a request around the downstream middleware and route.
 pub trait Middleware: Any + Send + Sync {
+    /// Returns the underlying middleware type for route priority ordering.
+    fn middleware_type_id(&self) -> std::any::TypeId {
+        Any::type_id(self)
+    }
+
+    /// Exposes the optional post-response lifecycle hook.
+    fn terminable(&self) -> Option<&dyn TerminableMiddleware> {
+        None
+    }
+
     fn handle<'a>(
         &'a self,
         request: &'a mut Request,

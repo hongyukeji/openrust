@@ -11,6 +11,7 @@ use crate::{
 /// Configures global and route middleware during application assembly.
 pub struct Middleware {
     pub(crate) global: Vec<Arc<dyn HttpMiddleware>>,
+    pub(crate) prepended: usize,
     pub(crate) registry: MiddlewareRegistry,
 }
 
@@ -18,10 +19,14 @@ impl Default for Middleware {
     fn default() -> Self {
         let mut middleware = Self {
             global: Vec::new(),
+            prepended: 0,
             registry: MiddlewareRegistry::default(),
         };
         let bindings = Arc::new(SubstituteBindings);
-        middleware.group("web", [MiddlewareEntry::Instance(bindings.clone())]);
+        middleware.registry.groups.insert(
+            "web".into(),
+            vec![MiddlewareEntry::Instance(bindings.clone())],
+        );
         middleware.group("api", [MiddlewareEntry::Instance(bindings)]);
         middleware
     }
@@ -39,7 +44,42 @@ impl Middleware {
 
     pub fn prepend(&mut self, middleware: Arc<dyn HttpMiddleware>) -> &mut Self {
         self.global.insert(0, middleware);
+        self.prepended += 1;
         self
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches the application middleware configuration API"
+    )]
+    pub fn appendTerminable<M: crate::contracts::http::TerminableMiddleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> &mut Self {
+        self.append(crate::foundation::http::terminable(middleware))
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches the application middleware configuration API"
+    )]
+    pub fn prependTerminable<M: crate::contracts::http::TerminableMiddleware>(
+        &mut self,
+        middleware: Arc<M>,
+    ) -> &mut Self {
+        self.prepend(crate::foundation::http::terminable(middleware))
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches the application middleware configuration API"
+    )]
+    pub fn aliasTerminable<M: crate::contracts::http::TerminableMiddleware>(
+        &mut self,
+        name: impl Into<String>,
+        middleware: Arc<M>,
+    ) -> &mut Self {
+        self.alias(name, crate::foundation::http::terminable(middleware))
     }
 
     pub fn group(

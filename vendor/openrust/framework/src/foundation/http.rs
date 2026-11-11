@@ -4,6 +4,11 @@ mod form_request;
 mod health_check;
 pub mod middleware;
 mod server;
+mod termination;
+
+use termination::Termination;
+pub(crate) use termination::terminable;
+use tokio_util::task::TaskTracker;
 
 pub use form_request::{FormRequest, FormRequestError};
 pub use health_check::HealthCheck;
@@ -25,6 +30,7 @@ pub struct Kernel {
     middleware: Middleware,
     views: Option<Arc<Factory>>,
     ready: bool,
+    termination_tasks: TaskTracker,
     routes: Option<crate::routing::Router>,
 }
 
@@ -45,6 +51,7 @@ impl Kernel {
             application,
             middleware,
             ready: false,
+            termination_tasks: TaskTracker::new(),
             routes: None,
         }
     }
@@ -55,6 +62,12 @@ impl http::Kernel for Kernel {
         Box::pin(async move {
             if !self.ready {
                 self.application.boot().await?;
+                let config = self
+                    .application
+                    .config()
+                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                let cors = crate::http::middleware::HandleCors::from_config(config.get("cors"))
+                    .map_err(|source| BootstrapError::ConfigurationFailed { source })?;
                 self.views = Some(
                     self.application
                         .container()
@@ -75,6 +88,11 @@ impl http::Kernel for Kernel {
                     .expect("boot assembled the application routes")
                     .configure_middleware(&self.middleware.registry)
                     .map_err(|source| BootstrapError::RoutingFailed { source })?;
+                if let Some(cors) = cors {
+                    self.middleware
+                        .global
+                        .insert(self.middleware.prepended, Arc::new(cors));
+                }
                 self.ready = true;
             }
             Ok(())
@@ -103,6 +121,7 @@ impl http::Kernel for Kernel {
                 );
                 let head = request.method() == Method::HEAD;
                 request.set_route_parameters(Vec::new());
+                request.route_terminators.clear();
                 let attributes = request.attributes().clone();
                 let mut response = crate::http::request_context::scope(
                     self.application.container_handle(),
@@ -115,7 +134,20 @@ impl http::Kernel for Kernel {
                 )
                 .await;
                 request.exceptions = previous_exceptions;
+                let mut middleware = std::mem::take(&mut request.route_terminators);
+                middleware.extend(
+                    self.middleware
+                        .global
+                        .iter()
+                        .filter(|middleware| middleware.terminable().is_some())
+                        .cloned(),
+                );
                 let extensions = &mut request.parts_mut().extensions;
+                if middleware.is_empty() {
+                    extensions.remove::<Termination>();
+                } else {
+                    extensions.insert(Termination::new(middleware));
+                }
                 if let Some(views) = previous_views {
                     extensions.insert(views);
                 } else {
@@ -144,9 +176,21 @@ impl http::Kernel for Kernel {
 
     fn terminate<'a>(
         &'a self,
-        _request: &'a RequestParts,
-        _response: &'a ResponseParts,
+        request: &'a RequestParts,
+        response: &'a ResponseParts,
     ) -> HttpFuture<'a, ()> {
-        Box::pin(async {})
+        Box::pin(async move {
+            if let Some(termination) = request.extensions.get::<Termination>() {
+                let middleware = termination.take();
+                crate::support::facades::scope(self.application.container_handle(), async move {
+                    for middleware in middleware {
+                        if let Some(terminable) = middleware.terminable() {
+                            terminable.terminate(request, response).await;
+                        }
+                    }
+                })
+                .await;
+            }
+        })
     }
 }
