@@ -2,9 +2,11 @@
 
 mod application;
 mod command;
+mod descriptor;
 pub(crate) mod generator_command;
 mod help_command;
 mod list_command;
+mod localization;
 mod planned;
 pub mod scheduling;
 

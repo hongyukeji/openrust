@@ -1,8 +1,17 @@
 use std::process::{Command, Output};
 
 fn artisan(arguments: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_main"))
+    artisan_in(arguments, "en", None)
+}
+
+fn artisan_in(arguments: &[&str], locale: &str, base: Option<&std::path::Path>) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_main"));
+    if let Some(base) = base {
+        command.env("APP_BASE_PATH", base);
+    }
+    command
         .arg("artisan")
+        .env("APP_LOCALE", locale)
         .args(arguments)
         .env("APP_PORT", "invalid")
         .env_remove("FORCE_COLOR")
@@ -185,4 +194,64 @@ fn artisan_invalid_option_uses_the_console_error_status() {
             .unwrap()
             .contains("--unknown-option")
     );
+}
+
+#[test]
+fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
+    for (locale, options, invalid) in [
+        ("zh_Hans", "选项：", "无法识别的参数"),
+        ("zh_Hant", "選項：", "無法辨識的引數"),
+    ] {
+        let help = artisan_in(&["help", "list"], locale, None);
+        let flag = artisan_in(&["list", "--help"], locale, None);
+        assert_eq!(help.stdout, flag.stdout);
+        assert!(help.status.success() && flag.status.success());
+        let help = String::from_utf8(help.stdout).unwrap();
+        assert!(
+            help.contains(options) && help.contains("--format") && help.contains("artisan list")
+        );
+        let failure = artisan_in(&["inspire", "--wrong"], locale, None);
+        assert_eq!(failure.status.code(), Some(1));
+        assert!(failure.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&failure.stderr).contains(invalid));
+    }
+    let abbreviated = artisan(&["help", "auth:clear-r", "--format=json"]);
+    assert!(abbreviated.status.success());
+    let body: serde_json::Value = serde_json::from_slice(&abbreviated.stdout).unwrap();
+    assert_eq!(body["name"], "auth:clear-resets");
+    assert_eq!(
+        body["definition"]["arguments"]["name"]["is_required"],
+        false
+    );
+    for format in ["xml", "md"] {
+        let output = artisan(&["help", "list", "--format", format]);
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("artisan list"));
+    }
+    let quiet = artisan(&["inspire", "-q"]);
+    assert!(quiet.status.success() && quiet.stdout.is_empty());
+    let silent = artisan(&["help", "missing", "--silent"]);
+    assert_eq!(silent.status.code(), Some(1));
+    assert!(silent.stdout.is_empty() && silent.stderr.is_empty());
+    assert!(artisan(&["--version"]).status.success());
+}
+
+#[test]
+fn artisan_uses_application_translation_fallback() {
+    let root = std::env::temp_dir().join(format!("openrust-artisan-locale-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("lang/fr")).unwrap();
+    std::fs::write(root.join(".env"), "APP_FALLBACK_LOCALE=fr\n").unwrap();
+    std::fs::write(
+        root.join("lang/fr/console.json"),
+        r#"{"options":"Options de secours :","commands":{"list":{"description":"Liste de secours"}}}"#,
+    ).unwrap();
+    let output = artisan_in(&["help", "list"], "de", Some(&root));
+    std::fs::remove_dir_all(root).unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let help = String::from_utf8(output.stdout).unwrap();
+    assert!(help.contains("Options de secours :") && help.contains("Liste de secours"));
 }

@@ -33,4 +33,21 @@ A standalone build uses `./main artisan list`, `./main artisan help inspire` or 
 
 The compiled entry accepts no mode argument for HTTP, or `artisan` for console commands. Any other first argument prints the outer usage and exits with status 2, before creating the application. Artisan dispatch errors exit with status 1. This outer selection is a Rust single-binary adaptation; Laravel has separate HTTP and `artisan` entry files. The Console Kernel's handle/terminate sequence remains the responsibility of `Application::handleCommand`.
 
-The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented. General custom command I/O and localization are delivered by later Artisan units. `artisan.bat` has not yet been accepted on a Windows machine.
+The command catalog contains planned entries in addition to implemented commands. Their names and help reserve the intended contract; they do not imply that the corresponding modules are implemented. `artisan.bat` has not yet been accepted on a Windows machine.
+
+## Command Help and Output Formats {#command-help-and-output-formats}
+
+`./artisan help migrate` and `./artisan migrate --help` read the same registered definition. They display arguments, options and descriptions without running the command. Exact command names and aliases take precedence. A unique abbreviation can shorten a complete name or its colon-separated segments.
+
+```sh
+./artisan list cache --format=json --short
+./artisan help migrate --format=json
+./artisan help migrate --format=xml
+./artisan help migrate --format=md
+```
+
+`list` and `help` accept `txt`, `json`, `xml` and `md`. Use `--raw` for a flat text list or compact text help. `list --short` retains names, aliases and implementation status and omits command details. Structured output keeps command and option identifiers stable across locales. Successful help and list commands exit with status 0. Invalid arguments, ambiguous commands and unknown commands exit with status 1.
+
+`--quiet` suppresses normal output. `--silent` also suppresses console errors. The global `--no-interaction`, `--ansi`, `--no-ansi`, `--version` and verbosity flags are available in command definitions.
+
+See [Artisan translations](./localization.md#artisan-translations) for language selection and overrides.

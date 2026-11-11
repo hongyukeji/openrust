@@ -42,3 +42,15 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
     .await?
 }
 ```
+
+## Artisan translations {#artisan-translations}
+
+Artisan uses `APP_LOCALE` for list headings, help and argument errors. Built-in text is available in English, Simplified Chinese and Traditional Chinese. An application can override text in `lang/<locale>/console.json`. Lookup uses the active locale and then `APP_FALLBACK_LOCALE` before built-in text. A command without a translated description uses its registered description.
+
+```sh
+APP_LOCALE=en ./artisan help list
+APP_LOCALE=zh_Hans ./artisan list make
+APP_LOCALE=zh_Hant ./artisan help list
+```
+
+To customize help, use keys such as `options`, `commands.list.description` and `commands.list.arguments.namespace` inside the console group. See [Artisan output formats](./artisan.md#command-help-and-output-formats).

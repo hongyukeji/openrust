@@ -42,3 +42,15 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
     .await?
 }
 ```
+
+## Artisan 翻译 {#artisan-translations}
+
+Artisan 使用 `APP_LOCALE` 显示命令列表标题、帮助和参数错误。内置英文、简体中文和繁体中文。应用可在 `lang/<locale>/console.json` 覆盖文本。翻译先查当前语言，再查 `APP_FALLBACK_LOCALE`，最后使用内置文本。没有翻译的命令描述沿用注册时的文字。
+
+```sh
+APP_LOCALE=en ./artisan help list
+APP_LOCALE=zh_Hans ./artisan list make
+APP_LOCALE=zh_Hant ./artisan help list
+```
+
+可在 `console` 分组内使用 `options`、`commands.list.description` 和 `commands.list.arguments.namespace` 等键调整帮助。参见 [Artisan 输出格式](./artisan.md#command-help-and-output-formats)。

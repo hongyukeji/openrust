@@ -5,8 +5,8 @@ use clap::{Arg, ArgAction, Command as Syntax};
 use crate::foundation::Application as FoundationApplication;
 
 use super::{
-    ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, help_command,
-    list_command,
+    ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, descriptor,
+    help_command, list_command, localization,
 };
 
 #[derive(Clone)]
@@ -132,11 +132,88 @@ impl Application {
         !matches!(self.commands.get(name), Some(Entry::Planned(_)))
     }
 
+    pub(super) fn resolve(&self, name: &str) -> Result<&str, ConsoleError> {
+        let matches = |candidate: &str| {
+            candidate.starts_with(name)
+                || (candidate.split(':').count() == name.split(':').count()
+                    && candidate
+                        .split(':')
+                        .zip(name.split(':'))
+                        .all(|(segment, prefix)| !prefix.is_empty() && segment.starts_with(prefix)))
+        };
+        let mut candidates = Vec::new();
+        for (canonical, entry) in &self.commands {
+            let syntax = &entry.definition().syntax;
+            if canonical == name || syntax.get_all_aliases().any(|alias| alias == name) {
+                return Ok(canonical);
+            }
+            if !syntax.is_hide_set()
+                && (matches(canonical) || syntax.get_visible_aliases().any(matches))
+            {
+                candidates.push(canonical.as_str());
+            }
+        }
+        match candidates.as_slice() {
+            [canonical] => Ok(canonical),
+            [] => Err(ConsoleError::new(
+                localization::text(
+                    "command_missing",
+                    "Command ':name' is not defined.",
+                    "命令「:name」不存在。",
+                    "命令「:name」不存在。",
+                )
+                .replace(":name", name),
+            )),
+            _ => Err(ConsoleError::new(
+                localization::text(
+                    "command_ambiguous",
+                    "Command ':name' is ambiguous: :choices",
+                    "命令「:name」有歧义：:choices",
+                    "命令「:name」有歧義：:choices",
+                )
+                .replace(":choices", &candidates.join(", "))
+                .replace(":name", name),
+            )),
+        }
+    }
+
     fn syntax(&self) -> Syntax {
         Syntax::new("artisan")
             .about("OpenRust command-line interface")
             .disable_help_subcommand(true)
-            .infer_subcommands(true)
+            .version(env!("CARGO_PKG_VERSION"))
+            .propagate_version(true)
+            .arg(
+                Arg::new("quiet")
+                    .long("quiet")
+                    .short('q')
+                    .global(true)
+                    .action(ArgAction::SetTrue)
+                    .help("Suppress normal output"),
+            )
+            .arg(
+                Arg::new("silent")
+                    .long("silent")
+                    .global(true)
+                    .action(ArgAction::SetTrue)
+                    .help("Suppress output and errors"),
+            )
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .short('v')
+                    .global(true)
+                    .action(ArgAction::Count)
+                    .help("Increase verbosity"),
+            )
+            .arg(
+                Arg::new("no-interaction")
+                    .long("no-interaction")
+                    .short('n')
+                    .global(true)
+                    .action(ArgAction::SetTrue)
+                    .help("Do not ask interactive questions"),
+            )
             .arg(
                 Arg::new("ansi")
                     .long("ansi")
@@ -172,17 +249,69 @@ impl Application {
         arguments: &[OsString],
         output: &mut Output,
     ) -> i32 {
+        let flags = || arguments.iter().take_while(|argument| *argument != "--");
+        let silent = flags().any(|argument| argument == "--silent");
+        let quiet = flags().any(|argument| argument == "--quiet" || argument == "-q");
+        let stdout_start = output.stdout.len();
+        let stderr_start = output.stderr.len();
+        let status = self.handle_arguments(application, arguments, output).await;
+        if quiet || silent {
+            output.stdout.truncate(stdout_start);
+        }
+        if silent {
+            output.stderr.truncate(stderr_start);
+        }
+        status
+    }
+
+    async fn handle_arguments(
+        &self,
+        application: &FoundationApplication,
+        arguments: &[OsString],
+        output: &mut Output,
+    ) -> i32 {
         let mut syntax = self.syntax();
-        let mut matches = match syntax.try_get_matches_from_mut(
-            std::iter::once(OsString::from("artisan")).chain(arguments.iter().cloned()),
-        ) {
+        syntax.build();
+        let position = command_position(arguments);
+        let mut normalized = arguments.to_vec();
+        let mut command = None;
+        if let Some(position) = position
+            && let Some(name) = arguments[position].to_str()
+        {
+            match self.resolve(name) {
+                Ok(name) => {
+                    normalized[position] = name.into();
+                    command = Some(name);
+                }
+                Err(error) => {
+                    application.render_console_exception(output, &error).await;
+                    return 1;
+                }
+            }
+        }
+        let mut matches = match syntax
+            .try_get_matches_from_mut(std::iter::once(OsString::from("artisan")).chain(normalized))
+        {
             Ok(matches) => matches,
             Err(error) if error.use_stderr() => {
-                output.stderr.push_str(&error.to_string());
+                output
+                    .stderr
+                    .push_str(&localization::argument_error(&error));
                 return 1;
             }
-            Err(help) => {
-                output.stdout.push_str(&help.to_string());
+            Err(help) if help.kind() == clap::error::ErrorKind::DisplayHelp => {
+                let target = command
+                    .and_then(|name| syntax.find_subcommand(name))
+                    .unwrap_or(&syntax);
+                let mut target = target.clone();
+                if let Some(name) = command {
+                    target = target.bin_name(format!("artisan {name}"));
+                }
+                output.stdout.push_str(&descriptor::help(&target, true));
+                return 0;
+            }
+            Err(version) => {
+                output.stdout.push_str(&version.to_string());
                 return 0;
             }
         };
@@ -219,8 +348,8 @@ impl Application {
         let mut syntax = self.syntax();
         syntax.build();
         let definition = syntax
-            .find_subcommand(command)
-            .ok_or_else(|| ConsoleError::new(format!("Command '{command}' is not defined.")))?;
+            .find_subcommand(self.resolve(command)?)
+            .expect("resolved command is registered");
         let entry = &self.commands[definition.get_name()];
         if !std::sync::Arc::ptr_eq(&entry.definition().syntax, &input.syntax) {
             return Err(ConsoleError::new(format!(
@@ -242,7 +371,7 @@ impl Application {
     ) -> Result<i32, ConsoleError> {
         let command: &dyn Command = match entry {
             Entry::List(_) => return Ok(list_command::run(self, syntax, Some(matches), output)),
-            Entry::Help(_) => return help_command::run(syntax, matches, output),
+            Entry::Help(_) => return help_command::run(self, syntax, matches, output),
             Entry::Planned(definition) => {
                 return Err(ConsoleError::new(format!(
                     "Command '{}' is not implemented yet.",
@@ -258,4 +387,21 @@ impl Application {
         };
         command.handle(application, &input, output).await
     }
+}
+
+fn command_position(arguments: &[OsString]) -> Option<usize> {
+    let mut arguments = arguments.iter().enumerate();
+    while let Some((index, argument)) = arguments.next() {
+        if argument == "--" {
+            return None;
+        }
+        if argument == "--env" {
+            arguments.next();
+            continue;
+        }
+        if !argument.as_encoded_bytes().starts_with(b"-") {
+            return Some(index);
+        }
+    }
+    None
 }

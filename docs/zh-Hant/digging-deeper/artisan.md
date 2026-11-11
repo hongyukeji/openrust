@@ -33,4 +33,21 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 
 編譯入口不帶模式參數時啟動 HTTP，使用 `artisan` 時執行主控台命令。其他首參數會在建立應用前顯示外層用法並回傳結束碼 2。Artisan 分派錯誤回傳 1。外層分流是 Rust 單二進位檔的語言適配；Laravel 使用獨立的 HTTP 和 `artisan` 入口檔案。Console Kernel 的 handle/terminate 順序仍由 `Application::handleCommand` 負責。
 
-命令清單同時包含待實作條目。名稱和說明用於保留預定契約，不代表對應模組已經完成。通用自訂命令輸入輸出與本地化由後續 Artisan 單元交付。`artisan.bat` 尚未通過 Windows 實機驗收。
+命令清單同時包含待實作條目。名稱和說明用於保留預定契約，不代表對應模組已經完成。`artisan.bat` 尚未通過 Windows 實機驗收。
+
+## 命令說明和輸出格式 {#command-help-and-output-formats}
+
+`./artisan help migrate` 與 `./artisan migrate --help` 從同一命令定義讀取引數、選項和說明。檢視說明時不會執行目標命令。精確的命令名稱和別名優先，可依完整名稱或冒號分隔的各段使用唯一縮寫。
+
+```sh
+./artisan list cache --format=json --short
+./artisan help migrate --format=json
+./artisan help migrate --format=xml
+./artisan help migrate --format=md
+```
+
+`list` 和 `help` 支援 `txt`、`json`、`xml` 和 `md`。`--raw` 輸出平鋪清單或精簡文字說明。`list --short` 保留名稱、別名和實作狀態，省略命令詳細資料。各語言的結構化輸出使用相同的命令和選項識別碼。說明和清單成功時結束碼為 0。引數錯誤、歧義和未知命令的結束碼為 1。
+
+`--quiet` 隱藏一般輸出。`--silent` 同時隱藏主控台錯誤。命令定義也可使用全域 `--no-interaction`、`--ansi`、`--no-ansi`、`--version` 和詳細程度選項。
+
+語言選擇與覆寫見 [Artisan 翻譯](./localization.md#artisan-translations)。

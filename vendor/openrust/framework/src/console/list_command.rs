@@ -1,10 +1,12 @@
 use std::{collections::BTreeMap, fmt::Write as _};
 
 use clap::{Arg, ArgAction, ArgMatches, Command};
-use quick_xml::escape::escape;
 use serde_json::json;
 
-use super::{Application, Output};
+use super::{
+    Application, Output, descriptor,
+    localization::{description, text},
+};
 
 pub(super) fn command() -> Command {
     Command::new("list")
@@ -68,7 +70,14 @@ pub(super) fn run(
     if groups.is_empty()
         && let Some(name) = filter
     {
-        writeln!(output.stderr, "Namespace '{name}' is not defined.").expect("writing to String");
+        let message = text(
+            "namespace_missing",
+            "Namespace ':name' is not defined.",
+            "命令组「:name」不存在。",
+            "命令群組「:name」不存在。",
+        )
+        .replace(":name", name);
+        writeln!(output.stderr, "{message}").expect("writing to String");
         return 1;
     }
 
@@ -78,16 +87,12 @@ pub(super) fn run(
                 .values()
                 .flatten()
                 .map(|(&name, &cmd)| {
-                    let mut entry = json!({
-                        "name": name,
-                        "description": description(cmd),
-                        "aliases": cmd.get_visible_aliases().collect::<Vec<_>>(),
-                        "implemented": registry.is_implemented(cmd.get_name()),
-                    });
-                    if !short {
-                        entry["usage"] = json!(usage(cmd));
-                    }
-                    entry
+                    descriptor::json_command(
+                        cmd,
+                        name,
+                        registry.is_implemented(cmd.get_name()),
+                        short,
+                    )
                 })
                 .collect();
             let namespaces: Vec<_> = groups.keys().filter(|name| !name.is_empty()).collect();
@@ -101,33 +106,24 @@ pub(super) fn run(
         "xml" => {
             writeln!(output.stdout, "<commands>").expect("writing to String");
             for (&name, &cmd) in groups.values().flatten() {
-                writeln!(
-                    output.stdout,
-                    "  <command name=\"{}\" implemented=\"{}\">",
-                    escape(name),
-                    registry.is_implemented(cmd.get_name())
-                )
-                .expect("writing to String");
-                writeln!(
-                    output.stdout,
-                    "    <description>{}</description>",
-                    escape(description(cmd))
-                )
-                .expect("writing to String");
-                for alias in cmd.get_visible_aliases() {
-                    writeln!(output.stdout, "    <alias>{}</alias>", escape(alias))
-                        .expect("writing to String");
-                }
-                if !short {
-                    writeln!(output.stdout, "    <usage>{}</usage>", escape(usage(cmd)))
-                        .expect("writing to String");
-                }
-                writeln!(output.stdout, "  </command>").expect("writing to String");
+                descriptor::write_xml(
+                    &mut output.stdout,
+                    cmd,
+                    name,
+                    registry.is_implemented(cmd.get_name()),
+                    short,
+                );
             }
             writeln!(output.stdout, "</commands>").expect("writing to String");
         }
         "md" => {
-            writeln!(output.stdout, "# Available commands").expect("writing to String");
+            let title = text(
+                "available_commands",
+                "Available commands",
+                "可用命令",
+                "可用命令",
+            );
+            writeln!(output.stdout, "# {title}").expect("writing to String");
             for (group, entries) in groups {
                 writeln!(
                     output.stdout,
@@ -144,7 +140,8 @@ pub(super) fn run(
                     )
                     .expect("writing to String");
                     if !short {
-                        writeln!(output.stdout, "  `{}`", usage(cmd)).expect("writing to String");
+                        writeln!(output.stdout, "  `{}`", descriptor::usage(cmd))
+                            .expect("writing to String");
                     }
                 }
             }
@@ -152,15 +149,25 @@ pub(super) fn run(
         _ => {
             if !raw {
                 if let Some(name) = filter {
-                    writeln!(
-                        output.stdout,
-                        "Available commands for the '{name}' namespace:"
+                    let title = text(
+                        "namespace_commands",
+                        "Available commands for the ':name' namespace:",
+                        "「:name」命令组的可用命令：",
+                        "「:name」命令群組的可用命令：",
                     )
-                    .expect("writing to String");
+                    .replace(":name", name);
+                    writeln!(output.stdout, "{title}").expect("writing to String");
                 } else {
+                    let usage = text("usage", "Usage:", "用法：", "用法：");
+                    let available = text(
+                        "available_commands_heading",
+                        "Available commands:",
+                        "可用命令：",
+                        "可用命令：",
+                    );
                     writeln!(
                         output.stdout,
-                        "Usage:\n  command [options] [arguments]\n\nAvailable commands:"
+                        "{usage}\n  command [options] [arguments]\n\n{available}"
                     )
                     .expect("writing to String");
                 }
@@ -204,21 +211,10 @@ fn namespace(name: &str) -> &str {
     name.split_once(':').map_or("", |(namespace, _)| namespace)
 }
 
-fn description(command: &Command) -> String {
-    command
-        .get_about()
-        .map(ToString::to_string)
-        .unwrap_or_default()
-}
-
 fn status(registry: &Application, command: &Command) -> &'static str {
     if registry.is_implemented(command.get_name()) {
         ""
     } else {
         " [Planned]"
     }
-}
-
-fn usage(command: &Command) -> String {
-    command.clone().render_usage().to_string()
 }
