@@ -200,8 +200,9 @@ impl Request {
                 Ok(Payload::fields(fields))
             }
             "multipart/form-data" => {
+                let bytes = self.body_bytes().await?;
                 let boundary = multer::parse_boundary(&content_type).map_err(multipart_error)?;
-                parse_multipart(self.body_bytes().await?, &boundary).await
+                parse_multipart(bytes, &boundary).await
             }
             _ => Ok(Payload::fields(empty())),
         }
