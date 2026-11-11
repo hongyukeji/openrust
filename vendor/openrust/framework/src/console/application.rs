@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, ffi::OsString};
+use std::{collections::BTreeMap, ffi::OsString, sync::Arc};
 
 use clap::{Arg, ArgAction, Command as Syntax};
 
@@ -9,12 +9,13 @@ use super::{
     list_command,
 };
 
+#[derive(Clone)]
 enum Entry {
     List(CommandDefinition),
     Help(CommandDefinition),
     Planned(CommandDefinition),
     Closure(ClosureCommand),
-    Command(Box<dyn Command>),
+    Command(Arc<dyn Command>),
 }
 
 impl Entry {
@@ -30,6 +31,7 @@ impl Entry {
 }
 
 /// Owns the command registry, name resolution, and dispatch.
+#[derive(Clone)]
 pub struct Application {
     commands: BTreeMap<String, Entry>,
 }
@@ -57,7 +59,7 @@ impl Application {
     }
 
     pub fn add_command(&mut self, command: Box<dyn Command>) -> Result<(), ConsoleError> {
-        self.add(Entry::Command(command)).map(|_| ())
+        self.add(Entry::Command(Arc::from(command))).map(|_| ())
     }
 
     /// Registers a closure as an Artisan command.
@@ -68,7 +70,7 @@ impl Application {
     ) -> Result<&mut ClosureCommand, ConsoleError> {
         let entry = self.add(Entry::Closure(ClosureCommand {
             definition: CommandDefinition::new(Syntax::new(name)),
-            callback: Box::new(callback),
+            callback: Arc::new(callback),
         }))?;
         let Entry::Closure(command) = entry else {
             unreachable!("registered closure command");

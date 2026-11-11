@@ -45,11 +45,12 @@ sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-toki
 sqlx-core = { version = "=0.9.0", default-features = false }
 subtle = "2.6.1"
 url = "2.5.8"
-tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "rt", "signal"] }
+tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt", "signal", "time"] }
 tokio-util = { version = "0.7.20", features = ["io", "rt"] }
 
 bigdecimal = "=0.4.11"
 chrono-tz = "=0.10.4"
+croner = "=4.0.3"
 ulid = { version = "=1.2.1", default-features = false }
 uuid = { version = "=1.29.2", default-features = false }
 zeroize = "1.9.0"

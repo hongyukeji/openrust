@@ -87,7 +87,7 @@ impl Command for WorkCommand {
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
             };
             let shutdown = CancellationToken::new();
-            let listener = monitor_signals(shutdown.clone()).map_err(error)?;
+            let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
             let result = worker
                 .daemon(&*connection, &queues, &options, &shutdown)
                 .await;
@@ -106,21 +106,6 @@ fn seconds(name: &'static str) -> Arg {
 }
 fn duration(seconds: u32) -> Duration {
     Duration::from_secs(u64::from(seconds))
-}
-
-fn monitor_signals(shutdown: CancellationToken) -> std::io::Result<tokio::task::JoinHandle<()>> {
-    #[cfg(unix)]
-    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
-    Ok(tokio::spawn(async move {
-        #[cfg(unix)]
-        tokio::select! {
-            _ = tokio::signal::ctrl_c() => {},
-            _ = terminate.recv() => {},
-        }
-        #[cfg(not(unix))]
-        let _ = tokio::signal::ctrl_c().await;
-        shutdown.cancel();
-    }))
 }
 
 pub(super) fn error(error: impl std::fmt::Display) -> ConsoleError {

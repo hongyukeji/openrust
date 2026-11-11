@@ -146,3 +146,20 @@ pub(crate) fn confirm_production(
         "y" | "yes"
     ))
 }
+
+pub(crate) fn monitor_signals(
+    shutdown: tokio_util::sync::CancellationToken,
+) -> std::io::Result<tokio::task::JoinHandle<()>> {
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    Ok(tokio::spawn(async move {
+        #[cfg(unix)]
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {},
+            _ = terminate.recv() => {},
+        }
+        #[cfg(not(unix))]
+        let _ = tokio::signal::ctrl_c().await;
+        shutdown.cancel();
+    }))
+}

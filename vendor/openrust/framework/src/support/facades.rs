@@ -7,6 +7,7 @@ mod redirect;
 mod url;
 pub use crate::auth::{Auth, access::GateFacade as Gate};
 pub use crate::cache::Cache;
+pub use crate::console::scheduling::ScheduleFacade as Schedule;
 pub use crate::cookie::facade::Cookie;
 pub use crate::database::{DB, schema::Schema};
 pub use crate::encryption::Crypt;

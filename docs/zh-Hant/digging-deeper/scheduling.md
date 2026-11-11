@@ -1,0 +1,37 @@
+# 任務排程
+
+## 定義排程
+
+在 `routes/console.rs` 的 Artisan 註冊作用域中登記排程任務。在應用程式既有的 `register()` 函式中呼叫 `Schedule::configure`。
+
+```rust
+use openrust::{console::ConsoleError, support::facades::Schedule};
+
+pub(crate) fn register() -> Result<(), ConsoleError> {
+    Schedule::configure(|schedule| {
+        schedule
+            .command("inspire", [])
+            .dailyAt("08:30")?
+            .timezone(chrono_tz::Asia::Shanghai)
+            .withoutOverlapping();
+
+        Ok(())
+    })
+}
+```
+
+用 `call` 登記非同步回呼，用 `command` 呼叫已註冊的 Artisan 命令，用 `exec` 執行外部程式，用 `job` 派送佇列酬載。程式與參數分開傳入。`exec` 從應用程式根目錄啟動。回呼接收應用程式與命令輸出物件。每次排程派送都會產生新的任務 ID。
+
+用 `cron` 設定五欄位運算式，用 `dailyAt` 設定每日的本地時間，用 `everyMinute` 或 `everyTenSeconds` 等子分鐘頻率執行重複任務。排程時區依序取 `app.schedule_timezone`、`app.timezone`、UTC。用 `timezone` 覆寫單個任務的時區。用 `environments`、`when` 和 `skip` 限制執行條件。日光節約時間切換時，同一本地時間可能出現兩次，也可能被跳過。
+
+## 防止重疊與單機執行
+
+`withoutOverlapping()` 在執行期間持有快取鎖，任務完成或發生錯誤後釋放。預設租期為 1,440 分鐘，可用 `withoutOverlappingFor(minutes)` 調整。`onOneServer()` 為每個事件在每分鐘選出一個執行者。回呼或佇列任務啟用互斥前，需要用 `name` 設定穩定且唯一的名稱。
+
+跨執行個體互斥要求所有執行者使用相同的共用快取儲存及命名空間。可使用應用程式預設的共用儲存，或用 `schedule.useCache("redis")` 指定。
+
+## 執行排程器
+
+在系統排程器中每分鐘呼叫 `./artisan schedule:run`，也可以用 `./artisan schedule:work` 常駐執行。常駐程序收到 SIGTERM 或 Ctrl+C 後會完成目前的任務。用 `./artisan schedule:list` 查看運算式和下一次執行時間。`schedule:run --whisper` 隱藏沒有任務執行時的提示。
+
+有子分鐘任務時，`schedule:run` 持續到當前分鐘結束。`./artisan schedule:interrupt` 透過所選快取儲存通知當前分鐘的重複迴圈結束。任務錯誤交由例外報告器處理，後續到期任務繼續執行，排程命令處理完後成功結束。排程基礎設施發生錯誤時，命令以失敗狀態結束。

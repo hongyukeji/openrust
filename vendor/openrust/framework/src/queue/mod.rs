@@ -179,6 +179,15 @@ impl Payload {
         &self.options
     }
 
+    pub(crate) fn for_scheduled_dispatch(&self) -> QueueResult<Self> {
+        Ok(Self {
+            uuid: new_id()?,
+            delivery_id: None,
+            context: Default::default(),
+            ..self.clone()
+        })
+    }
+
     pub(super) fn renewed(mut self) -> QueueResult<Self> {
         self.delivery_id = Some(new_id()?);
         Ok(self)

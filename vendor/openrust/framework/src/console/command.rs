@@ -5,6 +5,7 @@ use crate::foundation::Application;
 use super::{ConsoleError, ConsoleFuture, Input, Output};
 
 /// Describes a command's name, aliases, arguments, options, and help.
+#[derive(Clone)]
 pub struct CommandDefinition {
     pub(super) syntax: Arc<clap::Command>,
 }
@@ -50,9 +51,10 @@ pub trait Command: Send + Sync {
 }
 
 /// A closure-based Artisan command registered by the application.
+#[derive(Clone)]
 pub struct ClosureCommand {
     pub(super) definition: CommandDefinition,
-    pub(super) callback: Box<dyn Fn(&mut Output) + Send + Sync>,
+    pub(super) callback: Arc<dyn Fn(&mut Output) + Send + Sync>,
 }
 
 impl ClosureCommand {

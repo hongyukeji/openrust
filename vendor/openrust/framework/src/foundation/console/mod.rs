@@ -14,7 +14,7 @@ use std::ffi::OsString;
 use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
-        Output,
+        Output, scheduling,
     },
     contracts::console,
     support::facades,
@@ -81,9 +81,15 @@ impl Kernel {
                             crate::database::console::migrations::register(&mut self.artisan)?;
                             crate::database::console::seeds::register(&mut self.artisan)?;
                         }
-                        (self.application.shared.commands)(&mut self.artisan)?;
-                        if let Some(register) = self.application.shared.command_routes {
-                            facades::Artisan::register(&mut self.artisan, register)?;
+                        let schedule = scheduling::Schedule::collect(|| {
+                            (self.application.shared.commands)(&mut self.artisan)?;
+                            if let Some(register) = self.application.shared.command_routes {
+                                facades::Artisan::register(&mut self.artisan, register)?;
+                            }
+                            Ok(())
+                        })?;
+                        if self.register_planned {
+                            scheduling::register(&mut self.artisan, schedule)?;
                         }
                         Ok(())
                     })
