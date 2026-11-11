@@ -124,3 +124,7 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 使用 `Route::model::<Post>("post")?` 在應用程式 Router 註冊顯式繫結。也可以透過 Router 回傳的路由呼叫 `.model::<Post>("post")?`，為該路由宣告模型參數。使用 `request.route_model::<Post>("post")` 讀取已解析的模型。模型缺失回傳 404，可透過 `missing` 自訂回應。
 
 模型預設按主鍵查詢。可覆寫 `getRouteKeyName` 使用 slug，也可為單條路由指定 `{post:slug}`。巢狀的自訂鍵透過前一個已繫結的模型限定查詢範圍。使用 `scopeBindings` 為預設鍵啟用作用域，或透過 `withoutScopedBindings` 關閉。子模型透過 `resolveChildRouteBinding` 選擇型別化關聯。`withTrashed` 可包含軟刪除記錄。預設 `web` 和 `api` 群組在處理器前執行繫結。
+
+## 重新導向路由
+
+使用 `Route::redirect` 註冊重新導向並指定 HTTP 狀態。`Route::permanentRedirect` 傳回 301。`/articles/{id}` 這類目的地可以沿用符合的路由參數。

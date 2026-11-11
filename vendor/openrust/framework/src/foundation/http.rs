@@ -131,6 +131,7 @@ impl http::Kernel for Kernel {
                 let mut response = crate::http::request_context::scope(
                     self.application.container_handle(),
                     request.uri().clone(),
+                    request.headers().get(::http::header::HOST).cloned(),
                     attributes,
                     crate::view::middleware::request_scope(
                         crate::cookie::middleware::request_scope(

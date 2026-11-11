@@ -56,3 +56,7 @@ fn register() -> Result<(), RoutingError> {
 `ApiResponse::empty()` 返回省略 `data` 的成功响应。HTTP 204 响应的正文为空。请给 `failure` 传入可安全展示给客户端的消息，需要返回字段错误时使用 `with_errors`。
 
 序列化失败交给[异常处理](errors.md)。内置异常和健康检查各自使用原有的响应格式。统一业务响应是 OpenRust 在 [Laravel JSON 响应机制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的扩展。
+
+## 重定向响应
+
+使用 `Redirect::to` 跳转到 URL，或用 `Redirect::route` 跳转到命名路由。`RedirectOptions` 默认使用 302，并支持响应头。`Redirect::guest` 将访问目标存入当前会话，`Redirect::intended` 读取并清除它。会话没有访问目标时使用回退地址。

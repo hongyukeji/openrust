@@ -396,3 +396,49 @@ async fn anonymous_status(service: &Service, key: &str) -> u16 {
         .parse()
         .unwrap()
 }
+
+#[tokio::test]
+async fn presigned_download_and_upload_work_without_client_credentials() {
+    let Some(service) = Service::start("OPENRUST_TEST_S3").await else {
+        assert!(env::var_os("OPENRUST_REQUIRE_S3_PRESIGN").is_none());
+        return;
+    };
+    let disk = service.manager().disk(None).unwrap();
+    let path = "private/signed + 文本.txt";
+    let expires = std::time::SystemTime::now() + Duration::from_secs(60);
+    let upload = disk.temporaryUploadUrl(path, expires).await.unwrap();
+    let mut client = tokio::process::Command::new("curl");
+    client.args(["--fail", "--silent", "--max-time", "10", "-X", "PUT"]);
+    for (name, value) in &upload.headers {
+        client
+            .arg("-H")
+            .arg(format!("{name}: {}", value.to_str().unwrap()));
+    }
+    let response = client
+        .args(["--data-binary", "presigned payload", &upload.url])
+        .output()
+        .await
+        .unwrap();
+    assert!(response.status.success(), "presigned PUT failed");
+    let download = disk.temporaryUrl(path, expires).await.unwrap();
+    let response = tokio::process::Command::new("curl")
+        .args(["--fail", "--silent", "--max-time", "10", &download])
+        .output()
+        .await
+        .unwrap();
+    assert!(response.status.success(), "presigned GET failed");
+    assert_eq!(response.stdout, b"presigned payload");
+    let unsigned = download.split_once('?').unwrap().0;
+    let response = tokio::process::Command::new("curl")
+        .args(["--fail", "--silent", "--max-time", "10", unsigned])
+        .output()
+        .await
+        .unwrap();
+    assert!(!response.status.success(), "unsigned GET was accepted");
+    assert!(
+        disk.temporaryUrl(path, std::time::SystemTime::now() - Duration::from_secs(1))
+            .await
+            .is_err()
+    );
+    service.clear().await;
+}

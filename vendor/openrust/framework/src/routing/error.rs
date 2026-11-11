@@ -15,6 +15,9 @@ pub enum RoutingError {
         uri: String,
     },
     EmptyStaticDirectory,
+    ConflictingStorageRoute {
+        uri: String,
+    },
     StaticMountConfiguration {
         source: ConfigError,
     },
@@ -50,6 +53,9 @@ impl fmt::Display for RoutingError {
                 f.write_str("use the router provided to the route group callback")
             }
             Self::InvalidUri { uri } => write!(f, "invalid route URI {uri:?}"),
+            Self::ConflictingStorageRoute { uri } => {
+                write!(f, "multiple served disks share {uri:?}")
+            }
             Self::EmptyStaticDirectory => f.write_str("a static mount requires a directory"),
             Self::StaticMountConfiguration { source } => source.fmt(f),
             Self::InvalidConstraint {

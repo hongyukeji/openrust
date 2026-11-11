@@ -17,6 +17,7 @@ pub struct Route {
     pub(super) uri: String,
     pub(super) name: String,
     pub(super) domain: Option<String>,
+    pub(super) public_files_first: bool,
     pub(super) action: &'static str,
     pub(super) definition: &'static Location<'static>,
     host_pattern: Option<RoutePattern>,
@@ -51,6 +52,7 @@ impl Route {
             uri,
             name: String::new(),
             domain,
+            public_files_first: false,
             action: "Closure",
             definition: Location::caller(),
             host_pattern,
@@ -66,6 +68,10 @@ impl Route {
             with_trashed_bindings: false,
             missing: None,
         })
+    }
+
+    pub(super) fn url_pattern(&self) -> super::RouteUrlGenerator {
+        super::RouteUrlGenerator::new(self.uri.clone(), self.domain.clone(), self.defaults.clone())
     }
 
     pub fn name(&mut self, name: &str) -> &mut Self {

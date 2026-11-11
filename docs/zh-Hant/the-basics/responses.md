@@ -56,3 +56,7 @@ fn register() -> Result<(), RoutingError> {
 `ApiResponse::empty()` 回傳省略 `data` 的成功回應。HTTP 204 回應的本文為空。請給 `failure` 傳入可安全顯示給用戶端的訊息，需要回傳欄位錯誤時使用 `with_errors`。
 
 序列化失敗交給[例外處理](errors.md)。內建例外和健康檢查各自使用原有的回應格式。統一業務回應是 OpenRust 在 [Laravel JSON 回應機制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses)之上的擴充。
+
+## 重新導向回應
+
+使用 `Redirect::to` 前往 URL，或以 `Redirect::route` 前往命名路由。`RedirectOptions` 預設使用 302，並支援回應標頭。`Redirect::guest` 將存取目標存入目前工作階段，`Redirect::intended` 讀取並清除它。工作階段沒有存取目標時使用備用位址。

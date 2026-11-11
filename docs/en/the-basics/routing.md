@@ -124,3 +124,7 @@ Call `middleware.throttleWithRedis()` in `withMiddleware` to resolve named throt
 Use `Route::model::<Post>("post")?` to register an explicit binding in the application’s router. A route can also declare the model for its own parameter using the router’s `.model::<Post>("post")?` method. Read the resolved model from `request.route_model::<Post>("post")`. Missing models produce a 404. A route can supply a custom response with `missing`.
 
 The model defaults to its primary key. Override `getRouteKeyName` for a slug or use `{post:slug}` for one route. A nested custom-key binding scopes through the preceding bound model. Use `scopeBindings` to require that scope for default keys or `withoutScopedBindings` to disable it. Implement the child model’s `resolveChildRouteBinding` with a typed relationship. Use `withTrashed` to include soft-deleted records. The default `web` and `api` groups run bindings before the handler.
+
+## Redirect routes
+
+Use `Route::redirect` to register a redirect with an explicit HTTP status. `Route::permanentRedirect` sends 301. A redirect destination such as `/articles/{id}` can reuse a parameter from the matched route.

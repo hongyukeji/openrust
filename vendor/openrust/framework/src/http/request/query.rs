@@ -7,7 +7,7 @@ use super::variables::VariableBag;
 const MAX_QUERY_BYTES: usize = 16 * 1024;
 const MAX_FIELDS: usize = 1024;
 
-pub(super) fn parse(raw: &str) -> Result<Value, HttpError> {
+pub(crate) fn parse(raw: &str) -> Result<Value, HttpError> {
     if raw.len() > MAX_QUERY_BYTES {
         return Err(HttpError::PayloadTooLarge);
     }

@@ -21,6 +21,7 @@ pub use body::Body;
 pub use error::HttpError;
 pub use next::Next;
 pub(crate) use request::context as request_context;
+pub(crate) use request::parse_query;
 pub use request::{Request, RequestAttributes};
 pub use response::Response;
 pub use uploaded_file::UploadedFile;

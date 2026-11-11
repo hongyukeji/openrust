@@ -1,10 +1,12 @@
 mod substitute_bindings;
 mod throttle_requests;
 mod throttle_requests_with_redis;
+mod validate_signature;
 
 pub use substitute_bindings::SubstituteBindings;
 pub use throttle_requests::ThrottleRequests;
 pub use throttle_requests_with_redis::ThrottleRequestsWithRedis;
+pub use validate_signature::ValidateSignature;
 
 use std::{
     any::TypeId,
@@ -86,6 +88,9 @@ impl MiddlewareRegistry {
         if let Some(alias) = self.aliases.get(name) {
             return Some(alias.clone());
         }
+        if name == "signed" {
+            return Some(Arc::new(ValidateSignature::absolute()));
+        }
         let (alias, parameters) = name.split_once(':')?;
         if parameters.is_empty() {
             return None;
@@ -103,6 +108,7 @@ impl MiddlewareRegistry {
             }
             "throttle" => Arc::new(ThrottleRequests::new(parameters)),
             "can" => Arc::new(crate::auth::middleware::Authorize::parse(parameters)?),
+            "signed" => Arc::new(ValidateSignature::parse(parameters)?),
             _ => return None,
         };
         aliases.insert(name.into(), middleware.clone());

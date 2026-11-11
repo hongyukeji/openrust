@@ -9,6 +9,7 @@ pub enum HttpError {
     InvalidRequest,
     PayloadTooLarge,
     Unauthenticated,
+    InvalidSignature,
     AuthorizationDenied(String),
     AuthorizationDeniedWithStatus {
         status: StatusCode,
@@ -35,7 +36,7 @@ impl HttpError {
             Self::InvalidRequest => StatusCode::BAD_REQUEST,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
-            Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
+            Self::InvalidSignature | Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
             Self::AuthorizationDeniedWithStatus { status, .. } => *status,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::OriginMismatch => StatusCode::FORBIDDEN,

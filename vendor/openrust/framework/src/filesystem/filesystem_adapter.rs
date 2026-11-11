@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, time::SystemTime};
 
 use tokio::io::{AsyncRead, AsyncReadExt as _};
 
@@ -6,13 +6,14 @@ use crate::http::{HeaderMap, Response, UploadedFile};
 
 use super::{
     AwsS3V3Adapter, FilesystemError, FilesystemReader, FilesystemResult, LocalFilesystemAdapter,
-    Visibility, WriteOptions, download::OpenedFile, is_staging_name,
+    TemporaryUploadUrl, Visibility, WriteOptions, download::OpenedFile, is_staging_name,
 };
 
 /// Applies disk configuration and exposes filesystem operations.
 pub struct FilesystemAdapter {
     driver: Driver,
     url: Option<String>,
+    signed_route: Option<String>,
     throw: bool,
     report: bool,
 }
@@ -33,6 +34,7 @@ impl FilesystemAdapter {
         Self {
             driver: Driver::Local(local),
             url,
+            signed_route: None,
             throw,
             report,
         }
@@ -47,9 +49,91 @@ impl FilesystemAdapter {
         Self {
             driver: Driver::S3(Box::new(driver)),
             url,
+            signed_route: None,
             throw,
             report,
         }
+    }
+
+    pub(super) fn serve_as(&mut self, name: &str) {
+        if matches!(self.driver, Driver::Local(_)) {
+            self.signed_route = Some(format!("storage.{name}"));
+        }
+    }
+
+    pub fn providesTemporaryUrls(&self) -> bool {
+        self.signed_route.is_some() || matches!(self.driver, Driver::S3(_))
+    }
+
+    pub async fn temporaryUrl(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+    ) -> FilesystemResult<String> {
+        validate_path(path)?;
+        match &self.driver {
+            Driver::Local(_) => self.temporary_local_url(path, expiration, false),
+            Driver::S3(disk) => disk.temporary_url(path, expiration).await,
+        }
+    }
+
+    pub async fn temporaryUploadUrl(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+    ) -> FilesystemResult<TemporaryUploadUrl> {
+        validate_path(path)?;
+        match &self.driver {
+            Driver::Local(_) => Ok(TemporaryUploadUrl {
+                url: self.temporary_local_url(path, expiration, true)?,
+                headers: HeaderMap::new(),
+            }),
+            Driver::S3(disk) => disk.temporary_upload_url(path, expiration).await,
+        }
+    }
+
+    fn temporary_local_url(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        upload: bool,
+    ) -> FilesystemResult<String> {
+        use crate::{
+            contracts::routing::UrlGenerator as _,
+            routing::{RouteParameter, SignatureMode},
+            support::facades::URL,
+        };
+        let name = self
+            .signed_route
+            .as_deref()
+            .ok_or(FilesystemError::UnsupportedOperation)?;
+        let name = if upload {
+            format!("{name}.upload")
+        } else {
+            name.to_owned()
+        };
+        let mut parameters = vec![RouteParameter::named(
+            "path",
+            path.replace('%', "%25")
+                .replace('?', "%3F")
+                .replace('#', "%23")
+                .replace('&', "%26"),
+        )];
+        if upload {
+            parameters.push(RouteParameter::named("upload", "1"));
+        }
+        let url = (|| {
+            let urls = URL::generator()?;
+            let relative =
+                urls.temporarySignedRoute(&name, expiration, &parameters, SignatureMode::Relative)?;
+            urls.to(&relative, &[], None)
+        })()
+        .map_err(
+            |source: crate::routing::UrlError| FilesystemError::Backend {
+                source: Box::new(source),
+            },
+        )?;
+        Ok(url)
     }
 
     pub fn path(&self, path: &str) -> FilesystemResult<PathBuf> {

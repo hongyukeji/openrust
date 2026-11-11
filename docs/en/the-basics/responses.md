@@ -56,3 +56,7 @@ fn register() -> Result<(), RoutingError> {
 `ApiResponse::empty()` returns a success envelope without a `data` field. HTTP 204 responses have an empty body. Supply a client-safe message to `failure` and attach field messages with `with_errors` when needed.
 
 A serialization error goes through [exception handling](errors.md). Built-in exceptions and the health endpoint each use their own response format. The business envelope is an OpenRust extension to [Laravel's JSON response mechanism](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/responses.md#json-responses).
+
+## Redirect responses
+
+Use `Redirect::to` for a URL or `Redirect::route` for a named route. `RedirectOptions` defaults to 302 and accepts response headers. `Redirect::guest` stores the intended URL in the request session, and `Redirect::intended` consumes it and uses a fallback when the session has no intended URL.

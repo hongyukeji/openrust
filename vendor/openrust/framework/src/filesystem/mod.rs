@@ -64,7 +64,8 @@ pub struct WriteOptions {
 
 /// A signed upload URL and the headers required to use it.
 pub struct TemporaryUploadUrl {
-    _private: (),
+    pub url: String,
+    pub headers: crate::http::HeaderMap,
 }
 
 impl std::fmt::Display for FilesystemError {
@@ -130,3 +131,6 @@ impl Visibility {
 pub(crate) use local_filesystem_adapter::{is_staging_name, open_public_file};
 
 pub use facade::Storage;
+
+mod signed_routes;
+pub(crate) use signed_routes::register as register_signed_routes;

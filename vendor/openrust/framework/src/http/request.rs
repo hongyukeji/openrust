@@ -18,6 +18,7 @@ pub(crate) mod context;
 mod cookies;
 mod input;
 mod query;
+pub(crate) use query::parse as parse_query;
 mod variables;
 pub use context::RequestAttributes;
 

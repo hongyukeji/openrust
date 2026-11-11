@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use aws_sdk_s3::{
     Client,
@@ -9,6 +9,7 @@ use aws_sdk_s3::{
         timeout::TimeoutConfig,
     },
     error::{ProvideErrorMetadata, SdkError},
+    presigning::PresigningConfig,
     primitives::ByteStream,
     types::{
         CompletedMultipartUpload, CompletedPart, Grant, ObjectCannedAcl, ObjectOwnership, Owner,
@@ -23,7 +24,8 @@ use tokio::{
 use url::Url;
 
 use super::{
-    FilesystemError, FilesystemReader, FilesystemResult, Visibility, download::OpenedFile,
+    FilesystemError, FilesystemReader, FilesystemResult, TemporaryUploadUrl, Visibility,
+    download::OpenedFile,
 };
 
 const PART_SIZE: usize = 8 * 1024 * 1024;
@@ -194,6 +196,51 @@ impl AwsS3V3Adapter {
             .ok_or(FilesystemError::InvalidConfiguration)?
             .map_err(|source| FilesystemError::Backend { source })?;
         Ok(format!("{}/{key}", endpoint.url().trim_end_matches('/')))
+    }
+
+    pub(super) async fn temporary_url(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+    ) -> FilesystemResult<String> {
+        let request = self
+            .client()
+            .await
+            .get_object()
+            .bucket(&self.config.bucket)
+            .key(self.key(path))
+            .presigned(presigning(expiration)?)
+            .await
+            .map_err(|error| classify_error(&error))?;
+        Ok(request.uri().to_owned())
+    }
+
+    pub(super) async fn temporary_upload_url(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+    ) -> FilesystemResult<TemporaryUploadUrl> {
+        let request = self
+            .client()
+            .await
+            .put_object()
+            .bucket(&self.config.bucket)
+            .key(self.key(path))
+            .presigned(presigning(expiration)?)
+            .await
+            .map_err(|error| classify_error(&error))?;
+        let mut headers = crate::http::HeaderMap::new();
+        for (name, value) in request.headers() {
+            let name = ::http::HeaderName::from_bytes(name.as_bytes())
+                .map_err(|_| FilesystemError::InvalidConfiguration)?;
+            let value = ::http::HeaderValue::from_str(value)
+                .map_err(|_| FilesystemError::InvalidConfiguration)?;
+            headers.append(name, value);
+        }
+        Ok(TemporaryUploadUrl {
+            url: request.uri().to_owned(),
+            headers,
+        })
     }
 
     pub(super) async fn file_exists(&self, path: &str) -> FilesystemResult<bool> {
@@ -589,4 +636,16 @@ fn invalid_response() -> FilesystemError {
     FilesystemError::Backend {
         source: Box::new(std::io::Error::other("invalid S3 response")),
     }
+}
+
+fn presigning(expiration: SystemTime) -> FilesystemResult<PresigningConfig> {
+    let now = SystemTime::now();
+    let duration = expiration
+        .duration_since(now)
+        .map_err(|_| FilesystemError::InvalidConfiguration)?;
+    PresigningConfig::builder()
+        .start_time(now)
+        .expires_in(duration)
+        .build()
+        .map_err(|_| FilesystemError::InvalidConfiguration)
 }

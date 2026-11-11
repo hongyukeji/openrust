@@ -50,6 +50,7 @@ struct RouteValues {
 struct RequestContext {
     container: Arc<Container>,
     uri: crate::http::Uri,
+    host: Option<::http::HeaderValue>,
     attributes: RequestAttributes,
     route: Mutex<RouteValues>,
 }
@@ -61,6 +62,7 @@ tokio::task_local! {
 pub(crate) async fn scope<F: Future>(
     container: Arc<Container>,
     uri: crate::http::Uri,
+    host: Option<::http::HeaderValue>,
     attributes: RequestAttributes,
     future: F,
 ) -> F::Output {
@@ -69,6 +71,7 @@ pub(crate) async fn scope<F: Future>(
             RequestContext {
                 container,
                 uri,
+                host,
                 attributes,
                 route: Mutex::default(),
             },
@@ -78,11 +81,19 @@ pub(crate) async fn scope<F: Future>(
 }
 
 pub(crate) fn with_uri<T>(get: impl FnOnce(&crate::http::Uri) -> T) -> Option<T> {
+    with_context(|context| get(&context.uri))
+}
+
+pub(crate) fn with_url_uri() -> Option<crate::http::Uri> {
+    with_context(|context| crate::routing::url_uri(&context.uri, context.host.as_ref()))
+}
+
+fn with_context<T>(get: impl FnOnce(&RequestContext) -> T) -> Option<T> {
     CURRENT
         .try_with(|context| {
             current_container()
                 .filter(|active| Arc::ptr_eq(active, &context.container))
-                .map(|_| get(&context.uri))
+                .map(|_| get(context))
         })
         .ok()
         .flatten()

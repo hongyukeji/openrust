@@ -1,6 +1,8 @@
 //! Static entry points for application services, routes and commands.
 
 mod facade;
+mod redirect;
+mod url;
 pub use crate::auth::{Auth, access::GateFacade as Gate};
 pub use crate::cache::Cache;
 pub use crate::cookie::facade::Cookie;
@@ -18,6 +20,8 @@ pub(crate) use facade::{
     ContextSnapshot, application_scope, context_snapshot, current_container, database_routing,
     scope,
 };
+pub use redirect::Redirect;
+pub use url::URL;
 
 use std::{
     cell::RefCell,
@@ -308,6 +312,30 @@ impl Route {
             uri,
             handler,
         )
+    }
+
+    #[track_caller]
+    pub fn redirect(
+        uri: &str,
+        target: &str,
+        status: crate::http::StatusCode,
+    ) -> Result<(), RoutingError> {
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .redirect(uri, target, status)
+                    .map(|_| ())
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
+    #[track_caller]
+    #[allow(non_snake_case, reason = "Matches Laravel's Route facade")]
+    pub fn permanentRedirect(uri: &str, target: &str) -> Result<(), RoutingError> {
+        Self::redirect(uri, target, crate::http::StatusCode::MOVED_PERMANENTLY)
     }
 
     pub fn group(

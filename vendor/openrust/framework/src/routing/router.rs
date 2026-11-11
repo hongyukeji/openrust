@@ -111,6 +111,20 @@ impl Router {
         Self::default()
     }
 
+    pub(crate) fn named_routes(&self) -> HashMap<String, super::RouteUrlGenerator> {
+        let active: std::collections::HashSet<_> =
+            self.by_method.values().flatten().copied().collect();
+        let mut named = HashMap::new();
+        for (index, route) in self.routes.iter().enumerate() {
+            if let Some(name) = route.getName().filter(|_| active.contains(&index)) {
+                named
+                    .entry(name.to_owned())
+                    .or_insert_with(|| route.url_pattern());
+            }
+        }
+        named
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
     pub fn getRoutes(&self) -> Vec<RouteInfo> {
         let mut methods_by_route = vec![Vec::new(); self.routes.len()];
@@ -197,6 +211,34 @@ impl Router {
         Ok(route)
     }
 
+    #[track_caller]
+    pub fn redirect(
+        &mut self,
+        uri: &str,
+        target: &str,
+        status: crate::http::StatusCode,
+    ) -> Result<&mut Route, RoutingError> {
+        let methods = VERBS
+            .iter()
+            .map(|verb| Method::from_bytes(verb.as_bytes()).expect("valid HTTP method"))
+            .collect::<Vec<_>>();
+        self.add_route(
+            &methods,
+            uri,
+            Arc::new(super::redirector::RedirectRoute::new(target, status)),
+        )
+    }
+
+    #[track_caller]
+    #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
+    pub fn permanentRedirect(
+        &mut self,
+        uri: &str,
+        target: &str,
+    ) -> Result<&mut Route, RoutingError> {
+        self.redirect(uri, target, crate::http::StatusCode::MOVED_PERMANENTLY)
+    }
+
     pub fn group(
         &mut self,
         group: RouteGroup,
@@ -275,6 +317,42 @@ impl Router {
         Ok(())
     }
 
+    pub(crate) fn storage_route(
+        &mut self,
+        uri: &str,
+        name: &str,
+        upload: bool,
+        handler: impl Handler + 'static,
+    ) -> Result<(), RoutingError> {
+        let methods: &[Method] = if upload {
+            &[Method::PUT]
+        } else {
+            &[Method::GET, Method::HEAD]
+        };
+        let route = self.add_route(methods, uri, Arc::new(handler))?;
+        route.r#where("path", ".+")?.name(name);
+        route.public_files_first = !upload;
+        Ok(())
+    }
+
+    async fn static_response(
+        &self,
+        path: &str,
+        method: &Method,
+        headers: &crate::http::HeaderMap,
+        trailing_slash: bool,
+    ) -> Option<Response> {
+        if !matches!(*method, Method::GET | Method::HEAD) || trailing_slash {
+            return None;
+        }
+        for mount in &self.static_mounts {
+            if let Some(response) = mount.serve(path, method, headers).await {
+                return Some(response);
+            }
+        }
+        None
+    }
+
     fn matched(&self, method: &Method, host: &str, path: &str) -> Option<&Route> {
         self.by_method
             .get(method)?
@@ -302,6 +380,21 @@ impl Router {
             .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
             .unwrap_or_default();
         if let Some(route) = self.matched(request.method(), host, &path) {
+            if route.public_files_first
+                && request.uri().query().is_none_or(|query| {
+                    !query.split('&').any(|part| part.starts_with("signature="))
+                })
+                && let Some(response) = self
+                    .static_response(
+                        &path,
+                        request.method(),
+                        request.headers(),
+                        request.uri().path().ends_with('/'),
+                    )
+                    .await
+            {
+                return Ok(response);
+            }
             let parameters = route.parameters(host, &path);
             request.matched_route = true;
             let plan = route.binding_plan(&self.bindings, &parameters);
@@ -339,17 +432,16 @@ impl Router {
             .filter(|method| self.matched(method, host, &path).is_some())
             .collect();
         if allowed.is_empty() {
-            if matches!(*request.method(), Method::GET | Method::HEAD)
-                && !request.uri().path().ends_with('/')
+            if let Some(response) = self
+                .static_response(
+                    &path,
+                    request.method(),
+                    request.headers(),
+                    request.uri().path().ends_with('/'),
+                )
+                .await
             {
-                for mount in &self.static_mounts {
-                    if let Some(response) = mount
-                        .serve(&path, request.method(), request.headers())
-                        .await
-                    {
-                        return Ok(response);
-                    }
-                }
+                return Ok(response);
             }
             return Err(HttpError::NotFound);
         }

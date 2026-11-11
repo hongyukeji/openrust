@@ -17,6 +17,7 @@ pub(super) fn default_response(
 ) -> Response {
     let status = error.map_or(StatusCode::INTERNAL_SERVER_ERROR, HttpError::status);
     let message = match error {
+        Some(HttpError::InvalidSignature) => "Invalid signature.",
         Some(HttpError::Unauthenticated) => "Unauthenticated.",
         Some(HttpError::OriginMismatch) => "Origin mismatch.",
         Some(HttpError::Throttled { .. }) => "Too Many Attempts.",

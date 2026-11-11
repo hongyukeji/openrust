@@ -69,6 +69,7 @@ impl FilesystemManager {
             None | Some(serde_json::Value::Null) => None,
             _ => return Err(FilesystemError::InvalidConfiguration),
         };
+        let serve = config.get("serve").and_then(serde_json::Value::as_bool) == Some(true);
         let disk = match config.get("driver").and_then(serde_json::Value::as_str) {
             Some("local") => self.build_local(
                 serde_json::from_value(config)
@@ -82,6 +83,15 @@ impl FilesystemManager {
             )?,
             Some(_) => return Err(FilesystemError::UnsupportedOperation),
             None => return Err(FilesystemError::InvalidConfiguration),
+        };
+        let disk = if serve {
+            let mut disk = disk;
+            Arc::get_mut(&mut disk)
+                .expect("new disk is exclusively owned")
+                .serve_as(name);
+            disk
+        } else {
+            disk
         };
         disks.insert(name.to_owned(), Arc::clone(&disk));
         Ok(disk)

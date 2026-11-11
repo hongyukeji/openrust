@@ -12,6 +12,16 @@ impl<M: Model> UrlRoutable for M {
         M::getRouteKeyName()
     }
 
+    fn get_route_key(&self) -> Option<crate::routing::UrlValue> {
+        let key = match M::getRouteKey(self)? {
+            Value::Integer(value) => crate::routing::UrlValue::Number((*value).into()),
+            Value::Unsigned(value) => crate::routing::UrlValue::Number((*value).into()),
+            Value::Text(value) => crate::routing::UrlValue::String(value.clone()),
+            _ => return None,
+        };
+        Some(key)
+    }
+
     fn resolve_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {

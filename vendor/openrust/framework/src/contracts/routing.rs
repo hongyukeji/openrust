@@ -1,3 +1,6 @@
+mod url_generator;
+pub use url_generator::UrlGenerator;
+
 use std::sync::Arc;
 
 use crate::{
@@ -40,6 +43,11 @@ pub trait Registrar {
 pub trait UrlRoutable: Sized + Send + Sync + 'static {
     fn get_route_key_name() -> &'static str {
         "id"
+    }
+
+    /// Projects the model's key for use in a named URL.
+    fn get_route_key(&self) -> Option<crate::routing::UrlValue> {
+        None
     }
 
     fn resolve_route_binding(

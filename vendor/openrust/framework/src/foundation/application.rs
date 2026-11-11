@@ -542,10 +542,29 @@ impl Application {
             .lock()
             .expect("application routing lock poisoned")
             .take();
-        let routes = match routing {
+        let mut routes = match routing {
             Some(routing) => routing.register(self).map_err(routing_failed)?,
             None => Router::new(),
         };
+        let config = self
+            .configuration_repository()
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        crate::filesystem::register_signed_routes(&mut routes, config.as_ref())
+            .map_err(routing_failed)?;
+        self.shared
+            .container
+            .instanceNamed(
+                "url",
+                Arc::new(crate::routing::UrlGenerator::new(
+                    routes.named_routes(),
+                    config,
+                )),
+            )
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared
+            .container
+            .alias("url", ServiceKey::typed::<crate::routing::UrlGenerator>())
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         *self
             .shared
             .routes

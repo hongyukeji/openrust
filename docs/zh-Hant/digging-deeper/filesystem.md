@@ -129,3 +129,7 @@ pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpErr
 Unix 上公開和私有檔案權限分別是 `0644` 和 `0600`。新子目錄使用磁碟的目錄可見性設定。可用 `WriteOptions` 覆寫單次寫入的可見性，透過 `getVisibility` 和 `setVisibility` 管理既有檔案。Windows 寫入使用檔案系統 ACL，明確的可見性變更目前支援 Unix。
 
 S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體的存取控制。明確設定可見性需要儲存貯體支援 ACL，確認設定結果還需要讀取 ACL 的權限。實際匿名存取取決於儲存貯體政策及服務是否執行 ACL。
+
+## 暫存檔案 URL
+
+使用 `disk.temporaryUrl(path, expiration).await?` 產生下載連結，或使用 `disk.temporaryUploadUrl(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。

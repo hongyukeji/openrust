@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 
 use crate::{
     container::ServiceKey,
@@ -76,6 +76,19 @@ impl Storage {
 
     pub fn url(path: &str) -> FilesystemResult<String> {
         Self::disk(None)?.url(path)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn temporaryUrl(path: &str, expiration: SystemTime) -> FilesystemResult<String> {
+        Self::disk(None)?.temporaryUrl(path, expiration).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn temporaryUploadUrl(
+        path: &str,
+        expiration: SystemTime,
+    ) -> FilesystemResult<super::TemporaryUploadUrl> {
+        Self::disk(None)?.temporaryUploadUrl(path, expiration).await
     }
 
     pub async fn download(

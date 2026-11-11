@@ -129,3 +129,7 @@ pub async fn store_attachment(request: &mut Request) -> Result<Response, HttpErr
 Unix 上公开和私有文件权限分别是 `0644` 和 `0600`。新子目录使用磁盘的目录可见性配置。可用 `WriteOptions` 覆盖单次写入的可见性，通过 `getVisibility` 和 `setVisibility` 管理已有文件。Windows 写入使用文件系统 ACL，显式可见性变更目前支持 Unix。
 
 S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的访问控制。显式可见性需要存储桶支持 ACL，确认设置结果还需要读取 ACL 的权限。实际匿名可访问性取决于存储桶策略及服务是否执行 ACL。
+
+## 临时文件 URL
+
+用 `disk.temporaryUrl(path, expiration).await?` 生成下载链接，或用 `disk.temporaryUploadUrl(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。
