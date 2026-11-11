@@ -13,11 +13,12 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    cache::rate_limiting::Limit,
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::{debug::SharedException, http::Kernel as _},
     foundation::{
         Application,
-        configuration::{ReportDecision, Routing},
+        configuration::{ReportDecision, ReportThrottle, Routing},
         http::Kernel,
     },
     http::{HttpError, HttpFuture, Request, Response},
@@ -226,24 +227,24 @@ async fn ignored_shared_error_can_report_later_and_deduplication_is_application_
     app.boot().await.unwrap();
     second.boot().await.unwrap();
     let error = SharedException::new(Failure("shared explicit report"));
-    app.report(&error).unwrap();
+    app.report(&error).await.unwrap();
     assert!(!root.0.join("storage/logs/openrust.log").exists());
     ignore.store(false, Ordering::Relaxed);
-    app.report(&error).unwrap();
-    app.report(&error.clone()).unwrap();
-    second.report(&error).unwrap();
-    app.report(&HttpError::NotFound).unwrap();
-    second.report(&HttpError::NotFound).unwrap();
+    app.report(&error).await.unwrap();
+    app.report(&error.clone()).await.unwrap();
+    second.report(&error).await.unwrap();
+    app.report(&HttpError::NotFound).await.unwrap();
+    second.report(&HttpError::NotFound).await.unwrap();
     let concurrent = SharedException::new(Failure("one concurrent report"));
-    let barrier = std::sync::Barrier::new(4);
-    std::thread::scope(|scope| {
-        for _ in 0..4 {
-            scope.spawn(|| {
-                barrier.wait();
-                app.report(&concurrent).unwrap();
-            });
-        }
-    });
+    let (first, second, third, fourth) = tokio::join!(
+        app.report(&concurrent),
+        app.report(&concurrent),
+        app.report(&concurrent),
+        app.report(&concurrent),
+    );
+    for result in [first, second, third, fourth] {
+        result.unwrap();
+    }
     assert_eq!(root.log().matches("one concurrent report").count(), 1);
     assert_eq!(root.log().matches("shared explicit report").count(), 1);
     assert_eq!(other.log().matches("shared explicit report").count(), 1);
@@ -277,9 +278,16 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
     ))))
 }
 
-async fn run_artisan(root: &Path) -> i32 {
+async fn run_artisan(root: &Path, limited: bool) -> i32 {
     Application::configure(root.to_path_buf())
         .withCommands(commands)
+        .withConfig(|_, _| Ok(array_cache()))
+        .withExceptions(move |exceptions| {
+            if limited {
+                exceptions
+                    .throttle::<ConsoleError>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
+            }
+        })
         .create()
         .unwrap()
         .handleCommand(&[OsString::from("report:probe")])
@@ -291,7 +299,8 @@ async fn run_artisan(root: &Path) -> i32 {
 async fn artisan_failure_logs_and_keeps_exit_code_and_stderr() {
     const CHILD: &str = "OPENRUST_TEST_EXCEPTION_REPORTING_ROOT";
     if let Some(root) = std::env::var_os(CHILD) {
-        std::process::exit(run_artisan(Path::new(&root)).await);
+        let limited = std::env::var_os("OPENRUST_TEST_LIMIT_ARTISAN_REPORT").is_some();
+        std::process::exit(run_artisan(Path::new(&root), limited).await);
     }
     let root = Root::new();
     let output = std::process::Command::new(std::env::current_exe().unwrap())
@@ -311,4 +320,187 @@ async fn artisan_failure_logs_and_keeps_exit_code_and_stderr() {
     let log = root.log();
     assert!(log.contains(r#"production.ERROR: artisanal failure {} {"entry":"artisan"}"#));
     assert!(!log.contains("hidden-command-token"));
+    let limited = Root::new();
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "artisan_failure_logs_and_keeps_exit_code_and_stderr",
+            "--nocapture",
+        ])
+        .env(CHILD, &limited.0)
+        .env("OPENRUST_TEST_LIMIT_ARTISAN_REPORT", "1")
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.stderr, b"artisanal failure\n");
+    assert!(!limited.0.join("storage/logs/openrust.log").exists());
+}
+
+#[tokio::test]
+async fn sampling_changes_log_count_and_preserves_actual_http_error_responses() {
+    use openrust::support::Lottery;
+
+    assert!(Lottery::odds(1, 0).is_err());
+    assert!(Lottery::odds(2, 1).is_err());
+    let losing = Lottery::odds(0, 1).unwrap();
+    let winning = Lottery::odds(1, 1).unwrap();
+
+    let root = Root::new();
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let observed = callbacks.clone();
+    let application = Application::configure(root.0.clone())
+        .withRouting(Routing::new(routes))
+        .withExceptions(move |exceptions| {
+            exceptions.throttle::<Failure>(move |failure| {
+                let lottery = if failure.0 == "conditional" {
+                    winning
+                } else {
+                    losing
+                };
+                Some(ReportThrottle::Lottery(lottery))
+            });
+            exceptions.report::<Failure>(move |_| {
+                observed.fetch_add(1, Ordering::Relaxed);
+                ReportDecision::Continue
+            });
+        })
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(application);
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let state = ServerState(Arc::new(kernel), SharedException::new(Failure("shared")));
+    let service = transport.with_state(state).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+    tokio::join!(
+        send(address, "/failure/default", 500),
+        send(address, "/failure/conditional", 500),
+        send(address, "/failure/default", 500),
+    );
+    assert_eq!(callbacks.load(Ordering::Relaxed), 1);
+    assert_eq!(root.log().lines().count(), 1);
+    assert!(root.log().contains("conditional"));
+    server.abort();
+    assert!(server.await.unwrap_err().is_cancelled());
+}
+
+fn array_cache() -> std::collections::BTreeMap<String, serde_json::Value> {
+    std::collections::BTreeMap::from([(
+        "cache".into(),
+        json!({"default": "array", "stores": {"array": {"driver": "array"}}}),
+    )])
+}
+
+#[tokio::test]
+async fn concurrent_http_reports_use_an_atomic_budget_and_resume_after_decay() {
+    let root = Root::new();
+    let callbacks = Arc::new(AtomicUsize::new(0));
+    let observed = callbacks.clone();
+    let application = Application::configure(root.0.clone())
+        .withConfig(|_, _| Ok(array_cache()))
+        .withRouting(Routing::new(routes))
+        .withExceptions(move |exceptions| {
+            exceptions.throttle::<Failure>(|failure| {
+                let limit = if failure.0 == "conditional" {
+                    Limit::perMinute(1).by("conditional")
+                } else {
+                    Limit::perSecond(2)
+                };
+                Some(ReportThrottle::Limit(limit))
+            });
+            exceptions.report::<Failure>(move |_| {
+                observed.fetch_add(1, Ordering::Relaxed);
+                ReportDecision::Continue
+            });
+        })
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(application);
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let state = ServerState(Arc::new(kernel), SharedException::new(Failure("shared")));
+    let service = transport.with_state(state).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+    tokio::join!(
+        send(address, "/failure/default", 500),
+        send(address, "/failure/default", 500),
+        send(address, "/failure/default", 500),
+        send(address, "/failure/conditional", 500),
+        send(address, "/failure/conditional", 500),
+    );
+    assert_eq!(callbacks.load(Ordering::Relaxed), 3);
+    let log = root.log();
+    assert_eq!(log.lines().count(), 3);
+    assert_eq!(log.matches(r#"{"trace":"default"}"#).count(), 2);
+    assert_eq!(log.matches(r#"{"trace":"conditional"}"#).count(), 1);
+
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    send(address, "/failure/default", 500).await;
+    send(address, "/failure/conditional", 500).await;
+    assert_eq!(callbacks.load(Ordering::Relaxed), 4);
+    assert_eq!(root.log().lines().count(), 4);
+    server.abort();
+    assert!(server.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn unavailable_throttle_store_does_not_suppress_explicit_reports() {
+    let root = Root::new();
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            let mut config = array_cache();
+            config.get_mut("cache").unwrap()["limiter"] = json!("missing");
+            Ok(config)
+        })
+        .withExceptions(|exceptions| {
+            exceptions.throttle::<Failure>(|_| Some(ReportThrottle::Limit(Limit::perMinute(0))));
+        })
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    app.report(&Failure("report despite unavailable throttle"))
+        .await
+        .unwrap();
+    assert!(root.log().contains("report despite unavailable throttle"));
+}
+
+#[tokio::test]
+async fn explicit_keys_share_a_budget_across_error_types_within_each_application() {
+    async fn application(root: &Root) -> Application {
+        let mut app = Application::configure(root.0.clone())
+            .withConfig(|_, _| Ok(array_cache()))
+            .withExceptions(|exceptions| {
+                exceptions.throttle::<Failure>(|_| {
+                    Some(ReportThrottle::Limit(Limit::perMinute(1).by("shared")))
+                });
+                exceptions.throttle::<io::Error>(|_| {
+                    Some(ReportThrottle::Limit(Limit::perMinute(1).by("shared")))
+                });
+            })
+            .create()
+            .unwrap();
+        app.boot().await.unwrap();
+        app
+    }
+
+    let root = Root::new();
+    let other = Root::new();
+    let app = application(&root).await;
+    let second = application(&other).await;
+    app.report(&Failure("first application report"))
+        .await
+        .unwrap();
+    app.report(&io::Error::other("shared budget exhausted"))
+        .await
+        .unwrap();
+    second
+        .report(&io::Error::other("second application report"))
+        .await
+        .unwrap();
+    let log = root.log();
+    assert!(log.contains("first application report"));
+    assert!(!log.contains("shared budget exhausted"));
+    assert!(other.log().contains("second application report"));
 }

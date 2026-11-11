@@ -1,12 +1,15 @@
 use std::{any::TypeId, error::Error, sync::Arc};
 
 use crate::{
+    cache::rate_limiting::Limit,
     contracts::debug::Exception,
     http::{HttpError, Request, Response},
     log::{Level, LogContext},
+    support::Lottery,
 };
 
 type JsonPolicy = dyn Fn(&Request, &HttpError) -> bool + Send + Sync;
+type Throttle = dyn Fn(&Exception<'_>) -> Option<(ReportThrottle, &'static str)> + Send + Sync;
 type Reporter = dyn Fn(&Exception<'_>) -> ReportDecision + Send + Sync;
 type Renderer = dyn Fn(&Exception<'_>, &Request) -> Option<Response> + Send + Sync;
 type Responder = dyn Fn(Response, &Exception<'_>, &Request) -> Response + Send + Sync;
@@ -36,11 +39,20 @@ pub enum ReportDecision {
     Stop,
 }
 
+/// Determines whether an otherwise reportable exception is logged.
+#[derive(Clone)]
+pub enum ReportThrottle {
+    Unlimited,
+    Lottery(Lottery),
+    Limit(Limit),
+}
+
 /// Configures exception reporting and HTTP rendering.
 #[derive(Clone, Default)]
 pub struct Exceptions {
     json_policy: Option<Arc<JsonPolicy>>,
     reporters: Vec<Arc<Reporter>>,
+    throttles: Vec<Arc<Throttle>>,
     ignored: Vec<Rule>,
     unignored: Vec<Rule>,
     ignore_when: Vec<Arc<Matcher>>,
@@ -63,6 +75,29 @@ impl Exceptions {
                 .map_or(ReportDecision::Continue, &callback)
         }));
         self
+    }
+
+    /// Sets a sampling or rate limit policy for matching exception reports.
+    pub fn throttle<E: Error + 'static>(
+        &mut self,
+        callback: impl Fn(&E) -> Option<ReportThrottle> + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.throttles.push(Arc::new(move |exception| {
+            exception
+                .downcast_ref::<E>()
+                .and_then(&callback)
+                .map(|policy| (policy, std::any::type_name::<E>()))
+        }));
+        self
+    }
+
+    pub(crate) fn report_throttle(
+        &self,
+        exception: &Exception<'_>,
+    ) -> Option<(ReportThrottle, &'static str)> {
+        self.throttles
+            .iter()
+            .find_map(|throttle| throttle(exception))
     }
 
     /// Sets the default log level for a matching exception type.

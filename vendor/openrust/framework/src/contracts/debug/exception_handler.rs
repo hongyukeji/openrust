@@ -8,7 +8,7 @@ use std::{
 
 use crate::{
     console::Output,
-    http::{HttpError, Request, Response},
+    http::{HttpError, HttpFuture, Request, Response},
     log::LogResult,
 };
 
@@ -71,8 +71,9 @@ impl Exception<'_> {
 
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Send + Sync {
-    fn shouldReport(&self, exception: &Exception<'_>) -> bool;
-    fn report(&self, exception: &Exception<'_>) -> LogResult<()>;
+    /// Checks report eligibility, consuming an attempt for a rate-limited report.
+    fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
+    fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response;
     fn renderForConsole(&self, output: &mut Output, exception: &Exception<'_>);
 }

@@ -6,7 +6,7 @@ mod middleware;
 mod routing;
 
 pub use application_builder::ApplicationBuilder;
-pub use exceptions::{Exceptions, ReportDecision};
+pub use exceptions::{Exceptions, ReportDecision, ReportThrottle};
 pub use middleware::Middleware;
 pub(super) use routing::CommandRoutes;
 pub use routing::Routing;

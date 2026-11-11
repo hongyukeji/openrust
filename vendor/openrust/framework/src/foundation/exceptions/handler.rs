@@ -6,12 +6,19 @@ use std::{
 };
 
 use crate::{
+    cache::{
+        RateLimiter,
+        rate_limiting::{
+            Limit,
+            counters::{self, Admission, Quota},
+        },
+    },
     console::Output,
     container::Container,
     contracts::container::Container as _,
     contracts::debug::{Exception, ExceptionHandler, SharedException},
-    foundation::configuration::Exceptions,
-    http::{HttpError, Request, Response},
+    foundation::configuration::{Exceptions, ReportThrottle},
+    http::{HttpError, HttpFuture, Request, Response},
     log::{Level, LogError, LogResult},
 };
 
@@ -65,21 +72,48 @@ impl Handler {
                 configuration.allows_reporting(exception, default)
             })
     }
-}
 
-#[allow(
-    non_snake_case,
-    reason = "Matches Laravel's exception handler contract"
-)]
-impl ExceptionHandler for Handler {
-    fn shouldReport(&self, exception: &Exception<'_>) -> bool {
-        !self.duplicate(exception, false) && self.allowed(exception)
+    async fn allows_throttle(&self, exception: &Exception<'_>) -> bool {
+        match self
+            .configuration
+            .as_ref()
+            .and_then(|config| config.report_throttle(exception))
+        {
+            Some((ReportThrottle::Lottery(lottery), _)) => lottery.choose(),
+            Some((ReportThrottle::Limit(limit), kind)) => self.admit_report(limit, kind).await,
+            Some((ReportThrottle::Unlimited, _)) | None => true,
+        }
     }
 
-    fn report(&self, exception: &Exception<'_>) -> LogResult<()> {
-        if !self.shouldReport(exception) || self.duplicate(exception, true) {
-            return Ok(());
-        }
+    async fn admit_report(&self, limit: Limit, kind: &str) -> bool {
+        let Some(repository) = self.owner.upgrade().and_then(|owner| {
+            owner
+                .get::<RateLimiter>("rateLimiter")
+                .ok()?
+                .repository()
+                .ok()
+        }) else {
+            return true;
+        };
+        let key = if limit.key.is_empty() {
+            counters::key("exception-report-type", "", kind)
+        } else {
+            counters::key("exception-report", "", &limit.key)
+        };
+        let quota = Quota {
+            key,
+            max: limit.maxAttempts,
+            decay: limit.decaySeconds,
+            charge: true,
+        };
+        // A failed throttle must leave the original exception reportable.
+        !matches!(
+            counters::admit(repository.as_ref(), &[quota]).await,
+            Ok(Admission::Denied { .. })
+        )
+    }
+
+    fn write_report(&self, exception: &Exception<'_>) -> LogResult<()> {
         if self
             .configuration
             .as_ref()
@@ -108,6 +142,29 @@ impl ExceptionHandler for Handler {
                 .map_err(|error| LogError::WriteFailed(Box::new(error)))?;
         }
         Ok(())
+    }
+}
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's exception handler contract"
+)]
+impl ExceptionHandler for Handler {
+    fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
+        Box::pin(async move {
+            !self.duplicate(exception, false)
+                && self.allowed(exception)
+                && self.allows_throttle(exception).await
+        })
+    }
+
+    fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>> {
+        Box::pin(async move {
+            if !self.shouldReport(exception).await || self.duplicate(exception, true) {
+                return Ok(());
+            }
+            self.write_report(exception)
+        })
     }
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {

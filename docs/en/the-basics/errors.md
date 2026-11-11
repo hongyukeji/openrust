@@ -32,11 +32,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .create()?;
     app.boot().await?;
     let error = SharedException::new(std::io::Error::other("Job failed"));
-    app.report(&error)?;
-    app.report(&error.clone())?;
+    app.report(&error).await?;
+    app.report(&error.clone()).await?;
     Ok(())
 }
 ```
+
+## Throttling Reported Exceptions
+
+Register a policy in `withExceptions` with `throttle::<E>`. The first matching callback that returns a policy takes effect. Use `ReportThrottle::Lottery(Lottery::odds(1, 100)?)` for sampling, `ReportThrottle::Limit` for a fixed attempt budget, or `ReportThrottle::Unlimited` to report without throttling.
+
+This example passes `configure` to `withExceptions` and allows two I/O error reports per minute.
+
+```rust
+use openrust::{
+    cache::rate_limiting::Limit,
+    foundation::configuration::{Exceptions, ReportThrottle},
+};
+
+fn configure(exceptions: &mut Exceptions) {
+    exceptions.throttle::<std::io::Error>(|_| {
+        Some(ReportThrottle::Limit(Limit::perMinute(2).by("transport")))
+    });
+}
+```
+
+Without `by`, the budget is keyed by the registered Rust error type. Policies with the same explicit key share a budget in the configured limiter cache. A failed cache operation allows reporting to continue. Throttling happens before report callbacks and logging. HTTP status and body, and Artisan stderr and exit code, follow their usual handling.
+
+`Application::report` is asynchronous so explicit reports can use the same cache-backed policy as HTTP and Artisan.
 
 ## Rendering Exceptions
 

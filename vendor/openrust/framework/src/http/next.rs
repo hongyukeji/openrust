@@ -31,14 +31,16 @@ impl<'a> Next<'a> {
             }
             None => self.handler.handle(request).await,
         };
-        result.unwrap_or_else(|error| {
-            if let Some(handler) = &request.exceptions {
-                let exception = Exception::Http(&error);
-                let _ = handler.report(&exception);
-                handler.render(request, &exception)
-            } else {
-                error.bare_response()
-            }
-        })
+        let error = match result {
+            Ok(response) => return response,
+            Err(error) => error,
+        };
+        if let Some(handler) = &request.exceptions {
+            let exception = Exception::Http(&error);
+            let _ = handler.report(&exception).await;
+            handler.render(request, &exception)
+        } else {
+            error.bare_response()
+        }
     }
 }

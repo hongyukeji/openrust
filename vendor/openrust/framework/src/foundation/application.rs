@@ -147,17 +147,23 @@ impl Application {
     }
 
     /// Reports an application error through this application's exception handler.
-    pub fn report(&self, error: &(dyn Error + Send + Sync + 'static)) -> crate::log::LogResult<()> {
-        self.shared.exceptions.report(&Exception::Error(error))
+    pub async fn report(
+        &self,
+        error: &(dyn Error + Send + Sync + 'static),
+    ) -> crate::log::LogResult<()> {
+        self.shared
+            .exceptions
+            .report(&Exception::Error(error))
+            .await
     }
 
-    pub(crate) fn render_console_exception(
+    pub(crate) async fn render_console_exception(
         &self,
         output: &mut Output,
         error: &(dyn Error + Send + Sync + 'static),
     ) {
         let exception = Exception::Error(error);
-        let _ = self.shared.exceptions.report(&exception);
+        let _ = self.shared.exceptions.report(&exception).await;
         self.shared.exceptions.renderForConsole(output, &exception);
     }
 

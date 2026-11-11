@@ -198,10 +198,13 @@ impl Application {
         } else {
             Ok(list_command::run(self, &syntax, None, output))
         };
-        result.unwrap_or_else(|error| {
-            application.render_console_exception(output, &error);
-            1
-        })
+        match result {
+            Ok(status) => status,
+            Err(error) => {
+                application.render_console_exception(output, &error).await;
+                1
+            }
+        }
     }
 
     pub(crate) async fn call(

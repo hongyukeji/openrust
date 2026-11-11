@@ -110,13 +110,17 @@ impl console::Kernel for Kernel {
                 let selected = match environment_detector::console_environment(arguments) {
                     Ok(selected) => selected,
                     Err(error) => {
-                        self.application.render_console_exception(output, &error);
+                        self.application
+                            .render_console_exception(output, &error)
+                            .await;
                         return 1;
                     }
                 };
                 if let Err(error) = self.bootstrap_with_environment(selected).await {
                     output.stderr.push_str("Application startup failed: ");
-                    self.application.render_console_exception(output, &error);
+                    self.application
+                        .render_console_exception(output, &error)
+                        .await;
                     return 1;
                 }
                 self.artisan

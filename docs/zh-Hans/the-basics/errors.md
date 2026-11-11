@@ -32,11 +32,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .create()?;
     app.boot().await?;
     let error = SharedException::new(std::io::Error::other("Job failed"));
-    app.report(&error)?;
-    app.report(&error.clone())?;
+    app.report(&error).await?;
+    app.report(&error.clone()).await?;
     Ok(())
 }
 ```
+
+## 限流异常报告
+
+在 `withExceptions` 中通过 `throttle::<E>` 注册策略。第一个匹配且返回策略的回调生效。`ReportThrottle::Lottery(Lottery::odds(1, 100)?)` 用于采样，`ReportThrottle::Limit` 用于固定窗口配额，`ReportThrottle::Unlimited` 允许直接报告。
+
+把下面的 `configure` 传给 `withExceptions`，每分钟最多报告两次 I/O 异常。
+
+```rust
+use openrust::{
+    cache::rate_limiting::Limit,
+    foundation::configuration::{Exceptions, ReportThrottle},
+};
+
+fn configure(exceptions: &mut Exceptions) {
+    exceptions.throttle::<std::io::Error>(|_| {
+        Some(ReportThrottle::Limit(Limit::perMinute(2).by("transport")))
+    });
+}
+```
+
+省略 `by` 时按注册的 Rust 异常类型计数。使用同一显式键的策略在配置的限流缓存中共享配额。缓存操作失败时继续报告。限流在报告回调和写日志前执行，HTTP 状态与正文、Artisan 的标准错误和退出码仍按原有流程处理。
+
+`Application::report` 是异步方法，显式报告与 HTTP、Artisan 共用基于缓存的限流策略。
 
 ## 渲染异常
 

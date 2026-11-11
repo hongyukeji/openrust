@@ -32,11 +32,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .create()?;
     app.boot().await?;
     let error = SharedException::new(std::io::Error::other("Job failed"));
-    app.report(&error)?;
-    app.report(&error.clone())?;
+    app.report(&error).await?;
+    app.report(&error.clone()).await?;
     Ok(())
 }
 ```
+
+## 限流例外報告
+
+在 `withExceptions` 中透過 `throttle::<E>` 註冊策略。第一個符合且回傳策略的回呼生效。`ReportThrottle::Lottery(Lottery::odds(1, 100)?)` 用於取樣，`ReportThrottle::Limit` 用於固定視窗配額，`ReportThrottle::Unlimited` 允許直接報告。
+
+將下方的 `configure` 傳給 `withExceptions`，每分鐘最多報告兩次 I/O 例外。
+
+```rust
+use openrust::{
+    cache::rate_limiting::Limit,
+    foundation::configuration::{Exceptions, ReportThrottle},
+};
+
+fn configure(exceptions: &mut Exceptions) {
+    exceptions.throttle::<std::io::Error>(|_| {
+        Some(ReportThrottle::Limit(Limit::perMinute(2).by("transport")))
+    });
+}
+```
+
+省略 `by` 時依註冊的 Rust 例外類型計數。使用相同明確金鑰的策略在設定的限流快取中共用配額。快取操作失敗時繼續報告。限流在報告回呼和寫入記錄前執行，HTTP 狀態與本文、Artisan 的標準錯誤及結束碼仍依原有流程處理。
+
+`Application::report` 是非同步方法，明確報告與 HTTP、Artisan 共用以快取為基礎的限流策略。
 
 ## 轉譯例外
 
