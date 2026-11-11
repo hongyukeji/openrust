@@ -14,5 +14,6 @@
 # Local editor and OS metadata
 /.idea/
 /.vscode/
+/.history/
 .DS_Store
 Thumbs.db
