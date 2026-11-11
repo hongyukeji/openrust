@@ -5,7 +5,7 @@ mod facade;
 pub use event::Event;
 mod redirect;
 mod url;
-pub use crate::auth::{Auth, access::GateFacade as Gate};
+pub use crate::auth::{Auth, access::GateFacade as Gate, passwords::Password};
 pub use crate::cache::Cache;
 pub use crate::console::scheduling::ScheduleFacade as Schedule;
 pub use crate::cookie::facade::Cookie;

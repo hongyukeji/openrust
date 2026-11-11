@@ -1,8 +1,11 @@
 use openrust::{
-    auth::AuthIdentifier,
-    contracts::auth::Authenticatable,
+    auth::{
+        AuthError, AuthFuture, AuthIdentifier, AuthResult,
+        notifications::{ResetPassword, VerifyEmail},
+    },
+    contracts::auth::{Authenticatable, CanResetPassword, MustVerifyEmail},
     database::{
-        Value,
+        DB, Value,
         eloquent::{Model, ModelMetadata, ModelState, casts::AttributeCast},
     },
 };
@@ -55,6 +58,103 @@ impl Authenticatable for User {
     }
     fn get_remember_token_name(&self) -> &str {
         "remember_token"
+    }
+    fn as_password_reset(&self) -> Option<&dyn CanResetPassword> {
+        Some(self)
+    }
+    fn as_password_reset_mut(&mut self) -> Option<&mut dyn CanResetPassword> {
+        Some(self)
+    }
+    fn as_email_verification(&self) -> Option<&dyn MustVerifyEmail> {
+        Some(self)
+    }
+}
+
+#[allow(non_snake_case, reason = "Implements Laravel's user reset capability")]
+impl CanResetPassword for User {
+    fn getEmailForPasswordReset(&self) -> &str {
+        text(self.getAttribute("email")).unwrap_or_default()
+    }
+
+    fn sendPasswordResetNotification<'a>(
+        &'a self,
+        token: &'a str,
+    ) -> AuthFuture<'a, AuthResult<()>> {
+        Box::pin(async move {
+            ResetPassword::new(token)
+                .send(self.getEmailForPasswordReset())
+                .await
+        })
+    }
+}
+
+#[allow(
+    non_snake_case,
+    reason = "Implements Laravel's user verification capability"
+)]
+impl MustVerifyEmail for User {
+    fn hasVerifiedEmail(&self) -> bool {
+        self.getAttribute("email_verified_at")
+            .is_some_and(|value| *value != Value::Null)
+    }
+
+    fn markEmailAsVerified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+        Box::pin(self.set_verification(true))
+    }
+
+    fn markEmailAsUnverified(&mut self) -> AuthFuture<'_, AuthResult<bool>> {
+        Box::pin(self.set_verification(false))
+    }
+
+    fn sendEmailVerificationNotification(&self) -> AuthFuture<'_, AuthResult<()>> {
+        Box::pin(VerifyEmail::send(self))
+    }
+
+    fn getEmailForVerification(&self) -> &str {
+        self.getEmailForPasswordReset()
+    }
+}
+
+impl User {
+    async fn set_verification(&mut self, verified: bool) -> AuthResult<bool> {
+        let now = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now())
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let value = if verified {
+            Value::Text(now.clone())
+        } else {
+            Value::Null
+        };
+        let query = DB::connection(self.getConnectionName())
+            .map_err(|source| AuthError::Backend(Box::new(source)))?
+            .table(self.getTable())
+            .r#where(
+                self.getKeyName(),
+                "=",
+                Value::from(self.get_auth_identifier()),
+            )
+            .r#where("email", "=", self.getEmailForVerification());
+        let query = if verified {
+            query.whereNull("email_verified_at")
+        } else {
+            query.whereNotNull("email_verified_at")
+        };
+        let changed = query
+            .update(
+                [
+                    ("email_verified_at".into(), value.clone()),
+                    ("updated_at".into(), now.clone().into()),
+                ]
+                .into(),
+            )
+            .await
+            .map_err(|source| AuthError::Backend(Box::new(source)))?
+            != 0;
+        if changed {
+            self.setAttribute("email_verified_at", value);
+            self.setAttribute("updated_at", now);
+        }
+        Ok(changed)
     }
 }
 

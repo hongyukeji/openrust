@@ -69,6 +69,7 @@ impl Kernel {
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
+                            crate::auth::console::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::queue::console::register(&mut self.artisan)?;
                             crate::notifications::console::register(&mut self.artisan)?;

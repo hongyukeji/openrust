@@ -49,6 +49,10 @@ impl Default for Middleware {
             Arc::new(crate::auth::middleware::Authenticate::default()),
         );
         middleware.alias(
+            "verified",
+            Arc::new(crate::auth::middleware::EnsureEmailIsVerified::default()),
+        );
+        middleware.alias(
             "guest",
             Arc::new(crate::auth::middleware::RedirectIfAuthenticated::default()),
         );

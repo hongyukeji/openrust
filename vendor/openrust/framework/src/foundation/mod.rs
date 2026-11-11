@@ -1,6 +1,7 @@
 //! Application assembly and lifecycle.
 
 mod application;
+pub mod auth;
 pub mod bootstrap;
 mod bootstrap_error;
 pub mod configuration;

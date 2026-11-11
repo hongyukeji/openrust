@@ -3,9 +3,14 @@
 pub mod access;
 mod auth_manager;
 mod auth_service_provider;
+pub(crate) mod console;
 mod database_user_provider;
 mod eloquent_user_provider;
+pub mod events;
+pub mod listeners;
 pub mod middleware;
+pub mod notifications;
+pub mod passwords;
 mod request_guard;
 mod session_guard;
 mod token_guard;

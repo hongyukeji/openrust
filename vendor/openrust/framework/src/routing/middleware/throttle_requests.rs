@@ -61,15 +61,18 @@ pub(super) async fn handle(
     request: &mut Request,
     next: Next<'_>,
 ) -> Result<Response, HttpError> {
-    let callback = RateLimiter::limiter(name)
-        .map_err(internal)?
-        .ok_or_else(|| internal(std::io::Error::other("named rate limiter is unavailable")))?;
-    let limits = match callback(request) {
-        LimiterResponse::Limit(limit) => vec![limit],
-        LimiterResponse::Limits(limits) => limits,
-        LimiterResponse::Response(response) => return Ok(response),
-        LimiterResponse::Unlimited(_) => return Ok(next.run(request).await),
-    };
+    let (namespace, limits) =
+        if let Some(callback) = RateLimiter::limiter(name).map_err(internal)? {
+            let limits = match callback(request) {
+                LimiterResponse::Limit(limit) => vec![limit],
+                LimiterResponse::Limits(limits) => limits,
+                LimiterResponse::Response(response) => return Ok(response),
+                LimiterResponse::Unlimited(_) => return Ok(next.run(request).await),
+            };
+            (name, limits)
+        } else {
+            ("numeric", vec![numeric_limit(name, request).await?])
+        };
     if limits.is_empty() {
         return Ok(next.run(request).await);
     }
@@ -86,7 +89,7 @@ pub(super) async fn handle(
     let mut quotas: Vec<_> = limits
         .iter()
         .map(|limit| Quota {
-            key: counters::key("http", name, &limit.key),
+            key: counters::key("http", namespace, &limit.key),
             max: limit.maxAttempts,
             decay: limit.decaySeconds,
             charge: limit.afterCallback.is_none(),
@@ -139,6 +142,66 @@ pub(super) async fn handle(
         }
     }
     Ok(response)
+}
+
+async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit, HttpError> {
+    use crate::auth::{Auth, AuthIdentifier};
+
+    let invalid = || {
+        internal(std::io::Error::other(
+            "named rate limiter is unavailable or numeric throttle parameters are invalid",
+        ))
+    };
+    let mut fields = parameters.split(',');
+    let max_attempts = fields
+        .next()
+        .and_then(|value| value.parse::<u64>().ok())
+        .ok_or_else(invalid)?;
+    let minutes = fields
+        .next()
+        .unwrap_or("1")
+        .parse::<u64>()
+        .map_err(|_| invalid())?;
+    let decay = minutes
+        .checked_mul(60)
+        .filter(|&seconds| seconds > 0)
+        .ok_or_else(invalid)?;
+    let prefix = fields.next().unwrap_or_default();
+    if fields.next().is_some() {
+        return Err(invalid());
+    }
+
+    let user = match Auth::user(request).await {
+        Ok(user) => user,
+        Err(crate::auth::AuthError::Configuration("guard" | "guard name")) => None,
+        Err(error) => return Err(error.into()),
+    };
+    let key = match user {
+        Some(user) => match user.get_auth_identifier() {
+            AuthIdentifier::Integer(id) => format!("{prefix}:user:{id}"),
+            AuthIdentifier::UnsignedInteger(id) => format!("{prefix}:user:{id}"),
+            AuthIdentifier::String(id) => format!("{prefix}:user:{id}"),
+        },
+        None => {
+            let host = request
+                .uri()
+                .host()
+                .or_else(|| {
+                    request
+                        .headers()
+                        .get(::http::header::HOST)
+                        .and_then(|value| value.to_str().ok())
+                })
+                .unwrap_or_default();
+            let ip = request
+                .parts()
+                .extensions
+                .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+                .map_or_else(|| "unknown".into(), |address| address.0.ip().to_string());
+            format!("{prefix}:guest:{host}:{ip}")
+        }
+    };
+    Ok(Limit::new(key, max_attempts, decay))
 }
 
 fn headers(limit: &Limit, bucket: Bucket, retry: Option<u64>) -> Result<HeaderMap, HttpError> {

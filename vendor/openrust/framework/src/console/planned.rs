@@ -22,7 +22,6 @@ impl Application {
 // Laravel Framework v13.40.0 public commands, plus console completion.
 const LARAVEL: &[(&str, &str)] = &[
     ("about", "Show application and environment information"),
-    ("auth:clear-resets", "Remove expired password reset tokens"),
     ("cache:clear", "Clear application cache entries"),
     ("cache:forget", "Delete one cache entry by key"),
     (

@@ -109,6 +109,9 @@ impl MiddlewareRegistry {
             "throttle" => Arc::new(ThrottleRequests::new(parameters)),
             "can" => Arc::new(crate::auth::middleware::Authorize::parse(parameters)?),
             "signed" => Arc::new(ValidateSignature::parse(parameters)?),
+            "verified" => Arc::new(crate::auth::middleware::EnsureEmailIsVerified::redirect_to(
+                parameters,
+            )),
             _ => return None,
         };
         aliases.insert(name.into(), middleware.clone());

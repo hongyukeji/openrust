@@ -23,6 +23,7 @@ doc = false
 standalone = []
 
 [dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 clap = "4.6.1"
 openrust = { package = "openrust-framework", path = "vendor/openrust/framework" }
 serde_json = "1.0"
