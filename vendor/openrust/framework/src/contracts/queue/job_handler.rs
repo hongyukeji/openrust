@@ -4,7 +4,7 @@ use crate::queue::{JobContext, Payload, QueueFuture, QueueResult};
 pub trait JobHandler: Send + Sync {
     fn handle<'a>(
         &'a self,
-        context: &'a mut JobContext,
+        context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>>;
 }

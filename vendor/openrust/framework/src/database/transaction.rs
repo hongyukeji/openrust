@@ -168,7 +168,11 @@ impl Transaction {
         &self.connection
     }
 
-    pub(super) async fn insert_get_id(
+    pub(crate) fn belongs_to(&self, connection: &Connection) -> bool {
+        self.connection.same_query_source(connection)
+    }
+
+    pub(crate) async fn insert_get_id(
         &mut self,
         sql: &str,
         bindings: &[Value],

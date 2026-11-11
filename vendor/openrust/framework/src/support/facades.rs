@@ -14,6 +14,7 @@ pub use crate::filesystem::Storage;
 pub use crate::hashing::Hash;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
+pub use crate::queue::QueueFacade as Queue;
 pub use crate::redis::Redis;
 pub use crate::translation::Lang;
 pub use crate::validation::facade::Validator;

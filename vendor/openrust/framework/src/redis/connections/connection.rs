@@ -43,6 +43,18 @@ impl Connection {
             .map_err(backend)
     }
 
+    pub(crate) async fn blocking_transport(
+        &self,
+    ) -> RedisResult<::redis::aio::MultiplexedConnection> {
+        tokio::time::timeout(
+            Duration::from_secs(5),
+            self.client.get_multiplexed_async_connection(),
+        )
+        .await
+        .map_err(backend)?
+        .map_err(backend)
+    }
+
     async fn transport(&self) -> RedisResult<ConnectionManager> {
         self.transport
             .get_or_try_init(|| {

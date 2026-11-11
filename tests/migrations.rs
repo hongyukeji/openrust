@@ -80,7 +80,15 @@ async fn verify(mysql: Option<&str>) {
     let root = Root::new();
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
-    for name in ["sessions", "password_reset_tokens", "users", "migrations"] {
+    for name in [
+        "jobs",
+        "cache_locks",
+        "cache",
+        "sessions",
+        "password_reset_tokens",
+        "users",
+        "migrations",
+    ] {
         schema.dropIfExists(name).await.unwrap();
     }
     let run = |args: &[&str]| root.run("local", mysql, args);
@@ -114,12 +122,16 @@ async fn verify(mysql: Option<&str>) {
     assert!(success(run(&["migrate"])).contains("DONE"));
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("cache_locks").await.unwrap());
+    assert!(schema.hasTable("jobs").await.unwrap());
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 2);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 3);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(!schema.hasTable("jobs").await.unwrap());
+    assert!(schema.hasTable("cache").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("users").await.unwrap());
@@ -142,6 +154,7 @@ async fn verify(mysql: Option<&str>) {
     }
     success(run(&["migrate:reset"]));
     assert!(!schema.hasTable("users").await.unwrap());
+    assert!(!schema.hasTable("jobs").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
 }
 
@@ -204,7 +217,8 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("users").await.unwrap());
     assert!(schema.hasTable("cache").await.unwrap());
     assert!(schema.hasTable("cache_locks").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 2);
+    assert!(schema.hasTable("jobs").await.unwrap());
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 3);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

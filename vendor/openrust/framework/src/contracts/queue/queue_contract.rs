@@ -21,6 +21,19 @@ pub trait Queue: Send + Sync {
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<String>>>;
 
+    fn push_in_transaction<'a>(
+        &'a self,
+        payload: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+        _transaction: &'a mut crate::database::Transaction,
+    ) -> QueueFuture<'a, QueueResult<Option<String>>> {
+        match delay {
+            Some(delay) => self.later(delay, payload, queue),
+            None => self.push(payload, queue),
+        }
+    }
+
     fn pop<'a>(
         &'a self,
         queue: Option<&'a str>,

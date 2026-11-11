@@ -393,7 +393,15 @@ impl Connection {
         Arc::ptr_eq(&self.routing, &other.routing)
     }
 
-    pub(super) async fn insert_get_id(
+    pub(crate) fn is_sqlite(&self) -> bool {
+        matches!(self.pool, Pool::Sqlite(_))
+    }
+
+    pub(crate) fn queue_table(&self, table: &str) -> DatabaseResult<String> {
+        self.grammar.table(table)
+    }
+
+    pub(crate) async fn insert_get_id(
         &self,
         sql: &str,
         bindings: &[Value],

@@ -15,7 +15,7 @@ pub trait Job: Send {
     fn is_released(&self) -> bool;
     fn has_failed(&self) -> bool;
     fn mark_as_failed(&mut self);
-    fn fire<'a>(&'a mut self, context: &'a mut JobContext) -> QueueFuture<'a, QueueResult<()>>;
+    fn fire<'a>(&'a mut self, context: &'a mut JobContext<'_>) -> QueueFuture<'a, QueueResult<()>>;
     fn fail<'a>(&'a mut self, cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>>;
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;
