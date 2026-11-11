@@ -22,6 +22,7 @@ struct Context {
     container: Arc<Container>,
     resolved: Mutex<HashMap<ServiceKey, Cached>>,
     closed: AtomicBool,
+    database: crate::database::ConnectionScope,
     changed: tokio::sync::watch::Sender<bool>,
 }
 tokio::task_local! {static APPLICATION:Option<Arc<Context>>;}
@@ -61,6 +62,12 @@ fn with_context<R>(
 }
 pub(crate) fn current_container() -> Option<Arc<Container>> {
     with_context(|context| Ok(context.container.clone())).ok()
+}
+
+pub(crate) fn database_routing(
+    origin: &Arc<crate::database::ReadRouting>,
+) -> Option<Arc<crate::database::ReadRouting>> {
+    with_context(|context| Ok(context.database.state(origin))).ok()
 }
 
 #[derive(Clone)]
@@ -298,6 +305,7 @@ pub(crate) async fn application_scope<F: Future>(
             container,
             resolved: Mutex::default(),
             closed: AtomicBool::new(false),
+            database: Default::default(),
             changed: tokio::sync::watch::channel(false).0,
         });
         let _close = CloseContext(context.clone());

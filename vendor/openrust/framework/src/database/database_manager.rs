@@ -64,9 +64,16 @@ impl DatabaseManager {
         if let Some(connection) = lock().get(name).cloned() {
             return Ok(connection);
         }
+        let (base, role) = if let Some(base) = name.strip_suffix("::read") {
+            (base, Some("read"))
+        } else if let Some(base) = name.strip_suffix("::write") {
+            (base, Some("write"))
+        } else {
+            (name, None)
+        };
         let config = match self.config.get("database.connections") {
-            Some(Value::Object(connections)) => connections.get(name).cloned(),
-            None if name == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),
+            Some(Value::Object(connections)) => connections.get(base).cloned(),
+            None if base == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),
             None => None,
             _ => return Err(DatabaseError::InvalidConfiguration("database.connections")),
         }
@@ -75,7 +82,17 @@ impl DatabaseManager {
         if let Some(connection) = connections.get(name) {
             return Ok(connection.clone());
         }
-        let connection = ConnectionFactory.make(name, config, &self.root)?;
+        let mut connection = ConnectionFactory.make(base, config, &self.root)?;
+        match role {
+            Some("read") => {
+                if let Some((database, read)) = connection.read_pool.take() {
+                    connection.database = database;
+                    connection.pool = read;
+                }
+            }
+            Some("write") => connection.read_pool = None,
+            _ => {}
+        }
         connections.insert(name.to_owned(), connection.clone());
         Ok(connection)
     }

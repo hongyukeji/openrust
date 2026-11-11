@@ -14,7 +14,11 @@ mod migration_service_provider;
 pub mod migrations;
 pub mod query;
 pub mod schema;
+mod transaction;
 mod value;
+
+pub(crate) use connection::{ConnectionScope, ReadRouting};
+pub use transaction::Transaction;
 
 use std::{future::Future, pin::Pin};
 
@@ -42,6 +46,10 @@ pub enum DatabaseError {
     UnsupportedDriver,
     InvalidConfiguration(&'static str),
     InvalidScalar,
+    TransactionClosed,
+    InvalidTransactionAttempts,
+    TransactionInterrupted,
+    TransactionLevelChanged,
     InvalidBindings {
         expected: usize,
         actual: usize,
@@ -76,6 +84,16 @@ impl std::fmt::Display for DatabaseError {
             Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")
+            }
+            Self::InvalidTransactionAttempts => {
+                formatter.write_str("database transaction requires at least one attempt")
+            }
+            Self::TransactionClosed => formatter.write_str("database transaction has ended"),
+            Self::TransactionInterrupted => {
+                formatter.write_str("database transaction was interrupted")
+            }
+            Self::TransactionLevelChanged => {
+                formatter.write_str("database callback changed its transaction level")
             }
             Self::InvalidBindings { expected, actual } => write!(
                 formatter,

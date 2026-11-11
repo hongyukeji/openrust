@@ -10,7 +10,8 @@ pub use crate::log::context::Context;
 pub use crate::translation::Lang;
 pub use facade::Facade;
 pub(crate) use facade::{
-    ContextSnapshot, application_scope, context_snapshot, current_container, scope,
+    ContextSnapshot, application_scope, context_snapshot, current_container, database_routing,
+    scope,
 };
 
 use std::{

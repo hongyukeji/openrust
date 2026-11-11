@@ -17,14 +17,50 @@ pub struct ConnectionFactory;
 impl ConnectionFactory {
     pub fn make(&self, name: &str, config: Value, root: &Path) -> DatabaseResult<Connection> {
         tokio::runtime::Handle::try_current().map_err(|_| invalid("Tokio runtime"))?;
-        let options = Options(configuration_url_parser::parse(config)?);
-        let (database, pool) = make_pool(&options, root)?;
+        let mut base = configuration_url_parser::parse(config)?;
+        let read = base.remove("read");
+        let write = base.remove("write");
+        let sticky = Options(base.clone()).boolean("sticky", false)?;
+        let write_options = merge(&base, write, "write")?;
+        let (database, pool) = make_pool(&write_options, root)?;
+        let read_pool = read
+            .filter(|value| !value.is_null())
+            .map(|read| {
+                let options = merge(&base, Some(read), "read")?;
+                make_pool(&options, root).map(|(name, pool)| (name.into(), pool))
+            })
+            .transpose()?;
         Ok(Connection {
             name: Arc::from(name),
             database: database.into(),
             pool,
+            read_pool,
+            sticky,
+            routing: Arc::default(),
         })
     }
+}
+
+fn merge(
+    base: &Map<String, Value>,
+    override_config: Option<Value>,
+    role: &'static str,
+) -> DatabaseResult<Options> {
+    let mut options = base.clone();
+    let selected = match override_config {
+        None | Some(Value::Null) => return Ok(Options(options)),
+        Some(Value::Array(configs)) if !configs.is_empty() => {
+            let index = fastrand::usize(..configs.len());
+            configs
+                .into_iter()
+                .nth(index)
+                .ok_or_else(|| invalid(role))?
+        }
+        Some(config) => config,
+    };
+    let selected = configuration_url_parser::parse(selected)?;
+    options.extend(selected);
+    Ok(Options(options))
 }
 
 fn make_pool(config: &Options, root: &Path) -> DatabaseResult<(String, Pool)> {
@@ -236,20 +272,37 @@ fn mysql(
     } else {
         "NO_ENGINE_SUBSTITUTION"
     };
-    let pool = MySqlPoolOptions::new()
-        .max_connections(max)
-        .acquire_timeout(timeout)
-        .after_connect(move |connection, _| {
-            Box::pin(async move {
-                sqlx::query("SET SESSION sql_mode = ?")
-                    .bind(mode)
-                    .execute(connection)
-                    .await?;
-                Ok(())
+    let mut hosts = match config.0.get("host") {
+        Some(Value::Array(hosts)) if !hosts.is_empty() => hosts
+            .iter()
+            .map(|host| {
+                host.as_str()
+                    .filter(|host| !host.is_empty())
+                    .ok_or_else(|| invalid("host"))
             })
+            .collect::<DatabaseResult<Vec<_>>>()?,
+        _ => vec![config.string("host", "127.0.0.1")?],
+    };
+    fastrand::shuffle(&mut hosts);
+    let pools = hosts
+        .into_iter()
+        .map(|host| {
+            MySqlPoolOptions::new()
+                .max_connections(max)
+                .acquire_timeout(timeout)
+                .after_connect(move |connection, _| {
+                    Box::pin(async move {
+                        sqlx::query("SET SESSION sql_mode = ?")
+                            .bind(mode)
+                            .execute(connection)
+                            .await?;
+                        Ok(())
+                    })
+                })
+                .connect_lazy_with(options.clone().host(host))
         })
-        .connect_lazy_with(options.host(config.string("host", "127.0.0.1")?));
-    Ok((database.to_owned(), Pool::Mysql(pool)))
+        .collect();
+    Ok((database.to_owned(), Pool::Mysql(pools)))
 }
 
 fn identifier(value: &str) -> bool {

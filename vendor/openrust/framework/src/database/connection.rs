@@ -1,16 +1,22 @@
 use sqlx::SqlSafeStr as _;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
+
 use sqlx::{
     Database, Executor as _, MySql, MySqlPool, Sqlite, SqlitePool, Statement as _,
     pool::PoolConnection,
 };
-use std::sync::Arc;
+
+use sqlx_core::transaction::TransactionManager;
 
 use super::{DatabaseError, DatabaseResult, Row, Value, value};
 
 #[derive(Clone)]
 pub(super) enum Pool {
     Sqlite(SqlitePool),
-    Mysql(MySqlPool),
+    Mysql(Arc<[MySqlPool]>),
 }
 
 /// A named database connection sharing its application's pool.
@@ -19,14 +25,43 @@ pub struct Connection {
     pub(super) name: Arc<str>,
     pub(super) database: Arc<str>,
     pub(super) pool: Pool,
+    pub(super) read_pool: Option<(Arc<str>, Pool)>,
+    pub(super) sticky: bool,
+    pub(super) routing: Arc<ReadRouting>,
 }
 
-enum PhysicalConnection {
+#[derive(Default)]
+pub(crate) struct ReadRouting {
+    records_modified: AtomicBool,
+    read_on_write: AtomicBool,
+}
+
+#[derive(Default)]
+pub(crate) struct ConnectionScope {
+    routing: Mutex<Vec<(Arc<ReadRouting>, Arc<ReadRouting>)>>,
+}
+
+impl ConnectionScope {
+    pub(crate) fn state(&self, origin: &Arc<ReadRouting>) -> Arc<ReadRouting> {
+        let mut routes = self
+            .routing
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, state)) = routes.iter().find(|(id, _)| Arc::ptr_eq(id, origin)) {
+            return state.clone();
+        }
+        let state = Arc::new(ReadRouting::default());
+        routes.push((origin.clone(), state.clone()));
+        state
+    }
+}
+
+pub(super) enum PhysicalConnection {
     Sqlite(Lease<Sqlite>),
     Mysql(Lease<MySql>),
 }
 
-struct Lease<D: Database> {
+pub(super) struct Lease<D: Database> {
     connection: PoolConnection<D>,
     dirty: bool,
 }
@@ -44,28 +79,79 @@ impl<D: Database> Lease<D> {
     }
 
     fn finish<T>(&mut self, result: Result<T, sqlx::Error>) -> Result<T, sqlx::Error> {
-        self.dirty = result
-            .as_ref()
-            .err()
-            .is_some_and(|error| !matches!(error, sqlx::Error::Database(_)));
+        self.dirty = result.as_ref().err().is_some_and(|error| {
+            !matches!(error, sqlx::Error::Database(_))
+                || (D::NAME == "MySQL" && super::transaction::mysql_deadlock(error))
+        });
         result
+    }
+
+    fn start(&mut self) -> DatabaseResult<()> {
+        if self.dirty {
+            return Err(DatabaseError::TransactionInterrupted);
+        }
+        self.dirty = true;
+        Ok(())
+    }
+
+    async fn control(
+        &mut self,
+        operation: &'static str,
+        command: TransactionCommand,
+    ) -> DatabaseResult<()> {
+        self.start()?;
+        let result = match command {
+            TransactionCommand::Begin => {
+                D::TransactionManager::begin(&mut self.connection, None).await
+            }
+            TransactionCommand::Commit => D::TransactionManager::commit(&mut self.connection).await,
+            TransactionCommand::RollBack => {
+                D::TransactionManager::rollback(&mut self.connection).await
+            }
+        };
+        self.finish(result)
+            .map_err(DatabaseError::driver(operation))
     }
 }
 
 impl<D: Database> Drop for Lease<D> {
     fn drop(&mut self) {
-        if D::NAME == "MySQL" && self.dirty {
-            // A cancelled query can leave an incomplete protocol exchange.
+        let depth = D::TransactionManager::get_transaction_depth(&self.connection);
+        if D::NAME == "MySQL" && (self.dirty || depth > 0) {
+            // An abandoned command may leave an incomplete MySQL protocol exchange.
             self.connection.close_on_drop();
+        } else if D::NAME == "SQLite" {
+            // The worker runs queued rollbacks before the pool's health check.
+            // A cancelled commit/rollback may consume one queued command for its acknowledgement.
+            for _ in 0..depth + usize::from(self.dirty) {
+                D::TransactionManager::start_rollback(&mut self.connection);
+            }
         }
     }
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum TransactionCommand {
+    Begin,
+    Commit,
+    RollBack,
+}
+
 impl Pool {
-    async fn acquire(&self) -> DatabaseResult<PhysicalConnection> {
+    pub(super) async fn acquire(&self) -> DatabaseResult<PhysicalConnection> {
         match self {
             Self::Sqlite(pool) => Ok(PhysicalConnection::Sqlite(Lease::acquire(pool).await?)),
-            Self::Mysql(pool) => Ok(PhysicalConnection::Mysql(Lease::acquire(pool).await?)),
+            Self::Mysql(pools) => {
+                let (last, alternatives) = pools
+                    .split_last()
+                    .expect("at least one configured MySQL host");
+                for pool in alternatives {
+                    if let Ok(lease) = Lease::acquire(pool).await {
+                        return Ok(PhysicalConnection::Mysql(lease));
+                    }
+                }
+                Ok(PhysicalConnection::Mysql(Lease::acquire(last).await?))
+            }
         }
     }
 }
@@ -109,7 +195,7 @@ fn validate_bindings(statement: &impl sqlx::Statement, actual: usize) -> Databas
 
 macro_rules! execute_query {
     ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal) => {{
-        $lease.dirty = true;
+        $lease.start()?;
         let prepared = $lease
             .connection
             .prepare(sqlx::AssertSqlSafe($sql).into_sql_str())
@@ -119,7 +205,7 @@ macro_rules! execute_query {
             .map_err(DatabaseError::driver("prepare"))?;
         validate_bindings(&statement, $bindings.len())?;
         let query = bind!(statement.query(), $bindings, $unsigned);
-        $lease.dirty = true;
+        $lease.start()?;
         let result = query.$method(&mut *$lease.connection).await;
         $lease
             .finish(result)
@@ -151,6 +237,24 @@ macro_rules! query {
 }
 
 impl PhysicalConnection {
+    pub(super) async fn control(
+        &mut self,
+        operation: &'static str,
+        command: TransactionCommand,
+    ) -> DatabaseResult<()> {
+        match self {
+            Self::Sqlite(lease) => lease.control(operation, command).await,
+            Self::Mysql(lease) => lease.control(operation, command).await,
+        }
+    }
+
+    pub(super) fn interrupted(&self) -> bool {
+        match self {
+            Self::Sqlite(lease) => lease.dirty,
+            Self::Mysql(lease) => lease.dirty,
+        }
+    }
+
     pub(super) async fn select(
         &mut self,
         sql: &str,
@@ -207,7 +311,7 @@ impl PhysicalConnection {
         where
             for<'a> &'a mut D::Connection: sqlx::Executor<'a, Database = D>,
         {
-            lease.dirty = true;
+            lease.start()?;
             let result = sqlx::raw_sql(sqlx::AssertSqlSafe(sql))
                 .execute(&mut *lease.connection)
                 .await;
@@ -233,12 +337,60 @@ impl Connection {
         &self.database
     }
 
+    fn routing(&self) -> Arc<ReadRouting> {
+        crate::support::facades::database_routing(&self.routing)
+            .unwrap_or_else(|| self.routing.clone())
+    }
+
+    pub fn hasModifiedRecords(&self) -> bool {
+        self.routing().records_modified.load(Ordering::Relaxed)
+    }
+
+    pub fn setRecordModificationState(&self, value: bool) {
+        self.routing()
+            .records_modified
+            .store(value, Ordering::Relaxed);
+    }
+
+    pub fn forgetRecordModificationState(&self) {
+        self.setRecordModificationState(false);
+    }
+
+    pub fn useWriteConnectionWhenReading(&self, value: bool) {
+        self.routing().read_on_write.store(value, Ordering::Relaxed);
+    }
+
+    fn read_pool(&self) -> &Pool {
+        if self.routing().read_on_write.load(Ordering::Relaxed)
+            || (self.sticky && self.hasModifiedRecords())
+        {
+            return &self.pool;
+        }
+        self.read_pool.as_ref().map_or(&self.pool, |(_, pool)| pool)
+    }
+
     pub async fn select(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
+        self.read_pool()
+            .acquire()
+            .await?
+            .select(sql, bindings)
+            .await
+    }
+
+    pub async fn selectFromWriteConnection(
+        &self,
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Row>> {
         self.pool.acquire().await?.select(sql, bindings).await
     }
 
     pub async fn selectOne(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Option<Row>> {
-        self.pool.acquire().await?.select_one(sql, bindings).await
+        self.read_pool()
+            .acquire()
+            .await?
+            .select_one(sql, bindings)
+            .await
     }
 
     pub async fn scalar(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Value> {
@@ -249,6 +401,7 @@ impl Connection {
 
     pub async fn statement(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<bool> {
         let mut connection = self.pool.acquire().await?;
+        self.setRecordModificationState(true);
         connection
             .affecting_statement(sql, bindings)
             .await
@@ -268,15 +421,22 @@ impl Connection {
     }
 
     pub async fn affectingStatement(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<u64> {
-        self.pool
+        let count = self
+            .pool
             .acquire()
             .await?
             .affecting_statement(sql, bindings)
-            .await
+            .await?;
+        if count > 0 {
+            self.setRecordModificationState(true);
+        }
+        Ok(count)
     }
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        self.pool.acquire().await?.unprepared(sql).await
+        let result = self.pool.acquire().await?.unprepared(sql).await?;
+        self.setRecordModificationState(true);
+        Ok(result)
     }
 }

@@ -1,6 +1,9 @@
 use crate::{container::ServiceKey, support::facades::Facade};
 
-use super::{Connection, DatabaseError, DatabaseManager, DatabaseResult, Row, Value};
+use super::{
+    Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Row, Transaction,
+    Value,
+};
 
 /// Executes queries on the current application's database connections.
 pub struct DB;
@@ -27,6 +30,32 @@ impl DB {
         Self::getFacadeRoot()
             .map_err(DatabaseError::Unavailable)?
             .connection(name)
+    }
+
+    pub async fn selectFromWriteConnection(
+        sql: &str,
+        bindings: &[Value],
+    ) -> DatabaseResult<Vec<Row>> {
+        Self::connection(None)?
+            .selectFromWriteConnection(sql, bindings)
+            .await
+    }
+
+    pub async fn beginTransaction() -> DatabaseResult<Transaction> {
+        Self::connection(None)?.beginTransaction().await
+    }
+
+    pub async fn transaction<T>(
+        callback: impl for<'a> FnMut(&'a mut Transaction) -> DatabaseFuture<'a, DatabaseResult<T>>
+        + Send,
+        attempts: u32,
+    ) -> DatabaseResult<T>
+    where
+        T: Send,
+    {
+        Self::connection(None)?
+            .transaction(callback, attempts)
+            .await
     }
 
     statements! {

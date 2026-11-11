@@ -2,14 +2,14 @@ use std::{
     collections::BTreeMap,
     fs,
     io::{Read as _, Write as _},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
 };
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    config::Repository,
+    config::{ConfigError, Environment, Repository},
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::http::Kernel as _,
     database::{DatabaseError, DatabaseManager, Value},
@@ -289,14 +289,49 @@ async fn real_mysql_executes_prepared_queries_and_retires_cancelled_connections(
     println!("MySQL {version}: prepared read/write, exact values and cancellation recovery passed");
 }
 
+fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+    Ok(BTreeMap::from([(
+        "database".into(),
+        json!({"default":"split","connections":{"split":{
+            "driver":"sqlite","database":"database/database.sqlite",
+            "read":{"database":"database/reader.sqlite"},"sticky":true
+        }}}),
+    )]))
+}
+
+async fn probe_value() -> Result<Value, DatabaseError> {
+    DB::transaction(
+        |transaction| Box::pin(transaction.scalar("SELECT id FROM probe", &[])),
+        1,
+    )
+    .await
+}
+
+fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    let write = request.is("replica/write");
+    Box::pin(async move {
+        async fn read(write: bool) -> Result<Value, DatabaseError> {
+            if write {
+                DB::update("UPDATE probe SET id = id + 1", &[]).await?;
+            }
+            DB::scalar("SELECT id FROM probe", &[]).await
+        }
+        let id = read(write).await.map_err(|source| HttpError::Internal {
+            source: source.into(),
+        })?;
+        let Value::Integer(id) = id else {
+            panic!("expected integer")
+        };
+        Ok(Response::new(StatusCode::OK, Body::from(id.to_string())))
+    })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     fn query(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
-            let value = DB::scalar("SELECT id FROM probe", &[])
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?;
+            let value = probe_value().await.map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
             let Value::Integer(id) = value else {
                 panic!("expected integer")
             };
@@ -305,6 +340,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
     }
     let mut router = Router::new();
     router.get("/database", query)?;
+    router.get("/replica/{mode}", replica)?;
 
     Ok(router)
 }
@@ -322,6 +358,21 @@ async fn transport(
 async fn prepare(root: &Root, id: i64) {
     let db = DatabaseManager::new(Arc::new(Repository::new(BTreeMap::new())), &root.0);
     let conn = db.connection(None).unwrap();
+    let reader = root.0.join("database/reader.sqlite");
+    fs::File::create(&reader).unwrap();
+    let split = manager(
+        root,
+        json!({"connections":{"reader":{"driver":"sqlite","database":reader}}}),
+    );
+    let replica = split.connection(Some("reader")).unwrap();
+    replica
+        .statement("CREATE TABLE probe (id INTEGER)", &[])
+        .await
+        .unwrap();
+    replica
+        .insert("INSERT INTO probe VALUES (?)", &[(id * 10).into()])
+        .await
+        .unwrap();
     conn.statement("CREATE TABLE probe (id INTEGER)", &[])
         .await
         .unwrap();
@@ -332,6 +383,7 @@ async fn prepare(root: &Root, id: i64) {
 
 async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(root.0.clone())
+        .withConfig(config)
         .withRouting(Routing::new(routes))
         .create()
         .unwrap();
@@ -379,7 +431,7 @@ impl Command for DatabaseCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let value = DB::scalar("SELECT id FROM probe", &[])
+            let value = probe_value()
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
             let Value::Integer(id) = value else {
@@ -417,6 +469,12 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
         send(b, "/database", "42"),
         send(a, "/database", "17")
     );
+    send(a, "/replica/read", "170").await;
+    tokio::join!(
+        send(a, "/replica/write", "18"),
+        send(b, "/replica/read", "420")
+    );
+    send(a, "/replica/read", "170").await;
     for server in [x, y] {
         server.abort();
         assert!(server.await.unwrap_err().is_cancelled());
@@ -436,4 +494,386 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(String::from_utf8_lossy(&output.stdout).contains("database probe 42"));
+}
+
+#[tokio::test]
+async fn sqlite_manual_transactions_savepoints_and_cancellation_keep_the_writer_consistent() {
+    let root = Root::new();
+    let manager = manager(
+        &root,
+        json!({
+            "default":"memory","connections":{"memory":"sqlite::memory:"}
+        }),
+    );
+    let connection = manager.connection(None).unwrap();
+    connection
+        .statement("CREATE TABLE txn (id INTEGER PRIMARY KEY)", &[])
+        .await
+        .unwrap();
+    let mut transaction = connection.beginTransaction().await.unwrap();
+    transaction
+        .insert("INSERT INTO txn VALUES (1)", &[])
+        .await
+        .unwrap();
+    transaction.beginTransaction().await.unwrap();
+    transaction
+        .insert("INSERT INTO txn VALUES (2)", &[])
+        .await
+        .unwrap();
+    transaction.beginTransaction().await.unwrap();
+    transaction
+        .insert("INSERT INTO txn VALUES (3)", &[])
+        .await
+        .unwrap();
+    assert_eq!(transaction.transactionLevel(), 3);
+    transaction.rollBack(Some(1)).await.unwrap();
+    assert_eq!(transaction.transactionLevel(), 1);
+    assert_eq!(
+        transaction
+            .scalar("SELECT COUNT(*) FROM txn", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+    transaction.commit().await.unwrap();
+    assert!(matches!(
+        transaction.scalar("SELECT 1", &[]).await,
+        Err(DatabaseError::TransactionClosed)
+    ));
+
+    let error = connection
+        .transaction(
+            |tx| {
+                Box::pin(async {
+                    tx.insert("INSERT INTO txn VALUES (4)", &[]).await?;
+                    tx.insert("INSERT INTO txn VALUES (1)", &[]).await?;
+                    Ok(())
+                })
+            },
+            3,
+        )
+        .await
+        .unwrap_err();
+    assert!(matches!(
+        error,
+        DatabaseError::Driver {
+            operation: "execute",
+            ..
+        }
+    ));
+    let mut transaction = connection.beginTransaction().await.unwrap();
+    transaction
+        .insert("INSERT INTO txn VALUES (5)", &[])
+        .await
+        .unwrap();
+    transaction.beginTransaction().await.unwrap();
+    transaction
+        .insert("INSERT INTO txn VALUES (6)", &[])
+        .await
+        .unwrap();
+    drop(transaction);
+    assert_eq!(
+        connection
+            .scalar("SELECT COUNT(*) FROM txn", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+}
+
+#[tokio::test]
+async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_sessions() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"writer","connections":{
+            "writer":{"url":url,"max_connections":1,"acquire_timeout":5},
+            "locker":{"url":url,"max_connections":1,"acquire_timeout":5}
+        }}),
+    );
+    let writer = db.connection(None).unwrap();
+    writer.unprepared("DROP TABLE IF EXISTS rust_txn; CREATE TABLE rust_txn (id INT PRIMARY KEY, n INT); INSERT INTO rust_txn VALUES (1, 0)").await.unwrap();
+    let mut locker = db
+        .connection(Some("locker"))
+        .unwrap()
+        .beginTransaction()
+        .await
+        .unwrap();
+    locker
+        .update("UPDATE rust_txn SET n = 100 WHERE id = 1", &[])
+        .await
+        .unwrap();
+    let (release, released) = tokio::sync::oneshot::channel();
+    let release = Arc::new(std::sync::Mutex::new(Some(release)));
+    let locker = tokio::spawn(async move {
+        released.await.unwrap();
+        locker.rollBack(None).await.unwrap();
+    });
+    let attempts = Arc::new(AtomicUsize::new(0));
+    writer
+        .transaction(
+            |tx| {
+                let release = release.clone();
+                let attempts = attempts.clone();
+                Box::pin(async move {
+                    let attempt = attempts.fetch_add(1, Ordering::SeqCst);
+                    tx.unprepared("SET SESSION innodb_lock_wait_timeout = 1")
+                        .await?;
+                    let result = tx
+                        .update("UPDATE rust_txn SET n = n + 1 WHERE id = 1", &[])
+                        .await;
+                    if attempt == 0 {
+                        assert!(result.is_err(), "the competing lock must force a retry");
+                        release.lock().unwrap().take().unwrap().send(()).unwrap();
+                    }
+                    result
+                })
+            },
+            2,
+        )
+        .await
+        .unwrap();
+    locker.await.unwrap();
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        writer
+            .scalar("SELECT n FROM rust_txn WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+
+    let mut tx = writer.beginTransaction().await.unwrap();
+    let before = tx.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap();
+    tx.update("UPDATE rust_txn SET n = 900 WHERE id = 1", &[])
+        .await
+        .unwrap();
+    let nested: Result<(), _> = tx
+        .transaction(|nested| {
+            Box::pin(async {
+                nested
+                    .update("UPDATE rust_txn SET n = 800 WHERE id = 1", &[])
+                    .await?;
+                nested
+                    .scalar("SELECT * FROM rust_missing_txn_table", &[])
+                    .await?;
+                Ok(())
+            })
+        })
+        .await;
+    assert!(nested.is_err());
+    assert_eq!(
+        tx.scalar("SELECT n FROM rust_txn WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        900.into()
+    );
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(100),
+            tx.scalar("SELECT SLEEP(2)", &[])
+        )
+        .await
+        .is_err()
+    );
+    assert!(matches!(
+        tx.commit().await,
+        Err(DatabaseError::TransactionInterrupted)
+    ));
+    drop(tx);
+    assert_ne!(
+        writer.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
+        before
+    );
+    assert_eq!(
+        writer
+            .scalar("SELECT n FROM rust_txn WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+}
+
+#[tokio::test]
+async fn mysql_read_write_routing_recovers_after_a_server_disconnect() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"split","connections":{
+            "split":{"url":url,"read":{"host":["127.0.0.1","127.0.0.2"]},"sticky":true,
+                     "max_connections":1,"acquire_timeout":2},
+            "control":{"url":url,"max_connections":1,"acquire_timeout":2}
+        }}),
+    );
+    let split = db.connection(None).unwrap();
+    let writer = split
+        .selectFromWriteConnection("SELECT CONNECTION_ID()", &[])
+        .await
+        .unwrap();
+    let writer_id = writer[0].get_at(0).unwrap().clone();
+    let reader_id = split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap();
+    assert_ne!(writer_id, reader_id);
+    let mut transaction = split.beginTransaction().await.unwrap();
+    assert_eq!(
+        transaction
+            .scalar("SELECT CONNECTION_ID()", &[])
+            .await
+            .unwrap(),
+        writer_id
+    );
+    transaction.rollBack(None).await.unwrap();
+
+    split
+        .statement("CREATE TABLE IF NOT EXISTS rust_split_probe (id INT)", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
+        writer_id
+    );
+    split.forgetRecordModificationState();
+    assert_eq!(
+        split
+            .update("UPDATE rust_split_probe SET id = 1 WHERE 1 = 0", &[])
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
+        reader_id
+    );
+    split.useWriteConnectionWhenReading(true);
+    assert_eq!(
+        split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap(),
+        writer_id
+    );
+    split.useWriteConnectionWhenReading(false);
+
+    let reader_number = match reader_id {
+        Value::Unsigned(value) => value,
+        Value::Integer(value) => u64::try_from(value).unwrap(),
+        _ => panic!("expected numeric MySQL connection id"),
+    };
+    let control = db.connection(Some("control")).unwrap();
+    control
+        .unprepared(&format!("KILL CONNECTION {reader_number}"))
+        .await
+        .unwrap();
+    let recovered = split.scalar("SELECT CONNECTION_ID()", &[]).await.unwrap();
+    assert_ne!(recovered, reader_id);
+    assert_ne!(recovered, writer_id);
+
+    assert_ne!(
+        db.connection(Some("split::read"))
+            .unwrap()
+            .scalar("SELECT CONNECTION_ID()", &[])
+            .await
+            .unwrap(),
+        db.connection(Some("split::write"))
+            .unwrap()
+            .scalar("SELECT CONNECTION_ID()", &[])
+            .await
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn mysql_retries_a_nested_deadlock_from_the_outer_transaction() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::sync::Notify;
+
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"writer","connections":{
+            "writer":{"url":url,"max_connections":1,"acquire_timeout":5},
+            "locker":{"url":url,"max_connections":1,"acquire_timeout":5}
+        }}),
+    );
+    let writer = db.connection(None).unwrap();
+    writer.unprepared("DROP TABLE IF EXISTS rust_deadlock; CREATE TABLE rust_deadlock (id INT PRIMARY KEY, n INT); INSERT INTO rust_deadlock VALUES (1,0),(2,0),(3,0),(4,0),(5,0),(6,0),(7,0),(8,0)").await.unwrap();
+    let mut locker = db
+        .connection(Some("locker"))
+        .unwrap()
+        .beginTransaction()
+        .await
+        .unwrap();
+    locker
+        .update("UPDATE rust_deadlock SET n = 100 WHERE id >= 2", &[])
+        .await
+        .unwrap();
+    let locked = Arc::new(Notify::new());
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let competing = async {
+        locked.notified().await;
+        locker
+            .update("UPDATE rust_deadlock SET n = 100 WHERE id = 1", &[])
+            .await
+            .unwrap();
+        locker.rollBack(None).await.unwrap();
+    };
+    let run = writer.transaction(
+        |tx| {
+            let locked = locked.clone();
+            let attempts = attempts.clone();
+            Box::pin(async move {
+                let first = attempts.fetch_add(1, Ordering::SeqCst) == 0;
+                tx.update("UPDATE rust_deadlock SET n = n + 1 WHERE id = 1", &[])
+                    .await?;
+                if first {
+                    locked.notify_one();
+                }
+                let nested = tx
+                    .transaction(|savepoint| {
+                        Box::pin(async {
+                            savepoint
+                                .update("UPDATE rust_deadlock SET n = n + 1 WHERE id = 2", &[])
+                                .await
+                        })
+                    })
+                    .await;
+                if first {
+                    let Err(DatabaseError::Driver { source, .. }) = &nested else {
+                        panic!("the first nested write must hit a database deadlock");
+                    };
+                    let error = source
+                        .as_database_error()
+                        .unwrap()
+                        .downcast_ref::<sqlx::mysql::MySqlDatabaseError>();
+                    assert_eq!(error.number(), 1213);
+                }
+                nested
+            })
+        },
+        2,
+    );
+    let (result, ()) = tokio::time::timeout(Duration::from_secs(5), async {
+        tokio::join!(run, competing)
+    })
+    .await
+    .unwrap();
+    assert_eq!(result.unwrap(), 1);
+    assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        writer
+            .scalar("SELECT SUM(n) FROM rust_deadlock WHERE id IN (1, 2)", &[])
+            .await
+            .unwrap(),
+        "2".into()
+    );
 }
