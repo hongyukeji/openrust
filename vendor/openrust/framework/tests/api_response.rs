@@ -11,7 +11,7 @@ use openrust::{
     contracts::http::Kernel as _,
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{ApiResponse, PageMeta, Request, StatusCode},
-    support::facades::Route,
+    support::{Collection, facades::Route},
 };
 use serde::{Serialize, Serializer};
 use serde_json::{Value, json};
@@ -87,6 +87,15 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
             Route::get("/no-content", || {
                 ApiResponse::empty().with_status(StatusCode::NO_CONTENT)
             })?;
+            Route::get("/collection/keyed", || {
+                ApiResponse::success(Collection::fromEntries([(2, 10), (4, 20)]))
+            })?;
+            Route::get("/collection/values", || {
+                ApiResponse::success(Collection::fromEntries([(2, 10), (4, 20)]).values())
+            })?;
+            Route::get("/collection/nonfinite", || {
+                ApiResponse::success(Collection::make([f64::INFINITY]))
+            })?;
             Route::get("/unserializable", || ApiResponse::success(Unserializable))
         }))
         .create()
@@ -128,6 +137,18 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
     assert_eq!(
         send(address, "/missing", 404).await,
         json!({"message": "Not Found"})
+    );
+    assert_eq!(
+        send(address, "/collection/keyed", 200).await["data"],
+        json!({"2": 10, "4": 20})
+    );
+    assert_eq!(
+        send(address, "/collection/values", 200).await["data"],
+        json!([10, 20])
+    );
+    assert_eq!(
+        send(address, "/collection/nonfinite", 500).await,
+        json!({"message": "Server Error"})
     );
     assert_eq!(send(address, "/up", 200).await, json!({"status": "up"}));
 
