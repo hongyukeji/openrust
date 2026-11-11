@@ -40,6 +40,8 @@ mod call_context;
 mod class_descriptor;
 pub use attributes::{AttributeEvent, AttributeParameter, AttributeValue, ClassAttribute};
 pub use call::{CallArguments, CallFuture, Callable, Callback};
+mod lifetime_attributes;
+pub use lifetime_attributes::Lifetime;
 mod method_call;
 pub use method_call::{MethodCall, StaticCall};
 mod variadic;
@@ -65,10 +67,13 @@ pub struct Container {
     hook_phases: AtomicU8,
     has_extenders: AtomicBool,
     has_binding_attributes: AtomicBool,
+    has_lifetimes: AtomicBool,
 }
 
 #[derive(Default)]
 struct Registry {
+    lifetimes: HashMap<ServiceKey, Lifetime>,
+    implicit_bindings: HashSet<ServiceKey>,
     binding_attributes: HashMap<ServiceKey, Arc<[BindingAttribute]>>,
     binding_attribute_misses: HashSet<ServiceKey>,
     attributes: attributes::Attributes,
@@ -92,6 +97,7 @@ struct Registry {
 
 #[derive(Clone)]
 struct RegisteredBinding {
+    promote: fn(&RegisteredBinding) -> RegisteredBinding,
     asynchronous_value: Option<ErasedBinding>,
     class_attributes: Option<Arc<Vec<ClassAttribute>>>,
     services: Option<Arc<Vec<ServiceKey>>>,
@@ -105,6 +111,16 @@ struct RegisteredBinding {
 }
 
 impl RegisteredBinding {
+    fn promoted(&self) -> Self {
+        (self.promote)(self)
+    }
+
+    fn fresh_recipe(&self) -> Option<Self> {
+        let mut entry = self.fresh.as_ref()?().with_version(self.version.clone());
+        entry.class_attributes.clone_from(&self.class_attributes);
+        Some(entry)
+    }
+
     fn for_mode(mut self, asynchronous: bool) -> Self {
         if asynchronous && let Some(value) = self.asynchronous_value.take() {
             self.value = value;
@@ -186,7 +202,7 @@ impl Registry {
 
     fn resolved_raw(&self, container: &Container, key: &ServiceKey) -> bool {
         let cached = self.bindings.get(key).is_some_and(|entry| {
-            if self.scoped.contains(key) && scope::active(container) {
+            if self.is_scoped(key) && scope::active(container) {
                 scope::is_published(container, key, entry)
             } else {
                 entry.is_published()
@@ -199,8 +215,7 @@ impl Registry {
     }
 
     fn root_instance_visible(&self, container: &Container, key: &ServiceKey) -> bool {
-        !(scope::active(container)
-            && (self.scoped.contains(key) || scope::alias_removed(container, key)))
+        !(scope::active(container) && (self.is_scoped(key) || scope::alias_removed(container, key)))
     }
 
     fn get_alias(
@@ -236,6 +251,7 @@ enum Binding<T: ?Sized> {
     },
     Singleton {
         factory: Arc<Factory<T>>,
+        async_factory: Option<Arc<AsyncFactory<T>>>,
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
         changed: tokio::sync::Notify,
@@ -296,11 +312,17 @@ impl Container {
         let instance = matches!(binding, Binding::Instance { .. });
         let shared = !matches!(binding, Binding::Factory(_) | Binding::AsyncFactory(_));
         let fresh = match &binding {
-            Binding::Singleton { factory, .. } => {
+            Binding::Singleton {
+                factory,
+                async_factory,
+                ..
+            } => {
                 let factory = factory.clone();
+                let async_factory = async_factory.clone();
                 Some(Arc::new(move || {
                     Self::entry(Binding::Singleton {
                         factory: factory.clone(),
+                        async_factory: async_factory.clone(),
                         state: Mutex::new(SingletonState::Empty),
                         ready: Condvar::new(),
                         changed: tokio::sync::Notify::new(),
@@ -323,6 +345,7 @@ impl Container {
             _ => None,
         };
         RegisteredBinding {
+            promote: Self::promote_recipe::<T>,
             asynchronous_value: None,
             class_attributes: None,
             services: None,
@@ -373,10 +396,11 @@ impl Container {
             };
         }
         let local = (!entry.instance).then(|| key.clone());
-        let (previous, callbacks) = {
+        let (entry, previous, callbacks) = {
             let mut registry = self.registry.write().expect("container lock poisoned");
+            let entry = registry.declared_recipe(&key, entry);
             let notify = if entry.instance {
-                registry.bindings.contains_key(&key)
+                registry.binding_is_bound(self, &key)
                     || registry.instances.contains_key(&key)
                     || registry.aliases.contains_key(&key)
             } else {
@@ -394,9 +418,9 @@ impl Container {
             registry.remove_alias(&key);
             let previous = if entry.instance {
                 let cached = registry.bindings.get_mut(&key).and_then(|binding| {
-                    binding.fresh.clone().map(|fresh| {
-                        std::mem::replace(binding, fresh().with_version(binding.version.clone()))
-                    })
+                    binding
+                        .fresh_recipe()
+                        .map(|fresh| std::mem::replace(binding, fresh))
                 });
                 (
                     registry.instances.insert(key.clone(), entry.clone()),
@@ -411,7 +435,7 @@ impl Container {
                     None,
                 )
             };
-            (previous, callbacks)
+            (entry, previous, callbacks)
         };
         if let Some(key) = local {
             scope::remove(self, &key);
@@ -438,11 +462,11 @@ impl Container {
         key: ServiceKey,
         binding: Binding<T>,
     ) -> Mutation<T> {
-        let entry = Self::entry(binding);
+        let mut entry = Self::entry(binding);
         let mut callbacks = Vec::new();
         let rejected = {
             let mut registry = self.registry.write().expect("container lock poisoned");
-            if registry.bindings.contains_key(&key)
+            if registry.binding_is_bound(self, &key)
                 || (registry.instances.contains_key(&key)
                     && registry.root_instance_visible(self, &key))
                 || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
@@ -461,6 +485,7 @@ impl Container {
                         .cloned()
                         .unwrap_or_default();
                 }
+                entry = registry.declared_recipe(&key, entry);
                 registry.insert_binding(key.clone(), entry.clone());
                 None
             }
@@ -479,10 +504,10 @@ impl Container {
             return true;
         }
         let registry = self.registry.read().expect("container lock poisoned");
-        registry.scoped.contains(key)
+        registry.is_scoped(key)
             || registry
                 .get_alias(key.clone(), |_| false)
-                .is_ok_and(|key| registry.scoped.contains(&key))
+                .is_ok_and(|key| registry.is_scoped(&key))
     }
 
     fn insert_scoped<T: ?Sized + Send + Sync + 'static>(
@@ -493,6 +518,7 @@ impl Container {
     ) -> Result<(), BindingResolutionError> {
         let entry = Self::entry(Binding::Singleton {
             factory,
+            async_factory: None,
             state: Mutex::new(SingletonState::Empty),
             ready: Condvar::new(),
             changed: tokio::sync::Notify::new(),
@@ -514,7 +540,7 @@ impl Container {
         let previous = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             if conditional
-                && (registry.bindings.contains_key(&key)
+                && (registry.binding_is_bound(self, &key)
                     || (registry.instances.contains_key(&key)
                         && registry.root_instance_visible(self, &key))
                     || (!scope::alias_removed(self, &key) && registry.aliases.contains_key(&key))
@@ -666,6 +692,7 @@ impl container::Container for Container {
             ServiceKey::typed::<T>(),
             Binding::Singleton {
                 factory: Arc::new(factory),
+                async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
                 changed: tokio::sync::Notify::new(),
@@ -701,6 +728,7 @@ impl container::Container for Container {
             ServiceKey::named(name),
             Binding::Singleton {
                 factory: Arc::new(factory),
+                async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
                 changed: tokio::sync::Notify::new(),
@@ -768,7 +796,7 @@ impl container::Container for Container {
             return true;
         }
         let registry = self.registry.read().expect("container lock poisoned");
-        let bound = registry.bindings.contains_key(&id)
+        let bound = registry.binding_is_bound(self, &id)
             || (registry.instances.contains_key(&id) && registry.root_instance_visible(self, &id))
             || (!scope::alias_removed(self, &id) && registry.aliases.contains_key(&id));
         drop(registry);
@@ -787,6 +815,7 @@ impl container::Container for Container {
         }
         let registry = self.registry.read().expect("container lock poisoned");
         (registry.instances.contains_key(&id) && registry.root_instance_visible(self, &id))
+            || (registry.classes.contains_key(&id) && registry.lifetimes.contains_key(&id))
             || registry
                 .bindings
                 .get(&id)
@@ -808,8 +837,7 @@ impl container::Container for Container {
                     .registry
                     .read()
                     .expect("container lock poisoned")
-                    .scoped
-                    .contains(&key))
+                    .is_scoped(&key))
         {
             scope::remove(self, &key);
             return;
@@ -818,9 +846,9 @@ impl container::Container for Container {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let instance = registry.instances.remove(&key);
             let cached = registry.bindings.get_mut(&key).and_then(|binding| {
-                binding.fresh.clone().map(|fresh| {
-                    std::mem::replace(binding, fresh().with_version(binding.version.clone()))
-                })
+                binding
+                    .fresh_recipe()
+                    .map(|fresh| std::mem::replace(binding, fresh))
             });
             (instance, cached)
         };
@@ -837,9 +865,9 @@ impl container::Container for Container {
                 .bindings
                 .values_mut()
                 .filter_map(|binding| {
-                    binding.fresh.clone().map(|fresh| {
-                        std::mem::replace(binding, fresh().with_version(binding.version.clone()))
-                    })
+                    binding
+                        .fresh_recipe()
+                        .map(|fresh| std::mem::replace(binding, fresh))
                 })
                 .collect::<Vec<_>>();
             (instances, cached)
@@ -875,6 +903,7 @@ impl container::Container for Container {
             ServiceKey::typed::<T>(),
             Binding::Singleton {
                 factory: Arc::new(factory),
+                async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
                 changed: tokio::sync::Notify::new(),
@@ -907,6 +936,7 @@ impl container::Container for Container {
             ServiceKey::named(name),
             Binding::Singleton {
                 factory: Arc::new(factory),
+                async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
                 changed: tokio::sync::Notify::new(),
@@ -919,14 +949,21 @@ impl container::Container for Container {
         if scope::active(self) {
             scope::clear(self);
         } else {
-            let keys = self
-                .registry
-                .read()
-                .expect("container lock poisoned")
-                .scoped
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>();
+            let keys = {
+                let registry = self.registry.read().expect("container lock poisoned");
+                registry
+                    .scoped
+                    .iter()
+                    .cloned()
+                    .chain(
+                        registry
+                            .lifetimes
+                            .iter()
+                            .filter(|(_, lifetime)| **lifetime == Lifetime::Scoped)
+                            .map(|(key, _)| key.clone()),
+                    )
+                    .collect::<HashSet<_>>()
+            };
             for key in keys {
                 self.forgetInstance(key);
             }
@@ -1570,7 +1607,7 @@ impl Container {
             Arc::ptr_eq(&local.value, &entry.value)
         } else if entry.shared
             && scope::active(self)
-            && registry.scoped.contains(key)
+            && registry.is_scoped(key)
             && root.is_some_and(|root| !root.instance)
         {
             root.is_some_and(|root| Arc::ptr_eq(&root.version, &entry.version))
@@ -1615,9 +1652,16 @@ impl Container {
         let consumer = self.consumer();
         let parameters = parameters::current(self);
         let parameterized = !parameters.is_empty();
-        let (id, canonical) = if self.has_binding_attributes.load(Ordering::Acquire) {
+        let (id, canonical) = if self.has_binding_attributes.load(Ordering::Acquire)
+            || self.has_lifetimes.load(Ordering::Acquire)
+        {
             let key = if canonical { id } else { self.getAlias(id)? };
-            self.install_attribute_binding(&key, consumer.as_ref(), parameterized)?;
+            if self.has_binding_attributes.load(Ordering::Acquire) {
+                self.install_attribute_binding(&key, consumer.as_ref(), parameterized)?;
+            }
+            if self.has_lifetimes.load(Ordering::Acquire) {
+                self.install_implicit_lifetime(&key);
+            }
             (key, true)
         } else {
             (id, canonical)
@@ -1629,7 +1673,7 @@ impl Container {
             } else {
                 registry.get_alias(id, |key| scope::alias_removed(self, key))?
             };
-            let scoped = registry.scoped.contains(&key);
+            let scoped = registry.is_scoped(&key);
             let provided = if parameterized {
                 None
             } else {
@@ -1660,16 +1704,17 @@ impl Container {
                     service: key.clone(),
                 })?;
             if parameterized {
-                if let Some(fresh) = &entry.fresh {
-                    entry = fresh();
+                if let Some(fresh) = entry.fresh_recipe() {
+                    entry = fresh;
                 }
                 entry.version = parameters.identity().expect("nonempty parameters");
             }
-            let (entry, retired) = if scoped && !parameterized && entry.shared && !entry.instance {
-                scope::select_retained(self, &key, &entry)
-            } else {
-                (entry, None)
-            };
+            let (entry, retired) =
+                if scoped && !has_contextual && !parameterized && entry.shared && !entry.instance {
+                    scope::select_retained(self, &key, &entry)
+                } else {
+                    (entry, None)
+                };
             (
                 (
                     key,
@@ -1738,6 +1783,7 @@ impl Container {
                 state,
                 ready,
                 changed,
+                ..
             } => {
                 let caller = Owner::current_thread();
                 let binding = std::ptr::from_ref(state).addr();
@@ -1768,9 +1814,16 @@ impl Container {
                     }
                 }
                 drop(slot);
+                let mut resolution = Some(resolution);
                 let constructed = panic::catch_unwind(AssertUnwindSafe(|| {
                     self.check_extenders::<T>(&key)?;
-                    self.decorate(&key, factory(self)?, Some((state, &entry, caller.clone())))
+                    let value = factory(self)?;
+                    if entry.class_attributes.is_some() {
+                        drop(resolution.take());
+                        self.after_class(&key, &entry, &value)?;
+                        resolution = Some(self.resolve(&key, Arc::as_ptr(&entry.version).addr())?);
+                    }
+                    self.decorate(&key, value, Some((state, &entry, caller.clone())))
                 }));
                 drop(resolution);
                 let mut value = None;

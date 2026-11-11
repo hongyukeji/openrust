@@ -6,8 +6,8 @@ use openrust::{
     container::{
         AttributeParameter, AttributeValue, Bind, BindWhen, Callback, ClassAttribute,
         ClassDescriptor, ConstructorParam, Container, EnvironmentQuery, EnvironmentResult,
-        FactoryFuture, MethodCall, ParameterKey, ParameterOverrides, ParameterValue, ResolvedArgs,
-        ServiceKey,
+        FactoryFuture, Lifetime, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
+        ResolvedArgs, ServiceKey,
     },
     contracts::{
         container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
@@ -188,6 +188,7 @@ impl FrameworkCommand for EnvironmentCommand {
                     .map_err(|error| ConsoleError::new(error.to_string()))?,
             )
             .map_err(|error| ConsoleError::new(error.to_string()))?;
+            c.registerLifetime::<u16>(Lifetime::Singleton);
             c.registerBindingAttributes::<u16>(vec![
                 BindWhen::new(Bind::new::<u16, u16>(|value| value), |container| {
                     container.currentEnvironmentIs("local").map(bool::from)
@@ -195,12 +196,16 @@ impl FrameworkCommand for EnvironmentCommand {
                 .into(),
             ])
             .map_err(|error| ConsoleError::new(error.to_string()))?;
-            assert_eq!(
-                *c.makeAsync::<u16>()
-                    .await
-                    .map_err(|error| ConsoleError::new(error.to_string()))?,
-                16
-            );
+            let shared = c
+                .makeAsync::<u16>()
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            assert_eq!(*shared, 16);
+            assert!(Arc::ptr_eq(
+                &shared,
+                &c.make::<u16>()
+                    .map_err(|error| ConsoleError::new(error.to_string()))?
+            ));
             let EnvironmentResult::String(name) = c
                 .currentEnvironmentIs(&[])
                 .map_err(|e| ConsoleError::new(e.to_string()))?

@@ -841,3 +841,34 @@ fn main() {
 ```
 
 容器使用第一个命中的声明。通配 `Bind` 在检查完条件和具体环境后作为回退。环境声明依赖应用启动时安装的环境解析器。已有的显式绑定优先。选择成功后登记并复用绑定，直至该绑定被移除。`BindWhen` 未命中时，下次解析会重新检查。
+
+## Singleton 与 Scoped 属性
+
+通过 `ClassDescriptor::withLifetime` 声明类的生命周期。使用 `Container::registerLifetime` 为服务键声明生命周期，包括通过 `Bind` 或 `BindWhen` 配置的接口。同一类型声明两者时，Singleton 优先。
+
+```rust
+use openrust::{
+    container::{ClassDescriptor, Container, Lifetime},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Report;
+
+fn main() {
+    let container = Container::default();
+    let report = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Report)))
+        .unwrap()
+        .withLifetime(Lifetime::Scoped);
+    container.registerClass(report).unwrap();
+
+    let first = container.make::<Report>().unwrap();
+    assert!(Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+    container.forgetScopedInstances();
+    assert!(!Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+}
+```
+
+`Lifetime::Singleton` 在当前应用容器中复用实例。`Lifetime::Scoped` 在当前请求或命令的生命周期中复用实例。作用域之外使用容器的根缓存，可用 `forgetScopedInstances` 清理。
+
+同步与异步解析共用同一份缓存。构建需要异步依赖时，请使用异步解析。`build` 和 `buildAsync` 直接构造，显式构造参数覆盖也使用新实例。隐式构造的具体类在实例缓存后才显示为已绑定。`getBindings` 列出注册绑定，包含 `Bind` 和 `BindWhen` 选中的绑定。

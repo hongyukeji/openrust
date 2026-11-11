@@ -93,6 +93,7 @@ impl Container {
         let retired = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let binding = registry.bindings.remove(&key);
+            registry.implicit_bindings.remove(&key);
             if binding.is_some() {
                 registry.binding_order.retain(|entry| *entry != key);
             }
@@ -180,6 +181,10 @@ impl FactoryHandle {
                 scope::check_open(container)?;
                 let binding = self.typed::<T>(true)?;
                 match binding.as_ref() {
+                    Binding::Singleton {
+                        async_factory: Some(factory),
+                        ..
+                    } => factory(container).await,
                     Binding::Factory(factory) | Binding::Singleton { factory, .. } => {
                         factory(container)
                     }
@@ -248,6 +253,7 @@ impl Registry {
         if !self.bindings.contains_key(&key) {
             self.binding_order.push(key.clone());
         }
+        self.implicit_bindings.remove(&key);
         super::binding_attributes::record_write(self, &key, &entry);
         self.bindings.insert(key, entry)
     }
@@ -260,14 +266,13 @@ impl Container {
                 .binding_order
                 .iter()
                 .filter_map(|key| {
+                    if registry.implicit_bindings.contains(key) {
+                        return None;
+                    }
                     let entry = registry.bindings.get(key)?;
                     let shared = entry.shared;
                     // Retain the recipe without retaining a warmed singleton's cached object.
-                    let recipe = entry
-                        .fresh
-                        .as_ref()
-                        .map(|fresh| fresh().with_version(entry.version.clone()))
-                        .unwrap_or_else(|| entry.clone());
+                    let recipe = entry.fresh_recipe().unwrap_or_else(|| entry.clone());
                     Some((
                         key.clone(),
                         BindingDefinition {
@@ -286,6 +291,7 @@ impl Container {
         let retired = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             registry.binding_order.clear();
+            registry.implicit_bindings.clear();
             registry.binding_attribute_misses.clear();
             (
                 std::mem::take(&mut registry.aliases),

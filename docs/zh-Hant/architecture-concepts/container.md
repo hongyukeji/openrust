@@ -841,3 +841,34 @@ fn main() {
 ```
 
 容器使用第一個符合條件的宣告。萬用字元 `Bind` 會在檢查條件與具體環境後作為預設選項。環境宣告依賴應用程式啟動時安裝的環境解析器。既有的明確繫結優先。選擇成功後會登記並重複使用該繫結，直到繫結被移除。`BindWhen` 未符合條件時，下次解析會重新檢查。
+
+## Singleton 與 Scoped 屬性
+
+透過 `ClassDescriptor::withLifetime` 宣告類別的生命週期。使用 `Container::registerLifetime` 為服務鍵宣告生命週期，包括透過 `Bind` 或 `BindWhen` 設定的介面。同一型別同時宣告兩者時，Singleton 優先。
+
+```rust
+use openrust::{
+    container::{ClassDescriptor, Container, Lifetime},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Report;
+
+fn main() {
+    let container = Container::default();
+    let report = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Report)))
+        .unwrap()
+        .withLifetime(Lifetime::Scoped);
+    container.registerClass(report).unwrap();
+
+    let first = container.make::<Report>().unwrap();
+    assert!(Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+    container.forgetScopedInstances();
+    assert!(!Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+}
+```
+
+`Lifetime::Singleton` 在目前的應用程式容器中重複使用執行個體。`Lifetime::Scoped` 在目前請求或命令的生命週期中重複使用執行個體。作用域之外使用容器的根快取，可用 `forgetScopedInstances` 清除。
+
+同步與非同步解析共用快取。建構需要非同步相依服務時，請使用非同步解析。`build` 和 `buildAsync` 直接建構，明確指定建構參數也會使用新的執行個體。隱式建構的具體類別會在執行個體快取後顯示為已繫結。`getBindings` 列出已註冊的繫結，包括 `Bind` 和 `BindWhen` 選中的繫結。

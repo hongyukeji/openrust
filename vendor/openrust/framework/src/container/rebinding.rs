@@ -134,7 +134,7 @@ impl Container {
     fn rebound_entry(&self, key: &ServiceKey, mut entry: RegisteredBinding) -> RegisteredBinding {
         let retired = if entry.shared && !entry.instance && scope::active(self) {
             let registry = self.registry.read().expect("container lock poisoned");
-            if registry.scoped.contains(key) {
+            if registry.is_scoped(key) {
                 let current = registry
                     .bindings
                     .get(key)
@@ -144,8 +144,7 @@ impl Container {
                     entry = selected;
                     retired
                 } else {
-                    entry = entry.fresh.as_ref().expect("shared recipe")()
-                        .with_version(entry.version.clone());
+                    entry = entry.fresh_recipe().expect("shared recipe");
                     None
                 }
             } else {

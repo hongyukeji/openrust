@@ -233,8 +233,7 @@ pub(super) fn select_retained(
         {
             return (entry.clone(), None);
         }
-        let entry = root.fresh.as_ref().expect("scoped factories are shared")()
-            .with_version(root.version.clone());
+        let entry = root.fresh_recipe().expect("scoped factories are shared");
         let retired = cache.entries.insert(key.clone(), entry.clone());
         (entry, retired)
     })

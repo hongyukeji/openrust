@@ -2,7 +2,7 @@ use openrust::{
     config::{ConfigError, Environment, Value},
     container::{
         AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
-        Container, FactoryFuture, ParameterValue, ResolvedArgs, ServiceKey,
+        Container, FactoryFuture, Lifetime, ParameterValue, ResolvedArgs, ServiceKey,
     },
     contracts::{
         container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
@@ -106,8 +106,8 @@ impl ServiceProvider for Constructors {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             let counts = self.0.clone();
-            app.container()
-                .registerClass(ClassDescriptor::concrete::<Worker, _>(
+            app.container().registerClass(
+                ClassDescriptor::concrete::<Worker, _>(
                     vec![
                         ConstructorParam::class::<Client>("client"),
                         ConstructorParam::scalar::<u32>("number")
@@ -120,7 +120,9 @@ impl ServiceProvider for Constructors {
                             number: *args.get::<u32>(1)?,
                         }))
                     },
-                )?)?;
+                )?
+                .withLifetime(Lifetime::Scoped),
+            )?;
             app.container()
                 .registerClass(ClassDescriptor::selfBuilding::<SelfBuilt>(
                     vec![],
@@ -184,6 +186,13 @@ fn read(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 source: source.into(),
             })?;
         assert!(Arc::ptr_eq(&a, &b));
+        let direct = Container::getInstance()
+            .makeAsync::<Worker>()
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        assert!(Arc::ptr_eq(&a, &direct));
         Ok(Response::new(
             StatusCode::OK,
             Body::from(format!(

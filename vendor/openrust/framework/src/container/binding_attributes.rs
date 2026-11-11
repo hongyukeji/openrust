@@ -227,7 +227,7 @@ impl Container {
             let Some(declarations) = registry.binding_attributes.get(key) else {
                 return Ok(());
             };
-            if registry.bindings.contains_key(key)
+            if registry.binding_is_bound(self, key)
                 || registry.binding_attribute_misses.contains(key)
                 || (!parameterized
                     && ((registry.instances.contains_key(key)
@@ -286,9 +286,11 @@ impl Container {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let existing = registry.bindings.get(key);
             if let Some(entry) = selected.or(fallback)
-                && existing.is_none_or(|entry| evaluation.wrote(entry))
+                && (!registry.binding_is_bound(self, key)
+                    || existing.is_some_and(|entry| evaluation.wrote(entry)))
             {
-                registry.insert_binding(key.clone(), entry.clone().with_version(Arc::new(())))
+                let entry = registry.declared_recipe(key, entry.clone().with_version(Arc::new(())));
+                registry.insert_binding(key.clone(), entry)
             } else {
                 if existing.is_none() && resolver.is_some() && !conditional {
                     registry.binding_attribute_misses.insert(key.clone());

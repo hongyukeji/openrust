@@ -328,7 +328,7 @@ impl Container {
                         actual: known.output,
                     });
                 }
-                if scope::active(self) && registry.scoped.contains(&key) && !known.instance {
+                if scope::active(self) && registry.is_scoped(&key) && !known.instance {
                     entry = scope::cached_entry(self, &key, known);
                 }
             }

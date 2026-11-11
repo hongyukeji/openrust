@@ -468,10 +468,16 @@ impl Container {
                             owner: owner.clone(),
                             output: entry.output,
                         };
+                        let recipe = Arc::as_ptr(&entry.version).addr();
+                        let attributes = entry.class_attributes.is_some();
                         let value = self
-                            .with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
+                            .with_resolution(&key, recipe, async {
                                 self.check_extenders::<T>(&key)?;
                                 let value = match binding.as_ref() {
+                                    Binding::Singleton {
+                                        async_factory: Some(factory),
+                                        ..
+                                    } => factory(self).await?,
                                     Binding::Singleton { factory, .. } => factory(self)?,
                                     Binding::AsyncSingleton { factory, .. } => {
                                         factory(self).await?
@@ -479,10 +485,24 @@ impl Container {
                                     _ => unreachable!("an explicit instance cannot be empty"),
                                 };
                                 scope::check_open(self)?;
-                                self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                                if attributes {
+                                    Ok(value)
+                                } else {
+                                    self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                                }
                             })
                             .await
                             .map_err(|error| owner.fail(error))?;
+                        let value = if attributes {
+                            let finish = || {
+                                self.after_class(&key, &entry, &value)?;
+                                let _resolution = self.resolve(&key, recipe)?;
+                                self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                            };
+                            finish().map_err(|error| owner.fail(error))?
+                        } else {
+                            value
+                        };
                         let current = self.current_recipe(&key, &entry, contextual);
                         self.fire_constructed(&key, value.clone())?;
                         if current {

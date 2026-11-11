@@ -1,8 +1,8 @@
 //! Static constructor metadata replaces PHP reflection without creating service bindings.
 use super::{
     AttributeParameter, AttributeValue, Binding, ClassAttribute, Container, FactoryFuture,
-    ParameterKey, ParameterOverrides, ParameterValue, RegisteredBinding, ServiceKey, StaticCall,
-    method_call::RegisteredMethod, scope,
+    Lifetime, ParameterKey, ParameterOverrides, ParameterValue, RegisteredBinding, ServiceKey,
+    StaticCall, method_call::RegisteredMethod, scope,
 };
 use crate::contracts::container::{BindingResolutionError, Container as _, SelfBuilding};
 use std::{any::type_name, collections::HashSet, future::Future, pin::Pin, sync::Arc};
@@ -343,6 +343,7 @@ async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result
 /// Immutable metadata for one compiled concrete type; registration does not mark it bound.
 #[derive(Clone)]
 pub struct ClassDescriptor {
+    lifetime: Option<Lifetime>,
     key: ServiceKey,
     sync: RegisteredBinding,
     asynchronous: RegisteredBinding,
@@ -375,6 +376,7 @@ impl ClassDescriptor {
         })))
         .with_version(sync.version.clone());
         Ok(Self {
+            lifetime: None,
             key,
             sync,
             asynchronous,
@@ -395,6 +397,7 @@ impl ClassDescriptor {
             Box::pin(async move { new(resolve_async(c, &signature).await?).await })
         })));
         Ok(Self {
+            lifetime: None,
             key,
             sync: asynchronous.clone(),
             asynchronous,
@@ -446,6 +449,24 @@ impl ClassDescriptor {
             builder.entry.class_attributes = Some(attributes);
         }
         self
+    }
+
+    /// Declares the lifetime of automatic resolutions of this class.
+    #[allow(non_snake_case, reason = "Compiled Laravel lifetime declaration")]
+    pub fn withLifetime(mut self, lifetime: Lifetime) -> Self {
+        if self.lifetime != Some(Lifetime::Singleton) {
+            self.lifetime = Some(lifetime);
+        }
+        self
+    }
+
+    pub(super) fn shared_recipe(&self) -> RegisteredBinding {
+        if let Some(builder) = &self.self_building {
+            return builder.entry.promoted();
+        }
+        let mut recipe = self.sync.clone();
+        recipe.asynchronous_value = Some(self.asynchronous.value.clone());
+        recipe.promoted()
     }
 
     pub fn key(&self) -> &ServiceKey {
@@ -526,11 +547,13 @@ impl Container {
     }
     pub(super) fn register_class(&self, descriptor: ClassDescriptor) -> Result<()> {
         let mut pending = Some(descriptor);
+        let mut retired = None;
         let result = {
             let mut registry = self.registry.write().expect("container lock poisoned");
             let descriptor = pending.as_ref().expect("pending descriptor");
             if let Some(previous) = registry.classes.get(&descriptor.key) {
                 if Arc::ptr_eq(&previous.sync.version, &descriptor.sync.version)
+                    && previous.lifetime == descriptor.lifetime
                     && match (
                         &previous.sync.class_attributes,
                         &descriptor.sync.class_attributes,
@@ -559,6 +582,11 @@ impl Container {
                     reason: "newInstance already has a method declaration",
                 })
             } else {
+                if let Some(lifetime) = descriptor.lifetime {
+                    retired = registry.declare_lifetime(&descriptor.key, lifetime);
+                    self.has_lifetimes
+                        .store(true, std::sync::atomic::Ordering::Release);
+                }
                 registry.classes.insert(
                     descriptor.key.clone(),
                     pending.take().expect("new descriptor"),
@@ -566,6 +594,7 @@ impl Container {
                 Ok(())
             }
         };
+        drop(retired);
         drop(pending);
         result
     }

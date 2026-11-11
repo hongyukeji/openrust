@@ -841,3 +841,34 @@ fn main() {
 ```
 
 The first matching declaration wins. A wildcard `Bind` is the fallback after all conditions and specific environments have been checked. Environment declarations require an environment resolver, which the application installs during boot. An existing explicit binding takes precedence. A successful selection is registered and reused until the binding is removed. An unmatched `BindWhen` is retried on the next resolution.
+
+## Singleton and Scoped Attributes
+
+Declare a class lifetime with `ClassDescriptor::withLifetime`. Use `Container::registerLifetime` to declare the lifetime of a service key, including an interface configured with `Bind` or `BindWhen`. If both lifetimes are declared on the same type, the singleton declaration takes precedence.
+
+```rust
+use openrust::{
+    container::{ClassDescriptor, Container, Lifetime},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct Report;
+
+fn main() {
+    let container = Container::default();
+    let report = ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(Report)))
+        .unwrap()
+        .withLifetime(Lifetime::Scoped);
+    container.registerClass(report).unwrap();
+
+    let first = container.make::<Report>().unwrap();
+    assert!(Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+    container.forgetScopedInstances();
+    assert!(!Arc::ptr_eq(&first, &container.make::<Report>().unwrap()));
+}
+```
+
+`Lifetime::Singleton` reuses the instance in its application container. `Lifetime::Scoped` reuses it within the active request or command lifecycle. Outside an active lifecycle, scoped instances use the container's root cache, which `forgetScopedInstances` can clear.
+
+Sync and async resolution share the same cache. Use async resolution if construction needs asynchronous dependencies. `build` and `buildAsync` construct directly, and explicit constructor overrides use a fresh instance. An implicit concrete class appears as bound after its instance has been cached. `getBindings` lists registered bindings, including those selected by `Bind` and `BindWhen`.
