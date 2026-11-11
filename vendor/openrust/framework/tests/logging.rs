@@ -221,6 +221,11 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .unwrap();
         let shared: Arc<dyn openrust::contracts::log::Logger> = manager;
         assert!(Arc::ptr_eq(&logger, &shared));
+        Log::build(&json!({"driver":"daily", "path":"http.log"}))
+            .and_then(|logger| logger.info("daily HTTP", &context))
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
         Ok(Response::new(StatusCode::OK, Body::from("logged")))
     })
 }
@@ -285,6 +290,10 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
         assert!(first_log.contains(&format!("test.INFO: request {id}")));
     }
     assert!(second_log.contains("test.INFO: request 201"));
+    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    let daily = format!("http-{}.log", date.format("%Y-%m-%d"));
+    assert_eq!(first.read(&daily).lines().count(), 2);
+    assert_eq!(second.read(&daily).lines().count(), 1);
     for task in [first_task, second_task] {
         task.abort();
         assert!(task.await.unwrap_err().is_cancelled());
@@ -294,6 +303,16 @@ async fn real_http_logs_concurrent_requests_to_their_own_application() {
 fn console_routes() -> Result<(), ConsoleError> {
     Artisan::command("log:probe", |_| {
         Log::warning("artisan wrote a file", &LogContext::new()).unwrap();
+        let manager = openrust::container::Container::getInstance()
+            .make::<LogManager>()
+            .unwrap();
+        manager.registerFactory("console", |manager, _| {
+            Ok(manager.build(&json!({"driver":"monthly","path":"console.log"}))?)
+        });
+        Log::build(&json!({"driver":"custom","via":"console"}))
+            .unwrap()
+            .notice("monthly Artisan", &LogContext::new())
+            .unwrap();
         Log::channel(Some("stderr"))
             .unwrap()
             .notice("artisan stderr probe", &LogContext::new())
@@ -345,6 +364,11 @@ async fn artisan_logs_to_file_and_stderr() {
         String::from_utf8_lossy(&output.stdout)
     );
     assert!(stderr.contains("test.NOTICE: artisan stderr probe"));
+    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    assert!(
+        root.read(&format!("console-{}.log", date.format("%Y-%m")))
+            .contains("monthly Artisan")
+    );
     assert!(stderr.contains("openrust.EMERGENCY: Unable to create configured logger"));
     assert!(stderr.contains("openrust.WARNING: emergency stderr probe"));
     assert!(
@@ -398,4 +422,154 @@ fn simultaneous_threads_share_a_channel_and_append_complete_records() {
                 .any(|line| line.ends_with(&format!("testing.INFO: thread {index}")))
         );
     }
+}
+
+#[test]
+fn daily_and_monthly_channels_prune_their_own_periods() {
+    let root = Root::new();
+    let (manager, _) = manager(
+        &root,
+        json!({
+            "default":"daily",
+            "channels": {
+                "daily":{"driver":"daily","path":"shared.log","level":"warning","days":1},
+                "monthly":{"driver":"monthly","path":"shared.log","max_files":1}
+            }
+        }),
+    );
+    for name in [
+        "shared-2000-01-01.log",
+        "shared-2000-01.log",
+        "shared-note.log",
+    ] {
+        fs::write(root.0.join(name), "old").unwrap();
+    }
+    let context = LogContext::new();
+    manager.info("filtered", &context).unwrap();
+    assert!(root.0.join("shared-2000-01-01.log").exists());
+    manager.warning("today", &context).unwrap();
+    assert!(!root.0.join("shared-2000-01-01.log").exists());
+    assert!(root.0.join("shared-2000-01.log").exists());
+    manager
+        .channel(Some("monthly"))
+        .unwrap()
+        .info("this month", &context)
+        .unwrap();
+    assert!(!root.0.join("shared-2000-01.log").exists());
+    assert!(root.0.join("shared-note.log").exists());
+    let date = chrono::DateTime::<chrono::Utc>::from(std::time::SystemTime::now());
+    assert!(
+        root.read(&format!("shared-{}.log", date.format("%Y-%m-%d")))
+            .contains("today")
+    );
+    assert!(
+        root.read(&format!("shared-{}.log", date.format("%Y-%m")))
+            .contains("this month")
+    );
+}
+
+#[test]
+fn registered_factories_are_lazy_and_mix_with_on_demand_channels() {
+    use openrust::log::{LogError, StackChannel};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let root = Root::new();
+    let (manager, _) = manager(
+        &root,
+        json!({
+            "default":"audit",
+            "channels": {
+                "audit":{"driver":"custom","via":"audit-factory","target":"audit.log"},
+                "named":{"driver":"application","target":"named.log","level":"warning"},
+                "emergency":{"path":"emergency.log"}
+            }
+        }),
+    );
+    let count = Arc::new(AtomicUsize::new(0));
+    let hits = count.clone();
+    manager.registerFactory("audit-factory", move |manager, config| {
+        if hits.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Err(LogError::UnknownChannel("private-factory-error".into()));
+        }
+        Ok(manager.build(&json!({"driver":"single","path": config["target"]}))?)
+    });
+    manager.extend("application", |manager, config| {
+        Ok(manager.build(&json!({"driver":"single","path":config["target"]}))?)
+    });
+    assert_eq!(count.load(Ordering::Relaxed), 0);
+    manager
+        .info("first factory error", &LogContext::new())
+        .unwrap();
+    let emergency = root.read("emergency.log");
+    assert!(emergency.contains("custom log channel factory failed"));
+    assert!(!emergency.contains("private-factory-error"));
+    let audit = manager.channel(None).unwrap();
+    assert!(Arc::ptr_eq(&audit, &manager.channel(None).unwrap()));
+    let temp_config = json!({"driver":"single","path":"temporary.log"});
+    let temporary = manager.build(&temp_config).unwrap();
+    assert!(!Arc::ptr_eq(
+        &temporary,
+        &manager.build(&temp_config).unwrap()
+    ));
+    let combined = manager
+        .stackChannels(
+            &[
+                StackChannel::Named("audit"),
+                StackChannel::Logger(&temporary),
+                StackChannel::Named("named"),
+            ],
+            Some("combined"),
+        )
+        .unwrap();
+    combined.info("mixed record", &LogContext::new()).unwrap();
+    assert!(root.read("audit.log").contains("mixed record"));
+    assert!(
+        root.read("temporary.log")
+            .contains("combined.INFO: mixed record")
+    );
+    assert!(!root.0.join("named.log").exists());
+    combined
+        .warning("high severity", &LogContext::new())
+        .unwrap();
+    assert!(root.read("named.log").contains("high severity"));
+    assert_eq!(count.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn forgetting_a_channel_during_factory_execution_prevents_stale_publication() {
+    let root = Root::new();
+    let (manager, config) = manager(
+        &root,
+        json!({
+            "default":"selected",
+            "channels":{"selected":{"driver":"extension","target":"old.log"}}
+        }),
+    );
+    let started = Arc::new(std::sync::Barrier::new(2));
+    let release = Arc::new(std::sync::Barrier::new(2));
+    let factory_started = started.clone();
+    let factory_release = release.clone();
+    manager.extend("extension", move |manager, config| {
+        if config["target"] == "old.log" {
+            factory_started.wait();
+            factory_release.wait();
+        }
+        Ok(manager.build(&json!({"driver":"single","path":config["target"]}))?)
+    });
+    std::thread::scope(|scope| {
+        let pending = scope.spawn(|| manager.channel(None).unwrap());
+        started.wait();
+        config
+            .set("logging.channels.selected.target", json!("new.log"))
+            .unwrap();
+        manager.forgetChannel(None);
+        let current = manager.channel(None).unwrap();
+        release.wait();
+        let old = pending.join().unwrap();
+        assert!(!Arc::ptr_eq(&current, &old));
+        assert!(Arc::ptr_eq(&current, &manager.channel(None).unwrap()));
+        current.info("current", &LogContext::new()).unwrap();
+        old.info("in flight", &LogContext::new()).unwrap();
+    });
+    assert!(root.read("new.log").contains("current"));
+    assert!(root.read("old.log").contains("in flight"));
 }

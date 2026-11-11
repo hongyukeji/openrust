@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::HashMap,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -7,22 +8,65 @@ use std::{
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::contracts::config::Repository;
+use crate::contracts::{config::Repository, log::Logger as LoggerContract};
 
 use super::{
     Level, LogContext, LogError, LogResult, Logger,
     logger::Emergency,
-    sink::{Handler, Handlers},
+    rotating::{Period, RotatingFile},
+    sink::{FileOptions, Handler, Handlers},
 };
 
 const DEFAULT_FILE: &str = "storage/logs/openrust.log";
 const MAX_STACK_DEPTH: usize = 32;
+type Factory = dyn Fn(&LogManager, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync;
+type Factories = Mutex<HashMap<String, Arc<Factory>>>;
+
+thread_local! {
+    static ACTIVE_FACTORIES: RefCell<Vec<(usize, usize, String)>> = const { RefCell::new(Vec::new()) };
+}
+
+struct FactoryCall;
+
+impl FactoryCall {
+    fn enter(manager: &LogManager, name: &str, factory: &Arc<Factory>) -> LogResult<Self> {
+        let key = (
+            std::ptr::from_ref(manager).addr(),
+            Arc::as_ptr(factory).addr(),
+            name.to_owned(),
+        );
+        ACTIVE_FACTORIES.with_borrow_mut(|active| {
+            if active.len() >= MAX_STACK_DEPTH || active.contains(&key) {
+                return Err(LogError::CyclicStack);
+            }
+            active.push(key);
+            Ok(Self)
+        })
+    }
+}
+
+impl Drop for FactoryCall {
+    fn drop(&mut self) {
+        ACTIVE_FACTORIES.with_borrow_mut(|active| {
+            active.pop();
+        });
+    }
+}
+
+/// A named channel or a resolved on-demand logger in a temporary stack.
+#[derive(Clone, Copy)]
+pub enum StackChannel<'a> {
+    Named(&'a str),
+    Logger(&'a Logger),
+}
 
 /// Resolves the application's named log channels and stacks.
 pub struct LogManager {
     config: Arc<dyn Repository>,
     root: PathBuf,
     channels: Mutex<ChannelDirectory>,
+    drivers: Factories,
+    factories: Factories,
 }
 
 #[derive(Default)]
@@ -38,7 +82,36 @@ impl LogManager {
             config,
             root: root.into(),
             channels: Mutex::default(),
+            drivers: Mutex::default(),
+            factories: Mutex::default(),
         }
+    }
+
+    /// Registers a named driver. Existing cached channels retain their current driver.
+    pub fn extend(
+        &self,
+        driver: impl Into<String>,
+        factory: impl Fn(&Self, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync + 'static,
+    ) {
+        register(&self.drivers, driver.into(), Arc::new(factory));
+    }
+
+    /// Registers a compiled factory referenced by a custom channel's `via` option.
+    pub fn registerFactory(
+        &self,
+        via: impl Into<String>,
+        factory: impl Fn(&Self, &Value) -> LogResult<Arc<dyn LoggerContract>> + Send + Sync + 'static,
+    ) {
+        register(&self.factories, via.into(), Arc::new(factory));
+    }
+
+    /// Resolves an on-demand channel from explicit settings without caching it by name.
+    pub fn build(&self, config: &Value) -> LogResult<Arc<Logger>> {
+        self.resolve(|resolution| {
+            resolution.ancestors.push("ondemand".to_owned());
+            let logger = resolution.build("ondemand", config);
+            Ok(resolution.or_emergency(logger))
+        })
     }
 
     pub fn getDefaultDriver(&self) -> Option<String> {
@@ -96,21 +169,31 @@ impl LogManager {
             let channel = name
                 .ok_or(LogError::InvalidConfiguration)
                 .and_then(|name| resolution.channel(name));
-            Ok(match channel {
-                Ok(logger) => logger,
-                Err(error) => {
-                    resolution.diagnostics.push(error);
-                    resolution.settings.fallback()
-                }
-            })
+            Ok(resolution.or_emergency(channel))
         })
     }
 
     /// Creates a stack without inserting it into the named-channel cache.
     pub fn stack(&self, names: &[&str], name: Option<&str>) -> LogResult<Arc<Logger>> {
+        self.stack_items(names.iter().copied().map(StackChannel::Named), name)
+    }
+
+    /// Creates a stack of named channels and existing loggers.
+    pub fn stackChannels(
+        &self,
+        channels: &[StackChannel<'_>],
+        name: Option<&str>,
+    ) -> LogResult<Arc<Logger>> {
+        self.stack_items(channels.iter().copied(), name)
+    }
+
+    fn stack_items<'a>(
+        &self,
+        channels: impl Iterator<Item = StackChannel<'a>>,
+        name: Option<&str>,
+    ) -> LogResult<Arc<Logger>> {
         self.resolve(|resolution| {
-            let (handlers, replace_placeholders) =
-                resolution.stack(names.iter().copied(), false)?;
+            let (handlers, replace_placeholders) = resolution.stack(channels, false)?;
             Ok(Arc::new(Logger {
                 name: name.unwrap_or(&resolution.settings.environment).to_owned(),
                 handlers: Some(handlers),
@@ -124,29 +207,22 @@ impl LogManager {
         &self,
         build: impl FnOnce(&mut Resolution<'_, '_>) -> LogResult<Arc<Logger>>,
     ) -> LogResult<Arc<Logger>> {
-        let lock = || {
-            self.channels
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-        };
-        loop {
-            let generation = lock().generation;
-            let settings = self.settings();
-            let mut channels = lock();
-            if generation != channels.generation {
-                continue;
-            }
-            let mut diagnostics = Vec::new();
-            let result = build(&mut Resolution {
-                channels: &mut channels.entries,
-                diagnostics: &mut diagnostics,
-                settings: &settings,
-                ancestors: Vec::new(),
-            });
-            drop(channels);
-            report(&settings.emergency, &diagnostics)?;
-            return result;
-        }
+        let generation = self
+            .channels
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .generation;
+        let settings = self.settings();
+        let mut diagnostics = Vec::new();
+        let result = build(&mut Resolution {
+            manager: self,
+            generation,
+            diagnostics: &mut diagnostics,
+            settings: &settings,
+            ancestors: Vec::new(),
+        });
+        report(&settings.emergency, &diagnostics)?;
+        result
     }
 
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
@@ -212,7 +288,8 @@ impl Settings<'_> {
 }
 
 struct Resolution<'a, 'settings> {
-    channels: &'a mut HashMap<String, Arc<Logger>>,
+    manager: &'a LogManager,
+    generation: u64,
     diagnostics: &'a mut Vec<LogError>,
     settings: &'a Settings<'settings>,
     ancestors: Vec<String>,
@@ -225,64 +302,142 @@ impl Resolution<'_, '_> {
         {
             return Err(LogError::CyclicStack);
         }
-        if let Some(logger) = self.channels.get(name) {
-            return Ok(logger.clone());
+        {
+            let channels = self
+                .manager
+                .channels
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if channels.generation == self.generation
+                && let Some(logger) = channels.entries.get(name)
+            {
+                return Ok(logger.clone());
+            }
         }
-        let settings = self.settings;
-        let config = settings
+        let config = self
+            .settings
             .config
             .get(name)
             .ok_or_else(|| LogError::UnknownChannel(name.to_owned()))?;
-        let options: Options =
-            serde_json::from_value(config.clone()).map_err(|_| LogError::InvalidConfiguration)?;
         self.ancestors.push(name.to_owned());
-        let handlers = self.handlers(&options);
+        let built = self.build(name, config);
         self.ancestors.pop();
-        let (handlers, replace_placeholders) = handlers?;
-        let logger = Arc::new(Logger {
-            name: options.name.unwrap_or_else(|| settings.environment.clone()),
-            handlers: Some(handlers),
-            replace_placeholders,
-            emergency: settings.emergency.clone(),
-        });
-        self.channels.insert(name.to_owned(), logger.clone());
-        Ok(logger)
+        let logger = built?;
+        let mut channels = self
+            .manager
+            .channels
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if channels.generation != self.generation {
+            return Ok(logger);
+        }
+        Ok(channels
+            .entries
+            .entry(name.to_owned())
+            .or_insert_with(|| logger.clone())
+            .clone())
     }
 
-    fn handlers(&mut self, options: &Options) -> LogResult<(Handlers, bool)> {
-        if options.formatter.is_some() {
-            return Err(LogError::InvalidConfiguration);
+    fn or_emergency(&mut self, logger: LogResult<Arc<Logger>>) -> Arc<Logger> {
+        match logger {
+            Ok(logger) => logger,
+            Err(error) => {
+                self.diagnostics.push(error);
+                self.settings.fallback()
+            }
         }
-        if let Driver::Stack {
-            channels,
-            ignore_exceptions,
-        } = &options.driver
-        {
-            return self.stack(channels.names(), *ignore_exceptions);
-        }
+    }
+
+    fn build(&mut self, name: &str, config: &Value) -> LogResult<Arc<Logger>> {
+        let options: Options =
+            Options::deserialize(config).map_err(|_| LogError::InvalidConfiguration)?;
+        let (handlers, replace_placeholders) = self.handlers(name, &options, config)?;
+        Ok(Arc::new(Logger {
+            name: options
+                .name
+                .unwrap_or_else(|| self.settings.environment.clone()),
+            handlers: Some(handlers),
+            replace_placeholders,
+            emergency: self.settings.emergency.clone(),
+        }))
+    }
+
+    fn handlers(
+        &mut self,
+        name: &str,
+        options: &Options,
+        config: &Value,
+    ) -> LogResult<(Handlers, bool)> {
         let level = options
             .level
             .as_deref()
             .map(Level::parse)
             .transpose()?
             .unwrap_or(Level::Debug);
-        let handler = match &options.driver {
-            Driver::Single {
-                path,
-                permission,
-                locking,
-            } => {
-                if path.is_empty() || permission.is_some_and(|permission| permission > 0o777) {
-                    return Err(LogError::InvalidConfiguration);
-                }
+        let factory = find(&self.manager.drivers, &options.driver).or_else(|| {
+            if options.driver == "custom" {
+                options
+                    .via
+                    .as_deref()
+                    .and_then(|via| find(&self.manager.factories, via))
+            } else {
+                None
+            }
+        });
+        if let Some(factory) = factory {
+            let _call = FactoryCall::enter(self.manager, name, &factory)?;
+            let logger = factory(self.manager, config).map_err(|_| LogError::FactoryFailed)?;
+            let handler = Handler::Custom {
+                logger,
+                level,
+                bubble: options.bubble,
+            };
+            return Ok(([Arc::new(handler)].into(), options.replace_placeholders));
+        }
+        if options.formatter.is_some() {
+            return Err(LogError::InvalidConfiguration);
+        }
+        let driver: Driver =
+            Driver::deserialize(config).map_err(|_| LogError::InvalidConfiguration)?;
+        if let Driver::Stack {
+            channels,
+            ignore_exceptions,
+        } = &driver
+        {
+            return self.stack(
+                channels.names().map(StackChannel::Named),
+                *ignore_exceptions,
+            );
+        }
+        let handler = match driver {
+            Driver::Single(file) => {
+                let options_file = file.options(self.settings.root)?;
                 Handler::file(
-                    self.settings.root.join(path),
-                    *permission,
-                    *locking,
+                    options_file.path,
+                    options_file.permission,
+                    options_file.locking,
                     level,
                     options.bubble,
                 )
             }
+            Driver::Daily {
+                file,
+                max_files,
+                days,
+            } => self.rotating(
+                file,
+                Period::Daily,
+                max_files.or(days).unwrap_or(7),
+                level,
+                options.bubble,
+            )?,
+            Driver::Monthly { file, max_files } => self.rotating(
+                file,
+                Period::Monthly,
+                max_files.unwrap_or(3),
+                level,
+                options.bubble,
+            )?,
             Driver::Stderr => Handler::Stderr {
                 level,
                 bubble: options.bubble,
@@ -293,32 +448,52 @@ impl Resolution<'_, '_> {
         Ok(([Arc::new(handler)].into(), options.replace_placeholders))
     }
 
+    fn rotating(
+        &self,
+        file: FileConfig,
+        period: Period,
+        max_files: usize,
+        level: Level,
+        bubble: bool,
+    ) -> LogResult<Handler> {
+        let file = RotatingFile::new(file.options(self.settings.root)?, period, max_files)
+            .ok_or(LogError::InvalidConfiguration)?;
+        Ok(Handler::Rotating {
+            file,
+            level,
+            bubble,
+        })
+    }
+
     fn stack<'a>(
         &mut self,
-        names: impl Iterator<Item = &'a str>,
+        channels: impl Iterator<Item = StackChannel<'a>>,
         ignore: bool,
     ) -> LogResult<(Handlers, bool)> {
         let mut handlers = Vec::new();
         let mut replace_placeholders = false;
-        for name in names {
-            match self.channel(name.trim()) {
-                Ok(logger) => {
-                    handlers.extend(
-                        logger
-                            .handlers
-                            .as_deref()
-                            .expect("cached channels have handlers")
-                            .iter()
-                            .cloned(),
-                    );
-                    replace_placeholders |= logger.replace_placeholders;
+        for member in channels {
+            let resolved;
+            let logger = match member {
+                StackChannel::Logger(logger) => logger,
+                StackChannel::Named(name) => {
+                    let channel = self.channel(name.trim());
+                    if matches!(channel, Err(LogError::CyclicStack)) {
+                        return Err(LogError::CyclicStack);
+                    }
+                    resolved = self.or_emergency(channel);
+                    &resolved
                 }
-                Err(LogError::CyclicStack) => return Err(LogError::CyclicStack),
-                Err(error) => {
-                    self.diagnostics.push(error);
-                    handlers.extend(self.settings.emergency.handlers.iter().cloned());
-                }
-            }
+            };
+            handlers.extend(
+                logger
+                    .handlers
+                    .as_deref()
+                    .unwrap_or(&logger.emergency.handlers)
+                    .iter()
+                    .cloned(),
+            );
+            replace_placeholders |= logger.replace_placeholders;
         }
         let handlers = if ignore {
             [Arc::new(Handler::IgnoreFailures(handlers.into()))].into()
@@ -349,18 +524,24 @@ struct Options {
     bubble: bool,
     #[serde(default)]
     replace_placeholders: bool,
-    #[serde(flatten)]
-    driver: Driver,
+    driver: String,
+    via: Option<String>,
 }
 
 #[derive(Deserialize)]
 #[serde(tag = "driver", rename_all = "lowercase")]
 enum Driver {
-    Single {
-        path: String,
-        permission: Option<u32>,
-        #[serde(default)]
-        locking: bool,
+    Single(FileConfig),
+    Daily {
+        #[serde(flatten)]
+        file: FileConfig,
+        max_files: Option<usize>,
+        days: Option<usize>,
+    },
+    Monthly {
+        #[serde(flatten)]
+        file: FileConfig,
+        max_files: Option<usize>,
     },
     Stderr,
     Null,
@@ -369,6 +550,43 @@ enum Driver {
         #[serde(default)]
         ignore_exceptions: bool,
     },
+}
+
+#[derive(Deserialize)]
+struct FileConfig {
+    path: String,
+    permission: Option<u32>,
+    #[serde(default)]
+    locking: bool,
+}
+
+impl FileConfig {
+    fn options(self, root: &std::path::Path) -> LogResult<FileOptions> {
+        if self.path.is_empty() || self.permission.is_some_and(|permission| permission > 0o777) {
+            return Err(LogError::InvalidConfiguration);
+        }
+        Ok(FileOptions {
+            path: root.join(self.path),
+            permission: self.permission,
+            locking: self.locking,
+        })
+    }
+}
+
+fn register(directory: &Factories, key: String, factory: Arc<Factory>) {
+    let retired = directory
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(key, factory);
+    drop(retired);
+}
+
+fn find(directory: &Factories, key: &str) -> Option<Arc<Factory>> {
+    directory
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(key)
+        .cloned()
 }
 
 #[derive(Deserialize)]
@@ -395,6 +613,8 @@ fn default_channels() -> Value {
     serde_json::json!({
         "stack": { "driver": "stack", "channels": ["single"] },
         "single": { "driver": "single", "path": DEFAULT_FILE, "replace_placeholders": true },
+        "daily": { "driver": "daily", "path": DEFAULT_FILE, "max_files": 14, "replace_placeholders": true },
+        "monthly": { "driver": "monthly", "path": DEFAULT_FILE, "max_files": 3, "replace_placeholders": true },
         "stderr": { "driver": "stderr", "replace_placeholders": true },
         "null": { "driver": "null" }
     })

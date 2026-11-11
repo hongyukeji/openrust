@@ -2,11 +2,14 @@ use std::{
     cell::LazyCell,
     fs::{self, File, OpenOptions},
     io::{self, Write as _},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
-use super::Level;
+use std::borrow::Cow;
+
+use super::{Level, logger::Record, rotating::RotatingFile};
+use crate::contracts::log::Logger;
 
 pub(super) type Handlers = Arc<[Arc<Handler>]>;
 
@@ -14,6 +17,16 @@ pub(super) enum Handler {
     File {
         options: FileOptions,
         file: Mutex<Option<File>>,
+        level: Level,
+        bubble: bool,
+    },
+    Rotating {
+        file: RotatingFile,
+        level: Level,
+        bubble: bool,
+    },
+    Custom {
+        logger: Arc<dyn Logger>,
         level: Level,
         bubble: bool,
     },
@@ -32,9 +45,8 @@ pub(super) struct FileOptions {
 }
 
 impl FileOptions {
-    fn open(&self) -> io::Result<File> {
-        if let Some(parent) = self
-            .path
+    fn open(&self, path: &Path) -> io::Result<File> {
+        if let Some(parent) = path
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
         {
@@ -47,7 +59,7 @@ impl FileOptions {
             use std::os::unix::fs::OpenOptionsExt as _;
             options.mode(self.permission.unwrap_or(0o644));
         }
-        let file = options.open(&self.path)?;
+        let file = options.open(path)?;
         #[cfg(not(unix))]
         let _ = self.permission;
         #[cfg(unix)]
@@ -58,14 +70,15 @@ impl FileOptions {
         Ok(file)
     }
 
-    fn write(&self, cached: &Mutex<Option<File>>, bytes: &[u8]) -> io::Result<()> {
-        let mut cached = cached
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        // Retire the handle on any I/O failure so the next record can reopen it.
+    pub(super) fn write(
+        &self,
+        path: &Path,
+        cached: &mut Option<File>,
+        bytes: &[u8],
+    ) -> io::Result<()> {
         let mut file = match cached.take() {
             Some(file) => file,
-            None => self.open()?,
+            None => self.open(path)?,
         };
         if self.locking {
             file.lock()?;
@@ -99,11 +112,13 @@ impl Handler {
         }
     }
 
-    fn write(
+    fn write<'a>(
         &self,
-        level: Level,
+        record: &Record<'a>,
+        message: &LazyCell<Cow<'a, str>, impl FnOnce() -> Cow<'a, str>>,
         line: &LazyCell<String, impl FnOnce() -> String>,
     ) -> io::Result<bool> {
+        let level = record.level;
         match self {
             Self::File {
                 options,
@@ -111,7 +126,28 @@ impl Handler {
                 level: minimum,
                 bubble,
             } if level >= *minimum => {
-                options.write(file, line.as_bytes())?;
+                let mut file = file
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                options.write(&options.path, &mut file, line.as_bytes())?;
+                Ok(!bubble)
+            }
+            Self::Rotating {
+                file,
+                level: minimum,
+                bubble,
+            } if level >= *minimum => {
+                file.write(record.at.date_naive(), line.as_bytes())?;
+                Ok(!bubble)
+            }
+            Self::Custom {
+                logger,
+                level: minimum,
+                bubble,
+            } if level >= *minimum => {
+                logger
+                    .log(level, message, record.context)
+                    .map_err(io::Error::other)?;
                 Ok(!bubble)
             }
             Self::Stderr {
@@ -124,7 +160,7 @@ impl Handler {
             Self::Null(minimum) => Ok(level >= *minimum),
             Self::IgnoreFailures(handlers) => {
                 for handler in handlers.iter() {
-                    let _ = handler.write(level, line);
+                    let _ = handler.write(record, message, line);
                 }
                 Ok(false)
             }
@@ -133,14 +169,11 @@ impl Handler {
     }
 }
 
-pub(super) fn write(
-    handlers: &[Arc<Handler>],
-    level: Level,
-    render: impl FnOnce() -> String,
-) -> io::Result<()> {
-    let line = LazyCell::new(render);
+pub(super) fn write(handlers: &[Arc<Handler>], record: &Record<'_>) -> io::Result<()> {
+    let message = LazyCell::new(|| record.message());
+    let line = LazyCell::new(|| record.format_line(&message));
     for handler in handlers {
-        if handler.write(level, &line)? {
+        if handler.write(record, &message, &line)? {
             break;
         }
     }

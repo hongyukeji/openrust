@@ -30,3 +30,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## 轮转文件渠道
+
+使用 `daily` 或 `monthly` 生成如 `openrust-2026-11-11.log` 和 `openrust-2026-11.log` 的文件。每个 UTC 周期内，首条达到阈值的记录打开当期文件。`max_files` 包含当前文件，设为 0 时不限保留数量。应用默认保留 14 个日文件和 3 个月文件。清理仅处理基本文件名、扩展名和周期格式均匹配的普通文件。
+
+## 临时渠道与自定义渠道
+
+`Log::build(&settings)?` 创建临时日志渠道。使用 `Log::stackChannels` 及 `StackChannel::Named`、`StackChannel::Logger` 可组合配置渠道和临时渠道。组合后的日志栈有自己的标签。
+
+配置 `driver: "custom"` 时，将 `via` 指向通过 `LogManager::registerFactory` 登记的工厂。使用 `LogManager::extend` 可注册具名驱动。工厂是编译后的 Rust 闭包，接收管理器和渠道配置，返回实现日志契约的对象。首次并发解析时可能同时调用工厂，初始化应可安全重复。成功解析的具名渠道共用发布后的实例。工厂失败时使用紧急日志，后续调用可重试。
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager, StackChannel}};
+use serde_json::json;
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::current_dir()?;
+    let manager = LogManager::new(Arc::new(Repository::new(Default::default())), root);
+    manager.registerFactory("audit", |manager, config| {
+        let logger = manager.build(&json!({"driver":"monthly", "path":config["path"]}))?;
+        Ok(logger)
+    });
+    let audit = manager.build(&json!({"driver":"custom", "via":"audit", "path":"audit.log"}))?;
+    let stack = manager.stackChannels(
+        &[StackChannel::Named("single"), StackChannel::Logger(&audit)],
+        Some("orders"),
+    )?;
+    stack.info("Audit ready", &LogContext::new())?;
+    Ok(())
+}
+```

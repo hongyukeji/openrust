@@ -30,3 +30,35 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## Rotating File Channels
+
+Use `daily` or `monthly` for files such as `openrust-2026-11-11.log` and `openrust-2026-11.log`. The first accepted record of a UTC period opens its file. Set `max_files` to the number of files to keep, including the active file, or set it to zero for unlimited retention. The application defaults retain 14 daily files and three monthly files. Retention only considers regular files with the same base name, extension and period format.
+
+## On-Demand and Custom Channels
+
+`Log::build(&settings)?` creates an on-demand logger. Use `Log::stackChannels` with `StackChannel::Named` and `StackChannel::Logger` to combine configured channels and on-demand loggers. The resulting stack has its own label.
+
+For `driver: "custom"`, set `via` to the name of a factory registered with `LogManager::registerFactory`. Use `LogManager::extend` to register a named driver. Factories are compiled Rust closures that receive the manager and channel configuration and return a logger implementing the logging contract. They can run concurrently on the first lookup, so keep initialization safe to repeat. Successful named lookups share the published logger. Factory failures go to the emergency logger and can be retried.
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager, StackChannel}};
+use serde_json::json;
+use std::sync::Arc;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let root = std::env::current_dir()?;
+    let manager = LogManager::new(Arc::new(Repository::new(Default::default())), root);
+    manager.registerFactory("audit", |manager, config| {
+        let logger = manager.build(&json!({"driver":"monthly", "path":config["path"]}))?;
+        Ok(logger)
+    });
+    let audit = manager.build(&json!({"driver":"custom", "via":"audit", "path":"audit.log"}))?;
+    let stack = manager.stackChannels(
+        &[StackChannel::Named("single"), StackChannel::Logger(&audit)],
+        Some("orders"),
+    )?;
+    stack.info("Audit ready", &LogContext::new())?;
+    Ok(())
+}
+```

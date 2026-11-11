@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::SystemTime};
+use std::{borrow::Cow, sync::Arc, time::SystemTime};
 
 use chrono::{DateTime, Utc};
 
@@ -13,12 +13,12 @@ pub(super) struct Emergency {
 
 impl Emergency {
     pub fn write(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
-        let render = || format_line("openrust", level, message, context, false);
-        if sink::write(&self.handlers, level, render).is_err() {
+        let record = Record::new("openrust", level, message, context, false);
+        if sink::write(&self.handlers, &record).is_err() {
             use std::io::Write as _;
             std::io::stderr()
                 .lock()
-                .write_all(render().as_bytes())
+                .write_all(record.format_line(&record.message()).as_bytes())
                 .map_err(LogError::write)?;
         }
         Ok(())
@@ -42,17 +42,14 @@ impl Logger {
         let Some(handlers) = &self.handlers else {
             return self.emergency.write(level, message, context);
         };
-        if sink::write(handlers, level, || {
-            format_line(
-                &self.name,
-                level,
-                message,
-                context,
-                self.replace_placeholders,
-            )
-        })
-        .is_err()
-        {
+        let record = Record::new(
+            &self.name,
+            level,
+            message,
+            context,
+            self.replace_placeholders,
+        );
+        if sink::write(handlers, &record).is_err() {
             self.emergency.write(
                 Level::Emergency,
                 "Unable to write configured logger. Using emergency logger.",
@@ -72,40 +69,66 @@ impl crate::contracts::log::Logger for Logger {
     }
 }
 
-fn format_line(
-    name: &str,
-    level: Level,
-    message: &str,
-    context: &LogContext,
+pub(super) struct Record<'a> {
+    pub at: DateTime<Utc>,
+    pub level: Level,
+    pub context: &'a LogContext,
+    channel: &'a str,
+    message: &'a str,
     replace: bool,
-) -> String {
-    let time = DateTime::<Utc>::from(SystemTime::now());
-    let mut line = format!("[{}] ", time.format("%Y-%m-%d %H:%M:%S"));
-    append_single_line(&mut line, name);
-    line.push('.');
-    line.push_str(level.label());
-    line.push_str(": ");
-    if replace && message.contains('{') && !context.is_empty() {
-        append_single_line(&mut line, &interpolate(message, context));
-    } else {
-        append_single_line(&mut line, message);
-    }
-    if !context.is_empty() {
-        line.push(' ');
-        for character in serde_json::to_string(context)
-            .expect("JSON values serialize")
-            .chars()
-        {
-            match character {
-                '\u{0085}' => line.push_str(r"\u0085"),
-                '\u{2028}' => line.push_str(r"\u2028"),
-                '\u{2029}' => line.push_str(r"\u2029"),
-                _ => line.push(character),
-            }
+}
+
+impl<'a> Record<'a> {
+    fn new(
+        channel: &'a str,
+        level: Level,
+        message: &'a str,
+        context: &'a LogContext,
+        replace: bool,
+    ) -> Self {
+        Self {
+            at: DateTime::from(SystemTime::now()),
+            level,
+            context,
+            channel,
+            message,
+            replace,
         }
     }
-    line.push('\n');
-    line
+
+    pub fn message(&self) -> Cow<'a, str> {
+        if self.replace && self.message.contains('{') && !self.context.is_empty() {
+            Cow::Owned(interpolate(self.message, self.context))
+        } else {
+            Cow::Borrowed(self.message)
+        }
+    }
+
+    pub fn format_line(&self, message: &str) -> String {
+        let mut line = format!("[{}] ", self.at.format("%Y-%m-%d %H:%M:%S"));
+        append_single_line(&mut line, self.channel);
+        line.push('.');
+        line.push_str(self.level.label());
+        line.push_str(": ");
+        append_single_line(&mut line, message);
+        let context = self.context;
+        if !context.is_empty() {
+            line.push(' ');
+            for character in serde_json::to_string(context)
+                .expect("JSON values serialize")
+                .chars()
+            {
+                match character {
+                    '\u{0085}' => line.push_str(r"\u0085"),
+                    '\u{2028}' => line.push_str(r"\u2028"),
+                    '\u{2029}' => line.push_str(r"\u2029"),
+                    _ => line.push(character),
+                }
+            }
+        }
+        line.push('\n');
+        line
+    }
 }
 
 fn append_single_line(line: &mut String, text: &str) {

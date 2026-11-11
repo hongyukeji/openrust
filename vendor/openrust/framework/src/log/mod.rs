@@ -24,6 +24,7 @@ macro_rules! log_methods {
 }
 
 mod facade;
+mod rotating;
 mod sink;
 pub use facade::Log;
 
@@ -33,7 +34,7 @@ mod log_manager;
 mod log_service_provider;
 mod logger;
 
-pub use log_manager::LogManager;
+pub use log_manager::{LogManager, StackChannel};
 pub use log_service_provider::LogServiceProvider;
 pub use logger::Logger;
 
@@ -90,6 +91,7 @@ pub enum LogError {
     UnknownChannel(String),
     InvalidConfiguration,
     CyclicStack,
+    FactoryFailed,
     Unavailable(crate::contracts::container::BindingResolutionError),
     WriteFailed(Box<dyn std::error::Error + Send + Sync>),
 }
@@ -105,6 +107,7 @@ impl std::fmt::Display for LogError {
         formatter.write_str(match self {
             Self::UnknownChannel(_) => "log channel is not defined",
             Self::InvalidConfiguration => "invalid log channel configuration",
+            Self::FactoryFailed => "custom log channel factory failed",
             Self::CyclicStack => "cyclic or excessively deep log stack",
             Self::Unavailable(_) => "application log manager is unavailable",
             Self::WriteFailed(_) => "unable to write the log record",
