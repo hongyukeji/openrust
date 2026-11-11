@@ -118,3 +118,31 @@ impl fmt::Display for ConsoleError {
 }
 
 impl Error for ConsoleError {}
+
+pub(crate) fn confirm_production(
+    production: bool,
+    matches: &clap::ArgMatches,
+) -> Result<bool, ConsoleError> {
+    use std::io::Write as _;
+    if !production || matches.get_flag("force") {
+        return Ok(true);
+    }
+    if matches.get_flag("no-interaction") || !io::stdin().is_terminal() {
+        return Ok(false);
+    }
+    let mut output = io::stderr().lock();
+    output
+        .write_all(b"APPLICATION IN PRODUCTION. Do you really wish to run this command? [y/N] ")
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    output
+        .flush()
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    let mut response = String::new();
+    io::stdin()
+        .read_line(&mut response)
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    Ok(matches!(
+        response.trim().to_ascii_lowercase().as_str(),
+        "y" | "yes"
+    ))
+}

@@ -11,6 +11,7 @@ impl LoadEnvironmentVariables {
         selected_env: Option<&str>,
     ) -> Result<Environment, ConfigError> {
         let mut environment = Environment {
+            file: base_path.join(".env"),
             values: env::vars_os()
                 .filter_map(|(key, value)| key.into_string().ok().map(|key| (key, value)))
                 .collect(),
@@ -18,7 +19,7 @@ impl LoadEnvironmentVariables {
         let process_env = environment
             .get_utf8("APP_ENV")?
             .filter(|name| !name.is_empty() && *name != "0");
-        let mut path = base_path.join(".env");
+        let mut path = environment.file.clone();
         for name in [selected_env, process_env].into_iter().flatten() {
             if name.is_empty()
                 || !name
@@ -44,6 +45,7 @@ impl LoadEnvironmentVariables {
             }
         }
 
+        environment.file = path.clone();
         let entries = match dotenvy::from_path_iter(&path) {
             Ok(entries) => entries,
             Err(error) if error.not_found() => return Ok(environment),

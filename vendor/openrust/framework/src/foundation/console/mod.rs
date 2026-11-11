@@ -2,6 +2,7 @@
 
 mod console_make_command;
 mod environment_command;
+mod key_generate_command;
 mod storage_link_command;
 mod storage_unlink_command;
 
@@ -61,6 +62,7 @@ impl Kernel {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
+                            key_generate_command::register(&mut self.artisan)?;
                             storage_link_command::register(&mut self.artisan)?;
                             storage_unlink_command::register(&mut self.artisan)?;
                         }

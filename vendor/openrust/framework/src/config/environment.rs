@@ -1,9 +1,10 @@
-use std::{collections::HashMap, ffi::OsString};
+use std::{collections::HashMap, ffi::OsString, path::PathBuf};
 
 use super::ConfigError;
 
 /// The immutable environment snapshot for one application bootstrap.
 pub struct Environment {
+    pub(crate) file: PathBuf,
     pub(crate) values: HashMap<String, OsString>,
 }
 

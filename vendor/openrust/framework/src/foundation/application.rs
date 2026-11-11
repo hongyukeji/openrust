@@ -182,9 +182,10 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let base_providers: [Box<dyn ServiceProvider>; 2] = [
+        let base_providers: [Box<dyn ServiceProvider>; 3] = [
             Box::new(crate::log::LogServiceProvider),
             Box::new(crate::filesystem::FilesystemServiceProvider),
+            Box::new(crate::encryption::EncryptionServiceProvider),
         ];
         let providers: Vec<_> = base_providers
             .into_iter()
@@ -424,6 +425,10 @@ impl Application {
         )
         .map_err(configuration_failed)?;
         config.replace_with(loaded);
+        self.shared
+            .container
+            .instanceNamed("env.file", Arc::new(environment.file))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let name = match selected {
             Some(name) => Arc::from(name),
             None => match config::Repository::get(config.as_ref(), "app.env") {

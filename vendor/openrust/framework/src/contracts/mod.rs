@@ -8,6 +8,7 @@ pub mod container;
 pub mod cookie;
 pub mod database;
 pub mod debug;
+pub mod encryption;
 pub mod events;
 pub mod filesystem;
 pub mod foundation;
