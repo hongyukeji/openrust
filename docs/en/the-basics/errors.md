@@ -1,8 +1,44 @@
 # Error Handling
 
-## Reporting and rendering exceptions
+## Reporting Exceptions
 
-Register callbacks in the `withExceptions` closure in `bootstrap/app.rs`. Use `report::<E>` for an error type `E`. Matching includes the error's source chain. Reporters run in registration order. Return `ReportDecision::Continue` to continue reporting or `ReportDecision::Stop` to stop later reporters and default reporting. Normal HTTP 400, 403, 404 and 405 responses are excluded from reporting. Unhandled HTTP 500s write a diagnostic to stderr. Artisan reports command execution and boot errors and keeps its default stderr rendering and exit status.
+Configure reporting in the `withExceptions` closure in `bootstrap/app.rs`. Use `report::<E>` to observe an exception type or a matching source. Callbacks run in registration order. `ReportDecision::Stop` stops later callbacks and the default report.
+
+By default, reportable errors go through the application's configured log channel at `Level::Error`. HTTP reports include the status and omit source details from the default message. Artisan keeps its stderr message and exit status. Use `level::<E>` to choose a level and `context` to attach fields to the record. Public [Context](../digging-deeper/context.md) fields are written as separate metadata.
+
+### Ignoring Exceptions
+
+HTTP 400, 403, 404 and 405 are ignored by default. Use `dontReport::<E>` to ignore a matching type, `dontReportWhen` for a predicate, and `stopIgnoring::<HttpError>` to allow reporting those HTTP errors. Ignoring affects reporting. Rendering still produces the response.
+
+### Deduplicating Reported Exceptions
+
+Enable `dontReportDuplicates` and wrap errors that have a shared identity in `SharedException`. Clones share the same identity. Use `Application::report` for an explicit report, or return the shared error as the source of `HttpError::Internal`. Independently constructed errors can report even when their messages are identical.
+
+```rust
+use openrust::{
+    contracts::debug::SharedException,
+    foundation::Application,
+    log::Level,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut app = Application::configure(std::env::current_dir()?)
+        .withExceptions(|exceptions| {
+            exceptions
+                .level::<std::io::Error>(Level::Warning)
+                .dontReportDuplicates();
+        })
+        .create()?;
+    app.boot().await?;
+    let error = SharedException::new(std::io::Error::other("Job failed"));
+    app.report(&error)?;
+    app.report(&error.clone())?;
+    Ok(())
+}
+```
+
+## Rendering Exceptions
 
 Use `render::<E>` to return an HTTP response for an error and request. Returning `None` passes control to the next matching renderer, then to the default JSON or HTML renderer. Use `respond` to adjust the final exception response, whether custom or default. Both callbacks apply to HTTP only.
 

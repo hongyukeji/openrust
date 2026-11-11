@@ -1,24 +1,69 @@
 use std::{
+    error::Error,
     fmt::Write as _,
     io::{self, Write as _},
+    sync::{Mutex, Weak},
 };
 
 use crate::{
     console::Output,
-    contracts::debug::{Exception, ExceptionHandler},
+    container::Container,
+    contracts::container::Container as _,
+    contracts::debug::{Exception, ExceptionHandler, SharedException},
     foundation::configuration::Exceptions,
     http::{HttpError, Request, Response},
-    log::{LogError, LogResult},
+    log::{Level, LogError, LogResult},
 };
 
 /// Reports application exceptions and renders HTTP or console responses.
 pub struct Handler {
     configuration: Option<Exceptions>,
+    owner: Weak<Container>,
+    reported: Mutex<Vec<Weak<dyn Error + Send + Sync>>>,
 }
 
 impl Handler {
-    pub(crate) fn new(configuration: Option<Exceptions>) -> Self {
-        Self { configuration }
+    pub(crate) fn new(configuration: Option<Exceptions>, owner: Weak<Container>) -> Self {
+        Self {
+            configuration,
+            owner,
+            reported: Mutex::default(),
+        }
+    }
+
+    fn duplicate(&self, exception: &Exception<'_>, claim: bool) -> bool {
+        if !self
+            .configuration
+            .as_ref()
+            .is_some_and(Exceptions::suppress_duplicates)
+        {
+            return false;
+        }
+        let Some(shared) = exception.downcast_ref::<SharedException>() else {
+            return false;
+        };
+        let identity = shared.identity();
+        let mut reported = self
+            .reported
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        reported.retain(|entry| entry.strong_count() > 0);
+        let duplicate = reported.iter().any(|entry| entry.ptr_eq(&identity));
+        if claim && !duplicate {
+            reported.push(identity);
+        }
+        duplicate
+    }
+
+    fn allowed(&self, exception: &Exception<'_>) -> bool {
+        let default = exception
+            .downcast_ref::<HttpError>()
+            .is_none_or(|error| matches!(error, HttpError::Internal { .. }));
+        self.configuration
+            .as_ref()
+            .map_or(default, |configuration| {
+                configuration.allows_reporting(exception, default)
+            })
     }
 }
 
@@ -28,23 +73,36 @@ impl Handler {
 )]
 impl ExceptionHandler for Handler {
     fn shouldReport(&self, exception: &Exception<'_>) -> bool {
-        matches!(
-            exception,
-            Exception::Http(HttpError::Internal { .. }) | Exception::Error(_)
-        )
+        !self.duplicate(exception, false) && self.allowed(exception)
     }
 
     fn report(&self, exception: &Exception<'_>) -> LogResult<()> {
-        if !self.shouldReport(exception)
-            || self
-                .configuration
-                .as_ref()
-                .is_some_and(|configuration| !configuration.should_continue_reporting(exception))
+        if !self.shouldReport(exception) || self.duplicate(exception, true) {
+            return Ok(());
+        }
+        if self
+            .configuration
+            .as_ref()
+            .is_some_and(|configuration| !configuration.should_continue_reporting(exception))
         {
             return Ok(());
         }
-        // Console failures already have a stderr renderer. HTTP needs a diagnostic sink
-        // until the application log manager is wired in.
+        let logger = self
+            .owner
+            .upgrade()
+            .and_then(|owner| owner.make::<dyn crate::contracts::log::Logger>().ok());
+        if let Some(logger) = logger {
+            let configuration = self.configuration.as_ref();
+            let level = configuration.map_or(Level::Error, |config| config.report_level(exception));
+            let mut context = configuration
+                .map(|config| config.report_context(exception))
+                .unwrap_or_default();
+            if let Some(error) = exception.downcast_ref::<HttpError>() {
+                context.insert("status".into(), error.status().as_u16().into());
+            }
+            return logger.log(level, &exception.error().to_string(), &context);
+        }
+        // Startup can fail before the log binding is installed.
         if let Exception::Http(error) = exception {
             writeln!(io::stderr().lock(), "HTTP exception: {error}")
                 .map_err(|error| LogError::WriteFailed(Box::new(error)))?;

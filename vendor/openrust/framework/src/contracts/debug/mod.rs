@@ -2,4 +2,4 @@
 
 mod exception_handler;
 
-pub use exception_handler::{Exception, ExceptionHandler};
+pub use exception_handler::{Exception, ExceptionHandler, SharedException};
