@@ -1,5 +1,77 @@
 # 遷移
 
+## 產生遷移
+
+用 `make:migration` 在 `database/migrations` 產生帶時間戳記的 Rust 原始檔。可以用 `--create=flights` 或 `--table=flights` 明確選擇範本。
+
+```sh
+./artisan make:migration create_flights_table
+```
+
+在 `database/migrations/mod.rs` 登錄產生的模組和 `MigrationEntry`，然後重新建置。登錄時填寫的路徑用於產生帳本名稱，也可以用 `--path` 選擇該遷移。
+
+## 遷移結構
+
+在 `up` 執行遷移，在 `down` 撤銷。透過傳入的 `MigrationContext` 執行 Schema 和 SQL 操作，預演時遷移器才能收集陳述式。實作 `getConnection` 可指定遷移連線，實作 `shouldRun` 可依條件跳過遷移。
+
+```rust
+use openrust::database::{
+    DatabaseFuture, DatabaseResult,
+    migrations::{Migration, MigrationContext},
+};
+
+pub struct Definition;
+
+impl Migration for Definition {
+    fn up<'a>(
+        &'a self,
+        connection: &'a mut MigrationContext,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            connection.getSchemaBuilder().create("flights", |table| {
+                table.id();
+                table.string("name", 120);
+                table.timestamps();
+            }).await
+        })
+    }
+
+    fn down<'a>(
+        &'a self,
+        connection: &'a mut MigrationContext,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            connection.getSchemaBuilder().dropIfExists("flights").await
+        })
+    }
+}
+```
+
+## 執行遷移
+
+第一次連線前先建立 SQLite 資料庫檔案，或設定 MySQL 資料庫和認證資訊。`migrate` 按檔名順序執行待執行的遷移，並將每項成功結果記錄到設定的帳本。
+
+```sh
+./artisan migrate --pretend
+./artisan migrate
+./artisan migrate:status
+```
+
+用 `--database` 選擇帳本連線，用 `--step` 為每項遷移單獨分配批次。在空資料庫上，`--pretend` 會準備帳本並輸出 SQL，遷移本身不執行，帳本也不增加記錄。需要重建資料表的 SQLite 變更仰賴實際目錄中繼資料，在預演中會傳回錯誤。
+
+正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
+
+## 回復遷移
+
+`migrate:rollback` 按反向順序撤銷最近一批遷移。用 `--step` 指定筆數，或用 `--batch` 指定批次。
+
+```sh
+./artisan migrate:rollback --pretend
+./artisan migrate:rollback --step=1
+```
+
+用 `migrate:reset` 回復全部遷移，用 `migrate:refresh` 回復後重新執行。帳本存在時，`migrate:fresh` 刪除所選資料庫中的所有資料表，包括使用其他前綴的資料表，然後重新遷移。傳入 `--drop-views` 可同時刪除檢視表。
+
 ## 資料表
 
 用 `Schema::create("books", |table| { … }).await?` 在預設連線建立資料表，用 `Schema::connection("reporting")?` 選擇具名連線。已持有連線時，呼叫 `getSchemaBuilder()` 取得同一套介面。

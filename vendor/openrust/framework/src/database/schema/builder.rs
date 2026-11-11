@@ -10,6 +10,7 @@ mod sqlite;
 enum Executor<'connection> {
     Connection(Connection),
     Transaction(&'connection mut Transaction),
+    Pretend(&'connection mut Vec<String>),
 }
 
 /// Inspects and changes the schema on the write connection.
@@ -28,6 +29,21 @@ impl<'connection> Builder<'connection> {
         );
         Builder {
             executor: Executor::Connection(connection),
+            grammar,
+        }
+    }
+
+    pub(crate) fn pretend(
+        connection: &Connection,
+        statements: &'connection mut Vec<String>,
+    ) -> Self {
+        let grammar = Grammar::new(
+            connection.grammar.clone(),
+            connection.prefix_indexes,
+            connection.getDatabaseName(),
+        );
+        Self {
+            executor: Executor::Pretend(statements),
             grammar,
         }
     }
@@ -66,6 +82,11 @@ impl<'connection> Builder<'connection> {
         let mut blueprint = Blueprint::default();
         configure(&mut blueprint);
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
+            if matches!(self.executor, Executor::Pretend(_)) {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "SQLite rebuild needs live catalog metadata",
+                ));
+            }
             let Executor::Connection(connection) = &self.executor else {
                 return Err(DatabaseError::UnsupportedSchema(
                     "SQLite rebuild inside an active transaction",
@@ -126,6 +147,10 @@ impl<'connection> Builder<'connection> {
             return Ok(());
         }
         match &mut self.executor {
+            Executor::Pretend(output) => {
+                output.extend(statements);
+                Ok(())
+            }
             Executor::Connection(connection) if self.grammar.mysql() => {
                 for sql in statements {
                     connection.statement(&sql, &[]).await?;
@@ -155,6 +180,7 @@ impl<'connection> Builder<'connection> {
 
     async fn select(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
         match &mut self.executor {
+            Executor::Pretend(_) => Ok(Vec::new()),
             Executor::Connection(connection) => {
                 connection.selectFromWriteConnection(sql, bindings).await
             }

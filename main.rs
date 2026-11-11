@@ -5,6 +5,7 @@ use openrust::foundation::runApplication;
 mod app;
 mod bootstrap;
 mod config;
+mod database;
 mod routes;
 
 #[tokio::main(flavor = "current_thread")]

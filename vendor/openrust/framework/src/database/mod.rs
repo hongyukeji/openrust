@@ -5,6 +5,7 @@ mod connection;
 mod connection_interface;
 mod connection_resolver_interface;
 pub mod connectors;
+pub(crate) mod console;
 mod database_manager;
 mod database_service_provider;
 mod database_transactions_manager;
@@ -45,6 +46,11 @@ pub enum DatabaseError {
     UnknownConnection(String),
     UnsupportedDriver,
     InvalidConfiguration(&'static str),
+    InvalidMigration(&'static str),
+    MigrationFailed {
+        migration: String,
+        source: Box<DatabaseError>,
+    },
     InvalidScalar,
     InvalidQuery(&'static str),
     InvalidSchema(&'static str),
@@ -90,6 +96,10 @@ impl std::fmt::Display for DatabaseError {
                 write!(formatter, "unsupported schema operation: {operation}")
             }
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
+            Self::InvalidMigration(part) => write!(formatter, "invalid migration {part}"),
+            Self::MigrationFailed { migration, source } => {
+                write!(formatter, "{migration}: {source}")
+            }
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")
             }
@@ -121,6 +131,7 @@ impl std::fmt::Display for DatabaseError {
 impl std::error::Error for DatabaseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::MigrationFailed { source, .. } => Some(source.as_ref()),
             Self::Driver { source, .. } => Some(source),
             Self::Unavailable(source) => Some(source),
             _ => None,

@@ -395,6 +395,57 @@ impl Connection {
             .map(|result| result.insert_id)
     }
 
+    pub(super) async fn wipe_mysql_schema(&self, drop_views: bool) -> DatabaseResult<()> {
+        let connection = self.clone();
+        let result = tokio::spawn(async move {
+            let mut physical = connection.pool.acquire().await?;
+            let checks = physical.select_one("select @@foreign_key_checks", &[]).await?
+                .and_then(|row| row.get_at(0).cloned());
+            let checks = match checks {
+                Some(Value::Integer(1) | Value::Unsigned(1) | Value::Bool(true)) => true,
+                Some(Value::Integer(0) | Value::Unsigned(0) | Value::Bool(false)) => false,
+                _ => return Err(DatabaseError::InvalidSchema("MySQL foreign key check state")),
+            };
+            physical.retire_on_drop(true);
+            physical.unprepared("set foreign_key_checks = 0").await?;
+            let result = async {
+                let rows = physical.select(
+                    "select table_schema, table_name, table_type from information_schema.tables                      where table_schema = database() order by table_name",
+                    &[],
+                ).await?;
+                let mut tables = Vec::new();
+                let mut views = Vec::new();
+                for row in &rows {
+                    let [schema, name, kind] = [0, 1, 2].map(|index| match row.get_at(index) {
+                        Some(Value::Text(value)) => Ok(value.as_str()),
+                        Some(Value::Bytes(value)) => std::str::from_utf8(value)
+                            .map_err(|_| DatabaseError::InvalidSchema("catalog encoding")),
+                        _ => Err(DatabaseError::InvalidSchema("catalog value type")),
+                    });
+                    let target = format!("{}.{}", connection.grammar.quote(schema?)?, connection.grammar.quote(name?)?);
+                    match kind? {
+                        "BASE TABLE" => tables.push(target),
+                        "VIEW" if drop_views => views.push(target),
+                        _ => {}
+                    }
+                }
+                for (kind, names) in [("view", views), ("table", tables)] {
+                    if !names.is_empty() {
+                        physical.unprepared(&format!("drop {kind} {}", names.join(", "))).await?;
+                    }
+                }
+                Ok(())
+            }.await;
+            physical.unprepared(if checks { "set foreign_key_checks = 1" } else { "set foreign_key_checks = 0" }).await?;
+            physical.retire_on_drop(false);
+            result
+        }).await.map_err(|_| DatabaseError::InvalidSchema("MySQL schema task interrupted"))?;
+        if result.is_ok() {
+            self.setRecordModificationState(true);
+        }
+        result
+    }
+
     pub fn getName(&self) -> &str {
         &self.name
     }

@@ -106,7 +106,7 @@ fn artisan_reserves_reference_commands_without_running_them() {
     let list = artisan(&["list", "--raw"]);
     assert!(list.status.success());
     let list = String::from_utf8(list.stdout).unwrap();
-    for name in ["route:cache", "build", "migrate"] {
+    for name in ["route:cache", "build", "queue:restart"] {
         let entries: Vec<_> = list
             .lines()
             .filter(|line| line.split_whitespace().next() == Some(name))
@@ -117,7 +117,7 @@ fn artisan_reserves_reference_commands_without_running_them() {
 
     for arguments in [
         ["help", "build"],
-        ["migrate:fresh", "--help"],
+        ["queue:restart", "--help"],
         ["help", "queue:continue"],
     ] {
         let help = artisan(&arguments);
@@ -129,12 +129,12 @@ fn artisan_reserves_reference_commands_without_running_them() {
         );
     }
 
-    let migrate = artisan(&["migrate:fresh"]);
-    assert_eq!(migrate.status.code(), Some(1));
-    assert!(migrate.stdout.is_empty());
+    let restart = artisan(&["queue:restart"]);
+    assert_eq!(restart.status.code(), Some(1));
+    assert!(restart.stdout.is_empty());
     assert_eq!(
-        String::from_utf8(migrate.stderr).unwrap().trim(),
-        "Command 'migrate:fresh' is not implemented yet."
+        String::from_utf8(restart.stderr).unwrap().trim(),
+        "Command 'queue:restart' is not implemented yet."
     );
 }
 
