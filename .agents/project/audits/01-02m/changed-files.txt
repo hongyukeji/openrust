@@ -1,0 +1,11 @@
+docs/en/architecture-concepts/container.md
+docs/zh-Hans/architecture-concepts/container.md
+docs/zh-Hant/architecture-concepts/container.md
+tests/container_process.rs
+tests/method_lifecycle.rs
+vendor/openrust/framework/src/container/call.rs
+vendor/openrust/framework/src/container/mod.rs
+vendor/openrust/framework/src/contracts/container.rs
+vendor/openrust/framework/src/foundation/application.rs
+vendor/openrust/framework/tests/unit/lazy_callables.rs
+vendor/openrust/framework/tests/unit/main.rs

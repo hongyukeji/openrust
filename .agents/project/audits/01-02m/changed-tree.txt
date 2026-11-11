@@ -1,0 +1,29 @@
+.
+├── docs
+│   ├── en
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   ├── zh-Hans
+│   │   └── architecture-concepts
+│   │       └── container.md
+│   └── zh-Hant
+│       └── architecture-concepts
+│           └── container.md
+├── tests
+│   ├── container_process.rs
+│   └── method_lifecycle.rs
+└── vendor
+    └── openrust
+        └── framework
+            ├── src
+            │   ├── container
+            │   │   ├── call.rs
+            │   │   └── mod.rs
+            │   ├── contracts
+            │   │   └── container.rs
+            │   └── foundation
+            │       └── application.rs
+            └── tests
+                └── unit
+                    ├── lazy_callables.rs
+                    └── main.rs

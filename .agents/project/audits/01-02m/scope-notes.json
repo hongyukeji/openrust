@@ -1,0 +1,13 @@
+{
+  "base": "a2cb92e45f94463cc83ab1b7d47ec0b6c6fdbdbe",
+  "candidate": "/private/tmp/openrust-01-02m-review-20261111",
+  "selected_paths": 11,
+  "shared_files": {
+    "vendor/openrust/framework/src/foundation/application.rs": "Only Application factory/factoryNamed/wrap. Exclude preexisting gRPC wiring."
+  },
+  "excluded": "All other preexisting WIP, manifests, lockfile and other modules.",
+  "dependencies": "No dependency changes.",
+  "candidate_environment": {
+    "CARGO_INCREMENTAL": "0"
+  }
+}
