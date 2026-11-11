@@ -177,8 +177,9 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let providers: Vec<_> = providers
-            .into_iter()
+        let logging: Box<dyn ServiceProvider> = Box::new(crate::log::LogServiceProvider);
+        let providers: Vec<_> = std::iter::once(logging)
+            .chain(providers)
             .filter(|provider| seen.insert(provider.providerType()))
             .collect();
         let (deferred, providers): (Vec<_>, Vec<_>) = providers

@@ -1,6 +1,7 @@
 //! Static entry points for application services, routes and commands.
 
 mod facade;
+pub use crate::log::Log;
 pub use facade::Facade;
 pub(crate) use facade::{
     ContextSnapshot, application_scope, context_snapshot, current_container, scope,
