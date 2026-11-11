@@ -72,6 +72,7 @@ impl Kernel {
                             )?;
                             storage_link_command::register(&mut self.artisan)?;
                             storage_unlink_command::register(&mut self.artisan)?;
+                            crate::database::console::factories::register(&mut self.artisan)?;
                             crate::database::console::migrations::register(&mut self.artisan)?;
                             crate::database::console::seeds::register(&mut self.artisan)?;
                         }

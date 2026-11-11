@@ -4,6 +4,7 @@ mod builder;
 pub mod casts;
 mod collection;
 pub mod concerns;
+pub mod factories;
 mod metadata;
 mod model;
 mod persistence;

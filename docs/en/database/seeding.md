@@ -76,3 +76,24 @@ Production runs prompt for confirmation. Use `--force` when the deployment has a
 ```sh
 ./artisan db:seed --force
 ```
+
+## Using Model Factories
+
+Pass the seeder’s selected connection to `createOn`, including when running `db:seed --database=…`. The following function can be called from a seeder’s `run` method.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+    seeder::SeederContext,
+};
+
+async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<()> {
+    Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
+        .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
+        .count(3)
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```

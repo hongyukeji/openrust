@@ -76,3 +76,24 @@ pub const ENTRIES: &[SeederEntry] = &[
 ```sh
 ./artisan db:seed --force
 ```
+
+## 使用模型工厂
+
+将 Seeder 选中的连接传给 `createOn`，即可沿用 `db:seed --database=…` 的连接选择。可在 Seeder 的 `run` 中调用下面的函数。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+    seeder::SeederContext,
+};
+
+async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<()> {
+    Factory::<M>::new(|| Attributes::from([("name".into(), "Flight".into())]))
+        .sequence(|index| Attributes::from([("name".into(), format!("Flight {index}").into())]))
+        .count(3)
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
