@@ -17,7 +17,7 @@ use super::{
 /// Builds model queries and hydrates results from the selected connection.
 pub struct Builder<'connection, M: Model> {
     query: query::Builder<'connection>,
-    connection: Connection,
+    pub(super) connection: Connection,
     table_alias: Option<String>,
     existence_attributes: HashSet<String>,
     pub(super) casts: CastOverrides,

@@ -118,3 +118,9 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 ### 使用 Redis 节流
 
 在 `withMiddleware` 中调用 `middleware.throttleWithRedis()`，让命名节流别名使用默认 Redis 连接。使用相同 Redis 连接设置和键前缀的进程共享配额。Redis 原子检查并消耗各项额度。使用 `after` 的规则在响应返回后计数。
+
+## 路由模型绑定
+
+使用 `Route::model::<Post>("post")?` 在应用 Router 注册显式绑定。也可以通过 Router 返回的路由调用 `.model::<Post>("post")?`，为该路由声明模型参数。使用 `request.route_model::<Post>("post")` 读取已解析的模型。模型缺失返回 404，可通过 `missing` 自定义响应。
+
+模型默认按主键查询。可覆盖 `getRouteKeyName` 使用 slug，也可为单条路由指定 `{post:slug}`。嵌套的自定义键通过前一个已绑定的模型限定查询范围。使用 `scopeBindings` 为默认键开启作用域，或通过 `withoutScopedBindings` 关闭。子模型通过 `resolveChildRouteBinding` 选择类型化关系。`withTrashed` 可包含软删除记录。默认 `web` 和 `api` 组在处理器前执行绑定。

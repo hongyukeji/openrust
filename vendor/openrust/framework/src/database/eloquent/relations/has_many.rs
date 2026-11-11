@@ -6,6 +6,8 @@ use crate::database::{
     query,
 };
 
+use crate::{http::HttpError, routing::BindingContext};
+
 use super::{ExistenceRelation, HasOne, Relation, relation::RelationKeys};
 
 /// Links a parent key to a foreign key on many related models.
@@ -37,6 +39,32 @@ impl<P: Model, R: Model> HasMany<P, R> {
     ) -> Self {
         self.0.constrain(configure);
         self
+    }
+
+    /// Resolves one routed child through this parent's relationship.
+    #[allow(non_snake_case, reason = "Matches Laravel's route binding API")]
+    pub async fn resolveRouteBinding(
+        &self,
+        parent: &P,
+        binding: BindingContext<'_>,
+    ) -> Result<Option<R>, HttpError> {
+        use super::super::route_binding::{http_error, lookup};
+
+        let Some(key) = parent
+            .getAttribute(self.0.parent)
+            .filter(|key| !matches!(key, Value::Null))
+        else {
+            return Ok(None);
+        };
+        let connection = self.0.connection(parent).map_err(http_error)?;
+        let query = self
+            .0
+            .configure(R::queryOn(&connection))
+            .map_err(http_error)?;
+        let column = query.qualifyColumn(self.0.related);
+        lookup(query.require_relation_value(&column, key.clone()), binding)
+            .await
+            .map_err(http_error)
     }
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {

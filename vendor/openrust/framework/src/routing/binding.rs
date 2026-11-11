@@ -19,6 +19,7 @@ pub struct BindingContext<'a> {
     pub(crate) value: &'a str,
     pub(crate) field: Option<&'a str>,
     pub(crate) parent: Option<&'a str>,
+    pub(crate) with_trashed: bool,
     pub(crate) models: &'a RouteModels,
 }
 
@@ -35,6 +36,11 @@ impl<'a> BindingContext<'a> {
         self.field
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's route binding API")]
+    pub fn allowsTrashedBindings(&self) -> bool {
+        self.with_trashed
+    }
+
     pub fn parent<T: Any>(&self) -> Option<&'a T> {
         self.models.get(self.parent?)?.downcast_ref()
     }
@@ -44,6 +50,7 @@ pub(crate) struct Binding {
     pub(crate) name: String,
     pub(crate) field: Option<String>,
     pub(crate) parent: Option<String>,
+    pub(crate) with_trashed: bool,
     pub(crate) resolver: Resolver,
 }
 

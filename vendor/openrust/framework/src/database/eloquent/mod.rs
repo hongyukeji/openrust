@@ -10,6 +10,7 @@ mod model;
 mod persistence;
 mod related_batch;
 pub mod relations;
+mod route_binding;
 mod scope;
 mod serialization;
 mod soft_deletes;

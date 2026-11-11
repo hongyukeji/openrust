@@ -29,6 +29,7 @@ pub struct Route {
     pattern: RoutePattern,
     models: HashMap<String, Resolver>,
     scope_bindings: Option<bool>,
+    with_trashed_bindings: bool,
     missing: Option<Arc<dyn Handler>>,
 }
 
@@ -62,6 +63,7 @@ impl Route {
             pattern,
             models: HashMap::new(),
             scope_bindings: None,
+            with_trashed_bindings: false,
             missing: None,
         })
     }
@@ -121,6 +123,22 @@ impl Route {
         self
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    pub fn scopeBindings(&mut self) -> &mut Self {
+        self.scope_bindings()
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    pub fn withoutScopedBindings(&mut self) -> &mut Self {
+        self.without_scoped_bindings()
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    pub fn withTrashed(&mut self) -> &mut Self {
+        self.with_trashed_bindings = true;
+        self
+    }
+
     pub fn missing(&mut self, handler: impl Handler + 'static) -> &mut Self {
         self.missing = Some(Arc::new(handler));
         self
@@ -143,6 +161,7 @@ impl Route {
                     name: name.clone(),
                     field,
                     parent: None,
+                    with_trashed: self.with_trashed_bindings,
                     resolver: resolver.clone(),
                 });
             }
@@ -158,6 +177,7 @@ impl Route {
                     name: name.clone(),
                     field: field.clone(),
                     parent,
+                    with_trashed: self.with_trashed_bindings,
                     resolver: resolver.clone(),
                 });
             }

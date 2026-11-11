@@ -1,6 +1,10 @@
 use std::{borrow::Cow, future::Future};
 
-use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Value};
+use crate::{
+    database::{Connection, DB, DatabaseError, DatabaseResult, Value},
+    http::{HttpError, HttpFuture},
+    routing::BindingContext,
+};
 
 use super::{
     Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, Scope,
@@ -8,7 +12,7 @@ use super::{
     casts::{self, Attribute, AttributeCast, CastableEnum, CastableObject},
     concerns, persistence,
     relations::Relation,
-    serialization, soft_deletes,
+    route_binding, serialization, soft_deletes,
 };
 
 /// A model type implemented by the application.
@@ -602,6 +606,46 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn getKeyName(&self) -> &'static str {
         Self::metadata().primary_key
+    }
+
+    fn getRouteKeyName() -> &'static str {
+        Self::metadata().primary_key
+    }
+
+    fn getRouteKey(&self) -> Option<&Value> {
+        self.getAttribute(Self::getRouteKeyName())
+    }
+
+    fn routeBindingValue(field: &str, value: &str) -> Option<Value> {
+        if field == Self::metadata().primary_key && Self::metadata().incrementing {
+            return value
+                .parse::<i64>()
+                .map(Value::Integer)
+                .or_else(|_| value.parse::<u64>().map(Value::Unsigned))
+                .ok();
+        }
+        Some(Value::from(value))
+    }
+
+    fn resolveRouteBinding(
+        binding: BindingContext<'_>,
+    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
+        Box::pin(async move {
+            let query = Self::query().map_err(route_binding::http_error)?;
+            route_binding::lookup(query, binding)
+                .await
+                .map_err(route_binding::http_error)
+        })
+    }
+
+    fn resolveChildRouteBinding(
+        _binding: BindingContext<'_>,
+    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
+        Box::pin(async {
+            Err(route_binding::http_error(DatabaseError::InvalidQuery(
+                "scoped route binding relation",
+            )))
+        })
     }
 
     fn getTable(&self) -> &'static str {

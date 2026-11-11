@@ -31,6 +31,7 @@ impl Middleware for SubstituteBindings {
                     value,
                     field: binding.field.as_deref(),
                     parent,
+                    with_trashed: binding.with_trashed,
                     models: &request.route_models,
                 };
                 match (binding.resolver)(context).await? {

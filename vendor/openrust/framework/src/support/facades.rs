@@ -206,6 +206,46 @@ struct RouteRegistration {
 pub struct Route;
 
 impl Route {
+    /// Registers an explicit model binding in the current application's router.
+    pub fn model<T: crate::contracts::routing::UrlRoutable>(
+        name: &str,
+    ) -> Result<(), RoutingError> {
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .model::<T>(name);
+                Ok(())
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
+    /// Registers a custom binding in the current application's router.
+    pub fn bind<T, F>(name: &str, resolve: F) -> Result<(), RoutingError>
+    where
+        T: Send + Sync + 'static,
+        F: for<'a> Fn(
+                crate::routing::BindingContext<'a>,
+            )
+                -> crate::http::HttpFuture<'a, Result<Option<T>, crate::http::HttpError>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .bind(name, resolve);
+                Ok(())
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
     /// Mounts files from a directory as a GET and HEAD fallback.
     pub fn r#static(prefix: &str, directory: impl AsRef<Path>) -> Result<(), RoutingError> {
         ROUTER
