@@ -35,3 +35,42 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
 This confirms that HTTP bootstrap succeeded. Diagnostic event listeners and their failure response are pending the event dispatcher implementation. The health page uses local HTML rather than Laravel's Blade view and external styling assets.
+
+## Listing Your Routes
+
+Run `route:list` to see active routes. Use `--json` for structured output. Filter by path, method, name, domain, action or middleware. Use `--except-path` with comma-separated substrings. `--sort=definition` preserves registration order, and `--reverse` reverses the result.
+
+```sh
+./artisan route:list --json --method=HEAD
+```
+
+## Route Parameters
+
+Use `{id}` for a required parameter or `{id?}` for a trailing optional parameter. Set defaults with `defaults`. A parameter that fails a route constraint falls through to other routes or returns 404.
+
+## Route Groups
+
+Groups share URI prefixes, name prefixes, domains, middleware and constraints. Register specific domain routes before a host-independent route with the same path. A domain placeholder is available through `request.route`, just like a path placeholder.
+
+The group closure receives a mutable Rust router. Use it to configure the registered route. A GET route accepts HEAD, and automatic OPTIONS reports allowed methods for a matching path and domain.
+
+```rust
+use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route, view::view};
+
+fn register() -> Result<(), RoutingError> {
+    Route::group(
+        RouteGroup::new()
+            .domain("{tenant}.example.test")
+            .prefix("admin")
+            .name("admin.")
+            .r#where("id", "[0-9]+")?,
+        |router| {
+            router
+                .get("/reports/{id?}", || view("welcome"))?
+                .name("reports.show")
+                .defaults("id", "1");
+            Ok(())
+        },
+    )
+}
+```

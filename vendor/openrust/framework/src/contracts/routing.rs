@@ -27,6 +27,7 @@ where
 
 /// Registers handlers with HTTP methods and URI patterns.
 pub trait Registrar {
+    #[track_caller]
     fn add_route(
         &mut self,
         methods: &[Method],

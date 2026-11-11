@@ -161,12 +161,49 @@ impl Route {
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
 
+    #[track_caller]
     pub fn get<Arguments>(
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<(), RoutingError> {
+        Self::r#match(
+            &[crate::http::Method::GET, crate::http::Method::HEAD],
+            uri,
+            handler,
+        )
+    }
+
+    pub fn group(
+        group: crate::routing::RouteGroup,
+        register: impl FnOnce(&mut Router) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
         ROUTER
-            .try_with(|scope| scope.router.borrow_mut().get(uri, handler).map(|_| ()))
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .group(group, register)
+            })
+            .map_err(|_| RoutingError::NoRegistrationScope)?
+    }
+
+    #[track_caller]
+    pub fn r#match<Arguments>(
+        methods: &[crate::http::Method],
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<(), RoutingError> {
+        let definition = std::panic::Location::caller();
+        ROUTER
+            .try_with(|scope| {
+                scope
+                    .router
+                    .try_borrow_mut()
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?
+                    .register_with(methods, uri, handler, definition)
+                    .map(|_| ())
+            })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }
 

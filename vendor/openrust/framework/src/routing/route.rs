@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, panic::Location, sync::Arc};
 
 use crate::contracts::{
     http::Middleware,
@@ -15,6 +15,11 @@ use super::{
 /// A registered route and its metadata.
 pub struct Route {
     pub(super) uri: String,
+    pub(super) name: String,
+    pub(super) domain: Option<String>,
+    pub(super) action: &'static str,
+    pub(super) definition: &'static Location<'static>,
+    host_pattern: Option<RoutePattern>,
     pub(super) handler: Arc<dyn Handler>,
     pub(super) middleware: Vec<MiddlewareEntry>,
     pub(super) resolved_middleware: Option<MiddlewareStack>,
@@ -27,15 +32,26 @@ pub struct Route {
 }
 
 impl Route {
+    #[track_caller]
     pub(super) fn new(
         uri: String,
+        domain: Option<String>,
         handler: Arc<dyn Handler>,
         middleware: Vec<MiddlewareEntry>,
         constraints: HashMap<String, String>,
     ) -> Result<Self, RoutingError> {
         let pattern = RoutePattern::compile(&uri, &constraints)?;
+        let host_pattern = domain
+            .as_deref()
+            .map(|host| RoutePattern::compile_host(host, &constraints))
+            .transpose()?;
         Ok(Self {
             uri,
+            name: String::new(),
+            domain,
+            action: "Closure",
+            definition: Location::caller(),
+            host_pattern,
             handler,
             middleware,
             resolved_middleware: None,
@@ -46,6 +62,16 @@ impl Route {
             scope_bindings: None,
             missing: None,
         })
+    }
+
+    pub fn name(&mut self, name: &str) -> &mut Self {
+        self.name.push_str(name);
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    pub fn getName(&self) -> Option<&str> {
+        (!self.name.is_empty()).then_some(&self.name)
     }
 
     pub fn middleware(&mut self, middleware: Arc<dyn Middleware>) -> &mut Self {
@@ -141,7 +167,14 @@ impl Route {
     pub fn r#where(&mut self, name: &str, expression: &str) -> Result<&mut Self, RoutingError> {
         let mut constraints = self.constraints.clone();
         constraints.insert(name.to_owned(), constraint(name, expression)?);
-        self.pattern = RoutePattern::compile(&self.uri, &constraints)?;
+        let pattern = RoutePattern::compile(&self.uri, &constraints)?;
+        let host_pattern = self
+            .domain
+            .as_deref()
+            .map(|host| RoutePattern::compile_host(host, &constraints))
+            .transpose()?;
+        self.pattern = pattern;
+        self.host_pattern = host_pattern;
         self.constraints = constraints;
         Ok(self)
     }
@@ -173,11 +206,31 @@ impl Route {
         self.r#where(name, &values.join("|"))
     }
 
-    pub(super) fn matches(&self, path: &str) -> bool {
-        self.pattern.matches(path)
+    pub(super) fn matches(&self, host: &str, path: &str) -> bool {
+        self.host_pattern
+            .as_ref()
+            .is_none_or(|pattern| pattern.matches(host))
+            && self.pattern.matches(path)
     }
 
-    pub(super) fn parameters(&self, path: &str) -> Vec<(String, String)> {
-        self.pattern.parameters(path, &self.defaults)
+    pub(super) fn parameters(&self, host: &str, path: &str) -> Vec<(String, String)> {
+        let Some(pattern) = &self.host_pattern else {
+            return self.pattern.parameters(path, &self.defaults);
+        };
+        let mut parameters = pattern.parameters(host, &HashMap::new());
+        let defaults = self
+            .defaults
+            .iter()
+            .filter(|(key, _)| !parameters.iter().any(|(name, _)| name == *key))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        for (key, value) in self.pattern.parameters(path, &defaults) {
+            if let Some((_, previous)) = parameters.iter_mut().find(|(name, _)| *name == key) {
+                *previous = value;
+            } else {
+                parameters.push((key, value));
+            }
+        }
+        parameters
     }
 }

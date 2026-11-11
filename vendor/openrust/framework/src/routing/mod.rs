@@ -1,6 +1,7 @@
 //! Route registration and dispatch.
 
 pub(crate) mod binding;
+pub(crate) mod console;
 mod error;
 pub mod middleware;
 mod route;
@@ -14,4 +15,4 @@ pub use error::RoutingError;
 pub use middleware::MiddlewareEntry;
 pub use route::Route;
 pub use route_group::RouteGroup;
-pub use router::{IntoRouteHandler, Router};
+pub use router::{IntoRouteHandler, RouteInfo, Router};

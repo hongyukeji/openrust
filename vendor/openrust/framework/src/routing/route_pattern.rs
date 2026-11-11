@@ -34,6 +34,30 @@ impl RoutePattern {
         uri: &str,
         constraints: &HashMap<String, String>,
     ) -> Result<Self, RoutingError> {
+        Self::compile_pattern(uri, constraints, false)
+    }
+
+    pub(super) fn compile_host(
+        host: &str,
+        constraints: &HashMap<String, String>,
+    ) -> Result<Self, RoutingError> {
+        if host.is_empty()
+            || host
+                .chars()
+                .any(|c| !(c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '{' | '}')))
+        {
+            return Err(RoutingError::InvalidUri {
+                uri: host.to_owned(),
+            });
+        }
+        Self::compile_pattern(host, constraints, true)
+    }
+
+    fn compile_pattern(
+        uri: &str,
+        constraints: &HashMap<String, String>,
+        host: bool,
+    ) -> Result<Self, RoutingError> {
         let invalid = || RoutingError::InvalidUri {
             uri: uri.to_owned(),
         };
@@ -109,9 +133,10 @@ impl RoutePattern {
                             .iter()
                             .find_map(Token::static_prefix)
                             .filter(|&ch| ch != '/' && SEPARATORS.contains(ch));
+                        let excluded = if host { "/." } else { "/" };
                         default = separator.map_or_else(
-                            || "[^/]+".to_owned(),
-                            |ch| format!("[^/{}]+", regex::escape(&ch.to_string())),
+                            || format!("[^{excluded}]+"),
+                            |ch| format!("[^{excluded}{}]+", regex::escape(&ch.to_string())),
                         );
                         &default
                     };
@@ -127,6 +152,7 @@ impl RoutePattern {
         expression.push_str(&")?".repeat(tokens.len() - optional_start));
         expression.push_str(r"\z");
         let regex = RegexBuilder::new(&expression)
+            .case_insensitive(host)
             .dot_matches_new_line(true)
             .build()
             .map_err(|source| RoutingError::InvalidRoutePattern {

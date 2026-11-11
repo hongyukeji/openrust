@@ -1,13 +1,16 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::contracts::http::Middleware;
 
-use super::MiddlewareEntry;
+use super::{MiddlewareEntry, RoutingError, route_pattern::constraint};
 
 /// Shared prefix and middleware settings for a group of routes.
 #[derive(Default)]
 pub struct RouteGroup {
     pub(super) prefix: String,
+    pub(super) name: String,
+    pub(super) domain: Option<String>,
+    pub(super) constraints: HashMap<String, String>,
     pub(super) middleware: Vec<MiddlewareEntry>,
 }
 
@@ -19,6 +22,22 @@ impl RouteGroup {
     pub fn prefix(mut self, prefix: impl Into<String>) -> Self {
         self.prefix = prefix.into();
         self
+    }
+
+    pub fn name(mut self, prefix: impl Into<String>) -> Self {
+        self.name = prefix.into();
+        self
+    }
+
+    pub fn domain(mut self, domain: impl Into<String>) -> Self {
+        self.domain = Some(domain.into());
+        self
+    }
+
+    pub fn r#where(mut self, parameter: &str, expression: &str) -> Result<Self, RoutingError> {
+        self.constraints
+            .insert(parameter.to_owned(), constraint(parameter, expression)?);
+        Ok(self)
     }
 
     pub fn middleware(mut self, middleware: Arc<dyn Middleware>) -> Self {

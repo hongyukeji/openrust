@@ -127,6 +127,16 @@ impl Application {
         environment_detector::query(&self.shared.container, patterns)
     }
 
+    pub(crate) fn route_info(&self) -> Vec<crate::routing::RouteInfo> {
+        self.shared
+            .routes
+            .lock()
+            .expect("application routes lock poisoned")
+            .as_ref()
+            .map(Router::getRoutes)
+            .unwrap_or_default()
+    }
+
     pub(crate) fn configuration_repository(
         &self,
     ) -> Result<Arc<dyn config::Repository>, crate::contracts::container::BindingResolutionError>

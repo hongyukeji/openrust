@@ -35,3 +35,42 @@ curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
 這表示 HTTP 引導已成功。診斷事件監聽器及其失敗回應等待事件分發器實作。健康頁面使用本機 HTML，未使用 Laravel 的 Blade 視圖和外部樣式資源。
+
+## 查看路由清單
+
+使用 `route:list` 查看生效的路由，以 `--json` 輸出結構化結果。可依路徑、方法、名稱、網域、處理器或中介層篩選。`--except-path` 接收以逗號分隔的子字串。`--sort=definition` 保留註冊順序，`--reverse` 反轉結果。
+
+```sh
+./artisan route:list --json --method=HEAD
+```
+
+## 路由參數
+
+必要參數寫成 `{id}`，尾端的選用參數寫成 `{id?}`，預設值使用 `defaults` 設定。參數未符合限制時，繼續比對其他路由，均未比對成功則回傳 404。
+
+## 路由群組
+
+群組共用 URI 前綴、名稱前綴、網域、中介層和限制。限定網域的路由應先於相同路徑的不限網域路由註冊。網域與路徑的預留位置都可透過 `request.route` 讀取。
+
+群組閉包接收一個可變的 Rust 路由器，可用它設定已註冊的路由。GET 路由同時接受 HEAD，自動 OPTIONS 依比對的路徑和網域回傳允許的方法。
+
+```rust
+use openrust::{routing::{RouteGroup, RoutingError}, support::facades::Route, view::view};
+
+fn register() -> Result<(), RoutingError> {
+    Route::group(
+        RouteGroup::new()
+            .domain("{tenant}.example.test")
+            .prefix("admin")
+            .name("admin.")
+            .r#where("id", "[0-9]+")?,
+        |router| {
+            router
+                .get("/reports/{id?}", || view("welcome"))?
+                .name("reports.show")
+                .defaults("id", "1");
+            Ok(())
+        },
+    )
+}
+```

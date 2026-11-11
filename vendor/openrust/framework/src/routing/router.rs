@@ -1,5 +1,7 @@
 use std::{
+    any::type_name_of_val,
     collections::{HashMap, HashSet},
+    panic::Location,
     path::Path,
     sync::Arc,
 };
@@ -14,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    BindingContext, Route, RouteGroup, RoutingError,
+    BindingContext, MiddlewareEntry, Route, RouteGroup, RoutingError,
     binding::{self, Resolver},
     middleware::MiddlewareRegistry,
     route_pattern::constraint,
@@ -87,6 +89,21 @@ pub struct Router {
     patterns: HashMap<String, String>,
     bindings: HashMap<String, Resolver>,
     static_mounts: Vec<StaticMount>,
+    has_domains: bool,
+}
+
+/// Metadata for the methods that still dispatch to a registered route.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RouteInfo {
+    pub domain: Option<String>,
+    pub method: String,
+    pub uri: String,
+    pub name: Option<String>,
+    pub action: String,
+    pub path: String,
+    #[serde(skip)]
+    pub vendor: bool,
+    pub middleware: Vec<String>,
 }
 
 impl Router {
@@ -94,16 +111,90 @@ impl Router {
         Self::default()
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
+    pub fn getRoutes(&self) -> Vec<RouteInfo> {
+        let mut methods_by_route = vec![Vec::new(); self.routes.len()];
+        for (method, indices) in &self.by_method {
+            for &index in indices {
+                methods_by_route[index].push(method.as_str());
+            }
+        }
+
+        self.routes
+            .iter()
+            .zip(methods_by_route)
+            .filter(|(_, methods)| !methods.is_empty())
+            .map(|(route, mut methods)| {
+                methods.sort_unstable_by_key(|method| {
+                    (
+                        VERBS
+                            .iter()
+                            .position(|verb| verb == method)
+                            .unwrap_or(VERBS.len()),
+                        *method,
+                    )
+                });
+                let uri = route
+                    .uri
+                    .strip_prefix('/')
+                    .filter(|uri| !uri.is_empty())
+                    .unwrap_or(&route.uri);
+                let file = route.definition.file().replace('\\', "/");
+                let vendor = file.split('/').any(|component| component == "vendor");
+                RouteInfo {
+                    domain: route.domain.clone(),
+                    method: methods.join("|"),
+                    uri: uri.to_owned(),
+                    name: route.getName().map(str::to_owned),
+                    action: route.action.to_owned(),
+                    path: format!("{file}:{}", route.definition.line()),
+                    vendor,
+                    middleware: route
+                        .middleware
+                        .iter()
+                        .map(|middleware| match middleware {
+                            MiddlewareEntry::Named(name) => name.clone(),
+                            MiddlewareEntry::Instance(_) => "Closure".to_owned(),
+                        })
+                        .collect(),
+                }
+            })
+            .collect()
+    }
+
+    #[track_caller]
     pub fn get<Arguments>(
         &mut self,
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<&mut Route, RoutingError> {
-        self.add_route(
-            &[Method::GET, Method::HEAD],
-            uri,
-            handler.into_route_handler(),
-        )
+        self.r#match(&[Method::GET, Method::HEAD], uri, handler)
+    }
+
+    #[track_caller]
+    pub fn r#match<Arguments>(
+        &mut self,
+        methods: &[Method],
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+    ) -> Result<&mut Route, RoutingError> {
+        self.register_with(methods, uri, handler, Location::caller())
+    }
+
+    pub(crate) fn register_with<Arguments>(
+        &mut self,
+        methods: &[Method],
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+        definition: &'static Location<'static>,
+    ) -> Result<&mut Route, RoutingError> {
+        let action = type_name_of_val(&handler);
+        let route = self.add_route(methods, uri, handler.into_route_handler())?;
+        route.definition = definition;
+        if !action.contains("{{closure}}") {
+            route.action = action;
+        }
+        Ok(route)
     }
 
     pub fn group(
@@ -180,12 +271,12 @@ impl Router {
         Ok(())
     }
 
-    fn matched(&self, method: &Method, path: &str) -> Option<&Route> {
+    fn matched(&self, method: &Method, host: &str, path: &str) -> Option<&Route> {
         self.by_method
             .get(method)?
             .iter()
             .map(|&index| &self.routes[index])
-            .find(|route| route.matches(path))
+            .find(|route| route.matches(host, path))
     }
 
     pub async fn dispatch(&self, request: &mut Request) -> Result<Response, HttpError> {
@@ -194,8 +285,18 @@ impl Router {
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()
             .map_err(|_| HttpError::InvalidRequest)?;
-        if let Some(route) = self.matched(request.method(), &path) {
-            let parameters = route.parameters(&path);
+        let authority = (self.has_domains && request.uri().host().is_none())
+            .then(|| request.headers().get(::http::header::HOST))
+            .flatten()
+            .and_then(|header| header.to_str().ok())
+            .and_then(|host| host.parse::<::http::uri::Authority>().ok());
+        let host = request
+            .uri()
+            .host()
+            .or_else(|| authority.as_ref().map(::http::uri::Authority::host))
+            .unwrap_or_default();
+        if let Some(route) = self.matched(request.method(), host, &path) {
+            let parameters = route.parameters(host, &path);
             let plan = route.binding_plan(&self.bindings, &parameters);
             request.set_route_parameters(parameters);
             request.binding_plan = plan;
@@ -218,7 +319,7 @@ impl Router {
         let allowed: Vec<_> = VERBS
             .iter()
             .map(|verb| Method::from_bytes(verb.as_bytes()).expect("valid HTTP method"))
-            .filter(|method| self.matched(method, &path).is_some())
+            .filter(|method| self.matched(method, host, &path).is_some())
             .collect();
         if allowed.is_empty() {
             if matches!(*request.method(), Method::GET | Method::HEAD)
@@ -252,6 +353,7 @@ impl Handler for Router {
 }
 
 impl Registrar for Router {
+    #[track_caller]
     fn add_route(
         &mut self,
         methods: &[Method],
@@ -281,14 +383,29 @@ impl Registrar for Router {
             .iter()
             .flat_map(|group| group.middleware.iter().cloned())
             .collect();
-        let route = Route::new(uri, handler, middleware, self.patterns.clone())?;
+        let domain = self
+            .groups
+            .iter()
+            .rev()
+            .find_map(|group| group.domain.clone());
+        let mut constraints = self.patterns.clone();
+        for group in &self.groups {
+            constraints.extend(group.constraints.clone());
+        }
+        let mut route = Route::new(uri, domain, handler, middleware, constraints)?;
+        route.name = self
+            .groups
+            .iter()
+            .map(|group| group.name.as_str())
+            .collect();
+        self.has_domains |= route.domain.is_some();
         let index = self.routes.len();
         for method in methods.iter().collect::<HashSet<_>>() {
             let routes = self.by_method.entry(method.clone()).or_default();
-            if let Some(slot) = routes
-                .iter_mut()
-                .find(|&&mut entry| self.routes[entry].uri == route.uri)
-            {
+            if let Some(slot) = routes.iter_mut().find(|&&mut entry| {
+                let previous = &self.routes[entry];
+                previous.uri == route.uri && previous.domain == route.domain
+            }) {
                 *slot = index;
             } else {
                 routes.push(index);
