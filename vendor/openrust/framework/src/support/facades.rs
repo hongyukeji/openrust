@@ -1,6 +1,7 @@
 //! Static entry points for application services, routes and commands.
 
 mod facade;
+pub use crate::filesystem::Storage;
 pub use crate::log::Log;
 pub use crate::log::context::Context;
 pub use facade::Facade;
@@ -85,7 +86,7 @@ impl Route {
                 scope
                     .router
                     .borrow_mut()
-                    .mount_static(&prefix, Path::new(&root))
+                    .mount_public_disk(&prefix, Path::new(&root))
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }

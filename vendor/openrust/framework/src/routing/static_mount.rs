@@ -19,6 +19,7 @@ use super::RoutingError;
 pub(super) struct StaticMount {
     prefix: String,
     directory: Arc<Path>,
+    public_disk: bool,
 }
 
 impl StaticMount {
@@ -42,7 +43,14 @@ impl StaticMount {
         Ok(Self {
             prefix: prefix.trim_end_matches('/').into(),
             directory: Arc::from(directory),
+            public_disk: false,
         })
+    }
+
+    pub(super) fn public_disk(prefix: &str, directory: &Path) -> Result<Self, RoutingError> {
+        let mut mount = Self::new(prefix, directory)?;
+        mount.public_disk = true;
+        Ok(mount)
     }
 
     pub(super) fn resolve_directory(&mut self, base: &Path) {
@@ -62,19 +70,21 @@ impl StaticMount {
         let mime = mime_guess::from_path(relative).first_or_octet_stream();
         let relative = PathBuf::from(relative);
         let directory = Arc::clone(&self.directory);
+        let public_disk = self.public_disk;
         let (file, length, modified) = tokio::task::spawn_blocking(move || {
             let root = Dir::open_ambient_dir(directory.as_ref(), ambient_authority()).ok()?;
-            if !root.is_file(&relative) {
-                return None;
-            }
-            let file = root.open(relative).ok()?;
+            let file = if public_disk {
+                crate::filesystem::open_public_file(&root, &relative).ok()?
+            } else {
+                if !root.is_file(&relative) {
+                    return None;
+                }
+                root.open(relative).ok()?.into_std()
+            };
             let metadata = file.metadata().ok()?;
             metadata.is_file().then(|| {
-                let modified = metadata
-                    .modified()
-                    .ok()
-                    .and_then(|time| http_modification_time(time.into_std()));
-                (file.into_std(), metadata.len(), modified)
+                let modified = metadata.modified().ok().and_then(http_modification_time);
+                (file, metadata.len(), modified)
             })
         })
         .await
@@ -139,7 +149,7 @@ fn not_modified(headers: &HeaderMap, modified: Option<SystemTime>) -> bool {
 
 fn valid_relative_path(path: &str) -> bool {
     !path.contains(['\\', ':', '\0'])
-        && path
-            .split('/')
-            .all(|segment| !matches!(segment, "" | "." | ".."))
+        && path.split('/').all(|segment| {
+            !matches!(segment, "" | "." | "..") && !crate::filesystem::is_staging_name(segment)
+        })
 }

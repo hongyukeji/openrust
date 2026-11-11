@@ -127,6 +127,16 @@ impl Router {
         Ok(())
     }
 
+    pub(crate) fn mount_public_disk(
+        &mut self,
+        prefix: &str,
+        directory: &Path,
+    ) -> Result<(), RoutingError> {
+        self.static_mounts
+            .push(StaticMount::public_disk(prefix, directory)?);
+        Ok(())
+    }
+
     pub(crate) fn resolve_static_directories(&mut self, base: &Path) {
         for mount in &mut self.static_mounts {
             mount.resolve_directory(base);

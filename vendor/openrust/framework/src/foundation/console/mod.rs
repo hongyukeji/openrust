@@ -2,6 +2,8 @@
 
 mod console_make_command;
 mod environment_command;
+mod storage_link_command;
+mod storage_unlink_command;
 
 use std::ffi::OsString;
 
@@ -59,6 +61,8 @@ impl Kernel {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
+                            storage_link_command::register(&mut self.artisan)?;
+                            storage_unlink_command::register(&mut self.artisan)?;
                         }
                         (self.application.shared.commands)(&mut self.artisan)?;
                         if let Some(register) = self.application.shared.command_routes {
