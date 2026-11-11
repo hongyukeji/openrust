@@ -681,4 +681,6 @@ fn main() {
 
 回调在注册表锁外执行，可以重入或替换解析器；进行中的调用保留原回调直到返回。旧捕获在锁外释放，错误与 panic 不污染注册表锁。更换或清除解析器不驱逐服务缓存、不触发解析事件，`flush` 保留解析器，各容器策略独立。
 
-Rust 用借用查询枚举、结果枚举、Result 与可选 Arc 回调对应 PHP 联合类型、异常和可空 callable。回调要求 Send + Sync，以支持同容器并发请求。环境检查仅在短读锁内克隆回调，未做性能基准。Application 默认检测、LoadConfiguration 接线及控制台 --env 支持记为 CT-ENV-APPLICATION，须在环境类属性前继续接通。
+Rust 用借用查询枚举、结果枚举、Result 与可选 Arc 回调对应 PHP 联合类型、异常和可空 callable。回调要求 Send + Sync，以支持同容器并发请求。环境检查仅在短读锁内克隆回调，未做性能基准。
+
+应用在加载配置时安装默认匹配器。参见[确定当前环境](../getting-started/configuration.md#determining-the-current-environment)。

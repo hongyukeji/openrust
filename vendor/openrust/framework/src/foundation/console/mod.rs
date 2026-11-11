@@ -1,6 +1,7 @@
 //! Artisan lifecycle for a bootstrapped application.
 
 mod console_make_command;
+mod environment_command;
 
 use std::ffi::OsString;
 
@@ -13,7 +14,7 @@ use crate::{
     support::facades,
 };
 
-use super::{Application, BootstrapError};
+use super::{Application, BootstrapError, environment_detector};
 
 /// Boots the application and runs Artisan commands.
 pub struct Kernel {
@@ -41,14 +42,14 @@ impl Kernel {
             ..Self::new(application, Artisan::new())
         }
     }
-}
-
-impl console::Kernel for Kernel {
-    fn bootstrap(&mut self) -> ConsoleFuture<'_, Result<(), BootstrapError>> {
+    fn bootstrap_with_environment<'a>(
+        &'a mut self,
+        selected: Option<&'a str>,
+    ) -> ConsoleFuture<'a, Result<(), BootstrapError>> {
         Box::pin(facades::scope(
             self.application.container_handle(),
             async move {
-                self.application.boot().await?;
+                self.application.boot_with_environment(selected).await?;
                 self.application
                     .loadDeferredProviders()
                     .await
@@ -57,6 +58,7 @@ impl console::Kernel for Kernel {
                     .get_or_insert_with(|| {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
+                            environment_command::register(&mut self.artisan)?;
                         }
                         (self.application.shared.commands)(&mut self.artisan)?;
                         if let Some(register) = self.application.shared.command_routes {
@@ -68,6 +70,12 @@ impl console::Kernel for Kernel {
                     .map_err(|source| BootstrapError::CommandRegistrationFailed { source })
             },
         ))
+    }
+}
+
+impl console::Kernel for Kernel {
+    fn bootstrap(&mut self) -> ConsoleFuture<'_, Result<(), BootstrapError>> {
+        self.bootstrap_with_environment(None)
     }
 
     fn get_application(&self) -> &Application {
@@ -86,7 +94,14 @@ impl console::Kernel for Kernel {
         Box::pin(facades::scope(
             self.application.container_handle(),
             async move {
-                if let Err(error) = self.bootstrap().await {
+                let selected = match environment_detector::console_environment(arguments) {
+                    Ok(selected) => selected,
+                    Err(error) => {
+                        self.application.render_console_exception(output, &error);
+                        return 1;
+                    }
+                };
+                if let Err(error) = self.bootstrap_with_environment(selected).await {
                     output.stderr.push_str("Application startup failed: ");
                     self.application.render_console_exception(output, &error);
                     return 1;

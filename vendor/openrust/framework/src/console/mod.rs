@@ -82,6 +82,14 @@ impl Output {
         self.stdout.push('\n');
     }
 
+    pub(crate) fn info(&mut self, message: &str) {
+        self.stdout.push_str("\n  ");
+        self.write_style(" INFO ", "\x1b[37;44m", "\x1b[39;49m");
+        self.stdout.push(' ');
+        self.stdout.push_str(message);
+        self.stdout.push_str("\n\n");
+    }
+
     fn write_style(&mut self, text: &str, open: &str, close: &str) {
         if self.decorated && !text.is_empty() {
             self.stdout.push_str(open);

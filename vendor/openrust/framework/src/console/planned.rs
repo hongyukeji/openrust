@@ -55,7 +55,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("dev:list", "Show registered development processes"),
     ("docs", "Open the documentation for a topic"),
     ("down", "Put the application into maintenance mode"),
-    ("env", "Show the current application environment"),
     ("env:decrypt", "Decrypt an encrypted environment file"),
     ("env:encrypt", "Encrypt an environment file"),
     ("event:cache", "Cache event and listener registrations"),

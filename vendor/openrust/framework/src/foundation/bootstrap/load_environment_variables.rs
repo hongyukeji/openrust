@@ -17,7 +17,7 @@ impl LoadEnvironmentVariables {
         };
         let process_env = environment
             .get_utf8("APP_ENV")?
-            .filter(|name| !name.is_empty());
+            .filter(|name| !name.is_empty() && *name != "0");
         let mut path = base_path.join(".env");
         for name in [selected_env, process_env].into_iter().flatten() {
             if name.is_empty()

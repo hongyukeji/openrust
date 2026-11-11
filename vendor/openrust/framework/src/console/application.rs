@@ -149,6 +149,14 @@ impl Application {
                     .action(ArgAction::SetTrue)
                     .help("Disable ANSI output"),
             )
+            .arg(
+                Arg::new("env")
+                    .long("env")
+                    .global(true)
+                    .action(ArgAction::Append)
+                    .value_name("ENV")
+                    .help("The environment the command should run under"),
+            )
             .subcommands(
                 self.commands
                     .values()

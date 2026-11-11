@@ -18,6 +18,46 @@ The HTTP view renderer searches the directories in `view.paths` in order. By def
 
 Process environment variables take precedence over values in the file. Set `APP_ENV` in the process environment to select a file such as `.env.local`. If the selected file is absent, the application reads `.env`. See [application root resolution](../architecture-concepts/lifecycle.md) for deployment paths and the `APP_BASE_PATH` override.
 
+<a id="determining-the-current-environment"></a>
+
+## Determining the current environment
+
+The application detects its environment after configuration loads and before providers register. It reads the string at `app.env` and uses `production` when the key is absent. The default configuration gets `app.env` from `APP_ENV`. HTTP boots with this configured name.
+
+Artisan accepts `--env=staging` and `--env staging` before or after the command. For an invocation with repeated options, the first value determines the environment. The loader tries the file for `--env`, then the file for the external `APP_ENV`, then `.env`. Process variables take precedence over file values. The option also sets the detected environment for the boot, even when file selection falls back. It leaves the configuration value under `app.env` as loaded.
+
+```sh
+./artisan env --env=staging
+```
+
+Pass `None` to `Application::environment` for the detected name. Pass a single pattern or a slice of patterns inside `Some` to get a Boolean result. Matching is case-sensitive and `*` spans any characters. An empty slice returns false. The application installs the same matcher as the container environment resolver during boot.
+
+```rust
+use openrust::{
+    container::EnvironmentResult,
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut app = Application::configure(std::env::current_dir()?)
+        .withConfig(|_, _| {
+            Ok([("app".into(), serde_json::json!({"env": "staging"}))].into())
+        })
+        .create()?;
+    app.boot().await?;
+
+    assert_eq!(app.environment(None)?, EnvironmentResult::from("staging"));
+    assert!(bool::from(app.environment(Some("stag*".into()))?));
+    assert!(bool::from(app.container().currentEnvironmentIs(&["local", "staging"])?));
+    assert!(!bool::from(app.container().currentEnvironmentIs(&[])?));
+    Ok(())
+}
+```
+
+During bootstrap the detected name is stored in the `env` service as `Arc<str>`. The environment query reads this service. Editing `app.env` after boot edits configuration only.
+
 <a id="public-files"></a>
 
 ## Public files

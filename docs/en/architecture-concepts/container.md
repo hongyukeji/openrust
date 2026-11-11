@@ -681,4 +681,6 @@ fn main() {
 
 Callbacks execute outside the registry lock and may reenter or replace the resolver. An active invocation retains its original callback until it returns. Retired captures are released outside the lock; errors and panics do not poison the registry. Changing or clearing the resolver does not invalidate services or emit resolution events, and `flush` preserves the resolver. Separate containers keep separate policies.
 
-Rust uses borrowed query enums, a typed result enum, Result and an optional Arc callback instead of PHP unions, exceptions and a nullable callable. Callbacks require Send + Sync because one container can serve concurrent requests. Environment checks clone the callback under a short read lock; no performance benchmark is claimed. The Application default detector, LoadConfiguration wiring and console --env integration are tracked as CT-ENV-APPLICATION and remain pending before environment-based class attributes.
+Rust uses borrowed query enums, a typed result enum, Result and an optional Arc callback instead of PHP unions, exceptions and a nullable callable. Callbacks require Send + Sync because one container can serve concurrent requests. Environment checks clone the callback under a short read lock; no performance benchmark is claimed.
+
+For an application, the configuration bootstrap installs the default matcher. See [determining the current environment](../getting-started/configuration.md#determining-the-current-environment).

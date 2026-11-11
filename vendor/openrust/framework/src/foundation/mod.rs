@@ -6,6 +6,7 @@ mod bootstrap_error;
 pub mod configuration;
 pub mod console;
 mod entry;
+mod environment_detector;
 pub mod events;
 pub mod exceptions;
 pub mod http;

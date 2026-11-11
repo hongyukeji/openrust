@@ -18,6 +18,46 @@ HTTP 视图渲染器按顺序查找 `view.paths` 中的目录，默认从 `resou
 
 进程环境变量优先于文件中的值。在进程环境中设置 `APP_ENV` 可选择 `.env.local` 等文件。对应文件不存在时，应用读取 `.env`。部署路径和 `APP_BASE_PATH` 的用法见[应用根目录规则](../architecture-concepts/lifecycle.md)。
 
+<a id="determining-the-current-environment"></a>
+
+## 确定当前环境
+
+应用在配置加载完成后、Provider 注册前检测当前环境。检测读取 `app.env` 字符串，缺省值为 `production`。默认配置从 `APP_ENV` 读取该值，HTTP 按此配置启动。
+
+Artisan 支持在命令前后传入 `--env=staging` 或 `--env staging`。同一次调用传入多次时，取第一个值。加载器依次尝试 `--env` 对应文件、外部 `APP_ENV` 对应文件和 `.env`。进程环境变量优先于文件中的值。即使文件回退，本次启动检测到的环境也取 `--env` 的值，配置中的 `app.env` 保留加载后的值。
+
+```sh
+./artisan env --env=staging
+```
+
+向 `Application::environment` 传入 `None` 可读取检测到的环境名称。将单个模式或模式切片放入 `Some` 可获取布尔结果。匹配区分大小写，`*` 可匹配任意字符，空切片返回 false。应用启动时也将同一匹配规则安装为容器的环境解析器。
+
+```rust
+use openrust::{
+    container::EnvironmentResult,
+    contracts::{container::Container as _, foundation::Application as _},
+    foundation::Application,
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut app = Application::configure(std::env::current_dir()?)
+        .withConfig(|_, _| {
+            Ok([("app".into(), serde_json::json!({"env": "staging"}))].into())
+        })
+        .create()?;
+    app.boot().await?;
+
+    assert_eq!(app.environment(None)?, EnvironmentResult::from("staging"));
+    assert!(bool::from(app.environment(Some("stag*".into()))?));
+    assert!(bool::from(app.container().currentEnvironmentIs(&["local", "staging"])?));
+    assert!(!bool::from(app.container().currentEnvironmentIs(&[])?));
+    Ok(())
+}
+```
+
+引导阶段将检测到的环境名以 `Arc<str>` 保存到 `env` 服务。环境查询读取该服务。启动后修改 `app.env` 只更新配置。
+
 <a id="public-files"></a>
 
 ## 公共文件

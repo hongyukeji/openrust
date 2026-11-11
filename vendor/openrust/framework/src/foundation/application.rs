@@ -15,13 +15,14 @@ use super::{
     bootstrap::{ConfigLoader, LoadConfiguration, LoadEnvironmentVariables},
     configuration::{ApplicationBuilder, CommandRoutes, Exceptions, Middleware, Routing},
     console::Kernel,
+    environment_detector,
     exceptions::Handler,
     http,
 };
 use crate::{
     config::{ConfigError, Repository, Value},
     console::{Application as Artisan, ConsoleError, Output},
-    container::{Container, ServiceKey},
+    container::{Container, EnvironmentQuery, EnvironmentResult, ServiceKey},
     contracts::{
         config,
         console::Kernel as _,
@@ -116,6 +117,14 @@ impl Application {
             .write()
             .expect("application path lock poisoned") = Some(self.shared.basePath.join(path));
         self
+    }
+
+    /// Returns the detected name with `None`, or matches any supplied pattern.
+    pub fn environment(
+        &self,
+        patterns: Option<EnvironmentQuery<'_>>,
+    ) -> Result<EnvironmentResult, crate::contracts::container::BindingResolutionError> {
+        environment_detector::query(&self.shared.container, patterns)
     }
 
     pub(crate) fn configuration_repository(
@@ -363,10 +372,21 @@ impl Application {
     }
 
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {
-        crate::support::facades::scope(self.shared.container.clone(), self.boot_application()).await
+        self.boot_with_environment(None).await
     }
 
-    async fn boot_application(&mut self) -> Result<(), BootstrapError> {
+    pub(super) async fn boot_with_environment(
+        &mut self,
+        selected: Option<&str>,
+    ) -> Result<(), BootstrapError> {
+        crate::support::facades::scope(
+            self.shared.container.clone(),
+            self.boot_application(selected),
+        )
+        .await
+    }
+
+    async fn boot_application(&mut self, selected: Option<&str>) -> Result<(), BootstrapError> {
         match self.shared.state.compare_exchange(
             PENDING,
             FAILED,
@@ -379,7 +399,7 @@ impl Application {
         }
 
         let configuration_failed = |source| BootstrapError::ConfigurationFailed { source };
-        let environment = LoadEnvironmentVariables::bootstrap(&self.shared.basePath, None)
+        let environment = LoadEnvironmentVariables::bootstrap(&self.shared.basePath, selected)
             .map_err(configuration_failed)?;
         let config = Arc::new(Repository::new(Default::default()));
         self.shared
@@ -393,6 +413,21 @@ impl Application {
         )
         .map_err(configuration_failed)?;
         config.replace_with(loaded);
+        let name = match selected {
+            Some(name) => Arc::from(name),
+            None => match config::Repository::get(config.as_ref(), "app.env") {
+                None => Arc::from("production"),
+                Some(Value::String(name)) => Arc::from(name),
+                Some(_) => {
+                    return Err(configuration_failed(ConfigError::InvalidType {
+                        key: "app.env".into(),
+                        expected: "a string",
+                    }));
+                }
+            },
+        };
+        environment_detector::install(&self.shared.container, name)
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         if self
             .shared
             .publicPath

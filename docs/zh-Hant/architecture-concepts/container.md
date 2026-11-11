@@ -681,4 +681,6 @@ fn main() {
 
 回呼在登錄表鎖外執行，可以重入或替換解析器；進行中的呼叫保留原回呼直到回傳。舊捕獲在鎖外釋放，錯誤與 panic 不污染登錄表鎖。更換或清除解析器不驅逐服務快取、不觸發解析事件，`flush` 保留解析器，各容器策略獨立。
 
-Rust 用借用查詢列舉、結果列舉、Result 與可選 Arc 回呼對應 PHP 聯合型別、例外和可空 callable。回呼要求 Send + Sync，以支援同容器並行請求。環境檢查僅在短讀鎖內複製回呼參考，未做效能基準。Application 預設偵測、LoadConfiguration 接線及主控台 --env 支援記為 CT-ENV-APPLICATION，須在環境類別屬性前繼續接通。
+Rust 用借用查詢列舉、結果列舉、Result 與可選 Arc 回呼對應 PHP 聯合型別、例外和可空 callable。回呼要求 Send + Sync，以支援同容器並行請求。環境檢查僅在短讀鎖內複製回呼參考，未做效能基準。
+
+應用在載入設定時安裝預設比對器。參見[確定目前環境](../getting-started/configuration.md#determining-the-current-environment)。

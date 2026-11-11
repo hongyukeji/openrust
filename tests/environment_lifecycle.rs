@@ -193,3 +193,139 @@ async fn explicit_environment_resolvers_work_over_http_propagate_failures_retry_
         let _ = task.await;
     }
 }
+
+struct DefaultEnvironmentProvider;
+
+impl ServiceProvider for DefaultEnvironmentProvider {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let name = app.environment(None)?;
+            let EnvironmentResult::String(current) = &name else {
+                panic!("a query without patterns must return the name");
+            };
+            assert_eq!(app.environment(Some(current.as_ref().into()))?, true.into());
+            assert_eq!(app.environment(Some("QA.*".into()))?, false.into());
+            assert_eq!(app.environment(Some((&[]).into()))?, false.into());
+            assert_eq!(app.container().currentEnvironmentIs(&[])?, false.into());
+            app.config()?
+                .set("app.env", Value::String("changed".into()))?;
+            assert_eq!(app.environment(None)?, name);
+
+            app.container().bind::<Report, _>(|container| {
+                let name = container.get::<str>("env")?;
+                let matches = bool::from(container.currentEnvironmentIs(&["testing", "qa.*"])?);
+                Ok(Arc::new(Report(format!("{name}:{matches}"))))
+            })?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn configured_environment_is_available_to_providers_and_isolated_across_http_apps() {
+    let root = Root::new();
+    let builder = || {
+        Application::configure(root.0.clone())
+            .withProviders(vec![Box::new(DefaultEnvironmentProvider)])
+            .withRouting(Routing::default().web(routes))
+    };
+    let configured = builder()
+        .withConfig(|_, _| {
+            Ok(BTreeMap::from([(
+                "app".into(),
+                serde_json::json!({"host":"127.0.0.1","port":0,"env":"qa.部署"}),
+            )]))
+        })
+        .create()
+        .unwrap();
+    let fallback = builder().withConfig(config).create().unwrap();
+    let invalid = builder()
+        .withConfig(|_, _| {
+            Ok(BTreeMap::from([(
+                "app".into(),
+                serde_json::json!({"env": false}),
+            )]))
+        })
+        .create()
+        .unwrap();
+    let error = Kernel::new(invalid).listen().await.unwrap_err();
+    assert!(error.to_string().contains("app.env must be a string"));
+    assert!(configured.environment(None).is_err());
+
+    let (first, a) = server(configured).await;
+    let (second, b) = server(fallback).await;
+    let (first_response, second_response) = tokio::join!(
+        send(first, "/environment", 200),
+        send(second, "/environment", 200),
+    );
+    assert_eq!(first_response, "qa.部署:true");
+    assert_eq!(second_response, "production:false");
+    for task in [a, b] {
+        task.abort();
+        let _ = task.await;
+    }
+}
+
+#[test]
+fn artisan_environment_option_selects_files_and_overrides_the_detected_name() {
+    use std::{fs, process::Command};
+
+    let root = Root::new();
+    let run = |arguments: &[&str], process_environment: Option<&str>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_main"));
+        command
+            .env_clear()
+            .env("APP_BASE_PATH", &root.0)
+            .arg("artisan")
+            .args(arguments);
+        if let Some(environment) = process_environment {
+            command.env("APP_ENV", environment);
+        }
+        command.output().unwrap()
+    };
+    let expect = |arguments: &[&str], process_environment, name: &str| {
+        let output = run(arguments, process_environment);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            format!("\n   INFO  The application environment is [{name}].\n\n")
+        );
+    };
+    fs::write(root.0.join(".env"), "APP_ENV=from-dotenv\n").unwrap();
+    fs::write(root.0.join(".env.from-dotenv"), "APP_NAME=\"bad\n").unwrap();
+    expect(&["env"], None, "from-dotenv");
+    fs::write(root.0.join(".env.local"), "APP_ENV=inside-file\n").unwrap();
+    expect(&["--env", "local", "env"], None, "local");
+    expect(&["env", "--env=local"], Some("external"), "local");
+    expect(&["env", "--env=missing"], None, "missing");
+    expect(&["--env=local", "env", "--env=second"], None, "local");
+
+    fs::write(root.0.join(".env.external"), "APP_NAME=\"bad\n").unwrap();
+    expect(&["env", "--env=local"], Some("external"), "local");
+    let invalid = run(&["env", "--env=missing"], Some("external"));
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains(".env.external"));
+    fs::write(root.0.join(".env.external"), "APP_ENV=file\n").unwrap();
+    expect(&["env"], Some("external"), "external");
+    expect(&["env", "--env=missing"], Some("external"), "missing");
+
+    fs::write(root.0.join(".env.local"), "APP_NAME=\"bad\n").unwrap();
+    let invalid = run(&["env", "--env=local"], Some("external"));
+    assert_eq!(invalid.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&invalid.stderr).contains(".env.local"));
+
+    for arguments in [
+        ["env", "--env"],
+        ["env", "--env="],
+        ["env", "--env=../secret"],
+    ] {
+        let output = run(&arguments, None);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("../secret"));
+    }
+}
