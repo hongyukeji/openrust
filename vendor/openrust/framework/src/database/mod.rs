@@ -1,5 +1,6 @@
 //! Database connections, query construction, schema management, and migrations.
 
+mod configuration_url_parser;
 mod connection;
 mod connection_interface;
 mod connection_resolver_interface;
@@ -8,10 +9,12 @@ mod database_manager;
 mod database_service_provider;
 mod database_transactions_manager;
 pub mod eloquent;
+mod facade;
 mod migration_service_provider;
 pub mod migrations;
 pub mod query;
 pub mod schema;
+mod value;
 
 use std::{future::Future, pin::Pin};
 
@@ -29,18 +32,72 @@ pub type DatabaseFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// The result of a database operation.
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 
-/// A configuration, compilation, connection, or execution failure.
-#[derive(Debug)]
-pub struct DatabaseError {
-    _private: (),
+pub use facade::DB;
+pub use value::{Row, Value};
+
+/// A configuration, connection, or SQL execution failure.
+#[non_exhaustive]
+pub enum DatabaseError {
+    UnknownConnection(String),
+    UnsupportedDriver,
+    InvalidConfiguration(&'static str),
+    InvalidScalar,
+    InvalidBindings {
+        expected: usize,
+        actual: usize,
+    },
+    UnsupportedColumnType(String),
+    Unavailable(crate::contracts::container::BindingResolutionError),
+    Driver {
+        operation: &'static str,
+        source: sqlx::Error,
+    },
 }
 
-/// A database value that preserves SQL null and the native data type.
-pub struct Value {
-    _private: (),
+impl DatabaseError {
+    fn driver(operation: &'static str) -> impl FnOnce(sqlx::Error) -> Self {
+        move |source| Self::Driver { operation, source }
+    }
 }
 
-/// A result row returned by a connection or query.
-pub struct Row {
-    _private: (),
+impl std::fmt::Debug for DatabaseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl std::fmt::Display for DatabaseError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownConnection(name) => {
+                write!(formatter, "database connection {name:?} is not configured")
+            }
+            Self::UnsupportedDriver => formatter.write_str("database driver is unavailable"),
+            Self::InvalidConfiguration(key) => write!(formatter, "invalid database option {key}"),
+            Self::InvalidScalar => {
+                formatter.write_str("a scalar query must return exactly one column")
+            }
+            Self::InvalidBindings { expected, actual } => write!(
+                formatter,
+                "expected {expected} database bindings, received {actual}"
+            ),
+            Self::UnsupportedColumnType(kind) => {
+                write!(formatter, "unsupported database column type {kind}")
+            }
+            Self::Unavailable(_) => {
+                formatter.write_str("application database manager is unavailable")
+            }
+            Self::Driver { operation, .. } => write!(formatter, "database {operation} failed"),
+        }
+    }
+}
+
+impl std::error::Error for DatabaseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Driver { source, .. } => Some(source),
+            Self::Unavailable(source) => Some(source),
+            _ => None,
+        }
+    }
 }
