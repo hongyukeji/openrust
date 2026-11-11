@@ -135,6 +135,34 @@ pub trait Container: Send + Sync + Sized {
         &'a self,
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+    /// Return a lazy closure that resolves the current binding on every invocation.
+    fn factory<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
+    #[allow(non_snake_case, reason = "Named Rust factory overload")]
+    fn factoryNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
+    #[allow(non_snake_case, reason = "Async Rust factory overload")]
+    fn factoryAsync<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+    ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync;
+    #[allow(non_snake_case, reason = "Async named Rust factory overload")]
+    fn factoryAsyncNamed<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+        key: ServiceKey,
+    ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync;
+    /// Return a reusable closure that calls the container with a retained parameter snapshot.
+    fn wrap<'a, R, F, Fut>(
+        &'a self,
+        callback: crate::container::Callback<'a, F>,
+        parameters: crate::container::ParameterOverrides,
+    ) -> impl Fn() -> crate::container::CallFuture<'a, R> + Send + Sync + 'a
+    where
+        R: Send + 'a,
+        F: Fn(crate::container::CallArguments) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
     fn call<'a, R: Send + 'a, Target: crate::container::Callable<'a, R> + 'a>(
         &'a self,
         target: Target,

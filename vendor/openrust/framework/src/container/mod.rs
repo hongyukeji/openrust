@@ -1345,6 +1345,43 @@ impl container::Container for Container {
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
         self.invoke_static_binding::<C, R>(name)
     }
+    fn factory<T: ?Sized + Send + Sync + 'static>(
+        &self,
+    ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync {
+        move || self.make::<T>()
+    }
+    #[allow(non_snake_case, reason = "Named Rust factory overload")]
+    fn factoryNamed<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: ServiceKey,
+    ) -> impl Fn() -> Result<Arc<T>, BindingResolutionError> + Send + Sync {
+        move || self.get::<T>(key.clone())
+    }
+    #[allow(non_snake_case, reason = "Async Rust factory overload")]
+    fn factoryAsync<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+    ) -> impl Fn() -> FactoryFuture<'a, T> + Send + Sync {
+        move || Box::pin(self.makeAsync::<T>())
+    }
+    #[allow(non_snake_case, reason = "Async named Rust factory overload")]
+    fn factoryAsyncNamed<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+        key: ServiceKey,
+    ) -> impl Fn() -> FactoryFuture<'a, T> + Send + Sync {
+        move || Box::pin(self.getAsync::<T>(key.clone()))
+    }
+    fn wrap<'a, R, F, Fut>(
+        &'a self,
+        callback: Callback<'a, F>,
+        parameters: ParameterOverrides,
+    ) -> impl Fn() -> CallFuture<'a, R> + Send + Sync + 'a
+    where
+        R: Send + 'a,
+        F: Fn(CallArguments) -> Fut + Send + Sync + 'a,
+        Fut: std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a,
+    {
+        self.wrap_callable(callback, parameters)
+    }
     async fn call<'a, R: Send + 'a, Target: Callable<'a, R> + 'a>(
         &'a self,
         target: Target,

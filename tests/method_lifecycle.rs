@@ -1,7 +1,7 @@
 use openrust::{
     config::{ConfigError, Environment, Value},
     container::{
-        ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
+        Callback, ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
         ParameterValue, ServiceKey,
     },
     contracts::{
@@ -118,13 +118,18 @@ impl ServiceProvider for Registration {
             let invalid = self.bound;
             c.bindAsync::<Report, _>(move |c| {
                 Box::pin(async move {
-                    let mut input = ParameterOverrides::new();
-                    if invalid {
-                        input.insert(ParameterKey::name("number"), ParameterValue::null());
-                    }
-                    Ok(Arc::new(Report(
-                        c.call(MethodCall::<Worker>::class("run"), input).await?,
-                    )))
+                    let lazy = c.wrap(
+                        Callback::reusable(&[], move |_| async move {
+                            let receiver = c.factoryAsync::<Worker>()().await?;
+                            let mut input = ParameterOverrides::new();
+                            if invalid {
+                                input.insert(ParameterKey::name("number"), ParameterValue::null());
+                            }
+                            c.call(MethodCall::on(receiver, "run"), input).await
+                        }),
+                        ParameterOverrides::new(),
+                    );
+                    Ok(Arc::new(Report(lazy().await?)))
                 })
             })
             .await?;
@@ -288,4 +293,50 @@ async fn application_call_and_direct_binding_restore_each_apps_facades_across_aw
             .unwrap(),
         "bound:b"
     );
+}
+
+#[tokio::test]
+async fn application_lazy_closures_restore_facades_and_use_live_application_services() {
+    let root = Root::new();
+    let counts = Arc::new(Counts::default());
+    let mut a = application(&root, "a", counts.clone(), false, false);
+    let mut b = application(&root, "b", Arc::new(Counts::default()), false, true);
+    a.boot().await.unwrap();
+    b.boot().await.unwrap();
+    a.container()
+        .alias(ServiceKey::typed::<Client>(), "client")
+        .unwrap();
+    let make_a = a.factoryNamed::<Client>("client".into());
+    let make_b = b.factory::<Client>();
+    let wrap_a = a.wrap(
+        Callback::reusable(&[], |_| async {
+            tokio::task::yield_now().await;
+            Ok(Clients::getFacadeRootAsync().await?.0.clone())
+        }),
+        ParameterOverrides::new(),
+    );
+    let wrap_b = b.wrap(
+        Callback::reusable(&[], |_| async {
+            tokio::task::yield_now().await;
+            Ok(Clients::getFacadeRootAsync().await?.0.clone())
+        }),
+        ParameterOverrides::new(),
+    );
+    assert_eq!(counts.factory.load(Ordering::SeqCst), 0);
+    let (x, y, u, v) = tokio::join!(make_a(), make_b(), wrap_a(), wrap_b());
+    assert_eq!(
+        (
+            x.unwrap().0.as_str(),
+            y.unwrap().0.as_str(),
+            u.unwrap().as_str(),
+            v.unwrap().as_str()
+        ),
+        ("a", "b", "a", "b")
+    );
+    a.container()
+        .instance(Arc::new(Client("new".into())))
+        .unwrap();
+    assert_eq!(make_a().await.unwrap().0, "new");
+    assert_eq!(wrap_a().await.unwrap(), "new");
+    assert_eq!(wrap_b().await.unwrap(), "b");
 }

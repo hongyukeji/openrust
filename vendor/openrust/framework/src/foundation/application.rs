@@ -252,6 +252,44 @@ impl Application {
         .await
     }
 
+    /// Return a lazy application-aware resolver; no service is resolved at creation.
+    pub fn factory<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+    ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync {
+        move || Box::pin(self.make::<T>())
+    }
+
+    #[allow(non_snake_case, reason = "Named Rust application factory overload")]
+    pub fn factoryNamed<'a, T: ?Sized + Send + Sync + 'static>(
+        &'a self,
+        key: ServiceKey,
+    ) -> impl Fn() -> crate::container::FactoryFuture<'a, T> + Send + Sync {
+        move || Box::pin(self.get::<T>(key.clone()))
+    }
+
+    /// Defer repeated calls, establishing this application's Facade context each time.
+    pub fn wrap<'a, R, F, Fut>(
+        &'a self,
+        callback: crate::container::Callback<'a, F>,
+        parameters: crate::container::ParameterOverrides,
+    ) -> impl Fn() -> crate::container::CallFuture<'a, R> + Send + Sync + 'a
+    where
+        R: Send + 'a,
+        F: Fn(crate::container::CallArguments) -> Fut + Send + Sync + 'a,
+        Fut: std::future::Future<
+                Output = Result<R, crate::contracts::container::BindingResolutionError>,
+            > + Send
+            + 'a,
+    {
+        let wrapped = self.shared.container.wrap(callback, parameters);
+        move || {
+            Box::pin(crate::support::facades::application_scope(
+                self.container_handle(),
+                wrapped(),
+            ))
+        }
+    }
+
     /// Invoke a compiled callable inside this application's Facade context.
     pub async fn call<'a, R: Send + 'a, Target: crate::container::Callable<'a, R> + 'a>(
         &'a self,

@@ -555,3 +555,46 @@ async fn main() {
 An actual callable object or static method establishes a class context only if that class is absent from the logical build stack. `Class@method` retains the parent context, as in Laravel BoundMethod.callClass. Dependencies still enter their own normal construction contexts. Contexts are restored on every async poll and cancellation; separate applications and concurrent calls remain isolated. Application entry methods also establish the application Facade context. Running calls keep their selected override, original parameter ownership and receiver alive until completion or cancellation.
 
 The compiled type `C` replaces PHP class-name reflection; Rust trait aliases and concrete classes do not gain automatic method projection. Callback adapters return `Result<R, BindingResolutionError>` for injection failures; `R` may itself be a domain result. Stored callbacks and the callable dispatch future are boxed to support asynchronous borrowing on Rust 1.94. No performance benchmark or zero-allocation claim is made. Parameter attributes and SelfBuilding remain outside this accepted section.
+
+## Lazy Closures
+
+`factory::<T>()` returns a closure that calls `make::<T>()` each time. `factoryNamed::<T>(key)` keeps the original owned ServiceKey and performs live alias lookup. Creation does not check or resolve the service. Later registrations, replacements and instance eviction are visible; singleton/scoped behavior is exactly the ordinary resolver behavior. The asynchronous container overloads are `factoryAsync` and `factoryAsyncNamed`. Application exposes asynchronous `factory` and `factoryNamed`, establishing its Facade context for each resolution.
+
+`wrap(Callback::reusable(signature, callback), parameters)` returns a reusable asynchronous closure around `call`. The input parameter map is retained as a copy-on-write snapshot, while dependencies and defaults are selected again on every invocation. The same callback state is shared; neither the callback nor its results are cloned or cached. Errors and cancellation do not consume the wrapper. Scope and class context follow execution, rather than being frozen when the wrapper is created.
+
+```rust
+use openrust::{
+    container::{Callback, ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    let factory = container.factory::<u32>();
+    container.instance(Arc::new(3u32)).unwrap();
+    assert_eq!(*factory().unwrap(), 3);
+    container.instance(Arc::new(9u32)).unwrap();
+    assert_eq!(*factory().unwrap(), 9);
+
+    let signature = [ConstructorParam::class::<u32>("number"),
+        ConstructorParam::scalar::<u32>("increment")];
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("increment"), ParameterValue::new(2u32));
+    let wrapped = container.wrap(Callback::reusable(&signature, |args| async move {
+        Ok(*args.resolved.service::<u32>(0)? + *args.resolved.get::<u32>(1)?)
+    }), parameters.clone());
+    parameters.insert(ParameterKey::name("increment"), ParameterValue::new(7u32));
+    assert_eq!(wrapped().await.unwrap(), 11);
+    container.instance(Arc::new(5u32)).unwrap();
+    assert_eq!(wrapped().await.unwrap(), 7);
+
+    let async_factory = container.factoryAsyncNamed::<u32>(
+        openrust::container::ServiceKey::typed::<u32>(),
+    );
+    assert_eq!(*async_factory().await.unwrap(), 5);
+}
+```
+
+`Callback::reusable` gives Rust 1.94 closure inference the repeatable `Fn` contract. `Callback::new` still supports `FnOnce` for ordinary calls. A wrapped callback requires `Send + Sync`; use synchronized shared state for mutation. Wrapper closures borrow their Container/Application and cannot outlive it. Each invocation returns its own Send future and may return externally borrowed data. Concrete returned closures avoid a boxed wrapper; shared callback ownership uses an Arc, and asynchronous dispatch retains the boxed-future adaptation described above. No performance measurement is claimed.

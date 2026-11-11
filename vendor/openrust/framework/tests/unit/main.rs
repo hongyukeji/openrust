@@ -15,3 +15,5 @@ mod variadic_construction;
 mod calls;
 
 mod method_calls;
+
+mod lazy_callables;

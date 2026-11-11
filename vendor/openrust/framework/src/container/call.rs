@@ -29,6 +29,18 @@ impl<'p, F> Callback<'p, F> {
             callback,
         }
     }
+    /// Give closure inference the reusable Fn contract required by wrap.
+    pub fn reusable<R, Fut>(signature: &'p [ConstructorParam], callback: F) -> Self
+    where
+        F: Fn(CallArguments) -> Fut + Send + Sync + 'p,
+        Fut: Future<Output = Result<R, BindingResolutionError>> + Send + 'p,
+        R: Send + 'p,
+    {
+        Self {
+            signature,
+            callback,
+        }
+    }
 }
 impl<'a, 'p: 'a, F, Fut, R> Callable<'a, R> for Callback<'p, F>
 where
@@ -138,5 +150,32 @@ impl Container {
             }),
         )
         .await
+    }
+}
+
+impl Container {
+    pub(super) fn wrap_callable<'a, R, F, Fut>(
+        &'a self,
+        callback: Callback<'a, F>,
+        parameters: ParameterOverrides,
+    ) -> impl Fn() -> CallFuture<'a, R> + Send + Sync + 'a
+    where
+        R: Send + 'a,
+        F: Fn(CallArguments) -> Fut + Send + Sync + 'a,
+        Fut: Future<Output = Result<R, BindingResolutionError>> + Send + 'a,
+    {
+        use crate::contracts::container::Container as _;
+        let Callback {
+            signature,
+            callback,
+        } = callback;
+        let callback = std::sync::Arc::new(callback);
+        move || {
+            let callback = callback.clone();
+            Box::pin(self.call(
+                Callback::new(signature, move |args| callback(args)),
+                parameters.clone(),
+            ))
+        }
     }
 }

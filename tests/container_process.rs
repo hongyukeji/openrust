@@ -4,7 +4,7 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
+        Callback, ClassDescriptor, ConstructorParam, MethodCall, ParameterKey, ParameterOverrides,
         ParameterValue, ServiceKey,
     },
     contracts::{container::Container as _, foundation::Application as _},
@@ -136,6 +136,42 @@ impl FrameworkCommand for ConstructionCommand {
             output
                 .stdout
                 .push_str(&format!("constructed:{}", value.0.0));
+            Ok(0)
+        })
+    }
+}
+struct LazyCommand(CommandDefinition);
+impl FrameworkCommand for LazyCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let factory = app.factory::<Greeting>();
+            let wrapped = app.wrap(
+                Callback::reusable(&[], move |_| {
+                    let future = factory();
+                    async move {
+                        let value = future.await?;
+                        tokio::task::yield_now().await;
+                        Ok(format!(
+                            "lazy:{}:{}",
+                            value.0,
+                            Greetings::getFacadeRootAsync().await?.0
+                        ))
+                    }
+                }),
+                ParameterOverrides::new(),
+            );
+            let value = wrapped()
+                .await
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            output.stdout.push_str(&value);
             Ok(0)
         })
     }
@@ -363,6 +399,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(LazyCommand(CommandDefinition::new(
+                clap::Command::new("lazy:probe"),
+            ))))?;
             artisan.add_command(Box::new(MethodCommand(CommandDefinition::new(
                 clap::Command::new("method:probe"),
             ))))?;
@@ -400,6 +439,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "construction:probe"], 0),
         (vec!["artisan", "variadic:probe"], 0),
         (vec!["artisan", "method:probe"], 0),
+        (vec!["artisan", "lazy:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -427,6 +467,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"lazy:probe") {
+                    b"lazy:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"method:probe") {
                     b"called:from provider:from provider".as_slice()
                 } else if args.last() == Some(&"variadic:probe") {
@@ -446,6 +488,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("13 container/provider Artisan process checks passed");
+    println!("14 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

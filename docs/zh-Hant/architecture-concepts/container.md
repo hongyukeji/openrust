@@ -555,3 +555,46 @@ async fn main() {
 實際可呼叫的物件或靜態方法，只在邏輯建構堆疊尚無該類別時加入類別情境。`Class@method` 按 Laravel BoundMethod.callClass 保留父情境；相依仍建立自己的正常建構情境。逐次非同步 poll 與取消時恢復情境，確保並行與多應用隔離。Application 入口同時建立該應用的 Facade 情境。進行中的呼叫保留選定綁定、原始參數與接收者，直到完成或取消。
 
 編譯型別 `C` 替代 PHP 類名反射；Rust trait 別名與具體類別間不自動投影方法。介接器以 `Result<R, BindingResolutionError>` 傳播注入錯誤，`R` 本身可為業務 Result。為支援 Rust 1.94 的非同步借用，儲存回呼及呼叫分派 Future 使用 Box。未做效能基準，不宣稱零配置。本節尚不包含參數屬性或 SelfBuilding。
+
+## 延遲閉包
+
+`factory::<T>()` 回傳每次執行 `make::<T>()` 的閉包。`factoryNamed::<T>(key)` 保存原始、擁有所有權的 ServiceKey，每次即時查找別名。建立時不檢查或解析服務，後續登記、替換及執行個體驅逐立即可見；singleton/scoped 與一般解析的快取行為一致。容器非同步重載為 `factoryAsync`、`factoryAsyncNamed`。Application 提供非同步 `factory`、`factoryNamed`，每次解析均建立該應用的 Facade 情境。
+
+`wrap(Callback::reusable(signature, callback), parameters)` 回傳重複執行 `call` 的非同步閉包。輸入參數保存為寫入時複製快照，相依與預設值每次重新選擇。同一回呼狀態被共享，不複製回呼或快取結果；失敗與取消不消耗包裝器。作用域與類別情境按執行時決定，不在建立包裝器時凍結。
+
+```rust
+use openrust::{
+    container::{Callback, ConstructorParam, Container, ParameterKey, ParameterOverrides, ParameterValue},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() {
+    let container = Container::default();
+    let factory = container.factory::<u32>();
+    container.instance(Arc::new(3u32)).unwrap();
+    assert_eq!(*factory().unwrap(), 3);
+    container.instance(Arc::new(9u32)).unwrap();
+    assert_eq!(*factory().unwrap(), 9);
+
+    let signature = [ConstructorParam::class::<u32>("number"),
+        ConstructorParam::scalar::<u32>("increment")];
+    let mut parameters = ParameterOverrides::new();
+    parameters.insert(ParameterKey::name("increment"), ParameterValue::new(2u32));
+    let wrapped = container.wrap(Callback::reusable(&signature, |args| async move {
+        Ok(*args.resolved.service::<u32>(0)? + *args.resolved.get::<u32>(1)?)
+    }), parameters.clone());
+    parameters.insert(ParameterKey::name("increment"), ParameterValue::new(7u32));
+    assert_eq!(wrapped().await.unwrap(), 11);
+    container.instance(Arc::new(5u32)).unwrap();
+    assert_eq!(wrapped().await.unwrap(), 7);
+
+    let async_factory = container.factoryAsyncNamed::<u32>(
+        openrust::container::ServiceKey::typed::<u32>(),
+    );
+    assert_eq!(*async_factory().await.unwrap(), 5);
+}
+```
+
+`Callback::reusable` 向 Rust 1.94 的閉包推斷提供可重複執行的 `Fn` 契約，一般呼叫的 `Callback::new` 繼續支援 `FnOnce`。包裝回呼需要 `Send + Sync`，可變共享狀態使用同步機制。回傳閉包借用 Container/Application，不能比它存活更久。每次回傳獨立 Send Future，可回傳外部借用值。具體閉包型別避免包裝器本身的 Box，共享回呼使用 Arc，非同步分派保留前述 Box Future 介接；不宣稱實測效能收益。
