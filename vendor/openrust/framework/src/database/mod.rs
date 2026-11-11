@@ -59,6 +59,8 @@ pub enum DatabaseError {
         source: Box<DatabaseError>,
     },
     InvalidScalar,
+    MassAssignment(String),
+    ModelNotFound(&'static str),
     InvalidQuery(&'static str),
     InvalidSchema(&'static str),
     UnsupportedSchema(&'static str),
@@ -109,6 +111,10 @@ impl std::fmt::Display for DatabaseError {
             Self::InvalidMigration(part) => write!(formatter, "invalid migration {part}"),
             Self::MigrationFailed { migration, source } => {
                 write!(formatter, "{migration}: {source}")
+            }
+            Self::MassAssignment(name) => write!(formatter, "attribute {name:?} is guarded"),
+            Self::ModelNotFound(table) => {
+                write!(formatter, "model for table {table:?} was not found")
             }
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")

@@ -2,7 +2,7 @@
 
 mod application;
 mod command;
-mod generator_command;
+pub(crate) mod generator_command;
 mod help_command;
 mod list_command;
 mod planned;

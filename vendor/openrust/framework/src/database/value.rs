@@ -44,6 +44,10 @@ impl From<bool> for Value {
 pub struct Row(Vec<(String, Value)>);
 
 impl Row {
+    pub(crate) fn into_columns(self) -> Vec<(String, Value)> {
+        self.0
+    }
+
     pub fn columns(&self) -> &[(String, Value)] {
         &self.0
     }

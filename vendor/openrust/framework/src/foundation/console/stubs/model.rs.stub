@@ -1,0 +1,22 @@
+use openrust::database::eloquent::{Model, ModelMetadata, ModelState};
+
+pub struct {{model}}(ModelState);
+
+impl Model for {{model}} {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("{{table}}");
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
