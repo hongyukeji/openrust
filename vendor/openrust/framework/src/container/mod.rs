@@ -28,6 +28,8 @@ mod async_resolution;
 pub(crate) mod deferred;
 pub use async_resolution::FactoryFuture;
 use async_resolution::{AsyncFactory, Owner, OwnerKey};
+mod environment;
+pub use environment::{EnvironmentQuery, EnvironmentResolver, EnvironmentResult};
 mod bindings;
 pub use bindings::{BindingDefinition, Bindings, FactoryHandle};
 mod call;
@@ -62,6 +64,7 @@ pub struct Container {
 
 #[derive(Default)]
 struct Registry {
+    environment_resolver: Option<EnvironmentResolver>,
     methods: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
     method_bindings: HashMap<(ServiceKey, Arc<str>), method_call::RegisteredMethod>,
     classes: HashMap<ServiceKey, ClassDescriptor>,
@@ -1348,6 +1351,17 @@ impl container::Container for Container {
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a {
         self.invoke_static_binding::<C, R>(name)
+    }
+    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    fn resolveEnvironmentUsing(&self, callback: Option<EnvironmentResolver>) {
+        self.set_environment_resolver(callback);
+    }
+    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    fn currentEnvironmentIs<'a>(
+        &self,
+        environments: impl Into<EnvironmentQuery<'a>>,
+    ) -> Result<EnvironmentResult, BindingResolutionError> {
+        self.query_environment(environments.into())
     }
     #[allow(non_snake_case, reason = "Matches Laravel's binding directory API")]
     fn getBindings(&self) -> Bindings {

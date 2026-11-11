@@ -4,8 +4,9 @@ use openrust::{
         Command as FrameworkCommand, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output,
     },
     container::{
-        Callback, ClassDescriptor, ConstructorParam, Container, MethodCall, ParameterKey,
-        ParameterOverrides, ParameterValue, ServiceKey,
+        Callback, ClassDescriptor, ConstructorParam, Container, EnvironmentQuery,
+        EnvironmentResult, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
+        ServiceKey,
     },
     contracts::{container::Container as _, foundation::Application as _},
     foundation::{Application, configuration::Routing},
@@ -136,6 +137,43 @@ impl FrameworkCommand for ConstructionCommand {
             output
                 .stdout
                 .push_str(&format!("constructed:{}", value.0.0));
+            Ok(0)
+        })
+    }
+}
+struct EnvironmentCommand(CommandDefinition);
+impl FrameworkCommand for EnvironmentCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let c = app.container();
+            c.resolveEnvironmentUsing(Some(Arc::new(|query| {
+                Ok(match query {
+                    EnvironmentQuery::Name(name) => (name == "local").into(),
+                    EnvironmentQuery::Names([]) => "local".into(),
+                    EnvironmentQuery::Names(names) => names.contains(&"local").into(),
+                })
+            })));
+            let EnvironmentResult::String(name) = c
+                .currentEnvironmentIs(&[])
+                .map_err(|e| ConsoleError::new(e.to_string()))?
+            else {
+                panic!("custom resolver result");
+            };
+            let matches = bool::from(
+                c.currentEnvironmentIs("local")
+                    .map_err(|e| ConsoleError::new(e.to_string()))?,
+            );
+            output
+                .stdout
+                .push_str(&format!("environment:{name}:{matches}"));
             Ok(0)
         })
     }
@@ -440,6 +478,9 @@ fn create() -> Result<Application, Box<dyn Error + Send + Sync>> {
         .withConfig(|_, _| Ok(BTreeMap::new()))
         .withProviders(vec![Box::new(Provider)])
         .withCommands(|artisan| {
+            artisan.add_command(Box::new(EnvironmentCommand(CommandDefinition::new(
+                clap::Command::new("environment:probe"),
+            ))))?;
             artisan.add_command(Box::new(DirectoryCommand(CommandDefinition::new(
                 clap::Command::new("directory:probe"),
             ))))?;
@@ -485,6 +526,7 @@ async fn main() -> ExitCode {
         (vec!["artisan", "method:probe"], 0),
         (vec!["artisan", "lazy:probe"], 0),
         (vec!["artisan", "directory:probe"], 0),
+        (vec!["artisan", "environment:probe"], 0),
         (vec!["artisan", "unknown-command"], 1),
         (vec!["wrong-mode"], 2),
     ] {
@@ -512,6 +554,8 @@ async fn main() -> ExitCode {
                     b"11".as_slice()
                 } else if args.last() == Some(&"rebind:probe") {
                     b"2".as_slice()
+                } else if args.last() == Some(&"environment:probe") {
+                    b"environment:local:true".as_slice()
                 } else if args.last() == Some(&"directory:probe") {
                     b"directory:from provider:2".as_slice()
                 } else if args.last() == Some(&"lazy:probe") {
@@ -535,6 +579,6 @@ async fn main() -> ExitCode {
             assert!(!output.stderr.is_empty());
         }
     }
-    println!("15 container/provider Artisan process checks passed");
+    println!("16 container/provider Artisan process checks passed");
     ExitCode::SUCCESS
 }

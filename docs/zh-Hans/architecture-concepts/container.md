@@ -644,3 +644,41 @@ async fn main() {
 应用自行持有的对象及原工厂快照仍有效，已准入构造可返回旧值，但不能回填已移除或替换的绑定及其历史。此基础容器操作不重新启动 Application Provider，也不清除独立 Facade 缓存；应用终止由生命周期职责负责。
 
 Rust 使用类型化定义和拥有所有权的 ServiceKey 替代动态 PHP 数组。快照查询按定义数量线性查找，属于显式检查，不加入普通请求解析路径。为支持并发请求的全局 flush，每个生命周期在登记/注销时以短 Mutex 操作维护 Weak 引用，flush 遍历活动记录。读取已预热共享绑定仅保留配方，不保留缓存对象。未做性能基准，不宣称零成本。
+
+## 环境解析回调
+
+`resolveEnvironmentUsing(Some(Arc::new(callback)))` 安装基础容器环境解析回调，`None` 清除。无回调时，`currentEnvironmentIs(query)` 返回 `Ok(EnvironmentResult::Boolean(false))`。基础容器不解析环境文件、不匹配通配符，也不重新解释空参数，而是原样转交 `EnvironmentQuery::Name` 或 `Names`，保留数组顺序、重复项与空字符串。同步回调借用查询字符串，不复制参数。
+
+回调可返回 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支持的两种结果形状；`Result` 将回调异常作为容器错误传播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值转换，false、空字符串和字符串 "0" 为假。示例刻意采用显式自定义策略：空数组返回名称，并不代表 Laravel Application 默认环境匹配规则。
+
+```rust
+use openrust::{
+    container::{Container, EnvironmentQuery, EnvironmentResult},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+fn main() {
+    let container = Container::default();
+    assert_eq!(container.currentEnvironmentIs("local").unwrap(), false.into());
+    container.resolveEnvironmentUsing(Some(Arc::new(|query| {
+        Ok(match query {
+            EnvironmentQuery::Name(name) => (name == "testing").into(),
+            EnvironmentQuery::Names([]) => "testing".into(),
+            EnvironmentQuery::Names(names) => names.contains(&"testing").into(),
+        })
+    })));
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    assert!(bool::from(container.currentEnvironmentIs(&["local", "testing"]).unwrap()));
+    assert_eq!(container.currentEnvironmentIs(&[]).unwrap(),
+        EnvironmentResult::from("testing"));
+    container.flush();
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    container.resolveEnvironmentUsing(None);
+    assert_eq!(container.currentEnvironmentIs("testing").unwrap(), false.into());
+}
+```
+
+回调在注册表锁外执行，可以重入或替换解析器；进行中的调用保留原回调直到返回。旧捕获在锁外释放，错误与 panic 不污染注册表锁。更换或清除解析器不驱逐服务缓存、不触发解析事件，`flush` 保留解析器，各容器策略独立。
+
+Rust 用借用查询枚举、结果枚举、Result 与可选 Arc 回调对应 PHP 联合类型、异常和可空 callable。回调要求 Send + Sync，以支持同容器并发请求。环境检查仅在短读锁内克隆回调，未做性能基准。Application 默认检测、LoadConfiguration 接线及控制台 --env 支持记为 CT-ENV-APPLICATION，须在环境类属性前继续接通。

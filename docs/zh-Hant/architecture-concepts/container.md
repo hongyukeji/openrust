@@ -644,3 +644,41 @@ async fn main() {
 應用自行持有的物件及原工廠快照仍有效，已准入建構可回傳舊值，但不能回填已移除或替換的綁定及其歷史。此基礎容器操作不重新啟動 Application Provider，也不清除獨立 Facade 快取；應用終止由生命週期職責負責。
 
 Rust 使用型別化定義與擁有所有權的 ServiceKey 替代動態 PHP 陣列。快照查詢按定義數量線性查找，屬於明確檢查，不加入一般請求解析路徑。為支援並行請求的全域 flush，每個生命週期在登記/註銷時以短 Mutex 操作維護 Weak 參考，flush 遍歷活動記錄。讀取已預熱共享綁定僅保留配方，不保留快取物件。未做效能基準，不宣稱零成本。
+
+## 環境解析回呼
+
+`resolveEnvironmentUsing(Some(Arc::new(callback)))` 安裝基礎容器環境解析回呼，`None` 清除。無回呼時，`currentEnvironmentIs(query)` 回傳 `Ok(EnvironmentResult::Boolean(false))`。基礎容器不解析環境檔案、不比對萬用字元，也不重新解釋空參數，而是原樣轉交 `EnvironmentQuery::Name` 或 `Names`，保留陣列順序、重複項與空字串。同步回呼借用查詢字串，不複製參數。
+
+回呼可回傳 `EnvironmentResult::Boolean` 或 `String`，保留 PHP 支援的兩種結果形狀；`Result` 將回呼例外作為容器錯誤傳播。`bool::from(result)` 或 `bool::from(&result)` 按 PHP 真值轉換，false、空字串及字串 "0" 為假。範例刻意採用明確自訂策略：空陣列回傳名稱，並不代表 Laravel Application 預設環境比對規則。
+
+```rust
+use openrust::{
+    container::{Container, EnvironmentQuery, EnvironmentResult},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+fn main() {
+    let container = Container::default();
+    assert_eq!(container.currentEnvironmentIs("local").unwrap(), false.into());
+    container.resolveEnvironmentUsing(Some(Arc::new(|query| {
+        Ok(match query {
+            EnvironmentQuery::Name(name) => (name == "testing").into(),
+            EnvironmentQuery::Names([]) => "testing".into(),
+            EnvironmentQuery::Names(names) => names.contains(&"testing").into(),
+        })
+    })));
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    assert!(bool::from(container.currentEnvironmentIs(&["local", "testing"]).unwrap()));
+    assert_eq!(container.currentEnvironmentIs(&[]).unwrap(),
+        EnvironmentResult::from("testing"));
+    container.flush();
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    container.resolveEnvironmentUsing(None);
+    assert_eq!(container.currentEnvironmentIs("testing").unwrap(), false.into());
+}
+```
+
+回呼在登錄表鎖外執行，可以重入或替換解析器；進行中的呼叫保留原回呼直到回傳。舊捕獲在鎖外釋放，錯誤與 panic 不污染登錄表鎖。更換或清除解析器不驅逐服務快取、不觸發解析事件，`flush` 保留解析器，各容器策略獨立。
+
+Rust 用借用查詢列舉、結果列舉、Result 與可選 Arc 回呼對應 PHP 聯合型別、例外和可空 callable。回呼要求 Send + Sync，以支援同容器並行請求。環境檢查僅在短讀鎖內複製回呼參考，未做效能基準。Application 預設偵測、LoadConfiguration 接線及主控台 --env 支援記為 CT-ENV-APPLICATION，須在環境類別屬性前繼續接通。

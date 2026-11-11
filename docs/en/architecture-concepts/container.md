@@ -644,3 +644,41 @@ async fn main() {
 Existing values held by application code and original factory snapshots remain usable. Already admitted constructions may finish with their old values, but cannot repopulate a removed/replaced binding or its history. This base-container operation does not reboot Application providers or clear independent Facade caches. Application teardown has its own lifecycle responsibility.
 
 Rust uses typed definitions and owned ServiceKeys instead of a dynamically typed PHP array. Snapshot lookup is linear in the number of definitions; it is an explicit inspection operation, not part of ordinary request resolution. To support flush across concurrent requests, lifecycles register/unregister a Weak reference under a short mutex operation; flush traverses those active records. Reading a warmed shared binding retains its recipe rather than its cached object. No performance benchmark or zero-cost claim is made.
+
+## Environment Resolver
+
+`resolveEnvironmentUsing(Some(Arc::new(callback)))` installs the base container's environment resolver; `None` clears it. Without a resolver, `currentEnvironmentIs(query)` returns `Ok(EnvironmentResult::Boolean(false))`. The base container does not parse environment files, match wildcards or reinterpret empty arguments. It forwards `EnvironmentQuery::Name` or `Names` exactly, preserving array order, duplicates and empty strings. Query strings are borrowed for the synchronous callback rather than copied.
+
+The resolver may return `EnvironmentResult::Boolean` or `String`, exactly preserving the supported PHP result shapes. `Result` propagates callback exceptions as container errors. `bool::from(result)` or `bool::from(&result)` applies PHP truthiness: only false, the empty string and the string "0" are false. The example deliberately defines an explicit custom policy that returns a name for an empty array; it does not describe Laravel Application's default environment matcher.
+
+```rust
+use openrust::{
+    container::{Container, EnvironmentQuery, EnvironmentResult},
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+fn main() {
+    let container = Container::default();
+    assert_eq!(container.currentEnvironmentIs("local").unwrap(), false.into());
+    container.resolveEnvironmentUsing(Some(Arc::new(|query| {
+        Ok(match query {
+            EnvironmentQuery::Name(name) => (name == "testing").into(),
+            EnvironmentQuery::Names([]) => "testing".into(),
+            EnvironmentQuery::Names(names) => names.contains(&"testing").into(),
+        })
+    })));
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    assert!(bool::from(container.currentEnvironmentIs(&["local", "testing"]).unwrap()));
+    assert_eq!(container.currentEnvironmentIs(&[]).unwrap(),
+        EnvironmentResult::from("testing"));
+    container.flush();
+    assert!(bool::from(container.currentEnvironmentIs("testing").unwrap()));
+    container.resolveEnvironmentUsing(None);
+    assert_eq!(container.currentEnvironmentIs("testing").unwrap(), false.into());
+}
+```
+
+Callbacks execute outside the registry lock and may reenter or replace the resolver. An active invocation retains its original callback until it returns. Retired captures are released outside the lock; errors and panics do not poison the registry. Changing or clearing the resolver does not invalidate services or emit resolution events, and `flush` preserves the resolver. Separate containers keep separate policies.
+
+Rust uses borrowed query enums, a typed result enum, Result and an optional Arc callback instead of PHP unions, exceptions and a nullable callable. Callbacks require Send + Sync because one container can serve concurrent requests. Environment checks clone the callback under a short read lock; no performance benchmark is claimed. The Application default detector, LoadConfiguration wiring and console --env integration are tracked as CT-ENV-APPLICATION and remain pending before environment-based class attributes.

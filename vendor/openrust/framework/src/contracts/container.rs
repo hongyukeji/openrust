@@ -135,6 +135,14 @@ pub trait Container: Send + Sync + Sized {
         &'a self,
         name: &'a str,
     ) -> impl std::future::Future<Output = Result<R, BindingResolutionError>> + Send + 'a;
+    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    fn resolveEnvironmentUsing(&self, callback: Option<crate::container::EnvironmentResolver>);
+    #[allow(non_snake_case, reason = "Matches Laravel's container environment API")]
+    fn currentEnvironmentIs<'a>(
+        &self,
+        environments: impl Into<crate::container::EnvironmentQuery<'a>>,
+    ) -> Result<crate::container::EnvironmentResult, BindingResolutionError>;
+
     /// Return an owned ordered snapshot of explicit factories and their declared shared flags.
     #[allow(non_snake_case, reason = "Matches Laravel's binding directory API")]
     fn getBindings(&self) -> crate::container::Bindings;

@@ -19,3 +19,5 @@ mod method_calls;
 mod lazy_callables;
 
 mod binding_directory;
+
+mod environment_resolution;
