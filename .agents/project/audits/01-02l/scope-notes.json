@@ -1,0 +1,13 @@
+{
+  "base": "da6b0685bad7ceef506c01de81a2e1206919669b",
+  "candidate": "/private/tmp/openrust-01-02l-review-20261111",
+  "selected_paths": 19,
+  "shared_files": {
+    "vendor/openrust/framework/src/foundation/application.rs": "Only Application call and direct binding wrappers. Exclude preexisting gRPC wiring."
+  },
+  "excluded": "All other preexisting WIP, including manifests, lockfile and other modules.",
+  "dependencies": "No dependency changes.",
+  "candidate_environment": {
+    "CARGO_INCREMENTAL": "0"
+  }
+}

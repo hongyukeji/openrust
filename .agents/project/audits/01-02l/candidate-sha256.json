@@ -1,0 +1,21 @@
+{
+  "docs/en/architecture-concepts/container.md": "4ba548a41b5248fb2b2f745ff3e8048f95399e2454c9577c8b57431532069548",
+  "docs/zh-Hans/architecture-concepts/container.md": "8039f6ec51ee326d300d9e85c88181d254d3ca7ecfcc60298e50006431a98323",
+  "docs/zh-Hant/architecture-concepts/container.md": "2b204137e665ba036ffea31719a7391a913c4c2436343056a1f070122b5323a2",
+  "tests/container_process.rs": "37c93b57fe5e65db3a2f29e4f184f2a7e3b8fbc2179b4e20a829de01b0ae5ac3",
+  "tests/method_lifecycle.rs": "c23b94f719d94b896cf557a3c93ceb4971792b92b95f8d6ff816cbeb7aa5ab1b",
+  "vendor/openrust/framework/src/container/async_resolution.rs": "09d19696612e99aa26aabc11612f717ed2a17c09303bc41e5887386a67b0fae9",
+  "vendor/openrust/framework/src/container/call.rs": "81917dfdcafe7e4fa64998cf48ea4844098e145612d713ad928ed01e1606a0b8",
+  "vendor/openrust/framework/src/container/call_context.rs": "7c5158180d7cc02b9a67858b3a31c4449c9a87ada01d13133d207ab5bee25ff0",
+  "vendor/openrust/framework/src/container/class_descriptor.rs": "d4b3b2601c0b3b92131752f3fe86a397c888a996314af028aff98d3e9fdb7e23",
+  "vendor/openrust/framework/src/container/method_call.rs": "69428c5fb243d06d0921ccdc3b5e0cc9dc70ee2f19ff9c809d83b61856cff713",
+  "vendor/openrust/framework/src/container/mod.rs": "85017a694f2c19f333161737840772aa78315454441f72f52dc33e8ba7d93247",
+  "vendor/openrust/framework/src/container/parameters.rs": "25d93659f9866acff0cac9faa012366df8ab811ab58af47e2fc7655ebfcbec51",
+  "vendor/openrust/framework/src/container/variadic.rs": "c9fe0e25e5b2ab84070a69b17d46156ec32d38eacfced3386dd3f4ce4d48f039",
+  "vendor/openrust/framework/src/contracts/container.rs": "b482e87b29909324582433a6afa8db97bc94ee0269b53c24d12b25d7459b9697",
+  "vendor/openrust/framework/src/contracts/container/binding_resolution_error.rs": "a9476a2ce62cc0584bd233c7c14c2eba380d14ce74a801eef3e122dbf1557ecf",
+  "vendor/openrust/framework/src/foundation/application.rs": "639a8781321680113b2ae3e5668bde3f1e763967e64076066a9634c8c6aea413",
+  "vendor/openrust/framework/tests/unit/calls.rs": "2d2725f2ec2d13eacf30e20dc39c7d926c33b77aa81b2209de1d65079f56a6e0",
+  "vendor/openrust/framework/tests/unit/main.rs": "2fe5fc3ddfe00068cf9b5fb0aa4545ac8fbeb5daa8746601e222da0f6df82900",
+  "vendor/openrust/framework/tests/unit/method_calls.rs": "f094d0e7496bc77dec3b2dd820013bdfd005e585bb4994c17d5862c7f36725f4"
+}
