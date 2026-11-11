@@ -216,7 +216,7 @@ async fn actual_http_callbacks_keep_order_and_retry_failures_in_an_isolated_appl
     .await
     .unwrap();
     assert_eq!(bodies.0.0, "A:construct,resolving,after");
-    assert!(bodies.0.1.contains("Internal Server Error"));
+    assert_eq!(bodies.0.1, r#"{"message":"Server Error"}"#);
     assert_eq!(bodies.1, "A:construct,resolving,after");
     assert_eq!(bodies.2, "B:construct,resolving,after");
     assert_eq!(a.before.load(Ordering::SeqCst), 4);

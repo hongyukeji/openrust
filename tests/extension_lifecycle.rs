@@ -195,7 +195,7 @@ async fn actual_http_decorators_run_before_callbacks_and_retry_failed_constructi
     .await
     .unwrap();
     assert_eq!(bodies.0.0, "A:one:two|A:one:two:cached");
-    assert!(bodies.0.1.contains("Internal Server Error"));
+    assert_eq!(bodies.0.1, r#"{"message":"Server Error"}"#);
     assert_eq!(bodies.1, "A:one:two|A:one:two:cached");
     assert_eq!(bodies.2, "B:one:two|B:one:two:cached");
     assert_eq!(a.constructed.load(Ordering::SeqCst), 2);

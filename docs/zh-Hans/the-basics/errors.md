@@ -42,9 +42,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 用 `render::<E>` 根据错误和请求返回 HTTP 响应。返回 `None` 时继续尝试后续回调，最终回退到默认 JSON 或 HTML 渲染。用 `respond` 调整最终异常响应，自定义和默认响应都会经过它。这两个回调只用于 HTTP。
 
+### 自定义异常响应
+
+可为默认 HTML 响应添加 UTF-8 页面，例如 `resources/views/errors/404.html` 或 `resources/views/errors/500.html`。框架按已配置的视图路径查找。其他错误状态可先回退到 `4xx.html` 或 `5xx.html`，再使用内置页面。JSON 响应有自己的渲染流程。
+
+```rust
+use openrust::{
+    contracts::http::Kernel as _,
+    foundation::{Application, http::Kernel},
+    http::{Body, HttpError, Request, Response, StatusCode},
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let app = Application::configure(std::env::current_dir()?)
+        .withExceptions(|exceptions| {
+            exceptions
+                .render::<HttpError>(|error, request| {
+                    if matches!(error, HttpError::NotFound) && request.uri().path() == "/example" {
+                        Some(Response::new(StatusCode::NOT_FOUND, Body::from("Example not found")))
+                    } else {
+                        None
+                    }
+                })
+                .respond(|mut response, _, _| {
+                    response.parts_mut().headers.insert("x-error", "handled".parse().unwrap());
+                    response
+                });
+        })
+        .create()?;
+
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await?;
+    let (parts, ()) = http::Request::get("/example").body(())?.into_parts();
+    let mut request = Request::from_parts(parts, Body::empty());
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.headers()["x-error"], "handled");
+    Ok(())
+}
+```
+
 ## 将异常渲染为 JSON
 
-应用在 `bootstrap/app.rs` 中通过 `withExceptions` 声明异常策略。路径匹配 `api/*` 或请求期望 JSON 时，框架返回 JSON 异常响应。其他请求收到 HTML 错误页。
+框架默认根据请求对 JSON 的偏好选择响应。应用骨架在 `withExceptions` 中为 `api/*` 和期望 JSON 的请求启用 JSON 异常响应。可用 `shouldRenderJsonWhen` 自定义策略。
+
+生产环境设为 `APP_DEBUG=false`。通用 500 的默认 JSON 消息为 `Server Error`，默认 HTML 页面省略异常来源。调试模式下，内置服务端错误响应包含有数量及长度上限的来源消息，输出到 HTML 时会转义。自定义回调负责控制所返回的响应内容。
 
 例如，访问不存在的 API 路由会返回 `404` 和包含 `message` 字段的 JSON。访问不存在的 Web 路由会返回 HTML `404`，如果请求的 `Accept` 优先选择 JSON 媒体类型，则返回 JSON。
 

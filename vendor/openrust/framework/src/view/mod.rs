@@ -50,7 +50,7 @@ impl ViewRoot {
         Ok(())
     }
 
-    fn read(&self, relative: &Path) -> io::Result<String> {
+    pub(crate) fn read(&self, relative: &Path) -> io::Result<String> {
         for directory in self.0.iter() {
             let result = directory.canonicalize().and_then(|root| {
                 let path = root.join(relative).canonicalize()?;

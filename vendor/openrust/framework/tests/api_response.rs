@@ -123,7 +123,7 @@ async fn opt_in_json_responses_use_semantic_status_and_default_exception_handlin
     assert_eq!(send(address, "/no-content", 204).await, Value::Null);
     assert_eq!(
         send(address, "/unserializable", 500).await,
-        json!({"message": "Internal Server Error"})
+        json!({"message": "Server Error"})
     );
     assert_eq!(
         send(address, "/missing", 404).await,

@@ -111,23 +111,29 @@ impl ExceptionHandler for Handler {
     }
 
     fn render(&self, request: &Request, exception: &Exception<'_>) -> Response {
-        let fallback;
-        let error = match exception {
-            Exception::Http(error) => *error,
-            Exception::Error(_) => {
-                fallback = HttpError::Internal {
-                    source: Box::new(io::Error::other("Application exception")),
-                };
-                &fallback
-            }
-        };
-        let Some(configuration) = &self.configuration else {
-            return error.default_response(request, None);
-        };
+        let configuration = self.configuration.as_ref();
         let response = configuration
-            .render_using(exception, request)
-            .unwrap_or_else(|| error.default_response(request, Some(configuration)));
-        configuration.respond_using(response, exception, request)
+            .and_then(|config| config.render_using(exception, request))
+            .unwrap_or_else(|| {
+                let error = exception.downcast_ref::<HttpError>();
+                let debug = || {
+                    self.owner
+                        .upgrade()
+                        .and_then(|owner| {
+                            owner
+                                .get::<dyn crate::contracts::config::Repository>("config")
+                                .ok()
+                        })
+                        .is_some_and(|config| {
+                            config.get("app.debug") == Some(serde_json::Value::Bool(true))
+                        })
+                };
+                super::render::default_response(request, exception, error, configuration, debug)
+            });
+        match configuration {
+            Some(config) => config.respond_using(response, exception, request),
+            None => response,
+        }
     }
 
     fn renderForConsole(&self, output: &mut Output, exception: &Exception<'_>) {

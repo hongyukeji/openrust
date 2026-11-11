@@ -192,10 +192,16 @@ impl Exceptions {
         self
     }
 
-    pub(crate) fn renders_json(&self, request: &Request, error: &HttpError) -> bool {
-        match &self.json_policy {
-            Some(policy) => policy(request, error),
-            None => request.expectsJson(),
+    pub(crate) fn renders_json(&self, request: &Request, error: Option<&HttpError>) -> bool {
+        match (&self.json_policy, error) {
+            (Some(policy), Some(error)) => policy(request, error),
+            (Some(policy), None) => {
+                let fallback = HttpError::Internal {
+                    source: Box::new(std::io::Error::other("Application exception")),
+                };
+                policy(request, &fallback)
+            }
+            (None, _) => request.expectsJson(),
         }
     }
 

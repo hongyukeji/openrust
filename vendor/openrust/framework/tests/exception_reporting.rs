@@ -120,7 +120,7 @@ async fn send(address: SocketAddr, path: &'static str, status: u16) {
         let (headers, body) = response.split_once("\r\n\r\n").unwrap();
         assert!(headers.starts_with(&format!("HTTP/1.1 {status} ")), "{response}");
         let response: serde_json::Value = serde_json::from_str(body).unwrap();
-        assert_eq!(response["message"], if status == 500 { "Internal Server Error" } else { "Not Found" });
+        assert_eq!(response["message"], if status == 500 { "Server Error" } else { "Not Found" });
         assert!(!body.contains("private-error-detail"));
     }).await.unwrap();
 }

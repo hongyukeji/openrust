@@ -42,9 +42,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Use `render::<E>` to return an HTTP response for an error and request. Returning `None` passes control to the next matching renderer, then to the default JSON or HTML renderer. Use `respond` to adjust the final exception response, whether custom or default. Both callbacks apply to HTTP only.
 
+### Customizing the Exception Response
+
+For default HTML responses, add a UTF-8 page such as `resources/views/errors/404.html` or `resources/views/errors/500.html`. Lookup uses the configured view paths. Other error statuses can fall back to `4xx.html` or `5xx.html` before using the built-in page. JSON responses use their own renderer.
+
+```rust
+use openrust::{
+    contracts::http::Kernel as _,
+    foundation::{Application, http::Kernel},
+    http::{Body, HttpError, Request, Response, StatusCode},
+};
+
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let app = Application::configure(std::env::current_dir()?)
+        .withExceptions(|exceptions| {
+            exceptions
+                .render::<HttpError>(|error, request| {
+                    if matches!(error, HttpError::NotFound) && request.uri().path() == "/example" {
+                        Some(Response::new(StatusCode::NOT_FOUND, Body::from("Example not found")))
+                    } else {
+                        None
+                    }
+                })
+                .respond(|mut response, _, _| {
+                    response.parts_mut().headers.insert("x-error", "handled".parse().unwrap());
+                    response
+                });
+        })
+        .create()?;
+
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await?;
+    let (parts, ()) = http::Request::get("/example").body(())?.into_parts();
+    let mut request = Request::from_parts(parts, Body::empty());
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    assert_eq!(response.headers()["x-error"], "handled");
+    Ok(())
+}
+```
+
 ## Rendering Exceptions as JSON
 
-The application declares its exception policy with `withExceptions` in `bootstrap/app.rs`. Paths matching `api/*` and requests that expect JSON receive a JSON exception response. Other requests receive an HTML error page.
+The framework uses the request's JSON preference by default. The application skeleton configures `withExceptions` to render JSON for `api/*` and for requests that expect JSON. Use `shouldRenderJsonWhen` to set a different policy.
+
+Set `APP_DEBUG=false` in production. The default JSON response uses `Server Error` for a generic 500, and the default HTML page omits exception sources. In debug mode, built-in server-error responses include a bounded list of source messages, escaped when displayed as HTML. Custom callbacks control the contents of responses they return.
 
 For example, a missing API route returns `404` with a JSON `message` field. A missing Web route returns an HTML `404`, or JSON if the request prefers a JSON media type in its `Accept` header.
 

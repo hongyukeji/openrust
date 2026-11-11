@@ -37,7 +37,7 @@ impl<'a> Next<'a> {
                 let _ = handler.report(&exception);
                 handler.render(request, &exception)
             } else {
-                error.default_response(request, None)
+                error.bare_response()
             }
         })
     }

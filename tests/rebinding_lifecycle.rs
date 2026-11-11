@@ -304,7 +304,7 @@ async fn current_config_drives_the_listener_routes_views_health_and_two_applicat
     let failed = tokio::task::spawn_blocking(move || send(a, "/up", 500))
         .await
         .unwrap();
-    assert!(failed.contains("Internal Server Error"));
+    assert_eq!(failed, r#"{"message":"Server Error"}"#);
     assert!(!failed.contains("private value"));
     first
         .get_application()

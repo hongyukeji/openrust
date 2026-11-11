@@ -122,7 +122,11 @@ impl http::Kernel for Kernel {
                 }
                 if head {
                     let body = response.take_body();
-                    if response.status() != StatusCode::NOT_MODIFIED
+                    if !response.status().is_informational()
+                        && !matches!(
+                            response.status(),
+                            StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED
+                        )
                         && let Some(length) = body.size_hint().exact()
                     {
                         response
