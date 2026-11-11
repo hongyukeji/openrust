@@ -190,7 +190,12 @@ impl FrameworkCommand for DirectoryCommand {
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
-            let definitions = app.container().getBindings();
+            let current = Container::getInstance();
+            assert!(std::ptr::eq(current.as_ref(), app.container()));
+            current
+                .offsetSet("directory.probe", Arc::new(2_u32))
+                .map_err(|e| ConsoleError::new(e.to_string()))?;
+            let definitions = current.getBindings();
             let original = &definitions
                 .get(&ServiceKey::typed::<Greeting>())
                 .expect("provider factory")
@@ -205,16 +210,15 @@ impl FrameworkCommand for DirectoryCommand {
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
             directory.flush();
             assert!(!directory.bound::<u32>());
-            directory
-                .bind::<u32, _>(|_| Ok(Arc::new(2)))
-                .map_err(|e| ConsoleError::new(e.to_string()))?;
             output.stdout.push_str(&format!(
                 "directory:{}:{}",
                 value.0,
-                directory
-                    .make::<u32>()
+                current
+                    .offsetGet::<u32>("directory.probe")
                     .map_err(|e| ConsoleError::new(e.to_string()))?
             ));
+            current.offsetUnset("directory.probe");
+            assert!(!current.offsetExists("directory.probe"));
             Ok(0)
         })
     }

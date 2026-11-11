@@ -684,3 +684,29 @@ fn main() {
 Rust 用借用查询枚举、结果枚举、Result 与可选 Arc 回调对应 PHP 联合类型、异常和可空 callable。回调要求 Send + Sync，以支持同容器并发请求。环境检查仅在短读锁内克隆回调，未做性能基准。
 
 应用在加载配置时安装默认匹配器。参见[确定当前环境](../getting-started/configuration.md#determining-the-current-environment)。
+
+## 当前容器和键访问
+
+在服务提供者启动、HTTP 处理、Artisan 执行及应用作用域内解析服务时，`Container::getInstance()` 返回当前应用的容器。在应用作用域之外，首次调用会创建进程默认容器。`Container::setInstance(Some(container))` 替换默认容器并返回传入的句柄，`Container::setInstance(None)` 清除默认容器。运行中的应用各自使用自己的容器。
+
+`offsetExists` 检查键是否已绑定，`offsetGet::<T>` 将服务解析为 `Arc<T>`。`offsetSet` 绑定已有值，`offsetSetFactory` 注册每次解析都执行的工厂。异步接口为 `offsetGetAsync` 和 `offsetSetFactoryAsync`。
+
+```rust
+use openrust::container::Container;
+use std::sync::Arc;
+
+fn main() {
+    let container = Container::getInstance();
+    let greeting: Arc<str> = Arc::from("hello");
+    container.offsetSet("greeting", greeting).unwrap();
+    assert!(container.offsetExists("greeting"));
+    assert_eq!(&*container.offsetGet::<str>("greeting").unwrap(), "hello");
+
+    container.offsetSetFactory("answer", |_| Ok(Arc::new(42_u32))).unwrap();
+    assert_eq!(*container.offsetGet::<u32>("answer").unwrap(), 42);
+    container.offsetUnset("answer");
+    assert!(!container.offsetExists("answer"));
+}
+```
+
+`offsetUnset` 按原始键移除绑定、共享实例和解析记录，同时清理活动作用域中的缓存值。别名保留，读取目标已删除的别名会返回解析错误，直至重新绑定目标。Rust 使用具名方法表达可失败的类型化读取和修改。删除前已在执行的解析仍可向发起者返回结果，后续解析使用当前注册表。

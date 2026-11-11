@@ -1500,8 +1500,8 @@ impl Container {
             } else {
                 (id, false)
             };
-            let (key, entry, scoped, contextual) = self.select_entry(id, canonical, false)?;
-            self.resolve_entry(key, entry, scoped, contextual)
+            let (key, entry, contextual) = self.select_entry(id, canonical, false)?;
+            self.resolve_entry(key, entry, contextual)
         })
     }
 
@@ -1514,9 +1514,9 @@ impl Container {
         if contextual {
             return false;
         }
+        let registry = self.registry.read().expect("container lock poisoned");
         let local = scope::lookup(self, key);
         let cached = scope::cached_entry(self, key, entry);
-        let registry = self.registry.read().expect("container lock poisoned");
         let root = if registry.root_instance_visible(self, key) {
             registry
                 .instances
@@ -1549,16 +1549,30 @@ impl Container {
         current
     }
 
+    // Post-resolution callbacks can clear a cache or remove its registration.
+    // A cache reset preserves the recipe version, while a replacement changes it.
+    fn mark_resolved(&self, key: &ServiceKey, entry: &RegisteredBinding) {
+        let mut registry = self.registry.write().expect("container lock poisoned");
+        let current = registry
+            .bindings
+            .get(key)
+            .map(|binding| &binding.version)
+            .or_else(|| registry.classes.get(key).map(|record| &record.sync.version));
+        if current.is_some_and(|version| Arc::ptr_eq(version, &entry.version)) {
+            registry.resolved.insert(key.clone());
+        }
+    }
+
     fn select_entry(
         &self,
         id: ServiceKey,
         canonical: bool,
         asynchronous: bool,
-    ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
+    ) -> Result<(ServiceKey, RegisteredBinding, bool), BindingResolutionError> {
         let consumer = self.consumer();
         let parameters = parameters::current(self);
         let parameterized = !parameters.is_empty();
-        let selected = {
+        let (selected, retired) = {
             let registry = self.registry.read().expect("container lock poisoned");
             let key = if canonical {
                 id
@@ -1604,26 +1618,23 @@ impl Container {
                 }
                 entry.version = parameters.identity().expect("nonempty parameters");
             }
-            (
-                key,
-                entry,
-                scoped && !parameterized,
-                has_contextual || parameterized,
-            )
+            let (entry, retired) = if scoped && !parameterized && entry.shared && !entry.instance {
+                scope::select_retained(self, &key, &entry)
+            } else {
+                (entry, None)
+            };
+            ((key, entry, has_contextual || parameterized), retired)
         };
+        drop(retired);
         Ok(selected)
     }
 
     fn resolve_entry<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
-        mut entry: RegisteredBinding,
-        scoped: bool,
+        entry: RegisteredBinding,
         contextual: bool,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        if scoped && entry.shared && !entry.instance {
-            entry = scope::select(self, &key, &entry);
-        }
         let binding = entry.value.downcast_ref::<Binding<T>>().ok_or_else(|| {
             BindingResolutionError::TypeMismatch {
                 service: key.clone(),
@@ -1655,11 +1666,7 @@ impl Container {
                 let current = self.current_recipe(&key, &entry, contextual);
                 self.fire_constructed(&key, value.clone())?;
                 if current {
-                    self.registry
-                        .write()
-                        .expect("container lock poisoned")
-                        .resolved
-                        .insert(key);
+                    self.mark_resolved(&key, &entry);
                 }
                 Ok(value)
             }
@@ -1717,11 +1724,7 @@ impl Container {
                     other => other,
                 };
                 if current && matches!(&result, Ok(Ok(_))) {
-                    self.registry
-                        .write()
-                        .expect("container lock poisoned")
-                        .resolved
-                        .insert(key);
+                    self.mark_resolved(&key, &entry);
                 }
                 {
                     let mut slot = state.lock().expect("singleton state poisoned");

@@ -3,9 +3,109 @@ use super::{
     Binding, Container, ParameterOverrides, RegisteredBinding, Registry, ServiceKey, parameters,
     scope,
 };
-use crate::contracts::container::BindingResolutionError;
-use std::{any::type_name, fmt, sync::Arc};
+use crate::contracts::container::{BindingResolutionError, Container as _};
+use std::{
+    any::type_name,
+    fmt,
+    sync::{Arc, Mutex},
+};
 type Result<T> = std::result::Result<T, BindingResolutionError>;
+
+static INSTANCE: Mutex<Option<Arc<Container>>> = Mutex::new(None);
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's container instance and ArrayAccess APIs"
+)]
+impl Container {
+    /// Returns the active application's container or the lazily created process default.
+    pub fn getInstance() -> Arc<Self> {
+        crate::support::facades::current_container().unwrap_or_else(|| {
+            INSTANCE
+                .lock()
+                .expect("container instance lock poisoned")
+                .get_or_insert_with(Arc::default)
+                .clone()
+        })
+    }
+
+    /// Replaces the process default and returns the assigned value.
+    pub fn setInstance(container: Option<Arc<Self>>) -> Option<Arc<Self>> {
+        let previous = std::mem::replace(
+            &mut *INSTANCE.lock().expect("container instance lock poisoned"),
+            container.clone(),
+        );
+        drop(previous);
+        container
+    }
+
+    pub fn offsetExists(&self, key: impl Into<ServiceKey>) -> bool {
+        self.has(key)
+    }
+
+    pub fn offsetGet<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey>,
+    ) -> Result<Arc<T>> {
+        self.get(key)
+    }
+
+    pub async fn offsetGetAsync<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+    ) -> Result<Arc<T>> {
+        self.getAsync(key).await
+    }
+
+    /// Binds a value through a transient factory that returns the supplied object.
+    pub fn offsetSet<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        key: impl Into<ServiceKey>,
+        value: Arc<T>,
+    ) -> Result<()> {
+        self.offsetSetFactory(key, move |_| Ok(value.clone()))
+    }
+
+    pub fn offsetSetFactory<T, F>(&self, key: impl Into<ServiceKey>, factory: F) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: Fn(&Self) -> Result<Arc<T>> + Send + Sync + 'static,
+    {
+        self.insert(key.into(), Binding::Factory(Arc::new(factory)))
+    }
+
+    pub async fn offsetSetFactoryAsync<T, F>(
+        &self,
+        key: impl Into<ServiceKey> + Send,
+        factory: F,
+    ) -> Result<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+        F: for<'a> Fn(&'a Self) -> super::FactoryFuture<'a, T> + Send + Sync + 'static,
+    {
+        self.register_async(key.into(), factory, false, false, false)
+            .await
+    }
+
+    /// Removes the raw key's binding, instances, and resolution record.
+    pub fn offsetUnset(&self, key: impl Into<ServiceKey>) {
+        let key = key.into();
+        let retired = {
+            let mut registry = self.registry.write().expect("container lock poisoned");
+            let binding = registry.bindings.remove(&key);
+            if binding.is_some() {
+                registry.binding_order.retain(|entry| *entry != key);
+            }
+            registry.resolved.remove(&key);
+            (
+                binding,
+                registry.instances.remove(&key),
+                self.scopes.detach_key(self, &key),
+            )
+        };
+        drop(retired);
+    }
+}
 
 #[derive(Clone)]
 pub struct FactoryHandle {

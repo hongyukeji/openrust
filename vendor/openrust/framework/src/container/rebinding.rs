@@ -170,7 +170,7 @@ impl Container {
         self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
         entry = self.rebound_entry(&key, entry);
         // Use this mutation's committed recipe, never a later same-name replacement.
-        let value = self.resolve_entry::<T>(key.clone(), entry, false, false)?;
+        let value = self.resolve_entry::<T>(key.clone(), entry, false)?;
         self.deliver_rebound(key, value, callbacks)
     }
     pub(super) fn dispatch_rebound_async<'a, T: ?Sized + Send + Sync + 'static>(
@@ -187,7 +187,7 @@ impl Container {
                 self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
                 let entry = self.rebound_entry(&key, entry);
                 let value = self
-                    .resolve_entry_async::<T>(key.clone(), entry, false, false)
+                    .resolve_entry_async::<T>(key.clone(), entry, false)
                     .await?;
                 self.deliver_rebound(key.clone(), value, callbacks)?;
                 Ok(())

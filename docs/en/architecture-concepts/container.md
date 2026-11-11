@@ -684,3 +684,29 @@ Callbacks execute outside the registry lock and may reenter or replace the resol
 Rust uses borrowed query enums, a typed result enum, Result and an optional Arc callback instead of PHP unions, exceptions and a nullable callable. Callbacks require Send + Sync because one container can serve concurrent requests. Environment checks clone the callback under a short read lock; no performance benchmark is claimed.
 
 For an application, the configuration bootstrap installs the default matcher. See [determining the current environment](../getting-started/configuration.md#determining-the-current-environment).
+
+## Current Container and Offset Access
+
+`Container::getInstance()` returns the current application's container during provider boot, HTTP handling, Artisan execution and application-scoped resolution. Outside an application scope it lazily creates a process default. `Container::setInstance(Some(container))` replaces that default and returns the assigned handle. `Container::setInstance(None)` clears the default. An active application keeps its own container.
+
+`offsetExists` checks whether a key is bound, and `offsetGet::<T>` resolves it as `Arc<T>`. Use `offsetSet` to bind an existing value or `offsetSetFactory` to register a transient factory. The asynchronous equivalents are `offsetGetAsync` and `offsetSetFactoryAsync`.
+
+```rust
+use openrust::container::Container;
+use std::sync::Arc;
+
+fn main() {
+    let container = Container::getInstance();
+    let greeting: Arc<str> = Arc::from("hello");
+    container.offsetSet("greeting", greeting).unwrap();
+    assert!(container.offsetExists("greeting"));
+    assert_eq!(&*container.offsetGet::<str>("greeting").unwrap(), "hello");
+
+    container.offsetSetFactory("answer", |_| Ok(Arc::new(42_u32))).unwrap();
+    assert_eq!(*container.offsetGet::<u32>("answer").unwrap(), 42);
+    container.offsetUnset("answer");
+    assert!(!container.offsetExists("answer"));
+}
+```
+
+`offsetUnset` removes the exact key's binding, shared instances and resolution record, including cached values in live scopes. Aliases remain registered. Reading an alias whose target was removed returns a resolution error until the target is bound again. Rust uses named methods for fallible, typed lookup and mutation. An in-flight caller can still receive its result after deletion, while subsequent lookups use the current registry.

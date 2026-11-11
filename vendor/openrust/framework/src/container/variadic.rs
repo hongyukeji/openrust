@@ -280,20 +280,20 @@ pub(super) async fn method_classes_async<T: ?Sized + Send + Sync + 'static>(
         key
     };
     super::parameters::run_async(c, super::ParameterOverrides::default(), async {
-        let (key, entry, scoped, contextual) = c.prepare_async(key).await?;
+        let (key, entry, contextual) = c.prepare_async(key).await?;
         if entry.services.is_none() && entry.value.is::<Binding<Vec<Arc<T>>>>() {
             return c
-                .resolve_entry_async::<Vec<Arc<T>>>(key, entry, scoped, contextual)
+                .resolve_entry_async::<Vec<Arc<T>>>(key, entry, contextual)
                 .await
                 .map(|values| values.iter().cloned().map(ParameterValue::new).collect());
         }
         if entry.services.is_none() && entry.value.is::<Binding<Vec<ParameterValue>>>() {
             return c
-                .resolve_entry_async::<Vec<ParameterValue>>(key, entry, scoped, contextual)
+                .resolve_entry_async::<Vec<ParameterValue>>(key, entry, contextual)
                 .await
                 .map(|values| (*values).clone());
         }
-        c.resolve_entry_async::<T>(key, entry, scoped, contextual)
+        c.resolve_entry_async::<T>(key, entry, contextual)
             .await
             .map(|value| vec![ParameterValue::new(value)])
     })

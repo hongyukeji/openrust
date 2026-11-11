@@ -59,6 +59,10 @@ fn with_context<R>(
     }
     operation(context.as_ref())
 }
+pub(crate) fn current_container() -> Option<Arc<Container>> {
+    with_context(|context| Ok(context.container.clone())).ok()
+}
+
 #[derive(Clone)]
 pub(crate) struct ContextSnapshot(Option<Arc<Context>>);
 pub(crate) fn context_snapshot() -> ContextSnapshot {

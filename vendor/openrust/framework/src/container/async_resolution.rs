@@ -301,16 +301,15 @@ impl Container {
         parameters: super::ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError> {
         super::parameters::run_async(self, parameters, async move {
-            let (key, entry, scoped, contextual) = self.prepare_async(id).await?;
-            self.resolve_entry_async(key, entry, scoped, contextual)
-                .await
+            let (key, entry, contextual) = self.prepare_async(id).await?;
+            self.resolve_entry_async(key, entry, contextual).await
         })
         .await
     }
     pub(super) async fn prepare_async(
         &self,
         id: ServiceKey,
-    ) -> Result<(ServiceKey, RegisteredBinding, bool, bool), BindingResolutionError> {
+    ) -> Result<(ServiceKey, RegisteredBinding, bool), BindingResolutionError> {
         scope::check_open(self)?;
         let key = match self.require_sync(id.clone()) {
             Ok(key) => key,
@@ -329,13 +328,9 @@ impl Container {
     pub(super) async fn resolve_entry_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
-        mut entry: RegisteredBinding,
-        scoped: bool,
+        entry: RegisteredBinding,
         contextual: bool,
     ) -> Result<Arc<T>, BindingResolutionError> {
-        if scoped && entry.shared && !entry.instance {
-            entry = scope::select(self, &key, &entry);
-        }
         let binding = entry.value.clone().downcast::<Binding<T>>().map_err(|_| {
             BindingResolutionError::TypeMismatch {
                 service: key.clone(),
@@ -344,7 +339,7 @@ impl Container {
             }
         })?;
         if matches!(binding.as_ref(), Binding::Factory(_)) {
-            return self.resolve_entry(key, entry, false, contextual);
+            return self.resolve_entry(key, entry, contextual);
         }
         if let Some((state, _, _)) = super::extensions::slot(&binding) {
             let state = state.lock().expect("singleton state poisoned");
@@ -376,7 +371,7 @@ impl Container {
             };
             self.with_owner(id, async {
                 match binding.as_ref() {
-                    Binding::Factory(_) => self.resolve_entry(key, entry, false, contextual),
+                    Binding::Factory(_) => self.resolve_entry(key, entry, contextual),
                     Binding::AsyncFactory(factory) => {
                         let value = self
                             .with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
@@ -389,11 +384,7 @@ impl Container {
                         let current = self.current_recipe(&key, &entry, contextual);
                         self.fire_constructed(&key, value.clone())?;
                         if current {
-                            self.registry
-                                .write()
-                                .expect("container lock poisoned")
-                                .resolved
-                                .insert(key);
+                            self.mark_resolved(&key, &entry);
                         }
                         Ok(value)
                     }
@@ -478,11 +469,7 @@ impl Container {
                         let current = self.current_recipe(&key, &entry, contextual);
                         self.fire_constructed(&key, value.clone())?;
                         if current {
-                            self.registry
-                                .write()
-                                .expect("container lock poisoned")
-                                .resolved
-                                .insert(key);
+                            self.mark_resolved(&key, &entry);
                         }
                         Ok(value)
                     }

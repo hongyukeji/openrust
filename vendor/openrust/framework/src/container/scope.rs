@@ -25,7 +25,7 @@ impl Hash for Identity {
 }
 
 #[derive(Default)]
-struct Cache {
+pub(super) struct Cache {
     entries: HashMap<ServiceKey, RegisteredBinding>,
     overrides: HashMap<ServiceKey, RegisteredBinding>,
     removed_aliases: HashSet<ServiceKey>,
@@ -48,10 +48,10 @@ impl Context {
 /// Weak records let a global container flush detach live request caches without closing requests.
 #[derive(Default)]
 pub(super) struct Lifecycles(Mutex<HashMap<usize, Weak<Context>>>);
-pub(super) struct FlushedScopes<'a> {
+pub(super) struct RetiredScopes<'a, T> {
     container: &'a Container,
     _contexts: Vec<Arc<Context>>,
-    _caches: Vec<Cache>,
+    values: Vec<T>,
 }
 impl Lifecycles {
     fn register(&self, context: &Arc<Context>) {
@@ -60,18 +60,35 @@ impl Lifecycles {
             .expect("scope records poisoned")
             .insert(Arc::as_ptr(context).addr(), Arc::downgrade(context));
     }
-    pub(super) fn detach<'a>(&self, container: &'a Container) -> FlushedScopes<'a> {
+    pub(super) fn detach<'a>(&self, container: &'a Container) -> RetiredScopes<'a, Cache> {
+        self.detach_with(container, std::mem::take)
+    }
+
+    pub(super) fn detach_key<'a>(
+        &self,
+        container: &'a Container,
+        key: &ServiceKey,
+    ) -> RetiredScopes<'a, (Option<RegisteredBinding>, Option<RegisteredBinding>)> {
+        self.detach_with(container, |cache| {
+            (cache.entries.remove(key), cache.overrides.remove(key))
+        })
+    }
+
+    fn detach_with<'a, T>(
+        &self,
+        container: &'a Container,
+        mut detach: impl FnMut(&mut Cache) -> T,
+    ) -> RetiredScopes<'a, T> {
         let mut records = self.0.lock().expect("scope records poisoned");
-        let mut retired = FlushedScopes {
+        let mut retired = RetiredScopes {
             container,
             _contexts: Vec::new(),
-            _caches: Vec::new(),
+            values: Vec::new(),
         };
         records.retain(|_, record| {
             if let Some(context) = record.upgrade() {
-                let cache =
-                    std::mem::take(&mut *context.cache.lock().expect("scope cache poisoned"));
-                retired._caches.push(cache);
+                let value = detach(&mut context.cache.lock().expect("scope cache poisoned"));
+                retired.values.push(value);
                 retired._contexts.push(context);
                 true
             } else {
@@ -81,11 +98,11 @@ impl Lifecycles {
         retired
     }
 }
-impl Drop for FlushedScopes<'_> {
+impl<T> Drop for RetiredScopes<'_, T> {
     fn drop(&mut self) {
         let values = (
             std::mem::take(&mut self._contexts),
-            std::mem::take(&mut self._caches),
+            std::mem::take(&mut self.values),
         );
         retire(self.container, values);
     }
@@ -201,16 +218,6 @@ pub(super) fn put(container: &Container, key: ServiceKey, entry: RegisteredBindi
         (previous, cache.overrides.insert(key, entry))
     });
     drop(previous);
-}
-
-pub(super) fn select(
-    container: &Container,
-    key: &ServiceKey,
-    root: &RegisteredBinding,
-) -> RegisteredBinding {
-    let (entry, retired) = select_retained(container, key, root);
-    drop(retired);
-    entry
 }
 
 // Callers holding a registry guard must defer the retired entry's destruction.

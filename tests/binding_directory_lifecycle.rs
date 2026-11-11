@@ -78,6 +78,9 @@ struct Provider {
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            let current = Container::getInstance();
+            assert!(std::ptr::eq(current.as_ref(), app.container()));
+            current.offsetSet("application.name", Arc::new(self.name))?;
             let container = Container::default();
             let calls = self.calls.clone();
             let fail = self.fail;
@@ -165,7 +168,27 @@ fn reset(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 fn routes() -> Result<(), RoutingError> {
     Route::get("/directory", read)?;
-    Route::get("/reset", reset)
+    Route::get("/reset", reset)?;
+    Route::get("/current", current)?;
+    Route::get("/remove-current", remove_current)
+}
+
+fn current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let current = Container::getInstance();
+        let name = current
+            .offsetGetAsync::<&'static str>("application.name")
+            .await
+            .map_err(|_| HttpError::NotFound)?;
+        Ok(Response::new(StatusCode::OK, Body::from(*name)))
+    })
+}
+
+fn remove_current(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Container::getInstance().offsetUnset("application.name");
+        Ok(Response::empty(StatusCode::NO_CONTENT))
+    })
 }
 fn application(
     root: &Root,
@@ -236,6 +259,11 @@ async fn raw_factories_and_flushed_service_directories_work_over_http_and_remain
     assert_eq!(send(second, "/directory", 200).await, "b:1:1");
     assert_eq!(calls.load(Ordering::SeqCst), 4);
     assert_eq!(other.load(Ordering::SeqCst), 3);
+    let (a, b) = tokio::join!(send(first, "/current", 200), send(second, "/current", 200));
+    assert_eq!((a.as_str(), b.as_str()), ("a", "b"));
+    send(first, "/remove-current", 204).await;
+    send(first, "/current", 404).await;
+    assert_eq!(send(second, "/current", 200).await, "b");
     for task in [x, y] {
         task.abort();
         let _ = task.await;
