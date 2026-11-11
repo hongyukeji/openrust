@@ -18,7 +18,8 @@ pub use api_response::{ApiResponse, PageMeta};
 pub use body::Body;
 pub use error::HttpError;
 pub use next::Next;
-pub use request::Request;
+pub(crate) use request::context as request_context;
+pub use request::{Request, RequestAttributes};
 pub use response::Response;
 pub use uploaded_file::UploadedFile;
 

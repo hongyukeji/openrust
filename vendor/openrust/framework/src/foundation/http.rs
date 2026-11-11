@@ -101,11 +101,17 @@ impl http::Kernel for Kernel {
                     .extensions
                     .insert(self.view_root.clone());
                 let head = request.method() == Method::HEAD;
-                let mut response = Next::new(
-                    &self.middleware.global,
-                    self.routes.as_ref().expect("ready kernel has routes"),
+                request.set_route_parameters(Vec::new());
+                let attributes = request.attributes().clone();
+                let mut response = crate::http::request_context::scope(
+                    self.application.container_handle(),
+                    attributes,
+                    Next::new(
+                        &self.middleware.global,
+                        self.routes.as_ref().expect("ready kernel has routes"),
+                    )
+                    .run(request),
                 )
-                .run(request)
                 .await;
                 request.exceptions = previous_exceptions;
                 let extensions = &mut request.parts_mut().extensions;

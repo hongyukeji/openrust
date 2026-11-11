@@ -1005,3 +1005,48 @@ fn main() {
 ```
 
 自定义属性可以实现 `resolveAsync` 来等待依赖。通过 `whenHasAttribute` 登记的覆盖解析器在同步和异步路径中均优先使用。
+
+### 请求属性与路由参数
+
+使用 `RequestAttribute::new("principal")` 注入服务端通过 `request.attributes().insert("principal", ParameterValue::new(value))` 写入的值。名称精确匹配。请求头、查询参数和表单字段分别读取。
+
+`RouteParameter::new("project")` 按指定名称读取路由参数。`RouteParameter::default()` 使用被注入参数的名称。匹配路由后，属性先提供字符串，`SubstituteBindings` 完成模型绑定后提供同一个模型对象。请在构造函数或方法元数据中声明对应的 Rust 类型。
+
+值缺失或没有活动的 HTTP 请求时，属性提供 null，由容器按常规参数规则处理。属性在 HTTP 分发期间可用。响应体流在分发完成后轮询，流需要的值请显式传入。
+
+```rust
+use openrust::{
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container,
+        attributes::{RequestAttribute, RouteParameter},
+    },
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct ProjectContext {
+    has_principal: bool,
+    has_project: bool,
+}
+
+fn main() {
+    let container = Container::default();
+    container.registerClass(ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::scalar::<String>("principal").nullable().withAttribute(
+                ClassAttribute::contextual(|| Ok(RequestAttribute::new("principal"))),
+            ),
+            ConstructorParam::scalar::<String>("project").nullable().withAttribute(
+                ClassAttribute::contextual(|| Ok(RouteParameter::default())),
+            ),
+        ],
+        |args| Ok(Arc::new(ProjectContext {
+            has_principal: !args.value(0)?.is_null(),
+            has_project: !args.value(1)?.is_null(),
+        })),
+    ).unwrap()).unwrap();
+
+    let context = container.make::<ProjectContext>().unwrap();
+    assert!(!context.has_principal && !context.has_project);
+}
+```

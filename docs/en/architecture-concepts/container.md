@@ -1005,3 +1005,48 @@ fn main() {
 ```
 
 Custom attributes can implement `resolveAsync` when they need to await a dependency. An existing `whenHasAttribute` override retains precedence in both resolution modes.
+
+### Request and Route Parameters
+
+Use `RequestAttribute::new("principal")` to inject a value that server-side code stored with `request.attributes().insert("principal", ParameterValue::new(value))`. Names match exactly. Headers, query parameters, and form fields are separate sources.
+
+`RouteParameter::new("project")` uses the given route parameter name. `RouteParameter::default()` uses the name of the parameter being injected. The attribute returns the matched string until `SubstituteBindings` resolves a model, then supplies that same model. Declare the corresponding Rust type in the constructor or method metadata.
+
+A missing value or the absence of an active HTTP request supplies null to the container's normal parameter resolution. The attributes are available during HTTP dispatch. Response body streams are polled after dispatch, so pass any values they need to the stream explicitly.
+
+```rust
+use openrust::{
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container,
+        attributes::{RequestAttribute, RouteParameter},
+    },
+    contracts::container::Container as _,
+};
+use std::sync::Arc;
+
+struct ProjectContext {
+    has_principal: bool,
+    has_project: bool,
+}
+
+fn main() {
+    let container = Container::default();
+    container.registerClass(ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::scalar::<String>("principal").nullable().withAttribute(
+                ClassAttribute::contextual(|| Ok(RequestAttribute::new("principal"))),
+            ),
+            ConstructorParam::scalar::<String>("project").nullable().withAttribute(
+                ClassAttribute::contextual(|| Ok(RouteParameter::default())),
+            ),
+        ],
+        |args| Ok(Arc::new(ProjectContext {
+            has_principal: !args.value(0)?.is_null(),
+            has_project: !args.value(1)?.is_null(),
+        })),
+    ).unwrap()).unwrap();
+
+    let context = container.make::<ProjectContext>().unwrap();
+    assert!(!context.has_principal && !context.has_project);
+}
+```

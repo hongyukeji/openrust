@@ -1,15 +1,14 @@
 use std::{any::Any, collections::HashMap, sync::Arc};
 
 use crate::{
+    container::ParameterValue,
     contracts::routing::{Handler, UrlRoutable},
     http::{HttpError, HttpFuture, RequestParts},
 };
 
-pub(crate) type RouteModels = HashMap<String, Box<dyn Any + Send + Sync>>;
+pub(crate) type RouteModels = HashMap<String, ParameterValue>;
 pub(super) type Resolver = Arc<
-    dyn for<'a> Fn(
-            BindingContext<'a>,
-        ) -> HttpFuture<'a, Result<Option<Box<dyn Any + Send + Sync>>, HttpError>>
+    dyn for<'a> Fn(BindingContext<'a>) -> HttpFuture<'a, Result<Option<ParameterValue>, HttpError>>
         + Send
         + Sync,
 >;
@@ -64,11 +63,7 @@ where
 {
     Arc::new(move |binding| {
         let lookup = resolve(binding);
-        Box::pin(async move {
-            Ok(lookup
-                .await?
-                .map(|model| Box::new(model) as Box<dyn Any + Send + Sync>))
-        })
+        Box::pin(async move { Ok(lookup.await?.map(ParameterValue::new)) })
     })
 }
 

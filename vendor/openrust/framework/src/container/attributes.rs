@@ -7,6 +7,8 @@ use crate::contracts::container::{BindingResolutionError, ContextualAttribute};
 use super::{CallFuture, Container, ParameterValue, ServiceKey};
 mod builtin;
 pub use builtin::{Config, CurrentResolving, Give, Tag};
+mod request;
+pub use request::{RequestAttribute, RouteParameter};
 
 type Result<T> = std::result::Result<T, BindingResolutionError>;
 type Instantiate = dyn Fn() -> Result<ParameterValue> + Send + Sync;

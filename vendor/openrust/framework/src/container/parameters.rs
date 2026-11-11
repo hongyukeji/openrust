@@ -45,6 +45,9 @@ impl ParameterValue {
             output: Some(type_name::<T>()),
         }
     }
+    pub(crate) fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        self.value.as_deref()?.downcast_ref()
+    }
     pub fn is_null(&self) -> bool {
         self.value.is_none()
     }

@@ -4,17 +4,22 @@ use ::http::header::ACCEPT;
 use percent_encoding::percent_decode_str;
 
 use crate::{
+    container::ParameterValue,
     foundation::exceptions::Handler,
     routing::binding::{BindingPlan, RouteModels},
 };
 
 use super::{Body, HeaderMap, Method, RequestParts, Uri};
 
+pub(crate) mod context;
+pub use context::RequestAttributes;
+
 /// An incoming HTTP request with owned metadata and body.
 pub struct Request {
     parts: RequestParts,
     body: Body,
-    route_parameters: Vec<(String, String)>,
+    attributes: RequestAttributes,
+    route_parameters: context::RouteParameters,
     pub(crate) route_models: RouteModels,
     pub(crate) binding_plan: BindingPlan,
     pub(crate) exceptions: Option<Arc<Handler>>,
@@ -25,7 +30,8 @@ impl Request {
         Self {
             parts,
             body,
-            route_parameters: Vec::new(),
+            attributes: RequestAttributes::default(),
+            route_parameters: Arc::default(),
             route_models: RouteModels::new(),
             binding_plan: BindingPlan::default(),
             exceptions: None,
@@ -103,6 +109,11 @@ impl Request {
         wants_json || (ajax && !pjax && accepts_any)
     }
 
+    /// The named attributes set by server-side application code for this request.
+    pub fn attributes(&self) -> &RequestAttributes {
+        &self.attributes
+    }
+
     pub fn route(&self, name: &str) -> Option<&str> {
         self.route_parameters
             .iter()
@@ -115,9 +126,15 @@ impl Request {
     }
 
     pub(crate) fn set_route_parameters(&mut self, parameters: Vec<(String, String)>) {
-        self.route_parameters = parameters;
+        self.route_parameters = parameters.into();
         self.route_models.clear();
         self.binding_plan = BindingPlan::default();
+        context::set_parameters(&self.attributes, &self.route_parameters);
+    }
+
+    pub(crate) fn set_route_model(&mut self, name: String, model: ParameterValue) {
+        context::set_model(&self.attributes, &name, &model);
+        self.route_models.insert(name, model);
     }
 }
 

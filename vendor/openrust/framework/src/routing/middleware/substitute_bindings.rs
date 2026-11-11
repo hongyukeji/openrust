@@ -35,7 +35,7 @@ impl Middleware for SubstituteBindings {
                 };
                 match (binding.resolver)(context).await? {
                     Some(model) => {
-                        request.route_models.insert(binding.name, model);
+                        request.set_route_model(binding.name, model);
                     }
                     None => {
                         return match plan.missing {
