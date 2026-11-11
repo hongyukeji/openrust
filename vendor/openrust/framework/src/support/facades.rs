@@ -58,6 +58,36 @@ impl View {
             .first(names, data)
     }
 
+    pub fn share(
+        key: impl Into<String>,
+        value: impl Into<crate::view::ViewValue>,
+    ) -> crate::view::ViewResult<()> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .share(key, value);
+        Ok(())
+    }
+
+    pub fn composer(
+        name: impl Into<String>,
+        callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
+    ) -> crate::view::ViewResult<()> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .composer(name, callback);
+        Ok(())
+    }
+
+    pub fn creator(
+        name: impl Into<String>,
+        callback: impl Fn(&mut crate::view::View) -> crate::view::ViewResult<()> + Send + Sync + 'static,
+    ) -> crate::view::ViewResult<()> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .creator(name, callback);
+        Ok(())
+    }
+
     pub fn exists(name: &str) -> crate::view::ViewResult<bool> {
         Ok(Self::getFacadeRoot()
             .map_err(crate::view::ViewError::Unavailable)?

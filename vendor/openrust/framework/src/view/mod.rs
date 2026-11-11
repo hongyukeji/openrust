@@ -13,6 +13,7 @@ pub mod engines;
 mod factory;
 mod file_view_finder;
 pub mod middleware;
+mod rendering;
 mod view_finder;
 mod view_service_provider;
 
@@ -71,19 +72,41 @@ impl std::error::Error for ViewError {
 pub struct View {
     name: Cow<'static, str>,
     data: ViewData,
+    created: bool,
+    creation_error: Option<ViewError>,
 }
 
 /// Creates a named view from the current application's view directory.
 ///
 /// Dot-separated names map to directories.
 pub fn view(name: impl Into<Cow<'static, str>>) -> View {
-    View {
+    use crate::support::facades::{Facade as _, View as ViewFacade};
+
+    let mut view = View {
         name: name.into(),
         data: ViewData::new(),
+        created: false,
+        creation_error: None,
+    };
+    if let Ok(factory) = ViewFacade::getFacadeRoot() {
+        view.creation_error = factory.callCreator(&mut view).err();
     }
+    view
 }
 
 impl View {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn data(&self) -> &ViewData {
+        &self.data
+    }
+
+    pub fn data_mut(&mut self) -> &mut ViewData {
+        &mut self.data
+    }
+
     pub fn with(mut self, key: impl Into<String>, value: impl Into<ViewValue>) -> Self {
         self.data.insert(key.into(), value.into());
         self
@@ -103,14 +126,16 @@ impl View {
                     source: io::Error::other("No view factory is available for this request.")
                         .into(),
                 })?;
-            let html = tokio::task::spawn_blocking(move || factory.render(&self.name, &self.data))
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?
-                .map_err(|source| HttpError::Internal {
-                    source: source.into(),
-                })?;
+            let context = crate::support::facades::context_snapshot();
+            let html =
+                tokio::task::spawn_blocking(move || context.run(|| factory.renderView(self)))
+                    .await
+                    .map_err(|source| HttpError::Internal {
+                        source: source.into(),
+                    })?
+                    .map_err(|source| HttpError::Internal {
+                        source: source.into(),
+                    })?;
 
             let mut response = Response::new(StatusCode::OK, Body::from(html));
             response.parts_mut().headers.insert(

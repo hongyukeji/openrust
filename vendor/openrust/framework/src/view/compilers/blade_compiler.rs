@@ -14,7 +14,7 @@ use cap_std::{
 use serde::{Deserialize, Serialize};
 
 use super::{Compiler, template::Template};
-use crate::view::{ViewData, ViewError, ViewResult};
+use crate::view::{ViewData, ViewError, ViewResult, rendering::RenderContext};
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
@@ -35,8 +35,27 @@ impl BladeCompiler {
         Self { directory }
     }
 
+    pub(in crate::view) fn render_with(
+        &self,
+        path: &Path,
+        source: &str,
+        data: &ViewData,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
+        self.load(path, source)?.render(data, context)
+    }
+
     pub fn render(&self, path: &Path, source: &str, data: &ViewData) -> ViewResult<String> {
-        Ok(self.load(path, source)?.render(data))
+        self.render_with(path, source, data, &mut RenderContext::new(None))
+    }
+
+    pub(in crate::view) fn render_inline(
+        &self,
+        source: &str,
+        data: &ViewData,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
+        Template::compile(source)?.render(data, context)
     }
 
     pub fn clear(&self) -> ViewResult<()> {

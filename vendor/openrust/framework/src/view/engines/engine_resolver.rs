@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use super::{CompilerEngine, FileEngine};
 use crate::view::{
     ViewData, ViewError, ViewResult, compilers::BladeCompiler, file_view_finder::ViewSource,
+    rendering::RenderContext,
 };
 
 /// Resolves the file and Blade engines used by the view factory.
@@ -42,12 +43,13 @@ impl Engine<'_> {
         &self,
         source: ViewSource,
         data: &ViewData,
+        context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
         match self {
             Self::File(engine) => engine.get(&source.root, &source.resolved),
             Self::Blade(engine) => {
                 let content = FileEngine.get(&source.root, &source.resolved)?;
-                engine.render(&source.path, &content, data)
+                engine.render_with(&source.path, &content, data, context)
             }
         }
     }

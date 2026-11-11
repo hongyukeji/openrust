@@ -16,6 +16,26 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
+## Sharing Data With All Views
+
+Call `View::share` from your application's service provider to set a default for every view in that application. Data passed to a view takes precedence over shared defaults.
+
+## View Composers
+
+Register a composer in the service provider's `boot` method. It runs immediately before the matching view renders. The name can contain a `*` wildcard. Use `View::creator` when the callback should run as the view is created.
+
+```rust
+use openrust::{support::facades::View, view::ViewResult};
+
+fn configure_views() -> ViewResult<()> {
+    View::share("site", "OpenRust")?;
+    View::composer("dashboard", |view| {
+        view.data_mut().insert("title".into(), "Dashboard".into());
+        Ok(())
+    })
+}
+```
+
 ## Optimizing Views
 
 Blade templates compile on first use. When the source changes, OpenRust regenerates the compiled artifact in `view.compiled`, which defaults to `storage/framework/views`. To precompile views or clear the generated artifacts, run:

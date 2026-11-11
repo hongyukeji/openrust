@@ -2,7 +2,10 @@ use std::fmt::Write as _;
 
 use serde::{Deserialize, Serialize};
 
-use crate::view::{ViewData, ViewError, ViewResult, ViewValue};
+use crate::view::{
+    ViewData, ViewError, ViewResult, ViewValue,
+    rendering::{RenderContext, render_error},
+};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template(Vec<Node>);
@@ -13,6 +16,18 @@ enum Node {
     Echo(Expression, bool),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each(Expression, String, Vec<Node>, Vec<Node>),
+    Extends(Expression),
+    Parent,
+    Section(Expression, Vec<Node>, bool),
+    Yield(Expression, Option<Expression>),
+    Include(Expression),
+    Component {
+        name: String,
+        attributes: Vec<(String, Expression)>,
+        body: Vec<Node>,
+        slots: Vec<(String, Vec<Node>)>,
+    },
+    Slot(String, Vec<Node>),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -38,10 +53,18 @@ impl Template {
         Ok(Self(nodes))
     }
 
-    pub(super) fn render(&self, data: &ViewData) -> String {
+    pub(super) fn render(
+        &self,
+        data: &ViewData,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
         let mut output = String::new();
-        render_nodes(&self.0, data, &mut Vec::new(), &mut output);
-        output
+        render_nodes(&self.0, data, &mut Vec::new(), &mut output, context)?;
+        output.push_str(&context.render_layout(data)?);
+        if output.contains(context.parent()) {
+            output = output.replace(context.parent(), "");
+        }
+        Ok(output)
     }
 }
 
@@ -56,25 +79,52 @@ enum Stop {
     Empty,
     EndEmpty,
     EndIsset,
+    EndSection,
+    Show,
+    EndTag,
 }
 
 struct Parser<'a>(&'a str);
 
 impl<'a> Parser<'a> {
     fn block(&mut self, depth: usize) -> ViewResult<(Vec<Node>, Option<Stop>)> {
+        self.block_until(depth, None)
+    }
+
+    fn block_until(
+        &mut self,
+        depth: usize,
+        closing: Option<&str>,
+    ) -> ViewResult<(Vec<Node>, Option<Stop>)> {
         if depth > 64 {
             return Err(invalid("Blade blocks are nested too deeply."));
         }
         let mut nodes = Vec::new();
         let mut text = String::new();
         while !self.0.is_empty() {
-            let index = self.0.find(['@', '{']).unwrap_or(self.0.len());
+            let index = self.0.find(['@', '{', '<']).unwrap_or(self.0.len());
             text.push_str(&self.0[..index]);
             self.0 = &self.0[index..];
             if self.0.is_empty() {
                 break;
             }
-            if self.0.starts_with("@{{") || self.0.starts_with("@{!!") {
+            if let Some(rest) = self.0.strip_prefix("</x-") {
+                let (name, tail) = rest
+                    .split_once('>')
+                    .ok_or_else(|| invalid("Unclosed Blade component closing tag."))?;
+                let name = name.trim_end();
+                if closing != Some(name)
+                    && !(name == "slot" && closing.is_some_and(|tag| tag.starts_with("slot:")))
+                {
+                    return Err(invalid("Mismatched Blade component closing tag."));
+                }
+                self.0 = tail;
+                push_text(&mut nodes, &mut text);
+                return Ok((nodes, Some(Stop::EndTag)));
+            } else if self.0.starts_with("<x-") {
+                push_text(&mut nodes, &mut text);
+                nodes.push(self.component(depth)?);
+            } else if self.0.starts_with("@{{") || self.0.starts_with("@{!!") {
                 self.0 = &self.0[1..];
                 let end = if self.0.starts_with("{{") {
                     "}}"
@@ -114,6 +164,9 @@ impl<'a> Parser<'a> {
             } else if let Some(foreach) = self.iteration() {
                 push_text(&mut nodes, &mut text);
                 nodes.push(self.loop_body(depth, foreach)?);
+            } else if let Some(node) = self.view_directive(depth)? {
+                push_text(&mut nodes, &mut text);
+                nodes.push(node);
             } else {
                 let character = self.0.chars().next().unwrap();
                 text.push(character);
@@ -122,6 +175,150 @@ impl<'a> Parser<'a> {
         }
         push_text(&mut nodes, &mut text);
         Ok((nodes, None))
+    }
+
+    fn component(&mut self, depth: usize) -> ViewResult<Node> {
+        self.0 = &self.0[3..];
+        let end = self
+            .0
+            .find(|character: char| character.is_whitespace() || matches!(character, '>' | '/'))
+            .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
+        let name = &self.0[..end];
+        self.0 = &self.0[end..];
+        let (attributes, self_closing) = self.component_attributes()?;
+
+        if let Some(slot) = name.strip_prefix("slot:") {
+            if !identifier(slot) || !attributes.is_empty() || self_closing {
+                return Err(invalid("Invalid Blade named slot."));
+            }
+            return Ok(Node::Slot(
+                slot.to_owned(),
+                self.component_body(depth, name)?,
+            ));
+        }
+        if !name.split('.').all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_alphanumeric() || matches!(c, '-' | '_'))
+        }) {
+            return Err(invalid("Invalid Blade component name."));
+        }
+        let children = if self_closing {
+            Vec::new()
+        } else {
+            self.component_body(depth, name)?
+        };
+        let mut body = Vec::new();
+        let mut slots = Vec::new();
+        for node in children {
+            match node {
+                Node::Slot(name, nodes) => slots.push((name, nodes)),
+                node => body.push(node),
+            }
+        }
+        Ok(Node::Component {
+            name: name.to_owned(),
+            attributes,
+            body,
+            slots,
+        })
+    }
+
+    fn component_body(&mut self, depth: usize, name: &str) -> ViewResult<Vec<Node>> {
+        let (body, stop) = self.block_until(depth + 1, Some(name))?;
+        if stop != Some(Stop::EndTag) {
+            return Err(invalid("Unclosed Blade component body."));
+        }
+        Ok(body)
+    }
+
+    fn component_attributes(&mut self) -> ViewResult<(Vec<(String, Expression)>, bool)> {
+        let mut attributes = Vec::new();
+        loop {
+            self.0 = self.0.trim_start();
+            if let Some(rest) = self.0.strip_prefix("/>") {
+                self.0 = rest;
+                return Ok((attributes, true));
+            }
+            if let Some(rest) = self.0.strip_prefix('>') {
+                self.0 = rest;
+                return Ok((attributes, false));
+            }
+            let end = self
+                .0
+                .find(|character: char| {
+                    character.is_whitespace() || matches!(character, '=' | '>' | '/')
+                })
+                .ok_or_else(|| invalid("Unclosed Blade component tag."))?;
+            let attribute = &self.0[..end];
+            let (name, bound) = attribute
+                .strip_prefix(':')
+                .map_or((attribute, false), |name| (name, true));
+            if !identifier(name) {
+                return Err(invalid("Invalid Blade component attribute."));
+            }
+            self.0 = self.0[end..].trim_start();
+            let value = if let Some(rest) = self.0.strip_prefix('=') {
+                self.0 = rest.trim_start();
+                let delimiter = match self.0.as_bytes().first() {
+                    Some(b'\'') => "'",
+                    Some(b'"') => "\"",
+                    _ => return Err(invalid("Blade component attributes require quotes.")),
+                };
+                let content = self.delimited(1, delimiter)?;
+                if bound {
+                    expression_value(content)?
+                } else {
+                    Expression::Value(content.into())
+                }
+            } else if bound {
+                return Err(invalid("A bound Blade attribute requires a value."));
+            } else {
+                Expression::Value(true.into())
+            };
+            attributes.push((name.to_owned(), value));
+        }
+    }
+
+    fn view_directive(&mut self, depth: usize) -> ViewResult<Option<Node>> {
+        let node = if self.directive("parent") {
+            Node::Parent
+        } else if self.directive("extends") {
+            Node::Extends(expression_value(self.arguments()?)?)
+        } else if self.directive("include") {
+            Node::Include(expression_value(self.arguments()?)?)
+        } else if self.directive("yield") {
+            let (name, default) = self.named_argument()?;
+            Node::Yield(name, default)
+        } else if self.directive("section") {
+            let (name, content) = self.named_argument()?;
+            match content {
+                Some(content) => Node::Section(name, vec![Node::Echo(content, true)], false),
+                None => {
+                    let (body, stop) = self.block(depth + 1)?;
+                    match stop {
+                        Some(Stop::EndSection) => Node::Section(name, body, false),
+                        Some(Stop::Show) => Node::Section(name, body, true),
+                        _ => return Err(invalid("Expected @endsection or @show.")),
+                    }
+                }
+            }
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(node))
+    }
+
+    fn named_argument(&mut self) -> ViewResult<(Expression, Option<Expression>)> {
+        let arguments = self.arguments()?;
+        if let Some(index) = argument_separator(arguments) {
+            let name = expression_value(&arguments[..index])?;
+            let value = expression_value(&arguments[index + 1..])?;
+            Ok((name, Some(value)))
+        } else {
+            Ok((expression_value(arguments)?, None))
+        }
     }
 
     fn conditional(&mut self, depth: usize, predicate: Predicate, end: Stop) -> ViewResult<Node> {
@@ -202,6 +399,8 @@ impl<'a> Parser<'a> {
             return Some(Stop::Empty);
         }
         [
+            ("endsection", Stop::EndSection),
+            ("show", Stop::Show),
             ("endif", Stop::EndIf),
             ("endunless", Stop::EndUnless),
             ("endforeach", Stop::EndForeach),
@@ -231,11 +430,28 @@ impl<'a> Parser<'a> {
     }
 
     fn arguments(&mut self) -> ViewResult<&'a str> {
-        self.0 = self.0.trim_start();
-        if !self.0.starts_with('(') {
-            return Err(invalid("Blade directive requires parentheses."));
+        let rest = self
+            .0
+            .trim_start()
+            .strip_prefix('(')
+            .ok_or_else(|| invalid("Blade directive requires parentheses."))?;
+        let mut quote = Quote::default();
+        let mut nested = 0usize;
+        for (index, character) in rest.char_indices() {
+            if quote.literal(character) {
+                continue;
+            }
+            match character {
+                '(' => nested += 1,
+                ')' if nested == 0 => {
+                    self.0 = &rest[index + 1..];
+                    return Ok(&rest[..index]);
+                }
+                ')' => nested -= 1,
+                _ => {}
+            }
         }
-        self.delimited(1, ")")
+        Err(invalid("Unclosed Blade expression."))
     }
 
     fn delimited(&mut self, prefix: usize, delimiter: &str) -> ViewResult<&'a str> {
@@ -245,6 +461,39 @@ impl<'a> Parser<'a> {
         self.0 = rest;
         Ok(value)
     }
+}
+
+#[derive(Default)]
+struct Quote {
+    delimiter: Option<char>,
+    escaped: bool,
+}
+
+impl Quote {
+    fn literal(&mut self, character: char) -> bool {
+        if let Some(delimiter) = self.delimiter {
+            if self.escaped {
+                self.escaped = false;
+            } else if character == '\\' {
+                self.escaped = true;
+            } else if character == delimiter {
+                self.delimiter = None;
+            }
+            return true;
+        }
+        if matches!(character, '\'' | '"') {
+            self.delimiter = Some(character);
+            return true;
+        }
+        false
+    }
+}
+
+fn argument_separator(arguments: &str) -> Option<usize> {
+    let mut quote = Quote::default();
+    arguments.char_indices().find_map(|(index, character)| {
+        (!quote.literal(character) && character == ',').then_some(index)
+    })
 }
 
 fn push_text(nodes: &mut Vec<Node>, text: &mut String) {
@@ -313,18 +562,20 @@ fn render_nodes<'a>(
     data: &'a ViewData,
     bindings: &mut Vec<(&'a str, &'a ViewValue)>,
     output: &mut String,
-) {
+    context: &mut RenderContext<'_>,
+) -> ViewResult<()> {
     for node in nodes {
         match node {
             Node::Text(text) => output.push_str(text),
             Node::Echo(expression, escape) => {
-                let value = value(expression, data, bindings);
-                match value {
-                    ViewValue::String(string) if *escape => escape_html(output, string),
-                    ViewValue::String(string) => output.push_str(string),
-                    ViewValue::Bool(true) => output.push('1'),
-                    ViewValue::Number(number) => write!(output, "{number}").unwrap(),
-                    _ => {}
+                if let Expression::Variable(path) = expression
+                    && let [name] = path.as_slice()
+                    && !bindings.iter().any(|(key, _)| *key == name)
+                    && let Some(slot) = context.slot(name)
+                {
+                    output.push_str(slot);
+                } else {
+                    echo(output, value(expression, data, bindings), *escape);
                 }
             }
             Node::Conditional(expression, predicate, yes, no) => {
@@ -334,7 +585,13 @@ fn render_nodes<'a>(
                     Predicate::Empty => !truthy(value),
                     Predicate::Isset => !value.is_null(),
                 };
-                render_nodes(if matches { yes } else { no }, data, bindings, output);
+                render_nodes(
+                    if matches { yes } else { no },
+                    data,
+                    bindings,
+                    output,
+                    context,
+                )?;
             }
             Node::Each(expression, variable, body, alternative) => {
                 let value = value(expression, data, bindings);
@@ -342,15 +599,87 @@ fn render_nodes<'a>(
                 let objects = value.as_object().into_iter().flat_map(|map| map.values());
                 let mut values = arrays.chain(objects).peekable();
                 if values.peek().is_none() {
-                    render_nodes(alternative, data, bindings, output);
+                    render_nodes(alternative, data, bindings, output, context)?;
                 }
                 for value in values {
                     bindings.push((variable, value));
-                    render_nodes(body, data, bindings, output);
+                    render_nodes(body, data, bindings, output, context)?;
                     bindings.pop();
                 }
             }
+            Node::Parent => output.push_str(context.parent()),
+            Node::Extends(expression) => {
+                context.extend(name_value(value(expression, data, bindings))?.to_owned())?;
+            }
+            Node::Section(expression, nodes, show) => {
+                let name = name_value(value(expression, data, bindings))?.to_owned();
+                let mut section = String::new();
+                render_nodes(nodes, data, bindings, &mut section, context)?;
+                context.section(name.clone(), section);
+                if *show {
+                    context.yield_to(&name, output);
+                }
+            }
+            Node::Yield(expression, default) => {
+                let name = name_value(value(expression, data, bindings))?;
+                if !context.yield_to(name, output)
+                    && let Some(default) = default
+                {
+                    echo(output, value(default, data, bindings), true);
+                }
+            }
+            Node::Include(expression) => {
+                let name = name_value(value(expression, data, bindings))?;
+                let mut local_data = data.clone();
+                local_data.extend(
+                    bindings
+                        .iter()
+                        .map(|(key, value)| ((*key).to_owned(), (*value).clone())),
+                );
+                output.push_str(&context.include(name, &local_data)?);
+            }
+            Node::Component {
+                name,
+                attributes,
+                body,
+                slots,
+            } => {
+                let properties = attributes
+                    .iter()
+                    .map(|(name, expression)| {
+                        (name.clone(), value(expression, data, bindings).clone())
+                    })
+                    .collect();
+                let mut default = String::new();
+                render_nodes(body, data, bindings, &mut default, context)?;
+                let mut rendered = std::collections::HashMap::from([("slot".to_owned(), default)]);
+                for (name, nodes) in slots {
+                    let mut html = String::new();
+                    render_nodes(nodes, data, bindings, &mut html, context)?;
+                    rendered.insert(name.clone(), html);
+                }
+                output.push_str(&context.component(name, &properties, rendered)?);
+            }
+            Node::Slot(_, _) => return Err(render_error("Blade named slots require a component.")),
         }
+    }
+    Ok(())
+}
+
+fn name_value(value: &ViewValue) -> ViewResult<&str> {
+    value
+        .as_str()
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| render_error("Blade directive requires a non-empty name."))
+}
+
+fn echo(output: &mut String, value: &ViewValue, escape: bool) {
+    match value {
+        ViewValue::String(string) if escape => escape_html(output, string),
+        ViewValue::String(string) => output.push_str(string),
+        ViewValue::Bool(true) => output.push('1'),
+        ViewValue::Number(number) => write!(output, "{number}").unwrap(),
+        _ => {}
     }
 }
 

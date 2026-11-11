@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use crate::view::{ViewData, ViewResult, compilers::BladeCompiler};
+use crate::view::{ViewData, ViewResult, compilers::BladeCompiler, rendering::RenderContext};
 
 /// Renders templates through the Blade compiler and its compiled artifacts.
 pub struct CompilerEngine(BladeCompiler);
@@ -10,6 +10,16 @@ pub struct CompilerEngine(BladeCompiler);
 impl CompilerEngine {
     pub fn new(compiler: BladeCompiler) -> Self {
         Self(compiler)
+    }
+
+    pub(in crate::view) fn render_with(
+        &self,
+        path: &Path,
+        source: &str,
+        data: &ViewData,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
+        self.0.render_with(path, source, data, context)
     }
 
     pub fn render(&self, path: &Path, source: &str, data: &ViewData) -> ViewResult<String> {
