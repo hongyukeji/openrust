@@ -8,7 +8,7 @@ use openrust::{
         AttributeParameter, AttributeValue, Bind, BindWhen, Callback, ClassAttribute,
         ClassDescriptor, ConstructorParam, Container, EnvironmentQuery, EnvironmentResult,
         FactoryFuture, Lifetime, MethodCall, ParameterKey, ParameterOverrides, ParameterValue,
-        ResolvedArgs, ServiceKey,
+        ResolvedArgs, ServiceKey, attributes::CurrentResolving,
     },
     contracts::{
         container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
@@ -146,7 +146,10 @@ impl CompiledProbeView for CompiledProbe {
 impl SelfBuilding for CompiledProbe {
     #[allow(non_snake_case)]
     fn newInstance(args: ResolvedArgs, _: &Container) -> FactoryFuture<'_, Self> {
-        Box::pin(async move { Ok(Arc::new(Self(args.service(0)?))) })
+        Box::pin(async move {
+            assert_eq!(*args.get::<ServiceKey>(1)?, ServiceKey::typed::<Self>());
+            Ok(Arc::new(Self(args.service(0)?)))
+        })
     }
 }
 struct ConstructionCommand(CommandDefinition);
@@ -416,6 +419,8 @@ impl ServiceProvider for Provider {
                     vec![
                         ConstructorParam::class::<Greeting>("greeting")
                             .withAttribute(ClassAttribute::contextual(|| Ok(ProbeGreeting))),
+                        ConstructorParam::scalar::<ServiceKey>("current")
+                            .withAttribute(ClassAttribute::contextual(|| Ok(CurrentResolving))),
                     ],
                 )?
                 .withProjection(class_projection!(CompiledProbe => dyn CompiledProbeView)),

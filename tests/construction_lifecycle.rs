@@ -2,11 +2,12 @@ use openrust::{
     class_projection,
     config::{ConfigError, Environment, Value},
     container::{
-        AttributeParameter, AttributeValue, ClassAttribute, ClassDescriptor, ConstructorParam,
-        Container, FactoryFuture, Lifetime, ParameterValue, ResolvedArgs, ServiceKey,
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container, FactoryFuture, Lifetime,
+        ParameterValue, ResolvedArgs, ServiceKey, TaggedServices,
+        attributes::{Config, Give, Tag},
     },
     contracts::{
-        container::{BindingResolutionError, Container as _, ContextualAttribute, SelfBuilding},
+        container::{BindingResolutionError, Container as _, SelfBuilding},
         foundation::Application as _,
         http::Kernel as _,
         support::DeferrableProvider,
@@ -48,7 +49,7 @@ impl Drop for Root {
 fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
     Ok(BTreeMap::from([(
         "app".into(),
-        serde_json::json!({"host":"127.0.0.1","port":0}),
+        serde_json::json!({"host":"127.0.0.1","port":0,"label":"attribute"}),
     )]))
 }
 
@@ -61,18 +62,6 @@ struct Client {
     name: &'static str,
     attempt: usize,
 }
-struct RequestLabel;
-impl ContextualAttribute for RequestLabel {
-    fn resolve(
-        &self,
-        _: &Container,
-        parameter: AttributeParameter,
-    ) -> Result<AttributeValue, BindingResolutionError> {
-        assert_eq!(parameter.name, "label");
-        Ok(ParameterValue::new(String::from("attribute")).into())
-    }
-}
-
 struct SelfBuilt(String);
 impl SelfBuilding for SelfBuilt {
     #[allow(non_snake_case)]
@@ -80,6 +69,9 @@ impl SelfBuilding for SelfBuilt {
         Box::pin(async move {
             let client = args.service::<Client>(0)?;
             let ordinary = container.make::<Self>()?;
+            let tagged = args.get::<TaggedServices<u32>>(2)?;
+            let items = tagged.collectAsync(container).await?;
+            assert_eq!(items.iter().map(|value| **value).collect::<Vec<_>>(), [17]);
             Ok(Arc::new(Self(format!(
                 "{}:{}:{}:{}",
                 client.name,
@@ -139,11 +131,22 @@ impl ServiceProvider for Constructors {
                     vec![],
                     |_| Ok(Arc::new(SelfBuilt("ordinary".into()))),
                     vec![
-                        ConstructorParam::class::<Client>("client"),
-                        ConstructorParam::scalar::<String>("label")
-                            .withAttribute(ClassAttribute::contextual(|| Ok(RequestLabel))),
+                        ConstructorParam::class::<Client>("client").withAttribute(
+                            ClassAttribute::contextual(|| {
+                                Ok(Give::<Client>::new(ServiceKey::typed::<Client>()))
+                            }),
+                        ),
+                        ConstructorParam::scalar::<String>("label").withAttribute(
+                            ClassAttribute::contextual(|| Ok(Config::<String>::new("app.label"))),
+                        ),
+                        ConstructorParam::scalar::<TaggedServices<u32>>("tagged").withAttribute(
+                            ClassAttribute::contextual(|| Ok(Tag::<u32>::new("probe"))),
+                        ),
                     ],
                 )?)?;
+            app.container()
+                .instanceNamed("tagged.number", Arc::new(17_u32))?;
+            app.container().tag(["tagged.number"], ["probe"]);
             app.container()
                 .alias(ServiceKey::typed::<Worker>(), "worker.view")?;
             assert!(!app.container().bound::<Worker>());

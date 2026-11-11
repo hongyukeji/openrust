@@ -111,6 +111,23 @@ impl ConstructorParam {
             .transpose()
     }
 
+    pub(super) async fn attribute_value_async(
+        &self,
+        container: &Container,
+    ) -> Result<Option<Argument>> {
+        match self
+            .attributes
+            .iter()
+            .find(|attribute| attribute.is_contextual())
+        {
+            Some(attribute) => container
+                .resolveFromAttributeAsync(attribute, self.attribute_parameter())
+                .await
+                .map(Some),
+            None => Ok(None),
+        }
+    }
+
     pub(super) fn observe(&self, container: &Container, value: &Argument) -> Result<()> {
         let service = match value {
             Argument::One(value) if !value.is_null() => self.class.as_ref(),
@@ -131,8 +148,8 @@ impl ConstructorParam {
             .cloned()
     }
 
-    fn constructor_attribute(&self, container: &Container) -> Result<Option<Argument>> {
-        match self.attribute_value(container)? {
+    fn constructor_attribute(&self, value: Option<Argument>) -> Result<Option<Argument>> {
+        match value {
             Some(Argument::One(value)) if value.is_null() => Ok(None),
             Some(Argument::Many(_)) if !self.variadic => {
                 Err(BindingResolutionError::InvalidAttributeArguments {
@@ -301,16 +318,17 @@ fn resolve(c: &Container, parameters: &[ConstructorParam]) -> Result<ResolvedArg
             values.push(Argument::One(value));
             continue;
         }
-        let argument = if let Some(value) = parameter.constructor_attribute(c)? {
-            value
-        } else if parameter.variadic {
-            Argument::Many((parameter.many)(c, parameter.variadic_key())?)
-        } else {
-            Argument::One(match parameter.select(c)? {
-                Selection::Service(key) => (parameter.resolve)(c, key)?,
-                fixed => parameter.fixed(fixed)?,
-            })
-        };
+        let argument =
+            if let Some(value) = parameter.constructor_attribute(parameter.attribute_value(c)?)? {
+                value
+            } else if parameter.variadic {
+                Argument::Many((parameter.many)(c, parameter.variadic_key())?)
+            } else {
+                Argument::One(match parameter.select(c)? {
+                    Selection::Service(key) => (parameter.resolve)(c, key)?,
+                    fixed => parameter.fixed(fixed)?,
+                })
+            };
         parameter.observe(c, &argument)?;
         values.push(argument);
     }
@@ -324,7 +342,9 @@ async fn resolve_async(c: &Container, parameters: &[ConstructorParam]) -> Result
             values.push(Argument::One(value));
             continue;
         }
-        let argument = if let Some(value) = parameter.constructor_attribute(c)? {
+        let argument = if let Some(value) =
+            parameter.constructor_attribute(parameter.attribute_value_async(c).await?)?
+        {
             value
         } else if parameter.variadic {
             Argument::Many((parameter.many_async)(c, parameter.variadic_key()).await?)

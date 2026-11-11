@@ -16,7 +16,7 @@ use crate::contracts::container::{self, BindingResolutionError, Container as _};
 mod contextual_binding_builder;
 pub use contextual_binding_builder::{ContextualBinding, ContextualBindingBuilder};
 mod tagged;
-pub use tagged::{Tagged, TaggedIter};
+pub use tagged::{Tagged, TaggedIter, TaggedServices};
 mod resolving_hooks;
 pub use resolving_hooks::ResolutionEvent;
 use resolving_hooks::{FactoryOutput, Phase, ResolveHooks};
@@ -34,7 +34,7 @@ mod binding_attributes;
 pub use binding_attributes::{Bind, BindWhen, BindingAttribute};
 mod bindings;
 pub use bindings::{BindingDefinition, Bindings, FactoryHandle};
-mod attributes;
+pub mod attributes;
 mod call;
 mod call_context;
 mod class_descriptor;
@@ -613,6 +613,12 @@ impl Container {
         }
     }
 
+    /// Returns the current constructor or method consumer in this execution.
+    #[allow(non_snake_case, reason = "Matches Laravel's container API")]
+    pub fn currentlyResolving(&self) -> Option<ServiceKey> {
+        self.consumer()
+    }
+
     fn consumer(&self) -> Option<ServiceKey> {
         if let Some(consumer) = call_context::consumer(self) {
             return consumer;
@@ -1090,25 +1096,8 @@ impl container::Container for Container {
     }
 
     fn tagged<T: ?Sized + Send + Sync + 'static>(&self, tag: &str) -> Tagged<'_, Self, T> {
-        let (tag, count) = self
-            .registry
-            .read()
-            .expect("container lock poisoned")
-            .tags
-            .get(tag)
-            .map_or((None, 0), |keys| (Some(tag.to_owned()), keys.len()));
-        Tagged::new(self, count, move || {
-            tag.as_ref()
-                .and_then(|tag| {
-                    self.registry
-                        .read()
-                        .expect("container lock poisoned")
-                        .tags
-                        .get(tag)
-                        .cloned()
-                })
-                .unwrap_or_default()
-        })
+        let (tag, count) = self.tagged_identity(tag);
+        self.tagged_sequence(tag, count)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container callbacks")]

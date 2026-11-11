@@ -956,3 +956,52 @@ fn main() {
 ```
 
 For `Bind` and `BindWhen`, the internal lookup of the concrete implementation skips its own resolving events. Constructor dependencies still raise events normally. The outer event retains the requested service key and can expose the concrete value and its interface view. If an extender replaces the object, the event uses the replacement's available type information.
+
+## Built-in Contextual Attributes
+
+- `Config::<T>::new(key)` reads the current application's configuration. `withDefault(value)` applies when the key is missing. An explicit null follows the parameter's normal null handling. Values must deserialize to the declared Rust type.
+- `Give::<T>::new(key)` selects a concrete service or a declared trait view. `withParameters` passes a separate set of constructor arguments to that service. Use asynchronous resolution for implementations that need it.
+- `Tag::<T>::new(tag)` injects `TaggedServices<T>`. It resolves entries lazily and preserves registration order and duplicates. Supply the original container to `iter` or `collectAsync` to resolve in the active lifecycle.
+- OpenRust's `CurrentResolving` attribute exposes `currentlyResolving()` as a typed `ServiceKey`. It supplies null outside a constructor or method context.
+
+```rust
+use openrust::{
+    config::Repository,
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container, TaggedServices,
+        attributes::{Config, Tag},
+    },
+    contracts::{config::Repository as ConfigRepository, container::Container as _},
+};
+use std::{collections::BTreeMap, sync::Arc};
+
+struct Reports(u16, Arc<TaggedServices<u32>>);
+
+fn main() {
+    let container = Container::default();
+    container
+        .instanceNamed::<dyn ConfigRepository>("config", Arc::new(Repository::new(BTreeMap::new())))
+        .unwrap();
+    container.instanceNamed("daily", Arc::new(7_u32)).unwrap();
+    container.tag(["daily"], ["reports"]);
+
+    let descriptor = ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::scalar::<u16>("port").withAttribute(
+                ClassAttribute::contextual(|| Ok(Config::new("reports.port").withDefault(8080_u16))),
+            ),
+            ConstructorParam::scalar::<TaggedServices<u32>>("services").withAttribute(
+                ClassAttribute::contextual(|| Ok(Tag::<u32>::new("reports"))),
+            ),
+        ],
+        |args| Ok(Arc::new(Reports(*args.get(0)?, args.get(1)?))),
+    ).unwrap();
+    container.registerClass(descriptor).unwrap();
+
+    let reports = container.make::<Reports>().unwrap();
+    assert_eq!(reports.0, 8080);
+    assert_eq!(*reports.1.iter(&container).unwrap().next().unwrap().unwrap(), 7);
+}
+```
+
+Custom attributes can implement `resolveAsync` when they need to await a dependency. An existing `whenHasAttribute` override retains precedence in both resolution modes.

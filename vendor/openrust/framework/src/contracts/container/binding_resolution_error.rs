@@ -32,6 +32,11 @@ pub enum BindingResolutionError {
     InvalidAttributeArguments {
         parameter: &'static str,
     },
+    ConfigurationValueTypeMismatch {
+        key: Arc<str>,
+        expected: &'static str,
+    },
+    TaggedContainerMismatch,
     AttributeHandlerMissing {
         attribute: ServiceKey,
     },
@@ -122,6 +127,12 @@ impl fmt::Display for BindingResolutionError {
                     f,
                     "attribute cannot return multiple values for parameter {parameter}"
                 )
+            }
+            Self::ConfigurationValueTypeMismatch { key, expected } => {
+                write!(f, "configuration value at {key} does not match {expected}")
+            }
+            Self::TaggedContainerMismatch => {
+                f.write_str("tagged services belong to a different container")
             }
             Self::AttributeHandlerMissing { attribute } => {
                 write!(

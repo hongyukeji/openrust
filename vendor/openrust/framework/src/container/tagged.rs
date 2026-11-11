@@ -100,3 +100,87 @@ impl<C: Container, T: ?Sized + Send + Sync + 'static> TaggedIter<'_, C, T> {
         Some(result)
     }
 }
+
+/// An injectable tag sequence. It borrows its original container when iterated.
+pub struct TaggedServices<T: ?Sized> {
+    identity: super::scope::Identity,
+    tag: Option<Arc<str>>,
+    count: usize,
+    output: PhantomData<fn() -> T>,
+}
+
+impl<T: ?Sized + Send + Sync + 'static> TaggedServices<T> {
+    pub(super) fn new(container: &super::Container, name: &str) -> Self {
+        let (tag, count) = container.tagged_identity(name);
+        Self {
+            identity: container.identity.clone(),
+            tag,
+            count,
+            output: PhantomData,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter<'a>(
+        &self,
+        container: &'a super::Container,
+    ) -> Result<TaggedIter<'a, super::Container, T>, BindingResolutionError> {
+        Ok(self.borrow(container)?.iter())
+    }
+
+    #[allow(non_snake_case, reason = "Async lazy tagged resolution")]
+    pub async fn collectAsync(
+        &self,
+        container: &super::Container,
+    ) -> Result<Vec<Arc<T>>, BindingResolutionError> {
+        self.borrow(container)?.collectAsync().await
+    }
+
+    fn borrow<'a>(
+        &self,
+        container: &'a super::Container,
+    ) -> Result<Tagged<'a, super::Container, T>, BindingResolutionError> {
+        if self.identity != container.identity {
+            return Err(BindingResolutionError::TaggedContainerMismatch);
+        }
+        super::scope::check_open(container)?;
+        Ok(container.tagged_sequence(self.tag.clone(), self.count))
+    }
+}
+
+impl super::Container {
+    pub(super) fn tagged_identity(&self, name: &str) -> (Option<Arc<str>>, usize) {
+        self.registry
+            .read()
+            .expect("container lock poisoned")
+            .tags
+            .get(name)
+            .map_or((None, 0), |keys| (Some(Arc::from(name)), keys.len()))
+    }
+
+    pub(super) fn tagged_sequence<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        tag: Option<Arc<str>>,
+        count: usize,
+    ) -> Tagged<'_, Self, T> {
+        Tagged::new(self, count, move || {
+            tag.as_deref()
+                .and_then(|tag| {
+                    self.registry
+                        .read()
+                        .expect("container lock poisoned")
+                        .tags
+                        .get(tag)
+                        .cloned()
+                })
+                .unwrap_or_default()
+        })
+    }
+}

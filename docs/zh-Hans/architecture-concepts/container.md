@@ -956,3 +956,52 @@ fn main() {
 ```
 
 `Bind` 和 `BindWhen` 内部解析具体实现时会跳过该次内部解析事件。构造依赖仍照常触发事件。外层事件保留所请求的服务键，并可读取具体值及其接口视图。扩展器替换对象时，事件使用替换对象可用的类型信息。
+
+## 内置上下文属性
+
+- `Config::<T>::new(key)` 读取当前应用配置。`withDefault(value)` 只在键缺失时生效，显式空值按参数的空值规则处理。配置值须可反序列化为声明的 Rust 类型。
+- `Give::<T>::new(key)` 选择具体服务或已声明的 trait 视图。`withParameters` 为该服务单独传入构造参数。实现依赖异步初始化时使用异步解析。
+- `Tag::<T>::new(tag)` 注入 `TaggedServices<T>`。迭代时才解析条目，保留登记顺序和重复项。向 `iter` 或 `collectAsync` 传入原容器，即可在当前作用域解析。
+- OpenRust 的 `CurrentResolving` 属性将 `currentlyResolving()` 的结果作为类型化 `ServiceKey` 注入。构造和方法上下文之外返回空值。
+
+```rust
+use openrust::{
+    config::Repository,
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container, TaggedServices,
+        attributes::{Config, Tag},
+    },
+    contracts::{config::Repository as ConfigRepository, container::Container as _},
+};
+use std::{collections::BTreeMap, sync::Arc};
+
+struct Reports(u16, Arc<TaggedServices<u32>>);
+
+fn main() {
+    let container = Container::default();
+    container
+        .instanceNamed::<dyn ConfigRepository>("config", Arc::new(Repository::new(BTreeMap::new())))
+        .unwrap();
+    container.instanceNamed("daily", Arc::new(7_u32)).unwrap();
+    container.tag(["daily"], ["reports"]);
+
+    let descriptor = ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::scalar::<u16>("port").withAttribute(
+                ClassAttribute::contextual(|| Ok(Config::new("reports.port").withDefault(8080_u16))),
+            ),
+            ConstructorParam::scalar::<TaggedServices<u32>>("services").withAttribute(
+                ClassAttribute::contextual(|| Ok(Tag::<u32>::new("reports"))),
+            ),
+        ],
+        |args| Ok(Arc::new(Reports(*args.get(0)?, args.get(1)?))),
+    ).unwrap();
+    container.registerClass(descriptor).unwrap();
+
+    let reports = container.make::<Reports>().unwrap();
+    assert_eq!(reports.0, 8080);
+    assert_eq!(*reports.1.iter(&container).unwrap().next().unwrap().unwrap(), 7);
+}
+```
+
+自定义属性可以实现 `resolveAsync` 来等待依赖。通过 `whenHasAttribute` 登记的覆盖解析器在同步和异步路径中均优先使用。

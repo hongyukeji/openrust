@@ -18,6 +18,16 @@ pub trait ContextualAttribute: Send + Sync + 'static {
         })
     }
 
+    /// Resolves an attribute in an asynchronous construction or method invocation.
+    #[allow(non_snake_case, reason = "Async contextual attribute adapter")]
+    fn resolveAsync<'a>(
+        self: Arc<Self>,
+        container: &'a crate::container::Container,
+        parameter: crate::container::AttributeParameter,
+    ) -> crate::container::CallFuture<'a, crate::container::AttributeValue> {
+        Box::pin(async move { self.resolve(container, parameter) })
+    }
+
     fn after(
         &self,
         _value: &crate::container::AttributeValue,

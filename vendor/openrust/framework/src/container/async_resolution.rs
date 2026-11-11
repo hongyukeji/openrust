@@ -109,6 +109,11 @@ fn duplicate(error: &Arc<BindingResolutionError>) -> BindingResolutionError {
             target: target.clone(),
         },
         InvalidAttributeArguments { parameter } => InvalidAttributeArguments { parameter },
+        ConfigurationValueTypeMismatch { key, expected } => ConfigurationValueTypeMismatch {
+            key: key.clone(),
+            expected,
+        },
+        TaggedContainerMismatch => TaggedContainerMismatch,
         AttributeHandlerMissing { attribute } => AttributeHandlerMissing {
             attribute: attribute.clone(),
         },

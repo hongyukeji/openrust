@@ -79,7 +79,7 @@ pub(super) async fn arguments(
     for parameter in signature {
         let argument = if let Some(value) = take(&mut inputs, &ParameterKey::name(parameter.name)) {
             Argument::One(value)
-        } else if let Some(value) = parameter.attribute_value(c)? {
+        } else if let Some(value) = parameter.attribute_value_async(c).await? {
             match value {
                 Argument::One(_) => value,
                 Argument::Many(_) => {

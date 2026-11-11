@@ -4,12 +4,21 @@ use std::sync::Arc;
 
 use crate::contracts::container::{BindingResolutionError, ContextualAttribute};
 
-use super::{Container, ParameterValue, ServiceKey};
+use super::{CallFuture, Container, ParameterValue, ServiceKey};
+mod builtin;
+pub use builtin::{Config, CurrentResolving, Give, Tag};
 
 type Result<T> = std::result::Result<T, BindingResolutionError>;
 type Instantiate = dyn Fn() -> Result<ParameterValue> + Send + Sync;
 type Resolve =
     dyn Fn(&ParameterValue, &Container, AttributeParameter) -> Result<AttributeValue> + Send + Sync;
+type ResolveAsync = dyn for<'a> Fn(
+        &'a ParameterValue,
+        &'a Container,
+        AttributeParameter,
+    ) -> CallFuture<'a, AttributeValue>
+    + Send
+    + Sync;
 pub(super) type After = dyn Fn(&AttributeEvent<'_>, &Container) -> Result<()> + Send + Sync;
 
 /// Metadata of the parameter being injected.
@@ -38,6 +47,7 @@ pub struct ClassAttribute {
     key: ServiceKey,
     instantiate: Arc<Instantiate>,
     resolve: Option<Arc<Resolve>>,
+    resolve_async: Option<Arc<ResolveAsync>>,
     after: Option<Arc<After>>,
 }
 
@@ -49,6 +59,7 @@ impl ClassAttribute {
             key: ServiceKey::typed::<A>(),
             instantiate: Arc::new(move || factory().map(ParameterValue::new)),
             resolve: None,
+            resolve_async: None,
             after: None,
         }
     }
@@ -59,6 +70,12 @@ impl ClassAttribute {
         Self {
             resolve: Some(Arc::new(|attribute, container, parameter| {
                 attribute.downcast::<A>()?.resolve(container, parameter)
+            })),
+            resolve_async: Some(Arc::new(|attribute, container, parameter| match attribute
+                .downcast::<A>()
+            {
+                Ok(attribute) => attribute.resolveAsync(container, parameter),
+                Err(error) => Box::pin(async move { Err(error) }),
             })),
             after: Some(Arc::new(|event, container| {
                 event
@@ -111,20 +128,23 @@ impl Container {
         drop(retired);
     }
 
+    fn attribute_handler(&self, key: &ServiceKey) -> Option<Arc<Resolve>> {
+        self.registry
+            .read()
+            .expect("container lock poisoned")
+            .attributes
+            .resolvers
+            .get(key)
+            .cloned()
+    }
+
     pub fn resolveFromAttribute(
         &self,
         attribute: &ClassAttribute,
         parameter: AttributeParameter,
     ) -> Result<AttributeValue> {
         super::scope::check_open(self)?;
-        let handler = self
-            .registry
-            .read()
-            .expect("container lock poisoned")
-            .attributes
-            .resolvers
-            .get(&attribute.key)
-            .cloned();
+        let handler = self.attribute_handler(&attribute.key);
         let instance = (attribute.instantiate)()?;
         let resolve = handler
             .as_ref()
@@ -133,6 +153,26 @@ impl Container {
                 attribute: attribute.key.clone(),
             })?;
         resolve(&instance, self, parameter)
+    }
+
+    /// Uses the asynchronous attribute resolver unless the container registered an override.
+    pub async fn resolveFromAttributeAsync(
+        &self,
+        attribute: &ClassAttribute,
+        parameter: AttributeParameter,
+    ) -> Result<AttributeValue> {
+        super::scope::check_open(self)?;
+        let handler = self.attribute_handler(&attribute.key);
+        let instance = (attribute.instantiate)()?;
+        if let Some(handler) = handler {
+            return handler(&instance, self, parameter);
+        }
+        let resolve = attribute.resolve_async.as_ref().ok_or_else(|| {
+            BindingResolutionError::AttributeHandlerMissing {
+                attribute: attribute.key.clone(),
+            }
+        })?;
+        super::scope::preserve(self, resolve(&instance, self, parameter)).await
     }
 
     /// Registers a callback by attribute type or by the declared service type of the result.

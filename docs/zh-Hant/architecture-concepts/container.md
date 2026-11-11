@@ -956,3 +956,52 @@ fn main() {
 ```
 
 `Bind` 和 `BindWhen` 內部解析具體實作時會略過該次內部解析事件。建構相依服務仍照常觸發事件。外層事件保留所請求的服務鍵，並可讀取具體值及其介面檢視。擴充器替換物件時，事件會使用替換物件可用的型別資訊。
+
+## 內建內容屬性
+
+- `Config::<T>::new(key)` 讀取目前應用程式的設定。`withDefault(value)` 只在鍵缺少時生效，明確空值依參數的空值規則處理。設定值須可反序列化為宣告的 Rust 型別。
+- `Give::<T>::new(key)` 選擇具體服務或已宣告的 trait 檢視。`withParameters` 為該服務單獨傳入建構參數。實作需要非同步初始化時，請使用非同步解析。
+- `Tag::<T>::new(tag)` 注入 `TaggedServices<T>`。迭代時才解析項目，保留登記順序和重複項目。向 `iter` 或 `collectAsync` 傳入原容器，即可在目前作用域解析。
+- OpenRust 的 `CurrentResolving` 屬性將 `currentlyResolving()` 的結果作為型別化 `ServiceKey` 注入。建構及方法內容以外會回傳空值。
+
+```rust
+use openrust::{
+    config::Repository,
+    container::{
+        ClassAttribute, ClassDescriptor, ConstructorParam, Container, TaggedServices,
+        attributes::{Config, Tag},
+    },
+    contracts::{config::Repository as ConfigRepository, container::Container as _},
+};
+use std::{collections::BTreeMap, sync::Arc};
+
+struct Reports(u16, Arc<TaggedServices<u32>>);
+
+fn main() {
+    let container = Container::default();
+    container
+        .instanceNamed::<dyn ConfigRepository>("config", Arc::new(Repository::new(BTreeMap::new())))
+        .unwrap();
+    container.instanceNamed("daily", Arc::new(7_u32)).unwrap();
+    container.tag(["daily"], ["reports"]);
+
+    let descriptor = ClassDescriptor::concrete(
+        vec![
+            ConstructorParam::scalar::<u16>("port").withAttribute(
+                ClassAttribute::contextual(|| Ok(Config::new("reports.port").withDefault(8080_u16))),
+            ),
+            ConstructorParam::scalar::<TaggedServices<u32>>("services").withAttribute(
+                ClassAttribute::contextual(|| Ok(Tag::<u32>::new("reports"))),
+            ),
+        ],
+        |args| Ok(Arc::new(Reports(*args.get(0)?, args.get(1)?))),
+    ).unwrap();
+    container.registerClass(descriptor).unwrap();
+
+    let reports = container.make::<Reports>().unwrap();
+    assert_eq!(reports.0, 8080);
+    assert_eq!(*reports.1.iter(&container).unwrap().next().unwrap().unwrap(), 7);
+}
+```
+
+自訂屬性可以實作 `resolveAsync` 來等待相依服務。透過 `whenHasAttribute` 登記的覆寫解析器在同步和非同步路徑中均優先使用。
