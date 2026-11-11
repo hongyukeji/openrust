@@ -913,3 +913,46 @@ fn main() {
 ```
 
 投影保留已選服務鍵、生命週期及物件身分。所請求的檢視不相容時，會在建構該服務前回傳錯誤。需要依介面本身的鍵注入時，可宣告 `Bind::implementation::<dyn Contract, Concrete>()`，也可在 `BindWhen` 條件中使用這項宣告。
+
+## 介面檢視的解析事件
+
+依介面註冊的回呼也會比對宣告該介面檢視的具體類別。解析前依所請求類別的宣告比對，解析中與解析後依實際物件比對。`ResolutionEvent::value` 可以回傳該物件已宣告的介面檢視。
+
+```rust
+use openrust::{
+    class_projection,
+    container::{Bind, BindWhen, ClassDescriptor, Container, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::{Arc, Mutex};
+
+trait Report: Send + Sync {}
+struct DailyReport;
+impl Report for DailyReport {}
+
+fn main() {
+    let container = Container::default();
+    container.registerClass(
+        ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
+            .unwrap()
+            .withProjection(class_projection!(DailyReport => dyn Report)),
+    ).unwrap();
+    container.registerBindingAttributes::<dyn Report>(vec![
+        BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true)).into(),
+    ]).unwrap();
+
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let observed = events.clone();
+    container.afterResolving(Some(ServiceKey::typed::<DailyReport>()), move |event, _| {
+        let concrete: Arc<dyn Report> = event.value::<DailyReport>().unwrap();
+        let view = event.value::<dyn Report>().unwrap();
+        assert!(Arc::ptr_eq(&concrete, &view));
+        observed.lock().unwrap().push(event.key().clone());
+        Ok(())
+    }).unwrap();
+    container.make::<dyn Report>().unwrap();
+    assert_eq!(*events.lock().unwrap(), [ServiceKey::typed::<dyn Report>()]);
+}
+```
+
+`Bind` 和 `BindWhen` 內部解析具體實作時會略過該次內部解析事件。建構相依服務仍照常觸發事件。外層事件保留所請求的服務鍵，並可讀取具體值及其介面檢視。擴充器替換物件時，事件會使用替換物件可用的型別資訊。

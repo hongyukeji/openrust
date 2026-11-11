@@ -24,7 +24,7 @@ impl Container {
         entry: &RegisteredBinding,
     ) -> Result<Arc<T>> {
         match entry.value.downcast_ref::<Binding<T>>() {
-            Some(Binding::Factory(factory)) => factory(self),
+            Some(Binding::Factory(factory)) => factory(self).map(|output| output.value),
             Some(Binding::AsyncFactory(_)) => {
                 Err(BindingResolutionError::AsyncResolutionRequired { service: key })
             }
@@ -41,8 +41,10 @@ impl Container {
         entry: &RegisteredBinding,
     ) -> Result<Arc<T>> {
         match entry.value.downcast_ref::<Binding<T>>() {
-            Some(Binding::Factory(factory)) => factory(self),
-            Some(Binding::AsyncFactory(factory)) => factory(self).await,
+            Some(Binding::Factory(factory)) => factory(self).map(|output| output.value),
+            Some(Binding::AsyncFactory(factory)) => {
+                factory.call(self).await.map(|output| output.value)
+            }
             _ => Err(BindingResolutionError::TypeMismatch {
                 service: key,
                 expected: type_name::<T>(),
@@ -59,12 +61,12 @@ impl Container {
         let need = self.getAlias(need)?;
         let services = Arc::new(services);
         let keys = services.clone();
-        let mut entry = Self::entry(Binding::Factory(Arc::new(move |c: &Container| {
+        let mut entry = Self::entry(Binding::factory(move |c: &Container| {
             keys.iter()
                 .map(|key| c.get::<T>(key.clone()))
                 .collect::<Result<Vec<_>>>()
                 .map(Arc::new)
-        })));
+        }));
         entry.services = Some(services);
         let retired = self
             .registry
@@ -280,20 +282,28 @@ pub(super) async fn method_classes_async<T: ?Sized + Send + Sync + 'static>(
         key
     };
     super::parameters::run_async(c, super::ParameterOverrides::default(), async {
-        let (key, entry, contextual) = c.prepare_async(key).await?;
+        let (key, entry, contextual) = c.prepare_async(key, true).await?;
         if entry.services.is_none() && entry.value.is::<Binding<Vec<Arc<T>>>>() {
             return c
-                .resolve_entry_async::<Vec<Arc<T>>>(key, entry, contextual)
+                .resolve_entry_async::<Vec<Arc<T>>>(
+                    key,
+                    entry,
+                    super::ResolutionOptions::normal(contextual),
+                )
                 .await
                 .map(|values| values.iter().cloned().map(ParameterValue::new).collect());
         }
         if entry.services.is_none() && entry.value.is::<Binding<Vec<ParameterValue>>>() {
             return c
-                .resolve_entry_async::<Vec<ParameterValue>>(key, entry, contextual)
+                .resolve_entry_async::<Vec<ParameterValue>>(
+                    key,
+                    entry,
+                    super::ResolutionOptions::normal(contextual),
+                )
                 .await
                 .map(|values| (*values).clone());
         }
-        c.resolve_entry_async::<T>(key, entry, contextual)
+        c.resolve_entry_async::<T>(key, entry, super::ResolutionOptions::normal(contextual))
             .await
             .map(|value| vec![ParameterValue::new(value)])
     })

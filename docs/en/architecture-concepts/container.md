@@ -913,3 +913,46 @@ fn main() {
 ```
 
 A projection preserves the selected service key, lifetime, and object identity. An incompatible view fails before constructing the selected service. To inject the interface by its own key, declare a binding such as `Bind::implementation::<dyn Contract, Concrete>()`. The binding can reuse the projection in a `BindWhen` rule.
+
+## Resolving Events for Interface Views
+
+A callback registered for an interface also matches a concrete class that declares that interface view. Before resolution the container matches the requested class's declaration. During resolving and after resolving it matches the selected object. `ResolutionEvent::value` can return a declared view of that object.
+
+```rust
+use openrust::{
+    class_projection,
+    container::{Bind, BindWhen, ClassDescriptor, Container, ServiceKey},
+    contracts::container::Container as _,
+};
+use std::sync::{Arc, Mutex};
+
+trait Report: Send + Sync {}
+struct DailyReport;
+impl Report for DailyReport {}
+
+fn main() {
+    let container = Container::default();
+    container.registerClass(
+        ClassDescriptor::concrete(vec![], |_| Ok(Arc::new(DailyReport)))
+            .unwrap()
+            .withProjection(class_projection!(DailyReport => dyn Report)),
+    ).unwrap();
+    container.registerBindingAttributes::<dyn Report>(vec![
+        BindWhen::new(Bind::implementation::<dyn Report, DailyReport>(), |_| Ok(true)).into(),
+    ]).unwrap();
+
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let observed = events.clone();
+    container.afterResolving(Some(ServiceKey::typed::<DailyReport>()), move |event, _| {
+        let concrete: Arc<dyn Report> = event.value::<DailyReport>().unwrap();
+        let view = event.value::<dyn Report>().unwrap();
+        assert!(Arc::ptr_eq(&concrete, &view));
+        observed.lock().unwrap().push(event.key().clone());
+        Ok(())
+    }).unwrap();
+    container.make::<dyn Report>().unwrap();
+    assert_eq!(*events.lock().unwrap(), [ServiceKey::typed::<dyn Report>()]);
+}
+```
+
+For `Bind` and `BindWhen`, the internal lookup of the concrete implementation skips its own resolving events. Constructor dependencies still raise events normally. The outer event retains the requested service key and can expose the concrete value and its interface view. If an extender replaces the object, the event uses the replacement's available type information.

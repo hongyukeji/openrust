@@ -7,8 +7,10 @@ use std::{
 
 use crate::contracts::container::{BindingResolutionError, Container as _};
 
+use super::async_resolution::{AsyncFactory, OutputFuture};
+
 use super::{
-    Binding, Container, EnvironmentQuery, FactoryFuture, ParameterValue, RegisteredBinding,
+    Binding, Container, EnvironmentQuery, FactoryOutput, ParameterValue, RegisteredBinding,
     Registry, ServiceKey, parameters, scope,
 };
 
@@ -96,9 +98,13 @@ impl Bind {
                 let value = if same_class {
                     container.build::<C>()?
                 } else {
-                    container.makeWith::<C>(parameters::current(container))?
+                    container.resolve_with_parameters::<C>(
+                        ServiceKey::typed::<C>(),
+                        parameters::current(container),
+                        false,
+                    )?
                 };
-                Ok(synchronous(value))
+                Ok(FactoryOutput::forwarded(synchronous(value.clone()), value))
             },
             move |container| {
                 let project = project.clone();
@@ -107,10 +113,14 @@ impl Bind {
                         container.buildAsync::<C>().await?
                     } else {
                         container
-                            .makeWithAsync::<C>(parameters::current(container))
+                            .resolve_async_with_parameters::<C>(
+                                ServiceKey::typed::<C>(),
+                                parameters::current(container),
+                                false,
+                            )
                             .await?
                     };
-                    Ok(project(value))
+                    Ok(FactoryOutput::forwarded(project(value.clone()), value))
                 })
             },
         )
@@ -125,28 +135,40 @@ impl Bind {
         Self::from_factories::<T>(
             |container| {
                 let projection = container.required_projection::<C, T>()?;
-                let value = container.makeWith::<C>(parameters::current(container))?;
-                projection.view(&ParameterValue::new(value))
+                let value = container.resolve_with_parameters::<C>(
+                    ServiceKey::typed::<C>(),
+                    parameters::current(container),
+                    false,
+                )?;
+                let view = projection.view(&ParameterValue::new(value.clone()))?;
+                Ok(FactoryOutput::forwarded(view, value))
             },
             |container| {
                 Box::pin(async move {
                     let projection = container.required_projection::<C, T>()?;
                     let value = container
-                        .makeWithAsync::<C>(parameters::current(container))
+                        .resolve_async_with_parameters::<C>(
+                            ServiceKey::typed::<C>(),
+                            parameters::current(container),
+                            false,
+                        )
                         .await?;
-                    projection.view(&ParameterValue::new(value))
+                    let view = projection.view(&ParameterValue::new(value.clone()))?;
+                    Ok(FactoryOutput::forwarded(view, value))
                 })
             },
         )
     }
 
     fn from_factories<T: ?Sized + Send + Sync + 'static>(
-        synchronous: impl Fn(&Container) -> Result<Arc<T>> + Send + Sync + 'static,
-        asynchronous: impl for<'a> Fn(&'a Container) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+        synchronous: impl Fn(&Container) -> Result<FactoryOutput<T>> + Send + Sync + 'static,
+        asynchronous: impl for<'a> Fn(&'a Container) -> OutputFuture<'a, T> + Send + Sync + 'static,
     ) -> Self {
         let key = ServiceKey::typed::<T>();
         let mut entry = Container::entry(Binding::Factory(Arc::new(synchronous)));
-        let asynchronous = Container::entry(Binding::AsyncFactory(Arc::new(asynchronous)));
+        let asynchronous = Container::entry(Binding::AsyncFactory(AsyncFactory::Forwarding(
+            Arc::new(asynchronous),
+        )));
         entry.asynchronous_value = Some(asynchronous.value);
         Self {
             key,

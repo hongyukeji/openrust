@@ -1,5 +1,5 @@
 //! Async factories use the same registry, cache states, decorators and resolution events.
-use super::{Container, scope};
+use super::{Container, FactoryOutput, ResolutionOptions, scope};
 use crate::contracts::container::BindingResolutionError;
 use std::{
     cell::RefCell,
@@ -11,8 +11,33 @@ use std::{
 
 pub type FactoryFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<Arc<T>, BindingResolutionError>> + Send + 'a>>;
-pub(super) type AsyncFactory<T> =
-    dyn for<'a> Fn(&'a Container) -> FactoryFuture<'a, T> + Send + Sync;
+pub(super) type OutputFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<FactoryOutput<T>, BindingResolutionError>> + Send + 'a>>;
+type PlainFactory<T> = dyn for<'a> Fn(&'a Container) -> FactoryFuture<'a, T> + Send + Sync;
+type ForwardingFactory<T> = dyn for<'a> Fn(&'a Container) -> OutputFuture<'a, T> + Send + Sync;
+pub(super) enum AsyncFactory<T: ?Sized> {
+    Plain(Arc<PlainFactory<T>>),
+    Forwarding(Arc<ForwardingFactory<T>>),
+}
+impl<T: ?Sized> Clone for AsyncFactory<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Plain(factory) => Self::Plain(factory.clone()),
+            Self::Forwarding(factory) => Self::Forwarding(factory.clone()),
+        }
+    }
+}
+impl<T: ?Sized + Send + Sync + 'static> AsyncFactory<T> {
+    pub(super) async fn call(
+        &self,
+        container: &Container,
+    ) -> Result<FactoryOutput<T>, BindingResolutionError> {
+        match self {
+            Self::Plain(factory) => factory(container).await.map(FactoryOutput::plain),
+            Self::Forwarding(factory) => factory(container).await,
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 pub(super) struct AsyncOwner(Arc<Operation>);
@@ -308,15 +333,34 @@ impl Container {
         id: ServiceKey,
         parameters: super::ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError> {
+        self.resolve_async_with_parameters(id, parameters, true)
+            .await
+    }
+
+    pub(super) async fn resolve_async_with_parameters<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: ServiceKey,
+        parameters: super::ParameterOverrides,
+        raise_events: bool,
+    ) -> Result<Arc<T>, BindingResolutionError> {
         super::parameters::run_async(self, parameters, async move {
-            let (key, entry, contextual) = self.prepare_async(id).await?;
-            self.resolve_entry_async(key, entry, contextual).await
+            let (key, entry, contextual) = self.prepare_async(id, raise_events).await?;
+            self.resolve_entry_async(
+                key,
+                entry,
+                ResolutionOptions {
+                    contextual,
+                    raise_events,
+                },
+            )
+            .await
         })
         .await
     }
     pub(super) async fn prepare_async(
         &self,
         id: ServiceKey,
+        raise_events: bool,
     ) -> Result<(ServiceKey, RegisteredBinding, bool), BindingResolutionError> {
         scope::check_open(self)?;
         let key = match self.require_sync(id.clone()) {
@@ -327,26 +371,28 @@ impl Container {
             Err(error) => return Err(error),
         };
         let key = self.getAlias(key)?;
-        self.fire_hooks(
-            &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
-            Phase::Before,
-        )?;
+        if raise_events {
+            self.fire_hooks(
+                &ResolutionEvent::before_with(key.clone(), super::parameters::current(self)),
+                Phase::Before,
+            )?;
+        }
         self.select_entry(key, true, true)
     }
     pub(super) async fn resolve_entry_async<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
         entry: RegisteredBinding,
-        contextual: bool,
+        options: ResolutionOptions,
     ) -> Result<Arc<T>, BindingResolutionError> {
         let Ok(binding) = entry.value.clone().downcast::<Binding<T>>() else {
             return self
                 .projection_for::<T>(&key, &entry)?
-                .resolve_async(self, key, entry, contextual)
+                .resolve_async(self, key, entry, options)
                 .await;
         };
         if matches!(binding.as_ref(), Binding::Factory(_)) {
-            return self.resolve_entry(key, entry, contextual);
+            return self.resolve_entry(key, entry, options);
         }
         if let Some((state, _, _)) = super::extensions::slot(&binding) {
             let state = state.lock().expect("singleton state poisoned");
@@ -378,35 +424,37 @@ impl Container {
             };
             self.with_owner(id, async {
                 match binding.as_ref() {
-                    Binding::Factory(_) => self.resolve_entry(key, entry, contextual),
+                    Binding::Factory(_) => self.resolve_entry(key, entry, options),
                     Binding::AsyncFactory(factory) => {
                         let recipe = Arc::as_ptr(&entry.version).addr();
                         let attributes = entry.class_attributes.is_some();
                         let value = self
                             .with_resolution(&key, recipe, async {
                                 self.check_extenders::<T>(&key)?;
-                                let value = factory(self).await?;
+                                let value = factory.call(self).await?;
                                 scope::check_open(self)?;
                                 if attributes {
                                     Ok(value)
                                 } else {
-                                    self.decorate(&key, value, None)
+                                    value.decorate(|value| self.decorate(&key, value, None))
                                 }
                             })
                             .await?;
                         let value = if attributes {
-                            self.after_class(&key, &entry, &value)?;
+                            self.after_class(&key, &entry, &value.value)?;
                             let _resolution = self.resolve(&key, recipe)?;
-                            self.decorate(&key, value, None)?
+                            value.decorate(|value| self.decorate(&key, value, None))?
                         } else {
                             value
                         };
-                        let current = self.current_recipe(&key, &entry, contextual);
-                        self.fire_constructed(&key, value.clone())?;
+                        let current = self.current_recipe(&key, &entry, options.contextual);
+                        if options.raise_events {
+                            self.fire_constructed(&key, &value)?;
+                        }
                         if current {
                             self.mark_resolved(&key, &entry);
                         }
-                        Ok(value)
+                        Ok(value.value)
                     }
                     _ => {
                         let (state, ready, changed) =
@@ -480,10 +528,10 @@ impl Container {
                                     Binding::Singleton {
                                         async_factory: Some(factory),
                                         ..
-                                    } => factory(self).await?,
+                                    } => factory.call(self).await?,
                                     Binding::Singleton { factory, .. } => factory(self)?,
                                     Binding::AsyncSingleton { factory, .. } => {
-                                        factory(self).await?
+                                        factory.call(self).await?
                                     }
                                     _ => unreachable!("an explicit instance cannot be empty"),
                                 };
@@ -491,27 +539,37 @@ impl Container {
                                 if attributes {
                                     Ok(value)
                                 } else {
-                                    self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                                    value.decorate(|value| {
+                                        self.decorate(
+                                            &key,
+                                            value,
+                                            Some((state, &entry, owner.clone())),
+                                        )
+                                    })
                                 }
                             })
                             .await
                             .map_err(|error| owner.fail(error))?;
                         let value = if attributes {
                             let finish = || {
-                                self.after_class(&key, &entry, &value)?;
+                                self.after_class(&key, &entry, &value.value)?;
                                 let _resolution = self.resolve(&key, recipe)?;
-                                self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                                value.decorate(|value| {
+                                    self.decorate(&key, value, Some((state, &entry, owner.clone())))
+                                })
                             };
                             finish().map_err(|error| owner.fail(error))?
                         } else {
                             value
                         };
-                        let current = self.current_recipe(&key, &entry, contextual);
-                        self.fire_constructed(&key, value.clone())?;
+                        let current = self.current_recipe(&key, &entry, options.contextual);
+                        if options.raise_events {
+                            self.fire_constructed(&key, &value)?;
+                        }
                         if current {
                             self.mark_resolved(&key, &entry);
                         }
-                        Ok(value)
+                        Ok(value.value)
                     }
                 }
             })
@@ -531,7 +589,7 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
     {
-        let factory: Arc<AsyncFactory<T>> = Arc::new(factory);
+        let factory = AsyncFactory::Plain(Arc::new(factory));
         let binding = if shared {
             Binding::AsyncSingleton {
                 factory,

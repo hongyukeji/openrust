@@ -4,14 +4,19 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use crate::contracts::container::BindingResolutionError;
 
-use super::{Container, ParameterValue, RegisteredBinding, ServiceKey};
+use super::{Container, ParameterValue, RegisteredBinding, ResolutionOptions, ServiceKey};
 
 type Result<T> = std::result::Result<T, BindingResolutionError>;
 type Project = dyn Fn(&ParameterValue) -> Result<ParameterValue> + Send + Sync;
-type Resolve = fn(&Container, ServiceKey, RegisteredBinding, bool) -> Result<ParameterValue>;
+type Resolve =
+    fn(&Container, ServiceKey, RegisteredBinding, ResolutionOptions) -> Result<ParameterValue>;
 type ResolveFuture<'a> = Pin<Box<dyn Future<Output = Result<ParameterValue>> + Send + 'a>>;
-type ResolveAsync =
-    for<'a> fn(&'a Container, ServiceKey, RegisteredBinding, bool) -> ResolveFuture<'a>;
+type ResolveAsync = for<'a> fn(
+    &'a Container,
+    ServiceKey,
+    RegisteredBinding,
+    ResolutionOptions,
+) -> ResolveFuture<'a>;
 
 /// A class's compiled coercion to another typed service view.
 #[derive(Clone)]
@@ -46,15 +51,15 @@ impl ClassProjection {
                 }
                 Ok(ParameterValue::new(projected))
             }),
-            resolve: |container, key, entry, contextual| {
+            resolve: |container, key, entry, options| {
                 container
-                    .resolve_entry::<C>(key, entry, contextual)
+                    .resolve_entry::<C>(key, entry, options)
                     .map(ParameterValue::new)
             },
-            resolve_async: |container, key, entry, contextual| {
+            resolve_async: |container, key, entry, options| {
                 Box::pin(async move {
                     container
-                        .resolve_entry_async::<C>(key, entry, contextual)
+                        .resolve_entry_async::<C>(key, entry, options)
                         .await
                         .map(ParameterValue::new)
                 })
@@ -76,9 +81,9 @@ impl ClassProjection {
         container: &Container,
         key: ServiceKey,
         entry: RegisteredBinding,
-        contextual: bool,
+        options: ResolutionOptions,
     ) -> Result<Arc<T>> {
-        self.view(&(self.resolve)(container, key, entry, contextual)?)
+        self.view(&(self.resolve)(container, key, entry, options)?)
     }
 
     pub(super) async fn resolve_async<T: ?Sized + Send + Sync + 'static>(
@@ -86,9 +91,9 @@ impl ClassProjection {
         container: &Container,
         key: ServiceKey,
         entry: RegisteredBinding,
-        contextual: bool,
+        options: ResolutionOptions,
     ) -> Result<Arc<T>> {
-        self.view(&(self.resolve_async)(container, key, entry, contextual).await?)
+        self.view(&(self.resolve_async)(container, key, entry, options).await?)
     }
 }
 

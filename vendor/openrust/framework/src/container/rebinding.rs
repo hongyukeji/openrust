@@ -112,7 +112,7 @@ impl Container {
         value: Arc<T>,
         callbacks: Vec<RegisteredRebinding>,
     ) -> Result<(), BindingResolutionError> {
-        let event = ResolutionEvent::constructed(key, value);
+        let event = ResolutionEvent::constructed(key, &super::FactoryOutput::plain(value), self);
         for callback in callbacks {
             (callback.0)(self, &event, type_name::<T>())?;
         }
@@ -169,7 +169,8 @@ impl Container {
         self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
         entry = self.rebound_entry(&key, entry);
         // Use this mutation's committed recipe, never a later same-name replacement.
-        let value = self.resolve_entry::<T>(key.clone(), entry, false)?;
+        let value =
+            self.resolve_entry::<T>(key.clone(), entry, super::ResolutionOptions::normal(false))?;
         self.deliver_rebound(key, value, callbacks)
     }
     pub(super) fn dispatch_rebound_async<'a, T: ?Sized + Send + Sync + 'static>(
@@ -186,7 +187,11 @@ impl Container {
                 self.fire_hooks(&ResolutionEvent::before(key.clone()), Phase::Before)?;
                 let entry = self.rebound_entry(&key, entry).for_mode(true);
                 let value = self
-                    .resolve_entry_async::<T>(key.clone(), entry, false)
+                    .resolve_entry_async::<T>(
+                        key.clone(),
+                        entry,
+                        super::ResolutionOptions::normal(false),
+                    )
                     .await?;
                 self.deliver_rebound(key.clone(), value, callbacks)?;
                 Ok(())

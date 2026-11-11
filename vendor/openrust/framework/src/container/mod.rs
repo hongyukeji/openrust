@@ -19,7 +19,7 @@ mod tagged;
 pub use tagged::{Tagged, TaggedIter};
 mod resolving_hooks;
 pub use resolving_hooks::ResolutionEvent;
-use resolving_hooks::{Phase, ResolveHooks};
+use resolving_hooks::{FactoryOutput, Phase, ResolveHooks};
 mod rebinding;
 use rebinding::RegisteredRebinding;
 mod extensions;
@@ -54,7 +54,8 @@ pub use parameters::{ParameterKey, ParameterOverrides, ParameterValue};
 mod service_key;
 pub use service_key::ServiceKey;
 
-type Factory<T> = dyn Fn(&Container) -> Result<Arc<T>, BindingResolutionError> + Send + Sync;
+type Factory<T> =
+    dyn Fn(&Container) -> Result<FactoryOutput<T>, BindingResolutionError> + Send + Sync;
 type ErasedBinding = Arc<dyn Any + Send + Sync>;
 type Wait = (usize, ServiceKey, usize);
 
@@ -245,16 +246,16 @@ impl Registry {
 
 enum Binding<T: ?Sized> {
     Factory(Arc<Factory<T>>),
-    AsyncFactory(Arc<AsyncFactory<T>>),
+    AsyncFactory(AsyncFactory<T>),
     AsyncSingleton {
-        factory: Arc<AsyncFactory<T>>,
+        factory: AsyncFactory<T>,
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
         changed: tokio::sync::Notify,
     },
     Singleton {
         factory: Arc<Factory<T>>,
-        async_factory: Option<Arc<AsyncFactory<T>>>,
+        async_factory: Option<AsyncFactory<T>>,
         state: Mutex<SingletonState<T>>,
         ready: Condvar,
         changed: tokio::sync::Notify,
@@ -264,6 +265,36 @@ enum Binding<T: ?Sized> {
         ready: Condvar,
         changed: tokio::sync::Notify,
     },
+}
+
+impl<T: ?Sized + Send + Sync + 'static> Binding<T> {
+    fn factory(
+        factory: impl Fn(&Container) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
+    ) -> Self {
+        Self::Factory(Arc::new(move |container| {
+            factory(container).map(FactoryOutput::plain)
+        }))
+    }
+
+    fn async_factory(
+        factory: impl for<'a> Fn(&'a Container) -> FactoryFuture<'a, T> + Send + Sync + 'static,
+    ) -> Self {
+        Self::AsyncFactory(AsyncFactory::Plain(Arc::new(factory)))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ResolutionOptions {
+    contextual: bool,
+    raise_events: bool,
+}
+impl ResolutionOptions {
+    fn normal(contextual: bool) -> Self {
+        Self {
+            contextual,
+            raise_events: true,
+        }
+    }
 }
 
 enum SingletonState<T: ?Sized> {
@@ -517,11 +548,11 @@ impl Container {
     fn insert_scoped<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: ServiceKey,
-        factory: Arc<Factory<T>>,
+        factory: impl Fn(&Container) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
         conditional: bool,
     ) -> Result<(), BindingResolutionError> {
         let entry = Self::entry(Binding::Singleton {
-            factory,
+            factory: Arc::new(move |container| factory(container).map(FactoryOutput::plain)),
             async_factory: None,
             state: Mutex::new(SingletonState::Empty),
             ready: Condvar::new(),
@@ -681,10 +712,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert(
-            ServiceKey::typed::<T>(),
-            Binding::Factory(Arc::new(factory)),
-        )
+        self.insert(ServiceKey::typed::<T>(), Binding::factory(factory))
     }
 
     fn singleton<T, F>(&self, factory: F) -> Result<(), BindingResolutionError>
@@ -695,7 +723,7 @@ impl container::Container for Container {
         self.insert(
             ServiceKey::typed::<T>(),
             Binding::Singleton {
-                factory: Arc::new(factory),
+                factory: Arc::new(move |container| factory(container).map(FactoryOutput::plain)),
                 async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
@@ -719,7 +747,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert(ServiceKey::named(name), Binding::Factory(Arc::new(factory)))
+        self.insert(ServiceKey::named(name), Binding::factory(factory))
     }
 
     #[allow(non_snake_case, reason = "Named overload for Rust's typed singleton")]
@@ -731,7 +759,7 @@ impl container::Container for Container {
         self.insert(
             ServiceKey::named(name),
             Binding::Singleton {
-                factory: Arc::new(factory),
+                factory: Arc::new(move |container| factory(container).map(FactoryOutput::plain)),
                 async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
@@ -888,10 +916,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_if_absent(
-            ServiceKey::typed::<T>(),
-            Binding::Factory(Arc::new(factory)),
-        )
+        self.insert_if_absent(ServiceKey::typed::<T>(), Binding::factory(factory))
     }
 
     #[allow(
@@ -906,7 +931,7 @@ impl container::Container for Container {
         self.insert_if_absent(
             ServiceKey::typed::<T>(),
             Binding::Singleton {
-                factory: Arc::new(factory),
+                factory: Arc::new(move |container| factory(container).map(FactoryOutput::plain)),
                 async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
@@ -924,7 +949,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_if_absent(ServiceKey::named(name), Binding::Factory(Arc::new(factory)))
+        self.insert_if_absent(ServiceKey::named(name), Binding::factory(factory))
     }
 
     #[allow(
@@ -939,7 +964,7 @@ impl container::Container for Container {
         self.insert_if_absent(
             ServiceKey::named(name),
             Binding::Singleton {
-                factory: Arc::new(factory),
+                factory: Arc::new(move |container| factory(container).map(FactoryOutput::plain)),
                 async_factory: None,
                 state: Mutex::new(SingletonState::Empty),
                 ready: Condvar::new(),
@@ -983,7 +1008,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_scoped(ServiceKey::typed::<T>(), Arc::new(factory), false)
+        self.insert_scoped(ServiceKey::typed::<T>(), factory, false)
     }
 
     #[allow(
@@ -995,7 +1020,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_scoped(ServiceKey::typed::<T>(), Arc::new(factory), true)
+        self.insert_scoped(ServiceKey::typed::<T>(), factory, true)
     }
 
     #[allow(
@@ -1007,7 +1032,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_scoped(ServiceKey::named(name), Arc::new(factory), false)
+        self.insert_scoped(ServiceKey::named(name), factory, false)
     }
 
     #[allow(
@@ -1019,7 +1044,7 @@ impl container::Container for Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
-        self.insert_scoped(ServiceKey::named(name), Arc::new(factory), true)
+        self.insert_scoped(ServiceKey::named(name), factory, true)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's container API")]
@@ -1034,7 +1059,7 @@ impl container::Container for Container {
         F: Fn(&Self) -> Result<Arc<T>, BindingResolutionError> + Send + Sync + 'static,
     {
         let key = self.getAlias(r#abstract)?;
-        let entry = Self::entry(Binding::Factory(Arc::new(factory)));
+        let entry = Self::entry(Binding::factory(factory));
         let previous = self
             .registry
             .write()
@@ -1347,7 +1372,7 @@ impl container::Container for Container {
         F: for<'a> Fn(&'a Self) -> FactoryFuture<'a, T> + Send + Sync + 'static,
     {
         let need = self.getAlias(need)?;
-        let entry = Self::entry(Binding::AsyncFactory(Arc::new(factory)));
+        let entry = Self::entry(Binding::async_factory(factory));
         let previous = self
             .registry
             .write()
@@ -1569,10 +1594,19 @@ impl Container {
         id: ServiceKey,
         values: ParameterOverrides,
     ) -> Result<Arc<T>, BindingResolutionError> {
+        self.resolve_with_parameters(id, values, true)
+    }
+
+    fn resolve_with_parameters<T: ?Sized + Send + Sync + 'static>(
+        &self,
+        id: ServiceKey,
+        values: ParameterOverrides,
+        raise_events: bool,
+    ) -> Result<Arc<T>, BindingResolutionError> {
         parameters::run(self, values, || {
             scope::check_open(self)?;
             let id = self.require_sync(id)?;
-            let (id, canonical) = if self.has_hooks(Phase::Before) {
+            let (id, canonical) = if raise_events && self.has_hooks(Phase::Before) {
                 let key = self.getAlias(id)?;
                 self.fire_hooks(
                     &ResolutionEvent::before_with(key.clone(), parameters::current(self)),
@@ -1583,7 +1617,14 @@ impl Container {
                 (id, false)
             };
             let (key, entry, contextual) = self.select_entry(id, canonical, false)?;
-            self.resolve_entry(key, entry, contextual)
+            self.resolve_entry(
+                key,
+                entry,
+                ResolutionOptions {
+                    contextual,
+                    raise_events,
+                },
+            )
         })
     }
 
@@ -1736,12 +1777,12 @@ impl Container {
         &self,
         key: ServiceKey,
         entry: RegisteredBinding,
-        contextual: bool,
+        options: ResolutionOptions,
     ) -> Result<Arc<T>, BindingResolutionError> {
         let Some(binding) = entry.value.downcast_ref::<Binding<T>>() else {
             return self
                 .projection_for::<T>(&key, &entry)?
-                .resolve(self, key, entry, contextual);
+                .resolve(self, key, entry, options);
         };
         if let Binding::Instance { state, ready, .. } = binding {
             return self.read_instance(&key, state, ready);
@@ -1765,19 +1806,21 @@ impl Container {
                 let value = factory(self)?;
                 let resolution = if entry.class_attributes.is_some() {
                     drop(resolution);
-                    self.after_class(&key, &entry, &value)?;
+                    self.after_class(&key, &entry, &value.value)?;
                     self.resolve(&key, Arc::as_ptr(&entry.version).addr())?
                 } else {
                     resolution
                 };
-                let value = self.decorate(&key, value, None)?;
+                let value = value.decorate(|value| self.decorate(&key, value, None))?;
                 drop(resolution);
-                let current = self.current_recipe(&key, &entry, contextual);
-                self.fire_constructed(&key, value.clone())?;
+                let current = self.current_recipe(&key, &entry, options.contextual);
+                if options.raise_events {
+                    self.fire_constructed(&key, &value)?;
+                }
                 if current {
                     self.mark_resolved(&key, &entry);
                 }
-                Ok(value)
+                Ok(value.value)
             }
             Binding::Instance { state, ready, .. } => self.read_instance(&key, state, ready),
             Binding::Singleton {
@@ -1822,23 +1865,28 @@ impl Container {
                     let value = factory(self)?;
                     if entry.class_attributes.is_some() {
                         drop(resolution.take());
-                        self.after_class(&key, &entry, &value)?;
+                        self.after_class(&key, &entry, &value.value)?;
                         resolution = Some(self.resolve(&key, Arc::as_ptr(&entry.version).addr())?);
                     }
-                    self.decorate(&key, value, Some((state, &entry, caller.clone())))
+                    value.decorate(|value| {
+                        self.decorate(&key, value, Some((state, &entry, caller.clone())))
+                    })
                 }));
                 drop(resolution);
                 let mut value = None;
-                let current = self.current_recipe(&key, &entry, contextual);
+                let current = self.current_recipe(&key, &entry, options.contextual);
                 let result = match constructed {
                     Ok(Ok(instance)) => {
-                        value = Some(instance.clone());
+                        value = Some(instance.value.clone());
                         panic::catch_unwind(AssertUnwindSafe(|| {
-                            self.fire_constructed(&key, instance.clone())
-                                .map(|()| instance)
+                            if options.raise_events {
+                                self.fire_constructed(&key, &instance)?;
+                            }
+                            Ok(instance.value)
                         }))
                     }
-                    other => other,
+                    Ok(Err(error)) => Ok(Err(error)),
+                    Err(payload) => Err(payload),
                 };
                 if current && matches!(&result, Ok(Ok(_))) {
                     self.mark_resolved(&key, &entry);

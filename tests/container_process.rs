@@ -165,6 +165,11 @@ impl FrameworkCommand for ConstructionCommand {
                 .get::<dyn CompiledProbeView>("compiled.probe")
                 .await
                 .map_err(|e| ConsoleError::new(e.to_string()))?;
+            let event = app
+                .container()
+                .offsetGet::<dyn CompiledProbeView>("projection.event")
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            assert!(Arc::ptr_eq(&event, &value));
             output
                 .stdout
                 .push_str(&format!("constructed:{}", value.greeting()));
@@ -417,6 +422,15 @@ impl ServiceProvider for Provider {
             )?;
             app.container()
                 .alias(ServiceKey::typed::<CompiledProbe>(), "compiled.probe")?;
+            app.container().afterResolving(
+                Some(ServiceKey::typed::<dyn CompiledProbeView>()),
+                |event, container| {
+                    let view = event
+                        .value::<dyn CompiledProbeView>()
+                        .expect("projected event value");
+                    container.offsetSet("projection.event", view)
+                },
+            )?;
             app.container()
                 .singletonAsyncNamed::<u32, _>("parameter-number", |c| {
                     Box::pin(async move {

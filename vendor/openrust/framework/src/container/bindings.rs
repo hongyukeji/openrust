@@ -71,7 +71,7 @@ impl Container {
         T: ?Sized + Send + Sync + 'static,
         F: Fn(&Self) -> Result<Arc<T>> + Send + Sync + 'static,
     {
-        self.insert(key.into(), Binding::Factory(Arc::new(factory)))
+        self.insert(key.into(), Binding::factory(factory))
     }
 
     pub async fn offsetSetFactoryAsync<T, F>(
@@ -155,7 +155,7 @@ impl FactoryHandle {
             let binding = self.typed::<T>(false)?;
             match binding.as_ref() {
                 Binding::Factory(factory) | Binding::Singleton { factory, .. } => {
-                    factory(container)
+                    factory(container).map(|output| output.value)
                 }
                 Binding::AsyncFactory(_) | Binding::AsyncSingleton { .. } => {
                     Err(BindingResolutionError::AsyncResolutionRequired {
@@ -184,12 +184,12 @@ impl FactoryHandle {
                     Binding::Singleton {
                         async_factory: Some(factory),
                         ..
-                    } => factory(container).await,
+                    } => factory.call(container).await.map(|output| output.value),
                     Binding::Factory(factory) | Binding::Singleton { factory, .. } => {
-                        factory(container)
+                        factory(container).map(|output| output.value)
                     }
                     Binding::AsyncFactory(factory) | Binding::AsyncSingleton { factory, .. } => {
-                        factory(container).await
+                        factory.call(container).await.map(|output| output.value)
                     }
                     Binding::Instance { .. } => {
                         unreachable!("binding snapshots exclude explicit instances")

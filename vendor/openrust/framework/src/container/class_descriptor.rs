@@ -368,13 +368,11 @@ impl ClassDescriptor {
         validate_signature(&key, &parameters)?;
         let (parameters, construct) = (Arc::new(parameters), Arc::new(construct));
         let (signature, new) = (parameters.clone(), construct.clone());
-        let sync = Container::entry(Binding::Factory(Arc::new(move |c| {
-            new(resolve(c, &signature)?)
-        })));
-        let asynchronous = Container::entry(Binding::AsyncFactory(Arc::new(move |c| {
+        let sync = Container::entry(Binding::factory(move |c| new(resolve(c, &signature)?)));
+        let asynchronous = Container::entry(Binding::async_factory(move |c| {
             let (signature, new) = (parameters.clone(), construct.clone());
             Box::pin(async move { new(resolve_async(c, &signature).await?) })
-        })))
+        }))
         .with_version(sync.version.clone());
         Ok(Self {
             projections: None,
@@ -394,10 +392,10 @@ impl ClassDescriptor {
         let key = ServiceKey::typed::<T>();
         validate_signature(&key, &parameters)?;
         let (signature, new) = (Arc::new(parameters), Arc::new(construct));
-        let asynchronous = Container::entry(Binding::AsyncFactory(Arc::new(move |c| {
+        let asynchronous = Container::entry(Binding::async_factory(move |c| {
             let (signature, new) = (signature.clone(), new.clone());
             Box::pin(async move { new(resolve_async(c, &signature).await?).await })
-        })));
+        }));
         Ok(Self {
             projections: None,
             lifetime: None,
@@ -418,7 +416,7 @@ impl ClassDescriptor {
         let mut descriptor = Self::concrete(parameters, construct)?;
         validate_signature(&descriptor.key, &method_parameters)?;
         let key = descriptor.key.clone();
-        let entry = Container::entry(Binding::<T>::AsyncFactory(Arc::new(move |container| {
+        let entry = Container::entry(Binding::<T>::async_factory(move |container| {
             let key = key.clone();
             Box::pin(async move {
                 container
@@ -432,7 +430,7 @@ impl ClassDescriptor {
                     )
                     .await
             })
-        })));
+        }));
         let method = RegisteredMethod::static_declaration::<T, Arc<T>>(
             method_parameters,
             |args, container| T::newInstance(args.resolved, container),
@@ -650,7 +648,7 @@ impl Container {
         let entry = self.constructor(&key, false)?;
         let frame = self.resolve(&key, Arc::as_ptr(&entry.version).addr())?;
         let value = match entry.value.downcast_ref::<Binding<T>>() {
-            Some(Binding::Factory(factory)) => factory(self),
+            Some(Binding::Factory(factory)) => factory(self).map(|output| output.value),
             Some(Binding::AsyncFactory(_)) => {
                 Err(BindingResolutionError::AsyncResolutionRequired {
                     service: key.clone(),
@@ -676,7 +674,9 @@ impl Container {
             let value = self
                 .with_resolution(&key, Arc::as_ptr(&entry.version).addr(), async {
                     match entry.value.downcast_ref::<Binding<T>>() {
-                        Some(Binding::AsyncFactory(factory)) => factory(self).await,
+                        Some(Binding::AsyncFactory(factory)) => {
+                            factory.call(self).await.map(|output| output.value)
+                        }
                         _ => Err(BindingResolutionError::TypeMismatch {
                             service: key.clone(),
                             expected: type_name::<T>(),

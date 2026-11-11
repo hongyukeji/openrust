@@ -116,6 +116,34 @@ impl ServiceProvider for Provider {
                     .forEnvironments(["testing"])
                     .into(),
             ])?;
+            let selected = ServiceKey::typed::<dyn Selected>();
+            container.beforeResolving(Some(ServiceKey::typed::<Testing>()), |_, _| {
+                panic!("the concrete lookup must not raise an inner event");
+            })?;
+            container.afterResolving(Some(ServiceKey::typed::<Testing>()), {
+                let selected = selected.clone();
+                move |event, c| {
+                    assert_eq!(event.key(), &selected);
+                    let concrete: Arc<dyn Selected> = event.value::<Testing>().unwrap();
+                    assert!(Arc::ptr_eq(
+                        &concrete,
+                        &event.value::<dyn Selected>().unwrap()
+                    ));
+                    c.offsetSet("binding-event", Arc::new(concrete.label()))
+                }
+            })?;
+            container.afterResolving(
+                Some(ServiceKey::typed::<DefaultSelection>()),
+                move |event, c| {
+                    assert_eq!(event.key(), &selected);
+                    let concrete: Arc<dyn Selected> = event.value::<DefaultSelection>().unwrap();
+                    assert!(Arc::ptr_eq(
+                        &concrete,
+                        &event.value::<dyn Selected>().unwrap()
+                    ));
+                    c.offsetSet("binding-event", Arc::new(concrete.label()))
+                },
+            )?;
             app.container().bind::<Report, _>(|c| {
                 let EnvironmentResult::String(current) = c.currentEnvironmentIs(&[])? else {
                     panic!("custom resolver must return string for empty array");
@@ -162,6 +190,10 @@ fn read_binding(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .makeAsync::<dyn Selected>()
             .await
             .map_err(internal)?;
+        let observed = Container::getInstance()
+            .offsetGet::<&'static str>("binding-event")
+            .map_err(internal)?;
+        assert_eq!(*observed, selected.label());
         Ok(Response::new(StatusCode::OK, Body::from(selected.label())))
     })
 }

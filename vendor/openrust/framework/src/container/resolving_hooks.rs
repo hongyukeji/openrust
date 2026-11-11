@@ -1,19 +1,88 @@
 //! Ordered callback snapshots. User callbacks execute without the registry lock.
-use super::{Container, ServiceKey};
+use super::{ClassProjection, Container, ParameterValue, ServiceKey};
 use crate::contracts::container::{BindingResolutionError, Container as _};
 use std::{
-    any::{Any, TypeId},
     cell::RefCell,
     sync::{Arc, atomic::Ordering},
 };
 
-/// The canonical service identity and, after construction, its existing typed value.
+#[derive(Clone)]
+struct ResolvedObject {
+    key: ServiceKey,
+    value: ParameterValue,
+    views: Option<Arc<Vec<ClassProjection>>>,
+}
+impl ResolvedObject {
+    fn from_value<T: ?Sized + Send + Sync + 'static>(value: Arc<T>) -> Self {
+        Self {
+            key: ServiceKey::typed::<T>(),
+            value: ParameterValue::new(value),
+            views: None,
+        }
+    }
+
+    fn value<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
+        if let Ok(value) = self.value.downcast::<Arc<T>>() {
+            return Some((*value).clone());
+        }
+        let target = ServiceKey::typed::<T>();
+        self.views
+            .as_ref()?
+            .iter()
+            .find(|view| view.target == target)?
+            .view(&self.value)
+            .ok()
+    }
+
+    fn matches(&self, key: &ServiceKey) -> bool {
+        self.key == *key
+            || self
+                .views
+                .as_ref()
+                .is_some_and(|views| views.iter().any(|view| view.target == *key))
+    }
+}
+
+pub(super) struct FactoryOutput<T: ?Sized> {
+    pub(super) value: Arc<T>,
+    forwarded: Option<ResolvedObject>,
+}
+impl<T: ?Sized + Send + Sync + 'static> FactoryOutput<T> {
+    pub(super) fn plain(value: Arc<T>) -> Self {
+        Self {
+            value,
+            forwarded: None,
+        }
+    }
+
+    pub(super) fn forwarded<C: Send + Sync + 'static>(value: Arc<T>, concrete: Arc<C>) -> Self {
+        let forwarded = (ServiceKey::typed::<T>() != ServiceKey::typed::<C>()
+            && std::ptr::addr_eq(Arc::as_ptr(&value), Arc::as_ptr(&concrete)))
+        .then(|| ResolvedObject::from_value(concrete));
+        Self { value, forwarded }
+    }
+
+    pub(super) fn decorate(
+        self,
+        decorate: impl FnOnce(Arc<T>) -> Result<Arc<T>, BindingResolutionError>,
+    ) -> Result<Self, BindingResolutionError> {
+        let address = Arc::as_ptr(&self.value);
+        let value = decorate(self.value)?;
+        // The forwarded Arc keeps the original allocation live while its identity is checked.
+        let forwarded = self
+            .forwarded
+            .filter(|_| std::ptr::addr_eq(address, Arc::as_ptr(&value)));
+        Ok(Self { value, forwarded })
+    }
+}
+
+/// The canonical service identity and, after construction, its typed values.
 /// Retaining an event retains its service value, but not its container.
 #[derive(Clone)]
 pub struct ResolutionEvent {
     key: ServiceKey,
-    value: Option<Arc<dyn Any + Send + Sync>>,
-    output: Option<TypeId>,
+    object: Option<ResolvedObject>,
+    forwarded: Option<ResolvedObject>,
     parameters: super::ParameterOverrides,
 }
 impl ResolutionEvent {
@@ -23,9 +92,12 @@ impl ResolutionEvent {
     pub fn key(&self) -> &ServiceKey {
         &self.key
     }
-    /// Returns the registered output contract. Before construction there is no value.
+    /// Returns the resolved object, its forwarded concrete type, or a declared trait view.
     pub fn value<T: ?Sized + Send + Sync + 'static>(&self) -> Option<Arc<T>> {
-        self.value.as_ref()?.downcast_ref::<Arc<T>>().cloned()
+        self.object
+            .as_ref()?
+            .value::<T>()
+            .or_else(|| self.forwarded.as_ref()?.value::<T>())
     }
     pub(super) fn before(key: ServiceKey) -> Self {
         Self::before_with(key, super::ParameterOverrides::default())
@@ -33,19 +105,26 @@ impl ResolutionEvent {
     pub(super) fn before_with(key: ServiceKey, parameters: super::ParameterOverrides) -> Self {
         Self {
             key,
-            value: None,
-            output: None,
+            object: None,
+            forwarded: None,
             parameters,
         }
     }
     pub(super) fn constructed<T: ?Sized + Send + Sync + 'static>(
         key: ServiceKey,
-        value: Arc<T>,
+        output: &FactoryOutput<T>,
+        container: &Container,
     ) -> Self {
+        let mut object = ResolvedObject::from_value(output.value.clone());
+        object.views = container.class_projections(&object.key);
+        let forwarded = output.forwarded.clone().map(|mut object| {
+            object.views = container.class_projections(&object.key);
+            object
+        });
         Self {
             key,
-            value: Some(Arc::new(value)),
-            output: Some(TypeId::of::<T>()),
+            object: Some(object),
+            forwarded,
             parameters: super::ParameterOverrides::default(),
         }
     }
@@ -71,11 +150,24 @@ impl HookGroup {
             self.global.push(callback);
         }
     }
-    fn matching(&self, event: &ResolutionEvent) -> Callbacks {
+    fn matching(&self, event: &ResolutionEvent, registry: &super::Registry) -> Callbacks {
         self.keyed
             .iter()
             .filter(|(key, _)| {
-                key == event.key() || (key.type_id().is_some() && key.type_id() == event.output)
+                key == event.key()
+                    || if let Some(object) = &event.object {
+                        object.matches(key)
+                            || event
+                                .forwarded
+                                .as_ref()
+                                .is_some_and(|object| object.matches(key))
+                    } else {
+                        registry
+                            .classes
+                            .get(event.key())
+                            .and_then(|descriptor| descriptor.projections.as_ref())
+                            .is_some_and(|views| views.iter().any(|view| view.target == *key))
+                    }
             })
             .flat_map(|(_, hooks)| hooks.iter().cloned())
             .collect()
@@ -195,13 +287,10 @@ impl Container {
         for callback in global {
             callback(event, self)?;
         }
-        let keyed = self
-            .registry
-            .read()
-            .expect("container lock poisoned")
-            .hooks
-            .group(phase)
-            .matching(event);
+        let keyed = {
+            let registry = self.registry.read().expect("container lock poisoned");
+            registry.hooks.group(phase).matching(event, &registry)
+        };
         for callback in keyed {
             callback(event, self)?;
         }
@@ -210,12 +299,12 @@ impl Container {
     pub(super) fn fire_constructed<T: ?Sized + Send + Sync + 'static>(
         &self,
         key: &ServiceKey,
-        value: Arc<T>,
+        value: &FactoryOutput<T>,
     ) -> Result<(), BindingResolutionError> {
         if !self.has_hooks(Phase::Resolving) && !self.has_hooks(Phase::After) {
             return Ok(());
         }
-        let event = ResolutionEvent::constructed(key.clone(), value);
+        let event = ResolutionEvent::constructed(key.clone(), value, self);
         self.fire_hooks(&event, Phase::Resolving)?;
         self.fire_hooks(&event, Phase::After)
     }
