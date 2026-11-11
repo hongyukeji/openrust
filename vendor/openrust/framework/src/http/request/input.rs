@@ -109,6 +109,18 @@ impl Request {
             .cloned())
     }
 
+    /// Creates a lazy image from the multipart field, if present.
+    pub async fn image(&mut self, key: &str) -> Result<Option<crate::image::Image>, HttpError> {
+        self.file(key)
+            .await?
+            .map(|file| {
+                crate::image::ImageFacade::fromUpload(&file).map_err(|error| HttpError::Internal {
+                    source: Box::new(error),
+                })
+            })
+            .transpose()
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's Request API")]
     pub async fn hasFile(&mut self, key: &str) -> Result<bool, HttpError> {
         let payload = self.payload().await?;

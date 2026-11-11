@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{path::PathBuf, time::SystemTime};
 
 use tokio::io::{AsyncRead, AsyncReadExt as _};
@@ -142,6 +143,13 @@ impl FilesystemAdapter {
             Driver::Local(disk) => disk.root().join(path),
             Driver::S3(disk) => PathBuf::from(disk.key(path)),
         })
+    }
+
+    pub fn image(
+        self: &Arc<Self>,
+        path: impl Into<String>,
+    ) -> crate::image::Result<crate::image::Image> {
+        crate::image::ImageFacade::fromDisk(self.clone(), path)
     }
 
     pub async fn get(&self, path: &str) -> FilesystemResult<Option<Vec<u8>>> {

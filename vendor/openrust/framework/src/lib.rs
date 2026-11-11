@@ -15,6 +15,7 @@ pub mod filesystem;
 pub mod foundation;
 pub mod hashing;
 pub mod http;
+pub mod image;
 pub mod log;
 pub mod mail;
 pub mod notifications;

@@ -120,7 +120,7 @@ impl UploadedFile {
     }
 }
 
-fn random_name() -> FilesystemResult<String> {
+pub(crate) fn random_name() -> FilesystemResult<String> {
     const ALPHABET: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
     let mut output = String::with_capacity(40);
     while output.len() < 40 {
