@@ -49,6 +49,7 @@ struct RouteValues {
 
 struct RequestContext {
     container: Arc<Container>,
+    uri: crate::http::Uri,
     attributes: RequestAttributes,
     route: Mutex<RouteValues>,
 }
@@ -59,6 +60,7 @@ tokio::task_local! {
 
 pub(crate) async fn scope<F: Future>(
     container: Arc<Container>,
+    uri: crate::http::Uri,
     attributes: RequestAttributes,
     future: F,
 ) -> F::Output {
@@ -66,12 +68,24 @@ pub(crate) async fn scope<F: Future>(
         .scope(
             RequestContext {
                 container,
+                uri,
                 attributes,
                 route: Mutex::default(),
             },
             future,
         )
         .await
+}
+
+pub(crate) fn with_uri<T>(get: impl FnOnce(&crate::http::Uri) -> T) -> Option<T> {
+    CURRENT
+        .try_with(|context| {
+            current_container()
+                .filter(|active| Arc::ptr_eq(active, &context.container))
+                .map(|_| get(&context.uri))
+        })
+        .ok()
+        .flatten()
 }
 
 fn read(

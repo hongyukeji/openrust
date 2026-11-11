@@ -17,6 +17,7 @@ pub mod http;
 pub mod log;
 pub mod mail;
 pub mod notifications;
+pub mod pagination;
 pub mod queue;
 pub mod redis;
 pub mod routing;

@@ -6,6 +6,7 @@ use super::{
     grammars::{DatePart, Grammar},
 };
 
+mod pagination;
 mod subqueries;
 mod writes;
 

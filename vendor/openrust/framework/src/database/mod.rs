@@ -59,6 +59,7 @@ pub enum DatabaseError {
         source: Box<DatabaseError>,
     },
     InvalidScalar,
+    Pagination(crate::pagination::PaginationError),
     MassAssignment(String),
     ModelNotFound(&'static str),
     LazyLoadingViolation {
@@ -136,6 +137,7 @@ impl std::fmt::Display for DatabaseError {
                     "lazy loading {relation:?} on model {model} is prohibited"
                 )
             }
+            Self::Pagination(error) => std::fmt::Display::fmt(error, formatter),
             Self::InvalidScalar => {
                 formatter.write_str("a scalar query must return exactly one column")
             }
@@ -175,7 +177,14 @@ impl std::error::Error for DatabaseError {
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),
             Self::AttributeHashing(source) => Some(source),
+            Self::Pagination(source) => Some(source),
             _ => None,
         }
+    }
+}
+
+impl From<crate::pagination::PaginationError> for DatabaseError {
+    fn from(error: crate::pagination::PaginationError) -> Self {
+        Self::Pagination(error)
     }
 }

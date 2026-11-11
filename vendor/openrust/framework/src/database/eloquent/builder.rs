@@ -2,7 +2,10 @@ use std::{collections::HashSet, marker::PhantomData, mem};
 
 use indexmap::IndexMap;
 
-use crate::database::{Connection, DatabaseError, DatabaseResult, Value, query};
+use crate::{
+    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query},
+    pagination::{CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator},
+};
 
 use super::concerns::queries_relationships::cast_existence;
 use super::{
@@ -612,27 +615,96 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn get(self) -> DatabaseResult<Collection<M>> {
+        let (query, hydration) = self.hydration_query()?;
+        let mut models = hydration.rows(query.get().await?);
+        load_eager(hydration.eager, &mut models).await?;
+        Ok(Collection::new(models))
+    }
+
+    pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {
+        self.paginateWith(PageOptions {
+            perPage: Some(per_page),
+            ..PageOptions::default()
+        })
+        .await
+    }
+
+    pub async fn paginateWith(
+        self,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<M>> {
+        let key = self.qualifyColumn(M::metadata().primary_key);
+        let (query, hydration) = self.hydration_query()?;
+        let mut page = query
+            .order_for_pagination(&key)
+            .paginateWith(options)
+            .await?
+            .map_items(|rows| hydration.rows(rows));
+        load_eager(hydration.eager, page.items_mut()).await?;
+        Ok(page)
+    }
+
+    pub async fn simplePaginate(self, per_page: u64) -> DatabaseResult<Paginator<M>> {
+        self.simplePaginateWith(PageOptions {
+            perPage: Some(per_page),
+            ..PageOptions::default()
+        })
+        .await
+    }
+
+    pub async fn simplePaginateWith(
+        self,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<M>> {
+        let key = self.qualifyColumn(M::metadata().primary_key);
+        let (query, hydration) = self.hydration_query()?;
+        let mut page = query
+            .order_for_pagination(&key)
+            .simplePaginateWith(options)
+            .await?
+            .map_items(|rows| hydration.rows(rows));
+        load_eager(hydration.eager, page.items_mut()).await?;
+        Ok(page)
+    }
+
+    pub async fn cursorPaginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<M>> {
+        self.cursorPaginateWith(CursorOptions {
+            perPage: Some(per_page),
+            ..CursorOptions::default()
+        })
+        .await
+    }
+
+    pub async fn cursorPaginateWith(
+        self,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<M>> {
+        let key = self.qualifyColumn(M::metadata().primary_key);
+        let (query, hydration) = self.hydration_query()?;
+        let mut page = query
+            .order_for_pagination(&key)
+            .cursorPaginateWith(options)
+            .await?
+            .map_items(|rows| hydration.rows(rows));
+        load_eager(hydration.eager, page.items_mut()).await?;
+        Ok(page)
+    }
+
+    fn hydration_query(self) -> DatabaseResult<(query::Builder<'static>, Hydration<M>)> {
         let mut query = self.apply_default_counts()?;
-        let eager_load = query.take_eager_load();
+        let eager = query.take_eager_load();
         let existence = query.take_existence_attributes();
         let casts = mem::take(&mut query.casts);
         let (query, connection) = query.scoped()?;
-        let mut models: Vec<_> = query
-            .get()
-            .await?
-            .into_iter()
-            .map(|row| {
-                let mut attributes = row.into_columns().into_iter().collect();
-                cast_existence(&mut attributes, &existence);
-                M::from_state(ModelState::hydrated_attributes(
-                    attributes,
-                    connection.clone(),
-                    casts.clone(),
-                ))
-            })
-            .collect();
-        load_eager(eager_load, &mut models).await?;
-        Ok(Collection::new(models))
+        Ok((
+            query,
+            Hydration {
+                connection,
+                casts,
+                eager,
+                existence,
+            },
+        ))
     }
 
     pub async fn first(self) -> DatabaseResult<Option<M>> {
@@ -693,5 +765,28 @@ impl<M: Model> Builder<'static, M> {
             self = self.withTrashed();
         }
         self.scoped()?.0.delete().await
+    }
+}
+
+struct Hydration<M: Model> {
+    connection: Connection,
+    casts: CastOverrides,
+    eager: EagerLoads<M>,
+    existence: HashSet<String>,
+}
+
+impl<M: Model> Hydration<M> {
+    fn rows(&self, rows: Vec<Row>) -> Vec<M> {
+        rows.into_iter()
+            .map(|row| {
+                let mut attributes = row.into_columns().into_iter().collect();
+                cast_existence(&mut attributes, &self.existence);
+                M::from_state(ModelState::hydrated_attributes(
+                    attributes,
+                    self.connection.clone(),
+                    self.casts.clone(),
+                ))
+            })
+            .collect()
     }
 }
