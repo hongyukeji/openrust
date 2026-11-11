@@ -1,0 +1,54 @@
+use std::path::PathBuf;
+
+use super::{CompilerEngine, FileEngine};
+use crate::view::{
+    ViewData, ViewError, ViewResult, compilers::BladeCompiler, file_view_finder::ViewSource,
+};
+
+/// Resolves the file and Blade engines used by the view factory.
+pub struct EngineResolver {
+    file: FileEngine,
+    blade: CompilerEngine,
+}
+
+impl EngineResolver {
+    pub fn new(compiled: PathBuf) -> Self {
+        Self {
+            file: FileEngine,
+            blade: CompilerEngine::new(BladeCompiler::new(compiled)),
+        }
+    }
+
+    pub fn resolve(&self, name: &str) -> ViewResult<Engine<'_>> {
+        match name {
+            "file" => Ok(Engine::File(&self.file)),
+            "blade" => Ok(Engine::Blade(&self.blade)),
+            _ => Err(ViewError::UnknownEngine),
+        }
+    }
+
+    pub(in crate::view) fn blade(&self) -> &CompilerEngine {
+        &self.blade
+    }
+}
+
+pub enum Engine<'a> {
+    File(&'a FileEngine),
+    Blade(&'a CompilerEngine),
+}
+
+impl Engine<'_> {
+    pub(in crate::view) fn render(
+        &self,
+        source: ViewSource,
+        data: &ViewData,
+    ) -> ViewResult<String> {
+        match self {
+            Self::File(engine) => engine.get(&source.root, &source.resolved),
+            Self::Blade(engine) => {
+                let content = FileEngine.get(&source.root, &source.resolved)?;
+                engine.render(&source.path, &content, data)
+            }
+        }
+    }
+}

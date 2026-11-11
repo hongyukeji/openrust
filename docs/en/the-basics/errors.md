@@ -100,3 +100,7 @@ curl -i http://localhost:8000/missing
 curl -i http://localhost:8000/api/missing
 curl -i -H 'Accept: application/json' http://localhost:8000/missing
 ```
+
+## Custom HTTP Error Pages
+
+Add a status-specific view such as `resources/views/errors/404.blade.html`. Blade error views receive `$status` and `$message`. A plain `errors/404.html` also works. You can add `errors/4xx.blade.html` or `errors/5xx.blade.html` for a status family. Statuses 404, 500 and 503 use their dedicated view or the framework fallback. The original status and JSON negotiation apply.

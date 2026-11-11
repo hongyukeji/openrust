@@ -63,6 +63,7 @@ impl Kernel {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
+                            crate::view::console::register(&mut self.artisan)?;
                             storage_link_command::register(&mut self.artisan)?;
                             storage_unlink_command::register(&mut self.artisan)?;
                         }

@@ -100,3 +100,7 @@ curl -i http://localhost:8000/missing
 curl -i http://localhost:8000/api/missing
 curl -i -H 'Accept: application/json' http://localhost:8000/missing
 ```
+
+## 自訂 HTTP 錯誤頁
+
+加入依狀態碼命名的視圖，例如 `resources/views/errors/404.blade.html`。Blade 錯誤頁可讀取 `$status` 和 `$message`，也支援一般的 `errors/404.html`。可以用 `errors/4xx.blade.html` 或 `errors/5xx.blade.html` 處理同類錯誤。404、500 和 503 使用對應的專屬視圖或框架備援頁。回應沿用原有狀態碼與 JSON 協商規則。

@@ -28,6 +28,43 @@ use crate::{
     routing::{IntoRouteHandler, Router, RoutingError},
 };
 
+/// Resolves the view factory for the current application.
+pub struct View;
+
+impl Facade for View {
+    type Service = crate::view::Factory;
+
+    fn getFacadeAccessor() -> crate::container::ServiceKey {
+        crate::container::ServiceKey::typed::<Self::Service>()
+    }
+}
+
+impl View {
+    pub fn make(
+        name: impl Into<std::borrow::Cow<'static, str>>,
+        data: crate::view::ViewData,
+    ) -> crate::view::ViewResult<crate::view::View> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .make(name, data)
+    }
+
+    pub fn first(
+        names: &[&str],
+        data: crate::view::ViewData,
+    ) -> crate::view::ViewResult<crate::view::View> {
+        Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .first(names, data)
+    }
+
+    pub fn exists(name: &str) -> crate::view::ViewResult<bool> {
+        Ok(Self::getFacadeRoot()
+            .map_err(crate::view::ViewError::Unavailable)?
+            .exists(name))
+    }
+}
+
 tokio::task_local! {
     static ROUTER: RouteRegistration;
     static CONSOLE: RefCell<Application>;

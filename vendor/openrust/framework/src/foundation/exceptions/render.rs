@@ -1,4 +1,4 @@
-use std::{fmt::Write as _, path::Path};
+use std::{fmt::Write as _, sync::Arc};
 
 use ::http::{HeaderValue, header::CONTENT_TYPE};
 
@@ -6,7 +6,7 @@ use crate::{
     contracts::debug::Exception,
     foundation::configuration::Exceptions,
     http::{Body, HttpError, Request, Response, StatusCode},
-    view::ViewRoot,
+    view::Factory,
 };
 
 pub(super) fn default_response(
@@ -39,7 +39,7 @@ pub(super) fn default_response(
         ("application/json", payload.to_string())
     } else {
         let page = if sources.is_none() {
-            error_page(request, status)
+            error_page(request, status, message)
         } else {
             None
         };
@@ -59,10 +59,10 @@ pub(super) fn default_response(
     }
 }
 
-fn error_page(request: &Request, status: StatusCode) -> Option<String> {
-    let root = request.parts().extensions.get::<ViewRoot>()?;
-    let exact = format!("errors/{}.html", status.as_u16());
-    if let Ok(html) = root.read(Path::new(&exact)) {
+fn error_page(request: &Request, status: StatusCode, message: &str) -> Option<String> {
+    let views = request.parts().extensions.get::<Arc<Factory>>()?;
+    let exact = format!("errors.{}", status.as_u16());
+    if let Some(html) = views.render_error(&exact, status.as_u16(), message) {
         return Some(html);
     }
     // Laravel supplies dedicated fallback pages for these statuses.
@@ -73,13 +73,13 @@ fn error_page(request: &Request, status: StatusCode) -> Option<String> {
         return None;
     }
     let family = if status.is_client_error() {
-        "errors/4xx.html"
+        "errors.4xx"
     } else if status.is_server_error() {
-        "errors/5xx.html"
+        "errors.5xx"
     } else {
         return None;
     };
-    root.read(Path::new(family)).ok()
+    views.render_error(family, status.as_u16(), message)
 }
 
 fn debug_sources(exception: &Exception<'_>) -> Vec<String> {

@@ -1,107 +1,109 @@
 //! View-facing framework services.
 
-use std::{
-    borrow::Cow,
-    fs, io,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{borrow::Cow, future::Future, io, pin::Pin, sync::Arc};
 
 use ::http::{HeaderValue, header::CONTENT_TYPE};
 
-use crate::{
-    config::{ConfigError, Value},
-    http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
-};
+use crate::http::{Body, HttpError, HttpFuture, Request, Response, StatusCode};
 
+pub mod compilers;
+mod component;
+pub(crate) mod console;
+pub mod engines;
+mod factory;
+mod file_view_finder;
 pub mod middleware;
+mod view_finder;
+mod view_service_provider;
 
-#[derive(Clone)]
-pub(crate) struct ViewRoot(Arc<[PathBuf]>);
+pub use component::{Component, ComponentOutput};
+pub use factory::Factory;
+pub use file_view_finder::FileViewFinder;
+pub use view_finder::ViewFinder;
+pub use view_service_provider::ViewServiceProvider;
 
-impl ViewRoot {
-    pub(crate) fn new(base_path: &Path) -> Self {
-        Self([base_path.join("resources/views")].into())
+pub type ViewValue = serde_json::Value;
+pub type ViewData = serde_json::Map<String, ViewValue>;
+pub type ViewFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+pub type ViewResult<T> = Result<T, ViewError>;
+
+/// A lookup, compilation, or rendering failure.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ViewError {
+    InvalidName,
+    NotFound,
+    OutsideRoot,
+    UnknownEngine,
+    Unavailable(crate::contracts::container::BindingResolutionError),
+    ReadFailed(io::Error),
+    CompileFailed(Box<dyn std::error::Error + Send + Sync>),
+    RenderFailed(Box<dyn std::error::Error + Send + Sync>),
+}
+
+impl std::fmt::Display for ViewError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::InvalidName => "Invalid view name.",
+            Self::NotFound => "View not found.",
+            Self::OutsideRoot => "View is outside the view directory.",
+            Self::UnknownEngine => "View engine is unavailable.",
+            Self::Unavailable(_) => "View factory is unavailable.",
+            Self::ReadFailed(_) => "Could not read the view.",
+            Self::CompileFailed(_) => "Could not compile the view.",
+            Self::RenderFailed(_) => "Could not render the view.",
+        })
     }
+}
 
-    pub(crate) fn configure(
-        &mut self,
-        base_path: &Path,
-        paths: Option<Value>,
-    ) -> Result<(), ConfigError> {
-        let Some(paths) = paths else {
-            return Ok(());
-        };
-        let invalid = || ConfigError::InvalidType {
-            key: "view.paths".to_owned(),
-            expected: "an array of non-empty directory paths",
-        };
-        let paths = paths.as_array().ok_or_else(invalid)?;
-        let paths = paths
-            .iter()
-            .map(|path| {
-                path.as_str()
-                    .filter(|path| !path.trim().is_empty())
-                    .map(|path| base_path.join(path))
-                    .ok_or_else(invalid)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        self.0 = paths.into();
-        Ok(())
-    }
-
-    pub(crate) fn read(&self, relative: &Path) -> io::Result<String> {
-        for directory in self.0.iter() {
-            let result = directory.canonicalize().and_then(|root| {
-                let path = root.join(relative).canonicalize()?;
-                if !path.starts_with(&root) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::PermissionDenied,
-                        "View is outside the view directory.",
-                    ));
-                }
-                fs::read_to_string(path)
-            });
-            match result {
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                result => return result,
-            }
+impl std::error::Error for ViewError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ReadFailed(source) => Some(source),
+            Self::Unavailable(source) => Some(source),
+            Self::CompileFailed(source) | Self::RenderFailed(source) => Some(source.as_ref()),
+            _ => None,
         }
-        Err(io::Error::new(io::ErrorKind::NotFound, "View not found."))
     }
 }
 
 /// A named view to be rendered when the HTTP response is prepared.
 pub struct View {
     name: Cow<'static, str>,
+    data: ViewData,
 }
 
 /// Creates a named view from the current application's view directory.
 ///
-/// Dot-separated names map to directories. The current renderer serves UTF-8 HTML files.
+/// Dot-separated names map to directories.
 pub fn view(name: impl Into<Cow<'static, str>>) -> View {
-    View { name: name.into() }
+    View {
+        name: name.into(),
+        data: ViewData::new(),
+    }
 }
 
 impl View {
+    pub fn with(mut self, key: impl Into<String>, value: impl Into<ViewValue>) -> Self {
+        self.data.insert(key.into(), value.into());
+        self
+    }
+
     pub(crate) fn render(
         self,
         request: &mut Request,
     ) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
-            let root = request
+            let factory = request
                 .parts()
                 .extensions
-                .get::<ViewRoot>()
+                .get::<Arc<Factory>>()
                 .cloned()
                 .ok_or_else(|| HttpError::Internal {
-                    source: io::Error::other("No view directory is available for this request.")
+                    source: io::Error::other("No view factory is available for this request.")
                         .into(),
                 })?;
-            let path = view_path(&self.name).map_err(|source| HttpError::Internal {
-                source: source.into(),
-            })?;
-            let html = tokio::task::spawn_blocking(move || root.read(&path))
+            let html = tokio::task::spawn_blocking(move || factory.render(&self.name, &self.data))
                 .await
                 .map_err(|source| HttpError::Internal {
                     source: source.into(),
@@ -118,23 +120,4 @@ impl View {
             Ok(response)
         })
     }
-}
-
-fn view_path(name: &str) -> io::Result<PathBuf> {
-    let mut path = PathBuf::new();
-    for part in name.split('.') {
-        if part.is_empty()
-            || !part
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid view name.",
-            ));
-        }
-        path.push(part);
-    }
-    path.set_extension("html");
-    Ok(path)
 }
