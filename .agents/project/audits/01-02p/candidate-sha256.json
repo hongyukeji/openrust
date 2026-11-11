@@ -1,0 +1,18 @@
+{
+  "docs/en/architecture-concepts/container.md": "ee1e2c558087cd75e0604de6fa43897e2e5ed9f629fa033351c274e5c3387e77",
+  "docs/en/getting-started/configuration.md": "6b243b91962ef902743884ccaf6db007613da376dc79fbb4d26274851eeb763b",
+  "docs/zh-Hans/architecture-concepts/container.md": "3549eb7a819b3fa7ae9927e53f94f7a8f7bb5c31a85dc2925f6db36f9aff1d46",
+  "docs/zh-Hans/getting-started/configuration.md": "48d895de033583a90a0e73948bedfc578dfe4ced46135a528f682dd285fedb8f",
+  "docs/zh-Hant/architecture-concepts/container.md": "11b89a3881c96f45bad4c6d4e56ba950237e7033aa1d77939406fc8618765f24",
+  "docs/zh-Hant/getting-started/configuration.md": "4c75de740d8000e804d72b7cfa5dc3169a3fadfc7f43ee0d8c2fbdf8ed6e958d",
+  "tests/environment_lifecycle.rs": "caacbbad8b3302a10f7eb95007a0e37086b95110d7a7c41cdfae683555234f2f",
+  "vendor/openrust/framework/src/console/application.rs": "05952bac55c9d0368430bf09d2f2d2d5db89fd94bb57067c37cd7f06fa1a2c50",
+  "vendor/openrust/framework/src/console/mod.rs": "3951e1ff924d85893fcb09b3e98d40e0b1627ecb40c8d024caf15ae349f476a9",
+  "vendor/openrust/framework/src/console/planned.rs": "1e2f6974542b7561fe3f05fd6f817d30450a80a50ea4013430cda14b24706a44",
+  "vendor/openrust/framework/src/foundation/application.rs": "53a64ec86ce08b86b55b00d056c48f8fdb2d6759eb1c06395ae284d27b9b1e84",
+  "vendor/openrust/framework/src/foundation/bootstrap/load_environment_variables.rs": "89ced75b7e8653113271e02c8a3961c21bd17ccf69784fb1b89b14e2e8c8e9d9",
+  "vendor/openrust/framework/src/foundation/console/environment_command.rs": "b980375d7a18388e03ce44ba1ff483c6b8b2d6432f4167e7b46b0a46175f0215",
+  "vendor/openrust/framework/src/foundation/console/mod.rs": "0e44f5769a66e1c3b0541cf1e641ced8e011c25247680acc9668bbbb7fe32168",
+  "vendor/openrust/framework/src/foundation/environment_detector.rs": "9d34b6c36c23438e96bdbcf151c074333215b99f973d2dab3eb6572eae8059fb",
+  "vendor/openrust/framework/src/foundation/mod.rs": "d5cf568e8eeb09cf0b07f325164e6616ec109c086713acafd787080a98aaf212"
+}

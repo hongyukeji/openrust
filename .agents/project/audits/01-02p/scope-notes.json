@@ -1,0 +1,16 @@
+{
+  "base": "22f3a5f78c4cc04f6812af725b664ee52057ee24",
+  "candidate": "/private/tmp/openrust-01-02p-review-20261111",
+  "selected_paths": 16,
+  "shared_files": {
+    "vendor/openrust/framework/src/foundation/application.rs": "only environment changes included",
+    "vendor/openrust/framework/src/foundation/mod.rs": "only environment changes included",
+    "vendor/openrust/framework/src/foundation/console/mod.rs": "only environment changes included",
+    "vendor/openrust/framework/src/console/planned.rs": "only environment changes included"
+  },
+  "excluded": "Existing gRPC, auth, route installers, manifests, lockfile and all other workspace WIP.",
+  "dependencies": "No dependency changes.",
+  "candidate_environment": {
+    "CARGO_INCREMENTAL": "0"
+  }
+}
