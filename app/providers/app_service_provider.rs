@@ -1,6 +1,6 @@
 use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
-    database::migrations::MigrationRegistry,
+    database::{migrations::MigrationRegistry, seeder::SeederRegistry},
     foundation::Application,
     http::HttpFuture,
     support::{ProviderResult, ServiceProvider},
@@ -18,6 +18,10 @@ impl ServiceProvider for AppServiceProvider {
             app.container()
                 .instance::<MigrationRegistry>(std::sync::Arc::new(MigrationRegistry(
                     crate::database::migrations::ENTRIES,
+                )))?;
+            app.container()
+                .instance::<SeederRegistry>(std::sync::Arc::new(SeederRegistry(
+                    crate::database::seeders::ENTRIES,
                 )))?;
             Ok(())
         })

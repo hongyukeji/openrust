@@ -15,6 +15,7 @@ mod migration_service_provider;
 pub mod migrations;
 pub mod query;
 pub mod schema;
+pub mod seeder;
 mod transaction;
 mod value;
 
@@ -46,6 +47,12 @@ pub enum DatabaseError {
     UnknownConnection(String),
     UnsupportedDriver,
     InvalidConfiguration(&'static str),
+    UnknownSeeder(String),
+    InvalidSeeder(&'static str),
+    SeederFailed {
+        seeder: String,
+        source: Box<DatabaseError>,
+    },
     InvalidMigration(&'static str),
     MigrationFailed {
         migration: String,
@@ -96,6 +103,9 @@ impl std::fmt::Display for DatabaseError {
                 write!(formatter, "unsupported schema operation: {operation}")
             }
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
+            Self::UnknownSeeder(name) => write!(formatter, "seeder {name:?} is not registered"),
+            Self::InvalidSeeder(part) => write!(formatter, "invalid seeder {part}"),
+            Self::SeederFailed { seeder, source } => write!(formatter, "{seeder}: {source}"),
             Self::InvalidMigration(part) => write!(formatter, "invalid migration {part}"),
             Self::MigrationFailed { migration, source } => {
                 write!(formatter, "{migration}: {source}")
@@ -131,7 +141,9 @@ impl std::fmt::Display for DatabaseError {
 impl std::error::Error for DatabaseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Self::MigrationFailed { source, .. } => Some(source.as_ref()),
+            Self::MigrationFailed { source, .. } | Self::SeederFailed { source, .. } => {
+                Some(source.as_ref())
+            }
             Self::Driver { source, .. } => Some(source),
             Self::Unavailable(source) => Some(source),
             _ => None,

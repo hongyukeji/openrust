@@ -1,6 +1,7 @@
+use super::confirm;
+
 use std::{
     fmt::Write as _,
-    io::{self, IsTerminal as _, Write as _},
     path::{Component, Path, PathBuf},
 };
 
@@ -12,8 +13,12 @@ use crate::{
         Output,
     },
     contracts::{container::Container as _, foundation::Application as _},
-    database::migrations::{
-        MigrationCreator, MigrationOutcome, MigrationResult, Migrator, RollbackOptions, RunOptions,
+    database::{
+        migrations::{
+            MigrationCreator, MigrationOutcome, MigrationResult, Migrator, RollbackOptions,
+            RunOptions,
+        },
+        seeder,
     },
     foundation::Application,
 };
@@ -119,6 +124,11 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
             if matches!(kind, Kind::Fresh | Kind::Wipe) {
                 syntax = syntax.arg(flag("drop-views")).arg(flag("drop-types"));
             }
+            if matches!(kind, Kind::Run | Kind::Fresh | Kind::Refresh) {
+                syntax = syntax
+                    .arg(flag("seed"))
+                    .arg(Arg::new("seeder").long("seeder"));
+            }
             if kind == Kind::Status {
                 syntax = syntax.arg(flag("pending"));
             }
@@ -222,6 +232,9 @@ impl Command for MigrationCommand {
                         .await
                         .map_err(console_error)?;
                     report(output, rows, pretend, "Nothing to migrate.");
+                    if matches.get_flag("seed") && !pretend {
+                        seed(app, database, matches, output).await?;
+                    }
                 }
                 Kind::Rollback => {
                     let options = RollbackOptions {
@@ -255,6 +268,9 @@ impl Command for MigrationCommand {
                         .map_err(console_error)?;
                     report(output, down, false, "Nothing to rollback.");
                     report(output, up, false, "Nothing to migrate.");
+                    if matches.get_flag("seed") || matches.contains_id("seeder") {
+                        seed(app, database, matches, output).await?;
+                    }
                 }
                 Kind::Fresh => {
                     if matches.get_flag("drop-types") {
@@ -272,6 +288,9 @@ impl Command for MigrationCommand {
                         .await
                         .map_err(console_error)?;
                     report(output, rows, false, "Nothing to migrate.");
+                    if matches.get_flag("seed") || matches.contains_id("seeder") {
+                        seed(app, database, matches, output).await?;
+                    }
                 }
                 Kind::Wipe => {
                     if matches.get_flag("drop-types") {
@@ -292,33 +311,19 @@ impl Command for MigrationCommand {
     }
 }
 
-fn confirm(app: &Application, matches: &clap::ArgMatches) -> Result<bool, ConsoleError> {
-    if matches.get_flag("force") {
-        return Ok(true);
-    }
-    let config = app.configuration_repository().map_err(console_error)?;
-    if config
-        .get("app.env")
-        .is_none_or(|value| value.as_str() != Some("production"))
-    {
-        return Ok(true);
-    }
-    if matches.get_flag("no-interaction") || !io::stdin().is_terminal() {
-        return Ok(false);
-    }
-    let mut output = io::stderr().lock();
-    output
-        .write_all(b"APPLICATION IN PRODUCTION. Do you really wish to run this command? [y/N] ")
-        .map_err(console_error)?;
-    output.flush().map_err(console_error)?;
-    let mut response = String::new();
-    io::stdin()
-        .read_line(&mut response)
-        .map_err(console_error)?;
-    Ok(matches!(
-        response.trim().to_ascii_lowercase().as_str(),
-        "y" | "yes"
-    ))
+async fn seed(
+    app: &Application,
+    database: Option<&str>,
+    matches: &clap::ArgMatches,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let name = matches
+        .get_one::<String>("seeder")
+        .map(String::as_str)
+        .filter(|name| !name.is_empty());
+    seeder::run(app, database, name, output)
+        .await
+        .map_err(console_error)
 }
 
 fn report(output: &mut Output, rows: Vec<MigrationOutcome>, pretend: bool, empty: &str) {

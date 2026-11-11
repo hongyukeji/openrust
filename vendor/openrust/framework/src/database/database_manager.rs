@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    future::Future,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
@@ -12,6 +13,10 @@ use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
     connectors::ConnectionFactory,
 };
+
+tokio::task_local! {
+    static CONNECTION_OVERRIDES: Vec<(usize, String)>;
+}
 
 /// Resolves configured connections and manages application-local pools.
 pub struct DatabaseManager {
@@ -30,7 +35,26 @@ impl DatabaseManager {
         }
     }
 
+    /// Uses the selected default connection while polling this future.
+    pub async fn usingConnection<T>(&self, name: &str, future: impl Future<Output = T>) -> T {
+        let mut overrides = CONNECTION_OVERRIDES
+            .try_with(Clone::clone)
+            .unwrap_or_default();
+        overrides.push((std::ptr::from_ref(self).addr(), name.to_owned()));
+        CONNECTION_OVERRIDES.scope(overrides, future).await
+    }
+
     pub fn getDefaultConnection(&self) -> DatabaseResult<String> {
+        let identity = std::ptr::from_ref(self).addr();
+        if let Ok(Some(name)) = CONNECTION_OVERRIDES.try_with(|overrides| {
+            overrides
+                .iter()
+                .rev()
+                .find(|(manager, _)| *manager == identity)
+                .map(|(_, name)| name.clone())
+        }) {
+            return Ok(name);
+        }
         match self.config.get("database.default") {
             None => Ok("sqlite".to_owned()),
             Some(Value::String(name)) if !name.is_empty() => Ok(name),

@@ -1,0 +1,137 @@
+use std::{
+    fs::{self, OpenOptions},
+    io::{self, Write as _},
+    path::{Path, PathBuf},
+};
+
+use clap::{Arg, ArgAction, Command as Syntax};
+
+use crate::{
+    console::{
+        Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
+        Output,
+    },
+    contracts::foundation::Application as _,
+    foundation::Application,
+};
+
+pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
+    artisan.add_command(Box::new(SeederMakeCommand(CommandDefinition::new(
+        Syntax::new("make:seeder")
+            .about("Create a new seeder class")
+            .arg(Arg::new("name").required(true))
+            .arg(Arg::new("force").long("force").action(ArgAction::SetTrue)),
+    ))))
+}
+
+struct SeederMakeCommand(CommandDefinition);
+
+impl Command for SeederMakeCommand {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        app: &'a Application,
+        input: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let args = input.matches();
+            let name = args
+                .get_one::<String>("name")
+                .expect("name required by Clap");
+            let root = app.base_path();
+            let path = create(root, name, args.get_flag("force"))
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+            let path = path.strip_prefix(root).unwrap_or(&path);
+            output.info(&format!(
+                "Seeder [{}] created successfully.",
+                path.display()
+            ));
+            output
+                .stdout
+                .push_str("Register the seeder in database/seeders/mod.rs and rebuild.\n");
+            Ok(0)
+        })
+    }
+}
+
+fn create(root: &Path, name: &str, force: bool) -> io::Result<PathBuf> {
+    let parts: Vec<_> = name.split(['/', '\\']).collect();
+    if parts.iter().any(|part| {
+        !part.as_bytes().first().is_some_and(u8::is_ascii_uppercase)
+            || !part.bytes().all(|byte| byte.is_ascii_alphanumeric())
+    }) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Use a PascalCase seeder name, such as UserSeeder.",
+        ));
+    }
+    let (class, namespaces) = parts
+        .split_last()
+        .expect("split returns at least one component");
+    let mut directory = root.join("database/seeders");
+    for namespace in namespaces {
+        directory.push(snake_case(namespace));
+    }
+    fs::create_dir_all(&directory)?;
+    let path = directory.join(format!("{}.rs", snake_case(class)));
+    let code = format!(
+        r#"use openrust::database::{{
+    DatabaseFuture, DatabaseResult,
+    seeder::{{Seeder, SeederContext}},
+}};
+
+pub struct {class};
+
+impl Seeder for {class} {{
+    fn run<'a>(
+        &'a self,
+        _context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {{
+        Box::pin(async {{ Ok(()) }})
+    }}
+}}
+"#
+    );
+    if force {
+        let temporary = directory.join(format!(".seeder-{:016x}.tmp", fastrand::u64(..)));
+        write_new(&temporary, code.as_bytes())?;
+        if let Err(error) = fs::rename(&temporary, &path) {
+            let _ = fs::remove_file(temporary);
+            return Err(error);
+        }
+    } else {
+        write_new(&path, code.as_bytes())?;
+    }
+    Ok(path)
+}
+
+fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut file = OpenOptions::new().write(true).create_new(true).open(path)?;
+    if let Err(error) = file.write_all(bytes) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        return Err(error);
+    }
+    Ok(())
+}
+
+fn snake_case(name: &str) -> String {
+    let bytes = name.as_bytes();
+    let mut snake = String::new();
+    for (index, byte) in bytes.iter().copied().enumerate() {
+        if index > 0
+            && byte.is_ascii_uppercase()
+            && (bytes[index - 1].is_ascii_lowercase()
+                || bytes[index - 1].is_ascii_digit()
+                || bytes.get(index + 1).is_some_and(u8::is_ascii_lowercase))
+        {
+            snake.push('_');
+        }
+        snake.push(char::from(byte.to_ascii_lowercase()));
+    }
+    snake
+}

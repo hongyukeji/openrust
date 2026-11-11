@@ -70,6 +70,7 @@ impl Kernel {
                             storage_link_command::register(&mut self.artisan)?;
                             storage_unlink_command::register(&mut self.artisan)?;
                             crate::database::console::migrations::register(&mut self.artisan)?;
+                            crate::database::console::seeds::register(&mut self.artisan)?;
                         }
                         (self.application.shared.commands)(&mut self.artisan)?;
                         if let Some(register) = self.application.shared.command_routes {
