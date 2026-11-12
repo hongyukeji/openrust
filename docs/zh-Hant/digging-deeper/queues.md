@@ -100,6 +100,21 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 在服務提供者的 `boot` 方法中以 `Bus::registerChainCallback` 按名稱註冊失敗回呼，再以 `catch("reports.failed")` 關聯。Worker 在自己的應用程式內解析回呼，並傳入失敗的工作承載資料和佇列錯誤。工作應確保副作用具冪等性，因為 Worker 遺失預約後可能再次執行工作。工作鏈回呼沒有獨立的重試紀錄。
 
+### 向目前工作鏈加入工作 {#adding-jobs-to-the-chain}
+
+在工作處理器內，使用 `JobContext::prependToChain` 讓新工作緊接目前工作執行，使用 `appendToChain` 將新工作放到現有鏈尾。處理器成功後變更生效。失敗或釋放會捨棄本次嘗試的變更。
+
+```rust
+use openrust::queue::{JobContext, Payload, QueueResult};
+
+fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
+    context.prependToChain(before)?;
+    context.appendToChain(after)
+}
+```
+
+每次呼叫接收一個工作承載資料或待派送批次。插入批次遵循[工作鏈中的批次](#batches-within-chains)規則。若目前工作鏈已屬於某個批次，可插入工作承載資料來擴充該批次。新工作共用批次 ID，Worker 在記錄目前工作成功時一併儲存新增數量和後繼。使用批次鏈的執行期間變更前，請執行 `./artisan migrate`。
+
 ## 工作批次 {#job-batching}
 
 執行 `./artisan migrate` 建立批次帳本和投遞紀錄。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。

@@ -100,6 +100,21 @@ Use `onConnection` and `onQueue` to select the destination for the chain. `delay
 
 Register a failure callback by name in your provider’s `boot` method with `Bus::registerChainCallback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
 
+### Adding jobs to the chain {#adding-jobs-to-the-chain}
+
+Inside a job handler, use `JobContext::prependToChain` to run a job immediately after the current job. Use `appendToChain` to place it after the existing chain. Edits take effect when the handler succeeds. A failed or released attempt discards its edits.
+
+```rust
+use openrust::queue::{JobContext, Payload, QueueResult};
+
+fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
+    context.prependToChain(before)?;
+    context.appendToChain(after)
+}
+```
+
+Each call accepts a job payload or a pending batch. An inserted batch follows the [batches within chains](#batches-within-chains) rules. In a chain already running inside a batch, insert job payloads to extend that batch. The new jobs share the batch ID, and the worker records their count and successor with the current job’s completion. Run `./artisan migrate` before using runtime edits in batched chains.
+
 ## Job batching {#job-batching}
 
 Run `./artisan migrate` to create the batch ledger and delivery history. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.

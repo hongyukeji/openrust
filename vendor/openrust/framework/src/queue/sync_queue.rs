@@ -23,7 +23,7 @@ impl SyncQueue {
             queue: queue.into(),
             attempts: 1,
             transaction,
-            release_after: None,
+            ..JobContext::default()
         };
         let mut next = None;
         loop {
@@ -37,7 +37,10 @@ impl SyncQueue {
             if context.release_after.is_some() {
                 return Ok(None);
             }
-            next = job.next_chain_job();
+            next = context
+                .chain_update
+                .take()
+                .map_or_else(|| job.next_chain_job(), |update| Some(update.next));
             if next.is_none() {
                 return Ok(None);
             }

@@ -157,7 +157,7 @@ impl DatabaseQueue {
                 queue: queue.into(),
                 attempts,
                 transaction: None,
-                release_after: None,
+                ..JobContext::default()
             },
             payload,
             deleted: false,

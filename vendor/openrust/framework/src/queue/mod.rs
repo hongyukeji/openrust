@@ -1,7 +1,10 @@
 //! Queue drivers, workers, and dispatch data.
 
+mod chain_edit;
 pub mod connectors;
 pub mod console;
+pub use chain_edit::ChainJob;
+pub(crate) use chain_edit::ChainUpdate;
 mod database_queue;
 mod facade;
 pub mod failed;
@@ -160,7 +163,7 @@ pub struct Payload {
     pub(crate) chained_batch: Option<Box<crate::bus::ChainedBatch>>,
 }
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 struct JobChain {
     remaining: std::collections::VecDeque<Payload>,
     catches: Vec<String>,
@@ -260,11 +263,11 @@ impl Payload {
         self.chain.as_ref().map_or(&[], |chain| &chain.catches)
     }
 
-    pub(super) fn encode(&self) -> QueueResult<String> {
+    pub(crate) fn encode(&self) -> QueueResult<String> {
         serde_json::to_string(self).map_err(|_| QueueError::InvalidPayload)
     }
 
-    pub(super) fn decode(raw: &str) -> QueueResult<Self> {
+    pub(crate) fn decode(raw: &str) -> QueueResult<Self> {
         let payload: Self = serde_json::from_str(raw).map_err(|_| QueueError::InvalidPayload)?;
         if payload.version != 1
             || payload.name.trim().is_empty()
@@ -284,6 +287,8 @@ pub struct JobContext<'tx> {
     attempts: u32,
     transaction: Option<&'tx mut crate::database::Transaction>,
     release_after: Option<Duration>,
+    chain_edits: chain_edit::ChainEdits,
+    chain_update: Option<ChainUpdate>,
 }
 
 impl JobContext<'_> {

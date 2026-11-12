@@ -6,7 +6,7 @@ use crate::{
         Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
         query::{Builder, Record},
     },
-    queue::{Payload, QueueError, QueueResult, backend, new_id},
+    queue::{ChainUpdate, Payload, QueueError, QueueResult, backend, new_id},
 };
 
 use super::{Batch, BatchContinuation, BatchPhase, BatchTransition};
@@ -362,7 +362,7 @@ impl DatabaseBatchRepository {
         id: &str,
         job: &str,
         delivery: &str,
-    ) -> QueueResult<Option<bool>> {
+    ) -> QueueResult<Option<RecordedBatchJob>> {
         let row = self
             .connection
             .table(&self.jobs_table)
@@ -378,7 +378,19 @@ impl DatabaseBatchRepository {
             .first()
             .await
             .map_err(backend)?;
-        row.as_ref().map(succeeded).transpose().map_err(backend)
+        row.as_ref()
+            .map(|row| {
+                let successor = match row.get("chain_successor") {
+                    Some(Value::Text(raw)) => Some(Payload::decode(raw)?),
+                    Some(Value::Null) | None => None,
+                    _ => return Err(QueueError::InvalidPayload),
+                };
+                Ok(RecordedBatchJob {
+                    succeeded: succeeded(row).map_err(backend)?,
+                    successor,
+                })
+            })
+            .transpose()
     }
 
     pub(crate) async fn record(
@@ -387,7 +399,10 @@ impl DatabaseBatchRepository {
         job: &str,
         delivery: &str,
         succeeded: bool,
+        edit: Option<&ChainUpdate>,
     ) -> QueueResult<Option<BatchTransition>> {
+        let added = edit.map_or(0, |edit| edit.added);
+        let successor = edit.map(|edit| edit.next.encode()).transpose()?;
         let repository = self.clone();
         let (id, job, delivery) = (id.to_owned(), job.to_owned(), delivery.to_owned());
         self.connection
@@ -395,6 +410,7 @@ impl DatabaseBatchRepository {
                 move |transaction| {
                     let repository = repository.clone();
                     let (id, job, delivery) = (id.clone(), job.clone(), delivery.clone());
+                    let successor = successor.clone();
                     Box::pin(async move {
                         let Some(row) = transaction
                             .table(&repository.table)
@@ -429,8 +445,11 @@ impl DatabaseBatchRepository {
                         let mut canceled = false;
                         if succeeded {
                             phases.push(BatchPhase::Progress);
-                            batch.pending_jobs =
-                                batch.pending_jobs.checked_sub(1).ok_or(invalid())?;
+                            batch.total_jobs = increment(batch.total_jobs, added)?;
+                            batch.pending_jobs = increment(
+                                batch.pending_jobs.checked_sub(1).ok_or(invalid())?,
+                                added,
+                            )?;
                             batch.failed_job_ids.retain(|failed| failed != &job);
                             started = first.then(|| batch.clone());
                             if batch.pending_jobs == 0 {
@@ -467,7 +486,7 @@ impl DatabaseBatchRepository {
                         } else {
                             (false, Vec::new())
                         };
-                        let values = [
+                        let mut values: Record = [
                             ("batch_id".into(), id.as_str().into()),
                             ("job_id".into(), job.as_str().into()),
                             ("delivery_id".into(), delivery.as_str().into()),
@@ -475,6 +494,9 @@ impl DatabaseBatchRepository {
                         ]
                         .into_iter()
                         .collect();
+                        if let Some(successor) = successor {
+                            values.insert("chain_successor".into(), successor.into());
+                        }
                         transaction
                             .table(&repository.jobs_table)
                             .insert(&[values])
@@ -709,6 +731,11 @@ impl DatabaseBatchRepository {
             .await
             .map_err(backend)
     }
+}
+
+pub(crate) struct RecordedBatchJob {
+    pub(crate) succeeded: bool,
+    pub(crate) successor: Option<Payload>,
 }
 
 pub(crate) enum PublicationKey {

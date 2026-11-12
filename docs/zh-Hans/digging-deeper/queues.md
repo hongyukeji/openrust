@@ -100,6 +100,21 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 在服务提供者的 `boot` 方法中用 `Bus::registerChainCallback` 按名称注册失败回调，再用 `catch("reports.failed")` 关联。Worker 在自己的应用内解析回调，并传入失败的任务载荷和队列错误。任务应保证副作用幂等，因为 Worker 丢失预约后可能再次执行任务。任务链回调没有独立的重试记录。
 
+### 向当前任务链添加任务 {#adding-jobs-to-the-chain}
+
+在任务处理器内，使用 `JobContext::prependToChain` 让新任务紧接当前任务执行，使用 `appendToChain` 将新任务放到现有链尾。处理器成功后修改生效。失败或释放会丢弃本次尝试的修改。
+
+```rust
+use openrust::queue::{JobContext, Payload, QueueResult};
+
+fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
+    context.prependToChain(before)?;
+    context.appendToChain(after)
+}
+```
+
+每次调用接收一个任务载荷或待派发批次。插入批次遵循[任务链中的批次](#batches-within-chains)规则。若当前链已属于某个批次，可插入任务载荷来扩展该批次。新任务共享批次 ID，Worker 在记录当前任务成功时一并保存新增数量和后继。使用批次链的运行时修改前，请执行 `./artisan migrate`。
+
 ## 任务批次 {#job-batching}
 
 运行 `./artisan migrate` 创建批次账本和投递记录。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。

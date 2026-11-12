@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     bus::{
-        BatchPhase, DatabaseBatchRepository, PublicationKey,
+        BatchPhase, DatabaseBatchRepository, PublicationKey, RecordedBatchJob,
         events::{BatchCanceled, BatchFinished, BatchStarted, emit},
     },
     container::Container,
@@ -19,7 +19,7 @@ use crate::{
 };
 
 use super::{
-    JobContext, QueueError, QueueManager, QueueResult, WorkerOptions,
+    ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
     failed::{FailedJob, FailedJobProviderInterface},
 };
 
@@ -116,21 +116,16 @@ impl Worker {
     async fn process(&self, job: &mut dyn Job, options: &WorkerOptions) -> QueueResult<WorkResult> {
         let batch = BatchCompletion::resolve(&self.app, job)?;
         if let Some(batch) = &batch
-            && let Some(succeeded) = batch.recorded().await?
+            && let Some(recorded) = batch.recorded().await?
         {
-            if succeeded {
-                Self::complete(job).await?;
-                return Ok(WorkResult::Processed);
-            }
-            job.delete().await?;
-            return Ok(WorkResult::Failed);
+            return Self::complete_recorded(job, recorded).await;
         }
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id
         {
             if let Some(batch) = &batch {
                 batch
-                    .record(&self.app, job.payload(), Some(&failed.exception))
+                    .record(&self.app, job.payload(), Some(&failed.exception), None)
                     .await?;
             }
             job.delete().await?;
@@ -181,10 +176,16 @@ impl Worker {
         }
         match result {
             Ok(()) => {
-                if let Some(batch) = &batch {
-                    batch.record(&self.app, job.payload(), None).await?;
+                let edit = context.chain_update.take();
+                if let Some(batch) = &batch
+                    && !batch
+                        .record(&self.app, job.payload(), None, edit.as_ref())
+                        .await?
+                    && let Some(recorded) = batch.recorded().await?
+                {
+                    return Self::complete_recorded(job, recorded).await;
                 }
-                Self::complete(job).await?;
+                Self::complete(job, edit.map(|edit| edit.next)).await?;
                 Ok(WorkResult::Processed)
             }
             Err(error)
@@ -212,9 +213,21 @@ impl Worker {
         }
     }
 
-    async fn complete(job: &mut dyn Job) -> QueueResult<()> {
+    async fn complete_recorded(
+        job: &mut dyn Job,
+        recorded: RecordedBatchJob,
+    ) -> QueueResult<WorkResult> {
+        if recorded.succeeded {
+            Self::complete(job, recorded.successor).await?;
+            return Ok(WorkResult::Processed);
+        }
+        job.delete().await?;
+        Ok(WorkResult::Failed)
+    }
+
+    async fn complete(job: &mut dyn Job, edited_next: Option<Payload>) -> QueueResult<()> {
         if job.payload().chained_batch.is_none()
-            && let Some(next) = job.payload().next_chain_job()
+            && let Some(next) = edited_next.or_else(|| job.payload().next_chain_job())
         {
             return job.advance_chain(&next).await;
         }
@@ -230,7 +243,7 @@ impl Worker {
         self.failed.log(&FailedJob::new(job, error)).await?;
         if let Some(batch) = batch {
             batch
-                .record(&self.app, job.payload(), Some(&error.to_string()))
+                .record(&self.app, job.payload(), Some(&error.to_string()), None)
                 .await?;
         }
         job.fail(Some(error)).await?;
@@ -274,7 +287,7 @@ impl BatchCompletion {
         }))
     }
 
-    async fn recorded(&self) -> QueueResult<Option<bool>> {
+    async fn recorded(&self) -> QueueResult<Option<RecordedBatchJob>> {
         self.repository
             .recorded(&self.id, &self.job, &self.delivery)
             .await
@@ -285,55 +298,57 @@ impl BatchCompletion {
         app: &Arc<Container>,
         job: &super::Payload,
         failure: Option<&str>,
-    ) -> QueueResult<()> {
-        if let Some(transition) = self
+        edit: Option<&ChainUpdate>,
+    ) -> QueueResult<bool> {
+        let Some(transition) = self
             .repository
-            .record(&self.id, &self.job, &self.delivery, failure.is_none())
+            .record(&self.id, &self.job, &self.delivery, failure.is_none(), edit)
             .await?
-        {
-            isolated_scope(app.clone(), async {
-                if let Some(batch) = transition.started {
-                    emit(BatchStarted { batch }).await;
-                }
-                if transition.canceled {
-                    emit(BatchCanceled {
+        else {
+            return Ok(false);
+        };
+        isolated_scope(app.clone(), async {
+            if let Some(batch) = transition.started {
+                emit(BatchStarted { batch }).await;
+            }
+            if transition.canceled {
+                emit(BatchCanceled {
+                    batch: transition.batch.clone(),
+                    exception: failure.map(str::to_owned),
+                })
+                .await;
+            }
+            for phase in transition.phases {
+                if matches!(phase, BatchPhase::Then) {
+                    emit(BatchFinished {
                         batch: transition.batch.clone(),
-                        exception: failure.map(str::to_owned),
                     })
                     .await;
                 }
-                for phase in transition.phases {
-                    if matches!(phase, BatchPhase::Then) {
-                        emit(BatchFinished {
-                            batch: transition.batch.clone(),
-                        })
-                        .await;
-                    }
+                self.queue
+                    .run_batch_callbacks(&transition.batch, &[phase], failure)
+                    .await;
+                if matches!(phase, BatchPhase::Catch)
+                    && let Some(cause) = failure
+                    && !transition.chain_catches.is_empty()
+                {
+                    let error = QueueError::ChainedBatchFailed(cause.to_owned());
                     self.queue
-                        .run_batch_callbacks(&transition.batch, &[phase], failure)
-                        .await;
-                    if matches!(phase, BatchPhase::Catch)
-                        && let Some(cause) = failure
-                        && !transition.chain_catches.is_empty()
-                    {
-                        let error = QueueError::ChainedBatchFailed(cause.to_owned());
-                        self.queue
-                            .run_chain_callbacks(job, &error, &transition.chain_catches)
-                            .await;
-                    }
-                }
-                if transition.continuation_ready {
-                    self.queue
-                        .publish_after_commit(
-                            &self.repository,
-                            &PublicationKey::Continuation(transition.batch.id),
-                        )
+                        .run_chain_callbacks(job, &error, &transition.chain_catches)
                         .await;
                 }
-            })
-            .await;
-        }
-        Ok(())
+            }
+            if transition.continuation_ready {
+                self.queue
+                    .publish_after_commit(
+                        &self.repository,
+                        &PublicationKey::Continuation(transition.batch.id),
+                    )
+                    .await;
+            }
+        })
+        .await;
+        Ok(true)
     }
 }
 

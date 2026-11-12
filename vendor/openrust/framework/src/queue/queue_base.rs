@@ -78,6 +78,8 @@ impl Queue {
         context: &mut JobContext<'_>,
         payload: &Payload,
     ) -> QueueResult<()> {
+        context.chain_edits = Default::default();
+        context.chain_update = None;
         let handler = self
             .handlers
             .read()
@@ -93,7 +95,11 @@ impl Queue {
             let middleware = handler.middleware();
             super::middleware::JobNext::new(handler.as_ref(), &middleware)
                 .run(context, payload)
-                .await
+                .await?;
+            if context.release_after.is_none() {
+                context.finish_chain_edit(payload)?;
+            }
+            Ok(())
         })
         .await
     }

@@ -245,7 +245,7 @@ impl RedisQueue {
                 queue: queue.into(),
                 attempts: job.attempts,
                 transaction: None,
-                release_after: None,
+                ..JobContext::default()
             },
             payload,
             deleted: false,

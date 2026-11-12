@@ -239,6 +239,10 @@ impl JobHandler for Probe {
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
                 .unwrap();
+            if data.ends_with(".edit-batched") {
+                let added = Payload::new("reports.generate", format!("{data}-added"))?;
+                context.prependToChain(added)?;
+            }
             if data == "loader" {
                 let batch = Bus::findBatch(payload.batchId().unwrap()).await?.unwrap();
                 let loaded = Payload::new("reports.generate", "loaded")?;
@@ -266,6 +270,11 @@ impl JobHandler for Probe {
     }
 }
 
+fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> QueueResult<()> {
+    context.prependToChain(before)?;
+    context.appendToChain(after)
+}
+
 struct ChainProbe;
 
 impl JobHandler for ChainProbe {
@@ -280,10 +289,31 @@ impl JobHandler for ChainProbe {
             assert_eq!(context.connection(), connection);
             assert_eq!(context.queue(), "chain");
             record_chain_receipt(data).await;
+            let step_job = |name: &str| Payload::new("chain.step", format!("{connection}.{name}"));
+            if matches!(
+                step,
+                "edit-retry" | "edit-release" | "edit-fail" | "edit-last"
+            ) {
+                let before = step_job(&format!("{step}-before"))?;
+                let after = step_job(&format!("{step}-after"))?;
+                edit_chain(context, before, after)?;
+            }
+            if step == "edit-batch" {
+                let report = Payload::new(
+                    "reports.generate",
+                    format!("{connection}.edit-batch-report"),
+                )?;
+                let batch = Bus::batch([report])
+                    .name(format!("{connection}.edit-batch"))
+                    .onQueue("inner-batch");
+                context.prependToChain(batch)?;
+            }
             match step {
-                "retry" if context.attempts() == 1 => Err(QueueError::InvalidPayload),
-                "fail" => Err(QueueError::InvalidPayload),
-                "release" if context.attempts() == 1 => {
+                "retry" | "edit-retry" if context.attempts() == 1 => {
+                    Err(QueueError::InvalidPayload)
+                }
+                "fail" | "edit-fail" => Err(QueueError::InvalidPayload),
+                "release" | "edit-release" if context.attempts() == 1 => {
                     context.release(Duration::ZERO);
                     Ok(())
                 }
@@ -309,9 +339,12 @@ fn chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
         let chain = Bus::chain([step(kind)?])
             .onConnection(connection)
             .onQueue("chain")
-            .prepend(step("first")?)
-            .append(step("last")?)
             .catch("chain.failed");
+        let chain = if kind == "edit-last" {
+            chain
+        } else {
+            chain.prepend(step("first")?).append(step("last")?)
+        };
         let chain = match kind {
             "missing-callback" => chain.catch("missing"),
             "delay" => chain.delay(Delay::For(Duration::from_secs(3600))),
@@ -409,6 +442,7 @@ fn batched_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response,
                 .addChain([step("stop")?, step("blocked")?])
                 .allowFailures(),
             "recover" => Bus::batch([]).addChain([step("recover-head")?, step("recover-tail")?]),
+            "edit" => Bus::batch([]).addChain([step("edit-batched")?, step("edit-batched-tail")?]),
             _ => batched_chains(
                 [step("left-first")?, step("left-tail")?],
                 [step("right-first")?, step("right-tail")?],
@@ -991,6 +1025,8 @@ async fn exercise(mysql: Option<&str>) {
         verify_redis_batch(&root.0, &db, &redis, address).await;
         verify_chain(&root.0, &db, &queue, address, "redis").await;
         verify_chain_redis_handoff(&redis, &queue, address).await;
+        verify_chain_edits(&root.0, &db, address, "redis").await;
+        verify_batched_chain_edit(&root.0, &db, address, "redis", None).await;
         verify_batched_chains(&root.0, &db, &queue, address, "redis").await;
         verify_chained_batches(&root.0, &db, &queue, address, "redis", "cross").await;
         verify_chained_batch_recovery(&root.0, &db, address, Some(&redis), mysql.is_some()).await;
@@ -1013,6 +1049,11 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(chain_receipt(&db, "sync.ok-first").await, 0);
     verify_chained_batches(&root.0, &db, &queue, address, "database", "ok").await;
     verify_chained_batch_recovery(&root.0, &db, address, None, mysql.is_some()).await;
+    verify_chain_edits(&root.0, &db, address, "database").await;
+    verify_batched_chain_edit(&root.0, &db, address, "database", Some(mysql.is_some())).await;
+    request(address, "chain/sync/edit-last", 200).await;
+    assert_eq!(chain_receipt(&db, "sync.edit-last-before").await, 1);
+    assert_eq!(chain_receipt(&db, "sync.edit-last-after").await, 1);
     server.abort();
 }
 
@@ -1481,6 +1522,131 @@ async fn verify_chained_batch_recovery(
         chain_receipt(db, &format!("{connection}.recover-last")).await,
         1
     );
+}
+
+async fn verify_chain_edits(
+    base: &Path,
+    db: &Connection,
+    address: std::net::SocketAddr,
+    connection: &str,
+) {
+    let work = [
+        "queue:work",
+        connection,
+        "--queue=chain",
+        "--once",
+        "--tries=2",
+    ];
+    for kind in ["edit-retry", "edit-release"] {
+        let before = format!("{connection}.{kind}-before");
+        let after = format!("{connection}.{kind}-after");
+        let last = format!("{connection}.last");
+        let previous = chain_receipt(db, &last).await;
+        request(address, &format!("chain/{connection}/{kind}"), 200).await;
+        for _ in 0..3 {
+            artisan(base, &work).await;
+            assert_eq!(chain_receipt(db, &before).await, 0);
+            assert_eq!(chain_receipt(db, &after).await, 0);
+        }
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &before).await, 1);
+        assert_eq!(chain_receipt(db, &last).await, previous);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &last).await, previous + 1);
+        assert_eq!(chain_receipt(db, &after).await, 0);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &after).await, 1);
+        assert_eq!(chain_receipt(db, &before).await, 1);
+        assert_eq!(chain_receipt(db, &format!("{connection}.{kind}")).await, 2);
+    }
+    request(address, &format!("chain/{connection}/edit-fail"), 200).await;
+    for _ in 0..5 {
+        artisan(base, &work).await;
+    }
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-fail-before")).await,
+        0
+    );
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-fail-after")).await,
+        0
+    );
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-fail.catch")).await,
+        1
+    );
+
+    request(address, &format!("chain/{connection}/edit-batch"), 200).await;
+    artisan(base, &work).await;
+    artisan(base, &work).await;
+    artisan(base, &work).await;
+    let id = chained_batch_id(db, &format!("{connection}.edit-batch")).await;
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    assert_eq!(repository.find(&id).await.unwrap().unwrap().pending_jobs, 1);
+    artisan(
+        base,
+        &["queue:work", connection, "--queue=inner-batch", "--once"],
+    )
+    .await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-batch-report")).await,
+        1
+    );
+    artisan(base, &work).await;
+}
+
+async fn verify_batched_chain_edit(
+    base: &Path,
+    db: &Connection,
+    address: std::net::SocketAddr,
+    connection: &str,
+    database: Option<bool>,
+) {
+    let batch = request(address, &format!("batched-chains/{connection}/edit"), 200)
+        .await
+        .unwrap();
+    let id = batch["id"].as_str().unwrap();
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    let once = ["queue:work", connection, "--queue=batched-chains", "--once"];
+    if let Some(mysql) = database {
+        let reject = if mysql {
+            r#"alter table jobs add constraint reject_edited_chain check (payload not like '%"data":"database.edit-batched-added"%')"#
+        } else {
+            r#"create trigger reject_edited_chain before insert on jobs when new.payload like '%"data":"database.edit-batched-added"%' begin select raise(abort, 'handoff rejected'); end"#
+        };
+        db.unprepared(reject).await.unwrap();
+        artisan_status(base, &once, 1).await;
+        let snapshot = repository.find(id).await.unwrap().unwrap();
+        assert_eq!((snapshot.total_jobs, snapshot.pending_jobs), (3, 2));
+        let allow = if mysql {
+            "alter table jobs drop check reject_edited_chain"
+        } else {
+            "drop trigger reject_edited_chain"
+        };
+        db.unprepared(allow).await.unwrap();
+        db.statement(
+            "update jobs set reserved_at = 0 where queue = ?",
+            &["batched-chains".into()],
+        )
+        .await
+        .unwrap();
+    }
+    artisan(base, &once).await;
+    let snapshot = repository.find(id).await.unwrap().unwrap();
+    assert_eq!((snapshot.total_jobs, snapshot.pending_jobs), (3, 2));
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-batched")).await,
+        1
+    );
+    artisan(base, &once).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.edit-batched-added")).await,
+        1
+    );
+    artisan(base, &once).await;
+    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
 }
 
 async fn verify_database_append(base: &Path, db: &Connection, address: std::net::SocketAddr) {

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex, RwLock, Weak},
 };
 
@@ -304,13 +304,13 @@ impl QueueManager {
         }
     }
 
-    pub(crate) fn validate_chained_batches(
+    pub(crate) fn validate_chained_batches<'a>(
         &self,
-        jobs: &VecDeque<Payload>,
+        jobs: impl IntoIterator<Item = &'a Payload>,
         options: &DispatchOptions,
     ) -> QueueResult<()> {
         let mut batches = jobs
-            .iter()
+            .into_iter()
             .filter_map(|job| job.chained_batch.as_deref())
             .peekable();
         if batches.peek().is_none() {
