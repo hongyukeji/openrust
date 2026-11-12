@@ -14,6 +14,6 @@ pub use factory::Factory;
 pub use interruptible::Interruptible;
 pub use job::Job;
 pub use job_handler::JobHandler;
-pub use queue_contract::Queue;
+pub use queue_contract::{Queue, QueueMetrics};
 pub use should_queue::ShouldQueue;
 pub use should_queue_after_commit::ShouldQueueAfterCommit;

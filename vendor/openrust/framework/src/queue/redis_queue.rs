@@ -1,12 +1,12 @@
 use std::{
     sync::Arc,
-    time::{Duration, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contracts::queue::{ClearableQueue, Job, Queue as Contract},
+    contracts::queue::{ClearableQueue, Job, Queue as Contract, QueueMetrics},
     redis::connections::Connection,
 };
 
@@ -120,12 +120,23 @@ redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
 return count
 ";
 
+const METRICS: &str = r"
+return {
+    redis.call('LLEN', KEYS[1]),
+    redis.call('ZCARD', KEYS[2]),
+    redis.call('ZCARD', KEYS[3]),
+    redis.call('LINDEX', KEYS[1], 0)
+}
+";
+
 #[derive(Serialize, Deserialize)]
 struct RedisJob {
     id: String,
     // Lua changes reservation metadata without rounding JSON numbers inside the payload.
     payload: String,
     attempts: u32,
+    #[serde(default)]
+    created_at: Option<u64>,
 }
 
 /// Stores and reserves jobs using a Redis connection.
@@ -170,6 +181,7 @@ impl RedisQueue {
             id: new_id()?,
             payload: payload.encode()?,
             attempts: 0,
+            created_at: Some(created_at()),
         };
         let raw = serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?;
         let mut command = script(ENQUEUE, &[&ready, &delayed, &notify]);
@@ -207,6 +219,7 @@ impl RedisQueue {
                 id: payload.uuid().into(),
                 payload: payload.encode()?,
                 attempts: 0,
+                created_at: Some(created_at()),
             };
             command.arg(serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?);
         }
@@ -403,6 +416,25 @@ impl Contract for RedisQueue {
         })
     }
 
+    fn metrics<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<QueueMetrics>> {
+        Box::pin(async move {
+            let [ready, delayed, reserved] = self.keys(self.queue_name(queue)?);
+            let command = script(METRICS, &[&ready, &delayed, &reserved]);
+            let (pending, delayed, reserved, first): (u64, u64, u64, Option<Vec<u8>>) =
+                self.connection.query(&command).await.map_err(backend)?;
+            let oldest_pending = first
+                .and_then(|raw| serde_json::from_slice::<RedisJob>(&raw).ok())
+                .and_then(|job| job.created_at);
+            Ok(QueueMetrics {
+                size: pending + delayed + reserved,
+                pending: Some(pending),
+                delayed: Some(delayed),
+                reserved: Some(reserved),
+                oldest_pending,
+            })
+        })
+    }
+
     fn push<'a>(
         &'a self,
         payload: &'a Payload,
@@ -508,6 +540,13 @@ impl Reservation for RedisReservation {
     }
 }
 
+fn created_at() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
 fn chain_enqueue_command(
     before: &str,
     after: &str,
@@ -520,6 +559,7 @@ fn chain_enqueue_command(
         id: new_id()?,
         payload: payload.encode()?,
         attempts: 0,
+        created_at: Some(created_at()),
     })
     .map_err(|_| QueueError::InvalidPayload)?;
     let (mode, duration) = match delay.unwrap_or(Delay::For(Duration::ZERO)) {

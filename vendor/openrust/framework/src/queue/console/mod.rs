@@ -1,6 +1,7 @@
 //! Artisan commands for queue workers.
 
 mod clear_command;
+mod monitor_command;
 mod prune_batches_command;
 mod prune_chain_deliveries_command;
 mod publish_batches_command;
@@ -20,6 +21,7 @@ pub(crate) fn register(
     artisan.add_command(Box::new(WorkCommand::new()))?;
     worker_control_command::register(artisan)?;
     clear_command::register(artisan)?;
+    monitor_command::register(artisan)?;
     prune_batches_command::register(artisan)?;
     prune_chain_deliveries_command::register(artisan)?;
     retry_batch_command::register(artisan)?;

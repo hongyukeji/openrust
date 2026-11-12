@@ -24,7 +24,7 @@ mod unix {
             QueueManager, QueueResult, console::ClearCommand,
         },
         queue::{
-            events::JobTimedOut,
+            events::{JobTimedOut, QueueBusy},
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
         redis::{RedisManager, connections::Connection},
@@ -145,6 +145,25 @@ mod unix {
         );
     }
 
+    struct BusyObserver(PathBuf);
+
+    impl Listener for BusyObserver {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event
+                    .downcast_ref::<QueueBusy>()
+                    .ok_or(EventError::InvalidPayload)?;
+                std::fs::write(self.0.join("busy.json"), serde_json::to_vec(event).unwrap())
+                    .unwrap();
+                Ok(None)
+            })
+        }
+    }
+
     struct Provider(PathBuf);
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -152,6 +171,11 @@ mod unix {
                 if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
                     ClearCommand::prohibit(true)?;
                 }
+                Event::listen(
+                    QueueBusy::NAME,
+                    Arc::new(BusyObserver(self.0.clone())),
+                    Delivery::Sync,
+                )?;
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
                 Event::listen(
@@ -244,6 +268,87 @@ mod unix {
         (result.status.code(), lines)
     }
 
+    async fn verify_monitor(
+        root: &Path,
+        queue: &dyn openrust::contracts::queue::Queue,
+        redis: Option<&Connection>,
+    ) {
+        let monitor = |args: &[&str]| {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["artisan", "queue:monitor"])
+                .args(args)
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            async move {
+                let output = tokio::time::timeout(Duration::from_secs(8), command.output())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+                String::from_utf8(output.stdout).unwrap()
+            }
+        };
+        let busy = root.join("busy.json");
+        let target = format!("{}:clear-one,clear-two", queue.get_connection_name());
+        let output = monitor(&[&target, "--max=4", "--json"]).await;
+        let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
+        assert_eq!(rows[0]["connection"], queue.get_connection_name());
+        assert_eq!(rows[0]["queue"], "clear-one");
+        assert_eq!(rows[0]["size"], 3);
+        assert_eq!(rows[0]["pending"], 1);
+        assert_eq!(rows[0]["delayed"], 1);
+        assert_eq!(rows[0]["reserved"], 1);
+        assert!(rows[0]["oldest_pending"].as_u64().unwrap() > 0);
+        assert_eq!(rows[0]["status"], "OK");
+        assert_eq!(rows[1]["size"], 1);
+        assert!(!busy.exists());
+
+        let output = monitor(&[&target, "--max=3", "--json"]).await;
+        let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
+        assert_eq!(rows[0]["status"], "ALERT");
+        assert_eq!(rows[1]["status"], "OK");
+        let event: Value = serde_json::from_slice(&std::fs::read(&busy).unwrap()).unwrap();
+        assert_eq!(
+            event,
+            json!({"connection_name": queue.get_connection_name(), "queue": "clear-one", "size": 3})
+        );
+        std::fs::remove_file(&busy).unwrap();
+
+        let output = monitor(&["clear-one", "--max=4"]).await;
+        assert!(output.contains("Pending jobs: 1"), "{output}");
+        assert!(output.contains("Delayed jobs: 1"), "{output}");
+        assert!(output.contains("Reserved jobs: 1"), "{output}");
+        let output = monitor(&["monitor-empty,sync:default", "--json"]).await;
+        let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
+        assert_eq!(rows[0]["pending"], 0);
+        assert!(rows[0]["oldest_pending"].is_null());
+        assert_eq!(rows[1]["size"], 0);
+        assert_eq!(rows[1]["pending"], 0);
+        assert_eq!(rows[1]["delayed"], 0);
+        assert_eq!(rows[1]["reserved"], 0);
+        assert!(rows[1]["oldest_pending"].is_null());
+
+        if let Some(redis) = redis {
+            let key = redis.key("queues:monitor-legacy");
+            let raw = json!({"id":"legacy","payload":"{}","attempts":0}).to_string();
+            redis
+                .command("RPUSH", &[key.as_bytes(), raw.as_bytes()])
+                .await
+                .unwrap();
+            let output = monitor(&["monitor-legacy", "--json"]).await;
+            let rows: Vec<Value> = serde_json::from_str(&output).unwrap();
+            assert_eq!(rows[0]["pending"], 1);
+            assert!(rows[0]["oldest_pending"].is_null());
+            queue
+                .clearable()
+                .unwrap()
+                .clear("monitor-legacy")
+                .await
+                .unwrap();
+        }
+    }
+
     async fn verify_clear(
         root: &Path,
         queue: &dyn openrust::contracts::queue::Queue,
@@ -294,6 +399,8 @@ mod unix {
                 openrust::redis::Value::Int(1)
             );
         }
+
+        verify_monitor(root, queue, redis).await;
 
         let selection = [
             "--queue=clear-one, , clear-two, clear-one",

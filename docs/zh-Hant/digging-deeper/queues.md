@@ -724,6 +724,16 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 正式環境需要在終端機確認，或為明確的非互動操作傳入 `--force`。應用程式可以在服務提供者中呼叫 `ClearCommand::prohibit(true)` 禁用此命令，禁用時 `--force` 也無法執行。
 
+## 監控佇列 {#monitoring-your-queues}
+
+執行 `queue:monitor` 並傳入逗號分隔的佇列名稱或 `connection:queue`。省略連線名稱時使用應用程式預設連線。`--max` 預設為 1000。達到或超過門檻時輸出 `ALERT` 並派發 `QueueBusy`，其餘佇列輸出 `OK`。
+
+```sh
+./artisan queue:monitor database:emails,reports --max=100 --json
+```
+
+命令輸出總數、待執行、延遲和已預約數量。JSON 中最早待執行工作使用 Unix 時間戳記，文字輸出顯示等待時間。升級前缺少建立時間的 Redis 工作，可能使 `oldest_pending` 傳回 `null`。
+
 ## 佇列監聽器
 
 透過 `ListenerRegistry::listenQueued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。

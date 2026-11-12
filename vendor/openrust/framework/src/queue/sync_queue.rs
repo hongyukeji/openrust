@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::contracts::queue::{Job, Queue as Contract};
+use crate::contracts::queue::{Job, Queue as Contract, QueueMetrics};
 
 use super::{Delay, JobContext, Payload, Queue, QueueFuture, QueueResult, queue_name};
 
@@ -69,6 +69,21 @@ impl Contract for SyncQueue {
 
     fn size<'a>(&'a self, _queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>> {
         Box::pin(async { Ok(0) })
+    }
+
+    fn metrics<'a>(
+        &'a self,
+        _queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<QueueMetrics>> {
+        Box::pin(async {
+            Ok(QueueMetrics {
+                size: 0,
+                pending: Some(0),
+                delayed: Some(0),
+                reserved: Some(0),
+                oldest_pending: None,
+            })
+        })
     }
 
     fn push<'a>(

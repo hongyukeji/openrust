@@ -724,6 +724,16 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 生产环境需要在终端确认，或为明确的非交互操作传入 `--force`。应用可以在服务提供者中调用 `ClearCommand::prohibit(true)` 禁用该命令，禁用时 `--force` 也无法执行。
 
+## 监控队列 {#monitoring-your-queues}
+
+运行 `queue:monitor` 并传入逗号分隔的队列名或 `connection:queue`。省略连接名时使用应用默认连接。`--max` 默认为 1000。达到或超过阈值时输出 `ALERT` 并派发 `QueueBusy`，其余队列输出 `OK`。
+
+```sh
+./artisan queue:monitor database:emails,reports --max=100 --json
+```
+
+命令输出总数、待执行、延迟和已预约数量。JSON 中最早待执行任务使用 Unix 时间戳，文本输出显示等待时长。升级前缺少创建时间的 Redis 任务，可能使 `oldest_pending` 返回 `null`。
+
 ## 队列监听器
 
 通过 `ListenerRegistry::listenQueued::<YourEvent>` 登记可序列化的事件及稳定的监听器 ID。Worker 在其应用内解析监听器。监听器的 `after_commit` 可将入队推迟到事务提交后。

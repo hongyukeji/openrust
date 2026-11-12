@@ -25,6 +25,11 @@ macro_rules! queue_event {
 }
 
 queue_event!(
+    /// A monitored queue has reached its configured size threshold.
+    QueueBusy { connection_name: String, queue: String, size: u64 }
+);
+
+queue_event!(
     /// An individual queue pause was written.
     QueuePaused { connection: String, queue: String, ttl: Option<Ttl> }
 );

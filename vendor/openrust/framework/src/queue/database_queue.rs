@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    contracts::queue::{ClearableQueue, Job, Queue as Contract},
+    contracts::queue::{ClearableQueue, Job, Queue as Contract, QueueMetrics},
     database::{Connection, Row, Transaction, Value},
 };
 
@@ -225,6 +225,39 @@ impl Contract for DatabaseQueue {
                 rows.first().ok_or(QueueError::InvalidPayload)?,
                 "count",
             )?)
+        })
+    }
+
+    fn metrics<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<QueueMetrics>> {
+        Box::pin(async move {
+            let queue = queue_name(queue, &self.queue)?;
+            let clock = self.clock();
+            let table = self.table_sql()?;
+            let sql = format!(
+                "select count(*) as total_count,
+                 count(case when reserved_at is null and available_at <= {clock} then 1 end) as pending_count,
+                 count(case when reserved_at is null and available_at > {clock} then 1 end) as delayed_count,
+                 count(reserved_at) as reserved_count,
+                 min(case when reserved_at is null and available_at <= {clock} then available_at end) as oldest_pending
+                 from {table} where queue = ?"
+            );
+            let rows = self
+                .connection
+                .selectFromWriteConnection(&sql, &[queue.into()])
+                .await
+                .map_err(backend)?;
+            let row = rows.first().ok_or(QueueError::InvalidPayload)?;
+            let oldest_pending = match field(row, "oldest_pending")? {
+                Value::Null => None,
+                value => Some(number(value)?),
+            };
+            Ok(QueueMetrics {
+                size: number(field(row, "total_count")?)?,
+                pending: Some(number(field(row, "pending_count")?)?),
+                delayed: Some(number(field(row, "delayed_count")?)?),
+                reserved: Some(number(field(row, "reserved_count")?)?),
+                oldest_pending,
+            })
         })
     }
 

@@ -724,6 +724,16 @@ The command reports the number of removed jobs. An already running handler can c
 
 In production, approve the interactive prompt or pass `--force` for an intentional non-interactive run. An application may prohibit the command from a service provider with `ClearCommand::prohibit(true)`. Prohibition takes precedence over `--force`.
 
+## Monitoring your queues {#monitoring-your-queues}
+
+Run `queue:monitor` with a comma-separated list of queue names or `connection:queue` targets. A queue without a connection uses the application's default connection. `--max` defaults to 1000. At or above this count, the command marks the queue `ALERT` and dispatches `QueueBusy`; otherwise it reports `OK`.
+
+```sh
+./artisan queue:monitor database:emails,reports --max=100 --json
+```
+
+The command reports total, pending, delayed, and reserved jobs, and the oldest pending job's Unix timestamp in JSON. The text view shows its age. Redis jobs written before creation timestamps were added can return `null` for `oldest_pending`.
+
 ## Queued listeners
 
 Use `ListenerRegistry::listenQueued::<YourEvent>` with a stable listener ID and a serializable event. The worker resolves the registered listener from its application. The listener's `after_commit` option can defer enqueueing until the transaction commits.
