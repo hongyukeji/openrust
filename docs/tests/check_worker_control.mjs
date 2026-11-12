@@ -18,17 +18,18 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-rest-and-idle-timeout", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
                     const body = await page.locator("main").innerText();
-                    for (const command of ["queue:restart", "queue:work --json --stop-when-empty", "queue:pause database:default", "queue:continue database:default", "queue:pause --all", "queue:resume --all"]) {
+                    for (const command of ["queue:restart", "queue:work --json --stop-when-empty", "queue:work --json --rest=1 --stop-when-empty-for=2", "queue:pause database:default", "queue:continue database:default", "queue:pause --all", "queue:resume --all"]) {
                         assert.ok(body.includes(`./artisan ${command}`), `${locale}: ${command}`);
                     }
                     assert.ok(body.includes("Queue::pauseFor"));
                     assert.ok(body.includes("WorkerQueueResumed"));
                     assert.ok(body.includes("restart_signal"));
+                    assert.ok(body.includes("empty_for"));
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

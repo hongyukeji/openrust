@@ -714,6 +714,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         assert_eq!(events.dispatched(QueueResumed::NAME).len(), 1);
     }
     verify_worker_control(&root.0, &db, &*queue, address, default_queue).await;
+    verify_worker_cadence(&root.0, &db, address, redis.is_some()).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -894,7 +895,16 @@ async fn verify_worker_control(
     assert_eq!(count(WorkerQueuePaused::NAME).await, paused + 1);
     assert_eq!(count(WorkerQueueResumed::NAME).await, resumed + 1);
     assert_eq!(count("control_default").await, 6);
-    let output = run(root, &["queue:work", "--json", "--max-time=1"]).await;
+    let output = run(
+        root,
+        &[
+            "queue:work",
+            "--json",
+            "--max-time=1",
+            "--stop-when-empty-for=0",
+        ],
+    )
+    .await;
     assert_eq!(json_lines(&output).last().unwrap()["reason"], "max_time");
     let output = run(
         root,
@@ -904,6 +914,91 @@ async fn verify_worker_control(
     assert!(json_lines(&output).is_empty());
     let output = run(root, &["queue:work", "--stop-when-empty"]).await;
     assert!(output.contains("Worker STOPPED Queue empty"));
+}
+
+async fn verify_worker_cadence(
+    root: &Path,
+    db: &openrust::database::Connection,
+    address: SocketAddr,
+    redis: bool,
+) {
+    request(address, "control_default").await;
+    request(address, "control_default").await;
+    let output = run(
+        root,
+        &[
+            "queue:work",
+            "--json",
+            "--rest=1",
+            "--stop-when-empty-for=2",
+            "--sleep=30",
+        ],
+    )
+    .await;
+    let rows = json_lines(&output);
+    assert_eq!(rows.len(), 5, "{output}");
+    assert_eq!(rows[0]["status"], "starting");
+    assert_eq!(rows[1]["status"], "success");
+    assert_eq!(rows[2]["status"], "starting");
+    assert_eq!(rows[3]["status"], "success");
+    assert_eq!(rows[4]["reason"], "empty_for");
+    assert_eq!(rows[4]["jobs_processed"], 2);
+    let timestamp = |row: &Json| {
+        chrono::DateTime::parse_from_rfc3339(row["timestamp"].as_str().unwrap()).unwrap()
+    };
+    assert!((timestamp(&rows[2]) - timestamp(&rows[1])).num_milliseconds() >= 950);
+    assert!((timestamp(&rows[4]) - timestamp(&rows[3])).num_milliseconds() >= 1950);
+    assert_eq!(
+        db.scalar(
+            "select value from receipts where name = 'stop:QueueEmptyFor'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        Value::Integer(2)
+    );
+
+    let output = run(
+        root,
+        &[
+            "queue:work",
+            "--json",
+            "--stop-when-empty",
+            "--stop-when-empty-for=30",
+        ],
+    )
+    .await;
+    assert_eq!(json_lines(&output).last().unwrap()["reason"], "empty");
+
+    if redis {
+        let start = tokio::time::Instant::now();
+        let mut worker = artisan(
+            root,
+            &[
+                "queue:work",
+                "--json",
+                "--stop-when-empty-for=5",
+                "--sleep=30",
+                "--max-jobs=1",
+            ],
+        )
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+        sleep(Duration::from_millis(400)).await;
+        request(address, "control_default").await;
+        assert!(
+            timeout(Duration::from_secs(3), worker.wait())
+                .await
+                .unwrap()
+                .unwrap()
+                .success()
+        );
+        assert!(start.elapsed() < Duration::from_secs(4));
+        let rows = captured_worker_output(&mut worker).await;
+        assert_eq!(rows.last().unwrap()["reason"], "max_jobs");
+        assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
+    }
 }
 
 #[tokio::test]

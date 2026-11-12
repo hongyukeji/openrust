@@ -12,6 +12,8 @@ pub enum WorkerStopReason {
     MaxTimeExceeded,
     #[serde(rename = "empty")]
     QueueEmpty,
+    #[serde(rename = "empty_for")]
+    QueueEmptyFor,
     #[serde(rename = "restart_signal")]
     ReceivedRestartSignal,
 }
@@ -23,6 +25,7 @@ impl WorkerStopReason {
             Self::MaxJobsExceeded => "Maximum jobs exceeded",
             Self::MaxTimeExceeded => "Maximum run time exceeded",
             Self::QueueEmpty => "Queue empty",
+            Self::QueueEmptyFor => "Queue empty for the configured duration",
             Self::ReceivedRestartSignal => "Received restart signal",
         }
     }

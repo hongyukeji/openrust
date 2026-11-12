@@ -33,6 +33,12 @@ pub enum WorkResult {
     Failed,
 }
 
+#[derive(Default)]
+pub(super) struct WorkerCadence {
+    pub rest: Duration,
+    pub stop_when_empty_for: Option<Duration>,
+}
+
 pub(super) enum WorkerStatus<'a> {
     Paused(&'a WorkerQueuePaused),
     Resumed(&'a WorkerQueueResumed),
@@ -96,8 +102,15 @@ impl Worker {
         options: &WorkerOptions,
         shutdown: &CancellationToken,
     ) -> QueueResult<u64> {
-        self.daemon_with_status(connection, queues, options, shutdown, |_| {})
-            .await
+        self.daemon_with_status(
+            connection,
+            queues,
+            options,
+            &WorkerCadence::default(),
+            shutdown,
+            |_| {},
+        )
+        .await
     }
 
     pub(super) async fn daemon_with_status(
@@ -105,6 +118,7 @@ impl Worker {
         connection: &dyn Queue,
         queues: &[&str],
         options: &WorkerOptions,
+        cadence: &WorkerCadence,
         shutdown: &CancellationToken,
         mut status: impl FnMut(WorkerStatus<'_>) + Send,
     ) -> QueueResult<u64> {
@@ -131,6 +145,7 @@ impl Worker {
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let mut processed = 0;
+        let mut idle_since = start;
         let mut last_job_processed_at = None;
         let mut paused: Vec<&str> = Vec::new();
         let reason = loop {
@@ -151,6 +166,9 @@ impl Worker {
             if options.max_jobs.is_some_and(|limit| processed >= limit) {
                 break WorkerStopReason::MaxJobsExceeded;
             }
+            let idle_deadline = cadence
+                .stop_when_empty_for
+                .and_then(|limit| idle_since.checked_add(limit));
             let reservation = async {
                 if let Some(control) = &control {
                     let observed = control.paused_queues(name, queues).await?;
@@ -186,6 +204,10 @@ impl Worker {
                     }
                     let job = if options.stop_when_empty || queues.len() > 1 {
                         connection.pop_now(Some(queue)).await?
+                    } else if let Some(idle_deadline) = idle_deadline {
+                        let wait =
+                            idle_deadline.saturating_duration_since(tokio::time::Instant::now());
+                        connection.pop_within(Some(queue), wait).await?
                     } else {
                         connection.pop(Some(queue)).await?
                     };
@@ -215,17 +237,30 @@ impl Worker {
                     }),
                 ));
                 processed += 1;
+                idle_since = tokio::time::Instant::now();
                 last_job_processed_at = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .ok()
                     .map(|elapsed| elapsed.as_secs());
+                if !cadence.rest.is_zero() {
+                    tokio::select! {
+                        biased;
+                        () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
+                        () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
+                        () = tokio::time::sleep(cadence.rest) => {},
+                    }
+                }
             } else if options.stop_when_empty {
                 break WorkerStopReason::QueueEmpty;
             } else {
+                if idle_deadline.is_some_and(|limit| tokio::time::Instant::now() >= limit) {
+                    break WorkerStopReason::QueueEmptyFor;
+                }
                 tokio::select! {
                     biased;
                     () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                     () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
+                    () = wait_until(idle_deadline) => {},
                     () = tokio::time::sleep(options.sleep) => {},
                 }
             }

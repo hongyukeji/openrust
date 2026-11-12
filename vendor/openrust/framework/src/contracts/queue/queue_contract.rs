@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::queue::{Delay, Payload, QueueFuture, QueueResult};
 
 use super::Job;
@@ -42,6 +44,15 @@ pub trait Queue: Send + Sync {
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>>;
+    /// Reserves an available job or waits up to the supplied limit on blocking drivers.
+    fn pop_within<'a>(
+        &'a self,
+        queue: Option<&'a str>,
+        _wait: Duration,
+    ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
+        self.pop_now(queue)
+    }
+
     fn pop_now<'a>(
         &'a self,
         queue: Option<&'a str>,

@@ -7,7 +7,7 @@ use crate::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
-    queue::{QueueManager, Worker, WorkerOptions},
+    queue::{QueueManager, Worker, WorkerOptions, worker::WorkerCadence},
 };
 
 use super::worker_output::WorkerOutput;
@@ -25,6 +25,8 @@ impl WorkCommand {
                 .arg(flag("once"))
                 .arg(flag("json").help("Output the job information as JSON"))
                 .arg(flag("stop-when-empty"))
+                .arg(seconds("stop-when-empty-for").default_value("0"))
+                .arg(seconds("rest").default_value("0"))
                 .arg(seconds("tries").default_value("1"))
                 .arg(seconds("timeout").default_value("60"))
                 .arg(seconds("sleep").default_value("3"))
@@ -89,6 +91,15 @@ impl Command for WorkCommand {
                     .map(duration),
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
             };
+            let cadence = if once {
+                WorkerCadence::default()
+            } else {
+                let empty = number("stop-when-empty-for");
+                WorkerCadence {
+                    rest: duration(number("rest")),
+                    stop_when_empty_for: (empty > 0).then(|| duration(empty)),
+                }
+            };
             let config = app.config().map_err(error)?;
             let timezone = config
                 .get("queue.output_timezone")
@@ -105,9 +116,14 @@ impl Command for WorkCommand {
             let shutdown = CancellationToken::new();
             let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
             let result = worker
-                .daemon_with_status(&*connection, &queues, &options, &shutdown, |event| {
-                    status.write(event)
-                })
+                .daemon_with_status(
+                    &*connection,
+                    &queues,
+                    &options,
+                    &cadence,
+                    &shutdown,
+                    |event| status.write(event),
+                )
                 .await;
             listener.abort();
             result.map_err(error)?;

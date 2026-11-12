@@ -96,9 +96,19 @@ A worker writes job progress and pause or resume notices while it runs. Use `--j
 ./artisan queue:work --json --stop-when-empty
 ```
 
-A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `max_jobs`, `max_time`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
+A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `empty_for`, `max_jobs`, `max_time`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
 
 Timestamps use `queue.output_timezone` if configured, then `app.timezone` or UTC. Memory usage is currently reported as `null`.
+
+#### Resting between jobs and stopping after inactivity {#worker-rest-and-idle-timeout}
+
+Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop after the queue is empty and the worker has gone the specified number of seconds without processing a job. The idle timer starts when the worker starts and resets when it finishes each job.
+
+```sh
+./artisan queue:work --json --rest=1 --stop-when-empty-for=2
+```
+
+This worker reports `empty_for` when the idle limit is met. A value of zero disables the idle limit. `--stop-when-empty` still exits as soon as no job is available. With an idle limit, a Redis blocking reservation waits at most for the remaining idle window.
 
 ### Pausing and resuming queue workers {#pausing-and-resuming-queue-workers}
 

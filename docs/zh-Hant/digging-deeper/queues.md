@@ -96,9 +96,19 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
-正常結束時，`stopped` 記錄包含原因、結束代碼和已處理工作數。現有原因包括 `empty`、`max_jobs`、`max_time`、`interrupted` 和 `restart_signal`。單次 Worker 輸出工作記錄並省略結束摘要。應用程式可監聽 `WorkerStopping` 觀察正常結束。
+正常結束時，`stopped` 記錄包含原因、結束代碼和已處理工作數。現有原因包括 `empty`、`empty_for`、`max_jobs`、`max_time`、`interrupted` 和 `restart_signal`。單次 Worker 輸出工作記錄並省略結束摘要。應用程式可監聽 `WorkerStopping` 觀察正常結束。
 
 時間戳記優先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。記憶體用量目前輸出為 `null`。
+
+#### 工作間隔與閒置結束 {#worker-rest-and-idle-timeout}
+
+使用 `--rest` 設定工作執行之間的等待時間。使用 `--stop-when-empty-for` 時，佇列為空且 Worker 連續指定秒數未處理工作，Worker 就會結束。閒置計時從啟動開始，每次工作執行結束後重設。
+
+```sh
+./artisan queue:work --json --rest=1 --stop-when-empty-for=2
+```
+
+達到閒置時限時，結束原因為 `empty_for`。設為零可關閉閒置時限。`--stop-when-empty` 會在沒有可用工作時立即結束。設定閒置時限後，Redis 阻塞取工作最多等待剩餘的閒置時間。
 
 ### 暫停和恢復佇列 Worker {#pausing-and-resuming-queue-workers}
 

@@ -311,13 +311,25 @@ impl RedisQueue {
             failed: false,
         })))
     }
-    async fn pop_waiting(&self, queue: &str) -> QueueResult<Option<Box<dyn Job>>> {
+    async fn pop_waiting(
+        &self,
+        queue: &str,
+        wait: Option<Duration>,
+    ) -> QueueResult<Option<Box<dyn Job>>> {
+        let started = tokio::time::Instant::now();
         let first = self.reserve(queue).await?;
         let Some(seconds) = self.block_for.filter(|_| first.is_none()) else {
             return Ok(first);
         };
-        let deadline = (seconds != 0)
-            .then(|| tokio::time::Instant::now() + Duration::from_secs(u64::from(seconds)));
+        let configured = (seconds != 0).then(|| Duration::from_secs(u64::from(seconds)));
+        let limit = match (configured, wait) {
+            (Some(configured), Some(wait)) => Some(configured.min(wait)),
+            (configured, wait) => configured.or(wait),
+        };
+        let deadline = limit.and_then(|limit| started.checked_add(limit));
+        if deadline.is_some_and(|deadline| tokio::time::Instant::now() >= deadline) {
+            return Ok(None);
+        }
         let [ready, _, _] = self.keys(queue);
         let notify = format!("{ready}:notify");
         // A dedicated connection keeps BLPOP from stalling unrelated Redis commands.
@@ -334,7 +346,8 @@ impl RedisQueue {
             }
             let slice = remaining
                 .unwrap_or(Duration::from_secs(1))
-                .min(Duration::from_secs(1));
+                .min(Duration::from_secs(1))
+                .max(Duration::from_millis(1));
             // Bounded waits allow delayed jobs and expired reservations to be promoted.
             let mut command = ::redis::cmd("BLPOP");
             command.arg(&notify).arg(slice.as_secs_f64());
@@ -390,8 +403,16 @@ impl Contract for RedisQueue {
         &'a self,
         queue: Option<&'a str>,
     ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
-        Box::pin(async move { self.pop_waiting(self.queue_name(queue)?).await })
+        Box::pin(async move { self.pop_waiting(self.queue_name(queue)?, None).await })
     }
+    fn pop_within<'a>(
+        &'a self,
+        queue: Option<&'a str>,
+        wait: Duration,
+    ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
+        Box::pin(async move { self.pop_waiting(self.queue_name(queue)?, Some(wait)).await })
+    }
+
     fn pop_now<'a>(
         &'a self,
         queue: Option<&'a str>,
