@@ -2,11 +2,15 @@ use std::time::Duration;
 
 use crate::queue::{Delay, Payload, QueueFuture, QueueResult};
 
-use super::Job;
+use super::{ClearableQueue, Job};
 
 /// Dispatches and reserves jobs on a queue connection.
 pub trait Queue: Send + Sync {
     fn get_connection_name(&self) -> &str;
+
+    fn clearable(&self) -> Option<&dyn ClearableQueue> {
+        None
+    }
 
     fn default_queue(&self) -> &str {
         "default"

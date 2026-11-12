@@ -45,6 +45,7 @@ pub struct QueueManager {
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
     chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
     interruption_polling: AtomicBool,
+    clear_prohibited: AtomicBool,
 }
 
 struct ConfiguredQueue {
@@ -82,6 +83,7 @@ impl QueueManager {
             batch_callbacks: RwLock::default(),
             chain_callbacks: RwLock::default(),
             interruption_polling: AtomicBool::new(true),
+            clear_prohibited: AtomicBool::new(false),
         }
     }
 
@@ -243,6 +245,14 @@ impl QueueManager {
 
     pub(super) fn polls_interruptions(&self) -> bool {
         self.interruption_polling.load(Ordering::Relaxed)
+    }
+
+    pub(super) fn set_clear_prohibited(&self, prohibited: bool) {
+        self.clear_prohibited.store(prohibited, Ordering::Relaxed);
+    }
+
+    pub(super) fn clear_prohibited(&self) -> bool {
+        self.clear_prohibited.load(Ordering::Relaxed)
     }
 
     pub(super) fn worker_control(&self) -> QueueResult<WorkerControl> {

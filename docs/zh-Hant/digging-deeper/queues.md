@@ -712,6 +712,18 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 執行 `./artisan migrate` 建立 `failed_jobs`。使用 `./artisan queue:failed --json` 查看失敗記錄，以 `./artisan queue:retry <uuid>` 將工作重新送至原連線與佇列。`queue:forget` 和 `queue:flush` 可移除失敗記錄。逾時會取消目前的 Rust future，工作需自行管理在該 future 外啟動的作業。
 
+## 清除佇列工作 {#clearing-jobs-from-queues}
+
+用 `queue:clear` 刪除指定資料庫或 Redis 佇列中待執行、延遲和已預約的工作。省略連線名稱或 `--queue` 時使用對應設定的預設值。多個佇列名稱以逗號分隔。
+
+```sh
+./artisan queue:clear database --queue=emails,reports
+```
+
+命令輸出刪除數量。已執行中的處理器仍可能繼續執行，但其預約已移除。失敗工作和批次記錄由各自的命令管理。
+
+正式環境需要在終端機確認，或為明確的非互動操作傳入 `--force`。應用程式可以在服務提供者中呼叫 `ClearCommand::prohibit(true)` 禁用此命令，禁用時 `--force` 也無法執行。
+
 ## 佇列監聽器
 
 透過 `ListenerRegistry::listenQueued::<YourEvent>` 登記可序列化的事件與穩定的監聽器 ID。Worker 在其應用程式內解析監聽器。監聽器的 `after_commit` 可將加入佇列的動作延後至交易提交後。

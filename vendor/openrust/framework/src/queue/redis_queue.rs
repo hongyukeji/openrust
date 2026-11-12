@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contracts::queue::{Job, Queue as Contract},
+    contracts::queue::{ClearableQueue, Job, Queue as Contract},
     redis::connections::Connection,
 };
 
@@ -112,6 +112,12 @@ const FORWARD_CHAIN_END: &str = "redis.call('SET', KEYS[1], 1); return 1";
 
 const SIZE: &str = r"
 return redis.call('LLEN', KEYS[1]) + redis.call('ZCARD', KEYS[2]) + redis.call('ZCARD', KEYS[3])
+";
+
+const CLEAR: &str = r"
+local count = redis.call('LLEN', KEYS[1]) + redis.call('ZCARD', KEYS[2]) + redis.call('ZCARD', KEYS[3])
+redis.call('DEL', KEYS[1], KEYS[2], KEYS[3], KEYS[4])
+return count
 ";
 
 #[derive(Serialize, Deserialize)]
@@ -365,7 +371,22 @@ impl RedisQueue {
     }
 }
 
+impl ClearableQueue for RedisQueue {
+    fn clear<'a>(&'a self, queue: &'a str) -> QueueFuture<'a, QueueResult<u64>> {
+        Box::pin(async move {
+            let [ready, delayed, reserved] = self.keys(self.queue_name(Some(queue))?);
+            let notify = format!("{ready}:notify");
+            let command = script(CLEAR, &[&ready, &delayed, &reserved, &notify]);
+            self.connection.query(&command).await.map_err(backend)
+        })
+    }
+}
+
 impl Contract for RedisQueue {
+    fn clearable(&self) -> Option<&dyn ClearableQueue> {
+        Some(self)
+    }
+
     fn get_connection_name(&self) -> &str {
         &self.name
     }

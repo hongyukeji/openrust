@@ -712,6 +712,18 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.
 
+## Clearing jobs from queues {#clearing-jobs-from-queues}
+
+Use `queue:clear` to remove ready, delayed, and reserved jobs from the selected database or Redis queues. Omit the connection or `--queue` to use the configured defaults. Separate multiple queue names with commas.
+
+```sh
+./artisan queue:clear database --queue=emails,reports
+```
+
+The command reports the number of removed jobs. An already running handler can continue, but its reservation has been removed. Failed-job records and batch records are managed separately.
+
+In production, approve the interactive prompt or pass `--force` for an intentional non-interactive run. An application may prohibit the command from a service provider with `ClearCommand::prohibit(true)`. Prohibition takes precedence over `--force`.
+
 ## Queued listeners
 
 Use `ListenerRegistry::listenQueued::<YourEvent>` with a stable listener ID and a serializable event. The worker resolves the registered listener from its application. The listener's `after_commit` option can defer enqueueing until the transaction commits.

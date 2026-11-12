@@ -20,13 +20,14 @@ mod unix {
         foundation::{Application, runApplication},
         http::HttpFuture,
         queue::{
-            DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
-            QueueManager, QueueResult,
+            Delay, DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
+            QueueManager, QueueResult, console::ClearCommand,
         },
         queue::{
             events::JobTimedOut,
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
+        redis::{RedisManager, connections::Connection},
         support::{
             ProviderResult, ServiceProvider,
             facades::{Event, Process, Queue},
@@ -148,6 +149,9 @@ mod unix {
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
+                if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
+                    ClearCommand::prohibit(true)?;
+                }
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
                 Event::listen(
@@ -162,7 +166,7 @@ mod unix {
 
     fn application(root: PathBuf) -> Result<Application, SetupError> {
         Ok(Application::configure(root.clone())
-            .withConfig(|base, _| {
+            .withConfig(|base, env| {
                 let name = base.file_name().unwrap().to_str().unwrap();
                 let backend = name.rsplit('-').next().unwrap();
                 let database = if backend == "mysql" { "mysql" } else { "sqlite" };
@@ -174,6 +178,7 @@ mod unix {
                 let redis_port = std::env::var("OPENRUST_TEST_REDIS_PORT")
                     .ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(6379);
                 let Value::Object(config) = json!({
+                    "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing")},
                     "database": {"default": database, "connections": connections,
                         "redis": {"options": {"prefix": format!("{name}:")}, "default": {"port": redis_port}}
                     },
@@ -182,7 +187,8 @@ mod unix {
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
                             "database": {"driver": "database", "retry_after": 2},
-                            "redis": {"driver": "redis", "retry_after": 2}
+                            "redis": {"driver": "redis", "retry_after": 2},
+                            "sync": {"driver": "sync"}
                         },
                         "failed": {"driver": "database-uuids", "database": database, "table": "failed_jobs"}
                     }
@@ -236,6 +242,122 @@ mod unix {
             String::from_utf8_lossy(&result.stderr)
         );
         (result.status.code(), lines)
+    }
+
+    async fn verify_clear(
+        root: &Path,
+        queue: &dyn openrust::contracts::queue::Queue,
+        redis: Option<&Connection>,
+    ) {
+        let clear = |args: &[&str], production: bool, prohibited: bool| {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["artisan", "queue:clear"])
+                .args(args)
+                .env("APP_BASE_PATH", root)
+                .env("APP_ENV", if production { "production" } else { "testing" })
+                .kill_on_drop(true);
+            if prohibited {
+                command.env("QUEUE_CLEAR_TEST_PROHIBITED", "1");
+            }
+            async move {
+                let result = tokio::time::timeout(Duration::from_secs(8), command.output())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                (
+                    result.status.code(),
+                    String::from_utf8(result.stdout).unwrap(),
+                    String::from_utf8(result.stderr).unwrap(),
+                )
+            }
+        };
+        let payload = Payload::new("hard-timeout-probe", "cpu").unwrap();
+        queue.push(&payload, Some("clear-one")).await.unwrap();
+        let mut reserved = queue.pop(Some("clear-one")).await.unwrap().unwrap();
+        queue.push(&payload, Some("clear-one")).await.unwrap();
+        queue
+            .later(
+                Delay::For(Duration::from_secs(60)),
+                &payload,
+                Some("clear-one"),
+            )
+            .await
+            .unwrap();
+        queue.push(&payload, Some("clear-two")).await.unwrap();
+        queue.push(&payload, Some("keep")).await.unwrap();
+        assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 3);
+        if let Some(redis) = redis {
+            let notify = redis.key("queues:clear-one:notify");
+            assert_eq!(
+                redis.command("EXISTS", &[notify.as_bytes()]).await.unwrap(),
+                openrust::redis::Value::Int(1)
+            );
+        }
+
+        let selection = [
+            "--queue=clear-one, , clear-two, clear-one",
+            "--no-interaction",
+        ];
+        let (code, _, error) = clear(&selection, true, false).await;
+        assert_eq!(code, Some(1), "{error}");
+        assert!(error.contains("Command cancelled."), "{error}");
+        assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 3);
+        assert_eq!(queue.size(Some("clear-two")).await.unwrap(), 1);
+
+        let connection = queue.get_connection_name();
+        let args = [connection, selection[0], "--force"];
+        let (code, _, error) = clear(&args, true, true).await;
+        assert_eq!(code, Some(1), "{error}");
+        assert!(error.contains("Queue clearing is prohibited."), "{error}");
+        assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 3);
+
+        let (code, out, error) = clear(&args, true, false).await;
+        assert_eq!(code, Some(0), "{error}");
+        assert!(
+            out.contains("Cleared 4 jobs from the [clear-one, clear-two] queues"),
+            "{out}"
+        );
+        assert_eq!(queue.size(Some("clear-one")).await.unwrap(), 0);
+        assert_eq!(queue.size(Some("clear-two")).await.unwrap(), 0);
+        if let Some(redis) = redis {
+            let notify = redis.key("queues:clear-one:notify");
+            let keep_notify = redis.key("queues:keep:notify");
+            assert_eq!(
+                redis.command("EXISTS", &[notify.as_bytes()]).await.unwrap(),
+                openrust::redis::Value::Int(0)
+            );
+            assert_eq!(
+                redis
+                    .command("EXISTS", &[keep_notify.as_bytes()])
+                    .await
+                    .unwrap(),
+                openrust::redis::Value::Int(1)
+            );
+        }
+        assert_eq!(queue.size(Some("keep")).await.unwrap(), 1);
+        assert!(matches!(
+            reserved.delete().await,
+            Err(QueueError::LostReservation)
+        ));
+
+        let (code, _, error) = clear(&["sync"], false, false).await;
+        assert_eq!(code, Some(1), "{error}");
+        assert!(
+            error.contains("Clearing queues is not supported"),
+            "{error}"
+        );
+
+        queue.push(&payload, None).await.unwrap();
+        let (code, out, error) = clear(&[], false, false).await;
+        assert_eq!(code, Some(0), "{error}");
+        assert!(
+            out.contains("Cleared 1 job from the [default] queue"),
+            "{out}"
+        );
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+        assert_eq!(queue.size(Some("keep")).await.unwrap(), 1);
+        queue.clearable().unwrap().clear("keep").await.unwrap();
     }
 
     async fn exercise(backend: &str) {
@@ -379,6 +501,14 @@ mod unix {
         assert!(!root.0.join("blocking.late").exists());
         assert!(!root.0.join("external.late").exists());
         assert!(!root.0.join("continue.late").exists());
+        let redis = (backend == "redis").then(|| {
+            app.container()
+                .make::<RedisManager>()
+                .unwrap()
+                .connection(None)
+                .unwrap()
+        });
+        verify_clear(&root.0, &*queue, redis.as_deref()).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();

@@ -1,5 +1,6 @@
 //! Queue connection, reserved job, and handler contracts.
 
+mod clearable_queue;
 mod factory;
 mod interruptible;
 mod job;
@@ -8,6 +9,7 @@ mod queue_contract;
 mod should_queue;
 mod should_queue_after_commit;
 
+pub use clearable_queue::ClearableQueue;
 pub use factory::Factory;
 pub use interruptible::Interruptible;
 pub use job::Job;

@@ -4,7 +4,7 @@ use std::{
 };
 
 use crate::{
-    contracts::queue::{Job, Queue as Contract},
+    contracts::queue::{ClearableQueue, Job, Queue as Contract},
     database::{Connection, Row, Transaction, Value},
 };
 
@@ -183,7 +183,24 @@ impl DatabaseQueue {
     }
 }
 
+impl ClearableQueue for DatabaseQueue {
+    fn clear<'a>(&'a self, queue: &'a str) -> QueueFuture<'a, QueueResult<u64>> {
+        Box::pin(async move {
+            let queue = queue_name(Some(queue), &self.queue)?;
+            let sql = format!("delete from {} where queue = ?", self.table_sql()?);
+            self.connection
+                .affectingStatement(&sql, &[queue.into()])
+                .await
+                .map_err(backend)
+        })
+    }
+}
+
 impl Contract for DatabaseQueue {
+    fn clearable(&self) -> Option<&dyn ClearableQueue> {
+        Some(self)
+    }
+
     fn get_connection_name(&self) -> &str {
         &self.name
     }

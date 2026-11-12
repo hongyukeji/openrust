@@ -115,7 +115,6 @@ const LARAVEL: &[(&str, &str)] = &[
         "package:discover",
         "Rebuild the discovered package manifest",
     ),
-    ("queue:clear", "Remove pending jobs from a queue"),
     ("queue:listen", "Listen for queued jobs and process them"),
     ("queue:monitor", "Check the number of jobs on queues"),
     ("queue:pause", "Pause processing on a queue"),

@@ -712,6 +712,18 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。
 
+## 清理队列任务 {#clearing-jobs-from-queues}
+
+用 `queue:clear` 删除指定数据库或 Redis 队列中待执行、延迟和已预约的任务。省略连接名或 `--queue` 时使用对应配置的默认值。多个队列名用逗号分隔。
+
+```sh
+./artisan queue:clear database --queue=emails,reports
+```
+
+命令输出删除数量。已经运行的处理器仍可能继续执行，但其预约已移除。失败任务和批次记录由各自的命令管理。
+
+生产环境需要在终端确认，或为明确的非交互操作传入 `--force`。应用可以在服务提供者中调用 `ClearCommand::prohibit(true)` 禁用该命令，禁用时 `--force` 也无法执行。
+
 ## 队列监听器
 
 通过 `ListenerRegistry::listenQueued::<YourEvent>` 登记可序列化的事件及稳定的监听器 ID。Worker 在其应用内解析监听器。监听器的 `after_commit` 可将入队推迟到事务提交后。
