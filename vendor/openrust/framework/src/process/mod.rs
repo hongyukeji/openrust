@@ -1,6 +1,9 @@
 //! Running and testing operating-system processes.
 
 mod child;
+
+#[cfg(unix)]
+pub(crate) use child::{ChildGroup, inherit_queue_process_group};
 mod facade;
 mod factory;
 mod invoked_process;

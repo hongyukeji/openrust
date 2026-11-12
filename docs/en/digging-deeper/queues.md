@@ -181,6 +181,27 @@ Set `QUEUE_WORKER_TIMED_OUT_EXIT_CODE` to choose an exit code from 0 through 255
 QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --stop-when-empty
 ```
 
+##### Hard deadlines for blocking jobs {#hard-job-timeouts}
+
+Set `JobOptions::hard_timeout` for a job that can block an executor thread. On Unix, Artisan runs that job in a separate process group. The worker retains the reservation and applies the effective job timeout to the child process, including its startup. At the deadline it terminates the group, reaps the executor, then dispatches `JobTimedOut` and settles failure or retry.
+
+External programs started through `Process` within the executor share that group. A program that deliberately creates another session or process group can escape the boundary. Hard execution requires a built-in persistent queue reservation and a Unix worker.
+
+```rust
+use std::time::Duration;
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    timeout: Some(Duration::from_secs(10)),
+    hard_timeout: true,
+    ..JobOptions::default()
+};
+```
+
+```sh
+./artisan queue:work --json --timeout=60 --tries=2 --stop-when-empty
+```
+
 ### Reacting to worker signals {#reacting-to-worker-signals}
 
 On Unix, send `SIGUSR2` to pause new polls in a single daemon and `SIGCONT` to resume them. The worker finishes a job it has already reserved. These signals emit `WorkerPausing` and `WorkerResuming` and leave shared queue pause settings untouched. Target the compiled worker process by PID.

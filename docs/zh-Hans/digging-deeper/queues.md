@@ -181,6 +181,27 @@ QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-wh
 QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --stop-when-empty
 ```
 
+##### 阻塞任务的强制超时 {#hard-job-timeouts}
+
+对于可能阻塞执行线程的任务，设置 `JobOptions::hard_timeout`。在 Unix 上，Artisan 在独立进程组中运行该任务。Worker 保留预约，并将实际任务超时应用于子进程，计时包括子进程启动。到期后，Worker 终止进程组、回收执行进程，再派发 `JobTimedOut` 并结算失败或重试。
+
+执行进程通过 `Process` 启动的外部程序共享该进程组。主动建立新会话或进程组的程序可以脱离此边界。强制超时需要内置持久队列的预约和 Unix Worker。
+
+```rust
+use std::time::Duration;
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    timeout: Some(Duration::from_secs(10)),
+    hard_timeout: true,
+    ..JobOptions::default()
+};
+```
+
+```sh
+./artisan queue:work --json --timeout=60 --tries=2 --stop-when-empty
+```
+
 ### 响应 Worker 系统信号 {#reacting-to-worker-signals}
 
 在 Unix 上，向一个 Worker 守护进程发送 `SIGUSR2` 可暂停后续轮询，发送 `SIGCONT` 可恢复。Worker 会完成已预约的任务。这两个信号分别派发 `WorkerPausing` 和 `WorkerResuming`，共享队列的暂停设置保持原样。请使用编译后 Worker 进程的 PID。

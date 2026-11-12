@@ -42,3 +42,8 @@ tonic-health = "0.14.9"
 name = "container_process"
 path = "tests/container_process.rs"
 harness = false
+
+[[test]]
+name = "queue_hard_timeout"
+path = "tests/queue_hard_timeout.rs"
+harness = false

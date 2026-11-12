@@ -44,6 +44,7 @@ pub(super) struct ChainEdits {
     append: VecDeque<Payload>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ChainUpdate {
     pub(crate) added: u32,
     pub(crate) next: Payload,

@@ -7,7 +7,19 @@ use super::Signal;
 #[cfg(unix)]
 use rustix::process::{Pid, Signal as UnixSignal, kill_process_group};
 
-pub(super) struct ChildGroup {
+#[cfg(unix)]
+use std::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(unix)]
+static INHERIT_PROCESS_GROUP: AtomicBool = AtomicBool::new(false);
+
+/// Called only in the dedicated queue execution process.
+#[cfg(unix)]
+pub(crate) fn inherit_queue_process_group() {
+    INHERIT_PROCESS_GROUP.store(true, Ordering::Relaxed);
+}
+
+pub(crate) struct ChildGroup {
     pub(super) child: Child,
     #[cfg(unix)]
     group: Option<Pid>,
@@ -16,14 +28,19 @@ pub(super) struct ChildGroup {
 }
 
 impl ChildGroup {
-    pub(super) fn spawn(command: &mut Command) -> io::Result<Self> {
+    pub(crate) fn spawn(command: &mut Command) -> io::Result<Self> {
         command.kill_on_drop(true);
         #[cfg(unix)]
         {
             let exited = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::child())?;
-            let child = command.process_group(0).spawn()?;
-            let group = child
-                .id()
+            let inherit = INHERIT_PROCESS_GROUP.load(Ordering::Relaxed);
+            if !inherit {
+                command.process_group(0);
+            }
+            let child = command.spawn()?;
+            let group = (!inherit)
+                .then(|| child.id())
+                .flatten()
                 .and_then(|id| i32::try_from(id).ok())
                 .and_then(Pid::from_raw);
             Ok(Self {
@@ -40,7 +57,7 @@ impl ChildGroup {
         }
     }
 
-    pub(super) async fn wait(&mut self) -> io::Result<ExitStatus> {
+    pub(crate) async fn wait(&mut self) -> io::Result<ExitStatus> {
         #[cfg(unix)]
         if let Some(group) = self.group {
             use rustix::process::{WaitId, WaitIdOptions, waitid};
@@ -63,7 +80,7 @@ impl ChildGroup {
         self.child.wait().await
     }
 
-    pub(super) fn signal(&mut self, signal: Signal) -> io::Result<()> {
+    pub(crate) fn signal(&mut self, signal: Signal) -> io::Result<()> {
         #[cfg(unix)]
         if let Some(group) = self.group {
             let signal = match signal {
@@ -85,6 +102,23 @@ impl ChildGroup {
                 {
                     Ok(())
                 }
+                Err(error) => Err(error.into()),
+            };
+        }
+        #[cfg(unix)]
+        if let Some(pid) = self
+            .child
+            .id()
+            .and_then(|id| i32::try_from(id).ok())
+            .and_then(Pid::from_raw)
+        {
+            let signal = match signal {
+                Signal::Interrupt => UnixSignal::INT,
+                Signal::Terminate => UnixSignal::TERM,
+                Signal::Kill => UnixSignal::KILL,
+            };
+            return match rustix::process::kill_process(pid, signal) {
+                Ok(()) | Err(rustix::io::Errno::SRCH) => Ok(()),
                 Err(error) => Err(error.into()),
             };
         }

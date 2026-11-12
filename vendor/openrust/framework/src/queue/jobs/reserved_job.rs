@@ -63,6 +63,10 @@ impl Job for ReservedJob {
         self.failed = true;
     }
 
+    fn supports_isolated_execution(&self) -> bool {
+        true
+    }
+
     fn fire<'a>(&'a mut self, context: &'a mut JobContext<'_>) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             context.connection.clone_from(&self.context.connection);

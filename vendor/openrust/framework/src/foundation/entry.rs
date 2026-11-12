@@ -32,7 +32,16 @@ pub async fn runApplication(
     };
     let (result, error_context) = if artisan {
         let arguments: Vec<_> = arguments.collect();
-        (app.handleCommand(&arguments).await, "Artisan failed")
+        if arguments
+            .first()
+            .is_some_and(|arg| arg == crate::queue::isolated_job::COMMAND)
+        {
+            let result =
+                crate::queue::isolated_job::serve(app, arguments.get(1).map(Path::new)).await;
+            (result.map(|()| 0), "Queue job execution process failed")
+        } else {
+            (app.handleCommand(&arguments).await, "Artisan failed")
+        }
     } else {
         (app.start().await.map(|()| 0), "Application startup failed")
     };

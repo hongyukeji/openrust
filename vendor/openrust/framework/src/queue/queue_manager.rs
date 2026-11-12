@@ -85,6 +85,14 @@ impl QueueManager {
         }
     }
 
+    pub(super) async fn fire_isolated_job(
+        &self,
+        context: &mut super::JobContext<'_>,
+        payload: &Payload,
+    ) -> QueueResult<()> {
+        self.registry.fire(context, payload).await
+    }
+
     pub fn register(&self, name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
         self.registry.register(name, handler)
     }

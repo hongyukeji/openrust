@@ -10,6 +10,7 @@ mod database_queue;
 pub mod events;
 mod facade;
 pub mod failed;
+pub(crate) mod isolated_job;
 pub mod jobs;
 pub mod middleware;
 mod queue_base;
@@ -157,6 +158,9 @@ pub struct JobOptions {
     pub retry_until: Option<SystemTime>,
     #[serde(default)]
     pub fail_on_timeout: bool,
+    /// Runs the reserved task in a process that Artisan can terminate at its deadline.
+    #[serde(default)]
+    pub hard_timeout: bool,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

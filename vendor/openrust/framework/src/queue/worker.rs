@@ -606,7 +606,21 @@ impl Worker {
             Ok(()) => {
                 let started = tokio::time::Instant::now();
                 let hydrated = job.payload().context.clone();
-                let result = isolated_scope(self.app.clone(), async {
+                let result = if job.options().hard_timeout {
+                    if !job.supports_isolated_execution() || job.payload().chained_batch.is_some() {
+                        return Err(QueueError::InvalidConfiguration);
+                    }
+                    match super::isolated_job::execute(&self.app, job, &mut context, timeout).await
+                    {
+                        Ok(Some(result)) => result,
+                        Ok(None) => {
+                            status.timed_out = true;
+                            Err(QueueError::Timeout)
+                        }
+                        Err(error) => Err(error),
+                    }
+                } else {
+                    isolated_scope(self.app.clone(), async {
                     use crate::log::context::Context;
                     let context_repository = Context::repository().map_err(super::backend)?;
                     Context::hooks()
@@ -678,7 +692,8 @@ impl Worker {
                         }
                     }
                 })
-                .await;
+                .await
+                };
                 status.duration =
                     Some((started.elapsed().as_secs_f64() * 100_000.0).round() / 100.0);
                 result

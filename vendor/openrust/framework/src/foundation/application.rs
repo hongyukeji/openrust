@@ -479,7 +479,7 @@ impl Application {
         self.boot_with_environment(None).await
     }
 
-    pub(super) async fn boot_with_environment(
+    pub(crate) async fn boot_with_environment(
         &mut self,
         selected: Option<&str>,
     ) -> Result<(), BootstrapError> {
