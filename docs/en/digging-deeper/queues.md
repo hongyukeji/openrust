@@ -107,6 +107,16 @@ Run `./artisan queue:work database --queue=batch --stop-when-empty` to process t
 
 Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch and callbacks are pending.
 
+### Retrying failed batch jobs {#batch-failures}
+
+Pass a batch ID or several IDs to requeue the failures still available in failed-job storage. Jobs return to their original connection and queue. On the same SQL connection, requeueing and removal of the failed record commit together. The Worker clears a job’s pending failure ID after it succeeds. Jobs configured to skip cancelled batches still honour cancellation.
+
+```sh
+./artisan queue:retry-batch "$BATCH_ID"
+```
+
+With a shared cache store, add `--isolated` to skip a concurrent invocation with the same batch ID list. Use `--isolated=12` to return exit code 12 if the lock is held.
+
 ### Pruning batches {#pruning-batches}
 
 Run the command periodically to delete batches that finished more than 24 hours ago. Pass `--hours` to change the finished retention period. To also prune unfinished or cancelled batches, supply `--unfinished` or `--cancelled` with their retention in hours. Both optional rules measure age from batch creation. The command reports the number deleted by each rule. Delivery records for deleted batches are removed with the batch.

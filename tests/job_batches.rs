@@ -7,9 +7,10 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    cache::CacheManager,
     contracts::{
-        container::Container as _, foundation::Application as _, http::Kernel as _,
-        queue::JobHandler,
+        cache::LockProvider as _, container::Container as _, foundation::Application as _,
+        http::Kernel as _, queue::JobHandler,
     },
     database::{Connection, DB, DatabaseManager, Value, query::Record},
     foundation::{Application, configuration::Routing, http::Kernel},
@@ -150,10 +151,21 @@ async fn job_batches_artisan_process() {
     let args: Vec<String> =
         serde_json::from_str(&std::env::var("OPENRUST_BATCH_ARGS").unwrap()).unwrap();
     let args = args.into_iter().map(OsString::from).collect::<Vec<_>>();
-    assert_eq!(application(&base).handleCommand(&args).await.unwrap(), 0);
+    let status = std::env::var("OPENRUST_BATCH_STATUS")
+        .unwrap()
+        .parse::<i32>()
+        .unwrap();
+    assert_eq!(
+        application(&base).handleCommand(&args).await.unwrap(),
+        status
+    );
 }
 
 async fn artisan(base: &Path, args: &[&str]) -> String {
+    artisan_status(base, args, 0).await
+}
+
+async fn artisan_status(base: &Path, args: &[&str], status: i32) -> String {
     let output = timeout(
         Duration::from_secs(20),
         Command::new(std::env::current_exe().unwrap())
@@ -164,18 +176,15 @@ async fn artisan(base: &Path, args: &[&str]) -> String {
                 "--nocapture",
             ])
             .env("OPENRUST_BATCH_FIXTURE", base)
+            .env("OPENRUST_BATCH_STATUS", status.to_string())
             .env("OPENRUST_BATCH_ARGS", serde_json::to_string(args).unwrap())
             .output(),
     )
     .await
     .unwrap()
     .unwrap();
-    assert!(
-        output.status.success(),
-        "{args:?}: {}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-    String::from_utf8(output.stdout).unwrap()
+    assert!(output.status.success(), "{args:?}: {output:?}");
+    String::from_utf8([output.stdout, output.stderr].concat()).unwrap()
 }
 
 async fn transport(
@@ -227,6 +236,7 @@ async fn exercise(mysql: Option<&str>) {
     );
     let settings = json!({
         "database": {"default":"batch", "connections":{"batch":connection}},
+        "cache": {"default":"database","stores":{"database":{"driver":"database"}}},
         "queue": {
             "default":"database",
             "connections": {"database":{"driver":"database","retry_after":90}},
@@ -262,6 +272,12 @@ async fn exercise(mysql: Option<&str>) {
     artisan(&root.0, &["migrate", "--force"]).await;
     db.statement("create table receipts (name varchar(255) not null)", &[])
         .await
+        .unwrap();
+    let cache = app
+        .container()
+        .make::<CacheManager>()
+        .unwrap()
+        .store(None)
         .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
@@ -328,6 +344,16 @@ async fn exercise(mysql: Option<&str>) {
         2
     );
 
+    artisan(&root.0, &["queue:retry-batch"]).await;
+    let missing = artisan_status(&root.0, &["queue:retry-batch", "missing", id], 1).await;
+    assert!(
+        missing.contains("Unable to find a batch with ID [missing]"),
+        "{missing}"
+    );
+    assert!(
+        missing.contains("does not contain any failed jobs"),
+        "{missing}"
+    );
     for kind in ["cancel", "allow"] {
         let dispatched = request(address, kind, 200).await.unwrap();
         let id = dispatched["id"].as_str().unwrap();
@@ -350,7 +376,63 @@ async fn exercise(mysql: Option<&str>) {
             db.statement("insert into receipts (name) values ('allow')", &[])
                 .await
                 .unwrap();
-            artisan(&root.0, &["queue:retry", &batch.failed_job_ids[0]]).await;
+            let retry = ["queue:retry-batch", id, id];
+            let key = "framework/command-queue:retry-batch-4d4f75487783972613585397ef95e8cec57dd22ddf2dd1b13bbe23a245122f5f";
+            let mut lock = cache
+                .lock(key, Some(Duration::from_secs(60)), None)
+                .unwrap();
+            assert!(lock.get().await.unwrap());
+            let locked = artisan_status(
+                &root.0,
+                &["queue:retry-batch", "isolated-probe", "--isolated=12"],
+                12,
+            )
+            .await;
+            assert!(locked.contains("command is already running"), "{locked}");
+            assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+            assert!(lock.release().await.unwrap());
+
+            let reject_retry = if mysql.is_some() {
+                r#"alter table jobs add constraint reject_retry check (payload not like '%"failed"%')"#
+            } else {
+                r#"create trigger reject_retry before insert on jobs when new.payload like '%"failed"%' begin select raise(abort, 'retry rejected'); end"#
+            };
+            db.unprepared(reject_retry).await.unwrap();
+            artisan_status(&root.0, &["queue:retry-batch", id, "--isolated"], 1).await;
+            assert_eq!(db.table("cache_locks").count("*").await.unwrap(), 0);
+            assert_eq!(
+                db.table("failed_jobs")
+                    .r#where("uuid", "=", batch.failed_job_ids[0].as_str())
+                    .count("*")
+                    .await
+                    .unwrap(),
+                1
+            );
+            let allow_retry = if mysql.is_some() {
+                "alter table jobs drop check reject_retry"
+            } else {
+                "drop trigger reject_retry"
+            };
+            db.unprepared(allow_retry).await.unwrap();
+
+            let mixed = ["queue:retry-batch", "missing", id, id];
+            let (left, right) =
+                tokio::join!(artisan_status(&root.0, &mixed, 1), artisan(&root.0, &retry));
+            assert!(
+                left.contains("Unable to find a batch with ID [missing]"),
+                "{left}"
+            );
+            assert_eq!(
+                [&left, &right]
+                    .iter()
+                    .map(|line| line.matches("Queued failed job").count())
+                    .sum::<usize>(),
+                1
+            );
+            assert_eq!(db.table("jobs").count("*").await.unwrap(), 1);
+            let repeat = artisan(&root.0, &retry).await;
+            assert!(repeat.contains("no longer available to retry"), "{repeat}");
+            assert_eq!(db.table("jobs").count("*").await.unwrap(), 1);
             artisan(
                 &root.0,
                 &["queue:work", "database", "--queue=batch", "--once"],

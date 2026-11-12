@@ -19,7 +19,9 @@ use crate::{
 
 use super::{
     DatabaseQueue, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueResult,
-    RedisQueue, SyncQueue, backend, queue_name,
+    RedisQueue, SyncQueue, backend,
+    failed::{FailedJob, FailedJobProviderInterface},
+    queue_name,
 };
 
 /// Resolves and caches configured queue connections for one application.
@@ -106,6 +108,38 @@ impl QueueManager {
                 .map(dispatch_result);
         }
         dispatch(&*queue, &payload, &options).await
+    }
+
+    pub(crate) async fn retry_failed(
+        &self,
+        failures: &dyn FailedJobProviderInterface,
+        job: &FailedJob,
+    ) -> QueueResult<bool> {
+        let configured = self.resolve(Some(&job.connection))?;
+        let payload = job.payload.clone().renewed()?;
+        let queue = Some(job.queue.as_str());
+        if let Some(connection) = &configured.database {
+            let mut transaction = connection.beginTransaction().await.map_err(backend)?;
+            match failures
+                .forget_retry_in_transaction(job, &mut transaction)
+                .await?
+            {
+                Some(claimed) => {
+                    if claimed {
+                        configured
+                            .queue
+                            .push_in_transaction(&payload, queue, None, &mut transaction)
+                            .await?;
+                    }
+                    transaction.commit().await.map_err(backend)?;
+                    return Ok(claimed);
+                }
+                None => transaction.rollBack(None).await.map_err(backend)?,
+            }
+        }
+        configured.queue.push(&payload, queue).await?;
+        failures.forget_retry(job).await?;
+        Ok(true)
     }
 
     fn capture_context(&self, payload: &mut Payload) -> QueueResult<()> {

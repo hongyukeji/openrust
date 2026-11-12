@@ -92,17 +92,13 @@ impl Command for FailedCommand {
                         if !pushed.insert(job.id.clone()) {
                             continue;
                         }
-                        manager
-                            .connection(Some(&job.connection))
-                            .map_err(error)?
-                            .push(
-                                &job.payload.clone().renewed().map_err(error)?,
-                                Some(&job.queue),
-                            )
+                        if manager
+                            .retry_failed(provider.as_ref(), &job)
                             .await
-                            .map_err(error)?;
-                        provider.forget_retry(&job).await.map_err(error)?;
-                        output.info(&format!("Queued failed job {}.", job.id));
+                            .map_err(error)?
+                        {
+                            output.info(&format!("Queued failed job {}.", job.id));
+                        }
                     }
                 }
                 Action::Forget => {

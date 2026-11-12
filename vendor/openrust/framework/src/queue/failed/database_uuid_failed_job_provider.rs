@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::database::{Connection, Row, Value};
+use crate::database::{Connection, Row, Transaction, Value};
 
 use super::{FailedJob, FailedJobProviderInterface};
 use crate::queue::{Payload, QueueError, QueueFuture, QueueResult, backend};
@@ -99,6 +99,26 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
                 > 0)
         })
     }
+    fn forget_retry_in_transaction<'a>(
+        &'a self,
+        job: &'a FailedJob,
+        transaction: &'a mut Transaction,
+    ) -> QueueFuture<'a, QueueResult<Option<bool>>> {
+        Box::pin(async move {
+            if !transaction.belongs_to(&self.connection) {
+                return Ok(None);
+            }
+            let deleted = transaction
+                .table(&self.table)
+                .r#where("uuid", "=", job.id.as_str())
+                .r#where("payload", "=", job.payload.encode()?)
+                .delete()
+                .await
+                .map_err(backend)?;
+            Ok(Some(deleted != 0))
+        })
+    }
+
     fn flush(&self, older_than: Option<Duration>) -> QueueFuture<'_, QueueResult<()>> {
         Box::pin(async move {
             let mut query = self.connection.table(&self.table);
