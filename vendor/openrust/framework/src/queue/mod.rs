@@ -135,6 +135,18 @@ pub enum Delay {
     Until(SystemTime),
 }
 
+impl From<Duration> for Delay {
+    fn from(duration: Duration) -> Self {
+        Self::For(duration)
+    }
+}
+
+impl From<SystemTime> for Delay {
+    fn from(time: SystemTime) -> Self {
+        Self::Until(time)
+    }
+}
+
 /// Retry, backoff, and timeout metadata preserved with a queued payload.
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct JobOptions {

@@ -1,3 +1,7 @@
+mod rate_limited;
+
+pub use rate_limited::{RateLimited, RateLimitedWithRedis};
+
 use std::{sync::Arc, time::Duration};
 
 use crate::{cache::Cache, contracts::queue::JobHandler};

@@ -12,7 +12,7 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    cache::Ttl,
+    cache::{Ttl, rate_limiting::Limit},
     contracts::{
         container::Container as _,
         database::LostConnectionDetector,
@@ -43,12 +43,12 @@ use openrust::{
             WorkerInterrupted, WorkerPausing, WorkerQueuePaused, WorkerQueueResumed,
             WorkerResuming, WorkerStarting, WorkerStopping,
         },
-        middleware::{JobMiddleware, JobNext},
+        middleware::{JobMiddleware, JobNext, RateLimited, RateLimitedWithRedis},
     },
     routing::{Router, RoutingError},
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Context, Event, Queue},
+        facades::{Context, Event, Queue, RateLimiter},
     },
 };
 use serde_json::{Value as Json, json};
@@ -590,6 +590,33 @@ impl LostConnectionDetector for FixtureLostConnectionDetector {
     }
 }
 
+struct LimitedHandler(&'static str);
+
+impl JobHandler for LimitedHandler {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        let limiter: Arc<dyn JobMiddleware> = match self.0 {
+            "rate_drop" => Arc::new(RateLimited::new("job-drop").dontRelease()),
+            "rate_unlimited" => Arc::new(RateLimited::new("job-unlimited")),
+            "rate_missing" => Arc::new(RateLimited::new("job-missing")),
+            "rate_redis" => Arc::new(
+                RateLimitedWithRedis::new("job-redis")
+                    .connection("default")
+                    .dontRelease(),
+            ),
+            _ => Arc::new(RateLimited::new("job-budget").releaseAfter(Duration::from_secs(1))),
+        };
+        vec![limiter, Arc::new(Tag)]
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Handler.handle(context, payload)
+    }
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -623,6 +650,33 @@ impl ServiceProvider for Providers {
             for name in ["interrupt_gate", "interrupt_timeout", "interrupt_error"] {
                 Queue::register(name, Arc::new(InterruptibleHandler::default()))?;
             }
+            for name in [
+                "rate_alpha",
+                "rate_beta",
+                "rate_drop",
+                "rate_unlimited",
+                "rate_missing",
+                "rate_redis",
+            ] {
+                Queue::register(name, Arc::new(LimitedHandler(name)))?;
+            }
+            let cache_error = |source| HttpError::Internal {
+                source: Box::new(source),
+            };
+            RateLimiter::r#for("job-budget", |_| Limit::perMinute(0)).map_err(cache_error)?;
+            RateLimiter::forJob("job-budget", |job| {
+                Limit::perSecond(1).by(job.data().as_str().unwrap())
+            })
+            .map_err(cache_error)?;
+            RateLimiter::forJob("job-drop", |_| Limit::perMinute(0)).map_err(cache_error)?;
+            RateLimiter::forJob("job-unlimited", |_| Limit::none()).map_err(cache_error)?;
+            RateLimiter::forJob("job-redis", |job| {
+                vec![
+                    Limit::perMinute(1).by(job.data().as_str().unwrap()),
+                    Limit::perMinute(2).by("all"),
+                ]
+            })
+            .map_err(cache_error)?;
             Context::dehydrating(|context| context.forgetHidden("secret"))?;
             Context::hydrated(|context| context.add("hydrated", json!(true)))?;
             Ok(())
@@ -663,7 +717,11 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 source: Box::new(source),
             })?;
         } else {
-            let mut payload = Payload::new(kind, ())?;
+            let mut payload = if kind.starts_with("rate_") {
+                Payload::new(kind, kind)?
+            } else {
+                Payload::new(kind, ())?
+            };
             if matches!(
                 kind,
                 "timeout" | "retry_timeout" | "interrupt_timeout" | "interrupt_error"
@@ -1161,6 +1219,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_job_interruption(&root.0, &db, address).await;
     verify_worker_memory(&root.0, &*queue, address).await;
     verify_worker_timeout(&root.0, &*queue, address).await;
+    verify_job_rate_limits(&root.0, &db, &*queue, address, redis.is_some()).await;
     if mysql.is_none() && redis.is_none() {
         verify_custom_disconnect(&root.0, &*queue, address).await;
     }
@@ -2093,6 +2152,58 @@ async fn verify_worker_timeout(
     assert_eq!(rows.last().unwrap()["reason"], "empty");
     assert_eq!(rows.last().unwrap()["jobs_processed"], 2);
     assert_eq!(queue.size(None).await.unwrap(), 0);
+}
+
+async fn verify_job_rate_limits(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+    redis: bool,
+) {
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    for kind in [
+        "rate_alpha",
+        "rate_alpha",
+        "rate_beta",
+        "rate_drop",
+        "rate_unlimited",
+        "rate_missing",
+    ] {
+        request(address, kind).await;
+    }
+    let args = ["queue:work", "--json", "--stop-when-empty", "--tries=3"];
+    let output = run(root, &args).await;
+    let rows = json_lines(&output);
+    assert!(
+        rows.iter()
+            .any(|row| row["job"] == "rate_alpha" && row["result"] == "released")
+    );
+    assert_eq!(count("rate_alpha").await, 1);
+    assert_eq!(count("rate_beta").await, 1);
+    assert_eq!(count("rate_drop").await, 0);
+    assert_eq!(count("rate_unlimited").await, 1);
+    assert_eq!(count("rate_missing").await, 1);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    sleep(Duration::from_secs(2)).await;
+    run(root, &args).await;
+    assert_eq!(count("rate_alpha").await, 2);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+
+    if redis {
+        request(address, "rate_redis").await;
+        request(address, "rate_redis").await;
+        let args = ["queue:work", "--json", "--once", "--tries=2"];
+        tokio::join!(run(root, &args), run(root, &args));
+        assert_eq!(count("rate_redis").await, 1);
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+    }
 }
 
 async fn verify_custom_disconnect(

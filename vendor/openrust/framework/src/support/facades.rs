@@ -76,6 +76,23 @@ impl RateLimiter {
         Ok(())
     }
 
+    #[allow(
+        non_snake_case,
+        reason = "Uses Laravel's naming for typed job limiter registration"
+    )]
+    pub fn forJob<R>(
+        name: impl Into<String>,
+        callback: impl Fn(&crate::queue::Payload) -> R + Send + Sync + 'static,
+    ) -> crate::cache::CacheResult<()>
+    where
+        R: Into<crate::cache::rate_limiting::JobLimiterResponse>,
+    {
+        Self::getFacadeRoot()
+            .map_err(crate::cache::CacheError::Unavailable)?
+            .forJob(name, callback);
+        Ok(())
+    }
+
     pub async fn attempt<T>(
         key: &str,
         max_attempts: u64,

@@ -8,7 +8,7 @@ use crate::http::Request;
 use super::{
     CacheError, CacheManager, CacheResult, Repository,
     rate_limiting::{
-        Limiter, LimiterResponse,
+        JobLimiter, JobLimiterResponse, Limit, Limiter, LimiterResponse,
         counters::{self, Admission, Quota},
     },
 };
@@ -17,6 +17,7 @@ use super::{
 #[derive(Default)]
 pub struct RateLimiter {
     limiters: RwLock<HashMap<String, Arc<Limiter>>>,
+    job_limiters: RwLock<HashMap<String, Arc<JobLimiter>>>,
     cache: Option<(Arc<CacheManager>, Option<String>)>,
 }
 
@@ -143,18 +144,7 @@ impl RateLimiter {
         let limiter = move |request: &Request| {
             let mut result = callback(request).into();
             if let LimiterResponse::Limits(limits) = &mut result {
-                let mut seen = HashSet::new();
-                let mut duplicates = HashSet::new();
-                for limit in &*limits {
-                    if !seen.insert(limit.key.as_str()) {
-                        duplicates.insert(limit.key.clone());
-                    }
-                }
-                for limit in limits {
-                    if duplicates.contains(&limit.key) {
-                        limit.key = limit.fallbackKey();
-                    }
-                }
+                normalize_limits(limits);
             }
             result
         };
@@ -165,11 +155,58 @@ impl RateLimiter {
         self
     }
 
+    #[allow(
+        non_snake_case,
+        reason = "Uses Laravel's naming for typed job limiter registration"
+    )]
+    pub fn forJob<R>(
+        &self,
+        name: impl Into<String>,
+        callback: impl Fn(&crate::queue::Payload) -> R + Send + Sync + 'static,
+    ) -> &Self
+    where
+        R: Into<JobLimiterResponse>,
+    {
+        let limiter = move |payload: &crate::queue::Payload| {
+            let mut result = callback(payload).into();
+            normalize_limits(&mut result.0);
+            result
+        };
+        self.job_limiters
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(name.into(), Arc::new(limiter));
+        self
+    }
+
+    pub(crate) fn job_limiter(&self, name: &str) -> Option<Arc<JobLimiter>> {
+        self.job_limiters
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .cloned()
+    }
+
     pub fn limiter(&self, name: &str) -> Option<Arc<Limiter>> {
         self.limiters
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .get(name)
             .cloned()
+    }
+}
+
+fn normalize_limits(limits: &mut [Limit]) {
+    let mut seen = HashSet::new();
+    let mut duplicates = HashSet::new();
+    for limit in &*limits {
+        if !seen.insert(limit.key.as_str()) {
+            duplicates.insert(limit.key.clone());
+        }
+    }
+    for limit in limits {
+        if duplicates.contains(&limit.key) {
+            limit.key = limit.fallbackKey();
+        }
     }
 }

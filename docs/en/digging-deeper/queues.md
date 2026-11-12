@@ -547,6 +547,30 @@ fn middleware(&self) -> Vec<std::sync::Arc<dyn openrust::queue::middleware::JobM
 }
 ```
 
+### Rate limiting {#rate-limiting}
+
+Register a named job limiter in a service provider, and return `RateLimited` from the job handler's middleware list. A policy receives the queued payload and can return a `Limit`, several limits, or `Limit::none()`. A missing policy or an unlimited result allows the job to run.
+
+```rust
+use openrust::{
+    cache::{CacheResult, rate_limiting::Limit},
+    queue::middleware::RateLimited,
+    support::facades::RateLimiter,
+};
+
+fn register_job_budget() -> CacheResult<()> {
+    RateLimiter::forJob("job-budget", |job| {
+        Limit::perMinute(1).by(job.data().as_str().unwrap_or_default())
+    })
+}
+
+fn job_rate_limit() -> RateLimited {
+    RateLimited::new("job-budget")
+}
+```
+
+A denied job is released after the remaining window plus three seconds. Use `releaseAfter` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
+
 ## Failed jobs
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.

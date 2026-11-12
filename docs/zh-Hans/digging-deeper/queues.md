@@ -547,6 +547,30 @@ fn middleware(&self) -> Vec<std::sync::Arc<dyn openrust::queue::middleware::JobM
 }
 ```
 
+### 队列限流 {#rate-limiting}
+
+在服务提供者中注册命名任务限流器，并从任务处理器的中间件清单返回 `RateLimited`。策略接收队列载荷，可返回单个 `Limit`、多个限额或 `Limit::none()`。找不到策略或策略返回无限制时，任务继续执行。
+
+```rust
+use openrust::{
+    cache::{CacheResult, rate_limiting::Limit},
+    queue::middleware::RateLimited,
+    support::facades::RateLimiter,
+};
+
+fn register_job_budget() -> CacheResult<()> {
+    RateLimiter::forJob("job-budget", |job| {
+        Limit::perMinute(1).by(job.data().as_str().unwrap_or_default())
+    })
+}
+
+fn job_rate_limit() -> RateLimited {
+    RateLimited::new("job-budget")
+}
+```
+
+达到限额后，任务默认在剩余窗口再加三秒后可重新预约。使用 `releaseAfter` 可覆盖延迟，使用 `dontRelease` 则跳过处理器并确认该任务。释放仍消耗一次尝试。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 连接上原子应用限额。
+
 ## 失败任务
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。

@@ -9,6 +9,30 @@ use crate::http::{HeaderMap, Request, Response};
 pub use limit::Limit;
 pub use unlimited::Unlimited;
 
+/// Resolves a named limiter against a queued job's payload.
+pub type JobLimiter = dyn Fn(&crate::queue::Payload) -> JobLimiterResponse + Send + Sync;
+
+/// The limits for a queued job. An empty set permits the job without a charge.
+pub struct JobLimiterResponse(pub(crate) Vec<Limit>);
+
+impl From<Limit> for JobLimiterResponse {
+    fn from(limit: Limit) -> Self {
+        Self(vec![limit])
+    }
+}
+
+impl From<Vec<Limit>> for JobLimiterResponse {
+    fn from(limits: Vec<Limit>) -> Self {
+        Self(limits)
+    }
+}
+
+impl From<Unlimited> for JobLimiterResponse {
+    fn from(_: Unlimited) -> Self {
+        Self(Vec::new())
+    }
+}
+
 /// Resolves a named limiter against the current request.
 pub type Limiter = dyn Fn(&Request) -> LimiterResponse + Send + Sync;
 
