@@ -51,3 +51,52 @@ async fn defaults_to_testing_environment() -> Result<(), Box<dyn Error + Send + 
     assert_eq!(test.app().config()?.get("app.env"), Some(json!("testing")));
     Ok(())
 }
+
+#[tokio::test]
+async fn dispatches_http_and_captures_artisan_output_without_leaking_state()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use openrust::{
+        console::ConsoleError,
+        foundation::configuration::Routing,
+        http::{HttpError, HttpFuture, Request, Response, StatusCode},
+        routing::RoutingError,
+        support::facades::{Artisan, Route},
+    };
+
+    fn answer(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async { Response::json(StatusCode::OK, json!({"fixture": true})) })
+    }
+    fn routes() -> Result<(), RoutingError> {
+        Route::get("/fixture", answer)
+    }
+    fn commands() -> Result<(), ConsoleError> {
+        Artisan::command("fixture:probe", |output| output.comment("fixture output"))?
+            .purpose("Verify the console fixture")
+    }
+
+    let mut fixture = TestApp::create(|builder| {
+        builder.withRouting(Routing::default().web(routes).commands(commands))
+    })?;
+    fixture
+        .get("/fixture")
+        .await?
+        .assertOk()
+        .assertHeader("content-type", "application/json")
+        .assertExactJson(&json!({"fixture": true}));
+    fixture.get("/fixture").await?.assertOk();
+
+    let command = fixture.artisan(["fixture:probe"]).await;
+    command.assertSuccessful().expectsOutput("fixture output");
+    assert!(command.stderr.is_empty());
+
+    let mut other = TestApp::create(|builder| builder)?;
+    other
+        .get("/fixture")
+        .await?
+        .assertStatus(StatusCode::NOT_FOUND);
+    let missing = other.artisan(["fixture:probe"]).await;
+    missing.assertExitCode(1);
+    assert!(missing.stdout.is_empty());
+    assert!(missing.stderr.contains("fixture:probe"));
+    Ok(())
+}

@@ -211,13 +211,24 @@ impl Application {
         self,
         arguments: &[OsString],
     ) -> Result<i32, Box<dyn Error + Send + Sync>> {
-        let mut kernel = Kernel::for_artisan(self);
         let mut output = Output::for_terminal();
-        let status = kernel.handle(arguments, &mut output).await;
-        kernel.terminate(arguments, status).await;
+        let status = self.run_console(arguments, &mut output).await;
         io::stdout().write_all(output.stdout.as_bytes())?;
         io::stderr().write_all(output.stderr.as_bytes())?;
         Ok(status)
+    }
+
+    pub(crate) async fn run_console(self, arguments: &[OsString], output: &mut Output) -> i32 {
+        let mut kernel = Kernel::for_artisan(self);
+        let status = kernel.handle(arguments, output).await;
+        kernel.terminate(arguments, status).await;
+        status
+    }
+
+    pub(crate) fn share(&self) -> Self {
+        Self {
+            shared: self.shared.clone(),
+        }
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's constructor")]
