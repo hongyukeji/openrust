@@ -859,6 +859,7 @@ fn artisan_generates_jobs_and_job_middleware() {
     let original = fs::read_to_string(&job).unwrap();
     assert!(original.contains("impl JobHandler for SendReportHandler"));
     assert!(original.contains("job.failed(context, error).await"));
+    assert!(original.contains("job.retryUntil(payload.options().retry_until)"));
     assert!(original.contains("pub async fn dispatch"));
     let sync = run(
         &root.0,
@@ -892,6 +893,7 @@ fn artisan_generates_jobs_and_job_middleware() {
     assert!(batched_source.contains("SkipIfBatchCancelled"));
     assert!(batched_source.contains("payload.batchId()"));
     assert!(batched_source.contains("job.failed(context, error).await"));
+    assert!(batched_source.contains("job.retryUntil(payload.options().retry_until)"));
     assert!(
         root.0
             .join("tests/feature/jobs/batch_report_test.rs")

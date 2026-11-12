@@ -334,7 +334,9 @@ impl QueueManager {
                 .await?;
         }
         let configured = self.resolve(Some(&job.connection))?;
-        let payload = job.payload.clone().renewed()?;
+        let mut payload = job.payload.clone();
+        self.registry.refresh_retry_deadline(&mut payload).await?;
+        let payload = payload.renewed()?;
         let queue = Some(job.queue.as_str());
         if let BatchBackend::Database(connection) = &configured.batch_backend {
             let mut transaction = connection.beginTransaction().await.map_err(backend)?;

@@ -1,8 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::SystemTime};
 
 use openrust::{
     contracts::queue::JobHandler,
-    queue::{DispatchOptions, DispatchResult, JobContext, Payload, QueueError, QueueFuture, QueueResult},
+    queue::{DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueResult},
     queue::middleware::{JobMiddleware, SkipIfBatchCancelled},
     support::facades::Queue,
 };
@@ -18,7 +18,12 @@ impl {{class}} {
     }
 
     pub fn payload(&self) -> QueueResult<Payload> {
-        Payload::new(Self::NAME, self)
+        let payload = Payload::new(Self::NAME, self)?;
+        let options = JobOptions {
+            retry_until: self.retryUntil(None)?,
+            ..JobOptions::default()
+        };
+        Ok(payload.with_options(options))
     }
 
     pub fn register() -> QueueResult<()> {
@@ -31,6 +36,11 @@ impl {{class}} {
         _batch_id: Option<&str>,
     ) -> QueueResult<()> {
         Ok(())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's job retryUntil method")]
+    pub fn retryUntil(&self, previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+        Ok(previous)
     }
 
     pub async fn failed(&self, _context: &mut JobContext<'_>, _error: &QueueError) -> QueueResult<()> {
@@ -55,6 +65,13 @@ impl JobHandler for {{class}}Handler {
                 serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
             job.handle(context, payload.batchId()).await
         })
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's job retryUntil method")]
+    fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+        let job: {{class}} =
+            serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
+        job.retryUntil(payload.options().retry_until)
     }
 
     fn failed<'a>(

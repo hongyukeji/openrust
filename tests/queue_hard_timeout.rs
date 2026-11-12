@@ -9,7 +9,7 @@ mod unix {
         path::{Path, PathBuf},
         process::ExitCode,
         sync::Arc,
-        time::Duration,
+        time::{Duration, SystemTime},
     };
 
     use openrust::contracts::http::Kernel as _;
@@ -113,6 +113,7 @@ mod unix {
                         }
                         return Err(error(std::io::Error::other("original probe error")));
                     }
+                    "deadline-refresh" | "deadline-clear" => {}
                     "cpu" => loop {
                         std::hint::spin_loop();
                     },
@@ -130,6 +131,18 @@ mod unix {
                 }
                 Ok(())
             })
+        }
+
+        #[allow(non_snake_case, reason = "Implements Laravel's retryUntil job method")]
+        fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+            match payload.data().as_str() {
+                Some("deadline-refresh") => Ok(Some(SystemTime::now() + Duration::from_secs(60))),
+                Some("deadline-clear") => Ok(None),
+                Some("deadline-error") => Err(QueueError::Execution {
+                    source: Box::new(std::io::Error::other("retry deadline unavailable")),
+                }),
+                _ => Ok(payload.options().retry_until),
+            }
         }
 
         fn failed<'a>(
@@ -930,6 +943,77 @@ mod unix {
         }
     }
 
+    async fn verify_retry_deadline(
+        root: &Path,
+        app: &Application,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let provider = app
+            .container()
+            .get::<dyn FailedJobProviderInterface>("queue.failer")
+            .unwrap();
+        let expired = SystemTime::UNIX_EPOCH + Duration::from_secs(1);
+        for kind in [
+            "deadline-refresh",
+            "deadline-clear",
+            "deadline-fixed",
+            "deadline-error",
+        ] {
+            let payload = Payload::new("hard-timeout-probe", kind)
+                .unwrap()
+                .with_options(JobOptions {
+                    retry_until: Some(expired),
+                    ..JobOptions::default()
+                });
+            provider
+                .log(&FailedJob {
+                    id: kind.into(),
+                    connection: queue.get_connection_name().into(),
+                    queue: kind.into(),
+                    payload,
+                    exception: "original failure".into(),
+                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                })
+                .await
+                .unwrap();
+            let mut retry = tokio::process::Command::new(std::env::current_exe().unwrap());
+            retry
+                .args(["artisan", "queue:retry", kind])
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            let result = tokio::time::timeout(Duration::from_secs(8), retry.output())
+                .await
+                .unwrap()
+                .unwrap();
+            if kind == "deadline-error" {
+                assert_eq!(result.status.code(), Some(1), "{result:?}");
+                assert!(provider.find(kind).await.unwrap().is_some());
+                assert_eq!(queue.size(Some(kind)).await.unwrap(), 0);
+                continue;
+            }
+            assert!(result.status.success(), "{result:?}");
+            assert!(provider.find(kind).await.unwrap().is_none());
+            let mut queued = queue.pop(Some(kind)).await.unwrap().unwrap();
+            let deadline = queued.options().retry_until;
+            match kind {
+                "deadline-refresh" => assert!(deadline.unwrap() > SystemTime::now()),
+                "deadline-clear" => assert!(deadline.is_none()),
+                "deadline-fixed" => assert_eq!(deadline, Some(expired)),
+                _ => unreachable!(),
+            }
+            queued.release(Duration::ZERO).await.unwrap();
+            let (status, lines) =
+                artisan(root, &["--once", &format!("--queue={kind}")], false).await;
+            assert_eq!(status, Some(0), "{lines:?}");
+            let expected = if kind == "deadline-fixed" {
+                "failed"
+            } else {
+                "success"
+            };
+            assert_eq!(lines.last().unwrap()["status"], expected, "{lines:?}");
+        }
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -1090,6 +1174,7 @@ mod unix {
             verify_prune_failed(&root.0, &app, &db).await;
         }
         verify_retry_selection(&root.0, &app, &db, &*queue).await;
+        verify_retry_deadline(&root.0, &app, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

@@ -760,6 +760,26 @@ Worker 回调在新的应用作用域中运行，并恢复分发时的日志上�
 
 任务回到原连接和原队列，并重新计算尝试次数。命令会报告找不到的 ID，并继续处理其余 ID。应用在尝试入队前发出 `JobRetryRequested`，事件包含原始失败记录。
 
+#### 刷新重试截止时间 {#refreshing-a-retry-deadline}
+
+在 `make:job` 生成的队列任务中覆写 `retryUntil`，计算绝对截止时间。生成的任务创建载荷时会调用此方法，Artisan 手工重试失败任务时会再次调用。
+
+```rust
+use std::time::{Duration, SystemTime};
+use openrust::queue::QueueResult;
+
+struct ProcessUpload;
+
+impl ProcessUpload {
+    #[allow(non_snake_case)]
+    fn retryUntil(&self, _previous: Option<SystemTime>) -> QueueResult<Option<SystemTime>> {
+        Ok(SystemTime::now().checked_add(Duration::from_secs(300)))
+    }
+}
+```
+
+手工重试时会收到上次的截止时间。返回该值可保留截止时间，返回 `None` 可清除。Worker 自动重试使用任务中保存的截止时间。自定义 `JobHandler` 在 Artisan 刷新截止时间时会收到原始任务载荷。回调返回错误时，命令停止并保留失败记录。
+
 ### 清理过期失败任务 {#pruning-failed-jobs}
 
 运行 `queue:prune-failed` 删除超过 24 小时的失败记录。可用 `--hours` 设置其他保留时长。

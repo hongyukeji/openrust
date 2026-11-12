@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use crate::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult};
 
 use super::Interruptible;
@@ -17,6 +19,12 @@ pub trait JobHandler: Send + Sync {
         context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>>;
+
+    /// Resolves the deadline for an explicit retry. The default keeps the stored deadline.
+    #[allow(non_snake_case, reason = "Matches Laravel's job retryUntil method")]
+    fn retryUntil(&self, payload: &Payload) -> QueueResult<Option<SystemTime>> {
+        Ok(payload.options().retry_until)
+    }
 
     /// Runs after a job reaches terminal failure, with the original payload.
     fn failed<'a>(

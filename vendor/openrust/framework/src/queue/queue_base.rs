@@ -89,6 +89,19 @@ impl Queue {
             .cloned()
     }
 
+    pub(super) async fn refresh_retry_deadline(&self, payload: &mut Payload) -> QueueResult<()> {
+        let Some(handler) = self.handler(payload.name()) else {
+            return Ok(());
+        };
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        payload.options.retry_until =
+            application_scope(owner, async { handler.retryUntil(payload) }).await?;
+        Ok(())
+    }
+
     pub(super) async fn run_failed_handler(
         &self,
         context: &mut JobContext<'_>,
