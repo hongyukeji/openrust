@@ -120,7 +120,8 @@ mod unix {
                     }
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
-                    "listener-first" | "listener-second" => {}
+                    "listener-first" | "listener-second" | "selection-default"
+                    | "selection-priority" => {}
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -374,6 +375,27 @@ mod unix {
                     Arc::new(BusyObserver(self.0.clone())),
                     Delivery::Sync,
                 )?;
+                Queue::popUsing(
+                    "probe",
+                    Some(Arc::new(|pop, queues| {
+                        Box::pin(async move {
+                            assert_eq!(queues, "listener-probe");
+                            pop.pop(Some("listener-selected")).await
+                        })
+                    })),
+                )?;
+                Queue::popUsing(
+                    "priority-worker",
+                    Some(Arc::new(|pop, queues| {
+                        Box::pin(async move {
+                            assert_eq!(queues, "selection-default,selection-fallback");
+                            pop.pop_now(Some("selection-priority")).await
+                        })
+                    })),
+                )?;
+                if std::env::var_os("QUEUE_REMOVE_POP_CALLBACK").is_some() {
+                    Queue::popUsing("priority-worker", None)?;
+                }
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
                 Event::listen(
@@ -1169,7 +1191,10 @@ mod unix {
         };
         for kind in ["listener-first", "listener-second"] {
             let payload = Payload::new("hard-timeout-probe", kind).unwrap();
-            queue.push(&payload, Some("listener-probe")).await.unwrap();
+            queue
+                .push(&payload, Some("listener-selected"))
+                .await
+                .unwrap();
         }
         let listener = command()
             .arg("--timeout=5")
@@ -1181,7 +1206,7 @@ mod unix {
             loop {
                 if root.join("listener-first.pid").is_file()
                     && root.join("listener-second.pid").is_file()
-                    && queue.size(Some("listener-probe")).await.unwrap() == 0
+                    && queue.size(Some("listener-selected")).await.unwrap() == 0
                 {
                     break;
                 }
@@ -1215,7 +1240,10 @@ mod unix {
         assert_executor_reaped(root, "listener-second");
 
         let payload = Payload::new("hard-timeout-probe", "listener-timeout").unwrap();
-        queue.push(&payload, Some("listener-probe")).await.unwrap();
+        queue
+            .push(&payload, Some("listener-selected"))
+            .await
+            .unwrap();
         let output = tokio::time::timeout(
             Duration::from_secs(8),
             command().arg("--timeout=1").output(),
@@ -1230,7 +1258,67 @@ mod unix {
         );
         assert_executor_reaped(root, "listener-timeout");
         assert_executor_reaped(root, "listener-descendant");
-        assert_eq!(queue.size(Some("listener-probe")).await.unwrap(), 1);
+        assert_eq!(queue.size(Some("listener-selected")).await.unwrap(), 1);
+    }
+
+    async fn verify_named_pop(root: &Path, queue: &dyn openrust::contracts::queue::Queue) {
+        for name in ["selection-default", "selection-priority"] {
+            let payload = Payload::new("hard-timeout-probe", name).unwrap();
+            queue.push(&payload, Some(name)).await.unwrap();
+        }
+        let args = [
+            "--once",
+            "--name=priority-worker",
+            "--queue=selection-default,selection-fallback",
+        ];
+        let (status, lines) = artisan(root, &args, false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["queue"], "selection-priority");
+        assert!(root.join("selection-priority.pid").is_file());
+        assert!(!root.join("selection-default.pid").exists());
+        assert_eq!(queue.size(Some("selection-default")).await.unwrap(), 1);
+        let (status, lines) = artisan(root, &args, false).await;
+        assert_eq!(status, Some(0));
+        assert!(lines.is_empty(), "{lines:?}");
+        assert_eq!(queue.size(Some("selection-default")).await.unwrap(), 1);
+
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .args(["artisan", "queue:work", "--json"])
+            .args(args)
+            .env("APP_BASE_PATH", root)
+            .env("QUEUE_REMOVE_POP_CALLBACK", "1")
+            .kill_on_drop(true);
+        let output = tokio::time::timeout(Duration::from_secs(8), command.output())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert!(root.join("selection-default.pid").is_file());
+        assert_eq!(queue.size(Some("selection-default")).await.unwrap(), 0);
+
+        for name in ["selection-default", "selection-priority"] {
+            let payload = Payload::new("hard-timeout-probe", name).unwrap();
+            queue.push(&payload, Some(name)).await.unwrap();
+        }
+        let mut first = application(root.to_owned()).unwrap();
+        let mut second = application(root.to_owned()).unwrap();
+        first.boot().await.unwrap();
+        second.boot().await.unwrap();
+        second
+            .container()
+            .make::<QueueManager>()
+            .unwrap()
+            .popUsing("priority-worker", None);
+        let command: Vec<_> = std::iter::once("queue:work")
+            .chain(args)
+            .map(std::ffi::OsString::from)
+            .collect();
+        assert_eq!(second.handleCommand(&command).await.unwrap(), 0);
+        assert_eq!(queue.size(Some("selection-default")).await.unwrap(), 0);
+        assert_eq!(queue.size(Some("selection-priority")).await.unwrap(), 1);
+        assert_eq!(first.handleCommand(&command).await.unwrap(), 0);
+        assert_eq!(queue.size(Some("selection-priority")).await.unwrap(), 0);
     }
 
     async fn exercise(backend: &str) {
@@ -1395,6 +1483,7 @@ mod unix {
         verify_retry_selection(&root.0, &app, &db, &*queue).await;
         verify_retry_deadline(&root.0, &app, &*queue).await;
         verify_listener(&root.0, &*queue).await;
+        verify_named_pop(&root.0, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

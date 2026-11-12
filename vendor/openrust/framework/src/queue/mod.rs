@@ -11,6 +11,8 @@ pub mod events;
 mod facade;
 pub mod failed;
 pub(crate) mod isolated_job;
+mod job_popper;
+pub use job_popper::{JobPopCallback, JobPopper};
 pub mod jobs;
 pub mod middleware;
 mod queue_base;

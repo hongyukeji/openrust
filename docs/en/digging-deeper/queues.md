@@ -98,6 +98,27 @@ Use `queue:listen` when each attempt should boot a fresh application. The listen
 
 Use `--sleep` for empty polls and `--rest` between children. `--timeout` limits a child process. Set it to zero for no process deadline. On shutdown, the listener requests that its current child stop and reaps it before returning.
 
+#### Selecting jobs for a named worker {#selecting-jobs-for-a-named-worker}
+
+Register a reservation callback from an application service provider. The callback receives the worker’s pop operation and the comma-separated queue selection. Set `--name` on `queue:work` or `queue:listen` to select it.
+
+```rust
+use std::sync::Arc;
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_priority_worker() -> QueueResult<()> {
+    Queue::popUsing("priority", Some(Arc::new(|pop, _queues| {
+        Box::pin(async move { pop.pop_now(Some("critical")).await })
+    })))
+}
+```
+
+```sh
+./artisan queue:work database --name=priority --once
+```
+
+Returning `None` marks the poll as empty. The callback controls queue selection, including whether to check paused queues. Call `Queue::popUsing("priority", None)` to restore the default strategy for that name.
+
 ### Worker status and exit reasons {#worker-status-and-exit-reasons}
 
 A worker writes job progress and pause or resume notices while it runs. Use `--json` to emit one JSON record per line. Normal output is suppressed by `--quiet` or `--silent`.

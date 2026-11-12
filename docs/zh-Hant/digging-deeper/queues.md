@@ -98,6 +98,27 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 用 `--sleep` 設定空輪詢等待，用 `--rest` 設定兩次子程序啟動間的休息時間。`--timeout` 限制子程序執行時間，設為零可取消程序期限。監聽器收到結束訊號後，會要求目前子程序停止並回收它。
 
+#### 依 Worker 名稱選擇取件策略 {#selecting-jobs-for-a-named-worker}
+
+在應用程式服務提供者中註冊取件回呼。回呼接收 Worker 的取件操作和以逗號分隔的佇列清單。在 `queue:work` 或 `queue:listen` 上用 `--name` 選擇回呼。
+
+```rust
+use std::sync::Arc;
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_priority_worker() -> QueueResult<()> {
+    Queue::popUsing("priority", Some(Arc::new(|pop, _queues| {
+        Box::pin(async move { pop.pop_now(Some("critical")).await })
+    })))
+}
+```
+
+```sh
+./artisan queue:work database --name=priority --once
+```
+
+傳回 `None` 代表本輪沒有工作。佇列選擇和暫停檢查由回呼控制。呼叫 `Queue::popUsing("priority", None)` 可恢復該名稱的預設取件策略。
+
 ### Worker 狀態與結束原因 {#worker-status-and-exit-reasons}
 
 Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行輸出一筆 JSON 記錄。`--quiet` 或 `--silent` 會隱藏一般輸出。

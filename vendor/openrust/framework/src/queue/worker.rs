@@ -23,12 +23,12 @@ use crate::{
         events::Event,
         queue::{Job, JobHandler, Queue},
     },
-    support::facades::{application_scope, isolated_scope},
+    support::facades::{application_scope, isolated_scope, scope},
 };
 
 use super::{
-    ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
-    WorkerStopReason,
+    ChainUpdate, JobContext, JobPopCallback, JobPopper, Payload, QueueError, QueueManager,
+    QueueResult, WorkerOptions, WorkerStopReason,
     events::{
         JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
         JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot,
@@ -97,6 +97,16 @@ impl Worker {
         Ok(Self { app, failed })
     }
 
+    /// Sets or removes a custom reservation callback in this worker's application.
+    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    pub fn popUsing(&self, name: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
+        self.app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?
+            .popUsing(name, callback);
+        Ok(())
+    }
+
     pub async fn run_next_job(
         &self,
         connection: &dyn Queue,
@@ -115,16 +125,24 @@ impl Worker {
                 queue: Some(queue_name.into()),
             })
             .await?;
-        if manager.polls_interruptions() && manager.isPaused(name, queue_name).await? {
-            manager
-                .emit_control_event(WorkerQueuePaused {
-                    connection: name.into(),
-                    queue: queue_name.into(),
-                })
-                .await?;
-            return Ok(WorkResult::Idle);
-        }
-        let Some(mut job) = connection.pop(queue).await? else {
+        let job = if let Some(callback) = manager.pop_callback(&options.name) {
+            scope(self.app.clone(), async {
+                callback(JobPopper::new(connection, false, None), queue_name).await
+            })
+            .await?
+        } else {
+            if manager.polls_interruptions() && manager.isPaused(name, queue_name).await? {
+                manager
+                    .emit_control_event(WorkerQueuePaused {
+                        connection: name.into(),
+                        queue: queue_name.into(),
+                    })
+                    .await?;
+                return Ok(WorkResult::Idle);
+            }
+            connection.pop(queue).await?
+        };
+        let Some(mut job) = job else {
             return Ok(WorkResult::Idle);
         };
         if let Some(event) = manager.job_popped_event(name, job.as_ref())?
@@ -249,6 +267,18 @@ impl Worker {
                         queue: Some(queue_names.clone()),
                     })
                     .await?;
+                let popper = JobPopper::new(
+                    connection,
+                    options.stop_when_empty || queues.len() > 1,
+                    idle_deadline,
+                );
+                if let Some(callback) = manager.pop_callback(&options.name) {
+                    let job = scope(self.app.clone(), async {
+                        callback(popper, &queue_names).await
+                    })
+                    .await?;
+                    return Ok((true, job));
+                }
                 if let Some(control) = &control {
                     let observed = control.paused_queues(name, queues).await?;
                     for queue in observed
@@ -281,16 +311,7 @@ impl Worker {
                     if paused.contains(queue) {
                         continue;
                     }
-                    let job = if options.stop_when_empty || queues.len() > 1 {
-                        connection.pop_now(Some(queue)).await?
-                    } else if let Some(idle_deadline) = idle_deadline {
-                        let wait =
-                            idle_deadline.saturating_duration_since(tokio::time::Instant::now());
-                        connection.pop_within(Some(queue), wait).await?
-                    } else {
-                        connection.pop(Some(queue)).await?
-                    };
-                    if let Some(job) = job {
+                    if let Some(job) = popper.pop(Some(queue)).await? {
                         return Ok((true, Some(job)));
                     }
                 }

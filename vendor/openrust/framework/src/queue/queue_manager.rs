@@ -29,8 +29,8 @@ use crate::{
 };
 
 use super::{
-    DatabaseQueue, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueResult,
-    RedisQueue, SyncQueue, backend,
+    DatabaseQueue, DispatchOptions, DispatchResult, JobPopCallback, Payload, Queue, QueueError,
+    QueueResult, RedisQueue, SyncQueue, backend,
     events::{JobRetryRequested, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed},
     failed::{FailedJob, FailedJobProviderInterface},
     new_id, queue_name,
@@ -45,6 +45,7 @@ pub struct QueueManager {
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
     chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
+    pop_callbacks: RwLock<HashMap<String, JobPopCallback>>,
     interruption_polling: AtomicBool,
     clear_prohibited: AtomicBool,
 }
@@ -83,6 +84,7 @@ impl QueueManager {
             connections: Mutex::default(),
             batch_callbacks: RwLock::default(),
             chain_callbacks: RwLock::default(),
+            pop_callbacks: RwLock::default(),
             interruption_polling: AtomicBool::new(true),
             clear_prohibited: AtomicBool::new(false),
         }
@@ -116,6 +118,30 @@ impl QueueManager {
         registrations: Vec<(String, Arc<dyn JobHandler>)>,
     ) -> QueueResult<()> {
         self.registry.register_listeners(registrations)
+    }
+
+    /// Sets or removes a custom reservation callback for a worker name.
+    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    pub fn popUsing(&self, worker: &str, callback: Option<JobPopCallback>) {
+        let previous = {
+            let mut callbacks = self
+                .pop_callbacks
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match callback {
+                Some(callback) => callbacks.insert(worker.into(), callback),
+                None => callbacks.remove(worker),
+            }
+        };
+        drop(previous);
+    }
+
+    pub(super) fn pop_callback(&self, worker: &str) -> Option<JobPopCallback> {
+        self.pop_callbacks
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(worker)
+            .cloned()
     }
 
     pub fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {

@@ -8,7 +8,9 @@ use crate::{
     support::facades::Facade,
 };
 
-use super::{DispatchOptions, DispatchResult, Payload, QueueError, QueueManager, QueueResult};
+use super::{
+    DispatchOptions, DispatchResult, JobPopCallback, Payload, QueueError, QueueManager, QueueResult,
+};
 
 /// Resolves the current application's queue manager.
 pub struct QueueFacade;
@@ -28,6 +30,13 @@ impl QueueFacade {
 
     pub fn register(name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
         Self::manager()?.register(name, handler)
+    }
+
+    /// Sets or removes a reservation callback for a named worker in the current application.
+    #[allow(non_snake_case, reason = "Matches Laravel Worker::popUsing")]
+    pub fn popUsing(worker: &str, callback: Option<JobPopCallback>) -> QueueResult<()> {
+        Self::manager()?.popUsing(worker, callback);
+        Ok(())
     }
 
     pub fn connection(name: Option<&str>) -> QueueResult<Arc<dyn Queue>> {

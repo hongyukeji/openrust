@@ -18,7 +18,7 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "listening-with-a-fresh-worker-process", "worker-status-and-exit-reasons", "worker-lifecycle-events", "registering-worker-callbacks", "synchronous-job-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "max-exceptions", "counting-worker-crashes", "stopping-retries-by-exception", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "cleaning-up-after-failed-jobs", "retrying-failed-jobs", "refreshing-a-retry-deadline", "retrying-a-group-of-stored-failures", "pruning-failed-jobs", "clearing-jobs-from-queues", "monitoring-your-queues", "preventing-job-overlaps", "throttling-exceptions", "releasing-jobs", "skipping-jobs", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "listening-with-a-fresh-worker-process", "selecting-jobs-for-a-named-worker", "worker-status-and-exit-reasons", "worker-lifecycle-events", "registering-worker-callbacks", "synchronous-job-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "max-exceptions", "counting-worker-crashes", "stopping-retries-by-exception", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "cleaning-up-after-failed-jobs", "retrying-failed-jobs", "refreshing-a-retry-deadline", "retrying-a-group-of-stored-failures", "pruning-failed-jobs", "clearing-jobs-from-queues", "monitoring-your-queues", "preventing-job-overlaps", "throttling-exceptions", "releasing-jobs", "skipping-jobs", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
@@ -31,6 +31,7 @@ try {
                     assert.ok(body.includes("restart_signal"));
                     assert.ok(body.includes("empty_for"));
                     assert.ok(body.includes("WorkerIdle"));
+                    assert.ok(body.includes("Queue::popUsing"));
                     assert.ok(body.includes("./artisan queue:listen database --queue=default --timeout=60"));
                     assert.ok(body.includes("Looping"));
                     assert.ok(body.includes("JobPopping"));
