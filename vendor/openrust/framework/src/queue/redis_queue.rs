@@ -357,6 +357,10 @@ impl Contract for RedisQueue {
         &self.name
     }
 
+    fn default_queue(&self) -> &str {
+        &self.queue
+    }
+
     fn size<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>> {
         Box::pin(async move {
             let [ready, delayed, reserved] = self.keys(self.queue_name(queue)?);

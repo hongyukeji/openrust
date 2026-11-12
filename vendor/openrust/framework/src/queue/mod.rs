@@ -17,6 +17,7 @@ mod queue_service_provider;
 mod redis_queue;
 mod sync_queue;
 mod worker;
+mod worker_control;
 mod worker_options;
 
 use std::{

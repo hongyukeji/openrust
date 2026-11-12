@@ -80,6 +80,32 @@ Pass the active transaction as the last argument of `Queue::dispatch`. A connect
 
 Use `./artisan queue:work database --stop-when-empty` to process pending jobs and exit. `--once` attempts one job. Use `--tries`, `--backoff` and `--timeout` to configure the worker. A job can override these values in `JobOptions`. On SIGTERM, the worker stops taking new jobs and finishes the current attempt.
 
+### Queue workers and deployment {#queue-workers-and-deployment}
+
+Run the restart command during deployment. A worker finishes its current job and exits successfully. A process supervisor can then start the updated worker. The command and workers need to share the application’s cache store. Use a database, Redis, or shared file cache. An array cache is local to each process.
+
+```sh
+./artisan queue:restart
+```
+
+### Pausing and resuming queue workers {#pausing-and-resuming-queue-workers}
+
+Pause a queue by its connection and name. A bare queue name uses the default connection. A worker finishes its current job and skips the paused queue while continuing to serve any other eligible queues.
+
+```sh
+./artisan queue:pause database:default
+./artisan queue:continue database:default
+```
+
+Pause or resume every queue with `--all`. Resuming all queues preserves individual pauses. `queue:continue` is an alias for `queue:resume`.
+
+```sh
+./artisan queue:pause --all
+./artisan queue:resume --all
+```
+
+Workers check the shared cache between jobs and while idle. The `--sleep` option controls the idle polling interval. To disable restart and pause polling for an application, call `Queue::withoutInterruptionPolling()?` in a service provider’s `boot` method. Redis workers with `block_for` check again after the blocking pop returns. Use a finite block duration if idle workers need to pick up control signals promptly.
+
 ## Job chaining {#job-chaining}
 
 Pass registered job payloads to `Bus::chain`. Call `dispatch().await` on the builder to dispatch the first job. On the database and Redis drivers, the worker acknowledges each successful job and enqueues the next one in a single storage operation. A retry or release pauses the chain at the current job. A permanent failure stops it. The sync driver runs the chain inline.

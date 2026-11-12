@@ -80,6 +80,32 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 运行 `./artisan queue:work database --stop-when-empty` 处理待执行任务并退出。`--once` 尝试一个任务。用 `--tries`、`--backoff` 和 `--timeout` 配置 Worker，任务可通过 `JobOptions` 覆盖。收到 SIGTERM 时，Worker 停止领取新任务并完成当前尝试。
 
+### 队列 Worker 与部署 {#queue-workers-and-deployment}
+
+部署时运行重启命令。Worker 会完成当前任务并正常退出，随后由进程管理器启动新版 Worker。命令和 Worker 需要共用应用缓存，可使用数据库、Redis 或共享文件缓存。数组缓存只在当前进程生效。
+
+```sh
+./artisan queue:restart
+```
+
+### 暂停和恢复队列 Worker {#pausing-and-resuming-queue-workers}
+
+通过连接和队列名称暂停队列。只写队列名时使用默认连接。Worker 会完成当前任务，此后跳过已暂停的队列，并继续处理其他可用队列。
+
+```sh
+./artisan queue:pause database:default
+./artisan queue:continue database:default
+```
+
+用 `--all` 暂停或恢复所有队列。全局恢复保留单独设置的暂停状态。`queue:continue` 是 `queue:resume` 的别名。
+
+```sh
+./artisan queue:pause --all
+./artisan queue:resume --all
+```
+
+Worker 在任务之间及空闲时检查共享缓存。`--sleep` 控制空闲轮询间隔。若要对某个应用关闭重启和暂停轮询，在服务提供者的 `boot` 方法中调用 `Queue::withoutInterruptionPolling()?`。 Redis Worker 配置了 `block_for` 时，会在阻塞取任务返回后再次检查。需要空闲 Worker 及时响应控制信号时，请配置有限的阻塞时长。
+
 ## 任务链 {#job-chaining}
 
 将已注册的任务载荷传给 `Bus::chain`，在构建器上调用 `dispatch().await` 派发首个任务。使用数据库或 Redis 驱动时，Worker 在同一次存储操作中确认当前任务成功并将下一项入队。重试或释放时，任务链停在当前任务。任务最终失败时，任务链停止。sync 驱动在当前进程内依次执行。

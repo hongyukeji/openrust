@@ -238,6 +238,7 @@ fn application(recorder: Arc<Recorder>) -> Application {
                 ("auth".into(), json!({"guards":{"header":{"driver":"header"}}})),
                 ("session".into(), json!({"driver":"array","lottery":[0,100]})),
                 ("broadcasting".into(), json!({"default":"probe","connections":{"probe":{"driver":"record"}}})),
+                ("cache".into(), json!({"default":"array","stores":{"array":{"driver":"array"}}})),
                 ("queue".into(), json!({"default":"db","connections":{"db":{"driver":"database","queue":"default","table":"jobs","retry_after":30}}})),
             ].into())
         })

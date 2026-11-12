@@ -115,7 +115,7 @@ fn artisan_reserves_reference_commands_without_running_them() {
     let list = artisan(&["list", "--raw"]);
     assert!(list.status.success());
     let list = String::from_utf8(list.stdout).unwrap();
-    for name in ["route:cache", "build", "queue:restart"] {
+    for name in ["route:cache", "build"] {
         let entries: Vec<_> = list
             .lines()
             .filter(|line| line.split_whitespace().next() == Some(name))
@@ -124,27 +124,27 @@ fn artisan_reserves_reference_commands_without_running_them() {
         assert!(entries[0].ends_with("[Planned]"));
     }
 
+    let help = artisan(&["help", "build"]);
+    assert!(help.status.success());
+    assert!(
+        String::from_utf8(help.stdout)
+            .unwrap()
+            .contains("not implemented yet")
+    );
+
     for arguments in [
-        ["help", "build"],
         ["queue:restart", "--help"],
         ["help", "queue:continue"],
+        ["queue:pause", "--help"],
     ] {
         let help = artisan(&arguments);
         assert!(help.status.success(), "{arguments:?}");
         assert!(
-            String::from_utf8(help.stdout)
+            !String::from_utf8(help.stdout)
                 .unwrap()
                 .contains("not implemented yet")
         );
     }
-
-    let restart = artisan(&["queue:restart"]);
-    assert_eq!(restart.status.code(), Some(1));
-    assert!(restart.stdout.is_empty());
-    assert_eq!(
-        String::from_utf8(restart.stderr).unwrap().trim(),
-        "Command 'queue:restart' is not implemented yet."
-    );
 }
 
 #[test]

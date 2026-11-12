@@ -6,6 +6,10 @@ use super::Job;
 pub trait Queue: Send + Sync {
     fn get_connection_name(&self) -> &str;
 
+    fn default_queue(&self) -> &str {
+        "default"
+    }
+
     fn size<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>>;
 
     fn push<'a>(

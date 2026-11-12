@@ -80,6 +80,32 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 執行 `./artisan queue:work database --stop-when-empty` 處理待執行工作並結束。`--once` 嘗試一個工作。使用 `--tries`、`--backoff` 和 `--timeout` 設定 Worker，工作可透過 `JobOptions` 覆寫。收到 SIGTERM 時，Worker 停止領取新工作並完成目前嘗試。
 
+### 佇列 Worker 與部署 {#queue-workers-and-deployment}
+
+部署時執行重啟命令。Worker 會完成目前工作並正常結束，再由程序管理器啟動新版 Worker。命令和 Worker 需要共用應用程式快取，可使用資料庫、Redis 或共用檔案快取。陣列快取只在目前程序生效。
+
+```sh
+./artisan queue:restart
+```
+
+### 暫停和恢復佇列 Worker {#pausing-and-resuming-queue-workers}
+
+透過連線和佇列名稱暫停佇列。只寫佇列名稱時使用預設連線。Worker 會完成目前工作，此後略過已暫停的佇列，並繼續處理其他可用佇列。
+
+```sh
+./artisan queue:pause database:default
+./artisan queue:continue database:default
+```
+
+使用 `--all` 暫停或恢復所有佇列。全域恢復保留個別設定的暫停狀態。`queue:continue` 是 `queue:resume` 的別名。
+
+```sh
+./artisan queue:pause --all
+./artisan queue:resume --all
+```
+
+Worker 在工作之間及閒置時檢查共用快取。`--sleep` 控制閒置輪詢間隔。若要對某個應用程式關閉重啟和暫停輪詢，請在服務提供者的 `boot` 方法中呼叫 `Queue::withoutInterruptionPolling()?`。 Redis Worker 設定了 `block_for` 時，會在阻塞取工作返回後再次檢查。若要讓閒置 Worker 及時回應控制訊號，請設定有限的阻塞時間。
+
 ## 工作鏈 {#job-chaining}
 
 將已註冊的工作承載資料傳給 `Bus::chain`，在建構器上呼叫 `dispatch().await` 派送第一個工作。使用資料庫或 Redis 驅動時，Worker 在同一次儲存操作中確認目前工作成功並將下一項入列。重試或釋放時，工作鏈停在目前工作。工作最終失敗時，工作鏈停止。sync 驅動在目前程序內依序執行。

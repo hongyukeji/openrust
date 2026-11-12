@@ -1,6 +1,9 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex, RwLock, Weak},
+    sync::{
+        Arc, Mutex, RwLock, Weak,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serde::Deserialize;
@@ -10,6 +13,7 @@ use crate::{
         Batch, BatchCallback, BatchContinuation, BatchJob, BatchPhase, ChainCallback,
         DatabaseBatchRepository, PublicationKey, new_batch,
     },
+    cache::CacheManager,
     container::Container,
     contracts::{
         config::Repository,
@@ -25,6 +29,7 @@ use super::{
     RedisQueue, SyncQueue, backend,
     failed::{FailedJob, FailedJobProviderInterface},
     new_id, queue_name,
+    worker_control::WorkerControl,
 };
 
 /// Resolves and caches configured queue connections for one application.
@@ -35,6 +40,7 @@ pub struct QueueManager {
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
     chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
+    interruption_polling: AtomicBool,
 }
 
 struct ConfiguredQueue {
@@ -71,6 +77,7 @@ impl QueueManager {
             connections: Mutex::default(),
             batch_callbacks: RwLock::default(),
             chain_callbacks: RwLock::default(),
+            interruption_polling: AtomicBool::new(true),
         }
     }
 
@@ -87,6 +94,38 @@ impl QueueManager {
 
     pub fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {
         Ok(self.resolve(name)?.queue.clone())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub fn withoutInterruptionPolling(&self) {
+        self.interruption_polling.store(false, Ordering::Relaxed);
+    }
+
+    pub(super) fn polls_interruptions(&self) -> bool {
+        self.interruption_polling.load(Ordering::Relaxed)
+    }
+
+    pub(super) fn worker_control(&self) -> QueueResult<WorkerControl> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let cache = owner
+            .make::<CacheManager>()
+            .map_err(QueueError::Unavailable)?;
+        Ok(WorkerControl::new(cache.store(None).map_err(backend)?))
+    }
+
+    pub(super) fn control_target(&self, argument: &str) -> QueueResult<(String, String)> {
+        let (connection, queue) = argument
+            .split_once(':')
+            .map_or((None, argument), |(connection, queue)| {
+                (Some(connection), queue)
+            });
+        let queue = if queue.is_empty() { "default" } else { queue };
+        let configured = self.resolve(connection)?;
+        configured.queue_name(Some(queue))?;
+        Ok((configured.queue.get_connection_name().into(), queue.into()))
     }
 
     pub async fn dispatch(

@@ -126,6 +126,25 @@ impl JobHandler for Handler {
                 {
                     return Err(execution(std::io::Error::other("terminal")));
                 }
+                "pause_gate" | "restart_gate" => {
+                    let release = format!("{}_release", payload.name());
+                    while db
+                        .table("receipts")
+                        .r#where("name", "=", release.as_str())
+                        .count("*")
+                        .await
+                        .map_err(execution)?
+                        == 0
+                    {
+                        sleep(Duration::from_millis(20)).await;
+                    }
+                    db.statement(
+                        "insert into receipts (name, value) values (?, 1)",
+                        &[format!("{}_done", payload.name()).into()],
+                    )
+                    .await
+                    .map_err(execution)?;
+                }
                 "slow" => {
                     sleep(Duration::from_millis(600)).await;
                     db.statement(
@@ -193,7 +212,19 @@ struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            for name in ["flaky", "terminal", "timeout", "slow"] {
+            if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
+                Queue::withoutInterruptionPolling()?;
+            }
+            for name in [
+                "flaky",
+                "terminal",
+                "timeout",
+                "slow",
+                "pause_gate",
+                "restart_gate",
+                "control_default",
+                "control_low",
+            ] {
                 Queue::register(name, Arc::new(Handler))?;
             }
             Context::dehydrating(|context| context.forgetHidden("secret"))?;
@@ -235,7 +266,11 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     ..Default::default()
                 });
             }
-            Queue::dispatch(payload, DispatchOptions::default(), None).await?;
+            let options = DispatchOptions {
+                queue: (kind == "control_low").then(|| "low".to_owned()),
+                ..Default::default()
+            };
+            Queue::dispatch(payload, options, None).await?;
         }
         assert_eq!(Context::getHidden("secret").unwrap(), Some(json!("remove")));
         Ok(Response::empty(StatusCode::NO_CONTENT))
@@ -342,6 +377,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
             "default": "worker", "connections": {"worker":db_config},
             "redis": {"options":{"prefix":format!("openrust-worker:{id}:")}, "default":{"port":redis.unwrap_or(6379)}}
         },
+        "cache": {"default":if redis.is_some() {"redis"} else {"file"},"stores":{"redis":{"driver":"redis"},"file":{"driver":"file","path":"control-cache"}}},
         "queue": {
             "default": default_queue,
             "connections":{"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0}},
@@ -531,10 +567,126 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         );
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+    verify_worker_control(&root.0, &db, &*queue, address, default_queue).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
     }
+}
+
+async fn verify_worker_control(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+    connection: &str,
+) {
+    let selected = format!("{connection}:default");
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let wait_for = |name| async move {
+        timeout(Duration::from_secs(6), async {
+            while count(name).await == 0 {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+    };
+    let release = |name: &'static str| async move {
+        db.statement(
+            "insert into receipts (name, value) values (?, 1)",
+            &[name.into()],
+        )
+        .await
+        .unwrap();
+    };
+    let once = ["queue:work", "--once"];
+    run(root, &["queue:pause", &selected]).await;
+    request(address, "control_default").await;
+    request(address, "control_low").await;
+    run(root, &["queue:pause", "--all"]).await;
+    run(root, &["queue:work", "--once", "--queue=default,low"]).await;
+    assert_eq!(count("control_low").await, 0);
+    run(root, &["queue:resume", "--all"]).await;
+    run(root, &["queue:work", "--once", "--queue=default,low"]).await;
+    assert_eq!(count("control_low").await, 1);
+    assert_eq!(count("control_default").await, 0);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    run(root, &["queue:continue", "default"]).await;
+    run(root, &once).await;
+    assert_eq!(count("control_default").await, 1);
+
+    request(address, "pause_gate").await;
+    request(address, "control_default").await;
+    let mut worker = artisan(root, &["queue:work", "--sleep=1", "--max-jobs=2"])
+        .spawn()
+        .unwrap();
+    wait_for("pause_gate").await;
+    run(root, &["queue:pause", &selected]).await;
+    release("pause_gate_release").await;
+    wait_for("pause_gate_done").await;
+    assert!(
+        timeout(Duration::from_millis(1200), worker.wait())
+            .await
+            .is_err()
+    );
+    assert_eq!(count("control_default").await, 1);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    run(root, &["queue:resume", &selected]).await;
+    assert!(
+        timeout(Duration::from_secs(6), worker.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(count("control_default").await, 2);
+
+    request(address, "restart_gate").await;
+    request(address, "control_default").await;
+    let mut worker = artisan(root, &["queue:work", "--sleep=1"]).spawn().unwrap();
+    wait_for("restart_gate").await;
+    let broadcast = run(root, &["queue:restart"]).await;
+    assert!(broadcast.contains("Broadcasting queue restart signal."));
+    release("restart_gate_release").await;
+    assert!(
+        timeout(Duration::from_secs(6), worker.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(count("restart_gate_done").await, 1);
+    assert_eq!(count("control_default").await, 2);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    run(root, &once).await;
+    assert_eq!(count("control_default").await, 3);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+    run(root, &["queue:pause", &selected]).await;
+    request(address, "control_default").await;
+    let result = timeout(
+        Duration::from_secs(6),
+        artisan(root, &once)
+            .env("QUEUE_WORKER_DISABLE_POLLING", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(count("control_default").await, 4);
+    request(address, "control_default").await;
+    run(root, &once).await;
+    assert_eq!(count("control_default").await, 4);
+    run(root, &["queue:resume", &selected]).await;
+    run(root, &once).await;
+    assert_eq!(count("control_default").await, 5);
 }
 
 #[tokio::test]

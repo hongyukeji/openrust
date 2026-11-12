@@ -64,6 +64,26 @@ impl Worker {
         options: &WorkerOptions,
         shutdown: &CancellationToken,
     ) -> QueueResult<u64> {
+        let manager = self
+            .app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        let control = manager
+            .polls_interruptions()
+            .then(|| manager.worker_control())
+            .transpose()?;
+        let initial_restart = if let Some(control) = &control {
+            control.restart_generation().await?
+        } else {
+            None
+        };
+        let default_queue = [connection.default_queue()];
+        let queues = if queues.is_empty() {
+            &default_queue[..]
+        } else {
+            queues
+        };
+        let name = connection.get_connection_name();
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let mut processed = 0;
@@ -71,15 +91,23 @@ impl Worker {
             && options.max_jobs.is_none_or(|limit| processed < limit)
             && options.max_time.is_none_or(|limit| start.elapsed() < limit)
         {
+            if let Some(control) = &control
+                && control.restart_generation().await? != initial_restart
+            {
+                break;
+            }
             let reservation = async {
-                if queues.is_empty() {
-                    return if options.stop_when_empty {
-                        connection.pop_now(None).await
-                    } else {
-                        connection.pop(None).await
-                    };
+                if let Some(control) = &control
+                    && control.all_paused().await?
+                {
+                    return Ok(None);
                 }
                 for queue in queues {
+                    if let Some(control) = &control
+                        && control.queue_paused(name, queue).await?
+                    {
+                        continue;
+                    }
                     let job = if options.stop_when_empty || queues.len() > 1 {
                         connection.pop_now(Some(queue)).await?
                     } else {

@@ -33,6 +33,12 @@ impl QueueFacade {
         Self::manager()?.connection(name)
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub fn withoutInterruptionPolling() -> QueueResult<()> {
+        Self::manager()?.withoutInterruptionPolling();
+        Ok(())
+    }
+
     pub async fn dispatch(
         payload: Payload,
         options: DispatchOptions,

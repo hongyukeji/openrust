@@ -177,6 +177,7 @@ fn fixture(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) -> Root {
                 "invalid":{"transport":"smtp","host":"127.0.0.1","url":"not a url secret-marker"}}},
         "database":{"default":"delivery","connections":{"delivery":db},
             "redis":{"options":{"prefix":format!("openrust-mail:{id}:")},"default":{"port":redis.unwrap_or(6379)}}},
+        "cache":{"default":"array","stores":{"array":{"driver":"array"}}},
         "queue":{"default":if redis.is_some() {"redis"} else {"database"},
             "connections":{"redis":{"driver":"redis","retry_after":30}, "database":{"driver":"database","retry_after":30}},
             "failed":{"driver":"database-uuids","database":"delivery","table":"failed_jobs"}}
