@@ -36,7 +36,13 @@ pub struct QueueManager {
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
     after_commit: bool,
-    database: Option<Connection>,
+    batch_backend: BatchBackend,
+}
+
+enum BatchBackend {
+    Database(Connection),
+    Redis(Arc<RedisQueue>),
+    Unsupported,
 }
 
 #[derive(Deserialize)]
@@ -120,7 +126,7 @@ impl QueueManager {
         let configured = self.resolve(Some(&job.connection))?;
         let payload = job.payload.clone().renewed()?;
         let queue = Some(job.queue.as_str());
-        if let Some(connection) = &configured.database {
+        if let BatchBackend::Database(connection) = &configured.batch_backend {
             let mut transaction = connection.beginTransaction().await.map_err(backend)?;
             match failures
                 .forget_retry_in_transaction(job, &mut transaction)
@@ -258,18 +264,15 @@ impl QueueManager {
                 .get("connection")
                 .and_then(serde_json::Value::as_str),
         )?;
-        let connection = configured
-            .database
-            .as_ref()
-            .ok_or(QueueError::InvalidBatchConnection)?;
         let repository = self.batch_repository()?;
-        let queue = options
-            .get("queue")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned);
-        if !repository.uses_connection(connection) {
-            return Err(QueueError::InvalidBatchConnection);
-        }
+        let selected = options.get("queue").and_then(serde_json::Value::as_str);
+        let queue = match &configured.batch_backend {
+            BatchBackend::Database(connection) if repository.uses_connection(connection) => {
+                selected.map(str::to_owned)
+            }
+            BatchBackend::Redis(redis) => Some(redis.queue_name(selected)?.to_owned()),
+            _ => return Err(QueueError::InvalidBatchConnection),
+        };
         let mut batch = new_batch(name, options, 0)?;
         for phase in BatchPhase::ALL {
             for callback in phase.names(&batch) {
@@ -289,10 +292,24 @@ impl QueueManager {
             for job in &mut jobs {
                 self.capture_context(job)?;
                 job.batch_id = Some(batch.id.clone());
-                configured
-                    .queue
-                    .push_in_transaction(job, queue.as_deref(), None, &mut transaction)
+            }
+            if let BatchBackend::Redis(redis) = &configured.batch_backend {
+                repository
+                    .stage_publication(
+                        &mut transaction,
+                        &batch.id,
+                        &redis.name,
+                        queue.as_deref().expect("Redis queue resolved"),
+                        &jobs,
+                    )
                     .await?;
+            } else {
+                for job in &jobs {
+                    configured
+                        .queue
+                        .push_in_transaction(job, queue.as_deref(), None, &mut transaction)
+                        .await?;
+                }
             }
             Ok(batch)
         }
@@ -300,10 +317,21 @@ impl QueueManager {
         match result {
             Ok(batch) => {
                 transaction.commit().await.map_err(backend)?;
-                crate::bus::events::emit(crate::bus::events::BatchDispatched {
-                    batch: batch.clone(),
-                })
-                .await;
+                if matches!(configured.batch_backend, BatchBackend::Redis(_)) {
+                    if let Err(error) = self.publish_batch(&repository, &batch.id).await {
+                        let context = serde_json::Map::from_iter([
+                            ("batch_id".into(), batch.id.as_str().into()),
+                            ("error".into(), error.to_string().into()),
+                        ]);
+                        let _ =
+                            crate::log::Log::error("Redis batch publication is pending", &context);
+                    }
+                } else {
+                    crate::bus::events::emit(crate::bus::events::BatchDispatched {
+                        batch: batch.clone(),
+                    })
+                    .await;
+                }
                 Ok(batch)
             }
             Err(error) => {
@@ -311,6 +339,37 @@ impl QueueManager {
                 Err(error)
             }
         }
+    }
+
+    pub(crate) async fn publish_batch(
+        &self,
+        repository: &DatabaseBatchRepository,
+        id: &str,
+    ) -> QueueResult<bool> {
+        let mut transaction = repository.begin().await?;
+        let Some(publication) = repository.claim_publication(&mut transaction, id).await? else {
+            transaction.rollBack(None).await.map_err(backend)?;
+            return Ok(false);
+        };
+        let configured = self.resolve(Some(&publication.connection))?;
+        let BatchBackend::Redis(redis) = &configured.batch_backend else {
+            return Err(QueueError::InvalidBatchConnection);
+        };
+        let batch = repository
+            .find_in_transaction(&mut transaction, id)
+            .await?
+            .ok_or(QueueError::InvalidPayload)?;
+        redis
+            .publish_batch(id, &publication.queue, &publication.payloads)
+            .await?;
+        repository
+            .acknowledge_publication(&mut transaction, id)
+            .await?;
+        transaction.commit().await.map_err(backend)?;
+
+        crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
+        redis.expire_publication(id).await;
+        Ok(true)
     }
 
     fn resolve(&self, name: Option<&str>) -> QueueResult<Arc<ConfiguredQueue>> {
@@ -351,11 +410,11 @@ impl QueueManager {
             },
             None => return Err(QueueError::UnknownConnection { name: name.into() }),
         };
-        let (queue, database) = self.make(name, &settings)?;
+        let (queue, batch_backend) = self.make(name, &settings)?;
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
-            database,
+            batch_backend,
         });
         connections.insert(name.into(), configured.clone());
         Ok(configured)
@@ -365,20 +424,20 @@ impl QueueManager {
         &self,
         name: &str,
         settings: &Settings,
-    ) -> QueueResult<(Arc<dyn Contract>, Option<Connection>)> {
+    ) -> QueueResult<(Arc<dyn Contract>, BatchBackend)> {
         let registry = self.registry.clone();
         let queue = queue_name(settings.queue.as_deref(), "default")?.to_owned();
         let retry_after = settings.retry_after.unwrap_or(90);
         if !(1..=i64::from(i32::MAX)).contains(&retry_after) {
             return Err(QueueError::InvalidConfiguration);
         }
-        let driver: (Arc<dyn Contract>, Option<Connection>) = match settings.driver.as_str() {
+        let driver: (Arc<dyn Contract>, BatchBackend) = match settings.driver.as_str() {
             "sync" => (
                 Arc::new(SyncQueue {
                     name: name.into(),
                     registry,
                 }),
-                None,
+                BatchBackend::Unsupported,
             ),
             "database" => {
                 let owner = self
@@ -402,7 +461,7 @@ impl QueueManager {
                         connection: connection.clone(),
                         registry,
                     }),
-                    Some(connection),
+                    BatchBackend::Database(connection),
                 )
             }
             "redis" => {
@@ -416,17 +475,15 @@ impl QueueManager {
                 let connection = manager
                     .connection(settings.connection.as_deref())
                     .map_err(backend)?;
-                (
-                    Arc::new(RedisQueue {
-                        name: name.into(),
-                        queue,
-                        retry_after,
-                        block_for: settings.block_for,
-                        connection,
-                        registry,
-                    }),
-                    None,
-                )
+                let redis = Arc::new(RedisQueue {
+                    name: name.into(),
+                    queue,
+                    retry_after,
+                    block_for: settings.block_for,
+                    connection,
+                    registry,
+                });
+                (redis.clone(), BatchBackend::Redis(redis))
             }
             driver => return Err(QueueError::UnsupportedDriver(driver.into())),
         };

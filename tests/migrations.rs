@@ -82,6 +82,7 @@ async fn verify(mysql: Option<&str>) {
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
     for name in [
+        "job_batches_outbox",
         "job_batches_jobs",
         "job_batches",
         "failed_jobs",
@@ -132,11 +133,14 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 6);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 7);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(!schema.hasTable("job_batches_outbox").await.unwrap());
+    assert!(schema.hasTable("job_batches_jobs").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("job_batches_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
@@ -146,8 +150,10 @@ async fn verify(mysql: Option<&str>) {
     let upgrade = success(run(&["migrate"]));
     assert!(upgrade.contains("create_job_batches_table"));
     assert!(upgrade.contains("create_job_batches_jobs_table"));
+    assert!(upgrade.contains("create_job_batches_outbox_table"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -323,7 +329,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 6);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 7);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

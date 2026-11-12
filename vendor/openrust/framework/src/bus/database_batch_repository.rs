@@ -6,7 +6,7 @@ use crate::{
         Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
         query::{Builder, Record},
     },
-    queue::{QueueResult, backend, new_id},
+    queue::{Payload, QueueError, QueueResult, backend, new_id},
 };
 
 use super::{Batch, BatchPhase, BatchTransition};
@@ -17,6 +17,7 @@ pub struct DatabaseBatchRepository {
     connection: Connection,
     table: String,
     jobs_table: String,
+    outbox: String,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel batch repository methods")]
@@ -26,10 +27,13 @@ impl DatabaseBatchRepository {
         connection.queue_table(&table).map_err(backend)?;
         let jobs_table = format!("{table}_jobs");
         connection.queue_table(&jobs_table).map_err(backend)?;
+        let outbox = format!("{table}_outbox");
+        connection.queue_table(&outbox).map_err(backend)?;
         Ok(Self {
             connection,
             table,
             jobs_table,
+            outbox,
         })
     }
 
@@ -63,6 +67,106 @@ impl DatabaseBatchRepository {
         transaction
             .table(&self.table)
             .insert(&[insert_values(batch).map_err(backend)?])
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    pub(crate) async fn stage_publication(
+        &self,
+        transaction: &mut Transaction,
+        batch: &str,
+        connection: &str,
+        queue: &str,
+        payloads: &[Payload],
+    ) -> QueueResult<()> {
+        let payloads = serde_json::to_string(payloads).map_err(|_| QueueError::InvalidPayload)?;
+        transaction
+            .table(&self.outbox)
+            .insert(&[[
+                ("batch_id".into(), batch.into()),
+                ("connection".into(), connection.into()),
+                ("queue".into(), queue.into()),
+                ("payloads".into(), payloads.into()),
+            ]
+            .into_iter()
+            .collect()])
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    pub(crate) async fn pending_publications(&self, limit: u64) -> QueueResult<Vec<String>> {
+        self.connection
+            .table(&self.outbox)
+            .useWritePdo()
+            .orderBy("batch_id", "asc")
+            .limit(limit)
+            .get()
+            .await
+            .map_err(backend)?
+            .iter()
+            .map(|row| outbox_text(row, "batch_id").map(str::to_owned))
+            .collect()
+    }
+
+    pub(crate) async fn claim_publication(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+    ) -> QueueResult<Option<BatchPublication>> {
+        // SQLite has no row-level FOR UPDATE. Acquire the write reservation before reading.
+        if self.connection.is_sqlite() {
+            transaction
+                .table(&self.outbox)
+                .r#where("batch_id", "=", id)
+                .update([("batch_id".into(), id.into())].into_iter().collect())
+                .await
+                .map_err(backend)?;
+        }
+        transaction
+            .table(&self.outbox)
+            .r#where("batch_id", "=", id)
+            .lockForUpdate()
+            .first()
+            .await
+            .map_err(backend)?
+            .map(|row| {
+                Ok(BatchPublication {
+                    connection: outbox_text(&row, "connection")?.into(),
+                    queue: outbox_text(&row, "queue")?.into(),
+                    payloads: serde_json::from_str(outbox_text(&row, "payloads")?)
+                        .map_err(|_| QueueError::InvalidPayload)?,
+                })
+            })
+            .transpose()
+    }
+
+    pub(crate) async fn find_in_transaction(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+    ) -> QueueResult<Option<Batch>> {
+        transaction
+            .table(&self.table)
+            .r#where("id", "=", id)
+            .first()
+            .await
+            .map_err(backend)?
+            .map(decode)
+            .transpose()
+            .map_err(backend)
+    }
+
+    pub(crate) async fn acknowledge_publication(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+    ) -> QueueResult<()> {
+        transaction
+            .table(&self.outbox)
+            .r#where("batch_id", "=", id)
+            .delete()
             .await
             .map_err(backend)?;
         Ok(())
@@ -389,6 +493,19 @@ impl DatabaseBatchRepository {
             )
             .await
             .map_err(backend)
+    }
+}
+
+pub(crate) struct BatchPublication {
+    pub connection: String,
+    pub queue: String,
+    pub payloads: Vec<Payload>,
+}
+
+fn outbox_text<'a>(row: &'a Row, column: &str) -> QueueResult<&'a str> {
+    match row.get(column) {
+        Some(Value::Text(value)) => Ok(value),
+        _ => Err(QueueError::InvalidPayload),
     }
 }
 

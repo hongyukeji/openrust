@@ -105,7 +105,15 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 运行 `./artisan queue:work database --queue=batch --stop-when-empty` 处理批次。用 `Bus::findBatch(&id)` 读取当前状态，用 `Bus::cancelBatch(&id)` 主动取消批次。任务最终失败时默认取消批次。通过 `allowFailures()` 允许批次继续，通过 `SkipIfBatchCancelled` 跳过已取消批次的任务。失败任务在重试成功前仍计入待处理数。
 
-批次派发目前使用与批次仓库同一连接的数据库队列。批次创建和所有入队操作在同一事务提交。自定义批次表时，还需建立同名加 `_jobs` 后缀的投递记录表。Redis 派发待接入。
+数据库队列与批次仓库须使用同一 SQL 连接，批次和入队操作在同一事务提交。派发到 Redis 时，在 `dispatch()` 前调用 `onConnection("redis")`。
+
+### 向 Redis 发布批次 {#redis-batches}
+
+OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布失败时，`dispatch()` 仍返回已受理的批次。定期运行 `queue:publish-batches` 重试待发布记录。Redis 一起写入任务与发布标记，SQL 确认发布后，OpenRust 尝试给标记设置 24 小时有效期。Redis 的持久化和淘汰配置需保留队列数据与发布标记。自定义批次表时，还须建立同名加 `_jobs`、`_outbox` 后缀的配套表。
+
+```sh
+./artisan queue:publish-batches --limit=1
+```
 
 ### 批次回调 {#batch-callbacks}
 

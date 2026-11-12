@@ -105,7 +105,15 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
 
-Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch is pending.
+A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `onConnection("redis")` before `dispatch()`.
+
+### Publishing batches to Redis {#redis-batches}
+
+OpenRust commits the batch and the Redis publication intent in SQL before contacting Redis. If publication fails, `dispatch()` still returns the accepted batch. Run `queue:publish-batches` periodically to retry pending intents. Redis writes the jobs and a publication marker together. The marker stays in Redis until SQL acknowledges the publication, then OpenRust attempts to set a 24-hour expiry. Configure Redis persistence and eviction for queue data and markers. If you customize the batch table, create its companion tables with the `_jobs` and `_outbox` suffixes.
+
+```sh
+./artisan queue:publish-batches --limit=1
+```
 
 ### Batch callbacks {#batch-callbacks}
 

@@ -29,6 +29,22 @@ end
 return 1
 ";
 
+const PUBLISH_BATCH: &str = r"
+if redis.call('EXISTS', KEYS[3]) == 1 then return 0 end
+for i = 1, 2 do
+    local kind = redis.call('TYPE', KEYS[i]).ok
+    if kind ~= 'none' and kind ~= 'list' then
+        return redis.error_reply('Invalid batch queue key type')
+    end
+end
+for _, job in ipairs(ARGV) do
+    redis.call('RPUSH', KEYS[1], job)
+    redis.call('RPUSH', KEYS[2], 1)
+end
+redis.call('SET', KEYS[3], 1)
+return 1
+";
+
 const RESERVE: &str = r"
 local function move_due(source)
     local jobs = redis.call('ZRANGEBYSCORE', source, '-inf', now, 'LIMIT', 0, 1000)
@@ -88,7 +104,7 @@ pub struct RedisQueue {
 }
 
 impl RedisQueue {
-    fn queue_name<'a>(&'a self, selected: Option<&'a str>) -> QueueResult<&'a str> {
+    pub(super) fn queue_name<'a>(&'a self, selected: Option<&'a str>) -> QueueResult<&'a str> {
         let queue = queue_name(selected, &self.queue)?;
         if [":delayed", ":reserved", ":notify"]
             .iter()
@@ -135,6 +151,47 @@ impl RedisQueue {
             .await
             .map_err(backend)?;
         Ok(Some(job.id))
+    }
+
+    fn publication_key(&self, id: &str) -> String {
+        self.connection.key(&format!("queue-batches:{id}"))
+    }
+
+    pub(super) async fn publish_batch(
+        &self,
+        id: &str,
+        queue: &str,
+        payloads: &[Payload],
+    ) -> QueueResult<()> {
+        let [ready, _, _] = self.keys(self.queue_name(Some(queue))?);
+        let notify = format!("{ready}:notify");
+        let marker = self.publication_key(id);
+        let mut command = script(PUBLISH_BATCH, &[&ready, &notify, &marker]);
+        for payload in payloads {
+            let job = RedisJob {
+                id: payload.uuid().into(),
+                payload: payload.encode()?,
+                attempts: 0,
+            };
+            command.arg(serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?);
+        }
+        self.connection
+            .query::<u32>(&command)
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    pub(super) async fn expire_publication(&self, id: &str) {
+        // Keep the marker until after SQL acknowledges delivery.
+        let _ = self
+            .connection
+            .query::<bool>(
+                ::redis::cmd("EXPIRE")
+                    .arg(self.publication_key(id))
+                    .arg(86400),
+            )
+            .await;
     }
 
     async fn reserve(&self, queue: &str) -> QueueResult<Option<Box<dyn Job>>> {

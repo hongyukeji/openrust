@@ -28,6 +28,7 @@ use openrust::{
         JobContext, Payload, QueueError, QueueFuture, QueueResult,
         middleware::{JobMiddleware, SkipIfBatchCancelled},
     },
+    redis::{RedisManager, connections::Connection as RedisConnection},
     routing::{Router, RoutingError},
     support::{
         ProviderResult, ServiceProvider,
@@ -278,6 +279,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .catch("reports.catch")
                 .finally("reports.finally"),
             "rollback" => Bus::batch(jobs(&["first", "second"])?).name("rollback"),
+            "redis-batch" => Bus::batch(jobs(&["redis-first", "redis-second"])?)
+                .onConnection("redis")
+                .onQueue("redis-batch"),
             "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
             "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
             _ => unreachable!(),
@@ -398,13 +402,19 @@ async fn exercise(mysql: Option<&str>) {
         || json!({"driver":"sqlite","database":"batch.sqlite"}),
         |url| json!({"url":url}),
     );
+    let redis_port = std::env::var("OPENRUST_TEST_REDIS_PORT")
+        .ok()
+        .map(|port| port.parse::<u16>().unwrap());
+    assert!(redis_port.is_some() || std::env::var_os("OPENRUST_REQUIRE_REDIS").is_none());
+    let redis_prefix = format!("openrust-batch-test:{}:", uuid_suffix());
     let settings = json!({
-        "database": {"default":"batch", "connections":{"batch":connection}},
+        "database": {"default":"batch", "connections":{"batch":connection},
+            "redis":{"default":{"port":redis_port.unwrap_or(6379)},"options":{"prefix":redis_prefix}}},
         "logging": {"default":"single","channels":{"single":{"driver":"single","path":"batch.log","locking":true}}},
         "cache": {"default":"database","stores":{"database":{"driver":"database"}}},
         "queue": {
             "default":"database",
-            "connections": {"database":{"driver":"database","retry_after":90}},
+            "connections": {"database":{"driver":"database","retry_after":90},"redis":{"driver":"redis","connection":"default","retry_after":90}},
             "failed": {"driver":"database-uuids","database":"batch"},
             "batching": {"database":"batch","table":"job_batches"}
         }
@@ -420,6 +430,8 @@ async fn exercise(mysql: Option<&str>) {
         .unwrap();
     let mut schema = db.getSchemaBuilder();
     for table in [
+        "pending_ack_block",
+        "job_batches_outbox",
         "job_batches_jobs",
         "job_batches",
         "failed_jobs",
@@ -454,6 +466,13 @@ async fn exercise(mysql: Option<&str>) {
         .unwrap()
         .store(None)
         .unwrap();
+    let redis = redis_port.map(|_| {
+        app.container()
+            .make::<RedisManager>()
+            .unwrap()
+            .connection(None)
+            .unwrap()
+    });
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -748,7 +767,128 @@ async fn exercise(mysql: Option<&str>) {
             ("BatchFinished".into(), None),
         ]
     );
+    if let Some(redis) = redis {
+        verify_redis_batch(&root.0, &db, &redis, address).await;
+    }
     server.abort();
+}
+
+async fn verify_redis_batch(
+    base: &Path,
+    db: &Connection,
+    redis: &RedisConnection,
+    address: std::net::SocketAddr,
+) {
+    let ready = redis.key("queues:redis-batch");
+    redis
+        .set("queues:redis-batch", b"reject publication")
+        .await
+        .unwrap();
+    let accepted = request(address, "redis-batch", 200).await.unwrap();
+    let id = accepted["id"].as_str().unwrap();
+    assert_eq!(accepted["pendingJobs"], 2);
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
+    assert!(event_trace(db, id).await.is_empty());
+    artisan_status(base, &["queue:publish-batches", "--limit=1"], 1).await;
+    assert_eq!(
+        redis.get("queues:redis-batch").await.unwrap().unwrap(),
+        b"reject publication"
+    );
+    redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
+
+    // Redis accepts both jobs, but a failed SQL acknowledgement leaves the intent for replay.
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("pending_ack_block", |table| {
+            table.string("batch_id", 255).primary();
+            table
+                .foreign(&["batch_id"], None)
+                .references("batch_id")
+                .on("job_batches_outbox");
+        })
+        .await
+        .unwrap();
+    db.table("pending_ack_block")
+        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
+        .await
+        .unwrap();
+    artisan_status(base, &["queue:publish-batches"], 1).await;
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
+    let marker = format!("queue-batches:{id}");
+    assert_eq!(redis.get(&marker).await.unwrap(), Some(b"1".to_vec()));
+    schema.dropIfExists("pending_ack_block").await.unwrap();
+    let args = ["queue:publish-batches", "--limit=1"];
+    let (left, right) = tokio::join!(artisan(base, &args), artisan(base, &args));
+    assert_eq!(
+        [left, right]
+            .iter()
+            .filter(|output| output.contains("1 Redis batches published."))
+            .count(),
+        1
+    );
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
+    assert_eq!(
+        redis.command("LLEN", &[ready.as_bytes()]).await.unwrap(),
+        openrust::redis::Value::Int(2)
+    );
+    artisan(
+        base,
+        &[
+            "queue:work",
+            "redis",
+            "--queue=redis-batch",
+            "--stop-when-empty",
+        ],
+    )
+    .await;
+    for name in ["redis-first", "redis-second"] {
+        assert_eq!(
+            db.table("receipts")
+                .r#where("name", "=", name)
+                .count("*")
+                .await
+                .unwrap(),
+            1
+        );
+    }
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
+    assert_eq!(
+        event_trace(db, id).await,
+        [
+            ("BatchDispatched".into(), None),
+            ("BatchStarted".into(), None),
+            ("BatchFinished".into(), None),
+        ]
+    );
+    let marker = redis.key(&marker);
+    redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
+
+    let normal = request(address, "redis-batch", 200).await.unwrap();
+    let normal_id = normal["id"].as_str().unwrap();
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
+    artisan(
+        base,
+        &[
+            "queue:work",
+            "redis",
+            "--queue=redis-batch",
+            "--stop-when-empty",
+        ],
+    )
+    .await;
+    assert_eq!(
+        repository
+            .find(normal_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .progress(),
+        100
+    );
+    let marker = redis.key(&format!("queue-batches:{normal_id}"));
+    redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
 }
 
 async fn verify_pruning(base: &Path, db: &Connection) {
