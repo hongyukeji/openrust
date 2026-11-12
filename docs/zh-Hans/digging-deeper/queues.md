@@ -107,6 +107,27 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 数据库队列与批次仓库须使用同一 SQL 连接，批次和入队操作在同一事务提交。派发到 Redis 时，在 `dispatch()` 前调用 `onConnection("redis")`。
 
+### 向批次追加任务 {#adding-jobs-to-batches}
+
+可在任务处理器或其他应用入口调用 `Batch::add`。它沿用批次的队列和连接选项，并在批次仍存在时返回更新后的快照。追加会增加任务总数和待处理数，并清除完成时间。已取消的批次保留取消状态。每个追加任务获得新的队列 UUID。
+
+```rust
+use openrust::{
+    bus::Batch,
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
+};
+
+async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
+    let Some(batch) = Bus::findBatch(id).await? else {
+        return Ok(None);
+    };
+    batch.add([Payload::new("reports.generate", report)?]).await
+}
+```
+
+Redis 每次追加都有独立的 SQL 发布记录。初始发布确认后才会发布追加任务。恢复命令也会重试待发布的追加记录。自定义批次表时，还须建立同名加 `_additions` 后缀的配套表。
+
 ### 向 Redis 发布批次 {#redis-batches}
 
 OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布失败时，`dispatch()` 仍返回已受理的批次。定期运行 `queue:publish-batches` 重试待发布记录。Redis 一起写入任务与发布标记，SQL 确认发布后，OpenRust 尝试给标记设置 24 小时有效期。Redis 的持久化和淘汰配置需保留队列数据与发布标记。自定义批次表时，还须建立同名加 `_jobs`、`_outbox` 后缀的配套表。

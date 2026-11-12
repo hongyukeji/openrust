@@ -107,6 +107,27 @@ Run `./artisan queue:work database --queue=batch --stop-when-empty` to process t
 
 A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `onConnection("redis")` before `dispatch()`.
 
+### Adding jobs to batches {#adding-jobs-to-batches}
+
+Call `Batch::add` from a handler or another application entry point. It uses the batch’s queue and connection options and returns the updated batch if it still exists. Appending jobs increases the total and pending counts and clears the completion timestamp. A cancelled batch retains its cancellation state. Each appended job receives a new queue UUID.
+
+```rust
+use openrust::{
+    bus::Batch,
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
+};
+
+async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
+    let Some(batch) = Bus::findBatch(id).await? else {
+        return Ok(None);
+    };
+    batch.add([Payload::new("reports.generate", report)?]).await
+}
+```
+
+For Redis, each addition has a separate SQL publication record. The initial publication is acknowledged before additions can be published. The recovery command also retries pending additions. If you customize the batch table, include the companion table with the `_additions` suffix.
+
 ### Publishing batches to Redis {#redis-batches}
 
 OpenRust commits the batch and the Redis publication intent in SQL before contacting Redis. If publication fails, `dispatch()` still returns the accepted batch. Run `queue:publish-batches` periodically to retry pending intents. Redis writes the jobs and a publication marker together. The marker stays in Redis until SQL acknowledges the publication, then OpenRust attempts to set a 24-hour expiry. Configure Redis persistence and eviction for queue data and markers. If you customize the batch table, create its companion tables with the `_jobs` and `_outbox` suffixes.

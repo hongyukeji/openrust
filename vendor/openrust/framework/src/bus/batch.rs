@@ -2,6 +2,11 @@ use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 use serde_json::{Map, Value};
 
+use crate::{
+    queue::{Payload, QueueResult},
+    support::facades::Queue,
+};
+
 /// A snapshot of the persisted state of a job batch.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Batch {
@@ -19,6 +24,13 @@ pub struct Batch {
 
 #[allow(non_snake_case, reason = "Matches Laravel batch methods")]
 impl Batch {
+    /// Appends jobs to the persisted batch and returns its updated snapshot.
+    #[allow(clippy::should_implement_trait, reason = "Matches Laravel Batch::add")]
+    pub async fn add(&self, jobs: impl IntoIterator<Item = Payload>) -> QueueResult<Option<Self>> {
+        let jobs = jobs.into_iter().collect();
+        Queue::manager()?.append_batch(&self.id, jobs).await
+    }
+
     pub fn processedJobs(&self) -> u32 {
         self.total_jobs.saturating_sub(self.pending_jobs)
     }

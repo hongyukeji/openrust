@@ -48,7 +48,11 @@ impl Command for PublishBatchesCommand {
                     Ok(true) => published += 1,
                     Ok(false) => {}
                     Err(error) => {
-                        let _ = writeln!(output.stderr, "Could not publish batch [{id}]: {error}");
+                        let _ = writeln!(
+                            output.stderr,
+                            "Could not publish batch [{}]: {error}",
+                            id.id()
+                        );
                         status = 1;
                     }
                 }

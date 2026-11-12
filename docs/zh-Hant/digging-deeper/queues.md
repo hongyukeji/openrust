@@ -107,6 +107,27 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 資料庫佇列與批次儲存庫須使用相同 SQL 連線，批次和入列操作在同一交易提交。派送到 Redis 時，在 `dispatch()` 前呼叫 `onConnection("redis")`。
 
+### 向批次新增工作 {#adding-jobs-to-batches}
+
+可在工作處理器或其他應用程式入口呼叫 `Batch::add`。它沿用批次的佇列和連線選項，批次仍存在時會回傳更新後的快照。新增工作會增加工作總數和待處理數，並清除完成時間。已取消的批次保留取消狀態。每個新增工作會取得新的佇列 UUID。
+
+```rust
+use openrust::{
+    bus::Batch,
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
+};
+
+async fn append_report(id: &str, report: &str) -> QueueResult<Option<Batch>> {
+    let Some(batch) = Bus::findBatch(id).await? else {
+        return Ok(None);
+    };
+    batch.add([Payload::new("reports.generate", report)?]).await
+}
+```
+
+Redis 每次新增工作都有獨立的 SQL 發佈紀錄。初始發佈確認後才會發佈新增工作。復原指令也會重試待發佈的新增紀錄。自訂批次資料表時，還須建立同名加 `_additions` 後綴的配套資料表。
+
 ### 發佈批次至 Redis {#redis-batches}
 
 OpenRust 先在 SQL 提交批次和待發佈紀錄，再聯絡 Redis。發佈失敗時，`dispatch()` 仍回傳已受理的批次。定期執行 `queue:publish-batches` 重試待發佈紀錄。Redis 一併寫入工作與發佈標記，SQL 確認發佈後，OpenRust 嘗試為標記設定 24 小時有效期。Redis 的持久化和淘汰設定須保留佇列資料與發佈標記。自訂批次資料表時，還須建立同名加 `_jobs`、`_outbox` 後綴的配套資料表。

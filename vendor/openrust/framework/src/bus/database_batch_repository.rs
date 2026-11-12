@@ -18,6 +18,7 @@ pub struct DatabaseBatchRepository {
     table: String,
     jobs_table: String,
     outbox: String,
+    additions: String,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel batch repository methods")]
@@ -29,11 +30,14 @@ impl DatabaseBatchRepository {
         connection.queue_table(&jobs_table).map_err(backend)?;
         let outbox = format!("{table}_outbox");
         connection.queue_table(&outbox).map_err(backend)?;
+        let additions = format!("{table}_additions");
+        connection.queue_table(&additions).map_err(backend)?;
         Ok(Self {
             connection,
             table,
             jobs_table,
             outbox,
+            additions,
         })
     }
 
@@ -75,64 +79,103 @@ impl DatabaseBatchRepository {
     pub(crate) async fn stage_publication(
         &self,
         transaction: &mut Transaction,
+        publication: &PublicationKey,
         batch: &str,
         connection: &str,
         queue: &str,
         payloads: &[Payload],
     ) -> QueueResult<()> {
         let payloads = serde_json::to_string(payloads).map_err(|_| QueueError::InvalidPayload)?;
+        let (table, column) = self.publication_table(publication);
+        let mut row: Record = [
+            ("batch_id".into(), batch.into()),
+            ("connection".into(), connection.into()),
+            ("queue".into(), queue.into()),
+            ("payloads".into(), payloads.into()),
+        ]
+        .into_iter()
+        .collect();
+        if matches!(publication, PublicationKey::Addition(_)) {
+            row.insert(column.into(), publication.id().into());
+        }
         transaction
-            .table(&self.outbox)
-            .insert(&[[
-                ("batch_id".into(), batch.into()),
-                ("connection".into(), connection.into()),
-                ("queue".into(), queue.into()),
-                ("payloads".into(), payloads.into()),
-            ]
-            .into_iter()
-            .collect()])
+            .table(table)
+            .insert(&[row])
             .await
             .map_err(backend)?;
         Ok(())
     }
 
-    pub(crate) async fn pending_publications(&self, limit: u64) -> QueueResult<Vec<String>> {
-        self.connection
+    fn publication_table(&self, publication: &PublicationKey) -> (&str, &'static str) {
+        match publication {
+            PublicationKey::Initial(_) => (&self.outbox, "batch_id"),
+            PublicationKey::Addition(_) => (&self.additions, "id"),
+        }
+    }
+
+    pub(crate) async fn pending_publications(
+        &self,
+        limit: u64,
+    ) -> QueueResult<Vec<PublicationKey>> {
+        let mut keys = Vec::new();
+        let initial = self
+            .connection
             .table(&self.outbox)
             .useWritePdo()
             .orderBy("batch_id", "asc")
             .limit(limit)
             .get()
             .await
-            .map_err(backend)?
-            .iter()
-            .map(|row| outbox_text(row, "batch_id").map(str::to_owned))
-            .collect()
+            .map_err(backend)?;
+        for row in initial {
+            keys.push(PublicationKey::Initial(
+                outbox_text(&row, "batch_id")?.into(),
+            ));
+        }
+        let remaining = limit.saturating_sub(keys.len() as u64);
+        if remaining != 0 {
+            let additions = self
+                .connection
+                .table(&self.additions)
+                .useWritePdo()
+                .orderBy("id", "asc")
+                .limit(remaining)
+                .get()
+                .await
+                .map_err(backend)?;
+            for row in additions {
+                keys.push(PublicationKey::Addition(outbox_text(&row, "id")?.into()));
+            }
+        }
+        Ok(keys)
     }
 
     pub(crate) async fn claim_publication(
         &self,
         transaction: &mut Transaction,
-        id: &str,
+        publication: &PublicationKey,
     ) -> QueueResult<Option<BatchPublication>> {
-        // SQLite has no row-level FOR UPDATE. Acquire the write reservation before reading.
+        let (table, column) = self.publication_table(publication);
+        let id = publication.id();
+        // SQLite acquires a write reservation before its read.
         if self.connection.is_sqlite() {
             transaction
-                .table(&self.outbox)
-                .r#where("batch_id", "=", id)
-                .update([("batch_id".into(), id.into())].into_iter().collect())
+                .table(table)
+                .r#where(column, "=", id)
+                .update([(column.into(), id.into())].into_iter().collect())
                 .await
                 .map_err(backend)?;
         }
         transaction
-            .table(&self.outbox)
-            .r#where("batch_id", "=", id)
+            .table(table)
+            .r#where(column, "=", id)
             .lockForUpdate()
             .first()
             .await
             .map_err(backend)?
             .map(|row| {
                 Ok(BatchPublication {
+                    batch_id: outbox_text(&row, "batch_id")?.into(),
                     connection: outbox_text(&row, "connection")?.into(),
                     queue: outbox_text(&row, "queue")?.into(),
                     payloads: serde_json::from_str(outbox_text(&row, "payloads")?)
@@ -140,6 +183,19 @@ impl DatabaseBatchRepository {
                 })
             })
             .transpose()
+    }
+
+    pub(crate) async fn initial_publication_pending(
+        &self,
+        transaction: &mut Transaction,
+        batch_id: &str,
+    ) -> QueueResult<bool> {
+        transaction
+            .table(&self.outbox)
+            .r#where("batch_id", "=", batch_id)
+            .exists()
+            .await
+            .map_err(backend)
     }
 
     pub(crate) async fn find_in_transaction(
@@ -161,15 +217,52 @@ impl DatabaseBatchRepository {
     pub(crate) async fn acknowledge_publication(
         &self,
         transaction: &mut Transaction,
-        id: &str,
+        publication: &PublicationKey,
     ) -> QueueResult<()> {
+        let (table, column) = self.publication_table(publication);
         transaction
-            .table(&self.outbox)
-            .r#where("batch_id", "=", id)
+            .table(table)
+            .r#where(column, "=", publication.id())
             .delete()
             .await
             .map_err(backend)?;
         Ok(())
+    }
+
+    pub(crate) async fn append_in_transaction(
+        &self,
+        transaction: &mut Transaction,
+        id: &str,
+        count: u32,
+    ) -> QueueResult<Option<Batch>> {
+        if count == 0 {
+            return self.find_in_transaction(transaction, id).await;
+        }
+        let changed = transaction
+            .table(&self.table)
+            .r#where("id", "=", id)
+            .r#where("total_jobs", "<=", i64::from(i32::MAX) - i64::from(count))
+            .increment(
+                "total_jobs",
+                i64::from(count),
+                [("finished_at".into(), Value::Null)].into_iter().collect(),
+            )
+            .await
+            .map_err(backend)?;
+        if changed == 0 {
+            return if self.find_in_transaction(transaction, id).await?.is_some() {
+                Err(QueueError::InvalidPayload)
+            } else {
+                Ok(None)
+            };
+        }
+        transaction
+            .table(&self.table)
+            .r#where("id", "=", id)
+            .increment("pending_jobs", i64::from(count), Record::new())
+            .await
+            .map_err(backend)?;
+        self.find_in_transaction(transaction, id).await
     }
 
     pub(crate) async fn recorded(
@@ -496,7 +589,21 @@ impl DatabaseBatchRepository {
     }
 }
 
+pub(crate) enum PublicationKey {
+    Initial(String),
+    Addition(String),
+}
+
+impl PublicationKey {
+    pub fn id(&self) -> &str {
+        match self {
+            Self::Initial(id) | Self::Addition(id) => id,
+        }
+    }
+}
+
 pub(crate) struct BatchPublication {
+    pub batch_id: String,
     pub connection: String,
     pub queue: String,
     pub payloads: Vec<Payload>,

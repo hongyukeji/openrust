@@ -221,6 +221,11 @@ impl JobHandler for Probe {
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
                 .unwrap();
+            if data == "loader" {
+                let batch = Bus::findBatch(payload.batchId().unwrap()).await?.unwrap();
+                let loaded = Payload::new("reports.generate", "loaded")?;
+                batch.add([loaded.clone(), loaded]).await?;
+            }
             if data == "detail" && context.attempts() == 1 {
                 return Err(QueueError::InvalidPayload);
             }
@@ -279,6 +284,8 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 .catch("reports.catch")
                 .finally("reports.finally"),
             "rollback" => Bus::batch(jobs(&["first", "second"])?).name("rollback"),
+            "append-loader" => Bus::batch(jobs(&["loader"])?).onQueue("append"),
+            "append-start" => Bus::batch(jobs(&["initial-append"])?).onQueue("append"),
             "redis-batch" => Bus::batch(jobs(&["redis-first", "redis-second"])?)
                 .onConnection("redis")
                 .onQueue("redis-batch"),
@@ -292,9 +299,23 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn append_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let id = request.route("id").unwrap();
+        let data = request.route("data").unwrap();
+        if let Some(batch) = Bus::findBatch(id).await?
+            && let Some(updated) = batch.add([Payload::new("reports.generate", data)?]).await?
+        {
+            return Response::json(StatusCode::OK, &updated);
+        }
+        Ok(Response::empty(StatusCode::NOT_FOUND))
+    })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/batch/{kind}", route)?;
+    router.get("/batch/append/{id}/{data}", append_route)?;
     Ok(router)
 }
 
@@ -431,6 +452,7 @@ async fn exercise(mysql: Option<&str>) {
     let mut schema = db.getSchemaBuilder();
     for table in [
         "pending_ack_block",
+        "job_batches_additions",
         "job_batches_outbox",
         "job_batches_jobs",
         "job_batches",
@@ -770,7 +792,73 @@ async fn exercise(mysql: Option<&str>) {
     if let Some(redis) = redis {
         verify_redis_batch(&root.0, &db, &redis, address).await;
     }
+    verify_database_append(&root.0, &db, address).await;
     server.abort();
+}
+
+async fn verify_database_append(base: &Path, db: &Connection, address: std::net::SocketAddr) {
+    request(address, "append/missing/report", 404).await;
+    let initial = request(address, "append-start", 200).await.unwrap();
+    let id = initial["id"].as_str().unwrap();
+    let first = format!("append/{id}/first-extra");
+    let second = format!("append/{id}/second-extra");
+    let (first, second) = tokio::join!(
+        request(address, &first, 200),
+        request(address, &second, 200)
+    );
+    let mut counts = [
+        first.unwrap()["totalJobs"].as_u64().unwrap(),
+        second.unwrap()["totalJobs"].as_u64().unwrap(),
+    ];
+    counts.sort_unstable();
+    assert_eq!(counts, [2, 3]);
+    request(address, &format!("append/{id}/second"), 500).await;
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    assert_eq!(repository.find(id).await.unwrap().unwrap().pending_jobs, 3);
+    let work = [
+        "queue:work",
+        "database",
+        "--queue=append",
+        "--stop-when-empty",
+    ];
+    artisan(base, &work).await;
+    assert!(repository.find(id).await.unwrap().unwrap().finished());
+    let reopened = request(address, &format!("append/{id}/late-extra"), 200)
+        .await
+        .unwrap();
+    assert_eq!(reopened["totalJobs"], 4);
+    assert_eq!(reopened["pendingJobs"], 1);
+    assert!(reopened["finishedAt"].is_null());
+    artisan(base, &work).await;
+    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
+    assert_eq!(
+        event_trace(db, id)
+            .await
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect::<Vec<_>>(),
+        [
+            "BatchDispatched",
+            "BatchStarted",
+            "BatchFinished",
+            "BatchFinished"
+        ]
+    );
+    let loader = request(address, "append-loader", 200).await.unwrap();
+    let loader_id = loader["id"].as_str().unwrap();
+    artisan(base, &work).await;
+    let loaded = repository.find(loader_id).await.unwrap().unwrap();
+    assert_eq!(loaded.total_jobs, 3);
+    assert_eq!(loaded.progress(), 100);
+    assert_eq!(
+        db.table("receipts")
+            .r#where("name", "=", "loaded")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
 }
 
 async fn verify_redis_batch(
@@ -887,6 +975,62 @@ async fn verify_redis_batch(
             .progress(),
         100
     );
+    redis
+        .set("queues:redis-batch", b"reject additions")
+        .await
+        .unwrap();
+    for name in ["redis-extra-one", "redis-extra-two"] {
+        request(address, &format!("append/{normal_id}/{name}"), 200)
+            .await
+            .unwrap();
+    }
+    assert_eq!(
+        db.table("job_batches_additions").count("*").await.unwrap(),
+        2
+    );
+    let additions = db.table("job_batches_additions").get().await.unwrap();
+    redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
+    let recovered = artisan(base, &["queue:publish-batches"]).await;
+    assert!(
+        recovered.contains("2 Redis batches published."),
+        "{recovered}"
+    );
+    assert_eq!(
+        db.table("job_batches_additions").count("*").await.unwrap(),
+        0
+    );
+    assert_eq!(
+        redis.command("LLEN", &[ready.as_bytes()]).await.unwrap(),
+        openrust::redis::Value::Int(2)
+    );
+    artisan(
+        base,
+        &[
+            "queue:work",
+            "redis",
+            "--queue=redis-batch",
+            "--stop-when-empty",
+        ],
+    )
+    .await;
+    let complete = repository.find(normal_id).await.unwrap().unwrap();
+    assert_eq!(complete.total_jobs, 4);
+    assert_eq!(complete.progress(), 100);
+    assert_eq!(
+        event_trace(db, normal_id)
+            .await
+            .iter()
+            .filter(|(name, _)| name == "BatchDispatched")
+            .count(),
+        1
+    );
+    for row in additions {
+        let Some(Value::Text(id)) = row.get("id") else {
+            panic!("missing addition id")
+        };
+        let marker = redis.key(&format!("queue-batches:{id}"));
+        redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
+    }
     let marker = redis.key(&format!("queue-batches:{normal_id}"));
     redis.command("DEL", &[marker.as_bytes()]).await.unwrap();
 }

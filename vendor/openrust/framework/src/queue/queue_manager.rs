@@ -6,7 +6,7 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    bus::{Batch, BatchCallback, BatchPhase, DatabaseBatchRepository, new_batch},
+    bus::{Batch, BatchCallback, BatchPhase, DatabaseBatchRepository, PublicationKey, new_batch},
     container::Container,
     contracts::{
         config::Repository,
@@ -21,7 +21,7 @@ use super::{
     DatabaseQueue, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueResult,
     RedisQueue, SyncQueue, backend,
     failed::{FailedJob, FailedJobProviderInterface},
-    queue_name,
+    new_id, queue_name,
 };
 
 /// Resolves and caches configured queue connections for one application.
@@ -249,30 +249,9 @@ impl QueueManager {
         options: serde_json::Map<String, serde_json::Value>,
         mut jobs: Vec<Payload>,
     ) -> QueueResult<Batch> {
-        let count = u32::try_from(jobs.len())
-            .ok()
-            .filter(|count| i32::try_from(*count).is_ok())
-            .ok_or(QueueError::InvalidPayload)?;
-        let mut ids = HashSet::with_capacity(jobs.len());
-        for job in &jobs {
-            if job.batch_id.is_some() || !ids.insert(job.uuid()) {
-                return Err(QueueError::InvalidPayload);
-            }
-        }
-        let configured = self.resolve(
-            options
-                .get("connection")
-                .and_then(serde_json::Value::as_str),
-        )?;
+        let count = validate_batch_jobs(&jobs)?;
         let repository = self.batch_repository()?;
-        let selected = options.get("queue").and_then(serde_json::Value::as_str);
-        let queue = match &configured.batch_backend {
-            BatchBackend::Database(connection) if repository.uses_connection(connection) => {
-                selected.map(str::to_owned)
-            }
-            BatchBackend::Redis(redis) => Some(redis.queue_name(selected)?.to_owned()),
-            _ => return Err(QueueError::InvalidBatchConnection),
-        };
+        let configured = self.resolve_batch_destination(&repository, &options)?;
         let mut batch = new_batch(name, options, 0)?;
         for phase in BatchPhase::ALL {
             for callback in phase.names(&batch) {
@@ -284,91 +263,188 @@ impl QueueManager {
         batch.total_jobs = count;
         batch.pending_jobs = count;
 
+        let publication = PublicationKey::Initial(batch.id.clone());
         let mut transaction = repository.begin().await?;
-        let result = async {
-            repository
-                .store_in_transaction(&mut transaction, &batch)
-                .await?;
-            for job in &mut jobs {
-                self.capture_context(job)?;
-                job.batch_id = Some(batch.id.clone());
-            }
-            if let BatchBackend::Redis(redis) = &configured.batch_backend {
-                repository
-                    .stage_publication(
-                        &mut transaction,
-                        &batch.id,
-                        &redis.name,
-                        queue.as_deref().expect("Redis queue resolved"),
-                        &jobs,
-                    )
-                    .await?;
-            } else {
-                for job in &jobs {
-                    configured
-                        .queue
-                        .push_in_transaction(job, queue.as_deref(), None, &mut transaction)
-                        .await?;
-                }
-            }
-            Ok(batch)
+        repository
+            .store_in_transaction(&mut transaction, &batch)
+            .await?;
+        self.enqueue_batch_jobs(
+            &repository,
+            &mut transaction,
+            &configured,
+            &batch,
+            &publication,
+            &mut jobs,
+        )
+        .await?;
+        transaction.commit().await.map_err(backend)?;
+        if matches!(configured.batch_backend, BatchBackend::Redis(_)) {
+            self.publish_after_commit(&repository, &publication).await;
+        } else {
+            crate::bus::events::emit(crate::bus::events::BatchDispatched {
+                batch: batch.clone(),
+            })
+            .await;
         }
-        .await;
-        match result {
-            Ok(batch) => {
-                transaction.commit().await.map_err(backend)?;
-                if matches!(configured.batch_backend, BatchBackend::Redis(_)) {
-                    if let Err(error) = self.publish_batch(&repository, &batch.id).await {
-                        let context = serde_json::Map::from_iter([
-                            ("batch_id".into(), batch.id.as_str().into()),
-                            ("error".into(), error.to_string().into()),
-                        ]);
-                        let _ =
-                            crate::log::Log::error("Redis batch publication is pending", &context);
-                    }
-                } else {
-                    crate::bus::events::emit(crate::bus::events::BatchDispatched {
-                        batch: batch.clone(),
-                    })
-                    .await;
-                }
-                Ok(batch)
+        Ok(batch)
+    }
+
+    pub(crate) async fn append_batch(
+        &self,
+        id: &str,
+        mut jobs: Vec<Payload>,
+    ) -> QueueResult<Option<Batch>> {
+        let count = batch_job_count(&jobs)?;
+        for job in &mut jobs {
+            if job.batch_id.is_some() {
+                return Err(QueueError::InvalidPayload);
             }
-            Err(error) => {
-                transaction.rollBack(None).await.map_err(backend)?;
-                Err(error)
+            job.uuid = new_id()?;
+            job.delivery_id = None;
+            job.context = Default::default();
+        }
+        let publication = PublicationKey::Addition(new_id()?);
+        let repository = self.batch_repository()?;
+        let mut transaction = repository.begin().await?;
+        let Some(batch) = repository
+            .append_in_transaction(&mut transaction, id, count)
+            .await?
+        else {
+            transaction.rollBack(None).await.map_err(backend)?;
+            return Ok(None);
+        };
+        if jobs.is_empty() {
+            transaction.commit().await.map_err(backend)?;
+            return Ok(Some(batch));
+        }
+        let configured = self.resolve_batch_destination(&repository, &batch.options)?;
+        self.enqueue_batch_jobs(
+            &repository,
+            &mut transaction,
+            &configured,
+            &batch,
+            &publication,
+            &mut jobs,
+        )
+        .await?;
+        transaction.commit().await.map_err(backend)?;
+        if matches!(configured.batch_backend, BatchBackend::Redis(_)) {
+            self.publish_after_commit(&repository, &publication).await;
+        }
+        Ok(Some(batch))
+    }
+
+    fn resolve_batch_destination(
+        &self,
+        repository: &DatabaseBatchRepository,
+        options: &serde_json::Map<String, serde_json::Value>,
+    ) -> QueueResult<Arc<ConfiguredQueue>> {
+        let configured = self.resolve(
+            options
+                .get("connection")
+                .and_then(serde_json::Value::as_str),
+        )?;
+        match &configured.batch_backend {
+            BatchBackend::Database(connection) if repository.uses_connection(connection) => {}
+            BatchBackend::Redis(redis) => {
+                redis.queue_name(options.get("queue").and_then(serde_json::Value::as_str))?;
             }
+            _ => return Err(QueueError::InvalidBatchConnection),
+        }
+        Ok(configured)
+    }
+
+    async fn enqueue_batch_jobs(
+        &self,
+        repository: &DatabaseBatchRepository,
+        transaction: &mut Transaction,
+        configured: &ConfiguredQueue,
+        batch: &Batch,
+        publication: &PublicationKey,
+        jobs: &mut [Payload],
+    ) -> QueueResult<()> {
+        for job in &mut *jobs {
+            self.capture_context(job)?;
+            job.batch_id = Some(batch.id.clone());
+        }
+        let queue = batch
+            .options
+            .get("queue")
+            .and_then(serde_json::Value::as_str);
+        if let BatchBackend::Redis(redis) = &configured.batch_backend {
+            repository
+                .stage_publication(
+                    transaction,
+                    publication,
+                    &batch.id,
+                    &redis.name,
+                    redis.queue_name(queue)?,
+                    jobs,
+                )
+                .await?;
+        } else {
+            for job in jobs {
+                configured
+                    .queue
+                    .push_in_transaction(job, queue, None, transaction)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn publish_after_commit(
+        &self,
+        repository: &DatabaseBatchRepository,
+        publication: &PublicationKey,
+    ) {
+        if let Err(error) = self.publish_batch(repository, publication).await {
+            let context = serde_json::Map::from_iter([
+                ("publication_id".into(), publication.id().into()),
+                ("error".into(), error.to_string().into()),
+            ]);
+            let _ = crate::log::Log::error("Redis batch publication is pending", &context);
         }
     }
 
     pub(crate) async fn publish_batch(
         &self,
         repository: &DatabaseBatchRepository,
-        id: &str,
+        key: &PublicationKey,
     ) -> QueueResult<bool> {
         let mut transaction = repository.begin().await?;
-        let Some(publication) = repository.claim_publication(&mut transaction, id).await? else {
+        let Some(publication) = repository.claim_publication(&mut transaction, key).await? else {
             transaction.rollBack(None).await.map_err(backend)?;
             return Ok(false);
         };
+        if matches!(key, PublicationKey::Addition(_))
+            && repository
+                .initial_publication_pending(&mut transaction, &publication.batch_id)
+                .await?
+        {
+            transaction.rollBack(None).await.map_err(backend)?;
+            return Ok(false);
+        }
         let configured = self.resolve(Some(&publication.connection))?;
         let BatchBackend::Redis(redis) = &configured.batch_backend else {
             return Err(QueueError::InvalidBatchConnection);
         };
         let batch = repository
-            .find_in_transaction(&mut transaction, id)
+            .find_in_transaction(&mut transaction, &publication.batch_id)
             .await?
             .ok_or(QueueError::InvalidPayload)?;
         redis
-            .publish_batch(id, &publication.queue, &publication.payloads)
+            .publish_batch(key.id(), &publication.queue, &publication.payloads)
             .await?;
         repository
-            .acknowledge_publication(&mut transaction, id)
+            .acknowledge_publication(&mut transaction, key)
             .await?;
         transaction.commit().await.map_err(backend)?;
 
-        crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
-        redis.expire_publication(id).await;
+        if matches!(key, PublicationKey::Initial(_)) {
+            crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
+        }
+        redis.expire_publication(key.id()).await;
         Ok(true)
     }
 
@@ -495,6 +571,24 @@ impl Factory for QueueManager {
     fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {
         self.connection(name)
     }
+}
+
+fn batch_job_count(jobs: &[Payload]) -> QueueResult<u32> {
+    u32::try_from(jobs.len())
+        .ok()
+        .filter(|count| i32::try_from(*count).is_ok())
+        .ok_or(QueueError::InvalidPayload)
+}
+
+fn validate_batch_jobs(jobs: &[Payload]) -> QueueResult<u32> {
+    let count = batch_job_count(jobs)?;
+    let mut ids = HashSet::with_capacity(jobs.len());
+    for job in jobs {
+        if job.batch_id.is_some() || !ids.insert(job.uuid()) {
+            return Err(QueueError::InvalidPayload);
+        }
+    }
+    Ok(count)
 }
 
 async fn dispatch(
