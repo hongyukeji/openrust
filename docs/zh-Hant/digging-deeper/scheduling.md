@@ -74,6 +74,20 @@ schedule
 
 有子分鐘任務時，`schedule:run` 持續到當前分鐘結束。`./artisan schedule:interrupt` 透過所選快取儲存通知當前分鐘的重複迴圈結束。任務錯誤交由例外報告器處理，後續到期任務繼續執行，排程命令處理完後成功結束。排程基礎設施發生錯誤時，命令以失敗狀態結束。
 
+## 任務鉤子 {#task-hooks}
+
+可為個別任務或排程群組註冊鉤子。範例中的 `hook` 建立接收應用程式與主控台輸出的非同步回呼。
+
+```rust
+schedule
+    .command("fixture:hello", [])
+    .name("hook-success")
+    .before(hook("task-before"))
+    .then(hook("task-then"));
+```
+
+排程器在執行任務前執行 `before`。`after` 與 `then` 等價。`onSuccess` 和 `onFailure` 依任務結果執行。任務結束後的鉤子依註冊順序執行。巢狀群組繼承外層鉤子，並可追加自己的鉤子。鉤子例外交由應用程式例外處理器回報。
+
 ## 事件 {#events}
 
 從 `openrust::console::events` 匯入排程事件型別，並在應用程式組裝作用域註冊監聽器。範例使用自訂的 `ScheduleEvents` 監聽器，以及將註冊錯誤轉為 `ConsoleError` 的 `console_error`。

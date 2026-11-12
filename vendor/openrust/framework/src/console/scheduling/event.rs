@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fmt::Write, time::Duration};
+use std::{ffi::OsString, fmt::Write, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Timelike, Utc};
 use chrono_tz::Tz;
@@ -14,10 +14,18 @@ use crate::{
     queue::{DispatchOptions, Payload},
 };
 
-type Callback = dyn for<'a> Fn(&'a Application, &'a mut Output) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+pub(super) type Callback = dyn for<'a> Fn(&'a Application, &'a mut Output) -> ConsoleFuture<'a, Result<(), ConsoleError>>
     + Send
     + Sync;
 type Condition = dyn Fn(&Application) -> bool + Send + Sync;
+
+#[derive(Clone, Copy)]
+pub(super) enum HookKind {
+    Before,
+    After,
+    Success,
+    Failure,
+}
 
 pub(super) enum Action {
     Callback(Box<Callback>),
@@ -41,6 +49,8 @@ pub struct Event {
     environments: Vec<String>,
     filters: Vec<Box<Condition>>,
     attributes: Map<String, Value>,
+    before_hooks: Vec<Arc<Callback>>,
+    after_hooks: Vec<(HookKind, Arc<Callback>)>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
@@ -60,7 +70,116 @@ impl Event {
             environments: Vec::new(),
             filters: Vec::new(),
             attributes: Map::new(),
+            before_hooks: Vec::new(),
+            after_hooks: Vec::new(),
         }
+    }
+
+    pub fn before(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.add_hook(HookKind::Before, Arc::new(hook));
+        self
+    }
+
+    pub fn after(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.add_hook(HookKind::After, Arc::new(hook));
+        self
+    }
+
+    pub fn then(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.after(hook)
+    }
+
+    pub fn onSuccess(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.add_hook(HookKind::Success, Arc::new(hook));
+        self
+    }
+
+    pub fn onFailure(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.add_hook(HookKind::Failure, Arc::new(hook));
+        self
+    }
+
+    pub(super) fn add_hook(&mut self, kind: HookKind, hook: Arc<Callback>) {
+        match kind {
+            HookKind::Before => self.before_hooks.push(hook),
+            _ => self.after_hooks.push((kind, hook)),
+        }
+    }
+
+    pub(super) async fn call_before_hooks(
+        &self,
+        app: &Application,
+        output: &mut Output,
+    ) -> Result<(), ConsoleError> {
+        for hook in &self.before_hooks {
+            hook(app, output).await?;
+        }
+        Ok(())
+    }
+
+    pub(super) async fn call_after_hooks(
+        &self,
+        app: &Application,
+        output: &mut Output,
+        succeeded: bool,
+    ) -> Result<(), ConsoleError> {
+        for (kind, hook) in &self.after_hooks {
+            let applies = match kind {
+                HookKind::Before => unreachable!("before hooks are stored separately"),
+                HookKind::After => true,
+                HookKind::Success => succeeded,
+                HookKind::Failure => !succeeded,
+            };
+            if applies {
+                hook(app, output).await?;
+            }
+        }
+        Ok(())
     }
 
     pub fn cron(&mut self, expression: &str) -> Result<&mut Self, ConsoleError> {

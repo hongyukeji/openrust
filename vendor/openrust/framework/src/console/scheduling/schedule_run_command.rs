@@ -404,7 +404,7 @@ impl ScheduleRunCommand {
             .await
             .map_err(error)?;
             let start = Instant::now();
-            let result = self.invoke(app, output, event).await;
+            let result = self.invoke_with_hooks(app, output, event).await;
             Ok::<_, ConsoleError>((result, start.elapsed()))
         }
         .await;
@@ -445,6 +445,22 @@ impl ScheduleRunCommand {
         }
         release?;
         Ok(true)
+    }
+
+    async fn invoke_with_hooks(
+        &self,
+        app: &Application,
+        output: &mut Output,
+        event: &Event,
+    ) -> Result<TaskOutcome, ConsoleError> {
+        event.call_before_hooks(app, output).await?;
+        let outcome = self.invoke(app, output, event).await;
+        if outcome.is_ok() || matches!(event.action, Action::Callback(_) | Action::Job(..)) {
+            event
+                .call_after_hooks(app, output, matches!(outcome, Ok(TaskOutcome::Succeeded)))
+                .await?;
+        }
+        outcome
     }
 
     async fn invoke(

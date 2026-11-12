@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     CallbackEvent, Event,
-    event::{Action, daily_expression, parse_cron, repeat_interval},
+    event::{Action, Callback, HookKind, daily_expression, parse_cron, repeat_interval},
     pending_event_attributes::PendingEventAttributes,
 };
 
@@ -130,6 +130,77 @@ impl Schedule {
         self.pending_attributes = None;
         self.groups.pop();
         result
+    }
+
+    pub fn before(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.with_hook(HookKind::Before, Arc::new(hook))
+    }
+
+    pub fn after(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.with_hook(HookKind::After, Arc::new(hook))
+    }
+
+    pub fn then(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.after(hook)
+    }
+
+    pub fn onSuccess(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.with_hook(HookKind::Success, Arc::new(hook))
+    }
+
+    pub fn onFailure(
+        &mut self,
+        hook: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.with_hook(HookKind::Failure, Arc::new(hook))
+    }
+
+    fn with_hook(&mut self, kind: HookKind, hook: Arc<Callback>) -> &mut Self {
+        self.with_pending(move |event| {
+            event.add_hook(kind, hook.clone());
+        })
     }
 
     pub fn cron(&mut self, expression: &str) -> Result<&mut Self, ConsoleError> {

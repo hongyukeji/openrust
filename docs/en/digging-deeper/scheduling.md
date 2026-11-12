@@ -74,6 +74,20 @@ Call `./artisan schedule:run` each minute from your process scheduler, or use `.
 
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
 
+## Task hooks {#task-hooks}
+
+Attach a hook to a task or a schedule group. In this example, `hook` creates an asynchronous callback that receives the application and console output.
+
+```rust
+schedule
+    .command("fixture:hello", [])
+    .name("hook-success")
+    .before(hook("task-before"))
+    .then(hook("task-then"));
+```
+
+The scheduler runs `before` hooks before the task. `after` and `then` are aliases. `onSuccess` and `onFailure` run when the task completes with the corresponding result. After hooks run in registration order. Nested groups inherit the outer hooks and add their own. A failing hook is reported through the application exception handler.
+
 ## Events {#events}
 
 Import the scheduling event types from `openrust::console::events`. Register a listener in the application assembly scope. This example assumes a `ScheduleEvents` listener and a `console_error` adapter that converts registration errors to `ConsoleError`.

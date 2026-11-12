@@ -13,7 +13,7 @@ use std::{
 
 use openrust::{
     console::{
-        ConsoleError,
+        ConsoleError, ConsoleFuture, Output as ConsoleOutput,
         events::{
             SchedulePaused, ScheduleResumed, ScheduledTaskFailed, ScheduledTaskFinished,
             ScheduledTaskSkipped, ScheduledTaskStarting,
@@ -150,7 +150,7 @@ fn routes() -> Result<(), ConsoleError> {
             Event::listen(name, Arc::new(PauseEvents), Delivery::Sync).map_err(console_error)?;
         }
     }
-    if profile == "events" {
+    if matches!(profile.as_str(), "events" | "hooks") {
         let listener = Arc::new(ScheduleEvents::default());
         for name in [
             "console.scheduled_task_starting",
@@ -226,6 +226,40 @@ fn routes() -> Result<(), ConsoleError> {
                 Some("scheduled"),
                 Some("sync"),
             );
+            return Ok(());
+        }
+
+        if profile == "hooks" {
+            schedule
+                .before(hook("group-before"))
+                .after(hook("group-after"))
+                .onSuccess(hook("group-success"))
+                .onFailure(hook("group-failure"))
+                .group(|schedule| {
+                    schedule.before(hook("nested-before")).group(|schedule| {
+                        schedule
+                            .command("fixture:hello", [])
+                            .name("hook-success")
+                            .before(hook("task-before"))
+                            .then(hook("task-then"));
+                        Ok(())
+                    })?;
+                    schedule.command("fixture:missing", []).name("hook-nonzero");
+                    schedule
+                        .call(|_, _| {
+                            Box::pin(async { Err(ConsoleError::new("scheduled callback error")) })
+                        })
+                        .name("hook-callback-error");
+                    Ok(())
+                })?;
+
+            group_task(schedule, "before-error")
+                .before(|_, _| Box::pin(async { Err(ConsoleError::new("before hook error")) }))
+                .after(hook("unreachable-after"));
+            group_task(schedule, "after-error")
+                .after(|_, _| Box::pin(async { Err(ConsoleError::new("after hook error")) }))
+                .then(hook("unreachable-then"));
+            group_task(schedule, "outside");
             return Ok(());
         }
 
@@ -402,6 +436,20 @@ fn routes() -> Result<(), ConsoleError> {
         }
         Ok(())
     })
+}
+
+fn hook(
+    label: &'static str,
+) -> impl for<'a> Fn(&'a Application, &'a mut ConsoleOutput) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+{
+    move |_, output| {
+        // Emit immediately so the fixture can compare hooks and synchronous events.
+        Box::pin(async move {
+            println!("hook {label}");
+            output.comment(label);
+            Ok(())
+        })
+    }
 }
 
 fn group_task<'a>(
@@ -1016,4 +1064,55 @@ async fn artisan_dispatches_foreground_task_events_in_order() {
     assert!(other.lines().any(|line| line.trim() == "last"), "{other}");
     std::fs::remove_dir_all(active).unwrap();
     std::fs::remove_dir_all(isolated).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_runs_task_hooks_in_order_with_group_inheritance() {
+    let root = root(None);
+    let result = run(&root, "hooks", MONDAY, &["schedule:run"]).await;
+    let stdout = String::from_utf8_lossy(&result.stdout);
+    let trace: Vec<_> = stdout
+        .lines()
+        .filter(|line| {
+            ["starting ", "hook ", "finished ", "failed "]
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
+        })
+        .map(|line| line.split_once(':').map_or(line, |(name, _)| name))
+        .collect();
+    assert_eq!(
+        trace,
+        [
+            "starting hook-success",
+            "hook group-before",
+            "hook nested-before",
+            "hook task-before",
+            "hook group-after",
+            "hook group-success",
+            "hook task-then",
+            "finished hook-success",
+            "starting hook-nonzero",
+            "hook group-before",
+            "hook group-after",
+            "hook group-failure",
+            "finished hook-nonzero",
+            "failed hook-nonzero",
+            "starting hook-callback-error",
+            "hook group-before",
+            "hook group-after",
+            "hook group-failure",
+            "failed hook-callback-error",
+            "starting before-error",
+            "failed before-error",
+            "starting after-error",
+            "failed after-error",
+            "starting outside",
+            "finished outside",
+        ],
+        "{stdout}"
+    );
+    assert!(stdout.contains("failed before-error: before hook error"));
+    assert!(stdout.contains("failed after-error: after hook error"));
+    assert!(!stdout.lines().any(|line| line == "before-error"));
+    std::fs::remove_dir_all(root).unwrap();
 }

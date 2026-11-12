@@ -74,6 +74,20 @@ schedule
 
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
 
+## 任务钩子 {#task-hooks}
+
+可为单个任务或调度组注册钩子。示例中的 `hook` 创建接收应用和控制台输出的异步回调。
+
+```rust
+schedule
+    .command("fixture:hello", [])
+    .name("hook-success")
+    .before(hook("task-before"))
+    .then(hook("task-then"));
+```
+
+调度器在执行任务前运行 `before`。`after` 与 `then` 等价。`onSuccess` 和 `onFailure` 按任务结果执行。任务结束后的钩子按注册顺序运行。嵌套组继承外层钩子，并可追加自己的钩子。钩子异常交给应用异常处理器报告。
+
 ## 事件 {#events}
 
 从 `openrust::console::events` 导入调度事件类型，并在应用装配作用域注册监听器。示例使用自定义的 `ScheduleEvents` 监听器和将注册错误转为 `ConsoleError` 的 `console_error`。
