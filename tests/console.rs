@@ -39,6 +39,39 @@ impl Command for Greet {
     }
 }
 
+#[tokio::test]
+async fn artisan_reports_dispatch_errors_and_keeps_console_rendering() {
+    use openrust::foundation::configuration::ReportDecision;
+    use std::sync::Arc;
+
+    let reports = Arc::new(AtomicUsize::new(0));
+    let observed = reports.clone();
+    let application = Application::configure(std::env::current_dir().unwrap())
+        .withExceptions(move |exceptions| {
+            exceptions.report::<ConsoleError>(move |error| {
+                assert!(error.to_string().contains("not implemented yet"));
+                observed.fetch_add(1, Ordering::Relaxed);
+                ReportDecision::Stop
+            });
+            exceptions.render::<ConsoleError>(|_, _| panic!("HTTP renderer called by Artisan"));
+            exceptions.respond(|_, _, _| panic!("HTTP responder called by Artisan"));
+        })
+        .create()
+        .unwrap();
+    let mut artisan = Artisan::new();
+    artisan.add_planned(clap::Command::new("probe")).unwrap();
+    let mut kernel = Kernel::new(application, artisan);
+    let mut output = Output::default();
+    assert_eq!(kernel.handle(&["probe".into()], &mut output).await, 1);
+    assert_eq!(output.stderr, "Command 'probe' is not implemented yet.\n");
+    assert_eq!(reports.load(Ordering::Relaxed), 1);
+
+    let mut output = Output::default();
+    assert_eq!(kernel.handle(&["--invalid".into()], &mut output).await, 1);
+    assert!(output.stderr.contains("--invalid"));
+    assert_eq!(reports.load(Ordering::Relaxed), 1);
+}
+
 #[test]
 fn facades_keep_concurrent_applications_isolated() {
     use std::sync::Barrier;
