@@ -92,10 +92,14 @@ impl Command for WorkCommand {
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
             };
             let cadence = if once {
-                WorkerCadence::default()
+                WorkerCadence {
+                    single_run: true,
+                    ..WorkerCadence::default()
+                }
             } else {
                 let empty = number("stop-when-empty-for");
                 WorkerCadence {
+                    single_run: false,
                     rest: duration(number("rest")),
                     stop_when_empty_for: (empty > 0).then(|| duration(empty)),
                 }

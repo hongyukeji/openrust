@@ -100,6 +100,18 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 
 时间戳优先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。内存用量目前输出为 `null`。
 
+#### Worker 生命周期事件 {#worker-lifecycle-events}
+
+守护 Worker 启动时派发 `WorkerStarting`，每次轮询前派发 `Looping`，轮询没有找到可用任务时派发 `WorkerIdle`。正常退出时派发 `WorkerStopping`。这些事件携带连接、队列和 Worker 选项。
+
+同步 `Looping` 监听器可返回 `Some(ListenerResponse::Value(Box::new(false)))` 跳过当前轮询。Worker 等待后再试，并继续遵守退出限制。被跳过的轮询不会派发 `WorkerIdle`。事件分发使用第一个监听器响应，返回 `None` 可让后续监听器决定。
+
+队列为空时，以下守护进程会依次派发启动、循环、空闲和退出事件。`--once` 不派发这些守护进程事件。
+
+```sh
+./artisan queue:work --json --stop-when-empty
+```
+
 #### 任务间隔与空闲退出 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 设置任务执行之间的等待时间。使用 `--stop-when-empty-for` 时，队列为空且 Worker 连续指定秒数未处理任务，Worker 就会退出。空闲计时从启动开始，每次任务执行结束后重置。

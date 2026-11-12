@@ -47,6 +47,33 @@ queue_event!(
 );
 
 queue_event!(
+    /// A daemon worker is starting its polling loop.
+    WorkerStarting {
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
+    /// A daemon is about to poll the queue. A listener may veto the iteration.
+    Looping {
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
+    /// A daemon worker could not reserve a job.
+    WorkerIdle {
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
     /// A worker completed a graceful stop.
     WorkerStopping {
         status: i32,

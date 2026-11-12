@@ -22,7 +22,7 @@ use crate::{
         queue::{Factory, JobHandler, Queue as Contract},
     },
     database::{Connection, DatabaseError, DatabaseManager, Transaction},
-    events::{Dispatcher, EventContext},
+    events::{Dispatcher, EventContext, ListenerResponse},
     redis::RedisManager,
     support::facades::application_scope,
 };
@@ -178,7 +178,7 @@ impl QueueManager {
             .await
     }
 
-    pub(super) async fn emit_control_event(&self, event: impl Event) -> QueueResult<()> {
+    fn worker_dispatcher(&self) -> QueueResult<(Arc<Container>, Arc<Dispatcher>)> {
         let owner = self
             .owner
             .upgrade()
@@ -186,6 +186,11 @@ impl QueueManager {
         let dispatcher = owner
             .make::<Dispatcher>()
             .map_err(QueueError::Unavailable)?;
+        Ok((owner, dispatcher))
+    }
+
+    pub(super) async fn emit_control_event(&self, event: impl Event) -> QueueResult<()> {
+        let (owner, dispatcher) = self.worker_dispatcher()?;
         application_scope(owner, async {
             dispatcher
                 .dispatch(Arc::new(event), &mut EventContext::new())
@@ -194,6 +199,20 @@ impl QueueManager {
         .await
         .map_err(backend)?;
         Ok(())
+    }
+
+    pub(super) async fn allows_polling(&self, event: super::events::Looping) -> QueueResult<bool> {
+        let (owner, dispatcher) = self.worker_dispatcher()?;
+        let response = application_scope(owner, async {
+            dispatcher
+                .until(Arc::new(event), &mut EventContext::new())
+                .await
+        })
+        .await
+        .map_err(backend)?;
+        Ok(
+            !matches!(response, Some(ListenerResponse::Value(value)) if value.downcast_ref::<bool>() == Some(&false)),
+        )
     }
 
     pub(super) fn polls_interruptions(&self) -> bool {

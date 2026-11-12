@@ -21,7 +21,9 @@ use crate::{
 use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
     WorkerStopReason,
-    events::{WorkerQueuePaused, WorkerQueueResumed, WorkerStopping},
+    events::{
+        Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
+    },
     failed::{FailedJob, FailedJobProviderInterface},
 };
 
@@ -35,6 +37,7 @@ pub enum WorkResult {
 
 #[derive(Default)]
 pub(super) struct WorkerCadence {
+    pub single_run: bool,
     pub rest: Duration,
     pub stop_when_empty_for: Option<Duration>,
 }
@@ -144,6 +147,16 @@ impl Worker {
         let name = connection.get_connection_name();
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
+        let queue_names = queues.join(",");
+        if !cadence.single_run {
+            manager
+                .emit_control_event(WorkerStarting {
+                    connection_name: name.into(),
+                    queue: queue_names.clone(),
+                    worker_options: options.clone(),
+                })
+                .await?;
+        }
         let mut processed = 0;
         let mut idle_since = start;
         let mut last_job_processed_at = None;
@@ -170,6 +183,17 @@ impl Worker {
                 .stop_when_empty_for
                 .and_then(|limit| idle_since.checked_add(limit));
             let reservation = async {
+                if !cadence.single_run
+                    && !manager
+                        .allows_polling(Looping {
+                            connection_name: name.into(),
+                            queue: queue_names.clone(),
+                            worker_options: options.clone(),
+                        })
+                        .await?
+                {
+                    return Ok((false, None));
+                }
                 if let Some(control) = &control {
                     let observed = control.paused_queues(name, queues).await?;
                     for queue in observed
@@ -212,12 +236,12 @@ impl Worker {
                         connection.pop(Some(queue)).await?
                     };
                     if let Some(job) = job {
-                        return Ok(Some(job));
+                        return Ok((true, Some(job)));
                     }
                 }
-                Ok(None)
+                Ok((true, None))
             };
-            let job = tokio::select! {
+            let (polled, job) = tokio::select! {
                 biased;
                 () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                 () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
@@ -250,18 +274,43 @@ impl Worker {
                         () = tokio::time::sleep(cadence.rest) => {},
                     }
                 }
-            } else if options.stop_when_empty {
-                break WorkerStopReason::QueueEmpty;
             } else {
-                if idle_deadline.is_some_and(|limit| tokio::time::Instant::now() >= limit) {
+                if polled && !cadence.single_run {
+                    manager
+                        .emit_control_event(WorkerIdle {
+                            connection_name: name.into(),
+                            queue: queue_names.clone(),
+                            worker_options: options.clone(),
+                        })
+                        .await?;
+                }
+                if polled && options.stop_when_empty {
+                    break WorkerStopReason::QueueEmpty;
+                }
+                if !options.stop_when_empty
+                    && idle_deadline.is_some_and(|limit| tokio::time::Instant::now() >= limit)
+                {
                     break WorkerStopReason::QueueEmptyFor;
                 }
+                let sleep = if !polled && options.sleep.is_zero() {
+                    Duration::from_secs(1)
+                } else {
+                    options.sleep
+                };
                 tokio::select! {
                     biased;
                     () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                     () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
                     () = wait_until(idle_deadline) => {},
-                    () = tokio::time::sleep(options.sleep) => {},
+                    () = tokio::time::sleep(sleep) => {},
+                }
+                if !polled && options.stop_when_empty {
+                    if let Some(control) = &control
+                        && control.restart_generation().await? != initial_restart
+                    {
+                        break WorkerStopReason::ReceivedRestartSignal;
+                    }
+                    break WorkerStopReason::QueueEmpty;
                 }
             }
         };
@@ -272,10 +321,12 @@ impl Worker {
             jobs_processed: processed,
             last_job_processed_at,
             connection_name: name.into(),
-            queue: queues.join(","),
+            queue: queue_names,
         };
         status(WorkerStatus::Stopped(&event));
-        manager.emit_control_event(event).await?;
+        if !cadence.single_run {
+            manager.emit_control_event(event).await?;
+        }
         Ok(processed)
     }
 

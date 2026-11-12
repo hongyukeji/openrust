@@ -18,7 +18,7 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-rest-and-idle-timeout", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "worker-rest-and-idle-timeout", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
@@ -30,6 +30,8 @@ try {
                     assert.ok(body.includes("WorkerQueueResumed"));
                     assert.ok(body.includes("restart_signal"));
                     assert.ok(body.includes("empty_for"));
+                    assert.ok(body.includes("WorkerIdle"));
+                    assert.ok(body.includes("Looping"));
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

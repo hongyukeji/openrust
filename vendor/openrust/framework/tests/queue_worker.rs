@@ -3,7 +3,10 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::{Duration, SystemTime},
 };
 
@@ -28,8 +31,8 @@ use openrust::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult, WorkerStopReason,
         events::{
-            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerQueuePaused,
-            WorkerQueueResumed, WorkerStopping,
+            Looping, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle,
+            WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -243,6 +246,45 @@ impl Listener for ControlListener {
     }
 }
 
+struct LoopListener {
+    attempts: AtomicUsize,
+    later: bool,
+}
+
+impl Listener for LoopListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<Looping>()
+                .ok_or(EventError::InvalidPayload)?;
+            assert_eq!(event.queue, "default");
+            let attempt = self.attempts.fetch_add(1, Ordering::Relaxed);
+            let mode = std::env::var("QUEUE_WORKER_VETO").unwrap_or_default();
+            let veto = !self.later && (mode == "always" || (mode == "once" && attempt == 0));
+            let name = if self.later {
+                "loop:later"
+            } else if veto {
+                "loop:veto"
+            } else {
+                "loop:allowed"
+            };
+            DB::connection(None)
+                .map_err(EventError::Transaction)?
+                .statement(
+                    "insert into receipts (name, value) values (?, 1)",
+                    &[name.into()],
+                )
+                .await
+                .map_err(EventError::Transaction)?;
+            Ok(veto.then(|| ListenerResponse::Value(Box::new(false))))
+        })
+    }
+}
+
 fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
     for event in [
         QueuePaused::NAME,
@@ -251,9 +293,23 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
         QueuesResumed::NAME,
         WorkerQueuePaused::NAME,
         WorkerQueueResumed::NAME,
+        WorkerStarting::NAME,
+        WorkerIdle::NAME,
         WorkerStopping::NAME,
     ] {
         registry.listen(event, Arc::new(ControlListener), Delivery::Sync)?;
+    }
+    if std::env::var_os("QUEUE_WORKER_VETO").is_some() {
+        for later in [false, true] {
+            registry.listen(
+                Looping::NAME,
+                Arc::new(LoopListener {
+                    attempts: AtomicUsize::new(0),
+                    later,
+                }),
+                Delivery::Sync,
+            )?;
+        }
     }
     registry.listenQueued::<Invoice>(
         "invoice.paid",
@@ -715,6 +771,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     }
     verify_worker_control(&root.0, &db, &*queue, address, default_queue).await;
     verify_worker_cadence(&root.0, &db, address, redis.is_some()).await;
+    verify_worker_lifecycle(&root.0, &db, &*queue, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -999,6 +1056,107 @@ async fn verify_worker_cadence(
         assert_eq!(rows.last().unwrap()["reason"], "max_jobs");
         assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
     }
+}
+
+async fn verify_worker_lifecycle(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let launch = |args: &[&str], veto: &'static str| {
+        let mut command = artisan(root, args);
+        command.env("QUEUE_WORKER_VETO", veto);
+        async move {
+            let output = timeout(Duration::from_secs(6), command.output())
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            json_lines(&String::from_utf8(output.stdout).unwrap())
+        }
+    };
+    let starting = count(WorkerStarting::NAME).await;
+    let idle = count(WorkerIdle::NAME).await;
+    let stopped = count("stop:MaxJobsExceeded").await;
+    request(address, "control_default").await;
+    let start = tokio::time::Instant::now();
+    let rows = launch(
+        &["queue:work", "--json", "--max-jobs=1", "--sleep=0"],
+        "once",
+    )
+    .await;
+    assert!(start.elapsed() >= Duration::from_millis(950));
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
+    assert_eq!(count("loop:veto").await, 1);
+    assert_eq!(count("loop:allowed").await, 1);
+    assert_eq!(count("loop:later").await, 1);
+    assert_eq!(count(WorkerStarting::NAME).await, starting + 1);
+    assert_eq!(count(WorkerIdle::NAME).await, idle);
+    assert_eq!(count("stop:MaxJobsExceeded").await, stopped + 1);
+
+    request(address, "control_default").await;
+    let rows = launch(
+        &["queue:work", "--json", "--max-time=1", "--sleep=0"],
+        "always",
+    )
+    .await;
+    assert_eq!(rows.last().unwrap()["reason"], "max_time");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 0);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    assert_eq!(count("loop:later").await, 1);
+    assert_eq!(count(WorkerIdle::NAME).await, idle);
+
+    let veto_count = count("loop:veto").await;
+    let rows = launch(&["queue:work", "--json", "--once"], "always").await;
+    assert_eq!(rows.last().unwrap()["status"], "success");
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+    assert_eq!(count("loop:veto").await, veto_count);
+    assert_eq!(count(WorkerStarting::NAME).await, starting + 2);
+    assert_eq!(count("stop:MaxJobsExceeded").await, stopped + 1);
+
+    let rows = launch(&["queue:work", "--json", "--stop-when-empty"], "allow").await;
+    assert_eq!(rows.last().unwrap()["reason"], "empty");
+    assert_eq!(count(WorkerIdle::NAME).await, idle + 1);
+    assert_eq!(count(WorkerStarting::NAME).await, starting + 3);
+
+    request(address, "control_default").await;
+    let veto_count = count("loop:veto").await;
+    let mut worker = artisan(
+        root,
+        &["queue:work", "--json", "--stop-when-empty", "--sleep=3"],
+    )
+    .env("QUEUE_WORKER_VETO", "always")
+    .stdout(Stdio::piped())
+    .spawn()
+    .unwrap();
+    timeout(Duration::from_secs(5), async {
+        while count("loop:veto").await == veto_count {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    run(root, &["queue:restart"]).await;
+    assert!(
+        timeout(Duration::from_secs(6), worker.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    let rows = captured_worker_output(&mut worker).await;
+    assert_eq!(rows.last().unwrap()["reason"], "restart_signal");
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    launch(&["queue:work", "--json", "--once"], "always").await;
+    assert_eq!(queue.size(None).await.unwrap(), 0);
 }
 
 #[tokio::test]

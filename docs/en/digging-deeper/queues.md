@@ -100,6 +100,18 @@ A graceful stop writes a `stopped` record with the reason, exit code, and number
 
 Timestamps use `queue.output_timezone` if configured, then `app.timezone` or UTC. Memory usage is currently reported as `null`.
 
+#### Worker lifecycle events {#worker-lifecycle-events}
+
+A daemon dispatches `WorkerStarting` when it starts, `Looping` before each polling iteration, and `WorkerIdle` when a poll finds no available job. It dispatches `WorkerStopping` when it exits gracefully. These events carry the connection, queue selection, and worker options.
+
+A synchronous `Looping` listener can return `Some(ListenerResponse::Value(Box::new(false)))` to skip the current poll. The worker waits before trying again and continues to honor its stopping limits. A skipped poll does not dispatch `WorkerIdle`. The dispatcher uses the first listener response, so use `None` to allow later listeners to decide.
+
+With an empty queue, this daemon dispatches the startup, loop, idle, and stopping events. `--once` skips these daemon events.
+
+```sh
+./artisan queue:work --json --stop-when-empty
+```
+
 #### Resting between jobs and stopping after inactivity {#worker-rest-and-idle-timeout}
 
 Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop after the queue is empty and the worker has gone the specified number of seconds without processing a job. The idle timer starts when the worker starts and resets when it finishes each job.

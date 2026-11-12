@@ -100,6 +100,18 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 
 時間戳記優先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。記憶體用量目前輸出為 `null`。
 
+#### Worker 生命週期事件 {#worker-lifecycle-events}
+
+常駐 Worker 啟動時派發 `WorkerStarting`，每次輪詢前派發 `Looping`，輪詢沒有找到可用工作時派發 `WorkerIdle`。正常結束時派發 `WorkerStopping`。這些事件帶有連線、佇列和 Worker 選項。
+
+同步 `Looping` 監聽器可傳回 `Some(ListenerResponse::Value(Box::new(false)))` 略過目前的輪詢。Worker 等待後再試，並繼續遵守結束限制。略過的輪詢不會派發 `WorkerIdle`。事件分派採用第一個監聽器回應，傳回 `None` 可讓後續監聽器決定。
+
+佇列為空時，下列常駐程序會依序派發啟動、循環、閒置及結束事件。`--once` 不派發這些常駐程序事件。
+
+```sh
+./artisan queue:work --json --stop-when-empty
+```
+
 #### 工作間隔與閒置結束 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 設定工作執行之間的等待時間。使用 `--stop-when-empty-for` 時，佇列為空且 Worker 連續指定秒數未處理工作，Worker 就會結束。閒置計時從啟動開始，每次工作執行結束後重設。
