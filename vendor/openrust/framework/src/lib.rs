@@ -14,6 +14,7 @@ pub mod encryption;
 pub mod events;
 pub mod filesystem;
 pub mod foundation;
+pub mod grpc;
 pub mod hashing;
 pub mod http;
 pub mod image;

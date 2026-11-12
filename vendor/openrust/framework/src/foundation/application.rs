@@ -30,6 +30,7 @@ use crate::{
         debug::{Exception, ExceptionHandler as _},
         foundation,
     },
+    grpc,
     routing::Router,
     support::ServiceProvider,
 };
@@ -57,6 +58,7 @@ pub(super) struct ApplicationState {
     state: AtomicU8,
     booting_started: AtomicBool,
     routing: Mutex<Option<Routing>>,
+    pub(super) grpc_registrar: Mutex<Option<grpc::Registrar>>,
     package_routes: Mutex<Option<Vec<PackageRoutes>>>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     pub(super) middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
@@ -279,6 +281,7 @@ impl Application {
             state: AtomicU8::new(PENDING),
             booting_started: AtomicBool::new(false),
             routing: Mutex::new(routing),
+            grpc_registrar: Mutex::new(None),
             package_routes: Mutex::new(Some(Vec::new())),
             package_commands: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
@@ -617,7 +620,7 @@ impl Application {
                 "url",
                 Arc::new(crate::routing::UrlGenerator::new(
                     routes.named_routes(),
-                    config,
+                    config.clone(),
                 )),
             )
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
@@ -630,6 +633,22 @@ impl Application {
             .routes
             .lock()
             .expect("application routes lock poisoned") = Some(routes);
+        let grpc = self
+            .shared
+            .grpc_registrar
+            .lock()
+            .expect("gRPC registration lock poisoned")
+            .take();
+        if let Some(register) = grpc {
+            let mut routes = grpc::RoutesBuilder::default();
+            register(self, &mut routes)
+                .map_err(|source| BootstrapError::GrpcRegistrationFailed { source })?;
+            self.registerRuntimeService(Arc::new(grpc::ConfiguredServer::new(
+                routes.routes(),
+                config,
+            )));
+        }
+
         *self
             .shared
             .providers

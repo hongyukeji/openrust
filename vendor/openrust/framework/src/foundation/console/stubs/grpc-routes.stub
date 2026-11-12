@@ -1,0 +1,7 @@
+//! Application gRPC service registrations.
+
+use openrust::{foundation::Application, grpc::RoutesBuilder, support::ProviderResult};
+
+pub(crate) fn register(_app: &Application, _services: &mut RoutesBuilder) -> ProviderResult {
+    Ok(())
+}

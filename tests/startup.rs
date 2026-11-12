@@ -228,6 +228,42 @@ async fn all_providers_register_before_boot_and_success_is_idempotent() {
     );
 }
 
+#[tokio::test]
+async fn grpc_registration_runs_after_providers_and_only_once() {
+    let root = TestRoot::new("grpc-registration");
+    let events = Arc::new(Mutex::new(Vec::new()));
+    let mut application = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            Ok(BTreeMap::from([(
+                "app".into(),
+                json!({"name": "test app"}),
+            )]))
+        })
+        .withProviders(vec![
+            Box::new(First(events.clone())),
+            Box::new(Second(events.clone())),
+        ])
+        .withGrpc(|app, _services| {
+            let events = app.container().make::<Mutex<Vec<&'static str>>>()?;
+            events.lock().unwrap().push("grpc.register");
+            Ok(())
+        })
+        .create()
+        .unwrap();
+    application.boot().await.unwrap();
+    application.boot().await.unwrap();
+    assert_eq!(
+        *events.lock().unwrap(),
+        [
+            "first.register",
+            "second.register",
+            "first.boot",
+            "second.boot",
+            "grpc.register"
+        ]
+    );
+}
+
 struct FailingProvider;
 
 impl ServiceProvider for FailingProvider {

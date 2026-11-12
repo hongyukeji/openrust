@@ -4,6 +4,7 @@ mod channel_list_command;
 mod console_make_command;
 mod environment_command;
 mod event_list_command;
+mod install_routes_command;
 mod key_generate_command;
 mod model_make_command;
 mod policy_make_command;
@@ -68,6 +69,7 @@ impl Kernel {
                             environment_command::register(&mut self.artisan)?;
                             event_list_command::register(&mut self.artisan)?;
                             channel_list_command::register(&mut self.artisan)?;
+                            install_routes_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;

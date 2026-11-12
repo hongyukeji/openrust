@@ -8,6 +8,7 @@ use crate::{
         application::{CommandRegistrar, MiddlewareConfigurator},
         bootstrap::ConfigLoader,
     },
+    grpc,
     support::ServiceProvider,
 };
 
@@ -20,6 +21,7 @@ pub struct ApplicationBuilder {
     channels: Option<ChannelRoutes>,
     middleware_configurators: Vec<MiddlewareConfigurator>,
     commands: CommandRegistrar,
+    grpc: Option<grpc::Registrar>,
     exceptions: Option<Exceptions>,
 }
 
@@ -37,6 +39,7 @@ impl ApplicationBuilder {
             channels: None,
             middleware_configurators: Vec::new(),
             commands: |_| Ok(()),
+            grpc: None,
             exceptions: None,
         }
     }
@@ -67,6 +70,12 @@ impl ApplicationBuilder {
     /// Enables broadcast authentication and loads the application's channel rules.
     pub fn withBroadcasting(mut self, register: ChannelRoutes) -> Self {
         self.channels = Some(register);
+        self
+    }
+
+    /// Registers gRPC services during application boot.
+    pub fn withGrpc(mut self, register: grpc::Registrar) -> Self {
+        self.grpc = Some(register);
         self
     }
 
@@ -107,7 +116,7 @@ impl ApplicationBuilder {
             Some(register) => Some(self.routing.unwrap_or_default().channels(register)),
             None => self.routing,
         };
-        Ok(Application::new(
+        let application = Application::new(
             base_path,
             self.load_config,
             self.providers,
@@ -115,6 +124,12 @@ impl ApplicationBuilder {
             self.middleware_configurators,
             self.commands,
             self.exceptions,
-        ))
+        );
+        *application
+            .shared
+            .grpc_registrar
+            .lock()
+            .expect("gRPC registration lock poisoned") = self.grpc;
+        Ok(application)
     }
 }

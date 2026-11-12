@@ -22,6 +22,9 @@ pub enum BootstrapError {
     RoutingFailed {
         source: RoutingError,
     },
+    GrpcRegistrationFailed {
+        source: Box<dyn Error + Send + Sync>,
+    },
     CommandRegistrationFailed {
         source: ConsoleError,
     },
@@ -53,6 +56,7 @@ impl fmt::Display for BootstrapError {
             Self::ContainerFailed { .. } => f.write_str("service container failed"),
             Self::ConfigurationFailed { source } => write!(f, "configuration failed: {source}"),
             Self::RoutingFailed { source } => write!(f, "route registration failed: {source}"),
+            Self::GrpcRegistrationFailed { .. } => f.write_str("gRPC service registration failed"),
             Self::CommandRegistrationFailed { source } => {
                 write!(f, "command registration failed: {source}")
             }
@@ -77,6 +81,7 @@ impl Error for BootstrapError {
             Self::RoutingFailed { source } => Some(source),
             Self::CommandRegistrationFailed { source } => Some(source),
             Self::ProviderRegistrationFailed { source, .. }
+            | Self::GrpcRegistrationFailed { source }
             | Self::ProviderBootFailed { source, .. } => Some(source.as_ref()),
             _ => None,
         }
