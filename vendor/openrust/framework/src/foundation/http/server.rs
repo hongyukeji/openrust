@@ -5,7 +5,7 @@ use axum::{
     handler::Handler as _,
     response::Response as TransportResponse,
 };
-use tokio::{net::TcpListener, signal};
+use tokio::net::TcpListener;
 
 use super::Kernel;
 use crate::{
@@ -30,35 +30,24 @@ impl Kernel {
     pub(in crate::foundation) async fn serve(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
         let listener = self.listen().await?;
 
-        #[cfg(unix)]
-        let mut terminate = signal::unix::signal(signal::unix::SignalKind::terminate())?;
-
-        let shutdown = async move {
-            #[cfg(unix)]
-            let result = tokio::select! {
-                result = signal::ctrl_c() => result,
-                _ = terminate.recv() => Ok(()),
-            };
-            #[cfg(not(unix))]
-            let result = signal::ctrl_c().await;
-
-            if let Err(error) = result {
-                eprintln!("Cannot listen for the shutdown signal: {error}");
-            }
-        };
-
+        let services = self.get_application().take_runtime_services();
         let termination_tasks = self.termination_tasks.clone();
         let service = handle
             .with_state(Arc::new(self))
             .into_make_service_with_connect_info::<std::net::SocketAddr>();
-        println!("OpenRust listening on http://{}", listener.local_addr()?);
-        let result = axum::serve(listener, service)
-            .with_graceful_shutdown(shutdown)
-            .await;
-        termination_tasks.close();
-        termination_tasks.wait().await;
-        result?;
-        Ok(())
+        super::super::runtime_service::run(services, move |shutdown| {
+            Box::pin(async move {
+                println!("OpenRust listening on http://{}", listener.local_addr()?);
+                let result = axum::serve(listener, service)
+                    .with_graceful_shutdown(shutdown.cancelled_owned())
+                    .await;
+                termination_tasks.close();
+                termination_tasks.wait().await;
+                result?;
+                Ok(())
+            })
+        })
+        .await
     }
 }
 

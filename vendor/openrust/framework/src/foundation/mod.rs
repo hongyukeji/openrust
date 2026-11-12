@@ -14,9 +14,11 @@ pub mod http;
 mod inspiring;
 mod provider_repository;
 pub mod providers;
+mod runtime_service;
 pub mod support;
 
 pub use application::Application;
 pub use bootstrap_error::BootstrapError;
 pub use entry::runApplication;
 pub use inspiring::Inspiring;
+pub use runtime_service::{RunningService, RuntimeResult, RuntimeService, wait_for_shutdown};

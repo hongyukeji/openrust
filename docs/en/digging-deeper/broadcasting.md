@@ -20,4 +20,4 @@ Implement `ShouldBroadcast` and register the compiled type with `Dispatcher::reg
 
 Mark an event implementing `ShouldDispatchAfterCommit` with `Dispatcher::markAfterCommit::<E>()` to defer its dispatch when a transaction is active. Queued broadcasts also honor `broadcastAfterCommit` and the queue connection's `after_commit` setting. Use `EventContext::toOthers(&request)` to forward the request's `X-Socket-ID` to the driver for exclusion.
 
-The built-in connections are `null` and `log`. Reverb and external transport drivers have separate installation and protocol requirements.
+The built-in connections are `null` and `log`. Enable the [Reverb package](../packages/reverb.md) for a Pusher-compatible transport.

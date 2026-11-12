@@ -471,6 +471,13 @@ impl Artisan {
             .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
     }
 
+    /// Adds a typed command to the console in the active registration scope.
+    pub fn add(command: Box<dyn crate::console::Command>) -> Result<(), ConsoleError> {
+        CONSOLE
+            .try_with(|console| console.borrow_mut().add_command(command))
+            .map_err(|_| ConsoleError::new("No active Artisan registration scope."))?
+    }
+
     pub(crate) fn register(
         console: &mut Application,
         register: fn() -> Result<(), ConsoleError>,

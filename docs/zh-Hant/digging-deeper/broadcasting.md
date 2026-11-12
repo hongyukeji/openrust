@@ -20,4 +20,4 @@ Provider 可以解析 `BroadcastManager`，用 `extend` 註冊驅動名稱及建
 
 實作 `ShouldDispatchAfterCommit` 並透過 `Dispatcher::markAfterCommit::<E>()` 標記事件後，進行中交易內的事件將延後至提交後分派。佇列廣播也遵循 `broadcastAfterCommit` 和佇列連線的 `after_commit`。使用 `EventContext::toOthers(&request)` 將請求的 `X-Socket-ID` 傳給驅動程式，供驅動程式排除來源連線。
 
-內建連線為 `null` 和 `log`。Reverb 及外部傳輸驅動程式各有獨立的安裝與通訊協定要求。
+內建連線為 `null` 和 `log`。啟用 [Reverb 擴充套件](../packages/reverb.md) 後可使用相容 Pusher 的傳輸。

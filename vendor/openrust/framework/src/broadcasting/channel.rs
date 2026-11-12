@@ -37,7 +37,7 @@ impl BroadcastChannel {
 use regex::Regex;
 
 use crate::{
-    auth::Auth,
+    auth::{Auth, AuthIdentifier},
     contracts::{auth::Authenticatable, broadcasting::ChannelHandler},
     http::Request,
 };
@@ -132,8 +132,21 @@ impl ChannelRegistry {
         channel: &str,
         request: &mut Request,
     ) -> BroadcastResult<ChannelAuthorization> {
+        Ok(self.authorizeRequestWithIdentity(channel, request).await?.1)
+    }
+
+    /// Returns the identity selected by the channel's guards together with its authorization.
+    #[allow(
+        non_snake_case,
+        reason = "Rust adapter for Laravel's channel user lookup"
+    )]
+    pub async fn authorizeRequestWithIdentity(
+        &self,
+        channel: &str,
+        request: &mut Request,
+    ) -> BroadcastResult<(Option<AuthIdentifier>, ChannelAuthorization)> {
         let Some((rule, parameters)) = self.matched(channel) else {
-            return Ok(ChannelAuthorization::Denied);
+            return Ok((None, ChannelAuthorization::Denied));
         };
         let guards = rule.options.guards.iter().map(|guard| Some(guard.as_str()));
         let default = rule.options.guards.is_empty().then_some(None);
@@ -145,10 +158,11 @@ impl ChannelRegistry {
                 .await
                 .map_err(|error| BroadcastException::Backend(Box::new(error)))?
             {
-                return rule.handler.join(user, &parameters).await;
+                let authorization = rule.handler.join(user, &parameters).await?;
+                return Ok((Some(user.get_auth_identifier()), authorization));
             }
         }
-        Ok(ChannelAuthorization::Denied)
+        Ok((None, ChannelAuthorization::Denied))
     }
 
     pub fn patterns(&self) -> impl Iterator<Item = &str> {

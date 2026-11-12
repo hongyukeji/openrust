@@ -56,6 +56,7 @@ pub(super) fn publish_options(env: &Environment) -> Result<Value, ConfigError> {
     Ok(json!({
         "host": get(env, "REVERB_HOST", Value::Null)?,
         "port": get(env, "REVERB_PORT", 443)?,
+        "path": get(env, "REVERB_SERVER_PATH", "")?,
         "scheme": scheme,
         "useTLS": scheme == "https",
     }))

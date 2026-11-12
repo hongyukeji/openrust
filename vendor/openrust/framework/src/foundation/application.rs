@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::{
-    BootstrapError,
+    BootstrapError, RuntimeService,
     bootstrap::{ConfigLoader, LoadConfiguration, LoadEnvironmentVariables},
     configuration::{ApplicationBuilder, CommandRoutes, Exceptions, Middleware, Routing},
     console::Kernel,
@@ -52,6 +52,7 @@ pub(super) struct ApplicationState {
     load_config: ConfigLoader,
     pub(super) container: Arc<Container>,
     providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
+    runtime_services: Mutex<Vec<Arc<dyn RuntimeService>>>,
     deferred: OnceLock<Arc<super::provider_repository::ProviderRepository>>,
     state: AtomicU8,
     booting_started: AtomicBool,
@@ -99,6 +100,16 @@ impl Application {
     /// Runs the HTTP service through the HTTP kernel.
     pub async fn start(self) -> Result<(), Box<dyn Error + Send + Sync>> {
         http::Kernel::new(self).serve().await
+    }
+
+    /// Registers an optional listener during application assembly.
+    #[allow(non_snake_case, reason = "Matches the application configuration API")]
+    pub fn registerRuntimeService(&self, service: Arc<dyn RuntimeService>) {
+        self.shared.runtime_services.lock().unwrap().push(service);
+    }
+
+    pub(super) fn take_runtime_services(&self) -> Vec<Arc<dyn RuntimeService>> {
+        std::mem::take(&mut *self.shared.runtime_services.lock().unwrap())
     }
 
     /// Returns the application's configured public directory.
@@ -263,6 +274,7 @@ impl Application {
             load_config,
             container,
             providers: Mutex::new(providers),
+            runtime_services: Mutex::default(),
             deferred: OnceLock::new(),
             state: AtomicU8::new(PENDING),
             booting_started: AtomicBool::new(false),
