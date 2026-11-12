@@ -81,7 +81,7 @@ fn register() -> Result<(), RoutingError> {
 
 Set the paths, origins, methods and headers in `config/cors.rs`. The global `HandleCors` middleware answers matching browser preflights with an empty HTTP 204 and applies the policy to actual responses, including 404 errors. For a denied origin in a dynamic policy, the browser receives no origin grant. A single configured origin may be sent as a fixed value, which only grants that origin.
 
-The application sets `cors.paths` to `["*"]` in `config/cors.rs`. CORS applies to all paths, including Web and API routes, and credentials are disabled by default. List specific patterns to limit the scope, or use an empty list to disable CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
+When `CORS_PATHS` is unset, `cors.paths` matches Laravel’s defaults, `api/*` and `sanctum/csrf-cookie`. The `.env.example` template sets `CORS_PATHS=*` to enable CORS on all paths. Set a comma-separated list such as `CORS_PATHS=api/*,webhooks/*` to limit the paths, or set `CORS_PATHS=` to disable CORS. Cross-origin credentials are disabled by default. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \

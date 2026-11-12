@@ -154,24 +154,41 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         Ok(configuration)
     }
 
-    for (environment, explicit, effective, custom) in [
-        ("", None, "api", false),
+    #[derive(Clone, Copy)]
+    enum Cors {
+        Default,
+        All,
+        Custom,
+        Disabled,
+        ByHost,
+    }
+
+    for (environment, explicit, effective, cors) in [
+        ("", None, "api", Cors::Default),
         (
             "ROUTING_API_PREFIX=//v1/internal//\n",
             None,
             "v1/internal",
-            false,
+            Cors::Default,
         ),
         (
             "ROUTING_API_PREFIX=/env\n",
             Some("/builder/v2/"),
             "builder/v2",
-            false,
+            Cors::Default,
         ),
-        ("ROUTING_API_PREFIX=/env\n", Some(""), "", false),
-        ("ROUTING_API_PREFIX=/\n", None, "", false),
-        ("ROUTING_API_PREFIX=\n", None, "", false),
-        ("ROUTING_API_PREFIX=/v1\n", None, "v1", true),
+        ("ROUTING_API_PREFIX=/env\n", Some(""), "", Cors::Default),
+        ("ROUTING_API_PREFIX=/\n", None, "", Cors::Default),
+        ("ROUTING_API_PREFIX=\n", None, "", Cors::Default),
+        ("CORS_PATHS=*\n", None, "api", Cors::All),
+        (
+            "ROUTING_API_PREFIX=/v1\nCORS_PATHS=\"/custom/*, /v1/*\"\n",
+            None,
+            "v1",
+            Cors::Custom,
+        ),
+        ("CORS_PATHS=\n", None, "api", Cors::Disabled),
+        ("ROUTING_API_PREFIX=/v1\n", None, "v1", Cors::ByHost),
     ] {
         let root = TestRoot::new("api-prefix");
         fs::write(root.0.join(".env"), environment).unwrap();
@@ -186,7 +203,11 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             None => routing,
         };
         let app = Application::configure(root.0.clone())
-            .withConfig(if custom { custom_cors } else { web_config })
+            .withConfig(if matches!(cors, Cors::ByHost) {
+                custom_cors
+            } else {
+                web_config
+            })
             .withMiddleware(|middleware| {
                 middleware.group("api", [MiddlewareEntry::Instance(Arc::new(ApiMarker))]);
             })
@@ -277,16 +298,28 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         );
         let response = send("GET", "/web-missing", html, host).await;
         assert!(response.contains("content-type: text/html"), "{response}");
-        for (path, host, allowed) in [
-            ("/api/missing", host, !custom),
-            ("/sanctum/csrf-cookie", host, !custom),
-            (probe.as_str(), host, !custom),
-            ("/api", host, !custom),
-            ("/", host, !custom),
-            ("/custom/missing", host, true),
-            ("/host-only/missing", "localhost", true),
-            ("/host-only/missing", host, !custom),
+        for (path, host) in [
+            ("/api/missing", host),
+            ("/sanctum/csrf-cookie", host),
+            (probe.as_str(), host),
+            ("/api", host),
+            ("/", host),
+            ("/custom/missing", host),
+            ("/host-only/missing", "localhost"),
+            ("/host-only/missing", host),
         ] {
+            let allowed = match cors {
+                Cors::Default => {
+                    matches!(path, "/api/missing" | "/sanctum/csrf-cookie" | "/api/probe")
+                }
+                Cors::All => true,
+                Cors::Custom => matches!(path, "/custom/missing" | "/v1/probe"),
+                Cors::Disabled => false,
+                Cors::ByHost => {
+                    path == "/custom/missing"
+                        || (host == "localhost" && path == "/host-only/missing")
+                }
+            };
             let response = send("OPTIONS", path, html, host).await;
             if allowed {
                 assert!(response.starts_with("HTTP/1.1 204 "), "{path}: {response}");

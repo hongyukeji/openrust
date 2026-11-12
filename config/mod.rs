@@ -35,7 +35,7 @@ pub(crate) fn load(
         ("broadcasting".to_owned(), broadcasting::load(env)?),
         ("cache".to_owned(), cache::load(base_path, env, app.name)?),
         ("concurrency".to_owned(), concurrency::load(env)?),
-        ("cors".to_owned(), cors::load()),
+        ("cors".to_owned(), cors::load(env)?),
         ("database".to_owned(), database),
         (
             "filesystems".to_owned(),

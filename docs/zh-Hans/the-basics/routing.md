@@ -81,7 +81,7 @@ fn register() -> Result<(), RoutingError> {
 
 在 `config/cors.rs` 中配置路径、来源、方法和请求头。全局 `HandleCors` 中间件对匹配的浏览器预检返回空正文 HTTP 204，也会为实际响应应用策略，包括 404。在动态策略中，被拒绝的来源不会收到来源许可。只配置一个来源时可发送固定值，浏览器仅允许该来源。
 
-应用在 `config/cors.rs` 中将 `cors.paths` 设为 `["*"]`，默认对所有路径应用 CORS，包括 Web 和 API 路由。跨域凭据默认关闭。可以列出具体路径模式来限制范围，空列表可禁用 CORS。路径映射可按主机覆盖路径，用数字字符串键表示共用路径。`allowed_origins_patterns` 使用 Rust 正则引擎支持的模式。HTTP 内核在启动时加载并校验策略。
+未设置 `CORS_PATHS` 时，`cors.paths` 沿用 Laravel 的默认路径 `api/*` 和 `sanctum/csrf-cookie`。`.env.example` 中的 `CORS_PATHS=*` 对所有路径启用 CORS。用逗号分隔的路径列表（如 `CORS_PATHS=api/*,webhooks/*`）可以限制范围，`CORS_PATHS=` 可关闭 CORS。跨域凭据默认关闭。路径映射可按主机覆盖路径，用数字字符串键表示共用路径。`allowed_origins_patterns` 使用 Rust 正则引擎支持的模式。HTTP 内核在启动时加载并校验策略。
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
