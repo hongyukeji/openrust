@@ -25,6 +25,7 @@ pub(super) enum WorkerSignalState {
     #[cfg(unix)]
     Paused,
     Stopping,
+    Interrupted(i32),
 }
 
 pub(super) struct WorkerSignals<'a> {
@@ -106,6 +107,7 @@ impl<'a> WorkerSignals<'a> {
                     if let Err(error) = result {
                         worker.report_worker_error(&error).await;
                     }
+                    state.send_replace(WorkerSignalState::Interrupted(signal));
                     shutdown.cancel();
                     return;
                 }

@@ -101,9 +101,23 @@ impl Queue {
             .ok_or(QueueError::InvalidConfiguration)?;
         application_scope(owner, async {
             let middleware = handler.middleware();
-            super::middleware::JobNext::new(handler.as_ref(), &middleware)
+            let running = context
+                .running_handler
+                .filter(|_| handler.interruptible().is_some());
+            if let Some(running) = running {
+                *running
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(handler.clone());
+            }
+            let result = super::middleware::JobNext::new(handler.as_ref(), &middleware)
                 .run(context, payload)
-                .await?;
+                .await;
+            if let Some(running) = running {
+                *running
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            }
+            result?;
             if context.release_after.is_none() {
                 context.finish_chain_edit(payload)?;
             }

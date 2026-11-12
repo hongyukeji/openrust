@@ -160,6 +160,42 @@ kill -s TERM "$WORKER_PID"
 
 On Unix, `SIGTERM`, `SIGQUIT`, and `SIGINT` request a graceful stop. On Windows, Ctrl+C requests the same stop. The daemon emits `WorkerInterrupted` before `WorkerStopping` and lets its current job finish. The signal number, connection, queues, and worker options are available to listeners. A blocking driver reservation that has already begun can return before a pause takes effect.
 
+#### Notifying a running job {#notifying-a-running-job}
+
+Implement `Interruptible` and return the implementation from `JobHandler::interruptible` to receive the worker's shutdown signal. The hook runs in the current job's application and logging context. Keep it brief so the current job can finish. After a successful hook call, the worker dispatches `JobInterrupted` with the signal and a read-only job snapshot.
+
+On timeout, OpenRust cancels the async attempt and calls the hook with the `SIGALRM` signal number before applying the job's timeout failure or retry policy. A hook error goes through the application exception handler and the worker continues its original shutdown or timeout handling.
+
+```rust
+use openrust::{
+    contracts::queue::{Interruptible, JobHandler},
+    queue::{JobContext, Payload, QueueFuture, QueueResult},
+};
+
+struct ProcessPodcast;
+
+impl Interruptible for ProcessPodcast {
+    fn interrupted(&self, signal: i32) -> QueueResult<()> {
+        println!("ProcessPodcast received signal {signal}");
+        Ok(())
+    }
+}
+
+impl JobHandler for ProcessPodcast {
+    fn interruptible(&self) -> Option<&dyn Interruptible> {
+        Some(self)
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+```
+
 ### Pausing and resuming queue workers {#pausing-and-resuming-queue-workers}
 
 Pause a queue by its connection and name. A bare queue name uses the default connection. A worker finishes its current job and skips the paused queue while continuing to serve any other eligible queues.

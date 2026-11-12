@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -17,7 +17,7 @@ use crate::{
         container::Container as _,
         debug::{Exception, ExceptionHandler},
         events::Event,
-        queue::{Job, Queue},
+        queue::{Job, JobHandler, Queue},
     },
     support::facades::{application_scope, isolated_scope},
 };
@@ -26,9 +26,10 @@ use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
     WorkerStopReason,
     events::{
-        JobAttempted, JobExceptionOccurred, JobFailed, JobPopped, JobPopping, JobProcessed,
-        JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot, JobTimedOut, Looping,
-        WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
+        JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
+        JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot,
+        JobTimedOut, Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting,
+        WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
     worker_signals::WorkerSignalState,
@@ -55,6 +56,14 @@ pub(super) enum WorkerStatus<'a> {
     Resumed(&'a WorkerQueueResumed),
     Job(&'a dyn Job, Option<JobOutcome<'a>>),
     Stopped(&'a WorkerStopping),
+}
+
+pub(super) type RunningHandler = Mutex<Option<Arc<dyn JobHandler>>>;
+
+#[derive(Default)]
+struct AttemptStatus {
+    cause: Option<QueueError>,
+    duration: Option<f64>,
 }
 
 pub(super) struct JobOutcome<'a> {
@@ -112,7 +121,7 @@ impl Worker {
         {
             return Ok(WorkResult::Idle);
         }
-        self.process(job.as_mut(), options, &mut None).await
+        self.process(job.as_mut(), options, &mut None, None).await
     }
 
     pub async fn daemon(
@@ -294,7 +303,9 @@ impl Worker {
                 let started = tokio::time::Instant::now();
                 status(WorkerStatus::Job(job.as_ref(), None));
                 let mut cause = None;
-                let result = self.process(job.as_mut(), options, &mut cause).await?;
+                let result = self
+                    .process(job.as_mut(), options, &mut cause, signal_state.as_ref())
+                    .await?;
                 status(WorkerStatus::Job(
                     job.as_ref(),
                     Some(JobOutcome {
@@ -424,6 +435,7 @@ impl Worker {
         job: &mut dyn Job,
         options: &WorkerOptions,
         cause: &mut Option<QueueError>,
+        signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
         if job.payload().chain_delivery.is_some() {
             return self.forward_chain(job).await;
@@ -449,10 +461,18 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
-        let mut duration = None;
+        let mut attempt = AttemptStatus::default();
         let result = self
-            .attempt(job, options, &manager, batch.as_ref(), cause, &mut duration)
+            .attempt(
+                job,
+                options,
+                &manager,
+                batch.as_ref(),
+                &mut attempt,
+                signals,
+            )
             .await;
+        *cause = attempt.cause;
         self.observe_job_event(&manager, job, JobAttempted::NAME, |connection_name, job| {
             JobAttempted {
                 connection_name,
@@ -461,7 +481,7 @@ impl Worker {
                     .as_ref()
                     .or(result.as_ref().err())
                     .map(attempt_exception_message),
-                duration,
+                duration: attempt.duration,
             }
         })
         .await;
@@ -477,8 +497,8 @@ impl Worker {
         options: &WorkerOptions,
         manager: &QueueManager,
         batch: Option<&BatchCompletion>,
-        cause: &mut Option<QueueError>,
-        duration: &mut Option<f64>,
+        status: &mut AttemptStatus,
+        signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
         let preflight = self
             .emit_job_event(manager, job, JobProcessing::NAME, |connection_name, job| {
@@ -491,7 +511,11 @@ impl Worker {
         let tries = job.options().max_tries.unwrap_or(options.tries);
         let already_exhausted = preflight.is_ok() && exceeds_attempts(job, tries, false);
         let timeout = job.options().timeout.unwrap_or(options.timeout);
-        let mut context = JobContext::default();
+        let running = Mutex::new(None);
+        let mut context = JobContext {
+            running_handler: (signals.is_some() || !timeout.is_zero()).then_some(&running),
+            ..JobContext::default()
+        };
         let result = match preflight {
             Err(error) => Err(error),
             Ok(()) if already_exhausted => Err(QueueError::MaxAttempts),
@@ -504,29 +528,74 @@ impl Worker {
                     Context::hooks()
                         .map_err(super::backend)?
                         .hydrate(&hydrated, &context_repository);
+                    let signal_job = (signals.is_some()
+                        && manager.observes_worker_event(JobInterrupted::NAME)?)
+                    .then(|| {
+                        (
+                            job.get_connection_name().to_owned(),
+                            JobSnapshot::from_job(job),
+                        )
+                    });
                     let execution = async {
-                        if job.payload().chained_batch.is_some() {
-                            manager
-                                .execute_chained_batch(
+                        let fire = async {
+                            if job.payload().chained_batch.is_some() {
+                                // Keep the nested batch state out of the worker future's stack frame.
+                                Box::pin(manager.execute_chained_batch(
                                     job.payload(),
                                     job.get_connection_name(),
                                     job.get_queue(),
-                                )
+                                ))
                                 .await
-                        } else {
-                            job.fire(&mut context).await
+                            } else {
+                                job.fire(&mut context).await
+                            }
+                        };
+                        let Some(mut signals) = signals.cloned() else {
+                            return fire.await;
+                        };
+                        tokio::pin!(fire);
+                        tokio::select! {
+                            biased;
+                            signal = wait_for_interruption(&mut signals) => {
+                                if let Some(handler) = active_handler(&running) {
+                                    self.notify_job(manager, handler.as_ref(), signal, || {
+                                        Ok(signal_job.map(|(connection_name, job)| JobInterrupted {
+                                            connection_name, job, signal,
+                                        }))
+                                    }).await;
+                                }
+                                fire.await
+                            }
+                            result = &mut fire => result,
                         }
                     };
                     if timeout.is_zero() {
-                        execution.await
-                    } else {
-                        tokio::time::timeout(timeout, execution)
-                            .await
-                            .unwrap_or(Err(QueueError::Timeout))
+                        return execution.await;
+                    }
+                    match tokio::time::timeout(timeout, execution).await {
+                        Ok(result) => result,
+                        Err(_) => {
+                            if let Some(handler) = active_handler(&running) {
+                                let signal = timeout_signal();
+                                let job = &mut *job;
+                                self.notify_job(manager, handler.as_ref(), signal, move || {
+                                    Ok(manager.observes_worker_event(JobInterrupted::NAME)?.then(
+                                        || JobInterrupted {
+                                            connection_name: job.get_connection_name().into(),
+                                            job: JobSnapshot::from_job(job),
+                                            signal,
+                                        },
+                                    ))
+                                })
+                                .await;
+                            }
+                            Err(QueueError::Timeout)
+                        }
                     }
                 })
                 .await;
-                *duration = Some((started.elapsed().as_secs_f64() * 100_000.0).round() / 100.0);
+                status.duration =
+                    Some((started.elapsed().as_secs_f64() * 100_000.0).round() / 100.0);
                 result
             }
         };
@@ -537,7 +606,7 @@ impl Worker {
                 && (already_exhausted
                     || exceeds_attempts(job, tries, true)
                     || timed_out && job.options().fail_on_timeout);
-            let error = cause.insert(error);
+            let error = status.cause.insert(error);
             if terminal {
                 self.fail(job, error, batch).await?;
                 self.observe_job_event(manager, job, JobFailed::NAME, |connection_name, job| {
@@ -624,7 +693,7 @@ impl Worker {
             JobProcessed {
                 connection_name,
                 job,
-                duration: duration.unwrap_or_default(),
+                duration: status.duration.unwrap_or_default(),
             }
         })
         .await;
@@ -639,6 +708,29 @@ impl Worker {
             Ok(WorkResult::Released)
         } else {
             Ok(WorkResult::Processed)
+        }
+    }
+
+    async fn notify_job(
+        &self,
+        manager: &QueueManager,
+        handler: &dyn JobHandler,
+        signal: i32,
+        event: impl FnOnce() -> QueueResult<Option<JobInterrupted>>,
+    ) {
+        let Some(handler) = handler.interruptible() else {
+            return;
+        };
+        let result = async {
+            handler.interrupted(signal)?;
+            if let Some(event) = event()? {
+                manager.emit_control_event(event).await?;
+            }
+            Ok(())
+        }
+        .await;
+        if let Err(error) = result {
+            self.report_worker_error(&error).await;
         }
     }
 
@@ -738,6 +830,33 @@ impl Worker {
             .await;
         }
         Ok(WorkResult::Failed)
+    }
+}
+
+fn active_handler(running: &RunningHandler) -> Option<Arc<dyn JobHandler>> {
+    running
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+async fn wait_for_interruption(signals: &mut watch::Receiver<WorkerSignalState>) -> i32 {
+    while signals.changed().await.is_ok() {
+        if let WorkerSignalState::Interrupted(signal) = *signals.borrow_and_update() {
+            return signal;
+        }
+    }
+    std::future::pending().await
+}
+
+fn timeout_signal() -> i32 {
+    #[cfg(unix)]
+    {
+        rustix::process::Signal::ALARM.as_raw()
+    }
+    #[cfg(not(unix))]
+    {
+        14
     }
 }
 

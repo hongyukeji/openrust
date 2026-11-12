@@ -230,3 +230,12 @@ queue_event!(
         timeout: std::time::Duration,
     }
 );
+
+queue_event!(
+    /// A running job handled an interruption from its worker.
+    JobInterrupted {
+        connection_name: String,
+        job: JobSnapshot,
+        signal: i32,
+    }
+);

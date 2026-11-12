@@ -160,6 +160,42 @@ kill -s TERM "$WORKER_PID"
 
 Unix 上的 `SIGTERM`、`SIGQUIT` 和 `SIGINT` 請求正常停止，Windows 可用 Ctrl+C。常駐程序派發 `WorkerInterrupted`，等待目前工作完成，再派發 `WorkerStopping`。監聽器可讀取訊號編號、連線、佇列及 Worker 選項。已開始的驅動程式阻塞預約可能在暫停生效前傳回。
 
+#### 通知執行中的工作 {#notifying-a-running-job}
+
+實作 `Interruptible`，並從 `JobHandler::interruptible` 傳回該實作，即可接收 Worker 的結束訊號。回呼在目前工作的應用程式與記錄上下文中執行，應儘快傳回，以便工作完成。回呼成功後，Worker 派發 `JobInterrupted`，帶有訊號編號與唯讀工作快照。
+
+逾時後，OpenRust 取消非同步嘗試，以 `SIGALRM` 的訊號編號呼叫回呼，再依工作的逾時失敗或重試策略處理。回呼出錯時，Worker 交由應用程式例外處理器回報，並繼續原有的結束或逾時處理。
+
+```rust
+use openrust::{
+    contracts::queue::{Interruptible, JobHandler},
+    queue::{JobContext, Payload, QueueFuture, QueueResult},
+};
+
+struct ProcessPodcast;
+
+impl Interruptible for ProcessPodcast {
+    fn interrupted(&self, signal: i32) -> QueueResult<()> {
+        println!("ProcessPodcast received signal {signal}");
+        Ok(())
+    }
+}
+
+impl JobHandler for ProcessPodcast {
+    fn interruptible(&self) -> Option<&dyn Interruptible> {
+        Some(self)
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+```
+
 ### 暫停和恢復佇列 Worker {#pausing-and-resuming-queue-workers}
 
 透過連線和佇列名稱暫停佇列。只寫佇列名稱時使用預設連線。Worker 會完成目前工作，此後略過已暫停的佇列，並繼續處理其他可用佇列。

@@ -160,6 +160,42 @@ kill -s TERM "$WORKER_PID"
 
 Unix 上的 `SIGTERM`、`SIGQUIT` 和 `SIGINT` 请求优雅退出，Windows 可用 Ctrl+C。守护进程派发 `WorkerInterrupted`，等待当前任务完成，再派发 `WorkerStopping`。监听器可读取信号编号、连接、队列及 Worker 选项。已开始的驱动阻塞预约可能在暂停生效前返回。
 
+#### 通知运行中的任务 {#notifying-a-running-job}
+
+实现 `Interruptible`，并从 `JobHandler::interruptible` 返回该实现，即可接收 Worker 的退出信号。回调运行在当前任务的应用和日志上下文中，应尽快返回，以便任务完成。回调成功后，Worker 派发 `JobInterrupted`，携带信号编号和只读任务快照。
+
+超时后，OpenRust 取消异步尝试，以 `SIGALRM` 的信号编号调用回调，再按任务的超时失败或重试策略处理。回调报错时，Worker 交给应用异常处理器报告，并继续原有的退出或超时处理。
+
+```rust
+use openrust::{
+    contracts::queue::{Interruptible, JobHandler},
+    queue::{JobContext, Payload, QueueFuture, QueueResult},
+};
+
+struct ProcessPodcast;
+
+impl Interruptible for ProcessPodcast {
+    fn interrupted(&self, signal: i32) -> QueueResult<()> {
+        println!("ProcessPodcast received signal {signal}");
+        Ok(())
+    }
+}
+
+impl JobHandler for ProcessPodcast {
+    fn interruptible(&self) -> Option<&dyn Interruptible> {
+        Some(self)
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
+}
+```
+
 ### 暂停和恢复队列 Worker {#pausing-and-resuming-queue-workers}
 
 通过连接和队列名称暂停队列。只写队列名时使用默认连接。Worker 会完成当前任务，此后跳过已暂停的队列，并继续处理其他可用队列。

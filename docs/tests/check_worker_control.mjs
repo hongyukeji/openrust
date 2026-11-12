@@ -18,7 +18,7 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "reacting-to-worker-signals", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
@@ -41,6 +41,9 @@ try {
                         assert.ok(body.includes(`kill -s ${signal} "$WORKER_PID"`));
                     }
                     assert.ok(body.includes("WorkerInterrupted"));
+                    for (const term of ["JobInterrupted", "Interruptible", "ProcessPodcast"]) {
+                        assert.ok(body.includes(term), `${locale}: ${term}`);
+                    }
                     console.log(mount, locale, "PASS");
                 } finally {
                     await page.close();

@@ -18,7 +18,7 @@ use openrust::{
         events::{Event as PayloadEvent, Listener},
         foundation::Application as _,
         http::Kernel as _,
-        queue::JobHandler,
+        queue::{Interruptible, JobHandler},
     },
     database::{DB, DatabaseManager, Value},
     events::{
@@ -36,11 +36,11 @@ use openrust::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult, WorkerStopReason,
         events::{
-            JobAttempted, JobExceptionOccurred, JobFailed, JobPopped, JobPopping, JobProcessed,
-            JobProcessing, JobReleased, JobReleasedAfterException, JobTimedOut, Looping,
-            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle, WorkerInterrupted,
-            WorkerPausing, WorkerQueuePaused, WorkerQueueResumed, WorkerResuming, WorkerStarting,
-            WorkerStopping,
+            JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
+            JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobTimedOut,
+            Looping, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle,
+            WorkerInterrupted, WorkerPausing, WorkerQueuePaused, WorkerQueueResumed,
+            WorkerResuming, WorkerStarting, WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -177,6 +177,77 @@ impl JobHandler for Handler {
                 _ => {}
             }
             Ok(())
+        })
+    }
+}
+
+#[derive(Default)]
+struct InterruptibleHandler(tokio::sync::Notify);
+
+impl JobHandler for InterruptibleHandler {
+    fn interruptible(&self) -> Option<&dyn Interruptible> {
+        Some(self)
+    }
+
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        Handler.middleware()
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            Handler.handle(context, payload).await?;
+            self.0.notified().await;
+            Ok(())
+        })
+    }
+}
+
+impl Interruptible for InterruptibleHandler {
+    fn interrupted(&self, signal: i32) -> QueueResult<()> {
+        let trace = Context::get("trace").map_err(execution)?.unwrap();
+        let kind = trace.as_str().unwrap();
+        assert!(matches!(
+            kind,
+            "interrupt_gate" | "interrupt_timeout" | "interrupt_error"
+        ));
+        println!("job-interruption:callback:{kind}:{signal}");
+        if kind == "interrupt_error" {
+            return Err(execution(std::io::Error::other("interrupt-hook-error")));
+        }
+        self.0.notify_one();
+        Ok(())
+    }
+}
+
+struct JobInterruptListener;
+
+impl Listener for JobInterruptListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<JobInterrupted>()
+                .ok_or(EventError::InvalidPayload)?;
+            assert_eq!(event.job.queue, "default");
+            assert_eq!(event.job.attempts, 1);
+            assert!(matches!(
+                event.connection_name.as_str(),
+                "database" | "redis"
+            ));
+            assert!(!event.job.id.is_empty());
+            println!(
+                "job-interruption:event:{}:{}",
+                event.job.payload.name(),
+                event.signal
+            );
+            Ok(None)
         })
     }
 }
@@ -454,6 +525,11 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
             registry.listen(name, Arc::new(AttemptListener), Delivery::Sync)?;
         }
     }
+    registry.listen(
+        JobInterrupted::NAME,
+        Arc::new(JobInterruptListener),
+        Delivery::Sync,
+    )?;
     registry.listenQueued::<Invoice>(
         "invoice.paid",
         Arc::new(InvoiceListener),
@@ -487,6 +563,9 @@ impl ServiceProvider for Providers {
                 "control_low",
             ] {
                 Queue::register(name, Arc::new(Handler))?;
+            }
+            for name in ["interrupt_gate", "interrupt_timeout", "interrupt_error"] {
+                Queue::register(name, Arc::new(InterruptibleHandler::default()))?;
             }
             Context::dehydrating(|context| context.forgetHidden("secret"))?;
             Context::hydrated(|context| context.add("hydrated", json!(true)))?;
@@ -529,9 +608,13 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             })?;
         } else {
             let mut payload = Payload::new(kind, ())?;
-            if kind == "timeout" {
+            if matches!(kind, "timeout" | "interrupt_timeout" | "interrupt_error") {
                 payload = payload.with_options(JobOptions {
-                    timeout: Some(Duration::from_millis(100)),
+                    timeout: Some(Duration::from_millis(if kind == "timeout" {
+                        100
+                    } else {
+                        250
+                    })),
                     fail_on_timeout: true,
                     ..Default::default()
                 });
@@ -573,6 +656,9 @@ fn application(root: &Path) -> Application {
             exceptions.report::<std::io::Error>(|error| {
                 if error.to_string() == "pop-event:after-error" {
                     println!("pop-event:reported");
+                    ReportDecision::Stop
+                } else if error.to_string() == "interrupt-hook-error" {
+                    println!("job-interruption:reported");
                     ReportDecision::Stop
                 } else if error.to_string().starts_with("attempt-event:") {
                     println!("attempt-report:{error}");
@@ -959,6 +1045,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_job_attempt_events(&root.0, &db, &*queue, address).await;
     #[cfg(unix)]
     verify_worker_signals(&root.0, &db, &*queue, address).await;
+    verify_job_interruption(&root.0, &db, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1650,6 +1737,94 @@ async fn verify_worker_signals(
             1,
         );
     }
+}
+
+async fn verify_job_interruption(
+    root: &Path,
+    db: &openrust::database::Connection,
+    address: SocketAddr,
+) {
+    #[cfg(unix)]
+    {
+        use rustix::process::{Pid, Signal, kill_process};
+        request(address, "interrupt_gate").await;
+        let mut worker = artisan(root, &["queue:work", "--json", "--sleep=1"])
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        timeout(Duration::from_secs(5), async {
+            while db
+                .table("receipts")
+                .r#where("name", "=", "interrupt_gate")
+                .count("*")
+                .await
+                .unwrap()
+                == 0
+            {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let pid = Pid::from_raw(worker.id().unwrap().try_into().unwrap()).unwrap();
+        kill_process(pid, Signal::TERM).unwrap();
+        assert!(
+            timeout(Duration::from_secs(5), worker.wait())
+                .await
+                .unwrap()
+                .unwrap()
+                .success()
+        );
+        let mut out = String::new();
+        worker
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut out)
+            .await
+            .unwrap();
+        let signal = Signal::TERM.as_raw();
+        let callback = out
+            .find(&format!(
+                "job-interruption:callback:interrupt_gate:{signal}"
+            ))
+            .unwrap();
+        let event = out
+            .find(&format!("job-interruption:event:interrupt_gate:{signal}"))
+            .unwrap();
+        assert!(callback < event, "{out}");
+        let rows = json_lines(&out);
+        assert_eq!(rows[1]["status"], "success");
+        assert_eq!(rows.last().unwrap()["reason"], "interrupted");
+    }
+    #[cfg(unix)]
+    let alarm = rustix::process::Signal::ALARM.as_raw();
+    #[cfg(not(unix))]
+    let alarm = 14;
+    let before = db.table("failed_jobs").count("*").await.unwrap();
+    for kind in ["interrupt_timeout", "interrupt_error"] {
+        request(address, kind).await;
+        let out = run(root, &["queue:work", "--json", "--once", "--tries=2"]).await;
+        assert!(
+            out.contains(&format!("job-interruption:callback:{kind}:{alarm}")),
+            "{out}"
+        );
+        assert_eq!(
+            out.contains(&format!("job-interruption:event:{kind}:{alarm}")),
+            kind == "interrupt_timeout",
+            "{out}",
+        );
+        assert_eq!(
+            out.contains("job-interruption:reported"),
+            kind == "interrupt_error",
+            "{out}"
+        );
+        assert_eq!(json_lines(&out)[1]["status"], "failed");
+    }
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        before + 2
+    );
 }
 
 #[tokio::test]

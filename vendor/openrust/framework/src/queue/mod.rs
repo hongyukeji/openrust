@@ -308,6 +308,7 @@ pub struct JobContext<'tx> {
     release_after: Option<Duration>,
     chain_edits: chain_edit::ChainEdits,
     chain_update: Option<ChainUpdate>,
+    running_handler: Option<&'tx worker::RunningHandler>,
 }
 
 impl JobContext<'_> {
