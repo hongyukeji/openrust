@@ -80,6 +80,26 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 运行 `./artisan queue:work database --stop-when-empty` 处理待执行任务并退出。`--once` 尝试一个任务。用 `--tries`、`--backoff` 和 `--timeout` 配置 Worker，任务可通过 `JobOptions` 覆盖。收到 SIGTERM 时，Worker 停止领取新任务并完成当前尝试。
 
+## 任务链 {#job-chaining}
+
+将已注册的任务载荷传给 `Bus::chain`，在构建器上调用 `dispatch().await` 派发首个任务。使用数据库或 Redis 驱动时，Worker 在同一次存储操作中确认当前任务成功并将下一项入队。重试或释放时，任务链停在当前任务。任务最终失败时，任务链停止。sync 驱动在当前进程内依次执行。
+
+```rust
+use openrust::{
+    bus::PendingChain,
+    queue::Payload,
+    support::facades::Bus,
+};
+
+fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> PendingChain {
+    Bus::chain([prepare, generate, publish]).onQueue("reports")
+}
+```
+
+用 `onConnection` 和 `onQueue` 选择任务链的投递位置。`delay` 作用于首个任务。派发前可用构建器的 `prepend` 和 `append` 调整顺序。
+
+在服务提供者的 `boot` 方法中用 `Bus::registerChainCallback` 按名称注册失败回调，再用 `catch("reports.failed")` 关联。Worker 在自己的应用内解析回调，并传入失败的任务载荷和队列错误。任务应保证副作用幂等，因为 Worker 丢失预约后可能再次执行任务。任务链回调没有独立的重试记录。
+
 ## 任务批次 {#job-batching}
 
 运行 `./artisan migrate` 创建批次账本和投递记录。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。

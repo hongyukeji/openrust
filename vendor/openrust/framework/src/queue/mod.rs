@@ -54,6 +54,7 @@ pub enum QueueError {
     Unavailable(crate::contracts::container::BindingResolutionError),
     UnknownJob(String),
     UnknownBatchCallback(String),
+    UnknownChainCallback(String),
     LostReservation,
     Backend {
         source: Box<dyn Error + Send + Sync>,
@@ -72,6 +73,9 @@ impl std::fmt::Display for QueueError {
             Self::UnsupportedDriver(name) => write!(f, "queue driver {name:?} is unavailable"),
             Self::UnknownBatchCallback(name) => {
                 write!(f, "batch callback {name:?} is not registered")
+            }
+            Self::UnknownChainCallback(name) => {
+                write!(f, "chain callback {name:?} is not registered")
             }
             Self::UnknownJob(name) => write!(f, "queued job {name:?} is not registered"),
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
@@ -148,6 +152,14 @@ pub struct Payload {
     delivery_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chain: Option<JobChain>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct JobChain {
+    remaining: std::collections::VecDeque<Payload>,
+    catches: Vec<String>,
 }
 
 impl Payload {
@@ -165,6 +177,7 @@ impl Payload {
             context: Default::default(),
             delivery_id: None,
             batch_id: None,
+            chain: None,
         })
     }
 
@@ -207,6 +220,35 @@ impl Payload {
     pub(super) fn renewed(mut self) -> QueueResult<Self> {
         self.delivery_id = Some(new_id()?);
         Ok(self)
+    }
+
+    pub(crate) fn is_chain_member(&self) -> bool {
+        self.chain.is_none() && self.batch_id.is_none()
+    }
+
+    pub(crate) fn with_chain(
+        mut self,
+        remaining: std::collections::VecDeque<Payload>,
+        catches: Vec<String>,
+    ) -> Self {
+        if !remaining.is_empty() || !catches.is_empty() {
+            self.chain = Some(JobChain { remaining, catches });
+        }
+        self
+    }
+
+    fn next_chain_job(&self) -> Option<Self> {
+        let JobChain {
+            mut remaining,
+            catches,
+        } = self.chain.clone()?;
+        let mut next = remaining.pop_front()?;
+        next.context.clone_from(&self.context);
+        Some(next.with_chain(remaining, catches))
+    }
+
+    fn chain_catches(&self) -> &[String] {
+        self.chain.as_ref().map_or(&[], |chain| &chain.catches)
     }
 
     pub(super) fn encode(&self) -> QueueResult<String> {

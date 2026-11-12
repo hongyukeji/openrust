@@ -25,8 +25,23 @@ impl SyncQueue {
             transaction,
             release_after: None,
         };
-        self.registry.fire(&mut context, payload).await?;
-        Ok(None)
+        let mut next = None;
+        loop {
+            let job = next.as_ref().unwrap_or(payload);
+            if let Err(error) = self.registry.fire(&mut context, job).await {
+                if !job.chain_catches().is_empty() {
+                    self.registry.run_chain_catches(job, &error).await?;
+                }
+                return Err(error);
+            }
+            if context.release_after.is_some() {
+                return Ok(None);
+            }
+            next = job.next_chain_job();
+            if next.is_none() {
+                return Ok(None);
+            }
+        }
     }
 }
 

@@ -18,5 +18,9 @@ pub trait Job: Send {
     fn fire<'a>(&'a mut self, context: &'a mut JobContext<'_>) -> QueueFuture<'a, QueueResult<()>>;
     fn fail<'a>(&'a mut self, cause: Option<&'a QueueError>) -> QueueFuture<'a, QueueResult<()>>;
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
+    /// Atomically acknowledges this reservation and enqueues its successor.
+    fn advance_chain<'a>(&'a mut self, _next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Err(QueueError::InvalidConfiguration) })
+    }
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;
 }

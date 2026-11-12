@@ -168,7 +168,11 @@ impl Worker {
                 if let Some(batch) = &batch {
                     batch.record(&self.app, None).await?;
                 }
-                job.delete().await?;
+                if let Some(next) = job.payload().next_chain_job() {
+                    job.advance_chain(&next).await?;
+                } else {
+                    job.delete().await?;
+                }
                 Ok(WorkResult::Processed)
             }
             Err(error)
@@ -207,6 +211,17 @@ impl Worker {
             batch.record(&self.app, Some(&error.to_string())).await?;
         }
         job.fail(Some(error)).await?;
+        if !job.payload().chain_catches().is_empty() {
+            let manager = self
+                .app
+                .make::<QueueManager>()
+                .map_err(QueueError::Unavailable)?;
+            isolated_scope(
+                self.app.clone(),
+                manager.run_chain_catches(job.payload(), error),
+            )
+            .await;
+        }
         Ok(WorkResult::Failed)
     }
 }

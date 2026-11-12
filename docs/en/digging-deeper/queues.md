@@ -80,6 +80,26 @@ Pass the active transaction as the last argument of `Queue::dispatch`. A connect
 
 Use `./artisan queue:work database --stop-when-empty` to process pending jobs and exit. `--once` attempts one job. Use `--tries`, `--backoff` and `--timeout` to configure the worker. A job can override these values in `JobOptions`. On SIGTERM, the worker stops taking new jobs and finishes the current attempt.
 
+## Job chaining {#job-chaining}
+
+Pass registered job payloads to `Bus::chain`. Call `dispatch().await` on the builder to dispatch the first job. On the database and Redis drivers, the worker acknowledges each successful job and enqueues the next one in a single storage operation. A retry or release pauses the chain at the current job. A permanent failure stops it. The sync driver runs the chain inline.
+
+```rust
+use openrust::{
+    bus::PendingChain,
+    queue::Payload,
+    support::facades::Bus,
+};
+
+fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> PendingChain {
+    Bus::chain([prepare, generate, publish]).onQueue("reports")
+}
+```
+
+Use `onConnection` and `onQueue` to select the destination for the chain. `delay` applies to the first job. Use `prepend` and `append` on the builder to change the sequence before dispatch.
+
+Register a failure callback by name in your provider’s `boot` method with `Bus::registerChainCallback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
+
 ## Job batching {#job-batching}
 
 Run `./artisan migrate` to create the batch ledger and delivery history. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.

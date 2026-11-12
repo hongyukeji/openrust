@@ -6,7 +6,10 @@ use std::{
 use serde::Deserialize;
 
 use crate::{
-    bus::{Batch, BatchCallback, BatchPhase, DatabaseBatchRepository, PublicationKey, new_batch},
+    bus::{
+        Batch, BatchCallback, BatchPhase, ChainCallback, DatabaseBatchRepository, PublicationKey,
+        new_batch,
+    },
     container::Container,
     contracts::{
         config::Repository,
@@ -31,6 +34,7 @@ pub struct QueueManager {
     registry: Arc<Queue>,
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
+    chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
 }
 
 struct ConfiguredQueue {
@@ -65,6 +69,7 @@ impl QueueManager {
             owner,
             connections: Mutex::default(),
             batch_callbacks: RwLock::default(),
+            chain_callbacks: RwLock::default(),
         }
     }
 
@@ -183,6 +188,52 @@ impl QueueManager {
             .and_then(|value| value.as_str().map(str::to_owned))
             .unwrap_or_else(|| "job_batches".into());
         DatabaseBatchRepository::new(connection, table)
+    }
+
+    pub(crate) fn register_chain_callback(
+        &self,
+        name: String,
+        callback: ChainCallback,
+    ) -> QueueResult<()> {
+        use std::collections::hash_map::Entry;
+        if name.trim().is_empty() {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        let mut callbacks = self
+            .chain_callbacks
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Entry::Vacant(entry) = callbacks.entry(name) else {
+            return Err(QueueError::InvalidConfiguration);
+        };
+        entry.insert(callback);
+        Ok(())
+    }
+
+    pub(crate) fn chain_callback(&self, name: &str) -> QueueResult<ChainCallback> {
+        self.chain_callbacks
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .copied()
+            .ok_or_else(|| QueueError::UnknownChainCallback(name.into()))
+    }
+
+    pub(super) async fn run_chain_catches(&self, job: &Payload, cause: &QueueError) {
+        for name in job.chain_catches() {
+            let result = match self.chain_callback(name) {
+                Ok(callback) => callback(job, cause).await,
+                Err(error) => Err(error),
+            };
+            if let Err(error) = result {
+                let context = serde_json::Map::from_iter([
+                    ("job_uuid".into(), job.uuid().into()),
+                    ("callback".into(), name.as_str().into()),
+                    ("error".into(), error.to_string().into()),
+                ]);
+                let _ = crate::log::Log::error("Chain callback failed", &context);
+            }
+        }
     }
 
     pub(crate) fn register_batch_callback(
@@ -584,7 +635,7 @@ fn validate_batch_jobs(jobs: &[Payload]) -> QueueResult<u32> {
     let count = batch_job_count(jobs)?;
     let mut ids = HashSet::with_capacity(jobs.len());
     for job in jobs {
-        if job.batch_id.is_some() || !ids.insert(job.uuid()) {
+        if !job.is_chain_member() || !ids.insert(job.uuid()) {
             return Err(QueueError::InvalidPayload);
         }
     }

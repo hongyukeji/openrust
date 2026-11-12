@@ -25,7 +25,8 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
-        JobContext, Payload, QueueError, QueueFuture, QueueResult,
+        Delay, DispatchResult, JobContext, Payload, QueueError, QueueFuture, QueueManager,
+        QueueResult,
         middleware::{JobMiddleware, SkipIfBatchCancelled},
     },
     redis::{RedisManager, connections::Connection as RedisConnection},
@@ -62,6 +63,15 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             Queue::register("reports.generate", Arc::new(Probe))?;
             register_callbacks()?;
+            Queue::register("chain.step", Arc::new(ChainProbe))?;
+            Bus::registerChainCallback("chain.failed", |job, error| {
+                Box::pin(async move {
+                    assert!(matches!(error, QueueError::InvalidPayload));
+                    let data = job.data().as_str().unwrap();
+                    record_chain_receipt(&format!("{data}.catch")).await;
+                    Ok(())
+                })
+            })?;
             for name in [
                 BatchDispatched::NAME,
                 BatchStarted::NAME,
@@ -245,6 +255,63 @@ impl JobHandler for Probe {
     }
 }
 
+struct ChainProbe;
+
+impl JobHandler for ChainProbe {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let data = payload.data().as_str().unwrap();
+            let (connection, step) = data.split_once('.').unwrap();
+            assert_eq!(context.connection(), connection);
+            assert_eq!(context.queue(), "chain");
+            record_chain_receipt(data).await;
+            match step {
+                "retry" if context.attempts() == 1 => Err(QueueError::InvalidPayload),
+                "fail" => Err(QueueError::InvalidPayload),
+                "release" if context.attempts() == 1 => {
+                    context.release(Duration::ZERO);
+                    Ok(())
+                }
+                _ => Ok(()),
+            }
+        })
+    }
+}
+
+async fn record_chain_receipt(data: &str) {
+    DB::connection(None)
+        .unwrap()
+        .statement("insert into receipts (name) values (?)", &[data.into()])
+        .await
+        .unwrap();
+}
+
+fn chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let connection = request.route("connection").unwrap();
+        let kind = request.route("kind").unwrap();
+        let step = |name| Payload::new("chain.step", format!("{connection}.{name}"));
+        let chain = Bus::chain([step(kind)?])
+            .onConnection(connection)
+            .onQueue("chain")
+            .prepend(step("first")?)
+            .append(step("last")?)
+            .catch("chain.failed");
+        let chain = match kind {
+            "missing-callback" => chain.catch("missing"),
+            "delay" => chain.delay(Delay::For(Duration::from_secs(3600))),
+            _ => chain,
+        };
+        let result = chain.dispatch().await?;
+        let queued = matches!(result, DispatchResult::Queued(_));
+        Response::json(StatusCode::OK, json!({ "queued": queued }))
+    })
+}
+
 fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let kind = request.route("kind").unwrap();
@@ -316,6 +383,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/batch/{kind}", route)?;
     router.get("/batch/append/{id}/{data}", append_route)?;
+    router.get("/batch/chain/{connection}/{kind}", chain_route)?;
     Ok(router)
 }
 
@@ -435,7 +503,7 @@ async fn exercise(mysql: Option<&str>) {
         "cache": {"default":"database","stores":{"database":{"driver":"database"}}},
         "queue": {
             "default":"database",
-            "connections": {"database":{"driver":"database","retry_after":90},"redis":{"driver":"redis","connection":"default","retry_after":90}},
+            "connections": {"sync":{"driver":"sync"},"database":{"driver":"database","retry_after":90},"redis":{"driver":"redis","connection":"default","retry_after":90}},
             "failed": {"driver":"database-uuids","database":"batch"},
             "batching": {"database":"batch","table":"job_batches"}
         }
@@ -495,6 +563,7 @@ async fn exercise(mysql: Option<&str>) {
             .connection(None)
             .unwrap()
     });
+    let queue = app.container().make::<QueueManager>().unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -791,9 +860,181 @@ async fn exercise(mysql: Option<&str>) {
     );
     if let Some(redis) = redis {
         verify_redis_batch(&root.0, &db, &redis, address).await;
+        verify_chain(&root.0, &db, &queue, address, "redis").await;
+        verify_chain_redis_handoff(&redis, &queue, address).await;
     }
+    verify_chain(&root.0, &db, &queue, address, "database").await;
+    verify_chain_database_handoff(&root.0, &db, &queue, address, mysql.is_some()).await;
+    assert_eq!(
+        request(address, "chain/sync/ok", 200).await.unwrap()["queued"],
+        false
+    );
+    assert_eq!(chain_receipt(&db, "sync.ok").await, 1);
+    assert_eq!(chain_receipt(&db, "sync.last").await, 1);
+    request(address, "chain/sync/fail", 500).await;
+    assert_eq!(chain_receipt(&db, "sync.fail.catch").await, 1);
+    assert_eq!(chain_receipt(&db, "sync.last").await, 1);
     verify_database_append(&root.0, &db, address).await;
     server.abort();
+}
+
+async fn chain_receipt(db: &Connection, name: &str) -> u64 {
+    db.table("receipts")
+        .r#where("name", "=", name)
+        .count("*")
+        .await
+        .unwrap()
+}
+
+async fn verify_chain(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    connection: &str,
+) {
+    let queue = manager.connection(Some(connection)).unwrap();
+    let route = |kind| format!("chain/{connection}/{kind}");
+    let receipt = |step| format!("{connection}.{step}");
+    let work = [
+        "queue:work",
+        connection,
+        "--queue=chain",
+        "--once",
+        "--tries=2",
+    ];
+    request(address, &route("missing-callback"), 500).await;
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+
+    for (index, kind) in ["retry", "release"].into_iter().enumerate() {
+        let completed = u64::try_from(index).unwrap();
+        assert_eq!(
+            request(address, &route(kind), 200).await.unwrap()["queued"],
+            true
+        );
+        assert_eq!(queue.size(Some("chain")).await.unwrap(), 1);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &receipt("first")).await, completed + 1);
+        assert_eq!(chain_receipt(db, &receipt(kind)).await, 0);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &receipt(kind)).await, 1);
+        assert_eq!(chain_receipt(db, &receipt("last")).await, completed);
+        assert_eq!(queue.size(Some("chain")).await.unwrap(), 1);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &receipt(kind)).await, 2);
+        assert_eq!(chain_receipt(db, &receipt("last")).await, completed);
+        artisan(base, &work).await;
+        assert_eq!(chain_receipt(db, &receipt("last")).await, completed + 1);
+        assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+    }
+
+    request(address, &route("fail"), 200).await;
+    artisan(base, &work).await;
+    artisan(base, &work).await;
+    assert_eq!(chain_receipt(db, &receipt("fail.catch")).await, 0);
+    artisan(base, &work).await;
+    assert_eq!(chain_receipt(db, &receipt("fail.catch")).await, 1);
+    assert_eq!(chain_receipt(db, &receipt("last")).await, 2);
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+}
+
+async fn verify_chain_database_handoff(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    mysql: bool,
+) {
+    request(address, "chain/database/handoff", 200).await;
+    // Fail only insertion of the successor. The head is already reserved when this fires.
+    let reject = if mysql {
+        r#"alter table jobs add constraint reject_handoff check (payload not like '%"data":"database.handoff"%' or payload like '%"data":"database.first"%')"#
+    } else {
+        r#"create trigger reject_handoff before insert on jobs when new.payload like '%"data":"database.handoff"%' begin select raise(abort, 'chain handoff rejected'); end"#
+    };
+    db.unprepared(reject).await.unwrap();
+    let work = [
+        "queue:work",
+        "database",
+        "--queue=chain",
+        "--once",
+        "--tries=2",
+    ];
+    artisan_status(base, &work, 1).await;
+    assert_eq!(
+        db.table("jobs")
+            .r#where("queue", "=", "chain")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(chain_receipt(db, "database.handoff").await, 0);
+    let allow = if mysql {
+        "alter table jobs drop check reject_handoff"
+    } else {
+        "drop trigger reject_handoff"
+    };
+    db.unprepared(allow).await.unwrap();
+    db.statement(
+        "update jobs set reserved_at = 0 where queue = ?",
+        &["chain".into()],
+    )
+    .await
+    .unwrap();
+    artisan(base, &work).await;
+    artisan(base, &work).await;
+    artisan(base, &work).await;
+    assert_eq!(chain_receipt(db, "database.handoff").await, 1);
+    assert_eq!(chain_receipt(db, "database.last").await, 3);
+    request(address, "chain/database/delay", 200).await;
+    let queue = manager.connection(Some("database")).unwrap();
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 1);
+    assert!(queue.pop_now(Some("chain")).await.unwrap().is_none());
+    db.statement("delete from jobs where queue = ?", &["chain".into()])
+        .await
+        .unwrap();
+}
+
+async fn verify_chain_redis_handoff(
+    redis: &RedisConnection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+) {
+    request(address, "chain/redis/handoff", 200).await;
+    let queue = manager.connection(Some("redis")).unwrap();
+    let mut reserved_job = queue.pop_now(Some("chain")).await.unwrap().unwrap();
+    let ready = redis.key("queues:chain");
+    let notify = format!("{ready}:notify");
+    let reserved = format!("{ready}:reserved");
+    redis
+        .command("SET", &[notify.as_bytes(), b"bad type"])
+        .await
+        .unwrap();
+    let next = Payload::new("chain.step", "redis.handoff").unwrap();
+    assert!(reserved_job.advance_chain(&next).await.is_err());
+    assert_eq!(
+        redis
+            .command("ZCARD", &[reserved.as_bytes()])
+            .await
+            .unwrap(),
+        openrust::redis::Value::Int(1)
+    );
+    assert_eq!(
+        redis.command("LLEN", &[ready.as_bytes()]).await.unwrap(),
+        openrust::redis::Value::Int(0)
+    );
+    redis.command("DEL", &[notify.as_bytes()]).await.unwrap();
+    reserved_job.advance_chain(&next).await.unwrap();
+    assert!(matches!(
+        reserved_job.advance_chain(&next).await,
+        Err(QueueError::LostReservation)
+    ));
+    let mut successor = queue.pop_now(Some("chain")).await.unwrap().unwrap();
+    assert_eq!(successor.uuid(), next.uuid());
+    assert_eq!(successor.attempts(), 1);
+    successor.delete().await.unwrap();
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
 }
 
 async fn verify_database_append(base: &Path, db: &Connection, address: std::net::SocketAddr) {

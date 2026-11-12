@@ -270,31 +270,36 @@ impl Reservation for DatabaseReservation {
     }
 
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>> {
-        Box::pin(async move {
-            let (delete, delete_bindings) = self.driver.deletion(&self.id, self.attempts)?;
-            let (insert, insert_bindings) = self.driver.insert(
-                &self.queue,
-                self.raw.clone(),
-                self.attempts,
-                Delay::For(delay),
-            )?;
-            let mut transaction = self
-                .driver
-                .connection
-                .beginTransaction()
-                .await
-                .map_err(backend)?;
-            let deleted = transaction
-                .affectingStatement(&delete, &delete_bindings)
-                .await
-                .map_err(backend)?;
-            require_one(deleted)?;
-            transaction
-                .statement(&insert, &insert_bindings)
-                .await
-                .map_err(backend)?;
-            transaction.commit().await.map_err(backend)
-        })
+        Box::pin(async move { self.replace(self.raw.clone(), self.attempts, delay).await })
+    }
+
+    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move { self.replace(next.encode()?, 0, Duration::ZERO).await })
+    }
+}
+
+impl DatabaseReservation {
+    async fn replace(&self, raw: String, attempts: u32, delay: Duration) -> QueueResult<()> {
+        let (delete, delete_bindings) = self.driver.deletion(&self.id, self.attempts)?;
+        let (insert, insert_bindings) =
+            self.driver
+                .insert(&self.queue, raw, attempts, Delay::For(delay))?;
+        let mut transaction = self
+            .driver
+            .connection
+            .beginTransaction()
+            .await
+            .map_err(backend)?;
+        let deleted = transaction
+            .affectingStatement(&delete, &delete_bindings)
+            .await
+            .map_err(backend)?;
+        require_one(deleted)?;
+        transaction
+            .statement(&insert, &insert_bindings)
+            .await
+            .map_err(backend)?;
+        transaction.commit().await.map_err(backend)
     }
 }
 

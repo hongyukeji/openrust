@@ -12,8 +12,10 @@ pub use database_batch_repository::DatabaseBatchRepository;
 pub(crate) use database_batch_repository::{PublicationKey, new_batch};
 
 mod pending_batch;
+mod pending_chain;
 
 pub use pending_batch::PendingBatch;
+pub use pending_chain::{ChainCallback, PendingChain};
 
 use crate::{
     queue::{Payload, QueueResult},
@@ -25,6 +27,17 @@ pub struct Bus;
 
 #[allow(non_snake_case, reason = "Matches Laravel Bus")]
 impl Bus {
+    pub fn chain(jobs: impl IntoIterator<Item = Payload>) -> PendingChain {
+        PendingChain::new(jobs)
+    }
+
+    pub fn registerChainCallback(
+        name: impl Into<String>,
+        callback: ChainCallback,
+    ) -> QueueResult<()> {
+        Queue::manager()?.register_chain_callback(name.into(), callback)
+    }
+
     pub fn batch(jobs: impl IntoIterator<Item = Payload>) -> PendingBatch {
         PendingBatch::new(jobs)
     }

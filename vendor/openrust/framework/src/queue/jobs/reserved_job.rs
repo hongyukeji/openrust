@@ -5,6 +5,7 @@ use crate::contracts::queue::Job;
 use super::super::{JobContext, JobOptions, Payload, Queue, QueueError, QueueFuture, QueueResult};
 
 pub(in crate::queue) trait Reservation: Send {
+    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>>;
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
 }
@@ -63,6 +64,17 @@ impl Job for ReservedJob {
             context.transaction = None;
             context.release_after = None;
             self.registry.fire(context, &self.payload).await
+        })
+    }
+
+    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            if self.deleted || self.released {
+                return Err(QueueError::LostReservation);
+            }
+            self.storage.advance_chain(next).await?;
+            self.deleted = true;
+            Ok(())
         })
     }
 

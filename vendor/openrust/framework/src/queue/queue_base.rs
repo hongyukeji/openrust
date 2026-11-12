@@ -4,10 +4,12 @@ use std::{
 };
 
 use crate::{
-    container::Container, contracts::queue::JobHandler, support::facades::application_scope,
+    container::Container,
+    contracts::{container::Container as _, queue::JobHandler},
+    support::facades::application_scope,
 };
 
-use super::{JobContext, Payload, QueueError, QueueResult};
+use super::{JobContext, Payload, QueueError, QueueManager, QueueResult};
 
 /// The application-scoped registry shared by queue drivers.
 pub struct Queue {
@@ -52,6 +54,22 @@ impl Queue {
             return Err(QueueError::InvalidConfiguration);
         }
         handlers.extend(registrations);
+        Ok(())
+    }
+
+    pub(super) async fn run_chain_catches(
+        &self,
+        job: &Payload,
+        cause: &QueueError,
+    ) -> QueueResult<()> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let manager = owner
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        application_scope(owner, manager.run_chain_catches(job, cause)).await;
         Ok(())
     }
 

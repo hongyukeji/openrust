@@ -81,6 +81,20 @@ redis.call('ZADD', KEYS[2], now + tonumber(ARGV[2]), ARGV[1])
 return redis.call('ZREM', KEYS[1], ARGV[1])
 ";
 
+const ADVANCE_CHAIN: &str = r"
+local expires = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if not expires or tonumber(expires) <= now then return 0 end
+for i = 2, 3 do
+    local kind = redis.call('TYPE', KEYS[i]).ok
+    if kind ~= 'none' and kind ~= 'list' then
+        return redis.error_reply('Invalid chain queue key type')
+    end
+end
+redis.call('RPUSH', KEYS[2], ARGV[2])
+redis.call('RPUSH', KEYS[3], 1)
+return redis.call('ZREM', KEYS[1], ARGV[1])
+";
+
 const SIZE: &str = r"
 return redis.call('LLEN', KEYS[1]) + redis.call('ZCARD', KEYS[2]) + redis.call('ZCARD', KEYS[3])
 ";
@@ -217,6 +231,7 @@ impl RedisQueue {
         let payload = Payload::decode(&job.payload)?;
         let storage = RedisReservation {
             connection: self.connection.clone(),
+            ready,
             delayed,
             reserved,
             raw,
@@ -325,6 +340,7 @@ impl Contract for RedisQueue {
 
 struct RedisReservation {
     connection: Arc<Connection>,
+    ready: String,
     delayed: String,
     reserved: String,
     raw: String,
@@ -346,6 +362,21 @@ impl RedisReservation {
 }
 
 impl Reservation for RedisReservation {
+    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let raw = serde_json::to_string(&RedisJob {
+                id: new_id()?,
+                payload: next.encode()?,
+                attempts: 0,
+            })
+            .map_err(|_| QueueError::InvalidPayload)?;
+            let notify = format!("{}:notify", self.ready);
+            let mut command = script(ADVANCE_CHAIN, &[&self.reserved, &self.ready, &notify]);
+            command.arg(&self.raw).arg(raw);
+            self.run(command).await
+        })
+    }
+
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>> {
         Box::pin(async move {
             let mut command = script(ACK, &[&self.reserved]);
