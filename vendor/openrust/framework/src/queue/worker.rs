@@ -13,16 +13,18 @@ use crate::{
     container::Container,
     contracts::{
         container::Container as _,
+        debug::{Exception, ExceptionHandler},
         queue::{Job, Queue},
     },
-    support::facades::isolated_scope,
+    support::facades::{application_scope, isolated_scope},
 };
 
 use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
     WorkerStopReason,
     events::{
-        Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
+        JobPopped, JobPopping, Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed,
+        WorkerStarting, WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
 };
@@ -79,22 +81,31 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
-        if manager.polls_interruptions() {
-            let name = connection.get_connection_name();
-            let queue_name = queue.unwrap_or_else(|| connection.default_queue());
-            if manager.isPaused(name, queue_name).await? {
-                manager
-                    .emit_control_event(WorkerQueuePaused {
-                        connection: name.into(),
-                        queue: queue_name.into(),
-                    })
-                    .await?;
-                return Ok(WorkResult::Idle);
-            }
+        let name = connection.get_connection_name();
+        let queue_name = queue.unwrap_or_else(|| connection.default_queue());
+        manager
+            .emit_control_event(JobPopping {
+                connection_name: name.into(),
+                queue: Some(queue_name.into()),
+            })
+            .await?;
+        if manager.polls_interruptions() && manager.isPaused(name, queue_name).await? {
+            manager
+                .emit_control_event(WorkerQueuePaused {
+                    connection: name.into(),
+                    queue: queue_name.into(),
+                })
+                .await?;
+            return Ok(WorkResult::Idle);
         }
         let Some(mut job) = connection.pop(queue).await? else {
             return Ok(WorkResult::Idle);
         };
+        if let Some(event) = manager.job_popped_event(name, job.as_ref())?
+            && !self.accept_popped(&manager, event).await
+        {
+            return Ok(WorkResult::Idle);
+        }
         self.process(job.as_mut(), options, &mut None).await
     }
 
@@ -194,6 +205,12 @@ impl Worker {
                 {
                     return Ok((false, None));
                 }
+                manager
+                    .emit_control_event(JobPopping {
+                        connection_name: name.into(),
+                        queue: Some(queue_names.clone()),
+                    })
+                    .await?;
                 if let Some(control) = &control {
                     let observed = control.paused_queues(name, queues).await?;
                     for queue in observed
@@ -246,6 +263,17 @@ impl Worker {
                 () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                 () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
                 result = reservation => result?,
+            };
+            let job = if let Some(job) = job {
+                if let Some(event) = manager.job_popped_event(name, job.as_ref())?
+                    && !self.accept_popped(&manager, event).await
+                {
+                    None
+                } else {
+                    Some(job)
+                }
+            } else {
+                None
             };
             if let Some(mut job) = job {
                 let started = tokio::time::Instant::now();
@@ -328,6 +356,21 @@ impl Worker {
             manager.emit_control_event(event).await?;
         }
         Ok(processed)
+    }
+
+    async fn accept_popped(&self, manager: &QueueManager, event: JobPopped) -> bool {
+        let Err(error) = manager.emit_control_event(event).await else {
+            return true;
+        };
+        if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
+            application_scope(self.app.clone(), async {
+                let _ = handler.report(&Exception::Error(&error)).await;
+            })
+            .await;
+        }
+        // Keep the reservation intact so the driver retries it after the lease expires.
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        false
     }
 
     async fn process(

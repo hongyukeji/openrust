@@ -112,6 +112,18 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
+#### 任务预约事件 {#job-reservation-events}
+
+监听 `JobPopping` 可观察 Worker 轮询，事件包含连接和所选队列。成功预约后、执行任务前派发 `JobPopped`。它携带只读快照，包括驱动任务 ID、队列、尝试次数和载荷。
+
+`JobPopping` 监听器报错会在预约前终止命令。`JobPopped` 监听器报错会交给应用异常处理器。Worker 保留预约，驱动可在 `retry_after` 到期后重试任务。
+
+队列为空时，下列命令会派发 `JobPopping` 后退出。成功预约任务时才会派发 `JobPopped`。
+
+```sh
+./artisan queue:work --json --once
+```
+
 #### 任务间隔与空闲退出 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 设置任务执行之间的等待时间。使用 `--stop-when-empty-for` 时，队列为空且 Worker 连续指定秒数未处理任务，Worker 就会退出。空闲计时从启动开始，每次任务执行结束后重置。

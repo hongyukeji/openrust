@@ -19,7 +19,7 @@ use crate::{
         config::Repository,
         container::Container as _,
         events::{Dispatcher as _, Event},
-        queue::{Factory, JobHandler, Queue as Contract},
+        queue::{Factory, Job, JobHandler, Queue as Contract},
     },
     database::{Connection, DatabaseError, DatabaseManager, Transaction},
     events::{Dispatcher, EventContext, ListenerResponse},
@@ -199,6 +199,19 @@ impl QueueManager {
         .await
         .map_err(backend)?;
         Ok(())
+    }
+
+    pub(super) fn job_popped_event(
+        &self,
+        connection: &str,
+        job: &dyn Job,
+    ) -> QueueResult<Option<super::events::JobPopped>> {
+        use super::events::{JobPopped, JobSnapshot};
+        let (_, dispatcher) = self.worker_dispatcher()?;
+        Ok(dispatcher.observes(JobPopped::NAME).then(|| JobPopped {
+            connection_name: connection.into(),
+            job: JobSnapshot::from_job(job),
+        }))
     }
 
     pub(super) async fn allows_polling(&self, event: super::events::Looping) -> QueueResult<bool> {

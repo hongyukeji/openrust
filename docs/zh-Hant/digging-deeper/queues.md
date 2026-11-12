@@ -112,6 +112,18 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
+#### 工作預約事件 {#job-reservation-events}
+
+監聽 `JobPopping` 可觀察 Worker 輪詢，事件包含連線和所選佇列。成功預約後、執行工作前派發 `JobPopped`。它帶有唯讀快照，包括驅動程式工作 ID、佇列、嘗試次數和承載資料。
+
+`JobPopping` 監聽器出錯會在預約前結束指令。`JobPopped` 監聽器出錯會交由應用程式例外處理器。Worker 保留預約，驅動程式可在 `retry_after` 到期後重試工作。
+
+佇列為空時，下列指令會派發 `JobPopping` 後結束。成功預約工作時才會派發 `JobPopped`。
+
+```sh
+./artisan queue:work --json --once
+```
+
 #### 工作間隔與閒置結束 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 設定工作執行之間的等待時間。使用 `--stop-when-empty-for` 時，佇列為空且 Worker 連續指定秒數未處理工作，Worker 就會結束。閒置計時從啟動開始，每次工作執行結束後重設。

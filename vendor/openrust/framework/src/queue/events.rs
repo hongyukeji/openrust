@@ -1,7 +1,10 @@
 //! Queue and worker pause transitions.
 
-use super::{WorkerOptions, WorkerStopReason};
-use crate::{cache::Ttl, contracts::events::Event};
+use super::{Payload, WorkerOptions, WorkerStopReason};
+use crate::{
+    cache::Ttl,
+    contracts::{events::Event, queue::Job},
+};
 
 macro_rules! queue_event {
     ($(#[$meta:meta])* $name:ident { $($(#[$field_meta:meta])* $field:ident: $ty:ty),* $(,)? }) => {
@@ -83,5 +86,41 @@ queue_event!(
         last_job_processed_at: Option<u64>,
         connection_name: String,
         queue: String,
+    }
+);
+
+queue_event!(
+    /// A worker is about to reserve a job from the selected queues.
+    JobPopping {
+        connection_name: String,
+        queue: Option<String>,
+    }
+);
+
+/// A reservation's job data as observed by a worker event listener.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct JobSnapshot {
+    pub id: String,
+    pub queue: String,
+    pub attempts: u32,
+    pub payload: Payload,
+}
+
+impl JobSnapshot {
+    pub(super) fn from_job(job: &dyn Job) -> Self {
+        Self {
+            id: job.get_job_id().to_owned(),
+            queue: job.get_queue().to_owned(),
+            attempts: job.attempts(),
+            payload: job.payload().clone(),
+        }
+    }
+}
+
+queue_event!(
+    /// A worker reserved a job before executing it.
+    JobPopped {
+        connection_name: String,
+        job: JobSnapshot,
     }
 );

@@ -25,14 +25,19 @@ use openrust::{
         Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
         ListenerResponse, QueuedListenerOptions,
     },
-    foundation::{Application, configuration::Routing, events::DiscoverEvents, http::Kernel},
+    foundation::{
+        Application,
+        configuration::{ReportDecision, Routing},
+        events::DiscoverEvents,
+        http::Kernel,
+    },
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult, WorkerStopReason,
         events::{
-            Looping, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle,
-            WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
+            JobPopped, JobPopping, Looping, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed,
+            WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -285,6 +290,48 @@ impl Listener for LoopListener {
     }
 }
 
+struct PopListener;
+impl Listener for PopListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let mode = std::env::var("QUEUE_WORKER_POP_EVENT").unwrap();
+            let (phase, fail) = if let Some(event) = event.downcast_ref::<JobPopping>() {
+                assert_eq!(event.queue.as_deref(), Some("default"));
+                assert!(matches!(
+                    event.connection_name.as_str(),
+                    "database" | "redis"
+                ));
+                println!("pop-event:before");
+                ("before", mode == "before-error")
+            } else {
+                let event = event
+                    .downcast_ref::<JobPopped>()
+                    .ok_or(EventError::InvalidPayload)?;
+                assert_eq!(event.job.queue, "default");
+                assert!(!event.job.id.is_empty());
+                assert!(matches!(
+                    event.connection_name.as_str(),
+                    "database" | "redis"
+                ));
+                assert_eq!(event.job.payload.name(), "control_default");
+                assert_eq!(event.job.attempts, if mode == "retry" { 2 } else { 1 });
+                println!("pop-event:after:{}", event.job.attempts);
+                ("after", mode == "after-error")
+            };
+            if fail {
+                return Err(EventError::Listener {
+                    source: Box::new(std::io::Error::other(format!("pop-event:{phase}-error"))),
+                });
+            }
+            Ok(None)
+        })
+    }
+}
+
 fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
     for event in [
         QueuePaused::NAME,
@@ -309,6 +356,11 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
                 }),
                 Delivery::Sync,
             )?;
+        }
+    }
+    if std::env::var_os("QUEUE_WORKER_POP_EVENT").is_some() {
+        for name in [JobPopping::NAME, JobPopped::NAME] {
+            registry.listen(name, Arc::new(PopListener), Delivery::Sync)?;
         }
     }
     registry.listenQueued::<Invoice>(
@@ -412,13 +464,29 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
 fn application(root: &Path) -> Application {
     Application::configure(root.into())
         .withConfig(|base, _| {
-            let config: serde_json::Map<String, Json> =
+            let mut config: serde_json::Map<String, Json> =
                 serde_json::from_slice(&std::fs::read(base.join("queue-fixture.json")).unwrap())
                     .unwrap();
+            if std::env::var_os("QUEUE_WORKER_POP_EVENT").is_some() {
+                for driver in ["database", "redis"] {
+                    config.get_mut("queue").unwrap()["connections"][driver]["retry_after"] =
+                        json!(2);
+                }
+            }
             Ok(config.into_iter().collect())
         })
         .withProviders(vec![Box::new(Providers)])
         .withEvents(DiscoverEvents::new(&[listeners]))
+        .withExceptions(|exceptions| {
+            exceptions.report::<std::io::Error>(|error| {
+                if error.to_string() == "pop-event:after-error" {
+                    println!("pop-event:reported");
+                    ReportDecision::Stop
+                } else {
+                    ReportDecision::Continue
+                }
+            });
+        })
         .withRouting(Routing::new(routes))
         .create()
         .unwrap()
@@ -431,7 +499,27 @@ async fn worker_artisan_fixture() {
     let args: Vec<String> =
         serde_json::from_str(&std::env::var("QUEUE_WORKER_ARGS").unwrap()).unwrap();
     let args: Vec<_> = args.into_iter().map(OsString::from).collect();
-    assert_eq!(application(&root).handleCommand(&args).await.unwrap(), 0);
+    let expected = std::env::var("QUEUE_WORKER_EXPECT_EXIT")
+        .ok()
+        .map_or(0, |status| status.parse().unwrap());
+    let mut app = application(&root);
+    let fake = if std::env::var_os("QUEUE_WORKER_FAKE_POP").is_some() {
+        app.boot().await.unwrap();
+        Some(
+            app.make::<Dispatcher>()
+                .await
+                .unwrap()
+                .fake(&[JobPopping::NAME, JobPopped::NAME]),
+        )
+    } else {
+        None
+    };
+    assert_eq!(app.handleCommand(&args).await.unwrap(), expected);
+    if let Some(fake) = fake {
+        fake.assertDispatchedTimes(JobPopping::NAME, 1)
+            .assertDispatchedTimes(JobPopped::NAME, 1);
+        println!("pop-event:fake");
+    }
 }
 
 fn artisan(root: &Path, args: &[&str]) -> Command {
@@ -772,6 +860,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_control(&root.0, &db, &*queue, address, default_queue).await;
     verify_worker_cadence(&root.0, &db, address, redis.is_some()).await;
     verify_worker_lifecycle(&root.0, &db, &*queue, address).await;
+    verify_job_pop_events(&root.0, &db, &*queue, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1157,6 +1246,81 @@ async fn verify_worker_lifecycle(
     assert_eq!(queue.size(None).await.unwrap(), 1);
     launch(&["queue:work", "--json", "--once"], "always").await;
     assert_eq!(queue.size(None).await.unwrap(), 0);
+}
+
+async fn verify_job_pop_events(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let processed = || async {
+        db.table("receipts")
+            .r#where("name", "=", "control_default")
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let launch = |mode: &'static str, status: &'static str| async move {
+        let output = timeout(
+            Duration::from_secs(8),
+            artisan(root, &["queue:work", "--json", "--once", "--tries=2"])
+                .env("QUEUE_WORKER_POP_EVENT", mode)
+                .env("QUEUE_WORKER_EXPECT_EXIT", status)
+                .output(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        String::from_utf8(output.stdout).unwrap()
+    };
+    let count = processed().await;
+    let empty = launch("normal", "0").await;
+    assert!(empty.contains("pop-event:before"));
+    assert!(!empty.contains("pop-event:after"));
+
+    request(address, "control_default").await;
+    let before = launch("before-error", "1").await;
+    assert!(before.contains("pop-event:before"));
+    assert!(!before.contains("pop-event:after"));
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    assert_eq!(processed().await, count);
+
+    let after = launch("after-error", "0").await;
+    assert!(after.find("pop-event:before").unwrap() < after.find("pop-event:after:1").unwrap());
+    assert!(after.contains("pop-event:reported"));
+    assert!(json_lines(&after).is_empty());
+    assert_eq!(processed().await, count);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    assert!(queue.pop_now(None).await.unwrap().is_none());
+
+    sleep(Duration::from_secs(2)).await;
+    let retry = launch("retry", "0").await;
+    assert!(
+        retry.find("pop-event:after:2").unwrap() < retry.find(r#""status":"starting""#).unwrap()
+    );
+    assert_eq!(json_lines(&retry).last().unwrap()["status"], "success");
+    assert_eq!(processed().await, count + 1);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+
+    request(address, "control_default").await;
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(root, &["queue:work", "--once"])
+            .env("QUEUE_WORKER_FAKE_POP", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .contains("pop-event:fake")
+    );
+    assert_eq!(processed().await, count + 2);
 }
 
 #[tokio::test]

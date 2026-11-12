@@ -27,7 +27,7 @@ use crate::{
         config,
         console::Kernel as _,
         container::Container as _,
-        debug::{Exception, ExceptionHandler as _},
+        debug::{Exception, ExceptionHandler},
         foundation,
     },
     grpc,
@@ -281,6 +281,9 @@ impl Application {
             .into_iter()
             .partition(|provider| provider.isDeferred());
         let exceptions = Arc::new(Handler::new(exceptions, Arc::downgrade(&container)));
+        container
+            .instance::<dyn ExceptionHandler>(exceptions.clone())
+            .expect("the application exception handler is initially unbound");
         let shared = Arc::new(ApplicationState {
             basePath,
             publicPath: RwLock::new(None),

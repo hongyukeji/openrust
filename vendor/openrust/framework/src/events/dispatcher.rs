@@ -113,6 +113,15 @@ impl Dispatcher {
         self.has_listeners(event)
     }
 
+    pub(crate) fn observes(&self, name: &str) -> bool {
+        let registrations = self.read();
+        registrations.listeners.has_listeners(name)
+            || registrations
+                .fake
+                .as_ref()
+                .is_some_and(|fake| fake.matches(name))
+    }
+
     pub fn listing(&self) -> Vec<(String, Vec<&'static str>)> {
         self.read().listeners.listing()
     }

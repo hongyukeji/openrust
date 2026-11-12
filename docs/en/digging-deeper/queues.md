@@ -112,6 +112,18 @@ With an empty queue, this daemon dispatches the startup, loop, idle, and stoppin
 ./artisan queue:work --json --stop-when-empty
 ```
 
+#### Job reservation events {#job-reservation-events}
+
+Listen for `JobPopping` to observe a worker poll. It includes the connection and requested queues. `JobPopped` fires after a successful reservation and before the worker runs the job. The event carries a read-only snapshot with the driver job ID, queue, attempt number, and payload.
+
+A `JobPopping` listener error stops the command before it reserves a job. A `JobPopped` listener error is reported through the application exception handler. The worker leaves the reservation intact and the driver can retry the job after `retry_after` expires.
+
+With an empty queue, this command dispatches `JobPopping` and exits. `JobPopped` requires an available job.
+
+```sh
+./artisan queue:work --json --once
+```
+
 #### Resting between jobs and stopping after inactivity {#worker-rest-and-idle-timeout}
 
 Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop after the queue is empty and the worker has gone the specified number of seconds without processing a job. The idle timer starts when the worker starts and resets when it finishes each job.
