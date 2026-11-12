@@ -186,6 +186,20 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
+        let maintenance = if options.force
+            || cadence.single_run
+            || !self
+                .app
+                .bound::<dyn crate::contracts::foundation::MaintenanceMode>()
+        {
+            None
+        } else {
+            Some(
+                self.app
+                    .make::<dyn crate::contracts::foundation::MaintenanceMode>()
+                    .map_err(QueueError::Unavailable)?,
+            )
+        };
         let control = manager
             .polls_interruptions()
             .then(|| manager.worker_control())
@@ -248,6 +262,11 @@ impl Worker {
             let worker_paused = current_signal_state(&signal_state) != WorkerSignalState::Running;
             let reservation = async {
                 if worker_paused {
+                    return Ok((false, None));
+                }
+                if let Some(maintenance) = &maintenance
+                    && maintenance.active().await.map_err(super::backend)?
+                {
                     return Ok((false, None));
                 }
                 if !cadence.single_run

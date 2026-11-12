@@ -247,7 +247,7 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let base_providers: [Box<dyn ServiceProvider>; 23] = [
+        let base_providers: [Box<dyn ServiceProvider>; 24] = [
             Box::new(crate::log::LogServiceProvider),
             Box::new(crate::events::EventServiceProvider),
             Box::new(crate::broadcasting::BroadcastServiceProvider),
@@ -265,6 +265,7 @@ impl Application {
             Box::new(crate::redis::RedisServiceProvider),
             Box::new(crate::queue::QueueServiceProvider),
             Box::new(crate::cache::CacheServiceProvider),
+            Box::new(super::maintenance::MaintenanceServiceProvider),
             Box::new(crate::view::ViewServiceProvider),
             Box::new(crate::translation::TranslationServiceProvider),
             Box::new(crate::mail::MailServiceProvider),
@@ -473,6 +474,30 @@ impl Application {
 
     pub(crate) fn container_handle(&self) -> Arc<Container> {
         self.shared.container.clone()
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel Application::maintenanceMode"
+    )]
+    pub fn maintenanceMode(
+        &self,
+    ) -> Result<
+        Arc<dyn crate::contracts::foundation::MaintenanceMode>,
+        crate::contracts::container::BindingResolutionError,
+    > {
+        self.shared.container.make()
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel Application::isDownForMaintenance"
+    )]
+    pub async fn isDownForMaintenance(&self) -> Result<bool, super::maintenance::MaintenanceError> {
+        self.maintenanceMode()
+            .map_err(super::maintenance::MaintenanceError::Unavailable)?
+            .active()
+            .await
     }
 
     pub async fn boot(&mut self) -> Result<(), BootstrapError> {

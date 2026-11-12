@@ -121,7 +121,7 @@ mod unix {
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
                     "listener-first" | "listener-second" | "selection-default"
-                    | "selection-priority" => {}
+                    | "selection-priority" | "maintenance-probe" => {}
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -456,11 +456,15 @@ mod unix {
                 let redis_port = std::env::var("OPENRUST_TEST_REDIS_PORT")
                     .ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(6379);
                 let Value::Object(config) = json!({
-                    "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing")},
+                    "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing"),
+                        "maintenance": {"driver": if backend == "redis" { "cache" } else { "file" }, "store": "redis"}
+                    },
                     "database": {"default": database, "connections": connections,
                         "redis": {"options": {"prefix": format!("{name}:")}, "default": {"port": redis_port}}
                     },
-                    "cache": {"default": "array", "stores": {"array": {"driver": "array"}}},
+                    "cache": {"default": "array", "stores": {
+                        "array": {"driver": "array"}, "redis": {"driver": "redis", "connection": "default"}
+                    }},
                     "queue": {"default": queue, "timed_out_exit_code": 124,
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
@@ -1321,6 +1325,93 @@ mod unix {
         assert_eq!(queue.size(Some("selection-priority")).await.unwrap(), 0);
     }
 
+    async fn verify_maintenance(
+        root: &Path,
+        app: &Application,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let mode = app.maintenanceMode().unwrap();
+        assert!(!app.isDownForMaintenance().await.unwrap());
+        assert!(mode.data().await.unwrap().is_none());
+        let state =
+            serde_json::Map::from_iter([("status".into(), json!(503)), ("retry".into(), json!(5))]);
+        mode.activate(&state).await.unwrap();
+        assert!(app.isDownForMaintenance().await.unwrap());
+        assert_eq!(mode.data().await.unwrap(), Some(state));
+
+        let payload = Payload::new("hard-timeout-probe", "maintenance-probe").unwrap();
+        let name = Some("maintenance-jobs");
+        queue.push(&payload, name).await.unwrap();
+        let (status, lines) = artisan(
+            root,
+            &["--once", "--sleep=0", "--queue=maintenance-jobs"],
+            false,
+        )
+        .await;
+        assert_eq!(status, Some(0));
+        assert!(lines.is_empty(), "{lines:?}");
+        let (status, lines) = artisan(
+            root,
+            &["--max-time=1", "--sleep=0", "--queue=maintenance-jobs"],
+            false,
+        )
+        .await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["reason"], "max_time");
+        assert_eq!(queue.size(name).await.unwrap(), 1);
+        assert!(!root.join("maintenance-probe.pid").exists());
+
+        let listen = |force| {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args([
+                    "artisan",
+                    "queue:listen",
+                    "--queue=maintenance-jobs",
+                    "--memory=1",
+                    "--sleep=0",
+                    "--timeout=5",
+                ])
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            if force {
+                command.arg("--force");
+            }
+            async move {
+                let output = tokio::time::timeout(Duration::from_secs(8), command.output())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+            }
+        };
+        listen(false).await;
+        assert_eq!(queue.size(name).await.unwrap(), 1);
+        listen(true).await;
+        assert_eq!(queue.size(name).await.unwrap(), 0);
+
+        queue.push(&payload, name).await.unwrap();
+        let (status, lines) = artisan(
+            root,
+            &["--max-jobs=1", "--force", "--queue=maintenance-jobs"],
+            false,
+        )
+        .await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["jobs_processed"], 1);
+        assert_eq!(queue.size(name).await.unwrap(), 0);
+
+        mode.deactivate().await.unwrap();
+        mode.deactivate().await.unwrap();
+        assert!(!app.isDownForMaintenance().await.unwrap());
+        assert!(mode.data().await.unwrap().is_none());
+        queue.push(&payload, name).await.unwrap();
+        let (status, lines) = artisan(root, &["--once", "--queue=maintenance-jobs"], false).await;
+        assert_eq!(status, Some(0));
+        assert_eq!(lines.last().unwrap()["status"], "success");
+        assert_eq!(queue.size(name).await.unwrap(), 0);
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -1484,6 +1575,7 @@ mod unix {
         verify_retry_deadline(&root.0, &app, &*queue).await;
         verify_listener(&root.0, &*queue).await;
         verify_named_pop(&root.0, &*queue).await;
+        verify_maintenance(&root.0, &app, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

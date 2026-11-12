@@ -12,6 +12,7 @@ pub mod events;
 pub mod exceptions;
 pub mod http;
 mod inspiring;
+pub mod maintenance;
 mod provider_repository;
 pub mod providers;
 mod runtime_service;

@@ -69,6 +69,19 @@ impl Command for WorkCommand {
             if args.get_flag("listen-once") {
                 crate::process::inherit_queue_process_group();
             }
+            let once = args.get_flag("once");
+            let force = args.get_flag("force");
+            if once && !force && app.isDownForMaintenance().await.map_err(error)? {
+                let shutdown = CancellationToken::new();
+                let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
+                let sleep = *args.get_one::<u32>("sleep").expect("Clap default");
+                tokio::select! {
+                    _ = shutdown.cancelled() => {},
+                    _ = tokio::time::sleep(duration(sleep)) => {},
+                }
+                listener.abort();
+                return Ok(0);
+            }
             let container = app.container_handle();
             let manager = container.make::<QueueManager>().map_err(error)?;
             let connection = manager
@@ -79,7 +92,6 @@ impl Command for WorkCommand {
                 .get_one::<String>("queue")
                 .map(|queues| queues.split(',').collect::<Vec<_>>())
                 .unwrap_or_default();
-            let once = args.get_flag("once");
             let number = |name| *args.get_one::<u32>(name).expect("Clap default");
             let config = app.config().map_err(error)?;
             let memory = args.get_one::<String>("memory").expect("Clap default");
@@ -87,6 +99,7 @@ impl Command for WorkCommand {
                 .get("queue.memory_limit")
                 .and_then(|value| value.as_u64());
             let options = WorkerOptions {
+                force,
                 name: args
                     .get_one::<String>("name")
                     .expect("Clap default")

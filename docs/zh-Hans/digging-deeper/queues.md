@@ -119,6 +119,14 @@ fn register_priority_worker() -> QueueResult<()> {
 
 返回 `None` 表示本轮没有任务。队列选择和暂停检查由回调控制。调用 `Queue::popUsing("priority", None)` 可恢复该名称的默认取件策略。
 
+#### 维护期间运行 Worker {#workers-during-maintenance}
+
+应用处于维护状态时，Worker 等待并保留队列中的任务。`queue:listen` 的每个子进程都会执行相同检查。需要在维护期间处理任务时使用 `--force`。
+
+```sh
+./artisan queue:work database --once --force
+```
+
 ### Worker 状态与退出原因 {#worker-status-and-exit-reasons}
 
 Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行输出一条 JSON 记录。`--quiet` 或 `--silent` 会隐藏正常输出。

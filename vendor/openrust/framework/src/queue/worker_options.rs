@@ -23,6 +23,8 @@ const fn default_timed_out_exit_code() -> u8 {
 pub struct WorkerOptions {
     #[serde(default = "default_name")]
     pub name: String,
+    #[serde(default)]
+    pub force: bool,
     pub tries: u32,
     pub timeout: Duration,
     pub backoff: Vec<Duration>,
@@ -45,6 +47,7 @@ impl Default for WorkerOptions {
     fn default() -> Self {
         Self {
             name: default_name(),
+            force: false,
             tries: 1,
             timeout: Duration::from_secs(60),
             backoff: Vec::new(),

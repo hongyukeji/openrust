@@ -70,3 +70,22 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 | `PUBLIC_STORAGE_URL` | `filesystems.disks.public.url` | `APP_URL` with `/storage` appended |
 
 Relative paths use the application root. An application can override `PUBLIC_PATH` by calling `usePublicPath()` before boot. The default Web routes apply the public disk settings through `Route::staticDisk("public")`. The mount uses the full path of the disk URL. The default is `/storage`. A same-origin URL ending in `/storage/tmp/` or the absolute URL path `/storage/tmp/` mounts at `/storage/tmp`. A cross-origin URL fails route registration. Restart the application after changing mount settings.
+
+## Maintenance state {#maintenance-mode}
+
+The application exposes maintenance state through `maintenanceMode()`. The default `file` driver stores the payload in `storage/framework/down`. Choose `cache` and a shared cache store to make the state visible to workers on multiple hosts. The `array` driver keeps state inside a single application instance for testing.
+
+```rust
+use openrust::foundation::Application;
+use serde_json::{Map, json};
+
+async fn activate_maintenance(
+    app: &Application,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let payload = Map::from_iter([("status".into(), json!(503))]);
+    app.maintenanceMode()?.activate(&payload).await?;
+    Ok(())
+}
+```
+
+Read the state with `isDownForMaintenance().await` and clear it with `app.maintenanceMode()?.deactivate().await?`. Queue workers read this state before reserving jobs.

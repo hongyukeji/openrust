@@ -119,6 +119,14 @@ fn register_priority_worker() -> QueueResult<()> {
 
 Returning `None` marks the poll as empty. The callback controls queue selection, including whether to check paused queues. Call `Queue::popUsing("priority", None)` to restore the default strategy for that name.
 
+#### Workers during maintenance {#workers-during-maintenance}
+
+A worker waits without reserving jobs while the application is in maintenance mode. `queue:listen` applies the same check in each child. Use `--force` to process jobs during maintenance.
+
+```sh
+./artisan queue:work database --once --force
+```
+
 ### Worker status and exit reasons {#worker-status-and-exit-reasons}
 
 A worker writes job progress and pause or resume notices while it runs. Use `--json` to emit one JSON record per line. Normal output is suppressed by `--quiet` or `--silent`.

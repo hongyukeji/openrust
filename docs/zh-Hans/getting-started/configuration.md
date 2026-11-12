@@ -70,3 +70,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `APP_URL` 加 `/storage` |
 
 相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
+
+## 维护状态 {#maintenance-mode}
+
+应用通过 `maintenanceMode()` 提供维护状态。默认 `file` 驱动把数据写入 `storage/framework/down`。选择 `cache` 和共享缓存仓库，可让多台机器上的 Worker 读取同一状态。`array` 驱动将状态保存在当前应用实例内，可用于测试。
+
+```rust
+use openrust::foundation::Application;
+use serde_json::{Map, json};
+
+async fn activate_maintenance(
+    app: &Application,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let payload = Map::from_iter([("status".into(), json!(503))]);
+    app.maintenanceMode()?.activate(&payload).await?;
+    Ok(())
+}
+```
+
+用 `isDownForMaintenance().await` 读取状态，用 `app.maintenanceMode()?.deactivate().await?` 清除。队列 Worker 在预约任务前读取此状态。

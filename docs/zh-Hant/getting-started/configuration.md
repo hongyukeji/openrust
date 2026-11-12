@@ -70,3 +70,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `PUBLIC_STORAGE_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `APP_URL` 加 `/storage` |
 
 相對目錄以應用程式根目錄為基準。應用程式可在啟動前呼叫 `usePublicPath()` 覆寫 `PUBLIC_PATH`。預設 Web 路由透過 `Route::staticDisk("public")` 套用公開磁碟設定。掛載前綴取磁碟 URL 的完整路徑，預設為 `/storage`。以 `/storage/tmp/` 結尾的同源 URL 或絕對 URL 路徑 `/storage/tmp/` 都會掛載到 `/storage/tmp`。跨來源 URL 會使路由註冊失敗。修改掛載設定後重新啟動應用程式。
+
+## 維護狀態 {#maintenance-mode}
+
+應用程式透過 `maintenanceMode()` 提供維護狀態。預設 `file` 驅動程式把資料寫入 `storage/framework/down`。選擇 `cache` 和共享快取儲存，可讓多台主機上的 Worker 讀取相同狀態。`array` 驅動程式將狀態儲存在目前應用程式實例內，可用於測試。
+
+```rust
+use openrust::foundation::Application;
+use serde_json::{Map, json};
+
+async fn activate_maintenance(
+    app: &Application,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let payload = Map::from_iter([("status".into(), json!(503))]);
+    app.maintenanceMode()?.activate(&payload).await?;
+    Ok(())
+}
+```
+
+用 `isDownForMaintenance().await` 讀取狀態，用 `app.maintenanceMode()?.deactivate().await?` 清除。佇列 Worker 在保留工作前讀取此狀態。
