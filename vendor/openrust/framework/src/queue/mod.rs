@@ -21,6 +21,7 @@ mod sync_queue;
 mod worker;
 mod worker_attempt_marker;
 mod worker_control;
+mod worker_hooks;
 mod worker_options;
 mod worker_signals;
 mod worker_stop_reason;

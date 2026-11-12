@@ -200,7 +200,7 @@ impl QueueManager {
             .await
     }
 
-    fn worker_dispatcher(&self) -> QueueResult<(Arc<Container>, Arc<Dispatcher>)> {
+    pub(super) fn worker_dispatcher(&self) -> QueueResult<(Arc<Container>, Arc<Dispatcher>)> {
         let owner = self
             .owner
             .upgrade()

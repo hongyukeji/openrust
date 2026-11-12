@@ -490,12 +490,8 @@ impl Listener for PopListener {
 }
 
 const ATTEMPT_EVENTS: &[&str] = &[
-    JobProcessing::NAME,
-    JobProcessed::NAME,
     JobReleased::NAME,
-    JobExceptionOccurred::NAME,
     JobReleasedAfterException::NAME,
-    JobFailed::NAME,
     JobTimedOut::NAME,
     JobAttempted::NAME,
 ];
@@ -570,26 +566,12 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
         QueuesResumed::NAME,
         WorkerQueuePaused::NAME,
         WorkerQueueResumed::NAME,
-        WorkerStarting::NAME,
         WorkerIdle::NAME,
         WorkerInterrupted::NAME,
         WorkerPausing::NAME,
         WorkerResuming::NAME,
-        WorkerStopping::NAME,
     ] {
         registry.listen(event, Arc::new(ControlListener), Delivery::Sync)?;
-    }
-    if std::env::var_os("QUEUE_WORKER_VETO").is_some() {
-        for later in [false, true] {
-            registry.listen(
-                Looping::NAME,
-                Arc::new(LoopListener {
-                    attempts: AtomicUsize::new(0),
-                    later,
-                }),
-                Delivery::Sync,
-            )?;
-        }
     }
     if std::env::var_os("QUEUE_WORKER_POP_EVENT").is_some() {
         for name in [JobPopping::NAME, JobPopped::NAME] {
@@ -802,6 +784,26 @@ impl JobHandler for OverlapHandler {
     }
 }
 
+fn control_hook(
+    event: &impl PayloadEvent,
+) -> EventFuture<'_, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        ControlListener
+            .handle(event, &mut EventContext::new())
+            .await
+    })
+}
+
+fn attempt_hook(
+    event: &impl PayloadEvent,
+) -> EventFuture<'_, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        AttemptListener
+            .handle(event, &mut EventContext::new())
+            .await
+    })
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -815,6 +817,35 @@ impl ServiceProvider for Providers {
             }
             if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
                 Queue::withoutInterruptionPolling()?;
+            }
+            Queue::starting(control_hook)?;
+            Queue::stopping(control_hook)?;
+            if std::env::var_os("QUEUE_WORKER_VETO").is_some() {
+                for later in [false, true] {
+                    let listener = Arc::new(LoopListener {
+                        attempts: AtomicUsize::new(0),
+                        later,
+                    });
+                    Queue::looping(move |event| {
+                        let listener = listener.clone();
+                        Box::pin(
+                            async move { listener.handle(event, &mut EventContext::new()).await },
+                        )
+                    })?;
+                }
+            }
+            if std::env::var_os("QUEUE_WORKER_ATTEMPT_EVENTS").is_some() {
+                Queue::before(attempt_hook)?;
+                Queue::after(attempt_hook)?;
+                Queue::exceptionOccurred(attempt_hook)?;
+                Queue::failing(attempt_hook)?;
+                Queue::whenJobRunsLongerThan(Duration::from_millis(75), |job, elapsed| {
+                    Box::pin(async move {
+                        assert!(elapsed > Duration::from_millis(75));
+                        println!("long-job:{}:{}", job.payload.name(), job.attempts);
+                        Ok(None)
+                    })
+                })?;
             }
             for name in [
                 "flaky",
@@ -2037,6 +2068,12 @@ async fn verify_job_attempt_events(
             let report = format!("attempt-report:attempt-event:{mode}");
             assert!(stdout.contains(&report), "{stdout}");
         }
+        if kind == "timeout" {
+            assert!(stdout.contains("long-job:timeout:1"), "{stdout}");
+        }
+        if mode == "preflight-error" {
+            assert!(!stdout.contains("long-job:"), "{stdout}");
+        }
         let suffix = format!(":{kind}:{attempt}");
         stdout
             .lines()
@@ -3239,4 +3276,61 @@ async fn artisan_worker_mysql_retries_failures_and_hydrates_context() {
     if let Some(url) = url {
         exercise(None, Some(&url)).await;
     }
+}
+
+#[tokio::test]
+async fn long_job_hooks_require_a_measured_duration_above_the_threshold_and_are_application_local()
+{
+    use openrust::{contracts::events::Dispatcher as _, queue::events::JobSnapshot};
+
+    let build_app = || {
+        Application::configure(std::env::temp_dir())
+            .create()
+            .unwrap()
+    };
+    let mut first = build_app();
+    let mut second = build_app();
+    first.boot().await.unwrap();
+    second.boot().await.unwrap();
+
+    let count = Arc::new(AtomicUsize::new(0));
+    let observed = count.clone();
+    first
+        .container()
+        .make::<QueueManager>()
+        .unwrap()
+        .whenJobRunsLongerThan(Duration::from_secs(1), move |job, elapsed| {
+            assert_eq!(job.payload.name(), "threshold-probe");
+            assert_eq!(elapsed, Duration::from_millis(1001));
+            observed.fetch_add(1, Ordering::Relaxed);
+            Box::pin(async { Ok(None) })
+        })
+        .unwrap();
+
+    for (app, durations) in [
+        (&second, [None, Some(999.0), Some(1000.0), Some(1001.0)]),
+        (&first, [None, Some(999.0), Some(1000.0), Some(1001.0)]),
+    ] {
+        let dispatcher = app.container().make::<Dispatcher>().unwrap();
+        for duration in durations {
+            dispatcher
+                .dispatch(
+                    Arc::new(JobAttempted {
+                        connection_name: "database".into(),
+                        job: JobSnapshot {
+                            id: "probe".into(),
+                            queue: "default".into(),
+                            attempts: 1,
+                            payload: Payload::new("threshold-probe", ()).unwrap(),
+                        },
+                        exception: None,
+                        duration,
+                    }),
+                    &mut EventContext::new(),
+                )
+                .await
+                .unwrap();
+        }
+    }
+    assert_eq!(count.load(Ordering::Relaxed), 1);
 }

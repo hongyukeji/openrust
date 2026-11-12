@@ -112,6 +112,25 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
+#### 注册 Worker 回调 {#registering-worker-callbacks}
+
+在应用服务提供者中注册队列回调。`Queue::before`、`after`、`exceptionOccurred` 和 `failing` 分别监听开始处理、处理完成、异常和终态失败。`starting`、`looping` 和 `stopping` 监听守护进程生命周期。
+
+```rust
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_queue_callbacks() -> QueueResult<()> {
+    Queue::failing(|event| {
+        Box::pin(async move {
+            eprintln!("{} failed: {}", event.job.id, event.exception);
+            Ok(None)
+        })
+    })
+}
+```
+
+回调通过应用事件分发器接收对应类型的事件。`looping` 回调可返回 `Some(ListenerResponse::Value(Box::new(false)))` 跳过本轮轮询。返回 `Ok(None)` 可继续调用后续回调。用 `Queue::whenJobRunsLongerThan` 和 `Duration` 监听耗时超过阈值的尝试，回调接收任务快照和耗时。
+
 #### 任务预约事件 {#job-reservation-events}
 
 监听 `JobPopping` 可观察 Worker 轮询，事件包含连接和所选队列。成功预约后、执行任务前派发 `JobPopped`。它携带只读快照，包括驱动任务 ID、队列、尝试次数和载荷。

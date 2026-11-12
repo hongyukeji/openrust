@@ -112,6 +112,25 @@ With an empty queue, this daemon dispatches the startup, loop, idle, and stoppin
 ./artisan queue:work --json --stop-when-empty
 ```
 
+#### Registering worker callbacks {#registering-worker-callbacks}
+
+Register queue callbacks in an application service provider. `Queue::before`, `after`, `exceptionOccurred`, and `failing` listen to processing, processed, exception, and terminal failure events. `starting`, `looping`, and `stopping` listen to daemon lifecycle events.
+
+```rust
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_queue_callbacks() -> QueueResult<()> {
+    Queue::failing(|event| {
+        Box::pin(async move {
+            eprintln!("{} failed: {}", event.job.id, event.exception);
+            Ok(None)
+        })
+    })
+}
+```
+
+Callbacks receive the typed event and use the application event dispatcher. A `looping` callback may return `Some(ListenerResponse::Value(Box::new(false)))` to skip polling that iteration. Return `Ok(None)` to let subsequent callbacks run. Use `Queue::whenJobRunsLongerThan` with a `Duration` to observe attempts that exceeded the threshold. The callback receives the job snapshot and elapsed time.
+
 #### Job reservation events {#job-reservation-events}
 
 Listen for `JobPopping` to observe a worker poll. It includes the connection and requested queues. `JobPopped` fires after a successful reservation and before the worker runs the job. The event carries a read-only snapshot with the driver job ID, queue, attempt number, and payload.
