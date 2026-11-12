@@ -88,6 +88,18 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 ./artisan queue:restart
 ```
 
+### Worker 状态与退出原因 {#worker-status-and-exit-reasons}
+
+Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行输出一条 JSON 记录。`--quiet` 或 `--silent` 会隐藏正常输出。
+
+```sh
+./artisan queue:work --json --stop-when-empty
+```
+
+正常退出时，`stopped` 记录包含原因、退出码和处理任务数。当前原因包括 `empty`、`max_jobs`、`max_time`、`interrupted` 和 `restart_signal`。单次 Worker 输出任务记录并省略退出摘要。应用可监听 `WorkerStopping` 观察正常退出。
+
+时间戳优先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。内存用量目前输出为 `null`。
+
 ### 暂停和恢复队列 Worker {#pausing-and-resuming-queue-workers}
 
 通过连接和队列名称暂停队列。只写队列名时使用默认连接。Worker 会完成当前任务，此后跳过已暂停的队列，并继续处理其他可用队列。

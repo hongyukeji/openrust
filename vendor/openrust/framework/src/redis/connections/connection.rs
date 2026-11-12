@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use ::redis::{
-    Client, FromRedisValue,
+    AsyncConnectionConfig, Client, FromRedisValue,
     aio::{ConnectionManager, ConnectionManagerConfig},
 };
 use tokio::sync::OnceCell;
@@ -46,9 +46,14 @@ impl Connection {
     pub(crate) async fn blocking_transport(
         &self,
     ) -> RedisResult<::redis::aio::MultiplexedConnection> {
+        // The queue bounds blocking commands independently of the client response timeout.
+        let config = AsyncConnectionConfig::new()
+            .set_connection_timeout(Some(Duration::from_secs(5)))
+            .set_response_timeout(None);
         tokio::time::timeout(
             Duration::from_secs(5),
-            self.client.get_multiplexed_async_connection(),
+            self.client
+                .get_multiplexed_async_connection_with_config(&config),
         )
         .await
         .map_err(backend)?

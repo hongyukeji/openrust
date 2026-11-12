@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 /// Controls a queue worker's execution and stopping limits.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct WorkerOptions {
     pub tries: u32,
     pub timeout: Duration,

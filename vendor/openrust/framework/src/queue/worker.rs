@@ -1,6 +1,6 @@
 use std::{
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use tokio_util::sync::CancellationToken;
@@ -20,7 +20,8 @@ use crate::{
 
 use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
-    events::{WorkerQueuePaused, WorkerQueueResumed},
+    WorkerStopReason,
+    events::{WorkerQueuePaused, WorkerQueueResumed, WorkerStopping},
     failed::{FailedJob, FailedJobProviderInterface},
 };
 
@@ -30,6 +31,19 @@ pub enum WorkResult {
     Processed,
     Released,
     Failed,
+}
+
+pub(super) enum WorkerStatus<'a> {
+    Paused(&'a WorkerQueuePaused),
+    Resumed(&'a WorkerQueueResumed),
+    Job(&'a dyn Job, Option<JobOutcome<'a>>),
+    Stopped(&'a WorkerStopping),
+}
+
+pub(super) struct JobOutcome<'a> {
+    pub result: WorkResult,
+    pub elapsed: Duration,
+    pub cause: Option<&'a QueueError>,
 }
 
 /// Processes reserved jobs and coordinates retry and shutdown.
@@ -72,7 +86,7 @@ impl Worker {
         let Some(mut job) = connection.pop(queue).await? else {
             return Ok(WorkResult::Idle);
         };
-        self.process(job.as_mut(), options).await
+        self.process(job.as_mut(), options, &mut None).await
     }
 
     pub async fn daemon(
@@ -81,6 +95,18 @@ impl Worker {
         queues: &[&str],
         options: &WorkerOptions,
         shutdown: &CancellationToken,
+    ) -> QueueResult<u64> {
+        self.daemon_with_status(connection, queues, options, shutdown, |_| {})
+            .await
+    }
+
+    pub(super) async fn daemon_with_status(
+        &self,
+        connection: &dyn Queue,
+        queues: &[&str],
+        options: &WorkerOptions,
+        shutdown: &CancellationToken,
+        mut status: impl FnMut(WorkerStatus<'_>) + Send,
     ) -> QueueResult<u64> {
         let manager = self
             .app
@@ -105,15 +131,25 @@ impl Worker {
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let mut processed = 0;
+        let mut last_job_processed_at = None;
         let mut paused: Vec<&str> = Vec::new();
-        while !shutdown.is_cancelled()
-            && options.max_jobs.is_none_or(|limit| processed < limit)
-            && options.max_time.is_none_or(|limit| start.elapsed() < limit)
-        {
+        let reason = loop {
+            if shutdown.is_cancelled() {
+                break WorkerStopReason::Interrupted;
+            }
             if let Some(control) = &control
                 && control.restart_generation().await? != initial_restart
             {
-                break;
+                break WorkerStopReason::ReceivedRestartSignal;
+            }
+            if options
+                .max_time
+                .is_some_and(|limit| start.elapsed() >= limit)
+            {
+                break WorkerStopReason::MaxTimeExceeded;
+            }
+            if options.max_jobs.is_some_and(|limit| processed >= limit) {
+                break WorkerStopReason::MaxJobsExceeded;
             }
             let reservation = async {
                 if let Some(control) = &control {
@@ -123,24 +159,24 @@ impl Worker {
                         .copied()
                         .filter(|queue| !paused.contains(queue))
                     {
-                        manager
-                            .emit_control_event(WorkerQueuePaused {
-                                connection: name.into(),
-                                queue: queue.into(),
-                            })
-                            .await?;
+                        let event = WorkerQueuePaused {
+                            connection: name.into(),
+                            queue: queue.into(),
+                        };
+                        status(WorkerStatus::Paused(&event));
+                        manager.emit_control_event(event).await?;
                     }
                     for queue in paused
                         .iter()
                         .copied()
                         .filter(|queue| !observed.contains(queue))
                     {
-                        manager
-                            .emit_control_event(WorkerQueueResumed {
-                                connection: name.into(),
-                                queue: queue.into(),
-                            })
-                            .await?;
+                        let event = WorkerQueueResumed {
+                            connection: name.into(),
+                            queue: queue.into(),
+                        };
+                        status(WorkerStatus::Resumed(&event));
+                        manager.emit_control_event(event).await?;
                     }
                     paused = observed;
                 }
@@ -161,27 +197,59 @@ impl Worker {
             };
             let job = tokio::select! {
                 biased;
-                () = shutdown.cancelled() => break,
-                () = wait_until(deadline) => break,
+                () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
+                () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
                 result = reservation => result?,
             };
             if let Some(mut job) = job {
-                self.process(job.as_mut(), options).await?;
+                let started = tokio::time::Instant::now();
+                status(WorkerStatus::Job(job.as_ref(), None));
+                let mut cause = None;
+                let result = self.process(job.as_mut(), options, &mut cause).await?;
+                status(WorkerStatus::Job(
+                    job.as_ref(),
+                    Some(JobOutcome {
+                        result,
+                        elapsed: started.elapsed(),
+                        cause: cause.as_ref(),
+                    }),
+                ));
                 processed += 1;
+                last_job_processed_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .ok()
+                    .map(|elapsed| elapsed.as_secs());
             } else if options.stop_when_empty {
-                break;
+                break WorkerStopReason::QueueEmpty;
             } else {
                 tokio::select! {
-                    () = shutdown.cancelled() => break,
-                    () = wait_until(deadline) => break,
+                    biased;
+                    () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
+                    () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
                     () = tokio::time::sleep(options.sleep) => {},
                 }
             }
-        }
+        };
+        let event = WorkerStopping {
+            status: 0,
+            worker_options: options.clone(),
+            reason,
+            jobs_processed: processed,
+            last_job_processed_at,
+            connection_name: name.into(),
+            queue: queues.join(","),
+        };
+        status(WorkerStatus::Stopped(&event));
+        manager.emit_control_event(event).await?;
         Ok(processed)
     }
 
-    async fn process(&self, job: &mut dyn Job, options: &WorkerOptions) -> QueueResult<WorkResult> {
+    async fn process(
+        &self,
+        job: &mut dyn Job,
+        options: &WorkerOptions,
+        cause: &mut Option<QueueError>,
+    ) -> QueueResult<WorkResult> {
         if job.payload().chain_delivery.is_some() {
             return self.forward_chain(job).await;
         }
@@ -204,9 +272,10 @@ impl Worker {
         }
         let tries = job.options().max_tries.unwrap_or(options.tries);
         if exceeds_attempts(job, tries, false) {
-            return self
-                .fail(job, &QueueError::MaxAttempts, batch.as_ref())
-                .await;
+            let error = QueueError::MaxAttempts;
+            let result = self.fail(job, &error, batch.as_ref()).await;
+            *cause = Some(error);
+            return result;
         }
         let timeout = job.options().timeout.unwrap_or(options.timeout);
         let mut context = JobContext::default();
@@ -263,9 +332,12 @@ impl Worker {
                 if exceeds_attempts(job, tries, true)
                     || matches!(error, QueueError::Timeout) && job.options().fail_on_timeout =>
             {
-                self.fail(job, &error, batch.as_ref()).await
+                let result = self.fail(job, &error, batch.as_ref()).await;
+                *cause = Some(error);
+                result
             }
-            Err(_) => {
+            Err(error) => {
+                *cause = Some(error);
                 let configured = &job.options().backoff;
                 let backoff = if configured.is_empty() {
                     &options.backoff

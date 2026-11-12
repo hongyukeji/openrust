@@ -88,6 +88,18 @@ Run the restart command during deployment. A worker finishes its current job and
 ./artisan queue:restart
 ```
 
+### Worker status and exit reasons {#worker-status-and-exit-reasons}
+
+A worker writes job progress and pause or resume notices while it runs. Use `--json` to emit one JSON record per line. Normal output is suppressed by `--quiet` or `--silent`.
+
+```sh
+./artisan queue:work --json --stop-when-empty
+```
+
+A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `max_jobs`, `max_time`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
+
+Timestamps use `queue.output_timezone` if configured, then `app.timezone` or UTC. Memory usage is currently reported as `null`.
+
 ### Pausing and resuming queue workers {#pausing-and-resuming-queue-workers}
 
 Pause a queue by its connection and name. A bare queue name uses the default connection. A worker finishes its current job and skips the paused queue while continuing to serve any other eligible queues.

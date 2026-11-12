@@ -6,6 +6,7 @@ mod publish_batches_command;
 mod retry_batch_command;
 mod work_command;
 mod worker_control_command;
+mod worker_output;
 
 pub use work_command::WorkCommand;
 

@@ -2,6 +2,7 @@ use std::{
     ffi::OsString,
     net::SocketAddr,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -25,10 +26,10 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
-        QueueResult,
+        QueueResult, WorkerStopReason,
         events::{
             QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerQueuePaused,
-            WorkerQueueResumed,
+            WorkerQueueResumed, WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -116,6 +117,9 @@ impl JobHandler for Handler {
                     db.statement("insert into receipts (name, value) values ('late', 1)", &[])
                         .await
                         .map_err(execution)?;
+                }
+                "manual_release" if context.attempts() == 1 => {
+                    context.release(Duration::ZERO);
                 }
                 "flaky" if context.attempts() == 1 => {
                     return Err(execution(std::io::Error::other("retryable")));
@@ -214,10 +218,23 @@ impl Listener for ControlListener {
                 Some(Ttl::Seconds(seconds)) => seconds,
                 _ => 1,
             };
+            let (name, value) = if let Some(event) = event.downcast_ref::<WorkerStopping>() {
+                assert_eq!(event.status, 0);
+                assert_eq!(
+                    event.last_job_processed_at.is_some(),
+                    event.jobs_processed > 0
+                );
+                (
+                    format!("stop:{:?}", event.reason),
+                    i64::try_from(event.jobs_processed).unwrap(),
+                )
+            } else {
+                (event.name().to_owned(), value)
+            };
             let db = DB::connection(None).map_err(EventError::Transaction)?;
             db.statement(
                 "insert into receipts (name, value) values (?, ?)",
-                &[event.name().into(), value.into()],
+                &[name.into(), value.into()],
             )
             .await
             .map_err(EventError::Transaction)?;
@@ -234,6 +251,7 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
         QueuesResumed::NAME,
         WorkerQueuePaused::NAME,
         WorkerQueueResumed::NAME,
+        WorkerStopping::NAME,
     ] {
         registry.listen(event, Arc::new(ControlListener), Delivery::Sync)?;
     }
@@ -259,6 +277,7 @@ impl ServiceProvider for Providers {
             }
             for name in [
                 "flaky",
+                "manual_release",
                 "terminal",
                 "timeout",
                 "slow",
@@ -388,6 +407,26 @@ async fn run(root: &Path, args: &[&str]) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
+fn json_lines(output: &str) -> Vec<Json> {
+    output
+        .lines()
+        .filter_map(|line| line.find('{').map(|offset| &line[offset..]))
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect()
+}
+
+async fn captured_worker_output(worker: &mut tokio::process::Child) -> Vec<Json> {
+    let mut stdout = String::new();
+    timeout(
+        Duration::from_secs(2),
+        worker.stdout.take().unwrap().read_to_string(&mut stdout),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    json_lines(&stdout)
+}
+
 async fn transport(
     State(kernel): State<Arc<Kernel>>,
     request: axum::extract::Request,
@@ -430,7 +469,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         },
         "cache": {"default":if redis.is_some() {"redis"} else {"file"},"stores":{"redis":{"driver":"redis"},"file":{"driver":"file","path":"control-cache"}}},
         "queue": {
-            "default": default_queue,
+            "default": default_queue, "output_timezone": "Asia/Shanghai",
             "connections":{"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0}},
             "failed":{"driver":"database-uuids","database":"worker","table":"failed_jobs"}
         }
@@ -494,9 +533,19 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         .unwrap();
     });
     request(address, "flaky").await;
-    run(&root.0, &["queue:work", "--once", "--tries=2"]).await;
+    let output = run(&root.0, &["queue:work", "--json", "--once", "--tries=2"]).await;
+    let rows = json_lines(&output);
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["status"], "starting");
+    assert_eq!(rows[1]["status"], "released_after_exception");
+    assert_eq!(rows[1]["result"], "released");
+    assert_eq!(rows[1]["exception"], "QueueError");
+    assert_eq!(rows[1]["attempts"], 1);
     assert_eq!(queue.size(None).await.unwrap(), 1);
-    run(&root.0, &["queue:work", "--once", "--tries=2"]).await;
+    let output = run(&root.0, &["queue:work", "--json", "--once", "--tries=2"]).await;
+    let rows = json_lines(&output);
+    assert_eq!(rows[1]["status"], "success");
+    assert_eq!(rows[1]["attempts"], 2);
     assert_eq!(queue.size(None).await.unwrap(), 0);
     assert_eq!(
         db.table("receipts")
@@ -507,10 +556,27 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         2
     );
 
+    request(address, "manual_release").await;
+    let output = run(&root.0, &["queue:work", "--json", "--once", "--tries=2"]).await;
+    let rows = json_lines(&output);
+    assert_eq!(rows[1]["status"], "success");
+    assert_eq!(rows[1]["result"], "released");
+    assert!(rows[1].get("exception").is_none());
+    run(&root.0, &["queue:work", "--quiet", "--once", "--tries=2"]).await;
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+
     request(address, "rollback").await;
     assert_eq!(queue.size(None).await.unwrap(), 0);
     request(address, "invoice").await;
-    run(&root.0, &["queue:work", "--stop-when-empty"]).await;
+    let output = run(&root.0, &["queue:work", "--json", "--stop-when-empty"]).await;
+    let rows = json_lines(&output);
+    let stop = rows.last().unwrap();
+    assert_eq!(stop["reason"], "empty");
+    assert_eq!(stop["jobs_processed"], 1);
+    assert_eq!(stop["exit_code"], 0);
+    assert_eq!(stop["connection"], default_queue);
+    assert_eq!(stop["queue"], "default");
+    assert!(stop["timestamp"].as_str().unwrap().ends_with("+08:00"));
     assert_eq!(
         db.scalar("select value from receipts where name = 'invoice'", &[])
             .await
@@ -520,7 +586,12 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
 
     request(address, "terminal").await;
     request(address, "timeout").await;
-    run(&root.0, &["queue:work", "--stop-when-empty"]).await;
+    let output = run(&root.0, &["queue:work", "--json", "--stop-when-empty"]).await;
+    let rows = json_lines(&output);
+    assert!(
+        rows.iter()
+            .any(|row| row["job"] == "terminal" && row["status"] == "failed")
+    );
     assert_eq!(queue.size(None).await.unwrap(), 0);
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);
     assert_eq!(
@@ -571,7 +642,8 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     #[cfg(unix)]
     {
         request(address, "slow").await;
-        let mut worker = artisan(&root.0, &["queue:work", "--sleep=1"])
+        let mut worker = artisan(&root.0, &["queue:work", "--json", "--sleep=1"])
+            .stdout(Stdio::piped())
             .spawn()
             .unwrap();
         timeout(Duration::from_secs(5), async {
@@ -613,6 +685,9 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
             1
         );
         assert_eq!(queue.size(None).await.unwrap(), 0);
+        let rows = captured_worker_output(&mut worker).await;
+        assert_eq!(rows.last().unwrap()["reason"], "interrupted");
+        assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
     }
     if redis.is_none() && mysql.is_none() {
         let separate = TempRoot(root.0.join("separate-app"));
@@ -695,7 +770,8 @@ async fn verify_worker_control(
 
     request(address, "pause_gate").await;
     request(address, "control_default").await;
-    let mut worker = artisan(root, &["queue:work", "--sleep=1", "--max-jobs=2"])
+    let mut worker = artisan(root, &["queue:work", "--json", "--sleep=1", "--max-jobs=2"])
+        .stdout(Stdio::piped())
         .spawn()
         .unwrap();
     wait_for("pause_gate").await;
@@ -717,11 +793,18 @@ async fn verify_worker_control(
             .unwrap()
             .success()
     );
+    let rows = captured_worker_output(&mut worker).await;
+    assert!(rows.iter().any(|row| row["status"] == "paused"));
+    assert!(rows.iter().any(|row| row["status"] == "resumed"));
+    assert_eq!(rows.last().unwrap()["reason"], "max_jobs");
     assert_eq!(count("control_default").await, 2);
 
     request(address, "restart_gate").await;
     request(address, "control_default").await;
-    let mut worker = artisan(root, &["queue:work", "--sleep=1"]).spawn().unwrap();
+    let mut worker = artisan(root, &["queue:work", "--json", "--sleep=1"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
     wait_for("restart_gate").await;
     let broadcast = run(root, &["queue:restart"]).await;
     assert!(broadcast.contains("Broadcasting queue restart signal."));
@@ -732,6 +815,18 @@ async fn verify_worker_control(
             .unwrap()
             .unwrap()
             .success()
+    );
+    let rows = captured_worker_output(&mut worker).await;
+    assert_eq!(rows.last().unwrap()["reason"], "restart_signal");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
+    assert_eq!(
+        db.scalar(
+            "select value from receipts where name = ?",
+            &[format!("stop:{:?}", WorkerStopReason::ReceivedRestartSignal).into()]
+        )
+        .await
+        .unwrap(),
+        Value::Integer(1)
     );
     assert_eq!(count("restart_gate_done").await, 1);
     assert_eq!(count("control_default").await, 2);
@@ -799,6 +894,16 @@ async fn verify_worker_control(
     assert_eq!(count(WorkerQueuePaused::NAME).await, paused + 1);
     assert_eq!(count(WorkerQueueResumed::NAME).await, resumed + 1);
     assert_eq!(count("control_default").await, 6);
+    let output = run(root, &["queue:work", "--json", "--max-time=1"]).await;
+    assert_eq!(json_lines(&output).last().unwrap()["reason"], "max_time");
+    let output = run(
+        root,
+        &["queue:work", "--json", "--quiet", "--stop-when-empty"],
+    )
+    .await;
+    assert!(json_lines(&output).is_empty());
+    let output = run(root, &["queue:work", "--stop-when-empty"]).await;
+    assert!(output.contains("Worker STOPPED Queue empty"));
 }
 
 #[tokio::test]

@@ -1,5 +1,6 @@
 //! Queue and worker pause transitions.
 
+use super::{WorkerOptions, WorkerStopReason};
 use crate::{cache::Ttl, contracts::events::Event};
 
 macro_rules! queue_event {
@@ -43,4 +44,17 @@ queue_event!(
 queue_event!(
     /// A worker observed a queue leaving a pause.
     WorkerQueueResumed { connection: String, queue: String }
+);
+
+queue_event!(
+    /// A worker completed a graceful stop.
+    WorkerStopping {
+        status: i32,
+        worker_options: WorkerOptions,
+        reason: WorkerStopReason,
+        jobs_processed: u64,
+        last_job_processed_at: Option<u64>,
+        connection_name: String,
+        queue: String,
+    }
 );

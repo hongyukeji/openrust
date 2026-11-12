@@ -20,6 +20,7 @@ mod sync_queue;
 mod worker;
 mod worker_control;
 mod worker_options;
+mod worker_stop_reason;
 
 use std::{
     error::Error,
@@ -37,6 +38,7 @@ pub use redis_queue::RedisQueue;
 pub use sync_queue::SyncQueue;
 pub use worker::{WorkResult, Worker};
 pub use worker_options::WorkerOptions;
+pub use worker_stop_reason::WorkerStopReason;
 
 /// An asynchronous queue operation.
 pub type QueueFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
