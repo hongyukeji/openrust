@@ -114,7 +114,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
 }
 
 #[tokio::test]
-async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
+async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths_over_tcp() {
     use axum::handler::Handler as _;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
@@ -125,7 +125,7 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
     }
 
     fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
-        let mut configuration = config::load(root, env)?;
+        let mut configuration = web_config(root, env)?;
         configuration.get_mut("cors").unwrap()["paths"] = json!({
             "0": "custom/*",
             "localhost": ["host-only/*"],
@@ -154,16 +154,21 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
     ] {
         let root = TestRoot::new("api-prefix");
         fs::write(root.0.join(".env"), environment).unwrap();
-        let routing = Routing::default().api(|router| {
-            router.get("/probe", probe)?;
-            Ok(())
-        });
+        let routing = Routing::default()
+            .web(|| {
+                openrust::support::facades::Route::get("/", probe)?;
+                Ok(())
+            })
+            .api(|router| {
+                router.get("/probe", probe)?;
+                Ok(())
+            });
         let routing = match explicit {
             Some(prefix) => routing.apiPrefix(prefix),
             None => routing,
         };
         let app = Application::configure(root.0.clone())
-            .withConfig(if custom { custom_cors } else { config::load })
+            .withConfig(if custom { custom_cors } else { web_config })
             .withRouting(routing)
             .withExceptions(|exceptions| {
                 exceptions.shouldRenderJsonWhen(|request, _| {
@@ -191,7 +196,7 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
         let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
         let send = |method: &str, path: &str, accept: &str, host: &str| {
             let raw = format!(
-                "{method} {path} HTTP/1.1\r\nHost: {host}\r\nAccept: {accept}\r\nOrigin: https://client.test\r\nAccess-Control-Request-Method: GET\r\nConnection: close\r\n\r\n"
+                "{method} {path} HTTP/1.1\r\nHost: {host}\r\nAccept: {accept}\r\nOrigin: https://client.test\r\nAccess-Control-Request-Method: GET\r\nAccess-Control-Request-Headers: X-Probe\r\nConnection: close\r\n\r\n"
             );
             async move {
                 tokio::time::timeout(std::time::Duration::from_secs(5), async {
@@ -215,8 +220,10 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
         let html = "text/html";
         let json = "application/json";
         let host = "example.test";
-        let response = send("GET", &probe, html, host).await;
-        assert!(response.starts_with("HTTP/1.1 204 "), "{probe}: {response}");
+        for path in ["/", probe.as_str()] {
+            let response = send("GET", path, html, host).await;
+            assert!(response.starts_with("HTTP/1.1 204 "), "{path}: {response}");
+        }
         let response = send("GET", &missing, html, host).await;
         assert!(
             response.starts_with("HTTP/1.1 404 "),
@@ -227,25 +234,6 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
             response.contains(&format!("content-type: {expected_type}")),
             "{response}"
         );
-        let response = send("OPTIONS", &missing, html, host).await;
-        let default_cors = !custom && !effective.is_empty();
-        assert_eq!(
-            response.contains("access-control-allow-origin: *"),
-            default_cors,
-            "{response}"
-        );
-        if default_cors {
-            assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
-        }
-        if !namespace.is_empty() {
-            let response = send("OPTIONS", &namespace, html, host).await;
-            assert!(response.starts_with("HTTP/1.1 404 "), "{response}");
-            assert!(response.contains("content-type: text/html"), "{response}");
-            assert!(
-                !response.contains("access-control-allow-origin"),
-                "{response}"
-            );
-        }
         for previous in ["/api/probe", "/env/probe", "/probe"] {
             if previous != probe {
                 let response = send("GET", previous, html, host).await;
@@ -254,11 +242,6 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
                     "{previous}: {response}"
                 );
                 assert!(response.contains("content-type: text/html"), "{response}");
-                let response = send("OPTIONS", previous, html, host).await;
-                assert!(
-                    !response.contains("access-control-allow-origin"),
-                    "{response}"
-                );
             }
         }
         let response = send("GET", "/web-missing", json, host).await;
@@ -268,21 +251,44 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
         );
         let response = send("GET", "/web-missing", html, host).await;
         assert!(response.contains("content-type: text/html"), "{response}");
-        let response = send("OPTIONS", "/sanctum/csrf-cookie", html, host).await;
-        assert_eq!(
-            response.contains("access-control-allow-origin: *"),
-            !custom,
-            "{response}"
-        );
-        if custom {
-            for (path, host) in [("/custom/probe", host), ("/host-only/probe", "localhost")] {
-                let response = send("OPTIONS", path, html, host).await;
-                assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+        for (path, host, allowed) in [
+            ("/api/missing", host, !custom),
+            ("/sanctum/csrf-cookie", host, !custom),
+            (probe.as_str(), host, !custom),
+            ("/api", host, !custom),
+            ("/", host, !custom),
+            ("/custom/missing", host, true),
+            ("/host-only/missing", "localhost", true),
+            ("/host-only/missing", host, !custom),
+        ] {
+            let response = send("OPTIONS", path, html, host).await;
+            if allowed {
+                assert!(response.starts_with("HTTP/1.1 204 "), "{path}: {response}");
+            }
+            assert_eq!(
+                response.contains("access-control-allow-origin:"),
+                allowed,
+                "{path}: {response}"
+            );
+            if allowed {
                 assert!(
                     response.contains("access-control-allow-origin: *"),
                     "{response}"
                 );
+                assert!(
+                    response.contains("access-control-allow-methods: GET"),
+                    "{response}"
+                );
+                assert!(
+                    response.contains("access-control-allow-headers: X-Probe"),
+                    "{response}"
+                );
+                assert!(response.contains("access-control-max-age: 0"), "{response}");
             }
+            assert!(
+                !response.contains("access-control-allow-credentials"),
+                "{response}"
+            );
         }
         server.abort();
     }

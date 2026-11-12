@@ -3,7 +3,7 @@ use serde_json::json;
 
 pub(super) fn load() -> Value {
     json!({
-        "default_paths": ["sanctum/csrf-cookie"],
+        "paths": ["*"],
         "allowed_methods": ["*"],
         "allowed_origins": ["*"],
         "allowed_origins_patterns": [],

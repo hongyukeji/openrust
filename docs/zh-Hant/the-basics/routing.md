@@ -79,7 +79,7 @@ fn register() -> Result<(), RoutingError> {
 
 在 `config/cors.rs` 中設定路徑、來源、方法和請求標頭。全域 `HandleCors` 中介軟體對相符的瀏覽器預檢回傳空本文 HTTP 204，也會為實際回應套用策略，包括 404。在動態策略中，被拒絕的來源不會收到來源許可。只設定一個來源時可傳送固定值，瀏覽器僅允許該來源。
 
-應用程式骨架預設對最終生效的 API 路徑及 `sanctum/csrf-cookie` 套用 CORS。API 前綴為空時，取消自動 API 路徑比對。在 `config/cors.rs` 明確設定 `cors.paths` 可取代預設比對，空清單可停用 CORS。路徑映射可按主機覆寫路徑，用數字字串鍵表示共用路徑。`allowed_origins_patterns` 使用 Rust 正規表示式引擎支援的模式。HTTP 核心在啟動時載入並驗證策略。
+應用程式在 `config/cors.rs` 中將 `cors.paths` 設為 `["*"]`，預設對所有路徑套用 CORS，包括 Web 和 API 路由。跨來源憑證預設關閉。可以列出特定路徑模式來限制範圍，空清單可停用 CORS。路徑映射可按主機覆寫路徑，用數字字串鍵表示共用路徑。`allowed_origins_patterns` 使用 Rust 正規表示式引擎支援的模式。HTTP 核心在啟動時載入並驗證策略。
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \

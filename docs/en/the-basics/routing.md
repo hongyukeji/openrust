@@ -79,7 +79,7 @@ fn register() -> Result<(), RoutingError> {
 
 Set the paths, origins, methods and headers in `config/cors.rs`. The global `HandleCors` middleware answers matching browser preflights with an empty HTTP 204 and applies the policy to actual responses, including 404 errors. For a denied origin in a dynamic policy, the browser receives no origin grant. A single configured origin may be sent as a fixed value, which only grants that origin.
 
-The skeleton applies CORS to the effective API namespace and `sanctum/csrf-cookie`. An empty API prefix disables the automatic API path match. Set `cors.paths` in `config/cors.rs` to replace the default matches, or use an empty list to disable CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
+The application sets `cors.paths` to `["*"]` in `config/cors.rs`. CORS applies to all paths, including Web and API routes, and credentials are disabled by default. List specific patterns to limit the scope, or use an empty list to disable CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \
