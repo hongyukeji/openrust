@@ -73,3 +73,23 @@ schedule
 在系统调度器中每分钟调用 `./artisan schedule:run`，也可以用 `./artisan schedule:work` 常驻运行。常驻进程收到 SIGTERM 或 Ctrl+C 后会完成当前任务。用 `./artisan schedule:list` 查看表达式和下一次执行时间。`schedule:run --whisper` 隐藏没有任务运行时的提示。
 
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
+
+## 事件 {#events}
+
+从 `openrust::console::events` 导入调度事件类型，并在应用装配作用域注册监听器。示例使用自定义的 `ScheduleEvents` 监听器和将注册错误转为 `ConsoleError` 的 `console_error`。
+
+```rust
+let listener = Arc::new(ScheduleEvents::default());
+for name in [
+    "console.scheduled_task_starting",
+    "console.scheduled_task_finished",
+    "console.scheduled_task_failed",
+    "console.scheduled_task_skipped",
+] {
+    Event::listen(name, listener.clone(), Delivery::Sync).map_err(console_error)?;
+}
+```
+
+前台任务执行前派发 `ScheduledTaskStarting`。命令执行结束时派发 `ScheduledTaskFinished`，退出码非零时接着派发 `ScheduledTaskFailed`。执行抛错时，开始事件之后派发失败事件。完成和失败事件携带耗时 `Duration`，失败事件还携带异常。
+
+任务因过滤条件、暂停、单机选举或重叠锁被跳过时派发 `ScheduledTaskSkipped`。

@@ -5,7 +5,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Output, Stdio},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::{Duration, UNIX_EPOCH},
@@ -14,14 +14,17 @@ use std::{
 use openrust::{
     console::{
         ConsoleError,
-        events::{SchedulePaused, ScheduleResumed, ScheduledTaskSkipped},
+        events::{
+            SchedulePaused, ScheduleResumed, ScheduledTaskFailed, ScheduledTaskFinished,
+            ScheduledTaskSkipped, ScheduledTaskStarting,
+        },
     },
     contracts::{
         events::{Event as EventPayload, Listener},
         foundation::Application as _,
         queue::JobHandler,
     },
-    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
     foundation::{
         Application,
         configuration::{ReportDecision, Routing},
@@ -76,6 +79,59 @@ impl Listener for PauseEvents {
     }
 }
 
+#[derive(Default)]
+struct ScheduleEvents {
+    task: Mutex<Option<Arc<openrust::console::scheduling::Event>>>,
+}
+
+impl Listener for ScheduleEvents {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(starting) = event.downcast_ref::<ScheduledTaskStarting>() {
+                *self.task.lock().unwrap() = Some(starting.task.clone());
+                println!("starting {}", starting.task.getSummaryForDisplay());
+            } else if let Some(finished) = event.downcast_ref::<ScheduledTaskFinished>() {
+                assert!(Arc::ptr_eq(
+                    self.task.lock().unwrap().as_ref().unwrap(),
+                    &finished.task
+                ));
+                assert!(finished.runtime < Duration::from_secs(10));
+                let task = finished.task.getSummaryForDisplay();
+                println!("finished {task}");
+                if task == "listener-error" {
+                    return Err(EventError::Listener {
+                        source: Box::new(ConsoleError::new("finished listener error")),
+                    });
+                }
+            } else if let Some(failed) = event.downcast_ref::<ScheduledTaskFailed>() {
+                assert!(Arc::ptr_eq(
+                    self.task.lock().unwrap().as_ref().unwrap(),
+                    &failed.task
+                ));
+                assert!(failed.runtime < Duration::from_secs(10));
+                if failed.task.getSummaryForDisplay() == "listener-error" {
+                    assert_eq!(
+                        failed.exception.source().unwrap().to_string(),
+                        "finished listener error"
+                    );
+                }
+                println!(
+                    "failed {}: {}",
+                    failed.task.getSummaryForDisplay(),
+                    failed.exception
+                );
+            } else if let Some(skipped) = event.downcast_ref::<ScheduledTaskSkipped>() {
+                println!("skipped {}", skipped.task.getSummaryForDisplay());
+            }
+            Ok(None)
+        })
+    }
+}
+
 fn routes() -> Result<(), ConsoleError> {
     Artisan::command("fixture:hello", |output| output.comment("artisan command"))?;
     Artisan::command("inspire", |output| {
@@ -84,13 +140,25 @@ fn routes() -> Result<(), ConsoleError> {
     Queue::register("fixture.job", Arc::new(ScheduledJob))
         .map_err(|error| ConsoleError::new(error.to_string()))?;
     let profile = std::env::var("SCHEDULING_PROFILE").unwrap();
-    if profile.starts_with("pause") || matches!(profile.as_str(), "basic" | "election") {
+    if profile.starts_with("pause") || matches!(profile.as_str(), "basic" | "election" | "overlap")
+    {
         for name in [
             SchedulePaused.name(),
             ScheduleResumed.name(),
             "console.scheduled_task_skipped",
         ] {
             Event::listen(name, Arc::new(PauseEvents), Delivery::Sync).map_err(console_error)?;
+        }
+    }
+    if profile == "events" {
+        let listener = Arc::new(ScheduleEvents::default());
+        for name in [
+            "console.scheduled_task_starting",
+            "console.scheduled_task_finished",
+            "console.scheduled_task_failed",
+            "console.scheduled_task_skipped",
+        ] {
+            Event::listen(name, listener.clone(), Delivery::Sync).map_err(console_error)?;
         }
     }
     Schedule::configure(|schedule| {
@@ -158,6 +226,21 @@ fn routes() -> Result<(), ConsoleError> {
                 Some("scheduled"),
                 Some("sync"),
             );
+            return Ok(());
+        }
+
+        if matches!(profile.as_str(), "events" | "events-isolated") {
+            schedule.command("fixture:hello", []).name("success");
+            schedule.command("fixture:missing", []).name("nonzero");
+            schedule
+                .call(|_, _| Box::pin(async { Err(ConsoleError::new("scheduled callback error")) }))
+                .name("exception");
+            schedule
+                .exec("openrust-test-executable-that-does-not-exist", [])
+                .name("spawn-error");
+            group_task(schedule, "filtered").skip(|_| true);
+            group_task(schedule, "listener-error");
+            group_task(schedule, "last");
             return Ok(());
         }
 
@@ -540,7 +623,7 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
         let contender = run(&root, profile, MONDAY, &["schedule:run", "--whisper"]).await;
         let stdout = String::from_utf8(contender.stdout).unwrap();
         assert!(!stdout.contains("lock winner") && !stdout.contains("No scheduled commands"));
-        assert_eq!(stdout.contains("skipped shared"), profile == "election");
+        assert!(stdout.contains("skipped shared"), "{stdout}");
         std::fs::write(root.join("release"), "").unwrap();
         let winner = timeout(Duration::from_secs(5), winner.wait_with_output())
             .await
@@ -881,4 +964,56 @@ async fn artisan_schedule_groups_inherit_sub_minute_frequency_with_task_override
         "{stdout}"
     );
     std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_dispatches_foreground_task_events_in_order() {
+    let active = root(None);
+    let isolated = root(None);
+    let (with_events, without_events) = tokio::join!(
+        run(&active, "events", MONDAY, &["schedule:run"]),
+        run(&isolated, "events-isolated", MONDAY, &["schedule:run"]),
+    );
+    let stdout = String::from_utf8_lossy(&with_events.stdout);
+    let events: Vec<_> = stdout
+        .lines()
+        .filter(|line| {
+            ["starting ", "finished ", "failed ", "skipped "]
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
+        })
+        .map(|line| line.split_once(':').map_or(line, |(name, _)| name))
+        .collect();
+    assert_eq!(
+        events,
+        [
+            "starting success",
+            "finished success",
+            "starting nonzero",
+            "finished nonzero",
+            "failed nonzero",
+            "starting exception",
+            "failed exception",
+            "starting spawn-error",
+            "failed spawn-error",
+            "skipped filtered",
+            "starting listener-error",
+            "finished listener-error",
+            "failed listener-error",
+            "starting last",
+            "finished last",
+        ],
+        "{stdout}"
+    );
+    assert!(stdout.contains("failed exception: scheduled callback error"));
+    assert!(stdout.contains("failed listener-error: event listener failed"));
+    assert!(
+        stdout.find("failed exception:").unwrap()
+            < stdout.find("scheduled failure reported").unwrap()
+    );
+    let other = String::from_utf8_lossy(&without_events.stdout);
+    assert!(!other.contains("starting success"), "{other}");
+    assert!(other.lines().any(|line| line.trim() == "last"), "{other}");
+    std::fs::remove_dir_all(active).unwrap();
+    std::fs::remove_dir_all(isolated).unwrap();
 }

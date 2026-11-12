@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::Write as _,
     io::{self, Write},
     sync::Arc,
@@ -16,7 +17,10 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
-        events::{SchedulePaused, ScheduleResumed, ScheduledTaskSkipped},
+        events::{
+            SchedulePaused, ScheduleResumed, ScheduledTaskFailed, ScheduledTaskFinished,
+            ScheduledTaskSkipped, ScheduledTaskStarting,
+        },
     },
     container::EnvironmentResult,
     contracts::cache::Repository as _,
@@ -32,6 +36,11 @@ use super::{
 };
 
 const PAUSED: &str = "illuminate:schedule:paused";
+
+enum TaskOutcome {
+    Succeeded,
+    NonZeroExit(ConsoleError),
+}
 
 #[derive(Clone, Copy)]
 enum Operation {
@@ -385,21 +394,54 @@ impl ScheduleRunCommand {
         if let Some(overlap) = overlap
             && !overlap.create(event).await.map_err(error)?
         {
+            dispatch_skipped(event).await?;
             return Ok(false);
         }
-        let result = self.invoke(app, output, event).await;
+        let execution = async {
+            Events::dispatch(ScheduledTaskStarting {
+                task: event.clone(),
+            })
+            .await
+            .map_err(error)?;
+            let start = Instant::now();
+            let result = self.invoke(app, output, event).await;
+            Ok::<_, ConsoleError>((result, start.elapsed()))
+        }
+        .await;
         let release = match overlap {
             Some(overlap) => overlap.forget(event).await.map_err(error),
             None => Ok(()),
         };
-        if let Err(error) = result {
+        let (result, runtime) = execution?;
+        let failure: Option<Arc<dyn Error + Send + Sync>> = match result {
+            Ok(outcome) => Events::dispatch(ScheduledTaskFinished {
+                task: event.clone(),
+                runtime,
+            })
+            .await
+            .err()
+            .map(|exception| Arc::new(exception) as Arc<dyn Error + Send + Sync>)
+            .or_else(|| match outcome {
+                TaskOutcome::Succeeded => None,
+                TaskOutcome::NonZeroExit(exception) => Some(Arc::new(exception)),
+            }),
+            Err(exception) => Some(Arc::new(exception)),
+        };
+        if let Some(error) = failure {
+            Events::dispatch(ScheduledTaskFailed {
+                task: event.clone(),
+                exception: error.clone(),
+                runtime,
+            })
+            .await
+            .map_err(super::error)?;
             writeln!(
                 output.stderr,
                 "Scheduled task '{}' failed: {error}",
                 event.getSummaryForDisplay()
             )
             .expect("writing to a String");
-            let _ = app.report(&error).await;
+            let _ = app.report(error.as_ref()).await;
         }
         release?;
         Ok(true)
@@ -410,15 +452,19 @@ impl ScheduleRunCommand {
         app: &Application,
         output: &mut Output,
         event: &Event,
-    ) -> Result<(), ConsoleError> {
+    ) -> Result<TaskOutcome, ConsoleError> {
         match &event.action {
-            Action::Callback(callback) => callback(app, output).await,
+            Action::Callback(callback) => {
+                callback(app, output).await.map(|()| TaskOutcome::Succeeded)
+            }
             Action::Command(arguments) => {
                 let status = self.artisan.handle(app, arguments, output).await;
                 if status == 0 {
-                    Ok(())
+                    Ok(TaskOutcome::Succeeded)
                 } else {
-                    Err(error(format!("Artisan exited with status {status}")))
+                    Ok(TaskOutcome::NonZeroExit(error(format!(
+                        "Artisan exited with status {status}"
+                    ))))
                 }
             }
             Action::Exec(arguments) => {
@@ -436,9 +482,9 @@ impl ScheduleRunCommand {
                     .stderr
                     .push_str(&String::from_utf8_lossy(&result.stderr));
                 if result.status.success() {
-                    Ok(())
+                    Ok(TaskOutcome::Succeeded)
                 } else {
-                    Err(error(result.status))
+                    Ok(TaskOutcome::NonZeroExit(error(result.status)))
                 }
             }
             Action::Job(payload, options) => {
@@ -453,7 +499,7 @@ impl ScheduleRunCommand {
                 )
                 .await
                 .map_err(error)?;
-                Ok(())
+                Ok(TaskOutcome::Succeeded)
             }
         }
     }

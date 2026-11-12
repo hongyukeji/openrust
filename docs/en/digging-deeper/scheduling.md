@@ -73,3 +73,23 @@ All runners must use the same shared cache store and namespace for cross-server 
 Call `./artisan schedule:run` each minute from your process scheduler, or use `./artisan schedule:work` to keep a scheduler process running. The worker finishes the current task on SIGTERM or Ctrl+C. Use `./artisan schedule:list` to see expressions and upcoming run times. `schedule:run --whisper` hides the message when no task runs.
 
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
+
+## Events {#events}
+
+Import the scheduling event types from `openrust::console::events`. Register a listener in the application assembly scope. This example assumes a `ScheduleEvents` listener and a `console_error` adapter that converts registration errors to `ConsoleError`.
+
+```rust
+let listener = Arc::new(ScheduleEvents::default());
+for name in [
+    "console.scheduled_task_starting",
+    "console.scheduled_task_finished",
+    "console.scheduled_task_failed",
+    "console.scheduled_task_skipped",
+] {
+    Event::listen(name, listener.clone(), Delivery::Sync).map_err(console_error)?;
+}
+```
+
+A foreground task emits `ScheduledTaskStarting` before execution. A completed command emits `ScheduledTaskFinished`, followed by `ScheduledTaskFailed` if the exit status is nonzero. An execution error emits `ScheduledTaskFailed` after the starting event. The finished and failed events include the elapsed `Duration`. The failed event also carries the exception.
+
+A task skipped by a filter, pause, server election, or overlap lock emits `ScheduledTaskSkipped`.

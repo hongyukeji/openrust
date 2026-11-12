@@ -75,6 +75,8 @@ try {
                         await page.locator("#pausing-scheduled-tasks").waitFor();
                         assert.match(await page.locator("main").innerText(), /evenWhenPaused/);
                         await page.locator("#schedule-groups").waitFor();
+                        await page.locator("#events").waitFor();
+                        assert.match(await page.locator("main").innerText(), /console\.scheduled_task_finished/);
                         assert.match(await page.locator("main").innerText(), /\.group\(/);
 
 
