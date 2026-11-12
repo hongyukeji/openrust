@@ -45,7 +45,7 @@ use openrust::{
         },
         middleware::{
             ExceptionThrottleLimiter, JobMiddleware, JobNext, RateLimited, RateLimitedWithRedis,
-            Release, Skip, ThrottlesExceptions, ThrottlesExceptionsWithRedis,
+            Release, Skip, ThrottlesExceptions, ThrottlesExceptionsWithRedis, WithoutOverlapping,
         },
     },
     routing::{Router, RoutingError},
@@ -705,6 +705,59 @@ impl JobHandler for ConditionalHandler {
     }
 }
 
+struct OverlapHandler {
+    name: &'static str,
+    gate: PathBuf,
+}
+
+impl JobHandler for OverlapHandler {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        let base = WithoutOverlapping::new("resource");
+        let shared = || {
+            WithoutOverlapping::new("resource")
+                .shared()
+                .withPrefix("fixture-overlap:")
+        };
+        let lease = || {
+            WithoutOverlapping::new("lease")
+                .shared()
+                .withPrefix("fixture-overlap:")
+        };
+        let middleware = match self.name {
+            "overlap_holder" | "overlap_after_error" | "overlap_error" => shared(),
+            "overlap_deferred" => shared().releaseAfter(SystemTime::now() + Duration::from_secs(3)),
+            "overlap_discard" => shared().dontRelease(),
+            "overlap_isolated" => base.withPrefix("fixture-overlap:"),
+            "overlap_other_prefix" => base.shared().withPrefix("fixture-other:"),
+            "overlap_lease_holder" => {
+                lease().expireAfter(SystemTime::now() + Duration::from_secs(2))
+            }
+            "overlap_lease_probe" => lease().dontRelease(),
+            _ => unreachable!(),
+        };
+        vec![Arc::new(middleware), Arc::new(Tag)]
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            Handler.handle(context, payload).await?;
+            if matches!(self.name, "overlap_holder" | "overlap_lease_holder") {
+                while !self.gate.exists() {
+                    sleep(Duration::from_millis(20)).await;
+                }
+            }
+            if self.name == "overlap_error" {
+                return Err(execution(std::io::Error::other("overlap fixture error")));
+            }
+            Ok(())
+        })
+    }
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -777,6 +830,25 @@ impl ServiceProvider for Providers {
                     Arc::new(ConditionalHandler {
                         name,
                         gate: app.base_path().join("conditional.ready"),
+                    }),
+                )?;
+            }
+            for name in [
+                "overlap_holder",
+                "overlap_deferred",
+                "overlap_discard",
+                "overlap_isolated",
+                "overlap_other_prefix",
+                "overlap_lease_holder",
+                "overlap_lease_probe",
+                "overlap_error",
+                "overlap_after_error",
+            ] {
+                Queue::register(
+                    name,
+                    Arc::new(OverlapHandler {
+                        name,
+                        gate: app.base_path().join("overlap.ready"),
                     }),
                 )?;
             }
@@ -865,6 +937,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     Some("throttle-cache".into())
                 } else if kind.starts_with("conditional_") {
                     Some("conditional".into())
+                } else if kind.starts_with("overlap_") {
+                    Some("overlap".into())
                 } else {
                     (kind == "control_low").then(|| "low".to_owned())
                 },
@@ -1352,6 +1426,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_timeout(&root.0, &*queue, address).await;
     verify_job_rate_limits(&root.0, &db, &*queue, address, redis.is_some()).await;
     verify_conditional_middleware(&root.0, &db, &*queue, address).await;
+    verify_job_overlap(&root.0, &db, &*queue, address).await;
     verify_exception_throttle(&root.0, &db, &*queue, address, "cache").await;
     if redis.is_some() {
         verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
@@ -2340,6 +2415,129 @@ async fn verify_job_rate_limits(
         assert_eq!(count("rate_redis").await, 1);
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+}
+
+async fn verify_job_overlap(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let args = [
+        "queue:work",
+        "--json",
+        "--queue=overlap",
+        "--once",
+        "--tries=2",
+    ];
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let gate = root.join("overlap.ready");
+    let start = |kind| async move {
+        request(address, kind).await;
+        let worker = artisan(root, &args).stdout(Stdio::piped()).spawn().unwrap();
+        timeout(Duration::from_secs(5), async {
+            while count(kind).await == 0 {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        worker
+    };
+    let payload = Payload::new("overlap_holder", ()).unwrap();
+    assert_eq!(
+        WithoutOverlapping::new("resource").getLockKey(&payload),
+        "laravel-queue-overlap:overlap_holder:resource",
+    );
+    assert_eq!(
+        WithoutOverlapping::new("resource")
+            .shared()
+            .withPrefix("fixture-overlap:")
+            .getLockKey(&payload),
+        "fixture-overlap:resource",
+    );
+
+    let worker = start("overlap_holder").await;
+    for kind in [
+        "overlap_deferred",
+        "overlap_discard",
+        "overlap_isolated",
+        "overlap_other_prefix",
+    ] {
+        request(address, kind).await;
+        let output = run(root, &args).await;
+        let rows = json_lines(&output);
+        let outcome = rows.last().unwrap();
+        let expected = if kind == "overlap_deferred" {
+            "released"
+        } else {
+            "deleted"
+        };
+        assert_eq!(outcome["result"], expected, "{output}");
+    }
+    assert_eq!(count("overlap_deferred").await, 0);
+    assert_eq!(count("overlap_discard").await, 0);
+    assert_eq!(count("overlap_isolated").await, 1);
+    assert_eq!(count("overlap_other_prefix").await, 1);
+
+    std::fs::write(&gate, []).unwrap();
+    assert!(
+        timeout(Duration::from_secs(5), worker.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap()
+            .status
+            .success()
+    );
+    std::fs::remove_file(&gate).unwrap();
+    sleep(Duration::from_secs(3)).await;
+    let output = run(root, &args).await;
+    let rows = json_lines(&output);
+    assert_eq!(rows.last().unwrap()["job"], "overlap_deferred");
+    assert_eq!(rows.last().unwrap()["attempts"], 2);
+    assert_eq!(count("overlap_deferred").await, 1);
+
+    let worker = start("overlap_lease_holder").await;
+    request(address, "overlap_lease_probe").await;
+    run(root, &args).await;
+    assert_eq!(count("overlap_lease_probe").await, 0);
+    sleep(Duration::from_secs(3)).await;
+    request(address, "overlap_lease_probe").await;
+    run(root, &args).await;
+    assert_eq!(count("overlap_lease_probe").await, 1);
+    std::fs::write(&gate, []).unwrap();
+    assert!(
+        timeout(Duration::from_secs(5), worker.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap()
+            .status
+            .success()
+    );
+
+    request(address, "overlap_error").await;
+    let output = run(
+        root,
+        &[
+            "queue:work",
+            "--json",
+            "--queue=overlap",
+            "--once",
+            "--tries=1",
+        ],
+    )
+    .await;
+    assert_eq!(json_lines(&output).last().unwrap()["status"], "failed");
+    request(address, "overlap_after_error").await;
+    run(root, &args).await;
+    assert_eq!(count("overlap_after_error").await, 1);
+    assert_eq!(queue.size(Some("overlap")).await.unwrap(), 0);
 }
 
 async fn verify_conditional_middleware(

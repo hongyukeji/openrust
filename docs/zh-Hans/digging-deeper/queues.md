@@ -552,7 +552,7 @@ fn register_batch_events() -> EventResult<()> {
 
 ## 任务中间件 {#job-middleware}
 
-通过 `JobHandler::middleware` 返回中间件。用 `JobNext::run` 继续执行，或用 `JobContext::release` 安排下一次尝试。`WithoutOverlapping` 使用配置的缓存锁，可延迟释放冲突任务。未完成的锁会在租期结束时过期。
+通过 `JobHandler::middleware` 返回中间件。用 `JobNext::run` 继续执行，或用 `JobContext::release` 安排下一次尝试。
 
 生成的中间件位于 `app/jobs/middleware`，其处理器将载荷与上下文交给下一步。
 
@@ -591,6 +591,25 @@ fn job_rate_limit() -> RateLimited {
 ```
 
 达到限额后，任务默认在剩余窗口再加三秒后可重新预约。使用 `releaseAfter` 可覆盖延迟，使用 `dontRelease` 则跳过处理器并确认该任务。释放仍消耗一次尝试。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 连接上原子应用限额。
+
+### 防止任务重叠 {#preventing-job-overlaps}
+
+用 `WithoutOverlapping` 让修改同一资源的任务串行执行。默认只有注册名和锁键相同的任务竞争同一把锁。用 `shared()` 让不同任务共享锁键，用 `withPrefix` 区分锁的命名空间。
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::WithoutOverlapping;
+
+fn account_lock(account_id: u64) -> WithoutOverlapping {
+    WithoutOverlapping::new(account_id.to_string())
+        .withPrefix("account-update:")
+        .shared()
+        .releaseAfter(Duration::from_secs(15))
+        .expireAfter(Duration::from_secs(120))
+}
+```
+
+发生竞争时默认立即释放任务。用 `releaseAfter` 指定相对延迟或绝对时间，或用 `dontRelease` 确认任务并跳过处理器。默认锁租约由缓存驱动决定。可设置 `expireAfter`，使原 Worker 在释放锁前停止时，其他 Worker 能在租约到期后取得锁。
 
 ### 异常节流 {#throttling-exceptions}
 

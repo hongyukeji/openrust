@@ -8,11 +8,14 @@ pub use throttles_exceptions::{
     ExceptionThrottleLimiter, ThrottlesExceptions, ThrottlesExceptionsWithRedis,
 };
 
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use crate::{cache::Cache, contracts::queue::JobHandler};
 
-use super::{JobContext, Payload, QueueFuture, QueueResult, backend};
+use super::{Delay, JobContext, Payload, QueueFuture, QueueResult, backend};
 
 /// Wraps execution of an application job.
 pub trait JobMiddleware: Send + Sync {
@@ -80,8 +83,16 @@ impl JobMiddleware for SkipIfBatchCancelled {
 /// Releases overlapping jobs with the configured delay while an owner holds the cache lock.
 pub struct WithoutOverlapping {
     key: String,
-    release_after: Option<Duration>,
+    release_after: Option<Delay>,
     expires_after: Duration,
+    prefix: String,
+    shared: bool,
+}
+
+impl Default for WithoutOverlapping {
+    fn default() -> Self {
+        Self::new("")
+    }
 }
 
 #[allow(
@@ -92,13 +103,15 @@ impl WithoutOverlapping {
     pub fn new(key: impl Into<String>) -> Self {
         Self {
             key: key.into(),
-            release_after: Some(Duration::ZERO),
-            expires_after: Duration::from_secs(90),
+            release_after: Some(Delay::For(Duration::ZERO)),
+            expires_after: Duration::ZERO,
+            prefix: "laravel-queue-overlap:".into(),
+            shared: false,
         }
     }
 
-    pub fn releaseAfter(mut self, delay: Duration) -> Self {
-        self.release_after = Some(delay);
+    pub fn releaseAfter(mut self, delay: impl Into<Delay>) -> Self {
+        self.release_after = Some(delay.into());
         self
     }
 
@@ -107,9 +120,34 @@ impl WithoutOverlapping {
         self
     }
 
-    pub fn expireAfter(mut self, delay: Duration) -> Self {
-        self.expires_after = delay;
+    pub fn expireAfter(mut self, delay: impl Into<Delay>) -> Self {
+        self.expires_after = overlap_delay(delay.into());
         self
+    }
+
+    pub fn withPrefix(mut self, prefix: impl Into<String>) -> Self {
+        self.prefix = prefix.into();
+        self
+    }
+
+    pub fn shared(mut self) -> Self {
+        self.shared = true;
+        self
+    }
+
+    pub fn getLockKey(&self, payload: &Payload) -> String {
+        if self.shared {
+            format!("{}{}", self.prefix, self.key)
+        } else {
+            format!("{}{}:{}", self.prefix, payload.name(), self.key)
+        }
+    }
+}
+
+fn overlap_delay(delay: Delay) -> Duration {
+    match delay {
+        Delay::For(duration) => duration,
+        Delay::Until(time) => time.duration_since(SystemTime::now()).unwrap_or_default(),
     }
 }
 
@@ -121,11 +159,11 @@ impl JobMiddleware for WithoutOverlapping {
         next: JobNext<'a>,
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let key = format!("laravel-queue-overlap:{}:{}", payload.name(), self.key);
+            let key = self.getLockKey(payload);
             let mut lock = Cache::lock(&key, Some(self.expires_after)).map_err(backend)?;
             if !lock.get().await.map_err(backend)? {
                 if let Some(delay) = self.release_after {
-                    context.release(delay);
+                    context.release(overlap_delay(delay));
                 }
                 return Ok(());
             }

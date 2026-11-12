@@ -552,7 +552,7 @@ Run the command periodically to delete batches that finished more than 24 hours 
 
 ## Job middleware {#job-middleware}
 
-Return middleware from `JobHandler::middleware`. Call `JobNext::run` to continue, or call `JobContext::release` to schedule another attempt. `WithoutOverlapping` uses the configured cache lock and can release an overlapping job with a delay. An unfinished lock expires at its configured lease time.
+Return middleware from `JobHandler::middleware`. Call `JobNext::run` to continue, or call `JobContext::release` to schedule another attempt.
 
 Generate a middleware under `app/jobs/middleware`. Its handler forwards the payload and context to the next step.
 
@@ -591,6 +591,25 @@ fn job_rate_limit() -> RateLimited {
 ```
 
 A denied job is released after the remaining window plus three seconds. Use `releaseAfter` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
+
+### Preventing job overlaps {#preventing-job-overlaps}
+
+Use `WithoutOverlapping` to serialize jobs that modify the same resource. By default, only jobs with the same registered name and key compete for the lock. Use `shared()` to let different jobs compete for the same key, and `withPrefix` to separate lock namespaces.
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::WithoutOverlapping;
+
+fn account_lock(account_id: u64) -> WithoutOverlapping {
+    WithoutOverlapping::new(account_id.to_string())
+        .withPrefix("account-update:")
+        .shared()
+        .releaseAfter(Duration::from_secs(15))
+        .expireAfter(Duration::from_secs(120))
+}
+```
+
+On contention, the job is released immediately by default. Use `releaseAfter` with a duration or an absolute time to defer it, or `dontRelease` to acknowledge it without executing the handler. The cache driver provides the default lock lease. Set `expireAfter` so another worker can acquire the lock if the original worker stops before releasing it.
 
 ### Throttling exceptions {#throttling-exceptions}
 

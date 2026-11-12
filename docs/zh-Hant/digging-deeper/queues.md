@@ -552,7 +552,7 @@ fn register_batch_events() -> EventResult<()> {
 
 ## 工作中介軟體 {#job-middleware}
 
-透過 `JobHandler::middleware` 傳回中介軟體。使用 `JobNext::run` 繼續執行，或以 `JobContext::release` 安排下一次嘗試。`WithoutOverlapping` 使用設定的快取鎖，可延後釋放衝突的工作。未完成的鎖會在租期結束時到期。
+透過 `JobHandler::middleware` 傳回中介軟體。使用 `JobNext::run` 繼續執行，或以 `JobContext::release` 安排下一次嘗試。
 
 產生的中介層位於 `app/jobs/middleware`，其處理器將承載資料與上下文交給下一步。
 
@@ -591,6 +591,25 @@ fn job_rate_limit() -> RateLimited {
 ```
 
 達到限額後，工作預設在剩餘視窗再加三秒後可重新預約。使用 `releaseAfter` 可覆寫延遲，使用 `dontRelease` 則略過處理器並確認該工作。釋放仍會消耗一次嘗試。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 連線上原子套用限額。
+
+### 防止工作重疊 {#preventing-job-overlaps}
+
+用 `WithoutOverlapping` 讓修改同一資源的工作循序執行。預設只有註冊名稱和鎖鍵相同的工作競爭同一把鎖。用 `shared()` 讓不同工作共用鎖鍵，用 `withPrefix` 區分鎖的命名空間。
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::WithoutOverlapping;
+
+fn account_lock(account_id: u64) -> WithoutOverlapping {
+    WithoutOverlapping::new(account_id.to_string())
+        .withPrefix("account-update:")
+        .shared()
+        .releaseAfter(Duration::from_secs(15))
+        .expireAfter(Duration::from_secs(120))
+}
+```
+
+發生競爭時預設立即釋放工作。用 `releaseAfter` 指定相對延遲或絕對時間，或用 `dontRelease` 確認工作並略過處理器。預設鎖租約由快取驅動程式決定。可設定 `expireAfter`，讓原 Worker 在釋放鎖前停止時，其他 Worker 能在租約到期後取得鎖。
 
 ### 例外節流 {#throttling-exceptions}
 
