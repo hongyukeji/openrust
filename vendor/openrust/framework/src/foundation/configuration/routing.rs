@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use crate::{
     broadcasting::{BroadcastController, BroadcastResult},
+    config::{ConfigError, Value},
     console::ConsoleError,
+    contracts::config::Repository,
     foundation::{Application, http::HealthCheck},
     routing::{RouteGroup, Router, RoutingError},
     support::facades::Route,
@@ -42,7 +46,7 @@ impl Routing {
         self
     }
 
-    /// Overrides the default `api` URL prefix for API routes.
+    /// Overrides the configured URL prefix for API routes.
     #[allow(non_snake_case, reason = "Matches Laravel's apiPrefix option")]
     pub fn apiPrefix(mut self, prefix: impl Into<String>) -> Self {
         self.api_prefix = Some(prefix.into());
@@ -66,16 +70,35 @@ impl Routing {
         self
     }
 
-    pub(crate) fn register(self, app: &Application) -> Result<Router, RoutingError> {
+    pub(crate) fn resolve_api_prefix(
+        &self,
+        config: &dyn Repository,
+    ) -> Result<Arc<str>, ConfigError> {
+        if let Some(prefix) = &self.api_prefix {
+            return Ok(Arc::from(prefix.trim_matches('/')));
+        }
+        match config.get("routing.api_prefix") {
+            None => Ok(Arc::from("api")),
+            Some(Value::String(prefix)) => Ok(Arc::from(prefix.trim_matches('/'))),
+            Some(_) => Err(ConfigError::InvalidType {
+                key: "routing.api_prefix".into(),
+                expected: "a string",
+            }),
+        }
+    }
+
+    pub(crate) fn register(
+        self,
+        app: &Application,
+        api_prefix: &str,
+    ) -> Result<Router, RoutingError> {
         let mut router = match self.custom {
             Some(register) => register(app)?,
             None => Router::new(),
         };
         if let Some(register) = self.api {
             router.group(
-                RouteGroup::new()
-                    .prefix(self.api_prefix.as_deref().unwrap_or("api"))
-                    .middleware_name("api"),
+                RouteGroup::new().prefix(api_prefix).middleware_name("api"),
                 register,
             )?;
         }

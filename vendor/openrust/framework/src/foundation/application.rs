@@ -60,6 +60,7 @@ pub(super) struct ApplicationState {
     state: AtomicU8,
     booting_started: AtomicBool,
     routing: Mutex<Option<Routing>>,
+    pub(super) api_prefix: OnceLock<Arc<str>>,
     pub(super) grpc_registrar: Mutex<Option<grpc::Registrar>>,
     package_routes: Mutex<Option<Vec<PackageRoutes>>>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
@@ -326,6 +327,7 @@ impl Application {
             state: AtomicU8::new(PENDING),
             booting_started: AtomicBool::new(false),
             routing: Mutex::new(routing),
+            api_prefix: OnceLock::new(),
             grpc_registrar: Mutex::new(None),
             package_routes: Mutex::new(Some(Vec::new())),
             package_commands: Mutex::default(),
@@ -695,11 +697,21 @@ impl Application {
             .routing
             .lock()
             .expect("application routing lock poisoned")
-            .take();
-        let mut routes = match routing {
-            Some(routing) => routing.register(self).map_err(routing_failed)?,
-            None => Router::new(),
-        };
+            .take()
+            .unwrap_or_default();
+        let routing_config = self
+            .configuration_repository()
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        let api_prefix = routing
+            .resolve_api_prefix(routing_config.as_ref())
+            .map_err(configuration_failed)?;
+        let mut routes = routing
+            .register(self, &api_prefix)
+            .map_err(routing_failed)?;
+        self.shared
+            .api_prefix
+            .set(api_prefix)
+            .expect("application API prefix resolved once");
         let package_routes = self
             .shared
             .package_routes

@@ -39,6 +39,7 @@ pub struct Request {
     pub(crate) route_models: RouteModels,
     pub(crate) binding_plan: BindingPlan,
     pub(crate) exceptions: Option<Arc<Handler>>,
+    pub(crate) api_prefix: Option<Arc<str>>,
     pub(crate) matched_route: bool,
     pub(crate) route_terminators: Vec<Arc<dyn crate::contracts::http::Middleware>>,
 }
@@ -61,6 +62,7 @@ impl Request {
             route_models: RouteModels::new(),
             binding_plan: BindingPlan::default(),
             exceptions: None,
+            api_prefix: None,
             matched_route: false,
             route_terminators: Vec::new(),
         }
@@ -198,6 +200,19 @@ impl Request {
     /// Matches the decoded request path against a pattern where `*` spans any characters.
     pub fn is(&self, pattern: &str) -> bool {
         matches_pattern(&self.decodedPath(), pattern)
+    }
+
+    /// Matches paths below the API prefix. An empty prefix has no path-based match.
+    #[allow(non_snake_case, reason = "Matches the application routing API")]
+    pub fn isApiPath(&self) -> bool {
+        self.api_prefix
+            .as_deref()
+            .filter(|prefix| !prefix.is_empty())
+            .is_some_and(|prefix| {
+                self.decodedPath()
+                    .strip_prefix(prefix)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+            })
     }
 
     pub(crate) fn matches_url_or_path(&self, pattern: &str) -> bool {

@@ -2,7 +2,7 @@
 
 Declare web routes in `routes/web.rs`. The application registers those routes and the `/up` health check through `openrust::routing::Router` during startup. A handler that needs the request takes a mutable `Request` and returns an asynchronous HTTP result. The framework binds the application router while calling the Web route module’s `register()`. Declare a named view with `Route::get("/", || view("welcome"))`, using `openrust::support::facades::Route`.
 
-API routes default to the `/api` URL prefix. Use `Routing::default().api(routes::api::register).apiPrefix("v1")` to mount them under `/v1`, or pass an empty string to omit the prefix. The `api` middleware group still applies. The application’s exception rendering policy is configured separately through `withExceptions`.
+Declare API routes in `routes/api.rs`. The application skeleton loads it under `/api` and applies the `api` middleware group. Set `API_PREFIX=/v1/internal` to change `routing.api_prefix`, or call `Routing::apiPrefix("v2")` in the Builder to override that configuration. Leading and trailing slashes are optional. Set `API_PREFIX=` or pass an empty string to mount API routes without a prefix. The `api` middleware group still applies.
 
 A parameter such as `{id}` is required. Add `?` to allow a trailing parameter to be omitted, as in `/profiles/{id?}/{tab?}` or `/report/{name}.{format?}`. Read the captured value with `request.route("id")`. For an omitted parameter, this returns `None` unless the route supplies a string through `defaults`. A parameter before required text or another required parameter must still be present.
 
@@ -79,7 +79,7 @@ fn register() -> Result<(), RoutingError> {
 
 Set the paths, origins, methods and headers in `config/cors.rs`. The global `HandleCors` middleware answers matching browser preflights with an empty HTTP 204 and applies the policy to actual responses, including 404 errors. For a denied origin in a dynamic policy, the browser receives no origin grant. A single configured origin may be sent as a fixed value, which only grants that origin.
 
-The default paths are `api/*` and `sanctum/csrf-cookie`. An empty path list disables CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
+The skeleton applies CORS to the effective API namespace and `sanctum/csrf-cookie`. An empty API prefix disables the automatic API path match. Set `cors.paths` in `config/cors.rs` to replace the default matches, or use an empty list to disable CORS. A path map can override paths by host, using numeric string keys for shared paths. Use `allowed_origins_patterns` for patterns supported by Rust's regex engine. The HTTP kernel loads and validates the policy during bootstrap.
 
 ```bash
 curl -i -X OPTIONS http://127.0.0.1:8000/api/example \

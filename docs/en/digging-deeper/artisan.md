@@ -57,12 +57,11 @@ See [Artisan translations](./localization.md#artisan-translations) for language 
 Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.
 
 ```sh
-./artisan install:api
 ./artisan install:broadcasting
 ./artisan install:grpc
 ```
 
-API routes default to the `/api` prefix and use the `api` middleware group. Add your own endpoints and authentication. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
+The application skeleton includes `routes/api.rs`. For older source checkouts, `./artisan install:api` adds the API route file and bootstrap registration while preserving existing routes. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
 
 ## Generating Commands {#generating-commands}
 

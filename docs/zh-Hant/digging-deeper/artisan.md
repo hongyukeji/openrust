@@ -57,12 +57,11 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 在原始碼目錄執行下列命令，產生路由檔案並更新模組宣告與啟動設定，然後重新建置。既有路由檔案會保留。
 
 ```sh
-./artisan install:api
 ./artisan install:broadcasting
 ./artisan install:grpc
 ```
 
-API 預設掛載到 `/api` 並使用 `api` 中介軟體群組，端點與驗證由應用程式補充。廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
+應用程式骨架已包含 `routes/api.rs`。舊版原始碼可用 `./artisan install:api` 補上 API 路由檔案與啟動接線，既有路由會保留。廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
 
 ## 產生命令 {#generating-commands}
 

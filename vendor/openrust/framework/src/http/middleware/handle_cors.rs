@@ -13,6 +13,7 @@ use crate::{
 /// Answers CORS preflights and adds policy headers to matching HTTP responses.
 pub struct HandleCors {
     paths: Paths,
+    include_api: bool,
     origins: Origins,
     methods: Allowed,
     headers: Allowed,
@@ -25,6 +26,7 @@ pub struct HandleCors {
 #[serde(default)]
 struct Options {
     paths: Paths,
+    default_paths: Option<Vec<String>>,
     allowed_origins: Vec<String>,
     allowed_origins_patterns: Vec<String>,
     allowed_methods: Vec<String>,
@@ -137,10 +139,16 @@ enum Allowed {
 impl HandleCors {
     pub(crate) fn from_config(value: Option<Value>) -> Result<Option<Self>, ConfigError> {
         let Some(value) = value else { return Ok(None) };
+        let explicit_paths = value.get("paths").is_some();
         let options: Options = serde_json::from_value(value)
             .map_err(|_| invalid("cors", "an object with valid CORS options"))?;
-        if matches!(&options.paths, Paths::List(paths) if paths.is_empty())
-            || matches!(&options.paths, Paths::ByHost(paths) if paths.is_empty())
+        let (paths, include_api) = match (explicit_paths, options.default_paths) {
+            (false, Some(paths)) => (Paths::List(paths), true),
+            _ => (options.paths, false),
+        };
+        if !include_api
+            && (matches!(&paths, Paths::List(paths) if paths.is_empty())
+                || matches!(&paths, Paths::ByHost(paths) if paths.is_empty()))
         {
             return Ok(None);
         }
@@ -177,7 +185,8 @@ impl HandleCors {
             )?)
         };
         Ok(Some(Self {
-            paths: options.paths,
+            paths,
+            include_api,
             origins,
             methods,
             headers,
@@ -233,7 +242,7 @@ impl Middleware for HandleCors {
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            if !self.paths.matches(request) {
+            if !(self.include_api && request.isApiPath() || self.paths.matches(request)) {
                 return Ok(next.run(request).await);
             }
             let preflight = request.method() == Method::OPTIONS

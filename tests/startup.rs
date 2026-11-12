@@ -14,7 +14,7 @@ use openrust::{
         Application, BootstrapError, bootstrap::LoadEnvironmentVariables, configuration::Routing,
         http::Kernel,
     },
-    http::{Body, Request, StatusCode},
+    http::{Body, Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider},
 };
 use serde_json::json;
@@ -50,7 +50,29 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(!root.0.join("routes/api.rs").exists());
     assert!(!fs::read_to_string(&modules).unwrap().contains("mod api;"));
 
-    fs::write(&bootstrap, include_str!("../bootstrap/app.rs")).unwrap();
+    let default_bootstrap = include_str!("../bootstrap/app.rs");
+    let default_modules = include_str!("../routes/mod.rs");
+    let default_api = include_str!("../routes/api.rs");
+    let api = root.0.join("routes/api.rs");
+    fs::write(&bootstrap, default_bootstrap).unwrap();
+    fs::write(&modules, default_modules).unwrap();
+    fs::write(&api, default_api).unwrap();
+    assert!(run("install:api").status.success());
+    assert_eq!(fs::read_to_string(&bootstrap).unwrap(), default_bootstrap);
+    assert_eq!(fs::read_to_string(&modules).unwrap(), default_modules);
+    assert_eq!(fs::read_to_string(&api).unwrap(), default_api);
+
+    fs::remove_file(&api).unwrap();
+    fs::write(
+        &modules,
+        default_modules.replace("pub(crate) mod api;\n", ""),
+    )
+    .unwrap();
+    fs::write(
+        &bootstrap,
+        default_bootstrap.replace("                .api(routes::api::register)\n", ""),
+    )
+    .unwrap();
     for (command, module, registration) in [
         ("install:api", "api", ".api(routes::api::register)"),
         (
@@ -88,6 +110,176 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
                 .count(),
             1
         );
+    }
+}
+
+#[tokio::test]
+async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
+    use axum::handler::Handler as _;
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    fn probe(
+        _: &mut Request,
+    ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+        Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+    }
+
+    fn custom_cors(root: &Path, env: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+        let mut configuration = config::load(root, env)?;
+        configuration.get_mut("cors").unwrap()["paths"] = json!({
+            "0": "custom/*",
+            "localhost": ["host-only/*"],
+        });
+        Ok(configuration)
+    }
+
+    for (environment, explicit, effective, custom) in [
+        ("", None, "api", false),
+        ("API_PREFIX=//v1/internal//\n", None, "v1/internal", false),
+        (
+            "API_PREFIX=/env\n",
+            Some("/builder/v2/"),
+            "builder/v2",
+            false,
+        ),
+        ("API_PREFIX=/env\n", Some(""), "", false),
+        ("API_PREFIX=/\n", None, "", false),
+        ("API_PREFIX=\n", None, "", false),
+        ("API_PREFIX=/v1\n", None, "v1", true),
+    ] {
+        let root = TestRoot::new("api-prefix");
+        fs::write(root.0.join(".env"), environment).unwrap();
+        let routing = Routing::default().api(|router| {
+            router.get("/probe", probe)?;
+            Ok(())
+        });
+        let routing = match explicit {
+            Some(prefix) => routing.apiPrefix(prefix),
+            None => routing,
+        };
+        let app = Application::configure(root.0.clone())
+            .withConfig(if custom { custom_cors } else { config::load })
+            .withRouting(routing)
+            .withExceptions(|exceptions| {
+                exceptions.shouldRenderJsonWhen(|request, _| {
+                    request.isApiPath() || request.expectsJson()
+                });
+            })
+            .create()
+            .unwrap();
+        let mut kernel = Kernel::new(app);
+        kernel.bootstrap().await.unwrap();
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let address = listener.local_addr().unwrap();
+        let handler = |axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,
+                       request: axum::extract::Request| async move {
+            let (parts, body) = request.into_parts();
+            let (parts, body) = kernel
+                .handle(&mut Request::from_parts(parts, body))
+                .await
+                .into_parts();
+            axum::response::Response::from_parts(parts, body)
+        };
+        let service = handler.with_state(Arc::new(kernel)).into_make_service();
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        let send = |method: &str, path: &str, accept: &str, host: &str| {
+            let raw = format!(
+                "{method} {path} HTTP/1.1\r\nHost: {host}\r\nAccept: {accept}\r\nOrigin: https://client.test\r\nAccess-Control-Request-Method: GET\r\nConnection: close\r\n\r\n"
+            );
+            async move {
+                tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                    let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+                    socket.write_all(raw.as_bytes()).await.unwrap();
+                    let mut response = String::new();
+                    socket.read_to_string(&mut response).await.unwrap();
+                    response
+                })
+                .await
+                .unwrap()
+            }
+        };
+        let namespace = if effective.is_empty() {
+            String::new()
+        } else {
+            format!("/{effective}")
+        };
+        let probe = format!("{namespace}/probe");
+        let missing = format!("{namespace}/missing");
+        let html = "text/html";
+        let json = "application/json";
+        let host = "example.test";
+        let response = send("GET", &probe, html, host).await;
+        assert!(response.starts_with("HTTP/1.1 204 "), "{probe}: {response}");
+        let response = send("GET", &missing, html, host).await;
+        assert!(
+            response.starts_with("HTTP/1.1 404 "),
+            "{missing}: {response}"
+        );
+        let expected_type = if effective.is_empty() { html } else { json };
+        assert!(
+            response.contains(&format!("content-type: {expected_type}")),
+            "{response}"
+        );
+        let response = send("OPTIONS", &missing, html, host).await;
+        let default_cors = !custom && !effective.is_empty();
+        assert_eq!(
+            response.contains("access-control-allow-origin: *"),
+            default_cors,
+            "{response}"
+        );
+        if default_cors {
+            assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+        }
+        if !namespace.is_empty() {
+            let response = send("OPTIONS", &namespace, html, host).await;
+            assert!(response.starts_with("HTTP/1.1 404 "), "{response}");
+            assert!(response.contains("content-type: text/html"), "{response}");
+            assert!(
+                !response.contains("access-control-allow-origin"),
+                "{response}"
+            );
+        }
+        for previous in ["/api/probe", "/env/probe", "/probe"] {
+            if previous != probe {
+                let response = send("GET", previous, html, host).await;
+                assert!(
+                    response.starts_with("HTTP/1.1 404 "),
+                    "{previous}: {response}"
+                );
+                assert!(response.contains("content-type: text/html"), "{response}");
+                let response = send("OPTIONS", previous, html, host).await;
+                assert!(
+                    !response.contains("access-control-allow-origin"),
+                    "{response}"
+                );
+            }
+        }
+        let response = send("GET", "/web-missing", json, host).await;
+        assert!(
+            response.contains("content-type: application/json"),
+            "{response}"
+        );
+        let response = send("GET", "/web-missing", html, host).await;
+        assert!(response.contains("content-type: text/html"), "{response}");
+        let response = send("OPTIONS", "/sanctum/csrf-cookie", html, host).await;
+        assert_eq!(
+            response.contains("access-control-allow-origin: *"),
+            !custom,
+            "{response}"
+        );
+        if custom {
+            for (path, host) in [("/custom/probe", host), ("/host-only/probe", "localhost")] {
+                let response = send("OPTIONS", path, html, host).await;
+                assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+                assert!(
+                    response.contains("access-control-allow-origin: *"),
+                    "{response}"
+                );
+            }
+        }
+        server.abort();
     }
 }
 

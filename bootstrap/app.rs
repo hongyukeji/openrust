@@ -16,6 +16,7 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
         .withRouting(
             Routing::default()
                 .web(routes::web::register)
+                .api(routes::api::register)
                 .commands(routes::console::register)
                 .health("/up"),
         )
@@ -24,7 +25,7 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
         })
         .withExceptions(|exceptions| {
             exceptions
-                .shouldRenderJsonWhen(|request, _| request.is("api/*") || request.expectsJson());
+                .shouldRenderJsonWhen(|request, _| request.isApiPath() || request.expectsJson());
         })
         .create()
         .map_err(Into::into)

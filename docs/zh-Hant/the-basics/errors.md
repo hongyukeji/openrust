@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 將例外轉譯為 JSON
 
-框架預設依請求對 JSON 的偏好選擇回應。應用程式骨架在 `withExceptions` 中為 `api/*` 和預期 JSON 的請求啟用 JSON 例外回應。可用 `shouldRenderJsonWhen` 自訂策略。
+框架預設依請求對 JSON 的偏好選擇回應。應用程式骨架在 `withExceptions` 中為 最終生效的 API 路徑 和預期 JSON 的請求啟用 JSON 例外回應。可用 `shouldRenderJsonWhen` 自訂策略。
 
 正式環境設為 `APP_DEBUG=false`。通用 500 的預設 JSON 訊息為 `Server Error`，預設 HTML 頁面省略例外來源。偵錯模式下，內建伺服器錯誤回應包含有數量及長度上限的來源訊息，輸出為 HTML 時會逸出。自訂回呼負責控制所傳回的回應內容。
 
@@ -118,7 +118,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## 路由不存在
 
-應用的 `withExceptions` 策略對符合 `api/*` 的路徑或期望 JSON 的請求回傳 JSON，其他缺失路由回傳 HTML。回應格式改變，404 狀態保持。缺失靜態檔案也使用此策略；HEAD 保留狀態和內容類型，本文為空。
+應用的 `withExceptions` 策略對最終生效的 API 路徑或期望 JSON 的請求回傳 JSON，其他缺失路由回傳 HTML。回應格式改變，404 狀態保持。缺失靜態檔案也使用此策略；HEAD 保留狀態和內容類型，本文為空。
+
+路徑規則比對生效前綴下的路徑，例如前綴 `/v1/internal` 下的 `/v1/internal/users`。前綴為空時，應用程式骨架依請求對 JSON 的偏好選擇例外回應。
 
 ```sh
 curl -i http://localhost:8000/missing

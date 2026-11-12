@@ -130,6 +130,14 @@ impl http::Kernel for Kernel {
                 let previous_exceptions = request
                     .exceptions
                     .replace(self.application.shared.exceptions.clone());
+                let previous_api_prefix = request.api_prefix.replace(
+                    self.application
+                        .shared
+                        .api_prefix
+                        .get()
+                        .expect("ready kernel has an API prefix")
+                        .clone(),
+                );
                 let previous_views = request.parts_mut().extensions.insert(
                     self.views
                         .as_ref()
@@ -160,6 +168,7 @@ impl http::Kernel for Kernel {
                 ));
                 let mut response = deferred.scope(request_lifecycle).await;
                 request.exceptions = previous_exceptions;
+                request.api_prefix = previous_api_prefix;
                 let mut middleware = std::mem::take(&mut request.route_terminators);
                 middleware.extend(
                     self.middleware
