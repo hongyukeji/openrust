@@ -26,12 +26,17 @@ pub(super) fn default_response(
         Some(HttpError::AuthorizationDeniedWithStatus { message, .. }) if !message.is_empty() => {
             message
         }
+        Some(HttpError::Aborted { message, .. }) if !message.is_empty() => message,
         Some(HttpError::Validation(exception)) => exception.message(),
         _ => status.canonical_reason().unwrap_or("HTTP Error"),
     };
-    let sources = (status.is_server_error() && debug()).then(|| debug_sources(exception));
+    let sources =
+        (status.is_server_error() && !matches!(error, Some(HttpError::Aborted { .. })) && debug())
+            .then(|| debug_sources(exception));
     let (content_type, body) = if json {
-        let message = if status.is_server_error() {
+        let message = if let Some(HttpError::Aborted { message, .. }) = error {
+            message
+        } else if status.is_server_error() {
             sources
                 .as_ref()
                 .and_then(|sources| sources.first())
@@ -110,7 +115,7 @@ fn debug_sources(exception: &Exception<'_>) -> Vec<String> {
 }
 
 fn html(status: StatusCode, message: &str, sources: Option<&[String]>) -> String {
-    let title = format!("{} {message}", status.as_u16());
+    let title = format!("{} {}", status.as_u16(), escape_html(message));
     let mut html = format!(
         "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title}</title></head><body><h1>{title}</h1>"
     );

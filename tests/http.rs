@@ -828,3 +828,104 @@ async fn invalid_constraint_leaves_the_previous_pattern_active() {
         Err(HttpError::NotFound)
     ));
 }
+
+#[tokio::test]
+async fn explicit_http_abort_preserves_status_message_and_headers_over_tcp() {
+    use axum::handler::Handler as _;
+    use openrust::{
+        foundation::configuration::ReportDecision,
+        http::{HeaderMap, abort},
+    };
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+    async fn maintenance() -> Result<Response, HttpError> {
+        let mut headers = HeaderMap::new();
+        headers.insert("retry-after", "60".parse().unwrap());
+        Err(abort(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Maintenance",
+            headers,
+        ))
+    }
+
+    fn reject(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.is("maintenance") {
+                return maintenance().await;
+            }
+            let mut headers = HeaderMap::new();
+            headers.insert("retry-after", "60".parse().unwrap());
+            Err(abort(StatusCode::FORBIDDEN, "Access <paused>", headers))
+        })
+    }
+
+    let reports = Arc::new(Mutex::new(0));
+    let observed = reports.clone();
+    let app = Application::configure(std::env::current_dir().unwrap())
+        .withRouting(Routing::new(|_| {
+            let mut router = Router::new();
+            router.get("/rejected", reject)?;
+            router.get("/maintenance", reject)?;
+            Ok(router)
+        }))
+        .withExceptions(move |exceptions| {
+            exceptions.report::<HttpError>(move |_| {
+                *observed.lock().unwrap() += 1;
+                ReportDecision::Stop
+            });
+        })
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = network_handler
+        .with_state(Arc::new(kernel))
+        .into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+
+    for (method, path, accept, status) in [
+        ("GET", "/rejected", "text/html", 403),
+        ("GET", "/rejected", "application/json", 403),
+        ("HEAD", "/rejected", "application/json", 403),
+        ("GET", "/maintenance", "application/json", 503),
+    ] {
+        let raw = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let mut socket = tokio::net::TcpStream::connect(address).await.unwrap();
+            socket.write_all(format!(
+                "{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: {accept}\r\nConnection: close\r\n\r\n"
+            ).as_bytes()).await.unwrap();
+            let mut raw = String::new();
+            socket.read_to_string(&mut raw).await.unwrap();
+            raw
+        }).await.unwrap();
+        let (headers, body) = raw.split_once("\r\n\r\n").unwrap();
+        assert!(headers.starts_with(&format!("HTTP/1.1 {status} ")), "{raw}");
+        assert!(
+            headers.to_ascii_lowercase().contains("retry-after: 60"),
+            "{raw}"
+        );
+        assert!(
+            headers
+                .to_ascii_lowercase()
+                .contains(&format!("content-type: {accept}")),
+            "{raw}"
+        );
+        if method == "HEAD" {
+            assert!(body.is_empty(), "{raw}");
+        } else if accept == "application/json" {
+            assert_eq!(
+                serde_json::from_str::<serde_json::Value>(body).unwrap(),
+                serde_json::json!({"message": if status == 503 { "Maintenance" } else { "Access <paused>" }})
+            );
+        } else {
+            assert!(body.contains("Access &lt;paused&gt;"), "{raw}");
+            assert!(!body.contains("Access <paused>"), "{raw}");
+        }
+    }
+    assert_eq!(*reports.lock().unwrap(), 0);
+    server.abort();
+}

@@ -19,7 +19,7 @@ pub use ::http::{
 };
 pub use api_response::{ApiResponse, PageMeta};
 pub use body::Body;
-pub use error::HttpError;
+pub use error::{HttpError, abort};
 pub use next::Next;
 pub(crate) use request::context as request_context;
 pub(crate) use request::parse_query;

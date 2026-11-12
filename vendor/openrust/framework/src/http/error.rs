@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use super::{Method, Response, StatusCode};
+use super::{HeaderMap, Method, Response, StatusCode};
 
 /// An error rendered by the HTTP kernel into a response.
 #[derive(Debug)]
@@ -25,9 +25,23 @@ pub enum HttpError {
     MethodNotAllowed {
         allowed: Vec<Method>,
     },
+    Aborted {
+        status: StatusCode,
+        message: String,
+        headers: Box<HeaderMap>,
+    },
     Internal {
         source: Box<dyn Error + Send + Sync>,
     },
+}
+
+/// Creates an explicit HTTP exception to return from a handler or middleware.
+pub fn abort(status: StatusCode, message: impl Into<String>, headers: HeaderMap) -> HttpError {
+    HttpError::Aborted {
+        status,
+        message: message.into(),
+        headers: Box::new(headers),
+    }
 }
 
 impl HttpError {
@@ -44,6 +58,7 @@ impl HttpError {
             Self::Throttled { .. } => StatusCode::TOO_MANY_REQUESTS,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::MethodNotAllowed { .. } => StatusCode::METHOD_NOT_ALLOWED,
+            Self::Aborted { status, .. } => *status,
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -56,6 +71,7 @@ impl HttpError {
         match self {
             Self::MethodNotAllowed { allowed } => response.with_allow(allowed, ", "),
             Self::Throttled { headers } => response.withHeaders(headers.clone()),
+            Self::Aborted { headers, .. } => response.withHeaders(headers.as_ref().clone()),
             _ => response,
         }
     }

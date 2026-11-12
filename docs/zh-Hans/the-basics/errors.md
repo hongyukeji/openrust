@@ -124,6 +124,20 @@ curl -i http://localhost:8000/api/missing
 curl -i -H 'Accept: application/json' http://localhost:8000/missing
 ```
 
+## HTTP 异常 {#http-exceptions}
+
+在路由处理器或中间件中返回 `Err(abort(status, message, headers))`，即可中止处理并渲染 HTTP 异常。异常处理器保留状态码和响应头，并按请求选择 HTML 或 JSON。消息应适合直接返回客户端。意外的内部错误仍遵循生产环境的脱敏策略。
+
+```rust
+use openrust::http::{HeaderMap, HttpError, Response, StatusCode, abort};
+
+async fn maintenance() -> Result<Response, HttpError> {
+    let mut headers = HeaderMap::new();
+    headers.insert("retry-after", "60".parse().unwrap());
+    Err(abort(StatusCode::SERVICE_UNAVAILABLE, "Maintenance", headers))
+}
+```
+
 ## 自定义 HTTP 错误页
 
 添加按状态码命名的视图，例如 `resources/views/errors/404.blade.html`。Blade 错误页可以读取 `$status` 和 `$message`，也支持普通的 `errors/404.html`。可以用 `errors/4xx.blade.html` 或 `errors/5xx.blade.html` 处理同类错误。404、500 和 503 使用对应的专属视图或框架回退页。响应沿用原有状态码和 JSON 协商规则。

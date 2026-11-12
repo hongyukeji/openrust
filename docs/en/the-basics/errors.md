@@ -124,6 +124,20 @@ curl -i http://localhost:8000/api/missing
 curl -i -H 'Accept: application/json' http://localhost:8000/missing
 ```
 
+## HTTP Exceptions {#http-exceptions}
+
+Return `Err(abort(status, message, headers))` from a route handler or middleware to stop processing and render an HTTP exception. The exception handler keeps the status and headers and negotiates HTML or JSON. Use a message intended for the client. An unexpected internal error still uses the configured production redaction policy.
+
+```rust
+use openrust::http::{HeaderMap, HttpError, Response, StatusCode, abort};
+
+async fn maintenance() -> Result<Response, HttpError> {
+    let mut headers = HeaderMap::new();
+    headers.insert("retry-after", "60".parse().unwrap());
+    Err(abort(StatusCode::SERVICE_UNAVAILABLE, "Maintenance", headers))
+}
+```
+
 ## Custom HTTP Error Pages
 
 Add a status-specific view such as `resources/views/errors/404.blade.html`. Blade error views receive `$status` and `$message`. A plain `errors/404.html` also works. You can add `errors/4xx.blade.html` or `errors/5xx.blade.html` for a status family. Statuses 404, 500 and 503 use their dedicated view or the framework fallback. The original status and JSON negotiation apply.
