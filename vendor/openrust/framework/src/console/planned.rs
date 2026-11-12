@@ -70,7 +70,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("make:cast", "Generate a model attribute cast"),
     ("make:channel", "Generate a broadcast channel class"),
     ("make:class", "Generate a class"),
-    ("make:command", "Generate an Artisan command"),
     ("make:component", "Generate a view component"),
     ("make:config", "Generate a configuration file"),
     ("make:controller", "Generate a controller"),

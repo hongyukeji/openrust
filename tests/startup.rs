@@ -91,6 +91,71 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     }
 }
 
+#[test]
+fn artisan_generates_commands_and_preserves_existing_source() {
+    let root = TestRoot::new("make-command");
+    let run = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "make:command"])
+            .args(arguments)
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+    let path = root.0.join("app/console/commands/reports/send_report.rs");
+    let results = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&["Reports/SendReport"]));
+        let second = scope.spawn(|| run(&["Reports/SendReport.rs"]));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| result.status.success())
+            .count(),
+        1
+    );
+    let original = fs::read_to_string(&path).unwrap();
+    assert!(original.contains("pub struct SendReport"));
+    assert!(original.contains(r#""app:send-report""#));
+    assert_eq!(run(&["Reports/SendReport"]).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&path).unwrap(), original);
+
+    assert!(
+        run(&["Reports/SendReport", "-f", "--command=reports:send"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains(r#""reports:send""#)
+    );
+
+    for arguments in [
+        &["../Escape"][..],
+        &["Mod/Escape"],
+        &["Self"],
+        &["Escape", "--command=app:bad name"],
+    ] {
+        assert_eq!(run(arguments).status.code(), Some(1), "{arguments:?}");
+    }
+    assert!(!root.0.join("app/console/commands/escape.rs").exists());
+
+    let stubs = root.0.join("stubs");
+    fs::create_dir(&stubs).unwrap();
+    let stub = stubs.join("console.rs.stub");
+    fs::write(&stub, b"// {{class}} - {{command}}\n").unwrap();
+    assert!(run(&["CustomStub"]).status.success());
+    assert_eq!(
+        fs::read_to_string(root.0.join("app/console/commands/custom_stub.rs")).unwrap(),
+        "// CustomStub - app:custom-stub\n"
+    );
+    fs::write(&stub, [0xff]).unwrap();
+    assert_eq!(run(&["BrokenStub"]).status.code(), Some(1));
+    assert!(!root.0.join("app/console/commands/broken_stub.rs").exists());
+}
+
 impl TestRoot {
     fn new(name: &str) -> Self {
         let path =

@@ -1,0 +1,24 @@
+pub struct {{class}}(openrust::console::CommandDefinition);
+
+impl ::std::default::Default for {{class}} {
+    fn default() -> Self {
+        Self(openrust::console::CommandDefinition::new(
+            clap::Command::new("{{command}}").about("Command description"),
+        ))
+    }
+}
+
+impl openrust::console::Command for {{class}} {
+    fn definition(&self) -> &openrust::console::CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _app: &'a openrust::foundation::Application,
+        _input: &'a openrust::console::Input,
+        _output: &'a mut openrust::console::Output,
+    ) -> openrust::console::ConsoleFuture<'a, ::std::result::Result<i32, openrust::console::ConsoleError>> {
+        ::std::boxed::Box::pin(async { ::std::result::Result::Ok(0) })
+    }
+}

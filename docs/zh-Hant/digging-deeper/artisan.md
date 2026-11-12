@@ -63,3 +63,18 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 ```
 
 API 預設掛載到 `/api` 並使用 `api` 中介軟體群組，端點與驗證由應用程式補充。廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
+
+## 產生命令 {#generating-commands}
+
+在原始碼目錄產生命令。產生的型別實作 Artisan 命令契約。
+
+```sh
+./artisan make:command SendReport
+./artisan make:command Reports/ArchiveReport --command=reports:archive
+```
+
+第一條命令寫入 `app/console/commands/send_report.rs`，命令簽章為 `app:send-report`。第二條在 `reports` 模組下產生命令並指定簽章。使用 `-f` 或 `--force` 覆寫既有檔案。
+
+在 `app/console/commands/mod.rs` 宣告新模組並註冊命令。以 `SendReport` 為例，加入 `mod send_report;`，在 `register` 內呼叫 `artisan.add_command(Box::new(send_report::SendReport::default()))?;`。重新建置後執行 `./artisan app:send-report`。
+
+在應用程式根目錄放置 `stubs/console.rs.stub` 可自訂產生內容。產生器替換 `{{class}}` 和 `{{command}}`。

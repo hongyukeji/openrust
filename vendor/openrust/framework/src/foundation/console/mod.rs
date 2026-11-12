@@ -70,6 +70,7 @@ impl Kernel {
                             event_list_command::register(&mut self.artisan)?;
                             channel_list_command::register(&mut self.artisan)?;
                             install_routes_command::register(&mut self.artisan)?;
+                            console_make_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;

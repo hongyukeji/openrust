@@ -63,3 +63,18 @@ Run these commands from a source checkout to generate the route files and update
 ```
 
 API routes default to the `/api` prefix and use the `api` middleware group. Add your own endpoints and authentication. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
+
+## Generating Commands {#generating-commands}
+
+Create a command from a source checkout. The generated type implements the Artisan command contract.
+
+```sh
+./artisan make:command SendReport
+./artisan make:command Reports/ArchiveReport --command=reports:archive
+```
+
+The first command writes `app/console/commands/send_report.rs` with the signature `app:send-report`. The second writes a command under the `reports` module and sets its signature explicitly. Use `-f` or `--force` to replace an existing file.
+
+Declare the new module and register the command in `app/console/commands/mod.rs`. For `SendReport`, add `mod send_report;` and call `artisan.add_command(Box::new(send_report::SendReport::default()))?;` inside `register`. Then rebuild and run `./artisan app:send-report`.
+
+To customize generated code, add `stubs/console.rs.stub` at the application root. The generator substitutes `{{class}}` and `{{command}}`.
