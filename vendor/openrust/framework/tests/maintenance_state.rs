@@ -68,3 +68,51 @@ async fn array_maintenance_is_application_local_even_with_the_same_root() {
     assert!(!second.isDownForMaintenance().await.unwrap());
     assert!(!root.path().join("storage/framework/down").exists());
 }
+
+#[tokio::test]
+async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_application_local() {
+    use openrust::{foundation::configuration::Routing, testing::TestApp};
+
+    let configure = |builder: openrust::foundation::configuration::ApplicationBuilder| {
+        builder.withRouting(Routing::default().health("/up"))
+    };
+    let mut excluded = TestApp::create(|builder| {
+        configure(builder).withMiddleware(|middleware| {
+            middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+        })
+    })
+    .unwrap();
+    let mut normal = TestApp::create(configure).unwrap();
+    let events = excluded.fakeEvents(&[]).await.unwrap();
+    let enabled = "foundation.maintenance_mode_enabled";
+    let disabled = "foundation.maintenance_mode_disabled";
+
+    assert_eq!(excluded.artisan(["up"]).await.status, 0);
+    assert!(events.dispatched(disabled).is_empty());
+    assert_eq!(excluded.artisan(["down"]).await.status, 0);
+    assert_eq!(excluded.artisan(["down"]).await.status, 0);
+    assert_eq!(events.dispatched(enabled).len(), 2);
+
+    let payload = excluded
+        .app()
+        .maintenanceMode()
+        .unwrap()
+        .data()
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(payload["except"], json!(["up", "status/*"]));
+    assert_eq!(normal.artisan(["down"]).await.status, 0);
+    assert_eq!(excluded.get("/up").await.unwrap().status(), 200);
+    assert_eq!(excluded.get("/status/missing").await.unwrap().status(), 404);
+    assert_eq!(excluded.get("/other").await.unwrap().status(), 503);
+    assert_eq!(normal.get("/up").await.unwrap().status(), 503);
+    assert_eq!(normal.get("/status/missing").await.unwrap().status(), 503);
+    assert_eq!(events.dispatched(enabled).len(), 2);
+
+    assert_eq!(excluded.artisan(["up"]).await.status, 0);
+    assert_eq!(excluded.artisan(["up"]).await.status, 0);
+    assert_eq!(events.dispatched(disabled).len(), 1);
+    assert_eq!(excluded.get("/other").await.unwrap().status(), 404);
+    assert_eq!(normal.get("/up").await.unwrap().status(), 503);
+}

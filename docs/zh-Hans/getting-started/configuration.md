@@ -71,7 +71,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
 
-## 维护状态 {#maintenance-mode}
+## 维护模式 {#maintenance-mode}
+
+部署时运行 Artisan 的 `down`，应用返回 HTTP 503。运行 `up` 恢复访问。运行中的服务会逐请求读取共享状态，可以再次执行 `down` 更新选项。
+
+```bash
+./artisan down --retry=60 --with-secret
+./artisan up
+```
+
+`--retry` 接受正数秒数或重试日期，`--refresh` 指定浏览器刷新间隔。未注明时区的日期时间使用应用时区，响应头统一使用 GMT。`--redirect` 接受站内路径。`--render` 在执行 `down` 时将命名视图渲染一次，并传入 `$retryAfter`。`--status` 可覆盖默认的 503。期望 JSON 的请求沿用常规异常渲染，跳过浏览器跳转和预渲染页面。
+
+维护期间可打开 `--with-secret` 打印的 URL 检查站点。应用设置有效期为 12 小时的签名 Cookie，当前会话没有原目标时跳转至首页。可以用 `--secret` 指定自己的路径。需要保留端点时，在 `bootstrap/app.rs` 的 `withMiddleware` 中配置。
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+})
+```
+
+预渲染页面由运行中的 HTTP 进程提供。服务重启时，应用启动成功后开始监听。队列行为见[维护期间的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
+
+### 共享维护状态 {#shared-maintenance-state}
 
 应用通过 `maintenanceMode()` 提供维护状态。默认 `file` 驱动把数据写入 `storage/framework/down`。选择 `cache` 和共享缓存仓库，可让多台机器上的 Worker 读取同一状态。`array` 驱动将状态保存在当前应用实例内，可用于测试。
 

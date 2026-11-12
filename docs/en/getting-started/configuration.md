@@ -71,7 +71,28 @@ During bootstrap the detected name is stored in the `env` service as `Arc<str>`.
 
 Relative paths use the application root. An application can override `PUBLIC_PATH` by calling `usePublicPath()` before boot. The default Web routes apply the public disk settings through `Route::staticDisk("public")`. The mount uses the full path of the disk URL. The default is `/storage`. A same-origin URL ending in `/storage/tmp/` or the absolute URL path `/storage/tmp/` mounts at `/storage/tmp`. A cross-origin URL fails route registration. Restart the application after changing mount settings.
 
-## Maintenance state {#maintenance-mode}
+## Maintenance mode {#maintenance-mode}
+
+Run Artisan `down` to return HTTP 503 while you deploy. Use `up` to reopen the application. A running server reads the shared state on each request. You can run `down` again to update the options.
+
+```bash
+./artisan down --retry=60 --with-secret
+./artisan up
+```
+
+Use `--retry` for a positive delay in seconds or a retry date, and `--refresh` to tell a browser when to reload. Local date-times use the application timezone and are sent in GMT. `--redirect` takes a local path. `--render` prerenders a named view once when you run `down`, passing it `$retryAfter`. `--status` overrides the default 503. Requests that expect JSON follow the usual exception renderer and skip the browser redirect and prerendered view.
+
+To check the site during maintenance, open the URL printed by `--with-secret`. The application sets a signed browser cookie valid for 12 hours and redirects to the home page when no intended session URL is available. Use `--secret` to supply your own path. Use `withMiddleware` in `bootstrap/app.rs` to leave specific endpoints available.
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+})
+```
+
+The prerendered view is served by the running HTTP process. During a restart, the HTTP listener becomes available when application bootstrap succeeds. See [workers during maintenance](../digging-deeper/queues.md#workers-during-maintenance) for the queue behavior.
+
+### Shared maintenance state {#shared-maintenance-state}
 
 The application exposes maintenance state through `maintenanceMode()`. The default `file` driver stores the payload in `storage/framework/down`. Choose `cache` and a shared cache store to make the state visible to workers on multiple hosts. The `array` driver keeps state inside a single application instance for testing.
 

@@ -53,7 +53,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("dev", "Start the configured development processes"),
     ("dev:list", "Show registered development processes"),
     ("docs", "Open the documentation for a topic"),
-    ("down", "Put the application into maintenance mode"),
     ("env:decrypt", "Decrypt an encrypted environment file"),
     ("env:encrypt", "Encrypt an environment file"),
     ("event:cache", "Cache event and listener registrations"),
@@ -134,7 +133,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("session:garbage-collect", "Remove expired sessions"),
     ("storage:link", "Create the configured storage links"),
     ("storage:unlink", "Remove the configured storage links"),
-    ("up", "Take the application out of maintenance mode"),
     (
         "vendor:publish",
         "Publish files supplied by installed packages",

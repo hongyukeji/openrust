@@ -79,7 +79,7 @@ impl ApplicationBuilder {
         self
     }
 
-    /// Configures middleware when the HTTP kernel is constructed.
+    /// Configures this application’s middleware when the configuration is first needed.
     pub fn withMiddleware(
         mut self,
         configure: impl FnOnce(&mut Middleware) + Send + Sync + 'static,

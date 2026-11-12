@@ -14,9 +14,11 @@ use crate::{
 };
 
 /// Configures global and route middleware during application assembly.
+#[derive(Clone)]
 pub struct Middleware {
     pub(crate) global: Vec<Arc<dyn HttpMiddleware>>,
     pub(crate) prepended: usize,
+    pub(crate) maintenance_exceptions: Vec<String>,
     pub(crate) registry: MiddlewareRegistry,
     default_web: bool,
     cookie_exceptions: Arc<HashSet<String>>,
@@ -28,6 +30,7 @@ impl Default for Middleware {
         let mut middleware = Self {
             global: Vec::new(),
             prepended: 0,
+            maintenance_exceptions: Vec::new(),
             registry: MiddlewareRegistry::default(),
             default_web: true,
             cookie_exceptions: Arc::default(),
@@ -117,6 +120,17 @@ impl Middleware {
         except: impl IntoIterator<Item = impl Into<String>>,
     ) -> &mut Self {
         Arc::make_mut(&mut self.cookie_exceptions).extend(except.into_iter().map(Into::into));
+        self
+    }
+
+    /// Allows the given paths to remain accessible during maintenance mode.
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn preventRequestsDuringMaintenance(
+        &mut self,
+        except: impl IntoIterator<Item = impl Into<String>>,
+    ) -> &mut Self {
+        self.maintenance_exceptions
+            .extend(except.into_iter().map(Into::into));
         self
     }
 

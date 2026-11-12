@@ -64,7 +64,12 @@ try {
                     const configuration = await page.goto(`http://127.0.0.1:${server.address().port}${mount}${locale}/getting-started/configuration.html`);
                     assert.equal(configuration.status(), 200);
                     assert.equal(await page.locator("#maintenance-mode").count(), 1);
-                    assert.ok((await page.locator("main").innerText()).includes("maintenanceMode()"));
+                    assert.equal(await page.locator("#shared-maintenance-state").count(), 1);
+                    const configurationBody = await page.locator("main").innerText();
+                    for (const term of ["maintenanceMode()", "./artisan down --retry=60 --with-secret", "./artisan up", "preventRequestsDuringMaintenance", "$retryAfter"]) {
+                        assert.ok(configurationBody.includes(term), `${locale}: ${term}`);
+                    }
+                    assert.equal(await page.locator('main a[href$="#workers-during-maintenance"]').count(), 1);
                     const errors = await page.goto(`http://127.0.0.1:${server.address().port}${mount}${locale}/the-basics/errors.html`);
                     assert.equal(errors.status(), 200);
                     const queueLink = page.locator('main a[href$="#stopping-retries-by-exception"]');

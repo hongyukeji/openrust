@@ -71,7 +71,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 相對目錄以應用程式根目錄為基準。應用程式可在啟動前呼叫 `usePublicPath()` 覆寫 `PUBLIC_PATH`。預設 Web 路由透過 `Route::staticDisk("public")` 套用公開磁碟設定。掛載前綴取磁碟 URL 的完整路徑，預設為 `/storage`。以 `/storage/tmp/` 結尾的同源 URL 或絕對 URL 路徑 `/storage/tmp/` 都會掛載到 `/storage/tmp`。跨來源 URL 會使路由註冊失敗。修改掛載設定後重新啟動應用程式。
 
-## 維護狀態 {#maintenance-mode}
+## 維護模式 {#maintenance-mode}
+
+部署時執行 Artisan 的 `down`，應用程式會回傳 HTTP 503。執行 `up` 恢復存取。執行中的服務會逐一請求讀取共用狀態，可以再次執行 `down` 更新選項。
+
+```bash
+./artisan down --retry=60 --with-secret
+./artisan up
+```
+
+`--retry` 接受正數秒數或重試日期，`--refresh` 指定瀏覽器重新整理的間隔。未註明時區的日期時間使用應用程式時區，回應標頭統一使用 GMT。`--redirect` 接受站內路徑。`--render` 在執行 `down` 時將具名檢視渲染一次，並傳入 `$retryAfter`。`--status` 可覆寫預設的 503。預期 JSON 的請求沿用一般例外渲染，略過瀏覽器重新導向與預先渲染的頁面。
+
+維護期間可開啟 `--with-secret` 印出的 URL 檢查網站。應用程式會設定有效期為 12 小時的簽名 Cookie，當前工作階段沒有原目標時重新導向至首頁。可以使用 `--secret` 指定自己的路徑。若要保留端點，在 `bootstrap/app.rs` 的 `withMiddleware` 設定。
+
+```rust
+.withMiddleware(|middleware| {
+    middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+})
+```
+
+預先渲染的頁面由執行中的 HTTP 程序提供。服務重新啟動時，應用程式成功啟動後開始監聽。佇列行為請見[維護期間的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
+
+### 共用維護狀態 {#shared-maintenance-state}
 
 應用程式透過 `maintenanceMode()` 提供維護狀態。預設 `file` 驅動程式把資料寫入 `storage/framework/down`。選擇 `cache` 和共享快取儲存，可讓多台主機上的 Worker 讀取相同狀態。`array` 驅動程式將狀態儲存在目前應用程式實例內，可用於測試。
 

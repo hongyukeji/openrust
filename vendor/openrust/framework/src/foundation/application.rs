@@ -61,7 +61,8 @@ pub(super) struct ApplicationState {
     pub(super) grpc_registrar: Mutex<Option<grpc::Registrar>>,
     package_routes: Mutex<Option<Vec<PackageRoutes>>>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
-    pub(super) middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
+    middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
+    middleware: OnceLock<Middleware>,
     pub(super) commands: CommandRegistrar,
     pub(super) command_routes: Option<CommandRoutes>,
     pub(super) exceptions: Arc<Handler>,
@@ -300,6 +301,7 @@ impl Application {
             package_routes: Mutex::new(Some(Vec::new())),
             package_commands: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
+            middleware: OnceLock::new(),
             commands,
             command_routes,
             exceptions,
@@ -470,6 +472,23 @@ impl Application {
 
     pub(super) fn booting_started(&self) -> bool {
         self.shared.booting_started.load(Ordering::Acquire)
+    }
+
+    pub(super) fn configured_middleware(&self) -> &Middleware {
+        self.shared.middleware.get_or_init(|| {
+            let mut middleware = Middleware::default();
+            let configure = std::mem::take(
+                &mut *self
+                    .shared
+                    .middleware_configurators
+                    .lock()
+                    .expect("middleware configuration lock poisoned"),
+            );
+            for configure in configure {
+                configure(&mut middleware);
+            }
+            middleware
+        })
     }
 
     pub(crate) fn container_handle(&self) -> Arc<Container> {

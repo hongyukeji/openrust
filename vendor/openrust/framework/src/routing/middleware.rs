@@ -47,6 +47,18 @@ pub(crate) struct MiddlewareRegistry {
     parameterized_aliases: Mutex<HashMap<String, Arc<dyn Middleware>>>,
 }
 
+impl Clone for MiddlewareRegistry {
+    fn clone(&self) -> Self {
+        Self {
+            groups: self.groups.clone(),
+            aliases: self.aliases.clone(),
+            priority: self.priority.clone(),
+            throttle_with_redis: self.throttle_with_redis,
+            parameterized_aliases: Mutex::default(),
+        }
+    }
+}
+
 impl MiddlewareRegistry {
     pub(crate) fn resolve_groups(&self) -> Result<HashMap<String, MiddlewareStack>, RoutingError> {
         let mut resolved = HashMap::new();

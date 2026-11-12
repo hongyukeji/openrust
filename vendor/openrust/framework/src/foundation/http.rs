@@ -37,16 +37,7 @@ pub struct Kernel {
 
 impl Kernel {
     pub fn new(application: Application) -> Self {
-        let mut middleware = Middleware::default();
-        for configure in std::mem::take(
-            &mut *application
-                .shared
-                .middleware_configurators
-                .lock()
-                .expect("middleware configuration lock poisoned"),
-        ) {
-            configure(&mut middleware);
-        }
+        let middleware = application.configured_middleware().clone();
         Self {
             views: None,
             application,
@@ -78,6 +69,10 @@ impl http::Kernel for Kernel {
                         .get::<Factory>(crate::container::ServiceKey::typed::<Factory>())
                         .map_err(|source| BootstrapError::ContainerFailed { source })?,
                 );
+                let maintenance = self
+                    .application
+                    .maintenanceMode()
+                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
                 if self.routes.is_none() {
                     self.routes = self
                         .application
@@ -92,11 +87,19 @@ impl http::Kernel for Kernel {
                     .expect("boot assembled the application routes")
                     .configure_middleware(&self.middleware.registry)
                     .map_err(|source| BootstrapError::RoutingFailed { source })?;
+                let maintenance_index = self.middleware.prepended + usize::from(cors.is_some());
                 if let Some(cors) = cors {
                     self.middleware
                         .global
                         .insert(self.middleware.prepended, Arc::new(cors));
                 }
+                self.middleware.global.insert(
+                    maintenance_index,
+                    Arc::new(middleware::PreventRequestsDuringMaintenance::new(
+                        maintenance,
+                        std::mem::take(&mut self.middleware.maintenance_exceptions),
+                    )),
+                );
                 self.ready = true;
             }
             Ok(())
