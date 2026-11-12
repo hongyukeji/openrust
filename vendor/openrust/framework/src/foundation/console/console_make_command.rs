@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fs, io::ErrorKind, path::PathBuf};
+use std::{borrow::Cow, path::PathBuf};
 
 use clap::{Arg, ArgAction, Command as Syntax};
 
@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture,
         GeneratorCommand, Input, Output,
-        generator_command::{snake_case, write_generated},
+        generator_command::{load_stub, snake_case, source_name_parts, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -109,13 +109,7 @@ impl GeneratorCommand for ConsoleMakeCommand {
         }
 
         let custom = app.base_path().join("stubs/console.rs.stub");
-        let template = match fs::read_to_string(&custom) {
-            Ok(template) => Cow::Owned(template),
-            Err(error) if error.kind() == ErrorKind::NotFound => {
-                Cow::Borrowed(include_str!("stubs/console.rs.stub"))
-            }
-            Err(error) => return Err(ConsoleError::new(format!("{}: {error}", custom.display()))),
-        };
+        let template = load_stub(&custom, include_str!("stubs/console.rs.stub"))?;
         Ok(Cow::Owned(
             template
                 .replace("{{class}}", class)
@@ -132,18 +126,5 @@ fn command_type(input: &Input) -> &str {
 }
 
 fn validated_parts(name: &str) -> Result<impl Iterator<Item = &str>, ConsoleError> {
-    let parts = name.strip_suffix(".rs").unwrap_or(name).split(['/', '\\']);
-    if parts.clone().any(|part| {
-        !part.as_bytes().first().is_some_and(u8::is_ascii_uppercase)
-            || !part.bytes().all(|byte| byte.is_ascii_alphanumeric())
-            || matches!(
-                snake_case(part).as_str(),
-                "self" | "super" | "crate" | "mod"
-            )
-    }) {
-        return Err(ConsoleError::new(
-            "Use a PascalCase command type, such as SendReport.",
-        ));
-    }
-    Ok(parts)
+    source_name_parts(name, "Use a PascalCase command type, such as SendReport.")
 }

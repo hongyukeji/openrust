@@ -2,7 +2,7 @@ use std::{
     collections::BTreeMap,
     fs, io,
     net::TcpListener,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::Command,
     sync::{Arc, Mutex},
 };
@@ -154,6 +154,81 @@ fn artisan_generates_commands_and_preserves_existing_source() {
     fs::write(&stub, [0xff]).unwrap();
     assert_eq!(run(&["BrokenStub"]).status.code(), Some(1));
     assert!(!root.0.join("app/console/commands/broken_stub.rs").exists());
+}
+
+#[test]
+fn artisan_generates_isolated_feature_and_unit_tests() {
+    let root = TestRoot::new("make-test");
+    let other = TestRoot::new("make-test-other");
+    let run = |base: &Path, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "make:test"])
+            .args(args)
+            .env("APP_BASE_PATH", base)
+            .output()
+            .unwrap()
+    };
+    let commands = [&["Reports/ReportTest"][..], &["Reports/ReportTest.rs"]];
+    let generated = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&root.0, commands[0]));
+        let second = scope.spawn(|| run(&root.0, commands[1]));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        generated
+            .iter()
+            .filter(|output| output.status.success())
+            .count(),
+        1
+    );
+    let feature_path = "tests/feature/reports/report_test.rs";
+    let original = fs::read_to_string(root.0.join(feature_path)).unwrap();
+    assert!(original.contains("TestApp::create"));
+    assert!(original.contains("fn test_report_test()"));
+    assert_eq!(run(&root.0, commands[0]).status.code(), Some(1));
+    assert_eq!(
+        fs::read_to_string(root.0.join(feature_path)).unwrap(),
+        original
+    );
+    assert!(!other.0.join(feature_path).exists());
+
+    assert!(run(&other.0, &["ReportTest", "-u"]).status.success());
+    let unit = other.0.join("tests/unit/report_test.rs");
+    let source = fs::read_to_string(&unit).unwrap();
+    assert!(source.contains("#[test]"));
+    assert!(!source.contains("TestApp"));
+    assert!(!root.0.join("tests/unit").exists());
+
+    fs::create_dir(other.0.join("stubs")).unwrap();
+    fs::write(other.0.join("stubs/test.unit.rs.stub"), "// {{test}}\n").unwrap();
+    assert!(
+        run(&other.0, &["ReportTest", "--unit", "-f"])
+            .status
+            .success()
+    );
+    assert_eq!(fs::read_to_string(&unit).unwrap(), "// test_report_test\n");
+    fs::write(other.0.join("stubs/test.unit.rs.stub"), [0xff]).unwrap();
+    assert_eq!(
+        run(&other.0, &["ReportTest", "--unit", "--force"])
+            .status
+            .code(),
+        Some(1)
+    );
+    assert_eq!(fs::read_to_string(&unit).unwrap(), "// test_report_test\n");
+
+    let harness = other.0.join("tests/unit/main.rs");
+    fs::write(&harness, "// existing Cargo target\n").unwrap();
+    for args in [
+        &["../Escape"][..],
+        &["Main", "--unit", "--force"],
+        &["Self"],
+    ] {
+        assert_eq!(run(&other.0, args).status.code(), Some(1));
+    }
+    assert_eq!(
+        fs::read_to_string(harness).unwrap(),
+        "// existing Cargo target\n"
+    );
 }
 
 impl TestRoot {

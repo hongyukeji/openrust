@@ -107,7 +107,6 @@ const LARAVEL: &[(&str, &str)] = &[
         "make:session-table",
         "Generate a migration for database sessions",
     ),
-    ("make:test", "Generate a test"),
     ("make:trait", "Generate a trait"),
     ("make:view", "Generate a view"),
     ("migrate", "Apply pending database migrations"),

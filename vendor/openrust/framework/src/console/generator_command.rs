@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     fs::{self, OpenOptions},
-    io::{self, Write as _},
+    io::{self, ErrorKind, Write as _},
     path::{Path, PathBuf},
 };
 
@@ -62,4 +62,33 @@ pub(crate) fn snake_case(name: &str) -> String {
         snake.push(char::from(byte.to_ascii_lowercase()));
     }
     snake
+}
+
+pub(crate) fn source_name_parts<'a>(
+    name: &'a str,
+    invalid_message: &'static str,
+) -> Result<impl Iterator<Item = &'a str>, ConsoleError> {
+    let parts = name.strip_suffix(".rs").unwrap_or(name).split(['/', '\\']);
+    if parts.clone().any(|part| {
+        !part.as_bytes().first().is_some_and(u8::is_ascii_uppercase)
+            || !part.bytes().all(|byte| byte.is_ascii_alphanumeric())
+            || matches!(
+                snake_case(part).as_str(),
+                "self" | "super" | "crate" | "mod"
+            )
+    }) {
+        return Err(ConsoleError::new(invalid_message));
+    }
+    Ok(parts)
+}
+
+pub(crate) fn load_stub(
+    path: &Path,
+    builtin: &'static str,
+) -> Result<Cow<'static, str>, ConsoleError> {
+    match fs::read_to_string(path) {
+        Ok(template) => Ok(Cow::Owned(template)),
+        Err(error) if error.kind() == ErrorKind::NotFound => Ok(Cow::Borrowed(builtin)),
+        Err(error) => Err(ConsoleError::new(format!("{}: {error}", path.display()))),
+    }
 }

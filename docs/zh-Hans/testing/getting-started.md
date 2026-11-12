@@ -26,3 +26,21 @@ async fn boots_a_test_application() -> Result<(), Box<dyn std::error::Error + Se
 ```
 
 `boot` 执行应用引导，无需绑定端口。默认配置使用 `testing` 环境，自定义配置加载器提供自己的设置。夹具离开作用域时清理其临时目录。测试辅助工具不修改进程环境和工作目录。
+
+## 创建测试 {#creating-tests}
+
+Artisan 把功能测试写入 `tests/feature/`，把单元测试写入 `tests/unit/`。生成的功能测试引导临时应用并检查健康路由，单元测试使用 Rust 标准测试入口。
+
+```sh
+./artisan make:test HealthTest
+./artisan make:test GreetingTest --unit
+```
+
+在 `tests/feature/main.rs` 声明 `mod health_test;`，在 `tests/unit/main.rs` 声明 `mod greeting_test;`，让 Cargo 发现测试文件。嵌套名称也需要声明各级模块。然后运行指定测试。
+
+```sh
+cargo +1.94.0 test --locked --test feature test_health_test
+cargo +1.94.0 test --locked --test unit test_greeting_test
+```
+
+使用 `-f` 或 `--force` 覆盖已有测试文件。在应用根目录添加 `stubs/test.rs.stub` 或 `stubs/test.unit.rs.stub` 可自定义模板。生成器把 `{{test}}` 替换为 Rust 测试函数名。

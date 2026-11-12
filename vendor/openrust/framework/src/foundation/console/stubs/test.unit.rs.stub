@@ -1,0 +1,5 @@
+#[test]
+fn {{test}}() {
+    let actual = String::from("hello");
+    assert_eq!(actual.len(), 5);
+}
