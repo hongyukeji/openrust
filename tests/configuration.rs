@@ -67,6 +67,25 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(defaults["reverb"]["enabled"], false);
     assert_eq!(defaults["grpc"]["clients"], json!({}));
 
+    for (contents, default_db, cache_db) in [
+        ("", 0, 0),
+        ("REDIS_DB=3\n", 3, 3),
+        ("REDIS_CACHE_DB=1\n", 0, 1),
+        ("REDIS_DB=3\nREDIS_CACHE_DB=0\n", 3, 0),
+    ] {
+        fs::write(root.join(".env"), contents).unwrap();
+        let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
+        let configured = config::load(&root, &environment).unwrap();
+        assert_eq!(
+            configured["database"]["redis"]["default"]["database"],
+            default_db
+        );
+        assert_eq!(
+            configured["database"]["redis"]["cache"]["database"],
+            cache_db
+        );
+    }
+
     fs::write(
         root.join(".env"),
         "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nPUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\n",

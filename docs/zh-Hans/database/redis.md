@@ -2,7 +2,7 @@
 
 ## 配置
 
-在 `config/database.rs` 的 `database.redis` 下定义连接。应用提供 `default` 和 `cache` 连接。通过 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USERNAME` 和 `REDIS_PASSWORD` 配置地址及凭据。两个连接默认分别使用逻辑库 0 和 1，可用 `REDIS_DB` 和 `REDIS_CACHE_DB` 修改。
+在 `config/database.rs` 的 `database.redis` 下定义连接。应用提供 `default` 和 `cache` 连接。通过 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USERNAME` 和 `REDIS_PASSWORD` 配置地址及凭据。两个连接默认共用 `REDIS_DB` 指定的逻辑库，未设置时使用库 0。可用 `REDIS_CACHE_DB` 为缓存数据指定独立的逻辑库。执行 `cache:clear redis` 会清空缓存逻辑库的所有键，包括同库的其他用途键。
 
 可通过 `REDIS_URL` 配置端点。URL 内的库号优先于配置库号。要让两个连接使用同一 Redis 实例的不同逻辑库，请使用省略库号的 URL。
 

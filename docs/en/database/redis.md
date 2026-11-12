@@ -2,7 +2,7 @@
 
 ## Configuration
 
-Define connections under `database.redis` in `config/database.rs`. The application provides a `default` connection and a `cache` connection. Configure the host, port and credentials through `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME` and `REDIS_PASSWORD`. The default logical databases are 0 and 1, selected by `REDIS_DB` and `REDIS_CACHE_DB`.
+Define connections under `database.redis` in `config/database.rs`. The application provides a `default` connection and a `cache` connection. Configure the host, port and credentials through `REDIS_HOST`, `REDIS_PORT`, `REDIS_USERNAME` and `REDIS_PASSWORD`. Both connections use the logical database selected by `REDIS_DB`, which defaults to 0. Set `REDIS_CACHE_DB` to select a separate database for cache data. Clearing the Redis cache with `cache:clear redis` removes all keys in the cache database, including keys shared with other uses.
 
 `REDIS_URL` can specify a Redis endpoint. A database in the URL takes precedence over the configured database. Use a URL without a database path to keep separate logical databases on the same server.
 

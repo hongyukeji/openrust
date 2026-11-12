@@ -2,7 +2,7 @@
 
 ## 設定
 
-在 `config/database.rs` 的 `database.redis` 下定義連線。應用程式提供 `default` 和 `cache` 連線。透過 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USERNAME` 和 `REDIS_PASSWORD` 設定端點及憑證。兩個連線預設分別使用邏輯資料庫 0 和 1，可用 `REDIS_DB` 和 `REDIS_CACHE_DB` 修改。
+在 `config/database.rs` 的 `database.redis` 下定義連線。應用程式提供 `default` 和 `cache` 連線。透過 `REDIS_HOST`、`REDIS_PORT`、`REDIS_USERNAME` 和 `REDIS_PASSWORD` 設定端點及憑證。兩個連線預設共用 `REDIS_DB` 指定的邏輯資料庫，未設定時使用資料庫 0。可用 `REDIS_CACHE_DB` 為快取資料指定獨立的邏輯資料庫。執行 `cache:clear redis` 會清空快取邏輯資料庫的所有鍵，包括同庫的其他用途鍵。
 
 可透過 `REDIS_URL` 設定端點。URL 內的資料庫編號優先於設定的編號。若要讓兩個連線使用同一 Redis 執行個體的不同邏輯資料庫，請省略 URL 中的資料庫路徑。
 
