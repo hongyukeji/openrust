@@ -27,6 +27,70 @@ mod config;
 
 struct TestRoot(PathBuf);
 
+#[test]
+fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
+    let root = TestRoot::new("install-routes");
+    fs::write(root.0.join("Cargo.toml"), "").unwrap();
+    fs::create_dir(root.0.join("routes")).unwrap();
+    fs::create_dir(root.0.join("bootstrap")).unwrap();
+    let modules = root.0.join("routes/mod.rs");
+    let bootstrap = root.0.join("bootstrap/app.rs");
+    fs::write(&modules, "pub(crate) mod console;\npub(crate) mod web;\n").unwrap();
+    fs::write(&bootstrap, "custom bootstrap\n").unwrap();
+    let run = |command: &str| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", command])
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+    let result = run("install:api");
+    assert_eq!(result.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
+    assert!(!root.0.join("routes/api.rs").exists());
+    assert!(!fs::read_to_string(&modules).unwrap().contains("mod api;"));
+
+    fs::write(&bootstrap, include_str!("../bootstrap/app.rs")).unwrap();
+    for (command, module, registration) in [
+        ("install:api", "api", ".api(routes::api::register)"),
+        (
+            "install:broadcasting",
+            "channels",
+            ".channels(routes::channels::register)",
+        ),
+        ("install:grpc", "grpc", ".withGrpc(routes::grpc::register)"),
+    ] {
+        let result = run(command);
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        let routes = root.0.join(format!("routes/{module}.rs"));
+        assert!(fs::read_to_string(&routes).unwrap().contains("fn register"));
+        fs::write(&routes, "// Existing application routes\n").unwrap();
+        assert!(run(command).status.success());
+        assert_eq!(
+            fs::read_to_string(&routes).unwrap(),
+            "// Existing application routes\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&modules)
+                .unwrap()
+                .matches(&format!("mod {module};"))
+                .count(),
+            1
+        );
+        assert_eq!(
+            fs::read_to_string(&bootstrap)
+                .unwrap()
+                .matches(registration)
+                .count(),
+            1
+        );
+    }
+}
+
 impl TestRoot {
     fn new(name: &str) -> Self {
         let path =

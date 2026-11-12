@@ -51,3 +51,15 @@ Windows 上使用 `artisan.bat`。编译后的应用通过 `main artisan` 接收
 `--quiet` 隐藏普通输出。`--silent` 同时隐藏控制台错误。命令定义也可使用全局 `--no-interaction`、`--ansi`、`--no-ansi`、`--version` 和详细程度选项。
 
 语言选择与覆盖见 [Artisan 翻译](./localization.md#artisan-translations)。
+
+## 按需安装路由 {#optional-route-installers}
+
+在源码目录运行以下命令，生成路由文件并更新模块声明和启动配置，然后重新构建。已有路由文件会保留。
+
+```sh
+./artisan install:api
+./artisan install:broadcasting
+./artisan install:grpc
+```
+
+API 默认挂载到 `/api` 并使用 `api` 中间件组，端点和认证由应用补充。广播接入后会注册 `/broadcasting/auth`，授权需要广播驱动和频道规则。gRPC 需要注册 Tonic 服务，并设置 `GRPC_HOST` 和 `GRPC_PORT` 才开启监听。

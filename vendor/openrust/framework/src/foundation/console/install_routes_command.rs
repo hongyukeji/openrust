@@ -26,18 +26,44 @@ struct InstallSpec {
     next_steps: &'static str,
 }
 
-const INSTALLERS: &[InstallSpec] = &[InstallSpec {
-    command: "install:grpc",
-    description: "Install the application gRPC scaffolding",
-    module: "grpc",
-    module_anchor: "web",
-    registration: ".withGrpc(routes::grpc::register)",
-    registration_methods: &[".withGrpc("],
-    equivalent: None,
-    bootstrap_anchor: ".withMiddleware(",
-    stub: include_bytes!("stubs/grpc-routes.stub"),
-    next_steps: "Register your gRPC services, rebuild, and set GRPC_HOST and GRPC_PORT to enable the listener.",
-}];
+const INSTALLERS: &[InstallSpec] = &[
+    InstallSpec {
+        command: "install:api",
+        description: "Install the application API route scaffolding",
+        module: "api",
+        module_anchor: "console",
+        registration: ".api(routes::api::register)",
+        registration_methods: &[".api("],
+        equivalent: None,
+        bootstrap_anchor: ".commands(",
+        stub: include_bytes!("stubs/api-routes.stub"),
+        next_steps: "Add your API endpoints and rebuild the application.",
+    },
+    InstallSpec {
+        command: "install:broadcasting",
+        description: "Install the broadcasting channel scaffolding",
+        module: "channels",
+        module_anchor: "console",
+        registration: ".channels(routes::channels::register)",
+        registration_methods: &[".channels(", ".withBroadcasting("],
+        equivalent: Some(".withBroadcasting(routes::channels::register)"),
+        bootstrap_anchor: ".health(",
+        stub: include_bytes!("stubs/broadcasting-routes.stub"),
+        next_steps: "Configure a broadcast driver, add your channel rules, and rebuild the application.",
+    },
+    InstallSpec {
+        command: "install:grpc",
+        description: "Install the application gRPC scaffolding",
+        module: "grpc",
+        module_anchor: "web",
+        registration: ".withGrpc(routes::grpc::register)",
+        registration_methods: &[".withGrpc("],
+        equivalent: None,
+        bootstrap_anchor: ".withMiddleware(",
+        stub: include_bytes!("stubs/grpc-routes.stub"),
+        next_steps: "Register your gRPC services, rebuild, and set GRPC_HOST and GRPC_PORT to enable the listener.",
+    },
+];
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     for spec in INSTALLERS {

@@ -1,0 +1,7 @@
+//! Application broadcast channel authorization rules.
+
+use openrust::broadcasting::BroadcastResult;
+
+pub(crate) fn register() -> BroadcastResult<()> {
+    Ok(())
+}

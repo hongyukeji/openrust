@@ -10,7 +10,6 @@ type CustomRoutes = fn(&Application) -> Result<Router, RoutingError>;
 type GroupRoutes = fn(&mut Router) -> Result<(), RoutingError>;
 type WebRoutes = fn() -> Result<(), RoutingError>;
 pub(in crate::foundation) type CommandRoutes = fn() -> Result<(), ConsoleError>;
-
 pub(super) type ChannelRoutes = fn() -> BroadcastResult<()>;
 
 /// Declares the application's HTTP routes, console routes and health endpoint.
@@ -19,6 +18,7 @@ pub struct Routing {
     custom: Option<CustomRoutes>,
     web: Option<WebRoutes>,
     api: Option<GroupRoutes>,
+    api_prefix: Option<String>,
     health: Option<String>,
     channels: Option<ChannelRoutes>,
     pub(in crate::foundation) command_routes: Option<CommandRoutes>,
@@ -42,7 +42,14 @@ impl Routing {
         self
     }
 
-    /// Registers channel authorization and the broadcast authentication route.
+    /// Overrides the default `api` URL prefix for API routes.
+    #[allow(non_snake_case, reason = "Matches Laravel's apiPrefix option")]
+    pub fn apiPrefix(mut self, prefix: impl Into<String>) -> Self {
+        self.api_prefix = Some(prefix.into());
+        self
+    }
+
+    /// Enables broadcast authentication and loads the application's channel rules.
     pub fn channels(mut self, register: ChannelRoutes) -> Self {
         self.channels = Some(register);
         self
@@ -66,7 +73,9 @@ impl Routing {
         };
         if let Some(register) = self.api {
             router.group(
-                RouteGroup::new().prefix("api").middleware_name("api"),
+                RouteGroup::new()
+                    .prefix(self.api_prefix.as_deref().unwrap_or("api"))
+                    .middleware_name("api"),
                 register,
             )?;
         }

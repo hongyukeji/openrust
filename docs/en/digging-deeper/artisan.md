@@ -51,3 +51,15 @@ The command catalog contains planned entries in addition to implemented commands
 `--quiet` suppresses normal output. `--silent` also suppresses console errors. The global `--no-interaction`, `--ansi`, `--no-ansi`, `--version` and verbosity flags are available in command definitions.
 
 See [Artisan translations](./localization.md#artisan-translations) for language selection and overrides.
+
+## Optional Route Installers {#optional-route-installers}
+
+Run these commands from a source checkout to generate the route files and update the module and bootstrap declarations. Then rebuild the application. Existing route files are preserved.
+
+```sh
+./artisan install:api
+./artisan install:broadcasting
+./artisan install:grpc
+```
+
+API routes default to the `/api` prefix and use the `api` middleware group. Add your own endpoints and authentication. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
