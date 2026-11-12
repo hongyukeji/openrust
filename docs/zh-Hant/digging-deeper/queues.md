@@ -611,6 +611,31 @@ fn job_exception_throttle() -> ThrottlesExceptions {
 
 用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 選擇 Redis 連線。`when` 和 `reportWhen` 的第二個參數是 `ExceptionThrottleLimiter`，提供快取服務，或 Redis 視窗的剩餘額度與到期時間戳記。
 
+### 釋放工作 {#releasing-jobs}
+
+從處理器的中介軟體清單傳回 `Release::when` 或 `Release::unless`，依條件延後工作並略過處理器。用 `Duration` 指定延遲，用 `Duration::ZERO` 讓工作立即可再次預約。釋放會消耗一次嘗試。
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::Release;
+
+fn defer_when_unavailable(available: bool) -> Release {
+    Release::unless(available, Duration::from_secs(30))
+}
+```
+
+### 略過工作 {#skipping-jobs}
+
+使用 `Skip::when` 或 `Skip::unless`，依條件確認工作並略過處理器。兩種中介軟體均接受布林值或傳回布林值的閉包，條件在建構中介軟體時求值一次。
+
+```rust
+use openrust::queue::middleware::Skip;
+
+fn skip_when_cancelled(cancelled: bool) -> Skip {
+    Skip::when(|| cancelled)
+}
+```
+
 ## 失敗工作
 
 執行 `./artisan migrate` 建立 `failed_jobs`。使用 `./artisan queue:failed --json` 查看失敗記錄，以 `./artisan queue:retry <uuid>` 將工作重新送至原連線與佇列。`queue:forget` 和 `queue:flush` 可移除失敗記錄。逾時會取消目前的 Rust future，工作需自行管理在該 future 外啟動的作業。

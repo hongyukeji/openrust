@@ -611,6 +611,31 @@ Use `by` to share a budget across job types and `byJob` for a budget per job UUI
 
 Use `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` for a named Redis connection. The second argument to `when` and `reportWhen` is an `ExceptionThrottleLimiter` with the cache service or the Redis window's remaining budget and expiration timestamp.
 
+### Releasing jobs {#releasing-jobs}
+
+Return `Release::when` or `Release::unless` from the handler's middleware list to defer a job without invoking the handler. Pass a `Duration` for the delay. Use `Duration::ZERO` to make the job available immediately. A released reservation consumes an attempt.
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::Release;
+
+fn defer_when_unavailable(available: bool) -> Release {
+    Release::unless(available, Duration::from_secs(30))
+}
+```
+
+### Skipping jobs {#skipping-jobs}
+
+Use `Skip::when` or `Skip::unless` to acknowledge a job without calling its handler. Both middleware types accept a boolean or a closure returning a boolean. The condition is evaluated once when the middleware is constructed.
+
+```rust
+use openrust::queue::middleware::Skip;
+
+fn skip_when_cancelled(cancelled: bool) -> Skip {
+    Skip::when(|| cancelled)
+}
+```
+
 ## Failed jobs
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.

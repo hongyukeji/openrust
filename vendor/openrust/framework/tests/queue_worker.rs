@@ -45,7 +45,7 @@ use openrust::{
         },
         middleware::{
             ExceptionThrottleLimiter, JobMiddleware, JobNext, RateLimited, RateLimitedWithRedis,
-            ThrottlesExceptions, ThrottlesExceptionsWithRedis,
+            Release, Skip, ThrottlesExceptions, ThrottlesExceptionsWithRedis,
         },
     },
     routing::{Router, RoutingError},
@@ -671,6 +671,40 @@ impl JobHandler for ThrottledHandler {
     }
 }
 
+struct ConditionalHandler {
+    name: &'static str,
+    gate: PathBuf,
+}
+
+impl JobHandler for ConditionalHandler {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        let condition = || {
+            println!("conditional-evaluation:{}", self.name);
+            self.gate.exists()
+        };
+        let middleware: Arc<dyn JobMiddleware> = match self.name {
+            "conditional_skip_when" => Arc::new(Skip::when(true)),
+            "conditional_skip_unless" => Arc::new(Skip::unless(condition)),
+            "conditional_run_when" => Arc::new(Skip::when(condition)),
+            "conditional_run_unless" => Arc::new(Release::unless(true, Duration::from_secs(2))),
+            "conditional_release_zero" => Arc::new(Release::when(|| !condition(), Duration::ZERO)),
+            "conditional_release_delayed" => {
+                Arc::new(Release::unless(condition, Duration::from_secs(2)))
+            }
+            _ => unreachable!(),
+        };
+        vec![middleware, Arc::new(Tag)]
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Handler.handle(context, payload)
+    }
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -729,6 +763,22 @@ impl ServiceProvider for Providers {
                 "throttle_redis_bypass",
             ] {
                 Queue::register(name, Arc::new(ThrottledHandler(name)))?;
+            }
+            for name in [
+                "conditional_skip_when",
+                "conditional_skip_unless",
+                "conditional_run_when",
+                "conditional_run_unless",
+                "conditional_release_zero",
+                "conditional_release_delayed",
+            ] {
+                Queue::register(
+                    name,
+                    Arc::new(ConditionalHandler {
+                        name,
+                        gate: app.base_path().join("conditional.ready"),
+                    }),
+                )?;
             }
             let cache_error = |source| HttpError::Internal {
                 source: Box::new(source),
@@ -813,6 +863,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     Some("throttle-redis".into())
                 } else if kind.starts_with("throttle_cache_") {
                     Some("throttle-cache".into())
+                } else if kind.starts_with("conditional_") {
+                    Some("conditional".into())
                 } else {
                     (kind == "control_low").then(|| "low".to_owned())
                 },
@@ -1299,6 +1351,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_memory(&root.0, &*queue, address).await;
     verify_worker_timeout(&root.0, &*queue, address).await;
     verify_job_rate_limits(&root.0, &db, &*queue, address, redis.is_some()).await;
+    verify_conditional_middleware(&root.0, &db, &*queue, address).await;
     verify_exception_throttle(&root.0, &db, &*queue, address, "cache").await;
     if redis.is_some() {
         verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
@@ -2286,6 +2339,84 @@ async fn verify_job_rate_limits(
         tokio::join!(run(root, &args), run(root, &args));
         assert_eq!(count("rate_redis").await, 1);
         assert_eq!(queue.size(None).await.unwrap(), 0);
+    }
+}
+
+async fn verify_conditional_middleware(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let args = [
+        "queue:work",
+        "--json",
+        "--queue=conditional",
+        "--once",
+        "--tries=2",
+    ];
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    for kind in [
+        "conditional_skip_when",
+        "conditional_skip_unless",
+        "conditional_run_when",
+        "conditional_run_unless",
+    ] {
+        request(address, kind).await;
+        let out = run(root, &args).await;
+        assert_eq!(
+            json_lines(&out).last().unwrap()["result"],
+            "deleted",
+            "{out}"
+        );
+        assert_eq!(
+            count(kind).await,
+            u64::from(kind.starts_with("conditional_run"))
+        );
+        if matches!(kind, "conditional_skip_unless" | "conditional_run_when") {
+            assert_eq!(
+                out.matches(&format!("conditional-evaluation:{kind}"))
+                    .count(),
+                1
+            );
+        }
+    }
+    let gate = root.join("conditional.ready");
+    for kind in ["conditional_release_zero", "conditional_release_delayed"] {
+        request(address, kind).await;
+        let out = run(root, &args).await;
+        assert_eq!(
+            json_lines(&out).last().unwrap()["result"],
+            "released",
+            "{out}"
+        );
+        assert_eq!(
+            out.matches(&format!("conditional-evaluation:{kind}"))
+                .count(),
+            1
+        );
+        assert_eq!(count(kind).await, 0);
+        assert_eq!(queue.size(Some("conditional")).await.unwrap(), 1);
+        if kind == "conditional_release_delayed" {
+            let out = run(root, &args).await;
+            assert!(json_lines(&out).is_empty(), "{out}");
+            sleep(Duration::from_secs(2)).await;
+        }
+        std::fs::write(&gate, []).unwrap();
+        let out = run(root, &args).await;
+        let rows = json_lines(&out);
+        let completed = rows.last().unwrap();
+        assert_eq!(completed["result"], "deleted", "{out}");
+        assert_eq!(completed["attempts"], 2);
+        assert_eq!(count(kind).await, 1);
+        std::fs::remove_file(&gate).unwrap();
+        assert_eq!(queue.size(Some("conditional")).await.unwrap(), 0);
     }
 }
 

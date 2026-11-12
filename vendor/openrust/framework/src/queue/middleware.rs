@@ -1,6 +1,8 @@
+mod conditional;
 mod rate_limited;
 mod throttles_exceptions;
 
+pub use conditional::{MiddlewareCondition, Release, Skip};
 pub use rate_limited::{RateLimited, RateLimitedWithRedis};
 pub use throttles_exceptions::{
     ExceptionThrottleLimiter, ThrottlesExceptions, ThrottlesExceptionsWithRedis,

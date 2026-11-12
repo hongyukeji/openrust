@@ -611,6 +611,31 @@ fn job_exception_throttle() -> ThrottlesExceptions {
 
 用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 选择 Redis 连接。`when` 和 `reportWhen` 的第二个参数是 `ExceptionThrottleLimiter`，提供缓存服务，或 Redis 窗口的剩余额度和到期时间戳。
 
+### 释放任务 {#releasing-jobs}
+
+从处理器的中间件清单返回 `Release::when` 或 `Release::unless`，按条件延迟任务并跳过处理器。用 `Duration` 指定延迟，用 `Duration::ZERO` 让任务立即可再次预约。释放会消耗一次尝试。
+
+```rust
+use std::time::Duration;
+use openrust::queue::middleware::Release;
+
+fn defer_when_unavailable(available: bool) -> Release {
+    Release::unless(available, Duration::from_secs(30))
+}
+```
+
+### 跳过任务 {#skipping-jobs}
+
+使用 `Skip::when` 或 `Skip::unless`，按条件确认任务并跳过处理器。两种中间件均接受布尔值或返回布尔值的闭包，条件在构造中间件时求值一次。
+
+```rust
+use openrust::queue::middleware::Skip;
+
+fn skip_when_cancelled(cancelled: bool) -> Skip {
+    Skip::when(|| cancelled)
+}
+```
+
 ## 失败任务
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。
