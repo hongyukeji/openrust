@@ -127,6 +127,20 @@ Run `./artisan queue:work database --queue=batch --stop-when-empty` to process t
 
 A database queue and its batch repository must use the same SQL connection. Their batch and queue writes commit together. To publish a batch to Redis, select `onConnection("redis")` before `dispatch()`.
 
+### Chains within batches {#chains-and-batches}
+
+Use `addChain` on a pending batch to add an ordered sequence of jobs. It represents a nested array in Laravel’s `Bus::batch`. All members share the batch ID, connection, and queue. The batch counts every member, and initially enqueues only the first job of each chain. Multiple workers can process different chains in parallel.
+
+```rust
+use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
+
+fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
+    Bus::batch([]).addChain(left).addChain(right)
+}
+```
+
+Call `dispatch().await` on the builder. To append a sequence after dispatch, call `Batch::addChain(...).await`. A permanent failure stops the affected chain. Its unrun members remain pending, even when the batch allows failures. Retrying the failed job can resume that chain.
+
 ### Adding jobs to batches {#adding-jobs-to-batches}
 
 Call `Batch::add` from a handler or another application entry point. It uses the batch’s queue and connection options and returns the updated batch if it still exists. Appending jobs increases the total and pending counts and clears the completion timestamp. A cancelled batch retains its cancellation state. Each appended job receives a new queue UUID.

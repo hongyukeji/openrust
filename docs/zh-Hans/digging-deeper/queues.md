@@ -127,6 +127,20 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 数据库队列与批次仓库须使用同一 SQL 连接，批次和入队操作在同一事务提交。派发到 Redis 时，在 `dispatch()` 前调用 `onConnection("redis")`。
 
+### 批次中的任务链 {#chains-and-batches}
+
+在待派发批次上用 `addChain` 加入一组顺序执行的任务。它对应 Laravel `Bus::batch` 里的嵌套数组。所有成员共用批次 ID、连接和队列。批次统计每个成员，初次入队只放入各链的首任务。多个 Worker 可以并行处理不同的任务链。
+
+```rust
+use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
+
+fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
+    Bus::batch([]).addChain(left).addChain(right)
+}
+```
+
+在构建器上调用 `dispatch().await` 派发。批次派发后，可用 `Batch::addChain(...).await` 追加任务链。任务最终失败会停止所在的链。即使批次允许失败，链中尚未执行的任务仍保持待处理状态。重试失败任务可恢复该链。
+
 ### 向批次追加任务 {#adding-jobs-to-batches}
 
 可在任务处理器或其他应用入口调用 `Batch::add`。它沿用批次的队列和连接选项，并在批次仍存在时返回更新后的快照。追加会增加任务总数和待处理数，并清除完成时间。已取消的批次保留取消状态。每个追加任务获得新的队列 UUID。

@@ -118,12 +118,12 @@ impl Worker {
         if let Some(batch) = &batch
             && let Some(succeeded) = batch.recorded().await?
         {
+            if succeeded {
+                Self::complete(job).await?;
+                return Ok(WorkResult::Processed);
+            }
             job.delete().await?;
-            return Ok(if succeeded {
-                WorkResult::Processed
-            } else {
-                WorkResult::Failed
-            });
+            return Ok(WorkResult::Failed);
         }
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id
@@ -168,11 +168,7 @@ impl Worker {
                 if let Some(batch) = &batch {
                     batch.record(&self.app, None).await?;
                 }
-                if let Some(next) = job.payload().next_chain_job() {
-                    job.advance_chain(&next).await?;
-                } else {
-                    job.delete().await?;
-                }
+                Self::complete(job).await?;
                 Ok(WorkResult::Processed)
             }
             Err(error)
@@ -197,6 +193,14 @@ impl Worker {
                 job.release(delay).await?;
                 Ok(WorkResult::Released)
             }
+        }
+    }
+
+    async fn complete(job: &mut dyn Job) -> QueueResult<()> {
+        if let Some(next) = job.payload().next_chain_job() {
+            job.advance_chain(&next).await
+        } else {
+            job.delete().await
         }
     }
 

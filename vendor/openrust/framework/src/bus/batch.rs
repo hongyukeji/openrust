@@ -1,3 +1,5 @@
+use super::BatchJob;
+
 use chrono::{DateTime, Utc};
 use serde::{Serialize, Serializer, ser::SerializeStruct};
 use serde_json::{Map, Value};
@@ -27,8 +29,17 @@ impl Batch {
     /// Appends jobs to the persisted batch and returns its updated snapshot.
     #[allow(clippy::should_implement_trait, reason = "Matches Laravel Batch::add")]
     pub async fn add(&self, jobs: impl IntoIterator<Item = Payload>) -> QueueResult<Option<Self>> {
-        let jobs = jobs.into_iter().collect();
+        let jobs = jobs.into_iter().map(BatchJob::Job).collect();
         Queue::manager()?.append_batch(&self.id, jobs).await
+    }
+
+    /// Appends a sequence to the persisted batch.
+    pub async fn addChain(
+        &self,
+        jobs: impl IntoIterator<Item = Payload>,
+    ) -> QueueResult<Option<Self>> {
+        let chain = BatchJob::Chain(jobs.into_iter().collect());
+        Queue::manager()?.append_batch(&self.id, vec![chain]).await
     }
 
     pub fn processedJobs(&self) -> u32 {

@@ -7,8 +7,8 @@ use serde::Deserialize;
 
 use crate::{
     bus::{
-        Batch, BatchCallback, BatchPhase, ChainCallback, DatabaseBatchRepository, PublicationKey,
-        new_batch,
+        Batch, BatchCallback, BatchJob, BatchPhase, ChainCallback, DatabaseBatchRepository,
+        PublicationKey, new_batch,
     },
     container::Container,
     contracts::{
@@ -298,9 +298,9 @@ impl QueueManager {
         &self,
         name: String,
         options: serde_json::Map<String, serde_json::Value>,
-        mut jobs: Vec<Payload>,
+        mut jobs: Vec<BatchJob>,
     ) -> QueueResult<Batch> {
-        let count = validate_batch_jobs(&jobs)?;
+        let count = prepare_batch_jobs(&mut jobs, false)?;
         let repository = self.batch_repository()?;
         let configured = self.resolve_batch_destination(&repository, &options)?;
         let mut batch = new_batch(name, options, 0)?;
@@ -325,7 +325,7 @@ impl QueueManager {
             &configured,
             &batch,
             &publication,
-            &mut jobs,
+            jobs,
         )
         .await?;
         transaction.commit().await.map_err(backend)?;
@@ -343,17 +343,9 @@ impl QueueManager {
     pub(crate) async fn append_batch(
         &self,
         id: &str,
-        mut jobs: Vec<Payload>,
+        mut jobs: Vec<BatchJob>,
     ) -> QueueResult<Option<Batch>> {
-        let count = batch_job_count(&jobs)?;
-        for job in &mut jobs {
-            if job.batch_id.is_some() {
-                return Err(QueueError::InvalidPayload);
-            }
-            job.uuid = new_id()?;
-            job.delivery_id = None;
-            job.context = Default::default();
-        }
+        let count = prepare_batch_jobs(&mut jobs, true)?;
         let publication = PublicationKey::Addition(new_id()?);
         let repository = self.batch_repository()?;
         let mut transaction = repository.begin().await?;
@@ -375,7 +367,7 @@ impl QueueManager {
             &configured,
             &batch,
             &publication,
-            &mut jobs,
+            jobs,
         )
         .await?;
         transaction.commit().await.map_err(backend)?;
@@ -412,11 +404,13 @@ impl QueueManager {
         configured: &ConfiguredQueue,
         batch: &Batch,
         publication: &PublicationKey,
-        jobs: &mut [Payload],
+        jobs: Vec<BatchJob>,
     ) -> QueueResult<()> {
-        for job in &mut *jobs {
-            self.capture_context(job)?;
-            job.batch_id = Some(batch.id.clone());
+        let mut heads = Vec::with_capacity(jobs.len());
+        for entry in jobs {
+            let mut head = entry.into_head(&batch.id)?;
+            self.capture_context(&mut head)?;
+            heads.push(head);
         }
         let queue = batch
             .options
@@ -430,11 +424,11 @@ impl QueueManager {
                     &batch.id,
                     &redis.name,
                     redis.queue_name(queue)?,
-                    jobs,
+                    &heads,
                 )
                 .await?;
         } else {
-            for job in jobs {
+            for job in &heads {
                 configured
                     .queue
                     .push_in_transaction(job, queue, None, transaction)
@@ -624,21 +618,29 @@ impl Factory for QueueManager {
     }
 }
 
-fn batch_job_count(jobs: &[Payload]) -> QueueResult<u32> {
-    u32::try_from(jobs.len())
-        .ok()
-        .filter(|count| i32::try_from(*count).is_ok())
-        .ok_or(QueueError::InvalidPayload)
-}
-
-fn validate_batch_jobs(jobs: &[Payload]) -> QueueResult<u32> {
-    let count = batch_job_count(jobs)?;
-    let mut ids = HashSet::with_capacity(jobs.len());
-    for job in jobs {
-        if !job.is_chain_member() || !ids.insert(job.uuid()) {
+fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {
+    let mut count = 0_u32;
+    let mut ids = HashSet::new();
+    for entry in jobs {
+        let mut members = entry.members().peekable();
+        if members.peek().is_none() {
             return Err(QueueError::InvalidPayload);
         }
+        for job in members {
+            if !job.is_chain_member() {
+                return Err(QueueError::InvalidPayload);
+            }
+            if renew {
+                job.uuid = new_id()?;
+                job.delivery_id = None;
+                job.context = Default::default();
+            } else if !ids.insert(job.uuid()) {
+                return Err(QueueError::InvalidPayload);
+            }
+            count = count.checked_add(1).ok_or(QueueError::InvalidPayload)?;
+        }
     }
+    i32::try_from(count).map_err(|_| QueueError::InvalidPayload)?;
     Ok(count)
 }
 

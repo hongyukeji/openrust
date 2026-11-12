@@ -127,6 +127,20 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 資料庫佇列與批次儲存庫須使用相同 SQL 連線，批次和入列操作在同一交易提交。派送到 Redis 時，在 `dispatch()` 前呼叫 `onConnection("redis")`。
 
+### 批次中的工作鏈 {#chains-and-batches}
+
+在待派送批次上使用 `addChain` 加入一組依序執行的工作。它對應 Laravel `Bus::batch` 裡的巢狀陣列。所有成員共用批次 ID、連線和佇列。批次統計每個成員，首次入列只放入各鏈的第一個工作。多個 Worker 可以平行處理不同的工作鏈。
+
+```rust
+use openrust::{bus::PendingBatch, queue::Payload, support::facades::Bus};
+
+fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
+    Bus::batch([]).addChain(left).addChain(right)
+}
+```
+
+在建構器上呼叫 `dispatch().await` 派送。批次派送後，可用 `Batch::addChain(...).await` 加入工作鏈。工作最終失敗會停止所在的鏈。即使批次允許失敗，鏈中尚未執行的工作仍維持待處理狀態。重試失敗的工作可恢復該鏈。
+
 ### 向批次新增工作 {#adding-jobs-to-batches}
 
 可在工作處理器或其他應用程式入口呼叫 `Batch::add`。它沿用批次的佇列和連線選項，批次仍存在時會回傳更新後的快照。新增工作會增加工作總數和待處理數，並清除完成時間。已取消的批次保留取消狀態。每個新增工作會取得新的佇列 UUID。

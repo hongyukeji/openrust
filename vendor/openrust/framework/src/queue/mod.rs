@@ -151,7 +151,7 @@ pub struct Payload {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delivery_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    batch_id: Option<String>,
+    pub(crate) batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chain: Option<JobChain>,
 }

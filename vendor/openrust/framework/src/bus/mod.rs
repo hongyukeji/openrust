@@ -14,6 +14,7 @@ pub(crate) use database_batch_repository::{PublicationKey, new_batch};
 mod pending_batch;
 mod pending_chain;
 
+pub(crate) use pending_batch::BatchJob;
 pub use pending_batch::PendingBatch;
 pub use pending_chain::{ChainCallback, PendingChain};
 

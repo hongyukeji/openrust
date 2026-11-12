@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use serde_json::{Map, Value};
 
 use crate::{
@@ -7,9 +9,44 @@ use crate::{
 
 use super::{Batch, BatchPhase};
 
+#[allow(
+    clippy::large_enum_variant,
+    reason = "Keeps ordinary jobs inline in the batch builder"
+)]
+pub(crate) enum BatchJob {
+    Job(Payload),
+    Chain(VecDeque<Payload>),
+}
+
+impl BatchJob {
+    pub(crate) fn members(&mut self) -> impl Iterator<Item = &mut Payload> {
+        let (job, chain) = match self {
+            Self::Job(job) => (Some(job), None),
+            Self::Chain(chain) => (None, Some(chain)),
+        };
+        job.into_iter().chain(chain.into_iter().flatten())
+    }
+
+    pub(crate) fn into_head(self, batch_id: &str) -> QueueResult<Payload> {
+        let mut entry = self;
+        for job in entry.members() {
+            job.batch_id = Some(batch_id.to_owned());
+        }
+        match entry {
+            Self::Job(job) => Ok(job),
+            Self::Chain(mut chain) => {
+                let head = chain
+                    .pop_front()
+                    .ok_or(crate::queue::QueueError::InvalidPayload)?;
+                Ok(head.with_chain(chain, Vec::new()))
+            }
+        }
+    }
+}
+
 /// Builds a batch for a single queue connection and queue.
 pub struct PendingBatch {
-    jobs: Vec<Payload>,
+    jobs: Vec<BatchJob>,
     name: String,
     options: Map<String, Value>,
 }
@@ -18,7 +55,7 @@ pub struct PendingBatch {
 impl PendingBatch {
     pub(super) fn new(jobs: impl IntoIterator<Item = Payload>) -> Self {
         Self {
-            jobs: jobs.into_iter().collect(),
+            jobs: jobs.into_iter().map(BatchJob::Job).collect(),
             name: String::new(),
             options: Map::new(),
         }
@@ -34,7 +71,13 @@ impl PendingBatch {
         reason = "Matches Laravel PendingBatch::add"
     )]
     pub fn add(mut self, jobs: impl IntoIterator<Item = Payload>) -> Self {
-        self.jobs.extend(jobs);
+        self.jobs.extend(jobs.into_iter().map(BatchJob::Job));
+        self
+    }
+
+    /// Appends a sequence whose members run one at a time in this batch.
+    pub fn addChain(mut self, jobs: impl IntoIterator<Item = Payload>) -> Self {
+        self.jobs.push(BatchJob::Chain(jobs.into_iter().collect()));
         self
     }
 
