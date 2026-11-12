@@ -35,7 +35,7 @@ use super::{
     Application, BootstrapError, RunningService, RuntimeResult, RuntimeService,
     environment_detector, runtime_service::ServiceExit,
 };
-use tokio_util::sync::CancellationToken;
+use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
 
 /// Boots the application and runs Artisan commands.
 pub struct Kernel {
@@ -184,24 +184,27 @@ impl RuntimeService for ManagedCommand {
         let name = self.name;
         let options = self.options;
         Box::pin(async move {
-            let run: RunningService =
-                Box::pin(facades::scope(application.container_handle(), async move {
-                    let arguments: Vec<_> = std::iter::once(&name)
-                        .chain(options)
-                        .map(OsString::from)
-                        .collect();
-                    let mut output = Output::for_terminal();
-                    let status = artisan
-                        .handle_with_shutdown(&application, &arguments, &mut output, Some(shutdown))
-                        .await;
-                    std::io::stdout().write_all(output.stdout.as_bytes())?;
-                    std::io::stderr().write_all(output.stderr.as_bytes())?;
-                    if status == 0 {
-                        Ok(())
-                    } else {
-                        Err(ServiceExit { name, status }.into())
-                    }
-                }));
+            let command = facades::scope(application.container_handle(), async move {
+                let arguments: Vec<_> = std::iter::once(&name)
+                    .chain(options)
+                    .map(OsString::from)
+                    .collect();
+                let mut output = Output::for_terminal();
+                let status = artisan
+                    .handle_with_shutdown(&application, &arguments, &mut output, Some(shutdown))
+                    .await;
+                std::io::stdout().write_all(output.stdout.as_bytes())?;
+                std::io::stderr().write_all(output.stderr.as_bytes())?;
+                if status == 0 {
+                    Ok(())
+                } else {
+                    Err(ServiceExit { name, status }.into())
+                }
+            });
+            let run: RunningService = Box::pin(async move {
+                // Poll the command outside the supervisor's stack, including on current-thread runtimes.
+                AbortOnDropHandle::new(tokio::spawn(command)).await?
+            });
             Ok(run)
         })
     }

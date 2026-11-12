@@ -37,7 +37,7 @@ mod acceptance {
         queue::{
             events::{
                 JobAttempted, JobExceptionOccurred, JobFailed, JobProcessed, JobProcessing,
-                JobRetryRequested, JobTimedOut, QueueBusy, WorkerStarting,
+                JobRetryRequested, JobTimedOut, QueueBusy, WorkerInterrupted, WorkerStarting,
             },
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
@@ -451,6 +451,10 @@ mod acceptance {
             _: &'a mut EventContext<'_>,
         ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
             Box::pin(async move {
+                if event.downcast_ref::<WorkerInterrupted>().is_some() {
+                    std::fs::write(self.0.join("worker.interrupted"), []).unwrap();
+                    return Ok(None);
+                }
                 let starting = event
                     .downcast_ref::<WorkerStarting>()
                     .ok_or(EventError::InvalidPayload)?;
@@ -472,11 +476,9 @@ mod acceptance {
                     ClearCommand::prohibit(true)?;
                 }
                 if std::env::var_os("RUNTIME_TEST_TRACE").is_some() {
-                    Event::listen(
-                        WorkerStarting::NAME,
-                        Arc::new(WorkerObserver(self.0.clone())),
-                        Delivery::Sync,
-                    )?;
+                    let observer = Arc::new(WorkerObserver(self.0.clone()));
+                    Event::listen(WorkerStarting::NAME, observer.clone(), Delivery::Sync)?;
+                    Event::listen(WorkerInterrupted::NAME, observer, Delivery::Sync)?;
                 }
                 let sync_observer = Arc::new(SyncObserver(self.0.clone()));
                 for name in [
@@ -610,6 +612,7 @@ mod acceptance {
                 }
                 let redis_port = std::env::var("OPENRUST_TEST_REDIS_PORT")
                     .ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(6379);
+                let queue_name = env.get_utf8("RUNTIME_TEST_QUEUE")?.unwrap_or("default");
                 let Value::Object(config) = json!({
                     "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing"),
                         "host": "127.0.0.1",
@@ -633,8 +636,8 @@ mod acceptance {
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
                             "database": {"driver": "database", "retry_after": RETRY_AFTER,
-                                "queue": env.get_utf8("RUNTIME_TEST_QUEUE")?.unwrap_or("default")},
-                            "redis": {"driver": "redis", "retry_after": RETRY_AFTER},
+                                "queue": queue_name},
+                            "redis": {"driver": "redis", "retry_after": RETRY_AFTER, "queue": queue_name},
                             "sync": {"driver": "sync"}, "inline": {"driver": "sync"}
                         },
                         "failed": {
@@ -1730,6 +1733,7 @@ mod acceptance {
     }
 
     async fn verify_runtime(
+        backend: &str,
         root: &Path,
         db: &DatabaseConnection,
         queue: &dyn openrust::contracts::queue::Queue,
@@ -1803,7 +1807,7 @@ mod acceptance {
             )
             .await
             .unwrap();
-        interrupt_runtime(&unified).await;
+        terminate_runtime(&unified).await;
         tokio::time::timeout(Duration::from_secs(5), async {
             while tokio::net::TcpStream::connect(address).await.is_ok() {
                 tokio::time::sleep(Duration::from_millis(20)).await;
@@ -1834,6 +1838,7 @@ mod acceptance {
         assert!(independent.status.success(), "{independent:?}");
         assert!(root.join("runtime-next.pid").is_file());
         assert!(!String::from_utf8_lossy(&independent.stdout).contains("listening on"));
+        verify_artisan_drain(root, address, queue).await;
         std::fs::remove_file(root.join("runtime-schedule.complete")).unwrap();
         let mut command = runtime_process(root, address);
         command
@@ -1971,11 +1976,66 @@ mod acceptance {
         }
         verify_runtime_memory(root, address, queue).await;
         assert_eq!(queue.size(None).await.unwrap(), 0);
-        verify_main_binary(root, address, db, queue).await;
-        println!("Unified application runtime acceptance passed");
+        verify_main_binary(backend, root, address, db, queue).await;
+        println!("Unified application runtime acceptance passed on {backend}");
+    }
+
+    async fn verify_artisan_drain(
+        root: &Path,
+        address: SocketAddr,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let name = "artisan-drain";
+        for marker in [
+            "runtime-drain.pid",
+            "runtime-job.complete",
+            "runtime-job.release",
+            "runtime-next.pid",
+        ] {
+            std::fs::remove_file(root.join(marker)).unwrap();
+        }
+        let active = Payload::new("hard-timeout-probe", "runtime-drain")
+            .unwrap()
+            .with_options(JobOptions {
+                hard_timeout: true,
+                ..Default::default()
+            });
+        let pending = Payload::new("hard-timeout-probe", "runtime-next").unwrap();
+        queue.push(&active, Some(name)).await.unwrap();
+        let mut command = runtime_process(root, address);
+        command
+            .env("RUNTIME_TEST_QUEUE", name)
+            .args(["artisan", "queue:work"]);
+        let mut child = command.spawn().unwrap();
+        wait_for_file(root, "runtime-drain.pid").await;
+        queue.push(&pending, Some(name)).await.unwrap();
+        let signal = root.join("worker.interrupted");
+        if signal.is_file() {
+            std::fs::remove_file(signal).unwrap();
+        }
+        terminate_runtime(&child).await;
+        wait_for_file(root, "worker.interrupted").await;
+        assert!(child.try_wait().unwrap().is_none());
+        std::fs::write(root.join("runtime-job.release"), []).unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(10), child.wait())
+                .await
+                .unwrap()
+                .unwrap()
+                .success()
+        );
+        assert!(root.join("runtime-job.complete").is_file());
+        assert_executor_reaped(root, "runtime-drain");
+        assert_eq!(queue.size(Some(name)).await.unwrap(), 1);
+        assert!(!root.join("runtime-next.pid").exists());
+        let output = runtime_output(command.arg("--stop-when-empty")).await;
+        assert!(output.status.success(), "{output:?}");
+        assert!(root.join("runtime-next.pid").is_file());
+        assert_eq!(queue.size(Some(name)).await.unwrap(), 0);
     }
 
     async fn verify_main_binary(
+        backend: &str,
         root: &Path,
         address: SocketAddr,
         db: &DatabaseConnection,
@@ -1992,10 +2052,44 @@ mod acceptance {
                 .env("APP_KEY", "01234567890123456789012345678901")
                 .env("CACHE_STORE", "array")
                 .env("SESSION_DRIVER", "array")
-                .env("DB_CONNECTION", "sqlite")
+                .env(
+                    "DB_CONNECTION",
+                    if backend == "mysql" {
+                        "mysql"
+                    } else {
+                        "sqlite"
+                    },
+                )
                 .env("DB_DATABASE", root.join("queue.sqlite"))
-                .env("QUEUE_CONNECTION", "database")
-                .env("DB_QUEUE", "main-runtime");
+                .env(
+                    "QUEUE_CONNECTION",
+                    if backend == "redis" {
+                        "redis"
+                    } else {
+                        "database"
+                    },
+                )
+                .env("DB_QUEUE", "main-runtime")
+                .env_remove("DB_URL")
+                .env("QUEUE_FAILED_DRIVER", "database-uuids");
+            if backend == "mysql" {
+                command.env(
+                    "DB_URL",
+                    std::env::var_os("OPENRUST_TEST_WORKER_MYSQL_URL").unwrap(),
+                );
+            }
+            if backend == "redis" {
+                let prefix = format!("{}:", root.file_name().unwrap().to_str().unwrap());
+                command
+                    .env("REDIS_PREFIX", prefix)
+                    .env_remove("REDIS_URL")
+                    .env("REDIS_HOST", "127.0.0.1")
+                    .env(
+                        "REDIS_PORT",
+                        std::env::var_os("OPENRUST_TEST_REDIS_PORT").unwrap(),
+                    )
+                    .env("REDIS_QUEUE", "main-runtime");
+            }
             if !enabled {
                 command
                     .env("RUNTIME_ENABLED", "false")
@@ -2032,7 +2126,7 @@ mod acceptance {
             );
         }
         assert_eq!(queue.size(Some("main-runtime")).await.unwrap(), 0);
-        println!("Stock main default runtime and explicit opt-out acceptance passed");
+        println!("Stock main default runtime and explicit opt-out acceptance passed on {backend}");
     }
 
     async fn verify_runtime_memory(
@@ -2284,9 +2378,7 @@ mod acceptance {
             verify_named_pop(&root.0, &*queue).await;
             verify_maintenance(&root.0, &app, &*queue).await;
         }
-        if backend == "sqlite" {
-            verify_runtime(&root.0, &db, &*queue).await;
-        }
+        verify_runtime(backend, &root.0, &db, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

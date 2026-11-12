@@ -39,3 +39,16 @@ Laravel 13.11.0 应用骨架把 HTTP 入口交给 `handleRequest`，Artisan 入�
 配置测试使用平台原生路径组件核对公共存储链接。原有 HTTP 维护和 Reverb 验收夹具显式关闭其未配置的队列，macOS 嵌入式 Reverb、监听冲突、独立 Artisan 和重启验收通过。
 
 Windows 另跑框架的 SQLite 独立 Worker 进程验收，真实 Ctrl+C、在途任务和退出状态的回归通过。
+
+## Windows x64 MSVC 的 MySQL 与 Redis 同进程补验
+
+以 `738b336d88d987fe4e1195fdd0f93480a1824d30` 为应用基线，将同一验收夹具扩展到 MySQL 与 Redis。使用现有 `RUNTIME_*` 配置契约。Parallels Windows 11 Pro ARM64 Build 26200 的 x64 兼容层使用 Rust/Cargo 1.94.0、MSVC 14.44.35207。执行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`，根应用和夹具均为 PE Machine `0x8664` 的未优化构建。源码清单和锁文件校验通过。
+
+首轮 MySQL 同进程强制超时写入失败记录后触发 Debug 栈溢出，预约仍留在队列中。受管 Artisan 命令改由同一 Tokio 运行时中的独立任务轮询，减少监督循环叠加的调用栈。监督器继续等待各任务退出并传递退出码。进程 PID 对照和硬超时执行器的隔离验证通过。
+
+- MySQL 8.4.13 使用专用测试库和账号保存队列与失败记录。Redis 8.10.3 使用专用容器保存队列，失败记录保存到独立 SQLite。原 SQLite 用例同时通过。
+- 在相同后端和 Worker 配置下，用同一夹具对照无参数默认启动和独立 `artisan queue:work`。等价任务使用隔离队列。两种入口均验证强制超时退出 `124`、执行器及后代回收、无晚到副作用、`failOnTimeout` 回调、按 UUID 核对失败记录、可重试任务在租约后完成。
+- 向两个入口分别发送真实 Windows `CTRL_C_EVENT`，在途任务完成后均退出 `0`。默认启动还验证 HTTP 关闭监听及在途调度任务完成。两边都保留下一项，随后由独立 Worker 消费。
+- 根应用 `main.exe` 在两个后端上验证默认 HTTP `/up` 和 Worker 消费，并验证 `RUNTIME_ENABLED=false` 保留 HTTP、队列任务等待独立消费。
+
+macOS 锁定离线工作区测试、严格 Clippy、格式和差异检查通过。
