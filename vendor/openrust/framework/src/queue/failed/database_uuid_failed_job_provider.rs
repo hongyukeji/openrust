@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crate::database::{Connection, Row, Transaction, Value};
 
-use super::{FailedJob, FailedJobProviderInterface};
+use super::{FailedJob, FailedJobProviderInterface, PrunableFailedJobProvider};
 use crate::queue::{Payload, QueueError, QueueFuture, QueueResult, backend};
 
 /// The database-uuids failed-job provider.
@@ -18,7 +18,39 @@ impl DatabaseUuidFailedJobProvider {
     }
 }
 
+impl PrunableFailedJobProvider for DatabaseUuidFailedJobProvider {
+    fn prune(&self, before: chrono::DateTime<chrono::Utc>) -> QueueFuture<'_, QueueResult<u64>> {
+        Box::pin(async move {
+            let table = self.connection.queue_table(&self.table).map_err(backend)?;
+            let sql = if self.connection.is_sqlite() {
+                format!(
+                    "delete from {table} where id in (select id from {table} where failed_at < ? order by id limit 1000)"
+                )
+            } else {
+                format!("delete from {table} where failed_at < ? order by id limit 1000")
+            };
+            let bindings = [super::timestamp(before).into()];
+            let mut total = 0;
+            loop {
+                let deleted = self
+                    .connection
+                    .affectingStatement(&sql, &bindings)
+                    .await
+                    .map_err(backend)?;
+                if deleted == 0 {
+                    return Ok(total);
+                }
+                total += deleted;
+            }
+        })
+    }
+}
+
 impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
+    fn prunable(&self) -> Option<&dyn PrunableFailedJobProvider> {
+        Some(self)
+    }
+
     fn log<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<Option<String>>> {
         Box::pin(async move {
             let values = [

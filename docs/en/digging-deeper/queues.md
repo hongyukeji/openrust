@@ -712,6 +712,16 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.
 
+### Pruning failed jobs {#pruning-failed-jobs}
+
+Run `queue:prune-failed` to delete failure records older than 24 hours. Use `--hours` to set a different retention period.
+
+```sh
+./artisan queue:prune-failed --hours=48
+```
+
+The command reports how many records it deleted. The database failed-job provider prunes in batches. Records at the cutoff or newer stay in the failed-job table. The command requires a failed-job provider that supports pruning.
+
 ## Clearing jobs from queues {#clearing-jobs-from-queues}
 
 Use `queue:clear` to remove ready, delayed, and reserved jobs from the selected database or Redis queues. Omit the connection or `--queue` to use the configured defaults. Separate multiple queue names with commas.

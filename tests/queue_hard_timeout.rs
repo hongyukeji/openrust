@@ -15,13 +15,13 @@ mod unix {
     use openrust::{
         contracts::events::{Event as EventPayload, Listener},
         contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
-        database::DatabaseManager,
+        database::{Connection as DatabaseConnection, DatabaseManager, Value as DatabaseValue},
         events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
         foundation::{Application, runApplication},
         http::HttpFuture,
         queue::{
             Delay, DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
-            QueueManager, QueueResult, console::ClearCommand,
+            QueueManager, QueueResult, console::ClearCommand, failed::FailedJobProviderInterface,
         },
         queue::{
             events::{JobTimedOut, QueueBusy},
@@ -214,7 +214,11 @@ mod unix {
                             "redis": {"driver": "redis", "retry_after": 2},
                             "sync": {"driver": "sync"}
                         },
-                        "failed": {"driver": "database-uuids", "database": database, "table": "failed_jobs"}
+                        "failed": {
+                            "driver": if std::env::var_os("QUEUE_PRUNE_TEST_NULL").is_some() { "null" } else { "database-uuids" },
+                            "database": database,
+                            "table": "failed_jobs"
+                        }
                     }
                 }) else { unreachable!() };
                 Ok(config.into_iter().collect())
@@ -467,6 +471,100 @@ mod unix {
         queue.clearable().unwrap().clear("keep").await.unwrap();
     }
 
+    async fn seed_failures(db: &DatabaseConnection, prefix: &str, count: usize, failed_at: &str) {
+        for start in (0..count).step_by(200) {
+            let end = (start + 200).min(count);
+            let values = vec!["(?, 'database', 'default', '{}', 'fixture error', ?)"; end - start]
+                .join(", ");
+            let sql = format!(
+                "insert into failed_jobs (uuid, connection, queue, payload, exception, failed_at) values {values}"
+            );
+            let bindings: Vec<DatabaseValue> = (start..end)
+                .flat_map(|index| [format!("{prefix}-{index}").into(), failed_at.into()])
+                .collect();
+            db.statement(&sql, &bindings).await.unwrap();
+        }
+    }
+
+    async fn verify_prune_failed(root: &Path, app: &Application, db: &DatabaseConnection) {
+        let provider = app
+            .container()
+            .get::<dyn FailedJobProviderInterface>("queue.failer")
+            .unwrap();
+        let prune = provider.prunable().unwrap();
+        let count = |name: &'static str| async move {
+            db.table("failed_jobs")
+                .r#where("uuid", "=", name)
+                .count("*")
+                .await
+                .unwrap()
+        };
+        seed_failures(db, "prune-before", 1, "1999-12-31 23:59:59").await;
+        seed_failures(db, "prune-equal", 1, "2000-01-01 00:00:00").await;
+        seed_failures(db, "prune-after", 1, "2000-01-01 00:00:01").await;
+        let cutoff = chrono::DateTime::from_timestamp(946_684_800, 0).unwrap();
+        assert_eq!(prune.prune(cutoff).await.unwrap(), 1);
+        assert_eq!(count("prune-before-0").await, 0);
+        assert_eq!(count("prune-equal-0").await, 1);
+        assert_eq!(count("prune-after-0").await, 1);
+        db.table("failed_jobs")
+            .r#where("uuid", "like", "prune-%")
+            .delete()
+            .await
+            .unwrap();
+
+        let run = |args: &[&str], null: bool| {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["artisan", "queue:prune-failed"])
+                .args(args)
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            if null {
+                command.env("QUEUE_PRUNE_TEST_NULL", "1");
+            }
+            async move {
+                tokio::time::timeout(Duration::from_secs(8), command.output())
+                    .await
+                    .unwrap()
+                    .unwrap()
+            }
+        };
+        let now: chrono::DateTime<chrono::Utc> = std::time::SystemTime::now().into();
+        let timestamp = |age| {
+            (now - chrono::TimeDelta::hours(age))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        };
+        seed_failures(db, "prune-old", 1001, &timestamp(25)).await;
+        seed_failures(db, "prune-middle", 1, &timestamp(2)).await;
+        seed_failures(db, "prune-fresh", 1, &timestamp(0)).await;
+
+        let output = run(&[], true).await;
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("does not support pruning"));
+        assert_eq!(count("prune-old-0").await, 1);
+        let removed = |result: std::process::Output| {
+            assert!(result.status.success(), "{result:?}");
+            let out = String::from_utf8(result.stdout).unwrap();
+            out.lines()
+                .find_map(|line| line.split_once(" entries deleted."))
+                .and_then(|(prefix, _)| prefix.split_whitespace().last())
+                .and_then(|count| count.parse::<u64>().ok())
+                .unwrap_or_else(|| panic!("{out}"))
+        };
+        assert_eq!(removed(run(&[], false).await), 1001);
+        assert_eq!(count("prune-middle-0").await, 1);
+        assert_eq!(removed(run(&[], false).await), 0);
+        assert_eq!(removed(run(&["--hours=1"], false).await), 1);
+        assert_eq!(count("prune-fresh-0").await, 1);
+
+        seed_failures(db, "prune-concurrent", 31, &timestamp(25)).await;
+        let (first, second) = tokio::join!(run(&[], false), run(&[], false));
+        assert_eq!(removed(first) + removed(second), 31);
+        assert_eq!(count("prune-fresh-0").await, 1);
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -617,6 +715,9 @@ mod unix {
         });
         verify_clear(&root.0, &*queue, redis.as_deref()).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
+        if backend != "redis" {
+            verify_prune_failed(&root.0, &app, &db).await;
+        }
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

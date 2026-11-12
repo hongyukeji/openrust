@@ -712,6 +712,16 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。
 
+### 清理过期失败任务 {#pruning-failed-jobs}
+
+运行 `queue:prune-failed` 删除超过 24 小时的失败记录。可用 `--hours` 设置其他保留时长。
+
+```sh
+./artisan queue:prune-failed --hours=48
+```
+
+命令输出删除条数。数据库失败任务存储分批删除，恰好等于截止时间或更新的记录会保留。该命令要求当前失败任务存储支持按时间清理。
+
 ## 清理队列任务 {#clearing-jobs-from-queues}
 
 用 `queue:clear` 删除指定数据库或 Redis 队列中待执行、延迟和已预约的任务。省略连接名或 `--queue` 时使用对应配置的默认值。多个队列名用逗号分隔。

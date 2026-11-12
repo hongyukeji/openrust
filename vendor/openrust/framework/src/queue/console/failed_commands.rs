@@ -19,6 +19,7 @@ enum Action {
     Retry,
     Forget,
     Flush,
+    Prune,
 }
 struct FailedCommand(CommandDefinition, Action);
 
@@ -115,6 +116,21 @@ impl Command for FailedCommand {
                         .map(|&hours| Duration::from_secs(u64::from(hours) * 3600));
                     provider.flush(age).await.map_err(error)?;
                 }
+                Action::Prune => {
+                    let hours = *args.get_one::<u32>("hours").expect("Clap default hours");
+                    let before = chrono::Utc::now()
+                        .checked_sub_signed(chrono::TimeDelta::hours(i64::from(hours)))
+                        .ok_or_else(|| {
+                            ConsoleError::new("The failed job retention period is out of range.")
+                        })?;
+                    let provider = provider.prunable().ok_or_else(|| {
+                        ConsoleError::new(
+                            "The configured failed job storage driver does not support pruning.",
+                        )
+                    })?;
+                    let count = provider.prune(before).await.map_err(error)?;
+                    output.info(&format!("{count} entries deleted."));
+                }
             }
             Ok(0)
         })
@@ -148,6 +164,18 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                     .value_parser(value_parser!(u32)),
             ),
             Action::Flush,
+        ),
+        (
+            Syntax::new("queue:prune-failed")
+                .about("Prune stale entries from the failed jobs table")
+                .arg(
+                    Arg::new("hours")
+                        .long("hours")
+                        .default_value("24")
+                        .value_parser(value_parser!(u32))
+                        .help("The number of hours to retain failed jobs data"),
+                ),
+            Action::Prune,
         ),
     ] {
         artisan.add_command(Box::new(FailedCommand(
