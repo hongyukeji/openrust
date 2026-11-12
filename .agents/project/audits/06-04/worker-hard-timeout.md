@@ -29,7 +29,7 @@
 - 在 macOS arm64 宿主的 Parallels Windows 11 Pro ARM64 虚拟机（Build 26200）中，使用 x64 兼容层运行 `x86_64-pc-windows-msvc` 目标。工具链为 Rust 1.94.0、Cargo 1.94.0 和 MSVC 14.44.35207。执行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`。9 个相关源码和 Cargo 文件的 SHA-256 与提交候选一致。
 - 实际 `queue:work` 使用内置 SQLite 数据库队列。验证 CPU 死循环、同步阻塞、外部进程及其子进程都在超时后退出。`JobTimedOut` 监听器以 Windows 进程列表确认执行器和外部进程树已退出，超过原定运行时间后仍无晚到副作用。未归组的内部执行器在创建应用前退出。
 - 实测超时退出码 124。CPU 任务在租约到期前保持预约，随后由新 Worker 重试并成功。按任务 UUID 验证 `fail_on_timeout` 和最大异常规则写入超时失败记录，关闭超时退出后，同一 Worker 能继续消费。
-- Windows Debug 的终态结算曾触发默认栈溢出。终态结算的 Future 改由堆持有，失败记录写入在独立 Tokio 任务中轮询，沿用原连接的路由状态并等待写入完成。取消等待时会中止写入任务。Windows 强制超时批次验证 x64 与 SQLite。原生 ARM64 和 Windows 上的其他驱动仍待对应平台验收。非隔离失败回调在该批扩展夹具中复现的 Debug 栈溢出见下节。
+- Windows Debug 的终态结算曾触发默认栈溢出。终态结算的 Future 改由堆持有，失败记录写入在独立 Tokio 任务中轮询，沿用原连接的路由状态并等待写入完成。取消等待时会中止写入任务。Windows 强制超时批次验证 x64 与 SQLite。Windows 上的其他驱动仍待对应平台验收。原生 ARM64 补验见下节。非隔离失败回调在该批扩展夹具中复现的 Debug 栈溢出见下节。
 - macOS 全工作区主测试进程 592 项通过、7 项忽略。最终候选补跑 SQLite、MySQL 8.4 和 Redis 8 的硬超时进程验收、进程入口测试和严格 Clippy。格式、三语站点构建及 18 项浏览器检查通过。Linux 实测见前节。
 
 ## Windows 非隔离失败回调补验
@@ -38,5 +38,11 @@
 
 - 在同一 Parallels Windows 11 Pro ARM64 Build 26200 虚拟机的 x64 兼容层，使用 Rust 1.94.0 和 MSVC 14.44.35207 执行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`，使用未优化测试配置和内置 SQLite。Windows 验收源码的哈希与候选一致。实际 `queue:work --queue=callback-probe --stop-when-empty` 在同一进程内处理两个终态失败和一条成功任务，退出码为 0。测试按 UUID 核对两条失败记录，检查回调与 `JobFailed` 事件、回调自身异常报告和队列清空。强制超时的既有 Windows 断言同时通过。
 - macOS 全工作区回归 592 项通过、7 项忽略。最终候选补跑 SQLite、MySQL 8.4、Redis 8 的队列进程验收，格式和全工作区严格 Clippy 通过。
+
+## Windows ARM64 原生补验
+
+- 从 `0600464137d4ae75ff484f67abfcf97e09f88bdc` 的干净归档构建。Parallels Windows 11 Pro ARM64 Build 26200 使用原生 Rust/Cargo 1.94.0、MSVC 14.44.35207 的 HostARM64 工具和 ARM64 Clang 19.1.5。安装 MSVC ARM64 与 Clang 组件后，保持 Cargo.lock 不变。五个相关源码和锁文件的 SHA-256 与归档一致。
+- 执行 `cargo test --locked --offline --target aarch64-pc-windows-msvc --test queue_hard_timeout`，未优化测试配置通过，进程退出码为 0。实际执行的 Worker 夹具 PE Machine 为 `0xAA64`，父 Worker 与隔离执行器使用同一原生 ARM64 可执行文件。
+- 内置 SQLite 持久队列的实际 `queue:work` 验证 CPU 死循环、同步阻塞、外部程序及其后代的超时回收，确认无晚到副作用、配置退出码 124、租约到期后重试、按 UUID 持久化超时失败记录，以及关闭超时退出后的继续消费。同一 Worker 处理两个非隔离终态失败和一条后续成功任务，验证失败回调、回调异常报告、`JobFailed` 事件、失败记录和退出码 0。
 
 [English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#hard-job-timeouts)
