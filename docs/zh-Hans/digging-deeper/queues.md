@@ -115,6 +115,26 @@ fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> 
 
 每次调用接收一个任务载荷或待派发批次。插入批次遵循[任务链中的批次](#batches-within-chains)规则。若当前链已属于某个批次，可插入任务载荷来扩展该批次。新任务共享批次 ID，Worker 在记录当前任务成功时一并保存新增数量和后继。使用批次链的运行时修改前，请执行 `./artisan migrate`。
 
+### 按条件派发任务链 {#conditional-chain-dispatch}
+
+条件为真时可用 `dispatchIf` 派发，条件为假时可用 `dispatchUnless` 派发。两者都接收布尔值或返回布尔值的闭包。等待派发 Future 时，闭包只执行一次。
+
+```rust
+use openrust::{
+    bus::PendingChain,
+    queue::{DispatchResult, QueueResult},
+};
+
+async fn dispatch_chain_if(
+    chain: PendingChain,
+    enabled: bool,
+) -> QueueResult<Option<DispatchResult>> {
+    chain.dispatchIf(enabled).await
+}
+```
+
+跳过时返回 `None`，派发成功时返回 `Some(DispatchResult)`。跳过的任务链不会解析队列连接或执行任务。
+
 ## 任务批次 {#job-batching}
 
 运行 `./artisan migrate` 创建批次账本和投递记录。在应用启动时注册任务处理器，再通过 `Bus::batch` 一起派发这些任务。

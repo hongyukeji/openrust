@@ -13,6 +13,23 @@ use super::{ChainedBatch, PendingBatch};
 pub type ChainCallback =
     for<'a> fn(&'a Payload, &'a QueueError) -> QueueFuture<'a, QueueResult<()>>;
 
+/// A boolean or a lazy test for conditional chain dispatch.
+pub trait ChainCondition {
+    fn evaluate(self) -> bool;
+}
+
+impl ChainCondition for bool {
+    fn evaluate(self) -> bool {
+        self
+    }
+}
+
+impl<F: FnOnce() -> bool> ChainCondition for F {
+    fn evaluate(self) -> bool {
+        self()
+    }
+}
+
 /// Dispatches jobs in sequence, with each success making the next job available.
 pub struct PendingChain {
     jobs: VecDeque<Payload>,
@@ -68,6 +85,25 @@ impl PendingChain {
     pub fn catch(mut self, callback: impl Into<String>) -> Self {
         self.catches.push(callback.into());
         self
+    }
+
+    /// Dispatches the chain if the condition passes.
+    pub async fn dispatchIf(
+        self,
+        condition: impl ChainCondition,
+    ) -> QueueResult<Option<DispatchResult>> {
+        if condition.evaluate() {
+            return self.dispatch().await.map(Some);
+        }
+        Ok(None)
+    }
+
+    /// Dispatches the chain if the condition does not pass.
+    pub async fn dispatchUnless(
+        self,
+        condition: impl ChainCondition,
+    ) -> QueueResult<Option<DispatchResult>> {
+        self.dispatchIf(!condition.evaluate()).await
     }
 
     pub async fn dispatch(mut self) -> QueueResult<DispatchResult> {

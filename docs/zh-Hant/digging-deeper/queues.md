@@ -115,6 +115,26 @@ fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> 
 
 每次呼叫接收一個工作承載資料或待派送批次。插入批次遵循[工作鏈中的批次](#batches-within-chains)規則。若目前工作鏈已屬於某個批次，可插入工作承載資料來擴充該批次。新工作共用批次 ID，Worker 在記錄目前工作成功時一併儲存新增數量和後繼。使用批次鏈的執行期間變更前，請執行 `./artisan migrate`。
 
+### 依條件派送工作鏈 {#conditional-chain-dispatch}
+
+條件為真時可用 `dispatchIf` 派送，條件為假時可用 `dispatchUnless` 派送。兩者都接受布林值或回傳布林值的閉包。等待派送 Future 時，閉包只執行一次。
+
+```rust
+use openrust::{
+    bus::PendingChain,
+    queue::{DispatchResult, QueueResult},
+};
+
+async fn dispatch_chain_if(
+    chain: PendingChain,
+    enabled: bool,
+) -> QueueResult<Option<DispatchResult>> {
+    chain.dispatchIf(enabled).await
+}
+```
+
+略過時回傳 `None`，派送成功時回傳 `Some(DispatchResult)`。略過的工作鏈不會解析佇列連線或執行工作。
+
 ## 工作批次 {#job-batching}
 
 執行 `./artisan migrate` 建立批次帳本和投遞紀錄。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。

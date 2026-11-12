@@ -115,6 +115,26 @@ fn edit_chain(context: &mut JobContext<'_>, before: Payload, after: Payload) -> 
 
 Each call accepts a job payload or a pending batch. An inserted batch follows the [batches within chains](#batches-within-chains) rules. In a chain already running inside a batch, insert job payloads to extend that batch. The new jobs share the batch ID, and the worker records their count and successor with the current job’s completion. Run `./artisan migrate` before using runtime edits in batched chains.
 
+### Conditional chain dispatch {#conditional-chain-dispatch}
+
+Use `dispatchIf` to dispatch a chain when the condition is true, or `dispatchUnless` when it is false. Both accept a boolean or a closure returning a boolean. The closure runs once when the dispatch future is awaited.
+
+```rust
+use openrust::{
+    bus::PendingChain,
+    queue::{DispatchResult, QueueResult},
+};
+
+async fn dispatch_chain_if(
+    chain: PendingChain,
+    enabled: bool,
+) -> QueueResult<Option<DispatchResult>> {
+    chain.dispatchIf(enabled).await
+}
+```
+
+The methods return `None` when the chain is skipped and `Some(DispatchResult)` when dispatched. A skipped chain never resolves its queue connection or runs a job.
+
 ## Job batching {#job-batching}
 
 Run `./artisan migrate` to create the batch ledger and delivery history. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.

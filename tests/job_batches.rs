@@ -531,6 +531,62 @@ fn cancel_chained_batch(request: &mut Request) -> HttpFuture<'_, Result<Response
     })
 }
 
+async fn dispatch_chain_if(
+    chain: PendingChain,
+    enabled: bool,
+) -> QueueResult<Option<DispatchResult>> {
+    chain.dispatchIf(enabled).await
+}
+
+fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let connection = request.route("connection").unwrap();
+        let mode = request.route("mode").unwrap();
+        let enabled = request.route("flag") == Some("on");
+        let head = Payload::new("chain.step", format!("{connection}.{mode}-head"))?;
+        let tail = Payload::new("chain.step", format!("{connection}.{mode}-tail"))?;
+        let chain = Bus::chain([head, tail])
+            .onConnection(connection)
+            .onQueue("chain");
+        let mut calls = 0;
+        let result = match mode {
+            "if" => dispatch_chain_if(chain, enabled).await?,
+            "unless" => chain.dispatchUnless(enabled).await?,
+            "lazy-if" => {
+                chain
+                    .dispatchIf(|| {
+                        calls += 1;
+                        enabled
+                    })
+                    .await?
+            }
+            "lazy-unless" => {
+                chain
+                    .dispatchUnless(|| {
+                        calls += 1;
+                        enabled
+                    })
+                    .await?
+            }
+            "invalid" => {
+                Bus::chain([])
+                    .onConnection(connection)
+                    .catch("unknown")
+                    .dispatchIf(enabled)
+                    .await?
+            }
+            _ => return Ok(Response::empty(StatusCode::NOT_FOUND)),
+        };
+        let state = match result {
+            Some(DispatchResult::Queued(_)) => "queued",
+            Some(DispatchResult::Completed) => "completed",
+            Some(DispatchResult::Deferred) => "deferred",
+            None => "skipped",
+        };
+        Response::json(StatusCode::OK, json!({ "state": state, "calls": calls }))
+    })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/batch/{kind}", route)?;
@@ -546,6 +602,10 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
         chained_batch_route,
     )?;
     router.get("/batch/cancel-chained/{id}", cancel_chained_batch)?;
+    router.get(
+        "/batch/conditional/{connection}/{mode}/{flag}",
+        conditional_chain_route,
+    )?;
     Ok(router)
 }
 
@@ -1026,6 +1086,7 @@ async fn exercise(mysql: Option<&str>) {
         verify_chain(&root.0, &db, &queue, address, "redis").await;
         verify_chain_redis_handoff(&redis, &queue, address).await;
         verify_chain_edits(&root.0, &db, address, "redis").await;
+        verify_conditional_chain(&root.0, &db, &queue, address, "redis").await;
         verify_batched_chain_edit(&root.0, &db, address, "redis", None).await;
         verify_batched_chains(&root.0, &db, &queue, address, "redis").await;
         verify_chained_batches(&root.0, &db, &queue, address, "redis", "cross").await;
@@ -1054,6 +1115,14 @@ async fn exercise(mysql: Option<&str>) {
     request(address, "chain/sync/edit-last", 200).await;
     assert_eq!(chain_receipt(&db, "sync.edit-last-before").await, 1);
     assert_eq!(chain_receipt(&db, "sync.edit-last-after").await, 1);
+    verify_conditional_chain(&root.0, &db, &queue, address, "database").await;
+    verify_conditional_chain(&root.0, &db, &queue, address, "sync").await;
+    let skipped = request(address, "conditional/missing/invalid/off", 200)
+        .await
+        .unwrap();
+    assert_eq!(skipped["state"], "skipped");
+    request(address, "conditional/missing/if/on", 500).await;
+    request(address, "conditional/database/invalid/on", 500).await;
     server.abort();
 }
 
@@ -1522,6 +1591,56 @@ async fn verify_chained_batch_recovery(
         chain_receipt(db, &format!("{connection}.recover-last")).await,
         1
     );
+}
+
+async fn verify_conditional_chain(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    connection: &str,
+) {
+    let queue = manager.connection(Some(connection)).unwrap();
+    for (mode, dispatch, skip) in [
+        ("if", "on", "off"),
+        ("unless", "off", "on"),
+        ("lazy-if", "on", "off"),
+        ("lazy-unless", "off", "on"),
+    ] {
+        let head = format!("{connection}.{mode}-head");
+        let tail = format!("{connection}.{mode}-tail");
+        let calls = u32::from(mode.starts_with("lazy-"));
+        let path = |flag| format!("conditional/{connection}/{mode}/{flag}");
+        let skipped = request(address, &path(skip), 200).await.unwrap();
+        assert_eq!(skipped, json!({"state": "skipped", "calls": calls}));
+        assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+        assert_eq!(chain_receipt(db, &head).await, 0);
+        assert_eq!(chain_receipt(db, &tail).await, 0);
+
+        let dispatched = request(address, &path(dispatch), 200).await.unwrap();
+        let state = if connection == "sync" {
+            "completed"
+        } else {
+            "queued"
+        };
+        assert_eq!(dispatched, json!({"state": state, "calls": calls}));
+        if connection != "sync" {
+            assert_eq!(queue.size(Some("chain")).await.unwrap(), 1);
+            artisan(
+                base,
+                &[
+                    "queue:work",
+                    connection,
+                    "--queue=chain",
+                    "--stop-when-empty",
+                ],
+            )
+            .await;
+            assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+        }
+        assert_eq!(chain_receipt(db, &head).await, 1);
+        assert_eq!(chain_receipt(db, &tail).await, 1);
+    }
 }
 
 async fn verify_chain_edits(

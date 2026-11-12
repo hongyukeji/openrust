@@ -18,7 +18,7 @@ mod pending_chain;
 
 pub(crate) use pending_batch::BatchJob;
 pub use pending_batch::PendingBatch;
-pub use pending_chain::{ChainCallback, PendingChain};
+pub use pending_chain::{ChainCallback, ChainCondition, PendingChain};
 
 use crate::{
     queue::{Payload, QueueResult},
