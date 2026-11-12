@@ -2,6 +2,7 @@
 
 mod app;
 mod command;
+mod database;
 mod response;
 
 pub use app::TestApp;
