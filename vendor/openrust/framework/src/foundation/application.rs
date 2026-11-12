@@ -100,7 +100,7 @@ impl Application {
         Ok(basePath)
     }
 
-    /// Runs the HTTP service through the HTTP kernel.
+    /// Runs the HTTP kernel and any configured companion services.
     pub async fn start(self) -> Result<(), Box<dyn Error + Send + Sync>> {
         http::Kernel::new(self).serve().await
     }

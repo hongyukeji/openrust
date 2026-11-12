@@ -48,3 +48,20 @@ Set `APP_URL` to the application's public URL. Without it, the configured `APP_P
 `SIGINT` and, on Unix, `SIGTERM` request graceful HTTP shutdown. Use a process manager to restart the application. See [Release Notes](../prologue/releases.md) for the verified platforms and drivers.
 
 The source `artisan` script runs Cargo. A standalone deployment does not require Cargo and runs commands with `./main artisan …`. See [Artisan](../digging-deeper/artisan.md) and [application configuration](configuration.md).
+
+## Run Services Together
+
+By default, `./main` starts HTTP and the listeners enabled for it. Run background services independently with `./main artisan queue:work` and `./main artisan schedule:work` or `./main artisan schedule:run`.
+
+To run HTTP, the Worker, and the scheduler with one invocation, set these values in the application environment and start `./main`:
+
+```dotenv
+RUNTIME_ENABLED=true
+RUNTIME_HTTP=true
+RUNTIME_QUEUE=true
+RUNTIME_SCHEDULE=true
+```
+
+With unified startup enabled, each service switch defaults to `true`. Set a switch to `false` to skip that service. The Worker uses the default queue connection and queue, and skips connections using the `sync` driver. The scheduler starts only when the application registers tasks. Other configured listeners, such as gRPC, still use their own settings. Startup fails if there is no service to run.
+
+Ctrl+C, or SIGTERM on Unix, stops accepting HTTP requests and new queue or schedule work. The process waits for active work to finish. If a managed service exits, the process also shuts down the remaining services. A Worker configured to exit on job timeout passes its timeout exit code to the application process. The managed Worker's memory check is disabled because it shares the process with the other services. Use an independent Worker when you need a separate memory limit, restart policy, or command options. Jobs that run blocking code in the shared runtime can delay HTTP and scheduling. Keep such jobs in a separate Worker or use the queue’s isolated hard-timeout execution.

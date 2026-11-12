@@ -41,6 +41,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "mail",
             "queue",
             "reverb",
+            "runtime",
             "services",
             "session",
             "view",
@@ -65,6 +66,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         json!([root.join("resources/views")])
     );
     assert_eq!(defaults["reverb"]["enabled"], false);
+    assert_eq!(
+        defaults["runtime"],
+        json!({"enabled":false,"http":true,"queue":true,"schedule":true})
+    );
     assert_eq!(defaults["grpc"]["clients"], json!({}));
 
     for (contents, default_db, cache_db) in [
@@ -88,7 +93,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     fs::write(
         root.join(".env"),
-        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nPUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\n",
+        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nPUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nRUNTIME_ENABLED=true\nRUNTIME_HTTP=false\nRUNTIME_QUEUE=false\nRUNTIME_SCHEDULE=false\n",
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
@@ -104,6 +109,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         );
     }
     assert_eq!(configured["app"]["debug"], true);
+    assert_eq!(
+        configured["runtime"],
+        json!({"enabled":true,"http":false,"queue":false,"schedule":false})
+    );
     assert_eq!(configured["app"]["url"], "http://localhost:9081");
     assert_eq!(configured["cache"]["prefix"], "examplestore-cache-");
     assert_eq!(

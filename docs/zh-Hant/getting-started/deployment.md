@@ -48,3 +48,20 @@ curl -i http://127.0.0.1:8088/up
 `SIGINT` 以及 Unix 上的 `SIGTERM` 會請求 HTTP 優雅關閉。使用程序管理器負責重新啟動。已驗證的平台與驅動見[發行說明](../prologue/releases.md)。
 
 原始碼的 `artisan` 腳本執行 Cargo。獨立發布無需 Cargo，使用 `./main artisan …` 執行命令。參閱 [Artisan](../digging-deeper/artisan.md)和[應用設定](configuration.md)。
+
+## 一起執行服務
+
+預設執行 `./main` 會啟動 HTTP 及其已設定的監聽器。背景服務可獨立執行，使用 `./main artisan queue:work`、`./main artisan schedule:work` 或 `./main artisan schedule:run`。
+
+若要以一條命令啟動 HTTP、Worker 和排程器，在應用程式環境中設定以下值，然後執行 `./main`。
+
+```dotenv
+RUNTIME_ENABLED=true
+RUNTIME_HTTP=true
+RUNTIME_QUEUE=true
+RUNTIME_SCHEDULE=true
+```
+
+啟用統一啟動後，各服務開關預設都是 `true`，設為 `false` 可停用對應服務。Worker 使用預設佇列連線及其預設佇列，跳過使用 `sync` 驅動程式的連線。應用程式註冊了排程工作才會啟動排程器。gRPC 等監聽器仍依各自的設定運作。沒有可執行的服務時，啟動會回傳錯誤。
+
+Ctrl+C 或 Unix 的 SIGTERM 會停止接收新的 HTTP 請求、佇列工作和排程工作，並等待執行中的工作完成。任何受管理的服務結束也會觸發其餘服務關閉。Worker 設定為工作逾時後結束時，應用程式程序會保留它的逾時結束碼。統一啟動的 Worker 與其他服務共用程序，因此停用 Worker 的程序記憶體檢查。需要獨立的記憶體上限、重新啟動策略或命令參數時，請使用獨立的 Worker。 在共用執行環境中執行阻塞程式碼會拖慢 HTTP 和排程。這類工作可交由獨立 Worker 消費，也可使用佇列的強制逾時隔離執行。

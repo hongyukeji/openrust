@@ -249,12 +249,25 @@ impl Application {
         arguments: &[OsString],
         output: &mut Output,
     ) -> i32 {
+        self.handle_with_shutdown(application, arguments, output, None)
+            .await
+    }
+
+    pub(crate) async fn handle_with_shutdown(
+        &self,
+        application: &FoundationApplication,
+        arguments: &[OsString],
+        output: &mut Output,
+        shutdown: Option<tokio_util::sync::CancellationToken>,
+    ) -> i32 {
         let flags = || arguments.iter().take_while(|argument| *argument != "--");
         let silent = flags().any(|argument| argument == "--silent");
         let quiet = flags().any(|argument| argument == "--quiet" || argument == "-q");
         let stdout_start = output.stdout.len();
         let stderr_start = output.stderr.len();
-        let status = self.handle_arguments(application, arguments, output).await;
+        let status = self
+            .handle_arguments(application, arguments, output, shutdown)
+            .await;
         if quiet || silent {
             output.stdout.truncate(stdout_start);
         }
@@ -269,6 +282,7 @@ impl Application {
         application: &FoundationApplication,
         arguments: &[OsString],
         output: &mut Output,
+        shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> i32 {
         let mut syntax = self.syntax();
         syntax.build();
@@ -324,7 +338,7 @@ impl Application {
 
         let result = if let Some((name, matches)) = matches.remove_subcommand() {
             let entry = &self.commands[&name];
-            self.dispatch(entry, application, &matches, &syntax, output)
+            self.dispatch(entry, application, &matches, &syntax, output, shutdown)
                 .await
         } else {
             Ok(list_command::run(self, &syntax, None, output))
@@ -357,7 +371,7 @@ impl Application {
                 input.syntax.get_name()
             )));
         }
-        self.dispatch(entry, application, input.matches(), &syntax, output)
+        self.dispatch(entry, application, input.matches(), &syntax, output, None)
             .await
     }
 
@@ -368,6 +382,7 @@ impl Application {
         matches: &clap::ArgMatches,
         syntax: &Syntax,
         output: &mut Output,
+        shutdown: Option<tokio_util::sync::CancellationToken>,
     ) -> Result<i32, ConsoleError> {
         let command: &dyn Command = match entry {
             Entry::List(_) => return Ok(list_command::run(self, syntax, Some(matches), output)),
@@ -384,6 +399,7 @@ impl Application {
         let input = Input {
             syntax: command.definition().syntax.clone(),
             matches: matches.clone(),
+            shutdown,
         };
         command.handle(application, &input, output).await
     }

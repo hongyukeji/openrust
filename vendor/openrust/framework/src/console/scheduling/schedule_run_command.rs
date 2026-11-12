@@ -142,6 +142,10 @@ impl Command for ScheduleRunCommand {
                     output.info("Scheduled task processing has resumed.");
                 }
                 Operation::Run | Operation::Work => {
+                    if let Some(shutdown) = input.shutdown() {
+                        self.work(app, output, shutdown).await?;
+                        return Ok(0);
+                    }
                     let shutdown = CancellationToken::new();
                     let signals =
                         crate::console::monitor_signals(shutdown.clone()).map_err(error)?;

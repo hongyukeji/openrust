@@ -26,29 +26,36 @@ impl Kernel {
         if super::prerender::has_template(&marker).await {
             return super::prerender::serve(self, marker).await;
         }
-        let listener = self.listen().await?;
-        self.serve_ready(listener).await
+        self.bootstrap().await?;
+        self.serve_ready().await
     }
 
-    pub(super) async fn serve_ready(
-        self,
-        listener: TcpListener,
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let services = self.get_application().take_runtime_services();
+    pub(super) async fn serve_ready(self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let app = self.get_application();
+        let config = app.config()?;
+        let listener = if super::super::runtime_service::serves_http(config.as_ref())? {
+            Some(listen_for(app).await?)
+        } else {
+            None
+        };
+        let services = super::super::runtime_service::configured_services(app).await?;
         let termination_tasks = self.termination_tasks.clone();
         let service = handle
             .with_state(Arc::new(self))
             .into_make_service_with_connect_info::<std::net::SocketAddr>();
         super::super::runtime_service::run(services, move |shutdown| {
-            Box::pin(async move {
-                println!("OpenRust listening on http://{}", listener.local_addr()?);
-                let result = axum::serve(listener, service)
-                    .with_graceful_shutdown(shutdown.cancelled_owned())
-                    .await;
-                termination_tasks.close();
-                termination_tasks.wait().await;
-                result?;
-                Ok(())
+            listener.map(|listener| {
+                let run: super::super::RunningService = Box::pin(async move {
+                    println!("OpenRust listening on http://{}", listener.local_addr()?);
+                    let result = axum::serve(listener, service)
+                        .with_graceful_shutdown(shutdown.cancelled_owned())
+                        .await;
+                    termination_tasks.close();
+                    termination_tasks.wait().await;
+                    result?;
+                    Ok(())
+                });
+                run
             })
         })
         .await

@@ -35,11 +35,16 @@ pub type ConsoleFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 pub struct Input {
     syntax: Arc<clap::Command>,
     matches: ArgMatches,
+    shutdown: Option<tokio_util::sync::CancellationToken>,
 }
 
 impl Input {
     pub fn matches(&self) -> &ArgMatches {
         &self.matches
+    }
+
+    pub(crate) fn shutdown(&self) -> Option<&tokio_util::sync::CancellationToken> {
+        self.shutdown.as_ref()
     }
 }
 

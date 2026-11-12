@@ -32,6 +32,7 @@ impl CommandDefinition {
             )
             .map_err(|error| ConsoleError::new(error.to_string()))?;
         Ok(Input {
+            shutdown: None,
             syntax: self.syntax.clone(),
             matches,
         })

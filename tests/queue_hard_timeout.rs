@@ -6,6 +6,7 @@ fn main() {}
 mod acceptance {
     use std::{
         error::Error,
+        net::SocketAddr,
         path::{Path, PathBuf},
         process::ExitCode,
         sync::Arc,
@@ -14,6 +15,7 @@ mod acceptance {
 
     use openrust::contracts::http::Kernel as _;
     use openrust::{
+        console::{Application as Artisan, ConsoleError},
         contracts::events::{Event as EventPayload, Listener},
         contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
         database::{Connection as DatabaseConnection, DatabaseManager, Value as DatabaseValue},
@@ -43,7 +45,7 @@ mod acceptance {
         routing::{Router, RoutingError},
         support::{
             ProviderResult, ServiceProvider,
-            facades::{Event, Process, Queue},
+            facades::{Event, Process, Queue, Schedule},
         },
     };
     use serde_json::{Value, json};
@@ -128,7 +130,8 @@ mod acceptance {
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
                     "listener-first" | "listener-second" | "selection-default"
-                    | "selection-priority" | "maintenance-probe" | "callback-follow-up" => {}
+                    | "selection-priority" | "maintenance-probe" | "callback-follow-up"
+                    | "runtime-next" => {}
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -138,6 +141,10 @@ mod acceptance {
                         .map_err(|source| QueueError::Execution {
                             source: Box::new(source),
                         })?;
+                    }
+                    "runtime-drain" => {
+                        wait_for_file(&self.0, "runtime-job.release").await;
+                        std::fs::write(self.0.join("runtime-job.complete"), []).map_err(error)?;
                     }
                     "cpu" => loop {
                         std::hint::spin_loop();
@@ -518,10 +525,37 @@ mod acceptance {
         })
     }
 
+    fn runtime_probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async { Ok(Response::empty(axum::http::StatusCode::NO_CONTENT)) })
+    }
+
     fn routes(_: &Application) -> Result<Router, RoutingError> {
         let mut router = Router::new();
         router.get("/callback/{kind}", dispatch_probe)?;
+        router.get("/runtime", runtime_probe)?;
         Ok(router)
+    }
+
+    fn register_schedule(_: &mut Artisan) -> Result<(), ConsoleError> {
+        if std::env::var_os("RUNTIME_TEST_SCHEDULE").is_some() {
+            Schedule::configure(|schedule| {
+                schedule.useClock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
+                schedule.useCache("file");
+                let task = schedule.call(|app, _| {
+                    Box::pin(async move {
+                        let root = app.base_path();
+                        std::fs::write(root.join("runtime-schedule.started"), []).unwrap();
+                        wait_for_file(root, "runtime-schedule.release").await;
+                        std::fs::write(root.join("runtime-schedule.complete"), []).unwrap();
+                        Ok(())
+                    })
+                });
+                task.name("runtime-schedule");
+                task.withoutOverlapping();
+                Ok(())
+            })?;
+        }
+        Ok(())
     }
 
     fn application(root: PathBuf) -> Result<Application, SetupError> {
@@ -540,20 +574,30 @@ mod acceptance {
                     .ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(6379);
                 let Value::Object(config) = json!({
                     "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing"),
+                        "host": "127.0.0.1",
+                        "port": env.get_utf8("APP_PORT")?.unwrap_or("0").parse::<u16>().unwrap(),
                         "maintenance": {"driver": if backend == "redis" { "cache" } else { "file" }, "store": "redis"}
                     },
                     "database": {"default": database, "connections": connections,
                         "redis": {"options": {"prefix": format!("{name}:")}, "default": {"port": redis_port}}
                     },
                     "cache": {"default": "array", "stores": {
-                        "array": {"driver": "array"}, "redis": {"driver": "redis", "connection": "default"}
+                        "array": {"driver": "array"}, "redis": {"driver": "redis", "connection": "default"},
+                        "file": {"driver": "file", "path": base.join("runtime-cache")}
                     }},
-                    "queue": {"default": queue, "timed_out_exit_code": 124,
+                    "runtime": {
+                        "enabled": env.get_utf8("RUNTIME_ENABLED")? == Some("true"),
+                        "http": env.get_utf8("RUNTIME_HTTP")? != Some("false"),
+                        "queue": env.get_utf8("RUNTIME_QUEUE")? != Some("false"),
+                        "schedule": env.get_utf8("RUNTIME_SCHEDULE")? != Some("false")
+                    },
+                    "queue": {"default": env.get_utf8("QUEUE_CONNECTION")?.unwrap_or(queue), "timed_out_exit_code": 124,
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
-                            "database": {"driver": "database", "retry_after": RETRY_AFTER},
+                            "database": {"driver": "database", "retry_after": RETRY_AFTER,
+                                "queue": env.get_utf8("RUNTIME_TEST_QUEUE")?.unwrap_or("default")},
                             "redis": {"driver": "redis", "retry_after": RETRY_AFTER},
-                            "sync": {"driver": "sync"}
+                            "sync": {"driver": "sync"}, "inline": {"driver": "sync"}
                         },
                         "failed": {
                             "driver": if std::env::var_os("QUEUE_PRUNE_TEST_NULL").is_some() { "null" } else { "database-uuids" },
@@ -566,6 +610,7 @@ mod acceptance {
             })
             .withProviders(vec![Box::new(Provider(root))])
             .withRouting(Routing::new(routes))
+            .withCommands(register_schedule)
             .withExceptions(move |exceptions| {
                 exceptions.dontRetry::<HardPolicyError>();
                 exceptions.report(move |error: &std::io::Error| {
@@ -1528,6 +1573,328 @@ mod acceptance {
         assert_eq!(queue.size(name).await.unwrap(), 0);
     }
 
+    async fn wait_for_file(root: &Path, name: &str) {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            while !root.join(name).is_file() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("Missing {name}"));
+    }
+
+    fn runtime_process(root: &Path, address: SocketAddr) -> tokio::process::Command {
+        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        command
+            .env("APP_BASE_PATH", root)
+            .env("APP_PORT", address.port().to_string())
+            .env("RUNTIME_ENABLED", "true")
+            .env_remove("QUEUE_CONNECTION")
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        command.creation_flags(0x0000_0010); // CREATE_NEW_CONSOLE
+        command
+    }
+
+    async fn runtime_output(command: &mut tokio::process::Command) -> std::process::Output {
+        tokio::time::timeout(Duration::from_secs(10), command.output())
+            .await
+            .expect("application process did not exit")
+            .unwrap()
+    }
+
+    #[cfg(windows)]
+    fn send_console_ctrl_c() -> ExitCode {
+        #[link(name = "Kernel32")]
+        unsafe extern "system" {
+            fn AttachConsole(process_id: u32) -> i32;
+            fn SetConsoleCtrlHandler(
+                handler: Option<unsafe extern "system" fn(u32) -> i32>,
+                add: i32,
+            ) -> i32;
+            fn GenerateConsoleCtrlEvent(event: u32, process_group: u32) -> i32;
+        }
+        let pid = std::env::args().nth(2).unwrap().parse().unwrap();
+        let check = |result| assert_ne!(result, 0, "{}", std::io::Error::last_os_error());
+        // The detached sender attaches to the test application and ignores the broadcast itself.
+        unsafe {
+            check(AttachConsole(pid));
+            check(SetConsoleCtrlHandler(None, 1));
+            check(GenerateConsoleCtrlEvent(0, 0));
+        }
+        ExitCode::SUCCESS
+    }
+
+    async fn interrupt_runtime(child: &tokio::process::Child) {
+        let pid = child.id().unwrap().to_string();
+        #[cfg(unix)]
+        let mut signal = {
+            let mut command = tokio::process::Command::new("kill");
+            command.args(["-INT", &pid]);
+            command
+        };
+        #[cfg(windows)]
+        let mut signal = {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["runtime-ctrl-c", &pid])
+                .creation_flags(0x0000_0008); // DETACHED_PROCESS
+            command
+        };
+        assert!(signal.status().await.unwrap().success());
+    }
+
+    async fn wait_for_http(address: SocketAddr) {
+        let response = tokio::time::timeout(Duration::from_secs(10), async {
+            let mut stream = loop {
+                if let Ok(stream) = tokio::net::TcpStream::connect(address).await {
+                    break stream;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            };
+            stream
+                .write_all(b"GET /runtime HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+                .await
+                .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).await.unwrap();
+            response
+        })
+        .await
+        .expect("HTTP listener became ready");
+        assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+    }
+
+    async fn verify_runtime(
+        root: &Path,
+        db: &DatabaseConnection,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let address = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        let drain = Payload::new("hard-timeout-probe", "runtime-drain")
+            .unwrap()
+            .with_options(JobOptions {
+                hard_timeout: true,
+                ..Default::default()
+            });
+        queue.push(&drain, None).await.unwrap();
+
+        for enabled in [false, true] {
+            let mut http = runtime_process(root, address)
+                .env("RUNTIME_ENABLED", if enabled { "true" } else { "false" })
+                .env("RUNTIME_HTTP", if enabled { "true" } else { "false" })
+                .env("RUNTIME_QUEUE", if enabled { "false" } else { "true" })
+                .env("RUNTIME_SCHEDULE", if enabled { "false" } else { "true" })
+                .env("RUNTIME_TEST_SCHEDULE", "1")
+                .spawn()
+                .unwrap();
+            wait_for_http(address).await;
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            assert_eq!(queue.size(None).await.unwrap(), 1);
+            assert!(!root.join("runtime-drain.pid").exists());
+            assert!(!root.join("runtime-schedule.started").exists());
+            interrupt_runtime(&http).await;
+            assert!(
+                tokio::time::timeout(Duration::from_secs(10), http.wait())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .success()
+            );
+        }
+
+        let mut unified = runtime_process(root, address)
+            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .spawn()
+            .unwrap();
+        wait_for_http(address).await;
+        wait_for_file(root, "runtime-schedule.started").await;
+        wait_for_file(root, "runtime-drain.pid").await;
+        let mut competing = runtime_process(root, address);
+        competing
+            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .args(["artisan", "schedule:run"]);
+        let skipped = runtime_output(&mut competing).await;
+        assert!(skipped.status.success(), "{skipped:?}");
+        assert!(
+            String::from_utf8_lossy(&skipped.stdout).contains("No scheduled commands are ready")
+        );
+        queue
+            .push(
+                &Payload::new("hard-timeout-probe", "runtime-next").unwrap(),
+                None,
+            )
+            .await
+            .unwrap();
+        interrupt_runtime(&unified).await;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while tokio::net::TcpStream::connect(address).await.is_ok() {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("HTTP listener closed after Ctrl+C");
+        assert!(unified.try_wait().unwrap().is_none());
+        std::fs::write(root.join("runtime-job.release"), []).unwrap();
+        std::fs::write(root.join("runtime-schedule.release"), []).unwrap();
+        assert!(
+            tokio::time::timeout(Duration::from_secs(10), unified.wait())
+                .await
+                .unwrap()
+                .unwrap()
+                .success()
+        );
+        assert!(root.join("runtime-job.complete").is_file());
+        assert!(root.join("runtime-schedule.complete").is_file());
+        assert_executor_reaped(root, "runtime-drain");
+        assert_eq!(queue.size(None).await.unwrap(), 1);
+        assert!(!root.join("runtime-next.pid").exists());
+
+        let mut command = runtime_process(root, address);
+        command.args(["artisan", "queue:work", "--stop-when-empty"]);
+        let independent = runtime_output(&mut command).await;
+        assert!(independent.status.success(), "{independent:?}");
+        assert!(root.join("runtime-next.pid").is_file());
+        assert!(!String::from_utf8_lossy(&independent.stdout).contains("listening on"));
+        std::fs::remove_file(root.join("runtime-schedule.complete")).unwrap();
+        let mut command = runtime_process(root, address);
+        command
+            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .args(["artisan", "schedule:run"]);
+        let independent = runtime_output(&mut command).await;
+        assert!(independent.status.success(), "{independent:?}");
+        assert!(root.join("runtime-schedule.complete").is_file());
+
+        std::fs::remove_file(root.join("runtime-schedule.complete")).unwrap();
+        let occupied = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut schedule = runtime_process(root, occupied.local_addr().unwrap())
+            .env("RUNTIME_HTTP", "false")
+            .env("RUNTIME_QUEUE", "false")
+            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .spawn()
+            .unwrap();
+        wait_for_file(root, "runtime-schedule.complete").await;
+        interrupt_runtime(&schedule).await;
+        assert!(
+            tokio::time::timeout(Duration::from_secs(10), schedule.wait())
+                .await
+                .unwrap()
+                .unwrap()
+                .success()
+        );
+        drop(occupied);
+
+        let mut command = runtime_process(root, address);
+        command
+            .env("RUNTIME_HTTP", "false")
+            .env("QUEUE_CONNECTION", "inline");
+        let empty = runtime_output(&mut command).await;
+        assert_eq!(empty.status.code(), Some(1));
+        assert!(
+            String::from_utf8_lossy(&empty.stderr).contains("No application services are enabled")
+        );
+
+        for (managed, name) in [(false, "artisan-parity"), (true, "runtime-parity")] {
+            for (kind, fail_on_timeout) in [("external", true), ("cpu", false)] {
+                let payload = Payload::new("hard-timeout-probe", kind)
+                    .unwrap()
+                    .with_options(JobOptions {
+                        timeout: Some(TIMEOUT),
+                        max_tries: Some(2),
+                        fail_on_timeout,
+                        hard_timeout: true,
+                        ..Default::default()
+                    });
+                let uuid = payload.uuid().to_owned();
+                for suffix in ["pid", "started", "failed", "timed_out"] {
+                    let artifact = root.join(format!("{kind}.{suffix}"));
+                    if artifact.is_file() {
+                        std::fs::remove_file(artifact).unwrap();
+                    }
+                }
+                let mut command = runtime_process(root, address);
+                command.env("RUNTIME_TEST_QUEUE", name);
+                if !managed {
+                    command.args(["artisan", "queue:work"]);
+                }
+                let child = command
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                if managed {
+                    wait_for_http(address).await;
+                }
+                queue.push(&payload, Some(name)).await.unwrap();
+                let output =
+                    tokio::time::timeout(Duration::from_secs(15), child.wait_with_output())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                assert_eq!(output.status.code(), Some(124), "{output:?}");
+                assert!(tokio::net::TcpStream::connect(address).await.is_err());
+                assert_executor_reaped(root, kind);
+                assert!(root.join(format!("{kind}.timed_out")).is_file());
+                assert_eq!(
+                    root.join(format!("{kind}.failed")).is_file(),
+                    fail_on_timeout
+                );
+                let failures = db
+                    .select(
+                        "select exception from failed_jobs where uuid = ?",
+                        &[uuid.into()],
+                    )
+                    .await
+                    .unwrap();
+                if fail_on_timeout {
+                    assert!(root.join("external.started").is_file());
+                    assert_external_processes_reaped(root).await;
+                    assert!(!root.join("external.late").exists());
+                    assert_eq!(failures.len(), 1);
+                    assert!(matches!(
+                        failures[0].get("exception"),
+                        Some(DatabaseValue::Text(message)) if message == "queued job timed out"
+                    ));
+                    assert_eq!(queue.size(Some(name)).await.unwrap(), 0);
+                } else {
+                    assert!(failures.is_empty());
+                    assert_eq!(queue.size(Some(name)).await.unwrap(), 1);
+                }
+            }
+            let retried = root.join("retried");
+            if retried.is_file() {
+                std::fs::remove_file(&retried).unwrap();
+            }
+            let mut command = runtime_process(root, address);
+            command.env("RUNTIME_TEST_QUEUE", name);
+            if !managed {
+                command.args(["artisan", "queue:work"]);
+            }
+            let mut child = command.spawn().unwrap();
+            wait_for_file(root, "retried").await;
+            tokio::time::timeout(Duration::from_secs(5), async {
+                while queue.size(Some(name)).await.unwrap() != 0 {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
+            })
+            .await
+            .expect("retry completed and left the queue");
+            interrupt_runtime(&child).await;
+            assert!(
+                tokio::time::timeout(Duration::from_secs(10), child.wait())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .success()
+            );
+        }
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+        println!("Unified application runtime acceptance passed");
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -1711,6 +2078,9 @@ mod acceptance {
             verify_named_pop(&root.0, &*queue).await;
             verify_maintenance(&root.0, &app, &*queue).await;
         }
+        if backend == "sqlite" {
+            verify_runtime(&root.0, &db, &*queue).await;
+        }
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }
@@ -1720,6 +2090,10 @@ mod acceptance {
     #[tokio::main(flavor = "current_thread")]
     pub async fn run() -> ExitCode {
         #[cfg(windows)]
+        if std::env::args().nth(1).as_deref() == Some("runtime-ctrl-c") {
+            return send_console_ctrl_c();
+        }
+        #[cfg(windows)]
         if let Some(mode) = std::env::args().nth(1)
             && matches!(
                 mode.as_str(),
@@ -1728,9 +2102,10 @@ mod acceptance {
         {
             return external_fixture(&mode, Path::new(&std::env::args_os().nth(2).unwrap()));
         }
-        if std::env::args_os()
-            .nth(1)
-            .is_some_and(|argument| argument == "artisan")
+        if std::env::var_os("APP_BASE_PATH").is_some()
+            || std::env::args_os()
+                .nth(1)
+                .is_some_and(|argument| argument == "artisan")
         {
             return runApplication(|| {
                 application(PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap()))

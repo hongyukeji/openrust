@@ -53,6 +53,7 @@ pub struct QueueManager {
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
     after_commit: bool,
+    synchronous: bool,
     default_queue: String,
     batch_backend: BatchBackend,
 }
@@ -146,6 +147,10 @@ impl QueueManager {
 
     pub fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {
         Ok(self.resolve(name)?.queue.clone())
+    }
+
+    pub(crate) fn default_is_synchronous(&self) -> QueueResult<bool> {
+        Ok(self.resolve(None)?.synchronous)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
@@ -1089,6 +1094,7 @@ impl QueueManager {
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
+            synchronous: settings.driver == "sync",
             default_queue: settings.queue.clone().unwrap_or_else(|| "default".into()),
             batch_backend,
         });

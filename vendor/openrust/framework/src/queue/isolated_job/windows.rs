@@ -16,6 +16,7 @@ use windows_sys::Win32::System::JobObjects::{
     JobObjectBasicAccountingInformation, JobObjectExtendedLimitInformation,
     QueryInformationJobObject, SetInformationJobObject, TerminateJobObject,
 };
+use windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
 
 const ASSIGNED: u8 = 1;
 
@@ -60,7 +61,12 @@ impl ChildJob {
         {
             return Err(io::Error::last_os_error());
         }
-        let mut child = command.stdin(Stdio::piped()).kill_on_drop(true).spawn()?;
+        // The Worker owns cancellation; console Ctrl+C must not kill the executor directly.
+        let mut child = command
+            .creation_flags(CREATE_NEW_PROCESS_GROUP)
+            .stdin(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()?;
         let process = child
             .raw_handle()
             .ok_or_else(|| io::Error::other("queue executor already exited"))?;

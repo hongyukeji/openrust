@@ -20,7 +20,7 @@ mod test_command;
 mod test_make_command;
 mod type_make_command;
 
-use std::ffi::OsString;
+use std::{ffi::OsString, io::Write as _, sync::Arc};
 
 use crate::{
     console::{
@@ -31,7 +31,11 @@ use crate::{
     support::facades,
 };
 
-use super::{Application, BootstrapError, environment_detector};
+use super::{
+    Application, BootstrapError, RunningService, RuntimeResult, RuntimeService,
+    environment_detector, runtime_service::ServiceExit,
+};
+use tokio_util::sync::CancellationToken;
 
 /// Boots the application and runs Artisan commands.
 pub struct Kernel {
@@ -40,6 +44,7 @@ pub struct Kernel {
     captured: Output,
     register_planned: bool,
     command_registration: Option<Result<(), ConsoleError>>,
+    has_scheduled_tasks: bool,
 }
 
 impl Kernel {
@@ -50,6 +55,7 @@ impl Kernel {
             captured: Output::default(),
             register_planned: false,
             command_registration: None,
+            has_scheduled_tasks: false,
         }
     }
 
@@ -59,6 +65,31 @@ impl Kernel {
             ..Self::new(application, Artisan::new())
         }
     }
+    pub(super) fn managed_services(
+        &self,
+        queue: bool,
+        schedule: bool,
+    ) -> Vec<Arc<dyn RuntimeService>> {
+        let mut services: Vec<Arc<dyn RuntimeService>> = Vec::new();
+        if queue {
+            services.push(Arc::new(ManagedCommand {
+                name: "queue:work",
+                options: &["--memory=0"],
+                application: self.application.share(),
+                artisan: self.artisan.clone(),
+            }));
+        }
+        if schedule && self.has_scheduled_tasks {
+            services.push(Arc::new(ManagedCommand {
+                name: "schedule:work",
+                options: &[],
+                application: self.application.share(),
+                artisan: self.artisan.clone(),
+            }));
+        }
+        services
+    }
+
     fn bootstrap_with_environment<'a>(
         &'a mut self,
         selected: Option<&'a str>,
@@ -124,6 +155,7 @@ impl Kernel {
                             Ok(())
                         })?;
                         if self.register_planned {
+                            self.has_scheduled_tasks = schedule.events().next().is_some();
                             scheduling::register(&mut self.artisan, schedule)?;
                         }
                         Ok(())
@@ -132,6 +164,46 @@ impl Kernel {
                     .map_err(|source| BootstrapError::CommandRegistrationFailed { source })
             },
         ))
+    }
+}
+
+struct ManagedCommand {
+    name: &'static str,
+    options: &'static [&'static str],
+    application: Application,
+    artisan: Artisan,
+}
+
+impl RuntimeService for ManagedCommand {
+    fn prepare(
+        &self,
+        shutdown: CancellationToken,
+    ) -> crate::http::HttpFuture<'_, RuntimeResult<RunningService>> {
+        let application = self.application.share();
+        let artisan = self.artisan.clone();
+        let name = self.name;
+        let options = self.options;
+        Box::pin(async move {
+            let run: RunningService =
+                Box::pin(facades::scope(application.container_handle(), async move {
+                    let arguments: Vec<_> = std::iter::once(&name)
+                        .chain(options)
+                        .map(OsString::from)
+                        .collect();
+                    let mut output = Output::for_terminal();
+                    let status = artisan
+                        .handle_with_shutdown(&application, &arguments, &mut output, Some(shutdown))
+                        .await;
+                    std::io::stdout().write_all(output.stdout.as_bytes())?;
+                    std::io::stderr().write_all(output.stderr.as_bytes())?;
+                    if status == 0 {
+                        Ok(())
+                    } else {
+                        Err(ServiceExit { name, status }.into())
+                    }
+                }));
+            Ok(run)
+        })
     }
 }
 

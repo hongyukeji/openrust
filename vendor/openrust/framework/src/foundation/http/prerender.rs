@@ -66,9 +66,9 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
             Some(Value::String(driver)) => driver == "file",
             _ => false,
         };
-    if !file_driver || complete {
+    if !file_driver || complete || !runtime_service::serves_http(app.config()?.as_ref())? {
         let kernel = boot.await?;
-        return kernel.serve_ready(listen_for(&app).await?).await;
+        return kernel.serve_ready().await;
     }
 
     let listener = listen_for(&app).await?;
@@ -82,7 +82,7 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
         .with_state(state)
         .into_make_service_with_connect_info::<std::net::SocketAddr>();
     runtime_service::run(Vec::new(), move |shutdown| {
-        Box::pin(async move {
+        Some(Box::pin(async move {
             println!("OpenRust listening on http://{}", listener.local_addr()?);
             let accept = async {
                 axum::serve(listener, service)
@@ -106,13 +106,18 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
                 };
                 match result {
                     Ok(kernel) => {
-                        let mut running = Vec::new();
-                        for service in kernel.application.take_runtime_services() {
-                            running.push(service.prepare(shutdown.clone()).await?);
-                        }
+                        let services =
+                            runtime_service::configured_services(&kernel.application).await?;
+                        let mut running = runtime_service::prepare(services, &shutdown).await?;
                         ready.send_replace(Some(Ok(Arc::new(kernel))));
-                        futures_util::future::try_join_all(running).await?;
-                        Ok(())
+                        if running.is_empty() {
+                            return Ok(());
+                        }
+                        runtime_service::supervise(&shutdown, &mut running, async {
+                            shutdown.cancelled().await;
+                            Ok(())
+                        })
+                        .await
                     }
                     Err(error) => {
                         eprintln!("Application bootstrap failed during maintenance: {error}");
@@ -126,9 +131,22 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
                     }
                 }
             };
-            tokio::try_join!(accept, bootstrap)?;
-            Ok(())
-        })
+            let (accepted, bootstrapped) = tokio::join!(
+                async {
+                    let result = accept.await;
+                    shutdown.cancel();
+                    result
+                },
+                async {
+                    let result = bootstrap.await;
+                    if result.is_err() {
+                        shutdown.cancel();
+                    }
+                    result
+                }
+            );
+            bootstrapped.and(accepted)
+        }))
     })
     .await
 }

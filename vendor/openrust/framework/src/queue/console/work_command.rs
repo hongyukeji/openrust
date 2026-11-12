@@ -173,7 +173,20 @@ impl Command for WorkCommand {
                 .unwrap_or(chrono_tz::UTC);
             let mut status = WorkerOutput::new(output, args, timezone);
             let shutdown = CancellationToken::new();
-            let result = if once {
+            let result = if let Some(shutdown) = input.shutdown() {
+                worker
+                    .daemon_with_status(
+                        &*connection,
+                        &queues,
+                        &options,
+                        &cadence,
+                        shutdown,
+                        |event| {
+                            status.write(event);
+                        },
+                    )
+                    .await
+            } else if once {
                 let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
                 let result = worker
                     .daemon_with_status(
