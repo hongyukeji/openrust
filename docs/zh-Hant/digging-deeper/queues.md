@@ -124,6 +124,20 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 ./artisan queue:work --json --once
 ```
 
+#### 工作嘗試事件 {#job-attempt-events}
+
+`JobProcessing` 在執行前派發，`JobProcessed` 在工作成功傳回後派發。工作主動釋放時，接著派發 `JobReleased`。嘗試發生例外時派發 `JobExceptionOccurred`，Worker 安排重試後派發 `JobReleasedAfterException`。永久失敗記錄寫入並移除預約後，派發 `JobFailed`。
+
+`JobAttempted` 在該次嘗試的其他事件之後派發，提供 `successful()`、選用的例外訊息，以及實際開始執行時的毫秒耗時。事件攜帶唯讀工作快照。`JobProcessing` 監聽器出錯時按工作重試策略處理。其他監聽器出錯則交由應用程式例外處理器，並保留佇列操作的結果。
+
+`JobTimedOut` 提供設定的逾時值。OpenRust 取消非同步工作 future，並套用 Worker 的重試策略，包括 `fail_on_timeout`。
+
+預設佇列有待處理工作時，執行一次嘗試並列印狀態。
+
+```sh
+./artisan queue:work --json --once --tries=2
+```
+
 #### 工作間隔與閒置結束 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 設定工作執行之間的等待時間。使用 `--stop-when-empty-for` 時，佇列為空且 Worker 連續指定秒數未處理工作，Worker 就會結束。閒置計時從啟動開始，每次工作執行結束後重設。

@@ -1,4 +1,4 @@
-//! Queue and worker pause transitions.
+//! Queue and worker lifecycle events.
 
 use super::{Payload, WorkerOptions, WorkerStopReason};
 use crate::{
@@ -122,5 +122,83 @@ queue_event!(
     JobPopped {
         connection_name: String,
         job: JobSnapshot,
+    }
+);
+
+queue_event!(
+    /// The worker is about to execute an attempt.
+    JobProcessing {
+        connection_name: String,
+        job: JobSnapshot,
+    }
+);
+
+queue_event!(
+    /// A job attempt returned successfully.
+    JobProcessed {
+        connection_name: String,
+        job: JobSnapshot,
+        duration: f64,
+    }
+);
+
+queue_event!(
+    /// The worker finished an attempt, including its retry or failure handling.
+    JobAttempted {
+        connection_name: String,
+        job: JobSnapshot,
+        exception: Option<String>,
+        duration: Option<f64>,
+    }
+);
+
+impl JobAttempted {
+    pub fn successful(&self) -> bool {
+        self.exception.is_none()
+    }
+}
+
+queue_event!(
+    /// A job attempt raised an exception.
+    JobExceptionOccurred {
+        connection_name: String,
+        job: JobSnapshot,
+        exception: String,
+    }
+);
+
+queue_event!(
+    /// A successful job attempt explicitly released its reservation.
+    JobReleased {
+        connection_name: String,
+        job: JobSnapshot,
+    }
+);
+
+queue_event!(
+    /// The worker released a job for retry after an exception.
+    JobReleasedAfterException {
+        connection_name: String,
+        job: JobSnapshot,
+        backoff: std::time::Duration,
+        exception: String,
+    }
+);
+
+queue_event!(
+    /// The worker permanently failed a job.
+    JobFailed {
+        connection_name: String,
+        job: JobSnapshot,
+        exception: String,
+    }
+);
+
+queue_event!(
+    /// The worker cancelled a job attempt at its configured timeout.
+    JobTimedOut {
+        connection_name: String,
+        job: JobSnapshot,
+        timeout: std::time::Duration,
     }
 );

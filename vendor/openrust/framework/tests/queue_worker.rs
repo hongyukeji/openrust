@@ -36,8 +36,10 @@ use openrust::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult, WorkerStopReason,
         events::{
-            JobPopped, JobPopping, Looping, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed,
-            WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
+            JobAttempted, JobExceptionOccurred, JobFailed, JobPopped, JobPopping, JobProcessed,
+            JobProcessing, JobReleased, JobReleasedAfterException, JobTimedOut, Looping,
+            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle, WorkerQueuePaused,
+            WorkerQueueResumed, WorkerStarting, WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -332,6 +334,79 @@ impl Listener for PopListener {
     }
 }
 
+const ATTEMPT_EVENTS: &[&str] = &[
+    JobProcessing::NAME,
+    JobProcessed::NAME,
+    JobReleased::NAME,
+    JobExceptionOccurred::NAME,
+    JobReleasedAfterException::NAME,
+    JobFailed::NAME,
+    JobTimedOut::NAME,
+    JobAttempted::NAME,
+];
+
+struct AttemptListener;
+impl Listener for AttemptListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            macro_rules! record {
+                ($($ty:ty),+ $(,)?) => {
+                    $(if let Some(value) = event.downcast_ref::<$ty>() {
+                        assert_eq!(value.job.queue, "default");
+                        assert!(!value.job.id.is_empty());
+                        assert!(matches!(value.connection_name.as_str(), "database" | "redis"));
+                        println!("attempt-event:{}:{}:{}", <$ty>::NAME, value.job.payload.name(), value.job.attempts);
+                    })+
+                };
+            }
+            record!(
+                JobProcessing,
+                JobProcessed,
+                JobReleased,
+                JobExceptionOccurred,
+                JobReleasedAfterException,
+                JobFailed,
+                JobTimedOut,
+                JobAttempted,
+            );
+            if let Some(event) = event.downcast_ref::<JobAttempted>() {
+                assert_eq!(event.successful(), event.exception.is_none());
+                if event
+                    .exception
+                    .as_deref()
+                    .is_some_and(|e| e.contains("attempt-event:preflight-error"))
+                {
+                    assert_eq!(event.duration, None);
+                } else {
+                    assert!(event.duration.is_some_and(|duration| duration >= 0.0));
+                }
+            }
+            if let Some(event) = event.downcast_ref::<JobReleasedAfterException>() {
+                assert_eq!(event.backoff, Duration::ZERO);
+            }
+            if let Some(event) = event.downcast_ref::<JobTimedOut>() {
+                assert_eq!(event.timeout, Duration::from_millis(100));
+            }
+            let mode = std::env::var("QUEUE_WORKER_ATTEMPT_EVENTS").unwrap_or_default();
+            let error = match (event.name(), mode.as_str()) {
+                (JobProcessing::NAME, "preflight-error") => Some("attempt-event:preflight-error"),
+                (JobProcessed::NAME, "processed-error") => Some("attempt-event:processed-error"),
+                _ => None,
+            };
+            if let Some(error) = error {
+                return Err(EventError::Listener {
+                    source: Box::new(std::io::Error::other(error)),
+                });
+            }
+            Ok(None)
+        })
+    }
+}
+
 fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
     for event in [
         QueuePaused::NAME,
@@ -361,6 +436,11 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
     if std::env::var_os("QUEUE_WORKER_POP_EVENT").is_some() {
         for name in [JobPopping::NAME, JobPopped::NAME] {
             registry.listen(name, Arc::new(PopListener), Delivery::Sync)?;
+        }
+    }
+    if std::env::var_os("QUEUE_WORKER_ATTEMPT_EVENTS").is_some() {
+        for name in ATTEMPT_EVENTS {
+            registry.listen(name, Arc::new(AttemptListener), Delivery::Sync)?;
         }
     }
     registry.listenQueued::<Invoice>(
@@ -481,6 +561,9 @@ fn application(root: &Path) -> Application {
             exceptions.report::<std::io::Error>(|error| {
                 if error.to_string() == "pop-event:after-error" {
                     println!("pop-event:reported");
+                    ReportDecision::Stop
+                } else if error.to_string().starts_with("attempt-event:") {
+                    println!("attempt-report:{error}");
                     ReportDecision::Stop
                 } else {
                     ReportDecision::Continue
@@ -861,6 +944,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_cadence(&root.0, &db, address, redis.is_some()).await;
     verify_worker_lifecycle(&root.0, &db, &*queue, address).await;
     verify_job_pop_events(&root.0, &db, &*queue, address).await;
+    verify_job_attempt_events(&root.0, &db, &*queue, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1321,6 +1405,125 @@ async fn verify_job_pop_events(
             .contains("pop-event:fake")
     );
     assert_eq!(processed().await, count + 2);
+}
+
+async fn verify_job_attempt_events(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let launch = |kind: &'static str, attempt, mode: &'static str, tries: &'static str| async move {
+        let output = timeout(
+            Duration::from_secs(8),
+            artisan(root, &["queue:work", "--json", "--once", tries])
+                .env("QUEUE_WORKER_ATTEMPT_EVENTS", mode)
+                .output(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        if mode.ends_with("-error") {
+            let report = format!("attempt-report:attempt-event:{mode}");
+            assert!(stdout.contains(&report), "{stdout}");
+        }
+        let suffix = format!(":{kind}:{attempt}");
+        stdout
+            .lines()
+            .filter_map(|line| {
+                line.strip_prefix("attempt-event:")?
+                    .strip_suffix(&suffix)
+                    .map(str::to_owned)
+            })
+            .collect::<Vec<_>>()
+    };
+    request(address, "manual_release").await;
+    assert_eq!(
+        launch("manual_release", 1, "normal", "--tries=2").await,
+        [
+            "JobProcessing",
+            "JobProcessed",
+            "JobReleased",
+            "JobAttempted"
+        ]
+    );
+    assert_eq!(
+        launch("manual_release", 2, "normal", "--tries=2").await,
+        ["JobProcessing", "JobProcessed", "JobAttempted"]
+    );
+
+    request(address, "flaky").await;
+    assert_eq!(
+        launch("flaky", 1, "normal", "--tries=2").await,
+        [
+            "JobProcessing",
+            "JobExceptionOccurred",
+            "JobReleasedAfterException",
+            "JobAttempted"
+        ]
+    );
+    assert_eq!(
+        launch("flaky", 2, "normal", "--tries=2").await,
+        ["JobProcessing", "JobProcessed", "JobAttempted"]
+    );
+
+    request(address, "flaky").await;
+    assert_eq!(
+        launch("flaky", 1, "normal", "--tries=1").await,
+        [
+            "JobProcessing",
+            "JobFailed",
+            "JobExceptionOccurred",
+            "JobAttempted"
+        ]
+    );
+
+    request(address, "timeout").await;
+    assert_eq!(
+        launch("timeout", 1, "normal", "--tries=2").await,
+        [
+            "JobProcessing",
+            "JobFailed",
+            "JobTimedOut",
+            "JobExceptionOccurred",
+            "JobAttempted"
+        ]
+    );
+
+    let count = || async {
+        db.table("receipts")
+            .r#where("name", "=", "control_default")
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let before = count().await;
+    request(address, "control_default").await;
+    assert_eq!(
+        launch("control_default", 1, "preflight-error", "--tries=2").await,
+        [
+            "JobProcessing",
+            "JobExceptionOccurred",
+            "JobReleasedAfterException",
+            "JobAttempted"
+        ]
+    );
+    assert_eq!(count().await, before);
+    assert_eq!(
+        launch("control_default", 2, "normal", "--tries=2").await,
+        ["JobProcessing", "JobProcessed", "JobAttempted"]
+    );
+    assert_eq!(count().await, before + 1);
+
+    request(address, "control_default").await;
+    assert_eq!(
+        launch("control_default", 1, "processed-error", "--tries=2").await,
+        ["JobProcessing", "JobProcessed", "JobAttempted"],
+    );
+    assert_eq!(count().await, before + 2);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
 }
 
 #[tokio::test]

@@ -124,6 +124,20 @@ With an empty queue, this command dispatches `JobPopping` and exits. `JobPopped`
 ./artisan queue:work --json --once
 ```
 
+#### Job attempt events {#job-attempt-events}
+
+Listen for `JobProcessing` before the job runs and `JobProcessed` after it returns successfully. If the job explicitly releases itself, `JobReleased` follows `JobProcessed`. A failed attempt emits `JobExceptionOccurred`, followed by `JobReleasedAfterException` if the worker schedules a retry. A permanent failure emits `JobFailed` after recording the failure and removing the reservation.
+
+`JobAttempted` follows the other events for the attempt. It exposes `successful()`, an optional exception message, and the elapsed milliseconds if execution began. Events carry a read-only job snapshot. A `JobProcessing` listener error follows the normal retry policy. The worker reports errors from the other listeners through the application's exception handler and preserves the queue operation's result.
+
+`JobTimedOut` includes the configured timeout. OpenRust cancels the async job future and applies the worker retry policy, including `fail_on_timeout`.
+
+With a job waiting on the default queue, run one attempt and print its status.
+
+```sh
+./artisan queue:work --json --once --tries=2
+```
+
 #### Resting between jobs and stopping after inactivity {#worker-rest-and-idle-timeout}
 
 Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop after the queue is empty and the worker has gone the specified number of seconds without processing a job. The idle timer starts when the worker starts and resets when it finishes each job.

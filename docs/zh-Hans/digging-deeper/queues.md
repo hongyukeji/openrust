@@ -124,6 +124,20 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ./artisan queue:work --json --once
 ```
 
+#### 任务尝试事件 {#job-attempt-events}
+
+`JobProcessing` 在执行前派发，`JobProcessed` 在任务成功返回后派发。任务主动释放时，随后派发 `JobReleased`。尝试发生异常时派发 `JobExceptionOccurred`，Worker 安排重试后派发 `JobReleasedAfterException`。永久失败记录写入并移除预约后，派发 `JobFailed`。
+
+`JobAttempted` 在该次尝试的其他事件之后派发，提供 `successful()`、可选异常消息，以及实际开始执行时的毫秒耗时。事件携带只读任务快照。`JobProcessing` 监听器报错时按任务重试策略处理。其他监听器报错交给应用异常处理器，并保留队列操作的结果。
+
+`JobTimedOut` 提供配置的超时值。OpenRust 取消异步任务 future，并应用 Worker 的重试策略，包括 `fail_on_timeout`。
+
+默认队列有待处理任务时，运行一次尝试并打印状态。
+
+```sh
+./artisan queue:work --json --once --tries=2
+```
+
 #### 任务间隔与空闲退出 {#worker-rest-and-idle-timeout}
 
 使用 `--rest` 设置任务执行之间的等待时间。使用 `--stop-when-empty-for` 时，队列为空且 Worker 连续指定秒数未处理任务，Worker 就会退出。空闲计时从启动开始，每次任务执行结束后重置。

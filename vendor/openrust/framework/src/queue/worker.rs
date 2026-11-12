@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -14,6 +15,7 @@ use crate::{
     contracts::{
         container::Container as _,
         debug::{Exception, ExceptionHandler},
+        events::Event,
         queue::{Job, Queue},
     },
     support::facades::{application_scope, isolated_scope},
@@ -23,8 +25,9 @@ use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
     WorkerStopReason,
     events::{
-        JobPopped, JobPopping, Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed,
-        WorkerStarting, WorkerStopping,
+        JobAttempted, JobExceptionOccurred, JobFailed, JobPopped, JobPopping, JobProcessed,
+        JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot, JobTimedOut, Looping,
+        WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
 };
@@ -362,15 +365,45 @@ impl Worker {
         let Err(error) = manager.emit_control_event(event).await else {
             return true;
         };
-        if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
-            application_scope(self.app.clone(), async {
-                let _ = handler.report(&Exception::Error(&error)).await;
-            })
-            .await;
-        }
+        self.report_worker_error(&error).await;
         // Keep the reservation intact so the driver retries it after the lease expires.
         tokio::time::sleep(Duration::from_secs(1)).await;
         false
+    }
+
+    async fn report_worker_error(&self, error: &QueueError) {
+        if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
+            application_scope(self.app.clone(), async {
+                let _ = handler.report(&Exception::Error(error)).await;
+            })
+            .await;
+        }
+    }
+
+    async fn emit_job_event<E: Event>(
+        &self,
+        manager: &QueueManager,
+        job: &mut dyn Job,
+        name: &str,
+        build: impl FnOnce(String, JobSnapshot) -> E,
+    ) -> QueueResult<()> {
+        if manager.observes_worker_event(name)? {
+            let event = build(job.get_connection_name().into(), JobSnapshot::from_job(job));
+            manager.emit_control_event(event).await?;
+        }
+        Ok(())
+    }
+
+    async fn observe_job_event<E: Event>(
+        &self,
+        manager: &QueueManager,
+        job: &mut dyn Job,
+        name: &str,
+        build: impl FnOnce(String, JobSnapshot) -> E,
+    ) {
+        if let Err(error) = self.emit_job_event(manager, job, name, build).await {
+            self.report_worker_error(&error).await;
+        }
     }
 
     async fn process(
@@ -399,89 +432,200 @@ impl Worker {
             job.delete().await?;
             return Ok(WorkResult::Failed);
         }
-        let tries = job.options().max_tries.unwrap_or(options.tries);
-        if exceeds_attempts(job, tries, false) {
-            let error = QueueError::MaxAttempts;
-            let result = self.fail(job, &error, batch.as_ref()).await;
-            *cause = Some(error);
-            return result;
+        let manager = self
+            .app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        let mut duration = None;
+        let result = self
+            .attempt(job, options, &manager, batch.as_ref(), cause, &mut duration)
+            .await;
+        self.observe_job_event(&manager, job, JobAttempted::NAME, |connection_name, job| {
+            JobAttempted {
+                connection_name,
+                job,
+                exception: cause
+                    .as_ref()
+                    .or(result.as_ref().err())
+                    .map(attempt_exception_message),
+                duration,
+            }
+        })
+        .await;
+        if let Some(error) = cause.as_ref() {
+            self.report_worker_error(error).await;
         }
+        result
+    }
+
+    async fn attempt(
+        &self,
+        job: &mut dyn Job,
+        options: &WorkerOptions,
+        manager: &QueueManager,
+        batch: Option<&BatchCompletion>,
+        cause: &mut Option<QueueError>,
+        duration: &mut Option<f64>,
+    ) -> QueueResult<WorkResult> {
+        let preflight = self
+            .emit_job_event(manager, job, JobProcessing::NAME, |connection_name, job| {
+                JobProcessing {
+                    connection_name,
+                    job,
+                }
+            })
+            .await;
+        let tries = job.options().max_tries.unwrap_or(options.tries);
+        let already_exhausted = preflight.is_ok() && exceeds_attempts(job, tries, false);
         let timeout = job.options().timeout.unwrap_or(options.timeout);
         let mut context = JobContext::default();
-        let hydrated = job.payload().context.clone();
-        let attempt = isolated_scope(self.app.clone(), async {
-            use crate::log::context::Context;
-            let context_repository = Context::repository().map_err(super::backend)?;
-            Context::hooks()
-                .map_err(super::backend)?
-                .hydrate(&hydrated, &context_repository);
-            let execution = async {
-                if job.payload().chained_batch.is_some() {
-                    self.app
-                        .make::<QueueManager>()
-                        .map_err(QueueError::Unavailable)?
-                        .execute_chained_batch(
-                            job.payload(),
-                            job.get_connection_name(),
-                            job.get_queue(),
-                        )
-                        .await
-                } else {
-                    job.fire(&mut context).await
-                }
-            };
-            if timeout.is_zero() {
-                execution.await
-            } else {
-                tokio::time::timeout(timeout, execution)
-                    .await
-                    .unwrap_or(Err(QueueError::Timeout))
-            }
-        });
-        let result = attempt.await;
-        if let Some(delay) = context.release_after {
-            job.release(delay).await?;
-            return Ok(WorkResult::Released);
-        }
-        match result {
+        let result = match preflight {
+            Err(error) => Err(error),
+            Ok(()) if already_exhausted => Err(QueueError::MaxAttempts),
             Ok(()) => {
-                let edit = context.chain_update.take();
-                if let Some(batch) = &batch
-                    && !batch
-                        .record(&self.app, job.payload(), None, edit.as_ref())
-                        .await?
-                    && let Some(recorded) = batch.recorded().await?
-                {
-                    return self.complete_recorded(job, recorded).await;
-                }
-                self.complete(job, edit.map(|edit| edit.next)).await?;
-                Ok(WorkResult::Processed)
-            }
-            Err(error)
-                if exceeds_attempts(job, tries, true)
-                    || matches!(error, QueueError::Timeout) && job.options().fail_on_timeout =>
-            {
-                let result = self.fail(job, &error, batch.as_ref()).await;
-                *cause = Some(error);
+                let started = tokio::time::Instant::now();
+                let hydrated = job.payload().context.clone();
+                let result = isolated_scope(self.app.clone(), async {
+                    use crate::log::context::Context;
+                    let context_repository = Context::repository().map_err(super::backend)?;
+                    Context::hooks()
+                        .map_err(super::backend)?
+                        .hydrate(&hydrated, &context_repository);
+                    let execution = async {
+                        if job.payload().chained_batch.is_some() {
+                            manager
+                                .execute_chained_batch(
+                                    job.payload(),
+                                    job.get_connection_name(),
+                                    job.get_queue(),
+                                )
+                                .await
+                        } else {
+                            job.fire(&mut context).await
+                        }
+                    };
+                    if timeout.is_zero() {
+                        execution.await
+                    } else {
+                        tokio::time::timeout(timeout, execution)
+                            .await
+                            .unwrap_or(Err(QueueError::Timeout))
+                    }
+                })
+                .await;
+                *duration = Some((started.elapsed().as_secs_f64() * 100_000.0).round() / 100.0);
                 result
             }
-            Err(error) => {
-                *cause = Some(error);
-                let configured = &job.options().backoff;
-                let backoff = if configured.is_empty() {
-                    &options.backoff
-                } else {
-                    configured
-                };
-                let index = usize::try_from(job.attempts().saturating_sub(1)).unwrap_or(usize::MAX);
-                let delay = backoff
-                    .get(index)
-                    .or_else(|| backoff.last())
-                    .copied()
-                    .unwrap_or(Duration::ZERO);
-                job.release(delay).await?;
-                Ok(WorkResult::Released)
+        };
+
+        if let Err(error) = result {
+            let timed_out = matches!(error, QueueError::Timeout);
+            let terminal = context.release_after.is_none()
+                && (already_exhausted
+                    || exceeds_attempts(job, tries, true)
+                    || timed_out && job.options().fail_on_timeout);
+            let error = cause.insert(error);
+            if terminal {
+                self.fail(job, error, batch).await?;
+                self.observe_job_event(manager, job, JobFailed::NAME, |connection_name, job| {
+                    JobFailed {
+                        connection_name,
+                        job,
+                        exception: attempt_exception_message(error),
+                    }
+                })
+                .await;
             }
+            if timed_out {
+                self.observe_job_event(manager, job, JobTimedOut::NAME, |connection_name, job| {
+                    JobTimedOut {
+                        connection_name,
+                        job,
+                        timeout,
+                    }
+                })
+                .await;
+            }
+            self.observe_job_event(
+                manager,
+                job,
+                JobExceptionOccurred::NAME,
+                |connection_name, job| JobExceptionOccurred {
+                    connection_name,
+                    job,
+                    exception: attempt_exception_message(error),
+                },
+            )
+            .await;
+            if terminal {
+                return Ok(WorkResult::Failed);
+            }
+
+            let configured = &job.options().backoff;
+            let backoff = if configured.is_empty() {
+                &options.backoff
+            } else {
+                configured
+            };
+            let index = usize::try_from(job.attempts().saturating_sub(1)).unwrap_or(usize::MAX);
+            let delay = backoff
+                .get(index)
+                .or_else(|| backoff.last())
+                .copied()
+                .unwrap_or_default();
+            job.release(context.release_after.unwrap_or(delay)).await?;
+            if context.release_after.is_none() {
+                self.observe_job_event(
+                    manager,
+                    job,
+                    JobReleasedAfterException::NAME,
+                    |connection_name, job| JobReleasedAfterException {
+                        connection_name,
+                        job,
+                        backoff: delay,
+                        exception: attempt_exception_message(error),
+                    },
+                )
+                .await;
+            }
+            return Ok(WorkResult::Released);
+        }
+
+        let released = if let Some(delay) = context.release_after {
+            job.release(delay).await?;
+            true
+        } else {
+            let edit = context.chain_update.take();
+            if let Some(batch) = batch
+                && !batch
+                    .record(&self.app, job.payload(), None, edit.as_ref())
+                    .await?
+                && let Some(recorded) = batch.recorded().await?
+            {
+                return self.complete_recorded(job, recorded).await;
+            }
+            self.complete(job, edit.map(|edit| edit.next)).await?;
+            false
+        };
+        self.observe_job_event(manager, job, JobProcessed::NAME, |connection_name, job| {
+            JobProcessed {
+                connection_name,
+                job,
+                duration: duration.unwrap_or_default(),
+            }
+        })
+        .await;
+        if released {
+            self.observe_job_event(manager, job, JobReleased::NAME, |connection_name, job| {
+                JobReleased {
+                    connection_name,
+                    job,
+                }
+            })
+            .await;
+            Ok(WorkResult::Released)
+        } else {
+            Ok(WorkResult::Processed)
         }
     }
 
@@ -582,6 +726,17 @@ impl Worker {
         }
         Ok(WorkResult::Failed)
     }
+}
+
+fn attempt_exception_message(error: &QueueError) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(error) = source {
+        message.push_str(": ");
+        message.push_str(&error.to_string());
+        source = error.source();
+    }
+    message
 }
 
 struct BatchCompletion {
