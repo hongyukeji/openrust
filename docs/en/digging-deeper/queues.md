@@ -141,6 +141,26 @@ fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
 
 Call `dispatch().await` on the builder. To append a sequence after dispatch, call `Batch::addChain(...).await`. A permanent failure stops the affected chain. Its unrun members remain pending, even when the batch allows failures. Retrying the failed job can resume that chain.
 
+### Batches within chains {#batches-within-chains}
+
+Use `appendBatch` or `prependBatch` to add a pending batch to a chain. The worker dispatches the batch when it reaches that step. The batch inherits the chain connection and queue unless it configures its own. Both stages support Redis and database queues on the batch repository connection.
+
+```rust
+use openrust::{
+    bus::{PendingBatch, PendingChain},
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
+};
+
+fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
+    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+}
+```
+
+The outer chain resumes after the batch reaches its final callback phase. If the batch allows failures, it can still reach that phase and continue. If the batch is cancelled, the chain stops. When a failure cancels the batch, the outer chain’s `catch` callbacks receive the failed batch job and its error.
+
+Run `./artisan migrate` to create the continuation table. A failed publication leaves the continuation pending in SQL. Run `./artisan queue:publish-batches` to recover it.
+
 ### Adding jobs to batches {#adding-jobs-to-batches}
 
 Call `Batch::add` from a handler or another application entry point. It uses the batch’s queue and connection options and returns the updated batch if it still exists. Appending jobs increases the total and pending counts and clears the completion timestamp. A cancelled batch retains its cancellation state. Each appended job receives a new queue UUID.
@@ -164,7 +184,7 @@ For Redis, each addition has a separate SQL publication record. The initial publ
 
 ### Publishing batches to Redis {#redis-batches}
 
-OpenRust commits the batch and the Redis publication intent in SQL before contacting Redis. If publication fails, `dispatch()` still returns the accepted batch. Run `queue:publish-batches` periodically to retry pending intents. Redis writes the jobs and a publication marker together. The marker stays in Redis until SQL acknowledges the publication, then OpenRust attempts to set a 24-hour expiry. Configure Redis persistence and eviction for queue data and markers. If you customize the batch table, create its companion tables with the `_jobs` and `_outbox` suffixes.
+OpenRust commits the batch and the Redis publication intent in SQL before contacting Redis. If publication fails, `dispatch()` still returns the accepted batch. Run `queue:publish-batches` periodically to retry pending intents. Redis writes the jobs and a publication marker together. The marker stays in Redis until SQL acknowledges the publication, then OpenRust attempts to set a 24-hour expiry. Configure Redis persistence and eviction for queue data and markers. If you customize the batch table, create its companion tables with the `_jobs`, `_outbox`, `_additions`, and `_continuations` suffixes.
 
 ```sh
 ./artisan queue:publish-batches --limit=1

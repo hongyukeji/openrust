@@ -82,6 +82,7 @@ async fn verify(mysql: Option<&str>) {
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
     for name in [
+        "job_batches_continuations",
         "job_batches_additions",
         "job_batches_outbox",
         "job_batches_jobs",
@@ -134,11 +135,14 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 8);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 9);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(!schema.hasTable("job_batches_continuations").await.unwrap());
+    assert!(schema.hasTable("job_batches_additions").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("job_batches_additions").await.unwrap());
     assert!(schema.hasTable("job_batches_outbox").await.unwrap());
@@ -160,6 +164,7 @@ async fn verify(mysql: Option<&str>) {
         .unwrap();
     let upgraded = success(run(&["migrate"]));
     assert!(upgraded.contains("create_job_batches_additions_table"));
+    assert!(upgraded.contains("create_job_batches_continuations_table"));
     assert_eq!(
         db.table("job_batches_outbox")
             .r#where("batch_id", "=", pending.id.as_str())
@@ -168,6 +173,7 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(batches.delete(&pending.id).await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -184,8 +190,10 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgrade.contains("create_job_batches_jobs_table"));
     assert!(upgrade.contains("create_job_batches_outbox_table"));
     assert!(upgrade.contains("create_job_batches_additions_table"));
+    assert!(upgrade.contains("create_job_batches_continuations_table"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -363,7 +371,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 8);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 9);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

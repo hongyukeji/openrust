@@ -13,6 +13,7 @@ use super::{Batch, BatchPhase};
     clippy::large_enum_variant,
     reason = "Keeps ordinary jobs inline in the batch builder"
 )]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub(crate) enum BatchJob {
     Job(Payload),
     Chain(VecDeque<Payload>),
@@ -45,10 +46,11 @@ impl BatchJob {
 }
 
 /// Builds a batch for a single queue connection and queue.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct PendingBatch {
-    jobs: Vec<BatchJob>,
-    name: String,
-    options: Map<String, Value>,
+    pub(crate) jobs: Vec<BatchJob>,
+    pub(crate) name: String,
+    pub(crate) options: Map<String, Value>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel PendingBatch")]

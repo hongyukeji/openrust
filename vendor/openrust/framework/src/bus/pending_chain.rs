@@ -7,6 +7,8 @@ use crate::{
     support::facades::Queue,
 };
 
+use super::{ChainedBatch, PendingBatch};
+
 /// An application callback invoked when a chain member fails permanently.
 pub type ChainCallback =
     for<'a> fn(&'a Payload, &'a QueueError) -> QueueFuture<'a, QueueResult<()>>;
@@ -54,6 +56,15 @@ impl PendingChain {
         self
     }
 
+    /// Adds a batch as one step, waiting for its terminal state before continuing.
+    pub fn appendBatch(self, batch: PendingBatch) -> QueueResult<Self> {
+        Ok(self.append(ChainedBatch::payload(batch)?))
+    }
+
+    pub fn prependBatch(self, batch: PendingBatch) -> QueueResult<Self> {
+        Ok(self.prepend(ChainedBatch::payload(batch)?))
+    }
+
     pub fn catch(mut self, callback: impl Into<String>) -> Self {
         self.catches.push(callback.into());
         self
@@ -64,12 +75,13 @@ impl PendingChain {
         if self
             .jobs
             .iter()
-            .any(|job| !job.is_chain_member() || !ids.insert(job.uuid()))
+            .any(|job| !job.is_unattached() || !ids.insert(job.uuid()))
         {
             return Err(QueueError::InvalidPayload);
         }
-        let head = self.jobs.pop_front().ok_or(QueueError::InvalidPayload)?;
         let queue = Queue::manager()?;
+        queue.validate_chained_batches(&self.jobs, &self.options)?;
+        let head = self.jobs.pop_front().ok_or(QueueError::InvalidPayload)?;
         for name in &self.catches {
             queue.chain_callback(name)?;
         }

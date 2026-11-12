@@ -2,6 +2,8 @@
 
 mod batch;
 mod callback;
+mod chained_batch;
+pub(crate) use chained_batch::{BatchContinuation, ChainedBatch};
 mod database_batch_repository;
 pub mod events;
 

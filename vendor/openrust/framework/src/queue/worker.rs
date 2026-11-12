@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     bus::{
-        BatchPhase, DatabaseBatchRepository,
+        BatchPhase, DatabaseBatchRepository, PublicationKey,
         events::{BatchCanceled, BatchFinished, BatchStarted, emit},
     },
     container::Container,
@@ -129,7 +129,9 @@ impl Worker {
             && failed.payload.delivery_id == job.payload().delivery_id
         {
             if let Some(batch) = &batch {
-                batch.record(&self.app, Some(&failed.exception)).await?;
+                batch
+                    .record(&self.app, job.payload(), Some(&failed.exception))
+                    .await?;
             }
             job.delete().await?;
             return Ok(WorkResult::Failed);
@@ -149,7 +151,21 @@ impl Worker {
             Context::hooks()
                 .map_err(super::backend)?
                 .hydrate(&hydrated, &context_repository);
-            let execution = job.fire(&mut context);
+            let execution = async {
+                if job.payload().chained_batch.is_some() {
+                    self.app
+                        .make::<QueueManager>()
+                        .map_err(QueueError::Unavailable)?
+                        .execute_chained_batch(
+                            job.payload(),
+                            job.get_connection_name(),
+                            job.get_queue(),
+                        )
+                        .await
+                } else {
+                    job.fire(&mut context).await
+                }
+            };
             if timeout.is_zero() {
                 execution.await
             } else {
@@ -166,7 +182,7 @@ impl Worker {
         match result {
             Ok(()) => {
                 if let Some(batch) = &batch {
-                    batch.record(&self.app, None).await?;
+                    batch.record(&self.app, job.payload(), None).await?;
                 }
                 Self::complete(job).await?;
                 Ok(WorkResult::Processed)
@@ -197,11 +213,12 @@ impl Worker {
     }
 
     async fn complete(job: &mut dyn Job) -> QueueResult<()> {
-        if let Some(next) = job.payload().next_chain_job() {
-            job.advance_chain(&next).await
-        } else {
-            job.delete().await
+        if job.payload().chained_batch.is_none()
+            && let Some(next) = job.payload().next_chain_job()
+        {
+            return job.advance_chain(&next).await;
         }
+        job.delete().await
     }
 
     async fn fail(
@@ -212,7 +229,9 @@ impl Worker {
     ) -> QueueResult<WorkResult> {
         self.failed.log(&FailedJob::new(job, error)).await?;
         if let Some(batch) = batch {
-            batch.record(&self.app, Some(&error.to_string())).await?;
+            batch
+                .record(&self.app, job.payload(), Some(&error.to_string()))
+                .await?;
         }
         job.fail(Some(error)).await?;
         if !job.payload().chain_catches().is_empty() {
@@ -261,7 +280,12 @@ impl BatchCompletion {
             .await
     }
 
-    async fn record(&self, app: &Arc<Container>, failure: Option<&str>) -> QueueResult<()> {
+    async fn record(
+        &self,
+        app: &Arc<Container>,
+        job: &super::Payload,
+        failure: Option<&str>,
+    ) -> QueueResult<()> {
         if let Some(transition) = self
             .repository
             .record(&self.id, &self.job, &self.delivery, failure.is_none())
@@ -287,6 +311,23 @@ impl BatchCompletion {
                     }
                     self.queue
                         .run_batch_callbacks(&transition.batch, &[phase], failure)
+                        .await;
+                    if matches!(phase, BatchPhase::Catch)
+                        && let Some(cause) = failure
+                        && !transition.chain_catches.is_empty()
+                    {
+                        let error = QueueError::ChainedBatchFailed(cause.to_owned());
+                        self.queue
+                            .run_chain_callbacks(job, &error, &transition.chain_catches)
+                            .await;
+                    }
+                }
+                if transition.continuation_ready {
+                    self.queue
+                        .publish_after_commit(
+                            &self.repository,
+                            &PublicationKey::Continuation(transition.batch.id),
+                        )
                         .await;
                 }
             })

@@ -55,6 +55,7 @@ pub enum QueueError {
     UnknownJob(String),
     UnknownBatchCallback(String),
     UnknownChainCallback(String),
+    ChainedBatchFailed(String),
     LostReservation,
     Backend {
         source: Box<dyn Error + Send + Sync>,
@@ -77,6 +78,7 @@ impl std::fmt::Display for QueueError {
             Self::UnknownChainCallback(name) => {
                 write!(f, "chain callback {name:?} is not registered")
             }
+            Self::ChainedBatchFailed(cause) => write!(f, "chained batch job failed: {cause}"),
             Self::UnknownJob(name) => write!(f, "queued job {name:?} is not registered"),
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
             Self::Timeout => f.write_str("queued job timed out"),
@@ -154,6 +156,8 @@ pub struct Payload {
     pub(crate) batch_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     chain: Option<JobChain>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) chained_batch: Option<Box<crate::bus::ChainedBatch>>,
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
@@ -178,6 +182,7 @@ impl Payload {
             delivery_id: None,
             batch_id: None,
             chain: None,
+            chained_batch: None,
         })
     }
 
@@ -223,6 +228,10 @@ impl Payload {
     }
 
     pub(crate) fn is_chain_member(&self) -> bool {
+        self.is_unattached() && self.chained_batch.is_none()
+    }
+
+    pub(crate) fn is_unattached(&self) -> bool {
         self.chain.is_none() && self.batch_id.is_none()
     }
 

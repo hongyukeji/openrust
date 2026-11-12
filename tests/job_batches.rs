@@ -8,7 +8,7 @@ use std::{
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     bus::{
-        Batch, PendingBatch,
+        Batch, PendingBatch, PendingChain,
         events::{BatchCanceled, BatchDispatched, BatchFinished, BatchStarted},
     },
     cache::CacheManager,
@@ -63,6 +63,14 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             Queue::register("reports.generate", Arc::new(Probe))?;
             register_callbacks()?;
+            Bus::registerChainCallback("chain.batch-failed", |job, error| {
+                Box::pin(async move {
+                    assert!(matches!(error, QueueError::ChainedBatchFailed(_)));
+                    let data = job.data().as_str().unwrap();
+                    record_chain_receipt(&format!("{data}.catch")).await;
+                    Ok(())
+                })
+            })?;
             Queue::register("chain.step", Arc::new(ChainProbe))?;
             Bus::registerChainCallback("chain.failed", |job, error| {
                 Box::pin(async move {
@@ -236,7 +244,8 @@ impl JobHandler for Probe {
                 let loaded = Payload::new("reports.generate", "loaded")?;
                 batch.add([loaded.clone(), loaded]).await?;
             }
-            if data.ends_with(".stop") && chain_receipt(&db, data).await == 1
+            if data.ends_with(".fatal")
+                || data.ends_with(".stop") && chain_receipt(&db, data).await == 1
                 || data == "detail" && context.attempts() == 1
             {
                 return Err(QueueError::InvalidPayload);
@@ -296,7 +305,7 @@ fn chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
     Box::pin(async move {
         let connection = request.route("connection").unwrap();
         let kind = request.route("kind").unwrap();
-        let step = |name| Payload::new("chain.step", format!("{connection}.{name}"));
+        let step = |name: &str| Payload::new("chain.step", format!("{connection}.{name}"));
         let chain = Bus::chain([step(kind)?])
             .onConnection(connection)
             .onQueue("chain")
@@ -428,6 +437,66 @@ fn append_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, 
     })
 }
 
+fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
+    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+}
+
+fn chained_batch_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let connection = request.route("connection").unwrap();
+        let kind = request.route("kind").unwrap();
+        let step = |name: &str| Payload::new("chain.step", format!("{connection}.{name}"));
+        let batch_job =
+            |name| Payload::new("reports.generate", format!("{connection}.{kind}-{name}"));
+        let fatal = Payload::new("reports.generate", format!("{connection}.{kind}.fatal"))?;
+        let jobs = match kind {
+            "deny" | "allow" => [fatal, batch_job("right")?],
+            _ => [batch_job("left")?, batch_job("right")?],
+        };
+        let name = format!("chained-{connection}-{kind}");
+        let mut batch = Bus::batch(jobs)
+            .name(&name)
+            .onQueue("inner-batch")
+            .finally("reports.finally");
+        if kind == "allow" {
+            batch = batch.allowFailures();
+        }
+        if kind == "cross" {
+            batch = batch.onConnection("database");
+        }
+        let first = step(format!("{kind}-first").as_str())?;
+        let last = step(format!("{kind}-last").as_str())?;
+        let chain = if kind == "pair" {
+            let second = Bus::batch([batch_job("second")?])
+                .name(format!("{name}-second"))
+                .onQueue("inner-batch");
+            Bus::chain([])
+                .prependBatch(batch)?
+                .appendBatch(second)?
+                .append(last)
+        } else {
+            release_chain(first, batch, last)?
+        };
+        chain
+            .onConnection(connection)
+            .onQueue("chain")
+            .catch("chain.batch-failed")
+            .dispatch()
+            .await?;
+        Response::json(StatusCode::OK, json!({"name": name}))
+    })
+}
+
+fn cancel_chained_batch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let id = request.route("id").unwrap();
+        let Some(batch) = Bus::cancelBatch(id).await? else {
+            return Ok(Response::empty(StatusCode::NOT_FOUND));
+        };
+        Response::json(StatusCode::OK, batch)
+    })
+}
+
 fn routes(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/batch/{kind}", route)?;
@@ -438,6 +507,11 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
         batched_chain_route,
     )?;
     router.get("/batch/append-chain/{id}", append_chain_route)?;
+    router.get(
+        "/batch/chained-batch/{connection}/{kind}",
+        chained_batch_route,
+    )?;
+    router.get("/batch/cancel-chained/{id}", cancel_chained_batch)?;
     Ok(router)
 }
 
@@ -574,6 +648,7 @@ async fn exercise(mysql: Option<&str>) {
     let mut schema = db.getSchemaBuilder();
     for table in [
         "pending_ack_block",
+        "job_batches_continuations",
         "job_batches_additions",
         "job_batches_outbox",
         "job_batches_jobs",
@@ -917,6 +992,8 @@ async fn exercise(mysql: Option<&str>) {
         verify_chain(&root.0, &db, &queue, address, "redis").await;
         verify_chain_redis_handoff(&redis, &queue, address).await;
         verify_batched_chains(&root.0, &db, &queue, address, "redis").await;
+        verify_chained_batches(&root.0, &db, &queue, address, "redis", "cross").await;
+        verify_chained_batch_recovery(&root.0, &db, address, Some(&redis), mysql.is_some()).await;
     }
     verify_chain(&root.0, &db, &queue, address, "database").await;
     verify_chain_database_handoff(&root.0, &db, &queue, address, mysql.is_some()).await;
@@ -932,6 +1009,10 @@ async fn exercise(mysql: Option<&str>) {
     verify_database_append(&root.0, &db, address).await;
     verify_batched_chains(&root.0, &db, &queue, address, "database").await;
     verify_batched_chain_recovery(&root.0, &db, address, mysql.is_some()).await;
+    request(address, "chained-batch/sync/ok", 500).await;
+    assert_eq!(chain_receipt(&db, "sync.ok-first").await, 0);
+    verify_chained_batches(&root.0, &db, &queue, address, "database", "ok").await;
+    verify_chained_batch_recovery(&root.0, &db, address, None, mysql.is_some()).await;
     server.abort();
 }
 
@@ -1218,6 +1299,188 @@ async fn verify_batched_chain_recovery(
     artisan(base, &once).await;
     assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
     assert_eq!(chain_receipt(db, "database.recover-tail").await, 1);
+}
+
+async fn chained_batch_id(db: &Connection, name: &str) -> String {
+    let batch = db
+        .table("job_batches")
+        .r#where("name", "=", name)
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(batch.len(), 1);
+    match batch[0].get("id") {
+        Some(Value::Text(id)) => id.clone(),
+        _ => panic!("missing chained batch id"),
+    }
+}
+
+async fn verify_chained_batches(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    connection: &str,
+    success: &str,
+) {
+    let outer = manager.connection(Some(connection)).unwrap();
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    let outer_once = ["queue:work", connection, "--queue=chain", "--once"];
+    for kind in [success, "allow", "deny", "cancel"] {
+        let name = format!("chained-{connection}-{kind}");
+        let path = format!("chained-batch/{connection}/{kind}");
+        request(address, &path, 200).await;
+        artisan(base, &outer_once).await;
+        assert_eq!(
+            db.table("job_batches")
+                .r#where("name", "=", name.as_str())
+                .count("*")
+                .await
+                .unwrap(),
+            0
+        );
+        if connection == "database" && kind == "ok" {
+            // Replay the same orchestration step after its batch is already persisted.
+            db.statement(
+                "insert into jobs (queue, payload, attempts, available_at, created_at) select queue, payload, 0, available_at, created_at from jobs where queue = ?",
+                &["chain".into()],
+            ).await.unwrap();
+        }
+        artisan(base, &outer_once).await;
+        if connection == "database" && kind == "ok" {
+            artisan(base, &outer_once).await;
+        }
+        let id = chained_batch_id(db, &name).await;
+        assert_eq!(outer.size(Some("chain")).await.unwrap(), 0);
+        assert_eq!(repository.find(&id).await.unwrap().unwrap().pending_jobs, 2);
+        let inner = if kind == "cross" {
+            "database"
+        } else {
+            connection
+        };
+        let inner_once = ["queue:work", inner, "--queue=inner-batch", "--once"];
+        if kind == "cancel" {
+            request(address, &format!("cancel-chained/{id}"), 200).await;
+        }
+        artisan(base, &inner_once).await;
+        assert_eq!(outer.size(Some("chain")).await.unwrap(), 0);
+        artisan(base, &inner_once).await;
+        let batch = repository.find(&id).await.unwrap().unwrap();
+        let continues = kind == success || kind == "allow";
+        assert_eq!(
+            outer.size(Some("chain")).await.unwrap(),
+            u64::from(continues)
+        );
+        assert_eq!(batch.cancelled(), !continues);
+        if continues {
+            assert_eq!(callback_trace(db, &id).await, [("finally".into(), None)]);
+            artisan(base, &outer_once).await;
+        }
+        assert_eq!(
+            chain_receipt(db, &format!("{connection}.{kind}-last")).await,
+            u64::from(continues)
+        );
+        assert_eq!(
+            chain_receipt(db, &format!("{connection}.{kind}.fatal.catch")).await,
+            u64::from(kind == "deny")
+        );
+    }
+    request(address, &format!("chained-batch/{connection}/pair"), 200).await;
+    artisan(base, &outer_once).await;
+    let first = chained_batch_id(db, &format!("chained-{connection}-pair")).await;
+    let inner = [
+        "queue:work",
+        connection,
+        "--queue=inner-batch",
+        "--stop-when-empty",
+    ];
+    artisan(base, &inner).await;
+    assert!(repository.find(&first).await.unwrap().unwrap().finished());
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.pair-second")).await,
+        0
+    );
+    artisan(base, &outer_once).await;
+    let second = chained_batch_id(db, &format!("chained-{connection}-pair-second")).await;
+    assert_eq!(outer.size(Some("chain")).await.unwrap(), 0);
+    artisan(base, &inner).await;
+    assert!(repository.find(&second).await.unwrap().unwrap().finished());
+    artisan(base, &outer_once).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.pair-last")).await,
+        1
+    );
+}
+
+async fn verify_chained_batch_recovery(
+    base: &Path,
+    db: &Connection,
+    address: std::net::SocketAddr,
+    redis: Option<&RedisConnection>,
+    mysql: bool,
+) {
+    let connection = if redis.is_some() { "redis" } else { "database" };
+    let name = format!("chained-{connection}-recover");
+    request(address, &format!("chained-batch/{connection}/recover"), 200).await;
+    let outer_once = ["queue:work", connection, "--queue=chain", "--once"];
+    artisan(base, &outer_once).await;
+    artisan(base, &outer_once).await;
+    let id = chained_batch_id(db, &name).await;
+    let ready = redis.map(|redis| redis.key("queues:chain"));
+    if let Some((redis, ready)) = redis.zip(ready.as_deref()) {
+        redis
+            .command("SET", &[ready.as_bytes(), b"wrong type"])
+            .await
+            .unwrap();
+    } else {
+        let reject = if mysql {
+            r#"alter table jobs add constraint reject_continuation check (payload not like '%"data":"database.recover-last"%')"#
+        } else {
+            r#"create trigger reject_continuation before insert on jobs when new.payload like '%"data":"database.recover-last"%' begin select raise(abort, 'continuation rejected'); end"#
+        };
+        db.unprepared(reject).await.unwrap();
+    }
+    let inner = [
+        "queue:work",
+        connection,
+        "--queue=inner-batch",
+        "--stop-when-empty",
+    ];
+    artisan(base, &inner).await;
+    assert_eq!(
+        db.table("job_batches_continuations")
+            .r#where("batch_id", "=", id.as_str())
+            .r#where("ready", "=", true)
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    if let Some((redis, ready)) = redis.zip(ready.as_deref()) {
+        redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
+    } else {
+        let allow = if mysql {
+            "alter table jobs drop check reject_continuation"
+        } else {
+            "drop trigger reject_continuation"
+        };
+        db.unprepared(allow).await.unwrap();
+    }
+    let publish = ["queue:publish-batches"];
+    let (first, second) = tokio::join!(artisan(base, &publish), artisan(base, &publish));
+    assert_eq!(
+        [first, second]
+            .iter()
+            .filter(|line| line.contains("1 chained batch continuations published."))
+            .count(),
+        1
+    );
+    artisan(base, &outer_once).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.recover-last")).await,
+        1
+    );
 }
 
 async fn verify_database_append(base: &Path, db: &Connection, address: std::net::SocketAddr) {

@@ -141,6 +141,26 @@ fn batched_chains(left: [Payload; 2], right: [Payload; 2]) -> PendingBatch {
 
 在构建器上调用 `dispatch().await` 派发。批次派发后，可用 `Batch::addChain(...).await` 追加任务链。任务最终失败会停止所在的链。即使批次允许失败，链中尚未执行的任务仍保持待处理状态。重试失败任务可恢复该链。
 
+### 任务链中的批次 {#batches-within-chains}
+
+用 `appendBatch` 或 `prependBatch` 将待派发批次加入任务链。Worker 执行到该步骤时派发批次。批次默认继承任务链的连接和队列，也可以单独配置。两个阶段都支持 Redis 以及与批次仓库共用连接的数据库队列。
+
+```rust
+use openrust::{
+    bus::{PendingBatch, PendingChain},
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
+};
+
+fn release_chain(first: Payload, batch: PendingBatch, last: Payload) -> QueueResult<PendingChain> {
+    Ok(Bus::chain([first]).appendBatch(batch)?.append(last))
+}
+```
+
+批次进入最终回调阶段后，外层任务链继续。批次允许失败时，仍可进入该阶段并继续。取消批次会停止外层链。任务失败导致批次取消时，外层链的 `catch` 回调会收到失败的批次任务和错误。
+
+执行 `./artisan migrate` 创建续链表。发布失败时，续链任务保留在 SQL 中，执行 `./artisan queue:publish-batches` 可恢复发布。
+
 ### 向批次追加任务 {#adding-jobs-to-batches}
 
 可在任务处理器或其他应用入口调用 `Batch::add`。它沿用批次的队列和连接选项，并在批次仍存在时返回更新后的快照。追加会增加任务总数和待处理数，并清除完成时间。已取消的批次保留取消状态。每个追加任务获得新的队列 UUID。
@@ -164,7 +184,7 @@ Redis 每次追加都有独立的 SQL 发布记录。初始发布确认后才会
 
 ### 向 Redis 发布批次 {#redis-batches}
 
-OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布失败时，`dispatch()` 仍返回已受理的批次。定期运行 `queue:publish-batches` 重试待发布记录。Redis 一起写入任务与发布标记，SQL 确认发布后，OpenRust 尝试给标记设置 24 小时有效期。Redis 的持久化和淘汰配置需保留队列数据与发布标记。自定义批次表时，还须建立同名加 `_jobs`、`_outbox` 后缀的配套表。
+OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布失败时，`dispatch()` 仍返回已受理的批次。定期运行 `queue:publish-batches` 重试待发布记录。Redis 一起写入任务与发布标记，SQL 确认发布后，OpenRust 尝试给标记设置 24 小时有效期。Redis 的持久化和淘汰配置需保留队列数据与发布标记。自定义批次表时，还须建立同名加 `_jobs`、`_outbox`、`_additions`、`_continuations` 后缀的配套表。
 
 ```sh
 ./artisan queue:publish-batches --limit=1

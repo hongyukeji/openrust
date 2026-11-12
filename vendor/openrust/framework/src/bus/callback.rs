@@ -57,4 +57,6 @@ pub(crate) struct BatchTransition {
     pub(crate) phases: Vec<BatchPhase>,
     pub(crate) started: Option<Batch>,
     pub(crate) canceled: bool,
+    pub(crate) continuation_ready: bool,
+    pub(crate) chain_catches: Vec<String>,
 }

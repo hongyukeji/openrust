@@ -3,6 +3,7 @@ use std::fmt::Write as _;
 use clap::{Arg, Command as Syntax, value_parser};
 
 use crate::{
+    bus::PublicationKey,
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
@@ -38,6 +39,7 @@ impl Command for PublishBatchesCommand {
                 .map_err(error)?;
             let repository = queue.batch_repository().map_err(error)?;
             let mut published = 0;
+            let mut continuations = 0;
             let mut status = 0;
             for id in repository
                 .pending_publications(limit)
@@ -45,6 +47,7 @@ impl Command for PublishBatchesCommand {
                 .map_err(error)?
             {
                 match queue.publish_batch(&repository, &id).await {
+                    Ok(true) if matches!(id, PublicationKey::Continuation(_)) => continuations += 1,
                     Ok(true) => published += 1,
                     Ok(false) => {}
                     Err(error) => {
@@ -58,6 +61,11 @@ impl Command for PublishBatchesCommand {
                 }
             }
             output.info(&format!("{published} Redis batches published."));
+            if continuations != 0 {
+                output.info(&format!(
+                    "{continuations} chained batch continuations published."
+                ));
+            }
             Ok(status)
         })
     }
@@ -65,7 +73,7 @@ impl Command for PublishBatchesCommand {
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let syntax = Syntax::new("queue:publish-batches")
-        .about("Publish pending Redis job batches")
+        .about("Publish pending Redis batches and chained batch continuations")
         .arg(
             Arg::new("limit")
                 .long("limit")

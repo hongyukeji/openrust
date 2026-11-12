@@ -9,7 +9,7 @@ use crate::{
     queue::{Payload, QueueError, QueueResult, backend, new_id},
 };
 
-use super::{Batch, BatchPhase, BatchTransition};
+use super::{Batch, BatchContinuation, BatchPhase, BatchTransition};
 
 /// Persists queue batches in a configured SQL table.
 #[derive(Clone)]
@@ -19,6 +19,7 @@ pub struct DatabaseBatchRepository {
     jobs_table: String,
     outbox: String,
     additions: String,
+    continuations: String,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel batch repository methods")]
@@ -32,12 +33,15 @@ impl DatabaseBatchRepository {
         connection.queue_table(&outbox).map_err(backend)?;
         let additions = format!("{table}_additions");
         connection.queue_table(&additions).map_err(backend)?;
+        let continuations = format!("{table}_continuations");
+        connection.queue_table(&continuations).map_err(backend)?;
         Ok(Self {
             connection,
             table,
             jobs_table,
             outbox,
             additions,
+            continuations,
         })
     }
 
@@ -76,6 +80,67 @@ impl DatabaseBatchRepository {
         Ok(())
     }
 
+    pub(crate) async fn store_continuation(
+        &self,
+        transaction: &mut Transaction,
+        continuation: &BatchContinuation,
+    ) -> QueueResult<()> {
+        let next = serde_json::to_string(continuation.next.as_slice())
+            .map_err(|_| QueueError::InvalidPayload)?;
+        let catches =
+            serde_json::to_string(&continuation.catches).map_err(|_| QueueError::InvalidPayload)?;
+        transaction
+            .table(&self.continuations)
+            .insert(&[[
+                ("batch_id".into(), continuation.id.as_str().into()),
+                ("connection".into(), continuation.connection.as_str().into()),
+                ("queue".into(), continuation.queue.as_str().into()),
+                ("payloads".into(), next.into()),
+                ("catches".into(), catches.into()),
+            ]
+            .into_iter()
+            .collect()])
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    async fn settle_continuation(
+        &self,
+        transaction: &mut Transaction,
+        batch: &Batch,
+        canceled_by_failure: bool,
+    ) -> DatabaseResult<(bool, Vec<String>)> {
+        let Some(row) = transaction
+            .table(&self.continuations)
+            .r#where("batch_id", "=", batch.id.as_str())
+            .first()
+            .await?
+        else {
+            return Ok((false, Vec::new()));
+        };
+        let catches = if canceled_by_failure {
+            serde_json::from_str(outbox_text(&row, "catches").map_err(|_| invalid())?)
+                .map_err(|_| invalid())?
+        } else {
+            Vec::new()
+        };
+        let ready =
+            !batch.cancelled() && outbox_text(&row, "payloads").map_err(|_| invalid())? != "[]";
+        let query =
+            transaction
+                .table(&self.continuations)
+                .r#where("batch_id", "=", batch.id.as_str());
+        if ready {
+            query
+                .update([("ready".into(), true.into())].into_iter().collect())
+                .await?;
+        } else {
+            query.delete().await?;
+        }
+        Ok((ready, catches))
+    }
+
     pub(crate) async fn stage_publication(
         &self,
         transaction: &mut Transaction,
@@ -110,6 +175,7 @@ impl DatabaseBatchRepository {
         match publication {
             PublicationKey::Initial(_) => (&self.outbox, "batch_id"),
             PublicationKey::Addition(_) => (&self.additions, "id"),
+            PublicationKey::Continuation(_) => (&self.continuations, "batch_id"),
         }
     }
 
@@ -147,6 +213,24 @@ impl DatabaseBatchRepository {
                 keys.push(PublicationKey::Addition(outbox_text(&row, "id")?.into()));
             }
         }
+        let remaining = limit.saturating_sub(keys.len() as u64);
+        if remaining != 0 {
+            let continuations = self
+                .connection
+                .table(&self.continuations)
+                .useWritePdo()
+                .r#where("ready", "=", true)
+                .orderBy("batch_id", "asc")
+                .limit(remaining)
+                .get()
+                .await
+                .map_err(backend)?;
+            for row in continuations {
+                keys.push(PublicationKey::Continuation(
+                    outbox_text(&row, "batch_id")?.into(),
+                ));
+            }
+        }
         Ok(keys)
     }
 
@@ -157,18 +241,26 @@ impl DatabaseBatchRepository {
     ) -> QueueResult<Option<BatchPublication>> {
         let (table, column) = self.publication_table(publication);
         let id = publication.id();
+        if matches!(publication, PublicationKey::Continuation(_)) && !self.connection.is_sqlite() {
+            // Batch state transitions lock the batch before touching its continuation.
+            transaction
+                .table(&self.table)
+                .r#where("id", "=", id)
+                .lockForUpdate()
+                .first()
+                .await
+                .map_err(backend)?;
+        }
         // SQLite acquires a write reservation before its read.
         if self.connection.is_sqlite() {
-            transaction
-                .table(table)
-                .r#where(column, "=", id)
+            publication
+                .restrict(transaction.table(table).r#where(column, "=", id))
                 .update([(column.into(), id.into())].into_iter().collect())
                 .await
                 .map_err(backend)?;
         }
-        transaction
-            .table(table)
-            .r#where(column, "=", id)
+        publication
+            .restrict(transaction.table(table).r#where(column, "=", id))
             .lockForUpdate()
             .first()
             .await
@@ -364,9 +456,17 @@ impl DatabaseBatchRepository {
                                 batch.finished_at = Some(now);
                             }
                         }
-                        if !was_terminal && all_jobs_terminal(&batch) {
+                        let terminal = !was_terminal && all_jobs_terminal(&batch);
+                        if terminal {
                             phases.push(BatchPhase::Finally);
                         }
+                        let (continuation_ready, chain_catches) = if canceled || terminal {
+                            repository
+                                .settle_continuation(transaction, &batch, canceled)
+                                .await?
+                        } else {
+                            (false, Vec::new())
+                        };
                         let values = [
                             ("batch_id".into(), id.as_str().into()),
                             ("job_id".into(), job.as_str().into()),
@@ -389,6 +489,8 @@ impl DatabaseBatchRepository {
                             phases,
                             started,
                             canceled,
+                            continuation_ready,
+                            chain_catches,
                         }))
                     })
                 },
@@ -457,11 +559,13 @@ impl DatabaseBatchRepository {
 
     pub(crate) async fn cancel_once(&self, id: &str) -> QueueResult<(Option<Batch>, bool)> {
         let (table, id) = (self.table.clone(), id.to_owned());
+        let continuations = self.continuations.clone();
         let now = now().timestamp();
         self.connection
             .transaction(
                 move |transaction| {
                     let (table, id) = (table.clone(), id.clone());
+                    let continuations = continuations.clone();
                     Box::pin(async move {
                         let changed = transaction
                             .table(&table)
@@ -477,6 +581,13 @@ impl DatabaseBatchRepository {
                             )
                             .await?
                             != 0;
+                        if changed {
+                            transaction
+                                .table(&continuations)
+                                .r#where("batch_id", "=", id.as_str())
+                                .delete()
+                                .await?;
+                        }
                         let batch = transaction
                             .table(&table)
                             .r#where("id", "=", id.as_str())
@@ -536,7 +647,18 @@ impl DatabaseBatchRepository {
     ) -> QueueResult<u64> {
         let mut total = 0;
         loop {
+            let ready = self
+                .connection
+                .table(&self.continuations)
+                .whereColumn(
+                    &format!("{}.batch_id", self.continuations),
+                    "=",
+                    &format!("{}.id", self.table),
+                )
+                .r#where("ready", "=", true);
             let count = predicate(self.connection.table(&self.table))
+                .whereNotExists(&ready)
+                .map_err(backend)?
                 .orderBy("id", "asc")
                 .limit(1000)
                 .delete()
@@ -592,12 +714,21 @@ impl DatabaseBatchRepository {
 pub(crate) enum PublicationKey {
     Initial(String),
     Addition(String),
+    Continuation(String),
 }
 
 impl PublicationKey {
+    fn restrict<'a>(&self, query: Builder<'a>) -> Builder<'a> {
+        if matches!(self, Self::Continuation(_)) {
+            query.r#where("ready", "=", true)
+        } else {
+            query
+        }
+    }
+
     pub fn id(&self) -> &str {
         match self {
-            Self::Initial(id) | Self::Addition(id) => id,
+            Self::Initial(id) | Self::Addition(id) | Self::Continuation(id) => id,
         }
     }
 }
