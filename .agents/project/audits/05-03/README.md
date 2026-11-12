@@ -119,3 +119,7 @@
 - 对照固定 Laravel 的 [AsUri 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Casts/AsUri.php)，复用旧版 `6d1a8192` 的 `support/uri/parse.rs` 和 `eloquent/uri_cast.rs` 的延迟解析与字符串投影。文本赋值保留原文，读取和 JSON 投影解析并规范化，类型化赋值存储 URI 的字符串。覆盖绝对 URI、相对引用、显式空查询和片段、无效值读取与重新赋值、SQL NULL。
 - 基于 05-02 本地提交 `41f6cf0c` 独立构建。Rust 1.94.0 格式、447 项锁定离线工作区测试、全目标严格 Clippy、`artisan inspire` 通过。Eloquent 测试使用 SQLite 和真实 MySQL。回环 HTTP 验证 URI 投影与隐藏字段、无效 URI 的 500、模型缺失的 404 和后续请求恢复。三语文档构建通过，通用浏览器 12 项通过。
 - Rust 的集合工厂返回有序 `Collection`，自定义模型对象通过类型化转换表达。应用级加密服务提供密钥轮换和隔离。Laravel 的 PHP 集合子类机制与静态全局 `encryptUsing` 仍有接口差异。URI 修改器与查询构造接口随 Support 单元扩展。模型转换、持久化和序列化完成本单元验收。
+
+## 遗漏 HTTP 回归补交
+
+原交付 `9114963a` 已提交模型 HTTP 响应实现和三语正文。补交原验收日志中的真实 HTTP 回归，覆盖 SQLite 模型创建、模型与集合 JSON、隐藏字段、请求借用、缺失 404、编码失败 500 和后续请求恢复。使用 Rust 1.94.0 对当前框架执行锁定离线 `api_response` 两项测试、格式与定向严格 Clippy，均通过。

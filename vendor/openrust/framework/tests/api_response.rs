@@ -2,15 +2,21 @@ use std::{
     collections::BTreeMap,
     io::{Read as _, Write as _},
     net::{SocketAddr, TcpStream},
+    path::Path,
     sync::Arc,
     time::Duration,
 };
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    contracts::http::Kernel as _,
+    config::{ConfigError, Environment},
+    contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
+    database::{
+        DatabaseManager, DatabaseResult, Value as DbValue,
+        eloquent::{Attributes, Model, ModelMetadata, ModelState},
+    },
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{ApiResponse, PageMeta, Request, StatusCode},
+    http::{ApiResponse, HttpFuture, Method, PageMeta, Request, StatusCode},
     support::{Collection, facades::Route},
 };
 use serde::{Serialize, Serializer};
@@ -35,13 +41,22 @@ async fn transport(
 }
 
 async fn send(address: SocketAddr, path: &'static str, status: u16) -> Value {
+    send_method(address, "GET", path, status).await
+}
+
+async fn send_method(
+    address: SocketAddr,
+    method: &'static str,
+    path: &'static str,
+    status: u16,
+) -> Value {
     tokio::task::spawn_blocking(move || {
         let timeout = Duration::from_secs(5);
         let mut stream = TcpStream::connect_timeout(&address, timeout).unwrap();
         stream.set_read_timeout(Some(timeout)).unwrap();
         write!(
             stream,
-            "GET {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n"
+            "{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
         )
         .unwrap();
         let mut response = String::new();
@@ -59,6 +74,114 @@ async fn send(address: SocketAddr, path: &'static str, status: u16) -> Value {
     })
     .await
     .unwrap()
+}
+
+struct RouteRecord(ModelState);
+
+impl Model for RouteRecord {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("route_records")
+            .timestamps(None, None)
+            .fillable(&["name", "private"])
+            .hidden(&["private"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+fn model_config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigError> {
+    Ok(BTreeMap::from([(
+        "database".into(),
+        json!({"default":"sqlite","connections":{"sqlite":{"driver":"sqlite","database":":memory:"}}}),
+    )]))
+}
+
+fn model_from_request(request: &mut Request) -> HttpFuture<'_, DatabaseResult<RouteRecord>> {
+    Box::pin(async move {
+        let id = if request.decodedPath() == "borrowed" {
+            1
+        } else {
+            999
+        };
+        RouteRecord::findOrFail(id).await
+    })
+}
+
+#[tokio::test]
+async fn routes_return_models_and_collections_as_json_over_http() {
+    let mut app = Application::configure(std::env::temp_dir())
+        .withConfig(model_config)
+        .withExceptions(|exceptions| {
+            exceptions.shouldRenderJsonWhen(|request, _| request.expectsJson());
+        })
+        .withRouting(Routing::default().web(|| {
+            Route::get("/model", || RouteRecord::findOrFail(1))?;
+            Route::get("/models", RouteRecord::all)?;
+            Route::get("/borrowed", model_from_request)?;
+            Route::get("/missing-model", || RouteRecord::findOrFail(999))?;
+            Route::get("/invalid-model", || {
+                let mut record = RouteRecord::newInstance(Attributes::new()).unwrap();
+                record.setAttribute("bad", DbValue::Bytes(vec![0xff]));
+                record
+            })?;
+            Route::r#match(&[Method::POST], "/model", || {
+                RouteRecord::create(Attributes::from([
+                    ("name".into(), "example".into()),
+                    ("private".into(), "private-serialization-sentinel".into()),
+                ]))
+            })
+        }))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let db = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    db.statement(
+        "CREATE TABLE route_records (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, private TEXT)",
+        &[],
+    ).await.unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = transport.with_state(Arc::new(kernel)).into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+
+    assert_eq!(send(address, "/models", 200).await, json!([]));
+    let expected = json!({"id": 1, "name": "example"});
+    assert_eq!(send_method(address, "POST", "/model", 201).await, expected);
+    let (read, borrowed, collection) = tokio::join!(
+        send(address, "/model", 200),
+        send(address, "/borrowed", 200),
+        send(address, "/models", 200),
+    );
+    assert_eq!(read, expected);
+    assert_eq!(borrowed, expected);
+    assert_eq!(collection, json!([expected]));
+    assert_eq!(
+        send(address, "/missing-model", 404).await,
+        json!({"message":"Not Found"})
+    );
+    assert_eq!(
+        send(address, "/invalid-model", 500).await,
+        json!({"message":"Server Error"})
+    );
+    assert_eq!(send(address, "/model", 200).await, expected);
+    server.abort();
+    let _ = server.await;
 }
 
 #[tokio::test]
