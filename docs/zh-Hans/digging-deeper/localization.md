@@ -54,3 +54,5 @@ APP_LOCALE=zh_Hant ./artisan help list
 ```
 
 可在 `console` 分组内使用 `options`、`commands.list.description` 和 `commands.list.arguments.namespace` 等键调整帮助。参见 [Artisan 输出格式](./artisan.md#command-help-and-output-formats)。
+
+生产环境确认提示和取消消息使用同一翻译分组。可在 `console.json` 中覆盖 `confirm.production` 或 `confirm.cancelled`。输入 `y` 或 `yes` 确认，直接回车取消。

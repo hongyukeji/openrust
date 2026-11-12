@@ -55,7 +55,8 @@ impl Command for KeyGenerateCommand {
             if !current.is_empty()
                 && !confirm_production(environment.as_ref() == "production", matches)?
             {
-                output.stderr.push_str("Command cancelled.\n");
+                output.stderr.push_str(&crate::console::command_cancelled());
+                output.stderr.push('\n');
                 return Ok(0);
             }
 

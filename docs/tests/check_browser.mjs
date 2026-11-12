@@ -69,6 +69,15 @@ try {
                     ]);
 
                     if (!mobile) {
+                        const artisan = base + language + "/digging-deeper/artisan.html";
+                        assert.equal((await page.goto(artisan)).status(), 200);
+                        await Promise.all([
+                            page.waitForURL(base + language + "/digging-deeper/localization.html#artisan-translations"),
+                            page.locator('main a[href$="localization.html#artisan-translations"]').click(),
+                        ]);
+                        await page.locator("#artisan-translations").waitFor();
+                        assert.match(await page.locator("main").innerText(), /confirm\.production/);
+
                         const section = base + language + "/digging-deeper/scheduling.html#maintenance-mode";
                         assert.equal((await page.goto(section)).status(), 200);
                         await page.locator("#maintenance-mode").waitFor();

@@ -171,7 +171,8 @@ impl Command for MigrationCommand {
                 Kind::Run | Kind::Rollback | Kind::Reset | Kind::Refresh | Kind::Fresh | Kind::Wipe
             ) && !confirm(app, matches)?
             {
-                output.stdout.push_str("Command cancelled.\n");
+                output.stdout.push_str(&crate::console::command_cancelled());
+                output.stdout.push('\n');
                 return Ok(1);
             }
             let migrator = app

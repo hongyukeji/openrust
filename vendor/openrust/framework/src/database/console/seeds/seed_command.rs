@@ -39,7 +39,8 @@ impl Command for SeedCommand {
         Box::pin(async move {
             let matches = input.matches();
             if !super::super::confirm(application, matches)? {
-                output.stdout.push_str("Command cancelled.\n");
+                output.stdout.push_str(&crate::console::command_cancelled());
+                output.stdout.push('\n');
                 return Ok(1);
             }
             let name = matches

@@ -34,6 +34,12 @@
 
 本批收录两份遗留资料。原 51 个非空路径剩 49 个，历史补丁和空占位保留。
 
+## Artisan 本地化待办
+
+按 [06-08 基础验收](06-08/README.md)复核旧待办。补齐并验收生产确认与取消消息的翻译后，更新[项目待办](../todo.md)。原 51 个非空路径剩 48 个，历史补丁和空占位保留。
+
+本批复核余下 48 个非空路径。21 个 Rust 文件仅含模块说明，21 份核心设计草稿仍按各自交付单元核对。另有旧启动清单、旧路线图、本地进度记录、容器排除规则和两份数据库翻译扩展骨架。逐项原因见下文。
+
 ## 文件与处理原因
 
 - `.agents/project/README.md` · 空占位
@@ -84,7 +90,7 @@
 - `.agents/project/roadmap.md` · 早期路线或待办记录，进度已变化
 - `.agents/project/stack.md` · 空占位
 - `.agents/project/style.md` · 空占位
-- `.agents/project/todo.md` · 早期路线或待办记录，进度已变化
+- `.agents/project/todo.md` · 06-08 本地化待办已验收入库
 - `.github/workflows/ci.yml` · 空占位
 - `app/broadcasting/mod.rs` · 空占位
 - `app/events/mod.rs` · 仅有模块说明的占位

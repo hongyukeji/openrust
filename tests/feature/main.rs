@@ -237,6 +237,29 @@ fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
 }
 
 #[test]
+fn artisan_localizes_production_cancellation_without_a_terminal() {
+    for (locale, cancellation) in [
+        ("en", "Command cancelled."),
+        ("zh_Hans", "命令已取消。"),
+        ("zh_Hant", "命令已取消。"),
+    ] {
+        let output = Command::new(env!("CARGO_BIN_EXE_main"))
+            .args(["artisan", "migrate", "--no-interaction"])
+            .env("APP_ENV", "production")
+            .env("APP_LOCALE", locale)
+            .env("APP_PORT", "invalid")
+            .env("DB_CONNECTION", "mysql")
+            .env("DB_HOST", "127.0.0.1")
+            .env("DB_PORT", "1")
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), cancellation);
+        assert!(output.stderr.is_empty());
+    }
+}
+
+#[test]
 fn artisan_uses_application_translation_fallback() {
     let root = std::env::temp_dir().join(format!("openrust-artisan-locale-{}", std::process::id()));
     std::fs::create_dir_all(root.join("lang/fr")).unwrap();

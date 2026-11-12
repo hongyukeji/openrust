@@ -139,10 +139,14 @@ pub(crate) fn confirm_production(
     if matches.get_flag("no-interaction") || !io::stdin().is_terminal() {
         return Ok(false);
     }
+    let prompt = localization::text(
+        "confirm.production",
+        "APPLICATION IN PRODUCTION. Do you really wish to run this command?",
+        "当前处于生产环境。确定要执行此命令吗？",
+        "目前處於正式環境。確定要執行此命令嗎？",
+    );
     let mut output = io::stderr().lock();
-    output
-        .write_all(b"APPLICATION IN PRODUCTION. Do you really wish to run this command? [y/N] ")
-        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    write!(output, "{prompt} [y/N] ").map_err(|error| ConsoleError::new(error.to_string()))?;
     output
         .flush()
         .map_err(|error| ConsoleError::new(error.to_string()))?;
@@ -154,6 +158,15 @@ pub(crate) fn confirm_production(
         response.trim().to_ascii_lowercase().as_str(),
         "y" | "yes"
     ))
+}
+
+pub(crate) fn command_cancelled() -> String {
+    localization::text(
+        "confirm.cancelled",
+        "Command cancelled.",
+        "命令已取消。",
+        "命令已取消。",
+    )
 }
 
 pub(crate) fn monitor_signals(

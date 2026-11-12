@@ -45,7 +45,7 @@ impl Command for ClearCommand {
             let args = input.matches();
             let environment = container.get::<str>("env").map_err(error)?;
             if !confirm_production(environment.as_ref() == "production", args)? {
-                return Err(ConsoleError::new("Command cancelled."));
+                return Err(ConsoleError::new(crate::console::command_cancelled()));
             }
 
             let connection = args.get_one::<String>("connection").map(String::as_str);
