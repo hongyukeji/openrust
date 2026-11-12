@@ -6,7 +6,7 @@ use crate::{
         Dispatcher as _, Event as Payload, Listener, ShouldDispatchAfterCommit, Subscriber,
     },
     events::{
-        Delivery, DispatchResult, Dispatcher, EventContext, EventError, EventResult,
+        Delivery, DispatchResult, Dispatcher, EventContext, EventError, EventFake, EventResult,
         ListenerResponse,
     },
 };
@@ -28,6 +28,11 @@ impl Facade for Event {
 impl Event {
     pub fn dispatcher() -> EventResult<Arc<Dispatcher>> {
         Self::getFacadeRoot().map_err(EventError::Unavailable)
+    }
+
+    /// Records the selected events in the current application.
+    pub fn fake(events: &[&str]) -> EventResult<Arc<EventFake>> {
+        Ok(Self::dispatcher()?.fake(events))
     }
 
     pub fn listen(name: &str, listener: Arc<dyn Listener>, delivery: Delivery) -> EventResult<()> {

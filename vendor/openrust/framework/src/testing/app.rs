@@ -1,10 +1,11 @@
-use std::{error::Error, ffi::OsString, path::Path, time::Duration};
+use std::{error::Error, ffi::OsString, path::Path, sync::Arc, time::Duration};
 
 use tempfile::TempDir;
 
 use crate::{
     console::Output,
-    contracts::{foundation::Application as _, http::Kernel as _},
+    contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
+    events::{Dispatcher, EventFake},
     foundation::{Application, BootstrapError, configuration::ApplicationBuilder, http::Kernel},
     http::{Body, Request},
 };
@@ -87,6 +88,25 @@ impl TestApp {
             stdout: output.stdout,
             stderr: output.stderr,
         }
+    }
+
+    /// Boots the application and replaces a container service for subsequent resolutions.
+    pub async fn instance<T: ?Sized + Send + Sync + 'static>(
+        &mut self,
+        instance: Arc<T>,
+    ) -> Result<Arc<T>, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        Ok(self.app.container().instance(instance)?)
+    }
+
+    /// Boots the application and records the selected events. An empty slice selects all.
+    #[allow(non_snake_case, reason = "Matches the event testing API naming")]
+    pub async fn fakeEvents(
+        &mut self,
+        events: &[&str],
+    ) -> Result<Arc<EventFake>, Box<dyn Error + Send + Sync>> {
+        self.boot().await?;
+        Ok(self.app.make::<Dispatcher>().await?.fake(events))
     }
 
     /// Returns the application created for this test.

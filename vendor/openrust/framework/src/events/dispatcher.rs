@@ -17,8 +17,8 @@ use crate::{
 };
 
 use super::{
-    Delivery, DispatchResult, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
-    ListenerResponse,
+    Delivery, DispatchResult, EventContext, EventError, EventFake, EventFuture, EventResult,
+    ListenerRegistry, ListenerResponse,
 };
 
 #[derive(Default)]
@@ -26,6 +26,7 @@ struct Registrations {
     listeners: ListenerRegistry,
     deferred_types: HashSet<TypeId>,
     broadcasts: HashMap<TypeId, BroadcastRegistration>,
+    fake: Option<Arc<EventFake>>,
 }
 
 type BroadcastSource = for<'a> fn(&'a dyn Event) -> Option<&'a dyn ShouldBroadcast>;
@@ -121,13 +122,44 @@ impl Dispatcher {
         event: impl ShouldDispatchAfterCommit,
         context: &mut EventContext<'_>,
     ) -> EventResult<DispatchResult> {
-        let event: Arc<dyn Event> = Arc::new(event);
-        let socket = context.socket.clone();
-        if let Some(transaction) = context.active_transaction() {
-            self.defer_event(transaction, event, false, socket)?;
-            return Ok(DispatchResult::Deferred);
+        self.dispatch_event(Arc::new(event), context, false, true)
+            .await
+    }
+
+    /// Records the selected events for this application. An empty slice selects all events.
+    pub fn fake(&self, events: &[&str]) -> Arc<EventFake> {
+        let fake = Arc::new(EventFake::new(events));
+        let previous = self.write().fake.replace(fake.clone());
+        drop(previous);
+        fake
+    }
+
+    async fn dispatch_event(
+        &self,
+        event: Arc<dyn Event>,
+        context: &mut EventContext<'_>,
+        halt: bool,
+        always_defer: bool,
+    ) -> EventResult<DispatchResult> {
+        let (fake, after_commit) = {
+            let registrations = self.read();
+            (
+                registrations.fake.clone(),
+                always_defer
+                    || registrations
+                        .deferred_types
+                        .contains(&event.as_ref().type_id()),
+            )
+        };
+        let fake = fake.filter(|fake| fake.matches(event.name()));
+        if after_commit {
+            let socket = context.socket.clone();
+            if let Some(transaction) = context.active_transaction() {
+                self.defer_event(transaction, event, halt, socket, fake)?;
+                return Ok(DispatchResult::Deferred);
+            }
         }
-        self.deliver(event, context, false)
+        self.deliver(event, context, halt, fake)
             .await
             .map(DispatchResult::Completed)
     }
@@ -144,16 +176,13 @@ impl Dispatcher {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn defers(&self, event: &dyn Event) -> bool {
-        self.read().deferred_types.contains(&event.type_id())
-    }
-
     fn defer_event(
         &self,
         transaction: &mut Transaction,
         event: Arc<dyn Event>,
         halt: bool,
         socket: Option<String>,
+        fake: Option<Arc<EventFake>>,
     ) -> EventResult<()> {
         let dispatcher = self.clone();
         defer(transaction, async move {
@@ -165,6 +194,7 @@ impl Dispatcher {
                         ..EventContext::new()
                     },
                     halt,
+                    fake,
                 )
                 .await?;
             Ok(())
@@ -218,7 +248,12 @@ impl Dispatcher {
         event: Arc<dyn Event>,
         context: &mut EventContext<'_>,
         halt: bool,
+        fake: Option<Arc<EventFake>>,
     ) -> EventResult<Vec<Option<ListenerResponse>>> {
+        if let Some(fake) = fake {
+            fake.record(event);
+            return Ok(Vec::new());
+        }
         self.broadcast(event.as_ref(), context).await?;
         let listeners = self.read().listeners.selected(event.name());
         let mut responses = Vec::with_capacity(listeners.len());
@@ -299,18 +334,7 @@ impl Contract for Dispatcher {
         event: Arc<dyn Event>,
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<DispatchResult>> {
-        Box::pin(async move {
-            let socket = context.socket.clone();
-            if self.defers(event.as_ref())
-                && let Some(transaction) = context.active_transaction()
-            {
-                self.defer_event(transaction, event, false, socket)?;
-                return Ok(DispatchResult::Deferred);
-            }
-            self.deliver(event, context, false)
-                .await
-                .map(DispatchResult::Completed)
-        })
+        Box::pin(self.dispatch_event(event, context, false, false))
     }
 
     fn until<'a>(
@@ -319,19 +343,10 @@ impl Contract for Dispatcher {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
-            let socket = context.socket.clone();
-            if self.defers(event.as_ref())
-                && let Some(transaction) = context.active_transaction()
-            {
-                self.defer_event(transaction, event, true, socket)?;
-                return Ok(None);
+            match self.dispatch_event(event, context, true, false).await? {
+                DispatchResult::Completed(responses) => Ok(responses.into_iter().next().flatten()),
+                DispatchResult::Deferred => Ok(None),
             }
-            Ok(self
-                .deliver(event, context, true)
-                .await?
-                .into_iter()
-                .next()
-                .flatten())
         })
     }
 }

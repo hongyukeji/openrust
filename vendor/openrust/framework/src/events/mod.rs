@@ -2,6 +2,7 @@
 
 mod call_queued_listener;
 mod dispatcher;
+mod event_fake;
 mod event_service_provider;
 mod listener_registry;
 
@@ -9,6 +10,7 @@ use std::{any::Any, error::Error, future::Future, pin::Pin, time::Duration};
 
 pub use call_queued_listener::CallQueuedListener;
 pub use dispatcher::Dispatcher;
+pub use event_fake::EventFake;
 pub use event_service_provider::EventServiceProvider;
 pub use listener_registry::ListenerRegistry;
 
