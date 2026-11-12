@@ -289,6 +289,23 @@ impl ProviderRepository {
             )
             .await
     }
+    pub(super) async fn runners(&self, app: &Application) -> Vec<Arc<dyn super::Runner>> {
+        let registered = self
+            .registered
+            .lock()
+            .expect("registered provider list poisoned")
+            .clone();
+        let mut runners = Vec::new();
+        for slot in registered {
+            if slot.phase.load(Ordering::Acquire) == READY
+                && let Some(provider) = slot.provider.lock().await.as_ref()
+            {
+                runners.extend(provider.runners(app));
+            }
+        }
+        runners
+    }
+
     pub(super) async fn load_all(&self) -> Result<(), BindingResolutionError> {
         let boot = self.application()?.is_booted();
         for slot in &self.ordered {

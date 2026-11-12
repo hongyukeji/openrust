@@ -32,10 +32,10 @@ use crate::{
 };
 
 use super::{
-    Application, BootstrapError, RunningService, RuntimeResult, RuntimeService,
-    environment_detector, runtime_service::ServiceExit,
+    Application, BootstrapError, Runner, RunnerContext, RuntimeResult, environment_detector,
+    runner::ServiceExit,
 };
-use tokio_util::{sync::CancellationToken, task::AbortOnDropHandle};
+use tokio::sync::OnceCell;
 
 /// Boots the application and runs Artisan commands.
 pub struct Kernel {
@@ -65,31 +65,6 @@ impl Kernel {
             ..Self::new(application, Artisan::new())
         }
     }
-    pub(super) fn managed_services(
-        &self,
-        queue: bool,
-        schedule: bool,
-    ) -> Vec<Arc<dyn RuntimeService>> {
-        let mut services: Vec<Arc<dyn RuntimeService>> = Vec::new();
-        if queue {
-            services.push(Arc::new(ManagedCommand {
-                name: "queue:work",
-                options: &["--memory=0"],
-                application: self.application.share(),
-                artisan: self.artisan.clone(),
-            }));
-        }
-        if schedule && self.has_scheduled_tasks {
-            services.push(Arc::new(ManagedCommand {
-                name: "schedule:work",
-                options: &[],
-                application: self.application.share(),
-                artisan: self.artisan.clone(),
-            }));
-        }
-        services
-    }
-
     fn bootstrap_with_environment<'a>(
         &'a mut self,
         selected: Option<&'a str>,
@@ -167,46 +142,104 @@ impl Kernel {
     }
 }
 
+pub(super) struct RunnerServiceProvider;
+
+impl crate::support::ServiceProvider for RunnerServiceProvider {
+    fn runners(&self, app: &Application) -> Vec<Arc<dyn Runner>> {
+        let commands = Arc::new(OnceCell::new());
+        vec![
+            Arc::new(ManagedCommand {
+                signature: "queue",
+                name: "queue:work",
+                options: &["--memory=0"],
+                application: app.share(),
+                commands: commands.clone(),
+            }),
+            Arc::new(ManagedCommand {
+                signature: "schedule",
+                name: "schedule:work",
+                options: &[],
+                application: app.share(),
+                commands,
+            }),
+        ]
+    }
+}
+
 struct ManagedCommand {
+    signature: &'static str,
     name: &'static str,
     options: &'static [&'static str],
     application: Application,
-    artisan: Artisan,
+    commands: Arc<OnceCell<Kernel>>,
 }
 
-impl RuntimeService for ManagedCommand {
-    fn prepare(
-        &self,
-        shutdown: CancellationToken,
-    ) -> crate::http::HttpFuture<'_, RuntimeResult<RunningService>> {
-        let application = self.application.share();
-        let artisan = self.artisan.clone();
-        let name = self.name;
-        let options = self.options;
+impl ManagedCommand {
+    async fn commands(&self) -> Result<&Kernel, BootstrapError> {
+        self.commands
+            .get_or_try_init(|| async {
+                let mut kernel = Kernel::for_artisan(self.application.share());
+                console::Kernel::bootstrap(&mut kernel).await?;
+                Ok(kernel)
+            })
+            .await
+    }
+}
+
+impl Runner for ManagedCommand {
+    fn signature(&self) -> &str {
+        self.signature
+    }
+
+    #[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+    fn shouldRun(&self) -> crate::http::HttpFuture<'_, RuntimeResult<bool>> {
         Box::pin(async move {
-            let command = facades::scope(application.container_handle(), async move {
-                let arguments: Vec<_> = std::iter::once(&name)
-                    .chain(options)
+            if self.name == "queue:work" {
+                use crate::contracts::foundation::Application as _;
+                let connection = self.application.config()?.get("queue.default");
+                if !matches!(connection.as_ref().and_then(crate::config::Value::as_str), Some(name) if !name.is_empty())
+                {
+                    return Ok(false);
+                }
+                let manager = self
+                    .application
+                    .make::<crate::queue::QueueManager>()
+                    .await?;
+                Ok(!manager.default_is_synchronous()?)
+            } else {
+                Ok(self.commands().await?.has_scheduled_tasks)
+            }
+        })
+    }
+
+    fn run(&self, context: RunnerContext) -> crate::http::HttpFuture<'_, RuntimeResult<()>> {
+        Box::pin(facades::scope(
+            self.application.container_handle(),
+            async move {
+                let arguments: Vec<_> = std::iter::once(&self.name)
+                    .chain(self.options)
                     .map(OsString::from)
                     .collect();
                 let mut output = Output::for_terminal();
-                let status = artisan
-                    .handle_with_shutdown(&application, &arguments, &mut output, Some(shutdown))
+                let status = self
+                    .commands()
+                    .await?
+                    .artisan
+                    .handle_with_shutdown(&self.application, &arguments, &mut output, Some(context))
                     .await;
                 std::io::stdout().write_all(output.stdout.as_bytes())?;
                 std::io::stderr().write_all(output.stderr.as_bytes())?;
                 if status == 0 {
                     Ok(())
                 } else {
-                    Err(ServiceExit { name, status }.into())
+                    Err(ServiceExit {
+                        name: self.name,
+                        status,
+                    }
+                    .into())
                 }
-            });
-            let run: RunningService = Box::pin(async move {
-                // Poll the command outside the supervisor's stack, including on current-thread runtimes.
-                AbortOnDropHandle::new(tokio::spawn(command)).await?
-            });
-            Ok(run)
-        })
+            },
+        ))
     }
 }
 

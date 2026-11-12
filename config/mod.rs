@@ -18,7 +18,6 @@ mod logging;
 mod mail;
 mod queue;
 mod reverb;
-mod runtime;
 mod services;
 mod session;
 mod view;
@@ -48,7 +47,6 @@ pub(crate) fn load(
         ("mail".to_owned(), mail::load(base_path, env, &app.url)?),
         ("queue".to_owned(), queue),
         ("reverb".to_owned(), reverb::load(env)?),
-        ("runtime".to_owned(), runtime::load(env)?),
         ("services".to_owned(), services::load(env)?),
         (
             "session".to_owned(),

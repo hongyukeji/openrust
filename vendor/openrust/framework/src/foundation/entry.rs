@@ -55,10 +55,7 @@ pub async fn runApplication(
         Ok(status) => ExitCode::from(u8::try_from(status).unwrap_or(1)),
         Err(error) => {
             eprintln!("{error_context}: {error}");
-            let status = error
-                .downcast_ref::<super::runtime_service::ServiceExit>()
-                .and_then(|exit| u8::try_from(exit.status).ok())
-                .unwrap_or(1);
+            let status = super::runner::exit_status(error.as_ref()).unwrap_or(1);
             ExitCode::from(status)
         }
     }

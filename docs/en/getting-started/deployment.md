@@ -53,7 +53,11 @@ The source `artisan` script runs Cargo. A standalone deployment does not require
 
 Run `./main` to start HTTP, the Worker for the default asynchronous queue, and the scheduler when tasks are registered. Connections using the `sync` driver skip the Worker. Other listeners such as gRPC follow their own configuration. Prepare the queue's backend before starting the application. For a database queue, run the migrations above.
 
-Set `RUNTIME_HTTP=false`, `RUNTIME_QUEUE=false`, or `RUNTIME_SCHEDULE=false` to disable a service individually. Set `RUNTIME_ENABLED=false` to use HTTP startup with its configured listeners and leave the Worker and scheduler to independent Artisan commands. If all applicable services are disabled, startup returns an error.
+Set `APP_DISABLED_RUNNERS=queue,schedule` to skip the queue and scheduler. The comma-separated list populates `app.disabled_runners`. An empty list allows every eligible Runner. Built-in signatures are `http`, `queue`, `schedule`, `grpc`, and `reverb`. A signature can also be matched by a glob such as `q*`. Patterns support `*`, `?`, character classes such as `[a-z]` and `[^a-z]`, and backslash escapes. `*` and `?` do not cross `/`. The application warns and skips invalid patterns. If every Runner is filtered out or ineligible, startup exits successfully.
+
+A Provider supplies runners through `ServiceProvider::runners`. The application can add custom runners with `withRunners(|| vec![...])`. If called more than once, the last callback supplies the custom list. The first registration for each signature wins, with Provider contributions before the custom list. The application applies the disabled list before evaluating `shouldRun`. Eligible runners run concurrently in the application process.
+
+On Ctrl+C, Unix SIGTERM, or a Runner failure, the application shuts down runners in ascending `shutdownPriority` order, concurrently within each group. The default priority is zero. `run` receives a `RunnerContext` cancellation token so it can finish its work. A custom `shutdown` hook can release other resources. A successful return from `run` can mean that a Runner started its own background work and stays eligible for shutdown.
 
 New long-running services join application startup by default once they are registered, configured, and ready to start. They can still be disabled or run independently. One-off Artisan commands run only when explicitly invoked.
 
@@ -62,4 +66,4 @@ New long-running services join application startup by default once they are regi
 ./main artisan schedule:work
 ./main artisan schedule:run
 ```
-HTTP, the managed Worker, and the scheduler share the application process. The managed Worker uses the same timeout, retries, and exit codes as independent `queue:work`. It skips the Worker memory limit because process RSS includes all three services. Independent `queue:work` retains its memory limit. Jobs configured for hard timeouts still run in isolated executors. Ctrl+C or Unix SIGTERM stops accepting new work and waits for active requests, queue jobs, and scheduled tasks. When a managed service exits, the application shuts down the other services and propagates a nonzero Worker exit code.
+HTTP, the managed Worker, and the scheduler share the application process. The managed Worker uses the same timeout, retries, and exit codes as independent `queue:work`. It skips the Worker memory limit because process RSS includes all three services. Independent `queue:work` retains its memory limit. Jobs configured for hard timeouts still run in isolated executors. Ctrl+C or Unix SIGTERM stops accepting new work and waits for active requests, queue jobs, and scheduled tasks. The application propagates a nonzero Worker exit code.

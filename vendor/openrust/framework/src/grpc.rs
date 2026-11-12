@@ -11,7 +11,9 @@ use tonic::{service::Routes, transport::Server};
 use crate::{
     config::Value,
     contracts::config::Repository,
-    foundation::{Application, RunningService, RuntimeResult, RuntimeService},
+    foundation::{
+        Application, Runner as ApplicationRunner, RunnerContext, RunningService, RuntimeResult,
+    },
     http::HttpFuture,
     support::ProviderResult,
 };
@@ -29,21 +31,45 @@ impl ConfiguredServer {
     }
 }
 
-impl RuntimeService for ConfiguredServer {
+impl ApplicationRunner for ConfiguredServer {
+    fn signature(&self) -> &str {
+        "grpc"
+    }
+
+    #[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+        Box::pin(async move {
+            match self.config.get("grpc.host") {
+                None | Some(Value::Null) => Ok(false),
+                Some(Value::String(host)) => Ok(!host.trim().is_empty()),
+                _ => Err(
+                    io::Error::new(io::ErrorKind::InvalidInput, "grpc.host must be a string")
+                        .into(),
+                ),
+            }
+        })
+    }
+
+    fn run(&self, context: RunnerContext) -> HttpFuture<'_, RuntimeResult<()>> {
+        Box::pin(async move {
+            if let Some(service) = self.prepare(context).await? {
+                service.await?;
+            }
+            Ok(())
+        })
+    }
+
     fn prepare(
         &self,
-        shutdown: tokio_util::sync::CancellationToken,
-    ) -> HttpFuture<'_, RuntimeResult<RunningService>> {
+        context: RunnerContext,
+    ) -> HttpFuture<'_, RuntimeResult<Option<RunningService>>> {
         Box::pin(async move {
-            let runner = Runner::bind(self.routes.clone(), self.config.as_ref()).await?;
-            Ok(Box::pin(async move {
-                if let Some(runner) = runner {
-                    runner.serve(shutdown.cancelled_owned()).await
-                } else {
-                    shutdown.cancelled_owned().await;
-                    Ok(())
-                }
-            }) as RunningService)
+            Ok(Runner::bind(self.routes.clone(), self.config.as_ref())
+                .await?
+                .map(|runner| {
+                    let service: RunningService = Box::pin(runner.serve(context.cancelled_owned()));
+                    service
+                }))
         })
     }
 }

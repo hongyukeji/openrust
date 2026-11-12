@@ -1,11 +1,11 @@
-use std::{collections::BTreeMap, io, path::PathBuf};
+use std::{collections::BTreeMap, io, path::PathBuf, sync::Arc};
 
 use super::routing::ChannelRoutes;
 use super::{Exceptions, Middleware, Routing};
 use crate::{
     foundation::{
-        Application, BootstrapError,
-        application::{CommandRegistrar, MiddlewareConfigurator},
+        Application, BootstrapError, Runner,
+        application::{CommandRegistrar, MiddlewareConfigurator, RunnerRegistrar},
         bootstrap::ConfigLoader,
     },
     grpc,
@@ -23,6 +23,7 @@ pub struct ApplicationBuilder {
     commands: CommandRegistrar,
     grpc: Option<grpc::Registrar>,
     exceptions: Option<Exceptions>,
+    runners: Option<RunnerRegistrar>,
 }
 
 #[allow(
@@ -41,6 +42,7 @@ impl ApplicationBuilder {
             commands: |_| Ok(()),
             grpc: None,
             exceptions: None,
+            runners: None,
         }
     }
 
@@ -59,6 +61,15 @@ impl ApplicationBuilder {
         self.providers.push(Box::new(
             crate::foundation::support::providers::EventServiceProvider::new(manifest),
         ));
+        self
+    }
+
+    /// Adds custom runners after provider contributions.
+    pub fn withRunners(
+        mut self,
+        runners: impl FnOnce() -> Vec<Arc<dyn Runner>> + Send + 'static,
+    ) -> Self {
+        self.runners = Some(Box::new(runners));
         self
     }
 
@@ -130,6 +141,7 @@ impl ApplicationBuilder {
             .grpc_registrar
             .lock()
             .expect("gRPC registration lock poisoned") = self.grpc;
+        application.set_custom_runners(self.runners);
         Ok(application)
     }
 }

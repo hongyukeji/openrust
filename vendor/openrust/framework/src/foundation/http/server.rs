@@ -11,6 +11,9 @@ use super::Kernel;
 use crate::{
     config::{ConfigError, Value},
     contracts::{config::Repository, foundation::Application as _, http::Kernel as _},
+    foundation::{
+        Runner, RunnerContext, RunningService, RuntimeResult, runner, runner_pattern::RunnerFilter,
+    },
     http::Request,
 };
 
@@ -30,35 +33,71 @@ impl Kernel {
         self.serve_ready().await
     }
 
-    pub(super) async fn serve_ready(self) -> Result<(), Box<dyn Error + Send + Sync>> {
-        let app = self.get_application();
-        let config = app.config()?;
-        let listener = if super::super::runtime_service::serves_http(config.as_ref())? {
-            Some(listen_for(app).await?)
-        } else {
-            None
-        };
-        let services = super::super::runtime_service::configured_services(app).await?;
-        let termination_tasks = self.termination_tasks.clone();
-        let service = handle
-            .with_state(Arc::new(self))
-            .into_make_service_with_connect_info::<std::net::SocketAddr>();
-        super::super::runtime_service::run(services, move |shutdown| {
-            listener.map(|listener| {
-                let run: super::super::RunningService = Box::pin(async move {
-                    println!("OpenRust listening on http://{}", listener.local_addr()?);
-                    let result = axum::serve(listener, service)
-                        .with_graceful_shutdown(shutdown.cancelled_owned())
-                        .await;
-                    termination_tasks.close();
-                    termination_tasks.wait().await;
-                    result?;
-                    Ok(())
-                });
-                run
-            })
+    pub(super) async fn serve_ready(self) -> RuntimeResult<()> {
+        let app = self.application.share();
+        let filter = RunnerFilter::from_config(app.config()?.as_ref())?;
+        let http = Arc::new(HttpRunner(Arc::new(self)));
+        let runners = runner::configured(&app, Some(http), &filter).await?;
+        runner::run_until(runners, runner::wait_for_shutdown()).await
+    }
+}
+
+struct HttpRunner(Arc<Kernel>);
+
+impl Runner for HttpRunner {
+    fn signature(&self) -> &str {
+        runner::HTTP
+    }
+
+    #[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+    fn shouldRun(&self) -> crate::http::HttpFuture<'_, RuntimeResult<bool>> {
+        Box::pin(
+            async move { http_eligible(self.0.application.config()?.as_ref()).map_err(Into::into) },
+        )
+    }
+
+    fn run(&self, context: RunnerContext) -> crate::http::HttpFuture<'_, RuntimeResult<()>> {
+        Box::pin(async move {
+            self.prepare(context)
+                .await?
+                .expect("HTTP runner prepares a listener")
+                .await
         })
-        .await
+    }
+
+    fn prepare(
+        &self,
+        context: RunnerContext,
+    ) -> crate::http::HttpFuture<'_, RuntimeResult<Option<RunningService>>> {
+        Box::pin(async move {
+            let listener = listen_for(&self.0.application).await?;
+            let termination_tasks = self.0.termination_tasks.clone();
+            let service = handle
+                .with_state(self.0.clone())
+                .into_make_service_with_connect_info::<std::net::SocketAddr>();
+            let run: RunningService = Box::pin(async move {
+                println!("OpenRust listening on http://{}", listener.local_addr()?);
+                let result = axum::serve(listener, service)
+                    .with_graceful_shutdown(context.cancelled_owned())
+                    .await;
+                termination_tasks.close();
+                termination_tasks.wait().await;
+                result?;
+                Ok(())
+            });
+            Ok(Some(run))
+        })
+    }
+}
+
+pub(super) fn http_eligible(config: &dyn Repository) -> Result<bool, ConfigError> {
+    match config.get("app.host") {
+        None | Some(Value::Null) => Ok(false),
+        Some(Value::String(host)) => Ok(!host.trim().is_empty()),
+        _ => Err(ConfigError::InvalidType {
+            key: "app.host".into(),
+            expected: "a string",
+        }),
     }
 }
 

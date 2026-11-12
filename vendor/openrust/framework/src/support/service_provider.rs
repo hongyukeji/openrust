@@ -11,7 +11,7 @@ use crate::{
     config::{ConfigError, Value},
     console::ConsoleError,
     database::migrations::{MigrationEntry, Migrator},
-    foundation::Application,
+    foundation::{Application, Runner},
     http::HttpFuture,
     routing::RoutingError,
     translation::Translator,
@@ -69,6 +69,11 @@ pub trait ServiceProvider: Any + Send + Sync {
         _app: &'a Application,
     ) -> Pin<Box<dyn Future<Output = ProviderResult> + Send + 'a>> {
         Box::pin(async { Ok(()) })
+    }
+
+    /// Provides runners from this booted service provider.
+    fn runners(&self, _app: &Application) -> Vec<Arc<dyn Runner>> {
+        Vec::new()
     }
 
     /// Add package defaults during registration. Existing application keys win at the top level.

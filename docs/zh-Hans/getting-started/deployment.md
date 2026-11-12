@@ -53,7 +53,11 @@ curl -i http://127.0.0.1:8088/up
 
 直接运行 `./main` 启动 HTTP、默认异步队列的 Worker，以及已注册任务的调度器。`sync` 连接会跳过 Worker。gRPC 等监听器遵循各自的配置。启动前先准备队列后端。使用数据库队列时，先执行上面的迁移命令。
 
-可分别设置 `RUNTIME_HTTP=false`、`RUNTIME_QUEUE=false` 或 `RUNTIME_SCHEDULE=false` 停用对应服务。设置 `RUNTIME_ENABLED=false` 后，`./main` 启动 HTTP 及其已配置的监听器，Worker 和调度器可通过独立 Artisan 启动。没有可运行的服务时，启动返回错误。
+设置 `APP_DISABLED_RUNNERS=queue,schedule` 可停用队列和调度。逗号分隔的列表写入 `app.disabled_runners`，空列表允许所有符合条件的 Runner。内置签名为 `http`、`queue`、`schedule`、`grpc` 和 `reverb`。可使用 `q*` 等通配符模式匹配签名。模式支持 `*`、`?`、`[a-z]` 和 `[^a-z]` 等字符类，以及反斜杠转义。`*` 和 `?` 不跨越 `/`。应用会警告并跳过无效模式。所有 Runner 都被过滤或不符合条件时，应用正常退出。
+
+Provider 通过 `ServiceProvider::runners` 提供 Runner，应用可通过 `withRunners(|| vec![...])` 加入自定义 Runner，多次调用时以最后一次传入的回调为准。相同签名以首次注册为准，Provider 先于应用自定义列表。应用先过滤禁用签名，再调用 `shouldRun`。符合条件的 Runner 在应用进程内并发运行。
+
+Ctrl+C、Unix SIGTERM 或 Runner 运行失败时，应用按 `shutdownPriority` 从小到大关停，同组并发，默认优先级为零。`run` 可通过 `RunnerContext` 取消令牌完成在途工作，自定义 `shutdown` 可释放其他资源。`run` 成功返回后仍会执行关停钩子，以支持自行启动后台工作的 Runner。
 
 框架新增的常驻服务在已装配、已配置且满足启动条件时，默认纳入主应用启动。各服务仍可关闭或独立运行。一次性 Artisan 命令由显式调用执行。
 
@@ -62,4 +66,4 @@ curl -i http://127.0.0.1:8088/up
 ./main artisan schedule:work
 ./main artisan schedule:run
 ```
-HTTP、受管 Worker 和调度器共用应用进程。受管 Worker 沿用独立 `queue:work` 的超时、重试和退出码。进程 RSS 包含三个服务的内存占用，因此受管 Worker 不套用独立内存门槛。独立 `queue:work` 保留现有内存上限。启用强制超时的任务仍由隔离执行器运行。Ctrl+C 或 Unix SIGTERM 会停止接收新工作，并等待在途 HTTP 请求、队列任务和调度任务完成。任一受管服务退出会触发其余服务关停，应用进程会传递 Worker 的非零退出码。
+HTTP、受管 Worker 和调度器共用应用进程。受管 Worker 沿用独立 `queue:work` 的超时、重试和退出码。进程 RSS 包含三个服务的内存占用，因此受管 Worker 不套用独立内存门槛。独立 `queue:work` 保留现有内存上限。启用强制超时的任务仍由隔离执行器运行。Ctrl+C 或 Unix SIGTERM 会停止接收新工作，并等待在途 HTTP 请求、队列任务和调度任务完成。应用进程会传递 Worker 的非零退出码。

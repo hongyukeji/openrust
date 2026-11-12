@@ -475,7 +475,7 @@ mod acceptance {
                 if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
                     ClearCommand::prohibit(true)?;
                 }
-                if std::env::var_os("RUNTIME_TEST_TRACE").is_some() {
+                if std::env::var_os("RUNNER_TEST_TRACE").is_some() {
                     let observer = Arc::new(WorkerObserver(self.0.clone()));
                     Event::listen(WorkerStarting::NAME, observer.clone(), Delivery::Sync)?;
                     Event::listen(WorkerInterrupted::NAME, observer, Delivery::Sync)?;
@@ -572,7 +572,7 @@ mod acceptance {
     }
 
     fn register_schedule(_: &mut Artisan) -> Result<(), ConsoleError> {
-        if std::env::var_os("RUNTIME_TEST_SCHEDULE").is_some() {
+        if std::env::var_os("RUNNER_TEST_SCHEDULE").is_some() {
             Schedule::configure(|schedule| {
                 schedule.useClock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
                 schedule.useCache("file");
@@ -612,11 +612,13 @@ mod acceptance {
                 }
                 let redis_port = std::env::var("OPENRUST_TEST_REDIS_PORT")
                     .ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(6379);
-                let queue_name = env.get_utf8("RUNTIME_TEST_QUEUE")?.unwrap_or("default");
+                let queue_name = env.get_utf8("RUNNER_TEST_QUEUE")?.unwrap_or("default");
                 let Value::Object(config) = json!({
                     "app": {"env": env.get_utf8("APP_ENV")?.unwrap_or("testing"),
                         "host": "127.0.0.1",
                         "port": env.get_utf8("APP_PORT")?.unwrap_or("0").parse::<u16>().unwrap(),
+                        "disabled_runners": env.get_utf8("APP_DISABLED_RUNNERS")?.unwrap_or_default()
+                            .split(',').map(str::trim).filter(|pattern| !pattern.is_empty()).collect::<Vec<_>>(),
                         "maintenance": {"driver": if backend == "redis" { "cache" } else { "file" }, "store": "redis"}
                     },
                     "database": {"default": database, "connections": connections,
@@ -626,12 +628,6 @@ mod acceptance {
                         "array": {"driver": "array"}, "redis": {"driver": "redis", "connection": "default"},
                         "file": {"driver": "file", "path": base.join("runtime-cache")}
                     }},
-                    "runtime": {
-                        "enabled": env.get_utf8("RUNTIME_ENABLED")? != Some("false"),
-                        "http": env.get_utf8("RUNTIME_HTTP")? != Some("false"),
-                        "queue": env.get_utf8("RUNTIME_QUEUE")? != Some("false"),
-                        "schedule": env.get_utf8("RUNTIME_SCHEDULE")? != Some("false")
-                    },
                     "queue": {"default": env.get_utf8("QUEUE_CONNECTION")?.unwrap_or(queue), "timed_out_exit_code": 124,
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
@@ -1633,8 +1629,8 @@ mod acceptance {
         command
             .env("APP_BASE_PATH", root)
             .env("APP_PORT", address.port().to_string())
-            .env_remove("RUNTIME_ENABLED")
-            .env("RUNTIME_TEST_TRACE", "1")
+            .env_remove("APP_DISABLED_RUNNERS")
+            .env("RUNNER_TEST_TRACE", "1")
             .env_remove("QUEUE_CONNECTION")
             .kill_on_drop(true);
         #[cfg(windows)]
@@ -1750,13 +1746,10 @@ mod acceptance {
             });
         queue.push(&drain, None).await.unwrap();
 
-        for enabled in [false, true] {
+        for patterns in ["queue,schedule", "q*,schedul?"] {
             let mut http = runtime_process(root, address)
-                .env("RUNTIME_ENABLED", if enabled { "true" } else { "false" })
-                .env("RUNTIME_HTTP", if enabled { "true" } else { "false" })
-                .env("RUNTIME_QUEUE", if enabled { "false" } else { "true" })
-                .env("RUNTIME_SCHEDULE", if enabled { "false" } else { "true" })
-                .env("RUNTIME_TEST_SCHEDULE", "1")
+                .env("APP_DISABLED_RUNNERS", patterns)
+                .env("RUNNER_TEST_SCHEDULE", "1")
                 .spawn()
                 .unwrap();
             wait_for_http(address).await;
@@ -1775,7 +1768,7 @@ mod acceptance {
         }
 
         let mut unified = runtime_process(root, address)
-            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .env("RUNNER_TEST_SCHEDULE", "1")
             .spawn()
             .unwrap();
         wait_for_http(address).await;
@@ -1793,7 +1786,7 @@ mod acceptance {
         );
         let mut competing = runtime_process(root, address);
         competing
-            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .env("RUNNER_TEST_SCHEDULE", "1")
             .args(["artisan", "schedule:run"]);
         let skipped = runtime_output(&mut competing).await;
         assert!(skipped.status.success(), "{skipped:?}");
@@ -1842,7 +1835,7 @@ mod acceptance {
         std::fs::remove_file(root.join("runtime-schedule.complete")).unwrap();
         let mut command = runtime_process(root, address);
         command
-            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .env("RUNNER_TEST_SCHEDULE", "1")
             .args(["artisan", "schedule:run"]);
         let independent = runtime_output(&mut command).await;
         assert!(independent.status.success(), "{independent:?}");
@@ -1851,9 +1844,8 @@ mod acceptance {
         std::fs::remove_file(root.join("runtime-schedule.complete")).unwrap();
         let occupied = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let mut schedule = runtime_process(root, occupied.local_addr().unwrap())
-            .env("RUNTIME_HTTP", "false")
-            .env("RUNTIME_QUEUE", "false")
-            .env("RUNTIME_TEST_SCHEDULE", "1")
+            .env("APP_DISABLED_RUNNERS", "http,queue")
+            .env("RUNNER_TEST_SCHEDULE", "1")
             .spawn()
             .unwrap();
         wait_for_file(root, "runtime-schedule.complete").await;
@@ -1867,15 +1859,15 @@ mod acceptance {
         );
         drop(occupied);
 
-        let mut command = runtime_process(root, address);
-        command
-            .env("RUNTIME_HTTP", "false")
-            .env("QUEUE_CONNECTION", "inline");
-        let empty = runtime_output(&mut command).await;
-        assert_eq!(empty.status.code(), Some(1));
-        assert!(
-            String::from_utf8_lossy(&empty.stderr).contains("No application services are enabled")
-        );
+        for connection in ["inline", ""] {
+            let mut command = runtime_process(root, address);
+            command
+                .env("APP_DISABLED_RUNNERS", "http")
+                .env("QUEUE_CONNECTION", connection);
+            let empty = runtime_output(&mut command).await;
+            assert!(empty.status.success(), "{empty:?}");
+            assert!(empty.stdout.is_empty(), "{empty:?}");
+        }
 
         for (managed, name) in [(false, "artisan-parity"), (true, "runtime-parity")] {
             for (kind, fail_on_timeout) in [("external", true), ("cpu", false)] {
@@ -1896,7 +1888,7 @@ mod acceptance {
                     }
                 }
                 let mut command = runtime_process(root, address);
-                command.env("RUNTIME_TEST_QUEUE", name);
+                command.env("RUNNER_TEST_QUEUE", name);
                 if !managed {
                     command.args(["artisan", "queue:work"]);
                 }
@@ -1952,7 +1944,7 @@ mod acceptance {
                 std::fs::remove_file(&retried).unwrap();
             }
             let mut command = runtime_process(root, address);
-            command.env("RUNTIME_TEST_QUEUE", name);
+            command.env("RUNNER_TEST_QUEUE", name);
             if !managed {
                 command.args(["artisan", "queue:work"]);
             }
@@ -2004,7 +1996,7 @@ mod acceptance {
         queue.push(&active, Some(name)).await.unwrap();
         let mut command = runtime_process(root, address);
         command
-            .env("RUNTIME_TEST_QUEUE", name)
+            .env("RUNNER_TEST_QUEUE", name)
             .args(["artisan", "queue:work"]);
         let mut child = command.spawn().unwrap();
         wait_for_file(root, "runtime-drain.pid").await;
@@ -2091,9 +2083,7 @@ mod acceptance {
                     .env("REDIS_QUEUE", "main-runtime");
             }
             if !enabled {
-                command
-                    .env("RUNTIME_ENABLED", "false")
-                    .env("RUNTIME_HTTP", "false");
+                command.env("APP_DISABLED_RUNNERS", "queue");
             }
             let mut child = command.spawn().unwrap();
             expect_http(address, "/up", "HTTP/1.1 200 ").await;
@@ -2144,7 +2134,7 @@ mod acceptance {
             queue.push(&heavy, Some(name)).await.unwrap();
             queue.push(&pending, Some(name)).await.unwrap();
             let mut command = runtime_process(root, address);
-            command.env("RUNTIME_TEST_QUEUE", name);
+            command.env("RUNNER_TEST_QUEUE", name);
             if managed {
                 let mut child = command.spawn().unwrap();
                 wait_for_http(address).await;
@@ -2182,7 +2172,7 @@ mod acceptance {
             );
             assert!(!process_exists(&pid));
             let mut command = runtime_process(root, address);
-            command.env("RUNTIME_TEST_QUEUE", name).args([
+            command.env("RUNNER_TEST_QUEUE", name).args([
                 "artisan",
                 "queue:work",
                 "--stop-when-empty",

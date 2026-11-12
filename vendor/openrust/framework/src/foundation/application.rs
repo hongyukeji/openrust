@@ -11,7 +11,7 @@ use std::{
 };
 
 use super::{
-    BootstrapError, RuntimeService,
+    BootstrapError, Runner,
     bootstrap::{ConfigLoader, LoadConfiguration, LoadEnvironmentVariables},
     configuration::{ApplicationBuilder, CommandRoutes, Exceptions, Middleware, Routing},
     console::Kernel,
@@ -35,6 +35,7 @@ use crate::{
     support::ServiceProvider,
 };
 
+pub(super) type RunnerRegistrar = Box<dyn FnOnce() -> Vec<Arc<dyn Runner>> + Send>;
 pub(super) type CommandRegistrar = fn(&mut Artisan) -> Result<(), ConsoleError>;
 pub(crate) type PackageRoutes = fn() -> Result<(), crate::routing::RoutingError>;
 pub(crate) type PackageCommands = fn() -> Result<(), ConsoleError>;
@@ -53,7 +54,8 @@ pub(super) struct ApplicationState {
     load_config: ConfigLoader,
     pub(super) container: Arc<Container>,
     providers: Mutex<Vec<Box<dyn ServiceProvider>>>,
-    runtime_services: Mutex<Vec<Arc<dyn RuntimeService>>>,
+    registered_runners: Mutex<Vec<Arc<dyn Runner>>>,
+    custom_runners: Mutex<Option<RunnerRegistrar>>,
     deferred: OnceLock<Arc<super::provider_repository::ProviderRepository>>,
     state: AtomicU8,
     booting_started: AtomicBool,
@@ -105,14 +107,39 @@ impl Application {
         http::Kernel::new(self).serve().await
     }
 
-    /// Registers an optional listener during application assembly.
-    #[allow(non_snake_case, reason = "Matches the application configuration API")]
-    pub fn registerRuntimeService(&self, service: Arc<dyn RuntimeService>) {
-        self.shared.runtime_services.lock().unwrap().push(service);
+    fn register_runner(&self, runner: Arc<dyn Runner>) {
+        self.shared.registered_runners.lock().unwrap().push(runner);
     }
 
-    pub(super) fn take_runtime_services(&self) -> Vec<Arc<dyn RuntimeService>> {
-        std::mem::take(&mut *self.shared.runtime_services.lock().unwrap())
+    pub(super) fn set_custom_runners(&self, runners: Option<RunnerRegistrar>) {
+        *self.shared.custom_runners.lock().unwrap() = runners;
+    }
+
+    pub(super) async fn provider_runners(&self) -> Vec<Arc<dyn Runner>> {
+        let mut runners: Vec<_> = self
+            .shared
+            .providers
+            .lock()
+            .unwrap()
+            .iter()
+            .flat_map(|provider| provider.runners(self))
+            .collect();
+        runners.extend(
+            self.shared
+                .deferred
+                .get()
+                .expect("provider registry initialized")
+                .runners(self)
+                .await,
+        );
+        runners.extend(std::mem::take(
+            &mut *self.shared.registered_runners.lock().unwrap(),
+        ));
+        runners
+    }
+
+    pub(super) fn take_custom_runners(&self) -> Option<RunnerRegistrar> {
+        self.shared.custom_runners.lock().unwrap().take()
     }
 
     /// Returns the application's configured public directory.
@@ -248,8 +275,9 @@ impl Application {
             .expect("typed and named configuration keys are distinct");
         let command_routes = routing.as_ref().and_then(|routing| routing.command_routes);
         let mut seen = HashSet::new();
-        let base_providers: [Box<dyn ServiceProvider>; 24] = [
+        let base_providers: [Box<dyn ServiceProvider>; 25] = [
             Box::new(crate::log::LogServiceProvider),
+            Box::new(super::console::RunnerServiceProvider),
             Box::new(crate::events::EventServiceProvider),
             Box::new(crate::broadcasting::BroadcastServiceProvider),
             Box::new(crate::database::DatabaseServiceProvider),
@@ -292,7 +320,8 @@ impl Application {
             load_config,
             container,
             providers: Mutex::new(providers),
-            runtime_services: Mutex::default(),
+            registered_runners: Mutex::default(),
+            custom_runners: Mutex::default(),
             deferred: OnceLock::new(),
             state: AtomicU8::new(PENDING),
             booting_started: AtomicBool::new(false),
@@ -717,7 +746,7 @@ impl Application {
             let mut routes = grpc::RoutesBuilder::default();
             register(self, &mut routes)
                 .map_err(|source| BootstrapError::GrpcRegistrationFailed { source })?;
-            self.registerRuntimeService(Arc::new(grpc::ConfiguredServer::new(
+            self.register_runner(Arc::new(grpc::ConfiguredServer::new(
                 routes.routes(),
                 config,
             )));

@@ -12,7 +12,7 @@ use openrust::{
         BroadcastResult, ChannelAuthorization,
     },
     contracts::{broadcasting::Broadcaster, foundation::Application as _},
-    foundation::Application,
+    foundation::{Application, Runner},
     http::{Request, Response, StatusCode},
     support::{ProviderResult, ServiceProvider, facades::Broadcast},
 };
@@ -34,35 +34,14 @@ impl ServiceProvider for ReverbServiceProvider {
                     Ok(Arc::new(broadcaster))
                 })?;
             self.commands(app, crate::servers::reverb::console::commands::register);
-            let config = app.config()?;
-            if config
-                .get("reverb.enabled")
-                .and_then(|enabled| enabled.as_bool())
-                == Some(true)
-            {
-                match config
-                    .get("reverb.mode")
-                    .as_ref()
-                    .and_then(Value::as_str)
-                    .unwrap_or("embedded")
-                {
-                    "embedded" => app.registerRuntimeService(Arc::new(
-                        crate::servers::reverb::server::ReverbRuntime::from_config(
-                            config.as_ref(),
-                        )?,
-                    )),
-                    "standalone" => {}
-                    _ => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            "Invalid Reverb run mode.",
-                        )
-                        .into());
-                    }
-                }
-            }
             Ok(())
         })
+    }
+
+    fn runners(&self, app: &Application) -> Vec<Arc<dyn Runner>> {
+        vec![Arc::new(crate::servers::reverb::server::ReverbRunner(
+            app.config().expect("booted application configuration"),
+        ))]
     }
 }
 

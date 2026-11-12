@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -10,13 +10,21 @@ use axum::{
     response::Response as TransportResponse,
 };
 use serde_json::Value;
-use tokio::sync::{oneshot, watch};
-use tokio_util::sync::CancellationToken;
+use tokio::{
+    net::TcpListener,
+    sync::{oneshot, watch},
+};
 
-use super::{Kernel, middleware, server::listen_for};
+use super::{
+    Kernel, middleware,
+    server::{http_eligible, listen_for},
+};
 use crate::{
     contracts::foundation::Application as _,
-    foundation::{BootstrapError, RuntimeResult, maintenance, runtime_service},
+    foundation::{
+        BootstrapError, Runner, RunnerContext, RuntimeResult, maintenance, runner,
+        runner_pattern::RunnerFilter,
+    },
     http::{Body, Request, StatusCode},
 };
 
@@ -66,101 +74,107 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
             Some(Value::String(driver)) => driver == "file",
             _ => false,
         };
-    if !file_driver || complete || !runtime_service::serves_http(app.config()?.as_ref())? {
+    if !file_driver || complete {
+        let kernel = boot.await?;
+        return kernel.serve_ready().await;
+    }
+    let config = app.config()?;
+    let filter = RunnerFilter::from_config(config.as_ref())?;
+    if filter.disables(runner::HTTP) || !http_eligible(config.as_ref())? {
         let kernel = boot.await?;
         return kernel.serve_ready().await;
     }
 
     let listener = listen_for(&app).await?;
     let (ready, receiver) = watch::channel(None);
-    let state = EarlyHttp {
-        marker: marker.clone(),
-        kernel: receiver,
+    let http = Arc::new(PrerenderRunner {
+        listener: Mutex::new(Some(listener)),
+        state: EarlyHttp {
+            marker: marker.clone(),
+            kernel: receiver,
+        },
+    });
+    let mut runners = runner::RunnerSet::default();
+    runners.start(vec![http]).await?;
+    let failed = runners.failure_signal();
+    let signal = runner::wait_for_shutdown();
+    tokio::pin!(signal);
+    let finish_boot = async {
+        match boot.await {
+            Ok(kernel) => {
+                let services = runner::configured(&kernel.application, None, &filter).await?;
+                runners.start(services).await?;
+                ready.send_replace(Some(Ok(Arc::new(kernel))));
+                Ok(())
+            }
+            Err(error) => {
+                eprintln!("Application bootstrap failed during maintenance: {error}");
+                ready.send_replace(Some(Err(())));
+                wait_for_up(&marker).await;
+                Err(error.into())
+            }
+        }
     };
-    let termination = state.kernel.clone();
-    let service = handle
-        .with_state(state)
-        .into_make_service_with_connect_info::<std::net::SocketAddr>();
-    runtime_service::run(Vec::new(), move |shutdown| {
-        Some(Box::pin(async move {
-            println!("OpenRust listening on http://{}", listener.local_addr()?);
-            let accept = async {
-                axum::serve(listener, service)
-                    .with_graceful_shutdown(shutdown.clone().cancelled_owned())
-                    .await?;
-                let kernel = termination
-                    .borrow()
-                    .as_ref()
-                    .and_then(|state| state.as_ref().ok())
-                    .cloned();
-                if let Some(kernel) = kernel {
-                    kernel.termination_tasks.close();
-                    kernel.termination_tasks.wait().await;
-                }
-                RuntimeResult::Ok(())
-            };
-            let bootstrap = async {
-                let result = tokio::select! {
-                    _ = shutdown.cancelled() => return Ok(()),
-                    result = boot => result,
-                };
-                match result {
-                    Ok(kernel) => {
-                        let services =
-                            runtime_service::configured_services(&kernel.application).await?;
-                        let mut running = runtime_service::prepare(services, &shutdown).await?;
-                        ready.send_replace(Some(Ok(Arc::new(kernel))));
-                        if running.is_empty() {
-                            return Ok(());
-                        }
-                        runtime_service::supervise(&shutdown, &mut running, async {
-                            shutdown.cancelled().await;
-                            Ok(())
-                        })
-                        .await
-                    }
-                    Err(error) => {
-                        eprintln!("Application bootstrap failed during maintenance: {error}");
-                        ready.send_replace(Some(Err(())));
-                        wait_for_up(&marker, shutdown.clone()).await?;
-                        if shutdown.is_cancelled() {
-                            Ok(())
-                        } else {
-                            Err(error.into())
-                        }
-                    }
-                }
-            };
-            let (accepted, bootstrapped) = tokio::join!(
-                async {
-                    let result = accept.await;
-                    shutdown.cancel();
-                    result
-                },
-                async {
-                    let result = bootstrap.await;
-                    if result.is_err() {
-                        shutdown.cancel();
-                    }
-                    result
-                }
-            );
-            bootstrapped.and(accepted)
-        }))
-    })
-    .await
+    let result: Option<RuntimeResult<()>> = tokio::select! {
+        biased;
+        result = &mut signal => Some(result.map_err(Into::into)),
+        () = failed.cancelled() => Some(Ok(())),
+        result = finish_boot => if result.is_ok() { None } else { Some(result) },
+    };
+    if let Some(result) = result {
+        let stopped = runners.stop().await;
+        return result.and(stopped);
+    }
+    runners.wait(signal).await
 }
 
-async fn wait_for_up(marker: &Path, shutdown: CancellationToken) -> RuntimeResult<()> {
+struct PrerenderRunner {
+    listener: Mutex<Option<TcpListener>>,
+    state: EarlyHttp,
+}
+
+impl Runner for PrerenderRunner {
+    fn signature(&self) -> &str {
+        runner::HTTP
+    }
+
+    fn run(&self, context: RunnerContext) -> crate::http::HttpFuture<'_, RuntimeResult<()>> {
+        Box::pin(async move {
+            let listener = self
+                .listener
+                .lock()
+                .unwrap()
+                .take()
+                .expect("HTTP runner starts once");
+            let termination = self.state.kernel.clone();
+            let service = handle
+                .with_state(self.state.clone())
+                .into_make_service_with_connect_info::<std::net::SocketAddr>();
+            println!("OpenRust listening on http://{}", listener.local_addr()?);
+            let result = axum::serve(listener, service)
+                .with_graceful_shutdown(context.cancelled_owned())
+                .await;
+            let kernel = termination
+                .borrow()
+                .as_ref()
+                .and_then(|state| state.as_ref().ok())
+                .cloned();
+            if let Some(kernel) = kernel {
+                kernel.termination_tasks.close();
+                kernel.termination_tasks.wait().await;
+            }
+            result?;
+            Ok(())
+        })
+    }
+}
+
+async fn wait_for_up(marker: &Path) {
     let mut interval = tokio::time::interval(Duration::from_secs(1));
     loop {
-        tokio::select! {
-            _ = shutdown.cancelled() => return Ok(()),
-            _ = interval.tick() => {
-                if !has_template(marker).await {
-                    return Ok(());
-                }
-            }
+        interval.tick().await;
+        if !has_template(marker).await {
+            return;
         }
     }
 }

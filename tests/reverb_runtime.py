@@ -44,7 +44,7 @@ async def verify(base):
     http, reverb, standalone = [socket_port() for _ in range(3)]
     env = dict(os.environ, APP_BASE_PATH=str(base), APP_HOST="127.0.0.1",
                APP_PORT=str(http), CACHE_STORE="file", REVERB_ENABLED="true",
-               RUNTIME_QUEUE="false",
+               APP_DISABLED_RUNNERS="queue",
                REVERB_SERVER_HOST="127.0.0.1", REVERB_SERVER_PORT=str(reverb),
                REVERB_APP_KEY="probe", REVERB_APP_SECRET="probe-secret", REVERB_APP_ID="42")
     with subprocess.Popen([binary], env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as server:

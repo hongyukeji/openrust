@@ -62,3 +62,19 @@ macOS 锁定离线工作区测试、严格 Clippy、格式和差异检查通过�
 - 两种入口用隔离队列运行等价任务，强制超时均退出 `124`，验证进程树回收、失败回调及按 UUID 的 `failOnTimeout` 记录、租约后重试和后续消费。独立 `schedule:run` 使用同一文件锁跳过重叠任务。
 - 向两个入口在任务进行中分别发送真实 SIGTERM，已开始的队列任务完成，下一项保留并由独立 Worker 消费。统一启动同时完成在途调度任务，停止 HTTP 监听，两种入口均退出 `0`。
 - 三语发布说明记录 Linux ARM64 容器证据。三语站点构建通过，根路径与 `/docs/` 的 12 项浏览器导航检查通过。
+
+## Goravel v1.18 Runner 生命周期
+
+对照固定 Goravel v1.18 的 Runner 契约、Provider 注册、Builder 和运行循环。先收集 Provider 注册，再加载应用的 `withRunners` 回调。连续配置时最后一次回调生效。同签名保留首次注册项，按禁用列表过滤后才调用 `shouldRun`。可运行的 Runner 并发执行。收到停止信号或 Runner 失败时，按 `shutdownPriority` 从小到大关停，同组并发，默认优先级为零。成功返回的 Runner 仍会进入关停流程，运行失败的 Runner 跳过关停回调。 [Runner 契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/foundation/application.go) · [Provider 注册](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/foundation/service_provider.go) · [Builder](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application_builder.go) · [生命周期](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application.go)
+
+`APP_DISABLED_RUNNERS` 替代旧 `RUNTIME_*` 开关。示例 `APP_DISABLED_RUNNERS=queue,schedule` 位于 `.env.example` 的应用配置末尾。内置签名是 `http`、`queue`、`schedule`、`grpc` 和 `reverb`。自定义 Runner 使用同一签名去重与模式过滤。模式按 Goravel 使用的 Go `path.Match` 规则匹配，无效模式警告后跳过。没有符合条件的 Runner 时正常退出。
+
+Rust 实现为每个 Runner 提供取消令牌，用同一运行时内的 Tokio 任务并发执行。监听器可以在报告就绪前绑定地址，HTTP 预渲染与其他服务共用关停流程。队列与调度继续复用 Artisan 执行机制，独立 Artisan 不受 Runner 禁用列表影响。Worker 的非零退出码会传递给应用进程，启用硬超时的任务继续在隔离执行器中运行。
+
+### 实际验收
+
+- macOS ARM64 和 Linux ARM64 运行同一份候选源码，Rust 1.94.0。用例核对最后一次 `withRunners` 生效、Provider 首次签名优先、内置 `queue` 签名与自定义 Runner 冲突、过滤在 `shouldRun` 之前、并发启动与分组关停、运行失败触发关停。
+- macOS ARM64 工作区锁定离线测试、全目标全特性严格 Clippy 和格式检查通过。实际二进制覆盖 SQLite 队列、HTTP 维护预渲染、gRPC 监听冲突及信号关停。启用 Reverb 特性后，内嵌 HTTP 和 WebSocket、监听冲突、独立 Artisan 和重启用例通过。占用 Reverb 端口时，按短名禁用 `reverb` 后 HTTP 仍可启动，独立 `artisan reverb:start` 仍检查端口。根二进制在 `APP_DISABLED_RUNNERS=*` 时直接退出 0，同一设置下 `artisan inspire` 正常执行。
+- Linux ARM64 使用 Debian 12 容器和 LinuxKit 7.0.14，`main` 为 ELF64 AArch64。SQLite 进程验收覆盖精确与通配符禁用、同进程 Worker 和调度、独立 Artisan、硬超时退出 124、执行器树回收、失败回调、按 UUID 查询失败记录及后续消费。向两种入口发送真实 SIGTERM，等待在途工作完成后均退出 0。
+- Parallels Windows 11 ARM64 的 x64 兼容层运行 `x86_64-pc-windows-msvc` 未优化构建，Rust 1.94.0、MSVC 14.44.35207。9 个候选输入哈希相符，根应用和验收夹具均为 PE Machine `0x8664`。配置、Runner 契约及真实二进制的 SQLite、MySQL 8.4.13、Redis 8.10.3 对照通过。MySQL 同库保存队列与失败记录，Redis 队列使用 SQLite 保存失败记录。两种入口均验证真实 Ctrl+C 后退出 0、硬超时后退出 124、执行树回收、失败回调、按 UUID 查询失败记录、租约后重试和后续消费。统一入口还验证 HTTP 停止监听、在途调度完成和调度锁防重叠。
+- 三语部署文档构建通过。根路径和 `/docs/` 的桌面及移动端导航共 12 项检查通过。

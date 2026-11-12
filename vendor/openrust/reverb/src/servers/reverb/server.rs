@@ -2,10 +2,11 @@ use std::{io, time::Duration};
 
 use openrust::{
     contracts::config::Repository,
-    foundation::{RunningService, RuntimeResult, RuntimeService},
+    foundation::{Runner, RunnerContext, RunningService, RuntimeResult},
     http::HttpFuture,
 };
 use serde::Deserialize;
+use serde_json::Value;
 use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 
@@ -118,8 +119,65 @@ impl ReverbRuntime {
     }
 }
 
-impl RuntimeService for ReverbRuntime {
+pub(crate) struct ReverbRunner(pub std::sync::Arc<dyn Repository>);
+
+impl Runner for ReverbRunner {
+    fn signature(&self) -> &str {
+        "reverb"
+    }
+
+    #[allow(non_snake_case, reason = "Matches the Goravel Runner contract")]
+    fn shouldRun(&self) -> HttpFuture<'_, RuntimeResult<bool>> {
+        Box::pin(async move {
+            if self
+                .0
+                .get("reverb.enabled")
+                .and_then(|enabled| enabled.as_bool())
+                != Some(true)
+            {
+                return Ok(false);
+            }
+            match self
+                .0
+                .get("reverb.mode")
+                .as_ref()
+                .and_then(Value::as_str)
+                .unwrap_or("embedded")
+            {
+                "embedded" => Ok(true),
+                "standalone" => Ok(false),
+                _ => Err(
+                    io::Error::new(io::ErrorKind::InvalidInput, "Invalid Reverb run mode.").into(),
+                ),
+            }
+        })
+    }
+
+    fn run(&self, context: RunnerContext) -> HttpFuture<'_, RuntimeResult<()>> {
+        Box::pin(async move {
+            ReverbRuntime::from_config(self.0.as_ref())?
+                .prepare(context)
+                .await?
+                .await
+        })
+    }
+
     fn prepare(
+        &self,
+        context: RunnerContext,
+    ) -> HttpFuture<'_, RuntimeResult<Option<RunningService>>> {
+        Box::pin(async move {
+            Ok(Some(
+                ReverbRuntime::from_config(self.0.as_ref())?
+                    .prepare(context)
+                    .await?,
+            ))
+        })
+    }
+}
+
+impl ReverbRuntime {
+    pub(crate) fn prepare(
         &self,
         shutdown: CancellationToken,
     ) -> HttpFuture<'_, RuntimeResult<RunningService>> {

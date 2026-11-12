@@ -41,6 +41,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
             "driver": get(env, "APP_MAINTENANCE_DRIVER", "file")?,
             "store": get(env, "APP_MAINTENANCE_STORE", "database")?,
         },
+        "disabled_runners": list(env.get_utf8("APP_DISABLED_RUNNERS")?.unwrap_or_default()),
         "public_path": public_path,
         "public_url_prefix": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
     });

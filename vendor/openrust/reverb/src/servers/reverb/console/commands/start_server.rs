@@ -4,7 +4,7 @@ use openrust::{
     cache::CacheManager,
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::{cache::Repository as _, foundation::Application as _},
-    foundation::{Application, RuntimeService, wait_for_shutdown},
+    foundation::{Application, wait_for_shutdown},
 };
 use tokio_util::sync::CancellationToken;
 
