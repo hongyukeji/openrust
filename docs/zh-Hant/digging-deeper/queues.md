@@ -169,6 +169,22 @@ QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-wh
 QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
 ```
 
+#### 工作例外次數上限 {#max-exceptions}
+
+設定 `JobOptions::max_exceptions`，讓工作在未處理例外或逾時達到指定次數時失敗。例外次數上限獨立於嘗試次數上限。主動釋放和中介軟體處理例外後的釋放均不消耗例外次數。
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    ..JobOptions::default()
+};
+```
+
+Worker 在應用程式的預設快取中依工作 UUID 計數，計數器從首次例外起保留一天。獨立 Worker 需要使用共用快取才能讀取同一計數。省略此選項時沿用原有嘗試與逾時規則。
+
 #### 工作預約到期與逾時 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 預設為 60 秒，工作可覆寫此值。逾時應短於佇列連線的 `retry_after`，以便在逾時 Worker 停止後，由其他 Worker 重新預約工作。

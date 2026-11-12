@@ -271,7 +271,8 @@ mod unix {
                 .unwrap()
                 .with_options(JobOptions {
                     timeout: Some(Duration::from_millis(350)),
-                    fail_on_timeout,
+                    fail_on_timeout: fail_on_timeout && kind != "external",
+                    max_exceptions: (kind == "external").then_some(1),
                     hard_timeout: true,
                     ..Default::default()
                 });

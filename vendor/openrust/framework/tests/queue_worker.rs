@@ -151,7 +151,11 @@ impl JobHandler for Handler {
                         .map_err(execution)?;
                     transaction.commit().await.map_err(execution)?;
                 }
-                "manual_release" if context.attempts() == 1 => {
+                "exception_budget" if context.attempts() > 1 => {
+                    return Err(execution(std::io::Error::other("exception budget fixture")));
+                }
+                "exception_timeout" => sleep(Duration::from_secs(10)).await,
+                "manual_release" | "exception_budget" if context.attempts() == 1 => {
                     context.release(Duration::ZERO);
                 }
                 "flaky" if context.attempts() == 1 => {
@@ -775,6 +779,8 @@ impl ServiceProvider for Providers {
             for name in [
                 "flaky",
                 "manual_release",
+                "exception_budget",
+                "exception_timeout",
                 "mysql_disconnect",
                 "terminal",
                 "timeout",
@@ -930,6 +936,13 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     ..Default::default()
                 });
             }
+            if matches!(kind, "exception_budget" | "exception_timeout") {
+                payload = payload.with_options(JobOptions {
+                    max_exceptions: Some(if kind == "exception_budget" { 2 } else { 1 }),
+                    timeout: (kind == "exception_timeout").then_some(Duration::from_millis(150)),
+                    ..Default::default()
+                });
+            }
             let options = DispatchOptions {
                 queue: if kind.starts_with("throttle_redis_") {
                     Some("throttle-redis".into())
@@ -939,6 +952,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     Some("conditional".into())
                 } else if kind.starts_with("overlap_") {
                     Some("overlap".into())
+                } else if kind.starts_with("exception_") {
+                    Some("exceptions".into())
                 } else {
                     (kind == "control_low").then(|| "low".to_owned())
                 },
@@ -1427,6 +1442,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_job_rate_limits(&root.0, &db, &*queue, address, redis.is_some()).await;
     verify_conditional_middleware(&root.0, &db, &*queue, address).await;
     verify_job_overlap(&root.0, &db, &*queue, address).await;
+    verify_max_exceptions(&root.0, &db, &*queue, address).await;
     verify_exception_throttle(&root.0, &db, &*queue, address, "cache").await;
     if redis.is_some() {
         verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
@@ -2415,6 +2431,66 @@ async fn verify_job_rate_limits(
         assert_eq!(count("rate_redis").await, 1);
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+}
+
+async fn verify_max_exceptions(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let mut old_payload =
+        serde_json::to_value(Payload::new("exception_budget", ()).unwrap()).unwrap();
+    assert_eq!(
+        old_payload["options"]
+            .as_object_mut()
+            .unwrap()
+            .remove("max_exceptions"),
+        Some(Json::Null)
+    );
+    let old_payload: Payload = serde_json::from_value(old_payload).unwrap();
+    assert_eq!(old_payload.options().max_exceptions, None);
+
+    let failed_before = db.table("failed_jobs").count("*").await.unwrap();
+    let args = [
+        "queue:work",
+        "--json",
+        "--queue=exceptions",
+        "--once",
+        "--tries=0",
+    ];
+    request(address, "exception_budget").await;
+    request(address, "exception_budget").await;
+    let mut attempts = std::collections::BTreeMap::new();
+    for _ in 0..6 {
+        let output = run(root, &args).await;
+        let rows = json_lines(&output);
+        let row = rows.last().unwrap();
+        let uuid = row["uuid"].as_str().unwrap().to_owned();
+        let history = attempts.entry(uuid).or_insert_with(Vec::new);
+        assert_eq!(row["attempts"], history.len() + 1, "{output}");
+        history.push(row["status"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(attempts.len(), 2);
+    for history in attempts.values() {
+        assert_eq!(history, &["success", "released_after_exception", "failed"]);
+    }
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        failed_before + 2
+    );
+
+    request(address, "exception_timeout").await;
+    let output = run(root, &args).await;
+    let rows = json_lines(&output);
+    let row = rows.last().unwrap();
+    assert_eq!(row["status"], "failed", "{output}");
+    assert_eq!(row["attempts"], 1);
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        failed_before + 3
+    );
+    assert_eq!(queue.size(Some("exceptions")).await.unwrap(), 0);
 }
 
 async fn verify_job_overlap(

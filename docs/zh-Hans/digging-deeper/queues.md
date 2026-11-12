@@ -169,6 +169,22 @@ QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-wh
 QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
 ```
 
+#### 任务异常次数上限 {#max-exceptions}
+
+设置 `JobOptions::max_exceptions`，让任务在未处理异常或超时达到指定次数时失败。异常次数上限独立于尝试次数上限。主动释放和中间件处理异常后的释放均不消耗异常次数。
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    ..JobOptions::default()
+};
+```
+
+Worker 在应用默认缓存中按任务 UUID 计数，计数器从首次异常起保留一天。独立 Worker 需要使用共享缓存才能读取同一计数。省略该选项时沿用原有尝试与超时规则。
+
 #### 任务预约到期与超时 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 默认 60 秒，任务可以覆盖此值。超时应短于队列连接的 `retry_after`，以便在超时 Worker 停止后，其他 Worker 能重新预约任务。

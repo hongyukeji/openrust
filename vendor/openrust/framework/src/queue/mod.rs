@@ -152,6 +152,9 @@ impl From<SystemTime> for Delay {
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct JobOptions {
     pub max_tries: Option<u32>,
+    /// Maximum number of unhandled job exceptions within the worker's counting window.
+    #[serde(default)]
+    pub max_exceptions: Option<u32>,
     pub timeout: Option<Duration>,
     pub backoff: Vec<Duration>,
     #[serde(default)]

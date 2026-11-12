@@ -12,6 +12,10 @@ use crate::{
         BatchPhase, DatabaseBatchRepository, PublicationKey, RecordedBatchJob,
         events::{BatchCanceled, BatchFinished, BatchStarted, emit},
     },
+    cache::{
+        CacheManager,
+        rate_limiting::counters::{self, Admission, Quota},
+    },
     container::Container,
     contracts::{
         container::Container as _,
@@ -579,6 +583,33 @@ impl Worker {
         result
     }
 
+    async fn exceeds_max_exceptions(&self, uuid: &str, maximum: u32) -> QueueResult<bool> {
+        let cache = self
+            .app
+            .make::<CacheManager>()
+            .map_err(QueueError::Unavailable)?;
+        let repository = cache.store(None).map_err(super::backend)?;
+        let quota = Quota {
+            key: counters::key("queue-job-exceptions", "", uuid),
+            max: u64::from(maximum.max(1)),
+            decay: 86_400,
+            charge: true,
+        };
+        let reached = match counters::admit(repository.as_ref(), std::slice::from_ref(&quota))
+            .await
+            .map_err(super::backend)?
+        {
+            Admission::Allowed(buckets) => buckets[0].count >= u64::from(maximum),
+            Admission::Denied { .. } => true,
+        };
+        if reached {
+            counters::clear(repository.as_ref(), &quota.key)
+                .await
+                .map_err(super::backend)?;
+        }
+        Ok(reached)
+    }
+
     async fn attempt(
         &self,
         job: &mut dyn Job,
@@ -708,7 +739,17 @@ impl Worker {
             let timed_out = matches!(error, QueueError::Timeout);
             let stop_for_timeout = status.stop_on_timeout && status.timed_out;
             status.handled_failure = context.fail_immediately;
+            let exceeded_exceptions = if !status.handled_failure
+                && !already_exhausted
+                && let Some(maximum) = job.options().max_exceptions
+            {
+                let uuid = job.uuid().to_owned();
+                self.exceeds_max_exceptions(&uuid, maximum).await?
+            } else {
+                false
+            };
             let terminal = status.handled_failure
+                || exceeded_exceptions
                 || (stop_for_timeout || context.release_after.is_none())
                     && (already_exhausted
                         || exceeds_attempts(job, tries, true)

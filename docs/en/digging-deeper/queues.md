@@ -169,6 +169,22 @@ Set `QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false` to keep the worker running afte
 QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
 ```
 
+#### Maximum job exceptions {#max-exceptions}
+
+Set `JobOptions::max_exceptions` to fail a job after a fixed number of unhandled exceptions or timeouts, independently of its attempt limit. Voluntary releases and middleware releases that handle the error do not consume this budget.
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    ..JobOptions::default()
+};
+```
+
+The worker counts exceptions by job UUID in the application's default cache. The counter expires one day after the first exception. Use a shared cache for independent workers to see the same count. Omit the option to use the usual attempt and timeout rules.
+
 #### Job expirations and timeouts {#job-expirations-and-timeouts}
 
 `queue:work --timeout` defaults to 60 seconds. A job can override it. Set the timeout below the queue connection's `retry_after` so another worker can pick up the reservation after the timed-out worker has stopped.
