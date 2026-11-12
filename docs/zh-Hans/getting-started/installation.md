@@ -10,10 +10,15 @@
 
 ```sh
 cp .env.example .env
+touch database/database.sqlite
 cargo +1.94.0 build --locked
+./artisan key:generate
+./artisan migrate
 ./artisan inspire
 cargo +1.94.0 run --locked
 ```
+
+环境模板使用 SQLite 存储应用数据、会话、缓存和队列。使用这些服务前先创建数据库文件并执行迁移。
 
 HTTP 默认监听 `127.0.0.1:8000`。访问 `http://localhost:8000/` 查看欢迎页，访问 `/up` 检查服务状态。使用 Ctrl+C 停止服务。
 

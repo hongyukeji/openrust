@@ -10,10 +10,15 @@
 
 ```sh
 cp .env.example .env
+touch database/database.sqlite
 cargo +1.94.0 build --locked
+./artisan key:generate
+./artisan migrate
 ./artisan inspire
 cargo +1.94.0 run --locked
 ```
+
+環境範本使用 SQLite 儲存應用程式資料、工作階段、快取及佇列。使用這些服務前先建立資料庫檔案並執行遷移。
 
 HTTP 預設監聽 `127.0.0.1:8000`。存取 `http://localhost:8000/` 查看歡迎頁，存取 `/up` 檢查服務狀態。使用 Ctrl+C 停止服務。
 

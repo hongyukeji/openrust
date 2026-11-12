@@ -10,10 +10,15 @@ Run these commands from the application root. Copy the environment template when
 
 ```sh
 cp .env.example .env
+touch database/database.sqlite
 cargo +1.94.0 build --locked
+./artisan key:generate
+./artisan migrate
 ./artisan inspire
 cargo +1.94.0 run --locked
 ```
+
+The template uses SQLite for application data, sessions, cache and queues. Create the database file and run the migrations before using these services.
 
 The HTTP listener defaults to `127.0.0.1:8000`. Visit `http://localhost:8000/` for the welcome page or `/up` for the health check. Stop the service with Ctrl+C.
 
