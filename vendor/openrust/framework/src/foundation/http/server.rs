@@ -18,18 +18,22 @@ impl Kernel {
     /// Boots the application and binds its configured HTTP address.
     pub async fn listen(&mut self) -> Result<TcpListener, Box<dyn Error + Send + Sync>> {
         self.bootstrap().await?;
-        let (host, port) = listener_address(self.get_application().config()?.as_ref())?;
-        let listener = TcpListener::bind((host.as_str(), port))
-            .await
-            .map_err(|error| {
-                io::Error::new(error.kind(), format!("cannot bind HTTP listener: {error}"))
-            })?;
-        Ok(listener)
+        listen_for(self.get_application()).await
     }
 
     pub(in crate::foundation) async fn serve(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let marker = crate::foundation::maintenance::file_path(self.application.base_path());
+        if super::prerender::has_template(&marker).await {
+            return super::prerender::serve(self, marker).await;
+        }
         let listener = self.listen().await?;
+        self.serve_ready(listener).await
+    }
 
+    pub(super) async fn serve_ready(
+        self,
+        listener: TcpListener,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let services = self.get_application().take_runtime_services();
         let termination_tasks = self.termination_tasks.clone();
         let service = handle
@@ -49,6 +53,17 @@ impl Kernel {
         })
         .await
     }
+}
+
+pub(super) async fn listen_for(
+    application: &super::Application,
+) -> Result<TcpListener, Box<dyn Error + Send + Sync>> {
+    let (host, port) = listener_address(application.config()?.as_ref())?;
+    TcpListener::bind((host.as_str(), port))
+        .await
+        .map_err(|error| {
+            io::Error::new(error.kind(), format!("cannot bind HTTP listener: {error}")).into()
+        })
 }
 
 async fn handle(State(kernel): State<Arc<Kernel>>, request: TransportRequest) -> TransportResponse {

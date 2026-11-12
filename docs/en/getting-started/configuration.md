@@ -90,7 +90,7 @@ To check the site during maintenance, open the URL printed by `--with-secret`. T
 })
 ```
 
-The prerendered view is served by the running HTTP process. During a restart, the HTTP listener becomes available when application bootstrap succeeds. See [workers during maintenance](../digging-deeper/queues.md#workers-during-maintenance) for the queue behavior.
+For a file-backed deployment, `./artisan down --render=errors::503` serves the prepared HTML while providers are still booting. Put a custom page at `resources/views/errors/503.blade.html`. The listener settings must load successfully. JSON, excluded paths, and valid bypass requests wait for the application kernel. Cache-backed maintenance uses the running kernel. See [workers during maintenance](../digging-deeper/queues.md#workers-during-maintenance) for the queue behavior.
 
 ### Shared maintenance state {#shared-maintenance-state}
 

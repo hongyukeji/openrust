@@ -157,13 +157,7 @@ impl MaintenanceMode for Backend {
     fn data(&self) -> MaintenanceFuture<'_, Option<MaintenancePayload>> {
         Box::pin(async move {
             match self {
-                Self::File(path) => match tokio::fs::read(path).await {
-                    Ok(bytes) => serde_json::from_slice(&bytes)
-                        .map(Some)
-                        .map_err(MaintenanceError::Json),
-                    Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
-                    Err(error) => Err(MaintenanceError::Io(error)),
-                },
+                Self::File(path) => read_file(path).await,
                 Self::Cache(cache) => match cache
                     .get(CACHE_KEY)
                     .await
@@ -179,6 +173,20 @@ impl MaintenanceMode for Backend {
                     .clone()),
             }
         })
+    }
+}
+
+pub(super) fn file_path(base_path: &Path) -> PathBuf {
+    base_path.join("storage/framework/down")
+}
+
+pub(super) async fn read_file(path: &Path) -> Result<Option<MaintenancePayload>, MaintenanceError> {
+    match tokio::fs::read(path).await {
+        Ok(bytes) => serde_json::from_slice(&bytes)
+            .map(Some)
+            .map_err(MaintenanceError::Json),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(MaintenanceError::Io(error)),
     }
 }
 
@@ -212,7 +220,7 @@ pub(crate) struct MaintenanceServiceProvider;
 impl ServiceProvider for MaintenanceServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            let file = app.base_path().join("storage/framework/down");
+            let file = file_path(app.base_path());
             app.container()
                 .singleton::<dyn MaintenanceMode, _>(move |container| {
                     let driver = configured_driver(container, &file).map_err(|source| {

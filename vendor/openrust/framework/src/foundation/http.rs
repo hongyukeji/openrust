@@ -3,6 +3,7 @@
 mod form_request;
 mod health_check;
 pub mod middleware;
+mod prerender;
 mod server;
 mod termination;
 
@@ -47,13 +48,16 @@ impl Kernel {
             routes: None,
         }
     }
-}
 
-impl http::Kernel for Kernel {
-    fn bootstrap(&mut self) -> HttpFuture<'_, Result<(), BootstrapError>> {
+    fn bootstrap_http(
+        &mut self,
+        configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> HttpFuture<'_, Result<(), BootstrapError>> {
         Box::pin(async move {
             if !self.ready {
-                self.application.boot().await?;
+                self.application
+                    .boot_with_configuration_signal(None, configuration_ready)
+                    .await?;
                 let config = self
                     .application
                     .config()
@@ -104,6 +108,12 @@ impl http::Kernel for Kernel {
             }
             Ok(())
         })
+    }
+}
+
+impl http::Kernel for Kernel {
+    fn bootstrap(&mut self) -> HttpFuture<'_, Result<(), BootstrapError>> {
+        self.bootstrap_http(None)
     }
 
     fn get_application(&self) -> &Application {

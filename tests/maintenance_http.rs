@@ -286,3 +286,27 @@ fn artisan_maintenance_cache_is_shared_by_http_instances() {
     assert!(!first.root().join("storage/framework/down").exists());
     assert!(!second.root().join("storage/framework/down").exists());
 }
+
+#[test]
+fn artisan_prerenders_laravels_standard_maintenance_error_view() {
+    let fixture = TestApp::create(|app| app).unwrap();
+    let root = fixture.root();
+    let live = Server::start(root, &[("APP_MAINTENANCE_DRIVER", "file")]);
+    success(root, &["down", "--render=errors::503"]);
+    let default = live.request("GET", "/up", "text/html", None);
+    assert_eq!(default.status(), 503);
+    assert!(default.body.contains("Service Unavailable"));
+
+    let custom = root.join("resources/views/errors");
+    fs::create_dir_all(&custom).unwrap();
+    fs::write(
+        custom.join("503.blade.html"),
+        "<p>Back after {{ $retryAfter }}</p>",
+    )
+    .unwrap();
+    success(root, &["down", "--render=errors::503", "--retry=120"]);
+    let custom = live.request("GET", "/up", "text/html", None);
+    assert_eq!(custom.status(), 503);
+    assert!(custom.body.contains("Back after 120"));
+    success(root, &["up"]);
+}

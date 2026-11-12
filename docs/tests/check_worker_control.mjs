@@ -66,7 +66,7 @@ try {
                     assert.equal(await page.locator("#maintenance-mode").count(), 1);
                     assert.equal(await page.locator("#shared-maintenance-state").count(), 1);
                     const configurationBody = await page.locator("main").innerText();
-                    for (const term of ["maintenanceMode()", "./artisan down --retry=60 --with-secret", "./artisan up", "preventRequestsDuringMaintenance", "$retryAfter"]) {
+                    for (const term of ["maintenanceMode()", "./artisan down --retry=60 --with-secret", "./artisan up", "./artisan down --render=errors::503", "preventRequestsDuringMaintenance", "$retryAfter"]) {
                         assert.ok(configurationBody.includes(term), `${locale}: ${term}`);
                     }
                     assert.equal(await page.locator('main a[href$="#workers-during-maintenance"]').count(), 1);

@@ -5,7 +5,7 @@ use std::{
 
 use ::http::{
     HeaderMap, HeaderName, HeaderValue,
-    header::{CACHE_CONTROL, CONTENT_TYPE, RETRY_AFTER},
+    header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, LOCATION, RETRY_AFTER},
 };
 use aws_lc_rs::hmac;
 use base64::{Engine as _, engine::general_purpose::STANDARD};
@@ -17,7 +17,7 @@ use crate::{
     contracts::{foundation::MaintenanceMode, http::Middleware},
     cookie::CookieOptions,
     foundation::maintenance::MaintenancePayload,
-    http::{Body, HttpError, HttpFuture, Next, Request, Response, StatusCode, abort},
+    http::{Body, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode, abort},
     support::facades::{Cookie, Redirect},
 };
 
@@ -71,12 +71,7 @@ impl Middleware for PreventRequestsDuringMaintenance {
                 }
             }
 
-            let status = data
-                .get("status")
-                .and_then(Value::as_u64)
-                .and_then(|value| u16::try_from(value).ok())
-                .and_then(|value| StatusCode::from_u16(value).ok())
-                .unwrap_or(StatusCode::SERVICE_UNAVAILABLE);
+            let status = maintenance_status(&data);
             let headers = maintenance_headers(&data)?;
             if !request.expectsJson() {
                 if let Some(target) = data.get("redirect").and_then(Value::as_str) {
@@ -103,6 +98,70 @@ impl Middleware for PreventRequestsDuringMaintenance {
             Err(abort(status, "Service Unavailable", headers))
         })
     }
+}
+
+fn maintenance_status(data: &MaintenancePayload) -> StatusCode {
+    data.get("status")
+        .and_then(Value::as_u64)
+        .and_then(|value| u16::try_from(value).ok())
+        .and_then(|value| StatusCode::from_u16(value).ok())
+        .unwrap_or(StatusCode::SERVICE_UNAVAILABLE)
+}
+
+pub(in crate::foundation::http) fn prerender(
+    request: &Request,
+    data: &MaintenancePayload,
+) -> Option<Response> {
+    let template = data.get("template")?.as_str()?;
+    if request.expectsJson()
+        || data
+            .get("except")
+            .and_then(Value::as_array)
+            .is_some_and(|paths| {
+                paths
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .any(|path| request.matches_url_or_path(path))
+            })
+    {
+        return None;
+    }
+    if let Some(secret) = data.get("secret").and_then(Value::as_str)
+        && (bool::from(
+            secret
+                .as_bytes()
+                .ct_eq(request.uri().path().trim_start_matches('/').as_bytes()),
+        ) || valid_bypass(request, secret))
+    {
+        return None;
+    }
+    if let Some(target) = data.get("redirect").and_then(Value::as_str)
+        && target != request.uri().path()
+    {
+        if !target.starts_with('/') || target.starts_with("//") || target.contains('\\') {
+            return None;
+        }
+        return Some(
+            Response::empty(StatusCode::FOUND)
+                .header(LOCATION, HeaderValue::from_str(target).ok()?),
+        );
+    }
+    let head = request.method() == Method::HEAD;
+    let body = if head {
+        Body::empty()
+    } else {
+        Body::from(template.to_owned())
+    };
+    let mut response = Response::new(maintenance_status(data), body)
+        .header(
+            CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=UTF-8"),
+        )
+        .withHeaders(maintenance_headers(data).ok()?);
+    if head {
+        response = response.header(CONTENT_LENGTH, HeaderValue::from(template.len()));
+    }
+    Some(response)
 }
 
 fn maintenance_headers(data: &MaintenancePayload) -> Result<HeaderMap, HttpError> {

@@ -114,6 +114,10 @@ fn debug_sources(exception: &Exception<'_>) -> Vec<String> {
     sources
 }
 
+pub(in crate::foundation) fn maintenance_page() -> String {
+    html(StatusCode::SERVICE_UNAVAILABLE, "Service Unavailable", None)
+}
+
 fn html(status: StatusCode, message: &str, sources: Option<&[String]>) -> String {
     let title = format!("{} {}", status.as_u16(), escape_html(message));
     let mut html = format!(

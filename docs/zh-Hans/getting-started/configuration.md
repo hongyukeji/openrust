@@ -90,7 +90,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 })
 ```
 
-预渲染页面由运行中的 HTTP 进程提供。服务重启时，应用启动成功后开始监听。队列行为见[维护期间的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
+使用文件驱动部署时，`./artisan down --render=errors::503` 可在 Provider 启动期间提供预渲染页面。可在 `resources/views/errors/503.blade.html` 自定义页面。监听配置需成功加载。JSON 请求、排除路径和有效绕过请求等待应用内核。缓存驱动由运行中的内核提供维护响应。队列行为见[维护期间的 Worker](../digging-deeper/queues.md#workers-during-maintenance)。
 
 ### 共享维护状态 {#shared-maintenance-state}
 

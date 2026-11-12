@@ -527,14 +527,26 @@ impl Application {
         &mut self,
         selected: Option<&str>,
     ) -> Result<(), BootstrapError> {
+        self.boot_with_configuration_signal(selected, None).await
+    }
+
+    pub(super) async fn boot_with_configuration_signal(
+        &mut self,
+        selected: Option<&str>,
+        configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Result<(), BootstrapError> {
         crate::support::facades::scope(
             self.shared.container.clone(),
-            self.boot_application(selected),
+            self.boot_application(selected, configuration_ready),
         )
         .await
     }
 
-    async fn boot_application(&mut self, selected: Option<&str>) -> Result<(), BootstrapError> {
+    async fn boot_application(
+        &mut self,
+        selected: Option<&str>,
+        configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> Result<(), BootstrapError> {
         match self.shared.state.compare_exchange(
             PENDING,
             FAILED,
@@ -599,6 +611,10 @@ impl Application {
                     }));
                 }
             }
+        }
+
+        if let Some(ready) = configuration_ready {
+            let _ = ready.send(());
         }
 
         let mut providers = std::mem::take(
