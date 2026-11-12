@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use super::FileEngine;
 use crate::view::{ViewData, ViewResult, compilers::BladeCompiler, rendering::RenderContext};
 
 /// Renders templates through the Blade compiler and its compiled artifacts.
@@ -28,5 +29,12 @@ impl CompilerEngine {
 
     pub fn getCompiler(&self) -> &BladeCompiler {
         &self.0
+    }
+}
+
+impl crate::contracts::view::Engine for CompilerEngine {
+    fn get(&self, root: &Path, path: &Path, data: &ViewData) -> ViewResult<String> {
+        let source = FileEngine.get(root, path)?;
+        self.render(path, &source, data)
     }
 }

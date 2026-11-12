@@ -32,6 +32,17 @@ impl ServiceProvider for ViewServiceProvider {
                     })
             })?;
             container.alias("view", crate::container::ServiceKey::typed::<Factory>())?;
+            container.singletonNamed::<dyn crate::contracts::view::Factory, _>(
+                "view.contract",
+                |container| {
+                    let concrete = container.get::<Factory>("view")?;
+                    Ok(concrete as Arc<dyn crate::contracts::view::Factory>)
+                },
+            )?;
+            container.alias(
+                "view.contract",
+                crate::container::ServiceKey::typed::<dyn crate::contracts::view::Factory>(),
+            )?;
             Ok(())
         })
     }

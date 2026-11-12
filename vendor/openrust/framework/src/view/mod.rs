@@ -1,6 +1,6 @@
 //! View-facing framework services.
 
-use std::{borrow::Cow, future::Future, io, pin::Pin, sync::Arc};
+use std::{borrow::Cow, future::Future, io, path::PathBuf, pin::Pin, sync::Arc};
 
 use ::http::{HeaderValue, header::CONTENT_TYPE};
 
@@ -72,8 +72,14 @@ impl std::error::Error for ViewError {
 pub struct View {
     name: Cow<'static, str>,
     data: ViewData,
+    binding: Option<Box<ViewBinding>>,
     created: bool,
     creation_error: Option<ViewError>,
+}
+
+struct ViewBinding {
+    factory: Factory,
+    file: Option<PathBuf>,
 }
 
 /// Creates a named view from the current application's view directory.
@@ -85,6 +91,7 @@ pub fn view(name: impl Into<Cow<'static, str>>) -> View {
     let mut view = View {
         name: name.into(),
         data: ViewData::new(),
+        binding: None,
         created: false,
         creation_error: None,
     };

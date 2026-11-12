@@ -36,6 +36,24 @@ fn configure_views() -> ViewResult<()> {
 }
 ```
 
+## 视图契约 {#view-contracts}
+
+使用 `View::contract()` 取得当前应用的视图工厂，也可以从容器解析 `dyn contracts::view::Factory`。视图保留所属工厂，更新数据后可以再次渲染。`make` 和 `file` 的视图数据优先于合并数据。
+
+```rust
+use openrust::view::{ViewData, ViewResult};
+
+fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<String> {
+    let mut view = factory.make("contract_card", ViewData::new(), ViewData::new())?;
+    view.with("title", "<card>".into());
+    view.render()
+}
+```
+
+使用 `file` 时，文件须位于已配置的视图目录内。相对路径按应用视图目录顺序查找。`addNamespace` 和 `replaceNamespace` 管理命名空间目录。工厂的 creator 和 composer 支持一组视图名或通配模式。显式文件支持 `.blade.html`、`.html` 或 `.css`。
+
+Engine 契约要求显式提供视图根目录，用于限定文件读取范围。契约渲染是同步的。在异步处理器中，可将直接渲染交给阻塞线程，或返回视图并由框架渲染。
+
 ## 优化视图
 
 Blade 模板在首次使用时编译。源文件变化后，OpenRust 会在 `view.compiled` 中重新生成编译产物，默认目录为 `storage/framework/views`。可以通过 Artisan 预编译视图或清理编译产物。

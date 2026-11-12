@@ -83,6 +83,71 @@ impl FileViewFinder {
         })
     }
 
+    pub(super) fn source_file(&self, path: &Path) -> ViewResult<ViewSource> {
+        if path
+            .components()
+            .any(|part| part == std::path::Component::ParentDir)
+        {
+            return Err(ViewError::OutsideRoot);
+        }
+        let hints = self.hints.read().unwrap();
+        let mut matched_root = false;
+        for directory in self
+            .paths
+            .iter()
+            .chain(hints.values().flatten().filter(|_| path.is_absolute()))
+        {
+            let Some(root) = existing_path(directory)? else {
+                continue;
+            };
+            let candidate = if path.is_absolute() {
+                let Ok(relative) = path
+                    .strip_prefix(directory)
+                    .or_else(|_| path.strip_prefix(&root))
+                else {
+                    continue;
+                };
+                root.join(relative)
+            } else {
+                root.join(path)
+            };
+            matched_root = true;
+            if let Some(resolved) = confined_file(&root, &candidate)? {
+                return Ok(ViewSource {
+                    root,
+                    path: candidate,
+                    resolved,
+                });
+            }
+        }
+        if path.is_absolute() && !matched_root {
+            return Err(ViewError::OutsideRoot);
+        }
+        Err(ViewError::NotFound)
+    }
+
+    pub(super) fn append_hints(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+        let paths = owned_hints(namespace, hints)?;
+        self.hints
+            .write()
+            .unwrap()
+            .entry(namespace.to_owned())
+            .or_default()
+            .extend(paths);
+        self.flush();
+        Ok(())
+    }
+
+    pub(super) fn replace_hints(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+        let paths = owned_hints(namespace, hints)?;
+        self.hints
+            .write()
+            .unwrap()
+            .insert(namespace.to_owned(), paths);
+        self.flush();
+        Ok(())
+    }
+
     fn resolve(&self, view: &str) -> ViewResult<(ViewLocation, PathBuf)> {
         let view = view.trim();
         match view.split_once("::") {
@@ -132,15 +197,7 @@ impl ViewFinder for FileViewFinder {
     }
 
     fn addNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
-        let hints = owned_hints(namespace, hints)?;
-        self.hints
-            .get_mut()
-            .unwrap()
-            .entry(namespace.to_owned())
-            .or_default()
-            .extend(hints);
-        self.flush();
-        Ok(())
+        self.append_hints(namespace, hints)
     }
 
     fn prependNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
@@ -158,12 +215,7 @@ impl ViewFinder for FileViewFinder {
     }
 
     fn replaceNamespace(&mut self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
-        self.hints
-            .get_mut()
-            .unwrap()
-            .insert(namespace.to_owned(), owned_hints(namespace, hints)?);
-        self.flush();
-        Ok(())
+        self.replace_hints(namespace, hints)
     }
 
     fn addExtension(&mut self, extension: &str) -> ViewResult<()> {

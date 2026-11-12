@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::{CompilerEngine, FileEngine};
 use crate::view::{
@@ -52,5 +52,15 @@ impl Engine<'_> {
                 engine.render_with(&source.path, &content, data, context)
             }
         }
+    }
+}
+
+impl crate::contracts::view::Engine for Engine<'_> {
+    fn get(&self, root: &Path, path: &Path, data: &ViewData) -> ViewResult<String> {
+        let engine: &dyn crate::contracts::view::Engine = match self {
+            Self::File(engine) => *engine,
+            Self::Blade(engine) => *engine,
+        };
+        engine.get(root, path, data)
     }
 }

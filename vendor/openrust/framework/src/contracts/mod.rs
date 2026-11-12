@@ -26,3 +26,4 @@ pub mod session;
 pub mod support;
 pub mod translation;
 pub mod validation;
+pub mod view;

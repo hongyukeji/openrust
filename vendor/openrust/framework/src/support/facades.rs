@@ -153,6 +153,12 @@ impl Facade for View {
 }
 
 impl View {
+    /// Resolves the application view factory through its public contract.
+    pub fn contract() -> crate::view::ViewResult<Arc<dyn crate::contracts::view::Factory>> {
+        let factory = Self::getFacadeRoot().map_err(crate::view::ViewError::Unavailable)?;
+        Ok(factory)
+    }
+
     pub fn make(
         name: impl Into<std::borrow::Cow<'static, str>>,
         data: crate::view::ViewData,

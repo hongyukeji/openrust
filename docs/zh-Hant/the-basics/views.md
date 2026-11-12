@@ -36,6 +36,24 @@ fn configure_views() -> ViewResult<()> {
 }
 ```
 
+## 檢視契約 {#view-contracts}
+
+使用 `View::contract()` 取得目前應用程式的檢視工廠，也可從容器解析 `dyn contracts::view::Factory`。檢視保留所屬工廠，更新資料後可以再次呈現。`make` 和 `file` 的檢視資料優先於合併資料。
+
+```rust
+use openrust::view::{ViewData, ViewResult};
+
+fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<String> {
+    let mut view = factory.make("contract_card", ViewData::new(), ViewData::new())?;
+    view.with("title", "<card>".into());
+    view.render()
+}
+```
+
+使用 `file` 時，檔案須位於已設定的檢視目錄內。相對路徑依應用程式的檢視目錄順序查找。`addNamespace` 和 `replaceNamespace` 管理命名空間目錄。工廠的 creator 和 composer 支援一組檢視名稱或萬用字元模式。明確指定的檔案支援 `.blade.html`、`.html` 或 `.css`。
+
+Engine 契約要求明確提供檢視根目錄，用以限定檔案讀取範圍。契約呈現是同步的。在非同步處理器中，可將直接呈現交給阻塞執行緒，或傳回檢視並由框架呈現。
+
 ## 最佳化視圖
 
 Blade 範本在首次使用時編譯。來源檔案變更後，OpenRust 會在 `view.compiled` 重新產生編譯成品，預設目錄為 `storage/framework/views`。可以使用 Artisan 預先編譯視圖或清除編譯成品。

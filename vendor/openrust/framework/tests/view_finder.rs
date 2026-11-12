@@ -144,6 +144,136 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     assert_eq!(factory.render("welcome", &data).unwrap(), "plain fallback");
 }
 
+#[test]
+fn view_contracts_resolve_files_namespaces_and_engines() {
+    use openrust::{
+        contracts::view::{Engine as _, Factory as ViewFactory},
+        view::{Factory, ViewData},
+    };
+    use std::sync::{Arc, Mutex};
+
+    let root = TempDir::new();
+    let app = root.path().join("app");
+    let old = root.path().join("old");
+    let replacement = root.path().join("replacement");
+    for folder in [&app, &old, &replacement] {
+        fs::create_dir(folder).unwrap();
+    }
+    let explicit = app.join("literal.blade.html");
+    fs::write(&explicit, "{{ $title }}|{{ $base }}").unwrap();
+    fs::write(old.join("index.html"), "old").unwrap();
+    fs::write(replacement.join("index.html"), "new").unwrap();
+    let factory = Factory::new(
+        FileViewFinder::new([app.clone()]),
+        root.path().join("compiled"),
+    );
+    let contract: &dyn ViewFactory = &factory;
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let record = trace.clone();
+    contract.creator(
+        &["literal", "pkg::index"],
+        Arc::new(move |view| {
+            record.lock().unwrap().push("created");
+            view.with("base", "creator".into());
+            Ok(())
+        }),
+    );
+    let record = trace.clone();
+    contract.composer(
+        &["literal"],
+        Arc::new(move |view| {
+            record.lock().unwrap().push("composed");
+            assert_eq!(view.getData()["base"], "creator");
+            Ok(())
+        }),
+    );
+    assert!(contract.exists("literal"));
+    assert!(!contract.exists("missing"));
+    let mut view = contract
+        .make(
+            "literal",
+            ViewData::from_iter([("title".into(), "<data>".into())]),
+            ViewData::from_iter([
+                ("title".into(), "merged".into()),
+                ("base".into(), "merged".into()),
+            ]),
+        )
+        .unwrap();
+    assert_eq!(view.name(), "literal");
+    assert_eq!(view.render().unwrap(), "&lt;data&gt;|creator");
+    view.with("title", "again".into());
+    assert_eq!(view.render().unwrap(), "again|creator");
+    assert_eq!(*trace.lock().unwrap(), ["created", "composed", "composed"]);
+
+    assert_eq!(contract.share("base", "shared".into()), "shared");
+    let mut file = contract
+        .file(
+            Path::new("literal.blade.html"),
+            ViewData::new(),
+            ViewData::new(),
+        )
+        .unwrap();
+    file.with("title", "file".into());
+    assert_eq!(file.render().unwrap(), "file|shared");
+    let outside = root.path().join("outside.html");
+    fs::write(&outside, "private").unwrap();
+    assert!(matches!(
+        contract.file(&outside, ViewData::new(), ViewData::new()),
+        Err(ViewError::OutsideRoot)
+    ));
+    assert!(matches!(
+        contract.file(
+            Path::new("../outside.html"),
+            ViewData::new(),
+            ViewData::new()
+        ),
+        Err(ViewError::OutsideRoot)
+    ));
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&outside, app.join("escape.html")).unwrap();
+        assert!(matches!(
+            contract.file(Path::new("escape.html"), ViewData::new(), ViewData::new()),
+            Err(ViewError::OutsideRoot)
+        ));
+    }
+    assert!(matches!(
+        contract.file(Path::new("missing.html"), ViewData::new(), ViewData::new()),
+        Err(ViewError::NotFound)
+    ));
+
+    contract.addNamespace("pkg", &[&old]).unwrap();
+    let mut namespaced = contract
+        .make("pkg::index", ViewData::new(), ViewData::new())
+        .unwrap();
+    assert_eq!(namespaced.render().unwrap(), "old");
+    contract.replaceNamespace("pkg", &[&replacement]).unwrap();
+    assert_eq!(namespaced.render().unwrap(), "new");
+    assert!(matches!(
+        contract.addNamespace("../invalid", &[&old]),
+        Err(ViewError::InvalidName)
+    ));
+
+    assert!(matches!(
+        contract.file(
+            Path::new("unsupported.txt"),
+            ViewData::new(),
+            ViewData::new()
+        ),
+        Err(ViewError::UnknownEngine)
+    ));
+    let engine = factory.getEngineResolver().resolve("blade").unwrap();
+    let data = ViewData::from_iter([
+        ("title".into(), "engine".into()),
+        ("base".into(), "safe".into()),
+    ]);
+    assert_eq!(engine.get(&app, &explicit, &data).unwrap(), "engine|safe");
+    assert!(matches!(
+        engine.get(&app, &outside, &data),
+        Err(ViewError::OutsideRoot)
+    ));
+}
+
 #[tokio::test]
 async fn layouts_and_composers_isolate_concurrent_http_requests() {
     use axum::{extract::State, handler::Handler as _};
@@ -151,9 +281,9 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         container::ServiceKey,
         contracts::{container::Container as _, foundation::Application as _, http::Kernel as _},
         foundation::{Application, configuration::Routing, http::Kernel},
-        http::Request,
+        http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
         support::facades::{Route, View as ViewFacade},
-        view::{Component, ComponentOutput, Factory, ViewResult, view},
+        view::{Component, ComponentOutput, Factory, ViewData, ViewResult, view},
     };
     use std::{path::PathBuf, sync::Arc};
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -165,6 +295,29 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 "<mark>{{ $text }}</mark>".to_owned(),
             ))
         }
+    }
+
+    fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<String> {
+        let mut view = factory.make("contract_card", ViewData::new(), ViewData::new())?;
+        view.with("title", "<card>".into());
+        view.render()
+    }
+
+    fn contract_route(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let factory = ViewFacade::contract().map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+            let html = tokio::task::spawn_blocking(move || render_card(factory.as_ref()))
+                .await
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?
+                .map_err(|source| HttpError::Internal {
+                    source: Box::new(source),
+                })?;
+            Ok(Response::new(StatusCode::OK, Body::from(html)))
+        })
     }
 
     async fn transport(
@@ -187,6 +340,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .withRouting(Routing::default().web(|| {
                 Route::get("/page", || view("page").with("title", "route"))?;
                 Route::get("/plain", || view("layout"))?;
+                Route::get("/contract", contract_route)?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -198,6 +352,21 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .container()
             .get::<Factory>(ServiceKey::typed::<Factory>())
             .unwrap();
+        let contract = kernel
+            .get_application()
+            .container()
+            .get::<dyn openrust::contracts::view::Factory>(ServiceKey::typed::<
+                dyn openrust::contracts::view::Factory,
+            >())
+            .unwrap();
+        contract.share("contract_app", app.into());
+        contract.composer(
+            &["contract_card"],
+            Arc::new(|view| {
+                view.with("suffix", "!".into());
+                Ok(())
+            }),
+        );
         factory.component("badge", |_| Ok(Badge));
         factory.share("app", app);
         factory.share("title", "shared");
@@ -251,6 +420,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "<article>{{ $header }}<h2>{{ $title }}</h2>{{ $slot }}</article>",
         ),
         ("partial", "<i>{{ $label }}</i>"),
+        (
+            "contract_card",
+            "{{ $contract_app }}:{{ $title }}{{ $suffix }}",
+        ),
         ("broken", "@extends('missing')"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
@@ -275,6 +448,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     assert_eq!(unrelated, "<main>A|&lt;fallback&gt;</main>");
     assert!(send(first, "/broken", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
+    let (a, b) = tokio::join!(
+        send(first, "/contract", 200),
+        send(second, "/contract", 200)
+    );
+    assert_eq!(a, "A:&lt;card&gt;!");
+    assert_eq!(b, "B:&lt;card&gt;!");
     first_task.abort();
     second_task.abort();
 }

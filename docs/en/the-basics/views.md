@@ -36,6 +36,24 @@ fn configure_views() -> ViewResult<()> {
 }
 ```
 
+## View Contracts {#view-contracts}
+
+Resolve the current application factory with `View::contract()` or request `dyn contracts::view::Factory` from the container. The view retains its factory and can be rendered again after updating its data. Data passed to `make` or `file` takes precedence over merge data.
+
+```rust
+use openrust::view::{ViewData, ViewResult};
+
+fn render_card(factory: &dyn openrust::contracts::view::Factory) -> ViewResult<String> {
+    let mut view = factory.make("contract_card", ViewData::new(), ViewData::new())?;
+    view.with("title", "<card>".into());
+    view.render()
+}
+```
+
+Use `file` with a path inside a configured view directory. Relative paths search application view directories in order. Use `addNamespace` and `replaceNamespace` to manage namespace directories. The factory’s creators and composers accept a list of view names or wildcard patterns. Explicit files may use `.blade.html`, `.html`, or `.css`.
+
+The Engine contract takes an explicit view root for file access. Rendering through these contracts is synchronous. In an async handler, run direct rendering on a blocking worker, or return a view from the handler and let the framework render it.
+
 ## Optimizing Views
 
 Blade templates compile on first use. When the source changes, OpenRust regenerates the compiled artifact in `view.compiled`, which defaults to `storage/framework/views`. To precompile views or clear the generated artifacts, run:

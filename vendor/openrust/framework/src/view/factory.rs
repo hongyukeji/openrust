@@ -7,16 +7,22 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use crate::contracts::view::{
+    Factory as ContractFactory, View as ContractView, ViewCallback as ContractCallback,
+};
+
 use super::{
-    Component, ComponentOutput, FileViewFinder, View, ViewData, ViewError, ViewFinder, ViewResult,
-    ViewValue, compilers::BladeCompiler, engines::EngineResolver, rendering::RenderContext,
+    Component, ComponentOutput, FileViewFinder, View, ViewBinding, ViewData, ViewError, ViewFinder,
+    ViewResult, ViewValue, compilers::BladeCompiler, engines::EngineResolver,
+    file_view_finder::ViewSource, rendering::RenderContext,
 };
 
 /// Creates named views from the application's finder and engines.
+#[derive(Clone)]
 pub struct Factory {
-    finder: FileViewFinder,
-    engines: EngineResolver,
-    events: RwLock<ViewEvents>,
+    finder: Arc<FileViewFinder>,
+    engines: Arc<EngineResolver>,
+    events: Arc<RwLock<ViewEvents>>,
 }
 
 type ComponentRenderer = Arc<dyn Fn(&ViewData) -> ViewResult<ComponentOutput> + Send + Sync>;
@@ -37,9 +43,9 @@ impl Factory {
             .addExtension("blade.html")
             .expect("valid Blade extension");
         Self {
-            finder,
-            engines: EngineResolver::new(compiled),
-            events: RwLock::default(),
+            finder: Arc::new(finder),
+            engines: Arc::new(EngineResolver::new(compiled)),
+            events: Arc::default(),
         }
     }
 
@@ -134,6 +140,7 @@ impl Factory {
         let mut view = View {
             name,
             data,
+            binding: None,
             created: false,
             creation_error: None,
         };
@@ -143,7 +150,7 @@ impl Factory {
 
     pub(super) fn callCreator(&self, view: &mut View) -> ViewResult<()> {
         if !view.created {
-            self.finder.find(&view.name)?;
+            self.view_source(view)?;
             self.call_events(view, |events| &events.creators)?;
             view.created = true;
         }
@@ -184,26 +191,57 @@ impl Factory {
     }
 
     fn render_view(&self, mut view: View, context: &mut RenderContext<'_>) -> ViewResult<String> {
+        let mut data = self.prepare_view(&mut view)?;
+        let source = self.view_source(&view)?;
+        data.extend(view.data);
+        self.render_contents(source, &data, context)
+    }
+
+    fn render_view_ref(
+        &self,
+        view: &mut View,
+        context: &mut RenderContext<'_>,
+    ) -> ViewResult<String> {
+        let mut data = self.prepare_view(view)?;
+        data.extend(
+            view.data
+                .iter()
+                .map(|(key, value)| (key.clone(), value.clone())),
+        );
+        self.render_contents(self.view_source(view)?, &data, context)
+    }
+
+    fn prepare_view(&self, view: &mut View) -> ViewResult<ViewData> {
         if let Some(error) = view.creation_error.take() {
             return Err(error);
         }
-        self.callCreator(&mut view)?;
-        self.call_events(&mut view, |events| &events.composers)?;
+        self.callCreator(view)?;
+        self.call_events(view, |events| &events.composers)?;
         let mut data = self.events.read().unwrap().shared.clone();
         if let Some(errors) = super::middleware::shared_errors() {
             data.insert("errors".into(), errors);
         }
-        data.extend(view.data);
-        self.render_contents(&view.name, &data, context)
+        Ok(data)
+    }
+
+    fn view_source(&self, view: &View) -> ViewResult<ViewSource> {
+        if let Some(path) = view
+            .binding
+            .as_ref()
+            .and_then(|binding| binding.file.as_deref())
+        {
+            self.finder.source_file(path)
+        } else {
+            self.finder.source(&view.name)
+        }
     }
 
     fn render_contents(
         &self,
-        name: &str,
+        source: ViewSource,
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
-        let source = self.finder.source(name)?;
         let engine = if is_blade_path(&source.path) {
             "blade"
         } else {
@@ -234,6 +272,112 @@ impl Factory {
             ("message".to_owned(), message.into()),
         ]);
         self.render(name, &data).ok()
+    }
+}
+
+impl ContractFactory for Factory {
+    fn exists(&self, view: &str) -> bool {
+        self.exists(view)
+    }
+
+    fn file(
+        &self,
+        path: &Path,
+        data: ViewData,
+        mut merge_data: ViewData,
+    ) -> ViewResult<Box<dyn ContractView>> {
+        if !matches!(
+            path.extension().and_then(|extension| extension.to_str()),
+            Some("html" | "css")
+        ) {
+            return Err(ViewError::UnknownEngine);
+        }
+        merge_data.extend(data);
+        let mut view = View {
+            name: path
+                .to_str()
+                .ok_or(ViewError::InvalidName)?
+                .to_owned()
+                .into(),
+            data: merge_data,
+            binding: Some(Box::new(ViewBinding {
+                factory: self.clone(),
+                file: Some(path.to_owned()),
+            })),
+            created: false,
+            creation_error: None,
+        };
+        self.callCreator(&mut view)?;
+        Ok(Box::new(view))
+    }
+
+    fn make(
+        &self,
+        name: &str,
+        data: ViewData,
+        mut merge_data: ViewData,
+    ) -> ViewResult<Box<dyn ContractView>> {
+        merge_data.extend(data);
+        let mut view = self.make(name.to_owned(), merge_data)?;
+        view.binding = Some(Box::new(ViewBinding {
+            factory: self.clone(),
+            file: None,
+        }));
+        Ok(Box::new(view))
+    }
+
+    fn share(&self, key: &str, value: ViewValue) -> ViewValue {
+        self.share(key, value.clone());
+        value
+    }
+
+    fn composer(&self, views: &[&str], callback: Arc<ContractCallback>) {
+        for &view in views {
+            let callback = callback.clone();
+            self.composer(view, move |view| callback(view));
+        }
+    }
+
+    fn creator(&self, views: &[&str], callback: Arc<ContractCallback>) {
+        for &view in views {
+            let callback = callback.clone();
+            self.creator(view, move |view| callback(view));
+        }
+    }
+
+    fn addNamespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+        self.finder.append_hints(namespace, hints)
+    }
+
+    fn replaceNamespace(&self, namespace: &str, hints: &[&Path]) -> ViewResult<()> {
+        self.finder.replace_hints(namespace, hints)
+    }
+}
+
+impl ContractView for View {
+    fn name(&self) -> &str {
+        self.name()
+    }
+
+    fn with(&mut self, key: &str, value: ViewValue) -> &mut dyn ContractView {
+        self.data_mut().insert(key.to_owned(), value);
+        self
+    }
+
+    fn getData(&self) -> &ViewData {
+        self.data()
+    }
+
+    fn render(&mut self) -> ViewResult<String> {
+        use crate::support::facades::{Facade as _, View as ViewFacade};
+        let factory = match &self.binding {
+            Some(binding) => binding.factory.clone(),
+            None => ViewFacade::getFacadeRoot()
+                .map_err(ViewError::Unavailable)?
+                .as_ref()
+                .clone(),
+        };
+        factory.render_view_ref(self, &mut RenderContext::new(Some(&factory)))
     }
 }
 

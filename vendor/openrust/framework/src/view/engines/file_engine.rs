@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::view::{ViewError, ViewResult};
+use crate::view::{ViewData, ViewError, ViewResult};
 
 /// Reads a UTF-8 HTML view inside its configured root.
 pub struct FileEngine;
@@ -15,5 +15,11 @@ impl FileEngine {
         directory
             .read_to_string(relative)
             .map_err(ViewError::ReadFailed)
+    }
+}
+
+impl crate::contracts::view::Engine for FileEngine {
+    fn get(&self, root: &Path, path: &Path, _: &ViewData) -> ViewResult<String> {
+        self.get(root, path)
     }
 }
