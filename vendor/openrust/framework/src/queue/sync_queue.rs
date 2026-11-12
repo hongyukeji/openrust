@@ -41,8 +41,22 @@ impl SyncQueue {
                 .chain_update
                 .take()
                 .map_or_else(|| job.next_chain_job(), |update| Some(update.next));
-            if next.is_none() {
+            let Some(successor) = &next else {
                 return Ok(None);
+            };
+            if successor.chain_route.is_some() || successor.dispatch_options.is_some() {
+                let mut options = successor.chain_options(&self.name, &context.queue);
+                let manager = self.registry.manager()?;
+                let connection = manager.connection(options.connection.as_deref())?;
+                if connection.get_connection_name() != self.name {
+                    options.connection = Some(connection.get_connection_name().to_owned());
+                    let successor = next.take().expect("successor is present");
+                    manager
+                        .dispatch(successor, options, context.transaction())
+                        .await?;
+                    return Ok(None);
+                }
+                context.queue = queue_name(options.queue.as_deref(), "default")?.to_owned();
             }
         }
     }

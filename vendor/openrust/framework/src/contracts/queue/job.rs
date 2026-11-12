@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::queue::{JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueResult};
+use crate::queue::{Delay, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueResult};
 
 /// A single reservation of a queued job.
 pub trait Job: Send {
@@ -20,6 +20,18 @@ pub trait Job: Send {
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
     /// Atomically acknowledges this reservation and enqueues its successor.
     fn advance_chain<'a>(&'a mut self, _next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Err(QueueError::InvalidConfiguration) })
+    }
+    /// Acknowledges this reservation and enqueues its successor on the same connection.
+    fn advance_chain_to<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        if queue.is_none() && delay.is_none() {
+            return self.advance_chain(next);
+        }
         Box::pin(async { Err(QueueError::InvalidConfiguration) })
     }
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;

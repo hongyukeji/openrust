@@ -102,6 +102,7 @@ impl JobContext<'_> {
         }
         let mut next = prepend.pop_front().ok_or(QueueError::InvalidPayload)?;
         next.context.clone_from(&job.context);
+        next.chain_route.clone_from(&job.chain_route);
         self.chain_update = Some(ChainUpdate {
             added,
             next: next.with_chain(prepend, catches),

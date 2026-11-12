@@ -100,6 +100,20 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 在服务提供者的 `boot` 方法中用 `Bus::registerChainCallback` 按名称注册失败回调，再用 `catch("reports.failed")` 关联。Worker 在自己的应用内解析回调，并传入失败的任务载荷和队列错误。任务应保证副作用幂等，因为 Worker 丢失预约后可能再次执行任务。任务链回调没有独立的重试记录。
 
+### 任务链连接和队列 {#chain-connection-queue}
+
+用 `PendingChain::onConnection` 和 `onQueue` 设置任务链的默认目标。在任务载荷上调用同名方法可覆盖该任务的目标。后继任务仍使用链的默认值，除非它也设置了覆盖。后继任务的延迟从前项成功时开始计算。首任务的延迟优先于链构建器的延迟。
+
+```rust
+use openrust::queue::{Delay, Payload};
+
+fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
+    job.onConnection(connection).onQueue(queue).delay(delay)
+}
+```
+
+同连接内换队列时，Worker 原子交接。跨持久连接时，源 Worker 会在自己的队列中保存转发任务。保持源队列有 Worker 运行，目标恢复后可重试投递。在每个数据库目标执行 `./artisan migrate`，创建 `job_chain_deliveries`。SQL 和 Redis 保留投递凭据，重放时据此避免重复入队。持久队列中的任务链不能切换到 sync 后继。
+
 ### 向当前任务链添加任务 {#adding-jobs-to-the-chain}
 
 在任务处理器内，使用 `JobContext::prependToChain` 让新任务紧接当前任务执行，使用 `appendToChain` 将新任务放到现有链尾。处理器成功后修改生效。失败或释放会丢弃本次尝试的修改。

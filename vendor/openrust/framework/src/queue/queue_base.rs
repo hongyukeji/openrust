@@ -57,6 +57,14 @@ impl Queue {
         Ok(())
     }
 
+    pub(super) fn manager(&self) -> QueueResult<Arc<QueueManager>> {
+        self.owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)
+    }
+
     pub(super) async fn run_chain_catches(
         &self,
         job: &Payload,

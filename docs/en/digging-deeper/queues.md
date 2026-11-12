@@ -100,6 +100,20 @@ Use `onConnection` and `onQueue` to select the destination for the chain. `delay
 
 Register a failure callback by name in your provider’s `boot` method with `Bus::registerChainCallback`. Attach it with `catch("reports.failed")`. The worker resolves the callback in its application and passes the failed payload and queue error. Make job side effects idempotent because the worker can execute a job again after losing its reservation. Chain callbacks have no separate retry record.
 
+### Chain connection and queue {#chain-connection-queue}
+
+Set chain defaults with `PendingChain::onConnection` and `onQueue`. Use the corresponding methods on a job payload to override its own destination. The next job still uses the chain defaults unless it has an override. A payload delay starts when its predecessor succeeds. On the first job, its own delay takes precedence over the chain builder’s delay.
+
+```rust
+use openrust::queue::{Delay, Payload};
+
+fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
+    job.onConnection(connection).onQueue(queue).delay(delay)
+}
+```
+
+Workers move a successor to another queue on the same connection atomically. Between durable connections, the source worker records a forwarding job in its own queue. Keep a worker running on that queue so it can retry publication after an outage. Run `./artisan migrate` on each database destination to create `job_chain_deliveries`. SQL and Redis retain forwarding receipts to prevent duplicate enqueue on replay. A durable chain cannot switch to a sync successor.
+
 ### Adding jobs to the chain {#adding-jobs-to-the-chain}
 
 Inside a job handler, use `JobContext::prependToChain` to run a job immediately after the current job. Use `appendToChain` to place it after the existing chain. Edits take effect when the handler succeeds. A failed or released attempt discards its edits.

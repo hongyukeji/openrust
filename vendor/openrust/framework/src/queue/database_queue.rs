@@ -270,20 +270,45 @@ impl Reservation for DatabaseReservation {
     }
 
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>> {
-        Box::pin(async move { self.replace(self.raw.clone(), self.attempts, delay).await })
+        Box::pin(async move {
+            self.replace(
+                &self.queue,
+                self.raw.clone(),
+                self.attempts,
+                Delay::For(delay),
+            )
+            .await
+        })
     }
 
-    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
-        Box::pin(async move { self.replace(next.encode()?, 0, Duration::ZERO).await })
+    fn advance_chain<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            self.replace(
+                queue_name(queue, &self.queue)?,
+                next.encode()?,
+                0,
+                delay.unwrap_or(Delay::For(Duration::ZERO)),
+            )
+            .await
+        })
     }
 }
 
 impl DatabaseReservation {
-    async fn replace(&self, raw: String, attempts: u32, delay: Duration) -> QueueResult<()> {
+    async fn replace(
+        &self,
+        queue: &str,
+        raw: String,
+        attempts: u32,
+        delay: Delay,
+    ) -> QueueResult<()> {
         let (delete, delete_bindings) = self.driver.deletion(&self.id, self.attempts)?;
-        let (insert, insert_bindings) =
-            self.driver
-                .insert(&self.queue, raw, attempts, Delay::For(delay))?;
+        let (insert, insert_bindings) = self.driver.insert(queue, raw, attempts, delay)?;
         let mut transaction = self
             .driver
             .connection

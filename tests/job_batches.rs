@@ -63,6 +63,7 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             Queue::register("reports.generate", Arc::new(Probe))?;
             register_callbacks()?;
+            Queue::register("chain.routing", Arc::new(ChainRoutingProbe))?;
             Bus::registerChainCallback("chain.batch-failed", |job, error| {
                 Box::pin(async move {
                     assert!(matches!(error, QueueError::ChainedBatchFailed(_)));
@@ -538,6 +539,70 @@ async fn dispatch_chain_if(
     chain.dispatchIf(enabled).await
 }
 
+struct ChainRoutingProbe;
+
+impl JobHandler for ChainRoutingProbe {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let data = payload.data().as_str().unwrap();
+            let mut segments = data.split('.');
+            assert_eq!(context.connection(), segments.next().unwrap());
+            assert_eq!(context.queue(), segments.next().unwrap());
+            record_chain_receipt(data).await;
+            Ok(())
+        })
+    }
+}
+
+fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
+    job.onConnection(connection).onQueue(queue).delay(delay)
+}
+
+fn routed_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let source = request.route("source").unwrap();
+        let target = request.route("target").unwrap();
+        let kind = request.route("kind").unwrap();
+        let job = |connection, queue, step| {
+            Payload::new(
+                "chain.routing",
+                format!("{connection}.{queue}.{kind}-{step}"),
+            )
+        };
+        let selected = if kind == "delayed" {
+            Delay::For(Duration::from_secs(3600))
+        } else {
+            Delay::For(Duration::ZERO)
+        };
+        let middle = route_job(
+            job(target, "alternate", "middle")?,
+            target,
+            "alternate",
+            selected,
+        );
+        let chain = if kind == "head" {
+            Bus::chain([middle, job(source, "chain", "last")?])
+                .delay(Delay::For(Duration::from_secs(3600)))
+        } else {
+            Bus::chain([
+                job(source, "chain", "first")?,
+                middle,
+                job(source, "chain", "last")?,
+            ])
+        };
+        chain
+            .onConnection(source)
+            .onQueue("chain")
+            .dispatch()
+            .await?;
+        Response::json(StatusCode::OK, json!({}))
+    })
+}
+
 fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let connection = request.route("connection").unwrap();
@@ -606,6 +671,7 @@ fn routes(_: &Application) -> Result<Router, RoutingError> {
         "/batch/conditional/{connection}/{mode}/{flag}",
         conditional_chain_route,
     )?;
+    router.get("/batch/routed/{source}/{target}/{kind}", routed_chain_route)?;
     Ok(router)
 }
 
@@ -742,6 +808,7 @@ async fn exercise(mysql: Option<&str>) {
     let mut schema = db.getSchemaBuilder();
     for table in [
         "pending_ack_block",
+        "job_chain_deliveries",
         "job_batches_continuations",
         "job_batches_additions",
         "job_batches_outbox",
@@ -1087,6 +1154,11 @@ async fn exercise(mysql: Option<&str>) {
         verify_chain_redis_handoff(&redis, &queue, address).await;
         verify_chain_edits(&root.0, &db, address, "redis").await;
         verify_conditional_chain(&root.0, &db, &queue, address, "redis").await;
+        verify_cross_connection_routing(&root.0, &db, &queue, address, &redis, mysql.is_some())
+            .await;
+        verify_same_connection_routing(&root.0, &db, &queue, address, "redis").await;
+        let delayed = redis.key("queues:alternate:delayed");
+        redis.command("DEL", &[delayed.as_bytes()]).await.unwrap();
         verify_batched_chain_edit(&root.0, &db, address, "redis", None).await;
         verify_batched_chains(&root.0, &db, &queue, address, "redis").await;
         verify_chained_batches(&root.0, &db, &queue, address, "redis", "cross").await;
@@ -1123,6 +1195,8 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(skipped["state"], "skipped");
     request(address, "conditional/missing/if/on", 500).await;
     request(address, "conditional/database/invalid/on", 500).await;
+    verify_same_connection_routing(&root.0, &db, &queue, address, "database").await;
+    request(address, "routed/database/sync/invalid", 500).await;
     server.abort();
 }
 
@@ -1591,6 +1665,160 @@ async fn verify_chained_batch_recovery(
         chain_receipt(db, &format!("{connection}.recover-last")).await,
         1
     );
+}
+
+async fn verify_same_connection_routing(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    connection: &str,
+) {
+    let queue = manager.connection(Some(connection)).unwrap();
+    let first = ["queue:work", connection, "--queue=chain", "--once"];
+    let alternate = ["queue:work", connection, "--queue=alternate", "--once"];
+    request(
+        address,
+        &format!("routed/{connection}/{connection}/queue"),
+        200,
+    )
+    .await;
+    artisan(base, &first).await;
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+    assert_eq!(queue.size(Some("alternate")).await.unwrap(), 1);
+    artisan(base, &alternate).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.alternate.queue-middle")).await,
+        1
+    );
+    artisan(base, &first).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.chain.queue-last")).await,
+        1
+    );
+
+    request(
+        address,
+        &format!("routed/{connection}/{connection}/head"),
+        200,
+    )
+    .await;
+    assert_eq!(queue.size(Some("chain")).await.unwrap(), 0);
+    artisan(base, &alternate).await;
+    artisan(base, &first).await;
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.chain.head-last")).await,
+        1
+    );
+
+    request(
+        address,
+        &format!("routed/{connection}/{connection}/delayed"),
+        200,
+    )
+    .await;
+    artisan(base, &first).await;
+    assert_eq!(queue.size(Some("alternate")).await.unwrap(), 1);
+    assert!(queue.pop_now(Some("alternate")).await.unwrap().is_none());
+    assert_eq!(
+        chain_receipt(db, &format!("{connection}.chain.delayed-last")).await,
+        0
+    );
+    if connection == "database" {
+        db.statement("delete from jobs where queue = ?", &["alternate".into()])
+            .await
+            .unwrap();
+    }
+}
+
+async fn verify_cross_connection_routing(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    redis: &RedisConnection,
+    mysql: bool,
+) {
+    for (source, target) in [("database", "redis"), ("redis", "database")] {
+        let original = manager.connection(Some(source)).unwrap();
+        let destination = manager.connection(Some(target)).unwrap();
+        let first = ["queue:work", source, "--queue=chain", "--once"];
+        let alternate = ["queue:work", target, "--queue=alternate", "--once"];
+        request(address, &format!("routed/{source}/{target}/cross"), 200).await;
+        artisan(base, &first).await;
+        assert_eq!(original.size(Some("chain")).await.unwrap(), 1);
+        if target == "redis" {
+            let ready = redis.key("queues:alternate");
+            redis
+                .command("SET", &[ready.as_bytes(), b"wrong type"])
+                .await
+                .unwrap();
+            artisan_status(base, &first, 1).await;
+            assert_eq!(original.size(Some("chain")).await.unwrap(), 1);
+            redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
+            db.statement(
+                "update jobs set available_at = 0 where queue = ?",
+                &["chain".into()],
+            )
+            .await
+            .unwrap();
+            // A redelivery of the same forwarding envelope must not re-enqueue the job.
+            db.statement(
+                "insert into jobs (queue, payload, attempts, available_at, created_at) select queue, payload, 0, available_at, created_at from jobs where queue = ?",
+                &["chain".into()],
+            ).await.unwrap();
+        } else {
+            let ready = redis.key("queues:chain");
+            redis.command("EVAL", &[
+                b"local raw=redis.call('LINDEX', KEYS[1], 0); return redis.call('RPUSH', KEYS[1], raw)",
+                b"1",
+                ready.as_bytes(),
+            ]).await.unwrap();
+            let reject = if mysql {
+                r#"alter table jobs add constraint reject_forwarded_job check (payload not like '%"data":"database.alternate.cross-middle"%')"#
+            } else {
+                r#"create trigger reject_forwarded_job before insert on jobs when new.payload like '%"data":"database.alternate.cross-middle"%' begin select raise(abort, 'forwarding rejected'); end"#
+            };
+            db.unprepared(reject).await.unwrap();
+            let receipts = db.table("job_chain_deliveries").count("*").await.unwrap();
+            artisan_status(base, &first, 1).await;
+            assert_eq!(
+                db.table("job_chain_deliveries").count("*").await.unwrap(),
+                receipts
+            );
+            let allow = if mysql {
+                "alter table jobs drop check reject_forwarded_job"
+            } else {
+                "drop trigger reject_forwarded_job"
+            };
+            db.unprepared(allow).await.unwrap();
+            let delayed = redis.key("queues:chain:delayed");
+            redis.command("EVAL", &[
+                b"local rows=redis.call('ZRANGE', KEYS[1], 0, -1); for _, raw in ipairs(rows) do redis.call('ZADD', KEYS[1], 0, raw) end; return #rows",
+                b"1",
+                delayed.as_bytes(),
+            ]).await.unwrap();
+        }
+        artisan(base, &first).await;
+        artisan(base, &first).await;
+        assert_eq!(original.size(Some("chain")).await.unwrap(), 0);
+        assert_eq!(destination.size(Some("alternate")).await.unwrap(), 1);
+        artisan(base, &alternate).await;
+        artisan(base, &alternate).await;
+        artisan(base, &first).await;
+        assert_eq!(
+            chain_receipt(db, &format!("{source}.chain.cross-first")).await,
+            1
+        );
+        assert_eq!(
+            chain_receipt(db, &format!("{target}.alternate.cross-middle")).await,
+            1
+        );
+        assert_eq!(
+            chain_receipt(db, &format!("{source}.chain.cross-last")).await,
+            1
+        );
+    }
 }
 
 async fn verify_conditional_chain(

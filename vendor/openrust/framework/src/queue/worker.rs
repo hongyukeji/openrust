@@ -114,11 +114,27 @@ impl Worker {
     }
 
     async fn process(&self, job: &mut dyn Job, options: &WorkerOptions) -> QueueResult<WorkResult> {
+        if job.payload().chain_delivery.is_some() {
+            let manager = self
+                .app
+                .make::<QueueManager>()
+                .map_err(QueueError::Unavailable)?;
+            return match manager.forward_chain(job.payload()).await {
+                Ok(()) => {
+                    job.delete().await?;
+                    Ok(WorkResult::Processed)
+                }
+                Err(error) => {
+                    job.release(Duration::from_secs(1)).await?;
+                    Err(error)
+                }
+            };
+        }
         let batch = BatchCompletion::resolve(&self.app, job)?;
         if let Some(batch) = &batch
             && let Some(recorded) = batch.recorded().await?
         {
-            return Self::complete_recorded(job, recorded).await;
+            return self.complete_recorded(job, recorded).await;
         }
         if let Some(failed) = self.failed.find(job.uuid()).await?
             && failed.payload.delivery_id == job.payload().delivery_id
@@ -183,9 +199,9 @@ impl Worker {
                         .await?
                     && let Some(recorded) = batch.recorded().await?
                 {
-                    return Self::complete_recorded(job, recorded).await;
+                    return self.complete_recorded(job, recorded).await;
                 }
-                Self::complete(job, edit.map(|edit| edit.next)).await?;
+                self.complete(job, edit.map(|edit| edit.next)).await?;
                 Ok(WorkResult::Processed)
             }
             Err(error)
@@ -214,22 +230,32 @@ impl Worker {
     }
 
     async fn complete_recorded(
+        &self,
         job: &mut dyn Job,
         recorded: RecordedBatchJob,
     ) -> QueueResult<WorkResult> {
         if recorded.succeeded {
-            Self::complete(job, recorded.successor).await?;
+            self.complete(job, recorded.successor).await?;
             return Ok(WorkResult::Processed);
         }
         job.delete().await?;
         Ok(WorkResult::Failed)
     }
 
-    async fn complete(job: &mut dyn Job, edited_next: Option<Payload>) -> QueueResult<()> {
+    async fn complete(&self, job: &mut dyn Job, edited_next: Option<Payload>) -> QueueResult<()> {
         if job.payload().chained_batch.is_none()
             && let Some(next) = edited_next.or_else(|| job.payload().next_chain_job())
         {
-            return job.advance_chain(&next).await;
+            if next.chain_route.is_none() && next.dispatch_options.is_none() {
+                return job.advance_chain(&next).await;
+            }
+            let manager = self
+                .app
+                .make::<QueueManager>()
+                .map_err(QueueError::Unavailable)?;
+            let (next, queue, delay) =
+                manager.chain_successor(job.get_connection_name(), job.get_queue(), next)?;
+            return job.advance_chain_to(&next, queue.as_deref(), delay).await;
         }
         job.delete().await
     }

@@ -1,6 +1,7 @@
 //! Queue drivers, workers, and dispatch data.
 
 mod chain_edit;
+mod chain_routing;
 pub mod connectors;
 pub mod console;
 pub use chain_edit::ChainJob;
@@ -123,7 +124,7 @@ pub(super) fn backend(source: impl Error + Send + Sync + 'static) -> QueueError 
 }
 
 /// A relative delay or absolute time before a job becomes available.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Delay {
     For(Duration),
     Until(SystemTime),
@@ -161,6 +162,12 @@ pub struct Payload {
     chain: Option<JobChain>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) chained_batch: Option<Box<crate::bus::ChainedBatch>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dispatch_options: Option<Box<chain_routing::JobDispatch>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chain_route: Option<Box<chain_routing::ChainRoute>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    chain_delivery: Option<Box<chain_routing::ChainDelivery>>,
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
@@ -186,6 +193,9 @@ impl Payload {
             batch_id: None,
             chain: None,
             chained_batch: None,
+            dispatch_options: None,
+            chain_route: None,
+            chain_delivery: None,
         })
     }
 
@@ -235,7 +245,10 @@ impl Payload {
     }
 
     pub(crate) fn is_unattached(&self) -> bool {
-        self.chain.is_none() && self.batch_id.is_none()
+        self.chain.is_none()
+            && self.batch_id.is_none()
+            && self.chain_delivery.is_none()
+            && self.chain_route.is_none()
     }
 
     pub(crate) fn with_chain(
@@ -256,6 +269,7 @@ impl Payload {
         } = self.chain.clone()?;
         let mut next = remaining.pop_front()?;
         next.context.clone_from(&self.context);
+        next.chain_route.clone_from(&self.chain_route);
         Some(next.with_chain(remaining, catches))
     }
 

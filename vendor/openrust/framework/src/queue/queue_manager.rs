@@ -40,6 +40,7 @@ pub struct QueueManager {
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
     after_commit: bool,
+    default_queue: String,
     batch_backend: BatchBackend,
 }
 
@@ -304,6 +305,103 @@ impl QueueManager {
         }
     }
 
+    pub(crate) fn validate_chain_routes<'a>(
+        &self,
+        jobs: impl IntoIterator<Item = &'a Payload>,
+        options: &DispatchOptions,
+    ) -> QueueResult<()> {
+        let mut previous_was_durable = false;
+        for job in jobs {
+            let destination = job.first_chain_options(DispatchOptions {
+                connection: options.connection.clone(),
+                queue: options.queue.clone(),
+                ..Default::default()
+            });
+            let configured = self.resolve(destination.connection.as_deref())?;
+            configured.queue_name(destination.queue.as_deref())?;
+            let durable = !matches!(configured.batch_backend, BatchBackend::Unsupported);
+            if previous_was_durable && !durable {
+                return Err(QueueError::InvalidConfiguration);
+            }
+            previous_was_durable = durable;
+        }
+        Ok(())
+    }
+
+    pub(super) fn chain_successor(
+        &self,
+        source: &str,
+        source_queue: &str,
+        next: Payload,
+    ) -> QueueResult<(Payload, Option<String>, Option<super::Delay>)> {
+        if next.chain_route.is_none() && next.dispatch_options.is_none() {
+            return Ok((next, None, None));
+        }
+        let options = next.chain_options(source, source_queue);
+        let target = self.resolve(options.connection.as_deref())?;
+        let target_name = target.queue.get_connection_name();
+        let queue = target.queue_name(options.queue.as_deref())?;
+        if target_name == source {
+            let queue = (queue != source_queue).then(|| queue.to_owned());
+            return Ok((next, queue, options.delay));
+        }
+        if matches!(target.batch_backend, BatchBackend::Unsupported) {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        Ok((
+            next.chain_delivery(options, target_name.to_owned())?,
+            None,
+            None,
+        ))
+    }
+
+    pub(super) async fn forward_chain(&self, relay: &Payload) -> QueueResult<()> {
+        let delivery = relay
+            .chain_delivery
+            .as_deref()
+            .ok_or(QueueError::InvalidPayload)?;
+        let target = self.resolve(Some(&delivery.connection))?;
+        match &target.batch_backend {
+            BatchBackend::Redis(redis) => {
+                redis
+                    .forward_chain(
+                        relay.uuid(),
+                        &delivery.job,
+                        delivery.queue.as_deref(),
+                        delivery.delay,
+                    )
+                    .await
+            }
+            BatchBackend::Database(connection) => {
+                let mut transaction = connection.beginTransaction().await.map_err(backend)?;
+                let marker = [("id".into(), relay.uuid().into())].into_iter().collect();
+                match transaction
+                    .table("job_chain_deliveries")
+                    .insert(&[marker])
+                    .await
+                {
+                    Ok(_) => {}
+                    Err(error) if is_duplicate(&error) => {
+                        transaction.rollBack(None).await.map_err(backend)?;
+                        return Ok(());
+                    }
+                    Err(error) => return Err(backend(error)),
+                }
+                target
+                    .queue
+                    .push_in_transaction(
+                        &delivery.job,
+                        delivery.queue.as_deref(),
+                        delivery.delay,
+                        &mut transaction,
+                    )
+                    .await?;
+                transaction.commit().await.map_err(backend)
+            }
+            BatchBackend::Unsupported => Err(QueueError::InvalidConfiguration),
+        }
+    }
+
     pub(crate) fn validate_chained_batches<'a>(
         &self,
         jobs: impl IntoIterator<Item = &'a Payload>,
@@ -349,11 +447,32 @@ impl QueueManager {
             .as_deref()
             .ok_or(QueueError::InvalidPayload)?;
         let options = spec.options(connection, queue);
+        let next = match payload.next_chain_job() {
+            Some(next) => {
+                let (next, target_queue, delay) = self.chain_successor(connection, queue, next)?;
+                // The batch publication writes to the wrapper's queue. Preserve a different
+                // queue or delay with the same durable forwarding step used across connections.
+                let next = if target_queue.is_some() || !super::chain_routing::no_delay(delay) {
+                    next.chain_delivery(
+                        DispatchOptions {
+                            queue: target_queue.or_else(|| Some(queue.to_owned())),
+                            delay,
+                            ..Default::default()
+                        },
+                        connection.to_owned(),
+                    )?
+                } else {
+                    next
+                };
+                Some(next)
+            }
+            None => None,
+        };
         let continuation = BatchContinuation {
             id: payload.uuid().to_owned(),
             connection: connection.to_owned(),
             queue: queue.to_owned(),
-            next: payload.next_chain_job(),
+            next,
             catches: payload.chain_catches().to_vec(),
         };
         self.dispatch_batch_definition(
@@ -668,6 +787,7 @@ impl QueueManager {
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
+            default_queue: settings.queue.clone().unwrap_or_else(|| "default".into()),
             batch_backend,
         });
         connections.insert(name.into(), configured.clone());
@@ -751,15 +871,26 @@ impl Factory for QueueManager {
     }
 }
 
+impl ConfiguredQueue {
+    fn queue_name<'a>(&'a self, selected: Option<&'a str>) -> QueueResult<&'a str> {
+        match &self.batch_backend {
+            BatchBackend::Redis(redis) => redis.queue_name(selected),
+            _ => queue_name(selected, &self.default_queue),
+        }
+    }
+}
+
+fn is_duplicate(error: &DatabaseError) -> bool {
+    matches!(error, DatabaseError::Driver { source: sqlx::Error::Database(error), .. } if error.is_unique_violation())
+}
+
 fn is_duplicate_batch(error: &QueueError) -> bool {
     let QueueError::Backend { source } = error else {
         return false;
     };
-    matches!(
-        source.downcast_ref::<DatabaseError>(),
-        Some(DatabaseError::Driver { source: sqlx::Error::Database(error), .. })
-            if error.is_unique_violation()
-    )
+    source
+        .downcast_ref::<DatabaseError>()
+        .is_some_and(is_duplicate)
 }
 
 fn prepare_batch_jobs(jobs: &mut [BatchJob], renew: bool) -> QueueResult<u32> {

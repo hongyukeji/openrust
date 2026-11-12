@@ -100,6 +100,20 @@ fn report_chain(prepare: Payload, generate: Payload, publish: Payload) -> Pendin
 
 在服務提供者的 `boot` 方法中以 `Bus::registerChainCallback` 按名稱註冊失敗回呼，再以 `catch("reports.failed")` 關聯。Worker 在自己的應用程式內解析回呼，並傳入失敗的工作承載資料和佇列錯誤。工作應確保副作用具冪等性，因為 Worker 遺失預約後可能再次執行工作。工作鏈回呼沒有獨立的重試紀錄。
 
+### 工作鏈連線和佇列 {#chain-connection-queue}
+
+使用 `PendingChain::onConnection` 和 `onQueue` 設定工作鏈的預設目標。在工作承載資料上呼叫同名方法可覆寫該工作的目標。後續工作仍使用鏈的預設值，除非它也設定了覆寫。後續工作的延遲從前一項成功時開始計算。第一個工作的延遲優先於鏈建構器的延遲。
+
+```rust
+use openrust::queue::{Delay, Payload};
+
+fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Payload {
+    job.onConnection(connection).onQueue(queue).delay(delay)
+}
+```
+
+同一連線內切換佇列時，Worker 原子交接。跨持久連線時，來源 Worker 會在自己的佇列中儲存轉送工作。保持來源佇列有 Worker 執行，目標恢復後可重試派送。在每個資料庫目標執行 `./artisan migrate`，建立 `job_chain_deliveries`。SQL 和 Redis 保留派送憑據，重放時據此避免重複入列。持久佇列中的工作鏈不能切換到 sync 後續工作。
+
 ### 向目前工作鏈加入工作 {#adding-jobs-to-the-chain}
 
 在工作處理器內，使用 `JobContext::prependToChain` 讓新工作緊接目前工作執行，使用 `appendToChain` 將新工作放到現有鏈尾。處理器成功後變更生效。失敗或釋放會捨棄本次嘗試的變更。

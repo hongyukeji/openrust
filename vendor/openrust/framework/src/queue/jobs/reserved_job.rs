@@ -2,10 +2,17 @@ use std::{sync::Arc, time::Duration};
 
 use crate::contracts::queue::Job;
 
-use super::super::{JobContext, JobOptions, Payload, Queue, QueueError, QueueFuture, QueueResult};
+use super::super::{
+    Delay, JobContext, JobOptions, Payload, Queue, QueueError, QueueFuture, QueueResult,
+};
 
 pub(in crate::queue) trait Reservation: Send {
-    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>>;
+    fn advance_chain<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>>;
     fn delete(&mut self) -> QueueFuture<'_, QueueResult<()>>;
     fn release(&mut self, delay: Duration) -> QueueFuture<'_, QueueResult<()>>;
 }
@@ -68,11 +75,20 @@ impl Job for ReservedJob {
     }
 
     fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+        self.advance_chain_to(next, None, None)
+    }
+
+    fn advance_chain_to<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             if self.deleted || self.released {
                 return Err(QueueError::LostReservation);
             }
-            self.storage.advance_chain(next).await?;
+            self.storage.advance_chain(next, queue, delay).await?;
             self.deleted = true;
             Ok(())
         })

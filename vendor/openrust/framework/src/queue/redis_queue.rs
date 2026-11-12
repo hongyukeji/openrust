@@ -81,19 +81,34 @@ redis.call('ZADD', KEYS[2], now + tonumber(ARGV[2]), ARGV[1])
 return redis.call('ZREM', KEYS[1], ARGV[1])
 ";
 
-const ADVANCE_CHAIN: &str = r"
-local expires = redis.call('ZSCORE', KEYS[1], ARGV[1])
-if not expires or tonumber(expires) <= now then return 0 end
-for i = 2, 3 do
-    local kind = redis.call('TYPE', KEYS[i]).ok
-    if kind ~= 'none' and kind ~= 'list' then
+const CHAIN_ENQUEUE: &str = r"
+local available = tonumber(ARGV[3])
+if ARGV[4] == 'relative' then available = now + available end
+local function check_type(key, expected)
+    local kind = redis.call('TYPE', key).ok
+    return kind == 'none' or kind == expected
+end
+if available <= now then
+    if not check_type(KEYS[2], 'list') or not check_type(KEYS[4], 'list') then
         return redis.error_reply('Invalid chain queue key type')
     end
+    redis.call('RPUSH', KEYS[2], ARGV[2])
+    redis.call('RPUSH', KEYS[4], 1)
+else
+    if not check_type(KEYS[3], 'zset') then
+        return redis.error_reply('Invalid delayed queue key type')
+    end
+    redis.call('ZADD', KEYS[3], available, ARGV[2])
 end
-redis.call('RPUSH', KEYS[2], ARGV[2])
-redis.call('RPUSH', KEYS[3], 1)
-return redis.call('ZREM', KEYS[1], ARGV[1])
 ";
+
+const ADVANCE_CHAIN_START: &str = r"
+local expires = redis.call('ZSCORE', KEYS[1], ARGV[1])
+if not expires or tonumber(expires) <= now then return 0 end
+";
+const ADVANCE_CHAIN_END: &str = "return redis.call('ZREM', KEYS[1], ARGV[1])";
+const FORWARD_CHAIN_START: &str = "if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end\n";
+const FORWARD_CHAIN_END: &str = "redis.call('SET', KEYS[1], 1); return 1";
 
 const SIZE: &str = r"
 return redis.call('LLEN', KEYS[1]) + redis.call('ZCARD', KEYS[2]) + redis.call('ZCARD', KEYS[3])
@@ -189,6 +204,33 @@ impl RedisQueue {
             };
             command.arg(serde_json::to_string(&job).map_err(|_| QueueError::InvalidPayload)?);
         }
+        self.connection
+            .query::<u32>(&command)
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    pub(super) async fn forward_chain(
+        &self,
+        delivery: &str,
+        payload: &Payload,
+        queue: Option<&str>,
+        delay: Option<Delay>,
+    ) -> QueueResult<()> {
+        let [ready, delayed, _] = self.keys(self.queue_name(queue)?);
+        let notify = format!("{ready}:notify");
+        let marker = self
+            .connection
+            .key(&format!("queue-chain-delivery:{delivery}"));
+        let command = chain_enqueue_command(
+            FORWARD_CHAIN_START,
+            FORWARD_CHAIN_END,
+            [&marker, &ready, &delayed, &notify],
+            delivery,
+            payload,
+            delay,
+        )?;
         self.connection
             .query::<u32>(&command)
             .await
@@ -362,17 +404,27 @@ impl RedisReservation {
 }
 
 impl Reservation for RedisReservation {
-    fn advance_chain<'a>(&'a mut self, next: &'a Payload) -> QueueFuture<'a, QueueResult<()>> {
+    fn advance_chain<'a>(
+        &'a mut self,
+        next: &'a Payload,
+        queue: Option<&'a str>,
+        delay: Option<Delay>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
-            let raw = serde_json::to_string(&RedisJob {
-                id: new_id()?,
-                payload: next.encode()?,
-                attempts: 0,
-            })
-            .map_err(|_| QueueError::InvalidPayload)?;
-            let notify = format!("{}:notify", self.ready);
-            let mut command = script(ADVANCE_CHAIN, &[&self.reserved, &self.ready, &notify]);
-            command.arg(&self.raw).arg(raw);
+            let ready = queue.map_or_else(
+                || self.ready.clone(),
+                |queue| self.connection.key(&format!("queues:{queue}")),
+            );
+            let delayed = format!("{ready}:delayed");
+            let notify = format!("{ready}:notify");
+            let command = chain_enqueue_command(
+                ADVANCE_CHAIN_START,
+                ADVANCE_CHAIN_END,
+                [&self.reserved, &ready, &delayed, &notify],
+                &self.raw,
+                next,
+                delay,
+            )?;
             self.run(command).await
         })
     }
@@ -392,6 +444,36 @@ impl Reservation for RedisReservation {
             self.run(command).await
         })
     }
+}
+
+fn chain_enqueue_command(
+    before: &str,
+    after: &str,
+    keys: [&str; 4],
+    reservation: &str,
+    payload: &Payload,
+    delay: Option<Delay>,
+) -> QueueResult<::redis::Cmd> {
+    let raw = serde_json::to_string(&RedisJob {
+        id: new_id()?,
+        payload: payload.encode()?,
+        attempts: 0,
+    })
+    .map_err(|_| QueueError::InvalidPayload)?;
+    let (mode, duration) = match delay.unwrap_or(Delay::For(Duration::ZERO)) {
+        Delay::For(duration) => ("relative", duration),
+        Delay::Until(time) => (
+            "absolute",
+            time.duration_since(UNIX_EPOCH).unwrap_or_default(),
+        ),
+    };
+    let mut command = script(&format!("{before}{CHAIN_ENQUEUE}{after}"), &keys);
+    command
+        .arg(reservation)
+        .arg(raw)
+        .arg(milliseconds(duration)?)
+        .arg(mode);
+    Ok(command)
 }
 
 fn script(body: &str, keys: &[&str]) -> ::redis::Cmd {

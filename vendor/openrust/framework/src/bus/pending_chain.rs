@@ -116,13 +116,16 @@ impl PendingChain {
             return Err(QueueError::InvalidPayload);
         }
         let queue = Queue::manager()?;
+        queue.validate_chain_routes(&self.jobs, &self.options)?;
         queue.validate_chained_batches(&self.jobs, &self.options)?;
         let head = self.jobs.pop_front().ok_or(QueueError::InvalidPayload)?;
         for name in &self.catches {
             queue.chain_callback(name)?;
         }
-        queue
-            .dispatch(head.with_chain(self.jobs, self.catches), self.options, None)
-            .await
+        let head = head
+            .with_chain_route(&self.options)
+            .with_chain(self.jobs, self.catches);
+        let options = head.first_chain_options(self.options);
+        queue.dispatch(head, options, None).await
     }
 }

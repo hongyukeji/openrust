@@ -30,6 +30,9 @@ mod create_job_batches_continuations_table;
 #[path = "0001_01_01_000009_add_chain_successor_to_job_batches_jobs.rs"]
 mod add_chain_successor_to_job_batches_jobs;
 
+#[path = "0001_01_01_000010_create_job_chain_deliveries_table.rs"]
+mod create_job_chain_deliveries_table;
+
 pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000000_create_users_table.rs",
@@ -70,5 +73,9 @@ pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000009_add_chain_successor_to_job_batches_jobs.rs",
         &add_chain_successor_to_job_batches_jobs::Definition,
+    ),
+    MigrationEntry::new(
+        "database/migrations/0001_01_01_000010_create_job_chain_deliveries_table.rs",
+        &create_job_chain_deliveries_table::Definition,
     ),
 ];
