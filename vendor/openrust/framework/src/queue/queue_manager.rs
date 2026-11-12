@@ -201,6 +201,11 @@ impl QueueManager {
         Ok(())
     }
 
+    pub(super) fn observes_worker_event(&self, name: &str) -> QueueResult<bool> {
+        let (_, dispatcher) = self.worker_dispatcher()?;
+        Ok(dispatcher.observes(name))
+    }
+
     pub(super) fn job_popped_event(
         &self,
         connection: &str,
