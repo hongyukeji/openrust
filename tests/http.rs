@@ -1,10 +1,13 @@
 use std::sync::{Arc, Mutex};
 
 use openrust::{
-    contracts::http::{Kernel as _, Middleware},
+    contracts::{
+        http::{Kernel as _, Middleware},
+        routing::Registrar as _,
+    },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
-    routing::{MiddlewareEntry, Router},
+    routing::{MiddlewareEntry, RouteGroup, Router},
 };
 
 type Trace = Arc<Mutex<Vec<(&'static str, bool)>>>;
@@ -35,6 +38,21 @@ impl Middleware for Record {
 
 fn record(name: &'static str) -> Arc<Record> {
     Arc::new(Record { name, stop: false })
+}
+
+fn read_parameter(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        request
+            .parts()
+            .extensions
+            .get::<Trace>()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push(("handler", true));
+        let value = request.route("name").unwrap();
+        Ok(Response::new(StatusCode::OK, Body::from(value.to_owned())))
+    })
 }
 
 fn explicit(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -272,4 +290,504 @@ async fn api_prefix_can_be_overridden_without_changing_the_middleware_group() {
             StatusCode::NOT_FOUND
         );
     }
+}
+
+async fn kernel() -> Kernel {
+    let application = Application::configure(std::env::current_dir().unwrap())
+        .withMiddleware(|middleware| {
+            middleware
+                .append(record("appended"))
+                .prepend(record("prepended"));
+        })
+        .withRouting(Routing::new(|_| {
+            let mut router = Router::new();
+            router.group(
+                RouteGroup::new()
+                    .prefix("/api/")
+                    .middleware(record("outer")),
+                |router| {
+                    router.group(
+                        RouteGroup::new().prefix("v1").middleware(record("inner")),
+                        |router| {
+                            router
+                                .get("/users/{name}", read_parameter)?
+                                .middleware(record("route"));
+                            router
+                                .get("/blocked/{name}", read_parameter)?
+                                .middleware(Arc::new(Record {
+                                    name: "block",
+                                    stop: true,
+                                }))
+                                .middleware(record("unreached"));
+                            router.add_route(
+                                &[Method::POST],
+                                "/users/{name}",
+                                Arc::new(explicit),
+                            )?;
+                            router.add_route(
+                                &[Method::OPTIONS],
+                                "/explicit",
+                                Arc::new(explicit),
+                            )?;
+                            Ok(())
+                        },
+                    )
+                },
+            )?;
+            router.get("/outside/{name}", read_parameter)?;
+            Ok(router)
+        }))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(application);
+    kernel.bootstrap().await.unwrap();
+    kernel
+}
+
+#[tokio::test]
+async fn decodes_parameters_and_runs_nested_middleware_in_order() {
+    let kernel = kernel().await;
+    let (mut request, trace) = request(Method::GET, "/api/v1/users/caf%C3%A9+tea/?ignored=yes");
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(request.route("name"), Some("café+tea"));
+    assert_eq!(request.route("ignored"), None);
+    let body = axum::body::to_bytes(response.into_parts().1, 1024)
+        .await
+        .unwrap();
+    assert_eq!(&body[..], "café+tea".as_bytes());
+    assert_eq!(
+        *trace.lock().unwrap(),
+        [
+            ("prepended", true),
+            ("appended", true),
+            ("outer", true),
+            ("inner", true),
+            ("route", true),
+            ("handler", true),
+            ("route", false),
+            ("inner", false),
+            ("outer", false),
+            ("appended", false),
+            ("prepended", false),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn route_middleware_can_short_circuit_and_group_scope_ends() {
+    let kernel = kernel().await;
+    let (mut blocked, trace) = request(Method::GET, "/api/v1/blocked/alice");
+    assert_eq!(
+        kernel.handle(&mut blocked).await.status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        *trace.lock().unwrap(),
+        [
+            ("prepended", true),
+            ("appended", true),
+            ("outer", true),
+            ("inner", true),
+            ("block", true),
+            ("inner", false),
+            ("outer", false),
+            ("appended", false),
+            ("prepended", false),
+        ]
+    );
+
+    let (mut outside, trace) = request(Method::GET, "/outside/alice");
+    assert_eq!(kernel.handle(&mut outside).await.status(), StatusCode::OK);
+    assert_eq!(
+        *trace.lock().unwrap(),
+        [
+            ("prepended", true),
+            ("appended", true),
+            ("handler", true),
+            ("appended", false),
+            ("prepended", false),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn reports_missing_routes_and_available_methods_through_global_middleware() {
+    let kernel = kernel().await;
+    for (method, path, expected, allow) in [
+        (Method::POST, "/missing", StatusCode::NOT_FOUND, None),
+        (
+            Method::GET,
+            "/api/v1/users/alice%2Fbob",
+            StatusCode::NOT_FOUND,
+            None,
+        ),
+        (
+            Method::GET,
+            "/api/v1/users/%FF",
+            StatusCode::BAD_REQUEST,
+            None,
+        ),
+        (
+            Method::DELETE,
+            "/api/v1/users/alice",
+            StatusCode::METHOD_NOT_ALLOWED,
+            Some("GET, HEAD, POST"),
+        ),
+        (
+            Method::OPTIONS,
+            "/api/v1/users/alice",
+            StatusCode::OK,
+            Some("GET,HEAD,POST"),
+        ),
+    ] {
+        let (mut request, trace) = request(method, path);
+        let response = kernel.handle(&mut request).await;
+        assert_eq!(response.status(), expected, "{path}");
+        assert_eq!(
+            response
+                .headers()
+                .get("allow")
+                .map(|value| value.to_str().unwrap()),
+            allow
+        );
+        assert_eq!(
+            *trace.lock().unwrap(),
+            [
+                ("prepended", true),
+                ("appended", true),
+                ("appended", false),
+                ("prepended", false),
+            ]
+        );
+    }
+    let (mut request, _) = request(Method::OPTIONS, "/api/v1/explicit");
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    assert!(response.headers().get("allow").is_none());
+}
+
+#[tokio::test]
+async fn head_runs_the_get_handler_and_suppresses_the_body() {
+    let kernel = kernel().await;
+    let (mut request, trace) = request(Method::HEAD, "/outside/alice");
+    let response = kernel.handle(&mut request).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["content-length"], "5");
+    assert!(
+        axum::body::to_bytes(response.into_parts().1, 1024)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(trace.lock().unwrap().contains(&("handler", true)));
+}
+
+#[tokio::test]
+async fn registration_order_and_per_method_replacement_are_preserved() {
+    let mut router = Router::new();
+    router.get("/items/{name}", read_parameter).unwrap();
+    router.get("/items/special", explicit).unwrap();
+    router
+        .add_route(
+            &[Method::GET, Method::GET],
+            "/items/{name}",
+            Arc::new(explicit),
+        )
+        .unwrap();
+    router
+        .get("/items/{name?}/{name?}", explicit)
+        .err()
+        .expect("reject duplicate optional parameter");
+
+    let (mut get, _) = request(Method::GET, "/items/special");
+    assert_eq!(
+        router.dispatch(&mut get).await.unwrap().status(),
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(get.route("name"), Some("special"));
+
+    let (mut head, trace) = request(Method::HEAD, "/items/special");
+    assert_eq!(
+        router.dispatch(&mut head).await.unwrap().status(),
+        StatusCode::OK
+    );
+    assert!(trace.lock().unwrap().contains(&("handler", true)));
+}
+
+struct Ranked<const ID: u8>(Record);
+
+impl<const ID: u8> Middleware for Ranked<ID> {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        self.0.handle(request, next)
+    }
+}
+
+fn ranked<const ID: u8>(name: &'static str, stop: bool) -> Arc<Ranked<ID>> {
+    Arc::new(Ranked(Record { name, stop }))
+}
+
+fn show_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        request
+            .parts()
+            .extensions
+            .get::<Trace>()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .push(("handler", true));
+        let body = ["id", "tab", "path"]
+            .map(|name| request.route(name).unwrap_or("-"))
+            .join("|");
+        Ok(Response::new(StatusCode::OK, Body::from(body)))
+    })
+}
+
+async fn network_kernel() -> Kernel {
+    use openrust::routing::MiddlewareEntry;
+    use std::any::TypeId;
+
+    let app = Application::configure(std::env::current_dir().unwrap())
+        .withMiddleware(|middleware| {
+            middleware.append(ranked::<2>("global", false));
+            middleware.alias("late", ranked::<2>("late", false));
+            middleware.alias("stop", ranked::<1>("stop", true));
+            middleware.group(
+                "inner",
+                [
+                    MiddlewareEntry::named("late"),
+                    MiddlewareEntry::Instance(record("unranked-a")),
+                ],
+            );
+            middleware.group(
+                "outer",
+                [
+                    MiddlewareEntry::named("inner"),
+                    MiddlewareEntry::Instance(record("unranked-b")),
+                ],
+            );
+            middleware.priority([
+                TypeId::of::<Ranked<0>>(),
+                TypeId::of::<Ranked<1>>(),
+                TypeId::of::<Ranked<2>>(),
+            ]);
+        })
+        .withRouting(Routing::new(|_| {
+            let mut router = Router::new();
+            router.pattern("id", "^[0-9]+$")?;
+            router.group(
+                RouteGroup::new()
+                    .prefix("profiles")
+                    .middleware_name("outer"),
+                |router| {
+                    router
+                        .get("/{id?}/{tab?}", show_route)?
+                        .defaults("tab", "overview")
+                        .where_in("tab", &["activity", "settings"])?
+                        .middleware_name("late")
+                        .middleware(ranked::<0>("first", false));
+                    router
+                        .get("/blocked/{id?}", show_route)?
+                        .middleware_name("stop")
+                        .middleware(ranked::<0>("first", false));
+                    Ok(())
+                },
+            )?;
+            router
+                .get("/format/{id}.{tab?}", show_route)?
+                .where_alpha("id")?
+                .where_alpha_numeric("tab")?;
+            router
+                .get("/files/{path?}", show_route)?
+                .r#where("path", ".*")?;
+            router.get("/choice/{id}", show_route)?;
+            router
+                .get("/choice/{path}", show_route)?
+                .where_alpha("path")?;
+            router
+                .add_route(&[Method::POST], "/choice/{path}", Arc::new(explicit))?
+                .where_alpha("path")?;
+            router.get("/fixed/{id?}/end", show_route)?;
+            router.get("/uuid/{id}", show_route)?.where_uuid("id")?;
+            router.get("/ulid/{id}", show_route)?.where_ulid("id")?;
+            router.get("/{id?}", show_route)?.where_number("id")?;
+            Ok(router)
+        }))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    kernel
+}
+
+async fn network_handler(
+    axum::extract::State(kernel): axum::extract::State<Arc<Kernel>>,
+    request: axum::extract::Request,
+) -> axum::response::Response {
+    let trace = Trace::default();
+    let (mut parts, body) = request.into_parts();
+    parts.extensions.insert(trace.clone());
+    let mut request = Request::from_parts(parts, body);
+    let (mut parts, body) = kernel.handle(&mut request).await.into_parts();
+    let events = trace
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(name, enter)| {
+            if *enter {
+                format!("+{name}")
+            } else {
+                format!("-{name}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    parts.headers.insert("x-trace", events.parse().unwrap());
+    axum::response::Response::from_parts(parts, body)
+}
+
+#[tokio::test]
+async fn real_http_requests_cover_optional_constraints_and_named_middleware_priority() {
+    use axum::handler::Handler as _;
+    use std::{
+        io::{Read as _, Write as _},
+        net::TcpStream,
+        time::Duration,
+    };
+
+    let kernel = network_kernel().await;
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = network_handler
+        .with_state(Arc::new(kernel))
+        .into_make_service();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+
+    tokio::task::spawn_blocking(move || {
+        let send = |method: &str, path: &str| {
+            let timeout = Duration::from_secs(5);
+            let mut socket = TcpStream::connect_timeout(&address, timeout).unwrap();
+            socket.set_read_timeout(Some(timeout)).unwrap();
+            socket.set_write_timeout(Some(timeout)).unwrap();
+            write!(socket, "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n").unwrap();
+            let mut response = String::new();
+            socket.read_to_string(&mut response).unwrap();
+            response
+        };
+        for (path, expected) in [
+            ("/", "-|-|-"),
+            ("/007", "007|-|-"),
+            ("/profiles", "-|overview|-"),
+            ("/profiles/7", "7|overview|-"),
+            ("/profiles/%37/activity/?tab=ignored", "7|activity|-"),
+            ("/format/Html", "Html|-|-"),
+            ("/format/Html.v2", "Html|v2|-"),
+            ("/choice/7", "7|-|-"),
+            ("/choice/guest", "-|-|guest"),
+            ("/fixed/3/end", "3|-|-"),
+            ("/files/a%2Fb", "-|-|a/b"),
+            ("/uuid/550e8400-e29b-41d4-a716-446655440000", "550e8400-e29b-41d4-a716-446655440000|-|-"),
+            ("/ulid/01ARZ3NDEKTSV4RRFFQ69G5FAV", "01ARZ3NDEKTSV4RRFFQ69G5FAV|-|-"),
+        ] {
+            let response = send("GET", path);
+            assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
+            assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected, "{path}");
+        }
+        for path in ["/profiles/nope", "/profiles/activity", "/profiles/7/unknown", "/profiles/7/overview", "/fixed/end", "/format/Html.v_2", "/uuid/7", "/ulid/81ARZ3NDEKTSV4RRFFQ69G5FAV"] {
+            assert!(send("GET", path).starts_with("HTTP/1.1 404 "), "{path}");
+            let response = send("POST", path);
+            assert!(response.starts_with("HTTP/1.1 404 "), "{path}: {response}");
+            assert!(!response.contains("\r\nallow:"));
+        }
+
+        let response = send("GET", "/profiles/7");
+        assert!(response.contains("\r\nx-trace: +global,+first,+late,+unranked-a,+unranked-b,+handler,-unranked-b,-unranked-a,-late,-first,-global\r\n"), "{response}");
+        let response = send("GET", "/profiles/blocked/7");
+        assert!(response.starts_with("HTTP/1.1 403 "), "{response}");
+        assert!(response.contains("\r\nx-trace: +global,+first,+stop,-first,-global\r\n"), "{response}");
+
+        let response = send("POST", "/profiles/7");
+        assert!(response.starts_with("HTTP/1.1 405 "), "{response}");
+        assert!(response.contains("\r\nallow: GET, HEAD\r\n"), "{response}");
+        assert!(response.contains("\r\nx-trace: +global,-global\r\n"), "{response}");
+        for (path, allow) in [("/choice/7", "GET, HEAD"), ("/choice/guest", "GET, HEAD, POST")] {
+            let response = send("DELETE", path);
+            assert!(response.starts_with("HTTP/1.1 405 "), "{response}");
+            assert!(response.contains(&format!("\r\nallow: {allow}\r\n")), "{response}");
+        }
+        let response = send("OPTIONS", "/profiles");
+        assert!(response.starts_with("HTTP/1.1 200 "), "{response}");
+        assert!(response.contains("\r\nallow: GET,HEAD\r\n"), "{response}");
+    }).await.unwrap();
+    server.abort();
+    assert!(server.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn middleware_configuration_errors_fail_before_serving() {
+    use openrust::{
+        foundation::BootstrapError,
+        routing::{MiddlewareEntry, RoutingError},
+    };
+
+    let routing = || {
+        Routing::new(|_| {
+            let mut router = Router::new();
+            router.get("/", explicit)?.middleware_name("outer");
+            Ok(router)
+        })
+    };
+
+    let configure =
+        || Application::configure(std::env::current_dir().unwrap()).withRouting(routing());
+    let missing = configure()
+        .withMiddleware(|middleware| {
+            middleware.group("outer", [MiddlewareEntry::named("missing")]);
+        })
+        .create()
+        .unwrap();
+    assert!(
+        matches!(Kernel::new(missing).bootstrap().await, Err(BootstrapError::RoutingFailed {
+        source: RoutingError::UnknownMiddleware { name }
+    }) if name == "missing")
+    );
+
+    let cyclic = configure()
+        .withMiddleware(|middleware| {
+            middleware.group("outer", [MiddlewareEntry::named("inner")]);
+            middleware.group("inner", [MiddlewareEntry::named("outer")]);
+        })
+        .create()
+        .unwrap();
+    assert!(matches!(
+        Kernel::new(cyclic).bootstrap().await,
+        Err(BootstrapError::RoutingFailed {
+            source: RoutingError::MiddlewareGroupCycle { .. }
+        })
+    ));
+}
+
+#[tokio::test]
+async fn invalid_constraint_leaves_the_previous_pattern_active() {
+    let mut router = Router::new();
+    router.pattern("id", "[0-9]+").unwrap();
+    let route = router.get("/items/{id}", explicit).unwrap();
+    assert!(route.r#where("id", "(").is_err());
+    let (mut matched, _) = request(Method::GET, "/items/7");
+    assert_eq!(
+        router.dispatch(&mut matched).await.unwrap().status(),
+        StatusCode::NO_CONTENT
+    );
+    let (mut invalid, _) = request(Method::GET, "/items/name");
+    assert!(matches!(
+        router.dispatch(&mut invalid).await,
+        Err(HttpError::NotFound)
+    ));
 }
