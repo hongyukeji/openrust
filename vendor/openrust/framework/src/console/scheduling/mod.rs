@@ -5,6 +5,7 @@ mod cache_scheduling_mutex;
 mod callback_event;
 mod event;
 mod event_mutex;
+mod pending_event_attributes;
 mod schedule;
 mod schedule_run_command;
 mod scheduling_mutex;

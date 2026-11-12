@@ -6,6 +6,7 @@ use croner::{
     Cron,
     parser::{CronParser, Seconds, Year},
 };
+use serde_json::{Map, Value};
 
 use crate::{
     console::{ConsoleError, ConsoleFuture, Output},
@@ -39,6 +40,7 @@ pub struct Event {
     even_when_paused: bool,
     environments: Vec<String>,
     filters: Vec<Box<Condition>>,
+    attributes: Map<String, Value>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
@@ -57,19 +59,13 @@ impl Event {
             even_when_paused: false,
             environments: Vec::new(),
             filters: Vec::new(),
+            attributes: Map::new(),
         }
     }
 
     pub fn cron(&mut self, expression: &str) -> Result<&mut Self, ConsoleError> {
-        self.expression = CronParser::builder()
-            .seconds(Seconds::Disallowed)
-            .year(Year::Disallowed)
-            .sloppy_ranges(true)
-            .build()
-            .parse(expression)
-            .map_err(super::error)?;
-        self.cron_text = expression.into();
-        self.interval = None;
+        let cron = parse_cron(expression)?;
+        self.set_frequency(cron, expression, None);
         Ok(self)
     }
 
@@ -77,20 +73,30 @@ impl Event {
         self.cron("* * * * *").expect("valid minute frequency")
     }
 
+    pub fn daily(&mut self) -> &mut Self {
+        self.cron("0 0 * * *").expect("valid daily frequency")
+    }
+
+    pub fn twiceDaily(&mut self) -> &mut Self {
+        self.cron("0 1,13 * * *")
+            .expect("valid twice-daily frequency")
+    }
+
     pub fn dailyAt(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
-        let time = chrono::NaiveTime::parse_from_str(time, "%H:%M").map_err(super::error)?;
-        self.cron(&format!("{} {} * * *", time.minute(), time.hour()))
+        self.cron(&daily_expression(time)?)
     }
 
     pub fn everySeconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
-        if seconds == 0 || seconds >= 60 || !60_u32.is_multiple_of(seconds) {
-            return Err(ConsoleError::new(
-                "A repeat interval must divide one minute and be less than 60 seconds.",
-            ));
-        }
+        let interval = repeat_interval(seconds)?;
         self.everyMinute();
-        self.interval = Some(Duration::from_secs(seconds.into()));
+        self.interval = Some(interval);
         Ok(self)
+    }
+
+    pub(super) fn set_frequency(&mut self, cron: Cron, text: &str, interval: Option<Duration>) {
+        self.expression = cron;
+        self.cron_text = text.into();
+        self.interval = interval;
     }
 
     pub fn everySecond(&mut self) -> &mut Self {
@@ -162,6 +168,18 @@ impl Event {
         condition: impl Fn(&Application) -> bool + Send + Sync + 'static,
     ) -> &mut Self {
         self.when(move |app| !condition(app))
+    }
+
+    pub fn withAttributes(
+        &mut self,
+        attributes: impl IntoIterator<Item = (String, Value)>,
+    ) -> &mut Self {
+        merge_attributes(&mut self.attributes, attributes);
+        self
+    }
+
+    pub fn attributes(&self) -> &Map<String, Value> {
+        &self.attributes
     }
 
     pub fn name(&mut self, name: impl Into<String>) -> &mut Self {
@@ -252,5 +270,84 @@ impl Event {
                 write!(&mut key, "{byte:02x}").expect("writing to a String");
                 key
             })
+    }
+}
+
+pub(super) fn parse_cron(expression: &str) -> Result<Cron, ConsoleError> {
+    CronParser::builder()
+        .seconds(Seconds::Disallowed)
+        .year(Year::Disallowed)
+        .sloppy_ranges(true)
+        .build()
+        .parse(expression)
+        .map_err(super::error)
+}
+
+pub(super) fn daily_expression(time: &str) -> Result<String, ConsoleError> {
+    let time = chrono::NaiveTime::parse_from_str(time, "%H:%M").map_err(super::error)?;
+    Ok(format!("{} {} * * *", time.minute(), time.hour()))
+}
+
+pub(super) fn repeat_interval(seconds: u32) -> Result<Duration, ConsoleError> {
+    if seconds == 0 || seconds >= 60 || !60_u32.is_multiple_of(seconds) {
+        return Err(ConsoleError::new(
+            "A repeat interval must divide one minute and be less than 60 seconds.",
+        ));
+    }
+    Ok(Duration::from_secs(seconds.into()))
+}
+
+fn merge_attributes(
+    target: &mut Map<String, Value>,
+    source: impl IntoIterator<Item = (String, Value)>,
+) {
+    for (key, value) in source {
+        match target.entry(key) {
+            serde_json::map::Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
+            serde_json::map::Entry::Occupied(mut entry) => {
+                let previous = std::mem::take(entry.get_mut());
+                *entry.get_mut() = merge_attribute(previous, value);
+            }
+        }
+    }
+}
+
+fn merge_attribute(left: Value, right: Value) -> Value {
+    fn list(value: Value) -> Vec<Value> {
+        match value {
+            Value::Array(items) => items,
+            item => vec![item],
+        }
+    }
+
+    fn append(object: &mut Map<String, Value>, values: Vec<Value>) {
+        let mut index = 0;
+        for value in values {
+            while object.contains_key(&index.to_string()) {
+                index += 1;
+            }
+            object.insert(index.to_string(), value);
+            index += 1;
+        }
+    }
+
+    match (left, right) {
+        (Value::Object(mut left), Value::Object(right)) => {
+            merge_attributes(&mut left, right);
+            Value::Object(left)
+        }
+        (Value::Object(mut left), right) => {
+            append(&mut left, list(right));
+            Value::Object(left)
+        }
+        (left, Value::Object(right)) => {
+            let mut result = Map::new();
+            append(&mut result, list(left));
+            merge_attributes(&mut result, right);
+            Value::Object(result)
+        }
+        (left, right) => Value::Array(list(left).into_iter().chain(list(right)).collect()),
     }
 }

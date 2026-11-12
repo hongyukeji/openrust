@@ -161,6 +161,63 @@ fn routes() -> Result<(), ConsoleError> {
             return Ok(());
         }
 
+        if profile == "groups" {
+            assert!(schedule.group(|_| Ok(())).is_err());
+            assert!(schedule.cron("bad").is_err());
+            schedule
+                .timezone(chrono_tz::Asia::Tokyo)
+                .dailyAt("17:00")?
+                .group(|schedule| {
+                    schedule.command("inspire", []);
+                    Ok(())
+                })?;
+
+            schedule
+                .dailyAt("17:00")?
+                .timezone(chrono_tz::Asia::Tokyo)
+                .environments(&["testing"])
+                .evenInMaintenanceMode()
+                .evenWhenPaused()
+                .withAttributes([("team".into(), json!("outer"))])
+                .group(|schedule| {
+                    group_task(schedule, "inherited");
+                    schedule
+                        .timezone(chrono_tz::UTC)
+                        .withAttributes([("team".into(), json!("inner"))])
+                        .group(|schedule| {
+                            group_task(schedule, "nested-not-due");
+                            let event = group_task(schedule, "nested-due").dailyAt("08:00")?;
+                            assert_eq!(event.attributes()["team"], json!(["outer", "inner"]));
+                            Ok(())
+                        })?;
+                    schedule.skip(|_| true);
+                    group_task(schedule, "filtered");
+                    schedule.dailyAt("18:00")?;
+                    group_task(schedule, "one-shot");
+                    let sibling = group_task(schedule, "sibling");
+                    assert_eq!(sibling.attributes()["team"], "outer");
+                    assert!(
+                        schedule
+                            .timezone(chrono_tz::UTC)
+                            .group(|_| Err(ConsoleError::new("group callback failed")))
+                            .is_err()
+                    );
+                    group_task(schedule, "after-error");
+                    Ok(())
+                })?;
+            assert!(group_task(schedule, "outside").attributes().is_empty());
+            return Ok(());
+        }
+
+        if profile == "groups-repeat" {
+            schedule.everySecond().group(|schedule| {
+                group_task(schedule, "repeated");
+                group_task(schedule, "once").everyMinute();
+                Ok(())
+            })?;
+            return Ok(());
+        }
+
         let pause = profile.starts_with("pause");
         if pause || matches!(profile.as_str(), "maintenance" | "maintenance-repeat") {
             if pause {
@@ -262,6 +319,20 @@ fn routes() -> Result<(), ConsoleError> {
         }
         Ok(())
     })
+}
+
+fn group_task<'a>(
+    schedule: &'a mut openrust::console::scheduling::Schedule,
+    name: &'static str,
+) -> &'a mut openrust::console::scheduling::CallbackEvent {
+    let task = schedule.call(move |_, output| {
+        Box::pin(async move {
+            output.comment(name);
+            Ok(())
+        })
+    });
+    task.name(name);
+    task
 }
 
 fn console_error(error: impl std::fmt::Display) -> ConsoleError {
@@ -754,5 +825,60 @@ async fn artisan_sub_minute_tasks_remember_maintenance_until_the_next_run() {
     assert_eq!(maintenance_receipts(&root, "ordinary"), 1);
     run(&root, "maintenance", MONDAY + 60, &["schedule:run"]).await;
     assert_eq!(maintenance_receipts(&root, "ordinary"), 2);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_schedule_groups_inherit_and_restore_attributes() {
+    let root = pause_root(None);
+    let profile = "groups";
+    let run_output = run(&root, profile, MONDAY, &["schedule:run"]).await;
+    let stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert!(stdout.contains("maintenance example ran"), "{stdout}");
+    assert!(stdout.contains("outside"), "{stdout}");
+
+    run(&root, profile, MONDAY, &["down"]).await;
+    run(&root, profile, MONDAY, &["schedule:pause"]).await;
+    let run_output = run(&root, profile, MONDAY, &["schedule:run"]).await;
+    let stdout = String::from_utf8_lossy(&run_output.stdout);
+    for name in ["inherited", "nested-due", "sibling", "after-error"] {
+        assert!(
+            stdout.lines().any(|line| line.trim() == name),
+            "{name}: {stdout}"
+        );
+    }
+    for name in [
+        "nested-not-due",
+        "filtered",
+        "one-shot",
+        "outside",
+        "maintenance example ran",
+    ] {
+        assert!(
+            !stdout.lines().any(|line| line.trim() == name),
+            "{name}: {stdout}"
+        );
+    }
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_schedule_groups_inherit_sub_minute_frequency_with_task_override() {
+    let root = root(None);
+    let run_output = run(&root, "groups-repeat", MONDAY + 56, &["schedule:run"]).await;
+    let stdout = String::from_utf8_lossy(&run_output.stdout);
+    assert!(
+        stdout
+            .lines()
+            .filter(|line| line.trim() == "repeated")
+            .count()
+            > 1,
+        "{stdout}"
+    );
+    assert_eq!(
+        stdout.lines().filter(|line| line.trim() == "once").count(),
+        1,
+        "{stdout}"
+    );
     std::fs::remove_dir_all(root).unwrap();
 }

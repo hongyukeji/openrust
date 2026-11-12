@@ -46,6 +46,22 @@ schedule.command("inspire", []).evenWhenPaused();
 
 子分鐘排程在同一輪中可感知暫停與恢復，已開始的工作會繼續執行。可在 `Schedule::configure` 中呼叫 `schedule.doNotAllowPausing()` 停用應用程式的暫停功能。可監聽 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 與 `ScheduledTaskSkipped`。
 
+### 排程群組 {#schedule-groups}
+
+在 `Schedule::configure` 中用 `group` 為多個任務設定共用的排程屬性。建立排程群組前至少設定一個屬性。
+
+```rust
+schedule
+    .timezone(chrono_tz::Asia::Tokyo)
+    .dailyAt("17:00")?
+    .group(|schedule| {
+        schedule.command("inspire", []);
+        Ok(())
+    })?;
+```
+
+巢狀群組繼承外層設定。巢狀群組和個別任務都可覆寫時區、頻率等設定。篩選條件會累積。暫時設定的屬性僅套用於下一次任務註冊。離開排程群組後恢復外層設定。
+
 ## 防止重疊與單機執行
 
 `withoutOverlapping()` 在執行期間持有快取鎖，任務完成或發生錯誤後釋放。預設租期為 1,440 分鐘，可用 `withoutOverlappingFor(minutes)` 調整。`onOneServer()` 為每個事件在每分鐘選出一個執行者。回呼或佇列任務啟用互斥前，需要用 `name` 設定穩定且唯一的名稱。

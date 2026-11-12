@@ -74,6 +74,9 @@ try {
                         await page.locator("#maintenance-mode").waitFor();
                         await page.locator("#pausing-scheduled-tasks").waitFor();
                         assert.match(await page.locator("main").innerText(), /evenWhenPaused/);
+                        await page.locator("#schedule-groups").waitFor();
+                        assert.match(await page.locator("main").innerText(), /\.group\(/);
+
 
                         assert.match(await page.locator("main").innerText(), /evenInMaintenanceMode/);
                         const maintenance = page.locator('main a[href$="configuration.html#maintenance-mode"]');

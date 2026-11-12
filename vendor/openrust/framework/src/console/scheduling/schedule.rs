@@ -6,7 +6,11 @@ use crate::{
     queue::{DispatchOptions, Payload},
 };
 
-use super::{CallbackEvent, Event, event::Action};
+use super::{
+    CallbackEvent, Event,
+    event::{Action, daily_expression, parse_cron, repeat_interval},
+    pending_event_attributes::PendingEventAttributes,
+};
 
 enum Registration {
     Event(Arc<Event>),
@@ -25,6 +29,8 @@ impl Registration {
 /// Registers tasks and selects events due at a given time.
 pub struct Schedule {
     events: Vec<Registration>,
+    pending_attributes: Option<PendingEventAttributes>,
+    groups: Vec<PendingEventAttributes>,
     pub(super) store: Option<String>,
     pub(super) pausable: bool,
     pub(super) clock: Box<dyn Fn() -> SystemTime + Send + Sync>,
@@ -38,6 +44,8 @@ impl Default for Schedule {
     fn default() -> Self {
         Self {
             events: Vec::new(),
+            pending_attributes: None,
+            groups: Vec::new(),
             store: None,
             pausable: true,
             clock: Box::new(SystemTime::now),
@@ -109,11 +117,191 @@ impl Schedule {
         self.clock = Box::new(clock);
     }
 
+    /// Applies the pending scheduling attributes to tasks registered in this group.
+    pub fn group(
+        &mut self,
+        register: impl FnOnce(&mut Self) -> Result<(), ConsoleError>,
+    ) -> Result<(), ConsoleError> {
+        let attributes = self.pending_attributes.take().ok_or_else(|| {
+            ConsoleError::new("Invoke a scheduling attribute before defining a schedule group.")
+        })?;
+        self.groups.push(attributes);
+        let result = register(self);
+        self.pending_attributes = None;
+        self.groups.pop();
+        result
+    }
+
+    pub fn cron(&mut self, expression: &str) -> Result<&mut Self, ConsoleError> {
+        let cron = parse_cron(expression)?;
+        let expression = expression.to_owned();
+        Ok(self.with_pending(move |event| {
+            event.set_frequency(cron.clone(), &expression, None);
+        }))
+    }
+
+    pub fn everyMinute(&mut self) -> &mut Self {
+        self.cron("* * * * *").expect("valid minute frequency")
+    }
+
+    pub fn daily(&mut self) -> &mut Self {
+        self.cron("0 0 * * *").expect("valid daily frequency")
+    }
+
+    pub fn twiceDaily(&mut self) -> &mut Self {
+        self.cron("0 1,13 * * *")
+            .expect("valid twice-daily frequency")
+    }
+
+    pub fn dailyAt(&mut self, time: &str) -> Result<&mut Self, ConsoleError> {
+        self.cron(&daily_expression(time)?)
+    }
+
+    pub fn everySeconds(&mut self, seconds: u32) -> Result<&mut Self, ConsoleError> {
+        let interval = repeat_interval(seconds)?;
+        let cron = parse_cron("* * * * *").expect("valid minute frequency");
+        Ok(self.with_pending(move |event| {
+            event.set_frequency(cron.clone(), "* * * * *", Some(interval));
+        }))
+    }
+
+    pub fn everySecond(&mut self) -> &mut Self {
+        self.everySeconds(1).expect("valid repeat frequency")
+    }
+
+    pub fn everyTwoSeconds(&mut self) -> &mut Self {
+        self.everySeconds(2).expect("valid repeat frequency")
+    }
+
+    pub fn everyFiveSeconds(&mut self) -> &mut Self {
+        self.everySeconds(5).expect("valid repeat frequency")
+    }
+
+    pub fn everyTenSeconds(&mut self) -> &mut Self {
+        self.everySeconds(10).expect("valid repeat frequency")
+    }
+
+    pub fn everyFifteenSeconds(&mut self) -> &mut Self {
+        self.everySeconds(15).expect("valid repeat frequency")
+    }
+
+    pub fn everyTwentySeconds(&mut self) -> &mut Self {
+        self.everySeconds(20).expect("valid repeat frequency")
+    }
+
+    pub fn everyThirtySeconds(&mut self) -> &mut Self {
+        self.everySeconds(30).expect("valid repeat frequency")
+    }
+
+    pub fn timezone(&mut self, zone: chrono_tz::Tz) -> &mut Self {
+        self.with_pending(move |event| {
+            event.timezone(zone);
+        })
+    }
+
+    pub fn onOneServer(&mut self) -> &mut Self {
+        self.with_pending(|event| {
+            event.onOneServer();
+        })
+    }
+
+    pub fn withoutOverlapping(&mut self) -> &mut Self {
+        self.with_pending(|event| {
+            event.withoutOverlapping();
+        })
+    }
+
+    pub fn evenInMaintenanceMode(&mut self) -> &mut Self {
+        self.with_pending(|event| {
+            event.evenInMaintenanceMode();
+        })
+    }
+
+    pub fn evenWhenPaused(&mut self) -> &mut Self {
+        self.with_pending(|event| {
+            event.evenWhenPaused();
+        })
+    }
+
+    pub fn withoutOverlappingFor(&mut self, minutes: u32) -> Result<&mut Self, ConsoleError> {
+        if minutes == 0 {
+            return Err(ConsoleError::new(
+                "An overlap lock requires a positive expiry in minutes.",
+            ));
+        }
+        Ok(self.with_pending(move |event| {
+            event
+                .withoutOverlappingFor(minutes)
+                .expect("validated overlap expiry");
+        }))
+    }
+
+    pub fn environments(&mut self, names: &[&str]) -> &mut Self {
+        let names: Vec<_> = names.iter().map(|name| (*name).to_owned()).collect();
+        self.with_pending(move |event| {
+            event.environments(&names.iter().map(String::as_str).collect::<Vec<_>>());
+        })
+    }
+
+    pub fn when(
+        &mut self,
+        condition: impl Fn(&Application) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        let condition = Arc::new(condition);
+        self.with_pending(move |event| {
+            let condition = condition.clone();
+            event.when(move |app| condition(app));
+        })
+    }
+
+    pub fn skip(
+        &mut self,
+        condition: impl Fn(&Application) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.when(move |app| !condition(app))
+    }
+
+    pub fn name(&mut self, name: impl Into<String>) -> &mut Self {
+        let name = name.into();
+        self.with_pending(move |event| {
+            event.name(name.clone());
+        })
+    }
+
+    pub fn withAttributes(
+        &mut self,
+        attributes: impl IntoIterator<Item = (String, serde_json::Value)>,
+    ) -> &mut Self {
+        let attributes: Vec<_> = attributes.into_iter().collect();
+        self.with_pending(move |event| {
+            event.withAttributes(attributes.iter().cloned());
+        })
+    }
+
+    fn with_pending(
+        &mut self,
+        configure: impl Fn(&mut Event) + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.pending_attributes
+            .get_or_insert_with(|| self.groups.last().cloned().unwrap_or_default())
+            .push(configure);
+        self
+    }
+
+    fn new_event(&mut self, action: Action) -> Arc<Event> {
+        let mut event = Event::new(action);
+        if let Some(attributes) = self.pending_attributes.take() {
+            attributes.apply(&mut event);
+        } else if let Some(attributes) = self.groups.last() {
+            attributes.apply(&mut event);
+        }
+        Arc::new(event)
+    }
+
     fn callback(&mut self, action: Action) -> &mut CallbackEvent {
+        let event = self.new_event(action);
         self.events
-            .push(Registration::Callback(CallbackEvent(Arc::new(Event::new(
-                action,
-            )))));
+            .push(Registration::Callback(CallbackEvent(event)));
         let Some(Registration::Callback(event)) = self.events.last_mut() else {
             unreachable!("just inserted a callback");
         };
@@ -121,8 +309,8 @@ impl Schedule {
     }
 
     fn event(&mut self, action: Action) -> &mut Event {
-        self.events
-            .push(Registration::Event(Arc::new(Event::new(action))));
+        let event = self.new_event(action);
+        self.events.push(Registration::Event(event));
         let Some(Registration::Event(event)) = self.events.last_mut() else {
             unreachable!("just inserted an event");
         };

@@ -46,6 +46,22 @@ schedule.command("inspire", []).evenWhenPaused();
 
 子分钟调度在同一轮中可感知暂停和恢复，已经开始的任务会继续执行。可在 `Schedule::configure` 中调用 `schedule.doNotAllowPausing()` 禁用应用的暂停功能。可监听 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 和 `ScheduledTaskSkipped`。
 
+### 调度组 {#schedule-groups}
+
+在 `Schedule::configure` 中用 `group` 为多个任务设置共同的调度属性。创建调度组前至少设置一个属性。
+
+```rust
+schedule
+    .timezone(chrono_tz::Asia::Tokyo)
+    .dailyAt("17:00")?
+    .group(|schedule| {
+        schedule.command("inspire", []);
+        Ok(())
+    })?;
+```
+
+嵌套组继承外层设置。嵌套组和单个任务都可覆盖时区、频率等设置。过滤条件会累积。临时设置的属性仅应用于下一次任务注册。退出调度组后恢复外围设置。
+
 ## 防止重叠与单机执行
 
 `withoutOverlapping()` 在执行期间持有缓存锁，任务完成或报错后释放。默认租期为 1,440 分钟，可用 `withoutOverlappingFor(minutes)` 调整。`onOneServer()` 为每个事件在每分钟选出一个执行者。回调或队列任务启用互斥前，需要用 `name` 设置稳定且唯一的名称。

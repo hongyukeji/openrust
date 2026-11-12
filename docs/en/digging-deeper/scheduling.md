@@ -46,6 +46,22 @@ schedule.command("inspire", []).evenWhenPaused();
 
 Sub-minute runners observe both pause and resume during the same run. A pause lets a running task finish. To disable pausing for an application, call `schedule.doNotAllowPausing()` inside `Schedule::configure`. Listen for `SchedulePaused`, `ScheduleResumed`, and `ScheduledTaskSkipped` from `openrust::console::events`.
 
+### Schedule groups {#schedule-groups}
+
+Apply shared scheduling attributes to multiple tasks with `group` inside `Schedule::configure`. Set at least one attribute before opening a group.
+
+```rust
+schedule
+    .timezone(chrono_tz::Asia::Tokyo)
+    .dailyAt("17:00")?
+    .group(|schedule| {
+        schedule.command("inspire", []);
+        Ok(())
+    })?;
+```
+
+Nested groups inherit the outer settings. A nested group or individual task can override settings such as time zone and frequency. Conditions accumulate. Attributes configured for a single task apply to its next registration. Registrations after the group resume the surrounding settings.
+
 ## Preventing overlaps and selecting one server
 
 `withoutOverlapping()` holds a cache lock during execution and releases it on completion, including task errors. Its default lease is 1,440 minutes. Set a different lease with `withoutOverlappingFor(minutes)`. `onOneServer()` elects one runner for an event in each minute. Give a callback or job a stable, distinct `name` before enabling either mutex.
