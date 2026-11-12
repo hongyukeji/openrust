@@ -24,6 +24,16 @@ pub(crate) fn register() -> Result<(), ConsoleError> {
 
 用 `cron` 设置五字段表达式，用 `dailyAt` 设置每日的本地时间，用 `everyMinute` 或 `everyTenSeconds` 等子分钟频率运行重复任务。调度时区依次取 `app.schedule_timezone`、`app.timezone`、UTC。用 `timezone` 覆盖单个任务的时区。用 `environments`、`when` 和 `skip` 限制执行条件。夏令时切换时，同一本地时间可能出现两次，也可能被跳过。
 
+### 维护模式 {#maintenance-mode}
+
+应用进入[维护模式](../getting-started/configuration.md#maintenance-mode)后，默认跳过调度任务。需要在维护期间执行的任务，可在 `Schedule::configure` 中调用 `evenInMaintenanceMode()`。
+
+```rust
+schedule.command("inspire", []).evenInMaintenanceMode();
+```
+
+子分钟调度检测到维护模式后，会在本次运行余下的时间继续跳过普通任务。执行 `./artisan up` 后，下一次 `./artisan schedule:run` 可以重新执行普通任务。
+
 ## 防止重叠与单机执行
 
 `withoutOverlapping()` 在执行期间持有缓存锁，任务完成或报错后释放。默认租期为 1,440 分钟，可用 `withoutOverlappingFor(minutes)` 调整。`onOneServer()` 为每个事件在每分钟选出一个执行者。回调或队列任务启用互斥前，需要用 `name` 设置稳定且唯一的名称。

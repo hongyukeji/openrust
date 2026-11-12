@@ -35,6 +35,7 @@ pub struct Event {
     pub(super) overlap: Option<Duration>,
     pub(super) one_server: bool,
     pub(super) description: Option<String>,
+    even_in_maintenance_mode: bool,
     environments: Vec<String>,
     filters: Vec<Box<Condition>>,
 }
@@ -51,6 +52,7 @@ impl Event {
             overlap: None,
             one_server: false,
             description: None,
+            even_in_maintenance_mode: false,
             environments: Vec::new(),
             filters: Vec::new(),
         }
@@ -123,6 +125,16 @@ impl Event {
     pub fn environments(&mut self, names: &[&str]) -> &mut Self {
         self.environments = names.iter().map(|name| (*name).into()).collect();
         self
+    }
+
+    /// Allows this event to run while the application is in maintenance mode.
+    pub fn evenInMaintenanceMode(&mut self) -> &mut Self {
+        self.even_in_maintenance_mode = true;
+        self
+    }
+
+    pub fn runsInMaintenanceMode(&self) -> bool {
+        self.even_in_maintenance_mode
     }
 
     pub fn when(

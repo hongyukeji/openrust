@@ -208,6 +208,9 @@ impl ScheduleRunCommand {
         };
         let mut due = Vec::new();
         for event in self.schedule.events() {
+            if !event.runsInMaintenanceMode() && app.isDownForMaintenance().await.map_err(error)? {
+                continue;
+            }
             if event.due(time.into(), default_zone)? {
                 due.push(Due {
                     event,
@@ -253,6 +256,7 @@ impl ScheduleRunCommand {
             return Ok(());
         };
         let interrupted = interrupt_key(time);
+        let mut has_entered_maintenance = false;
         loop {
             let wake = due
                 .iter()
@@ -274,10 +278,16 @@ impl ScheduleRunCommand {
                 if shutdown.is_cancelled() || Instant::now() >= deadline {
                     return Ok(());
                 }
-                if entry.event.interval.is_some()
+                if let Some(interval) = entry.event.interval
                     && entry.election != Some(false)
                     && entry.next_run <= Instant::now()
                 {
+                    has_entered_maintenance = has_entered_maintenance
+                        || app.isDownForMaintenance().await.map_err(error)?;
+                    if has_entered_maintenance && !entry.event.runsInMaintenanceMode() {
+                        entry.next_run = Instant::now() + interval;
+                        continue;
+                    }
                     self.run_event(
                         app,
                         output,

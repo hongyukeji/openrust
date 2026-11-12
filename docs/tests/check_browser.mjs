@@ -68,6 +68,18 @@ try {
                         page.locator(".VPDocFooter a[href*='getting-started/configuration']").click(),
                     ]);
 
+                    if (!mobile) {
+                        const section = base + language + "/digging-deeper/scheduling.html#maintenance-mode";
+                        assert.equal((await page.goto(section)).status(), 200);
+                        await page.locator("#maintenance-mode").waitFor();
+                        assert.match(await page.locator("main").innerText(), /evenInMaintenanceMode/);
+                        const maintenance = page.locator('main a[href$="configuration.html#maintenance-mode"]');
+                        await Promise.all([
+                            page.waitForURL(base + language + "/getting-started/configuration.html#maintenance-mode"),
+                            maintenance.click(),
+                        ]);
+                    }
+
                     await page.goto(base + language + "/");
                     await page.locator(".VPNavBarSearchButton").click();
                     await page.locator("#localsearch-input").fill(query);

@@ -1,5 +1,7 @@
 use std::{
     ffi::OsString,
+    fs::File,
+    io::{self, Read as _, Seek as _, SeekFrom},
     path::{Path, PathBuf},
     process::{Output, Stdio},
     sync::{
@@ -45,6 +47,9 @@ impl JobHandler for ScheduledJob {
 
 fn routes() -> Result<(), ConsoleError> {
     Artisan::command("fixture:hello", |output| output.comment("artisan command"))?;
+    Artisan::command("inspire", |output| {
+        output.comment("maintenance example ran")
+    })?;
     Queue::register("fixture.job", Arc::new(ScheduledJob))
         .map_err(|error| ConsoleError::new(error.to_string()))?;
     Schedule::configure(|schedule| {
@@ -112,6 +117,35 @@ fn routes() -> Result<(), ConsoleError> {
                 Some("scheduled"),
                 Some("sync"),
             );
+            return Ok(());
+        }
+
+        if matches!(profile.as_str(), "maintenance" | "maintenance-repeat") {
+            if profile == "maintenance" {
+                schedule.command("inspire", []).evenInMaintenanceMode();
+            }
+            for (name, exempt) in [("ordinary", false), ("exempt", true)] {
+                let event = schedule.call(move |app, output| {
+                    Box::pin(async move {
+                        let mut receipt = tokio::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open(app.base_path().join(name))
+                            .await
+                            .map_err(console_error)?;
+                        use tokio::io::AsyncWriteExt as _;
+                        receipt.write_all(b"ran\n").await.map_err(console_error)?;
+                        output.comment(name);
+                        Ok(())
+                    })
+                });
+                if exempt {
+                    event.evenInMaintenanceMode();
+                }
+                if profile == "maintenance-repeat" {
+                    event.everySecond();
+                }
+            }
             return Ok(());
         }
 
@@ -239,6 +273,46 @@ fn artisan(root: &Path, profile: &str, at: u64, args: &[&str]) -> Command {
     process
 }
 
+struct RunningScheduler {
+    child: tokio::process::Child,
+    stdout: File,
+    stderr: File,
+}
+
+impl RunningScheduler {
+    fn start(mut command: Command) -> Self {
+        // Use files so waiting for this process never depends on another
+        // concurrently launched fixture closing a pipe.
+        let stdout = tempfile::tempfile().unwrap();
+        let stderr = tempfile::tempfile().unwrap();
+        let child = command
+            .stdout(stdout.try_clone().unwrap())
+            .stderr(stderr.try_clone().unwrap())
+            .spawn()
+            .unwrap();
+        Self {
+            child,
+            stdout,
+            stderr,
+        }
+    }
+
+    async fn wait_with_output(mut self) -> io::Result<Output> {
+        let status = self.child.wait().await?;
+        let read = |mut file: File| -> io::Result<Vec<u8>> {
+            file.seek(SeekFrom::Start(0))?;
+            let mut bytes = Vec::new();
+            file.read_to_end(&mut bytes)?;
+            Ok(bytes)
+        };
+        Ok(Output {
+            status,
+            stdout: read(self.stdout)?,
+            stderr: read(self.stderr)?,
+        })
+    }
+}
+
 async fn run(root: &Path, profile: &str, at: u64, args: &[&str]) -> Output {
     let output = timeout(
         Duration::from_secs(12),
@@ -320,9 +394,7 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
     let port = port.parse().unwrap();
     for profile in ["overlap", "election"] {
         let root = root(Some(port));
-        let winner = artisan(&root, profile, MONDAY, &["schedule:run"])
-            .spawn()
-            .unwrap();
+        let winner = RunningScheduler::start(artisan(&root, profile, MONDAY, &["schedule:run"]));
         wait_for_receipts(&root, 1).await;
         let contender = run(&root, profile, MONDAY, &["schedule:run", "--whisper"]).await;
         let stdout = String::from_utf8(contender.stdout).unwrap();
@@ -354,9 +426,7 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
     }
 
     let root = root(Some(port));
-    let winner = artisan(&root, "repeat", MONDAY + 54, &["schedule:run"])
-        .spawn()
-        .unwrap();
+    let winner = RunningScheduler::start(artisan(&root, "repeat", MONDAY + 54, &["schedule:run"]));
     wait_for_receipts(&root, 2).await;
     run(&root, "repeat", MONDAY + 54, &["schedule:interrupt"]).await;
     assert_success(
@@ -379,13 +449,11 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
 #[tokio::test]
 async fn artisan_schedule_work_finishes_the_current_task_on_sigterm() {
     let root = root(None);
-    let worker = artisan(&root, "work", MONDAY + 59, &["schedule:work"])
-        .spawn()
-        .unwrap();
+    let worker = RunningScheduler::start(artisan(&root, "work", MONDAY + 59, &["schedule:work"]));
     wait_for_receipts(&root, 1).await;
     assert!(
         Command::new("kill")
-            .args(["-TERM", &worker.id().unwrap().to_string()])
+            .args(["-TERM", &worker.child.id().unwrap().to_string()])
             .status()
             .await
             .unwrap()
@@ -406,5 +474,87 @@ async fn artisan_schedule_work_finishes_the_current_task_on_sigterm() {
         std::fs::read_to_string(root.join("receipts")).unwrap(),
         "ran\n"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+fn maintenance_receipts(root: &Path, name: &str) -> usize {
+    std::fs::read_to_string(root.join(name))
+        .unwrap_or_default()
+        .lines()
+        .count()
+}
+
+#[tokio::test]
+async fn artisan_maintenance_skips_ordinary_tasks_and_keeps_apps_isolated() {
+    let redis = std::env::var("OPENRUST_TEST_REDIS_PORT")
+        .ok()
+        .map(|port| port.parse().unwrap());
+    for port in std::iter::once(None).chain(redis.map(Some)) {
+        let active = root(port);
+        let other = root(port);
+        if port.is_some() {
+            for base in [&active, &other] {
+                let path = base.join("config.json");
+                let mut config: Value =
+                    serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+                config["app"]["maintenance"] = json!({"driver":"cache","store":"redis"});
+                std::fs::write(path, config.to_string()).unwrap();
+            }
+        }
+        run(&active, "maintenance", MONDAY, &["down"]).await;
+        let (down, _) = tokio::join!(
+            run(&active, "maintenance", MONDAY, &["schedule:run"]),
+            run(&other, "maintenance", MONDAY, &["schedule:run"]),
+        );
+        let stdout = String::from_utf8_lossy(&down.stdout);
+        assert!(stdout.contains("maintenance example ran"));
+        assert!(!stdout.contains("No scheduled commands"));
+        assert_eq!(maintenance_receipts(&active, "ordinary"), 0);
+        assert_eq!(maintenance_receipts(&active, "exempt"), 1);
+        assert_eq!(maintenance_receipts(&other, "ordinary"), 1);
+        assert_eq!(maintenance_receipts(&other, "exempt"), 1);
+        run(&active, "maintenance", MONDAY, &["up"]).await;
+        run(&active, "maintenance", MONDAY, &["schedule:run"]).await;
+        assert_eq!(maintenance_receipts(&active, "ordinary"), 1);
+        assert_eq!(maintenance_receipts(&active, "exempt"), 2);
+        std::fs::remove_dir_all(active).unwrap();
+        std::fs::remove_dir_all(other).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn artisan_sub_minute_tasks_remember_maintenance_until_the_next_run() {
+    let root = root(None);
+    let at = MONDAY + 53;
+    let profile = "maintenance-repeat";
+    let runner = RunningScheduler::start(artisan(&root, profile, at, &["schedule:run"]));
+    let wait_for_exempt = |count| {
+        let root = &root;
+        async move {
+            timeout(Duration::from_secs(4), async {
+                while maintenance_receipts(root, "exempt") < count {
+                    sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+        }
+    };
+    wait_for_exempt(1).await;
+    run(&root, profile, at, &["down"]).await;
+    wait_for_exempt(2).await;
+    assert_eq!(maintenance_receipts(&root, "ordinary"), 1);
+    run(&root, profile, at, &["up"]).await;
+    wait_for_exempt(3).await;
+    assert_eq!(maintenance_receipts(&root, "ordinary"), 1);
+    assert_success(
+        &timeout(Duration::from_secs(8), runner.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap(),
+    );
+    assert_eq!(maintenance_receipts(&root, "ordinary"), 1);
+    run(&root, "maintenance", MONDAY + 60, &["schedule:run"]).await;
+    assert_eq!(maintenance_receipts(&root, "ordinary"), 2);
     std::fs::remove_dir_all(root).unwrap();
 }

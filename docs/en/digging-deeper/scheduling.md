@@ -24,6 +24,16 @@ Use `call` for an async callback, `command` for a registered Artisan command, `e
 
 Use `cron` for a five-field expression, `dailyAt` for a daily wall-clock time, and `everyMinute` or a sub-minute frequency such as `everyTenSeconds` for repeated tasks. The scheduler uses `app.schedule_timezone`, then `app.timezone`, then UTC. Use `timezone` to override it for one task. `environments`, `when` and `skip` filter execution. At daylight-saving transitions a local time can occur twice or be skipped.
 
+### Maintenance mode {#maintenance-mode}
+
+By default, scheduled tasks are skipped while the application is in [maintenance mode](../getting-started/configuration.md#maintenance-mode). To keep a task eligible during maintenance, add `evenInMaintenanceMode()` inside `Schedule::configure`.
+
+```rust
+schedule.command("inspire", []).evenInMaintenanceMode();
+```
+
+When a sub-minute run observes maintenance mode, ordinary tasks stay suspended until that run ends. After `./artisan up`, the next `./artisan schedule:run` can run ordinary tasks again.
+
 ## Preventing overlaps and selecting one server
 
 `withoutOverlapping()` holds a cache lock during execution and releases it on completion, including task errors. Its default lease is 1,440 minutes. Set a different lease with `withoutOverlappingFor(minutes)`. `onOneServer()` elects one runner for an event in each minute. Give a callback or job a stable, distinct `name` before enabling either mutex.
