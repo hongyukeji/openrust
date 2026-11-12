@@ -8,6 +8,8 @@ mod install_routes_command;
 mod key_generate_command;
 mod model_make_command;
 mod policy_make_command;
+mod provider_make_command;
+mod source_edit;
 mod storage_link_command;
 mod storage_unlink_command;
 mod stub_publish_command;
@@ -79,6 +81,7 @@ impl Kernel {
                             stub_publish_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
+                            provider_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;

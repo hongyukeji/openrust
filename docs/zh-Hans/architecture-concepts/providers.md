@@ -6,6 +6,18 @@
 
 选定的 Kernel 加载配置，执行所有普通 Provider 的 `register` 后，再依次执行 `boot`。详见[请求生命周期](lifecycle.md)。
 
+## 生成服务提供者 {#generating-providers}
+
+在源码目录中生成 Provider，并将它加入应用的编译期 Provider 列表。
+
+```sh
+./artisan make:provider Reports/ReportServiceProvider
+```
+
+命令创建 `app/providers/reports/report_service_provider.rs`，声明模块并把 Provider 追加到 `bootstrap/providers.rs`。重新构建后即可使用。可在生成的钩子内添加服务绑定和初始化。
+
+使用 `-f` 或 `--force` 替换 Provider 源码。如果自定义 bootstrap 的列表无法定位，Artisan 会提示手动注册位置。可通过 `stub:publish` 发布并修改 `stubs/provider.rs.stub`。
+
 ## 编写 Service Provider
 
 实现 `openrust::support::ServiceProvider`，在 `bootstrap/providers.rs` 列出 Provider。覆盖 `register` 绑定服务，覆盖 `boot` 在所有 Provider 注册后初始化服务。两者默认均成功且不执行操作，只需实现所需钩子。`register` 和 `boot` 返回异步 Future，注册依赖和初始化均可等待 I/O。

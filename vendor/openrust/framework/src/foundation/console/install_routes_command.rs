@@ -1,5 +1,5 @@
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, OpenOptions},
     io::{self, Write as _},
     path::Path,
 };
@@ -12,6 +12,8 @@ use crate::{
     contracts::foundation::Application as _,
     foundation::Application,
 };
+
+use super::source_edit::{file_error, insert_before, lock_manifest, read, replace};
 
 struct InstallSpec {
     command: &'static str,
@@ -110,11 +112,7 @@ impl Command for InstallRoutesCommand {
 
 fn install(root: &Path, spec: &InstallSpec) -> Result<(), ConsoleError> {
     // The manifest stays in place while installers replace the route and bootstrap files.
-    let manifest_path = root.join("Cargo.toml");
-    let manifest = File::open(&manifest_path).map_err(|error| file_error(&manifest_path, error))?;
-    manifest
-        .lock()
-        .map_err(|error| file_error(&manifest_path, error))?;
+    let _manifest = lock_manifest(root)?;
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
     let routes = root.join("routes").join(format!("{}.rs", spec.module));
@@ -172,41 +170,6 @@ fn install(root: &Path, spec: &InstallSpec) -> Result<(), ConsoleError> {
     Ok(())
 }
 
-fn insert_before(
-    source: &str,
-    path: &Path,
-    statement: &str,
-    is_anchor: impl Fn(&str) -> bool,
-) -> Result<String, ConsoleError> {
-    let mut offset = 0;
-    let mut found = None;
-    for line in source.split_inclusive('\n') {
-        if is_anchor(line) {
-            let indent = &line[..line.len() - line.trim_start().len()];
-            if found.replace((offset, indent)).is_some() {
-                return Err(manual_registration(path, statement));
-            }
-        }
-        offset += line.len();
-    }
-    let (offset, indent) = found.ok_or_else(|| manual_registration(path, statement))?;
-    let newline = if source.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let mut updated = source.to_owned();
-    updated.insert_str(offset, &format!("{indent}{statement}{newline}"));
-    Ok(updated)
-}
-
-fn manual_registration(path: &Path, statement: &str) -> ConsoleError {
-    ConsoleError::new(format!(
-        "Cannot locate the registration point in {}. Add `{statement}` manually.",
-        path.display()
-    ))
-}
-
 fn create_routes(path: &Path, stub: &[u8]) -> Result<(), ConsoleError> {
     match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(mut file) => {
@@ -220,42 +183,4 @@ fn create_routes(path: &Path, stub: &[u8]) -> Result<(), ConsoleError> {
         Err(error) => return Err(file_error(path, error)),
     }
     Ok(())
-}
-
-fn replace(path: &Path, previous: &str, updated: &str) -> Result<(), ConsoleError> {
-    let current = read(path)?;
-    if current == updated {
-        return Ok(());
-    }
-    if current != previous {
-        return Err(ConsoleError::new(format!(
-            "{} changed during installation. Retry with the updated file.",
-            path.display()
-        )));
-    }
-    let temporary = path.with_extension(format!("openrust-{:016x}.tmp", fastrand::u64(..)));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary)
-        .map_err(|error| file_error(path, error))?;
-    let result = (|| {
-        file.set_permissions(fs::metadata(path)?.permissions())?;
-        file.write_all(updated.as_bytes())?;
-        drop(file);
-        fs::rename(&temporary, path)
-    })();
-    if let Err(error) = result {
-        let _ = fs::remove_file(temporary);
-        return Err(file_error(path, error));
-    }
-    Ok(())
-}
-
-fn read(path: &Path) -> Result<String, ConsoleError> {
-    fs::read_to_string(path).map_err(|error| file_error(path, error))
-}
-
-fn file_error(path: &Path, error: io::Error) -> ConsoleError {
-    ConsoleError::new(format!("{}: {error}", path.display()))
 }

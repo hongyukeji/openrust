@@ -396,7 +396,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 10);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 11);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -525,6 +525,102 @@ async fn artisan_publishes_templates_modified_by_application_listeners() {
         fs::read_to_string(app.root().join("stubs/example.rs.stub")).unwrap(),
         "// application template\n"
     );
+}
+
+#[test]
+fn artisan_generates_and_registers_providers_with_concurrent_retries() {
+    let root = TestRoot::new("make-provider");
+    let registry = root.0.join("bootstrap/providers.rs");
+    let modules = root.0.join("app/providers/mod.rs");
+    fs::create_dir_all(registry.parent().unwrap()).unwrap();
+    fs::create_dir_all(modules.parent().unwrap()).unwrap();
+    fs::write(root.0.join("Cargo.toml"), "[package]\n").unwrap();
+    fs::write(&modules, include_str!("../app/providers/mod.rs")).unwrap();
+    fs::write(&registry, "// custom registry\n").unwrap();
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+
+    let args = ["make:provider", "Reports/ReportServiceProvider.rs"];
+    let source = root
+        .0
+        .join("app/providers/reports/report_service_provider.rs");
+    let rejected = run(&args);
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("manually"));
+    assert!(!source.exists());
+
+    fs::write(&registry, include_str!("../bootstrap/providers.rs")).unwrap();
+    let results = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&args));
+        let second = scope.spawn(|| run(&args));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        results
+            .iter()
+            .filter(|output| output.status.success())
+            .count(),
+        1
+    );
+    let original = fs::read_to_string(&source).unwrap();
+    assert!(original.contains("fn register") && original.contains("fn boot"));
+    let registry_text = fs::read_to_string(&registry).unwrap();
+    let entry =
+        "Box::new(crate::app::providers::reports::report_service_provider::ReportServiceProvider),";
+    assert_eq!(registry_text.matches(entry).count(), 1);
+    assert!(
+        fs::read_to_string(&modules)
+            .unwrap()
+            .contains("pub(crate) mod reports;")
+    );
+    assert!(
+        fs::read_to_string(source.parent().unwrap().join("mod.rs"))
+            .unwrap()
+            .contains("pub(crate) mod report_service_provider;")
+    );
+
+    fs::write(&registry, registry_text.replace(entry, "")).unwrap();
+    assert!(run(&args).status.success());
+    assert_eq!(fs::read_to_string(&source).unwrap(), original);
+    assert_eq!(
+        fs::read_to_string(&registry)
+            .unwrap()
+            .matches(entry)
+            .count(),
+        1
+    );
+
+    let multiline = "Box::new(\n            crate::app::providers::reports::report_service_provider::ReportServiceProvider,\n        ),";
+    fs::write(
+        &registry,
+        fs::read_to_string(&registry)
+            .unwrap()
+            .replace(entry, multiline),
+    )
+    .unwrap();
+    let formatted = fs::read_to_string(&registry).unwrap();
+
+    assert!(run(&["stub:publish"]).status.success());
+    let stub = root.0.join("stubs/provider.rs.stub");
+    let template = fs::read_to_string(&stub).unwrap();
+    fs::write(&stub, format!("// customized\n{template}")).unwrap();
+    assert!(
+        run(&["make:provider", "Reports/ReportServiceProvider", "-f"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(&source)
+            .unwrap()
+            .starts_with("// customized\n")
+    );
+    assert_eq!(fs::read_to_string(&registry).unwrap(), formatted);
 }
 
 impl TestRoot {

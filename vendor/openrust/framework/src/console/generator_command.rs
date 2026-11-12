@@ -92,13 +92,14 @@ pub(crate) enum Stub {
     MigrationUpdate,
     Model,
     Policy,
+    Provider,
     Seeder,
     Test,
     UnitTest,
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 10] = [
+    pub(crate) const ALL: [Self; 11] = [
         Self::Console,
         Self::Factory,
         Self::Migration,
@@ -106,6 +107,7 @@ impl Stub {
         Self::MigrationUpdate,
         Self::Model,
         Self::Policy,
+        Self::Provider,
         Self::Seeder,
         Self::Test,
         Self::UnitTest,
@@ -132,6 +134,10 @@ impl Stub {
             Self::Policy => (
                 "policy.rs.stub",
                 include_str!("../foundation/console/stubs/policy.rs.stub"),
+            ),
+            Self::Provider => (
+                "provider.rs.stub",
+                include_str!("../foundation/console/stubs/provider.rs.stub"),
             ),
             Self::Seeder => (
                 "seeder.rs.stub",

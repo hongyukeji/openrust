@@ -6,6 +6,18 @@
 
 The selected kernel loads configuration, runs all eager providers’ `register` methods, and then runs their `boot` methods. See the [request lifecycle](lifecycle.md).
 
+## Generating Providers {#generating-providers}
+
+From a source checkout, generate a provider and add it to the application’s compiled provider list.
+
+```sh
+./artisan make:provider Reports/ReportServiceProvider
+```
+
+The command creates `app/providers/reports/report_service_provider.rs`, declares the modules, and appends the provider to `bootstrap/providers.rs`. Rebuild the application before using it. The generated hooks are ready for your service bindings and initialization.
+
+Use `-f` or `--force` to replace the provider source. If Artisan cannot locate the provider list in a custom bootstrap, it reports where to register the provider. Use `stub:publish` to publish and customize `stubs/provider.rs.stub`.
+
 ## Writing Service Providers
 
 Implement `openrust::support::ServiceProvider` and list the provider in `bootstrap/providers.rs`. Override `register` to bind services and `boot` to initialize them after every provider has registered. Both hooks have successful no-op defaults; implement only the hooks your provider needs. `register` and `boot` return asynchronous futures, allowing registration dependencies and initialization to await I/O.

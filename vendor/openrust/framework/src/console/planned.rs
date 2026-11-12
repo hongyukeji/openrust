@@ -88,7 +88,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("make:notification", "Generate a notification"),
     ("make:observer", "Generate a model observer"),
     ("make:policy", "Generate an authorization policy"),
-    ("make:provider", "Generate a service provider"),
     (
         "make:queue-batches-table",
         "Generate a migration for job batches",
