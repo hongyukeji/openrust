@@ -8,7 +8,7 @@
 
 - 注册的 JobHandler 通过 `interruptible()` 提供可选能力。Registry 在中间件链开始时登记当前 Handler，在中间件链结束时解除。中断回调在该次尝试的应用和日志作用域执行。
 - 退出信号先派发 `WorkerInterrupted`，再通知正在执行的任务。回调成功后派发 `JobInterrupted`。失败交给应用异常处理器，Worker 继续原有收尾。
-- Rust 沿用 Tokio 计时。实际超时先取消异步 future，再用 SIGALRM 对应的编号通知已登记的 Handler。Windows 使用兼容编号 14。原有超时失败和重试策略随后执行。事件使用只读快照，启用相应监听器或 Fake 时才构造快照。进程级超时退出与 Windows Ctrl+C 实机仍待单独验收。
+- Rust 沿用 Tokio 计时。实际超时先取消异步 future，再用 SIGALRM 对应的编号通知已登记的 Handler。Windows 使用兼容编号 14。原有超时失败和重试策略随后执行。事件使用只读快照，启用相应监听器或 Fake 时才构造快照。进程级超时退出、[Linux 强制超时](worker-hard-timeout.md#linux-补验)和 [Windows Ctrl+C](worker-signals.md#windows-ctrlc-补验)由后续批次单独验收。
 - 中断选择分支增大 Worker future 后，链式批次在调试构建中触发线程栈溢出。仅链式批次执行的 future 改为装箱，普通任务的现有调用路径保持。
 
 ## 验收
