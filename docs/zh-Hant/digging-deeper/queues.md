@@ -25,7 +25,26 @@ async fn dispatch_reports() -> QueueResult<DispatchResult> {
 }
 ```
 
-`--batched` 依賴佇列批次執行環境，目前會在寫入檔案前回報錯誤並結束。
+透過 `--batched` 產生可加入批次的工作。同時傳入 `--sync` 時，Artisan 會選擇批次佇列範本。
+
+```sh
+./artisan make:job BatchReport --batched --test
+```
+
+宣告模組，並在服務提供者的 `boot` 方法呼叫 `BatchReport::register()`。產生的處理器略過已取消的批次，`handle` 接收可選的批次 ID。
+
+```rust
+use crate::app::jobs::batch_report::BatchReport;
+use openrust::{bus::Batch, queue::QueueResult, support::facades::Bus};
+
+async fn dispatch_batch() -> QueueResult<Batch> {
+    Bus::batch([BatchReport.payload()?, BatchReport.payload()?])
+        .name("monthly reports")
+        .onQueue("reports")
+        .dispatch()
+        .await
+}
+```
 
 ## 建立與派送工作
 
@@ -86,7 +105,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
 
-批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送、回呼、清理及 `make:job --batched` 範本待接入。
+批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送、回呼和清理待接入。
 
 ## 工作中介軟體 {#job-middleware}
 

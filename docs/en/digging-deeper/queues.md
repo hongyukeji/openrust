@@ -25,7 +25,26 @@ async fn dispatch_reports() -> QueueResult<DispatchResult> {
 }
 ```
 
-`--batched` requires the queue batching runtime and currently exits with an error before writing any file.
+Generate a batchable job with `--batched`. If you also pass `--sync`, Artisan selects the batchable queue template.
+
+```sh
+./artisan make:job BatchReport --batched --test
+```
+
+Declare the module and call `BatchReport::register()` in your provider’s `boot` method. The generated handler skips cancelled batches and receives the optional batch ID in `handle`.
+
+```rust
+use crate::app::jobs::batch_report::BatchReport;
+use openrust::{bus::Batch, queue::QueueResult, support::facades::Bus};
+
+async fn dispatch_batch() -> QueueResult<Batch> {
+    Bus::batch([BatchReport.payload()?, BatchReport.payload()?])
+        .name("monthly reports")
+        .onQueue("reports")
+        .dispatch()
+        .await
+}
+```
 
 ## Creating and dispatching jobs
 
@@ -86,7 +105,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
 
-Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch, callbacks, pruning, and the `make:job --batched` template are pending.
+Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch, callbacks, and pruning are pending.
 
 ## Job middleware {#job-middleware}
 

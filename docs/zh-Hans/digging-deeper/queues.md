@@ -25,7 +25,26 @@ async fn dispatch_reports() -> QueueResult<DispatchResult> {
 }
 ```
 
-`--batched` 依赖队列批次运行时，目前会在写入文件前报错退出。
+通过 `--batched` 生成可加入批次的任务。同时传入 `--sync` 时，Artisan 选择批次队列模板。
+
+```sh
+./artisan make:job BatchReport --batched --test
+```
+
+声明模块，并在服务提供者的 `boot` 方法调用 `BatchReport::register()`。生成的处理器跳过已取消的批次，`handle` 接收可选的批次 ID。
+
+```rust
+use crate::app::jobs::batch_report::BatchReport;
+use openrust::{bus::Batch, queue::QueueResult, support::facades::Bus};
+
+async fn dispatch_batch() -> QueueResult<Batch> {
+    Bus::batch([BatchReport.payload()?, BatchReport.payload()?])
+        .name("monthly reports")
+        .onQueue("reports")
+        .dispatch()
+        .await
+}
+```
 
 ## 创建与派发任务
 
@@ -86,7 +105,7 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 运行 `./artisan queue:work database --queue=batch --stop-when-empty` 处理批次。用 `Bus::findBatch(&id)` 读取当前状态，用 `Bus::cancelBatch(&id)` 主动取消批次。任务最终失败时默认取消批次。通过 `allowFailures()` 允许批次继续，通过 `SkipIfBatchCancelled` 跳过已取消批次的任务。失败任务在重试成功前仍计入待处理数。
 
-批次派发目前使用与批次仓库同一连接的数据库队列。批次创建和所有入队操作在同一事务提交。自定义批次表时，还需建立同名加 `_jobs` 后缀的投递记录表。Redis 派发、回调、清理及 `make:job --batched` 模板待接入。
+批次派发目前使用与批次仓库同一连接的数据库队列。批次创建和所有入队操作在同一事务提交。自定义批次表时，还需建立同名加 `_jobs` 后缀的投递记录表。Redis 派发、回调和清理待接入。
 
 ## 任务中间件 {#job-middleware}
 

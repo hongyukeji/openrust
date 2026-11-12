@@ -47,7 +47,7 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                     Arg::new("batched")
                         .long("batched")
                         .action(ArgAction::SetTrue)
-                        .help("Generate a batchable job (requires queue batching support)"),
+                        .help("Generate a batchable job"),
                 )
         };
         artisan.add_command(Box::new(JobMakeCommand {
@@ -83,10 +83,9 @@ impl Command for JobMakeCommand {
                     "Middleware",
                 )
             } else {
-                if args.get_flag("batched") {
-                    return Err(ConsoleError::new("Queue batching is not implemented."));
-                }
-                let stub = if args.get_flag("sync") {
+                let stub = if args.get_flag("batched") {
+                    Stub::BatchedQueuedJob
+                } else if args.get_flag("sync") {
                     Stub::Job
                 } else {
                     Stub::QueuedJob

@@ -396,7 +396,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 25);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 26);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -883,15 +883,38 @@ fn artisan_generates_jobs_and_job_middleware() {
             .is_file()
     );
 
-    let batched = run(&root.0, &["make:job", "BatchReport", "--batched", "--sync"]);
-    assert_eq!(batched.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&batched.stderr).contains("Queue batching is not implemented"));
-    assert!(!root.0.join("app/jobs/batch_report.rs").exists());
+    let batched_args = ["make:job", "BatchReport", "--batched", "--sync", "--test"];
+    let batched = run(&root.0, &batched_args);
+    assert!(batched.status.success(), "{batched:?}");
+    let batched_file = root.0.join("app/jobs/batch_report.rs");
+    let batched_source = fs::read_to_string(&batched_file).unwrap();
+    assert!(batched_source.contains("SkipIfBatchCancelled"));
+    assert!(batched_source.contains("payload.batchId()"));
+    assert!(
+        root.0
+            .join("tests/feature/jobs/batch_report_test.rs")
+            .is_file()
+    );
     let unsafe_path = run(&root.0, &["make:job-middleware", "../Escape", "--force"]);
     assert_eq!(unsafe_path.status.code(), Some(1));
     assert!(!root.0.join("app/jobs/escape.rs").exists());
 
     assert!(run(&root.0, &["stub:publish"]).status.success());
+    let batched_stub = root.0.join("stubs/job.batched.queued.rs.stub");
+    let custom = fs::read_to_string(&batched_stub).unwrap();
+    fs::write(batched_stub, format!("// custom batch\n{custom}")).unwrap();
+    assert_eq!(run(&root.0, &batched_args).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&batched_file).unwrap(), batched_source);
+    assert!(
+        run(&root.0, &["make:job", "BatchReport", "--batched", "-f"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(batched_file)
+            .unwrap()
+            .starts_with("// custom batch\n")
+    );
     let stub = root.0.join("stubs/job.queued.rs.stub");
     let source = fs::read_to_string(&stub).unwrap();
     fs::write(stub, format!("// custom job\n{source}")).unwrap();

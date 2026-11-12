@@ -87,6 +87,7 @@ pub(crate) fn source_name_parts<'a>(
 pub(crate) enum Stub {
     Job,
     QueuedJob,
+    BatchedQueuedJob,
     JobMiddleware,
     Event,
     Listener,
@@ -113,9 +114,10 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 25] = [
+    pub(crate) const ALL: [Self; 26] = [
         Self::Job,
         Self::QueuedJob,
+        Self::BatchedQueuedJob,
         Self::JobMiddleware,
         Self::Event,
         Self::Listener,
@@ -175,6 +177,10 @@ impl Stub {
             Self::QueuedJob => (
                 "job.queued.rs.stub",
                 include_str!("../foundation/console/stubs/job.queued.rs.stub"),
+            ),
+            Self::BatchedQueuedJob => (
+                "job.batched.queued.rs.stub",
+                include_str!("../foundation/console/stubs/job.batched.queued.rs.stub"),
             ),
             Self::JobMiddleware => (
                 "job.middleware.rs.stub",
