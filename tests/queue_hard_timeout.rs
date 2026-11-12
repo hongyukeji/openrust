@@ -141,7 +141,7 @@ mod unix {
                     }
                     "external" => {
                         Process::run(format!(
-                            "cd '{}' && printf ready > external.started && sleep 2 && touch external.late",
+                            r#"cd '{}' && printf '%s' "$$" > external-shell.pid; sleep 2 & child=$!; printf '%s' "$child" > external-sleep.pid; printf ready > external.started; wait "$child" && touch external.late"#,
                             self.0.display()
                         )).await.map_err(|source| QueueError::Execution { source: Box::new(source) })?;
                     }
@@ -246,16 +246,33 @@ mod unix {
         }
     }
 
+    fn process_exists(pid: &str) -> bool {
+        std::process::Command::new("kill")
+            .args(["-0", pid])
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap()
+            .success()
+    }
+
     fn assert_executor_reaped(root: &Path, kind: &str) {
         let pid = std::fs::read_to_string(root.join(format!("{kind}.pid"))).unwrap();
         assert!(
-            !std::process::Command::new("kill")
-                .args(["-0", &pid])
-                .stderr(std::process::Stdio::null())
-                .status()
-                .unwrap()
-                .success()
+            !process_exists(&pid),
+            "{kind} executor {pid} is still present"
         );
+    }
+
+    async fn assert_external_processes_reaped(root: &Path) {
+        let shell = std::fs::read_to_string(root.join("external-shell.pid")).unwrap();
+        let sleep = std::fs::read_to_string(root.join("external-sleep.pid")).unwrap();
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while process_exists(&shell) || process_exists(&sleep) {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("external shell and sleep must be reaped before their natural completion");
     }
 
     struct RetryObserver(PathBuf);
@@ -1477,6 +1494,9 @@ mod unix {
             assert_eq!(stopped["reason"], "timed_out");
             assert_eq!(stopped["exit_code"], 124);
             assert_executor_reaped(&root.0, kind);
+            if kind == "external" {
+                assert_external_processes_reaped(&root.0).await;
+            }
             assert!(root.0.join(format!("{kind}.timed_out")).is_file());
             if fail_on_timeout {
                 assert_eq!(queue.size(None).await.unwrap(), 0);

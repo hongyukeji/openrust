@@ -77,6 +77,7 @@ try {
                     await queueLink.click();
                     await page.waitForURL(/queues(?:\.html)?#stopping-retries-by-exception$/);
                     await page.locator("#stopping-retries-by-exception").waitFor({ state: "attached" });
+                    assert.ok(body.includes("arm64 Linux"));
                     for (const term of ["hard_timeout: true", "--timeout=60 --tries=2"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
