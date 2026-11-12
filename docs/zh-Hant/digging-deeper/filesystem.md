@@ -28,7 +28,7 @@ Route::staticPublic()?;
 Route::staticDisk("public")?;
 ```
 
-`staticPublic` 讀取網站目錄 `app.public_path`，預設為 `public`，可用 `PUBLIC_PATH` 覆蓋。`staticDisk` 讀取本機磁碟根目錄，從磁碟的 `url` 提取完整掛載路徑，沒有單獨的 `url_prefix` 設定。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源；協定、主機或有效連接埠不同會在 HTTP 引導時被拒絕。本機檔案服務只掛載本機磁碟。
+`staticPublic` 讀取網站目錄 `app.public_path`，預設為 `public`，可用 `APP_PUBLIC_PATH` 覆蓋。`staticDisk` 讀取本機磁碟根目錄，從磁碟的 `url` 提取完整掛載路徑，沒有單獨的 `url_prefix` 設定。例如，`PUBLIC_STORAGE_URL=/storage/tmp/` 將 `storage/app/public/photo.jpg` 暴露在 `/storage/tmp/photo.jpg`。絕對 URL 必須與 `app.url` 同源；協定、主機或有效連接埠不同會在 HTTP 引導時被拒絕。本機檔案服務只掛載本機磁碟。
 
 OpenRust HTTP 服務也可以直接提供公共磁碟檔案。在 Unix 上，磁碟掛載只傳回公開檔案，並要求各級目錄允許遍歷。符號連結、寫入暫存檔及具有多個硬連結的檔案會被拒絕。
 

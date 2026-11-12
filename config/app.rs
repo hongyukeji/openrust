@@ -14,7 +14,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
     let name = env.get_utf8("APP_NAME")?.unwrap_or("OpenRust");
     let host = env.get_utf8("APP_HOST")?.unwrap_or("127.0.0.1");
     let port = env.get_utf8("APP_PORT")?.unwrap_or("8000");
-    let public_path = env.get_utf8("PUBLIC_PATH")?;
+    let public_path = env.get_utf8("APP_PUBLIC_PATH")?;
     let url = env
         .get_utf8("APP_URL")?
         .map_or_else(|| format!("http://localhost:{port}"), str::to_owned);
@@ -42,7 +42,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
             "store": get(env, "APP_MAINTENANCE_STORE", "database")?,
         },
         "public_path": public_path,
-        "public_url_prefix": env.get_utf8("PUBLIC_URL_PREFIX")?.unwrap_or("/"),
+        "public_url_prefix": env.get_utf8("APP_PUBLIC_URL_PREFIX")?.unwrap_or("/"),
     });
     Ok(Loaded {
         config,

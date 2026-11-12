@@ -64,12 +64,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 环境变量 | 用途 | 默认值 |
 |---|---|---|
-| `PUBLIC_PATH` | `Application::publicPath()` 返回的应用公共目录 | `public` |
-| `PUBLIC_URL_PREFIX` | 应用公共目录的 URL 前缀 | `/` |
+| `APP_PUBLIC_PATH` | `Application::publicPath()` 返回的应用公共目录 | `public` |
+| `APP_PUBLIC_URL_PREFIX` | 应用公共目录的 URL 前缀 | `/` |
 | `PUBLIC_STORAGE_ROOT` | 公共本地磁盘的 `filesystems.disks.public.root` | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | 公共本地磁盘的 `filesystems.disks.public.url` | `APP_URL` 加 `/storage` |
 
-相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
+相对目录以应用根目录为基准。应用可以在引导前调用 `usePublicPath()` 覆盖 `APP_PUBLIC_PATH`。默认 Web 路由通过 `Route::staticDisk("public")` 应用公共磁盘配置。挂载前缀取磁盘 URL 的完整路径，默认是 `/storage`。以 `/storage/tmp/` 结尾的同源 URL 或绝对 URL 路径 `/storage/tmp/` 都会挂到 `/storage/tmp`。跨源 URL 会导致路由注册失败。修改挂载配置后重启应用。
 
 ## 维护模式 {#maintenance-mode}
 

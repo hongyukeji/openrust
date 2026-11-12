@@ -64,12 +64,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 | 環境變數 | 用途 | 預設值 |
 |---|---|---|
-| `PUBLIC_PATH` | `Application::publicPath()` 傳回的應用程式公開目錄 | `public` |
-| `PUBLIC_URL_PREFIX` | 應用程式公開目錄的 URL 前綴 | `/` |
+| `APP_PUBLIC_PATH` | `Application::publicPath()` 傳回的應用程式公開目錄 | `public` |
+| `APP_PUBLIC_URL_PREFIX` | 應用程式公開目錄的 URL 前綴 | `/` |
 | `PUBLIC_STORAGE_ROOT` | 公開本機磁碟的 `filesystems.disks.public.root` | `storage/app/public` |
 | `PUBLIC_STORAGE_URL` | 公開本機磁碟的 `filesystems.disks.public.url` | `APP_URL` 加 `/storage` |
 
-相對目錄以應用程式根目錄為基準。應用程式可在啟動前呼叫 `usePublicPath()` 覆寫 `PUBLIC_PATH`。預設 Web 路由透過 `Route::staticDisk("public")` 套用公開磁碟設定。掛載前綴取磁碟 URL 的完整路徑，預設為 `/storage`。以 `/storage/tmp/` 結尾的同源 URL 或絕對 URL 路徑 `/storage/tmp/` 都會掛載到 `/storage/tmp`。跨來源 URL 會使路由註冊失敗。修改掛載設定後重新啟動應用程式。
+相對目錄以應用程式根目錄為基準。應用程式可在啟動前呼叫 `usePublicPath()` 覆寫 `APP_PUBLIC_PATH`。預設 Web 路由透過 `Route::staticDisk("public")` 套用公開磁碟設定。掛載前綴取磁碟 URL 的完整路徑，預設為 `/storage`。以 `/storage/tmp/` 結尾的同源 URL 或絕對 URL 路徑 `/storage/tmp/` 都會掛載到 `/storage/tmp`。跨來源 URL 會使路由註冊失敗。修改掛載設定後重新啟動應用程式。
 
 ## 維護模式 {#maintenance-mode}
 

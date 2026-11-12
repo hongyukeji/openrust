@@ -1624,7 +1624,7 @@ async fn public_mounts_follow_the_application_and_disk_configuration() {
         fs::write(directory.join("probe.txt"), contents).unwrap();
     }
     let environment = root.0.join(".env");
-    let settings = "APP_URL=http://localhost:8000\nPUBLIC_PATH=assets\nPUBLIC_URL_PREFIX=/assets\nPUBLIC_STORAGE_ROOT=uploads\n";
+    let settings = "APP_URL=http://localhost:8000\nAPP_PUBLIC_PATH=assets\nAPP_PUBLIC_URL_PREFIX=/assets\nPUBLIC_STORAGE_ROOT=uploads\n";
     let application = |register: fn() -> Result<(), openrust::routing::RoutingError>| {
         Application::configure(root.0.clone())
             .withConfig(web_config)

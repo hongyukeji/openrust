@@ -93,7 +93,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     fs::write(
         root.join(".env"),
-        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nPUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nRUNTIME_ENABLED=false\nRUNTIME_HTTP=false\nRUNTIME_QUEUE=false\nRUNTIME_SCHEDULE=false\n",
+        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nRUNTIME_ENABLED=false\nRUNTIME_HTTP=false\nRUNTIME_QUEUE=false\nRUNTIME_SCHEDULE=false\n",
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();

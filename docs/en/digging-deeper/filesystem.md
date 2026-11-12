@@ -28,7 +28,7 @@ Route::staticPublic()?;
 Route::staticDisk("public")?;
 ```
 
-`staticPublic` reads the website directory from `app.public_path`, which defaults to `public`. `PUBLIC_PATH` can override it. `staticDisk` reads the local disk root and derives the entire mount path from the disk's `url`. There is no separate `url_prefix` configuration. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. An absolute URL must have the same origin as `app.url`; a different scheme, host or effective port is rejected during HTTP bootstrap. This file server mounts local disks.
+`staticPublic` reads the website directory from `app.public_path`, which defaults to `public`. `APP_PUBLIC_PATH` can override it. `staticDisk` reads the local disk root and derives the entire mount path from the disk's `url`. There is no separate `url_prefix` configuration. For example, `PUBLIC_STORAGE_URL=/storage/tmp/` exposes `storage/app/public/photo.jpg` at `/storage/tmp/photo.jpg`. An absolute URL must have the same origin as `app.url`; a different scheme, host or effective port is rejected during HTTP bootstrap. This file server mounts local disks.
 
 The OpenRust HTTP server can also serve the public disk directly. Its disk mount requires a public file and searchable directories on Unix. Symlinks, temporary write files and files with multiple hard links are excluded.
 
