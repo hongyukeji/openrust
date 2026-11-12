@@ -1,6 +1,7 @@
 //! Contracts for services exposed by the framework.
 
 pub mod auth;
+pub mod broadcasting;
 pub mod cache;
 pub mod config;
 pub mod console;

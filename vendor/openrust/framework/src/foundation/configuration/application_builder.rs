@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, io, path::PathBuf};
 
+use super::routing::ChannelRoutes;
 use super::{Exceptions, Middleware, Routing};
 use crate::{
     foundation::{
@@ -16,6 +17,7 @@ pub struct ApplicationBuilder {
     load_config: ConfigLoader,
     providers: Vec<Box<dyn ServiceProvider>>,
     routing: Option<Routing>,
+    channels: Option<ChannelRoutes>,
     middleware_configurators: Vec<MiddlewareConfigurator>,
     commands: CommandRegistrar,
     exceptions: Option<Exceptions>,
@@ -32,6 +34,7 @@ impl ApplicationBuilder {
             load_config: |_, _| Ok(BTreeMap::new()),
             providers: Vec::new(),
             routing: None,
+            channels: None,
             middleware_configurators: Vec::new(),
             commands: |_| Ok(()),
             exceptions: None,
@@ -58,6 +61,12 @@ impl ApplicationBuilder {
 
     pub fn withRouting(mut self, routing: Routing) -> Self {
         self.routing = Some(routing);
+        self
+    }
+
+    /// Enables broadcast authentication and loads the application's channel rules.
+    pub fn withBroadcasting(mut self, register: ChannelRoutes) -> Self {
+        self.channels = Some(register);
         self
     }
 
@@ -94,11 +103,15 @@ impl ApplicationBuilder {
                 "expected a directory",
             )));
         }
+        let routing = match self.channels {
+            Some(register) => Some(self.routing.unwrap_or_default().channels(register)),
+            None => self.routing,
+        };
         Ok(Application::new(
             base_path,
             self.load_config,
             self.providers,
-            self.routing,
+            routing,
             self.middleware_configurators,
             self.commands,
             self.exceptions,

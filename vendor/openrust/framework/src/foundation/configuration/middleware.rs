@@ -150,6 +150,10 @@ impl Middleware {
                 expected: "encrypted session and XSRF cookies in the web middleware group",
             });
         }
+        let csrf: Arc<dyn HttpMiddleware> = Arc::new(self.csrf.clone());
+        self.registry
+            .aliases
+            .insert("framework.prevent_request_forgery".into(), csrf.clone());
         let stack: [Arc<dyn HttpMiddleware>; 6] = [
             Arc::new(EncryptCookies::for_application(
                 self.cookie_exceptions.clone(),
@@ -157,7 +161,7 @@ impl Middleware {
             Arc::new(AddQueuedCookiesToResponse),
             Arc::new(StartSession),
             Arc::new(ShareErrorsFromSession),
-            Arc::new(self.csrf.clone()),
+            csrf,
             Arc::new(SubstituteBindings),
         ];
         self.registry.groups.insert(

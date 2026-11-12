@@ -31,6 +31,7 @@ pub enum EventError {
         source: Box<dyn Error + Send + Sync>,
     },
     Queue(crate::queue::QueueError),
+    Broadcast(crate::broadcasting::BroadcastException),
 }
 
 /// How a listener is invoked.
@@ -90,6 +91,7 @@ impl<T: Send + Sync + 'static> crate::contracts::events::Event for NamedEvent<T>
 #[derive(Default)]
 pub struct EventContext<'tx> {
     transaction: Option<&'tx mut crate::database::Transaction>,
+    socket: Option<String>,
 }
 
 impl<'tx> EventContext<'tx> {
@@ -100,7 +102,20 @@ impl<'tx> EventContext<'tx> {
     pub fn in_transaction(transaction: &'tx mut crate::database::Transaction) -> Self {
         Self {
             transaction: Some(transaction),
+            socket: None,
         }
+    }
+
+    /// Excludes the request's originating socket from this broadcast.
+    #[allow(non_snake_case, reason = "Matches Laravel's broadcast API")]
+    pub fn toOthers(mut self, request: &crate::http::Request) -> Self {
+        self.socket = request
+            .headers()
+            .get("x-socket-id")
+            .and_then(|header| header.to_str().ok())
+            .filter(|socket| !socket.is_empty())
+            .map(str::to_owned);
+        self
     }
 
     pub(super) fn active_transaction(&mut self) -> Option<&mut crate::database::Transaction> {
@@ -123,6 +138,7 @@ impl std::fmt::Display for EventError {
             Self::Transaction(_) => "event transaction failed",
             Self::Listener { .. } => "event listener failed",
             Self::Queue(_) => "event queue operation failed",
+            Self::Broadcast(_) => "event broadcast failed",
         })
     }
 }
@@ -133,6 +149,7 @@ impl Error for EventError {
             Self::Unavailable(source) => Some(source),
             Self::Transaction(source) => Some(source),
             Self::Queue(source) => Some(source),
+            Self::Broadcast(source) => Some(source),
             Self::Listener { source } => Some(source.as_ref()),
             _ => None,
         }

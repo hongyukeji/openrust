@@ -1,4 +1,5 @@
 use crate::{
+    broadcasting::{BroadcastController, BroadcastResult},
     console::ConsoleError,
     foundation::{Application, http::HealthCheck},
     routing::{RouteGroup, Router, RoutingError},
@@ -10,6 +11,8 @@ type GroupRoutes = fn(&mut Router) -> Result<(), RoutingError>;
 type WebRoutes = fn() -> Result<(), RoutingError>;
 pub(in crate::foundation) type CommandRoutes = fn() -> Result<(), ConsoleError>;
 
+pub(super) type ChannelRoutes = fn() -> BroadcastResult<()>;
+
 /// Declares the application's HTTP routes, console routes and health endpoint.
 #[derive(Default)]
 pub struct Routing {
@@ -17,6 +20,7 @@ pub struct Routing {
     web: Option<WebRoutes>,
     api: Option<GroupRoutes>,
     health: Option<String>,
+    channels: Option<ChannelRoutes>,
     pub(in crate::foundation) command_routes: Option<CommandRoutes>,
 }
 
@@ -35,6 +39,12 @@ impl Routing {
 
     pub fn api(mut self, register: GroupRoutes) -> Self {
         self.api = Some(register);
+        self
+    }
+
+    /// Registers channel authorization and the broadcast authentication route.
+    pub fn channels(mut self, register: ChannelRoutes) -> Self {
+        self.channels = Some(register);
         self
     }
 
@@ -67,6 +77,9 @@ impl Routing {
             router.group(RouteGroup::new().middleware_name("web"), |router| {
                 Route::register(router, app, register)
             })?;
+        }
+        if let Some(register) = self.channels {
+            BroadcastController::register(app, &mut router, register)?;
         }
         Ok(router)
     }

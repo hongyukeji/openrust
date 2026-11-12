@@ -1,5 +1,6 @@
 //! Artisan lifecycle for a bootstrapped application.
 
+mod channel_list_command;
 mod console_make_command;
 mod environment_command;
 mod event_list_command;
@@ -66,6 +67,7 @@ impl Kernel {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
                             event_list_command::register(&mut self.artisan)?;
+                            channel_list_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;

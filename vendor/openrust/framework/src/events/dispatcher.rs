@@ -1,11 +1,13 @@
 use std::{
     any::TypeId,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, RwLock, Weak},
 };
 
 use crate::{
+    broadcasting::{BroadcastEvent, BroadcastException, JOB},
     container::Container,
+    contracts::broadcasting::{Factory as BroadcastFactory, ShouldBroadcast, ShouldBroadcastNow},
     contracts::container::Container as _,
     contracts::events::{
         Dispatcher as Contract, Event, Listener, ShouldDispatchAfterCommit, Subscriber,
@@ -23,6 +25,15 @@ use super::{
 struct Registrations {
     listeners: ListenerRegistry,
     deferred_types: HashSet<TypeId>,
+    broadcasts: HashMap<TypeId, BroadcastRegistration>,
+}
+
+type BroadcastSource = for<'a> fn(&'a dyn Event) -> Option<&'a dyn ShouldBroadcast>;
+
+#[derive(Clone, Copy)]
+struct BroadcastRegistration {
+    event: BroadcastSource,
+    immediate: bool,
 }
 
 /// Registers and dispatches events to listeners in one application.
@@ -73,6 +84,30 @@ impl Dispatcher {
         self.write().deferred_types.insert(TypeId::of::<E>());
     }
 
+    /// Registers the broadcast contract for this compiled event type.
+    pub fn registerBroadcast<E: ShouldBroadcast>(&self) {
+        self.register_broadcast::<E>(false);
+    }
+
+    /// Registers the synchronous broadcast contract for this compiled event type.
+    pub fn registerBroadcastNow<E: ShouldBroadcastNow>(&self) {
+        self.register_broadcast::<E>(true);
+    }
+
+    fn register_broadcast<E: ShouldBroadcast>(&self, immediate: bool) {
+        self.write().broadcasts.insert(
+            TypeId::of::<E>(),
+            BroadcastRegistration {
+                event: |event| {
+                    event
+                        .downcast_ref::<E>()
+                        .map(|event| event as &dyn ShouldBroadcast)
+                },
+                immediate,
+            },
+        );
+    }
+
     pub fn hasListeners(&self, event: &str) -> bool {
         self.has_listeners(event)
     }
@@ -87,8 +122,9 @@ impl Dispatcher {
         context: &mut EventContext<'_>,
     ) -> EventResult<DispatchResult> {
         let event: Arc<dyn Event> = Arc::new(event);
+        let socket = context.socket.clone();
         if let Some(transaction) = context.active_transaction() {
-            self.defer_event(transaction, event, false)?;
+            self.defer_event(transaction, event, false, socket)?;
             return Ok(DispatchResult::Deferred);
         }
         self.deliver(event, context, false)
@@ -117,14 +153,64 @@ impl Dispatcher {
         transaction: &mut Transaction,
         event: Arc<dyn Event>,
         halt: bool,
+        socket: Option<String>,
     ) -> EventResult<()> {
         let dispatcher = self.clone();
         defer(transaction, async move {
             dispatcher
-                .deliver(event, &mut EventContext::new(), halt)
+                .deliver(
+                    event,
+                    &mut EventContext {
+                        socket,
+                        ..EventContext::new()
+                    },
+                    halt,
+                )
                 .await?;
             Ok(())
         })
+    }
+
+    async fn broadcast(
+        &self,
+        event: &dyn Event,
+        context: &mut EventContext<'_>,
+    ) -> EventResult<()> {
+        let registration = self.read().broadcasts.get(&event.type_id()).copied();
+        let Some(registration) = registration else {
+            return Ok(());
+        };
+        let event = (registration.event)(event).ok_or(EventError::InvalidPayload)?;
+        let Some(delivery) = BroadcastEvent::from_event(event, context.socket.as_deref()) else {
+            return Ok(());
+        };
+        if registration.immediate {
+            let owner = self.owner.upgrade().ok_or_else(|| {
+                EventError::Broadcast(BroadcastException::Backend(
+                    std::io::Error::other("Broadcast application is unavailable.").into(),
+                ))
+            })?;
+            let factory = owner
+                .make::<dyn BroadcastFactory>()
+                .map_err(EventError::Unavailable)?;
+            delivery
+                .handle(factory.as_ref())
+                .await
+                .map_err(EventError::Broadcast)?;
+        } else {
+            let payload = crate::queue::Payload::new(JOB, delivery).map_err(EventError::Queue)?;
+            let options = crate::queue::DispatchOptions {
+                connection: event.broadcastQueueConnection().map(str::to_owned),
+                queue: event.broadcastQueue().map(str::to_owned),
+                after_commit: event.broadcastAfterCommit(),
+                ..Default::default()
+            };
+            self.queue()?
+                .dispatch(payload, options, context.active_transaction())
+                .await
+                .map_err(EventError::Queue)?;
+        }
+        Ok(())
     }
 
     async fn deliver(
@@ -133,6 +219,7 @@ impl Dispatcher {
         context: &mut EventContext<'_>,
         halt: bool,
     ) -> EventResult<Vec<Option<ListenerResponse>>> {
+        self.broadcast(event.as_ref(), context).await?;
         let listeners = self.read().listeners.selected(event.name());
         let mut responses = Vec::with_capacity(listeners.len());
         for registration in listeners {
@@ -213,10 +300,11 @@ impl Contract for Dispatcher {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<DispatchResult>> {
         Box::pin(async move {
+            let socket = context.socket.clone();
             if self.defers(event.as_ref())
                 && let Some(transaction) = context.active_transaction()
             {
-                self.defer_event(transaction, event, false)?;
+                self.defer_event(transaction, event, false, socket)?;
                 return Ok(DispatchResult::Deferred);
             }
             self.deliver(event, context, false)
@@ -231,10 +319,11 @@ impl Contract for Dispatcher {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
+            let socket = context.socket.clone();
             if self.defers(event.as_ref())
                 && let Some(transaction) = context.active_transaction()
             {
-                self.defer_event(transaction, event, true)?;
+                self.defer_event(transaction, event, true, socket)?;
                 return Ok(None);
             }
             Ok(self

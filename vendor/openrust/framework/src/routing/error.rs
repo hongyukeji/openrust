@@ -1,6 +1,6 @@
 use std::{error::Error, fmt};
 
-use crate::config::ConfigError;
+use crate::{broadcasting::BroadcastException, config::ConfigError};
 
 /// An invalid route registration or middleware reference.
 #[derive(Debug)]
@@ -10,6 +10,9 @@ pub enum RoutingError {
     RegistrationBorrowed,
     ContainerFailed {
         source: crate::contracts::container::BindingResolutionError,
+    },
+    BroadcastRegistration {
+        source: BroadcastException,
     },
     InvalidUri {
         uri: String,
@@ -52,6 +55,9 @@ impl fmt::Display for RoutingError {
             Self::RegistrationBorrowed => {
                 f.write_str("use the router provided to the route group callback")
             }
+            Self::BroadcastRegistration { source } => {
+                write!(f, "broadcast channel registration failed: {source}")
+            }
             Self::InvalidUri { uri } => write!(f, "invalid route URI {uri:?}"),
             Self::ConflictingStorageRoute { uri } => {
                 write!(f, "multiple served disks share {uri:?}")
@@ -85,6 +91,7 @@ impl Error for RoutingError {
         match self {
             Self::ContainerFailed { source } => Some(source),
             Self::InvalidRoutePattern { source, .. } => Some(source),
+            Self::BroadcastRegistration { source } => Some(source),
             Self::StaticMountConfiguration { source } => Some(source),
             _ => None,
         }

@@ -1,6 +1,7 @@
 //! Public module layout and contracts for the OpenRust framework.
 
 pub mod auth;
+pub mod broadcasting;
 pub mod cache;
 pub mod concurrency;
 pub mod config;
