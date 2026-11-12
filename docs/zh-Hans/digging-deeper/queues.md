@@ -131,6 +131,27 @@ fn register_queue_callbacks() -> QueueResult<()> {
 
 回调通过应用事件分发器接收对应类型的事件。`looping` 回调可返回 `Some(ListenerResponse::Value(Box::new(false)))` 跳过本轮轮询。返回 `Ok(None)` 可继续调用后续回调。用 `Queue::whenJobRunsLongerThan` 和 `Duration` 监听耗时超过阈值的尝试，回调接收任务快照和耗时。
 
+#### 同步任务事件 {#synchronous-job-events}
+
+`sync` 驱动在分发调用内依次发出 `JobProcessing`、`JobProcessed` 和 `JobAttempted`。后两个事件的耗时是处理器实际执行的毫秒数。事件快照的队列标签为 `sync`，驱动任务 ID 为空。可用载荷 UUID 标识任务。
+
+```rust
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_sync_observer() -> QueueResult<()> {
+    Queue::after(|event| {
+        Box::pin(async move {
+            if event.job.queue == "sync" {
+                eprintln!("{}: {} ms", event.job.payload.uuid(), event.duration);
+            }
+            Ok(None)
+        })
+    })
+}
+```
+
+失败时，驱动先发出 `JobExceptionOccurred`，再执行失败回调，随后依次发出 `JobFailed` 与 `JobAttempted`。如果处理前监听器拒绝本次尝试，任务处理器会被跳过，尝试事件的耗时为空。失败回调返回自己的错误时，尝试事件仍携带原始错误。
+
 #### 任务预约事件 {#job-reservation-events}
 
 监听 `JobPopping` 可观察 Worker 轮询，事件包含连接和所选队列。成功预约后、执行任务前派发 `JobPopped`。它携带只读快照，包括驱动任务 ID、队列、尝试次数和载荷。

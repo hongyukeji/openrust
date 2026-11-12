@@ -1,6 +1,8 @@
 //! Queue and worker lifecycle events.
 
-use super::{Payload, WorkerOptions, WorkerStopReason, failed::FailedJob};
+use std::{error::Error as _, time::Duration};
+
+use super::{Payload, QueueError, WorkerOptions, WorkerStopReason, failed::FailedJob};
 use crate::{
     cache::Ttl,
     contracts::{events::Event, queue::Job},
@@ -252,3 +254,18 @@ queue_event!(
         signal: i32,
     }
 );
+
+pub(super) fn attempt_duration(elapsed: Duration) -> f64 {
+    (elapsed.as_secs_f64() * 100_000.0).round() / 100.0
+}
+
+pub(super) fn attempt_exception_message(error: &QueueError) -> String {
+    let mut message = error.to_string();
+    let mut source = error.source();
+    while let Some(error) = source {
+        message.push_str(": ");
+        message.push_str(&error.to_string());
+        source = error.source();
+    }
+    message
+}

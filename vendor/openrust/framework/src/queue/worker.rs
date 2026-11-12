@@ -1,5 +1,4 @@
 use std::{
-    error::Error,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -34,7 +33,7 @@ use super::{
         JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
         JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobSnapshot,
         JobTimedOut, Looping, WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting,
-        WorkerStopping,
+        WorkerStopping, attempt_duration, attempt_exception_message,
     },
     failed::{FailedJob, FailedJobProviderInterface},
     worker_attempt_marker::AttemptMarker,
@@ -756,8 +755,7 @@ impl Worker {
                 })
                 .await
                 };
-                status.duration =
-                    Some((started.elapsed().as_secs_f64() * 100_000.0).round() / 100.0);
+                status.duration = Some(attempt_duration(started.elapsed()));
                 result
             }
         };
@@ -1107,17 +1105,6 @@ async fn signal_state_changed(state: &mut Option<watch::Receiver<WorkerSignalSta
         return;
     }
     std::future::pending().await
-}
-
-fn attempt_exception_message(error: &QueueError) -> String {
-    let mut message = error.to_string();
-    let mut source = error.source();
-    while let Some(error) = source {
-        message.push_str(": ");
-        message.push_str(&error.to_string());
-        source = error.source();
-    }
-    message
 }
 
 struct BatchCompletion {

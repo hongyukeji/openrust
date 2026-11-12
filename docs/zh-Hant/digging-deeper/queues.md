@@ -131,6 +131,27 @@ fn register_queue_callbacks() -> QueueResult<()> {
 
 回呼透過應用程式事件分派器接收對應型別的事件。`looping` 回呼可傳回 `Some(ListenerResponse::Value(Box::new(false)))` 略過本輪輪詢。傳回 `Ok(None)` 可繼續呼叫後續回呼。用 `Queue::whenJobRunsLongerThan` 和 `Duration` 監聽耗時超過閾值的嘗試，回呼接收工作快照和耗時。
 
+#### 同步工作事件 {#synchronous-job-events}
+
+`sync` 驅動程式在分派呼叫內依序發出 `JobProcessing`、`JobProcessed` 和 `JobAttempted`。後兩個事件的耗時是處理器實際執行的毫秒數。事件快照的佇列標籤為 `sync`，驅動程式工作 ID 為空。可使用酬載 UUID 識別工作。
+
+```rust
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_sync_observer() -> QueueResult<()> {
+    Queue::after(|event| {
+        Box::pin(async move {
+            if event.job.queue == "sync" {
+                eprintln!("{}: {} ms", event.job.payload.uuid(), event.duration);
+            }
+            Ok(None)
+        })
+    })
+}
+```
+
+失敗時，驅動程式先發出 `JobExceptionOccurred`，再執行失敗回呼，隨後依序發出 `JobFailed` 與 `JobAttempted`。如果處理前監聽器拒絕本次嘗試，工作處理器會被略過，嘗試事件的耗時為空。失敗回呼傳回自己的錯誤時，嘗試事件仍帶有原始錯誤。
+
 #### 工作預約事件 {#job-reservation-events}
 
 監聽 `JobPopping` 可觀察 Worker 輪詢，事件包含連線和所選佇列。成功預約後、執行工作前派發 `JobPopped`。它帶有唯讀快照，包括驅動程式工作 ID、佇列、嘗試次數和承載資料。

@@ -131,6 +131,27 @@ fn register_queue_callbacks() -> QueueResult<()> {
 
 Callbacks receive the typed event and use the application event dispatcher. A `looping` callback may return `Some(ListenerResponse::Value(Box::new(false)))` to skip polling that iteration. Return `Ok(None)` to let subsequent callbacks run. Use `Queue::whenJobRunsLongerThan` with a `Duration` to observe attempts that exceeded the threshold. The callback receives the job snapshot and elapsed time.
 
+#### Synchronous job events {#synchronous-job-events}
+
+The `sync` driver emits `JobProcessing`, `JobProcessed`, and `JobAttempted` within the dispatch call. The duration in the last two events is the measured handler time in milliseconds. The event snapshot uses the `sync` queue label and an empty driver job ID. Use the payload UUID to identify the job.
+
+```rust
+use openrust::{queue::QueueResult, support::facades::Queue};
+
+fn register_sync_observer() -> QueueResult<()> {
+    Queue::after(|event| {
+        Box::pin(async move {
+            if event.job.queue == "sync" {
+                eprintln!("{}: {} ms", event.job.payload.uuid(), event.duration);
+            }
+            Ok(None)
+        })
+    })
+}
+```
+
+On failure, the driver emits `JobExceptionOccurred`, runs the failure callback, and emits `JobFailed` and `JobAttempted` in that order. If a processing listener rejects the attempt, the handler is skipped and `JobAttempted` has no duration. The attempt event retains the original error even when the failure callback returns its own error.
+
 #### Job reservation events {#job-reservation-events}
 
 Listen for `JobPopping` to observe a worker poll. It includes the connection and requested queues. `JobPopped` fires after a successful reservation and before the worker runs the job. The event carries a read-only snapshot with the driver job ID, queue, attempt number, and payload.

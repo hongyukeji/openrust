@@ -33,7 +33,10 @@ mod unix {
             failed::{FailedJob, FailedJobProviderInterface},
         },
         queue::{
-            events::{JobFailed, JobRetryRequested, JobTimedOut, QueueBusy},
+            events::{
+                JobAttempted, JobExceptionOccurred, JobFailed, JobProcessed, JobProcessing,
+                JobRetryRequested, JobTimedOut, QueueBusy,
+            },
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
         redis::{RedisManager, connections::Connection},
@@ -107,13 +110,16 @@ mod unix {
                     | "callback-retry"
                     | "callback-error"
                     | "callback-sync"
-                    | "callback-sync-error" => {
+                    | "callback-sync-error"
+                    | "sync-fail"
+                    | "sync-callback-error" => {
                         if kind == "callback-terminal" {
                             Context::add("callback_attempt_only", json!(true)).unwrap();
                         }
                         return Err(error(std::io::Error::other("original probe error")));
                     }
-                    "deadline-refresh" | "deadline-clear" => {}
+                    "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
+                    }
                     "cpu" => loop {
                         std::hint::spin_loop();
                     },
@@ -174,7 +180,10 @@ mod unix {
                     assert_eq!(Context::get("callback_trace").unwrap(), Some(json!(kind)));
                     assert_eq!(Context::get("callback_attempt_only").unwrap(), None);
                 }
-                if matches!(kind, "callback-error" | "callback-sync-error") {
+                if matches!(
+                    kind,
+                    "callback-error" | "callback-sync-error" | "sync-callback-error"
+                ) {
                     return Err(error(std::io::Error::other("failure callback error")));
                 }
                 Ok(())
@@ -281,12 +290,68 @@ mod unix {
         }
     }
 
+    struct SyncObserver(PathBuf);
+
+    impl Listener for SyncObserver {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                use std::io::Write;
+                macro_rules! record {
+                    ($ty:ty, $value:ident, $duration:expr, $exception:expr) => {
+                        if let Some($value) = event.downcast_ref::<$ty>() {
+                            let job = &$value.job;
+                            let kind = job.payload.data().as_str().unwrap();
+                            if $value.connection_name != "sync" || !kind.starts_with("sync-") {
+                                return Ok(None);
+                            }
+                            assert!(job.id.is_empty());
+                            assert_eq!(job.queue, "sync");
+                            assert_eq!(job.attempts, 1);
+                            if event.name() == JobFailed::NAME {
+                                assert!(self.0.join(format!("{kind}.failed")).is_file());
+                            }
+                            let mut journal = std::fs::OpenOptions::new().create(true).append(true)
+                                .open(self.0.join(format!("{kind}.events"))).unwrap();
+                            writeln!(journal, "{}", json!({
+                                "name": event.name(), "duration": $duration, "exception": $exception
+                            })).unwrap();
+                            if matches!((kind, event.name()), ("sync-before-error", JobProcessing::NAME) | ("sync-after-error", JobProcessed::NAME)) {
+                                return Err(EventError::Listener { source: Box::new(std::io::Error::other("sync observer failure")) });
+                            }
+                            return Ok(None);
+                        }
+                    };
+                }
+                record!(JobProcessing, e, Value::Null, Value::Null);
+                record!(JobProcessed, e, e.duration, Value::Null);
+                record!(JobExceptionOccurred, e, Value::Null, e.exception);
+                record!(JobFailed, e, Value::Null, e.exception);
+                record!(JobAttempted, e, e.duration, e.exception);
+                Err(EventError::InvalidPayload)
+            })
+        }
+    }
+
     struct Provider(PathBuf);
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
                 if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
                     ClearCommand::prohibit(true)?;
+                }
+                let sync_observer = Arc::new(SyncObserver(self.0.clone()));
+                for name in [
+                    JobProcessing::NAME,
+                    JobProcessed::NAME,
+                    JobExceptionOccurred::NAME,
+                    JobFailed::NAME,
+                    JobAttempted::NAME,
+                ] {
+                    Event::listen(name, sync_observer.clone(), Delivery::Sync)?;
                 }
                 Event::listen(
                     JobRetryRequested::NAME,
@@ -326,6 +391,7 @@ mod unix {
             Queue::dispatch(
                 payload,
                 DispatchOptions {
+                    connection: kind.starts_with("sync-").then(|| "sync".into()),
                     queue: Some("callback-probe".into()),
                     ..DispatchOptions::default()
                 },
@@ -758,7 +824,7 @@ mod unix {
         assert_eq!(lines.last().unwrap()["status"], "success");
         assert!(!root.join("callback-retry.failed").exists());
 
-        for kind in ["callback-terminal", "callback-error"] {
+        let request = |kind: &'static str| async move {
             tokio::time::timeout(Duration::from_secs(5), async {
                 let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
                 let request = format!(
@@ -767,10 +833,14 @@ mod unix {
                 stream.write_all(request.as_bytes()).await.unwrap();
                 let mut response = String::new();
                 stream.read_to_string(&mut response).await.unwrap();
-                assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+                response
             })
             .await
-            .unwrap();
+            .unwrap()
+        };
+        for kind in ["callback-terminal", "callback-error"] {
+            let response = request(kind).await;
+            assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
             let (status, lines) = artisan(root, &once, false).await;
             assert_eq!(status, Some(0), "{lines:?}");
             assert_eq!(lines.last().unwrap()["status"], "failed");
@@ -784,6 +854,60 @@ mod unix {
             assert!(event.contains("original probe error"), "{event}");
         }
         assert!(root.join("callback-error.reported").is_file());
+        for kind in [
+            "sync-success",
+            "sync-fail",
+            "sync-callback-error",
+            "sync-before-error",
+            "sync-after-error",
+        ] {
+            let response = request(kind).await;
+            let status = if kind == "sync-success" { 204 } else { 500 };
+            assert!(
+                response.starts_with(&format!("HTTP/1.1 {status} ")),
+                "{response}"
+            );
+            let events = std::fs::read_to_string(root.join(format!("{kind}.events"))).unwrap();
+            let events = events
+                .lines()
+                .map(|line| serde_json::from_str::<Value>(line).unwrap())
+                .collect::<Vec<_>>();
+            let names = events
+                .iter()
+                .map(|event| event["name"].as_str().unwrap())
+                .collect::<Vec<_>>();
+            if kind == "sync-success" {
+                assert_eq!(names, ["JobProcessing", "JobProcessed", "JobAttempted"]);
+                assert_eq!(events[1]["duration"], events[2]["duration"]);
+                assert!(events[2]["exception"].is_null());
+            } else {
+                let mut expected = vec!["JobProcessing"];
+                if kind == "sync-after-error" {
+                    expected.push("JobProcessed");
+                }
+                expected.extend(["JobExceptionOccurred", "JobFailed", "JobAttempted"]);
+                assert_eq!(names, expected);
+                let error = if matches!(kind, "sync-before-error" | "sync-after-error") {
+                    "sync observer failure"
+                } else {
+                    "original probe error"
+                };
+                assert!(
+                    events.last().unwrap()["exception"]
+                        .as_str()
+                        .unwrap()
+                        .contains(error)
+                );
+            }
+            assert_eq!(
+                events.last().unwrap()["duration"].is_null(),
+                kind == "sync-before-error"
+            );
+            assert_eq!(
+                root.join(format!("{kind}.pid")).exists(),
+                kind != "sync-before-error"
+            );
+        }
         server.abort();
         assert!(server.await.unwrap_err().is_cancelled());
 
