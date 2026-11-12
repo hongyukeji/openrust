@@ -135,17 +135,22 @@ async fn effective_api_prefix_controls_routing_cors_and_json_over_tcp() {
 
     for (environment, explicit, effective, custom) in [
         ("", None, "api", false),
-        ("API_PREFIX=//v1/internal//\n", None, "v1/internal", false),
         (
-            "API_PREFIX=/env\n",
+            "ROUTING_API_PREFIX=//v1/internal//\n",
+            None,
+            "v1/internal",
+            false,
+        ),
+        (
+            "ROUTING_API_PREFIX=/env\n",
             Some("/builder/v2/"),
             "builder/v2",
             false,
         ),
-        ("API_PREFIX=/env\n", Some(""), "", false),
-        ("API_PREFIX=/\n", None, "", false),
-        ("API_PREFIX=\n", None, "", false),
-        ("API_PREFIX=/v1\n", None, "v1", true),
+        ("ROUTING_API_PREFIX=/env\n", Some(""), "", false),
+        ("ROUTING_API_PREFIX=/\n", None, "", false),
+        ("ROUTING_API_PREFIX=\n", None, "", false),
+        ("ROUTING_API_PREFIX=/v1\n", None, "v1", true),
     ] {
         let root = TestRoot::new("api-prefix");
         fs::write(root.0.join(".env"), environment).unwrap();

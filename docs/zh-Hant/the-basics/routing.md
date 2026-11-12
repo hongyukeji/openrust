@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 宣告 Web 路由。應用程式啟動時透過 `openrust::routing::Router` 註冊這些路由及 `/up` 健康檢查。需要讀取請求的處理器接收可變的 `Request`，並傳回非同步 HTTP 結果。框架呼叫 Web 路由模組的 `register()` 時繫結目前應用程式的 Router。匯入 `openrust::support::facades::Route` 後，可以用 `Route::get("/", || view("welcome"))` 宣告具名檢視。
 
-在 `routes/api.rs` 宣告 API 路由。應用程式骨架預設掛載到 `/api` 並套用 `api` 中介軟體群組。設定 `API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中呼叫 `Routing::apiPrefix("v2")` 則優先於設定。首尾斜線可以省略。設定 `API_PREFIX=` 或傳入空字串可省略前綴，`api` 中介軟體群組仍會套用。
+在 `routes/api.rs` 宣告 API 路由。應用程式骨架預設掛載到 `/api` 並套用 `api` 中介軟體群組。設定 `ROUTING_API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中呼叫 `Routing::apiPrefix("v2")` 則優先於設定。首尾斜線可以省略。設定 `ROUTING_API_PREFIX=` 或傳入空字串可省略前綴，`api` 中介軟體群組仍會套用。
 
 `{id}` 表示必填參數。在末尾參數加上 `?` 即可省略，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 讀取符合的值。省略參數時傳回 `None`，也可以用路由的 `defaults` 提供字串預設值。參數後面還有必填參數或固定文字時，仍須提供該參數。
 

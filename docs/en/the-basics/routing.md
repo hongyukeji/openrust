@@ -2,7 +2,7 @@
 
 Declare web routes in `routes/web.rs`. The application registers those routes and the `/up` health check through `openrust::routing::Router` during startup. A handler that needs the request takes a mutable `Request` and returns an asynchronous HTTP result. The framework binds the application router while calling the Web route module’s `register()`. Declare a named view with `Route::get("/", || view("welcome"))`, using `openrust::support::facades::Route`.
 
-Declare API routes in `routes/api.rs`. The application skeleton loads it under `/api` and applies the `api` middleware group. Set `API_PREFIX=/v1/internal` to change `routing.api_prefix`, or call `Routing::apiPrefix("v2")` in the Builder to override that configuration. Leading and trailing slashes are optional. Set `API_PREFIX=` or pass an empty string to mount API routes without a prefix. The `api` middleware group still applies.
+Declare API routes in `routes/api.rs`. The application skeleton loads it under `/api` and applies the `api` middleware group. Set `ROUTING_API_PREFIX=/v1/internal` to change `routing.api_prefix`, or call `Routing::apiPrefix("v2")` in the Builder to override that configuration. Leading and trailing slashes are optional. Set `ROUTING_API_PREFIX=` or pass an empty string to mount API routes without a prefix. The `api` middleware group still applies.
 
 A parameter such as `{id}` is required. Add `?` to allow a trailing parameter to be omitted, as in `/profiles/{id?}/{tab?}` or `/report/{name}.{format?}`. Read the captured value with `request.route("id")`. For an omitted parameter, this returns `None` unless the route supplies a string through `defaults`. A parameter before required text or another required parameter must still be present.
 

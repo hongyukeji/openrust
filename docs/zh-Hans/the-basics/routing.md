@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 声明 Web 路由。应用启动时通过 `openrust::routing::Router` 注册这些路由和 `/up` 健康检查。需要读取请求的处理器接收可变的 `Request` 并返回异步 HTTP 结果。框架调用 Web 路由模块的 `register()` 时绑定当前应用的 Router。导入 `openrust::support::facades::Route` 后，可以用 `Route::get("/", || view("welcome"))` 声明命名视图。
 
-在 `routes/api.rs` 声明 API 路由。应用骨架默认挂载到 `/api` 并应用 `api` 中间件组。设置 `API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中调用 `Routing::apiPrefix("v2")` 则优先于配置。首尾斜杠可以省略。设置 `API_PREFIX=` 或传入空字符串可省略前缀，`api` 中间件组仍会应用。
+在 `routes/api.rs` 声明 API 路由。应用骨架默认挂载到 `/api` 并应用 `api` 中间件组。设置 `ROUTING_API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中调用 `Routing::apiPrefix("v2")` 则优先于配置。首尾斜杠可以省略。设置 `ROUTING_API_PREFIX=` 或传入空字符串可省略前缀，`api` 中间件组仍会应用。
 
 `{id}` 表示必填参数。在末尾参数上加 `?` 即可省略它，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 读取匹配值。省略参数时返回 `None`，也可以用路由的 `defaults` 提供字符串默认值。参数后面还有必填参数或固定文本时，该参数仍须提供。
 
