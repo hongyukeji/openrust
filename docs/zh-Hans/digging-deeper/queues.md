@@ -112,7 +112,15 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-同连接内换队列时，Worker 原子交接。跨持久连接时，源 Worker 会在自己的队列中保存转发任务。保持源队列有 Worker 运行，目标恢复后可重试投递。在每个数据库目标执行 `./artisan migrate`，创建 `job_chain_deliveries`。SQL 和 Redis 保留投递凭据，重放时据此避免重复入队。持久队列中的任务链不能切换到 sync 后继。
+同连接内换队列时，Worker 原子交接。跨持久连接时，源 Worker 会在自己的队列中保存转发任务。保持源队列有 Worker 运行，目标恢复后可重试投递。在每个数据库目标执行 `./artisan migrate`，创建 `job_chain_deliveries`。
+
+指定为 `sync` 的后继会在源 Worker 处理转发任务时于该进程内执行。同步队列忽略任务延迟。处理器失败时，任务链停止并调用失败回调。源 Worker 在确认前崩溃时，同步处理器可能重跑。
+
+源队列确认转发后，Redis 凭据在 24 小时后过期。SQL 凭据可用下列命令在目标队列连接清理，只删除确认时间早于 `--hours` 的记录。待确认记录和升级前缺少确认时间的记录继续保留，用于重放去重。
+
+```sh
+./artisan queue:prune-chain-deliveries database --hours=24
+```
 
 ### 向当前任务链添加任务 {#adding-jobs-to-the-chain}
 

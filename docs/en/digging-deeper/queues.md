@@ -112,7 +112,15 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-Workers move a successor to another queue on the same connection atomically. Between durable connections, the source worker records a forwarding job in its own queue. Keep a worker running on that queue so it can retry publication after an outage. Run `./artisan migrate` on each database destination to create `job_chain_deliveries`. SQL and Redis retain forwarding receipts to prevent duplicate enqueue on replay. A durable chain cannot switch to a sync successor.
+Workers move a successor to another queue on the same connection atomically. Between durable connections, the source worker records a forwarding job in its own queue. Keep a worker running on that queue so it can retry publication after an outage. Run `./artisan migrate` on each database destination to create `job_chain_deliveries`.
+
+A successor assigned to `sync` runs in the source worker process when it handles the forwarding job. Sync ignores the job’s delay. If the handler fails, the chain stops and invokes its failure callbacks. A process crash before acknowledgment can replay the synchronous handler.
+
+After the source acknowledges forwarding, Redis expires its receipt after 24 hours. For SQL, run the command below against the destination queue connection. It removes confirmed receipts older than `--hours`. Pending receipts and pre-upgrade receipts without confirmation stay available for replay protection.
+
+```sh
+./artisan queue:prune-chain-deliveries database --hours=24
+```
 
 ### Adding jobs to the chain {#adding-jobs-to-the-chain}
 

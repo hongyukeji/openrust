@@ -115,20 +115,7 @@ impl Worker {
 
     async fn process(&self, job: &mut dyn Job, options: &WorkerOptions) -> QueueResult<WorkResult> {
         if job.payload().chain_delivery.is_some() {
-            let manager = self
-                .app
-                .make::<QueueManager>()
-                .map_err(QueueError::Unavailable)?;
-            return match manager.forward_chain(job.payload()).await {
-                Ok(()) => {
-                    job.delete().await?;
-                    Ok(WorkResult::Processed)
-                }
-                Err(error) => {
-                    job.release(Duration::from_secs(1)).await?;
-                    Err(error)
-                }
-            };
+            return self.forward_chain(job).await;
         }
         let batch = BatchCompletion::resolve(&self.app, job)?;
         if let Some(batch) = &batch
@@ -227,6 +214,46 @@ impl Worker {
                 Ok(WorkResult::Released)
             }
         }
+    }
+
+    async fn forward_chain(&self, job: &mut dyn Job) -> QueueResult<WorkResult> {
+        let manager = self
+            .app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        let forwarded =
+            isolated_scope(self.app.clone(), manager.forward_chain(job.payload())).await;
+        let sync_failure = match forwarded {
+            Ok(failure) => failure,
+            Err(error) => {
+                job.release(Duration::from_secs(1)).await?;
+                return Err(error);
+            }
+        };
+        job.delete().await?;
+        let relay = job.payload();
+        let result = isolated_scope(self.app.clone(), async {
+            if let Err(error) = manager.acknowledge_chain_delivery(relay).await {
+                let context = serde_json::Map::from_iter([
+                    ("delivery_id".into(), relay.uuid().into()),
+                    ("error".into(), error.to_string().into()),
+                ]);
+                let _ =
+                    crate::log::Log::error("Could not confirm chain delivery receipt", &context);
+            }
+            if let Some(error) = sync_failure {
+                let context = serde_json::Map::from_iter([
+                    ("delivery_id".into(), relay.uuid().into()),
+                    ("error".into(), error.to_string().into()),
+                ]);
+                let _ = crate::log::Log::error("Synchronous chain job failed", &context);
+                WorkResult::Failed
+            } else {
+                WorkResult::Processed
+            }
+        })
+        .await;
+        Ok(result)
     }
 
     async fn complete_recorded(

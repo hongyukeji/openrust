@@ -310,7 +310,6 @@ impl QueueManager {
         jobs: impl IntoIterator<Item = &'a Payload>,
         options: &DispatchOptions,
     ) -> QueueResult<()> {
-        let mut previous_was_durable = false;
         for job in jobs {
             let destination = job.first_chain_options(DispatchOptions {
                 connection: options.connection.clone(),
@@ -319,11 +318,6 @@ impl QueueManager {
             });
             let configured = self.resolve(destination.connection.as_deref())?;
             configured.queue_name(destination.queue.as_deref())?;
-            let durable = !matches!(configured.batch_backend, BatchBackend::Unsupported);
-            if previous_was_durable && !durable {
-                return Err(QueueError::InvalidConfiguration);
-            }
-            previous_was_durable = durable;
         }
         Ok(())
     }
@@ -345,9 +339,6 @@ impl QueueManager {
             let queue = (queue != source_queue).then(|| queue.to_owned());
             return Ok((next, queue, options.delay));
         }
-        if matches!(target.batch_backend, BatchBackend::Unsupported) {
-            return Err(QueueError::InvalidConfiguration);
-        }
         Ok((
             next.chain_delivery(options, target_name.to_owned())?,
             None,
@@ -355,7 +346,7 @@ impl QueueManager {
         ))
     }
 
-    pub(super) async fn forward_chain(&self, relay: &Payload) -> QueueResult<()> {
+    pub(super) async fn forward_chain(&self, relay: &Payload) -> QueueResult<Option<QueueError>> {
         let delivery = relay
             .chain_delivery
             .as_deref()
@@ -370,7 +361,8 @@ impl QueueManager {
                         delivery.queue.as_deref(),
                         delivery.delay,
                     )
-                    .await
+                    .await?;
+                Ok(None)
             }
             BatchBackend::Database(connection) => {
                 let mut transaction = connection.beginTransaction().await.map_err(backend)?;
@@ -383,7 +375,7 @@ impl QueueManager {
                     Ok(_) => {}
                     Err(error) if is_duplicate(&error) => {
                         transaction.rollBack(None).await.map_err(backend)?;
-                        return Ok(());
+                        return Ok(None);
                     }
                     Err(error) => return Err(backend(error)),
                 }
@@ -396,9 +388,77 @@ impl QueueManager {
                         &mut transaction,
                     )
                     .await?;
-                transaction.commit().await.map_err(backend)
+                transaction.commit().await.map_err(backend)?;
+                Ok(None)
             }
-            BatchBackend::Unsupported => Err(QueueError::InvalidConfiguration),
+            BatchBackend::Unsupported => {
+                use crate::log::context::Context;
+                let repository = Context::repository().map_err(backend)?;
+                Context::hooks()
+                    .map_err(backend)?
+                    .hydrate(&delivery.job.context, &repository);
+                Ok(target
+                    .queue
+                    .push(&delivery.job, delivery.queue.as_deref())
+                    .await
+                    .err())
+            }
+        }
+    }
+
+    pub(super) async fn acknowledge_chain_delivery(&self, relay: &Payload) -> QueueResult<()> {
+        let delivery = relay
+            .chain_delivery
+            .as_deref()
+            .ok_or(QueueError::InvalidPayload)?;
+        let target = self.resolve(Some(&delivery.connection))?;
+        match &target.batch_backend {
+            BatchBackend::Redis(redis) => redis.acknowledge_chain_delivery(relay.uuid()).await,
+            BatchBackend::Database(connection) => {
+                connection
+                    .table("job_chain_deliveries")
+                    .r#where("id", "=", relay.uuid())
+                    .whereNull("acknowledged_at")
+                    .update(
+                        [(
+                            "acknowledged_at".into(),
+                            chrono::Utc::now().timestamp().into(),
+                        )]
+                        .into_iter()
+                        .collect(),
+                    )
+                    .await
+                    .map_err(backend)?;
+                Ok(())
+            }
+            BatchBackend::Unsupported => Ok(()),
+        }
+    }
+
+    pub(super) async fn prune_chain_deliveries(
+        &self,
+        queue_connection: Option<&str>,
+        cutoff: i64,
+    ) -> QueueResult<u64> {
+        let configured = self.resolve(queue_connection)?;
+        let BatchBackend::Database(connection) = &configured.batch_backend else {
+            return Err(QueueError::InvalidConfiguration);
+        };
+        let mut total = 0;
+        loop {
+            let deleted = connection
+                .table("job_chain_deliveries")
+                .r#where("acknowledged_at", "<", cutoff)
+                .orderBy("acknowledged_at", "asc")
+                .orderBy("id", "asc")
+                .limit(1000)
+                .delete()
+                .await
+                .map_err(backend)?;
+            total += deleted;
+            if deleted == 0 {
+                return Ok(total);
+            }
         }
     }
 

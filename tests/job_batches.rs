@@ -24,6 +24,7 @@ use openrust::{
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    log::context::Context,
     queue::{
         Delay, DispatchResult, JobContext, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult,
@@ -552,7 +553,13 @@ impl JobHandler for ChainRoutingProbe {
             let mut segments = data.split('.');
             assert_eq!(context.connection(), segments.next().unwrap());
             assert_eq!(context.queue(), segments.next().unwrap());
+            if data.contains(".sync-") {
+                assert_eq!(Context::get("chain-route").unwrap(), Some(json!("trace")));
+            }
             record_chain_receipt(data).await;
+            if data.ends_with(".sync-fail-middle") {
+                return Err(QueueError::InvalidPayload);
+            }
             Ok(())
         })
     }
@@ -567,13 +574,14 @@ fn routed_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, 
         let source = request.route("source").unwrap();
         let target = request.route("target").unwrap();
         let kind = request.route("kind").unwrap();
+        Context::add("chain-route", json!("trace")).unwrap();
         let job = |connection, queue, step| {
             Payload::new(
                 "chain.routing",
                 format!("{connection}.{queue}.{kind}-{step}"),
             )
         };
-        let selected = if kind == "delayed" {
+        let selected = if matches!(kind, "delayed" | "sync-ok") {
             Delay::For(Duration::from_secs(3600))
         } else {
             Delay::For(Duration::ZERO)
@@ -597,6 +605,7 @@ fn routed_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, 
         chain
             .onConnection(source)
             .onQueue("chain")
+            .catch("chain.failed")
             .dispatch()
             .await?;
         Response::json(StatusCode::OK, json!({}))
@@ -808,6 +817,7 @@ async fn exercise(mysql: Option<&str>) {
     let mut schema = db.getSchemaBuilder();
     for table in [
         "pending_ack_block",
+        "chain_ack_guard",
         "job_chain_deliveries",
         "job_batches_continuations",
         "job_batches_additions",
@@ -1157,6 +1167,7 @@ async fn exercise(mysql: Option<&str>) {
         verify_cross_connection_routing(&root.0, &db, &queue, address, &redis, mysql.is_some())
             .await;
         verify_same_connection_routing(&root.0, &db, &queue, address, "redis").await;
+        verify_sync_successors(&root.0, &db, address, "redis").await;
         let delayed = redis.key("queues:alternate:delayed");
         redis.command("DEL", &[delayed.as_bytes()]).await.unwrap();
         verify_batched_chain_edit(&root.0, &db, address, "redis", None).await;
@@ -1196,7 +1207,8 @@ async fn exercise(mysql: Option<&str>) {
     request(address, "conditional/missing/if/on", 500).await;
     request(address, "conditional/database/invalid/on", 500).await;
     verify_same_connection_routing(&root.0, &db, &queue, address, "database").await;
-    request(address, "routed/database/sync/invalid", 500).await;
+    verify_sync_successors(&root.0, &db, address, "database").await;
+    verify_chain_receipt_pruning(&root.0, &db).await;
     server.abort();
 }
 
@@ -1747,6 +1759,7 @@ async fn verify_cross_connection_routing(
         request(address, &format!("routed/{source}/{target}/cross"), 200).await;
         artisan(base, &first).await;
         assert_eq!(original.size(Some("chain")).await.unwrap(), 1);
+        let mut receipt_key = None;
         if target == "redis" {
             let ready = redis.key("queues:alternate");
             redis
@@ -1762,6 +1775,48 @@ async fn verify_cross_connection_routing(
             )
             .await
             .unwrap();
+            let row = db
+                .table("jobs")
+                .r#where("queue", "=", "chain")
+                .first()
+                .await
+                .unwrap()
+                .unwrap();
+            let Some(Value::Text(raw)) = row.get("payload") else {
+                panic!("missing relay payload")
+            };
+            let relay: Json = serde_json::from_str(raw).unwrap();
+            let key = redis.key(&format!(
+                "queue-chain-delivery:{}",
+                relay["uuid"].as_str().unwrap()
+            ));
+            let allow = if mysql {
+                db.unprepared("create table chain_ack_guard (job_id bigint unsigned not null, foreign key (job_id) references jobs(id))").await.unwrap();
+                db.statement(
+                    "insert into chain_ack_guard (job_id) values (?)",
+                    &[row.get("id").unwrap().clone()],
+                )
+                .await
+                .unwrap();
+                "drop table chain_ack_guard"
+            } else {
+                db.unprepared("create trigger reject_chain_ack before delete on jobs begin select raise(abort, 'ack rejected'); end").await.unwrap();
+                "drop trigger reject_chain_ack"
+            };
+            artisan_status(base, &first, 1).await;
+            assert_eq!(destination.size(Some("alternate")).await.unwrap(), 1);
+            assert_eq!(
+                redis.command("TTL", &[key.as_bytes()]).await.unwrap(),
+                openrust::redis::Value::Int(-1)
+            );
+            db.unprepared(allow).await.unwrap();
+            db.statement(
+                "update jobs set reserved_at = 0 where queue = ?",
+                &["chain".into()],
+            )
+            .await
+            .unwrap();
+            receipt_key = Some(key);
             // A redelivery of the same forwarding envelope must not re-enqueue the job.
             db.statement(
                 "insert into jobs (queue, payload, attempts, available_at, created_at) select queue, payload, 0, available_at, created_at from jobs where queue = ?",
@@ -1803,6 +1858,14 @@ async fn verify_cross_connection_routing(
         artisan(base, &first).await;
         assert_eq!(original.size(Some("chain")).await.unwrap(), 0);
         assert_eq!(destination.size(Some("alternate")).await.unwrap(), 1);
+        if let Some(key) = receipt_key {
+            let ttl = redis.command("TTL", &[key.as_bytes()]).await.unwrap();
+            assert!(
+                matches!(ttl, openrust::redis::Value::Int(86300..=86400)),
+                "{ttl:?}"
+            );
+            redis.command("DEL", &[key.as_bytes()]).await.unwrap();
+        }
         artisan(base, &alternate).await;
         artisan(base, &alternate).await;
         artisan(base, &first).await;
@@ -1819,6 +1882,104 @@ async fn verify_cross_connection_routing(
             1
         );
     }
+    assert_eq!(
+        db.table("job_chain_deliveries")
+            .whereNotNull("acknowledged_at")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+}
+
+async fn verify_sync_successors(
+    base: &Path,
+    db: &Connection,
+    address: std::net::SocketAddr,
+    source: &str,
+) {
+    let once = ["queue:work", source, "--queue=chain", "--once"];
+    for kind in ["sync-ok", "sync-fail"] {
+        let sync_receipt = format!("sync.alternate.{kind}-middle");
+        let first_receipt = format!("{source}.chain.{kind}-first");
+        let last_receipt = format!("{source}.chain.{kind}-last");
+        let previous_sync = chain_receipt(db, &sync_receipt).await;
+        let previous_catch = chain_receipt(db, &format!("{sync_receipt}.catch")).await;
+        request(address, &format!("routed/{source}/sync/{kind}"), 200).await;
+        artisan(base, &once).await;
+        assert_eq!(chain_receipt(db, &first_receipt).await, 1);
+        assert_eq!(chain_receipt(db, &sync_receipt).await, previous_sync);
+        artisan(base, &once).await;
+        assert_eq!(chain_receipt(db, &sync_receipt).await, previous_sync + 1);
+        assert_eq!(chain_receipt(db, &last_receipt).await, 0);
+        artisan(base, &once).await;
+        assert_eq!(
+            chain_receipt(db, &last_receipt).await,
+            u64::from(kind == "sync-ok")
+        );
+        assert_eq!(
+            chain_receipt(db, &format!("{sync_receipt}.catch")).await,
+            previous_catch + u64::from(kind == "sync-fail")
+        );
+    }
+}
+
+async fn verify_chain_receipt_pruning(base: &Path, db: &Connection) {
+    let table = "job_chain_deliveries";
+    let now = chrono::Utc::now().timestamp();
+    for (id, time) in [
+        ("stale", Some(now - 48 * 3600)),
+        ("recent", Some(now)),
+        ("pending", None),
+    ] {
+        db.table(table)
+            .insert(&[[
+                ("id".into(), id.into()),
+                (
+                    "acknowledged_at".into(),
+                    time.map_or(Value::Null, Value::from),
+                ),
+            ]
+            .into_iter()
+            .collect()])
+            .await
+            .unwrap();
+    }
+    let pruned = artisan(
+        base,
+        &["queue:prune-chain-deliveries", "database", "--hours=24"],
+    )
+    .await;
+    assert!(
+        pruned.contains("1 chain delivery receipts deleted."),
+        "{pruned}"
+    );
+    assert_eq!(
+        db.table(table)
+            .r#where("id", "=", "stale")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        db.table(table)
+            .r#where("id", "=", "pending")
+            .whereNull("acknowledged_at")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.table(table)
+            .r#where("id", "=", "recent")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    artisan_status(base, &["queue:prune-chain-deliveries", "sync"], 1).await;
 }
 
 async fn verify_conditional_chain(

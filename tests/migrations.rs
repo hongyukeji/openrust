@@ -136,11 +136,35 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 11);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 12);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(
+        !schema
+            .hasColumn("job_chain_deliveries", "acknowledged_at")
+            .await
+            .unwrap()
+    );
+    assert!(schema.hasTable("job_chain_deliveries").await.unwrap());
+    db.table("job_chain_deliveries")
+        .insert(&[[("id".into(), "legacy-chain".into())].into_iter().collect()])
+        .await
+        .unwrap();
+    let receipt_upgrade = success(run(&["migrate"]));
+    assert!(receipt_upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
+    assert_eq!(
+        db.table("job_chain_deliveries")
+            .r#where("id", "=", "legacy-chain")
+            .whereNull("acknowledged_at")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("job_chain_deliveries").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -178,6 +202,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgraded.contains("create_job_batches_continuations_table"));
     assert!(upgraded.contains("add_chain_successor_to_job_batches_jobs"));
     assert!(upgraded.contains("create_job_chain_deliveries_table"));
+    assert!(upgraded.contains("add_acknowledged_at_to_job_chain_deliveries"));
     assert_eq!(
         db.table("job_batches_outbox")
             .r#where("batch_id", "=", pending.id.as_str())
@@ -186,6 +211,7 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -208,8 +234,10 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgrade.contains("create_job_batches_continuations_table"));
     assert!(upgrade.contains("add_chain_successor_to_job_batches_jobs"));
     assert!(upgrade.contains("create_job_chain_deliveries_table"));
+    assert!(upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -390,7 +418,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 11);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 12);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

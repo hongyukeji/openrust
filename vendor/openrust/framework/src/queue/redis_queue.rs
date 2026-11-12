@@ -220,9 +220,7 @@ impl RedisQueue {
     ) -> QueueResult<()> {
         let [ready, delayed, _] = self.keys(self.queue_name(queue)?);
         let notify = format!("{ready}:notify");
-        let marker = self
-            .connection
-            .key(&format!("queue-chain-delivery:{delivery}"));
+        let marker = self.chain_delivery_key(delivery);
         let command = chain_enqueue_command(
             FORWARD_CHAIN_START,
             FORWARD_CHAIN_END,
@@ -233,6 +231,24 @@ impl RedisQueue {
         )?;
         self.connection
             .query::<u32>(&command)
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
+    fn chain_delivery_key(&self, delivery: &str) -> String {
+        self.connection
+            .key(&format!("queue-chain-delivery:{delivery}"))
+    }
+
+    pub(super) async fn acknowledge_chain_delivery(&self, delivery: &str) -> QueueResult<()> {
+        self.connection
+            .query::<bool>(
+                ::redis::cmd("EXPIRE")
+                    .arg(self.chain_delivery_key(delivery))
+                    .arg(86400)
+                    .arg("NX"),
+            )
             .await
             .map_err(backend)?;
         Ok(())

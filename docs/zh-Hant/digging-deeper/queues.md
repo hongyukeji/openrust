@@ -112,7 +112,15 @@ fn route_job(job: Payload, connection: &str, queue: &str, delay: Delay) -> Paylo
 }
 ```
 
-同一連線內切換佇列時，Worker 原子交接。跨持久連線時，來源 Worker 會在自己的佇列中儲存轉送工作。保持來源佇列有 Worker 執行，目標恢復後可重試派送。在每個資料庫目標執行 `./artisan migrate`，建立 `job_chain_deliveries`。SQL 和 Redis 保留派送憑據，重放時據此避免重複入列。持久佇列中的工作鏈不能切換到 sync 後續工作。
+同一連線內切換佇列時，Worker 原子交接。跨持久連線時，來源 Worker 會在自己的佇列中儲存轉送工作。保持來源佇列有 Worker 執行，目標恢復後可重試派送。在每個資料庫目標執行 `./artisan migrate`，建立 `job_chain_deliveries`。
+
+指定為 `sync` 的後續工作會在來源 Worker 處理轉送工作時於該程序內執行。同步佇列忽略工作延遲。處理器失敗時，工作鏈停止並呼叫失敗回呼。來源 Worker 在確認前當機時，同步處理器可能重新執行。
+
+來源佇列確認轉送後，Redis 憑據於 24 小時後到期。SQL 憑據可用下列命令在目標佇列連線清理，只刪除確認時間早於 `--hours` 的紀錄。待確認紀錄和升級前缺少確認時間的紀錄繼續保留，用於重放去重。
+
+```sh
+./artisan queue:prune-chain-deliveries database --hours=24
+```
 
 ### 向目前工作鏈加入工作 {#adding-jobs-to-the-chain}
 
