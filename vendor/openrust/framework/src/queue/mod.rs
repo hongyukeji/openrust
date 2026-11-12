@@ -19,6 +19,7 @@ mod queue_service_provider;
 mod redis_queue;
 mod sync_queue;
 mod worker;
+mod worker_attempt_marker;
 mod worker_control;
 mod worker_options;
 mod worker_signals;
@@ -155,6 +156,9 @@ pub struct JobOptions {
     /// Maximum number of unhandled job exceptions within the worker's counting window.
     #[serde(default)]
     pub max_exceptions: Option<u32>,
+    /// Includes an unfinished worker attempt in the exception count after redelivery.
+    #[serde(default)]
+    pub count_crashes_as_exceptions: bool,
     pub timeout: Option<Duration>,
     pub backoff: Vec<Duration>,
     #[serde(default)]

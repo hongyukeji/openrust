@@ -13,7 +13,7 @@ use crate::{
         events::{BatchCanceled, BatchFinished, BatchStarted, emit},
     },
     cache::{
-        CacheManager,
+        CacheManager, Repository,
         rate_limiting::counters::{self, Admission, Quota},
     },
     container::Container,
@@ -37,6 +37,7 @@ use super::{
         WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
+    worker_attempt_marker::AttemptMarker,
     worker_options::MEBIBYTE,
     worker_signals::WorkerSignalState,
 };
@@ -69,6 +70,7 @@ pub(super) type RunningHandler = Mutex<Option<Arc<dyn JobHandler>>>;
 
 #[derive(Default)]
 struct AttemptStatus {
+    marker: Option<AttemptMarker>,
     stop_on_timeout: bool,
     timed_out: bool,
     handled_failure: bool,
@@ -559,6 +561,7 @@ impl Worker {
         let result = self
             .attempt(job, options, &manager, batch.as_ref(), attempt, signals)
             .await;
+        self.finish_attempt_marker(&mut attempt.marker).await;
         if attempt.stop_on_timeout && attempt.timed_out {
             return result;
         }
@@ -583,12 +586,24 @@ impl Worker {
         result
     }
 
-    async fn exceeds_max_exceptions(&self, uuid: &str, maximum: u32) -> QueueResult<bool> {
-        let cache = self
-            .app
+    async fn finish_attempt_marker(&self, marker: &mut Option<AttemptMarker>) {
+        if let Some(marker) = marker.take()
+            && let Err(error) = marker.finish().await
+        {
+            self.report_worker_error(&error).await;
+        }
+    }
+
+    fn exception_cache(&self) -> QueueResult<Arc<Repository>> {
+        self.app
             .make::<CacheManager>()
-            .map_err(QueueError::Unavailable)?;
-        let repository = cache.store(None).map_err(super::backend)?;
+            .map_err(QueueError::Unavailable)?
+            .store(None)
+            .map_err(super::backend)
+    }
+
+    async fn exceeds_max_exceptions(&self, uuid: &str, maximum: u32) -> QueueResult<bool> {
+        let repository = self.exception_cache()?;
         let quota = Quota {
             key: counters::key("queue-job-exceptions", "", uuid),
             max: u64::from(maximum.max(1)),
@@ -629,6 +644,18 @@ impl Worker {
             .await;
         let tries = job.options().max_tries.unwrap_or(options.tries);
         let already_exhausted = preflight.is_ok() && exceeds_attempts(job, tries, false);
+        let crash_exhausted = if preflight.is_ok()
+            && !already_exhausted
+            && job.options().count_crashes_as_exceptions
+            && let Some(maximum) = job.options().max_exceptions
+        {
+            let uuid = job.uuid().to_owned();
+            let (marker, previous) = AttemptMarker::begin(self.exception_cache()?, &uuid).await?;
+            status.marker = Some(marker);
+            previous && self.exceeds_max_exceptions(&uuid, maximum).await?
+        } else {
+            false
+        };
         let timeout = job.options().timeout.unwrap_or(options.timeout);
         let running = Mutex::new(None);
         let mut context = JobContext {
@@ -637,7 +664,7 @@ impl Worker {
         };
         let result = match preflight {
             Err(error) => Err(error),
-            Ok(()) if already_exhausted => Err(QueueError::MaxAttempts),
+            Ok(()) if already_exhausted || crash_exhausted => Err(QueueError::MaxAttempts),
             Ok(()) => {
                 let started = tokio::time::Instant::now();
                 let hydrated = job.payload().context.clone();
@@ -741,6 +768,7 @@ impl Worker {
             status.handled_failure = context.fail_immediately;
             let exceeded_exceptions = if !status.handled_failure
                 && !already_exhausted
+                && !crash_exhausted
                 && let Some(maximum) = job.options().max_exceptions
             {
                 let uuid = job.uuid().to_owned();
@@ -749,11 +777,13 @@ impl Worker {
                 false
             };
             let terminal = status.handled_failure
+                || crash_exhausted
                 || exceeded_exceptions
                 || (stop_for_timeout || context.release_after.is_none())
                     && (already_exhausted
                         || exceeds_attempts(job, tries, true)
                         || timed_out && job.options().fail_on_timeout);
+            self.finish_attempt_marker(&mut status.marker).await;
             let error = status.cause.insert(error);
             let failure = if terminal {
                 let result = self.fail(job, error, batch).await;
@@ -837,6 +867,7 @@ impl Worker {
             return Ok(WorkResult::Released);
         }
 
+        self.finish_attempt_marker(&mut status.marker).await;
         let released = if let Some(delay) = context.release_after {
             job.release(delay).await?;
             true

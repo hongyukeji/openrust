@@ -185,6 +185,23 @@ let options = JobOptions {
 
 Worker 在應用程式的預設快取中依工作 UUID 計數，計數器從首次例外起保留一天。獨立 Worker 需要使用共用快取才能讀取同一計數。省略此選項時沿用原有嘗試與逾時規則。
 
+##### 計入 Worker 崩潰 {#counting-worker-crashes}
+
+為設定了 `max_exceptions` 的工作啟用 `count_crashes_as_exceptions`，可將未完成的嘗試納入同一例外額度。Worker 在共用快取中記錄標記。預約到期後驅動程式重新投遞，仍存在的標記計為一次例外。達到上限時，Worker 在再次呼叫處理器前記錄失敗。
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    count_crashes_as_exceptions: true,
+    ..JobOptions::default()
+};
+```
+
+正常成功、一般例外、主動釋放及已處理的逾時都會清除本次標記。標記一天後到期。獨立 Worker 需要使用相同的快取儲存與命名空間。
+
 #### 工作預約到期與逾時 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 預設為 60 秒，工作可覆寫此值。逾時應短於佇列連線的 `retry_after`，以便在逾時 Worker 停止後，由其他 Worker 重新預約工作。

@@ -185,6 +185,23 @@ let options = JobOptions {
 
 The worker counts exceptions by job UUID in the application's default cache. The counter expires one day after the first exception. Use a shared cache for independent workers to see the same count. Omit the option to use the usual attempt and timeout rules.
 
+##### Counting worker crashes {#counting-worker-crashes}
+
+Enable `count_crashes_as_exceptions` on a job with `max_exceptions` to include unfinished attempts in the same budget. The worker records a marker in the shared cache. When the driver redelivers the job after its reservation expires, a remaining marker counts as one exception. If that reaches the limit, the worker records failure before invoking the handler again.
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    count_crashes_as_exceptions: true,
+    ..JobOptions::default()
+};
+```
+
+Successful execution, an ordinary exception, a voluntary release, and a handled timeout clear their markers. Markers expire after one day. Independent workers must use the same cache store and namespace.
+
 #### Job expirations and timeouts {#job-expirations-and-timeouts}
 
 `queue:work --timeout` defaults to 60 seconds. A job can override it. Set the timeout below the queue connection's `retry_after` so another worker can pick up the reservation after the timed-out worker has stopped.

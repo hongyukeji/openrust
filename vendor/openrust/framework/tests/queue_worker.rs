@@ -155,6 +155,23 @@ impl JobHandler for Handler {
                     return Err(execution(std::io::Error::other("exception budget fixture")));
                 }
                 "exception_timeout" => sleep(Duration::from_secs(10)).await,
+                "crash_twice" | "crash_race" | "crash_disabled"
+                    if payload.name() != "crash_disabled" || context.attempts() == 1 =>
+                {
+                    let base = Context::get("crash_fixture_root")
+                        .map_err(execution)?
+                        .unwrap();
+                    let gate = Path::new(base.as_str().unwrap()).join(format!(
+                        "{}-{}",
+                        payload.name(),
+                        context.attempts()
+                    ));
+                    while !gate.exists() {
+                        sleep(Duration::from_millis(20)).await;
+                    }
+                }
+                "crash_release" if context.attempts() == 1 => context.release(Duration::ZERO),
+                "crash_timeout" if context.attempts() == 1 => sleep(Duration::from_secs(10)).await,
                 "manual_release" | "exception_budget" if context.attempts() == 1 => {
                     context.release(Duration::ZERO);
                 }
@@ -781,6 +798,11 @@ impl ServiceProvider for Providers {
                 "manual_release",
                 "exception_budget",
                 "exception_timeout",
+                "crash_twice",
+                "crash_race",
+                "crash_disabled",
+                "crash_release",
+                "crash_timeout",
                 "mysql_disconnect",
                 "terminal",
                 "timeout",
@@ -876,7 +898,11 @@ impl ServiceProvider for Providers {
             })
             .map_err(cache_error)?;
             Context::dehydrating(|context| context.forgetHidden("secret"))?;
-            Context::hydrated(|context| context.add("hydrated", json!(true)))?;
+            let crash_root = app.base_path().to_path_buf();
+            Context::hydrated(move |context| {
+                context.add("hydrated", json!(true));
+                context.add("crash_fixture_root", json!(crash_root));
+            })?;
             Ok(())
         })
     }
@@ -943,7 +969,22 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     ..Default::default()
                 });
             }
+            if kind.starts_with("crash_") {
+                payload = payload.with_options(JobOptions {
+                    max_exceptions: Some(
+                        if matches!(kind, "crash_twice" | "crash_race" | "crash_timeout") {
+                            2
+                        } else {
+                            1
+                        },
+                    ),
+                    count_crashes_as_exceptions: kind != "crash_disabled",
+                    timeout: (kind == "crash_timeout").then_some(Duration::from_millis(150)),
+                    ..Default::default()
+                });
+            }
             let options = DispatchOptions {
+                connection: kind.starts_with("crash_").then(|| "crash".into()),
                 queue: if kind.starts_with("throttle_redis_") {
                     Some("throttle-redis".into())
                 } else if kind.starts_with("throttle_cache_") {
@@ -954,6 +995,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     Some("overlap".into())
                 } else if kind.starts_with("exception_") {
                     Some("exceptions".into())
+                } else if kind.starts_with("crash_") {
+                    Some("crashes".into())
                 } else {
                     (kind == "control_low").then(|| "low".to_owned())
                 },
@@ -1172,7 +1215,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         "cache": {"default":if redis.is_some() {"redis"} else {"file"},"stores":{"redis":{"driver":"redis"},"file":{"driver":"file","path":"control-cache"}}},
         "queue": {
             "default": default_queue, "output_timezone": "Asia/Shanghai",
-            "connections":{"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0}},
+            "connections":{"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0},"crash":{"driver":default_queue,"retry_after":2}},
             "failed":{"driver":"database-uuids","database":"worker","table":"failed_jobs"}
         }
     });
@@ -1443,6 +1486,14 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_conditional_middleware(&root.0, &db, &*queue, address).await;
     verify_job_overlap(&root.0, &db, &*queue, address).await;
     verify_max_exceptions(&root.0, &db, &*queue, address).await;
+    #[cfg(unix)]
+    verify_crash_exception_count(
+        &root.0,
+        &db,
+        &*manager.connection(Some("crash")).unwrap(),
+        address,
+    )
+    .await;
     verify_exception_throttle(&root.0, &db, &*queue, address, "cache").await;
     if redis.is_some() {
         verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
@@ -2431,6 +2482,120 @@ async fn verify_job_rate_limits(
         assert_eq!(count("rate_redis").await, 1);
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+}
+
+#[cfg(unix)]
+async fn verify_crash_exception_count(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    use std::os::unix::process::ExitStatusExt;
+
+    let args = [
+        "queue:work",
+        "crash",
+        "--json",
+        "--queue=crashes",
+        "--once",
+        "--tries=0",
+    ];
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let start = |kind, attempts, expected| async move {
+        let worker = artisan(root, &args)
+            .env("QUEUE_WORKER_EXPECT_EXIT", expected)
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        timeout(Duration::from_secs(5), async {
+            while count(kind).await < attempts {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        worker
+    };
+    let failed_before = db.table("failed_jobs").count("*").await.unwrap();
+    request(address, "crash_twice").await;
+    for attempts in 1..=2 {
+        let mut worker = start("crash_twice", attempts, "0").await;
+        worker.kill().await.unwrap();
+        assert_eq!(worker.wait().await.unwrap().signal(), Some(9));
+        sleep(Duration::from_secs(3)).await;
+    }
+    let out = run(root, &args).await;
+    assert_eq!(
+        json_lines(&out).last().unwrap()["status"],
+        "failed",
+        "{out}"
+    );
+    assert_eq!(count("crash_twice").await, 2);
+
+    request(address, "crash_race").await;
+    let mut first = start("crash_race", 1, "1").await;
+    sleep(Duration::from_secs(3)).await;
+    let mut second = start("crash_race", 2, "0").await;
+    std::fs::write(root.join("crash_race-1"), []).unwrap();
+    assert!(
+        timeout(Duration::from_secs(5), first.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    second.kill().await.unwrap();
+    assert_eq!(second.wait().await.unwrap().signal(), Some(9));
+    sleep(Duration::from_secs(3)).await;
+    let out = run(root, &args).await;
+    assert_eq!(
+        json_lines(&out).last().unwrap()["status"],
+        "failed",
+        "{out}"
+    );
+    assert_eq!(count("crash_race").await, 2);
+
+    request(address, "crash_disabled").await;
+    let mut worker = start("crash_disabled", 1, "0").await;
+    worker.kill().await.unwrap();
+    assert_eq!(worker.wait().await.unwrap().signal(), Some(9));
+    sleep(Duration::from_secs(3)).await;
+    let out = run(root, &args).await;
+    assert_eq!(
+        json_lines(&out).last().unwrap()["status"],
+        "success",
+        "{out}"
+    );
+    assert_eq!(count("crash_disabled").await, 2);
+
+    for kind in ["crash_release", "crash_timeout"] {
+        request(address, kind).await;
+        let first = run(root, &args).await;
+        assert_eq!(
+            json_lines(&first).last().unwrap()["result"],
+            "released",
+            "{first}"
+        );
+        let second = run(root, &args).await;
+        assert_eq!(
+            json_lines(&second).last().unwrap()["status"],
+            "success",
+            "{second}"
+        );
+        assert_eq!(count(kind).await, 2);
+    }
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        failed_before + 2
+    );
+    assert_eq!(queue.size(Some("crashes")).await.unwrap(), 0);
 }
 
 async fn verify_max_exceptions(

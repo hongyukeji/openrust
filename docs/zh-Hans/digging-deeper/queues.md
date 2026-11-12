@@ -185,6 +185,23 @@ let options = JobOptions {
 
 Worker 在应用默认缓存中按任务 UUID 计数，计数器从首次异常起保留一天。独立 Worker 需要使用共享缓存才能读取同一计数。省略该选项时沿用原有尝试与超时规则。
 
+##### 计入 Worker 崩溃 {#counting-worker-crashes}
+
+为配置了 `max_exceptions` 的任务启用 `count_crashes_as_exceptions`，可把未完成的尝试纳入同一异常额度。Worker 在共享缓存中记录标记。预约到期后驱动重新投递，仍存在的标记计为一次异常。达到上限时，Worker 在再次调用处理器前记录失败。
+
+```rust
+use openrust::queue::JobOptions;
+
+let options = JobOptions {
+    max_tries: Some(0),
+    max_exceptions: Some(3),
+    count_crashes_as_exceptions: true,
+    ..JobOptions::default()
+};
+```
+
+正常成功、普通异常、主动释放及已处理的超时都会清除本次标记。标记一天后过期。独立 Worker 需要使用同一缓存存储和命名空间。
+
 #### 任务预约到期与超时 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 默认 60 秒，任务可以覆盖此值。超时应短于队列连接的 `retry_after`，以便在超时 Worker 停止后，其他 Worker 能重新预约任务。
