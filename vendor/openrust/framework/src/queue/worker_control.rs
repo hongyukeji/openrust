@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    cache::{Repository, Value},
+    cache::{Repository, Ttl, Value},
     contracts::cache::Repository as _,
 };
 
@@ -33,14 +33,18 @@ impl WorkerControl {
         Ok(())
     }
 
-    pub(super) async fn pause(&self, target: Option<(&str, &str)>) -> QueueResult<()> {
+    pub(super) async fn pause(
+        &self,
+        target: Option<(&str, &str)>,
+        ttl: Option<Ttl>,
+    ) -> QueueResult<()> {
         let key = target.map_or_else(|| PAUSE_ALL.to_owned(), pause_key);
-        if !self
-            .0
-            .forever(&key, &Value::Json(serde_json::Value::Bool(true)))
-            .await
-            .map_err(backend)?
-        {
+        let paused = Value::Json(serde_json::Value::Bool(true));
+        let stored = match ttl {
+            Some(ttl) => self.0.put(&key, &paused, Some(ttl)).await,
+            None => self.0.forever(&key, &paused).await,
+        };
+        if !stored.map_err(backend)? {
             return Err(QueueError::InvalidConfiguration);
         }
         Ok(())
@@ -58,6 +62,23 @@ impl WorkerControl {
 
     pub(super) async fn queue_paused(&self, connection: &str, queue: &str) -> QueueResult<bool> {
         self.paused(&pause_key((connection, queue))).await
+    }
+
+    pub(super) async fn paused_queues<'a>(
+        &self,
+        connection: &str,
+        queues: &[&'a str],
+    ) -> QueueResult<Vec<&'a str>> {
+        if self.all_paused().await? {
+            return Ok(queues.to_vec());
+        }
+        let mut paused = Vec::new();
+        for &queue in queues {
+            if self.queue_paused(connection, queue).await? {
+                paused.push(queue);
+            }
+        }
+        Ok(paused)
     }
 
     async fn paused(&self, key: &str) -> QueueResult<bool> {

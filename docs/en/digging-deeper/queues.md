@@ -106,6 +106,25 @@ Pause or resume every queue with `--all`. Resuming all queues preserves individu
 
 Workers check the shared cache between jobs and while idle. The `--sleep` option controls the idle polling interval. To disable restart and pause polling for an application, call `Queue::withoutInterruptionPolling()?` in a service provider’s `boot` method. Redis workers with `block_for` check again after the blocking pop returns. Use a finite block duration if idle workers need to pick up control signals promptly.
 
+#### Pausing a queue from application code {#pausing-queues-in-code}
+
+Call the Queue facade inside an application scope. Pass a duration with `Ttl::Seconds` or an absolute deadline with `Ttl::Until`. A worker can consume the queue again after the deadline or after an explicit `Queue::resume`.
+
+```rust
+use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
+
+async fn pause_default_queue() -> QueueResult<()> {
+    let connection = Queue::connection(None)?;
+    let name = connection.get_connection_name();
+    Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::isPaused(name, "default").await?);
+    assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
+    Ok(())
+}
+```
+
+`QueuePaused`, `QueueResumed`, `QueuesPaused`, and `QueuesResumed` describe changes made through the application or Artisan. `WorkerQueuePaused` and `WorkerQueueResumed` describe the state a running worker observes. For example, a timed pause emits `WorkerQueueResumed` when a worker next checks after expiry.
+
 ## Job chaining {#job-chaining}
 
 Pass registered job payloads to `Bus::chain`. Call `dispatch().await` on the builder to dispatch the first job. On the database and Redis drivers, the worker acknowledges each successful job and enqueues the next one in a single storage operation. A retry or release pauses the chain at the current job. A permanent failure stops it. The sync driver runs the chain inline.

@@ -106,6 +106,25 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 Worker 在工作之間及閒置時檢查共用快取。`--sleep` 控制閒置輪詢間隔。若要對某個應用程式關閉重啟和暫停輪詢，請在服務提供者的 `boot` 方法中呼叫 `Queue::withoutInterruptionPolling()?`。 Redis Worker 設定了 `block_for` 時，會在阻塞取工作返回後再次檢查。若要讓閒置 Worker 及時回應控制訊號，請設定有限的阻塞時間。
 
+#### 在應用程式碼中暫停佇列 {#pausing-queues-in-code}
+
+在應用程式作用域內呼叫 Queue 門面。使用 `Ttl::Seconds` 指定時長，或用 `Ttl::Until` 指定絕對截止時間。暫停到期或明確呼叫 `Queue::resume` 後，Worker 可以繼續消費該佇列。
+
+```rust
+use openrust::{cache::Ttl, queue::QueueResult, support::facades::Queue};
+
+async fn pause_default_queue() -> QueueResult<()> {
+    let connection = Queue::connection(None)?;
+    let name = connection.get_connection_name();
+    Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
+    assert!(Queue::isPaused(name, "default").await?);
+    assert_eq!(Queue::getPausedQueues(name, &["low", "default"]).await?, ["default"]);
+    Ok(())
+}
+```
+
+`QueuePaused`、`QueueResumed`、`QueuesPaused` 和 `QueuesResumed` 對應應用程式碼或 Artisan 發起的狀態變更。`WorkerQueuePaused` 和 `WorkerQueueResumed` 對應執行中的 Worker 觀察到的狀態變化。例如限時暫停到期後，Worker 下次檢查時會派發 `WorkerQueueResumed`。
+
 ## 工作鏈 {#job-chaining}
 
 將已註冊的工作承載資料傳給 `Bus::chain`，在建構器上呼叫 `dispatch().await` 派送第一個工作。使用資料庫或 Redis 驅動時，Worker 在同一次儲存操作中確認目前工作成功並將下一項入列。重試或釋放時，工作鏈停在目前工作。工作最終失敗時，工作鏈停止。sync 驅動在目前程序內依序執行。

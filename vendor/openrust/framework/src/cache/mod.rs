@@ -79,7 +79,7 @@ pub enum CacheError {
 }
 
 /// A relative or absolute expiry for a cached value.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Ttl {
     Seconds(i64),
     Until(SystemTime),

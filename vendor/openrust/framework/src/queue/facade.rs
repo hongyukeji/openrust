@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
+    cache::Ttl,
     container::ServiceKey,
     contracts::queue::{JobHandler, Queue},
     database::Transaction,
@@ -37,6 +38,42 @@ impl QueueFacade {
     pub fn withoutInterruptionPolling() -> QueueResult<()> {
         Self::manager()?.withoutInterruptionPolling();
         Ok(())
+    }
+
+    pub async fn pause(connection: &str, queue: &str) -> QueueResult<()> {
+        Self::manager()?.pause(connection, queue).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub async fn pauseFor(connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
+        Self::manager()?.pauseFor(connection, queue, ttl).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub async fn pauseAll() -> QueueResult<()> {
+        Self::manager()?.pauseAll().await
+    }
+
+    pub async fn resume(connection: &str, queue: &str) -> QueueResult<()> {
+        Self::manager()?.resume(connection, queue).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub async fn resumeAll() -> QueueResult<()> {
+        Self::manager()?.resumeAll().await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub async fn isPaused(connection: &str, queue: &str) -> QueueResult<bool> {
+        Self::manager()?.isPaused(connection, queue).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]
+    pub async fn getPausedQueues<'a>(
+        connection: &str,
+        queues: &[&'a str],
+    ) -> QueueResult<Vec<&'a str>> {
+        Self::manager()?.getPausedQueues(connection, queues).await
     }
 
     pub async fn dispatch(

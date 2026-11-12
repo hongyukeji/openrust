@@ -13,20 +13,24 @@ use crate::{
         Batch, BatchCallback, BatchContinuation, BatchJob, BatchPhase, ChainCallback,
         DatabaseBatchRepository, PublicationKey, new_batch,
     },
-    cache::CacheManager,
+    cache::{CacheManager, Ttl},
     container::Container,
     contracts::{
         config::Repository,
         container::Container as _,
+        events::{Dispatcher as _, Event},
         queue::{Factory, JobHandler, Queue as Contract},
     },
     database::{Connection, DatabaseError, DatabaseManager, Transaction},
+    events::{Dispatcher, EventContext},
     redis::RedisManager,
+    support::facades::application_scope,
 };
 
 use super::{
     DatabaseQueue, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueResult,
     RedisQueue, SyncQueue, backend,
+    events::{QueuePaused, QueueResumed, QueuesPaused, QueuesResumed},
     failed::{FailedJob, FailedJobProviderInterface},
     new_id, queue_name,
     worker_control::WorkerControl,
@@ -99,6 +103,97 @@ impl QueueManager {
     #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
     pub fn withoutInterruptionPolling(&self) {
         self.interruption_polling.store(false, Ordering::Relaxed);
+    }
+
+    /// Pauses one queue until it is resumed.
+    pub async fn pause(&self, connection: &str, queue: &str) -> QueueResult<()> {
+        self.set_queue_pause(connection, queue, None).await
+    }
+
+    /// Pauses one queue until the supplied cache deadline or duration expires.
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub async fn pauseFor(&self, connection: &str, queue: &str, ttl: Ttl) -> QueueResult<()> {
+        self.set_queue_pause(connection, queue, Some(ttl)).await
+    }
+
+    async fn set_queue_pause(
+        &self,
+        connection: &str,
+        queue: &str,
+        ttl: Option<Ttl>,
+    ) -> QueueResult<()> {
+        self.worker_control()?
+            .pause(Some((connection, queue)), ttl)
+            .await?;
+        self.emit_control_event(QueuePaused {
+            connection: connection.into(),
+            queue: queue.into(),
+            ttl,
+        })
+        .await
+    }
+
+    /// Pauses all queues on all connections in this application's cache.
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub async fn pauseAll(&self) -> QueueResult<()> {
+        self.worker_control()?.pause(None, None).await?;
+        self.emit_control_event(QueuesPaused {}).await
+    }
+
+    /// Clears an individual queue's pause.
+    pub async fn resume(&self, connection: &str, queue: &str) -> QueueResult<()> {
+        self.worker_control()?
+            .resume(Some((connection, queue)))
+            .await?;
+        self.emit_control_event(QueueResumed {
+            connection: connection.into(),
+            queue: queue.into(),
+        })
+        .await
+    }
+
+    /// Clears the global pause while preserving individual pauses.
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub async fn resumeAll(&self) -> QueueResult<()> {
+        self.worker_control()?.resume(None).await?;
+        self.emit_control_event(QueuesResumed {}).await
+    }
+
+    /// Checks both the global and individual pause state.
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub async fn isPaused(&self, connection: &str, queue: &str) -> QueueResult<bool> {
+        let control = self.worker_control()?;
+        Ok(control.all_paused().await? || control.queue_paused(connection, queue).await?)
+    }
+
+    /// Returns the paused queues in the requested order.
+    #[allow(non_snake_case, reason = "Matches Laravel QueueManager")]
+    pub async fn getPausedQueues<'a>(
+        &self,
+        connection: &str,
+        queues: &[&'a str],
+    ) -> QueueResult<Vec<&'a str>> {
+        self.worker_control()?
+            .paused_queues(connection, queues)
+            .await
+    }
+
+    pub(super) async fn emit_control_event(&self, event: impl Event) -> QueueResult<()> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let dispatcher = owner
+            .make::<Dispatcher>()
+            .map_err(QueueError::Unavailable)?;
+        application_scope(owner, async {
+            dispatcher
+                .dispatch(Arc::new(event), &mut EventContext::new())
+                .await
+        })
+        .await
+        .map_err(backend)?;
+        Ok(())
     }
 
     pub(super) fn polls_interruptions(&self) -> bool {

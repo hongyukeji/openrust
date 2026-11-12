@@ -20,6 +20,7 @@ use crate::{
 
 use super::{
     ChainUpdate, JobContext, Payload, QueueError, QueueManager, QueueResult, WorkerOptions,
+    events::{WorkerQueuePaused, WorkerQueueResumed},
     failed::{FailedJob, FailedJobProviderInterface},
 };
 
@@ -51,6 +52,23 @@ impl Worker {
         queue: Option<&str>,
         options: &WorkerOptions,
     ) -> QueueResult<WorkResult> {
+        let manager = self
+            .app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        if manager.polls_interruptions() {
+            let name = connection.get_connection_name();
+            let queue_name = queue.unwrap_or_else(|| connection.default_queue());
+            if manager.isPaused(name, queue_name).await? {
+                manager
+                    .emit_control_event(WorkerQueuePaused {
+                        connection: name.into(),
+                        queue: queue_name.into(),
+                    })
+                    .await?;
+                return Ok(WorkResult::Idle);
+            }
+        }
         let Some(mut job) = connection.pop(queue).await? else {
             return Ok(WorkResult::Idle);
         };
@@ -87,6 +105,7 @@ impl Worker {
         let start = tokio::time::Instant::now();
         let deadline = options.max_time.and_then(|limit| start.checked_add(limit));
         let mut processed = 0;
+        let mut paused: Vec<&str> = Vec::new();
         while !shutdown.is_cancelled()
             && options.max_jobs.is_none_or(|limit| processed < limit)
             && options.max_time.is_none_or(|limit| start.elapsed() < limit)
@@ -97,15 +116,36 @@ impl Worker {
                 break;
             }
             let reservation = async {
-                if let Some(control) = &control
-                    && control.all_paused().await?
-                {
-                    return Ok(None);
+                if let Some(control) = &control {
+                    let observed = control.paused_queues(name, queues).await?;
+                    for queue in observed
+                        .iter()
+                        .copied()
+                        .filter(|queue| !paused.contains(queue))
+                    {
+                        manager
+                            .emit_control_event(WorkerQueuePaused {
+                                connection: name.into(),
+                                queue: queue.into(),
+                            })
+                            .await?;
+                    }
+                    for queue in paused
+                        .iter()
+                        .copied()
+                        .filter(|queue| !observed.contains(queue))
+                    {
+                        manager
+                            .emit_control_event(WorkerQueueResumed {
+                                connection: name.into(),
+                                queue: queue.into(),
+                            })
+                            .await?;
+                    }
+                    paused = observed;
                 }
                 for queue in queues {
-                    if let Some(control) = &control
-                        && control.queue_paused(name, queue).await?
-                    {
+                    if paused.contains(queue) {
                         continue;
                     }
                     let job = if options.stop_when_empty || queues.len() > 1 {

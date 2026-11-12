@@ -3,11 +3,12 @@ use std::{
     net::SocketAddr,
     path::{Path, PathBuf},
     sync::Arc,
-    time::Duration,
+    time::{Duration, SystemTime},
 };
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    cache::Ttl,
     contracts::{
         container::Container as _,
         events::{Event as PayloadEvent, Listener},
@@ -17,14 +18,18 @@ use openrust::{
     },
     database::{DB, DatabaseManager, Value},
     events::{
-        EventContext, EventError, EventFuture, EventResult, ListenerRegistry, ListenerResponse,
-        QueuedListenerOptions,
+        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
+        ListenerResponse, QueuedListenerOptions,
     },
     foundation::{Application, configuration::Routing, events::DiscoverEvents, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
         QueueResult,
+        events::{
+            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerQueuePaused,
+            WorkerQueueResumed,
+        },
         middleware::{JobMiddleware, JobNext},
     },
     routing::{Router, RoutingError},
@@ -194,7 +199,44 @@ impl Listener for InvoiceListener {
     }
 }
 
+struct ControlListener;
+impl Listener for ControlListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let value = match event
+                .downcast_ref::<QueuePaused>()
+                .and_then(|event| event.ttl)
+            {
+                Some(Ttl::Seconds(seconds)) => seconds,
+                _ => 1,
+            };
+            let db = DB::connection(None).map_err(EventError::Transaction)?;
+            db.statement(
+                "insert into receipts (name, value) values (?, ?)",
+                &[event.name().into(), value.into()],
+            )
+            .await
+            .map_err(EventError::Transaction)?;
+            Ok(None)
+        })
+    }
+}
+
 fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
+    for event in [
+        QueuePaused::NAME,
+        QueueResumed::NAME,
+        QueuesPaused::NAME,
+        QueuesResumed::NAME,
+        WorkerQueuePaused::NAME,
+        WorkerQueueResumed::NAME,
+    ] {
+        registry.listen(event, Arc::new(ControlListener), Delivery::Sync)?;
+    }
     registry.listenQueued::<Invoice>(
         "invoice.paid",
         Arc::new(InvoiceListener),
@@ -241,7 +283,16 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Context::add("trace", json!(trace)).unwrap();
         Context::addHidden("secret", json!("remove")).unwrap();
         Context::addHidden("protected", json!("hidden")).unwrap();
-        if matches!(kind, "invoice" | "rollback") {
+        if kind == "timed_pause" {
+            let connection = Queue::connection(None)?;
+            let name = connection.get_connection_name();
+            Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
+            assert!(Queue::isPaused(name, "default").await?);
+            assert_eq!(
+                Queue::getPausedQueues(name, &["low", "default"]).await?,
+                ["default"]
+            );
+        } else if matches!(kind, "invoice" | "rollback") {
             let mut transaction =
                 DB::beginTransaction()
                     .await
@@ -393,12 +444,8 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         .unwrap()
         .connection(None)
         .unwrap();
-    let queue = app
-        .container()
-        .make::<QueueManager>()
-        .unwrap()
-        .connection(None)
-        .unwrap();
+    let manager = app.container().make::<QueueManager>().unwrap();
+    let queue = manager.connection(None).unwrap();
     let mut schema = db.getSchemaBuilder();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -567,6 +614,30 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         );
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+    if redis.is_none() && mysql.is_none() {
+        let separate = TempRoot(root.0.join("separate-app"));
+        std::fs::create_dir_all(&separate.0).unwrap();
+        std::fs::write(separate.0.join("queue-fixture.json"), config.to_string()).unwrap();
+        let mut other = application(&separate.0);
+        other.boot().await.unwrap();
+        let dispatcher = other.container().make::<Dispatcher>().unwrap();
+        let events = dispatcher.fake(&[QueuePaused::NAME, QueueResumed::NAME]);
+        let other_manager = other.container().make::<QueueManager>().unwrap();
+        other_manager
+            .pauseFor(
+                "database",
+                "default",
+                Ttl::Until(SystemTime::now() + Duration::from_secs(30)),
+            )
+            .await
+            .unwrap();
+        assert!(other_manager.isPaused("database", "default").await.unwrap());
+        assert!(!manager.isPaused("database", "default").await.unwrap());
+        other_manager.resume("database", "default").await.unwrap();
+        assert!(!other_manager.isPaused("database", "default").await.unwrap());
+        assert_eq!(events.dispatched(QueuePaused::NAME).len(), 1);
+        assert_eq!(events.dispatched(QueueResumed::NAME).len(), 1);
+    }
     verify_worker_control(&root.0, &db, &*queue, address, default_queue).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
@@ -687,6 +758,47 @@ async fn verify_worker_control(
     run(root, &["queue:resume", &selected]).await;
     run(root, &once).await;
     assert_eq!(count("control_default").await, 5);
+    assert_eq!(count(QueuesPaused::NAME).await, 1);
+    assert_eq!(count(QueuesResumed::NAME).await, 1);
+    assert!(count(QueuePaused::NAME).await >= 3);
+    assert!(count(QueueResumed::NAME).await >= 3);
+    assert!(count(WorkerQueuePaused::NAME).await >= 1);
+    assert!(count(WorkerQueueResumed::NAME).await >= 1);
+
+    let paused = count(WorkerQueuePaused::NAME).await;
+    let resumed = count(WorkerQueueResumed::NAME).await;
+    request(address, "timed_pause").await;
+    request(address, "control_default").await;
+    assert_eq!(
+        db.table("receipts")
+            .r#where("name", "=", QueuePaused::NAME)
+            .r#where("value", "=", 3)
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    let mut worker = artisan(root, &["queue:work", "--sleep=1", "--max-jobs=1"])
+        .spawn()
+        .unwrap();
+    timeout(Duration::from_secs(2), async {
+        while count(WorkerQueuePaused::NAME).await == paused {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(count("control_default").await, 5);
+    assert!(
+        timeout(Duration::from_secs(7), worker.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    assert_eq!(count(WorkerQueuePaused::NAME).await, paused + 1);
+    assert_eq!(count(WorkerQueueResumed::NAME).await, resumed + 1);
+    assert_eq!(count("control_default").await, 6);
 }
 
 #[tokio::test]

@@ -72,17 +72,24 @@ impl Command for WorkerControlCommand {
             let queue = target
                 .as_ref()
                 .map(|(connection, queue)| (connection.as_str(), queue.as_str()));
-            let control = manager.worker_control().map_err(error)?;
-            let status = match action {
-                Action::Pause => {
-                    control.pause(queue).await.map_err(error)?;
+            let status = match (action, queue) {
+                (Action::Pause, Some((connection, queue))) => {
+                    manager.pause(connection, queue).await.map_err(error)?;
                     "paused"
                 }
-                Action::Resume => {
-                    control.resume(queue).await.map_err(error)?;
+                (Action::Pause, None) => {
+                    manager.pauseAll().await.map_err(error)?;
+                    "paused"
+                }
+                (Action::Resume, Some((connection, queue))) => {
+                    manager.resume(connection, queue).await.map_err(error)?;
                     "resumed"
                 }
-                Action::Restart => unreachable!(),
+                (Action::Resume, None) => {
+                    manager.resumeAll().await.map_err(error)?;
+                    "resumed"
+                }
+                (Action::Restart, _) => unreachable!(),
             };
             if let Some((connection, queue)) = queue {
                 output.info(&format!(

@@ -7,6 +7,7 @@ pub mod console;
 pub use chain_edit::ChainJob;
 pub(crate) use chain_edit::ChainUpdate;
 mod database_queue;
+pub mod events;
 mod facade;
 pub mod failed;
 pub mod jobs;
