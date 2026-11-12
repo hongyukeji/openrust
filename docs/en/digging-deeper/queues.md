@@ -148,6 +148,17 @@ Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop a
 
 This worker reports `empty_for` when the idle limit is met. A value of zero disables the idle limit. `--stop-when-empty` still exits as soon as no job is available. With an idle limit, a Redis blocking reservation waits at most for the remaining idle window.
 
+#### Limiting worker memory {#worker-memory-limit}
+
+`queue:work` defaults to a 128 MiB limit. The daemon checks the process's resident memory after a work or polling cycle. At or above the limit it exits with code `12` and reason `memory`. The current job finishes and pending jobs stay in the queue. In JSON output, `memory` reports MiB when the platform provides a reading.
+
+Use a positive `QUEUE_WORKER_MEMORY_LIMIT` in MiB as the baseline for percentage limits. A limit of zero or a negative value disables the memory check. One-shot workers skip the limit check.
+
+```sh
+./artisan queue:work --json --memory=128 --stop-when-empty
+QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-when-empty
+```
+
 ### Reacting to worker signals {#reacting-to-worker-signals}
 
 On Unix, send `SIGUSR2` to pause new polls in a single daemon and `SIGCONT` to resume them. The worker finishes a job it has already reserved. These signals emit `WorkerPausing` and `WorkerResuming` and leave shared queue pause settings untouched. Target the compiled worker process by PID.

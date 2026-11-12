@@ -148,6 +148,17 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 
 达到空闲时限时，退出原因为 `empty_for`。设为零可关闭空闲时限。`--stop-when-empty` 会在无可用任务时立即退出。设置空闲时限后，Redis 阻塞取任务最多等待剩余的空闲时间。
 
+#### 限制 Worker 内存 {#worker-memory-limit}
+
+`queue:work` 的默认上限为 128 MiB。守护进程在一次任务执行或轮询结束后检查进程常驻内存。达到上限时以退出码 `12` 和原因 `memory` 结束。当前任务会完成，待处理任务留在队列。平台能提供读数时，JSON 输出的 `memory` 单位为 MiB。
+
+百分比以正值 `QUEUE_WORKER_MEMORY_LIMIT` 为基准，单位为 MiB。零或负值会关闭上限检查。单次 Worker 跳过上限检查。
+
+```sh
+./artisan queue:work --json --memory=128 --stop-when-empty
+QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-when-empty
+```
+
 ### 响应 Worker 系统信号 {#reacting-to-worker-signals}
 
 在 Unix 上，向一个 Worker 守护进程发送 `SIGUSR2` 可暂停后续轮询，发送 `SIGCONT` 可恢复。Worker 会完成已预约的任务。这两个信号分别派发 `WorkerPausing` 和 `WorkerResuming`，共享队列的暂停设置保持原样。请使用编译后 Worker 进程的 PID。

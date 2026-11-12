@@ -148,6 +148,17 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 
 達到閒置時限時，結束原因為 `empty_for`。設為零可關閉閒置時限。`--stop-when-empty` 會在沒有可用工作時立即結束。設定閒置時限後，Redis 阻塞取工作最多等待剩餘的閒置時間。
 
+#### 限制 Worker 記憶體 {#worker-memory-limit}
+
+`queue:work` 的預設上限為 128 MiB。常駐程序在一次工作執行或輪詢結束後檢查程序常駐記憶體。達到上限時以結束碼 `12` 和原因 `memory` 結束。目前工作會完成，待處理工作留在佇列。平台能提供讀數時，JSON 輸出的 `memory` 單位為 MiB。
+
+百分比以正值 `QUEUE_WORKER_MEMORY_LIMIT` 為基準，單位為 MiB。零或負值會關閉上限檢查。單次 Worker 略過上限檢查。
+
+```sh
+./artisan queue:work --json --memory=128 --stop-when-empty
+QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-when-empty
+```
+
 ### 回應 Worker 系統訊號 {#reacting-to-worker-signals}
 
 在 Unix 上，向一個 Worker 常駐程序傳送 `SIGUSR2` 可暫停後續輪詢，傳送 `SIGCONT` 可恢復。Worker 會完成已預約的工作。這兩個訊號分別派發 `WorkerPausing` 和 `WorkerResuming`，共用佇列的暫停設定維持原樣。請使用編譯後 Worker 程序的 PID。

@@ -112,6 +112,9 @@ queue_event!(
         reason: WorkerStopReason,
         jobs_processed: u64,
         last_job_processed_at: Option<u64>,
+        /// Resident memory at shutdown in MiB.
+        #[serde(default)]
+        memory_usage: Option<f64>,
         connection_name: String,
         queue: String,
     }

@@ -63,9 +63,10 @@ fn record(event: WorkerStatus<'_>, now: DateTime<Tz>) -> Value {
             queue_status(&event.connection, &event.queue, "resumed", timestamp)
         }
         WorkerStatus::Stopped(event) => json!({
-            "level": "info", "connection": event.connection_name, "queue": event.queue,
+            "level": if event.status == 0 { "info" } else { "warning" },
+            "connection": event.connection_name, "queue": event.queue,
             "status": "stopped", "reason": event.reason, "exit_code": event.status,
-            "jobs_processed": event.jobs_processed, "memory": null, "timestamp": timestamp,
+            "jobs_processed": event.jobs_processed, "memory": event.memory_usage.map(|memory| (memory * 10.0).round() / 10.0), "timestamp": timestamp,
         }),
         WorkerStatus::Job(job, outcome) => job_status(job, outcome, timestamp),
     }

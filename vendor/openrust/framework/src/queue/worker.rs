@@ -32,6 +32,7 @@ use super::{
         WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
+    worker_options::MEBIBYTE,
     worker_signals::WorkerSignalState,
 };
 
@@ -140,6 +141,7 @@ impl Worker {
             |_| {},
         )
         .await
+        .map(|(processed, _)| processed)
     }
 
     pub(super) async fn daemon_with_status(
@@ -150,7 +152,7 @@ impl Worker {
         cadence: &WorkerCadence,
         shutdown: &CancellationToken,
         mut status: impl FnMut(WorkerStatus<'_>) + Send,
-    ) -> QueueResult<u64> {
+    ) -> QueueResult<(u64, i32)> {
         let manager = self
             .app
             .make::<QueueManager>()
@@ -188,6 +190,7 @@ impl Worker {
         let mut last_job_processed_at = None;
         let mut paused: Vec<&str> = Vec::new();
         let mut signal_state = cadence.signal_state.clone();
+        let mut stop_memory = None;
         let reason = loop {
             if shutdown.is_cancelled() {
                 break WorkerStopReason::Interrupted;
@@ -299,6 +302,7 @@ impl Worker {
             } else {
                 None
             };
+            let had_job = job.is_some();
             if let Some(mut job) = job {
                 let started = tokio::time::Instant::now();
                 status(WorkerStatus::Job(job.as_ref(), None));
@@ -328,16 +332,34 @@ impl Worker {
                         () = tokio::time::sleep(cadence.rest) => {},
                     }
                 }
-            } else {
-                if polled && !cadence.single_run {
-                    manager
-                        .emit_control_event(WorkerIdle {
-                            connection_name: name.into(),
-                            queue: queue_names.clone(),
-                            worker_options: options.clone(),
-                        })
-                        .await?;
+            } else if polled && !cadence.single_run {
+                manager
+                    .emit_control_event(WorkerIdle {
+                        connection_name: name.into(),
+                        queue: queue_names.clone(),
+                        worker_options: options.clone(),
+                    })
+                    .await?;
+            }
+            if shutdown.is_cancelled() {
+                break WorkerStopReason::Interrupted;
+            }
+            if current_signal_state(&signal_state) == WorkerSignalState::Stopping {
+                shutdown.cancelled().await;
+                break WorkerStopReason::Interrupted;
+            }
+            if !cadence.single_run && options.memory != 0 {
+                let used = current_memory().ok_or_else(|| {
+                    super::backend(std::io::Error::other(
+                        "could not read queue worker memory usage",
+                    ))
+                })?;
+                if used >= options.memory {
+                    stop_memory = Some(used);
+                    break WorkerStopReason::MaxMemoryExceeded;
                 }
+            }
+            if !had_job {
                 if polled && options.stop_when_empty {
                     break WorkerStopReason::QueueEmpty;
                 }
@@ -369,12 +391,18 @@ impl Worker {
                 }
             }
         };
+        let exit_code = if reason == WorkerStopReason::MaxMemoryExceeded {
+            12
+        } else {
+            0
+        };
         let event = WorkerStopping {
-            status: 0,
+            status: exit_code,
             worker_options: options.clone(),
             reason,
             jobs_processed: processed,
             last_job_processed_at,
+            memory_usage: stop_memory.or_else(current_memory).map(memory_mib),
             connection_name: name.into(),
             queue: queue_names,
         };
@@ -382,7 +410,7 @@ impl Worker {
         if !cadence.single_run {
             manager.emit_control_event(event).await?;
         }
-        Ok(processed)
+        Ok((processed, exit_code))
     }
 
     async fn accept_popped(&self, manager: &QueueManager, event: JobPopped) -> bool {
@@ -831,6 +859,14 @@ impl Worker {
         }
         Ok(WorkResult::Failed)
     }
+}
+
+fn current_memory() -> Option<u64> {
+    memory_stats::memory_stats().and_then(|usage| u64::try_from(usage.physical_mem).ok())
+}
+
+fn memory_mib(bytes: u64) -> f64 {
+    bytes as f64 / MEBIBYTE as f64
 }
 
 fn active_handler(running: &RunningHandler) -> Option<Arc<dyn JobHandler>> {

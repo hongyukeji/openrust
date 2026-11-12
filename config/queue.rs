@@ -1,11 +1,12 @@
 use openrust::config::{ConfigError, Environment, Value};
 use serde_json::json;
 
-use super::env::get;
+use super::env::{get, optional_integer};
 
 pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigError> {
     Ok(json!({
         "default": get(env, "QUEUE_CONNECTION", "database")?,
+        "memory_limit": optional_integer(env, "QUEUE_WORKER_MEMORY_LIMIT")?,
         "connections": {
             "sync": {"driver": "sync"},
             "database": {

@@ -11,6 +11,7 @@ use crate::{
     queue::{
         QueueManager, Worker, WorkerOptions,
         worker::WorkerCadence,
+        worker_options::MEBIBYTE,
         worker_signals::{WorkerSignalState, WorkerSignals},
     },
 };
@@ -41,7 +42,9 @@ impl WorkCommand {
                         .long("max-jobs")
                         .value_parser(value_parser!(u64)),
                 )
-                .arg(seconds("max-time")),
+                .arg(seconds("max-time"))
+                .arg(Arg::new("memory").long("memory").default_value("128").allow_hyphen_values(true)
+                    .help("Resident memory limit in MiB or as a percentage of the configured worker memory budget")),
         ))
     }
 }
@@ -71,6 +74,11 @@ impl Command for WorkCommand {
                 .unwrap_or_default();
             let once = args.get_flag("once");
             let number = |name| *args.get_one::<u32>(name).expect("Clap default");
+            let config = app.config().map_err(error)?;
+            let memory = args.get_one::<String>("memory").expect("Clap default");
+            let budget = config
+                .get("queue.memory_limit")
+                .and_then(|value| value.as_u64());
             let options = WorkerOptions {
                 tries: number("tries"),
                 timeout: duration(number("timeout")),
@@ -95,6 +103,7 @@ impl Command for WorkCommand {
                     .filter(|&limit| limit > 0)
                     .map(duration),
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
+                memory: memory_limit(memory, budget)?,
             };
             let mut cadence = if once {
                 WorkerCadence {
@@ -110,7 +119,6 @@ impl Command for WorkCommand {
                     signal_state: None,
                 }
             };
-            let config = app.config().map_err(error)?;
             let timezone = config
                 .get("queue.output_timezone")
                 .and_then(|value| value.as_str().map(str::to_owned))
@@ -166,10 +174,42 @@ impl Command for WorkCommand {
                     result = &mut run => result,
                 }
             };
-            result.map_err(error)?;
-            Ok(0)
+            result.map(|(_, exit_code)| exit_code).map_err(error)
         })
     }
+}
+
+fn memory_limit(value: &str, budget: Option<u64>) -> Result<u64, ConsoleError> {
+    let invalid =
+        || ConsoleError::new("--memory requires a whole number of MiB or a finite percentage");
+    let Some(percent) = value.strip_suffix('%') else {
+        let mib = value.parse::<i64>().map_err(|_| invalid())?;
+        return u64::try_from(mib)
+            .unwrap_or_default()
+            .checked_mul(MEBIBYTE)
+            .ok_or_else(invalid);
+    };
+    let percent = percent
+        .parse::<f64>()
+        .ok()
+        .filter(|percent| percent.is_finite())
+        .ok_or_else(invalid)?;
+    if percent <= 0.0 {
+        return Ok(0);
+    }
+    let bytes = budget
+        .filter(|budget| *budget > 0)
+        .and_then(|budget| budget.checked_mul(MEBIBYTE))
+        .ok_or_else(|| {
+            ConsoleError::new(
+                "a positive queue.memory_limit in MiB is required for --memory percentages",
+            )
+        })?;
+    let limit = ((percent / 100.0) * bytes as f64).ceil().max(1.0);
+    if limit >= u64::MAX as f64 {
+        return Err(invalid());
+    }
+    Ok(limit as u64)
 }
 
 fn flag(name: &'static str) -> Arg {

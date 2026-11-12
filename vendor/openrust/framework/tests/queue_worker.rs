@@ -301,7 +301,12 @@ impl Listener for ControlListener {
                 _ => 1,
             };
             let (name, value) = if let Some(event) = event.downcast_ref::<WorkerStopping>() {
-                assert_eq!(event.status, 0);
+                if event.reason == WorkerStopReason::MaxMemoryExceeded {
+                    assert_eq!(event.status, 12);
+                    assert!(event.memory_usage.is_some_and(|memory| memory >= 1.0));
+                } else {
+                    assert_eq!(event.status, 0);
+                }
                 assert_eq!(
                     event.last_job_processed_at.is_some(),
                     event.jobs_processed > 0
@@ -647,6 +652,12 @@ fn application(root: &Path) -> Application {
                     config.get_mut("queue").unwrap()["connections"][driver]["retry_after"] =
                         json!(2);
                 }
+            }
+            if let Some(budget) = std::env::var("QUEUE_WORKER_TEST_MEMORY_BUDGET")
+                .ok()
+                .and_then(|value| value.parse::<u64>().ok())
+            {
+                config.get_mut("queue").unwrap()["memory_limit"] = json!(budget);
             }
             Ok(config.into_iter().collect())
         })
@@ -1046,6 +1057,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     #[cfg(unix)]
     verify_worker_signals(&root.0, &db, &*queue, address).await;
     verify_job_interruption(&root.0, &db, address).await;
+    verify_worker_memory(&root.0, &*queue, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1825,6 +1837,61 @@ async fn verify_job_interruption(
         db.table("failed_jobs").count("*").await.unwrap(),
         before + 2
     );
+}
+
+async fn verify_worker_memory(
+    root: &Path,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let launch = |limit: &'static str, budget: Option<&'static str>, expected: &'static str| async move {
+        let mut command = artisan(root, &["queue:work", "--json", "--stop-when-empty", limit]);
+        command.env("QUEUE_WORKER_EXPECT_EXIT", expected);
+        if let Some(budget) = budget {
+            command.env("QUEUE_WORKER_TEST_MEMORY_BUDGET", budget);
+        }
+        let output = timeout(Duration::from_secs(8), command.output())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        format!(
+            "{}{}",
+            String::from_utf8(output.stdout).unwrap(),
+            String::from_utf8(output.stderr).unwrap()
+        )
+    };
+    request(address, "control_default").await;
+    request(address, "control_default").await;
+    let output = launch("--memory=1", None, "12").await;
+    let rows = json_lines(&output);
+    let stop = rows.last().unwrap();
+    assert_eq!(stop["reason"], "memory");
+    assert_eq!(stop["exit_code"], 12);
+    assert_eq!(stop["level"], "warning");
+    assert_eq!(stop["jobs_processed"], 1);
+    assert!(stop["memory"].as_f64().unwrap() >= 1.0);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+
+    let once = run(root, &["queue:work", "--json", "--once", "--memory=1"]).await;
+    assert_eq!(json_lines(&once).last().unwrap()["status"], "success");
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+
+    let output = launch("--memory=50%", Some("2"), "12").await;
+    let rows = json_lines(&output);
+    assert_eq!(rows.last().unwrap()["reason"], "memory");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 0);
+
+    let output = launch("--memory=50%", None, "1").await;
+    assert!(output.contains("queue.memory_limit"), "{output}");
+    let output = launch("--memory=NaN%", Some("2"), "1").await;
+    assert!(output.contains("finite percentage"), "{output}");
+    for limit in ["--memory=0", "--memory=-1"] {
+        let output = launch(limit, None, "0").await;
+        let rows = json_lines(&output);
+        assert_eq!(rows.last().unwrap()["reason"], "empty");
+        assert!(rows.last().unwrap()["memory"].as_f64().unwrap() > 0.0);
+    }
 }
 
 #[tokio::test]
