@@ -1,5 +1,36 @@
 # 事件
 
+## 生成事件与监听器 {#generating-events-and-listeners}
+
+用 Artisan 生成事件和监听器模块。`--event` 指定事件类型，`--queued` 通过队列执行，`--test` 为监听器生成配套功能测试。传入 `--force` 可覆盖现有文件。
+
+```sh
+./artisan make:event OrderPlaced
+./artisan make:listener LogOrder
+./artisan make:listener RecordOrder --event=OrderPlaced --test
+./artisan make:listener QueueOrder --queued
+./artisan make:listener NotifyOrder --event=OrderPlaced --queued
+```
+
+`--event` 接受 `OrderPlaced` 等 PascalCase 事件名、`App/Events/OrderPlaced` 等应用限定名，或 `crate::app::events::order_placed::OrderPlaced` 等 Rust 路径。
+
+在 Rust 模块树中声明生成的文件，并在应用构建器的 `withEvents` 中传入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的队列监听器在注册时指定事件类型。生成的事件通过 Serde 派生队列所需的序列化能力。
+
+```rust
+use crate::app::{
+    events::order_placed::OrderPlaced,
+    listeners::{log_order, notify_order, queue_order, record_order},
+};
+use openrust::events::{EventResult, ListenerRegistry};
+
+fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
+    log_order::register(registry, OrderPlaced::NAME)?;
+    record_order::register(registry, OrderPlaced::NAME)?;
+    queue_order::register::<OrderPlaced>(registry, OrderPlaced::NAME)?;
+    notify_order::register(registry, OrderPlaced::NAME)
+}
+```
+
 ## 注册监听器与订阅者
 
 在应用中声明注册函数，通过 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。应用启动时加载编译后的清单。实现 `Subscriber` 后，可用 `Event::subscribe` 成组登记监听器。运行 `./artisan event:list --event=orders --json` 查看注册结果。

@@ -1,5 +1,36 @@
 # Events
 
+## Generating Events and Listeners {#generating-events-and-listeners}
+
+Generate event and listener modules with Artisan. Add `--event` to type the handler, `--queued` to dispatch through a queue, and `--test` to generate a matching feature test for a listener. Existing files are preserved unless you pass `--force`.
+
+```sh
+./artisan make:event OrderPlaced
+./artisan make:listener LogOrder
+./artisan make:listener RecordOrder --event=OrderPlaced --test
+./artisan make:listener QueueOrder --queued
+./artisan make:listener NotifyOrder --event=OrderPlaced --queued
+```
+
+Pass a PascalCase event name such as `OrderPlaced`, an application-qualified name such as `App/Events/OrderPlaced`, or a Rust path such as `crate::app::events::order_placed::OrderPlaced` to `--event`.
+
+Declare the generated files in your Rust module tree and pass `openrust::foundation::events::DiscoverEvents::new(&[register_orders])` to `withEvents` in your application builder. The queued listener without `--event` takes the event type at registration. Generated events derive Serde serialization for use in the queue.
+
+```rust
+use crate::app::{
+    events::order_placed::OrderPlaced,
+    listeners::{log_order, notify_order, queue_order, record_order},
+};
+use openrust::events::{EventResult, ListenerRegistry};
+
+fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
+    log_order::register(registry, OrderPlaced::NAME)?;
+    record_order::register(registry, OrderPlaced::NAME)?;
+    queue_order::register::<OrderPlaced>(registry, OrderPlaced::NAME)?;
+    notify_order::register(registry, OrderPlaced::NAME)
+}
+```
+
 ## Registering listeners and subscribers
 
 Declare event registration functions in your application and pass them to `withEvents(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.

@@ -396,7 +396,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 17);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 22);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -735,6 +735,97 @@ fn artisan_generates_rust_types_with_laravel_namespaces_and_options() {
         fs::read_to_string(path)
             .unwrap()
             .starts_with("// customized\n")
+    );
+}
+
+#[test]
+fn artisan_generates_event_and_listener_variants() {
+    let root = TestRoot::new("make-events");
+    let other = TestRoot::new("make-events-other");
+    let run = |base: &Path, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", base)
+            .output()
+            .unwrap()
+    };
+    let args = ["make:event", "OrderPlaced"];
+    let outcomes = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&root.0, &args));
+        let second = scope.spawn(|| run(&root.0, &args));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|result| result.status.success())
+            .count(),
+        1
+    );
+    assert!(!other.0.join("app").exists());
+
+    let event = root.0.join("app/events/order_placed.rs");
+    let original = fs::read_to_string(&event).unwrap();
+    assert!(original.contains("Deserialize"));
+    for (name, file, options, expected) in [
+        ("LogOrder", "log_order", &[][..], "Delivery::Sync"),
+        (
+            "RecordOrder",
+            "record_order",
+            &["-e", r"\App\Events\OrderPlaced", "--test"],
+            "r#events::r#order_placed::OrderPlaced",
+        ),
+        (
+            "QueueOrder",
+            "queue_order",
+            &["--queued"],
+            "listenQueued::<E>",
+        ),
+        (
+            "NotifyOrder",
+            "notify_order",
+            &[
+                "--queued",
+                "--event=crate::app::events::order_placed::OrderPlaced",
+            ],
+            "listenQueued::<crate::app::events::order_placed::OrderPlaced>",
+        ),
+    ] {
+        let mut args = vec!["make:listener", name];
+        args.extend_from_slice(options);
+        let result = run(&root.0, &args);
+        assert!(result.status.success(), "{result:?}");
+        let source = fs::read_to_string(root.0.join(format!("app/listeners/{file}.rs"))).unwrap();
+        assert!(source.contains(expected), "{source}");
+    }
+    assert!(
+        root.0
+            .join("tests/feature/listeners/record_order_test.rs")
+            .is_file()
+    );
+    let rejected = run(
+        &root.0,
+        &["make:listener", "InvalidEvent", "--event=crate::../Escape"],
+    );
+    assert_eq!(rejected.status.code(), Some(1));
+    assert!(!root.0.join("app/listeners/invalid_event.rs").exists());
+
+    assert!(run(&root.0, &["stub:publish"]).status.success());
+    let stub = root.0.join("stubs/event.rs.stub");
+    let source = fs::read_to_string(&stub).unwrap();
+    fs::write(stub, format!("// custom event\n{source}")).unwrap();
+    assert_eq!(run(&root.0, &args).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&event).unwrap(), original);
+    assert!(
+        run(&root.0, &["make:event", "OrderPlaced", "-f"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(event)
+            .unwrap()
+            .starts_with("// custom event\n")
     );
 }
 

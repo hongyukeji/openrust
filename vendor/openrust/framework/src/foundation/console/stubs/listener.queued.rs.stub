@@ -1,0 +1,33 @@
+use std::sync::Arc;
+use openrust::{
+    contracts::events::{Event, Listener},
+    events::{EventContext, EventFuture, EventResult, ListenerRegistry, ListenerResponse},
+};
+
+pub struct {{class}};
+
+impl Listener for {{class}} {
+    fn handle<'a>(
+        &'a self,
+        _event: &'a dyn Event,
+        _context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            Ok(None)
+        })
+    }
+}
+
+pub fn register<E: Event + serde::Serialize + serde::de::DeserializeOwned>(registry: &mut ListenerRegistry, name: &str) -> EventResult<()> {
+    registry.listenQueued::<E>(
+        name,
+        Arc::new({{class}}),
+        openrust::events::QueuedListenerOptions {
+            listener_id: concat!(module_path!(), "::", stringify!({{class}})).into(),
+            connection: None,
+            queue: None,
+            delay: None,
+            after_commit: None,
+        },
+    )
+}

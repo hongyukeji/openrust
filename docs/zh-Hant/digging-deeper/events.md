@@ -1,5 +1,36 @@
 # 事件
 
+## 產生事件與監聽器 {#generating-events-and-listeners}
+
+使用 Artisan 產生事件和監聽器模組。`--event` 指定事件型別，`--queued` 透過佇列執行，`--test` 為監聽器產生配套功能測試。傳入 `--force` 可覆寫現有檔案。
+
+```sh
+./artisan make:event OrderPlaced
+./artisan make:listener LogOrder
+./artisan make:listener RecordOrder --event=OrderPlaced --test
+./artisan make:listener QueueOrder --queued
+./artisan make:listener NotifyOrder --event=OrderPlaced --queued
+```
+
+`--event` 接受 `OrderPlaced` 等 PascalCase 事件名稱、`App/Events/OrderPlaced` 等應用程式限定名稱，或 `crate::app::events::order_placed::OrderPlaced` 等 Rust 路徑。
+
+在 Rust 模組樹中宣告產生的檔案，並在應用程式建構器的 `withEvents` 中傳入 `openrust::foundation::events::DiscoverEvents::new(&[register_orders])`。未使用 `--event` 的佇列監聽器在註冊時指定事件型別。產生的事件透過 Serde 衍生佇列所需的序列化能力。
+
+```rust
+use crate::app::{
+    events::order_placed::OrderPlaced,
+    listeners::{log_order, notify_order, queue_order, record_order},
+};
+use openrust::events::{EventResult, ListenerRegistry};
+
+fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
+    log_order::register(registry, OrderPlaced::NAME)?;
+    record_order::register(registry, OrderPlaced::NAME)?;
+    queue_order::register::<OrderPlaced>(registry, OrderPlaced::NAME)?;
+    notify_order::register(registry, OrderPlaced::NAME)
+}
+```
+
 ## 註冊監聽器與訂閱者
 
 在應用程式中宣告註冊函式，透過 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。

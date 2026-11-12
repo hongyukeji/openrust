@@ -85,6 +85,11 @@ pub(crate) fn source_name_parts<'a>(
 /// A built-in source template and its application override.
 #[derive(Clone, Copy)]
 pub(crate) enum Stub {
+    Event,
+    Listener,
+    TypedListener,
+    QueuedListener,
+    TypedQueuedListener,
     Class,
     InvokableClass,
     Enum,
@@ -105,7 +110,12 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 22] = [
+        Self::Event,
+        Self::Listener,
+        Self::TypedListener,
+        Self::QueuedListener,
+        Self::TypedQueuedListener,
         Self::Class,
         Self::InvokableClass,
         Self::Enum,
@@ -151,6 +161,26 @@ impl Stub {
             Self::Trait => (
                 "trait.rs.stub",
                 include_str!("../foundation/console/stubs/trait.rs.stub"),
+            ),
+            Self::Event => (
+                "event.rs.stub",
+                include_str!("../foundation/console/stubs/event.rs.stub"),
+            ),
+            Self::Listener => (
+                "listener.rs.stub",
+                include_str!("../foundation/console/stubs/listener.rs.stub"),
+            ),
+            Self::TypedListener => (
+                "listener.typed.rs.stub",
+                include_str!("../foundation/console/stubs/listener.typed.rs.stub"),
+            ),
+            Self::QueuedListener => (
+                "listener.queued.rs.stub",
+                include_str!("../foundation/console/stubs/listener.queued.rs.stub"),
+            ),
+            Self::TypedQueuedListener => (
+                "listener.typed.queued.rs.stub",
+                include_str!("../foundation/console/stubs/listener.typed.queued.rs.stub"),
             ),
             Self::Console => (
                 "console.rs.stub",

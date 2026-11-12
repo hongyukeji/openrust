@@ -2558,6 +2558,7 @@ dependencies = [
  "clap",
  "openrust-framework",
  "openrust-reverb",
+ "serde",
  "serde_json",
  "tokio",
  "tonic",

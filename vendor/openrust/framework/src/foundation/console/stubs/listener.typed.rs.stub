@@ -1,0 +1,24 @@
+use std::sync::Arc;
+use openrust::{
+    contracts::events::{Event, Listener},
+    events::{EventContext, EventFuture, EventResult, ListenerRegistry, ListenerResponse},
+};
+
+pub struct {{class}};
+
+impl Listener for {{class}} {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        _context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let _event = event.downcast_ref::<{{event}}>().ok_or(openrust::events::EventError::InvalidPayload)?;
+            Ok(None)
+        })
+    }
+}
+
+pub fn register(registry: &mut ListenerRegistry, name: &str) -> EventResult<()> {
+    registry.listen(name, Arc::new({{class}}), openrust::events::Delivery::Sync)
+}

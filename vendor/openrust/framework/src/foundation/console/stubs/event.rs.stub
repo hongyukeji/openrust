@@ -1,0 +1,12 @@
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct {{class}};
+
+impl {{class}} {
+    pub const NAME: &'static str = concat!(module_path!(), "::", stringify!({{class}}));
+}
+
+impl openrust::contracts::events::Event for {{class}} {
+    fn name(&self) -> &str {
+        Self::NAME
+    }
+}
