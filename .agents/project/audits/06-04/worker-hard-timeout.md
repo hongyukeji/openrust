@@ -9,7 +9,7 @@
 - 按任务选择 `JobOptions::hard_timeout` 后，Unix Artisan Worker 在独立进程组启动执行器并保留预约。时限沿用任务覆盖值及 Worker `--timeout`，包含子进程启动。任务处理器、中间件和日志上下文在执行器中装配。
 - 到期时由父进程终止进程组并等待执行器退出，再按现有规则结算和派发 `JobTimedOut`。重试预约按退出设置保留到租约到期或释放，`fail_on_timeout` 仍进入失败记录，守护进程沿用配置的超时退出码。
 - Laravel 通过 PHP 进程信号处理中断。Rust 的 Tokio 无法取消同步阻塞或死循环，强制路径由父进程执行。被阻塞的子进程无法在时限到达时调用协作式 `Interruptible` 回调。普通异步任务继续使用 Tokio 超时。
-- 强制路径要求 Unix 与内置持久队列预约。已在 macOS 与 arm64 Linux 容器运行真实 Worker。Windows、自定义预约和合成链式批次不支持这条执行路径。通过 `Process` 启动的命令继承执行器进程组，主动脱离进程组或会话的程序可脱离此边界。跨进程异常保留错误链文本，具体 Rust 错误类型不跨进程传输。
+- 首批强制路径使用 Unix 与内置持久队列预约，已在 macOS 与 arm64 Linux 容器运行真实 Worker。自定义预约和合成链式批次仍需单独支持。通过 `Process` 启动的命令继承执行器进程组，主动脱离进程组或会话的程序可脱离此边界。跨进程异常保留错误链文本，具体 Rust 错误类型不跨进程传输。
 
 ## 验收
 
@@ -22,5 +22,14 @@
 - 从 `411e2d35` 的 Git 归档及本批回归断言运行 `cargo +1.94.0 test --locked --offline --test queue_hard_timeout`。启用容器内置 SQLite、独立 MySQL 8.4.13 验收库及 Redis 8.10.3。测试通过实际 Artisan 子进程确认 CPU 死循环、同步阻塞、外部 shell 和 sleep 的进程级中断。
 - 三种驱动均通过。执行器在 `JobTimedOut` 分发时已回收，外部 shell 和 sleep 的 PID 在自然完成前消失，无晚到副作用。核对实际退出码 124、可重试任务在租约内保留、租约到期后成功取件、`fail_on_timeout` 与最大异常的失败记录，以及关闭自动退出后的继续消费。
 - Rust 1.94.0 格式及受影响测试目标的严格 Clippy 通过。三语文档构建与 18 项浏览器检查通过。本批未修改 Worker 生产源码。
+
+## Windows 补验
+
+- Windows 父进程使用 [Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) 收纳执行器与后代。执行器从继承的标准输入收到归组确认后才创建应用。Worker 超时终止整个 Job Object，等待执行器和成员进程退出，再按已有策略结算预约并发出 `JobTimedOut`。父进程异常退出时，Job Object 的最后一个句柄关闭会终止剩余成员。
+- 在 macOS arm64 宿主的 Parallels Windows 11 Pro ARM64 虚拟机（Build 26200）中，使用 x64 兼容层运行 `x86_64-pc-windows-msvc` 目标。工具链为 Rust 1.94.0、Cargo 1.94.0 和 MSVC 14.44.35207。执行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`。9 个相关源码和 Cargo 文件的 SHA-256 与提交候选一致。
+- 实际 `queue:work` 使用内置 SQLite 数据库队列。验证 CPU 死循环、同步阻塞、外部进程及其子进程都在超时后退出。`JobTimedOut` 监听器以 Windows 进程列表确认执行器和外部进程树已退出，超过原定运行时间后仍无晚到副作用。未归组的内部执行器在创建应用前退出。
+- 实测超时退出码 124。CPU 任务在租约到期前保持预约，随后由新 Worker 重试并成功。按任务 UUID 验证 `fail_on_timeout` 和最大异常规则写入超时失败记录，关闭超时退出后，同一 Worker 能继续消费。
+- Windows Debug 的终态结算曾触发默认栈溢出。终态结算的 Future 改由堆持有，失败记录写入在独立 Tokio 任务中轮询，沿用原连接的路由状态并等待写入完成。取消等待时会中止写入任务。Windows 本批验证 x64 与 SQLite，原生 ARM64、其他驱动及非隔离失败回调留待对应平台验收。扩展夹具中的非隔离失败回调在 Windows Debug 曾复现栈溢出。
+- macOS 全工作区主测试进程 592 项通过、7 项忽略。最终候选补跑 SQLite、MySQL 8.4 和 Redis 8 的硬超时进程验收、进程入口测试和严格 Clippy。格式、三语站点构建及 18 项浏览器检查通过。Linux 实测见前节。
 
 [English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#hard-job-timeouts)

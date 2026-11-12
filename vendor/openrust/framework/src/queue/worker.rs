@@ -842,7 +842,8 @@ impl Worker {
             self.finish_attempt_marker(&mut status.marker).await;
             let error = status.cause.insert(error);
             let failure = if terminal {
-                let result = self.fail(manager, job, error, batch).await;
+                // Keep terminal failure settlement out of the attempt future's stack frame.
+                let result = Box::pin(self.fail(manager, job, error, batch)).await;
                 if result.is_ok() {
                     self.observe_job_event(
                         manager,

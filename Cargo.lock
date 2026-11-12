@@ -2627,6 +2627,7 @@ dependencies = [
  "url",
  "uuid",
  "webp",
+ "windows-sys 0.61.2",
  "zeroize",
 ]
 

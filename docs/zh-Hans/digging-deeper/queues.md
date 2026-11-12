@@ -315,9 +315,9 @@ QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --
 
 ##### 阻塞任务的强制超时 {#hard-job-timeouts}
 
-对于可能阻塞执行线程的任务，设置 `JobOptions::hard_timeout`。在 Unix 上，Artisan 在独立进程组中运行该任务。Worker 保留预约，并将实际任务超时应用于子进程，计时包括子进程启动。到期后，Worker 终止进程组、回收执行进程，再派发 `JobTimedOut` 并结算失败或重试。
+对于可能阻塞执行线程的任务，设置 `JobOptions::hard_timeout`。Artisan 在 Unix 进程组或 Windows Job Object 中隔离任务。Worker 保留预约，并将实际任务超时应用于执行进程，计时包含启动。到期后，Worker 终止进程树并等待执行进程退出，再派发 `JobTimedOut` 并结算失败或重试。
 
-执行进程通过 `Process` 启动的外部程序共享该进程组。主动建立新会话或进程组的程序可以脱离此边界。强制超时需要内置持久队列的预约和 Unix Worker。已在 macOS 和 arm64 Linux 容器中使用 SQLite、MySQL 和 Redis 验证进程级超时。
+通过 `Process` 启动的外部程序继承隔离边界。Unix 程序可以通过创建新会话或进程组脱离此边界。Windows 在任务启动前将执行进程加入 Job Object，并等待其中的所有进程退出。强制超时需要内置持久队列的预约。已在 Windows 11 上使用 SQLite 验证，并在 macOS 和 arm64 Linux 上使用 SQLite、MySQL 和 Redis 验证。
 
 ```rust
 use std::time::Duration;

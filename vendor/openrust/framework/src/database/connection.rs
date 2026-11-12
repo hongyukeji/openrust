@@ -478,6 +478,14 @@ impl Connection {
             .unwrap_or_else(|| self.routing.clone())
     }
 
+    /// Carries this scope's read-routing state into a separate database task.
+    #[cfg(windows)]
+    pub(crate) fn with_captured_routing(&self) -> Self {
+        let mut connection = self.clone();
+        connection.routing = self.routing();
+        connection
+    }
+
     pub fn hasModifiedRecords(&self) -> bool {
         self.routing().records_modified.load(Ordering::Relaxed)
     }

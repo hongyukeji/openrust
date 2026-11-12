@@ -46,34 +46,54 @@ impl PrunableFailedJobProvider for DatabaseUuidFailedJobProvider {
     }
 }
 
+async fn log_record(
+    connection: &Connection,
+    table: &str,
+    job: &FailedJob,
+) -> QueueResult<Option<String>> {
+    let values = [
+        ("uuid".into(), job.id.as_str().into()),
+        ("connection".into(), job.connection.as_str().into()),
+        ("queue".into(), job.queue.as_str().into()),
+        ("payload".into(), job.payload.encode()?.into()),
+        ("exception".into(), job.exception.as_str().into()),
+        ("failed_at".into(), job.failed_at.as_str().into()),
+    ]
+    .into_iter()
+    .collect();
+    connection
+        .table(table)
+        .upsert(
+            &[values],
+            &["uuid"],
+            Some(&["payload", "exception", "failed_at"]),
+        )
+        .await
+        .map_err(backend)?;
+    Ok(Some(job.id.clone()))
+}
+
 impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
     fn prunable(&self) -> Option<&dyn PrunableFailedJobProvider> {
         Some(self)
     }
 
     fn log<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<Option<String>>> {
-        Box::pin(async move {
-            let values = [
-                ("uuid".into(), job.id.as_str().into()),
-                ("connection".into(), job.connection.as_str().into()),
-                ("queue".into(), job.queue.as_str().into()),
-                ("payload".into(), job.payload.encode()?.into()),
-                ("exception".into(), job.exception.as_str().into()),
-                ("failed_at".into(), job.failed_at.as_str().into()),
-            ]
-            .into_iter()
-            .collect();
-            self.connection
-                .table(&self.table)
-                .upsert(
-                    &[values],
-                    &["uuid"],
-                    Some(&["payload", "exception", "failed_at"]),
-                )
-                .await
-                .map_err(backend)?;
-            Ok(Some(job.id.clone()))
-        })
+        #[cfg(windows)]
+        {
+            Box::pin(async move {
+                let connection = self.connection.with_captured_routing();
+                let table = self.table.clone();
+                let job = job.clone();
+                // Poll the write separately from the worker's reservation settlement stack.
+                let write = tokio_util::task::AbortOnDropHandle::new(tokio::spawn(async move {
+                    log_record(&connection, &table, &job).await
+                }));
+                write.await.map_err(backend)?
+            })
+        }
+        #[cfg(not(windows))]
+        Box::pin(log_record(&self.connection, &self.table, job))
     }
 
     fn all(&self) -> QueueFuture<'_, QueueResult<Vec<FailedJob>>> {

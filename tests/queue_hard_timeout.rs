@@ -1,9 +1,9 @@
 //! Runs real Artisan workers and their isolated job executors.
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn main() {}
 
-#[cfg(unix)]
-mod unix {
+#[cfg(any(unix, windows))]
+mod acceptance {
     use std::{
         error::Error,
         path::{Path, PathBuf},
@@ -50,6 +50,13 @@ mod unix {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     type SetupError = Box<dyn Error + Send + Sync>;
+
+    #[cfg(unix)]
+    const TIMEOUT: Duration = Duration::from_millis(350);
+    #[cfg(windows)]
+    const TIMEOUT: Duration = Duration::from_secs(2);
+    const RETRY_AFTER: u64 = if cfg!(windows) { 6 } else { 2 };
+    const BLOCKING_TIME: Duration = Duration::from_secs(if cfg!(windows) { 7 } else { 2 });
 
     #[derive(Debug)]
     struct HardPolicyError;
@@ -136,10 +143,21 @@ mod unix {
                         std::hint::spin_loop();
                     },
                     "blocking" | "continue" => {
-                        std::thread::sleep(Duration::from_secs(2));
+                        std::thread::sleep(BLOCKING_TIME);
                         std::fs::write(self.0.join(format!("{kind}.late")), []).map_err(error)?;
                     }
                     "external" => {
+                        #[cfg(windows)]
+                        Process::run([
+                            std::env::current_exe().map_err(error)?.into_os_string(),
+                            "external-fixture".into(),
+                            self.0.as_os_str().into(),
+                        ])
+                        .await
+                        .map_err(|source| QueueError::Execution {
+                            source: Box::new(source),
+                        })?;
+                        #[cfg(unix)]
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > external-shell.pid; sleep 2 & child=$!; printf '%s' "$child" > external-sleep.pid; printf ready > external.started; wait "$child" && touch external.late"#,
                             self.0.display()
@@ -238,14 +256,25 @@ mod unix {
                     .downcast_ref::<JobTimedOut>()
                     .ok_or(EventError::InvalidPayload)?;
                 let kind = event.job.payload.data().as_str().unwrap();
-                assert_eq!(event.timeout, Duration::from_millis(350));
+                assert_eq!(event.timeout, TIMEOUT);
                 assert_executor_reaped(&self.0, kind);
+                #[cfg(windows)]
+                if kind == "external" {
+                    for member in ["external-shell.pid", "external-sleep.pid"] {
+                        let pid = std::fs::read_to_string(self.0.join(member)).unwrap();
+                        assert!(
+                            !process_exists(&pid),
+                            "Job Object member {pid} is still present"
+                        );
+                    }
+                }
                 std::fs::write(self.0.join(format!("{kind}.timed_out")), []).unwrap();
                 Ok(None)
             })
         }
     }
 
+    #[cfg(unix)]
     fn process_exists(pid: &str) -> bool {
         std::process::Command::new("kill")
             .args(["-0", pid])
@@ -253,6 +282,43 @@ mod unix {
             .status()
             .unwrap()
             .success()
+    }
+
+    #[cfg(windows)]
+    fn process_exists(pid: &str) -> bool {
+        let result = std::process::Command::new("tasklist.exe")
+            .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+            .output()
+            .expect("run tasklist");
+        assert!(result.status.success());
+        String::from_utf8_lossy(&result.stdout).contains(&format!("\"{pid}\""))
+    }
+
+    #[cfg(windows)]
+    fn external_fixture(mode: &str, root: &Path) -> ExitCode {
+        if mode == "external-fixture" {
+            std::fs::write(
+                root.join("external-shell.pid"),
+                std::process::id().to_string(),
+            )
+            .unwrap();
+            let status = std::process::Command::new(std::env::current_exe().unwrap())
+                .arg("external-descendant-fixture")
+                .arg(root)
+                .status()
+                .unwrap();
+            assert!(status.success());
+        } else {
+            std::fs::write(
+                root.join("external-sleep.pid"),
+                std::process::id().to_string(),
+            )
+            .unwrap();
+            std::fs::write(root.join("external.started"), []).unwrap();
+            std::thread::sleep(BLOCKING_TIME);
+            std::fs::write(root.join("external.late"), []).unwrap();
+        }
+        ExitCode::SUCCESS
     }
 
     fn assert_executor_reaped(root: &Path, kind: &str) {
@@ -485,8 +551,8 @@ mod unix {
                     "queue": {"default": queue, "timed_out_exit_code": 124,
                         "kill_on_timeout": std::env::var_os("QUEUE_HARD_TEST_KEEP_RUNNING").is_none(),
                         "connections": {
-                            "database": {"driver": "database", "retry_after": 2},
-                            "redis": {"driver": "redis", "retry_after": 2},
+                            "database": {"driver": "database", "retry_after": RETRY_AFTER},
+                            "redis": {"driver": "redis", "retry_after": RETRY_AFTER},
                             "sync": {"driver": "sync"}
                         },
                         "failed": {
@@ -1478,12 +1544,13 @@ mod unix {
             let payload = Payload::new("hard-timeout-probe", kind)
                 .unwrap()
                 .with_options(JobOptions {
-                    timeout: Some(Duration::from_millis(350)),
+                    timeout: Some(TIMEOUT),
                     fail_on_timeout: fail_on_timeout && kind != "external",
                     max_exceptions: (kind == "external").then_some(1),
                     hard_timeout: true,
                     ..Default::default()
                 });
+            let uuid = payload.uuid().to_owned();
             manager
                 .dispatch(payload, DispatchOptions::default(), None)
                 .await
@@ -1498,14 +1565,27 @@ mod unix {
                 assert_external_processes_reaped(&root.0).await;
             }
             assert!(root.0.join(format!("{kind}.timed_out")).is_file());
+            let failures = db
+                .select(
+                    "select exception from failed_jobs where uuid = ?",
+                    &[uuid.into()],
+                )
+                .await
+                .unwrap();
             if fail_on_timeout {
                 assert_eq!(queue.size(None).await.unwrap(), 0);
+                assert_eq!(failures.len(), 1);
+                assert!(matches!(
+                    failures[0].get("exception"),
+                    Some(DatabaseValue::Text(message)) if message == "queued job timed out"
+                ));
             } else {
+                assert!(failures.is_empty());
                 assert_eq!(queue.size(None).await.unwrap(), 1);
                 let (status, lines) = artisan(&root.0, &["--once"], false).await;
                 assert_eq!(status, Some(0));
                 assert!(lines.is_empty(), "{lines:?}");
-                tokio::time::sleep(Duration::from_secs(2)).await;
+                tokio::time::sleep(Duration::from_secs(RETRY_AFTER)).await;
                 let (status, lines) = artisan(&root.0, &["--once"], false).await;
                 assert_eq!(status, Some(0));
                 assert_eq!(lines.last().unwrap()["status"], "success");
@@ -1516,7 +1596,7 @@ mod unix {
         let payload = Payload::new("hard-timeout-probe", "continue")
             .unwrap()
             .with_options(JobOptions {
-                timeout: Some(Duration::from_millis(350)),
+                timeout: Some(TIMEOUT),
                 hard_timeout: true,
                 ..Default::default()
             });
@@ -1569,7 +1649,7 @@ mod unix {
         assert_eq!(queue.size(None).await.unwrap(), 0);
 
         assert!(root.0.join("external.started").is_file());
-        tokio::time::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(BLOCKING_TIME).await;
         assert!(!root.0.join("blocking.late").exists());
         assert!(!root.0.join("external.late").exists());
         assert!(!root.0.join("continue.late").exists());
@@ -1586,16 +1666,18 @@ mod unix {
         assert!(root.0.join("blocking.failed").is_file());
         assert!(root.0.join("external.failed").is_file());
         assert!(!root.0.join("continue.failed").exists());
-        verify_failed_handler(&root.0, &manager, &*queue).await;
-        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
-        if backend != "redis" {
-            verify_prune_failed(&root.0, &app, &db).await;
+        if cfg!(unix) {
+            verify_failed_handler(&root.0, &manager, &*queue).await;
+            assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
+            if backend != "redis" {
+                verify_prune_failed(&root.0, &app, &db).await;
+            }
+            verify_retry_selection(&root.0, &app, &db, &*queue).await;
+            verify_retry_deadline(&root.0, &app, &*queue).await;
+            verify_listener(&root.0, &*queue).await;
+            verify_named_pop(&root.0, &*queue).await;
+            verify_maintenance(&root.0, &app, &*queue).await;
         }
-        verify_retry_selection(&root.0, &app, &db, &*queue).await;
-        verify_retry_deadline(&root.0, &app, &*queue).await;
-        verify_listener(&root.0, &*queue).await;
-        verify_named_pop(&root.0, &*queue).await;
-        verify_maintenance(&root.0, &app, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }
@@ -1604,6 +1686,15 @@ mod unix {
 
     #[tokio::main(flavor = "current_thread")]
     pub async fn run() -> ExitCode {
+        #[cfg(windows)]
+        if let Some(mode) = std::env::args().nth(1)
+            && matches!(
+                mode.as_str(),
+                "external-fixture" | "external-descendant-fixture"
+            )
+        {
+            return external_fixture(&mode, Path::new(&std::env::args_os().nth(2).unwrap()));
+        }
         if std::env::args_os()
             .nth(1)
             .is_some_and(|argument| argument == "artisan")
@@ -1612,6 +1703,21 @@ mod unix {
                 application(PathBuf::from(std::env::var_os("APP_BASE_PATH").unwrap()))
             })
             .await;
+        }
+        #[cfg(windows)]
+        {
+            assert!(process_exists(&std::process::id().to_string()));
+            let unassigned = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["artisan", "__queue-execute-reservation"])
+                .env_remove("APP_BASE_PATH")
+                .stdin(std::process::Stdio::null())
+                .output()
+                .unwrap();
+            assert_eq!(unassigned.status.code(), Some(1));
+            assert!(
+                String::from_utf8_lossy(&unassigned.stderr)
+                    .contains("Queue job execution process failed:")
+            );
         }
         exercise("sqlite").await;
         if std::env::var_os("OPENRUST_TEST_WORKER_MYSQL_URL").is_some() {
@@ -1624,7 +1730,7 @@ mod unix {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn main() -> std::process::ExitCode {
-    unix::run()
+    acceptance::run()
 }

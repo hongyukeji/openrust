@@ -12,6 +12,11 @@ use crate::{
 
 use super::{ChainUpdate, JobContext, Payload, QueueManager, QueueResult, backend};
 
+#[cfg(windows)]
+mod windows;
+#[cfg(windows)]
+pub(crate) use windows::wait_for_assignment;
+
 pub(crate) const COMMAND: &str = "__queue-execute-reservation";
 
 #[derive(Serialize, Deserialize)]
@@ -97,7 +102,7 @@ pub(crate) async fn serve(
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub(super) async fn execute(
     app: &Container,
     job: &mut dyn Job,
@@ -107,6 +112,7 @@ pub(super) async fn execute(
     use std::path::PathBuf;
 
     use super::QueueError;
+    #[cfg(unix)]
     use crate::process::{ChildGroup, Signal};
 
     let directory = tempfile::tempdir().map_err(backend)?;
@@ -130,15 +136,17 @@ pub(super) async fn execute(
         .await
         .map_err(backend)?;
     let mut command = tokio::process::Command::new(std::env::current_exe().map_err(backend)?);
-    command
-        .arg("artisan")
-        .arg(COMMAND)
-        .arg(directory.path())
-        .stdin(std::process::Stdio::null());
+    command.arg("artisan").arg(COMMAND).arg(directory.path());
     if let Some(root) = environment_file.parent() {
         command.env("APP_BASE_PATH", root);
     }
-    let mut child = ChildGroup::spawn(&mut command).map_err(backend)?;
+    #[cfg(unix)]
+    let mut child =
+        ChildGroup::spawn(command.stdin(std::process::Stdio::null())).map_err(backend)?;
+    #[cfg(windows)]
+    let mut child = windows::ChildJob::spawn(&mut command)
+        .await
+        .map_err(backend)?;
     // The driver's lease is already ticking while the executor boots.
     let result = if timeout.is_zero() {
         Ok(child.wait().await)
@@ -148,7 +156,10 @@ pub(super) async fn execute(
     let status = match result {
         Ok(status) => status.map_err(backend)?,
         Err(_) => {
+            #[cfg(unix)]
             child.signal(Signal::Kill).map_err(backend)?;
+            #[cfg(windows)]
+            child.terminate().map_err(backend)?;
             child.wait().await.map_err(backend)?;
             return Ok(None);
         }
@@ -177,7 +188,7 @@ pub(super) async fn execute(
     })))
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 pub(super) async fn execute(
     _: &Container,
     _: &mut dyn Job,
@@ -186,6 +197,6 @@ pub(super) async fn execute(
 ) -> QueueResult<Option<QueueResult<()>>> {
     Err(backend(io::Error::new(
         io::ErrorKind::Unsupported,
-        "hard queue timeouts require Unix process groups",
+        "hard queue timeouts require Unix or Windows",
     )))
 }

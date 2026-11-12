@@ -7,7 +7,7 @@ use super::Application;
 pub async fn runApplication(
     create: impl FnOnce() -> Result<Application, Box<dyn Error + Send + Sync>>,
 ) -> ExitCode {
-    let mut arguments = env::args_os();
+    let mut arguments = env::args_os().peekable();
     let executable = arguments.next();
     let artisan = match arguments.next() {
         None => false,
@@ -23,6 +23,15 @@ pub async fn runApplication(
             return ExitCode::from(2);
         }
     };
+    let isolated_job = artisan
+        && arguments
+            .peek()
+            .is_some_and(|arg| arg == crate::queue::isolated_job::COMMAND);
+    #[cfg(windows)]
+    if isolated_job && let Err(error) = crate::queue::isolated_job::wait_for_assignment() {
+        eprintln!("Queue job execution process failed: {error}");
+        return ExitCode::FAILURE;
+    }
     let app = match create() {
         Ok(app) => app,
         Err(error) => {
@@ -32,10 +41,7 @@ pub async fn runApplication(
     };
     let (result, error_context) = if artisan {
         let arguments: Vec<_> = arguments.collect();
-        if arguments
-            .first()
-            .is_some_and(|arg| arg == crate::queue::isolated_job::COMMAND)
-        {
+        if isolated_job {
             let result =
                 crate::queue::isolated_job::serve(app, arguments.get(1).map(Path::new)).await;
             (result.map(|()| 0), "Queue job execution process failed")

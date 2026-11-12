@@ -315,9 +315,9 @@ QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --
 
 ##### Hard deadlines for blocking jobs {#hard-job-timeouts}
 
-Set `JobOptions::hard_timeout` for a job that can block an executor thread. On Unix, Artisan runs that job in a separate process group. The worker retains the reservation and applies the effective job timeout to the child process, including its startup. At the deadline it terminates the group, reaps the executor, then dispatches `JobTimedOut` and settles failure or retry.
+Set `JobOptions::hard_timeout` for a job that can block an executor thread. Artisan isolates the job in a Unix process group or a Windows Job Object. The worker retains the reservation and applies the effective job timeout to the executor, including its startup. At the deadline it terminates the process tree and waits for the executor before dispatching `JobTimedOut` and settling failure or retry.
 
-External programs started through `Process` within the executor share that group. A program that deliberately creates another session or process group can escape the boundary. Hard execution requires a built-in persistent queue reservation and a Unix worker. Process-level timeout behavior was verified on macOS and in an arm64 Linux container with SQLite, MySQL, and Redis.
+External programs started through `Process` inherit the isolation boundary. A Unix program can escape by creating a new session or process group. Windows assigns the executor to its Job Object before the job starts and waits for all member processes to exit. Hard execution requires a built-in persistent queue reservation. The behavior was verified on Windows 11 with SQLite and on macOS and arm64 Linux with SQLite, MySQL, and Redis.
 
 ```rust
 use std::time::Duration;
