@@ -143,6 +143,47 @@ async fn dispatch_with_callbacks() -> QueueResult<Batch> {
 
 Use `before` for the initial snapshot before enqueueing, `progress` for terminal progress, `then` when the pending count reaches zero, `catch` for the first terminal failure, and `finally` after all jobs reach a terminal outcome. `onFailure` allows failures and registers a callback for each terminal failure. A callback error is logged and the worker continues. Worker callbacks run after their SQL transition commits. A process crash between commit and invocation can lose that invocation.
 
+### Batch events {#batch-events}
+
+Register listeners for `BatchDispatched`, `BatchStarted`, `BatchFinished`, and `BatchCanceled` from `openrust::bus::events`. Each carries a batch snapshot. Cancellation caused by a job failure also carries the failure message. Call the registration function in your provider’s `boot` method.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    bus::events::BatchFinished,
+    contracts::events::{Event as Payload, Listener},
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    log::Log,
+    support::facades::Event,
+};
+
+struct ReportBatchFinished;
+
+impl Listener for ReportBatchFinished {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Payload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(event) = event.downcast_ref::<BatchFinished>() {
+                let context = serde_json::Map::from_iter([
+                    ("batch_id".into(), event.batch.id.clone().into()),
+                ]);
+                let _ = Log::info("Batch finished", &context);
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn register_batch_events() -> EventResult<()> {
+    Event::listen(BatchFinished::NAME, Arc::new(ReportBatchFinished), Delivery::Sync)
+}
+```
+
+Events follow the committed state change. `BatchStarted` follows the first terminal job outcome, and `BatchFinished` fires when no jobs remain pending. Replaying the same delivery leaves these events unchanged. Different workers can run listeners concurrently.
+
 ### Retrying failed batch jobs {#batch-failures}
 
 Pass a batch ID or several IDs to requeue the failures still available in failed-job storage. Jobs return to their original connection and queue. On the same SQL connection, requeueing and removal of the failed record commit together. The Worker clears a job’s pending failure ID after it succeeds. Jobs configured to skip cancelled batches still honour cancellation.

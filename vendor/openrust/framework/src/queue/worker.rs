@@ -6,7 +6,10 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    bus::DatabaseBatchRepository,
+    bus::{
+        BatchPhase, DatabaseBatchRepository,
+        events::{BatchCanceled, BatchFinished, BatchStarted, emit},
+    },
     container::Container,
     contracts::{
         container::Container as _,
@@ -245,11 +248,29 @@ impl BatchCompletion {
             .record(&self.id, &self.job, &self.delivery, failure.is_none())
             .await?
         {
-            isolated_scope(
-                app.clone(),
-                self.queue
-                    .run_batch_callbacks(&transition.batch, &transition.phases, failure),
-            )
+            isolated_scope(app.clone(), async {
+                if let Some(batch) = transition.started {
+                    emit(BatchStarted { batch }).await;
+                }
+                if transition.canceled {
+                    emit(BatchCanceled {
+                        batch: transition.batch.clone(),
+                        exception: failure.map(str::to_owned),
+                    })
+                    .await;
+                }
+                for phase in transition.phases {
+                    if matches!(phase, BatchPhase::Then) {
+                        emit(BatchFinished {
+                            batch: transition.batch.clone(),
+                        })
+                        .await;
+                    }
+                    self.queue
+                        .run_batch_callbacks(&transition.batch, &[phase], failure)
+                        .await;
+                }
+            })
             .await;
         }
         Ok(())

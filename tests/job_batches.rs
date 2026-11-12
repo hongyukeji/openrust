@@ -7,13 +7,21 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
-    bus::Batch,
+    bus::{
+        Batch,
+        events::{BatchCanceled, BatchDispatched, BatchFinished, BatchStarted},
+    },
     cache::CacheManager,
     contracts::{
-        cache::LockProvider as _, container::Container as _, foundation::Application as _,
-        http::Kernel as _, queue::JobHandler,
+        cache::LockProvider as _,
+        container::Container as _,
+        events::{Event as EventPayload, Listener},
+        foundation::Application as _,
+        http::Kernel as _,
+        queue::JobHandler,
     },
     database::{Connection, DB, DatabaseManager, Value, query::Record},
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
@@ -23,7 +31,7 @@ use openrust::{
     routing::{Router, RoutingError},
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Bus, Queue},
+        facades::{Bus, Event, Queue},
     },
 };
 use serde_json::{Value as Json, json};
@@ -53,7 +61,59 @@ impl ServiceProvider for Provider {
         Box::pin(async move {
             Queue::register("reports.generate", Arc::new(Probe))?;
             register_callbacks()?;
+            for name in [
+                BatchDispatched::NAME,
+                BatchStarted::NAME,
+                BatchFinished::NAME,
+                BatchCanceled::NAME,
+            ] {
+                Event::listen(name, Arc::new(BatchObserver), Delivery::Sync)?;
+            }
             Ok(())
+        })
+    }
+}
+
+struct BatchObserver;
+
+impl Listener for BatchObserver {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let (batch, cause) = match event.name() {
+                BatchDispatched::NAME => {
+                    let value = event.downcast_ref::<BatchDispatched>().unwrap();
+                    assert_eq!(value.batch.pending_jobs, value.batch.total_jobs);
+                    (&value.batch, None)
+                }
+                BatchStarted::NAME => {
+                    let value = event.downcast_ref::<BatchStarted>().unwrap();
+                    assert!(value.batch.processedJobs() != 0 || value.batch.hasFailures());
+                    (&value.batch, None)
+                }
+                BatchFinished::NAME => {
+                    let value = event.downcast_ref::<BatchFinished>().unwrap();
+                    assert_eq!(value.batch.pending_jobs, 0);
+                    assert!(value.batch.finished());
+                    (&value.batch, None)
+                }
+                BatchCanceled::NAME => {
+                    let value = event.downcast_ref::<BatchCanceled>().unwrap();
+                    let wire = serde_json::to_vec(value).unwrap();
+                    let decoded: BatchCanceled = serde_json::from_slice(&wire).unwrap();
+                    assert_eq!(decoded.batch, value.batch);
+                    assert_eq!(decoded.exception, value.exception);
+                    assert!(value.batch.cancelled());
+                    (&value.batch, value.exception.as_deref())
+                }
+                _ => unreachable!(),
+            };
+            assert!(Bus::findBatch(&batch.id).await.unwrap().is_some());
+            record_callback(batch, event.name(), cause).await.unwrap();
+            Ok(None)
         })
     }
 }
@@ -103,7 +163,7 @@ async fn record_callback(batch: &Batch, phase: &str, failure: Option<&str>) -> Q
     Ok(())
 }
 
-async fn callback_trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
+async fn trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
     db.table("batch_callbacks")
         .r#where("batch_id", "=", batch)
         .orderBy("id", "asc")
@@ -122,6 +182,22 @@ async fn callback_trace(db: &Connection, batch: &str) -> Vec<(String, Option<Str
             };
             (phase.clone(), failure)
         })
+        .collect()
+}
+
+async fn callback_trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
+    trace(db, batch)
+        .await
+        .into_iter()
+        .filter(|(name, _)| !name.starts_with("Batch"))
+        .collect()
+}
+
+async fn event_trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
+    trace(db, batch)
+        .await
+        .into_iter()
+        .filter(|(name, _)| name.starts_with("Batch"))
         .collect()
 }
 
@@ -166,6 +242,13 @@ impl JobHandler for Probe {
 fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let kind = request.route("kind").unwrap();
+        if kind == "cancel-explicit" {
+            let job = Payload::new("reports.generate", "skipped")?;
+            let batch = Bus::batch([job]).onQueue("explicit").dispatch().await?;
+            Bus::cancelBatch(&batch.id).await?;
+            Bus::cancelBatch(&batch.id).await?;
+            return Response::json(StatusCode::OK, &batch);
+        }
         let jobs = |names: &[&str]| {
             names
                 .iter()
@@ -438,22 +521,39 @@ async fn exercise(mysql: Option<&str>) {
         2
     );
 
-    let trace = callback_trace(&db, id).await;
+    let callbacks = callback_trace(&db, id).await;
     assert_eq!(
-        trace
+        callbacks
             .iter()
             .filter(|(phase, _)| phase == "progress")
             .count(),
         2
     );
-    assert_eq!(trace.len(), 5);
+    assert_eq!(callbacks.len(), 5);
     assert!(
         std::fs::read_to_string(root.0.join("batch.log"))
             .unwrap()
             .contains("Batch callback failed")
     );
-    assert!(trace.contains(&("then".into(), None)));
-    assert!(trace.contains(&("finally".into(), None)));
+    assert!(callbacks.contains(&("then".into(), None)));
+    assert!(callbacks.contains(&("finally".into(), None)));
+    let lifecycle = trace(&db, id).await;
+    assert_eq!(
+        lifecycle
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "before",
+            "BatchDispatched",
+            "BatchStarted",
+            "progress",
+            "progress",
+            "BatchFinished",
+            "then",
+            "finally"
+        ]
+    );
     artisan(&root.0, &["queue:retry-batch"]).await;
     let missing = artisan_status(&root.0, &["queue:retry-batch", "missing", id], 1).await;
     assert!(
@@ -482,6 +582,25 @@ async fn exercise(mysql: Option<&str>) {
         assert_eq!(batch.cancelled(), kind == "cancel");
         assert_eq!(batch.failed_jobs, 1);
         assert_eq!(batch.pending_jobs, 1);
+        let events = event_trace(&db, id).await;
+        if kind == "cancel" {
+            assert_eq!(
+                events,
+                [
+                    ("BatchDispatched".into(), None),
+                    ("BatchStarted".into(), None),
+                    ("BatchCanceled".into(), Some("invalid queue payload".into())),
+                ]
+            );
+        } else {
+            assert_eq!(
+                events,
+                [
+                    ("BatchDispatched".into(), None),
+                    ("BatchStarted".into(), None)
+                ]
+            );
+        }
         let before_retry = callback_trace(&db, id).await;
         let failure = Some("invalid queue payload".to_owned());
         if kind == "allow" {
@@ -606,6 +725,29 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 3);
     assert_eq!(db.table("job_batches_jobs").count("*").await.unwrap(), 7);
     verify_pruning(&root.0, &db).await;
+    let explicit = request(address, "cancel-explicit", 200).await.unwrap();
+    let id = explicit["id"].as_str().unwrap();
+    assert_eq!(
+        event_trace(&db, id).await,
+        [
+            ("BatchDispatched".into(), None),
+            ("BatchCanceled".into(), None)
+        ]
+    );
+    artisan(
+        &root.0,
+        &["queue:work", "database", "--queue=explicit", "--once"],
+    )
+    .await;
+    assert_eq!(
+        event_trace(&db, id).await,
+        [
+            ("BatchDispatched".into(), None),
+            ("BatchCanceled".into(), None),
+            ("BatchStarted".into(), None),
+            ("BatchFinished".into(), None),
+        ]
+    );
     server.abort();
 }
 

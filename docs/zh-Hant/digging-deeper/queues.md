@@ -143,6 +143,47 @@ async fn dispatch_with_callbacks() -> QueueResult<Batch> {
 
 `before` 在入列前接收初始快照，`progress` 用於終態進度，`then` 在待處理數歸零時執行，`catch` 處理首次最終失敗，`finally` 在所有工作都有終態時執行。`onFailure` 允許失敗並為每次最終失敗註冊回呼。回呼出錯會寫入日誌，Worker 繼續處理。Worker 在 SQL 狀態提交後呼叫回呼，若程序在提交和呼叫之間退出，該次回呼可能遺失。
 
+### 批次事件 {#batch-events}
+
+從 `openrust::bus::events` 為 `BatchDispatched`、`BatchStarted`、`BatchFinished` 和 `BatchCanceled` 註冊監聽器。每個事件都帶有批次快照，工作失敗導致取消時還會帶有失敗訊息。在 Provider 的 `boot` 中呼叫註冊函式。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    bus::events::BatchFinished,
+    contracts::events::{Event as Payload, Listener},
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    log::Log,
+    support::facades::Event,
+};
+
+struct ReportBatchFinished;
+
+impl Listener for ReportBatchFinished {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Payload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(event) = event.downcast_ref::<BatchFinished>() {
+                let context = serde_json::Map::from_iter([
+                    ("batch_id".into(), event.batch.id.clone().into()),
+                ]);
+                let _ = Log::info("Batch finished", &context);
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn register_batch_events() -> EventResult<()> {
+    Event::listen(BatchFinished::NAME, Arc::new(ReportBatchFinished), Delivery::Sync)
+}
+```
+
+事件在狀態提交後派送。`BatchStarted` 在首個工作達到終態時觸發，`BatchFinished` 在待處理工作歸零時觸發。同一次投遞重播不會重複觸發事件，不同 Worker 的監聽器可能同時執行。
+
 ### 重試批次失敗工作 {#batch-failures}
 
 傳入一個或多個批次 ID，將失敗儲存中仍可重試的工作放回原連線和佇列。同一 SQL 連線中的重新入列和刪除失敗紀錄在一筆交易內提交。工作重試成功後，Worker 清除該工作的失敗 ID。設定為略過已取消批次的工作仍會遵守取消狀態。

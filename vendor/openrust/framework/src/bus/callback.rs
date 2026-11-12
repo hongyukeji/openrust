@@ -55,4 +55,6 @@ impl BatchPhase {
 pub(crate) struct BatchTransition {
     pub(crate) batch: Batch,
     pub(crate) phases: Vec<BatchPhase>,
+    pub(crate) started: Option<Batch>,
+    pub(crate) canceled: bool,
 }

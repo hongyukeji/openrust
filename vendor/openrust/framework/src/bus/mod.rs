@@ -3,6 +3,7 @@
 mod batch;
 mod callback;
 mod database_batch_repository;
+pub mod events;
 
 pub use batch::Batch;
 pub use callback::BatchCallback;
@@ -40,6 +41,17 @@ impl Bus {
     }
 
     pub async fn cancelBatch(id: &str) -> QueueResult<Option<Batch>> {
-        Queue::manager()?.batch_repository()?.cancel(id).await
+        let (batch, changed) = Queue::manager()?
+            .batch_repository()?
+            .cancel_once(id)
+            .await?;
+        if changed && let Some(batch) = &batch {
+            events::emit(events::BatchCanceled {
+                batch: batch.clone(),
+                exception: None,
+            })
+            .await;
+        }
+        Ok(batch)
     }
 }

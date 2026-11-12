@@ -300,6 +300,10 @@ impl QueueManager {
         match result {
             Ok(batch) => {
                 transaction.commit().await.map_err(backend)?;
+                crate::bus::events::emit(crate::bus::events::BatchDispatched {
+                    batch: batch.clone(),
+                })
+                .await;
                 Ok(batch)
             }
             Err(error) => {

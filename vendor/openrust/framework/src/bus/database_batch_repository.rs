@@ -132,13 +132,18 @@ impl DatabaseBatchRepository {
                             return Ok(None);
                         }
                         let mut batch = decode(row)?;
+                        let first =
+                            batch.pending_jobs == batch.total_jobs && batch.failed_jobs == 0;
                         let was_terminal = all_jobs_terminal(&batch);
                         let mut phases = Vec::new();
+                        let started;
+                        let mut canceled = false;
                         if succeeded {
                             phases.push(BatchPhase::Progress);
                             batch.pending_jobs =
                                 batch.pending_jobs.checked_sub(1).ok_or(invalid())?;
                             batch.failed_job_ids.retain(|failed| failed != &job);
+                            started = first.then(|| batch.clone());
                             if batch.pending_jobs == 0 {
                                 batch.finished_at = Some(now());
                                 phases.push(BatchPhase::Then);
@@ -154,7 +159,9 @@ impl DatabaseBatchRepository {
                             if batch.failed_jobs == 1 {
                                 phases.push(BatchPhase::Catch);
                             }
+                            started = first.then(|| batch.clone());
                             if !batch.allowsFailures() && !batch.cancelled() {
+                                canceled = true;
                                 let now = now();
                                 batch.cancelled_at = Some(now);
                                 batch.finished_at = Some(now);
@@ -180,7 +187,12 @@ impl DatabaseBatchRepository {
                             .r#where("id", "=", id.as_str())
                             .update(state(&batch)?)
                             .await?;
-                        Ok(Some(BatchTransition { batch, phases }))
+                        Ok(Some(BatchTransition {
+                            batch,
+                            phases,
+                            started,
+                            canceled,
+                        }))
                     })
                 },
                 10,
@@ -243,13 +255,45 @@ impl DatabaseBatchRepository {
     }
 
     pub async fn cancel(&self, id: &str) -> QueueResult<Option<Batch>> {
-        self.update(id, |batch| {
-            let now = now();
-            batch.cancelled_at = Some(now);
-            batch.finished_at = Some(now);
-            Ok(())
-        })
-        .await
+        self.cancel_once(id).await.map(|(batch, _)| batch)
+    }
+
+    pub(crate) async fn cancel_once(&self, id: &str) -> QueueResult<(Option<Batch>, bool)> {
+        let (table, id) = (self.table.clone(), id.to_owned());
+        let now = now().timestamp();
+        self.connection
+            .transaction(
+                move |transaction| {
+                    let (table, id) = (table.clone(), id.clone());
+                    Box::pin(async move {
+                        let changed = transaction
+                            .table(&table)
+                            .r#where("id", "=", id.as_str())
+                            .whereNull("cancelled_at")
+                            .update(
+                                [
+                                    ("cancelled_at".into(), now.into()),
+                                    ("finished_at".into(), now.into()),
+                                ]
+                                .into_iter()
+                                .collect(),
+                            )
+                            .await?
+                            != 0;
+                        let batch = transaction
+                            .table(&table)
+                            .r#where("id", "=", id.as_str())
+                            .first()
+                            .await?
+                            .map(decode)
+                            .transpose()?;
+                        Ok((batch, changed))
+                    })
+                },
+                10,
+            )
+            .await
+            .map_err(backend)
     }
 
     pub async fn delete(&self, id: &str) -> QueueResult<bool> {
