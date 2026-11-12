@@ -1,6 +1,10 @@
 mod rate_limited;
+mod throttles_exceptions;
 
 pub use rate_limited::{RateLimited, RateLimitedWithRedis};
+pub use throttles_exceptions::{
+    ExceptionThrottleLimiter, ThrottlesExceptions, ThrottlesExceptionsWithRedis,
+};
 
 use std::{sync::Arc, time::Duration};
 

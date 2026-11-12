@@ -592,6 +592,25 @@ fn job_rate_limit() -> RateLimited {
 
 A denied job is released after the remaining window plus three seconds. Use `releaseAfter` to override the delay or `dontRelease` to skip the handler and acknowledge the job. Released jobs still consume an attempt. `RateLimitedWithRedis::new("job-budget").connection("default")` applies the limits atomically on a named Redis connection.
 
+### Throttling exceptions {#throttling-exceptions}
+
+Use `ThrottlesExceptions` when jobs depend on a service that can fail repeatedly. Matching exceptions consume the configured failure budget. A successful attempt clears it. Once the budget is exhausted, the worker skips the handler and releases the job until the window expires. The cache variant adds three seconds to this delay.
+
+```rust
+use openrust::queue::middleware::ThrottlesExceptions;
+
+fn job_exception_throttle() -> ThrottlesExceptions {
+    ThrottlesExceptions::new(10, 300)
+        .by("billing-service")
+        .backoff(1)
+        .report()
+}
+```
+
+Use `by` to share a budget across job types and `byJob` for a budget per job UUID. `backoff` sets the delay in minutes before the threshold is reached. `backoffWhen` calculates it from the error. Use `when` to select errors and `reportWhen` to report them through the application's exception handler. `deleteWhen` acknowledges the job, while `failWhen` records a terminal failure. Deletion takes priority if both predicates match.
+
+Use `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` for a named Redis connection. The second argument to `when` and `reportWhen` is an `ExceptionThrottleLimiter` with the cache service or the Redis window's remaining budget and expiration timestamp.
+
 ## Failed jobs
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.

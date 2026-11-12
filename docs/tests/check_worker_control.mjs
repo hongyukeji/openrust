@@ -18,7 +18,7 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "throttling-exceptions", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
@@ -45,6 +45,9 @@ try {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
                     for (const term of ["RateLimiter::forJob", "RateLimitedWithRedis", "dontRelease", "releaseAfter"]) {
+                        assert.ok(body.includes(term), `${locale}: ${term}`);
+                    }
+                    for (const term of ["ThrottlesExceptions", "ThrottlesExceptionsWithRedis", "ExceptionThrottleLimiter", "deleteWhen", "failWhen"]) {
                         assert.ok(body.includes(term), `${locale}: ${term}`);
                     }
                     for (const term of ["timed_out", "QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124", "QUEUE_WORKER_KILL_ON_TIMEOUT=false"]) {

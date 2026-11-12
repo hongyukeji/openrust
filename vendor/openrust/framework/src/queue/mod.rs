@@ -322,6 +322,7 @@ pub struct JobContext<'tx> {
     attempts: u32,
     transaction: Option<&'tx mut crate::database::Transaction>,
     release_after: Option<Duration>,
+    fail_immediately: bool,
     chain_edits: chain_edit::ChainEdits,
     chain_update: Option<ChainUpdate>,
     running_handler: Option<&'tx worker::RunningHandler>,

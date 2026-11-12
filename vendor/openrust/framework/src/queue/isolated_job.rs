@@ -26,6 +26,7 @@ struct Request {
 struct Response {
     error: Option<String>,
     release_after: Option<Duration>,
+    fail_immediately: bool,
     chain_update: Option<ChainUpdate>,
 }
 
@@ -72,6 +73,7 @@ pub(crate) async fn serve(
             text
         }),
         release_after: context.release_after,
+        fail_immediately: context.fail_immediately,
         chain_update: context.chain_update,
     };
     tokio::fs::write(
@@ -152,6 +154,7 @@ pub(super) async fn execute(
     )
     .map_err(backend)?;
     context.release_after = response.release_after;
+    context.fail_immediately = response.fail_immediately;
     context.chain_update = response.chain_update;
     Ok(Some(response.error.map_or(Ok(()), |error| {
         Err(QueueError::Execution {

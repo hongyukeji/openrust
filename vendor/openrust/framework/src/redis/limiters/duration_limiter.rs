@@ -46,6 +46,16 @@ impl DurationLimiter {
         Self { connection }
     }
 
+    pub(crate) async fn clear(&self, key: &str) -> CacheResult<()> {
+        self.connection
+            .query::<u64>(::redis::cmd("DEL").arg(self.connection.key(key)))
+            .await
+            .map(|_| ())
+            .map_err(|source| CacheError::Backend {
+                source: Box::new(source),
+            })
+    }
+
     pub(crate) async fn admit(&self, quotas: &[Quota]) -> CacheResult<Admission> {
         validate(quotas)?;
         let mut command = ::redis::cmd("EVAL");

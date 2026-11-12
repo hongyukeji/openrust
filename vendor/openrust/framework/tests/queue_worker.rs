@@ -43,7 +43,10 @@ use openrust::{
             WorkerInterrupted, WorkerPausing, WorkerQueuePaused, WorkerQueueResumed,
             WorkerResuming, WorkerStarting, WorkerStopping,
         },
-        middleware::{JobMiddleware, JobNext, RateLimited, RateLimitedWithRedis},
+        middleware::{
+            ExceptionThrottleLimiter, JobMiddleware, JobNext, RateLimited, RateLimitedWithRedis,
+            ThrottlesExceptions, ThrottlesExceptionsWithRedis,
+        },
     },
     routing::{Router, RoutingError},
     support::{
@@ -617,6 +620,57 @@ impl JobHandler for LimitedHandler {
     }
 }
 
+struct ThrottledHandler(&'static str);
+
+impl JobHandler for ThrottledHandler {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        let matches_error = |error: &QueueError, suffix| {
+            std::error::Error::source(error)
+                .is_some_and(|source| source.to_string().ends_with(suffix))
+        };
+        let throttle = ThrottlesExceptions::new(2, 8)
+            .by("remote-service")
+            .backoffWhen(|_| 1)
+            .when(move |error, _| !matches_error(error, "_bypass"))
+            .reportWhen(|_, limiter| {
+                match limiter {
+                    ExceptionThrottleLimiter::Cache(_) => println!("throttle-cache"),
+                    ExceptionThrottleLimiter::Redis {
+                        remaining,
+                        decays_at,
+                    } => {
+                        assert!(*remaining > 0);
+                        assert!(*decays_at > 0);
+                        println!("throttle-redis:{remaining}");
+                    }
+                }
+                true
+            })
+            .deleteWhen(move |error| matches_error(error, "_discard"))
+            .failWhen(move |error| matches_error(error, "_terminal"));
+        let middleware: Arc<dyn JobMiddleware> = if self.0.starts_with("throttle_redis_") {
+            Arc::new(ThrottlesExceptionsWithRedis::from(throttle).connection("default"))
+        } else {
+            Arc::new(throttle)
+        };
+        vec![middleware, Arc::new(Tag)]
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            Handler.handle(context, payload).await?;
+            if self.0.ends_with("_success") {
+                return Ok(());
+            }
+            Err(execution(std::io::Error::other(self.0)))
+        })
+    }
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -659,6 +713,22 @@ impl ServiceProvider for Providers {
                 "rate_redis",
             ] {
                 Queue::register(name, Arc::new(LimitedHandler(name)))?;
+            }
+            for name in [
+                "throttle_cache_retry",
+                "throttle_cache_success",
+                "throttle_cache_blocked",
+                "throttle_cache_discard",
+                "throttle_cache_terminal",
+                "throttle_cache_bypass",
+                "throttle_redis_retry",
+                "throttle_redis_success",
+                "throttle_redis_blocked",
+                "throttle_redis_discard",
+                "throttle_redis_terminal",
+                "throttle_redis_bypass",
+            ] {
+                Queue::register(name, Arc::new(ThrottledHandler(name)))?;
             }
             let cache_error = |source| HttpError::Internal {
                 source: Box::new(source),
@@ -739,7 +809,13 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                 });
             }
             let options = DispatchOptions {
-                queue: (kind == "control_low").then(|| "low".to_owned()),
+                queue: if kind.starts_with("throttle_redis_") {
+                    Some("throttle-redis".into())
+                } else if kind.starts_with("throttle_cache_") {
+                    Some("throttle-cache".into())
+                } else {
+                    (kind == "control_low").then(|| "low".to_owned())
+                },
                 ..Default::default()
             };
             Queue::dispatch(payload, options, None).await?;
@@ -812,6 +888,9 @@ fn application(root: &Path) -> Application {
                     ReportDecision::Stop
                 } else if error.to_string() == "interrupt-hook-error" {
                     println!("job-interruption:reported");
+                    ReportDecision::Stop
+                } else if error.to_string().starts_with("throttle_") {
+                    println!("throttle-report:{error}");
                     ReportDecision::Stop
                 } else if error.to_string().starts_with("attempt-event:") {
                     println!("attempt-report:{error}");
@@ -1220,6 +1299,10 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_memory(&root.0, &*queue, address).await;
     verify_worker_timeout(&root.0, &*queue, address).await;
     verify_job_rate_limits(&root.0, &db, &*queue, address, redis.is_some()).await;
+    verify_exception_throttle(&root.0, &db, &*queue, address, "cache").await;
+    if redis.is_some() {
+        verify_exception_throttle(&root.0, &db, &*queue, address, "redis").await;
+    }
     if mysql.is_none() && redis.is_none() {
         verify_custom_disconnect(&root.0, &*queue, address).await;
     }
@@ -2204,6 +2287,78 @@ async fn verify_job_rate_limits(
         assert_eq!(count("rate_redis").await, 1);
         assert_eq!(queue.size(None).await.unwrap(), 0);
     }
+}
+
+async fn verify_exception_throttle(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+    limiter: &str,
+) {
+    let name = |kind| format!("throttle_{limiter}_{kind}");
+    let failed_before = db.table("failed_jobs").count("*").await.unwrap();
+    let queue_name = format!("throttle-{limiter}");
+    let queue_arg = format!("--queue={queue_name}");
+    let args = [
+        "queue:work",
+        "--json",
+        "--stop-when-empty",
+        "--tries=3",
+        "--backoff=60",
+        &queue_arg,
+    ];
+    for kind in [
+        "discard", "terminal", "bypass", "retry", "success", "retry", "retry", "blocked",
+    ] {
+        request(address, &name(kind)).await;
+    }
+    let output = run(root, &args).await;
+    let rows = json_lines(&output);
+    let result = |kind| {
+        rows.iter()
+            .find(|row| row["job"] == name(kind) && row["status"] != "starting")
+            .unwrap()
+    };
+    assert_eq!(result("discard")["result"], "deleted", "{output}");
+    assert_eq!(result("terminal")["status"], "failed", "{output}");
+    assert_eq!(result("bypass")["result"], "released", "{output}");
+    assert_eq!(result("blocked")["result"], "released", "{output}");
+    assert_eq!(
+        output
+            .matches(&format!("throttle-report:{}", name("retry")))
+            .count(),
+        3
+    );
+    if limiter == "redis" {
+        assert_eq!(output.matches("throttle-redis:2").count(), 4, "{output}");
+        assert_eq!(output.matches("throttle-redis:1").count(), 1, "{output}");
+    }
+    let count = |kind| {
+        let job = name(kind);
+        async move {
+            db.table("receipts")
+                .r#where("name", "=", job)
+                .count("*")
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(count("retry").await, 3);
+    assert_eq!(count("success").await, 1);
+    assert_eq!(count("blocked").await, 0);
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        failed_before + 1
+    );
+    assert_eq!(queue.size(Some(&queue_name)).await.unwrap(), 5);
+    sleep(Duration::from_secs(if limiter == "redis" { 9 } else { 12 })).await;
+    run(root, &args).await;
+    assert_eq!(count("blocked").await, 1);
+    // The three middleware backoffs and the ordinary bypass backoff are still pending.
+    assert_eq!(count("retry").await, 3);
+    assert_eq!(count("bypass").await, 1);
+    assert_eq!(queue.size(Some(&queue_name)).await.unwrap(), 5);
 }
 
 async fn verify_custom_disconnect(

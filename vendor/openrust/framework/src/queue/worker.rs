@@ -67,6 +67,7 @@ pub(super) type RunningHandler = Mutex<Option<Arc<dyn JobHandler>>>;
 struct AttemptStatus {
     stop_on_timeout: bool,
     timed_out: bool,
+    handled_failure: bool,
     cause: Option<QueueError>,
     duration: Option<f64>,
 }
@@ -340,6 +341,7 @@ impl Worker {
                 match result {
                     Ok(result) => {
                         if !cadence.single_run
+                            && !attempt.handled_failure
                             && let Some(error) = cause
                         {
                             disconnected = self.lost_connection(error)?;
@@ -569,7 +571,9 @@ impl Worker {
             }
         })
         .await;
-        if let Some(error) = attempt.cause.as_ref() {
+        if !attempt.handled_failure
+            && let Some(error) = attempt.cause.as_ref()
+        {
             self.report_worker_error(error).await;
         }
         result
@@ -703,10 +707,12 @@ impl Worker {
         if let Err(error) = result {
             let timed_out = matches!(error, QueueError::Timeout);
             let stop_for_timeout = status.stop_on_timeout && status.timed_out;
-            let terminal = (stop_for_timeout || context.release_after.is_none())
-                && (already_exhausted
-                    || exceeds_attempts(job, tries, true)
-                    || timed_out && job.options().fail_on_timeout);
+            status.handled_failure = context.fail_immediately;
+            let terminal = status.handled_failure
+                || (stop_for_timeout || context.release_after.is_none())
+                    && (already_exhausted
+                        || exceeds_attempts(job, tries, true)
+                        || timed_out && job.options().fail_on_timeout);
             let error = status.cause.insert(error);
             let failure = if terminal {
                 let result = self.fail(job, error, batch).await;
@@ -739,6 +745,9 @@ impl Worker {
             }
             if stop_for_timeout {
                 // Leave a retryable reservation untouched for the driver's lease to expire.
+                return failure;
+            }
+            if status.handled_failure {
                 return failure;
             }
             failure?;

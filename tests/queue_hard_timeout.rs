@@ -19,10 +19,13 @@ mod unix {
         events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
         foundation::{Application, runApplication},
         http::HttpFuture,
-        queue::events::JobTimedOut,
         queue::{
             DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
             QueueManager, QueueResult,
+        },
+        queue::{
+            events::JobTimedOut,
+            middleware::{JobMiddleware, ThrottlesExceptions},
         },
         support::{
             ProviderResult, ServiceProvider,
@@ -33,8 +36,22 @@ mod unix {
 
     type SetupError = Box<dyn Error + Send + Sync>;
 
-    struct Probe(PathBuf);
+    struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
+        fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+            if !self.1 {
+                return Vec::new();
+            }
+            vec![Arc::new(
+                ThrottlesExceptions::default()
+                    .when(|error, _| {
+                        std::error::Error::source(error)
+                            .is_some_and(|source| source.to_string() == "hard throttle terminal")
+                    })
+                    .failWhen(|_| true),
+            )]
+        }
+
         fn handle<'a>(
             &'a self,
             context: &'a mut JobContext<'_>,
@@ -55,6 +72,9 @@ mod unix {
                 )
                 .map_err(error)?;
                 match kind {
+                    "throttle-terminal" => {
+                        return Err(error(std::io::Error::other("hard throttle terminal")));
+                    }
                     "cpu" => loop {
                         std::hint::spin_loop();
                     },
@@ -112,7 +132,8 @@ mod unix {
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
-                Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone())))?;
+                Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
+                Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
                 Event::listen(
                     JobTimedOut::NAME,
                     Arc::new(TimeoutObserver(self.0.clone())),
@@ -299,12 +320,30 @@ mod unix {
         assert!(root.0.join("continue.timed_out").is_file());
         assert!(root.0.join("retried").is_file());
 
+        manager
+            .dispatch(
+                Payload::new("hard-throttle-probe", "throttle-terminal")
+                    .unwrap()
+                    .with_options(JobOptions {
+                        hard_timeout: true,
+                        ..Default::default()
+                    }),
+                DispatchOptions::default(),
+                None,
+            )
+            .await
+            .unwrap();
+        let (status, lines) = artisan(&root.0, &["--once"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["status"], "failed");
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+
         assert!(root.0.join("external.started").is_file());
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(!root.0.join("blocking.late").exists());
         assert!(!root.0.join("external.late").exists());
         assert!(!root.0.join("continue.late").exists());
-        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 3);
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

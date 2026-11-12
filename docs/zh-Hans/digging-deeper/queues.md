@@ -592,6 +592,25 @@ fn job_rate_limit() -> RateLimited {
 
 达到限额后，任务默认在剩余窗口再加三秒后可重新预约。使用 `releaseAfter` 可覆盖延迟，使用 `dontRelease` 则跳过处理器并确认该任务。释放仍消耗一次尝试。`RateLimitedWithRedis::new("job-budget").connection("default")` 在指定 Redis 连接上原子应用限额。
 
+### 异常节流 {#throttling-exceptions}
+
+任务依赖的服务可能连续报错时，使用 `ThrottlesExceptions`。匹配的异常消耗失败额度，成功执行会清零。额度用完后，Worker 跳过处理器，把任务释放到窗口到期后重试。缓存版本会在等待时间上额外加三秒。
+
+```rust
+use openrust::queue::middleware::ThrottlesExceptions;
+
+fn job_exception_throttle() -> ThrottlesExceptions {
+    ThrottlesExceptions::new(10, 300)
+        .by("billing-service")
+        .backoff(1)
+        .report()
+}
+```
+
+用 `by` 让多种任务共享失败额度，或用 `byJob` 按任务 UUID 单独计数。`backoff` 设置达到阈值前的退避分钟数，`backoffWhen` 可按异常计算。`when` 选择参与节流的异常，`reportWhen` 通过应用异常处理器报告。`deleteWhen` 确认并删除任务，`failWhen` 记录终态失败。两个条件都命中时优先删除。
+
+用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 选择 Redis 连接。`when` 和 `reportWhen` 的第二个参数是 `ExceptionThrottleLimiter`，提供缓存服务，或 Redis 窗口的剩余额度和到期时间戳。
+
 ## 失败任务
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。
