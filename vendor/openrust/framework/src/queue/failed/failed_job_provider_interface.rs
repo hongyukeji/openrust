@@ -1,4 +1,6 @@
-use std::time::Duration;
+use std::{pin::Pin, time::Duration};
+
+use futures_util::{Stream, stream};
 
 use crate::{
     database::Transaction,
@@ -6,6 +8,10 @@ use crate::{
 };
 
 use super::{FailedJob, PrunableFailedJobProvider};
+
+/// Entries to retry in storage order. Each key identifies the stored record to remove.
+pub type FailedJobRetryStream<'a> =
+    Pin<Box<dyn Stream<Item = QueueResult<(String, FailedJob)>> + Send + 'a>>;
 
 /// Stores and retrieves failed queue jobs.
 pub trait FailedJobProviderInterface: Send + Sync {
@@ -29,6 +35,26 @@ pub trait FailedJobProviderInterface: Send + Sync {
         })
     }
     fn find<'a>(&'a self, id: &'a str) -> QueueFuture<'a, QueueResult<Option<FailedJob>>>;
+
+    /// Resolve a retry identifier to one or more entries. An empty stream represents an existing
+    /// selection without any records. The default adapts the provider's single-record lookup.
+    #[allow(
+        non_snake_case,
+        reason = "Matches the failed job provider method naming"
+    )]
+    fn findForRetry<'a>(
+        &'a self,
+        id: &'a str,
+    ) -> QueueFuture<'a, QueueResult<Option<FailedJobRetryStream<'a>>>> {
+        Box::pin(async move {
+            let Some(job) = self.find(id).await? else {
+                return Ok(None);
+            };
+            let entries: FailedJobRetryStream<'a> =
+                Box::pin(stream::iter([Ok((id.to_owned(), job))]));
+            Ok(Some(entries))
+        })
+    }
     fn forget<'a>(&'a self, id: &'a str) -> QueueFuture<'a, QueueResult<bool>>;
     fn forget_retry<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<bool>> {
         self.forget(&job.id)

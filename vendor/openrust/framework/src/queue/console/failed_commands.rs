@@ -1,5 +1,7 @@
 use std::{collections::HashSet, fmt::Write as _, time::Duration};
 
+use futures_util::{StreamExt as _, stream};
+
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 
 use crate::{
@@ -170,12 +172,27 @@ async fn retry_failed(
         if !seen.insert(id.clone()) {
             continue;
         }
-        let Some(job) = provider.find(&id).await.map_err(error)? else {
+        let Some(mut jobs) = provider.findForRetry(&id).await.map_err(error)? else {
             let _ = writeln!(output.stderr, "Unable to find failed job with ID [{id}].");
             continue;
         };
-        if manager.retry_failed(provider, &job).await.map_err(error)? {
-            output.info(&format!("Queued failed job {}.", job.id));
+        let Some(first) = jobs.next().await else {
+            let _ = writeln!(
+                output.stderr,
+                "Unable to find any failed jobs with ID [{id}]."
+            );
+            continue;
+        };
+        let mut jobs = stream::iter([first]).chain(jobs);
+        while let Some(entry) = jobs.next().await {
+            let (key, job) = entry.map_err(error)?;
+            if manager
+                .retry_failed(provider, &key, &job)
+                .await
+                .map_err(error)?
+            {
+                output.info(&format!("Queued failed job {key}."));
+            }
         }
     }
     Ok(())

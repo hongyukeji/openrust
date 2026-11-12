@@ -6,7 +6,7 @@ mod null_failed_job_provider;
 mod prunable_failed_job_provider;
 
 pub use database_uuid_failed_job_provider::DatabaseUuidFailedJobProvider;
-pub use failed_job_provider_interface::FailedJobProviderInterface;
+pub use failed_job_provider_interface::{FailedJobProviderInterface, FailedJobRetryStream};
 pub(crate) use null_failed_job_provider::NullFailedJobProvider;
 pub use prunable_failed_job_provider::PrunableFailedJobProvider;
 

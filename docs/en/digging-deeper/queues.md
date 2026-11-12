@@ -780,6 +780,22 @@ impl ProcessUpload {
 
 The previous deadline is available during a manual retry. Return it to keep the deadline, or return `None` to clear it. Automatic worker retries use the deadline stored with the job. Custom `JobHandler` implementations receive the original job payload when Artisan refreshes the deadline. If the callback returns an error, the command stops and keeps the failure record.
 
+#### Retrying a group of stored failures {#retrying-a-group-of-stored-failures}
+
+A custom failed-job provider may override `findForRetry` to resolve a command ID to a stream. Return `None` for an unknown ID or an empty stream for a known group with no remaining failures.
+
+```rust
+use openrust::queue::{QueueResult, failed::{FailedJob, FailedJobRetryStream}};
+
+fn retry_entries<'a>(
+    rows: impl Iterator<Item = QueueResult<(String, FailedJob)>> + Send + 'a,
+) -> FailedJobRetryStream<'a> {
+    Box::pin(futures_util::stream::iter(rows))
+}
+```
+
+Yield the storage key alongside each record. Artisan uses that key to report progress and remove the stored failure. It publishes one entry before requesting the next. If reading or publishing an entry fails, the command stops before requesting any later entries.
+
 ### Pruning failed jobs {#pruning-failed-jobs}
 
 Run `queue:prune-failed` to delete failure records older than 24 hours. Use `--hours` to set a different retention period.

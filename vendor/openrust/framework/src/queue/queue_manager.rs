@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     sync::{
         Arc, Mutex, RwLock, Weak,
@@ -327,6 +328,7 @@ impl QueueManager {
     pub(crate) async fn retry_failed(
         &self,
         failures: &dyn FailedJobProviderInterface,
+        key: &str,
         job: &FailedJob,
     ) -> QueueResult<bool> {
         if self.observes_worker_event(JobRetryRequested::NAME)? {
@@ -337,11 +339,19 @@ impl QueueManager {
         let mut payload = job.payload.clone();
         self.registry.refresh_retry_deadline(&mut payload).await?;
         let payload = payload.renewed()?;
+        let claim = if key == job.id {
+            Cow::Borrowed(job)
+        } else {
+            Cow::Owned(FailedJob {
+                id: key.to_owned(),
+                ..job.clone()
+            })
+        };
         let queue = Some(job.queue.as_str());
         if let BatchBackend::Database(connection) = &configured.batch_backend {
             let mut transaction = connection.beginTransaction().await.map_err(backend)?;
             match failures
-                .forget_retry_in_transaction(job, &mut transaction)
+                .forget_retry_in_transaction(&claim, &mut transaction)
                 .await?
             {
                 Some(claimed) => {
@@ -358,7 +368,7 @@ impl QueueManager {
             }
         }
         configured.queue.push(&payload, queue).await?;
-        failures.forget_retry(job).await?;
+        failures.forget_retry(&claim).await?;
         Ok(true)
     }
 

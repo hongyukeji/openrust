@@ -780,6 +780,22 @@ impl ProcessUpload {
 
 手動重試時會收到上次的截止時間。傳回該值可保留截止時間，傳回 `None` 可清除。Worker 自動重試使用工作中保存的截止時間。自訂 `JobHandler` 在 Artisan 更新截止時間時會收到原始工作酬載。回呼傳回錯誤時，指令停止並保留失敗記錄。
 
+#### 依群組重試已儲存的失敗記錄 {#retrying-a-group-of-stored-failures}
+
+自訂失敗工作驅動程式可以覆寫 `findForRetry`，將指令 ID 解析成串流。未知 ID 傳回 `None`，存在但已無失敗記錄的群組傳回空串流。
+
+```rust
+use openrust::queue::{QueueResult, failed::{FailedJob, FailedJobRetryStream}};
+
+fn retry_entries<'a>(
+    rows: impl Iterator<Item = QueueResult<(String, FailedJob)>> + Send + 'a,
+) -> FailedJobRetryStream<'a> {
+    Box::pin(futures_util::stream::iter(rows))
+}
+```
+
+每筆記錄與儲存鍵一併傳回。Artisan 使用儲存鍵回報進度並刪除失敗記錄，每入列一筆才讀取下一筆。讀取或入列失敗時，指令停止讀取後續記錄。
+
 ### 清理過期失敗工作 {#pruning-failed-jobs}
 
 執行 `queue:prune-failed` 刪除超過 24 小時的失敗記錄。可用 `--hours` 設定其他保留時間。

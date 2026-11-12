@@ -1,6 +1,8 @@
 use std::{collections::HashSet, fmt::Write as _, time::Duration};
 
 use aws_lc_rs::digest::{SHA256, digest};
+use futures_util::StreamExt as _;
+
 use clap::{Arg, Command as Syntax, value_parser};
 
 use crate::{
@@ -96,16 +98,22 @@ async fn retry(
             "Pushing failed queue jobs of the batch [{id}] back onto the queue."
         ));
         for job_id in batch.failed_job_ids {
-            let retried = match failures.find(&job_id).await.map_err(error)? {
-                Some(job) if job.payload.batchId() == Some(id) => queue
-                    .retry_failed(failures.as_ref(), &job)
-                    .await
-                    .map_err(error)?,
-                _ => false,
-            };
-            if retried {
-                output.info(&format!("Queued failed job {job_id}."));
-            } else {
+            let mut retried = false;
+            if let Some(mut jobs) = failures.findForRetry(&job_id).await.map_err(error)? {
+                while let Some(entry) = jobs.next().await {
+                    let (key, job) = entry.map_err(error)?;
+                    if job.payload.batchId() == Some(id)
+                        && queue
+                            .retry_failed(failures.as_ref(), &key, &job)
+                            .await
+                            .map_err(error)?
+                    {
+                        output.info(&format!("Queued failed job {key}."));
+                        retried = true;
+                    }
+                }
+            }
+            if !retried {
                 let _ = writeln!(
                     output.stderr,
                     "Failed job [{job_id}] is no longer available to retry."
