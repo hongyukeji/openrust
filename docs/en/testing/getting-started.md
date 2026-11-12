@@ -1,12 +1,17 @@
 # Getting Started With Testing
 
-## Running tests
+## Running tests {#running-tests}
 
 Place integration tests under the application's `tests/` directory or in the relevant crate. Run the workspace tests with the committed lockfile.
 
+Run the application’s tests with Artisan or run every workspace member with Cargo. From Artisan, use Cargo options before the test filter and use `--` after the filter to pass options to Rust’s test harness. An initial `--` immediately after `test` forwards options that overlap with Artisan, such as Cargo’s `--help`.
+
 ```sh
+./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
 cargo +1.94.0 test --workspace --locked
 ```
+
+Artisan runs Cargo from the application root, streams its output and returns its exit status. It uses the `CARGO` executable from the environment when set, otherwise `cargo` from the executable search path.
 
 ## Creating a test application
 

@@ -10,6 +10,7 @@ mod model_make_command;
 mod policy_make_command;
 mod storage_link_command;
 mod storage_unlink_command;
+mod test_command;
 mod test_make_command;
 
 use std::ffi::OsString;
@@ -73,6 +74,7 @@ impl Kernel {
                             install_routes_command::register(&mut self.artisan)?;
                             console_make_command::register(&mut self.artisan)?;
                             test_make_command::register(&mut self.artisan)?;
+                            test_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;

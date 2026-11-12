@@ -1,12 +1,17 @@
 # 测试入门
 
-## 运行测试
+## 运行测试 {#running-tests}
 
 集成测试放在应用的 `tests/` 或对应 crate 下。使用已提交的锁文件运行工作区测试。
 
+通过 Artisan 运行应用测试，或通过 Cargo 运行所有工作区成员的测试。使用 Artisan 时，可在测试过滤名之前传入 Cargo 选项，并在过滤名之后用 `--` 传入 Rust 测试运行器选项。遇到与 Artisan 同名的 Cargo 选项时，在 `test` 后立即加一个 `--`，例如透传 Cargo 的 `--help`。
+
 ```sh
+./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
 cargo +1.94.0 test --workspace --locked
 ```
+
+Artisan 从应用根目录运行 Cargo，实时输出结果并返回 Cargo 的退出状态。优先使用环境中的 `CARGO` 可执行文件，未设置时从可执行文件搜索路径调用 `cargo`。
 
 ## 创建测试应用
 

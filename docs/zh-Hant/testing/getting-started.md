@@ -1,12 +1,17 @@
 # 測試入門
 
-## 執行測試
+## 執行測試 {#running-tests}
 
 整合測試放在應用程式的 `tests/` 或相應 crate 下。使用已提交的鎖定檔執行工作區測試。
 
+透過 Artisan 執行應用程式測試，或透過 Cargo 執行所有工作區成員的測試。使用 Artisan 時，可在測試篩選名稱前傳入 Cargo 選項，並在篩選名稱後以 `--` 傳入 Rust 測試執行器選項。遇到與 Artisan 同名的 Cargo 選項時，在 `test` 後立即加上一個 `--`，例如傳遞 Cargo 的 `--help`。
+
 ```sh
+./artisan test --locked --test feature artisan_inspire_prints_an_attributed_quote -- --exact
 cargo +1.94.0 test --workspace --locked
 ```
+
+Artisan 從應用程式根目錄執行 Cargo，即時輸出結果並回傳 Cargo 的結束狀態。優先使用環境中的 `CARGO` 執行檔，未設定時從執行檔搜尋路徑呼叫 `cargo`。
 
 ## 建立測試應用程式
 

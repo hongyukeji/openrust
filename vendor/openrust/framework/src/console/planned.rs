@@ -180,7 +180,6 @@ const GORAVEL_ONLY: &[(&str, &str)] = &[
 // Commands provided by packages referenced by the Laravel application skeleton.
 const SKELETON_PACKAGES: &[(&str, &str)] = &[
     ("pail", "Follow the application's log output"),
-    ("test", "Run the application test suite"),
     ("tinker", "Open an interactive application shell"),
 ];
 

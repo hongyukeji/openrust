@@ -311,6 +311,55 @@ fn artisan_generates_matching_command_tests_and_reports_partial_failures() {
     assert_eq!(fs::read_to_string(existing).unwrap(), "// keep the test\n");
 }
 
+#[test]
+fn artisan_runs_real_cargo_tests_with_forwarded_arguments_and_exit_status() {
+    let root = TestRoot::new("artisan-test");
+    fs::create_dir(root.0.join("src")).unwrap();
+    fs::write(
+        root.0.join("Cargo.toml"),
+        "[package]\nname = \"artisan-test-probe\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+    )
+    .unwrap();
+    fs::write(
+        root.0.join("src/lib.rs"),
+        r#"
+#[test]
+fn probe() { println!("stdout marker"); eprintln!("stderr marker"); }
+
+#[test]
+fn probe_fails() { panic!("test failure marker"); }
+"#,
+    )
+    .unwrap();
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", &root.0)
+            .env("CARGO_TARGET_DIR", root.0.join("target"))
+            .env("CARGO_NET_OFFLINE", "true")
+            .output()
+            .unwrap()
+    };
+
+    let help = run(&["test", "--help"]);
+    assert!(help.status.success());
+    assert!(String::from_utf8_lossy(&help.stdout).contains("CARGO_ARGS"));
+    assert!(!root.0.join("target").exists());
+
+    let success = run(&["test", "--lib", "probe", "--", "--exact", "--nocapture"]);
+    assert!(success.status.success(), "{:?}", success);
+    assert!(String::from_utf8_lossy(&success.stdout).contains("stdout marker"));
+    assert!(String::from_utf8_lossy(&success.stderr).contains("stderr marker"));
+    let failure = run(&["test", "--", "--lib", "probe_fails", "--", "--exact"]);
+    assert_eq!(failure.status.code(), Some(101), "{:?}", failure);
+    assert!(String::from_utf8_lossy(&failure.stdout).contains("test failure marker"));
+
+    let silent = run(&["--silent", "test", "--lib", "probe_fails", "--", "--exact"]);
+    assert_eq!(silent.status.code(), Some(101));
+    assert!(silent.stdout.is_empty() && silent.stderr.is_empty());
+}
+
 impl TestRoot {
     fn new(name: &str) -> Self {
         let path =

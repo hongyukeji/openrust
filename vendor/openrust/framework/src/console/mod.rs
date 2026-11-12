@@ -48,6 +48,7 @@ pub struct Output {
     pub stdout: String,
     pub stderr: String,
     decorated: bool,
+    terminal: bool,
 }
 
 impl Output {
@@ -58,8 +59,13 @@ impl Output {
             io::stdout().is_terminal() && env::var_os("TERM").as_deref() != Some("dumb".as_ref());
         Self {
             decorated: !disabled && (forced || terminal),
+            terminal: true,
             ..Self::default()
         }
+    }
+
+    pub(crate) fn streams_to_terminal(&self) -> bool {
+        self.terminal
     }
 
     /// Writes a comment line, rendering the supported inline bold and gray styles.
