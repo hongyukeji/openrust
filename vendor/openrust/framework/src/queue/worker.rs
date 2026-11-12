@@ -15,6 +15,7 @@ use crate::{
     container::Container,
     contracts::{
         container::Container as _,
+        database::LostConnectionDetector,
         debug::{Exception, ExceptionHandler},
         events::Event,
         queue::{Job, JobHandler, Queue},
@@ -285,11 +286,27 @@ impl Worker {
                 }
                 Ok((true, None))
             };
-            let (polled, job) = tokio::select! {
+            let reservation = tokio::select! {
                 biased;
                 () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                 () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
-                result = reservation => result?,
+                result = reservation => result,
+            };
+            let (polled, job) = match reservation {
+                Ok(reservation) => reservation,
+                Err(error) if !cadence.single_run && self.lost_connection(&error)? => {
+                    self.report_worker_error(&error).await;
+                    if options.stop_on_lost_connection {
+                        break WorkerStopReason::LostConnection;
+                    }
+                    tokio::select! {
+                        biased;
+                        () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
+                        () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
+                        () = tokio::time::sleep(Duration::from_secs(1)) => continue,
+                    }
+                }
+                Err(error) => return Err(error),
             };
             let job = if let Some(job) = job {
                 if let Some(event) = manager.job_popped_event(name, job.as_ref())?
@@ -309,21 +326,39 @@ impl Worker {
                 let mut cause = None;
                 let result = self
                     .process(job.as_mut(), options, &mut cause, signal_state.as_ref())
-                    .await?;
-                status(WorkerStatus::Job(
-                    job.as_ref(),
-                    Some(JobOutcome {
-                        result,
-                        elapsed: started.elapsed(),
-                        cause: cause.as_ref(),
-                    }),
-                ));
+                    .await;
+                let mut disconnected = false;
+                match result {
+                    Ok(result) => {
+                        if !cadence.single_run
+                            && let Some(error) = &cause
+                        {
+                            disconnected = self.lost_connection(error)?;
+                        }
+                        status(WorkerStatus::Job(
+                            job.as_ref(),
+                            Some(JobOutcome {
+                                result,
+                                elapsed: started.elapsed(),
+                                cause: cause.as_ref(),
+                            }),
+                        ));
+                    }
+                    Err(error) if !cadence.single_run && self.lost_connection(&error)? => {
+                        self.report_worker_error(&error).await;
+                        disconnected = true;
+                    }
+                    Err(error) => return Err(error),
+                }
                 processed += 1;
                 idle_since = tokio::time::Instant::now();
                 last_job_processed_at = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .ok()
                     .map(|elapsed| elapsed.as_secs());
+                if disconnected && options.stop_on_lost_connection {
+                    break WorkerStopReason::LostConnection;
+                }
                 if !cadence.rest.is_zero() {
                     tokio::select! {
                         biased;
@@ -421,6 +456,17 @@ impl Worker {
         // Keep the reservation intact so the driver retries it after the lease expires.
         tokio::time::sleep(Duration::from_secs(1)).await;
         false
+    }
+
+    fn lost_connection(&self, error: &QueueError) -> QueueResult<bool> {
+        if self.app.bound::<dyn LostConnectionDetector>() {
+            let detector = self
+                .app
+                .make::<dyn LostConnectionDetector>()
+                .map_err(QueueError::Unavailable)?;
+            return Ok(detector.causedByLostConnection(error));
+        }
+        Ok(crate::database::LostConnectionDetector.causedByLostConnection(error))
     }
 
     pub(super) async fn report_worker_error(&self, error: &QueueError) {

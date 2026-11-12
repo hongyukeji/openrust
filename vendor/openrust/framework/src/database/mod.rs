@@ -1,5 +1,7 @@
 //! Database connections, query construction, schema management, and migrations.
 
+mod lost_connection_detector;
+pub use lost_connection_detector::LostConnectionDetector;
 mod configuration_url_parser;
 mod connection;
 mod connection_interface;

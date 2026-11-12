@@ -5,7 +5,7 @@ use std::{
     process::Stdio,
     sync::{
         Arc,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::{Duration, SystemTime},
 };
@@ -15,6 +15,7 @@ use openrust::{
     cache::Ttl,
     contracts::{
         container::Container as _,
+        database::LostConnectionDetector,
         events::{Event as PayloadEvent, Listener},
         foundation::Application as _,
         http::Kernel as _,
@@ -52,7 +53,7 @@ use openrust::{
 };
 use serde_json::{Value as Json, json};
 use tokio::{
-    io::{AsyncReadExt as _, AsyncWriteExt as _},
+    io::{AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader},
     net::{TcpListener, TcpStream},
     process::Command,
     time::{sleep, timeout},
@@ -128,6 +129,24 @@ impl JobHandler for Handler {
                     db.statement("insert into receipts (name, value) values ('late', 1)", &[])
                         .await
                         .map_err(execution)?;
+                }
+                "mysql_disconnect" if context.attempts() == 1 => {
+                    let mut transaction = db.beginTransaction().await.map_err(execution)?;
+                    let id = transaction
+                        .scalar("SELECT CONNECTION_ID()", &[])
+                        .await
+                        .map_err(execution)?;
+                    let id = match id {
+                        Value::Integer(id) => id,
+                        Value::Unsigned(id) => i64::try_from(id).unwrap(),
+                        _ => panic!("unexpected connection ID"),
+                    };
+                    println!("lost-mysql:{id}");
+                    transaction
+                        .scalar("SELECT SLEEP(30)", &[])
+                        .await
+                        .map_err(execution)?;
+                    transaction.commit().await.map_err(execution)?;
                 }
                 "manual_release" if context.attempts() == 1 => {
                     context.release(Duration::ZERO);
@@ -548,16 +567,42 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
     )
 }
 
+struct FixtureLostConnectionDetector;
+
+impl LostConnectionDetector for FixtureLostConnectionDetector {
+    fn causedByLostConnection(&self, error: &(dyn std::error::Error + 'static)) -> bool {
+        let mut current = Some(error);
+        while let Some(error) = current {
+            if error
+                .downcast_ref::<std::io::Error>()
+                .is_some_and(|error| error.to_string() == "retryable")
+            {
+                return true;
+            }
+            current = error.source();
+        }
+        false
+    }
+}
+
 struct Providers;
 impl ServiceProvider for Providers {
-    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
+            if std::env::var_os("QUEUE_WORKER_TEST_CUSTOM_DETECTOR").is_some() {
+                app.container()
+                    .instance::<dyn LostConnectionDetector>(Arc::new(FixtureLostConnectionDetector))
+                    .map_err(|source| HttpError::Internal {
+                        source: Box::new(source),
+                    })?;
+            }
             if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
                 Queue::withoutInterruptionPolling()?;
             }
             for name in [
                 "flaky",
                 "manual_release",
+                "mysql_disconnect",
                 "terminal",
                 "timeout",
                 "slow",
@@ -659,11 +704,26 @@ fn application(root: &Path) -> Application {
             {
                 config.get_mut("queue").unwrap()["memory_limit"] = json!(budget);
             }
+            if let Ok(port) = std::env::var("QUEUE_WORKER_TEST_REDIS_PROXY") {
+                config.get_mut("database").unwrap()["redis"]["default"]["port"] =
+                    json!(port.parse::<u16>().unwrap());
+            }
+            if std::env::var_os("QUEUE_WORKER_TEST_CONTINUE_ON_DISCONNECT").is_some() {
+                config.get_mut("queue").unwrap()["stop_on_lost_connection"] = json!(false);
+            }
             Ok(config.into_iter().collect())
         })
         .withProviders(vec![Box::new(Providers)])
         .withEvents(DiscoverEvents::new(&[listeners]))
         .withExceptions(|exceptions| {
+            exceptions.report::<sqlx::Error>(|_| {
+                println!("lost-report:mysql");
+                ReportDecision::Continue
+            });
+            exceptions.report::<::redis::RedisError>(|_| {
+                println!("lost-report:redis");
+                ReportDecision::Continue
+            });
             exceptions.report::<std::io::Error>(|error| {
                 if error.to_string() == "pop-event:after-error" {
                     println!("pop-event:reported");
@@ -1058,6 +1118,15 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_signals(&root.0, &db, &*queue, address).await;
     verify_job_interruption(&root.0, &db, address).await;
     verify_worker_memory(&root.0, &*queue, address).await;
+    if mysql.is_none() && redis.is_none() {
+        verify_custom_disconnect(&root.0, &*queue, address).await;
+    }
+    if mysql.is_some() {
+        verify_mysql_disconnect(&root.0, &db, &*queue, address).await;
+    }
+    if let Some(port) = redis {
+        verify_redis_disconnect(&root.0, port, address).await;
+    }
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1891,6 +1960,183 @@ async fn verify_worker_memory(
         let rows = json_lines(&output);
         assert_eq!(rows.last().unwrap()["reason"], "empty");
         assert!(rows.last().unwrap()["memory"].as_f64().unwrap() > 0.0);
+    }
+}
+
+async fn verify_custom_disconnect(
+    root: &Path,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    request(address, "flaky").await;
+    let args = ["queue:work", "--json", "--stop-when-empty", "--tries=2"];
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(root, &args)
+            .env("QUEUE_WORKER_TEST_CUSTOM_DETECTOR", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let output = String::from_utf8(output.stdout).unwrap();
+    assert_eq!(
+        json_lines(&output).last().unwrap()["reason"],
+        "lost_connection"
+    );
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    let output = run(root, &args).await;
+    assert_eq!(json_lines(&output).last().unwrap()["reason"], "empty");
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+}
+
+async fn verify_mysql_disconnect(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    for keep_running in [false, true] {
+        request(address, "mysql_disconnect").await;
+        request(address, "control_default").await;
+        let mut command = artisan(
+            root,
+            &["queue:work", "--json", "--stop-when-empty", "--tries=2"],
+        );
+        if keep_running {
+            command.env("QUEUE_WORKER_TEST_CONTINUE_ON_DISCONNECT", "1");
+        }
+        let mut worker = command.stdout(Stdio::piped()).spawn().unwrap();
+        let mut stdout = BufReader::new(worker.stdout.take().unwrap());
+        let id = timeout(Duration::from_secs(8), async {
+            loop {
+                let mut line = String::new();
+                assert!(
+                    stdout.read_line(&mut line).await.unwrap() > 0,
+                    "worker stopped before the SQL fault"
+                );
+                if let Some(id) = line.trim().strip_prefix("lost-mysql:") {
+                    break id.parse::<u64>().unwrap();
+                }
+            }
+        })
+        .await
+        .unwrap();
+        db.unprepared(&format!("KILL CONNECTION {id}"))
+            .await
+            .unwrap();
+        let mut output = String::new();
+        timeout(Duration::from_secs(10), stdout.read_to_string(&mut output))
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(worker.wait().await.unwrap().success(), "{output}");
+        assert!(output.contains("lost-report:mysql"), "{output}");
+        let rows = json_lines(&output);
+        let stop = rows.last().unwrap();
+        assert_eq!(stop["exit_code"], 0);
+        if keep_running {
+            assert_eq!(stop["reason"], "empty");
+            assert_eq!(stop["jobs_processed"], 3);
+        } else {
+            assert_eq!(stop["reason"], "lost_connection");
+            assert_eq!(stop["jobs_processed"], 1);
+            assert_eq!(queue.size(None).await.unwrap(), 2);
+            run(root, &["queue:work", "--stop-when-empty", "--tries=2"]).await;
+        }
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+    }
+}
+
+async fn verify_redis_disconnect(root: &Path, port: u16, address: SocketAddr) {
+    for keep_running in [false, true] {
+        let proxy = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_port = proxy.local_addr().unwrap().port();
+        let dropped = Arc::new(AtomicBool::new(false));
+        let proxy_fault = dropped.clone();
+        let relay = tokio::spawn(async move {
+            let mut sockets = tokio::task::JoinSet::new();
+            loop {
+                tokio::select! {
+                    result = proxy.accept() => {
+                        let (mut client, _) = result.unwrap();
+                        let fault = proxy_fault.clone();
+                        sockets.spawn(async move {
+                            let Ok(mut backend) = TcpStream::connect(("127.0.0.1", port)).await else { return };
+                            let (mut input, mut output) = client.split();
+                            let (mut read, mut write) = backend.split();
+                            let forward = async {
+                                let mut buf = [0; 4096];
+                                let mut matched = 0;
+                                while let Ok(n @ 1..) = input.read(&mut buf).await {
+                                    for &byte in &buf[..n] {
+                                        matched = if byte == b"BLPOP"[matched] {
+                                            matched + 1
+                                        } else {
+                                            usize::from(byte == b'B')
+                                        };
+                                        if matched == 5 {
+                                            matched = 0;
+                                            if !fault.swap(true, Ordering::SeqCst) {
+                                                return;
+                                            }
+                                        }
+                                    }
+                                    if write.write_all(&buf[..n]).await.is_err() {
+                                        return;
+                                    }
+                                }
+                            };
+                            tokio::select! {
+                                () = forward => {},
+                                _ = tokio::io::copy(&mut read, &mut output) => {},
+                            }
+                        });
+                    }
+                    _ = sockets.join_next(), if !sockets.is_empty() => {},
+                }
+            }
+        });
+        let mut command = artisan(
+            root,
+            &["queue:work", "--json", "--max-jobs=1", "--max-time=8"],
+        );
+        command
+            .env("QUEUE_WORKER_DISABLE_POLLING", "1")
+            .env("QUEUE_WORKER_TEST_REDIS_PROXY", proxy_port.to_string());
+        if keep_running {
+            command.env("QUEUE_WORKER_TEST_CONTINUE_ON_DISCONNECT", "1");
+        }
+        let worker = command.stdout(Stdio::piped()).spawn().unwrap();
+        timeout(Duration::from_secs(5), async {
+            while !dropped.load(Ordering::SeqCst) {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        if keep_running {
+            request(address, "control_default").await;
+        }
+        let output = timeout(Duration::from_secs(10), worker.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap();
+        relay.abort();
+        assert!(output.status.success(), "{output:?}");
+        let output = String::from_utf8(output.stdout).unwrap();
+        assert!(output.contains("lost-report:redis"), "{output}");
+        let rows = json_lines(&output);
+        let stop = rows.last().unwrap();
+        assert_eq!(stop["exit_code"], 0);
+        if keep_running {
+            assert_eq!(stop["reason"], "max_jobs");
+            assert_eq!(stop["jobs_processed"], 1);
+        } else {
+            assert_eq!(stop["reason"], "lost_connection");
+            assert_eq!(stop["jobs_processed"], 0);
+        }
     }
 }
 

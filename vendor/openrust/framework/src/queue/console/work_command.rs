@@ -104,6 +104,10 @@ impl Command for WorkCommand {
                     .map(duration),
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
                 memory: memory_limit(memory, budget)?,
+                stop_on_lost_connection: config
+                    .get("queue.stop_on_lost_connection")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(true),
             };
             let mut cadence = if once {
                 WorkerCadence {

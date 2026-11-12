@@ -96,7 +96,7 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
-正常退出时，`stopped` 记录包含原因、退出码和处理任务数。当前原因包括 `empty`、`empty_for`、`max_jobs`、`max_time`、`interrupted` 和 `restart_signal`。单次 Worker 输出任务记录并省略退出摘要。应用可监听 `WorkerStopping` 观察正常退出。
+正常退出时，`stopped` 记录包含原因、退出码和处理任务数。当前原因包括 `empty`、`empty_for`、`max_jobs`、`max_time`、`memory`、`lost_connection`、`interrupted` 和 `restart_signal`。单次 Worker 输出任务记录并省略退出摘要。应用可监听 `WorkerStopping` 观察正常退出。
 
 时间戳优先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。内存用量目前输出为 `null`。
 
@@ -157,6 +157,16 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ```sh
 ./artisan queue:work --json --memory=128 --stop-when-empty
 QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-when-empty
+```
+
+#### 从连接中断恢复 {#worker-lost-connection}
+
+守护进程在预约或处理任务时失去数据库或 Redis 连接，会报告异常，并以原因 `lost_connection` 和退出码 `0` 停止。进程管理器可以启动新的 Worker。无法确认完成的预约仍受驱动的重试窗口约束。
+
+设置 `QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false` 可在识别到断连后继续运行。预约失败后，Worker 等待一秒再轮询。任务失败仍按配置的重试和失败策略处理。应用可以在服务提供者中绑定 `openrust::contracts::database::LostConnectionDetector` 契约，自定义识别规则。
+
+```sh
+QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
 ```
 
 ### 响应 Worker 系统信号 {#reacting-to-worker-signals}

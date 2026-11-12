@@ -96,7 +96,7 @@ A worker writes job progress and pause or resume notices while it runs. Use `--j
 ./artisan queue:work --json --stop-when-empty
 ```
 
-A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `empty_for`, `max_jobs`, `max_time`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
+A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `empty_for`, `max_jobs`, `max_time`, `memory`, `lost_connection`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
 
 Timestamps use `queue.output_timezone` if configured, then `app.timezone` or UTC. Memory usage is currently reported as `null`.
 
@@ -157,6 +157,16 @@ Use a positive `QUEUE_WORKER_MEMORY_LIMIT` in MiB as the baseline for percentage
 ```sh
 ./artisan queue:work --json --memory=128 --stop-when-empty
 QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-when-empty
+```
+
+#### Recovering from lost connections {#worker-lost-connection}
+
+If a daemon loses a database or Redis connection while reserving or processing a job, it reports the error and stops with reason `lost_connection` and exit code `0`. A process supervisor can start a fresh worker. A reservation that could not be acknowledged remains subject to the driver's retry window.
+
+Set `QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false` to keep the worker running after a recognized disconnect. A failed reservation is polled again after a one-second delay. Job failures still follow the configured retry and failure policy. An application can replace detection by binding the `openrust::contracts::database::LostConnectionDetector` contract in its service provider.
+
+```sh
+QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
 ```
 
 ### Reacting to worker signals {#reacting-to-worker-signals}

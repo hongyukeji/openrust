@@ -6,6 +6,8 @@
 pub enum WorkerStopReason {
     #[serde(rename = "interrupted")]
     Interrupted,
+    #[serde(rename = "lost_connection")]
+    LostConnection,
     #[serde(rename = "max_jobs")]
     MaxJobsExceeded,
     #[serde(rename = "memory")]
@@ -24,6 +26,7 @@ impl WorkerStopReason {
     pub const fn description(self) -> &'static str {
         match self {
             Self::Interrupted => "Interrupted",
+            Self::LostConnection => "Lost connection",
             Self::MaxMemoryExceeded => "Memory limit exceeded",
             Self::MaxJobsExceeded => "Maximum jobs exceeded",
             Self::MaxTimeExceeded => "Maximum run time exceeded",
