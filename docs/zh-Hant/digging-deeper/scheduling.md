@@ -34,6 +34,18 @@ schedule.command("inspire", []).evenInMaintenanceMode();
 
 子分鐘排程偵測到維護模式後，會在本次執行剩餘的時間繼續略過一般工作。執行 `./artisan up` 後，下一次 `./artisan schedule:run` 可以重新執行一般工作。
 
+### 暫停排程工作 {#pausing-scheduled-tasks}
+
+執行 `./artisan schedule:pause` 暫停排程器，執行 `./artisan schedule:resume` 或別名 `./artisan schedule:continue` 恢復。暫停狀態儲存在應用程式的預設快取。多個程序需要共用暫停狀態時，請使用相同的預設快取與命名空間。排程互斥鎖可透過 `schedule.useCache(...)` 選擇快取。
+
+在 `Schedule::configure` 中呼叫 `evenWhenPaused()`，可讓指定工作在暫停期間仍符合執行條件。
+
+```rust
+schedule.command("inspire", []).evenWhenPaused();
+```
+
+子分鐘排程在同一輪中可感知暫停與恢復，已開始的工作會繼續執行。可在 `Schedule::configure` 中呼叫 `schedule.doNotAllowPausing()` 停用應用程式的暫停功能。可監聽 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 與 `ScheduledTaskSkipped`。
+
 ## 防止重疊與單機執行
 
 `withoutOverlapping()` 在執行期間持有快取鎖，任務完成或發生錯誤後釋放。預設租期為 1,440 分鐘，可用 `withoutOverlappingFor(minutes)` 調整。`onOneServer()` 為每個事件在每分鐘選出一個執行者。回呼或佇列任務啟用互斥前，需要用 `name` 設定穩定且唯一的名稱。

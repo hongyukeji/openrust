@@ -1,4 +1,4 @@
-use std::{cell::RefCell, ffi::OsString, time::SystemTime};
+use std::{cell::RefCell, ffi::OsString, sync::Arc, time::SystemTime};
 
 use crate::{
     console::{ConsoleError, ConsoleFuture, Output},
@@ -9,15 +9,15 @@ use crate::{
 use super::{CallbackEvent, Event, event::Action};
 
 enum Registration {
-    Event(Event),
+    Event(Arc<Event>),
     Callback(CallbackEvent),
 }
 
 impl Registration {
-    fn event(&self) -> &Event {
+    fn event(&self) -> &Arc<Event> {
         match self {
             Self::Event(event) => event,
-            Self::Callback(event) => event,
+            Self::Callback(event) => &event.0,
         }
     }
 }
@@ -26,6 +26,7 @@ impl Registration {
 pub struct Schedule {
     events: Vec<Registration>,
     pub(super) store: Option<String>,
+    pub(super) pausable: bool,
     pub(super) clock: Box<dyn Fn() -> SystemTime + Send + Sync>,
 }
 
@@ -38,6 +39,7 @@ impl Default for Schedule {
         Self {
             events: Vec::new(),
             store: None,
+            pausable: true,
             clock: Box::new(SystemTime::now),
         }
     }
@@ -94,6 +96,11 @@ impl Schedule {
         ))
     }
 
+    /// Disables pause controls for this application's scheduler.
+    pub fn doNotAllowPausing(&mut self) {
+        self.pausable = false;
+    }
+
     pub fn useCache(&mut self, store: impl Into<String>) {
         self.store = Some(store.into());
     }
@@ -104,7 +111,9 @@ impl Schedule {
 
     fn callback(&mut self, action: Action) -> &mut CallbackEvent {
         self.events
-            .push(Registration::Callback(CallbackEvent(Event::new(action))));
+            .push(Registration::Callback(CallbackEvent(Arc::new(Event::new(
+                action,
+            )))));
         let Some(Registration::Callback(event)) = self.events.last_mut() else {
             unreachable!("just inserted a callback");
         };
@@ -112,14 +121,19 @@ impl Schedule {
     }
 
     fn event(&mut self, action: Action) -> &mut Event {
-        self.events.push(Registration::Event(Event::new(action)));
+        self.events
+            .push(Registration::Event(Arc::new(Event::new(action))));
         let Some(Registration::Event(event)) = self.events.last_mut() else {
             unreachable!("just inserted an event");
         };
-        event
+        Arc::get_mut(event).expect("scheduled event is mutable during registration")
     }
 
     pub fn events(&self) -> impl Iterator<Item = &Event> {
+        self.event_handles().map(Arc::as_ref)
+    }
+
+    pub(super) fn event_handles(&self) -> impl Iterator<Item = &Arc<Event>> {
         self.events.iter().map(Registration::event)
     }
 

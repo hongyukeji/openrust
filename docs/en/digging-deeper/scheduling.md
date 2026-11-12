@@ -34,6 +34,18 @@ schedule.command("inspire", []).evenInMaintenanceMode();
 
 When a sub-minute run observes maintenance mode, ordinary tasks stay suspended until that run ends. After `./artisan up`, the next `./artisan schedule:run` can run ordinary tasks again.
 
+### Pausing scheduled tasks {#pausing-scheduled-tasks}
+
+Pause the scheduler with `./artisan schedule:pause`. Resume it with `./artisan schedule:resume` or its alias `./artisan schedule:continue`. The pause is stored in the application's default cache, so use a shared default cache and namespace when separate scheduler processes must see the same state. Use `schedule.useCache(...)` to select the store for scheduling mutexes.
+
+Add `evenWhenPaused()` inside `Schedule::configure` to keep a task eligible while the scheduler is paused.
+
+```rust
+schedule.command("inspire", []).evenWhenPaused();
+```
+
+Sub-minute runners observe both pause and resume during the same run. A pause lets a running task finish. To disable pausing for an application, call `schedule.doNotAllowPausing()` inside `Schedule::configure`. Listen for `SchedulePaused`, `ScheduleResumed`, and `ScheduledTaskSkipped` from `openrust::console::events`.
+
 ## Preventing overlaps and selecting one server
 
 `withoutOverlapping()` holds a cache lock during execution and releases it on completion, including task errors. Its default lease is 1,440 minutes. Set a different lease with `withoutOverlappingFor(minutes)`. `onOneServer()` elects one runner for an event in each minute. Give a callback or job a stable, distinct `name` before enabling either mutex.

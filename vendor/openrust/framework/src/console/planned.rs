@@ -125,8 +125,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("route:clear", "Remove the cached route table"),
     ("route:list", "Show registered routes"),
     ("schedule:clear-cache", "Remove cached scheduler locks"),
-    ("schedule:pause", "Pause scheduled task processing"),
-    ("schedule:resume", "Resume scheduled task processing"),
     ("schedule:test", "Run a selected scheduled task"),
     ("schema:dump", "Export the current database schema"),
     ("serve", "Start a local development HTTP server"),
@@ -171,5 +169,4 @@ const ALIASES: &[(&str, &str)] = &[
     ("make:queue-table", "queue:table"),
     ("make:session-table", "session:table"),
     ("queue:resume", "queue:continue"),
-    ("schedule:resume", "schedule:continue"),
 ];

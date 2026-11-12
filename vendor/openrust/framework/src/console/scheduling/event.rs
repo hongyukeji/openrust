@@ -36,6 +36,7 @@ pub struct Event {
     pub(super) one_server: bool,
     pub(super) description: Option<String>,
     even_in_maintenance_mode: bool,
+    even_when_paused: bool,
     environments: Vec<String>,
     filters: Vec<Box<Condition>>,
 }
@@ -53,6 +54,7 @@ impl Event {
             one_server: false,
             description: None,
             even_in_maintenance_mode: false,
+            even_when_paused: false,
             environments: Vec::new(),
             filters: Vec::new(),
         }
@@ -137,6 +139,16 @@ impl Event {
         self.even_in_maintenance_mode
     }
 
+    /// Allows this event to run while the scheduler is paused.
+    pub fn evenWhenPaused(&mut self) -> &mut Self {
+        self.even_when_paused = true;
+        self
+    }
+
+    pub fn runsWhenPaused(&self) -> bool {
+        self.even_when_paused
+    }
+
     pub fn when(
         &mut self,
         condition: impl Fn(&Application) -> bool + Send + Sync + 'static,
@@ -184,12 +196,15 @@ impl Event {
             .map_err(super::error)
     }
 
-    pub(super) fn allowed(&self, app: &Application, environment: &str) -> bool {
-        (self.environments.is_empty() || self.environments.iter().any(|name| name == environment))
-            && self.filters.iter().all(|condition| condition(app))
+    pub(super) fn runs_in_environment(&self, environment: &str) -> bool {
+        self.environments.is_empty() || self.environments.iter().any(|name| name == environment)
     }
 
-    pub(super) fn label(&self) -> String {
+    pub(super) fn filters_pass(&self, app: &Application) -> bool {
+        self.filters.iter().all(|condition| condition(app))
+    }
+
+    pub fn getSummaryForDisplay(&self) -> String {
         self.description
             .clone()
             .unwrap_or_else(|| match &self.action {

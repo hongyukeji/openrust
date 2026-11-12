@@ -34,6 +34,18 @@ schedule.command("inspire", []).evenInMaintenanceMode();
 
 子分钟调度检测到维护模式后，会在本次运行余下的时间继续跳过普通任务。执行 `./artisan up` 后，下一次 `./artisan schedule:run` 可以重新执行普通任务。
 
+### 暂停调度任务 {#pausing-scheduled-tasks}
+
+运行 `./artisan schedule:pause` 暂停调度器，运行 `./artisan schedule:resume` 或别名 `./artisan schedule:continue` 恢复。暂停状态保存在应用的默认缓存中。多个进程需要共享暂停状态时，使用同一默认缓存和命名空间。调度互斥锁可通过 `schedule.useCache(...)` 选择缓存。
+
+在 `Schedule::configure` 中调用 `evenWhenPaused()`，可让指定任务在暂停期间仍符合执行条件。
+
+```rust
+schedule.command("inspire", []).evenWhenPaused();
+```
+
+子分钟调度在同一轮中可感知暂停和恢复，已经开始的任务会继续执行。可在 `Schedule::configure` 中调用 `schedule.doNotAllowPausing()` 禁用应用的暂停功能。可监听 `openrust::console::events` 中的 `SchedulePaused`、`ScheduleResumed` 和 `ScheduledTaskSkipped`。
+
 ## 防止重叠与单机执行
 
 `withoutOverlapping()` 在执行期间持有缓存锁，任务完成或报错后释放。默认租期为 1,440 分钟，可用 `withoutOverlappingFor(minutes)` 调整。`onOneServer()` 为每个事件在每分钟选出一个执行者。回调或队列任务启用互斥前，需要用 `name` 设置稳定且唯一的名称。

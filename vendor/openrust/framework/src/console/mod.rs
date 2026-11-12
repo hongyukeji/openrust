@@ -3,6 +3,7 @@
 mod application;
 mod command;
 mod descriptor;
+pub mod events;
 pub(crate) mod generator_command;
 mod help_command;
 mod list_command;

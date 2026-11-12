@@ -16,13 +16,14 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
+        events::{SchedulePaused, ScheduleResumed, ScheduledTaskSkipped},
     },
     container::EnvironmentResult,
     contracts::cache::Repository as _,
     contracts::foundation::Application as _,
     foundation::Application,
     queue::DispatchOptions,
-    support::facades::{Cache, Queue},
+    support::facades::{Cache, Event as Events, Queue},
 };
 
 use super::{
@@ -30,12 +31,16 @@ use super::{
     event::Action,
 };
 
+const PAUSED: &str = "illuminate:schedule:paused";
+
 #[derive(Clone, Copy)]
 enum Operation {
     Run,
     List,
     Interrupt,
     Work,
+    Pause,
+    Resume,
 }
 
 /// Runs events registered during Artisan bootstrap.
@@ -66,6 +71,8 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
             "schedule:work",
             "Run the scheduler continuously",
         ),
+        (Operation::Pause, "schedule:pause", "Pause the scheduler"),
+        (Operation::Resume, "schedule:resume", "Resume the schedule"),
     ] {
         let mut syntax = clap::Command::new(name).about(description);
         if matches!(operation, Operation::Run) {
@@ -75,6 +82,9 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
                     .action(ArgAction::SetTrue)
                     .help("Suppress the message when no tasks run"),
             );
+        }
+        if matches!(operation, Operation::Resume) {
+            syntax = syntax.visible_alias("schedule:continue");
         }
         artisan.add_command(Box::new(ScheduleRunCommand {
             definition: CommandDefinition::new(syntax),
@@ -101,6 +111,27 @@ impl Command for ScheduleRunCommand {
             match self.operation {
                 Operation::List => self.list(app, output)?,
                 Operation::Interrupt => self.interrupt(output).await?,
+                Operation::Pause => {
+                    if !self.schedule.pausable {
+                        output
+                            .stderr
+                            .push_str("Schedule pausing is currently disabled.\n");
+                        return Ok(1);
+                    }
+                    if !Cache::forever(PAUSED, &Value::from(serde_json::json!(true)))
+                        .await
+                        .map_err(error)?
+                    {
+                        return Err(ConsoleError::new("Could not persist the scheduler pause."));
+                    }
+                    Events::dispatch(SchedulePaused).await.map_err(error)?;
+                    output.info("Scheduled task processing has been paused.");
+                }
+                Operation::Resume => {
+                    Cache::forget(PAUSED).await.map_err(error)?;
+                    Events::dispatch(ScheduleResumed).await.map_err(error)?;
+                    output.info("Scheduled task processing has resumed.");
+                }
                 Operation::Run | Operation::Work => {
                     let shutdown = CancellationToken::new();
                     let signals =
@@ -121,7 +152,7 @@ impl Command for ScheduleRunCommand {
 }
 
 struct Due<'a> {
-    event: &'a Event,
+    event: &'a Arc<Event>,
     election: Option<bool>,
     next_run: Instant,
 }
@@ -144,7 +175,7 @@ impl ScheduleRunCommand {
                 output.stdout,
                 "{}  {}  Next: {}",
                 event.cron_text,
-                event.label(),
+                event.getSummaryForDisplay(),
                 next.to_rfc3339()
             )
             .expect("writing to a String");
@@ -153,6 +184,13 @@ impl ScheduleRunCommand {
             output.info("No scheduled tasks have been defined.");
         }
         Ok(())
+    }
+
+    async fn is_paused(&self) -> Result<bool, ConsoleError> {
+        if !self.schedule.pausable {
+            return Ok(false);
+        }
+        Ok(Cache::get(PAUSED).await.map_err(error)? == Some(Value::from(serde_json::json!(true))))
     }
 
     async fn interrupt(&self, output: &mut Output) -> Result<(), ConsoleError> {
@@ -207,11 +245,11 @@ impl ScheduleRunCommand {
             ));
         };
         let mut due = Vec::new();
-        for event in self.schedule.events() {
+        for event in self.schedule.event_handles() {
             if !event.runsInMaintenanceMode() && app.isDownForMaintenance().await.map_err(error)? {
                 continue;
             }
-            if event.due(time.into(), default_zone)? {
+            if event.due(time.into(), default_zone)? && event.runs_in_environment(&environment) {
                 due.push(Due {
                     event,
                     election: None,
@@ -232,16 +270,20 @@ impl ScheduleRunCommand {
         let overlap = store.clone().map(CacheEventMutex::new);
         let election = store.clone().map(CacheSchedulingMutex::new);
         let mut ran = false;
+        let mut paused = !due.is_empty() && self.is_paused().await?;
 
         for entry in &mut due {
             if shutdown.is_cancelled() {
                 break;
             }
+            if paused && !entry.event.runsWhenPaused() {
+                dispatch_skipped(entry.event).await?;
+                continue;
+            }
             ran |= self
                 .run_event(
                     app,
                     output,
-                    &environment,
                     entry,
                     time,
                     overlap.as_ref(),
@@ -249,69 +291,74 @@ impl ScheduleRunCommand {
                 )
                 .await?;
         }
+        if let Some(store) = store.filter(|_| repeats) {
+            let interrupted = interrupt_key(time);
+            let mut has_entered_maintenance = false;
+            'repeat: loop {
+                let wake = due
+                    .iter()
+                    .filter(|entry| {
+                        entry.event.interval.is_some()
+                            && entry.election != Some(false)
+                            && (!paused || entry.event.runsWhenPaused())
+                    })
+                    .map(|entry| entry.next_run)
+                    .min()
+                    .unwrap_or(deadline)
+                    .min(deadline)
+                    .min(Instant::now() + Duration::from_millis(100));
+                tokio::select! {
+                    _ = shutdown.cancelled() => break 'repeat,
+                    _ = sleep_until(wake) => {},
+                }
+                if Instant::now() >= deadline
+                    || store.get(&interrupted).await.map_err(error)?.is_some()
+                {
+                    break 'repeat;
+                }
+                paused = self.is_paused().await?;
+                for entry in &mut due {
+                    if shutdown.is_cancelled() || Instant::now() >= deadline {
+                        break 'repeat;
+                    }
+                    if let Some(interval) = entry.event.interval
+                        && entry.election != Some(false)
+                        && entry.next_run <= Instant::now()
+                    {
+                        has_entered_maintenance = has_entered_maintenance
+                            || app.isDownForMaintenance().await.map_err(error)?;
+                        if has_entered_maintenance && !entry.event.runsInMaintenanceMode() {
+                            entry.next_run = Instant::now() + interval;
+                            continue;
+                        }
+                        if paused && !entry.event.runsWhenPaused() {
+                            dispatch_skipped(entry.event).await?;
+                            continue;
+                        }
+                        ran |= self
+                            .run_event(
+                                app,
+                                output,
+                                entry,
+                                time,
+                                overlap.as_ref(),
+                                election.as_ref(),
+                            )
+                            .await?;
+                    }
+                }
+            }
+        }
         if !ran && !whisper {
             output.info("No scheduled commands are ready to run.");
         }
-        let Some(store) = store.filter(|_| repeats) else {
-            return Ok(());
-        };
-        let interrupted = interrupt_key(time);
-        let mut has_entered_maintenance = false;
-        loop {
-            let wake = due
-                .iter()
-                .filter(|entry| entry.event.interval.is_some() && entry.election != Some(false))
-                .map(|entry| entry.next_run)
-                .min()
-                .unwrap_or(deadline)
-                .min(deadline)
-                .min(Instant::now() + Duration::from_millis(100));
-            tokio::select! {
-                _ = shutdown.cancelled() => return Ok(()),
-                _ = sleep_until(wake) => {},
-            }
-            if Instant::now() >= deadline || store.get(&interrupted).await.map_err(error)?.is_some()
-            {
-                return Ok(());
-            }
-            for entry in &mut due {
-                if shutdown.is_cancelled() || Instant::now() >= deadline {
-                    return Ok(());
-                }
-                if let Some(interval) = entry.event.interval
-                    && entry.election != Some(false)
-                    && entry.next_run <= Instant::now()
-                {
-                    has_entered_maintenance = has_entered_maintenance
-                        || app.isDownForMaintenance().await.map_err(error)?;
-                    if has_entered_maintenance && !entry.event.runsInMaintenanceMode() {
-                        entry.next_run = Instant::now() + interval;
-                        continue;
-                    }
-                    self.run_event(
-                        app,
-                        output,
-                        &environment,
-                        entry,
-                        time,
-                        overlap.as_ref(),
-                        election.as_ref(),
-                    )
-                    .await?;
-                }
-            }
-        }
+        Ok(())
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "Keep the run's cache handles and task state explicit"
-    )]
     async fn run_event(
         &self,
         app: &Application,
         output: &mut Output,
-        environment: &str,
         entry: &mut Due<'_>,
         time: SystemTime,
         overlap: Option<&CacheEventMutex>,
@@ -321,7 +368,8 @@ impl ScheduleRunCommand {
         if let Some(interval) = event.interval {
             entry.next_run = Instant::now() + interval;
         }
-        if !event.allowed(app, environment) {
+        if !event.filters_pass(app) {
+            dispatch_skipped(event).await?;
             return Ok(false);
         }
         if let Some(election) = election.filter(|_| event.one_server) {
@@ -329,6 +377,7 @@ impl ScheduleRunCommand {
                 entry.election = Some(election.create(event, time).await.map_err(error)?);
             }
             if entry.election == Some(false) {
+                dispatch_skipped(event).await?;
                 return Ok(false);
             }
         }
@@ -347,7 +396,7 @@ impl ScheduleRunCommand {
             writeln!(
                 output.stderr,
                 "Scheduled task '{}' failed: {error}",
-                event.label()
+                event.getSummaryForDisplay()
             )
             .expect("writing to a String");
             let _ = app.report(&error).await;
@@ -424,6 +473,15 @@ fn timezone(app: &Application) -> Result<Tz, ConsoleError> {
             .parse()
             .map_err(error),
     }
+}
+
+async fn dispatch_skipped(event: &Arc<Event>) -> Result<(), ConsoleError> {
+    Events::dispatch(ScheduledTaskSkipped {
+        task: event.clone(),
+    })
+    .await
+    .map_err(error)?;
+    Ok(())
 }
 
 fn remaining_in_minute(now: SystemTime) -> Duration {

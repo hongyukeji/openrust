@@ -12,14 +12,22 @@ use std::{
 };
 
 use openrust::{
-    console::ConsoleError,
-    contracts::{foundation::Application as _, queue::JobHandler},
+    console::{
+        ConsoleError,
+        events::{SchedulePaused, ScheduleResumed, ScheduledTaskSkipped},
+    },
+    contracts::{
+        events::{Event as EventPayload, Listener},
+        foundation::Application as _,
+        queue::JobHandler,
+    },
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
     foundation::{
         Application,
         configuration::{ReportDecision, Routing},
     },
     queue::{JobContext, Payload, QueueFuture, QueueResult},
-    support::facades::{Artisan, Queue, Schedule},
+    support::facades::{Artisan, Event, Queue, Schedule},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -45,6 +53,29 @@ impl JobHandler for ScheduledJob {
     }
 }
 
+struct PauseEvents;
+
+impl Listener for PauseEvents {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(skipped) = event.downcast_ref::<ScheduledTaskSkipped>() {
+                println!("skipped {}", skipped.task.getSummaryForDisplay());
+            } else {
+                assert!(
+                    event.downcast_ref::<SchedulePaused>().is_some()
+                        || event.downcast_ref::<ScheduleResumed>().is_some()
+                );
+                println!("event {}", event.name());
+            }
+            Ok(None)
+        })
+    }
+}
+
 fn routes() -> Result<(), ConsoleError> {
     Artisan::command("fixture:hello", |output| output.comment("artisan command"))?;
     Artisan::command("inspire", |output| {
@@ -52,8 +83,17 @@ fn routes() -> Result<(), ConsoleError> {
     })?;
     Queue::register("fixture.job", Arc::new(ScheduledJob))
         .map_err(|error| ConsoleError::new(error.to_string()))?;
+    let profile = std::env::var("SCHEDULING_PROFILE").unwrap();
+    if profile.starts_with("pause") || matches!(profile.as_str(), "basic" | "election") {
+        for name in [
+            SchedulePaused.name(),
+            ScheduleResumed.name(),
+            "console.scheduled_task_skipped",
+        ] {
+            Event::listen(name, Arc::new(PauseEvents), Delivery::Sync).map_err(console_error)?;
+        }
+    }
     Schedule::configure(|schedule| {
-        let profile = std::env::var("SCHEDULING_PROFILE").unwrap();
         let at = std::env::var("SCHEDULING_TIME").unwrap().parse().unwrap();
         let start = std::time::Instant::now();
         let advances = profile == "work";
@@ -99,6 +139,7 @@ fn routes() -> Result<(), ConsoleError> {
                         Ok(())
                     })
                 })
+                .name("filtered task")
                 .skip(|_| true);
             schedule.exec(
                 "/bin/sh",
@@ -120,11 +161,22 @@ fn routes() -> Result<(), ConsoleError> {
             return Ok(());
         }
 
-        if matches!(profile.as_str(), "maintenance" | "maintenance-repeat") {
+        let pause = profile.starts_with("pause");
+        if pause || matches!(profile.as_str(), "maintenance" | "maintenance-repeat") {
+            if pause {
+                schedule.useCache("array");
+                if profile == "pause-disabled" {
+                    schedule.doNotAllowPausing();
+                }
+                if profile != "pause-repeat" {
+                    schedule.command("inspire", []).evenWhenPaused();
+                }
+            }
             if profile == "maintenance" {
                 schedule.command("inspire", []).evenInMaintenanceMode();
             }
             for (name, exempt) in [("ordinary", false), ("exempt", true)] {
+                let waits = profile == "pause-repeat" && !exempt;
                 let event = schedule.call(move |app, output| {
                     Box::pin(async move {
                         let mut receipt = tokio::fs::OpenOptions::new()
@@ -135,14 +187,28 @@ fn routes() -> Result<(), ConsoleError> {
                             .map_err(console_error)?;
                         use tokio::io::AsyncWriteExt as _;
                         receipt.write_all(b"ran\n").await.map_err(console_error)?;
+                        if waits {
+                            timeout(Duration::from_secs(4), async {
+                                while !app.base_path().join("release").exists() {
+                                    sleep(Duration::from_millis(10)).await;
+                                }
+                            })
+                            .await
+                            .map_err(console_error)?;
+                        }
                         output.comment(name);
                         Ok(())
                     })
                 });
+                event.name(name);
                 if exempt {
-                    event.evenInMaintenanceMode();
+                    if pause {
+                        event.evenWhenPaused();
+                    } else {
+                        event.evenInMaintenanceMode();
+                    }
                 }
-                if profile == "maintenance-repeat" {
+                if profile.ends_with("-repeat") {
                     event.everySecond();
                 }
             }
@@ -229,7 +295,10 @@ async fn scheduler_artisan_fixture() {
         })
         .create()
         .unwrap();
-    assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
+    let status = app.handleCommand(&arguments).await.unwrap();
+    if status != 0 {
+        std::process::exit(status);
+    }
 }
 
 fn root(port: Option<u16>) -> PathBuf {
@@ -351,6 +420,7 @@ async fn artisan_runs_due_tasks_and_reports_failures_without_stopping_the_schedu
         assert!(stdout.contains(expected), "{expected}: {stdout}\n{stderr}");
     }
     assert!(!stdout.contains("should not run"));
+    assert!(stdout.contains("skipped filtered task"));
     assert!(stderr.contains("status: 7"), "{stderr}");
     assert!(stderr.contains("scheduled callback error"), "{stderr}");
     let uuid = stdout
@@ -399,6 +469,7 @@ async fn artisan_instances_coordinate_overlap_election_and_interrupt_on_redis() 
         let contender = run(&root, profile, MONDAY, &["schedule:run", "--whisper"]).await;
         let stdout = String::from_utf8(contender.stdout).unwrap();
         assert!(!stdout.contains("lock winner") && !stdout.contains("No scheduled commands"));
+        assert_eq!(stdout.contains("skipped shared"), profile == "election");
         std::fs::write(root.join("release"), "").unwrap();
         let winner = timeout(Duration::from_secs(5), winner.wait_with_output())
             .await
@@ -474,6 +545,133 @@ async fn artisan_schedule_work_finishes_the_current_task_on_sigterm() {
         std::fs::read_to_string(root.join("receipts")).unwrap(),
         "ran\n"
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+fn pause_root(port: Option<u16>) -> PathBuf {
+    let root = root(port);
+    if port.is_none() {
+        let config_path = root.join("config.json");
+        let mut config: Value =
+            serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+        config["cache"]["default"] = json!("file");
+        config["cache"]["stores"]["file"] = json!({"driver":"file","path":"scheduler-cache"});
+        std::fs::write(config_path, config.to_string()).unwrap();
+    }
+    root
+}
+
+#[tokio::test]
+async fn artisan_pauses_and_resumes_scheduler_with_typed_events_and_isolation() {
+    let redis = std::env::var("OPENRUST_TEST_REDIS_PORT")
+        .ok()
+        .map(|port| port.parse().unwrap());
+    for port in std::iter::once(None).chain(redis.map(Some)) {
+        let active = pause_root(port);
+        let other = pause_root(port);
+        let pause = run(&active, "pause", MONDAY, &["schedule:pause"]).await;
+        assert!(String::from_utf8_lossy(&pause.stdout).contains("event console.schedule_paused"));
+        let list = run(&active, "pause", MONDAY, &["schedule:list"]).await;
+        assert!(String::from_utf8_lossy(&list.stdout).contains("ordinary"));
+
+        let (paused, _) = tokio::join!(
+            run(&active, "pause", MONDAY, &["schedule:run"]),
+            run(&other, "pause", MONDAY, &["schedule:run"]),
+        );
+        let stdout = String::from_utf8_lossy(&paused.stdout);
+        assert!(stdout.contains("skipped ordinary"), "{stdout}");
+        assert!(stdout.contains("maintenance example ran"), "{stdout}");
+        assert_eq!(maintenance_receipts(&active, "ordinary"), 0);
+        assert_eq!(maintenance_receipts(&active, "exempt"), 1);
+        assert_eq!(maintenance_receipts(&other, "ordinary"), 1);
+
+        run(&active, "pause", MONDAY, &["down"]).await;
+        let maintenance = run(&active, "pause", MONDAY, &["schedule:run"]).await;
+        assert!(String::from_utf8_lossy(&maintenance.stdout).contains("No scheduled commands"));
+        assert_eq!(maintenance_receipts(&active, "exempt"), 1);
+        run(&active, "pause", MONDAY, &["up"]).await;
+
+        let refused = artisan(&active, "pause-disabled", MONDAY, &["schedule:pause"])
+            .output()
+            .await
+            .unwrap();
+        assert_eq!(refused.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&refused.stderr).contains("pausing is currently disabled"));
+        assert!(
+            !String::from_utf8_lossy(&refused.stdout).contains("event console.schedule_paused")
+        );
+        run(&active, "pause-disabled", MONDAY, &["schedule:run"]).await;
+        assert_eq!(maintenance_receipts(&active, "ordinary"), 1);
+
+        for (command, profile) in [
+            ("schedule:continue", "pause-disabled"),
+            ("schedule:resume", "pause"),
+        ] {
+            let resume = run(&active, profile, MONDAY, &[command]).await;
+            assert!(
+                String::from_utf8_lossy(&resume.stdout).contains("event console.schedule_resumed")
+            );
+            run(&active, "pause", MONDAY, &["schedule:run"]).await;
+            run(&active, "pause", MONDAY, &["schedule:pause"]).await;
+        }
+        assert_eq!(maintenance_receipts(&active, "ordinary"), 3);
+        run(&active, "pause", MONDAY, &["schedule:resume"]).await;
+        std::fs::remove_dir_all(active).unwrap();
+        std::fs::remove_dir_all(other).unwrap();
+    }
+}
+
+#[tokio::test]
+async fn artisan_sub_minute_scheduler_observes_pause_and_resume_in_same_run() {
+    let root = pause_root(None);
+    let at = MONDAY + 53;
+    let profile = "pause-repeat";
+    let runner = RunningScheduler::start(artisan(&root, profile, at, &["schedule:run"]));
+    let wait_for = |name, count| {
+        let root = &root;
+        async move {
+            timeout(Duration::from_secs(4), async {
+                while maintenance_receipts(root, name) < count {
+                    sleep(Duration::from_millis(10)).await;
+                }
+            })
+            .await
+            .unwrap();
+        }
+    };
+    wait_for("ordinary", 1).await;
+    run(&root, profile, at, &["schedule:pause"]).await;
+    assert_eq!(maintenance_receipts(&root, "exempt"), 0);
+    std::fs::write(root.join("release"), "").unwrap();
+    wait_for("exempt", 2).await;
+    assert_eq!(maintenance_receipts(&root, "ordinary"), 1);
+    run(&root, profile, at, &["schedule:resume"]).await;
+    wait_for("ordinary", 2).await;
+    let output = timeout(Duration::from_secs(8), runner.wait_with_output())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_success(&output);
+    assert!(String::from_utf8_lossy(&output.stdout).contains("skipped ordinary"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_pause_reports_cache_errors_without_emitting_success_events() {
+    let root = pause_root(None);
+    let config_path = root.join("config.json");
+    let mut config: Value = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["cache"]["default"] = json!("unconfigured");
+    std::fs::write(config_path, config.to_string()).unwrap();
+    for command in ["schedule:pause", "schedule:resume"] {
+        let output = artisan(&root, "pause", MONDAY, &[command])
+            .output()
+            .await
+            .unwrap();
+        assert_eq!(output.status.code(), Some(1));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unconfigured"));
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("event console.schedule_"));
+    }
     std::fs::remove_dir_all(root).unwrap();
 }
 

@@ -72,6 +72,9 @@ try {
                         const section = base + language + "/digging-deeper/scheduling.html#maintenance-mode";
                         assert.equal((await page.goto(section)).status(), 200);
                         await page.locator("#maintenance-mode").waitFor();
+                        await page.locator("#pausing-scheduled-tasks").waitFor();
+                        assert.match(await page.locator("main").innerText(), /evenWhenPaused/);
+
                         assert.match(await page.locator("main").innerText(), /evenInMaintenanceMode/);
                         const maintenance = page.locator('main a[href$="configuration.html#maintenance-mode"]');
                         await Promise.all([

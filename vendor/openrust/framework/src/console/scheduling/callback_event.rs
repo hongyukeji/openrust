@@ -1,9 +1,12 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use super::Event;
 
 /// An event that invokes application code or dispatches a queued job.
-pub struct CallbackEvent(pub(super) Event);
+pub struct CallbackEvent(pub(super) Arc<Event>);
 
 impl Deref for CallbackEvent {
     type Target = Event;
@@ -15,6 +18,6 @@ impl Deref for CallbackEvent {
 
 impl DerefMut for CallbackEvent {
     fn deref_mut(&mut self) -> &mut Event {
-        &mut self.0
+        Arc::get_mut(&mut self.0).expect("scheduled callback is mutable during registration")
     }
 }
