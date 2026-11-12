@@ -18,7 +18,8 @@ use openrust::{
             ResourceResult,
         },
     },
-    routing::{Router, RoutingError},
+    routing::RoutingError,
+    support::facades::Route,
 };
 use serde_json::{Map, Value as Json, json};
 use tokio::{
@@ -112,8 +113,8 @@ fn internal(source: DatabaseError) -> HttpError {
     }
 }
 
-fn routes(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/one", || async {
+fn routes() -> Result<(), RoutingError> {
+    Route::get("/one", || async {
         let account = Account::query()
             .map_err(internal)?
             .with(
@@ -130,11 +131,11 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
             .map_err(internal)?;
         Ok(AccountResource(account))
     })?;
-    router.get("/missing", || async {
+    Route::get("/missing", || async {
         let account = Account::findOrFail(99).await.map_err(internal)?;
         Ok(AccountResource(account))
     })?;
-    router.get("/list", || async {
+    Route::get("/list", || async {
         let accounts = Account::query()
             .map_err(internal)?
             .orderBy("id", "asc")
@@ -148,8 +149,8 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
                 .collect::<Vec<_>>(),
         ))
     })?;
-    router.get("/page", page)?;
-    router.get("/simple", || async {
+    Route::get("/page", page)?;
+    Route::get("/simple", || async {
         let page = Account::query()
             .map_err(internal)?
             .simplePaginate(2)
@@ -159,7 +160,7 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
             ResourceItems::from(page).map(AccountResource),
         ))
     })?;
-    router.get("/cursor", || async {
+    Route::get("/cursor", || async {
         let page = Account::query()
             .map_err(internal)?
             .cursorPaginate(2)
@@ -169,14 +170,14 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
             ResourceItems::from(page).map(AccountResource),
         ))
     })?;
-    router.get("/empty", || ResourceCollection::new(Vec::<Plain>::new()))?;
-    router.get("/already", || Plain(json!({"data":{"id":9}})))?;
-    router.get("/unwrapped", unwrapped)?;
-    router.get("/metadata", metadata)?;
-    router.get("/failed", || -> ResourceResult<Plain> {
+    Route::get("/empty", || ResourceCollection::new(Vec::<Plain>::new()))?;
+    Route::get("/already", || Plain(json!({"data":{"id":9}})))?;
+    Route::get("/unwrapped", unwrapped)?;
+    Route::get("/metadata", metadata)?;
+    Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
-    router.r#match(&[Method::POST], "/new", || async {
+    Route::r#match(&[Method::POST], "/new", || async {
         let new = Account::create(Attributes::from([
             ("name".into(), "New".into()),
             ("password".into(), "hidden".into()),

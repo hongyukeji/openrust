@@ -17,3 +17,10 @@
 - `config/routing.rs` 将 `API_PREFIX` 载入 `routing.api_prefix`，默认 `/api`。显式 `Routing::apiPrefix` 优先，首尾斜杠移除，空前缀保留 `api` 中间件组。装配解析出的同一前缀用于路由挂载、默认 CORS 和 `withExceptions`。CORS 和异常匹配沿用前缀下的路径语义，空前缀时只关闭自动 API 路径匹配。显式 `cors.paths`（含主机映射和空列表）、默认 `sanctum/csrf-cookie` 及 `expectsJson()` 各自保留其行为。 [Laravel API Routes](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/routing.md#api-routes)
 - macOS ARM64、Rust 1.99.1。实际 TCP 验证默认 `/api`、环境变量多级前缀、显式 Builder 覆盖不同环境值、显式空值、环境空值和仅含斜杠、以及自定义 CORS 主机路径。测试路由在生效路径返回 204，旧路径返回 HTML 404。默认预检只匹配生效前缀下的路径，生效前缀下的缺失路由返回 JSON 404，普通 Web 404 保留 HTML，`Accept: application/json` 可请求 JSON。根应用真实二进制用进程环境复核默认值、多级值和空值的 HTTP、CORS、404、独立 Artisan 和 SIGINT。
 - 配置、启动、HTTP 及中间件生命周期共 42 项定向测试通过。原 `install:api` 实现和模板保持原样，真实命令验证默认骨架中保留已存在文件、原成功输出及退出 0，旧骨架安装与自定义启动拒绝由回归覆盖。Rust 1.94.0 工作区格式检查、三语站点构建和 12 项浏览器检查通过。本批验收范围为定向回归。
+
+## API 路由使用 Facade 注册
+
+- API 与 Web 共用无参 `register() -> Result<(), RoutingError>` 和应用作用域内的 `Route` Facade。API 回调在有效前缀和 `api` 中间件组中执行。固定 Laravel 在对应分组内载入路由文件，固定 Goravel 由无参回调声明路由。旧版应用显式传入 Router。本批通过 `Route::getWith` 在作用域内配置命名、授权、绑定和路由级中间件。 [Laravel ApplicationBuilder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php#L186-L220) · [Goravel WithRouting](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application_builder.go#L164-L168)
+- 隔离副本以 `837a9a4c` 为基线。真实 TCP 验证默认前缀、`ROUTING_API_PREFIX` 多级前缀和不同环境值下的 Builder 显式覆盖。API 中间件以响应头验证，Web 路由保留自己的分组。空前缀、默认及按主机 CORS 预检、JSON／HTML 404 和显式 JSON 请求通过。该基线的 CORS 默认配置为所有路径，本批保留配置和实现。
+- 实跑 `install:api`。预置骨架保留原文件、输出和退出码，缺接线骨架恢复同样源码并通过构建。仅在隔离安装后的路由文件加入命名探针，实际二进制验证 `GET /v1/installation-probe` 返回 204，`route:list` 显示名称及 `api` 分组，旧路径返回 HTML 404，独立 `artisan inspire` 和 SIGINT 正常。
+- macOS ARM64、Rust 1.99.1 锁定离线定向测试 56 项通过，含授权、模型绑定、CSRF、分页、会话认证、API 资源与中间件生命周期。Rust 1.94.0 格式检查、三语构建及 12 项浏览器检查通过。

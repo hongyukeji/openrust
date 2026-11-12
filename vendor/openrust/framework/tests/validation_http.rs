@@ -10,8 +10,8 @@ use openrust::{
         http::{FormRequest, Kernel},
     },
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
-    routing::{Router, RoutingError},
-    support::facades::{Lang, Validator},
+    routing::RoutingError,
+    support::facades::{Lang, Route, Validator},
     validation::{Data, RuleSet, ValidatedInput, ValidationFuture, ValidationResult},
 };
 use serde_json::{Value, json};
@@ -98,9 +98,9 @@ fn manual(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
-fn register(router: &mut Router) -> Result<(), RoutingError> {
-    router.r#match(&[Method::POST], "/submit/{locale}", form)?;
-    router.r#match(&[Method::POST], "/manual", manual)?;
+fn register() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/submit/{locale}", form)?;
+    Route::r#match(&[Method::POST], "/manual", manual)?;
     Ok(())
 }
 

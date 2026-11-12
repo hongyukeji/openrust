@@ -8,7 +8,8 @@ use openrust::{
         Body, HttpError, HttpFuture, Next, Request, RequestParts, Response, ResponseParts,
         StatusCode,
     },
-    routing::{MiddlewareEntry, Router, RoutingError},
+    routing::{MiddlewareEntry, RoutingError},
+    support::facades::Route,
 };
 use serde_json::json;
 use tokio::{
@@ -47,8 +48,8 @@ async fn send(address: SocketAddr, request: &str) -> String {
     .unwrap()
 }
 
-fn routes(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/data", data)?;
+fn routes() -> Result<(), RoutingError> {
+    Route::get("/data", data)?;
     Ok(())
 }
 
@@ -224,13 +225,15 @@ async fn receive(events: &mut mpsc::UnboundedReceiver<Event>, expected: Event) {
     );
 }
 
-fn lifecycle_routes(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/data", data)?.middleware_name("ordered");
-    router
-        .get("/excluded", data)?
-        .middleware_name("ordered")
-        .withoutMiddleware("later");
-    Ok(())
+fn lifecycle_routes() -> Result<(), RoutingError> {
+    Route::getWith("/data", data, |route| {
+        route.middleware_name("ordered");
+        Ok(())
+    })?;
+    Route::getWith("/excluded", data, |route| {
+        route.middleware_name("ordered").withoutMiddleware("later");
+        Ok(())
+    })
 }
 
 #[tokio::test]

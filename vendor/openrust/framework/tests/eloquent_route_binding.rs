@@ -14,7 +14,7 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
-    routing::{BindingContext, Router, RoutingError},
+    routing::{BindingContext, RoutingError},
     support::facades::Route,
 };
 use serde_json::{Value, json};
@@ -115,32 +115,40 @@ fn custom_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     Box::pin(async { Ok(Response::empty(StatusCode::GONE)) })
 }
 
-fn api(router: &mut Router) -> Result<(), RoutingError> {
-    router
-        .get("/accounts/{account}/posts/{post:slug}", lookup)?
-        .model::<Account>("account")?
-        .model::<Post>("post")?
-        .middleware(Arc::new(RequiresBoundPost));
-    router
-        .get("/unscoped/{account}/{post:slug}", lookup)?
-        .model::<Account>("account")?
-        .model::<Post>("post")?
-        .withoutScopedBindings();
-    router
-        .get("/scoped/{account}/{post}", lookup)?
-        .model::<Account>("account")?
-        .model::<Post>("post")?
-        .scopeBindings();
-    router.get("/id/{post:id}", lookup)?.model::<Post>("post")?;
-    router
-        .get("/trashed/{post}", lookup)?
-        .model::<Post>("post")?
-        .withTrashed();
-    router
-        .get("/missing/{post}", lookup)?
-        .model::<Post>("post")?
-        .missing(custom_missing);
-    Ok(())
+fn api() -> Result<(), RoutingError> {
+    Route::getWith("/accounts/{account}/posts/{post:slug}", lookup, |route| {
+        route
+            .model::<Account>("account")?
+            .model::<Post>("post")?
+            .middleware(Arc::new(RequiresBoundPost));
+        Ok(())
+    })?;
+    Route::getWith("/unscoped/{account}/{post:slug}", lookup, |route| {
+        route
+            .model::<Account>("account")?
+            .model::<Post>("post")?
+            .withoutScopedBindings();
+        Ok(())
+    })?;
+    Route::getWith("/scoped/{account}/{post}", lookup, |route| {
+        route
+            .model::<Account>("account")?
+            .model::<Post>("post")?
+            .scopeBindings();
+        Ok(())
+    })?;
+    Route::getWith("/id/{post:id}", lookup, |route| {
+        route.model::<Post>("post")?;
+        Ok(())
+    })?;
+    Route::getWith("/trashed/{post}", lookup, |route| {
+        route.model::<Post>("post")?.withTrashed();
+        Ok(())
+    })?;
+    Route::getWith("/missing/{post}", lookup, |route| {
+        route.model::<Post>("post")?.missing(custom_missing);
+        Ok(())
+    })
 }
 
 fn web() -> Result<(), RoutingError> {

@@ -41,8 +41,8 @@ fn binding(_: &Application) -> Result<Router, RoutingError> {
     Ok(router)
 }
 
-fn api(router: &mut Router) -> Result<(), RoutingError> {
-    router.r#match(&[Method::POST], "/probe", api_probe)?;
+fn api() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/probe", api_probe)?;
     Ok(())
 }
 

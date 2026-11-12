@@ -349,6 +349,22 @@ impl Route {
         )
     }
 
+    /// Configures a GET/HEAD route while its registration scope is active.
+    #[track_caller]
+    #[allow(non_snake_case, reason = "Matches the application routing API")]
+    pub fn getWith<Arguments>(
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
+        Self::register_configured(
+            &[crate::http::Method::GET, crate::http::Method::HEAD],
+            uri,
+            handler,
+            configure,
+        )
+    }
+
     #[track_caller]
     pub fn redirect(
         uri: &str,
@@ -394,15 +410,24 @@ impl Route {
         uri: &str,
         handler: impl IntoRouteHandler<Arguments>,
     ) -> Result<(), RoutingError> {
+        Self::register_configured(methods, uri, handler, |_| Ok(()))
+    }
+
+    #[track_caller]
+    fn register_configured<Arguments>(
+        methods: &[crate::http::Method],
+        uri: &str,
+        handler: impl IntoRouteHandler<Arguments>,
+        configure: impl FnOnce(&mut crate::routing::Route) -> Result<(), RoutingError>,
+    ) -> Result<(), RoutingError> {
         let definition = std::panic::Location::caller();
         ROUTER
             .try_with(|scope| {
-                scope
+                let mut router = scope
                     .router
                     .try_borrow_mut()
-                    .map_err(|_| RoutingError::RegistrationBorrowed)?
-                    .register_with(methods, uri, handler, definition)
-                    .map(|_| ())
+                    .map_err(|_| RoutingError::RegistrationBorrowed)?;
+                configure(router.register_with(methods, uri, handler, definition)?)
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }

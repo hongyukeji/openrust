@@ -4,6 +4,8 @@
 
 在 `routes/api.rs` 声明 API 路由。应用骨架默认挂载到 `/api` 并应用 `api` 中间件组。设置 `ROUTING_API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中调用 `Routing::apiPrefix("v2")` 则优先于配置。首尾斜杠可以省略。设置 `ROUTING_API_PREFIX=` 或传入空字符串可省略前缀，`api` 中间件组仍会应用。
 
+在 `routes/api.rs` 的无参 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 声明 API 端点。路由路径相对于 API 前缀。GET 路由需要命名、模型绑定或路由级中间件时，可使用 `Route::getWith`。
+
 `{id}` 表示必填参数。在末尾参数上加 `?` 即可省略它，例如 `/profiles/{id?}/{tab?}` 或 `/report/{name}.{format?}`。使用 `request.route("id")` 读取匹配值。省略参数时返回 `None`，也可以用路由的 `defaults` 提供字符串默认值。参数后面还有必填参数或固定文本时，该参数仍须提供。
 
 用 `Route::r#where` 指定正则表达式，也可使用 `where_number`、`where_alpha`、`where_alpha_numeric`、`where_uuid`、`where_ulid` 或 `where_in`。在注册路由前调用 `Router::pattern`，可给后续路由的同名参数设置约束。单条路由上的约束优先。`where_in` 将值拼成正则的备选分支，正则元字符保留原义。OpenRust 使用 Rust 的 `regex` 语法，PCRE 的环视和反向引用会在注册时被拒绝。

@@ -116,11 +116,32 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
 #[tokio::test]
 async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths_over_tcp() {
     use axum::handler::Handler as _;
+    use openrust::{
+        contracts::http::Middleware,
+        http::{HttpError, HttpFuture, Next},
+        routing::MiddlewareEntry,
+        support::facades::Route,
+    };
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-    fn probe(
-        _: &mut Request,
-    ) -> openrust::http::HttpFuture<'_, Result<Response, openrust::http::HttpError>> {
+    struct ApiMarker;
+
+    impl Middleware for ApiMarker {
+        fn handle<'a>(
+            &'a self,
+            request: &'a mut Request,
+            next: Next<'a>,
+        ) -> HttpFuture<'a, Result<Response, HttpError>> {
+            Box::pin(async move {
+                Ok(next.run(request).await.header(
+                    axum::http::HeaderName::from_static("x-api-group"),
+                    axum::http::HeaderValue::from_static("applied"),
+                ))
+            })
+        }
+    }
+
+    fn probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
     }
 
@@ -159,16 +180,16 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
                 openrust::support::facades::Route::get("/", probe)?;
                 Ok(())
             })
-            .api(|router| {
-                router.get("/probe", probe)?;
-                Ok(())
-            });
+            .api(|| Route::get("/probe", probe));
         let routing = match explicit {
             Some(prefix) => routing.apiPrefix(prefix),
             None => routing,
         };
         let app = Application::configure(root.0.clone())
             .withConfig(if custom { custom_cors } else { web_config })
+            .withMiddleware(|middleware| {
+                middleware.group("api", [MiddlewareEntry::Instance(Arc::new(ApiMarker))]);
+            })
             .withRouting(routing)
             .withExceptions(|exceptions| {
                 exceptions.shouldRenderJsonWhen(|request, _| {
@@ -223,6 +244,11 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
         for path in ["/", probe.as_str()] {
             let response = send("GET", path, html, host).await;
             assert!(response.starts_with("HTTP/1.1 204 "), "{path}: {response}");
+            assert_eq!(
+                response.contains("x-api-group: applied"),
+                path == probe,
+                "{response}"
+            );
         }
         let response = send("GET", &missing, html, host).await;
         assert!(

@@ -4,6 +4,8 @@ Declare web routes in `routes/web.rs`. The application registers those routes an
 
 Declare API routes in `routes/api.rs`. The application skeleton loads it under `/api` and applies the `api` middleware group. Set `ROUTING_API_PREFIX=/v1/internal` to change `routing.api_prefix`, or call `Routing::apiPrefix("v2")` in the Builder to override that configuration. Leading and trailing slashes are optional. Set `ROUTING_API_PREFIX=` or pass an empty string to mount API routes without a prefix. The `api` middleware group still applies.
 
+In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::getWith` when a GET route needs a name, model binding, or route-level middleware.
+
 A parameter such as `{id}` is required. Add `?` to allow a trailing parameter to be omitted, as in `/profiles/{id?}/{tab?}` or `/report/{name}.{format?}`. Read the captured value with `request.route("id")`. For an omitted parameter, this returns `None` unless the route supplies a string through `defaults`. A parameter before required text or another required parameter must still be present.
 
 Use `Route::r#where` for a regular expression, or use `where_number`, `where_alpha`, `where_alpha_numeric`, `where_uuid`, `where_ulid`, or `where_in`. Set `Router::pattern` before registering routes to apply a constraint to every subsequent route that uses that parameter name. A route-specific constraint overrides it. `where_in` joins its values as regex alternatives, so any regex metacharacters retain their meaning. OpenRust uses Rust's `regex` syntax. PCRE lookaround and backreferences are rejected during registration.

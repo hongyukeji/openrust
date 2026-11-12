@@ -19,7 +19,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     hashing::HashOptions,
     http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
-    routing::{Router, RoutingError},
+    routing::RoutingError,
     support::facades::{Auth, Route},
 };
 use serde_json::{Value as Json, json};
@@ -96,9 +96,9 @@ fn web() -> Result<(), RoutingError> {
     })
 }
 
-fn api(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/token", token)?;
-    router.get("/request", custom_request)?;
+fn api() -> Result<(), RoutingError> {
+    Route::get("/token", token)?;
+    Route::get("/request", custom_request)?;
     Ok(())
 }
 

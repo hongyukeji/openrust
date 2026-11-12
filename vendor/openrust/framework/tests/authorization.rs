@@ -24,8 +24,8 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    routing::{Router, RoutingError},
-    support::facades::Gate,
+    routing::RoutingError,
+    support::facades::{Gate, Route},
 };
 use serde_json::{Value as Json, json};
 use tokio::{
@@ -145,28 +145,38 @@ fn explicit(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
     })
 }
 
-fn api(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/public", status)?.can("public", &[]);
-    router.get("/user", explicit)?;
-    router.get("/before", status)?.can("before", &[]);
-    router.get("/after", status)?.can("after", &[]);
-    router.get("/denied", status)?.can("denied", &[]);
-    router.get("/unknown", status)?.can("unknown", &[]);
-    router.get("/status", status)?.can("status", &[]);
-    router
-        .get("/update/{document}", status)?
-        .model::<Document>("document")?
-        .can("update", &["document", "'internal'"])
-        .middleware_name("auth");
-    router
-        .get("/conceal/{document}", status)?
-        .model::<Document>("document")?
-        .can("conceal", &["document"]);
-    router.get("/create", status)?.middleware(Arc::new(
-        Authorize::new("create", std::iter::empty::<String>())
-            .with_argument(PolicyTarget::of::<Document>()),
-    ));
-    Ok(())
+fn api() -> Result<(), RoutingError> {
+    Route::getWith("/public", status, |route| {
+        route.can("public", &[]);
+        Ok(())
+    })?;
+    Route::get("/user", explicit)?;
+    for ability in ["before", "after", "denied", "unknown", "status"] {
+        Route::getWith(&format!("/{ability}"), status, |route| {
+            route.can(ability, &[]);
+            Ok(())
+        })?;
+    }
+    Route::getWith("/update/{document}", status, |route| {
+        route
+            .model::<Document>("document")?
+            .can("update", &["document", "'internal'"])
+            .middleware_name("auth");
+        Ok(())
+    })?;
+    Route::getWith("/conceal/{document}", status, |route| {
+        route
+            .model::<Document>("document")?
+            .can("conceal", &["document"]);
+        Ok(())
+    })?;
+    Route::getWith("/create", status, |route| {
+        route.middleware(Arc::new(
+            Authorize::new("create", std::iter::empty::<String>())
+                .with_argument(PolicyTarget::of::<Document>()),
+        ));
+        Ok(())
+    })
 }
 
 async fn transport(

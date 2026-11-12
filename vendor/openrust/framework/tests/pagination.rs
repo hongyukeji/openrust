@@ -13,7 +13,8 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     pagination::{Cursor, CursorOptions, PageOptions},
-    routing::{Router, RoutingError},
+    routing::RoutingError,
+    support::facades::Route,
 };
 use serde_json::{Value as Json, json};
 use tokio::{
@@ -54,10 +55,10 @@ fn id(value: Option<&Value>) -> i64 {
     }
 }
 
-fn routes(router: &mut Router) -> Result<(), RoutingError> {
-    router.get("/length", length_page)?;
-    router.get("/simple", simple_page)?;
-    router.get("/cursor", cursor_page)?;
+fn routes() -> Result<(), RoutingError> {
+    Route::get("/length", length_page)?;
+    Route::get("/simple", simple_page)?;
+    Route::get("/cursor", cursor_page)?;
     Ok(())
 }
 

@@ -11,8 +11,7 @@ use crate::{
 };
 
 type CustomRoutes = fn(&Application) -> Result<Router, RoutingError>;
-type GroupRoutes = fn(&mut Router) -> Result<(), RoutingError>;
-type WebRoutes = fn() -> Result<(), RoutingError>;
+type RouteRegistration = fn() -> Result<(), RoutingError>;
 pub(in crate::foundation) type CommandRoutes = fn() -> Result<(), ConsoleError>;
 pub(super) type ChannelRoutes = fn() -> BroadcastResult<()>;
 
@@ -20,8 +19,8 @@ pub(super) type ChannelRoutes = fn() -> BroadcastResult<()>;
 #[derive(Default)]
 pub struct Routing {
     custom: Option<CustomRoutes>,
-    web: Option<WebRoutes>,
-    api: Option<GroupRoutes>,
+    web: Option<RouteRegistration>,
+    api: Option<RouteRegistration>,
     api_prefix: Option<String>,
     health: Option<String>,
     channels: Option<ChannelRoutes>,
@@ -36,12 +35,12 @@ impl Routing {
         }
     }
 
-    pub fn web(mut self, register: WebRoutes) -> Self {
+    pub fn web(mut self, register: RouteRegistration) -> Self {
         self.web = Some(register);
         self
     }
 
-    pub fn api(mut self, register: GroupRoutes) -> Self {
+    pub fn api(mut self, register: RouteRegistration) -> Self {
         self.api = Some(register);
         self
     }
@@ -99,7 +98,7 @@ impl Routing {
         if let Some(register) = self.api {
             router.group(
                 RouteGroup::new().prefix(api_prefix).middleware_name("api"),
-                register,
+                |router| Route::register(router, app, register),
             )?;
         }
         if let Some(path) = self.health {
