@@ -85,6 +85,9 @@ pub(crate) fn source_name_parts<'a>(
 /// A built-in source template and its application override.
 #[derive(Clone, Copy)]
 pub(crate) enum Stub {
+    Job,
+    QueuedJob,
+    JobMiddleware,
     Event,
     Listener,
     TypedListener,
@@ -110,7 +113,10 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 22] = [
+    pub(crate) const ALL: [Self; 25] = [
+        Self::Job,
+        Self::QueuedJob,
+        Self::JobMiddleware,
         Self::Event,
         Self::Listener,
         Self::TypedListener,
@@ -161,6 +167,18 @@ impl Stub {
             Self::Trait => (
                 "trait.rs.stub",
                 include_str!("../foundation/console/stubs/trait.rs.stub"),
+            ),
+            Self::Job => (
+                "job.rs.stub",
+                include_str!("../foundation/console/stubs/job.rs.stub"),
+            ),
+            Self::QueuedJob => (
+                "job.queued.rs.stub",
+                include_str!("../foundation/console/stubs/job.queued.rs.stub"),
+            ),
+            Self::JobMiddleware => (
+                "job.middleware.rs.stub",
+                include_str!("../foundation/console/stubs/job.middleware.rs.stub"),
             ),
             Self::Event => (
                 "event.rs.stub",

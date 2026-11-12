@@ -396,7 +396,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 22);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 25);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -826,6 +826,86 @@ fn artisan_generates_event_and_listener_variants() {
         fs::read_to_string(event)
             .unwrap()
             .starts_with("// custom event\n")
+    );
+}
+
+#[test]
+fn artisan_generates_jobs_and_job_middleware() {
+    let root = TestRoot::new("make-jobs");
+    let other = TestRoot::new("make-jobs-other");
+    let run = |base: &Path, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", base)
+            .output()
+            .unwrap()
+    };
+    let args = ["make:job", "Reports/SendReport"];
+    let outcomes = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&root.0, &args));
+        let second = scope.spawn(|| run(&root.0, &args));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|result| result.status.success())
+            .count(),
+        1
+    );
+    assert!(!other.0.join("app").exists());
+    let job = root.0.join("app/jobs/reports/send_report.rs");
+    let original = fs::read_to_string(&job).unwrap();
+    assert!(original.contains("impl JobHandler for SendReportHandler"));
+    assert!(original.contains("pub async fn dispatch"));
+    let sync = run(
+        &root.0,
+        &["make:job", "App/LocalReport", "--sync", "--test"],
+    );
+    assert!(sync.status.success(), "{sync:?}");
+    let source = fs::read_to_string(root.0.join("app/local_report.rs")).unwrap();
+    assert!(source.contains("async fn handle"));
+    assert!(!source.contains("JobHandler"));
+    assert!(root.0.join("tests/feature/local_report_test.rs").is_file());
+
+    let middleware = ["make:job-middleware", "GuardReport", "--test"];
+    assert!(run(&root.0, &middleware).status.success());
+    let middleware_file = root.0.join("app/jobs/middleware/guard_report.rs");
+    assert!(
+        fs::read_to_string(middleware_file)
+            .unwrap()
+            .contains("next.run(context, payload)")
+    );
+    assert!(
+        root.0
+            .join("tests/feature/jobs/middleware/guard_report_test.rs")
+            .is_file()
+    );
+
+    let batched = run(&root.0, &["make:job", "BatchReport", "--batched", "--sync"]);
+    assert_eq!(batched.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&batched.stderr).contains("Queue batching is not implemented"));
+    assert!(!root.0.join("app/jobs/batch_report.rs").exists());
+    let unsafe_path = run(&root.0, &["make:job-middleware", "../Escape", "--force"]);
+    assert_eq!(unsafe_path.status.code(), Some(1));
+    assert!(!root.0.join("app/jobs/escape.rs").exists());
+
+    assert!(run(&root.0, &["stub:publish"]).status.success());
+    let stub = root.0.join("stubs/job.queued.rs.stub");
+    let source = fs::read_to_string(&stub).unwrap();
+    fs::write(stub, format!("// custom job\n{source}")).unwrap();
+    assert_eq!(run(&root.0, &args).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&job).unwrap(), original);
+    assert!(
+        run(&root.0, &["make:job", "Reports/SendReport", "-f"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(job)
+            .unwrap()
+            .starts_with("// custom job\n")
     );
 }
 

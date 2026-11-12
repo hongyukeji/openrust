@@ -1,5 +1,32 @@
 # Queues
 
+## Generating job classes {#generating-job-classes}
+
+Artisan creates job modules under `app/jobs`. A queued job carries serializable data and registers a handler for the worker. A `--sync` job executes directly when its `dispatch` future is awaited. Use `--test` for a matching feature test and `--force` to overwrite existing files.
+
+```sh
+./artisan make:job SendReport --test
+./artisan make:job LocalReport --sync
+```
+
+Declare the generated modules in the application. Call `register_jobs` from a service provider's `boot` method. The example runs the local report before dispatching the queued report.
+
+```rust
+use crate::app::jobs::{local_report::LocalReport, send_report::SendReport};
+use openrust::queue::{DispatchResult, QueueResult};
+
+fn register_jobs() -> QueueResult<()> {
+    SendReport::register()
+}
+
+async fn dispatch_reports() -> QueueResult<DispatchResult> {
+    LocalReport.dispatch().await?;
+    SendReport.dispatch().await
+}
+```
+
+`--batched` requires the queue batching runtime and currently exits with an error before writing any file.
+
 ## Creating and dispatching jobs
 
 Register a stable job name with `QueueManager::register` or `Queue::register` during application boot. A `JobHandler` reads the JSON data from `Payload` and receives the connection, queue and attempt in `JobContext`. Use `Queue::dispatch` to send the payload to a configured connection.
@@ -34,9 +61,23 @@ Pass the active transaction as the last argument of `Queue::dispatch`. A connect
 
 Use `./artisan queue:work database --stop-when-empty` to process pending jobs and exit. `--once` attempts one job. Use `--tries`, `--backoff` and `--timeout` to configure the worker. A job can override these values in `JobOptions`. On SIGTERM, the worker stops taking new jobs and finishes the current attempt.
 
-## Job middleware
+## Job middleware {#job-middleware}
 
 Return middleware from `JobHandler::middleware`. Call `JobNext::run` to continue, or call `JobContext::release` to schedule another attempt. `WithoutOverlapping` uses the configured cache lock and can release an overlapping job with a delay. An unfinished lock expires at its configured lease time.
+
+Generate a middleware under `app/jobs/middleware`. Its handler forwards the payload and context to the next step.
+
+```sh
+./artisan make:job-middleware GuardReport --test
+```
+
+Declare the middleware module and add this method to the generated job's `impl JobHandler` to apply it.
+
+```rust
+fn middleware(&self) -> Vec<std::sync::Arc<dyn openrust::queue::middleware::JobMiddleware>> {
+    vec![std::sync::Arc::new(crate::app::jobs::middleware::guard_report::GuardReport)]
+}
+```
 
 ## Failed jobs
 

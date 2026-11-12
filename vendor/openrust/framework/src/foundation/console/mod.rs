@@ -6,6 +6,7 @@ mod environment_command;
 mod event_list_command;
 mod event_make_command;
 mod install_routes_command;
+mod job_make_command;
 mod key_generate_command;
 mod model_make_command;
 mod policy_make_command;
@@ -76,6 +77,7 @@ impl Kernel {
                             environment_command::register(&mut self.artisan)?;
                             event_list_command::register(&mut self.artisan)?;
                             event_make_command::register(&mut self.artisan)?;
+                            job_make_command::register(&mut self.artisan)?;
                             channel_list_command::register(&mut self.artisan)?;
                             install_routes_command::register(&mut self.artisan)?;
                             console_make_command::register(&mut self.artisan)?;

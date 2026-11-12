@@ -1,0 +1,17 @@
+use openrust::queue::{
+    JobContext, Payload, QueueFuture, QueueResult,
+    middleware::{JobMiddleware, JobNext},
+};
+
+pub struct {{class}};
+
+impl JobMiddleware for {{class}} {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        next: JobNext<'a>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        next.run(context, payload)
+    }
+}

@@ -74,8 +74,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("make:controller", "Generate a controller"),
     ("make:exception", "Generate an exception type"),
     ("make:factory", "Generate a model factory"),
-    ("make:job", "Generate a queued job"),
-    ("make:job-middleware", "Generate queue job middleware"),
     ("make:mail", "Generate a mail class"),
     ("make:middleware", "Generate HTTP middleware"),
     ("make:migration", "Generate a database migration"),

@@ -1,5 +1,32 @@
 # 佇列
 
+## 產生工作型別 {#generating-job-classes}
+
+Artisan 在 `app/jobs` 下產生工作模組。佇列工作攜帶可序列化資料並註冊 Worker 所需的處理器。用 `--sync` 產生的工作在等待其 `dispatch` Future 時直接執行。`--test` 產生配套功能測試，`--force` 覆寫現有檔案。
+
+```sh
+./artisan make:job SendReport --test
+./artisan make:job LocalReport --sync
+```
+
+在應用程式中宣告產生的模組，在服務提供者的 `boot` 方法呼叫 `register_jobs`。範例先執行本機工作，再派送佇列工作。
+
+```rust
+use crate::app::jobs::{local_report::LocalReport, send_report::SendReport};
+use openrust::queue::{DispatchResult, QueueResult};
+
+fn register_jobs() -> QueueResult<()> {
+    SendReport::register()
+}
+
+async fn dispatch_reports() -> QueueResult<DispatchResult> {
+    LocalReport.dispatch().await?;
+    SendReport.dispatch().await
+}
+```
+
+`--batched` 依賴佇列批次執行環境，目前會在寫入檔案前回報錯誤並結束。
+
 ## 建立與派送工作
 
 應用程式啟動時透過 `QueueManager::register` 或 `Queue::register` 登記穩定的工作名稱。`JobHandler` 從 `Payload` 讀取 JSON 資料，並透過 `JobContext` 取得連線、佇列和嘗試次數。使用 `Queue::dispatch` 將工作送往已設定的連線。
@@ -34,9 +61,23 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 執行 `./artisan queue:work database --stop-when-empty` 處理待執行工作並結束。`--once` 嘗試一個工作。使用 `--tries`、`--backoff` 和 `--timeout` 設定 Worker，工作可透過 `JobOptions` 覆寫。收到 SIGTERM 時，Worker 停止領取新工作並完成目前嘗試。
 
-## 工作中介軟體
+## 工作中介軟體 {#job-middleware}
 
 透過 `JobHandler::middleware` 傳回中介軟體。使用 `JobNext::run` 繼續執行，或以 `JobContext::release` 安排下一次嘗試。`WithoutOverlapping` 使用設定的快取鎖，可延後釋放衝突的工作。未完成的鎖會在租期結束時到期。
+
+產生的中介層位於 `app/jobs/middleware`，其處理器將承載資料與上下文交給下一步。
+
+```sh
+./artisan make:job-middleware GuardReport --test
+```
+
+宣告中介層模組，並在產生工作的 `impl JobHandler` 中加入以下方法以啟用中介層。
+
+```rust
+fn middleware(&self) -> Vec<std::sync::Arc<dyn openrust::queue::middleware::JobMiddleware>> {
+    vec![std::sync::Arc::new(crate::app::jobs::middleware::guard_report::GuardReport)]
+}
+```
 
 ## 失敗工作
 

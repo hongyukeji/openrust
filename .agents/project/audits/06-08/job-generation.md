@@ -1,0 +1,8 @@
+# 06-08 Artisan 任务与任务中间件生成
+
+- 对照固定 Laravel [JobMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/JobMakeCommand.php)、[JobMiddlewareMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/JobMiddlewareMakeCommand.php) 和 [Queues](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#generating-job-classes)。参考固定 Goravel [JobMakeCommand](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/queue/console/job_make_command.go) 的编译型登记。旧版 `v0.x`（`6d1a8192`）没有对应生成器，`vendor/openrust/framework/tests/server/queue/worker.rs` 中的 `CountJob` 等用例提供类型化序列化与 Worker 验收先例。
+- `make:job` 默认生成队列任务，`--sync` 生成直接执行的任务。`make:job-middleware` 生成继续执行链的中间件。两条命令支持 `--force/-f`、配套功能测试、自定义模板与应用限定名。Rust 显式声明模块，队列任务在 Provider 的 `boot` 登记处理器，中间件通过 `JobHandler::middleware` 接入。生成任务保留 `dispatch`，Rust 用实例方法和 Future 表达派发，同步模板在当前执行路径调用 `handle`，队列模板使用已有 Queue Facade 和 06-04 Worker。队列载荷通过 Serde 解码。
+- `--batched` 在写入前返回明确错误。该选项仍缺 Laravel 对应的批次账本、派发、取消与 Worker 完成／失败记账。完成 06-04 批次运行时后，再接入生成模板并验证 `--batched` 优先于 `--sync`。PHPUnit 与 Pest 选项映射为当前 Cargo 功能测试。
+- 基于 `5a33a06d` 的隔离副本。三语 9 条源码 `./artisan` 生成命令与两份配套功能测试通过。注册文档示例并编译实际应用，在临时 SQLite 执行 `./artisan migrate` 后发起真实 HTTP 请求。同步任务先执行，两个独立 Artisan Worker 分别处理有效与无效载荷。有效载荷保留业务字段并按中间件、处理器顺序执行，无效载荷进入 `failed_jobs`，由 `queue:failed --json` 查到。`./artisan inspire` 通过。
+- 三语站点构建、12 项通用浏览器检查和 6 项队列章节检查通过。
+- Rust 1.94.0 工作区锁定离线串行测试 570 项通过，5 项既有辅助夹具忽略。格式和全目标严格 Clippy 通过。进程回归覆盖并发写入、应用目录隔离、应用限定路径、非法路径、`--batched` 错误及自定义模板覆盖。

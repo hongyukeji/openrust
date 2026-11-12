@@ -1,0 +1,13 @@
+use openrust::queue::QueueResult;
+
+pub struct {{class}};
+
+impl {{class}} {
+    pub async fn dispatch(&self) -> QueueResult<()> {
+        self.handle().await
+    }
+
+    pub async fn handle(&self) -> QueueResult<()> {
+        Ok(())
+    }
+}

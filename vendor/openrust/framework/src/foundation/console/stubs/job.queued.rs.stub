@@ -1,0 +1,46 @@
+use std::sync::Arc;
+
+use openrust::{
+    contracts::queue::JobHandler,
+    queue::{DispatchOptions, DispatchResult, JobContext, Payload, QueueError, QueueFuture, QueueResult},
+    support::facades::Queue,
+};
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct {{class}};
+
+impl {{class}} {
+    pub const NAME: &'static str = concat!(module_path!(), "::", stringify!({{class}}));
+
+    pub async fn dispatch(&self) -> QueueResult<DispatchResult> {
+        Queue::dispatch(self.payload()?, DispatchOptions::default(), None).await
+    }
+
+    pub fn payload(&self) -> QueueResult<Payload> {
+        Payload::new(Self::NAME, self)
+    }
+
+    pub fn register() -> QueueResult<()> {
+        Queue::register(Self::NAME, Arc::new({{class}}Handler))
+    }
+
+    pub async fn handle(&self, _context: &mut JobContext<'_>) -> QueueResult<()> {
+        Ok(())
+    }
+}
+
+struct {{class}}Handler;
+
+impl JobHandler for {{class}}Handler {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let job: {{class}} =
+                serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
+            job.handle(context).await
+        })
+    }
+}
