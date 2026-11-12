@@ -1,0 +1,7 @@
+# 06-08 Artisan 基础类型生成
+
+- 对照固定 Laravel [生成命令](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/artisan.md#generating-commands)、[ClassMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ClassMakeCommand.php)、[InterfaceMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/InterfaceMakeCommand.php)、[TraitMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/TraitMakeCommand.php)、[EnumMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/EnumMakeCommand.php) 与 [Generators 集成测试](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Generators)。固定 Goravel `a554ced4` 与旧版 `v0.x`（`6d1a8192`）树未发现这四项生成器。沿用本项目已验证的编译型模板与模块装配。
+- 保留四个命令、各自的参数和短选项、Laravel 的目录优先级、`--force` 语义及两种后备类型同时指定时的字符串优先级。使用小写蛇形路径，支持嵌套名称、显式 `App/` 和 `.rs` 后缀。目录模块入口保留。
+- PHP 类生成 Rust 结构体，可调用形式使用显式 `invoke()`，PHP 接口和 trait 都映射 Rust trait。整数枚举使用 `repr(i64)`，字符串枚举使用显式值映射，两者以 `value()` 暴露后备值。后备模板包含可运行的示例成员。Rust 的两种后备模板分别发布，接口依固定 Laravel 使用内置模板。生成后显式声明模块。
+- 基于 `efe75401` 隔离候选。Rust 1.94.0 锁定离线工作区 568 项通过，5 项既有夹具忽略，格式及严格 Clippy 通过。真实 Artisan 覆盖目录优先级及回退、参数优先级、并发保护、应用目录隔离、非法名称、目录模块保护及自定义模板强制覆盖。
+- 三语正文 21 条源码 `./artisan` 命令实跑。每个生成组以 Rust 1.94.0 严格编译及执行，覆盖结构体、`invoke()`、两种 trait、无后备枚举及两种 `value()`。三语站点构建、12 项通用浏览器检查和 6 项小节检查通过。

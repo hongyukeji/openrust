@@ -1,0 +1,11 @@
+pub enum {{class}} {
+    Example,
+}
+
+impl {{class}} {
+    pub const fn value(&self) -> &'static str {
+        match self {
+            Self::Example => "example",
+        }
+    }
+}

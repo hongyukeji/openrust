@@ -93,7 +93,7 @@ API 默认挂载到 `/api` 并使用 `api` 中间件组，端点和认证由应�
 
 ## 自定义生成模板 {#stub-customization}
 
-把生成器模板发布到应用的 `stubs/` 目录。命令会发布命令、工厂、迁移、模型、策略、Seeder、功能测试和单元测试模板。编辑发布后的模板即可修改相应生成器下一次生成的内容。
+把生成器模板发布到应用的 `stubs/` 目录。命令会发布结构体、trait、枚举、命令、工厂、迁移、模型、策略、Seeder、功能测试和单元测试模板。编辑发布后的模板即可修改相应生成器下一次生成的内容。
 
 ```sh
 ./artisan stub:publish
@@ -104,3 +104,21 @@ API 默认挂载到 `/api` 并使用 `api` 中间件组，端点和认证由应�
 默认保留现有模板并补齐缺失文件。`--existing` 只覆盖已经存在的模板，与 `--force` 同用时也保持这个范围。单独使用 `--force` 会覆盖现有模板并补齐缺失文件。
 
 同步的 `foundation.publishing_stubs` 监听器可通过 `PublishingStubs` 事件添加源文件、插入编译进产物的模板或移除模板。发布目标使用应用模板目录内的文件名。
+
+## 生成 Rust 类型 {#generating-rust-types}
+
+Artisan 可生成 Rust 结构体、trait 和枚举。使用生成的类型前请声明对应模块。
+
+```sh
+./artisan make:class Report
+./artisan make:class SendReport --invokable
+./artisan make:interface ReportStore
+./artisan make:trait ReportFormatting
+./artisan make:enum ReportState
+./artisan make:enum ReportCode --int
+./artisan make:enum ReportKind --string
+```
+
+`make:interface` 和 `make:trait` 均生成 Rust trait。接口依次查找 `app/contracts`、`app/interfaces`，trait 依次查找 `app/concerns`、`app/traits`，枚举依次查找 `app/enums`、`app/enumerations`。目录均不存在时写入 `app/`。名称以 `App/` 开头时，从 `app/` 开始解析。
+
+可调用结构体提供显式的 `invoke()` 方法。整数和字符串后备枚举通过 `value()` 分别返回 `i64` 和静态字符串。使用 `-f` 或 `--force` 替换已生成的文件。可通过 [`stub:publish`](#stub-customization) 发布可自定义模板。接口命令使用内置模板。

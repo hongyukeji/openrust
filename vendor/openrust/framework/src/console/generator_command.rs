@@ -85,6 +85,12 @@ pub(crate) fn source_name_parts<'a>(
 /// A built-in source template and its application override.
 #[derive(Clone, Copy)]
 pub(crate) enum Stub {
+    Class,
+    InvokableClass,
+    Enum,
+    IntEnum,
+    StringEnum,
+    Trait,
     Console,
     Factory,
     Migration,
@@ -99,7 +105,13 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 17] = [
+        Self::Class,
+        Self::InvokableClass,
+        Self::Enum,
+        Self::IntEnum,
+        Self::StringEnum,
+        Self::Trait,
         Self::Console,
         Self::Factory,
         Self::Migration,
@@ -116,6 +128,30 @@ impl Stub {
     pub(crate) fn file(self) -> (&'static str, &'static str) {
         const MIGRATION: &str = include_str!("../database/migrations/stubs/migration.rs.stub");
         match self {
+            Self::Class => (
+                "class.rs.stub",
+                include_str!("../foundation/console/stubs/class.rs.stub"),
+            ),
+            Self::InvokableClass => (
+                "class.invokable.rs.stub",
+                include_str!("../foundation/console/stubs/class.invokable.rs.stub"),
+            ),
+            Self::Enum => (
+                "enum.rs.stub",
+                include_str!("../foundation/console/stubs/enum.rs.stub"),
+            ),
+            Self::IntEnum => (
+                "enum.int.rs.stub",
+                include_str!("../foundation/console/stubs/enum.int.rs.stub"),
+            ),
+            Self::StringEnum => (
+                "enum.string.rs.stub",
+                include_str!("../foundation/console/stubs/enum.string.rs.stub"),
+            ),
+            Self::Trait => (
+                "trait.rs.stub",
+                include_str!("../foundation/console/stubs/trait.rs.stub"),
+            ),
             Self::Console => (
                 "console.rs.stub",
                 include_str!("../foundation/console/stubs/console.rs.stub"),

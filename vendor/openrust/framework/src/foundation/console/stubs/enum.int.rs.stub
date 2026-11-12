@@ -1,0 +1,11 @@
+#[derive(Clone, Copy)]
+#[repr(i64)]
+pub enum {{class}} {
+    Example = 0,
+}
+
+impl {{class}} {
+    pub const fn value(self) -> i64 {
+        self as i64
+    }
+}

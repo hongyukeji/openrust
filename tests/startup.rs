@@ -396,7 +396,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 11);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 17);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -621,6 +621,121 @@ fn artisan_generates_and_registers_providers_with_concurrent_retries() {
             .starts_with("// customized\n")
     );
     assert_eq!(fs::read_to_string(&registry).unwrap(), formatted);
+}
+
+#[test]
+fn artisan_generates_rust_types_with_laravel_namespaces_and_options() {
+    let root = TestRoot::new("make-types");
+    let other = TestRoot::new("make-types-other");
+    let run = |base: &Path, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", base)
+            .output()
+            .unwrap()
+    };
+    for (kind, first, second) in [
+        ("interface", "contracts", "interfaces"),
+        ("trait", "concerns", "traits"),
+        ("enum", "enums", "enumerations"),
+    ] {
+        let command = format!("make:{kind}");
+        let fallback = run(&root.0, &[&command, "FallbackType"]);
+        assert!(fallback.status.success(), "{fallback:?}");
+        assert!(root.0.join("app/fallback_type.rs").is_file());
+        fs::remove_file(root.0.join("app/fallback_type.rs")).unwrap();
+
+        fs::create_dir(root.0.join("app").join(second)).unwrap();
+        assert!(run(&root.0, &[&command, "SecondType"]).status.success());
+        assert!(
+            root.0
+                .join("app")
+                .join(second)
+                .join("second_type.rs")
+                .is_file()
+        );
+        fs::create_dir(root.0.join("app").join(first)).unwrap();
+        assert!(run(&root.0, &[&command, "FirstType"]).status.success());
+        assert!(
+            root.0
+                .join("app")
+                .join(first)
+                .join("first_type.rs")
+                .is_file()
+        );
+    }
+
+    let args = ["make:class", "Reports/SendReport.rs", "-i"];
+    let outcomes = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&root.0, &args));
+        let second = scope.spawn(|| run(&root.0, &args));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|output| output.status.success())
+            .count(),
+        1
+    );
+    let path = root.0.join("app/reports/send_report.rs");
+    let source = fs::read_to_string(&path).unwrap();
+    assert!(source.contains("fn invoke"));
+    assert!(!other.0.join("app").exists());
+
+    for (options, name, expected) in [
+        (&["-i"][..], "IntegerType", "#[repr(i64)]"),
+        (&["--int", "-s"], "StringType", "-> &'static str"),
+    ] {
+        let mut command = vec!["make:enum", name];
+        command.extend_from_slice(options);
+        assert!(run(&root.0, &command).status.success());
+        let file = if name == "StringType" {
+            "string_type.rs"
+        } else {
+            "integer_type.rs"
+        };
+        assert!(
+            fs::read_to_string(root.0.join("app/enums").join(file))
+                .unwrap()
+                .contains(expected)
+        );
+    }
+    assert!(
+        run(&root.0, &["make:interface", "App/RootType"])
+            .status
+            .success()
+    );
+    assert!(root.0.join("app/root_type.rs").is_file());
+
+    fs::write(root.0.join("app/contracts/mod.rs"), "// preserve module\n").unwrap();
+    for name in ["../Escape", "Mod", "Contracts"] {
+        assert_eq!(
+            run(&root.0, &["make:class", name, "--force"]).status.code(),
+            Some(1)
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(root.0.join("app/contracts/mod.rs")).unwrap(),
+        "// preserve module\n"
+    );
+    assert!(run(&root.0, &["stub:publish"]).status.success());
+    let stub = root.0.join("stubs/class.invokable.rs.stub");
+    let original = fs::read_to_string(&stub).unwrap();
+    fs::write(&stub, format!("// customized\n{original}")).unwrap();
+    assert_eq!(run(&root.0, &args).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&path).unwrap(), source);
+    assert!(
+        run(&root.0, &["make:class", "Reports/SendReport", "-i", "-f"])
+            .status
+            .success()
+    );
+    assert!(
+        fs::read_to_string(path)
+            .unwrap()
+            .starts_with("// customized\n")
+    );
 }
 
 impl TestRoot {

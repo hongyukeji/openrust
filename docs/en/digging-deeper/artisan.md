@@ -93,7 +93,7 @@ The test goes to `tests/feature/console/commands/send_report_test.rs`. Nested co
 
 ## Stub Customization {#stub-customization}
 
-Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.
+Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for structs, traits, enums, commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.
 
 ```sh
 ./artisan stub:publish
@@ -104,3 +104,21 @@ Publish the generator templates to the application’s `stubs/` directory. The c
 The default preserves existing templates and publishes missing ones. `--existing` replaces only templates already present, including when combined with `--force`. Use `--force` on its own to replace existing templates and publish missing ones.
 
 A synchronous `foundation.publishing_stubs` listener can use the `PublishingStubs` event to add a source file, insert a compiled template, or remove a template before publication. Destinations are filenames within the application’s stubs directory.
+
+## Generating Rust Types {#generating-rust-types}
+
+Artisan generates Rust structs, traits and enums. Declare the resulting modules before using the types.
+
+```sh
+./artisan make:class Report
+./artisan make:class SendReport --invokable
+./artisan make:interface ReportStore
+./artisan make:trait ReportFormatting
+./artisan make:enum ReportState
+./artisan make:enum ReportCode --int
+./artisan make:enum ReportKind --string
+```
+
+`make:interface` and `make:trait` both generate Rust traits. Interface generation checks `app/contracts` then `app/interfaces`. Trait generation checks `app/concerns` then `app/traits`. Enum generation checks `app/enums` then `app/enumerations`. Each falls back to `app/`. Prefix a name with `App/` to start from `app/` explicitly.
+
+An invokable struct has an explicit `invoke()` method. Integer-backed enums expose an `i64` value and string-backed enums expose a static string through `value()`. Use `-f` or `--force` to replace a generated file. Publish customizable templates with [`stub:publish`](#stub-customization). The interface command uses its built-in template.

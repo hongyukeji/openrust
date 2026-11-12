@@ -1,0 +1,5 @@
+pub struct {{class}};
+
+impl {{class}} {
+    pub fn invoke(&self) {}
+}

@@ -93,7 +93,7 @@ API 預設掛載到 `/api` 並使用 `api` 中介軟體群組，端點與驗證�
 
 ## 自訂產生樣板 {#stub-customization}
 
-將產生器樣板發佈到應用程式的 `stubs/` 目錄。命令會發佈命令、工廠、遷移、模型、策略、Seeder、功能測試和單元測試樣板。編輯已發佈的樣板即可修改對應產生器下一次產生的內容。
+將產生器樣板發佈到應用程式的 `stubs/` 目錄。命令會發佈結構體、trait、列舉、命令、工廠、遷移、模型、策略、Seeder、功能測試和單元測試樣板。編輯已發佈的樣板即可修改對應產生器下一次產生的內容。
 
 ```sh
 ./artisan stub:publish
@@ -104,3 +104,21 @@ API 預設掛載到 `/api` 並使用 `api` 中介軟體群組，端點與驗證�
 預設保留既有樣板並補齊缺少的檔案。`--existing` 只覆寫已存在的樣板，與 `--force` 同用時也維持這個範圍。單獨使用 `--force` 會覆寫既有樣板並補齊缺少的檔案。
 
 同步的 `foundation.publishing_stubs` 監聽器可透過 `PublishingStubs` 事件加入來源檔案、插入編譯進產物的樣板或移除樣板。發佈目標使用應用程式樣板目錄內的檔名。
+
+## 產生 Rust 型別 {#generating-rust-types}
+
+Artisan 可產生 Rust 結構體、trait 和列舉。使用產生的型別前請宣告對應模組。
+
+```sh
+./artisan make:class Report
+./artisan make:class SendReport --invokable
+./artisan make:interface ReportStore
+./artisan make:trait ReportFormatting
+./artisan make:enum ReportState
+./artisan make:enum ReportCode --int
+./artisan make:enum ReportKind --string
+```
+
+`make:interface` 和 `make:trait` 均產生 Rust trait。介面依序尋找 `app/contracts`、`app/interfaces`，trait 依序尋找 `app/concerns`、`app/traits`，列舉依序尋找 `app/enums`、`app/enumerations`。目錄均不存在時寫入 `app/`。名稱以 `App/` 開頭時，從 `app/` 開始解析。
+
+可呼叫結構體提供明確的 `invoke()` 方法。整數與字串後備列舉透過 `value()` 分別回傳 `i64` 和靜態字串。使用 `-f` 或 `--force` 取代已產生的檔案。可透過 [`stub:publish`](#stub-customization) 發佈可自訂樣板。介面命令使用內建樣板。
