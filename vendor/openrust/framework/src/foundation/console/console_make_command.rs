@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture,
         GeneratorCommand, Input, Output,
-        generator_command::{load_stub, snake_case, source_name_parts, write_generated},
+        generator_command::{Stub, snake_case, source_name_parts, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -126,8 +126,9 @@ impl GeneratorCommand for ConsoleMakeCommand {
             ));
         }
 
-        let custom = app.base_path().join("stubs/console.rs.stub");
-        let template = load_stub(&custom, include_str!("stubs/console.rs.stub"))?;
+        let template = Stub::Console
+            .load(app.base_path())
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
         Ok(Cow::Owned(
             template
                 .replace("{{class}}", class)

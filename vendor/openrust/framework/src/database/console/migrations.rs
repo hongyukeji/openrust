@@ -379,7 +379,7 @@ fn make(root: &Path, matches: &clap::ArgMatches, output: &mut Output) -> Result<
         .or_else(|| matches.get_one::<String>("table"))
         .map(String::as_str);
     let path = MigrationCreator
-        .create(name, &path, table, create.is_some())
+        .create_from_stubs(name, &path, table, create.is_some(), None, Some(root))
         .map_err(console_error)?;
     let display = if matches.get_flag("fullpath") {
         &path

@@ -360,6 +360,173 @@ fn probe_fails() { panic!("test failure marker"); }
     assert!(silent.stdout.is_empty() && silent.stderr.is_empty());
 }
 
+#[test]
+fn artisan_publishes_stubs_used_by_source_generators() {
+    let root = TestRoot::new("publish-stubs");
+    let other = TestRoot::new("publish-stubs-other");
+    let run = |base: &Path, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", base)
+            .output()
+            .unwrap()
+    };
+    let stubs = root.0.join("stubs");
+    let console = stubs.join("console.rs.stub");
+    fs::write(&stubs, "blocked").unwrap();
+    assert_eq!(run(&root.0, &["stub:publish"]).status.code(), Some(1));
+    fs::remove_file(&stubs).unwrap();
+    fs::create_dir(&stubs).unwrap();
+    fs::write(&console, "// custom\n").unwrap();
+
+    assert!(
+        run(&root.0, &["stub:publish", "--existing", "--force"])
+            .status
+            .success()
+    );
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 1);
+    let original = fs::read_to_string(&console).unwrap();
+    assert!(original.contains("{{class}}"));
+    fs::write(&console, "// preserved\n").unwrap();
+
+    let outcomes = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&root.0, &["stub:publish"]));
+        let second = scope.spawn(|| run(&root.0, &["stub:publish"]));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert!(outcomes.iter().all(|output| output.status.success()));
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 10);
+    assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
+    assert!(!other.0.join("stubs").exists());
+    assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
+    assert_eq!(fs::read_to_string(&console).unwrap(), original);
+
+    for entry in fs::read_dir(&stubs).unwrap() {
+        let path = entry.unwrap().path();
+        let name = path.file_name().unwrap().to_str().unwrap();
+        let source = fs::read_to_string(&path).unwrap();
+        fs::write(&path, format!("// used {name}\n{source}")).unwrap();
+    }
+    for (stub, arguments, path) in [
+        (
+            "console",
+            &["make:command", "Example"][..],
+            "app/console/commands/example.rs",
+        ),
+        ("model", &["make:model", "Flight"], "app/models/flight.rs"),
+        (
+            "policy",
+            &["make:policy", "FlightPolicy"],
+            "app/policies/flight_policy.rs",
+        ),
+        (
+            "factory",
+            &["make:factory", "FlightFactory"],
+            "database/factories/flight_factory.rs",
+        ),
+        (
+            "seeder",
+            &["make:seeder", "FlightSeeder"],
+            "database/seeders/flight_seeder.rs",
+        ),
+        (
+            "test",
+            &["make:test", "FlightTest"],
+            "tests/feature/flight_test.rs",
+        ),
+        (
+            "test.unit",
+            &["make:test", "FlightTest", "--unit"],
+            "tests/unit/flight_test.rs",
+        ),
+    ] {
+        let result = run(&root.0, arguments);
+        assert!(result.status.success(), "{arguments:?}: {result:?}");
+        assert!(
+            fs::read_to_string(root.0.join(path))
+                .unwrap()
+                .starts_with(&format!("// used {stub}.rs.stub"))
+        );
+    }
+    for (stub, name) in [
+        ("migration", "manual_change"),
+        ("migration.create", "create_flights_table"),
+        ("migration.update", "add_gate_to_flights_table"),
+    ] {
+        let result = run(&root.0, &["make:migration", name]);
+        assert!(result.status.success(), "{result:?}");
+        let path = fs::read_dir(root.0.join("database/migrations"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .ends_with(&format!("_{name}.rs"))
+            })
+            .unwrap();
+        assert!(
+            fs::read_to_string(path)
+                .unwrap()
+                .starts_with(&format!("// used {stub}.rs.stub"))
+        );
+    }
+}
+
+#[tokio::test]
+async fn artisan_publishes_templates_modified_by_application_listeners() {
+    use openrust::{
+        contracts::events::{Event, Listener},
+        events::{
+            Delivery, EventContext, EventFuture, EventResult, ListenerRegistry, ListenerResponse,
+        },
+        foundation::events::{DiscoverEvents, PublishingStubs},
+        testing::TestApp,
+    };
+
+    struct Customize;
+    impl Listener for Customize {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn Event,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let stubs = event.downcast_ref::<PublishingStubs>().unwrap();
+                assert!(stubs.remove("model.rs.stub").is_some());
+                assert!(stubs.insert("../escape.stub", "invalid").is_err());
+                stubs
+                    .insert("example.rs.stub", "// application template\n")
+                    .unwrap();
+                stubs.add(file!(), "from-file.rs.stub").unwrap();
+                Ok(None)
+            })
+        }
+    }
+    fn register(registry: &mut ListenerRegistry) -> EventResult<()> {
+        registry.listen(
+            "foundation.publishing_stubs",
+            Arc::new(Customize),
+            Delivery::Sync,
+        )
+    }
+
+    let mut app =
+        TestApp::create(|builder| builder.withEvents(DiscoverEvents::new(&[register]))).unwrap();
+    app.artisan(["stub:publish"]).await.assertSuccessful();
+    assert!(!app.root().join("stubs/model.rs.stub").exists());
+    assert!(!app.root().join("escape.stub").exists());
+    assert_eq!(
+        fs::read(app.root().join("stubs/from-file.rs.stub")).unwrap(),
+        fs::read(file!()).unwrap()
+    );
+    assert_eq!(
+        fs::read_to_string(app.root().join("stubs/example.rs.stub")).unwrap(),
+        "// application template\n"
+    );
+}
+
 impl TestRoot {
     fn new(name: &str) -> Self {
         let path =

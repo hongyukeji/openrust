@@ -82,13 +82,82 @@ pub(crate) fn source_name_parts<'a>(
     Ok(parts)
 }
 
-pub(crate) fn load_stub(
-    path: &Path,
-    builtin: &'static str,
-) -> Result<Cow<'static, str>, ConsoleError> {
-    match fs::read_to_string(path) {
-        Ok(template) => Ok(Cow::Owned(template)),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(Cow::Borrowed(builtin)),
-        Err(error) => Err(ConsoleError::new(format!("{}: {error}", path.display()))),
+/// A built-in source template and its application override.
+#[derive(Clone, Copy)]
+pub(crate) enum Stub {
+    Console,
+    Factory,
+    Migration,
+    MigrationCreate,
+    MigrationUpdate,
+    Model,
+    Policy,
+    Seeder,
+    Test,
+    UnitTest,
+}
+
+impl Stub {
+    pub(crate) const ALL: [Self; 10] = [
+        Self::Console,
+        Self::Factory,
+        Self::Migration,
+        Self::MigrationCreate,
+        Self::MigrationUpdate,
+        Self::Model,
+        Self::Policy,
+        Self::Seeder,
+        Self::Test,
+        Self::UnitTest,
+    ];
+
+    pub(crate) fn file(self) -> (&'static str, &'static str) {
+        const MIGRATION: &str = include_str!("../database/migrations/stubs/migration.rs.stub");
+        match self {
+            Self::Console => (
+                "console.rs.stub",
+                include_str!("../foundation/console/stubs/console.rs.stub"),
+            ),
+            Self::Factory => (
+                "factory.rs.stub",
+                include_str!("../database/console/factories/stubs/factory.rs.stub"),
+            ),
+            Self::Migration => ("migration.rs.stub", MIGRATION),
+            Self::MigrationCreate => ("migration.create.rs.stub", MIGRATION),
+            Self::MigrationUpdate => ("migration.update.rs.stub", MIGRATION),
+            Self::Model => (
+                "model.rs.stub",
+                include_str!("../foundation/console/stubs/model.rs.stub"),
+            ),
+            Self::Policy => (
+                "policy.rs.stub",
+                include_str!("../foundation/console/stubs/policy.rs.stub"),
+            ),
+            Self::Seeder => (
+                "seeder.rs.stub",
+                include_str!("../database/console/seeds/stubs/seeder.rs.stub"),
+            ),
+            Self::Test => (
+                "test.rs.stub",
+                include_str!("../foundation/console/stubs/test.rs.stub"),
+            ),
+            Self::UnitTest => (
+                "test.unit.rs.stub",
+                include_str!("../foundation/console/stubs/test.unit.rs.stub"),
+            ),
+        }
+    }
+
+    pub(crate) fn load(self, root: &Path) -> io::Result<Cow<'static, str>> {
+        let (name, builtin) = self.file();
+        let path = root.join("stubs").join(name);
+        match fs::read_to_string(&path) {
+            Ok(template) => Ok(Cow::Owned(template)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(Cow::Borrowed(builtin)),
+            Err(error) => Err(io::Error::new(
+                error.kind(),
+                format!("{}: {error}", path.display()),
+            )),
+        }
     }
 }

@@ -149,10 +149,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("session:garbage-collect", "Remove expired sessions"),
     ("storage:link", "Create the configured storage links"),
     ("storage:unlink", "Remove the configured storage links"),
-    (
-        "stub:publish",
-        "Copy code generation templates into the application",
-    ),
     ("up", "Take the application out of maintenance mode"),
     (
         "vendor:publish",

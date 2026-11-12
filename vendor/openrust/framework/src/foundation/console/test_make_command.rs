@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture,
         GeneratorCommand, Input, Output,
-        generator_command::{load_stub, snake_case, source_name_parts, write_generated},
+        generator_command::{Stub, snake_case, source_name_parts, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -128,15 +128,14 @@ impl GeneratorCommand for TestMakeCommand {
         let class = validated_parts(test_name(input))?
             .last()
             .expect("validated name");
-        let (custom, builtin) = if input.matches().get_flag("unit") {
-            (
-                "stubs/test.unit.rs.stub",
-                include_str!("stubs/test.unit.rs.stub"),
-            )
+        let stub = if input.matches().get_flag("unit") {
+            Stub::UnitTest
         } else {
-            ("stubs/test.rs.stub", include_str!("stubs/test.rs.stub"))
+            Stub::Test
         };
-        let template = load_stub(&app.base_path().join(custom), builtin)?;
+        let template = stub
+            .load(app.base_path())
+            .map_err(|error| ConsoleError::new(error.to_string()))?;
         Ok(Cow::Owned(template.replace(
             "{{test}}",
             &format!("test_{}", snake_case(class)),

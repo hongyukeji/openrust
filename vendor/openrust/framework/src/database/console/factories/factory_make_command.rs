@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
-        generator_command::{snake_case, write_generated},
+        generator_command::{Stub, snake_case, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -55,10 +55,15 @@ impl Command for FactoryMakeCommand {
             relative.extend(namespaces.iter().map(|part| snake_case(part)));
             relative.push(format!("{}.rs", snake_case(&class)));
             let path = app.base_path().join(&relative);
-            let code = format!(
-                "use openrust::database::eloquent::{{Attributes, factories::Factory}};\n\nuse {model};\n\npub struct {class};\n\nimpl {class} {{\n    pub fn factory() -> Factory<{}> {{\n        Factory::new(Self::definition)\n    }}\n\n    fn definition() -> Attributes {{\n        Attributes::new()\n    }}\n}}\n",
-                model.rsplit("::").next().expect("validated model"),
-            );
+            let code = Stub::Factory
+                .load(app.base_path())
+                .map_err(|error| ConsoleError::new(error.to_string()))?
+                .replace("{{import}}", &model)
+                .replace(
+                    "{{model}}",
+                    model.rsplit("::").next().expect("validated model"),
+                )
+                .replace("{{class}}", &class);
             let force = arguments.get_flag("force");
             tokio::task::spawn_blocking(move || write_generated(&path, code.as_bytes(), force))
                 .await

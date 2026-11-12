@@ -90,3 +90,17 @@ Add `--test` to create a feature test along with the command.
 The test goes to `tests/feature/console/commands/send_report_test.rs`. Nested command names keep their subdirectories. Declare the test module and run it through Cargo using the [test setup](../testing/getting-started.md#creating-tests). The template starts with the same health check as `make:test`. Add assertions for your command to the generated test.
 
 `--force` allows both generated files to be replaced. If test generation fails after the command is created, Artisan exits with status 1 and keeps the command file. Resolve the reported error and run `./artisan make:test Console/Commands/SendReportTest` to create the test separately.
+
+## Stub Customization {#stub-customization}
+
+Publish the generator templates to the application’s `stubs/` directory. The command publishes templates for commands, factories, migrations, models, policies, seeders and feature and unit tests. Edit the published template to change the next file that its generator creates.
+
+```sh
+./artisan stub:publish
+./artisan stub:publish --existing
+./artisan stub:publish --force
+```
+
+The default preserves existing templates and publishes missing ones. `--existing` replaces only templates already present, including when combined with `--force`. Use `--force` on its own to replace existing templates and publish missing ones.
+
+A synchronous `foundation.publishing_stubs` listener can use the `PublishingStubs` event to add a source file, insert a compiled template, or remove a template before publication. Destinations are filenames within the application’s stubs directory.

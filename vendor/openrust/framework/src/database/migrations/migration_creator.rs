@@ -1,7 +1,10 @@
+use crate::console::generator_command::Stub;
+
 use std::{
     fs::{self, OpenOptions},
     io::{self, Write as _},
     path::{Path, PathBuf},
+    sync::LazyLock,
 };
 
 /// Creates a timestamped migration from a Rust stub.
@@ -25,6 +28,18 @@ impl MigrationCreator {
         table: Option<&str>,
         create: bool,
         body: Option<(&str, &str)>,
+    ) -> io::Result<PathBuf> {
+        self.create_from_stubs(name, directory, table, create, body, None)
+    }
+
+    pub(crate) fn create_from_stubs(
+        &self,
+        name: &str,
+        directory: &Path,
+        table: Option<&str>,
+        create: bool,
+        body: Option<(&str, &str)>,
+        root: Option<&Path>,
     ) -> io::Result<PathBuf> {
         let name = snake_case(name);
         if name.is_empty()
@@ -83,19 +98,32 @@ impl MigrationCreator {
             ),
             None => ("Ok(())".into(), "Ok(())".into()),
         });
-        let code = format!(
-            "use openrust::database::{{DatabaseFuture, DatabaseResult, migrations::{{Migration, MigrationContext}}}};\n\n\
-             pub struct Definition;\n\nimpl Migration for Definition {{\n    \
-             fn up<'a>(&'a self, _connection: &'a mut MigrationContext) -> DatabaseFuture<'a, DatabaseResult<()>> {{\n        \
-             Box::pin(async move {{ {up} }})\n    }}\n\n    \
-             fn down<'a>(&'a self, _connection: &'a mut MigrationContext) -> DatabaseFuture<'a, DatabaseResult<()>> {{\n        \
-             Box::pin(async move {{ {down} }})\n    }}\n}}\n"
-        );
-        let code = if table.is_some() {
-            code.replace("_connection:", "connection:")
-        } else {
-            code
+        let stub = match table {
+            Some(_) if create => Stub::MigrationCreate,
+            Some(_) => Stub::MigrationUpdate,
+            None => Stub::Migration,
         };
+        let template = match root {
+            Some(root) => stub.load(root)?,
+            None => std::borrow::Cow::Borrowed(stub.file().1),
+        };
+        static PLACEHOLDER: LazyLock<regex::Regex> = LazyLock::new(|| {
+            regex::Regex::new(r"\{\{(connection|up|down)\}\}").expect("valid placeholder pattern")
+        });
+        let connection = if table.is_some() {
+            "connection"
+        } else {
+            "_connection"
+        };
+        let code =
+            PLACEHOLDER.replace_all(&template, |capture: &regex::Captures<'_>| {
+                match &capture[1] {
+                    "connection" => connection,
+                    "up" => &up,
+                    "down" => &down,
+                    _ => unreachable!("known placeholder"),
+                }
+            });
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)

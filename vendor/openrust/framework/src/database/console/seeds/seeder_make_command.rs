@@ -9,7 +9,7 @@ use clap::{Arg, ArgAction, Command as Syntax};
 use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
-        Output,
+        Output, generator_command::Stub,
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -78,24 +78,7 @@ fn create(root: &Path, name: &str, force: bool) -> io::Result<PathBuf> {
     }
     fs::create_dir_all(&directory)?;
     let path = directory.join(format!("{}.rs", snake_case(class)));
-    let code = format!(
-        r#"use openrust::database::{{
-    DatabaseFuture, DatabaseResult,
-    seeder::{{Seeder, SeederContext}},
-}};
-
-pub struct {class};
-
-impl Seeder for {class} {{
-    fn run<'a>(
-        &'a self,
-        _context: &'a mut SeederContext<'_>,
-    ) -> DatabaseFuture<'a, DatabaseResult<()>> {{
-        Box::pin(async {{ Ok(()) }})
-    }}
-}}
-"#
-    );
+    let code = Stub::Seeder.load(root)?.replace("{{class}}", class);
     if force {
         let temporary = directory.join(format!(".seeder-{:016x}.tmp", fastrand::u64(..)));
         write_new(&temporary, code.as_bytes())?;

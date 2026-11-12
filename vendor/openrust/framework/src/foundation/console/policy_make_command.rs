@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
-        generator_command::{snake_case, write_generated},
+        generator_command::{Stub, snake_case, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -66,7 +66,9 @@ impl Command for PolicyMakeCommand {
                     (model, declaration, "false")
                 }
             };
-            let code = include_str!("stubs/policy.rs.stub")
+            let code = Stub::Policy
+                .load(app.base_path())
+                .map_err(|error| ConsoleError::new(error.to_string()))?
                 .replace("{{declaration}}", &declaration)
                 .replace("{{policy}}", policy)
                 .replace("{{model}}", &model)

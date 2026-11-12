@@ -1,0 +1,15 @@
+use openrust::database::eloquent::{Attributes, factories::Factory};
+
+use {{import}};
+
+pub struct {{class}};
+
+impl {{class}} {
+    pub fn factory() -> Factory<{{model}}> {
+        Factory::new(Self::definition)
+    }
+
+    fn definition() -> Attributes {
+        Attributes::new()
+    }
+}

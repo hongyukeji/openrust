@@ -6,7 +6,7 @@ use crate::{
     console::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture,
         GeneratorCommand, Input, Output,
-        generator_command::{snake_case, write_generated},
+        generator_command::{Stub, snake_case, write_generated},
     },
     contracts::foundation::Application as _,
     foundation::Application,
@@ -67,12 +67,18 @@ impl GeneratorCommand for ModelMakeCommand {
         Ok(path.with_extension("rs"))
     }
 
-    fn get_stub(&self, _: &Application, input: &Input) -> Result<Cow<'static, str>, ConsoleError> {
+    fn get_stub(
+        &self,
+        app: &Application,
+        input: &Input,
+    ) -> Result<Cow<'static, str>, ConsoleError> {
         let parts = validated_parts(model_name(input))?;
         let class = parts.last().expect("validated model name");
         let table = pluralizer::pluralize(&snake_case(class), 2, false);
         Ok(Cow::Owned(
-            include_str!("stubs/model.rs.stub")
+            Stub::Model
+                .load(app.base_path())
+                .map_err(|error| ConsoleError::new(error.to_string()))?
                 .replace("{{model}}", class)
                 .replace("{{table}}", &table),
         ))
