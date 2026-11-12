@@ -1,5 +1,7 @@
 # 08-04 可选统一启动
 
+当前行为见[默认同进程统一启动](#默认同进程统一启动)。前两节记录 `6b343058` 的可选模式验收。
+
 ## 对照与实现
 
 Laravel 13.11.0 应用骨架把 HTTP 入口交给 `handleRequest`，Artisan 入口交给 `handleCommand`。OpenRust 的 `./main` 默认运行 HTTP 及其已配置的监听器。独立 Artisan 仍由 `handleCommand` 执行，支持 `queue:work`、`schedule:work` 和 `schedule:run`。 [Laravel HTTP 入口](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/public/index.php) · [Laravel Artisan 入口](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/artisan)
@@ -19,3 +21,21 @@ Laravel 13.11.0 应用骨架把 HTTP 入口交给 `handleRequest`，Artisan 入�
 - 三语部署页面构建通过，在根路径和 `/docs/` 分别完成三语桌面和移动端浏览器导航检查。验收覆盖 macOS arm64 与 Windows x64 MSVC；本批统一启动进程夹具使用 SQLite。
 
 [English](../../../../docs/en/getting-started/deployment.md#run-services-together) · [简体中文](../../../../docs/zh-Hans/getting-started/deployment.md#一起运行服务) · [繁體中文](../../../../docs/zh-Hant/getting-started/deployment.md#一起執行服務)
+
+## 默认同进程统一启动
+
+应用骨架默认启用统一启动。`./main` 在同一进程运行 HTTP、默认异步队列的 Worker，以及注册了任务的调度器。`RUNTIME_ENABLED=false` 恢复 HTTP 启动及原有监听器，独立 Artisan 入口继续可用。`RUNTIME_HTTP`、`RUNTIME_QUEUE` 和 `RUNTIME_SCHEDULE` 可在统一启动时分别关闭服务。同步队列和空调度会跳过。应用骨架在 `config/runtime.rs` 设置默认值，框架继续兼容未声明该配置的应用。服务编排对照固定 Goravel `Application.Start` 和旧版 `6d1a8192` 的聚合运行测试。 [Goravel Application.Start](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/foundation/application.go#L216-L291)
+
+沿用已提交的同进程 Worker 和调度逻辑。共享进程的 RSS 包含 HTTP、队列和调度的占用，受管 Worker 不套用独立门槛。独立 `queue:work` 继续执行自己的内存上限。按任务启用的硬超时继续使用原有执行器隔离，Windows 使用 Job Object 回收后代进程。子进程 Worker 候选已单独保存，本次提交范围为应用配置、验收夹具和三语文档。
+
+- 使用根应用真实 `main` 验证默认 HTTP `/up` 和 SQLite 队列消费。显式关闭统一启动后，HTTP 仍可访问，队列中的任务留给独立 Worker。
+- 同一可执行夹具验证 HTTP、Worker 和调度同进程，Worker 和调度任务的 PID 均与启动进程一致，硬超时执行器 PID 独立。分别验证三项服务开关、`sync` 别名、空调度及独立 Artisan。
+- 统一启动与独立 Artisan 在相同驱动及 Worker 配置下使用隔离队列执行等价任务。两边的强制超时退出码均为 124，回收执行器和后代进程。`failOnTimeout` 触发失败回调并可按 UUID 找到失败记录，可重试任务在租约到期后完成。独立 `schedule:run` 与受管调度通过同一文件锁跳过重叠任务。
+- 真实 Windows Ctrl+C 和 macOS 终止信号验证停止接收新工作，在途队列与调度任务完成后退出 0，下一项任务仍可由独立 Worker 消费。内存对照中，独立 Worker 达到 128 MiB 门槛后以 12 退出并保留下一项，共享进程继续消费并在信号后正常退出。
+- macOS arm64 和 Windows 11 Pro ARM64 虚拟机的 x64 MSVC 兼容层使用 Rust 1.94.0 及 SQLite 通过进程验收。Windows 工具链为 MSVC 14.44.35207，实际根二进制和验收夹具 PE Machine 均为 `0x8664`。本批使用未优化测试构建。macOS 锁定离线工作区测试、全目标全特性严格 Clippy 和格式通过。三语站点构建及根路径和 `/docs/` 下的 12 项桌面与移动端导航检查通过。
+
+后续常驻服务在已装配、已配置且满足启动条件时默认纳入主应用，并保留关闭和独立运行入口。一次性 Artisan 命令由显式调用执行。本批范围为 HTTP、队列和调度。
+
+配置测试使用平台原生路径组件核对公共存储链接。原有 HTTP 维护和 Reverb 验收夹具显式关闭其未配置的队列，macOS 嵌入式 Reverb、监听冲突、独立 Artisan 和重启验收通过。
+
+Windows 另跑框架的 SQLite 独立 Worker 进程验收，真实 Ctrl+C、在途任务和退出状态的回归通过。

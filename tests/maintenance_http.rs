@@ -46,6 +46,7 @@ impl Server {
             .local_addr()
             .unwrap();
         let child = command(root)
+            .env("RUNTIME_ENABLED", "false")
             .envs(config.iter().copied())
             .env("APP_HOST", "127.0.0.1")
             .env("APP_PORT", address.port().to_string())

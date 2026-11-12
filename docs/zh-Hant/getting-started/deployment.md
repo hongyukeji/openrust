@@ -51,17 +51,15 @@ curl -i http://127.0.0.1:8088/up
 
 ## 一起執行服務
 
-預設執行 `./main` 會啟動 HTTP 及其已設定的監聽器。背景服務可獨立執行，使用 `./main artisan queue:work`、`./main artisan schedule:work` 或 `./main artisan schedule:run`。
+直接執行 `./main` 會啟動 HTTP、預設非同步佇列的 Worker，以及已註冊工作的排程器。`sync` 連線會略過 Worker。gRPC 等監聽器遵循各自的設定。啟動前先準備佇列後端。使用資料庫佇列時，請先執行上面的遷移指令。
 
-若要以一條命令啟動 HTTP、Worker 和排程器，在應用程式環境中設定以下值，然後執行 `./main`。
+可分別設定 `RUNTIME_HTTP=false`、`RUNTIME_QUEUE=false` 或 `RUNTIME_SCHEDULE=false` 停用對應服務。設定 `RUNTIME_ENABLED=false` 後，`./main` 會啟動 HTTP 及其已設定的監聽器，Worker 和排程器可透過獨立 Artisan 啟動。沒有可執行的服務時，啟動會回傳錯誤。
 
-```dotenv
-RUNTIME_ENABLED=true
-RUNTIME_HTTP=true
-RUNTIME_QUEUE=true
-RUNTIME_SCHEDULE=true
+框架新增的常駐服務在完成裝配與設定並符合啟動條件時，預設納入主應用程式啟動。各服務仍可停用或獨立執行。一次性 Artisan 指令由明確呼叫執行。
+
+```sh
+./main artisan queue:work
+./main artisan schedule:work
+./main artisan schedule:run
 ```
-
-啟用統一啟動後，各服務開關預設都是 `true`，設為 `false` 可停用對應服務。Worker 使用預設佇列連線及其預設佇列，跳過使用 `sync` 驅動程式的連線。應用程式註冊了排程工作才會啟動排程器。gRPC 等監聽器仍依各自的設定運作。沒有可執行的服務時，啟動會回傳錯誤。
-
-Ctrl+C 或 Unix 的 SIGTERM 會停止接收新的 HTTP 請求、佇列工作和排程工作，並等待執行中的工作完成。任何受管理的服務結束也會觸發其餘服務關閉。Worker 設定為工作逾時後結束時，應用程式程序會保留它的逾時結束碼。統一啟動的 Worker 與其他服務共用程序，因此停用 Worker 的程序記憶體檢查。需要獨立的記憶體上限、重新啟動策略或命令參數時，請使用獨立的 Worker。 在共用執行環境中執行阻塞程式碼會拖慢 HTTP 和排程。這類工作可交由獨立 Worker 消費，也可使用佇列的強制逾時隔離執行。
+HTTP、受管理的 Worker 和排程器共用應用程式程序。受管理的 Worker 沿用獨立 `queue:work` 的逾時、重試和結束碼。程序 RSS 涵蓋三個服務的記憶體用量，因此受管理的 Worker 不套用獨立記憶體門檻。獨立 `queue:work` 保留現有記憶體上限。啟用強制逾時的工作仍由隔離執行器執行。Ctrl+C 或 Unix SIGTERM 會停止接收新工作，並等待處理中的 HTTP 請求、佇列工作和排程工作完成。任何受管理的服務結束會觸發其餘服務關閉，應用程式程序會傳遞 Worker 的非零結束碼。

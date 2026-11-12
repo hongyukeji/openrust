@@ -37,7 +37,7 @@ mod acceptance {
         queue::{
             events::{
                 JobAttempted, JobExceptionOccurred, JobFailed, JobProcessed, JobProcessing,
-                JobRetryRequested, JobTimedOut, QueueBusy,
+                JobRetryRequested, JobTimedOut, QueueBusy, WorkerStarting,
             },
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
@@ -141,6 +141,10 @@ mod acceptance {
                         .map_err(|source| QueueError::Execution {
                             source: Box::new(source),
                         })?;
+                    }
+                    "runtime-memory" => {
+                        static MEMORY: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+                        std::hint::black_box(MEMORY.get_or_init(|| vec![1; 160 * 1024 * 1024]));
                     }
                     "runtime-drain" => {
                         wait_for_file(&self.0, "runtime-job.release").await;
@@ -438,12 +442,41 @@ mod acceptance {
         }
     }
 
+    struct WorkerObserver(PathBuf);
+
+    impl Listener for WorkerObserver {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let starting = event
+                    .downcast_ref::<WorkerStarting>()
+                    .ok_or(EventError::InvalidPayload)?;
+                std::fs::write(
+                    self.0.join(format!("worker-{}.pid", starting.queue)),
+                    std::process::id().to_string(),
+                )
+                .unwrap();
+                Ok(None)
+            })
+        }
+    }
+
     struct Provider(PathBuf);
     impl ServiceProvider for Provider {
         fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
             Box::pin(async move {
                 if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
                     ClearCommand::prohibit(true)?;
+                }
+                if std::env::var_os("RUNTIME_TEST_TRACE").is_some() {
+                    Event::listen(
+                        WorkerStarting::NAME,
+                        Arc::new(WorkerObserver(self.0.clone())),
+                        Delivery::Sync,
+                    )?;
                 }
                 let sync_observer = Arc::new(SyncObserver(self.0.clone()));
                 for name in [
@@ -544,6 +577,11 @@ mod acceptance {
                 let task = schedule.call(|app, _| {
                     Box::pin(async move {
                         let root = app.base_path();
+                        std::fs::write(
+                            root.join("runtime-schedule.pid"),
+                            std::process::id().to_string(),
+                        )
+                        .unwrap();
                         std::fs::write(root.join("runtime-schedule.started"), []).unwrap();
                         wait_for_file(root, "runtime-schedule.release").await;
                         std::fs::write(root.join("runtime-schedule.complete"), []).unwrap();
@@ -586,7 +624,7 @@ mod acceptance {
                         "file": {"driver": "file", "path": base.join("runtime-cache")}
                     }},
                     "runtime": {
-                        "enabled": env.get_utf8("RUNTIME_ENABLED")? == Some("true"),
+                        "enabled": env.get_utf8("RUNTIME_ENABLED")? != Some("false"),
                         "http": env.get_utf8("RUNTIME_HTTP")? != Some("false"),
                         "queue": env.get_utf8("RUNTIME_QUEUE")? != Some("false"),
                         "schedule": env.get_utf8("RUNTIME_SCHEDULE")? != Some("false")
@@ -1584,11 +1622,16 @@ mod acceptance {
     }
 
     fn runtime_process(root: &Path, address: SocketAddr) -> tokio::process::Command {
-        let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+        runtime_binary(&std::env::current_exe().unwrap(), root, address)
+    }
+
+    fn runtime_binary(binary: &Path, root: &Path, address: SocketAddr) -> tokio::process::Command {
+        let mut command = tokio::process::Command::new(binary);
         command
             .env("APP_BASE_PATH", root)
             .env("APP_PORT", address.port().to_string())
-            .env("RUNTIME_ENABLED", "true")
+            .env_remove("RUNTIME_ENABLED")
+            .env("RUNTIME_TEST_TRACE", "1")
             .env_remove("QUEUE_CONNECTION")
             .kill_on_drop(true);
         #[cfg(windows)]
@@ -1644,7 +1687,29 @@ mod acceptance {
         assert!(signal.status().await.unwrap().success());
     }
 
+    #[cfg(unix)]
+    async fn terminate_runtime(child: &tokio::process::Child) {
+        let pid = child.id().unwrap().to_string();
+        assert!(
+            tokio::process::Command::new("kill")
+                .args(["-TERM", &pid])
+                .status()
+                .await
+                .unwrap()
+                .success()
+        );
+    }
+
+    #[cfg(windows)]
+    async fn terminate_runtime(child: &tokio::process::Child) {
+        interrupt_runtime(child).await;
+    }
+
     async fn wait_for_http(address: SocketAddr) {
+        expect_http(address, "/runtime", "HTTP/1.1 204 ").await;
+    }
+
+    async fn expect_http(address: SocketAddr, path: &str, status: &str) {
         let response = tokio::time::timeout(Duration::from_secs(10), async {
             let mut stream = loop {
                 if let Ok(stream) = tokio::net::TcpStream::connect(address).await {
@@ -1652,17 +1717,16 @@ mod acceptance {
                 }
                 tokio::time::sleep(Duration::from_millis(20)).await;
             };
-            stream
-                .write_all(b"GET /runtime HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
-                .await
-                .unwrap();
+            let request =
+                format!("GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+            stream.write_all(request.as_bytes()).await.unwrap();
             let mut response = String::new();
             stream.read_to_string(&mut response).await.unwrap();
             response
         })
         .await
         .expect("HTTP listener became ready");
-        assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+        assert!(response.starts_with(status), "{response}");
     }
 
     async fn verify_runtime(
@@ -1713,6 +1777,16 @@ mod acceptance {
         wait_for_http(address).await;
         wait_for_file(root, "runtime-schedule.started").await;
         wait_for_file(root, "runtime-drain.pid").await;
+        let worker_pid = std::fs::read_to_string(root.join("worker-default.pid")).unwrap();
+        assert_eq!(worker_pid, unified.id().unwrap().to_string());
+        assert_eq!(
+            worker_pid,
+            std::fs::read_to_string(root.join("runtime-schedule.pid")).unwrap()
+        );
+        assert_ne!(
+            worker_pid,
+            std::fs::read_to_string(root.join("runtime-drain.pid")).unwrap()
+        );
         let mut competing = runtime_process(root, address);
         competing
             .env("RUNTIME_TEST_SCHEDULE", "1")
@@ -1750,6 +1824,7 @@ mod acceptance {
         assert!(root.join("runtime-job.complete").is_file());
         assert!(root.join("runtime-schedule.complete").is_file());
         assert_executor_reaped(root, "runtime-drain");
+        assert!(!process_exists(&worker_pid));
         assert_eq!(queue.size(None).await.unwrap(), 1);
         assert!(!root.join("runtime-next.pid").exists());
 
@@ -1837,6 +1912,9 @@ mod acceptance {
                 assert_eq!(output.status.code(), Some(124), "{output:?}");
                 assert!(tokio::net::TcpStream::connect(address).await.is_err());
                 assert_executor_reaped(root, kind);
+                let worker_pid =
+                    std::fs::read_to_string(root.join(format!("worker-{name}.pid"))).unwrap();
+                assert!(!process_exists(&worker_pid));
                 assert!(root.join(format!("{kind}.timed_out")).is_file());
                 assert_eq!(
                     root.join(format!("{kind}.failed")).is_file(),
@@ -1891,8 +1969,136 @@ mod acceptance {
                     .success()
             );
         }
+        verify_runtime_memory(root, address, queue).await;
         assert_eq!(queue.size(None).await.unwrap(), 0);
+        verify_main_binary(root, address, db, queue).await;
         println!("Unified application runtime acceptance passed");
+    }
+
+    async fn verify_main_binary(
+        root: &Path,
+        address: SocketAddr,
+        db: &DatabaseConnection,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let payload = Payload::new("runtime-unregistered-job", ()).unwrap();
+        let uuid = payload.uuid().to_owned();
+        queue.push(&payload, Some("main-runtime")).await.unwrap();
+        for enabled in [false, true] {
+            let mut command = runtime_binary(Path::new(env!("CARGO_BIN_EXE_main")), root, address);
+            command
+                .env("APP_ENV", "testing")
+                .env("APP_HOST", "127.0.0.1")
+                .env("APP_KEY", "01234567890123456789012345678901")
+                .env("CACHE_STORE", "array")
+                .env("SESSION_DRIVER", "array")
+                .env("DB_CONNECTION", "sqlite")
+                .env("DB_DATABASE", root.join("queue.sqlite"))
+                .env("QUEUE_CONNECTION", "database")
+                .env("DB_QUEUE", "main-runtime");
+            if !enabled {
+                command
+                    .env("RUNTIME_ENABLED", "false")
+                    .env("RUNTIME_HTTP", "false");
+            }
+            let mut child = command.spawn().unwrap();
+            expect_http(address, "/up", "HTTP/1.1 200 ").await;
+            if enabled {
+                tokio::time::timeout(Duration::from_secs(10), async {
+                    while db
+                        .select(
+                            "select uuid from failed_jobs where uuid = ?",
+                            &[uuid.clone().into()],
+                        )
+                        .await
+                        .unwrap()
+                        .is_empty()
+                    {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                    }
+                })
+                .await
+                .expect("default main did not start the database Worker");
+            } else {
+                assert_eq!(queue.size(Some("main-runtime")).await.unwrap(), 1);
+            }
+            terminate_runtime(&child).await;
+            assert!(
+                tokio::time::timeout(Duration::from_secs(10), child.wait())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .success()
+            );
+        }
+        assert_eq!(queue.size(Some("main-runtime")).await.unwrap(), 0);
+        println!("Stock main default runtime and explicit opt-out acceptance passed");
+    }
+
+    async fn verify_runtime_memory(
+        root: &Path,
+        address: SocketAddr,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        for (managed, name) in [(false, "artisan-memory"), (true, "runtime-memory")] {
+            let pending = Payload::new("hard-timeout-probe", "runtime-next").unwrap();
+            let heavy = Payload::new("hard-timeout-probe", "runtime-memory").unwrap();
+            let next = root.join("runtime-next.pid");
+            if next.is_file() {
+                std::fs::remove_file(&next).unwrap();
+            }
+            queue.push(&heavy, Some(name)).await.unwrap();
+            queue.push(&pending, Some(name)).await.unwrap();
+            let mut command = runtime_process(root, address);
+            command.env("RUNTIME_TEST_QUEUE", name);
+            if managed {
+                let mut child = command.spawn().unwrap();
+                wait_for_http(address).await;
+                wait_for_file(root, "runtime-next.pid").await;
+                assert!(child.try_wait().unwrap().is_none());
+                assert_eq!(
+                    std::fs::read_to_string(root.join("runtime-memory.pid")).unwrap(),
+                    child.id().unwrap().to_string()
+                );
+                terminate_runtime(&child).await;
+                assert!(
+                    tokio::time::timeout(Duration::from_secs(10), child.wait())
+                        .await
+                        .unwrap()
+                        .unwrap()
+                        .success()
+                );
+                assert_eq!(queue.size(Some(name)).await.unwrap(), 0);
+                continue;
+            }
+            command.args(["artisan", "queue:work"]);
+            let result = runtime_output(&mut command).await;
+            assert!(!String::from_utf8_lossy(&result.stdout).contains("listening on"));
+            assert_eq!(result.status.code(), Some(12), "{result:?}");
+            assert!(
+                String::from_utf8_lossy(&result.stdout).contains("STOPPED Memory limit exceeded"),
+                "{result:?}"
+            );
+            assert_eq!(queue.size(Some(name)).await.unwrap(), 1);
+            assert!(!next.exists());
+            let pid = std::fs::read_to_string(root.join(format!("worker-{name}.pid"))).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(root.join("runtime-memory.pid")).unwrap(),
+                pid
+            );
+            assert!(!process_exists(&pid));
+            let mut command = runtime_process(root, address);
+            command.env("RUNTIME_TEST_QUEUE", name).args([
+                "artisan",
+                "queue:work",
+                "--stop-when-empty",
+            ]);
+            let result = runtime_output(&mut command).await;
+            assert!(result.status.success(), "{result:?}");
+            assert!(next.is_file());
+            assert_eq!(queue.size(Some(name)).await.unwrap(), 0);
+        }
+        println!("Shared and standalone Worker memory policy acceptance passed");
     }
 
     async fn exercise(backend: &str) {

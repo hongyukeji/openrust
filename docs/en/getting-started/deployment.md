@@ -51,17 +51,15 @@ The source `artisan` script runs Cargo. A standalone deployment does not require
 
 ## Run Services Together
 
-By default, `./main` starts HTTP and the listeners enabled for it. Run background services independently with `./main artisan queue:work` and `./main artisan schedule:work` or `./main artisan schedule:run`.
+Run `./main` to start HTTP, the Worker for the default asynchronous queue, and the scheduler when tasks are registered. Connections using the `sync` driver skip the Worker. Other listeners such as gRPC follow their own configuration. Prepare the queue's backend before starting the application. For a database queue, run the migrations above.
 
-To run HTTP, the Worker, and the scheduler with one invocation, set these values in the application environment and start `./main`:
+Set `RUNTIME_HTTP=false`, `RUNTIME_QUEUE=false`, or `RUNTIME_SCHEDULE=false` to disable a service individually. Set `RUNTIME_ENABLED=false` to use HTTP startup with its configured listeners and leave the Worker and scheduler to independent Artisan commands. If all applicable services are disabled, startup returns an error.
 
-```dotenv
-RUNTIME_ENABLED=true
-RUNTIME_HTTP=true
-RUNTIME_QUEUE=true
-RUNTIME_SCHEDULE=true
+New long-running services join application startup by default once they are registered, configured, and ready to start. They can still be disabled or run independently. One-off Artisan commands run only when explicitly invoked.
+
+```sh
+./main artisan queue:work
+./main artisan schedule:work
+./main artisan schedule:run
 ```
-
-With unified startup enabled, each service switch defaults to `true`. Set a switch to `false` to skip that service. The Worker uses the default queue connection and queue, and skips connections using the `sync` driver. The scheduler starts only when the application registers tasks. Other configured listeners, such as gRPC, still use their own settings. Startup fails if there is no service to run.
-
-Ctrl+C, or SIGTERM on Unix, stops accepting HTTP requests and new queue or schedule work. The process waits for active work to finish. If a managed service exits, the process also shuts down the remaining services. A Worker configured to exit on job timeout passes its timeout exit code to the application process. The managed Worker's memory check is disabled because it shares the process with the other services. Use an independent Worker when you need a separate memory limit, restart policy, or command options. Jobs that run blocking code in the shared runtime can delay HTTP and scheduling. Keep such jobs in a separate Worker or use the queue’s isolated hard-timeout execution.
+HTTP, the managed Worker, and the scheduler share the application process. The managed Worker uses the same timeout, retries, and exit codes as independent `queue:work`. It skips the Worker memory limit because process RSS includes all three services. Independent `queue:work` retains its memory limit. Jobs configured for hard timeouts still run in isolated executors. Ctrl+C or Unix SIGTERM stops accepting new work and waits for active requests, queue jobs, and scheduled tasks. When a managed service exits, the application shuts down the other services and propagates a nonzero Worker exit code.
