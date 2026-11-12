@@ -15,8 +15,6 @@ pub(super) fn load(
     let mask_bindings = get(env, "DB_MASK_BINDINGS", false)?;
     let mysql = mysql_connection(env, "mysql", &url, &mask_bindings)?;
     let mariadb = mysql_connection(env, "mariadb", &url, &mask_bindings)?;
-    let redis_database = get(env, "REDIS_DB", 0)?;
-    let redis_cache_database = get(env, "REDIS_CACHE_DB", redis_database.clone())?;
     let direct = [
         ("host", get(env, "DB_DIRECT_HOST", Value::Null)?),
         ("port", json!(optional_integer(env, "DB_DIRECT_PORT")?)),
@@ -87,8 +85,8 @@ pub(super) fn load(
                 "prefix": get(env, "REDIS_PREFIX", format!("{}-database-", slug(app_name)))?,
                 "persistent": get(env, "REDIS_PERSISTENT", false)?,
             },
-            "default": redis_connection(env, redis_database)?,
-            "cache": redis_connection(env, redis_cache_database)?,
+            "default": redis_connection(env, "REDIS_DB", 0)?,
+            "cache": redis_connection(env, "REDIS_CACHE_DB", get(env, "REDIS_DB", 0)?)?,
         },
     }))
 }
@@ -125,14 +123,18 @@ fn mysql_connection(
     }))
 }
 
-fn redis_connection(env: &Environment, database: Value) -> Result<Value, ConfigError> {
+fn redis_connection(
+    env: &Environment,
+    database_key: &str,
+    database: impl Into<Value>,
+) -> Result<Value, ConfigError> {
     Ok(json!({
         "url": get(env, "REDIS_URL", Value::Null)?,
         "host": get(env, "REDIS_HOST", "127.0.0.1")?,
         "username": get(env, "REDIS_USERNAME", Value::Null)?,
         "password": get(env, "REDIS_PASSWORD", Value::Null)?,
         "port": get(env, "REDIS_PORT", 6379)?,
-        "database": database,
+        "database": get(env, database_key, database)?,
         "max_retries": get(env, "REDIS_MAX_RETRIES", 3)?,
         "backoff_algorithm": get(env, "REDIS_BACKOFF_ALGORITHM", "decorrelated_jitter")?,
         "backoff_base": get(env, "REDIS_BACKOFF_BASE", 100)?,
