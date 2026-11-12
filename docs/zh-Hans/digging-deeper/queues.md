@@ -148,6 +148,18 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 
 达到空闲时限时，退出原因为 `empty_for`。设为零可关闭空闲时限。`--stop-when-empty` 会在无可用任务时立即退出。设置空闲时限后，Redis 阻塞取任务最多等待剩余的空闲时间。
 
+### 响应 Worker 系统信号 {#reacting-to-worker-signals}
+
+在 Unix 上，向一个 Worker 守护进程发送 `SIGUSR2` 可暂停后续轮询，发送 `SIGCONT` 可恢复。Worker 会完成已预约的任务。这两个信号分别派发 `WorkerPausing` 和 `WorkerResuming`，共享队列的暂停设置保持原样。请使用编译后 Worker 进程的 PID。
+
+```sh
+kill -s USR2 "$WORKER_PID"
+kill -s CONT "$WORKER_PID"
+kill -s TERM "$WORKER_PID"
+```
+
+Unix 上的 `SIGTERM`、`SIGQUIT` 和 `SIGINT` 请求优雅退出，Windows 可用 Ctrl+C。守护进程派发 `WorkerInterrupted`，等待当前任务完成，再派发 `WorkerStopping`。监听器可读取信号编号、连接、队列及 Worker 选项。已开始的驱动阻塞预约可能在暂停生效前返回。
+
 ### 暂停和恢复队列 Worker {#pausing-and-resuming-queue-workers}
 
 通过连接和队列名称暂停队列。只写队列名时使用默认连接。Worker 会完成当前任务，此后跳过已暂停的队列，并继续处理其他可用队列。

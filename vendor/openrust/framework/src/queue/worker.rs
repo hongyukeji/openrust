@@ -4,6 +4,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -30,6 +31,7 @@ use super::{
         WorkerIdle, WorkerQueuePaused, WorkerQueueResumed, WorkerStarting, WorkerStopping,
     },
     failed::{FailedJob, FailedJobProviderInterface},
+    worker_signals::WorkerSignalState,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,6 +47,7 @@ pub(super) struct WorkerCadence {
     pub single_run: bool,
     pub rest: Duration,
     pub stop_when_empty_for: Option<Duration>,
+    pub signal_state: Option<watch::Receiver<WorkerSignalState>>,
 }
 
 pub(super) enum WorkerStatus<'a> {
@@ -175,8 +178,13 @@ impl Worker {
         let mut idle_since = start;
         let mut last_job_processed_at = None;
         let mut paused: Vec<&str> = Vec::new();
+        let mut signal_state = cadence.signal_state.clone();
         let reason = loop {
             if shutdown.is_cancelled() {
+                break WorkerStopReason::Interrupted;
+            }
+            if current_signal_state(&signal_state) == WorkerSignalState::Stopping {
+                shutdown.cancelled().await;
                 break WorkerStopReason::Interrupted;
             }
             if let Some(control) = &control
@@ -196,7 +204,11 @@ impl Worker {
             let idle_deadline = cadence
                 .stop_when_empty_for
                 .and_then(|limit| idle_since.checked_add(limit));
+            let worker_paused = current_signal_state(&signal_state) != WorkerSignalState::Running;
             let reservation = async {
+                if worker_paused {
+                    return Ok((false, None));
+                }
                 if !cadence.single_run
                     && !manager
                         .allows_polling(Looping {
@@ -333,6 +345,7 @@ impl Worker {
                     () = shutdown.cancelled() => break WorkerStopReason::Interrupted,
                     () = wait_until(deadline) => break WorkerStopReason::MaxTimeExceeded,
                     () = wait_until(idle_deadline) => {},
+                    () = signal_state_changed(&mut signal_state) => continue,
                     () = tokio::time::sleep(sleep) => {},
                 }
                 if !polled && options.stop_when_empty {
@@ -371,7 +384,7 @@ impl Worker {
         false
     }
 
-    async fn report_worker_error(&self, error: &QueueError) {
+    pub(super) async fn report_worker_error(&self, error: &QueueError) {
         if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
             application_scope(self.app.clone(), async {
                 let _ = handler.report(&Exception::Error(error)).await;
@@ -726,6 +739,21 @@ impl Worker {
         }
         Ok(WorkResult::Failed)
     }
+}
+
+fn current_signal_state(state: &Option<watch::Receiver<WorkerSignalState>>) -> WorkerSignalState {
+    state
+        .as_ref()
+        .map_or(WorkerSignalState::Running, |state| *state.borrow())
+}
+
+async fn signal_state_changed(state: &mut Option<watch::Receiver<WorkerSignalState>>) {
+    if let Some(state) = state
+        && state.changed().await.is_ok()
+    {
+        return;
+    }
+    std::future::pending().await
 }
 
 fn attempt_exception_message(error: &QueueError) -> String {

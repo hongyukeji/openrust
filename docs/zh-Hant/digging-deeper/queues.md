@@ -148,6 +148,18 @@ Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行�
 
 達到閒置時限時，結束原因為 `empty_for`。設為零可關閉閒置時限。`--stop-when-empty` 會在沒有可用工作時立即結束。設定閒置時限後，Redis 阻塞取工作最多等待剩餘的閒置時間。
 
+### 回應 Worker 系統訊號 {#reacting-to-worker-signals}
+
+在 Unix 上，向一個 Worker 常駐程序傳送 `SIGUSR2` 可暫停後續輪詢，傳送 `SIGCONT` 可恢復。Worker 會完成已預約的工作。這兩個訊號分別派發 `WorkerPausing` 和 `WorkerResuming`，共用佇列的暫停設定維持原樣。請使用編譯後 Worker 程序的 PID。
+
+```sh
+kill -s USR2 "$WORKER_PID"
+kill -s CONT "$WORKER_PID"
+kill -s TERM "$WORKER_PID"
+```
+
+Unix 上的 `SIGTERM`、`SIGQUIT` 和 `SIGINT` 請求正常停止，Windows 可用 Ctrl+C。常駐程序派發 `WorkerInterrupted`，等待目前工作完成，再派發 `WorkerStopping`。監聽器可讀取訊號編號、連線、佇列及 Worker 選項。已開始的驅動程式阻塞預約可能在暫停生效前傳回。
+
 ### 暫停和恢復佇列 Worker {#pausing-and-resuming-queue-workers}
 
 透過連線和佇列名稱暫停佇列。只寫佇列名稱時使用預設連線。Worker 會完成目前工作，此後略過已暫停的佇列，並繼續處理其他可用佇列。

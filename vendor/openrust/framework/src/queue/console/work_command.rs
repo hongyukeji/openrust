@@ -1,13 +1,18 @@
 use std::time::Duration;
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
+use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
-    queue::{QueueManager, Worker, WorkerOptions, worker::WorkerCadence},
+    queue::{
+        QueueManager, Worker, WorkerOptions,
+        worker::WorkerCadence,
+        worker_signals::{WorkerSignalState, WorkerSignals},
+    },
 };
 
 use super::worker_output::WorkerOutput;
@@ -91,7 +96,7 @@ impl Command for WorkCommand {
                     .map(duration),
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
             };
-            let cadence = if once {
+            let mut cadence = if once {
                 WorkerCadence {
                     single_run: true,
                     ..WorkerCadence::default()
@@ -102,6 +107,7 @@ impl Command for WorkCommand {
                     single_run: false,
                     rest: duration(number("rest")),
                     stop_when_empty_for: (empty > 0).then(|| duration(empty)),
+                    signal_state: None,
                 }
             };
             let config = app.config().map_err(error)?;
@@ -118,18 +124,48 @@ impl Command for WorkCommand {
                 .unwrap_or(chrono_tz::UTC);
             let mut status = WorkerOutput::new(output, args, timezone);
             let shutdown = CancellationToken::new();
-            let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
-            let result = worker
-                .daemon_with_status(
+            let result = if once {
+                let listener = crate::console::monitor_signals(shutdown.clone()).map_err(error)?;
+                let result = worker
+                    .daemon_with_status(
+                        &*connection,
+                        &queues,
+                        &options,
+                        &cadence,
+                        &shutdown,
+                        |event| status.write(event),
+                    )
+                    .await;
+                listener.abort();
+                result
+            } else {
+                let (signal_state, state) = watch::channel(WorkerSignalState::Running);
+                cadence.signal_state = Some(state);
+                let mut signals = WorkerSignals::new(
+                    connection.get_connection_name(),
+                    if queues.is_empty() {
+                        connection.default_queue().to_owned()
+                    } else {
+                        queues.join(",")
+                    },
+                    &options,
+                )
+                .map_err(error)?;
+                let run = worker.daemon_with_status(
                     &*connection,
                     &queues,
                     &options,
                     &cadence,
                     &shutdown,
                     |event| status.write(event),
-                )
-                .await;
-            listener.abort();
+                );
+                tokio::pin!(run);
+                tokio::select! {
+                    biased;
+                    () = signals.monitor(&worker, &manager, &shutdown, &signal_state) => run.await,
+                    result = &mut run => result,
+                }
+            };
             result.map_err(error)?;
             Ok(0)
         })

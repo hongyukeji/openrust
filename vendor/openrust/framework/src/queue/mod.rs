@@ -20,6 +20,7 @@ mod sync_queue;
 mod worker;
 mod worker_control;
 mod worker_options;
+mod worker_signals;
 mod worker_stop_reason;
 
 use std::{

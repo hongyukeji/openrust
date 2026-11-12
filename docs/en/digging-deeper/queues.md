@@ -148,6 +148,18 @@ Use `--rest` to wait between job attempts. Use `--stop-when-empty-for` to stop a
 
 This worker reports `empty_for` when the idle limit is met. A value of zero disables the idle limit. `--stop-when-empty` still exits as soon as no job is available. With an idle limit, a Redis blocking reservation waits at most for the remaining idle window.
 
+### Reacting to worker signals {#reacting-to-worker-signals}
+
+On Unix, send `SIGUSR2` to pause new polls in a single daemon and `SIGCONT` to resume them. The worker finishes a job it has already reserved. These signals emit `WorkerPausing` and `WorkerResuming` and leave shared queue pause settings untouched. Target the compiled worker process by PID.
+
+```sh
+kill -s USR2 "$WORKER_PID"
+kill -s CONT "$WORKER_PID"
+kill -s TERM "$WORKER_PID"
+```
+
+On Unix, `SIGTERM`, `SIGQUIT`, and `SIGINT` request a graceful stop. On Windows, Ctrl+C requests the same stop. The daemon emits `WorkerInterrupted` before `WorkerStopping` and lets its current job finish. The signal number, connection, queues, and worker options are available to listeners. A blocking driver reservation that has already begun can return before a pause takes effect.
+
 ### Pausing and resuming queue workers {#pausing-and-resuming-queue-workers}
 
 Pause a queue by its connection and name. A bare queue name uses the default connection. A worker finishes its current job and skips the paused queue while continuing to serve any other eligible queues.

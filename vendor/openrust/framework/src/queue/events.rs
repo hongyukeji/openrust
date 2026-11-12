@@ -77,6 +77,34 @@ queue_event!(
 );
 
 queue_event!(
+    /// A daemon received a process signal requesting a graceful stop.
+    WorkerInterrupted {
+        signal: i32,
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
+    /// A daemon received a process signal to pause polling.
+    WorkerPausing {
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
+    /// A daemon received a process signal to resume polling.
+    WorkerResuming {
+        connection_name: String,
+        queue: String,
+        worker_options: WorkerOptions,
+    }
+);
+
+queue_event!(
     /// A worker completed a graceful stop.
     WorkerStopping {
         status: i32,

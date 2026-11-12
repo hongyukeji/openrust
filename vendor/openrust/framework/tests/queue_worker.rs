@@ -38,8 +38,9 @@ use openrust::{
         events::{
             JobAttempted, JobExceptionOccurred, JobFailed, JobPopped, JobPopping, JobProcessed,
             JobProcessing, JobReleased, JobReleasedAfterException, JobTimedOut, Looping,
-            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle, WorkerQueuePaused,
-            WorkerQueueResumed, WorkerStarting, WorkerStopping,
+            QueuePaused, QueueResumed, QueuesPaused, QueuesResumed, WorkerIdle, WorkerInterrupted,
+            WorkerPausing, WorkerQueuePaused, WorkerQueueResumed, WorkerResuming, WorkerStarting,
+            WorkerStopping,
         },
         middleware::{JobMiddleware, JobNext},
     },
@@ -145,7 +146,7 @@ impl JobHandler for Handler {
                 {
                     return Err(execution(std::io::Error::other("terminal")));
                 }
-                "pause_gate" | "restart_gate" => {
+                "pause_gate" | "restart_gate" | "signal_gate" => {
                     let release = format!("{}_release", payload.name());
                     while db
                         .table("receipts")
@@ -238,6 +239,13 @@ impl Listener for ControlListener {
                     format!("stop:{:?}", event.reason),
                     i64::try_from(event.jobs_processed).unwrap(),
                 )
+            } else if let Some(event) = event.downcast_ref::<WorkerInterrupted>() {
+                assert_eq!(event.queue, "default");
+                assert!(matches!(
+                    event.connection_name.as_str(),
+                    "database" | "redis"
+                ));
+                (event.name().to_owned(), i64::from(event.signal))
             } else {
                 (event.name().to_owned(), value)
             };
@@ -417,6 +425,9 @@ fn listeners(registry: &mut ListenerRegistry) -> EventResult<()> {
         WorkerQueueResumed::NAME,
         WorkerStarting::NAME,
         WorkerIdle::NAME,
+        WorkerInterrupted::NAME,
+        WorkerPausing::NAME,
+        WorkerResuming::NAME,
         WorkerStopping::NAME,
     ] {
         registry.listen(event, Arc::new(ControlListener), Delivery::Sync)?;
@@ -471,6 +482,7 @@ impl ServiceProvider for Providers {
                 "slow",
                 "pause_gate",
                 "restart_gate",
+                "signal_gate",
                 "control_default",
                 "control_low",
             ] {
@@ -945,6 +957,8 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_lifecycle(&root.0, &db, &*queue, address).await;
     verify_job_pop_events(&root.0, &db, &*queue, address).await;
     verify_job_attempt_events(&root.0, &db, &*queue, address).await;
+    #[cfg(unix)]
+    verify_worker_signals(&root.0, &db, &*queue, address).await;
     server.abort();
     for table in ["receipts", "jobs", "failed_jobs"] {
         schema.dropIfExists(table).await.unwrap();
@@ -1524,6 +1538,118 @@ async fn verify_job_attempt_events(
     );
     assert_eq!(count().await, before + 2);
     assert_eq!(queue.size(None).await.unwrap(), 0);
+}
+
+#[cfg(unix)]
+async fn verify_worker_signals(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    async fn wait_for(db: &openrust::database::Connection, name: &str) {
+        timeout(Duration::from_secs(5), async {
+            while db
+                .table("receipts")
+                .r#where("name", "=", name)
+                .count("*")
+                .await
+                .unwrap()
+                == 0
+            {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("missing receipt {name}"));
+    }
+    fn send(worker: &tokio::process::Child, signal: rustix::process::Signal) {
+        let pid = rustix::process::Pid::from_raw(worker.id().unwrap().try_into().unwrap()).unwrap();
+        rustix::process::kill_process(pid, signal).unwrap();
+    }
+
+    use rustix::process::Signal;
+    request(address, "signal_gate").await;
+    let mut worker = artisan(root, &["queue:work", "--json", "--sleep=1"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    wait_for(db, "signal_gate").await;
+    send(&worker, Signal::USR2);
+    wait_for(db, WorkerPausing::NAME).await;
+    request(address, "control_default").await;
+    db.statement(
+        "insert into receipts (name, value) values ('signal_gate_release', 1)",
+        &[],
+    )
+    .await
+    .unwrap();
+    wait_for(db, "signal_gate_done").await;
+    sleep(Duration::from_millis(250)).await;
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    send(&worker, Signal::CONT);
+    wait_for(db, WorkerResuming::NAME).await;
+    timeout(Duration::from_secs(5), async {
+        while queue.size(None).await.unwrap() > 0 {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+
+    send(&worker, Signal::QUIT);
+    assert!(
+        timeout(Duration::from_secs(5), worker.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    let rows = captured_worker_output(&mut worker).await;
+    assert_eq!(rows.last().unwrap()["reason"], "interrupted");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 2);
+    let starts = || async {
+        db.table("receipts")
+            .r#where("name", "=", WorkerStarting::NAME)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let before = starts().await;
+    let mut idle = artisan(root, &["queue:work", "--json", "--sleep=1"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    timeout(Duration::from_secs(5), async {
+        while starts().await == before {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    send(&idle, Signal::INT);
+    assert!(
+        timeout(Duration::from_secs(5), idle.wait())
+            .await
+            .unwrap()
+            .unwrap()
+            .success()
+    );
+    let rows = captured_worker_output(&mut idle).await;
+    assert_eq!(rows.last().unwrap()["reason"], "interrupted");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 0);
+
+    for signal in [Signal::TERM, Signal::QUIT, Signal::INT] {
+        assert_eq!(
+            db.table("receipts")
+                .r#where("name", "=", WorkerInterrupted::NAME)
+                .r#where("value", "=", i64::from(signal.as_raw()))
+                .count("*")
+                .await
+                .unwrap(),
+            1,
+        );
+    }
 }
 
 #[tokio::test]
