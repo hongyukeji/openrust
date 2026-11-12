@@ -10,6 +10,7 @@ The current source tree declares development version `0.0.0` in `Cargo.toml`. Bu
 | --- | --- |
 | macOS ARM64, Rust 1.94.0 | Source installation and standalone deployment, HTTP and Artisan |
 | Linux ARM64, Debian Bookworm container, Rust 1.94.0 | Standalone deployment, HTTP, SQLite migrations and Artisan under an unprivileged user |
+| Linux ARM64, Debian Bookworm container, LinuxKit 7.0.14 | Default same-process startup, SQLite queue parity with Artisan and graceful shutdown on SIGTERM |
 | SQLite | Fresh application migration and standalone application startup |
 | MySQL 8.4 | Standalone migrations on macOS ARM64 and framework Eloquent integration acceptance |
 | Redis 8.10 | Queue acceptance and Reverb publication between two processes |

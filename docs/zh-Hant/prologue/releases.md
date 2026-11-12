@@ -10,6 +10,7 @@
 | --- | --- |
 | macOS ARM64、Rust 1.94.0 | 原始碼安裝、獨立部署、HTTP 和 Artisan |
 | Linux ARM64、Debian Bookworm 容器、Rust 1.94.0 | 以非特權使用者執行獨立產物、HTTP、SQLite 遷移及 Artisan |
+| Linux ARM64、Debian Bookworm 容器、LinuxKit 7.0.14 | 預設同程序啟動、SQLite 佇列與獨立 Artisan 對照、SIGTERM 優雅結束 |
 | SQLite | 新應用程式遷移及獨立應用程式啟動 |
 | MySQL 8.4 | macOS ARM64 獨立產物遷移及框架 Eloquent 整合驗收 |
 | Redis 8.10 | 佇列驗收及兩個程序間的 Reverb 發佈 |

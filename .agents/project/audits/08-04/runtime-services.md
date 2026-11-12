@@ -52,3 +52,13 @@ Windows 另跑框架的 SQLite 独立 Worker 进程验收，真实 Ctrl+C、在�
 - 根应用 `main.exe` 在两个后端上验证默认 HTTP `/up` 和 Worker 消费，并验证 `RUNTIME_ENABLED=false` 保留 HTTP、队列任务等待独立消费。
 
 macOS 锁定离线工作区测试、严格 Clippy、格式和差异检查通过。
+
+## Linux ARM64 同进程补验
+
+在 macOS ARM64 宿主的 Docker Desktop Linux 虚拟机中运行 Debian 12 Bookworm ARM64 容器，实测内核 `7.0.14-linuxkit`。容器使用 `--init`，Rust/Cargo 1.94.0。基线为 `738b336d88d987fe4e1195fdd0f93480a1824d30`，并应用已本地提交的进程夹具扩展与受管 Artisan 栈修复 `f4452de5bdd2fd9025e7d5c1d7743928d9a0844b`。使用现有 `RUNTIME_*` 配置契约，锁文件和验收输入哈希与 Windows 候选一致。
+
+- `cargo +1.94.0 test --locked --offline --target aarch64-unknown-linux-gnu --test queue_hard_timeout` 退出 `0`。根应用与验收夹具均为未优化 ELF64 AArch64。Linux 本批使用 SQLite。
+- 根应用 `main` 验证默认 HTTP 和 Worker 消费、显式关闭。以同一夹具核对 HTTP、Worker 和调度同进程、分别关闭服务、同步连接及空调度跳过、独立 Artisan。Worker、调度和主进程的 PID 一致，硬超时执行器 PID 独立。
+- 两种入口用隔离队列运行等价任务，强制超时均退出 `124`，验证进程树回收、失败回调及按 UUID 的 `failOnTimeout` 记录、租约后重试和后续消费。独立 `schedule:run` 使用同一文件锁跳过重叠任务。
+- 向两个入口在任务进行中分别发送真实 SIGTERM，已开始的队列任务完成，下一项保留并由独立 Worker 消费。统一启动同时完成在途调度任务，停止 HTTP 监听，两种入口均退出 `0`。
+- 三语发布说明记录 Linux ARM64 容器证据。三语站点构建通过，根路径与 `/docs/` 的 12 项浏览器导航检查通过。
