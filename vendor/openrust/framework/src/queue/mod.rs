@@ -53,6 +53,7 @@ pub enum QueueError {
     UnsupportedDriver(String),
     Unavailable(crate::contracts::container::BindingResolutionError),
     UnknownJob(String),
+    UnknownBatchCallback(String),
     LostReservation,
     Backend {
         source: Box<dyn Error + Send + Sync>,
@@ -69,6 +70,9 @@ impl std::fmt::Display for QueueError {
                 write!(f, "queue connection {name:?} is not configured")
             }
             Self::UnsupportedDriver(name) => write!(f, "queue driver {name:?} is unavailable"),
+            Self::UnknownBatchCallback(name) => {
+                write!(f, "batch callback {name:?} is not registered")
+            }
             Self::UnknownJob(name) => write!(f, "queued job {name:?} is not registered"),
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
             Self::Timeout => f.write_str("queued job timed out"),

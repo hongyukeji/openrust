@@ -5,7 +5,7 @@ use crate::{
     support::facades::Queue,
 };
 
-use super::Batch;
+use super::{Batch, BatchPhase};
 
 /// Builds a batch for a single queue connection and queue.
 pub struct PendingBatch {
@@ -40,6 +40,44 @@ impl PendingBatch {
 
     pub fn allowFailures(mut self) -> Self {
         self.options.insert("allowFailures".into(), true.into());
+        self
+    }
+
+    pub fn before(self, callback: impl Into<String>) -> Self {
+        self.callback(BatchPhase::Before, callback.into())
+    }
+
+    pub fn progress(self, callback: impl Into<String>) -> Self {
+        self.callback(BatchPhase::Progress, callback.into())
+    }
+
+    pub fn then(self, callback: impl Into<String>) -> Self {
+        self.callback(BatchPhase::Then, callback.into())
+    }
+
+    pub fn catch(self, callback: impl Into<String>) -> Self {
+        self.callback(BatchPhase::Catch, callback.into())
+    }
+
+    pub fn finally(self, callback: impl Into<String>) -> Self {
+        self.callback(BatchPhase::Finally, callback.into())
+    }
+
+    /// Allows failures and registers a callback for each terminal job failure.
+    pub fn onFailure(self, callback: impl Into<String>) -> Self {
+        self.allowFailures()
+            .callback(BatchPhase::Failure, callback.into())
+    }
+
+    fn callback(mut self, phase: BatchPhase, name: String) -> Self {
+        let names = self
+            .options
+            .entry(phase.key())
+            .or_insert_with(|| Value::Array(Vec::new()));
+        names
+            .as_array_mut()
+            .expect("callback names")
+            .push(name.into());
         self
     }
 

@@ -122,14 +122,11 @@ impl Worker {
                 WorkResult::Failed
             });
         }
-        if self
-            .failed
-            .find(job.uuid())
-            .await?
-            .is_some_and(|failed| failed.payload.delivery_id == job.payload().delivery_id)
+        if let Some(failed) = self.failed.find(job.uuid()).await?
+            && failed.payload.delivery_id == job.payload().delivery_id
         {
             if let Some(batch) = &batch {
-                batch.record(false).await?;
+                batch.record(&self.app, Some(&failed.exception)).await?;
             }
             job.delete().await?;
             return Ok(WorkResult::Failed);
@@ -166,7 +163,7 @@ impl Worker {
         match result {
             Ok(()) => {
                 if let Some(batch) = &batch {
-                    batch.record(true).await?;
+                    batch.record(&self.app, None).await?;
                 }
                 job.delete().await?;
                 Ok(WorkResult::Processed)
@@ -204,7 +201,7 @@ impl Worker {
     ) -> QueueResult<WorkResult> {
         self.failed.log(&FailedJob::new(job, error)).await?;
         if let Some(batch) = batch {
-            batch.record(false).await?;
+            batch.record(&self.app, Some(&error.to_string())).await?;
         }
         job.fail(Some(error)).await?;
         Ok(WorkResult::Failed)
@@ -213,6 +210,7 @@ impl Worker {
 
 struct BatchCompletion {
     repository: DatabaseBatchRepository,
+    queue: Arc<QueueManager>,
     id: String,
     job: String,
     delivery: String,
@@ -228,6 +226,7 @@ impl BatchCompletion {
             .map_err(QueueError::Unavailable)?;
         Ok(Some(Self {
             repository: queue.batch_repository()?,
+            queue,
             id: id.to_owned(),
             job: job.uuid().to_owned(),
             delivery: job.payload().delivery_id.clone().unwrap_or_default(),
@@ -240,10 +239,20 @@ impl BatchCompletion {
             .await
     }
 
-    async fn record(&self, succeeded: bool) -> QueueResult<()> {
-        self.repository
-            .record(&self.id, &self.job, &self.delivery, succeeded)
-            .await
+    async fn record(&self, app: &Arc<Container>, failure: Option<&str>) -> QueueResult<()> {
+        if let Some(transition) = self
+            .repository
+            .record(&self.id, &self.job, &self.delivery, failure.is_none())
+            .await?
+        {
+            isolated_scope(
+                app.clone(),
+                self.queue
+                    .run_batch_callbacks(&transition.batch, &transition.phases, failure),
+            )
+            .await;
+        }
+        Ok(())
     }
 }
 

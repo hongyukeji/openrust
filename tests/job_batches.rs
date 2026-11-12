@@ -7,6 +7,7 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    bus::Batch,
     cache::CacheManager,
     contracts::{
         cache::LockProvider as _, container::Container as _, foundation::Application as _,
@@ -51,9 +52,77 @@ impl ServiceProvider for Provider {
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             Queue::register("reports.generate", Arc::new(Probe))?;
+            register_callbacks()?;
             Ok(())
         })
     }
+}
+
+fn register_callbacks() -> QueueResult<()> {
+    Bus::registerBatchCallback("reports.before", |batch, failure| {
+        Box::pin(record_callback(batch, "before", failure))
+    })?;
+    Bus::registerBatchCallback("reports.progress", |batch, failure| {
+        Box::pin(record_callback(batch, "progress", failure))
+    })?;
+    Bus::registerBatchCallback("reports.then", |batch, failure| {
+        Box::pin(record_callback(batch, "then", failure))
+    })?;
+    Bus::registerBatchCallback("reports.catch", |batch, failure| {
+        Box::pin(record_callback(batch, "catch", failure))
+    })?;
+    Bus::registerBatchCallback("reports.finally", |batch, failure| {
+        Box::pin(record_callback(batch, "finally", failure))
+    })?;
+    Bus::registerBatchCallback("reports.failure", |batch, failure| {
+        Box::pin(record_callback(batch, "failure", failure))
+    })?;
+    Bus::registerBatchCallback("reports.broken", |_, _| {
+        Box::pin(async { Err(QueueError::InvalidPayload) })
+    })?;
+    Ok(())
+}
+
+async fn record_callback(batch: &Batch, phase: &str, failure: Option<&str>) -> QueueResult<()> {
+    if phase == "before" {
+        assert_eq!(batch.total_jobs, 0);
+        assert!(Bus::findBatch(&batch.id).await?.is_none());
+    }
+    DB::connection(None)
+        .unwrap()
+        .statement(
+            "insert into batch_callbacks (batch_id, phase, failure) values (?, ?, ?)",
+            &[
+                batch.id.as_str().into(),
+                phase.into(),
+                failure.map_or(Value::Null, Value::from),
+            ],
+        )
+        .await
+        .unwrap();
+    Ok(())
+}
+
+async fn callback_trace(db: &Connection, batch: &str) -> Vec<(String, Option<String>)> {
+    db.table("batch_callbacks")
+        .r#where("batch_id", "=", batch)
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| {
+            let Some(Value::Text(phase)) = row.get("phase") else {
+                panic!("missing phase")
+            };
+            let failure = match row.get("failure") {
+                Some(Value::Text(value)) => Some(value.clone()),
+                Some(Value::Null) => None,
+                _ => panic!("invalid failure"),
+            };
+            (phase.clone(), failure)
+        })
+        .collect()
 }
 
 struct Probe;
@@ -106,15 +175,27 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let batch = match kind {
             "success" => Bus::batch(jobs(&["summary", "detail"])?)
                 .name("monthly reports")
-                .onQueue("batch"),
-            "allow" => Bus::batch(jobs(&["failed", "after"])?)
+                .onQueue("batch")
+                .before("reports.before")
+                .progress("reports.broken")
+                .progress("reports.progress")
+                .then("reports.then")
+                .finally("reports.finally"),
+            "allow" => Bus::batch(jobs(&["after", "failed"])?)
                 .name("allow")
                 .onQueue("batch")
-                .allowFailures(),
+                .progress("reports.progress")
+                .onFailure("reports.failure")
+                .catch("reports.catch")
+                .then("reports.then")
+                .finally("reports.finally"),
             "cancel" => Bus::batch(jobs(&["failed", "skipped"])?)
                 .name("cancel")
-                .onQueue("batch"),
+                .onQueue("batch")
+                .catch("reports.catch")
+                .finally("reports.finally"),
             "rollback" => Bus::batch(jobs(&["first", "second"])?).name("rollback"),
+            "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
             "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
             _ => unreachable!(),
         }
@@ -236,6 +317,7 @@ async fn exercise(mysql: Option<&str>) {
     );
     let settings = json!({
         "database": {"default":"batch", "connections":{"batch":connection}},
+        "logging": {"default":"single","channels":{"single":{"driver":"single","path":"batch.log","locking":true}}},
         "cache": {"default":"database","stores":{"database":{"driver":"database"}}},
         "queue": {
             "default":"database",
@@ -266,11 +348,21 @@ async fn exercise(mysql: Option<&str>) {
         "users",
         "migrations",
         "receipts",
+        "batch_callbacks",
     ] {
         schema.dropIfExists(table).await.unwrap();
     }
     artisan(&root.0, &["migrate", "--force"]).await;
     db.statement("create table receipts (name varchar(255) not null)", &[])
+        .await
+        .unwrap();
+    schema
+        .create("batch_callbacks", |table| {
+            table.id();
+            table.string("batch_id", 36);
+            table.string("phase", 32);
+            table.string("failure", 255).nullable();
+        })
         .await
         .unwrap();
     let cache = app
@@ -293,10 +385,12 @@ async fn exercise(mysql: Option<&str>) {
     });
     let batches = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
     request(address, "sync", 500).await;
+    request(address, "missing-callback", 500).await;
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 0);
     let success = request(address, "success", 200).await.unwrap();
     let id = success["id"].as_str().unwrap();
     assert_eq!(success["pendingJobs"], 2);
+    assert_eq!(callback_trace(&db, id).await, [("before".into(), None)]);
     let replay = db
         .scalar("select payload from jobs order by id limit 1", &[])
         .await
@@ -344,6 +438,22 @@ async fn exercise(mysql: Option<&str>) {
         2
     );
 
+    let trace = callback_trace(&db, id).await;
+    assert_eq!(
+        trace
+            .iter()
+            .filter(|(phase, _)| phase == "progress")
+            .count(),
+        2
+    );
+    assert_eq!(trace.len(), 5);
+    assert!(
+        std::fs::read_to_string(root.0.join("batch.log"))
+            .unwrap()
+            .contains("Batch callback failed")
+    );
+    assert!(trace.contains(&("then".into(), None)));
+    assert!(trace.contains(&("finally".into(), None)));
     artisan(&root.0, &["queue:retry-batch"]).await;
     let missing = artisan_status(&root.0, &["queue:retry-batch", "missing", id], 1).await;
     assert!(
@@ -372,6 +482,25 @@ async fn exercise(mysql: Option<&str>) {
         assert_eq!(batch.cancelled(), kind == "cancel");
         assert_eq!(batch.failed_jobs, 1);
         assert_eq!(batch.pending_jobs, 1);
+        let before_retry = callback_trace(&db, id).await;
+        let failure = Some("invalid queue payload".to_owned());
+        if kind == "allow" {
+            assert_eq!(
+                before_retry,
+                [
+                    ("progress".into(), None),
+                    ("progress".into(), failure.clone()),
+                    ("failure".into(), failure.clone()),
+                    ("catch".into(), failure.clone()),
+                    ("finally".into(), None),
+                ]
+            );
+        } else {
+            assert_eq!(
+                before_retry,
+                [("catch".into(), failure), ("finally".into(), None)]
+            );
+        }
         if kind == "allow" {
             db.statement("insert into receipts (name) values ('allow')", &[])
                 .await
@@ -443,6 +572,10 @@ async fn exercise(mysql: Option<&str>) {
             assert_eq!(retried.progress(), 100);
             assert_eq!(retried.failed_jobs, 1);
             assert!(retried.failed_job_ids.is_empty());
+            assert_eq!(
+                &callback_trace(&db, id).await[before_retry.len()..],
+                [("progress".into(), None), ("then".into(), None),]
+            );
         }
     }
     assert_eq!(

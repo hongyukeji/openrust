@@ -1,12 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex, RwLock, Weak},
 };
 
 use serde::Deserialize;
 
 use crate::{
-    bus::{Batch, DatabaseBatchRepository},
+    bus::{Batch, BatchCallback, BatchPhase, DatabaseBatchRepository, new_batch},
     container::Container,
     contracts::{
         config::Repository,
@@ -30,6 +30,7 @@ pub struct QueueManager {
     owner: Weak<Container>,
     registry: Arc<Queue>,
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
+    batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
 }
 
 struct ConfiguredQueue {
@@ -57,6 +58,7 @@ impl QueueManager {
             registry: Arc::new(Queue::new(owner.clone())),
             owner,
             connections: Mutex::default(),
+            batch_callbacks: RwLock::default(),
         }
     }
 
@@ -177,6 +179,64 @@ impl QueueManager {
         DatabaseBatchRepository::new(connection, table)
     }
 
+    pub(crate) fn register_batch_callback(
+        &self,
+        name: String,
+        callback: BatchCallback,
+    ) -> QueueResult<()> {
+        use std::collections::hash_map::Entry;
+        if name.trim().is_empty() {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        let mut registry = self
+            .batch_callbacks
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        match registry.entry(name) {
+            Entry::Vacant(entry) => {
+                entry.insert(callback);
+                Ok(())
+            }
+            Entry::Occupied(_) => Err(QueueError::InvalidConfiguration),
+        }
+    }
+
+    fn batch_callback(&self, name: &str) -> QueueResult<BatchCallback> {
+        self.batch_callbacks
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .copied()
+            .ok_or_else(|| QueueError::UnknownBatchCallback(name.into()))
+    }
+
+    pub(crate) async fn run_batch_callbacks(
+        &self,
+        batch: &Batch,
+        phases: &[BatchPhase],
+        failure: Option<&str>,
+    ) {
+        for phase in phases {
+            for name in phase.names(batch) {
+                let result = match self.batch_callback(name) {
+                    Ok(callback) => {
+                        callback(batch, failure.filter(|_| phase.takes_failure())).await
+                    }
+                    Err(error) => Err(error),
+                };
+                if let Err(error) = result {
+                    let context = serde_json::Map::from_iter([
+                        ("batch_id".into(), batch.id.as_str().into()),
+                        ("phase".into(), phase.key().into()),
+                        ("callback".into(), name.into()),
+                        ("error".into(), error.to_string().into()),
+                    ]);
+                    let _ = crate::log::Log::error("Batch callback failed", &context);
+                }
+            }
+        }
+    }
+
     pub(crate) async fn dispatch_batch(
         &self,
         name: String,
@@ -207,13 +267,24 @@ impl QueueManager {
             .get("queue")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
-        let mut transaction = repository.begin().await?;
-        if !transaction.belongs_to(connection) {
+        if !repository.uses_connection(connection) {
             return Err(QueueError::InvalidBatchConnection);
         }
+        let mut batch = new_batch(name, options, 0)?;
+        for phase in BatchPhase::ALL {
+            for callback in phase.names(&batch) {
+                self.batch_callback(callback)?;
+            }
+        }
+        self.run_batch_callbacks(&batch, &[BatchPhase::Before], None)
+            .await;
+        batch.total_jobs = count;
+        batch.pending_jobs = count;
+
+        let mut transaction = repository.begin().await?;
         let result = async {
-            let batch = repository
-                .store_in_transaction(&mut transaction, name, options, count)
+            repository
+                .store_in_transaction(&mut transaction, &batch)
                 .await?;
             for job in &mut jobs {
                 self.capture_context(job)?;

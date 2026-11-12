@@ -9,7 +9,7 @@ use crate::{
     queue::{QueueResult, backend, new_id},
 };
 
-use super::Batch;
+use super::{Batch, BatchPhase, BatchTransition};
 
 /// Persists queue batches in a configured SQL table.
 #[derive(Clone)]
@@ -47,6 +47,10 @@ impl DatabaseBatchRepository {
         Ok(batch)
     }
 
+    pub(crate) fn uses_connection(&self, connection: &Connection) -> bool {
+        self.connection.same_query_source(connection)
+    }
+
     pub(crate) async fn begin(&self) -> QueueResult<Transaction> {
         self.connection.beginTransaction().await.map_err(backend)
     }
@@ -54,17 +58,14 @@ impl DatabaseBatchRepository {
     pub(crate) async fn store_in_transaction(
         &self,
         transaction: &mut Transaction,
-        name: String,
-        options: Map<String, Json>,
-        count: u32,
-    ) -> QueueResult<Batch> {
-        let batch = new_batch(name, options, count)?;
+        batch: &Batch,
+    ) -> QueueResult<()> {
         transaction
             .table(&self.table)
-            .insert(&[insert_values(&batch).map_err(backend)?])
+            .insert(&[insert_values(batch).map_err(backend)?])
             .await
             .map_err(backend)?;
-        Ok(batch)
+        Ok(())
     }
 
     pub(crate) async fn recorded(
@@ -97,7 +98,7 @@ impl DatabaseBatchRepository {
         job: &str,
         delivery: &str,
         succeeded: bool,
-    ) -> QueueResult<()> {
+    ) -> QueueResult<Option<BatchTransition>> {
         let repository = self.clone();
         let (id, job, delivery) = (id.to_owned(), job.to_owned(), delivery.to_owned());
         self.connection
@@ -113,7 +114,7 @@ impl DatabaseBatchRepository {
                             .first()
                             .await?
                         else {
-                            return Ok(());
+                            return Ok(None);
                         };
                         let previous = transaction
                             .table(&repository.jobs_table)
@@ -128,26 +129,39 @@ impl DatabaseBatchRepository {
                             .first()
                             .await?;
                         if previous.is_some() {
-                            return Ok(());
+                            return Ok(None);
                         }
                         let mut batch = decode(row)?;
+                        let was_terminal = all_jobs_terminal(&batch);
+                        let mut phases = Vec::new();
                         if succeeded {
+                            phases.push(BatchPhase::Progress);
                             batch.pending_jobs =
                                 batch.pending_jobs.checked_sub(1).ok_or(invalid())?;
                             batch.failed_job_ids.retain(|failed| failed != &job);
-                            if batch.pending_jobs == 0 && !batch.finished() {
+                            if batch.pending_jobs == 0 {
                                 batch.finished_at = Some(now());
+                                phases.push(BatchPhase::Then);
                             }
                         } else {
                             batch.failed_jobs = increment(batch.failed_jobs, 1)?;
                             if !batch.failed_job_ids.contains(&job) {
                                 batch.failed_job_ids.push(job.clone());
                             }
+                            if batch.allowsFailures() {
+                                phases.extend([BatchPhase::Progress, BatchPhase::Failure]);
+                            }
+                            if batch.failed_jobs == 1 {
+                                phases.push(BatchPhase::Catch);
+                            }
                             if !batch.allowsFailures() && !batch.cancelled() {
                                 let now = now();
                                 batch.cancelled_at = Some(now);
                                 batch.finished_at = Some(now);
                             }
+                        }
+                        if !was_terminal && all_jobs_terminal(&batch) {
+                            phases.push(BatchPhase::Finally);
                         }
                         let values = [
                             ("batch_id".into(), id.as_str().into()),
@@ -166,7 +180,7 @@ impl DatabaseBatchRepository {
                             .r#where("id", "=", id.as_str())
                             .update(state(&batch)?)
                             .await?;
-                        Ok(())
+                        Ok(Some(BatchTransition { batch, phases }))
                     })
                 },
                 10,
@@ -334,7 +348,15 @@ impl DatabaseBatchRepository {
     }
 }
 
-fn new_batch(name: String, options: Map<String, Json>, count: u32) -> QueueResult<Batch> {
+fn all_jobs_terminal(batch: &Batch) -> bool {
+    usize::try_from(batch.pending_jobs).is_ok_and(|pending| pending == batch.failed_job_ids.len())
+}
+
+pub(crate) fn new_batch(
+    name: String,
+    options: Map<String, Json>,
+    count: u32,
+) -> QueueResult<Batch> {
     Ok(Batch {
         id: new_id()?,
         name,

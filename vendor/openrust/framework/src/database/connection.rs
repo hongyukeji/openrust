@@ -389,7 +389,7 @@ impl Connection {
         super::query::Builder::connection(self.clone(), self.grammar.clone(), table)
     }
 
-    pub(super) fn same_query_source(&self, other: &Self) -> bool {
+    pub(crate) fn same_query_source(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.routing, &other.routing)
     }
 

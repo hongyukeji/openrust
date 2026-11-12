@@ -105,7 +105,43 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
 
-Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch and callbacks are pending.
+Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch is pending.
+
+### Batch callbacks {#batch-callbacks}
+
+Register each callback by a stable name during provider boot in both the application and worker. The batch stores these names so a separate worker can resolve them. The callback receives a batch snapshot and, where applicable, the terminal failure message.
+
+```rust
+use openrust::{
+    bus::Batch,
+    log::Log,
+    queue::{Payload, QueueError, QueueFuture, QueueResult},
+    support::facades::Bus,
+};
+
+fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, QueueResult<()>> {
+    Box::pin(async move {
+        let context = serde_json::Map::from_iter([("batch_id".into(), batch.id.clone().into())]);
+        Log::info("Reports batch completed", &context)
+            .map_err(|source| QueueError::Execution { source: Box::new(source) })
+    })
+}
+
+fn register_batch_callbacks() -> QueueResult<()> {
+    Bus::registerBatchCallback("reports.completed", report_complete)
+}
+
+async fn dispatch_with_callbacks() -> QueueResult<Batch> {
+    Bus::batch([Payload::new("reports.generate", "documentation")?])
+        .name("report export")
+        .onQueue("reports")
+        .then("reports.completed")
+        .dispatch()
+        .await
+}
+```
+
+Use `before` for the initial snapshot before enqueueing, `progress` for terminal progress, `then` when the pending count reaches zero, `catch` for the first terminal failure, and `finally` after all jobs reach a terminal outcome. `onFailure` allows failures and registers a callback for each terminal failure. A callback error is logged and the worker continues. Worker callbacks run after their SQL transition commits. A process crash between commit and invocation can lose that invocation.
 
 ### Retrying failed batch jobs {#batch-failures}
 

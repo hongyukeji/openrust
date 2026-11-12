@@ -105,7 +105,43 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
 
-批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送和回呼待接入。
+批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送待接入。
+
+### 批次回呼 {#batch-callbacks}
+
+在應用程式和 Worker 的 Provider 啟動時，使用穩定名稱註冊回呼。批次持久保存這些名稱，獨立 Worker 可依名稱解析。回呼接收批次快照，適用時也會收到工作最終失敗的訊息。
+
+```rust
+use openrust::{
+    bus::Batch,
+    log::Log,
+    queue::{Payload, QueueError, QueueFuture, QueueResult},
+    support::facades::Bus,
+};
+
+fn report_complete<'a>(batch: &'a Batch, _: Option<&'a str>) -> QueueFuture<'a, QueueResult<()>> {
+    Box::pin(async move {
+        let context = serde_json::Map::from_iter([("batch_id".into(), batch.id.clone().into())]);
+        Log::info("Reports batch completed", &context)
+            .map_err(|source| QueueError::Execution { source: Box::new(source) })
+    })
+}
+
+fn register_batch_callbacks() -> QueueResult<()> {
+    Bus::registerBatchCallback("reports.completed", report_complete)
+}
+
+async fn dispatch_with_callbacks() -> QueueResult<Batch> {
+    Bus::batch([Payload::new("reports.generate", "documentation")?])
+        .name("report export")
+        .onQueue("reports")
+        .then("reports.completed")
+        .dispatch()
+        .await
+}
+```
+
+`before` 在入列前接收初始快照，`progress` 用於終態進度，`then` 在待處理數歸零時執行，`catch` 處理首次最終失敗，`finally` 在所有工作都有終態時執行。`onFailure` 允許失敗並為每次最終失敗註冊回呼。回呼出錯會寫入日誌，Worker 繼續處理。Worker 在 SQL 狀態提交後呼叫回呼，若程序在提交和呼叫之間退出，該次回呼可能遺失。
 
 ### 重試批次失敗工作 {#batch-failures}
 
