@@ -105,7 +105,16 @@ async fn dispatch_reports() -> QueueResult<Batch> {
 
 執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
 
-批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送、回呼和清理待接入。
+批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送和回呼待接入。
+
+### 清理批次 {#pruning-batches}
+
+定期執行此指令可刪除已完成超過 24 小時的批次。透過 `--hours` 修改已完成批次的保留期限。也可以透過 `--unfinished` 和 `--cancelled` 分別指定未完成和已取消批次的保留時數。這兩個選項都從批次建立時間起算。指令會分別顯示每條規則刪除的紀錄數，批次的投遞紀錄會隨批次一起清理。
+
+```sh
+./artisan queue:prune-batches
+./artisan queue:prune-batches --hours=48 --unfinished=72 --cancelled=36
+```
 
 ## 工作中介軟體 {#job-middleware}
 

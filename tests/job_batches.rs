@@ -11,7 +11,7 @@ use openrust::{
         container::Container as _, foundation::Application as _, http::Kernel as _,
         queue::JobHandler,
     },
-    database::{DB, DatabaseManager},
+    database::{Connection, DB, DatabaseManager, Value, query::Record},
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
@@ -153,7 +153,7 @@ async fn job_batches_artisan_process() {
     assert_eq!(application(&base).handleCommand(&args).await.unwrap(), 0);
 }
 
-async fn artisan(base: &Path, args: &[&str]) {
+async fn artisan(base: &Path, args: &[&str]) -> String {
     let output = timeout(
         Duration::from_secs(20),
         Command::new(std::env::current_exe().unwrap())
@@ -175,6 +175,7 @@ async fn artisan(base: &Path, args: &[&str]) {
         "{args:?}: {}",
         String::from_utf8_lossy(&output.stdout)
     );
+    String::from_utf8(output.stdout).unwrap()
 }
 
 async fn transport(
@@ -389,7 +390,110 @@ async fn exercise(mysql: Option<&str>) {
     assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 3);
     assert_eq!(db.table("job_batches_jobs").count("*").await.unwrap(), 7);
+    verify_pruning(&root.0, &db).await;
     server.abort();
+}
+
+async fn verify_pruning(base: &Path, db: &Connection) {
+    let timestamp = chrono::Utc::now().timestamp();
+    let at = |hours: i64| Value::from(timestamp - hours * 3600);
+    let batch = |id: String, created, finished, cancelled| -> Record {
+        [
+            ("id".into(), id.into()),
+            ("name".into(), "prune probe".into()),
+            ("total_jobs".into(), 1_i64.into()),
+            ("pending_jobs".into(), 0_i64.into()),
+            ("failed_jobs".into(), 0_i64.into()),
+            ("failed_job_ids".into(), "[]".into()),
+            ("created_at".into(), created),
+            ("finished_at".into(), finished),
+            ("cancelled_at".into(), cancelled),
+        ]
+        .into_iter()
+        .collect()
+    };
+    let completed = (0..1001)
+        .map(|i| batch(format!("old-{i:04}"), at(80), at(25), Value::Null))
+        .collect::<Vec<_>>();
+    for chunk in completed.chunks(50) {
+        db.table("job_batches").insert(chunk).await.unwrap();
+    }
+    for (id, created, finished, cancelled) in [
+        ("recent-completed", at(40), at(2), Value::Null),
+        ("old-pending", at(80), Value::Null, Value::Null),
+        ("recent-pending", at(2), Value::Null, Value::Null),
+        ("old-cancelled", at(40), at(2), at(2)),
+        ("recent-cancelled", at(2), at(1), at(1)),
+    ] {
+        db.table("job_batches")
+            .insert(&[batch(id.into(), created, finished, cancelled)])
+            .await
+            .unwrap();
+    }
+    for id in ["old-0000", "old-1000", "old-cancelled", "recent-completed"] {
+        db.table("job_batches_jobs")
+            .insert(&[[
+                ("batch_id".into(), id.into()),
+                ("job_id".into(), "job".into()),
+                ("delivery_id".into(), "".into()),
+                ("succeeded".into(), true.into()),
+            ]
+            .into_iter()
+            .collect()])
+            .await
+            .unwrap();
+    }
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    let default = artisan(base, &["queue:prune-batches"]).await;
+    assert!(default.contains("1001 entries deleted."), "{default}");
+    assert!(repository.find("old-1000").await.unwrap().is_none());
+    for id in [
+        "recent-completed",
+        "old-pending",
+        "recent-pending",
+        "old-cancelled",
+        "recent-cancelled",
+    ] {
+        assert!(repository.find(id).await.unwrap().is_some(), "{id}");
+    }
+    db.table("job_batches")
+        .insert(&[
+            batch("outside-custom".into(), at(80), at(49), Value::Null),
+            batch("inside-custom".into(), at(80), at(30), Value::Null),
+        ])
+        .await
+        .unwrap();
+    let args = [
+        "queue:prune-batches",
+        "--hours=48",
+        "--unfinished=72",
+        "--cancelled=36",
+    ];
+    let custom = artisan(base, &args).await;
+    assert!(custom.contains("1 entries deleted."), "{custom}");
+    assert!(custom.contains("1 unfinished entries deleted."), "{custom}");
+    assert!(custom.contains("1 cancelled entries deleted."), "{custom}");
+    for id in ["old-pending", "old-cancelled", "outside-custom"] {
+        assert!(repository.find(id).await.unwrap().is_none(), "{id}");
+    }
+    for id in [
+        "recent-completed",
+        "recent-pending",
+        "recent-cancelled",
+        "inside-custom",
+    ] {
+        assert!(repository.find(id).await.unwrap().is_some(), "{id}");
+    }
+    assert_eq!(db.table("job_batches_jobs").count("*").await.unwrap(), 8);
+    let repeat = artisan(base, &args).await;
+    for label in [
+        "entries deleted.",
+        "unfinished entries deleted.",
+        "cancelled entries deleted.",
+    ] {
+        assert!(repeat.contains(&format!("0 {label}")), "{repeat}");
+    }
 }
 
 fn uuid_suffix() -> String {

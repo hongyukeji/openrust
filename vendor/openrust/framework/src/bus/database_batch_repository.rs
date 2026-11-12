@@ -2,7 +2,10 @@ use chrono::{DateTime, Timelike, Utc};
 use serde_json::{Map, Value as Json};
 
 use crate::{
-    database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value, query::Record},
+    database::{
+        Connection, DatabaseError, DatabaseResult, Row, Transaction, Value,
+        query::{Builder, Record},
+    },
     queue::{QueueResult, backend, new_id},
 };
 
@@ -243,6 +246,52 @@ impl DatabaseBatchRepository {
             .await
             .map(|rows| rows != 0)
             .map_err(backend)
+    }
+
+    pub async fn prune(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+        self.prune_matching(|query| {
+            query
+                .whereNotNull("finished_at")
+                .r#where("finished_at", "<", before.timestamp())
+        })
+        .await
+    }
+
+    pub async fn pruneUnfinished(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+        self.prune_matching(|query| {
+            query
+                .whereNull("finished_at")
+                .r#where("created_at", "<", before.timestamp())
+        })
+        .await
+    }
+
+    pub async fn pruneCancelled(&self, before: DateTime<Utc>) -> QueueResult<u64> {
+        self.prune_matching(|query| {
+            query
+                .whereNotNull("cancelled_at")
+                .r#where("created_at", "<", before.timestamp())
+        })
+        .await
+    }
+
+    async fn prune_matching(
+        &self,
+        predicate: impl Fn(Builder<'static>) -> Builder<'static>,
+    ) -> QueueResult<u64> {
+        let mut total = 0;
+        loop {
+            let count = predicate(self.connection.table(&self.table))
+                .orderBy("id", "asc")
+                .limit(1000)
+                .delete()
+                .await
+                .map_err(backend)?;
+            total += count;
+            if count == 0 {
+                return Ok(total);
+            }
+        }
     }
 
     async fn update(

@@ -1,5 +1,6 @@
 //! Artisan commands for queue workers.
 
+mod prune_batches_command;
 mod work_command;
 
 pub use work_command::WorkCommand;
@@ -10,5 +11,6 @@ pub(crate) fn register(
     artisan: &mut crate::console::Application,
 ) -> Result<(), crate::console::ConsoleError> {
     artisan.add_command(Box::new(WorkCommand::new()))?;
+    prune_batches_command::register(artisan)?;
     failed_commands::register(artisan)
 }

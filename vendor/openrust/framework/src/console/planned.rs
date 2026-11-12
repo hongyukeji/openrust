@@ -119,7 +119,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("queue:listen", "Listen for queued jobs and process them"),
     ("queue:monitor", "Check the number of jobs on queues"),
     ("queue:pause", "Pause processing on a queue"),
-    ("queue:prune-batches", "Delete old job batch records"),
     ("queue:prune-failed", "Delete old failed job records"),
     (
         "queue:restart",
