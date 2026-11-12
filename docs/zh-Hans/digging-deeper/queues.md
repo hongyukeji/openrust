@@ -712,6 +712,43 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 运行 `./artisan migrate` 创建 `failed_jobs`。用 `./artisan queue:failed --json` 查看失败记录，用 `./artisan queue:retry <uuid>` 将任务重新送到原连接和队列。`queue:forget` 和 `queue:flush` 可移除失败记录。超时会取消当前 Rust future，任务需要自行管理它在该 future 外启动的工作。
 
+### 失败任务的清理 {#cleaning-up-after-failed-jobs}
+
+实现 `JobHandler::failed`，在任务最终失败时清理。Worker 确认预约并处理批次和链失败后，将原始载荷、队列元数据和终态错误传给回调。还有重试机会时，回调等到最终失败才执行。同步任务在返回错误前执行回调。
+
+```rust
+use openrust::contracts::queue::JobHandler;
+use openrust::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult};
+
+struct ProcessUpload;
+
+impl JobHandler for ProcessUpload {
+    fn handle<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Err(QueueError::InvalidPayload) })
+    }
+
+    fn failed<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        error: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            eprintln!("{} on {}: {error}", payload.uuid(), context.queue());
+            Ok(())
+        })
+    }
+}
+```
+
+Worker 回调在新的应用作用域中运行，并恢复分发时的日志上下文。Worker 会报告回调错误，并继续发出任务失败事件。同步任务会将回调错误返回给调用方。若清理需要在进程崩溃后恢复，请持久化清理意图，并保证操作幂等。
+
+使用 `make:job` 生成的队列任务，可以直接在任务的 `failed` 方法编写清理逻辑。处理器会先反序列化原始载荷，再调用该方法。
+
 ### 清理过期失败任务 {#pruning-failed-jobs}
 
 运行 `queue:prune-failed` 删除超过 24 小时的失败记录。可用 `--hours` 设置其他保留时长。

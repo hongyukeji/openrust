@@ -32,6 +32,16 @@ impl SyncQueue {
                 if !job.chain_catches().is_empty() {
                     self.registry.run_chain_catches(job, &error).await?;
                 }
+                let mut failed_context = JobContext {
+                    connection: context.connection.clone(),
+                    queue: context.queue.clone(),
+                    attempts: context.attempts,
+                    transaction: context.transaction(),
+                    ..JobContext::default()
+                };
+                self.registry
+                    .run_failed_handler(&mut failed_context, job, &error)
+                    .await?;
                 return Err(error);
             }
             if context.release_after.is_some() {

@@ -81,6 +81,33 @@ impl Queue {
         Ok(())
     }
 
+    fn handler(&self, name: &str) -> Option<Arc<dyn JobHandler>> {
+        self.handlers
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(name)
+            .cloned()
+    }
+
+    pub(super) async fn run_failed_handler(
+        &self,
+        context: &mut JobContext<'_>,
+        payload: &Payload,
+        error: &QueueError,
+    ) -> QueueResult<()> {
+        let Some(handler) = self.handler(payload.name()) else {
+            return Ok(());
+        };
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        application_scope(owner, async {
+            handler.failed(context, payload, error).await
+        })
+        .await
+    }
+
     pub(super) async fn fire(
         &self,
         context: &mut JobContext<'_>,
@@ -89,11 +116,7 @@ impl Queue {
         context.chain_edits = Default::default();
         context.chain_update = None;
         let handler = self
-            .handlers
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .get(payload.name())
-            .cloned()
+            .handler(payload.name())
             .ok_or_else(|| QueueError::UnknownJob(payload.name().into()))?;
         let owner = self
             .owner

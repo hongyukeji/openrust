@@ -12,28 +12,37 @@ mod unix {
         time::Duration,
     };
 
+    use openrust::contracts::http::Kernel as _;
     use openrust::{
         contracts::events::{Event as EventPayload, Listener},
         contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
         database::{Connection as DatabaseConnection, DatabaseManager, Value as DatabaseValue},
         events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
-        foundation::{Application, runApplication},
-        http::HttpFuture,
+        foundation::{
+            Application,
+            configuration::{ReportDecision, Routing},
+            http::Kernel,
+            runApplication,
+        },
+        http::{HttpError, HttpFuture, Request, Response},
+        log::context::Context,
         queue::{
             Delay, DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
             QueueManager, QueueResult, console::ClearCommand, failed::FailedJobProviderInterface,
         },
         queue::{
-            events::{JobTimedOut, QueueBusy},
+            events::{JobFailed, JobTimedOut, QueueBusy},
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
         redis::{RedisManager, connections::Connection},
+        routing::{Router, RoutingError},
         support::{
             ProviderResult, ServiceProvider,
             facades::{Event, Process, Queue},
         },
     };
     use serde_json::{Value, json};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     type SetupError = Box<dyn Error + Send + Sync>;
 
@@ -92,6 +101,16 @@ mod unix {
                     "throttle-terminal" => {
                         return Err(error(std::io::Error::other("hard throttle terminal")));
                     }
+                    "callback-terminal"
+                    | "callback-retry"
+                    | "callback-error"
+                    | "callback-sync"
+                    | "callback-sync-error" => {
+                        if kind == "callback-terminal" {
+                            Context::add("callback_attempt_only", json!(true)).unwrap();
+                        }
+                        return Err(error(std::io::Error::other("original probe error")));
+                    }
                     "cpu" => loop {
                         std::hint::spin_loop();
                     },
@@ -108,6 +127,64 @@ mod unix {
                     _ => unreachable!(),
                 }
                 Ok(())
+            })
+        }
+
+        fn failed<'a>(
+            &'a self,
+            context: &'a mut JobContext<'_>,
+            payload: &'a Payload,
+            cause: &'a QueueError,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            Box::pin(async move {
+                use std::io::Write;
+                let kind = payload.data().as_str().unwrap();
+                let error = |source: std::io::Error| QueueError::Execution {
+                    source: Box::new(source),
+                };
+                let mut marker = std::fs::OpenOptions::new()
+                    .create_new(true)
+                    .write(true)
+                    .open(self.0.join(format!("{kind}.failed")))
+                    .map_err(error)?;
+                writeln!(
+                    marker,
+                    "{}:{}:{}:{cause}",
+                    context.connection(),
+                    context.queue(),
+                    context.attempts()
+                )
+                .map_err(error)?;
+                if kind == "callback-terminal" {
+                    assert_eq!(Context::get("callback_trace").unwrap(), Some(json!(kind)));
+                    assert_eq!(Context::get("callback_attempt_only").unwrap(), None);
+                }
+                if matches!(kind, "callback-error" | "callback-sync-error") {
+                    return Err(error(std::io::Error::other("failure callback error")));
+                }
+                Ok(())
+            })
+        }
+    }
+
+    struct FailedObserver(PathBuf);
+
+    impl Listener for FailedObserver {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event
+                    .downcast_ref::<JobFailed>()
+                    .ok_or(EventError::InvalidPayload)?;
+                let kind = event.job.payload.data().as_str().unwrap();
+                if matches!(kind, "callback-terminal" | "callback-error") {
+                    assert!(self.0.join(format!("{kind}.failed")).is_file());
+                    std::fs::write(self.0.join(format!("{kind}.event")), &event.exception).unwrap();
+                }
+                Ok(None)
             })
         }
     }
@@ -179,6 +256,11 @@ mod unix {
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
                 Event::listen(
+                    JobFailed::NAME,
+                    Arc::new(FailedObserver(self.0.clone())),
+                    Delivery::Sync,
+                )?;
+                Event::listen(
                     JobTimedOut::NAME,
                     Arc::new(TimeoutObserver(self.0.clone())),
                     Delivery::Sync,
@@ -188,7 +270,35 @@ mod unix {
         }
     }
 
+    fn dispatch_probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let kind = request.route("kind").unwrap();
+            Context::add("callback_trace", json!(kind)).unwrap();
+            let payload = Payload::new("hard-timeout-probe", kind)?.with_options(JobOptions {
+                max_tries: Some(1),
+                ..JobOptions::default()
+            });
+            Queue::dispatch(
+                payload,
+                DispatchOptions {
+                    queue: Some("callback-probe".into()),
+                    ..DispatchOptions::default()
+                },
+                None,
+            )
+            .await?;
+            Ok(Response::empty(axum::http::StatusCode::NO_CONTENT))
+        })
+    }
+
+    fn routes(_: &Application) -> Result<Router, RoutingError> {
+        let mut router = Router::new();
+        router.get("/callback/{kind}", dispatch_probe)?;
+        Ok(router)
+    }
+
     fn application(root: PathBuf) -> Result<Application, SetupError> {
+        let report_root = root.clone();
         Ok(Application::configure(root.clone())
             .withConfig(|base, env| {
                 let name = base.file_name().unwrap().to_str().unwrap();
@@ -224,7 +334,18 @@ mod unix {
                 Ok(config.into_iter().collect())
             })
             .withProviders(vec![Box::new(Provider(root))])
-            .withExceptions(|exceptions| { exceptions.dontRetry::<HardPolicyError>(); })
+            .withRouting(Routing::new(routes))
+            .withExceptions(move |exceptions| {
+                exceptions.dontRetry::<HardPolicyError>();
+                exceptions.report(move |error: &std::io::Error| {
+                    if error.to_string() == "failure callback error" {
+                        std::fs::write(report_root.join("callback-error.reported"), []).unwrap();
+                        ReportDecision::Stop
+                    } else {
+                        ReportDecision::Continue
+                    }
+                });
+            })
             .create()?)
     }
 
@@ -565,6 +686,95 @@ mod unix {
         assert_eq!(count("prune-fresh-0").await, 1);
     }
 
+    async fn verify_failed_handler(
+        root: &Path,
+        manager: &QueueManager,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        let mut kernel = Kernel::new(application(root.to_owned()).unwrap());
+        kernel.bootstrap().await.unwrap();
+        let kernel = Arc::new(kernel);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
+            kernel.clone().handleTransport(request)
+        });
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        let named = Some("callback-probe");
+        let retry = Payload::new("hard-timeout-probe", "callback-retry").unwrap();
+        queue.push(&retry, named).await.unwrap();
+        let once = ["--once", "--queue=callback-probe"];
+        let (status, _) = artisan(root, &once, false).await;
+        assert_eq!(status, Some(0));
+        assert!(!root.join("callback-retry.failed").exists());
+        assert_eq!(queue.size(named).await.unwrap(), 1);
+        let (status, lines) = artisan(root, &once, false).await;
+        assert_eq!(status, Some(0));
+        assert_eq!(lines.last().unwrap()["status"], "success");
+        assert!(!root.join("callback-retry.failed").exists());
+
+        for kind in ["callback-terminal", "callback-error"] {
+            tokio::time::timeout(Duration::from_secs(5), async {
+                let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+                let request = format!(
+                    "GET /callback/{kind} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
+                );
+                stream.write_all(request.as_bytes()).await.unwrap();
+                let mut response = String::new();
+                stream.read_to_string(&mut response).await.unwrap();
+                assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+            })
+            .await
+            .unwrap();
+            let (status, lines) = artisan(root, &once, false).await;
+            assert_eq!(status, Some(0), "{lines:?}");
+            assert_eq!(lines.last().unwrap()["status"], "failed");
+            let marker = std::fs::read_to_string(root.join(format!("{kind}.failed"))).unwrap();
+            assert!(marker.starts_with(&format!(
+                "{}:callback-probe:1:",
+                queue.get_connection_name()
+            )));
+            assert_eq!(queue.size(named).await.unwrap(), 0);
+            let event = std::fs::read_to_string(root.join(format!("{kind}.event"))).unwrap();
+            assert!(event.contains("original probe error"), "{event}");
+        }
+        assert!(root.join("callback-error.reported").is_file());
+        server.abort();
+        assert!(server.await.unwrap_err().is_cancelled());
+
+        let sync = manager.connection(Some("sync")).unwrap();
+        let payload = Payload::new("hard-timeout-probe", "callback-sync").unwrap();
+        let cause = sync.push(&payload, named).await.unwrap_err();
+        assert_eq!(
+            Error::source(&cause).unwrap().to_string(),
+            "original probe error"
+        );
+        let marker = std::fs::read_to_string(root.join("callback-sync.failed")).unwrap();
+        assert!(marker.starts_with("sync:callback-probe:1:"));
+
+        let other = TempRoot(root.with_file_name(format!(
+            "openrust-callback-other-{}-sqlite",
+            std::process::id()
+        )));
+        std::fs::create_dir(&other.0).unwrap();
+        let mut other_app = application(other.0.clone()).unwrap();
+        other_app.boot().await.unwrap();
+        let other_sync = other_app
+            .container()
+            .make::<QueueManager>()
+            .unwrap()
+            .connection(Some("sync"))
+            .unwrap();
+        let payload = Payload::new("hard-timeout-probe", "callback-sync-error").unwrap();
+        let cause = other_sync.push(&payload, named).await.unwrap_err();
+        assert_eq!(
+            Error::source(&cause).unwrap().to_string(),
+            "failure callback error"
+        );
+        assert!(other.0.join("callback-sync-error.failed").is_file());
+        assert!(!root.join("callback-sync-error.failed").exists());
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -715,6 +925,12 @@ mod unix {
         });
         verify_clear(&root.0, &*queue, redis.as_deref()).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
+        assert!(!root.0.join("cpu.failed").exists());
+        assert!(root.0.join("blocking.failed").is_file());
+        assert!(root.0.join("external.failed").is_file());
+        assert!(!root.0.join("continue.failed").exists());
+        verify_failed_handler(&root.0, &manager, &*queue).await;
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
         if backend != "redis" {
             verify_prune_failed(&root.0, &app, &db).await;
         }

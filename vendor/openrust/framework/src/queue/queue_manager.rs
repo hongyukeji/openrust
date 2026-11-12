@@ -95,6 +95,17 @@ impl QueueManager {
         self.registry.fire(context, payload).await
     }
 
+    pub(super) async fn run_failed_handler(
+        &self,
+        context: &mut super::JobContext<'_>,
+        payload: &Payload,
+        error: &QueueError,
+    ) -> QueueResult<()> {
+        self.registry
+            .run_failed_handler(context, payload, error)
+            .await
+    }
+
     pub fn register(&self, name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
         self.registry.register(name, handler)
     }

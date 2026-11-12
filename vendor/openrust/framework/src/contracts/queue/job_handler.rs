@@ -1,4 +1,4 @@
-use crate::queue::{JobContext, Payload, QueueFuture, QueueResult};
+use crate::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult};
 
 use super::Interruptible;
 
@@ -17,4 +17,14 @@ pub trait JobHandler: Send + Sync {
         context: &'a mut JobContext<'_>,
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>>;
+
+    /// Runs after a job reaches terminal failure, with the original payload.
+    fn failed<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+        _error: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Ok(()) })
+    }
 }

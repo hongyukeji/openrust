@@ -804,7 +804,7 @@ impl Worker {
             self.finish_attempt_marker(&mut status.marker).await;
             let error = status.cause.insert(error);
             let failure = if terminal {
-                let result = self.fail(job, error, batch).await;
+                let result = self.fail(manager, job, error, batch).await;
                 if result.is_ok() {
                     self.observe_job_event(
                         manager,
@@ -1020,6 +1020,7 @@ impl Worker {
 
     async fn fail(
         &self,
+        manager: &QueueManager,
         job: &mut dyn Job,
         error: &QueueError,
         batch: Option<&BatchCompletion>,
@@ -1031,16 +1032,28 @@ impl Worker {
                 .await?;
         }
         job.fail(Some(error)).await?;
-        if !job.payload().chain_catches().is_empty() {
-            let manager = self
-                .app
-                .make::<QueueManager>()
-                .map_err(QueueError::Unavailable)?;
-            isolated_scope(
-                self.app.clone(),
-                manager.run_chain_catches(job.payload(), error),
-            )
-            .await;
+        let payload = job.payload();
+        if !payload.chain_catches().is_empty() {
+            isolated_scope(self.app.clone(), manager.run_chain_catches(payload, error)).await;
+        }
+        let mut context = JobContext {
+            connection: job.get_connection_name().into(),
+            queue: job.get_queue().into(),
+            attempts: job.attempts(),
+            ..JobContext::default()
+        };
+        let callback = Box::pin(isolated_scope(self.app.clone(), async {
+            use crate::log::context::Context;
+            let repository = Context::repository().map_err(super::backend)?;
+            Context::hooks()
+                .map_err(super::backend)?
+                .hydrate(&payload.context, &repository);
+            manager
+                .run_failed_handler(&mut context, payload, error)
+                .await
+        }));
+        if let Err(callback_error) = callback.await {
+            self.report_worker_error(&callback_error).await;
         }
         Ok(WorkResult::Failed)
     }

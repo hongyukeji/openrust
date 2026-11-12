@@ -712,6 +712,43 @@ fn skip_when_cancelled(cancelled: bool) -> Skip {
 
 Run `./artisan migrate` to create `failed_jobs`. Use `./artisan queue:failed --json` to list failures, `./artisan queue:retry <uuid>` to requeue a failed job on its original connection and queue, or `queue:forget` and `queue:flush` to remove failure records. A timeout drops the pending Rust future. Job code should stop any work it starts outside that future.
 
+### Cleaning up after failed jobs {#cleaning-up-after-failed-jobs}
+
+Implement `JobHandler::failed` to clean up when a job fails permanently. The worker passes the original payload, queue metadata, and terminal error after acknowledging the reservation and processing batch and chain failure handling. A retryable attempt leaves the callback pending until terminal failure. A synchronous job calls it before returning its error.
+
+```rust
+use openrust::contracts::queue::JobHandler;
+use openrust::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult};
+
+struct ProcessUpload;
+
+impl JobHandler for ProcessUpload {
+    fn handle<'a>(
+        &'a self,
+        _context: &'a mut JobContext<'_>,
+        _payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async { Err(QueueError::InvalidPayload) })
+    }
+
+    fn failed<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        error: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            eprintln!("{} on {}: {error}", payload.uuid(), context.queue());
+            Ok(())
+        })
+    }
+}
+```
+
+Worker callbacks run in a fresh application scope with the dispatched logging context restored. The worker reports callback errors and still emits the failed-job event. For synchronous jobs, a callback error is returned to the caller. For cleanup that must survive process crashes, persist the cleanup intent and make the operation idempotent.
+
+For a job generated with `make:job`, put the cleanup in the job’s `failed` method. Its handler deserializes the original payload before calling that method.
+
 ### Pruning failed jobs {#pruning-failed-jobs}
 
 Run `queue:prune-failed` to delete failure records older than 24 hours. Use `--hours` to set a different retention period.

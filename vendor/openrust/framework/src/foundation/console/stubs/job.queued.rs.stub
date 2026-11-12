@@ -27,6 +27,10 @@ impl {{class}} {
     pub async fn handle(&self, _context: &mut JobContext<'_>) -> QueueResult<()> {
         Ok(())
     }
+
+    pub async fn failed(&self, _context: &mut JobContext<'_>, _error: &QueueError) -> QueueResult<()> {
+        Ok(())
+    }
 }
 
 struct {{class}}Handler;
@@ -41,6 +45,19 @@ impl JobHandler for {{class}}Handler {
             let job: {{class}} =
                 serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
             job.handle(context).await
+        })
+    }
+
+    fn failed<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        error: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let job: {{class}} =
+                serde::Deserialize::deserialize(payload.data()).map_err(|_| QueueError::InvalidPayload)?;
+            job.failed(context, error).await
         })
     }
 }
