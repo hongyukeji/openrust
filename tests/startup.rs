@@ -231,6 +231,86 @@ fn artisan_generates_isolated_feature_and_unit_tests() {
     );
 }
 
+#[test]
+fn artisan_generates_matching_command_tests_and_reports_partial_failures() {
+    let root = TestRoot::new("make-matching-test");
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+    let command = root.0.join("app/console/commands/reports/send_report.rs");
+    let test = root
+        .0
+        .join("tests/feature/console/commands/reports/send_report_test.rs");
+    let name = "Reports/SendReport.rs";
+    let matching = "Console/Commands/Reports/SendReportTest";
+
+    let stubs = root.0.join("stubs");
+    fs::create_dir(&stubs).unwrap();
+    let stub = stubs.join("test.rs.stub");
+    fs::write(&stub, [0xff]).unwrap();
+    let partial = run(&["make:command", name, "--test"]);
+    assert_eq!(partial.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&partial.stderr).contains(matching));
+    assert!(!test.exists());
+    let original = fs::read_to_string(&command).unwrap();
+    assert!(original.contains(r#""app:send-report""#));
+
+    fs::remove_file(&stub).unwrap();
+    assert!(run(&["make:test", matching]).status.success());
+    assert_eq!(fs::read_to_string(&command).unwrap(), original);
+    assert!(
+        fs::read_to_string(&test)
+            .unwrap()
+            .contains("test_send_report_test")
+    );
+    fs::write(&test, "// existing test\n").unwrap();
+    assert_eq!(
+        run(&["make:command", name, "--test"]).status.code(),
+        Some(1)
+    );
+    assert_eq!(fs::read_to_string(&test).unwrap(), "// existing test\n");
+
+    assert!(
+        run(&[
+            "make:command",
+            name,
+            "--test",
+            "--force",
+            "--command=reports:send"
+        ])
+        .status
+        .success()
+    );
+    assert!(
+        fs::read_to_string(&command)
+            .unwrap()
+            .contains(r#""reports:send""#)
+    );
+    assert!(
+        fs::read_to_string(&test)
+            .unwrap()
+            .contains("test_send_report_test")
+    );
+
+    let existing = "Console/Commands/ArchiveTest";
+    assert!(run(&["make:test", existing]).status.success());
+    let existing = root
+        .0
+        .join("tests/feature/console/commands/archive_test.rs");
+    fs::write(&existing, "// keep the test\n").unwrap();
+    assert_eq!(
+        run(&["make:command", "Archive", "--test"]).status.code(),
+        Some(1)
+    );
+    assert!(root.0.join("app/console/commands/archive.rs").is_file());
+    assert_eq!(fs::read_to_string(existing).unwrap(), "// keep the test\n");
+}
+
 impl TestRoot {
     fn new(name: &str) -> Self {
         let path =

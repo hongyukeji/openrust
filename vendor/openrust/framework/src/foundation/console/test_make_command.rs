@@ -13,28 +13,50 @@ use crate::{
 };
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
-    artisan.add_command(Box::new(TestMakeCommand(CommandDefinition::new(
-        Syntax::new("make:test")
-            .about("Create a new test")
-            .arg(Arg::new("name").required(true).help("The name of the test"))
-            .arg(
-                Arg::new("unit")
-                    .short('u')
-                    .long("unit")
-                    .help("Create a unit test")
-                    .action(ArgAction::SetTrue),
-            )
-            .arg(
-                Arg::new("force")
-                    .short('f')
-                    .long("force")
-                    .help("Replace an existing test file")
-                    .action(ArgAction::SetTrue),
-            ),
-    ))))
+    artisan.add_command(Box::new(TestMakeCommand::new()))
+}
+
+pub(super) async fn generate_matching(
+    app: &Application,
+    name: &str,
+    force: bool,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let generator = TestMakeCommand::new();
+    let mut arguments = vec![name.into()];
+    if force {
+        arguments.push("--force".into());
+    }
+    let input = generator.definition().parse(&arguments)?;
+    generator.handle(app, &input, output).await?;
+    Ok(())
 }
 
 struct TestMakeCommand(CommandDefinition);
+
+impl TestMakeCommand {
+    fn new() -> Self {
+        Self(CommandDefinition::new(
+            Syntax::new("make:test")
+                .about("Create a new test")
+                .arg(Arg::new("name").required(true).help("The name of the test"))
+                .arg(
+                    Arg::new("unit")
+                        .short('u')
+                        .long("unit")
+                        .help("Create a unit test")
+                        .action(ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("force")
+                        .short('f')
+                        .long("force")
+                        .help("Replace an existing test file")
+                        .action(ArgAction::SetTrue),
+                ),
+        ))
+    }
+}
 
 impl Command for TestMakeCommand {
     fn definition(&self) -> &CommandDefinition {

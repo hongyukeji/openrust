@@ -13,6 +13,8 @@ use crate::{
     support::Str,
 };
 
+use super::test_make_command;
+
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(ConsoleMakeCommand(CommandDefinition::new(
         Syntax::new("make:command")
@@ -26,6 +28,12 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                 Arg::new("command")
                     .long("command")
                     .help("The terminal command name"),
+            )
+            .arg(
+                Arg::new("test")
+                    .long("test")
+                    .help("Generate an accompanying feature test")
+                    .action(ArgAction::SetTrue),
             )
             .arg(
                 Arg::new("force")
@@ -69,6 +77,16 @@ impl Command for ConsoleMakeCommand {
             output.stdout.push_str(
                 "Declare the module and register the command in app/console/commands/mod.rs.\n",
             );
+            if input.matches().get_flag("test") {
+                let name = command_type(input);
+                let name = name.strip_suffix(".rs").unwrap_or(name).replace('\\', "/");
+                let test = format!("Console/Commands/{name}Test");
+                test_make_command::generate_matching(app, &test, force, output)
+                    .await
+                    .map_err(|error| ConsoleError::new(format!(
+                        "Command created. Could not generate its test: {error} Retry with make:test {test}."
+                    )))?;
+            }
             Ok(0)
         })
     }
