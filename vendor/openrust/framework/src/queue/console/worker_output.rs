@@ -88,6 +88,10 @@ fn job_status(job: &dyn Job, outcome: Option<JobOutcome<'_>>, timestamp: String)
             result: WorkResult::Failed,
             ..
         }) => "failed",
+        Some(JobOutcome {
+            result: WorkResult::TimedOut,
+            ..
+        }) => "timed_out",
         Some(_) => "success",
     };
     let mut entry = json!({
@@ -128,6 +132,7 @@ fn summary(event: WorkerStatus<'_>) -> String {
             Some(outcome) => {
                 let status = match outcome.result {
                     WorkResult::Failed => "FAIL",
+                    WorkResult::TimedOut => "TIMED OUT",
                     WorkResult::Released if outcome.cause.is_some() => "RELEASED",
                     _ => "DONE",
                 };

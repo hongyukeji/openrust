@@ -104,6 +104,19 @@ impl Command for WorkCommand {
                     .map(duration),
                 stop_when_empty: once || args.get_flag("stop-when-empty"),
                 memory: memory_limit(memory, budget)?,
+                kill_on_timeout: config
+                    .get("queue.kill_on_timeout")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(true),
+                timed_out_exit_code: u8::try_from(
+                    config
+                        .get("queue.timed_out_exit_code")
+                        .and_then(|value| value.as_u64())
+                        .unwrap_or(1),
+                )
+                .map_err(|_| {
+                    ConsoleError::new("queue.timed_out_exit_code must be between 0 and 255")
+                })?,
                 stop_on_lost_connection: config
                     .get("queue.stop_on_lost_connection")
                     .and_then(|value| value.as_bool())

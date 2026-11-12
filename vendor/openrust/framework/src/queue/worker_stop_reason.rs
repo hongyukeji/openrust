@@ -20,6 +20,8 @@ pub enum WorkerStopReason {
     QueueEmptyFor,
     #[serde(rename = "restart_signal")]
     ReceivedRestartSignal,
+    #[serde(rename = "timed_out")]
+    TimedOut,
 }
 
 impl WorkerStopReason {
@@ -33,6 +35,7 @@ impl WorkerStopReason {
             Self::QueueEmpty => "Queue empty",
             Self::QueueEmptyFor => "Queue empty for the configured duration",
             Self::ReceivedRestartSignal => "Received restart signal",
+            Self::TimedOut => "Job timed out",
         }
     }
 }

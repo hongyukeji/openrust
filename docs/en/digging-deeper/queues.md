@@ -96,7 +96,7 @@ A worker writes job progress and pause or resume notices while it runs. Use `--j
 ./artisan queue:work --json --stop-when-empty
 ```
 
-A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `empty_for`, `max_jobs`, `max_time`, `memory`, `lost_connection`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
+A graceful stop writes a `stopped` record with the reason, exit code, and number of processed jobs. The supported reasons are `empty`, `empty_for`, `max_jobs`, `max_time`, `memory`, `timed_out`, `lost_connection`, `interrupted`, and `restart_signal`. A one-shot worker outputs job records and skips the stop summary. Applications can listen for `WorkerStopping` to observe the graceful stop.
 
 Timestamps use `queue.output_timezone` if configured, then `app.timezone` or UTC. Memory usage is currently reported as `null`.
 
@@ -167,6 +167,18 @@ Set `QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false` to keep the worker running afte
 
 ```sh
 QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
+```
+
+#### Job expirations and timeouts {#job-expirations-and-timeouts}
+
+`queue:work --timeout` defaults to 60 seconds. A job can override it. Set the timeout below the queue connection's `retry_after` so another worker can pick up the reservation after the timed-out worker has stopped.
+
+When the asynchronous attempt times out, the daemon cancels the attempt, dispatches `JobTimedOut`, and exits with code `1` and reason `timed_out`. If the attempt limit is reached or `fail_on_timeout` is enabled, it records the failure. Otherwise the driver can reserve the job again after its current lease expires.
+
+Set `QUEUE_WORKER_TIMED_OUT_EXIT_CODE` to choose an exit code from 0 through 255. Set `QUEUE_WORKER_KILL_ON_TIMEOUT=false` to keep the daemon running and use the regular retry policy. One-shot workers already exit after one attempt and continue to use that policy. Tokio timeouts require the job future to yield during execution.
+
+```sh
+QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --stop-when-empty
 ```
 
 ### Reacting to worker signals {#reacting-to-worker-signals}

@@ -7,6 +7,8 @@ pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigE
     Ok(json!({
         "default": get(env, "QUEUE_CONNECTION", "database")?,
         "memory_limit": optional_integer(env, "QUEUE_WORKER_MEMORY_LIMIT")?,
+        "kill_on_timeout": get(env, "QUEUE_WORKER_KILL_ON_TIMEOUT", true)?,
+        "timed_out_exit_code": optional_integer(env, "QUEUE_WORKER_TIMED_OUT_EXIT_CODE")?,
         "stop_on_lost_connection": get(env, "QUEUE_WORKER_STOP_ON_LOST_CONNECTION", true)?,
         "connections": {
             "sync": {"driver": "sync"},

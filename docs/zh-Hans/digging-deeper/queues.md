@@ -96,7 +96,7 @@ Worker 在运行时输出任务进度及暂停、恢复通知。`--json` 每行�
 ./artisan queue:work --json --stop-when-empty
 ```
 
-正常退出时，`stopped` 记录包含原因、退出码和处理任务数。当前原因包括 `empty`、`empty_for`、`max_jobs`、`max_time`、`memory`、`lost_connection`、`interrupted` 和 `restart_signal`。单次 Worker 输出任务记录并省略退出摘要。应用可监听 `WorkerStopping` 观察正常退出。
+正常退出时，`stopped` 记录包含原因、退出码和处理任务数。当前原因包括 `empty`、`empty_for`、`max_jobs`、`max_time`、`memory`、`timed_out`、`lost_connection`、`interrupted` 和 `restart_signal`。单次 Worker 输出任务记录并省略退出摘要。应用可监听 `WorkerStopping` 观察正常退出。
 
 时间戳优先使用 `queue.output_timezone`，其次使用 `app.timezone` 或 UTC。内存用量目前输出为 `null`。
 
@@ -167,6 +167,18 @@ QUEUE_WORKER_MEMORY_LIMIT=256 ./artisan queue:work --json --memory=50% --stop-wh
 
 ```sh
 QUEUE_WORKER_STOP_ON_LOST_CONNECTION=false ./artisan queue:work --json --stop-when-empty
+```
+
+#### 任务预约到期与超时 {#job-expirations-and-timeouts}
+
+`queue:work --timeout` 默认 60 秒，任务可以覆盖此值。超时应短于队列连接的 `retry_after`，以便在超时 Worker 停止后，其他 Worker 能重新预约任务。
+
+异步尝试超时后，守护进程取消该尝试，派发 `JobTimedOut`，并以退出码 `1` 和原因 `timed_out` 退出。达到尝试次数上限或启用 `fail_on_timeout` 时会写入失败记录。其余任务在当前租约到期后可重新预约。
+
+使用 `QUEUE_WORKER_TIMED_OUT_EXIT_CODE` 可设置 0 到 255 的退出码。设置 `QUEUE_WORKER_KILL_ON_TIMEOUT=false` 可让守护进程继续运行并采用常规重试策略。单次 Worker 在一次尝试后退出，仍采用常规重试策略。Tokio 超时要求任务 future 在执行中让出控制权。
+
+```sh
+QUEUE_WORKER_TIMED_OUT_EXIT_CODE=124 ./artisan queue:work --json --timeout=60 --stop-when-empty
 ```
 
 ### 响应 Worker 系统信号 {#reacting-to-worker-signals}

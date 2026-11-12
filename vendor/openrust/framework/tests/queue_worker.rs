@@ -124,7 +124,7 @@ impl JobHandler for Handler {
             .await
             .map_err(execution)?;
             match payload.name() {
-                "timeout" => {
+                "timeout" | "retry_timeout" if context.attempts() == 1 => {
                     sleep(Duration::from_secs(10)).await;
                     db.statement("insert into receipts (name, value) values ('late', 1)", &[])
                         .await
@@ -323,6 +323,11 @@ impl Listener for ControlListener {
                 if event.reason == WorkerStopReason::MaxMemoryExceeded {
                     assert_eq!(event.status, 12);
                     assert!(event.memory_usage.is_some_and(|memory| memory >= 1.0));
+                } else if event.reason == WorkerStopReason::TimedOut {
+                    assert_eq!(
+                        event.status,
+                        i32::from(event.worker_options.timed_out_exit_code)
+                    );
                 } else {
                     assert_eq!(event.status, 0);
                 }
@@ -605,6 +610,7 @@ impl ServiceProvider for Providers {
                 "mysql_disconnect",
                 "terminal",
                 "timeout",
+                "retry_timeout",
                 "slow",
                 "pause_gate",
                 "restart_gate",
@@ -658,14 +664,19 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
             })?;
         } else {
             let mut payload = Payload::new(kind, ())?;
-            if matches!(kind, "timeout" | "interrupt_timeout" | "interrupt_error") {
+            if matches!(
+                kind,
+                "timeout" | "retry_timeout" | "interrupt_timeout" | "interrupt_error"
+            ) {
                 payload = payload.with_options(JobOptions {
-                    timeout: Some(Duration::from_millis(if kind == "timeout" {
-                        100
-                    } else {
-                        250
-                    })),
-                    fail_on_timeout: true,
+                    timeout: Some(Duration::from_millis(
+                        if matches!(kind, "timeout" | "retry_timeout") {
+                            100
+                        } else {
+                            250
+                        },
+                    )),
+                    fail_on_timeout: kind != "retry_timeout",
                     ..Default::default()
                 });
             }
@@ -710,6 +721,19 @@ fn application(root: &Path) -> Application {
             }
             if std::env::var_os("QUEUE_WORKER_TEST_CONTINUE_ON_DISCONNECT").is_some() {
                 config.get_mut("queue").unwrap()["stop_on_lost_connection"] = json!(false);
+            }
+            if std::env::var_os("QUEUE_WORKER_TEST_SHORT_LEASE").is_some() {
+                for driver in ["database", "redis"] {
+                    config.get_mut("queue").unwrap()["connections"][driver]["retry_after"] =
+                        json!(2);
+                }
+            }
+            if std::env::var_os("QUEUE_WORKER_TEST_KEEP_ON_TIMEOUT").is_some() {
+                config.get_mut("queue").unwrap()["kill_on_timeout"] = json!(false);
+            }
+            if let Ok(code) = std::env::var("QUEUE_WORKER_TEST_TIMEOUT_EXIT_CODE") {
+                config.get_mut("queue").unwrap()["timed_out_exit_code"] =
+                    json!(code.parse::<u8>().unwrap());
             }
             Ok(config.into_iter().collect())
         })
@@ -766,7 +790,11 @@ async fn worker_artisan_fixture() {
     } else {
         None
     };
-    assert_eq!(app.handleCommand(&args).await.unwrap(), expected);
+    let status = app.handleCommand(&args).await.unwrap();
+    assert_eq!(status, expected);
+    if std::env::var_os("QUEUE_WORKER_TEST_REAL_EXIT").is_some() {
+        std::process::exit(status);
+    }
     if let Some(fake) = fake {
         fake.assertDispatchedTimes(JobPopping::NAME, 1)
             .assertDispatchedTimes(JobPopped::NAME, 1);
@@ -982,7 +1010,19 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
 
     request(address, "terminal").await;
     request(address, "timeout").await;
-    let output = run(&root.0, &["queue:work", "--json", "--stop-when-empty"]).await;
+    let args = ["queue:work", "--json", "--stop-when-empty"];
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(&root.0, &args)
+            .env("QUEUE_WORKER_EXPECT_EXIT", "1")
+            .env("QUEUE_WORKER_TEST_REAL_EXIT", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let output = String::from_utf8(output.stdout).unwrap();
     let rows = json_lines(&output);
     assert!(
         rows.iter()
@@ -990,6 +1030,8 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     );
     assert_eq!(queue.size(None).await.unwrap(), 0);
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);
+    assert_eq!(rows.last().unwrap()["reason"], "timed_out");
+    assert_eq!(rows.last().unwrap()["exit_code"], 1);
     assert_eq!(
         db.table("receipts")
             .r#where("name", "=", "late")
@@ -1118,6 +1160,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_worker_signals(&root.0, &db, &*queue, address).await;
     verify_job_interruption(&root.0, &db, address).await;
     verify_worker_memory(&root.0, &*queue, address).await;
+    verify_worker_timeout(&root.0, &*queue, address).await;
     if mysql.is_none() && redis.is_none() {
         verify_custom_disconnect(&root.0, &*queue, address).await;
     }
@@ -1961,6 +2004,95 @@ async fn verify_worker_memory(
         assert_eq!(rows.last().unwrap()["reason"], "empty");
         assert!(rows.last().unwrap()["memory"].as_f64().unwrap() > 0.0);
     }
+}
+
+async fn verify_worker_timeout(
+    root: &Path,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let args = ["queue:work", "--json", "--stop-when-empty", "--tries=2"];
+    request(address, "retry_timeout").await;
+    request(address, "control_default").await;
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(root, &args)
+            .env("QUEUE_WORKER_TEST_SHORT_LEASE", "1")
+            .env("QUEUE_WORKER_ATTEMPT_EVENTS", "observe")
+            .env("QUEUE_WORKER_TEST_TIMEOUT_EXIT_CODE", "124")
+            .env("QUEUE_WORKER_EXPECT_EXIT", "124")
+            .env("QUEUE_WORKER_TEST_REAL_EXIT", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(output.status.code(), Some(124), "{output:?}");
+    let out = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        out.contains("attempt-event:JobTimedOut:retry_timeout:1"),
+        "{out}"
+    );
+    assert!(
+        !out.contains("attempt-event:JobAttempted:retry_timeout:1"),
+        "{out}"
+    );
+    assert!(
+        !out.contains("attempt-event:JobReleasedAfterException:retry_timeout:1"),
+        "{out}"
+    );
+    let rows = json_lines(&out);
+    assert_eq!(rows[1]["status"], "timed_out");
+    assert!(rows[1].get("result").is_none());
+    assert_eq!(rows.last().unwrap()["reason"], "timed_out");
+    assert_eq!(rows.last().unwrap()["exit_code"], 124);
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
+    assert_eq!(queue.size(None).await.unwrap(), 2);
+    let next = run(root, &["queue:work", "--json", "--once"]).await;
+    assert_eq!(json_lines(&next).last().unwrap()["job"], "control_default");
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+
+    sleep(Duration::from_secs(2)).await;
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(root, &args)
+            .env("QUEUE_WORKER_TEST_SHORT_LEASE", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let out = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        json_lines(&out)
+            .iter()
+            .any(|row| row["job"] == "retry_timeout"
+                && row["attempts"] == 2
+                && row["status"] == "success")
+    );
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+
+    request(address, "retry_timeout").await;
+    let output = timeout(
+        Duration::from_secs(8),
+        artisan(root, &args)
+            .env("QUEUE_WORKER_TEST_KEEP_ON_TIMEOUT", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(output.status.success(), "{output:?}");
+    let out = String::from_utf8(output.stdout).unwrap();
+    let rows = json_lines(&out);
+    assert!(
+        rows.iter()
+            .any(|row| row["status"] == "released_after_exception")
+    );
+    assert_eq!(rows.last().unwrap()["reason"], "empty");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 2);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
 }
 
 async fn verify_custom_disconnect(

@@ -42,6 +42,7 @@ pub enum WorkResult {
     Idle,
     Processed,
     Released,
+    TimedOut,
     Failed,
 }
 
@@ -64,6 +65,8 @@ pub(super) type RunningHandler = Mutex<Option<Arc<dyn JobHandler>>>;
 
 #[derive(Default)]
 struct AttemptStatus {
+    stop_on_timeout: bool,
+    timed_out: bool,
     cause: Option<QueueError>,
     duration: Option<f64>,
 }
@@ -123,7 +126,8 @@ impl Worker {
         {
             return Ok(WorkResult::Idle);
         }
-        self.process(job.as_mut(), options, &mut None, None).await
+        self.process(job.as_mut(), options, &mut AttemptStatus::default(), None)
+            .await
     }
 
     pub async fn daemon(
@@ -323,15 +327,20 @@ impl Worker {
             if let Some(mut job) = job {
                 let started = tokio::time::Instant::now();
                 status(WorkerStatus::Job(job.as_ref(), None));
-                let mut cause = None;
+                let mut attempt = AttemptStatus {
+                    stop_on_timeout: !cadence.single_run && options.kill_on_timeout,
+                    ..Default::default()
+                };
                 let result = self
-                    .process(job.as_mut(), options, &mut cause, signal_state.as_ref())
+                    .process(job.as_mut(), options, &mut attempt, signal_state.as_ref())
                     .await;
+                let stopping_for_timeout = attempt.stop_on_timeout && attempt.timed_out;
+                let cause = attempt.cause.as_ref();
                 let mut disconnected = false;
                 match result {
                     Ok(result) => {
                         if !cadence.single_run
-                            && let Some(error) = &cause
+                            && let Some(error) = cause
                         {
                             disconnected = self.lost_connection(error)?;
                         }
@@ -340,9 +349,12 @@ impl Worker {
                             Some(JobOutcome {
                                 result,
                                 elapsed: started.elapsed(),
-                                cause: cause.as_ref(),
+                                cause,
                             }),
                         ));
+                    }
+                    Err(error) if stopping_for_timeout => {
+                        self.report_worker_error(&error).await;
                     }
                     Err(error) if !cadence.single_run && self.lost_connection(&error)? => {
                         self.report_worker_error(&error).await;
@@ -356,6 +368,9 @@ impl Worker {
                     .duration_since(UNIX_EPOCH)
                     .ok()
                     .map(|elapsed| elapsed.as_secs());
+                if stopping_for_timeout {
+                    break WorkerStopReason::TimedOut;
+                }
                 if disconnected && options.stop_on_lost_connection {
                     break WorkerStopReason::LostConnection;
                 }
@@ -426,10 +441,10 @@ impl Worker {
                 }
             }
         };
-        let exit_code = if reason == WorkerStopReason::MaxMemoryExceeded {
-            12
-        } else {
-            0
+        let exit_code = match reason {
+            WorkerStopReason::MaxMemoryExceeded => 12,
+            WorkerStopReason::TimedOut => i32::from(options.timed_out_exit_code),
+            _ => 0,
         };
         let event = WorkerStopping {
             status: exit_code,
@@ -508,7 +523,7 @@ impl Worker {
         &self,
         job: &mut dyn Job,
         options: &WorkerOptions,
-        cause: &mut Option<QueueError>,
+        attempt: &mut AttemptStatus,
         signals: Option<&watch::Receiver<WorkerSignalState>>,
     ) -> QueueResult<WorkResult> {
         if job.payload().chain_delivery.is_some() {
@@ -535,23 +550,18 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
-        let mut attempt = AttemptStatus::default();
         let result = self
-            .attempt(
-                job,
-                options,
-                &manager,
-                batch.as_ref(),
-                &mut attempt,
-                signals,
-            )
+            .attempt(job, options, &manager, batch.as_ref(), attempt, signals)
             .await;
-        *cause = attempt.cause;
+        if attempt.stop_on_timeout && attempt.timed_out {
+            return result;
+        }
         self.observe_job_event(&manager, job, JobAttempted::NAME, |connection_name, job| {
             JobAttempted {
                 connection_name,
                 job,
-                exception: cause
+                exception: attempt
+                    .cause
                     .as_ref()
                     .or(result.as_ref().err())
                     .map(attempt_exception_message),
@@ -559,7 +569,7 @@ impl Worker {
             }
         })
         .await;
-        if let Some(error) = cause.as_ref() {
+        if let Some(error) = attempt.cause.as_ref() {
             self.report_worker_error(error).await;
         }
         result
@@ -649,6 +659,7 @@ impl Worker {
                     match tokio::time::timeout(timeout, execution).await {
                         Ok(result) => result,
                         Err(_) => {
+                            status.timed_out = true;
                             if let Some(handler) = active_handler(&running) {
                                 let signal = timeout_signal();
                                 let job = &mut *job;
@@ -676,22 +687,31 @@ impl Worker {
 
         if let Err(error) = result {
             let timed_out = matches!(error, QueueError::Timeout);
-            let terminal = context.release_after.is_none()
+            let stop_for_timeout = status.stop_on_timeout && status.timed_out;
+            let terminal = (stop_for_timeout || context.release_after.is_none())
                 && (already_exhausted
                     || exceeds_attempts(job, tries, true)
                     || timed_out && job.options().fail_on_timeout);
             let error = status.cause.insert(error);
-            if terminal {
-                self.fail(job, error, batch).await?;
-                self.observe_job_event(manager, job, JobFailed::NAME, |connection_name, job| {
-                    JobFailed {
-                        connection_name,
+            let failure = if terminal {
+                let result = self.fail(job, error, batch).await;
+                if result.is_ok() {
+                    self.observe_job_event(
+                        manager,
                         job,
-                        exception: attempt_exception_message(error),
-                    }
-                })
-                .await;
-            }
+                        JobFailed::NAME,
+                        |connection_name, job| JobFailed {
+                            connection_name,
+                            job,
+                            exception: attempt_exception_message(error),
+                        },
+                    )
+                    .await;
+                }
+                result
+            } else {
+                Ok(WorkResult::TimedOut)
+            };
             if timed_out {
                 self.observe_job_event(manager, job, JobTimedOut::NAME, |connection_name, job| {
                     JobTimedOut {
@@ -702,6 +722,11 @@ impl Worker {
                 })
                 .await;
             }
+            if stop_for_timeout {
+                // Leave a retryable reservation untouched for the driver's lease to expire.
+                return failure;
+            }
+            failure?;
             self.observe_job_event(
                 manager,
                 job,
