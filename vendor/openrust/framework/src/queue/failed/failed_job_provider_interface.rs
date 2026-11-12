@@ -15,6 +15,19 @@ pub trait FailedJobProviderInterface: Send + Sync {
 
     fn log<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<Option<String>>>;
     fn all(&self) -> QueueFuture<'_, QueueResult<Vec<FailedJob>>>;
+
+    /// List the retry identifiers, optionally limited to the given queue.
+    fn ids<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<Vec<String>>> {
+        Box::pin(async move {
+            Ok(self
+                .all()
+                .await?
+                .into_iter()
+                .filter(|job| queue.is_none_or(|queue| job.queue == queue))
+                .map(|job| job.id)
+                .collect())
+        })
+    }
     fn find<'a>(&'a self, id: &'a str) -> QueueFuture<'a, QueueResult<Option<FailedJob>>>;
     fn forget<'a>(&'a self, id: &'a str) -> QueueFuture<'a, QueueResult<bool>>;
     fn forget_retry<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<bool>> {

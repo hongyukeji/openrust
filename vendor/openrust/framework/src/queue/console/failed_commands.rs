@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashSet, fmt::Write as _, time::Duration};
 
 use clap::{Arg, ArgAction, Command as Syntax, value_parser};
 
@@ -72,35 +72,7 @@ impl Command for FailedCommand {
                 }
                 Action::Retry => {
                     let manager = container.make::<QueueManager>().map_err(error)?;
-                    let ids = args
-                        .get_many::<String>("id")
-                        .expect("Clap required ids")
-                        .collect::<Vec<_>>();
-                    let jobs = if ids.iter().any(|id| id.as_str() == "all") {
-                        provider.all().await.map_err(error)?
-                    } else {
-                        let mut jobs = Vec::new();
-                        for id in ids {
-                            let job = provider.find(id).await.map_err(error)?.ok_or_else(|| {
-                                ConsoleError::new(format!("Failed job {id:?} was not found."))
-                            })?;
-                            jobs.push(job);
-                        }
-                        jobs
-                    };
-                    let mut pushed = std::collections::HashSet::new();
-                    for job in jobs {
-                        if !pushed.insert(job.id.clone()) {
-                            continue;
-                        }
-                        if manager
-                            .retry_failed(provider.as_ref(), &job)
-                            .await
-                            .map_err(error)?
-                        {
-                            output.info(&format!("Queued failed job {}.", job.id));
-                        }
-                    }
+                    retry_failed(&manager, provider.as_ref(), args, output).await?;
                 }
                 Action::Forget => {
                     let id = args.get_one::<String>("id").expect("Clap required id");
@@ -137,6 +109,78 @@ impl Command for FailedCommand {
     }
 }
 
+async fn retry_failed(
+    manager: &QueueManager,
+    provider: &dyn FailedJobProviderInterface,
+    args: &clap::ArgMatches,
+    output: &mut Output,
+) -> Result<(), ConsoleError> {
+    let ids: Vec<_> = args
+        .get_many::<String>("id")
+        .into_iter()
+        .flatten()
+        .map(String::as_str)
+        .collect();
+    let ranges = args
+        .get_many::<String>("range")
+        .into_iter()
+        .flatten()
+        .filter_map(|range| {
+            let (start, end) = range.split_once('-')?;
+            if !start
+                .bytes()
+                .chain(end.bytes())
+                .all(|byte| byte.is_ascii_digit())
+            {
+                return None;
+            }
+            Some((start.parse::<u64>().ok()?, end.parse::<u64>().ok()?))
+        });
+    let selected: Box<dyn Iterator<Item = String> + Send> = if ids == ["all"] {
+        Box::new(provider.ids(None).await.map_err(error)?.into_iter())
+    } else if let Some(queue) = args.get_one::<String>("queue") {
+        let jobs = provider.ids(Some(queue)).await.map_err(error)?;
+        if jobs.is_empty() {
+            let _ = writeln!(
+                output.stderr,
+                "Unable to find failed jobs for queue [{queue}]."
+            );
+        }
+        Box::new(jobs.into_iter())
+    } else {
+        let expanded = ranges.flat_map(|(start, end)| {
+            (start.min(end)..=start.max(end))
+                .map(move |id| if start <= end { id } else { start - (id - end) }.to_string())
+        });
+        Box::new(
+            ids.into_iter()
+                .filter(|id| !id.is_empty())
+                .map(str::to_owned)
+                .chain(expanded),
+        )
+    };
+    let mut selected = selected.peekable();
+    if selected.peek().is_none() {
+        output.info("No retryable jobs found.");
+        return Ok(());
+    }
+    output.info("Pushing failed queue jobs back onto the queue.");
+    let mut seen = HashSet::new();
+    for id in selected {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let Some(job) = provider.find(&id).await.map_err(error)? else {
+            let _ = writeln!(output.stderr, "Unable to find failed job with ID [{id}].");
+            continue;
+        };
+        if manager.retry_failed(provider, &job).await.map_err(error)? {
+            output.info(&format!("Queued failed job {}.", job.id));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     for (syntax, action) in [
         (
@@ -148,7 +192,14 @@ pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         (
             Syntax::new("queue:retry")
                 .about("Retry failed jobs")
-                .arg(Arg::new("id").required(true).num_args(1..)),
+                .arg(Arg::new("id").num_args(0..))
+                .arg(Arg::new("queue").long("queue").value_name("QUEUE"))
+                .arg(
+                    Arg::new("range")
+                        .long("range")
+                        .value_name("START-END")
+                        .action(ArgAction::Append),
+                ),
             Action::Retry,
         ),
         (

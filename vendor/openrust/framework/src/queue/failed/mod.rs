@@ -13,6 +13,7 @@ pub use prunable_failed_job_provider::PrunableFailedJobProvider;
 use super::{Payload, QueueError};
 
 /// A failed job with its original payload and failure details.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct FailedJob {
     pub id: String,
     pub connection: String,

@@ -28,10 +28,12 @@ mod unix {
         log::context::Context,
         queue::{
             Delay, DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
-            QueueManager, QueueResult, console::ClearCommand, failed::FailedJobProviderInterface,
+            QueueManager, QueueResult,
+            console::ClearCommand,
+            failed::{FailedJob, FailedJobProviderInterface},
         },
         queue::{
-            events::{JobFailed, JobTimedOut, QueueBusy},
+            events::{JobFailed, JobRetryRequested, JobTimedOut, QueueBusy},
             middleware::{JobMiddleware, ThrottlesExceptions},
         },
         redis::{RedisManager, connections::Connection},
@@ -222,6 +224,31 @@ mod unix {
         );
     }
 
+    struct RetryObserver(PathBuf);
+
+    impl Listener for RetryObserver {
+        fn handle<'a>(
+            &'a self,
+            event: &'a dyn EventPayload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            Box::pin(async move {
+                let event = event
+                    .downcast_ref::<JobRetryRequested>()
+                    .ok_or(EventError::InvalidPayload)?;
+                let job = &event.job;
+                let queue = Queue::connection(Some(&job.connection)).unwrap();
+                let pending = queue.size(Some(&job.queue)).await.unwrap();
+                std::fs::write(
+                    self.0.join(format!("retry-{}.json", job.id)),
+                    serde_json::to_vec(&json!({"pending":pending, "job":job})).unwrap(),
+                )
+                .unwrap();
+                Ok(None)
+            })
+        }
+    }
+
     struct BusyObserver(PathBuf);
 
     impl Listener for BusyObserver {
@@ -248,6 +275,11 @@ mod unix {
                 if std::env::var_os("QUEUE_CLEAR_TEST_PROHIBITED").is_some() {
                     ClearCommand::prohibit(true)?;
                 }
+                Event::listen(
+                    JobRetryRequested::NAME,
+                    Arc::new(RetryObserver(self.0.clone())),
+                    Delivery::Sync,
+                )?;
                 Event::listen(
                     QueueBusy::NAME,
                     Arc::new(BusyObserver(self.0.clone())),
@@ -775,6 +807,129 @@ mod unix {
         assert!(!root.join("callback-sync-error.failed").exists());
     }
 
+    async fn verify_retry_selection(
+        root: &Path,
+        app: &Application,
+        db: &DatabaseConnection,
+        queue: &dyn openrust::contracts::queue::Queue,
+    ) {
+        db.table("failed_jobs").delete().await.unwrap();
+        let provider = app
+            .container()
+            .get::<dyn FailedJobProviderInterface>("queue.failer")
+            .unwrap();
+        for (id, name) in [
+            ("only", "retry-filter"),
+            ("1", "retry-other"),
+            ("2", "retry-other"),
+            ("keep", "retry-other"),
+        ] {
+            let payload = Payload::new("hard-timeout-probe", id).unwrap();
+            let mut stored = serde_json::to_value(&payload).unwrap();
+            stored["options"]
+                .as_object_mut()
+                .unwrap()
+                .remove("hard_timeout");
+            provider
+                .log(&FailedJob {
+                    id: id.into(),
+                    connection: queue.get_connection_name().into(),
+                    queue: name.into(),
+                    payload,
+                    exception: "original failure".into(),
+                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                })
+                .await
+                .unwrap();
+            if id == "only" {
+                db.statement(
+                    "update failed_jobs set payload = ? where uuid = ?",
+                    &[
+                        serde_json::to_string_pretty(&stored).unwrap().into(),
+                        id.into(),
+                    ],
+                )
+                .await
+                .unwrap();
+            }
+        }
+        let retry = |args: &[&str]| {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args(["artisan", "queue:retry"])
+                .args(args)
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            async move {
+                let result = tokio::time::timeout(Duration::from_secs(8), command.output())
+                    .await
+                    .unwrap()
+                    .unwrap();
+                assert!(result.status.success(), "{result:?}");
+                (
+                    String::from_utf8(result.stdout).unwrap(),
+                    String::from_utf8(result.stderr).unwrap(),
+                )
+            }
+        };
+        let (stdout, stderr) = retry(&["--queue=retry-filter", "keep", "--range=1-2"]).await;
+        assert!(stdout.contains("Queued failed job only."), "{stdout}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(provider.ids(None).await.unwrap().len(), 3);
+        assert_eq!(queue.size(Some("retry-filter")).await.unwrap(), 1);
+        assert_eq!(queue.size(Some("retry-other")).await.unwrap(), 0);
+        let event: Value =
+            serde_json::from_slice(&std::fs::read(root.join("retry-only.json")).unwrap()).unwrap();
+        assert_eq!(event["pending"], 0);
+        assert_eq!(event["job"]["exception"], "original failure");
+
+        let (stdout, stderr) =
+            retry(&["missing", "--range=2-1", "--range=bad", "--range=2-2"]).await;
+        assert!(
+            stderr.contains("Unable to find failed job with ID [missing]."),
+            "{stderr}"
+        );
+        assert_eq!(stdout.matches("Queued failed job").count(), 2, "{stdout}");
+        assert!(stdout.find("Queued failed job 2.") < stdout.find("Queued failed job 1."));
+        assert_eq!(queue.size(Some("retry-other")).await.unwrap(), 2);
+        assert_eq!(provider.ids(None).await.unwrap(), ["keep"]);
+        let (stdout, stderr) = retry(&["all", "--queue=absent"]).await;
+        assert!(stdout.contains("Queued failed job keep."), "{stdout}");
+        assert!(stderr.is_empty(), "{stderr}");
+        assert_eq!(queue.size(Some("retry-other")).await.unwrap(), 3);
+        let (stdout, stderr) = retry(&["--queue=absent"]).await;
+        assert!(stdout.contains("No retryable jobs found."), "{stdout}");
+        assert!(
+            stderr.contains("Unable to find failed jobs for queue [absent]."),
+            "{stderr}"
+        );
+        assert!(provider.ids(None).await.unwrap().is_empty());
+
+        if queue.get_connection_name() == "database" {
+            let payload = Payload::new("hard-timeout-probe", "race").unwrap();
+            provider
+                .log(&FailedJob {
+                    id: payload.uuid().into(),
+                    connection: "database".into(),
+                    queue: "retry-race".into(),
+                    payload,
+                    exception: "original failure".into(),
+                    failed_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                })
+                .await
+                .unwrap();
+            let args = ["--queue=retry-race"];
+            let ((first, _), (second, _)) = tokio::join!(retry(&args), retry(&args));
+            assert_eq!(
+                first.matches("Queued failed job").count()
+                    + second.matches("Queued failed job").count(),
+                1
+            );
+            assert_eq!(queue.size(Some("retry-race")).await.unwrap(), 1);
+            assert!(provider.ids(None).await.unwrap().is_empty());
+        }
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -934,6 +1089,7 @@ mod unix {
         if backend != "redis" {
             verify_prune_failed(&root.0, &app, &db).await;
         }
+        verify_retry_selection(&root.0, &app, &db, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

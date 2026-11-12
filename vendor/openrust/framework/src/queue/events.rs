@@ -1,6 +1,6 @@
 //! Queue and worker lifecycle events.
 
-use super::{Payload, WorkerOptions, WorkerStopReason};
+use super::{Payload, WorkerOptions, WorkerStopReason, failed::FailedJob};
 use crate::{
     cache::Ttl,
     contracts::{events::Event, queue::Job},
@@ -228,6 +228,11 @@ queue_event!(
         job: JobSnapshot,
         exception: String,
     }
+);
+
+queue_event!(
+    /// Artisan requested that a stored failure be put back on its original queue.
+    JobRetryRequested { job: FailedJob }
 );
 
 queue_event!(

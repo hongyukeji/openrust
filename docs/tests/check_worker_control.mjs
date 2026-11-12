@@ -18,7 +18,7 @@ try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;
                     const response = await page.goto(url);
                     assert.equal(response.status(), 200);
-                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "max-exceptions", "counting-worker-crashes", "stopping-retries-by-exception", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "cleaning-up-after-failed-jobs", "pruning-failed-jobs", "clearing-jobs-from-queues", "monitoring-your-queues", "preventing-job-overlaps", "throttling-exceptions", "releasing-jobs", "skipping-jobs", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
+                    for (const anchor of ["queue-workers-and-deployment", "worker-status-and-exit-reasons", "worker-lifecycle-events", "job-reservation-events", "job-attempt-events", "worker-rest-and-idle-timeout", "worker-memory-limit", "worker-lost-connection", "max-exceptions", "counting-worker-crashes", "stopping-retries-by-exception", "job-expirations-and-timeouts", "hard-job-timeouts", "rate-limiting", "cleaning-up-after-failed-jobs", "retrying-failed-jobs", "pruning-failed-jobs", "clearing-jobs-from-queues", "monitoring-your-queues", "preventing-job-overlaps", "throttling-exceptions", "releasing-jobs", "skipping-jobs", "reacting-to-worker-signals", "notifying-a-running-job", "pausing-and-resuming-queue-workers", "pausing-queues-in-code"]) {
                         assert.equal(await page.locator(`#${anchor}`).count(), 1);
                         assert.ok(await page.locator(`a[href="#${anchor}"]`).count());
                     }
@@ -47,6 +47,8 @@ try {
                     assert.ok(body.includes("./artisan queue:clear database --queue=emails,reports"));
                     assert.ok(body.includes("./artisan queue:prune-failed --hours=48"));
                     assert.ok(body.includes("JobHandler::failed"));
+                    assert.ok(body.includes("./artisan queue:retry --queue=emails"));
+                    assert.ok(body.includes("JobRetryRequested"));
                     assert.ok(body.includes("ClearCommand::prohibit(true)"));
                     assert.ok(body.includes("./artisan queue:monitor database:emails,reports --max=100 --json"));
                     assert.ok(body.includes("QueueBusy"));

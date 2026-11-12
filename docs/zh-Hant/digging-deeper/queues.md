@@ -749,6 +749,17 @@ Worker 回呼在新的應用程式作用域中執行，並還原分派時的日�
 
 使用 `make:job` 產生的佇列工作，可以直接在工作的 `failed` 方法撰寫清理邏輯。處理器會先反序列化原始酬載，再呼叫該方法。
 
+### 重試失敗工作 {#retrying-failed-jobs}
+
+用 `queue:failed` 查看失敗 ID。向 `queue:retry` 傳入一個或多個 ID，或依佇列名稱選擇失敗工作。用 `all` 重試所有佇列的失敗工作。儲存驅動程式提供數字 ID 時，可重複使用 `--range` 指定包含兩端的區間。預設資料庫驅動程式提供 UUID。
+
+```sh
+./artisan queue:retry --queue=emails
+./artisan queue:retry all
+```
+
+工作回到原連線和原佇列，並重新計算嘗試次數。命令會回報找不到的 ID，並繼續處理其餘 ID。應用程式在嘗試入列前發出 `JobRetryRequested`，事件包含原始失敗記錄。
+
 ### 清理過期失敗工作 {#pruning-failed-jobs}
 
 執行 `queue:prune-failed` 刪除超過 24 小時的失敗記錄。可用 `--hours` 設定其他保留時間。

@@ -30,7 +30,7 @@ use crate::{
 use super::{
     DatabaseQueue, DispatchOptions, DispatchResult, Payload, Queue, QueueError, QueueResult,
     RedisQueue, SyncQueue, backend,
-    events::{QueuePaused, QueueResumed, QueuesPaused, QueuesResumed},
+    events::{JobRetryRequested, QueuePaused, QueueResumed, QueuesPaused, QueuesResumed},
     failed::{FailedJob, FailedJobProviderInterface},
     new_id, queue_name,
     worker_control::WorkerControl,
@@ -329,6 +329,10 @@ impl QueueManager {
         failures: &dyn FailedJobProviderInterface,
         job: &FailedJob,
     ) -> QueueResult<bool> {
+        if self.observes_worker_event(JobRetryRequested::NAME)? {
+            self.emit_control_event(JobRetryRequested { job: job.clone() })
+                .await?;
+        }
         let configured = self.resolve(Some(&job.connection))?;
         let payload = job.payload.clone().renewed()?;
         let queue = Some(job.queue.as_str());

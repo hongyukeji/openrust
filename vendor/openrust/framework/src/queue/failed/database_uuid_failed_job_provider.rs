@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::database::{Connection, Row, Transaction, Value};
+use crate::database::{Connection, Row, Transaction, Value, query::Builder};
 
 use super::{FailedJob, FailedJobProviderInterface, PrunableFailedJobProvider};
 use crate::queue::{Payload, QueueError, QueueFuture, QueueResult, backend};
@@ -91,6 +91,29 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
         })
     }
 
+    fn ids<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<Vec<String>>> {
+        Box::pin(async move {
+            let mut query = self
+                .connection
+                .table(&self.table)
+                .useWritePdo()
+                .orderByDesc("id");
+            if let Some(queue) = queue {
+                query = query.r#where("queue", "=", queue);
+            }
+            query
+                .pluck("uuid")
+                .await
+                .map_err(backend)?
+                .into_iter()
+                .map(|value| match value {
+                    Value::Text(id) => Ok(id),
+                    _ => Err(QueueError::InvalidPayload),
+                })
+                .collect()
+        })
+    }
+
     fn find<'a>(&'a self, id: &'a str) -> QueueFuture<'a, QueueResult<Option<FailedJob>>> {
         Box::pin(async move {
             self.connection
@@ -120,17 +143,18 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
 
     fn forget_retry<'a>(&'a self, job: &'a FailedJob) -> QueueFuture<'a, QueueResult<bool>> {
         Box::pin(async move {
-            Ok(self
-                .connection
-                .table(&self.table)
-                .r#where("uuid", "=", job.id.as_str())
-                .r#where("payload", "=", job.payload.encode()?)
-                .delete()
-                .await
-                .map_err(backend)?
-                > 0)
+            let canonical = job.payload.encode()?;
+            let table = || self.connection.table(&self.table).useWritePdo();
+            if delete_retry_payload(table(), job, &canonical).await? {
+                return Ok(true);
+            }
+            let Some(stored) = stored_retry_payload(table(), job, &canonical).await? else {
+                return Ok(false);
+            };
+            delete_retry_payload(table(), job, &stored).await
         })
     }
+
     fn forget_retry_in_transaction<'a>(
         &'a self,
         job: &'a FailedJob,
@@ -140,14 +164,18 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
             if !transaction.belongs_to(&self.connection) {
                 return Ok(None);
             }
-            let deleted = transaction
-                .table(&self.table)
-                .r#where("uuid", "=", job.id.as_str())
-                .r#where("payload", "=", job.payload.encode()?)
-                .delete()
+            let canonical = job.payload.encode()?;
+            if delete_retry_payload(transaction.table(&self.table), job, &canonical).await? {
+                return Ok(Some(true));
+            }
+            let Some(stored) =
+                stored_retry_payload(transaction.table(&self.table), job, &canonical).await?
+            else {
+                return Ok(Some(false));
+            };
+            delete_retry_payload(transaction.table(&self.table), job, &stored)
                 .await
-                .map_err(backend)?;
-            Ok(Some(deleted != 0))
+                .map(Some)
         })
     }
 
@@ -167,6 +195,48 @@ impl FailedJobProviderInterface for DatabaseUuidFailedJobProvider {
             Ok(())
         })
     }
+}
+
+fn retry_row<'a>(query: Builder<'a>, job: &FailedJob) -> Builder<'a> {
+    query
+        .r#where("uuid", "=", job.id.as_str())
+        .r#where("connection", "=", job.connection.as_str())
+        .r#where("queue", "=", job.queue.as_str())
+        .r#where("failed_at", "=", job.failed_at.as_str())
+        .r#where("exception", "=", job.exception.as_str())
+}
+
+async fn delete_retry_payload(
+    query: Builder<'_>,
+    job: &FailedJob,
+    payload: &str,
+) -> QueueResult<bool> {
+    Ok(retry_row(query, job)
+        .r#where("payload", "=", payload)
+        .delete()
+        .await
+        .map_err(backend)?
+        > 0)
+}
+
+async fn stored_retry_payload(
+    query: Builder<'_>,
+    job: &FailedJob,
+    canonical: &str,
+) -> QueueResult<Option<String>> {
+    let Some(row) = retry_row(query, job)
+        .select(["payload"])
+        .first()
+        .await
+        .map_err(backend)?
+    else {
+        return Ok(None);
+    };
+    let Some(Value::Text(raw)) = row.get("payload") else {
+        return Err(QueueError::InvalidPayload);
+    };
+    // Old payloads may omit fields that the current serializer always writes.
+    Ok((Payload::decode(raw)?.encode()? == canonical).then(|| raw.clone()))
 }
 
 fn decode(row: Row) -> QueueResult<FailedJob> {

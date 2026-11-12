@@ -749,6 +749,17 @@ Worker callbacks run in a fresh application scope with the dispatched logging co
 
 For a job generated with `make:job`, put the cleanup in the job’s `failed` method. Its handler deserializes the original payload before calling that method.
 
+### Retrying failed jobs {#retrying-failed-jobs}
+
+Run `queue:failed` for the failure IDs. Pass one or more IDs to `queue:retry`, or select all failures for a named queue. Use `all` to retry across queues. Repeat `--range` for inclusive ranges on providers that expose numeric IDs. The default database provider exposes UUIDs.
+
+```sh
+./artisan queue:retry --queue=emails
+./artisan queue:retry all
+```
+
+Each job is put back on its original connection and queue with a fresh attempt count. A missing ID is reported and the remaining IDs are processed. The application dispatches `JobRetryRequested` with the original failure before attempting to requeue it.
+
 ### Pruning failed jobs {#pruning-failed-jobs}
 
 Run `queue:prune-failed` to delete failure records older than 24 hours. Use `--hours` to set a different retention period.

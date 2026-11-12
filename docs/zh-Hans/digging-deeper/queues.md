@@ -749,6 +749,17 @@ Worker 回调在新的应用作用域中运行，并恢复分发时的日志上�
 
 使用 `make:job` 生成的队列任务，可以直接在任务的 `failed` 方法编写清理逻辑。处理器会先反序列化原始载荷，再调用该方法。
 
+### 重试失败任务 {#retrying-failed-jobs}
+
+用 `queue:failed` 查看失败 ID。向 `queue:retry` 传入一个或多个 ID，或按队列名选择失败任务。用 `all` 重试所有队列的失败任务。存储驱动提供数字 ID 时，可重复使用 `--range` 指定包含两端的区间。默认数据库驱动提供 UUID。
+
+```sh
+./artisan queue:retry --queue=emails
+./artisan queue:retry all
+```
+
+任务回到原连接和原队列，并重新计算尝试次数。命令会报告找不到的 ID，并继续处理其余 ID。应用在尝试入队前发出 `JobRetryRequested`，事件包含原始失败记录。
+
 ### 清理过期失败任务 {#pruning-failed-jobs}
 
 运行 `queue:prune-failed` 删除超过 24 小时的失败记录。可用 `--hours` 设置其他保留时长。
