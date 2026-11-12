@@ -12,7 +12,7 @@ The HTTP kernel configures middleware when it is created and resolves each route
 
 The HTTP kernel runs [middleware](../the-basics/middleware.md) and dispatches the request through the framework [router](../the-basics/routing.md). At `/`, the skeleton calls `view("welcome")`. The framework resolves the name to `resources/views/welcome.html` in the application root and reads it at request time. Editing the HTML takes effect on the next request. The skeleton also exposes the health check at `/up`.
 
-`bootstrap/app.rs` declares the Web routes, console routes and health path with `withRouting`. The framework mounts Web routes in the `web` group and loads console routes after the Console Kernel boots. The default application loads Web and console routes. API, broadcasting and gRPC use separate optional registration paths. The built-in `web` group currently includes route binding. The framework’s `/up` endpoint returns `200 OK` as an HTTP liveness check. The health diagnostic event and the cookie, session and CSRF layers depend on their respective framework components.
+The default application loads Web routes, console routes and the health path through `withRouting` in `bootstrap/app.rs`. Web routes use the [default Web middleware group](../the-basics/middleware.md). Console routes are registered after the Console Kernel boots. API, broadcasting and gRPC have separate optional registration paths. The `/up` handler returns `200 OK` after the application boots.
 
 When routing or middleware returns an HTTP error, the kernel applies the [exception rendering policy](../the-basics/errors.md#rendering-exceptions-as-json) declared in `bootstrap/app.rs`.
 

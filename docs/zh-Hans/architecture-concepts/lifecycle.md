@@ -12,7 +12,7 @@ HTTP Kernel 创建时应用中间件配置，引导后解析路由中间件栈�
 
 HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路由器](../the-basics/routing.md)分发请求。应用骨架在 `/` 调用 `view("welcome")`。框架将视图名解析为应用根目录下的 `resources/views/welcome.html`，并在请求时读取。修改 HTML 后，下次请求即可看到结果。`/up` 提供健康检查。
 
-`bootstrap/app.rs` 通过 `withRouting` 声明 Web 路由、控制台路由及健康路径。框架将 Web 路由挂入 `web` 组，Console Kernel 在引导后加载控制台路由。默认应用加载 Web 和控制台路由。API、广播和 gRPC 使用各自的可选注册入口。内置 `web` 组目前接入路由绑定。框架的 `/up` 返回 `200 OK`，用于验证 HTTP 服务存活。健康诊断事件、Cookie、Session 和 CSRF 随各自的框架组件接入。
+默认应用通过 `bootstrap/app.rs` 中的 `withRouting` 声明 Web 路由、控制台路由及健康路径。Web 路由使用[默认 Web 中间件组](../the-basics/middleware.md)，控制台路由在 Console Kernel 引导后登记。API、广播和 gRPC 使用各自的可选注册入口。应用引导完成后，`/up` 处理器返回 `200 OK`。
 
 路由或中间件返回 HTTP 错误时，内核应用 `bootstrap/app.rs` 中声明的[异常渲染策略](../the-basics/errors.md#将异常渲染为-json)。
 

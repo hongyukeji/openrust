@@ -26,10 +26,18 @@
 
 本批入库的是复核结论。上表文件保留在原工作区，逐批正式交付时依据对应验收证据纳入。
 
+## 启动与框架指引
+
+已重核 [启动架构](../architecture.md)和[框架 README](../../../vendor/openrust/framework/README.md)。正文以三语请求生命周期、配置和安装页为入口。早期静态启动清单保留为历史草稿，验收复现使用对应交付记录。三语生命周期页同步链接已实现的 Web 中间件组。
+
+从任务钩子提交 `cb9a7462` 的归档复现。Rust 1.94.0 锁定离线构建通过。生成临时应用密钥并使用数组会话，实际 HTTP 的 `/` 与 `/up` 返回 200。实际 `cargo run -- artisan list` 可见应用和框架命令，非法进程入口返回用法和退出码 2。三语链接、站点构建和浏览器检查通过。
+
+本批收录两份遗留资料。原 51 个非空路径剩 49 个，历史补丁和空占位保留。
+
 ## 文件与处理原因
 
 - `.agents/project/README.md` · 空占位
-- `.agents/project/architecture.md` · 早期启动范围草稿，现行最小范围待重核
+- `.agents/project/architecture.md` · 已按现行启动架构入库
 - `.agents/project/audits/01-02f/excluded-workspace-wip.patch` · 历史工作区补丁
 - `.agents/project/audits/01-02f/preexisting-wip.patch` · 历史工作区补丁
 - `.agents/project/audits/01-02g/preexisting-wip.patch` · 历史工作区补丁
@@ -97,7 +105,7 @@
 - `docker/docker-compose.yml` · 空占位
 - `resources/css/app.css` · 空占位
 - `resources/js/app.js` · 空占位
-- `vendor/openrust/framework/README.md` · 框架 README 草稿，旧签名和路径待核对
+- `vendor/openrust/framework/README.md` · 已按现行公开入口入库
 - `vendor/openrust/framework/src/ai/console/agent_make_command.rs` · 空占位
 - `vendor/openrust/framework/src/ai/console/tool_make_command.rs` · 空占位
 - `vendor/openrust/framework/src/cache/console/cache_table_command.rs` · 空占位

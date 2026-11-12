@@ -12,7 +12,7 @@ HTTP Kernel 建立時套用中介軟體設定，引導後解析路由中介軟�
 
 HTTP 核心執行[中介軟體](../the-basics/middleware.md)，並透過框架[路由器](../the-basics/routing.md)分派請求。應用程式骨架在 `/` 呼叫 `view("welcome")`。框架將檢視名稱解析為應用程式根目錄下的 `resources/views/welcome.html`，並在請求時讀取。修改 HTML 後，下次請求即可看到結果。`/up` 提供健康檢查。
 
-`bootstrap/app.rs` 透過 `withRouting` 宣告 Web 路由、控制台路由及健康路徑。框架將 Web 路由掛入 `web` 群組，Console Kernel 在引導後載入控制台路由。預設應用程式載入 Web 和主控台路由。API、廣播和 gRPC 使用各自的選用註冊入口。內建 `web` 群組目前接入路由繫結。框架的 `/up` 傳回 `200 OK`，用於驗證 HTTP 服務存活。健康診斷事件、Cookie、Session 和 CSRF 隨各自的框架元件接入。
+預設應用程式透過 `bootstrap/app.rs` 的 `withRouting` 宣告 Web 路由、主控台路由及健康路徑。Web 路由使用[預設 Web 中介軟體群組](../the-basics/middleware.md)，主控台路由在 Console Kernel 引導後登記。API、廣播和 gRPC 使用各自的選用註冊入口。應用程式引導完成後，`/up` 處理器傳回 `200 OK`。
 
 路由或中介軟體傳回 HTTP 錯誤時，核心套用 `bootstrap/app.rs` 中宣告的[例外轉譯策略](../the-basics/errors.md#將例外轉譯為-json)。
 
