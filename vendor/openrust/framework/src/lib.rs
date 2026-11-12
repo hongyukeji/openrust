@@ -28,6 +28,7 @@ pub mod redis;
 pub mod routing;
 pub mod session;
 pub mod support;
+pub mod testing;
 pub mod translation;
 pub mod validation;
 pub mod view;

@@ -47,6 +47,7 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 sqlx = { version = "=0.9.0", default-features = false, features = ["runtime-tokio", "mysql", "sqlite-bundled", "tls-rustls-ring", "chrono", "json"] }
 sqlx-core = { version = "=0.9.0", default-features = false }
 subtle = "2.6.1"
+tempfile = "3.27.0"
 url = "2.5.8"
 tokio = { version = "1.54.1", features = ["fs", "io-util", "macros", "net", "process", "rt", "signal", "sync", "time"] }
 tokio-stream = { version = "0.1", features = ["net"] }
