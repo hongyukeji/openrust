@@ -2,6 +2,7 @@
 
 pub mod auth;
 pub mod broadcasting;
+pub mod bus;
 pub mod cache;
 pub mod concurrency;
 pub mod config;

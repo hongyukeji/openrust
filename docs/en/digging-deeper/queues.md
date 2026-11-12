@@ -61,6 +61,25 @@ Pass the active transaction as the last argument of `Queue::dispatch`. A connect
 
 Use `./artisan queue:work database --stop-when-empty` to process pending jobs and exit. `--once` attempts one job. Use `--tries`, `--backoff` and `--timeout` to configure the worker. A job can override these values in `JobOptions`. On SIGTERM, the worker stops taking new jobs and finishes the current attempt.
 
+## Job batching {#job-batching}
+
+Run `./artisan migrate` to create the `job_batches` ledger. `DatabaseBatchRepository` persists batch counts, failed job IDs, and cancellation and completion timestamps. Read a batch from the write connection when displaying its current progress.
+
+```rust
+use openrust::{
+    bus::DatabaseBatchRepository,
+    database::Connection,
+    queue::QueueResult,
+};
+
+async fn batch_progress(connection: Connection, id: &str) -> QueueResult<Option<u32>> {
+    let batches = DatabaseBatchRepository::new(connection, "job_batches")?;
+    Ok(batches.find(id).await?.map(|batch| batch.progress()))
+}
+```
+
+This release provides the SQL ledger. Batch dispatch and automatic updates from the worker require the batch runtime. `make:job --batched` remains unavailable until that integration is in place.
+
 ## Job middleware {#job-middleware}
 
 Return middleware from `JobHandler::middleware`. Call `JobNext::run` to continue, or call `JobContext::release` to schedule another attempt. `WithoutOverlapping` uses the configured cache lock and can release an overlapping job with a delay. An unfinished lock expires at its configured lease time.

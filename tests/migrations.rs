@@ -7,6 +7,7 @@ use std::{
 };
 
 use openrust::{
+    bus::DatabaseBatchRepository,
     config::Repository,
     database::{Connection, DatabaseManager},
 };
@@ -81,6 +82,7 @@ async fn verify(mysql: Option<&str>) {
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
     for name in [
+        "job_batches",
         "failed_jobs",
         "jobs",
         "cache_locks",
@@ -102,6 +104,7 @@ async fn verify(mysql: Option<&str>) {
 
     let preview = success(run(&["migrate", "--pretend"]));
     assert!(preview.contains("create table") && preview.contains("users"));
+    assert!(preview.contains("job_batches"));
     assert!(!schema.hasTable("users").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
     assert!(success(run(&["migrate:status", "--pending"])).contains("Pending"));
@@ -125,12 +128,22 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("cache_locks").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
+    assert!(schema.hasTable("job_batches").await.unwrap());
+    verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 4);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 5);
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
+    assert!(!schema.hasTable("job_batches").await.unwrap());
+    assert!(schema.hasTable("failed_jobs").await.unwrap());
+    let upgrade = success(run(&["migrate"]));
+    assert!(upgrade.contains("create_job_batches_table"));
+    assert!(!upgrade.contains("create_failed_jobs_table"));
+    assert!(schema.hasTable("job_batches").await.unwrap());
+    assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
@@ -161,6 +174,85 @@ async fn verify(mysql: Option<&str>) {
     assert!(!schema.hasTable("users").await.unwrap());
     assert!(!schema.hasTable("jobs").await.unwrap());
     assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
+}
+
+async fn verify_batches(db: Connection) {
+    let repository = DatabaseBatchRepository::new(db, "job_batches").unwrap();
+    let options =
+        serde_json::from_value(json!({"allowFailures": true, "application": "example"})).unwrap();
+    let batch = repository.store("reports", options).await.unwrap();
+    assert_eq!(
+        repository.find(&batch.id).await.unwrap(),
+        Some(batch.clone())
+    );
+    assert!(batch.allowsFailures());
+    assert!(!batch.finished());
+    assert_eq!(batch.progress(), 0);
+
+    let batch_id = &batch.id;
+    repository.incrementTotalJobs(batch_id, 8).await.unwrap();
+    let mut jobs = tokio::task::JoinSet::new();
+    for index in 0..8 {
+        let repository = repository.clone();
+        let id = batch.id.clone();
+        jobs.spawn(async move {
+            repository
+                .decrementPendingJobs(&id, &format!("job-{index}"))
+                .await
+                .unwrap()
+        });
+    }
+    while let Some(outcome) = jobs.join_next().await {
+        assert!(outcome.unwrap().is_some());
+    }
+    let batch = repository.markAsFinished(batch_id).await.unwrap().unwrap();
+    assert_eq!(batch.pending_jobs, 0);
+    assert_eq!(batch.progress(), 100);
+    let json = serde_json::to_value(&batch).unwrap();
+    assert_eq!(json["processedJobs"], 8);
+    assert_eq!(json["progress"], 100);
+    assert!(json["createdAt"].as_str().unwrap().ends_with('Z'));
+    assert!(json.get("failedJobIds").is_none());
+    assert!(batch.finished());
+    assert!(
+        repository
+            .decrementPendingJobs(batch_id, "underflow")
+            .await
+            .is_err()
+    );
+    assert_eq!(repository.find(batch_id).await.unwrap(), Some(batch));
+
+    let pending = repository
+        .incrementTotalJobs(batch_id, 2)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(pending.pending_jobs, 2);
+    assert!(!pending.finished());
+    for _ in 0..2 {
+        let failure = repository
+            .incrementFailedJobs(batch_id, "job-failed")
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(failure.pending_jobs, 2);
+        assert!(failure.hasFailures());
+        assert_eq!(failure.failed_job_ids, ["job-failed"]);
+    }
+    let retried = repository
+        .decrementPendingJobs(batch_id, "job-failed")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retried.failed_jobs, 2);
+    assert!(retried.failed_job_ids.is_empty());
+    let cancelled = repository.cancel(batch_id).await.unwrap().unwrap();
+    assert!(cancelled.cancelled());
+    assert!(cancelled.canceled());
+    assert_eq!(cancelled.finished_at, cancelled.cancelled_at);
+    assert!(repository.delete(batch_id).await.unwrap());
+    assert!(repository.find(batch_id).await.unwrap().is_none());
+    assert!(repository.cancel(batch_id).await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -224,7 +316,8 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("cache_locks").await.unwrap());
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 4);
+    assert!(schema.hasTable("job_batches").await.unwrap());
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 5);
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

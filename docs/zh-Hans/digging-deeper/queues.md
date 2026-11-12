@@ -61,6 +61,25 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 运行 `./artisan queue:work database --stop-when-empty` 处理待执行任务并退出。`--once` 尝试一个任务。用 `--tries`、`--backoff` 和 `--timeout` 配置 Worker，任务可通过 `JobOptions` 覆盖。收到 SIGTERM 时，Worker 停止领取新任务并完成当前尝试。
 
+## 任务批次 {#job-batching}
+
+运行 `./artisan migrate` 创建 `job_batches` 账本。`DatabaseBatchRepository` 保存批次计数、失败任务 ID、取消时间和完成时间。展示当前进度时，从写连接读取批次。
+
+```rust
+use openrust::{
+    bus::DatabaseBatchRepository,
+    database::Connection,
+    queue::QueueResult,
+};
+
+async fn batch_progress(connection: Connection, id: &str) -> QueueResult<Option<u32>> {
+    let batches = DatabaseBatchRepository::new(connection, "job_batches")?;
+    Ok(batches.find(id).await?.map(|batch| batch.progress()))
+}
+```
+
+当前已提供 SQL 账本。批次派发和 Worker 自动记账依赖批次运行时，接通后才能使用 `make:job --batched`。
+
 ## 任务中间件 {#job-middleware}
 
 通过 `JobHandler::middleware` 返回中间件。用 `JobNext::run` 继续执行，或用 `JobContext::release` 安排下一次尝试。`WithoutOverlapping` 使用配置的缓存锁，可延迟释放冲突任务。未完成的锁会在租期结束时过期。

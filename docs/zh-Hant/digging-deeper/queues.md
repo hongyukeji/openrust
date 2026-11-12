@@ -61,6 +61,25 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 執行 `./artisan queue:work database --stop-when-empty` 處理待執行工作並結束。`--once` 嘗試一個工作。使用 `--tries`、`--backoff` 和 `--timeout` 設定 Worker，工作可透過 `JobOptions` 覆寫。收到 SIGTERM 時，Worker 停止領取新工作並完成目前嘗試。
 
+## 工作批次 {#job-batching}
+
+執行 `./artisan migrate` 建立 `job_batches` 帳本。`DatabaseBatchRepository` 儲存批次計數、失敗工作 ID、取消時間和完成時間。顯示目前進度時，從寫入連線讀取批次。
+
+```rust
+use openrust::{
+    bus::DatabaseBatchRepository,
+    database::Connection,
+    queue::QueueResult,
+};
+
+async fn batch_progress(connection: Connection, id: &str) -> QueueResult<Option<u32>> {
+    let batches = DatabaseBatchRepository::new(connection, "job_batches")?;
+    Ok(batches.find(id).await?.map(|batch| batch.progress()))
+}
+```
+
+目前已提供 SQL 帳本。批次派送和 Worker 自動記帳依賴批次執行環境，接入後才能使用 `make:job --batched`。
+
 ## 工作中介軟體 {#job-middleware}
 
 透過 `JobHandler::middleware` 傳回中介軟體。使用 `JobNext::run` 繼續執行，或以 `JobContext::release` 安排下一次嘗試。`WithoutOverlapping` 使用設定的快取鎖，可延後釋放衝突的工作。未完成的鎖會在租期結束時到期。
