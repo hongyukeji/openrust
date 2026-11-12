@@ -68,6 +68,17 @@ fn execution(source: impl std::error::Error + Send + Sync + 'static) -> QueueErr
     }
 }
 
+#[derive(Debug)]
+struct RetryDenied;
+
+impl std::fmt::Display for RetryDenied {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("queue fixture retry denied")
+    }
+}
+
+impl std::error::Error for RetryDenied {}
+
 struct Tag;
 impl JobMiddleware for Tag {
     fn handle<'a>(
@@ -155,6 +166,18 @@ impl JobHandler for Handler {
                     return Err(execution(std::io::Error::other("exception budget fixture")));
                 }
                 "exception_timeout" => sleep(Duration::from_secs(10)).await,
+                "policy_type" if context.attempts() == 1 => return Err(execution(RetryDenied)),
+                "policy_predicate" if context.attempts() == 1 => {
+                    return Err(execution(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "queue fixture invalid payload",
+                    )));
+                }
+                "policy_unmatched" if context.attempts() == 1 => {
+                    return Err(execution(std::io::Error::other(
+                        "queue fixture temporary failure",
+                    )));
+                }
                 "crash_twice" | "crash_race" | "crash_disabled"
                     if payload.name() != "crash_disabled" || context.attempts() == 1 =>
                 {
@@ -798,6 +821,9 @@ impl ServiceProvider for Providers {
                 "manual_release",
                 "exception_budget",
                 "exception_timeout",
+                "policy_type",
+                "policy_predicate",
+                "policy_unmatched",
                 "crash_twice",
                 "crash_race",
                 "crash_disabled",
@@ -997,6 +1023,8 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
                     Some("exceptions".into())
                 } else if kind.starts_with("crash_") {
                     Some("crashes".into())
+                } else if kind.starts_with("policy_") {
+                    Some("policy".into())
                 } else {
                     (kind == "control_low").then(|| "low".to_owned())
                 },
@@ -1058,6 +1086,23 @@ fn application(root: &Path) -> Application {
         .withProviders(vec![Box::new(Providers)])
         .withEvents(DiscoverEvents::new(&[listeners]))
         .withExceptions(|exceptions| {
+            if std::env::var_os("QUEUE_WORKER_POLICY_DISABLED").is_none() {
+                exceptions
+                    .dontRetryWhen(|exception| {
+                        assert!(exception.downcast_ref::<RetryDenied>().is_none());
+                        exception
+                            .downcast_ref::<std::io::Error>()
+                            .is_some_and(|error| {
+                                error.kind() == std::io::ErrorKind::InvalidData
+                                    && error.to_string() == "queue fixture invalid payload"
+                            })
+                    })
+                    .dontRetry::<RetryDenied>();
+            }
+            exceptions.report::<RetryDenied>(|_| {
+                println!("queue-policy:reported");
+                ReportDecision::Stop
+            });
             exceptions.report::<sqlx::Error>(|_| {
                 println!("lost-report:mysql");
                 ReportDecision::Continue
@@ -1486,6 +1531,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     verify_conditional_middleware(&root.0, &db, &*queue, address).await;
     verify_job_overlap(&root.0, &db, &*queue, address).await;
     verify_max_exceptions(&root.0, &db, &*queue, address).await;
+    verify_stop_retry_policy(&root.0, &db, &*queue, address).await;
     #[cfg(unix)]
     verify_crash_exception_count(
         &root.0,
@@ -2596,6 +2642,70 @@ async fn verify_crash_exception_count(
         failed_before + 2
     );
     assert_eq!(queue.size(Some("crashes")).await.unwrap(), 0);
+}
+
+async fn verify_stop_retry_policy(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    let args = [
+        "queue:work",
+        "--json",
+        "--queue=policy",
+        "--once",
+        "--tries=0",
+    ];
+    let failed_before = db.table("failed_jobs").count("*").await.unwrap();
+    for kind in ["policy_type", "policy_predicate"] {
+        request(address, kind).await;
+        let out = run(root, &args).await;
+        let rows = json_lines(&out);
+        assert_eq!(rows.last().unwrap()["status"], "failed", "{out}");
+        assert_eq!(rows.last().unwrap()["attempts"], 1, "{out}");
+        if kind == "policy_type" {
+            assert!(out.contains("queue-policy:reported"), "{out}");
+        }
+    }
+    request(address, "policy_unmatched").await;
+    let first = run(root, &args).await;
+    assert_eq!(
+        json_lines(&first).last().unwrap()["status"],
+        "released_after_exception"
+    );
+    let second = run(root, &args).await;
+    assert_eq!(json_lines(&second).last().unwrap()["status"], "success");
+
+    request(address, "policy_type").await;
+    let alternate_app = timeout(
+        Duration::from_secs(8),
+        artisan(root, &args)
+            .env("QUEUE_WORKER_POLICY_DISABLED", "1")
+            .output(),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(alternate_app.status.success(), "{alternate_app:?}");
+    let out = String::from_utf8(alternate_app.stdout).unwrap();
+    assert_eq!(
+        json_lines(&out).last().unwrap()["status"],
+        "released_after_exception",
+        "{out}"
+    );
+    let out = run(root, &args).await;
+    assert_eq!(
+        json_lines(&out).last().unwrap()["status"],
+        "success",
+        "{out}"
+    );
+    assert_eq!(json_lines(&out).last().unwrap()["attempts"], 2, "{out}");
+    assert_eq!(
+        db.table("failed_jobs").count("*").await.unwrap(),
+        failed_before + 2
+    );
+    assert_eq!(queue.size(Some("policy")).await.unwrap(), 0);
 }
 
 async fn verify_max_exceptions(

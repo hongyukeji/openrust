@@ -36,6 +36,17 @@ mod unix {
 
     type SetupError = Box<dyn Error + Send + Sync>;
 
+    #[derive(Debug)]
+    struct HardPolicyError;
+
+    impl std::fmt::Display for HardPolicyError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("typed isolated retry denied")
+        }
+    }
+
+    impl std::error::Error for HardPolicyError {}
+
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
         fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
@@ -72,6 +83,11 @@ mod unix {
                 )
                 .map_err(error)?;
                 match kind {
+                    "policy-terminal" => {
+                        return Err(QueueError::Execution {
+                            source: Box::new(HardPolicyError),
+                        });
+                    }
                     "throttle-terminal" => {
                         return Err(error(std::io::Error::other("hard throttle terminal")));
                     }
@@ -174,6 +190,7 @@ mod unix {
                 Ok(config.into_iter().collect())
             })
             .withProviders(vec![Box::new(Provider(root))])
+            .withExceptions(|exceptions| { exceptions.dontRetry::<HardPolicyError>(); })
             .create()?)
     }
 
@@ -339,12 +356,30 @@ mod unix {
         assert_eq!(lines.last().unwrap()["status"], "failed");
         assert_eq!(queue.size(None).await.unwrap(), 0);
 
+        manager
+            .dispatch(
+                Payload::new("hard-timeout-probe", "policy-terminal")
+                    .unwrap()
+                    .with_options(JobOptions {
+                        hard_timeout: true,
+                        ..Default::default()
+                    }),
+                DispatchOptions::default(),
+                None,
+            )
+            .await
+            .unwrap();
+        let (status, lines) = artisan(&root.0, &["--once"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["status"], "failed");
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+
         assert!(root.0.join("external.started").is_file());
         tokio::time::sleep(Duration::from_secs(2)).await;
         assert!(!root.0.join("blocking.late").exists());
         assert!(!root.0.join("external.late").exists());
         assert!(!root.0.join("continue.late").exists());
-        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 3);
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

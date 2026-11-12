@@ -4,6 +4,8 @@
 
 Configure reporting in the `withExceptions` closure in `bootstrap/app.rs`. Use `report::<E>` to observe an exception type or a matching source. Callbacks run in registration order. `ReportDecision::Stop` stops later callbacks and the default report.
 
+Configure [when queued jobs should stop retrying](../digging-deeper/queues.md#stopping-retries-by-exception) through the same `withExceptions` callback.
+
 By default, reportable errors go through the application's configured log channel at `Level::Error`. HTTP reports include the status and omit source details from the default message. Artisan keeps its stderr message and exit status. Use `level::<E>` to choose a level and `context` to attach fields to the record. Public [Context](../digging-deeper/context.md) fields are written as separate metadata.
 
 ### Ignoring Exceptions

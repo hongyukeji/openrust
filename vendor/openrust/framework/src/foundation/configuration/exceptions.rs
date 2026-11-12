@@ -56,6 +56,8 @@ pub struct Exceptions {
     ignored: Vec<Rule>,
     unignored: Vec<Rule>,
     ignore_when: Vec<Arc<Matcher>>,
+    stop_retry_types: Vec<Rule>,
+    stop_retry_when: Vec<Arc<Matcher>>,
     levels: Vec<(Rule, Level)>,
     context: Vec<Arc<Context>>,
     without_duplicates: bool,
@@ -155,6 +157,46 @@ impl Exceptions {
     ) -> &mut Self {
         self.ignore_when.push(Arc::new(callback));
         self
+    }
+
+    /// Stops queued job retries for the given exception type or one of its sources.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's exception configuration API"
+    )]
+    pub fn dontRetry<E: Error + 'static>(&mut self) -> &mut Self {
+        let rule = Rule::typed::<E>();
+        if !self
+            .stop_retry_types
+            .iter()
+            .any(|existing| existing.kind == rule.kind)
+        {
+            self.stop_retry_types.push(rule);
+        }
+        self
+    }
+
+    /// Stops queued job retries when the predicate matches.
+    #[allow(
+        non_snake_case,
+        reason = "Matches Laravel's exception configuration API"
+    )]
+    pub fn dontRetryWhen(
+        &mut self,
+        callback: impl Fn(&Exception<'_>) -> bool + Send + Sync + 'static,
+    ) -> &mut Self {
+        self.stop_retry_when.push(Arc::new(callback));
+        self
+    }
+
+    pub(crate) fn stops_retries(&self, exception: &Exception<'_>) -> bool {
+        self.stop_retry_types
+            .iter()
+            .any(|rule| (rule.matches)(exception))
+            || self
+                .stop_retry_when
+                .iter()
+                .any(|matches| matches(exception))
     }
 
     #[allow(

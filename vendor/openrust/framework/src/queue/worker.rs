@@ -776,9 +776,27 @@ impl Worker {
             } else {
                 false
             };
+            let policy_stops_retries = !status.handled_failure
+                && !already_exhausted
+                && !crash_exhausted
+                && !stop_for_timeout
+                && match context.stop_retries {
+                    Some(stop) => stop,
+                    None => {
+                        application_scope(self.app.clone(), async {
+                            self.app
+                                .make::<dyn ExceptionHandler>()
+                                .is_ok_and(|handler| {
+                                    handler.shouldStopRetries(&Exception::Error(&error))
+                                })
+                        })
+                        .await
+                    }
+                };
             let terminal = status.handled_failure
                 || crash_exhausted
                 || exceeded_exceptions
+                || policy_stops_retries
                 || (stop_for_timeout || context.release_after.is_none())
                     && (already_exhausted
                         || exceeds_attempts(job, tries, true)

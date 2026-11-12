@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     container::Container,
+    contracts::debug::{Exception, ExceptionHandler},
     contracts::{container::Container as _, queue::Job},
     foundation::Application,
     support::facades::isolated_scope,
@@ -27,6 +28,7 @@ struct Response {
     error: Option<String>,
     release_after: Option<Duration>,
     fail_immediately: bool,
+    stop_retries: Option<bool>,
     chain_update: Option<ChainUpdate>,
 }
 
@@ -50,15 +52,25 @@ pub(crate) async fn serve(
         attempts: request.attempts,
         ..Default::default()
     };
-    let execution = isolated_scope(container, async {
+    let execution = isolated_scope(container.clone(), async {
         use crate::log::context::Context;
         let repository = Context::repository().map_err(backend)?;
         Context::hooks()
             .map_err(backend)?
             .hydrate(&request.payload.context, &repository);
-        manager
+        let result = manager
             .fire_isolated_job(&mut context, &request.payload)
-            .await
+            .await;
+        if let Err(error) = &result
+            && !context.fail_immediately
+        {
+            context.stop_retries = Some(
+                container
+                    .make::<dyn ExceptionHandler>()
+                    .is_ok_and(|handler| handler.shouldStopRetries(&Exception::Error(error))),
+            );
+        }
+        result
     });
     let result = execution.await;
     let response = Response {
@@ -74,6 +86,7 @@ pub(crate) async fn serve(
         }),
         release_after: context.release_after,
         fail_immediately: context.fail_immediately,
+        stop_retries: context.stop_retries,
         chain_update: context.chain_update,
     };
     tokio::fs::write(
@@ -155,6 +168,7 @@ pub(super) async fn execute(
     .map_err(backend)?;
     context.release_after = response.release_after;
     context.fail_immediately = response.fail_immediately;
+    context.stop_retries = response.stop_retries;
     context.chain_update = response.chain_update;
     Ok(Some(response.error.map_or(Ok(()), |error| {
         Err(QueueError::Execution {

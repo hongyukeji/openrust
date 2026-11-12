@@ -202,6 +202,26 @@ let options = JobOptions {
 
 正常成功、一般例外、主動釋放及已處理的逾時都會清除本次標記。標記一天後到期。獨立 Worker 需要使用相同的快取儲存與命名空間。
 
+#### 依例外停止重試 {#stopping-retries-by-exception}
+
+佇列工作遇到特定錯誤需要直接失敗時，在應用程式的 `withExceptions` 回呼中註冊規則。`dontRetry` 比對例外本身或來源鏈中的型別。`dontRetryWhen` 依條件函式判斷例外。
+
+```rust
+use std::{io, num::ParseIntError};
+use openrust::foundation::configuration::Exceptions;
+
+fn configure_exceptions(exceptions: &mut Exceptions) {
+    exceptions
+        .dontRetry::<ParseIntError>()
+        .dontRetryWhen(|exception| {
+            exception.downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
+        });
+}
+```
+
+符合規則的例外進入正常的失敗工作流程，仍可參與例外回報。未符合的例外沿用一般重試規則。獨立執行器在原始型別仍可用時判斷規則，再由父 Worker 結算預約。
+
 #### 工作預約到期與逾時 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 預設為 60 秒，工作可覆寫此值。逾時應短於佇列連線的 `retry_after`，以便在逾時 Worker 停止後，由其他 Worker 重新預約工作。

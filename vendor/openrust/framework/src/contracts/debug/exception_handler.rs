@@ -71,6 +71,11 @@ impl Exception<'_> {
 
 /// Reports exceptions and renders them at the appropriate application boundary.
 pub trait ExceptionHandler: Send + Sync {
+    /// Determines whether a queued attempt should fail instead of being retried.
+    fn shouldStopRetries(&self, _exception: &Exception<'_>) -> bool {
+        false
+    }
+
     /// Checks report eligibility, consuming an attempt for a rate-limited report.
     fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool>;
     fn report<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, LogResult<()>>;

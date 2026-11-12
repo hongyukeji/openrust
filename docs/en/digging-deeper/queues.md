@@ -202,6 +202,26 @@ let options = JobOptions {
 
 Successful execution, an ordinary exception, a voluntary release, and a handled timeout clear their markers. Markers expire after one day. Independent workers must use the same cache store and namespace.
 
+#### Stopping retries by exception {#stopping-retries-by-exception}
+
+Register a rule in the application's `withExceptions` callback when a queued job should fail immediately for a specific error. `dontRetry` matches the error type or one of its sources. `dontRetryWhen` evaluates a predicate against the exception.
+
+```rust
+use std::{io, num::ParseIntError};
+use openrust::foundation::configuration::Exceptions;
+
+fn configure_exceptions(exceptions: &mut Exceptions) {
+    exceptions
+        .dontRetry::<ParseIntError>()
+        .dontRetryWhen(|exception| {
+            exception.downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
+        });
+}
+```
+
+A matching error enters the usual failed-job flow and is still eligible for reporting. An unmatched error follows the ordinary retry rules. For isolated execution, the policy runs where the original typed error is available and the parent Worker settles the reservation.
+
 #### Job expirations and timeouts {#job-expirations-and-timeouts}
 
 `queue:work --timeout` defaults to 60 seconds. A job can override it. Set the timeout below the queue connection's `retry_after` so another worker can pick up the reservation after the timed-out worker has stopped.

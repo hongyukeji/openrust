@@ -207,6 +207,12 @@ impl Handler {
     reason = "Matches Laravel's exception handler contract"
 )]
 impl ExceptionHandler for Handler {
+    fn shouldStopRetries(&self, exception: &Exception<'_>) -> bool {
+        self.configuration
+            .as_ref()
+            .is_some_and(|configuration| configuration.stops_retries(exception))
+    }
+
     fn shouldReport<'a>(&'a self, exception: &'a Exception<'_>) -> HttpFuture<'a, bool> {
         Box::pin(async move {
             !self.duplicate(exception, false)

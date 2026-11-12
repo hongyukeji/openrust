@@ -202,6 +202,26 @@ let options = JobOptions {
 
 正常成功、普通异常、主动释放及已处理的超时都会清除本次标记。标记一天后过期。独立 Worker 需要使用同一缓存存储和命名空间。
 
+#### 按异常停止重试 {#stopping-retries-by-exception}
+
+队列任务遇到特定错误需要直接失败时，在应用的 `withExceptions` 回调中注册规则。`dontRetry` 匹配异常本身或来源链中的类型。`dontRetryWhen` 按谓词判断异常。
+
+```rust
+use std::{io, num::ParseIntError};
+use openrust::foundation::configuration::Exceptions;
+
+fn configure_exceptions(exceptions: &mut Exceptions) {
+    exceptions
+        .dontRetry::<ParseIntError>()
+        .dontRetryWhen(|exception| {
+            exception.downcast_ref::<io::Error>()
+                .is_some_and(|error| error.kind() == io::ErrorKind::InvalidData)
+        });
+}
+```
+
+命中的异常进入正常的失败任务流程，仍可参与异常报告。未命中的异常沿用普通重试规则。独立执行器在原始类型仍可用时判断规则，再由父 Worker 结算预约。
+
 #### 任务预约到期与超时 {#job-expirations-and-timeouts}
 
 `queue:work --timeout` 默认 60 秒，任务可以覆盖此值。超时应短于队列连接的 `retry_after`，以便在超时 Worker 停止后，其他 Worker 能重新预约任务。

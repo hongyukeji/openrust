@@ -4,6 +4,8 @@
 
 在 `bootstrap/app.rs` 的 `withExceptions` 閉包中設定報告。使用 `report::<E>` 比對例外型別或其來源。回呼依註冊順序執行，`ReportDecision::Stop` 停止後續回呼和預設報告。
 
+透過相同的 `withExceptions` 回呼設定[佇列工作依例外停止重試](../digging-deeper/queues.md#stopping-retries-by-exception)。
+
 可報告的例外預設以 `Level::Error` 寫入應用程式設定的日誌管道。HTTP 報告記錄狀態碼，預設訊息省略來源詳情。Artisan 保留 stderr 輸出和結束狀態。用 `level::<E>` 設定層級，用 `context` 附加記錄欄位。公開的 [Context](../digging-deeper/context.md) 欄位作為獨立中繼資料寫入。
 
 ### 忽略例外
