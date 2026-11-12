@@ -44,6 +44,29 @@ impl<'a> JobNext<'a> {
     }
 }
 
+/// Skips jobs whose batch has been cancelled.
+pub struct SkipIfBatchCancelled;
+
+impl JobMiddleware for SkipIfBatchCancelled {
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        next: JobNext<'a>,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            if let Some(id) = payload.batchId()
+                && crate::bus::Bus::findBatch(id)
+                    .await?
+                    .is_some_and(|batch| batch.cancelled())
+            {
+                return Ok(());
+            }
+            next.run(context, payload).await
+        })
+    }
+}
+
 /// Releases overlapping jobs with the configured delay while an owner holds the cache lock.
 pub struct WithoutOverlapping {
     key: String,

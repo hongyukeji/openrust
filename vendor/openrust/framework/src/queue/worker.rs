@@ -6,6 +6,7 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    bus::DatabaseBatchRepository,
     container::Container,
     contracts::{
         container::Container as _,
@@ -15,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    JobContext, QueueError, QueueResult, WorkerOptions,
+    JobContext, QueueError, QueueManager, QueueResult, WorkerOptions,
     failed::{FailedJob, FailedJobProviderInterface},
 };
 
@@ -110,18 +111,34 @@ impl Worker {
     }
 
     async fn process(&self, job: &mut dyn Job, options: &WorkerOptions) -> QueueResult<WorkResult> {
+        let batch = BatchCompletion::resolve(&self.app, job)?;
+        if let Some(batch) = &batch
+            && let Some(succeeded) = batch.recorded().await?
+        {
+            job.delete().await?;
+            return Ok(if succeeded {
+                WorkResult::Processed
+            } else {
+                WorkResult::Failed
+            });
+        }
         if self
             .failed
             .find(job.uuid())
             .await?
             .is_some_and(|failed| failed.payload.delivery_id == job.payload().delivery_id)
         {
+            if let Some(batch) = &batch {
+                batch.record(false).await?;
+            }
             job.delete().await?;
             return Ok(WorkResult::Failed);
         }
         let tries = job.options().max_tries.unwrap_or(options.tries);
         if exceeds_attempts(job, tries, false) {
-            return self.fail(job, &QueueError::MaxAttempts).await;
+            return self
+                .fail(job, &QueueError::MaxAttempts, batch.as_ref())
+                .await;
         }
         let timeout = job.options().timeout.unwrap_or(options.timeout);
         let mut context = JobContext::default();
@@ -148,6 +165,9 @@ impl Worker {
         }
         match result {
             Ok(()) => {
+                if let Some(batch) = &batch {
+                    batch.record(true).await?;
+                }
                 job.delete().await?;
                 Ok(WorkResult::Processed)
             }
@@ -155,7 +175,7 @@ impl Worker {
                 if exceeds_attempts(job, tries, true)
                     || matches!(error, QueueError::Timeout) && job.options().fail_on_timeout =>
             {
-                self.fail(job, &error).await
+                self.fail(job, &error, batch.as_ref()).await
             }
             Err(_) => {
                 let configured = &job.options().backoff;
@@ -176,10 +196,54 @@ impl Worker {
         }
     }
 
-    async fn fail(&self, job: &mut dyn Job, error: &QueueError) -> QueueResult<WorkResult> {
+    async fn fail(
+        &self,
+        job: &mut dyn Job,
+        error: &QueueError,
+        batch: Option<&BatchCompletion>,
+    ) -> QueueResult<WorkResult> {
         self.failed.log(&FailedJob::new(job, error)).await?;
+        if let Some(batch) = batch {
+            batch.record(false).await?;
+        }
         job.fail(Some(error)).await?;
         Ok(WorkResult::Failed)
+    }
+}
+
+struct BatchCompletion {
+    repository: DatabaseBatchRepository,
+    id: String,
+    job: String,
+    delivery: String,
+}
+
+impl BatchCompletion {
+    fn resolve(app: &Container, job: &dyn Job) -> QueueResult<Option<Self>> {
+        let Some(id) = job.payload().batchId() else {
+            return Ok(None);
+        };
+        let queue = app
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        Ok(Some(Self {
+            repository: queue.batch_repository()?,
+            id: id.to_owned(),
+            job: job.uuid().to_owned(),
+            delivery: job.payload().delivery_id.clone().unwrap_or_default(),
+        }))
+    }
+
+    async fn recorded(&self) -> QueueResult<Option<bool>> {
+        self.repository
+            .recorded(&self.id, &self.job, &self.delivery)
+            .await
+    }
+
+    async fn record(&self, succeeded: bool) -> QueueResult<()> {
+        self.repository
+            .record(&self.id, &self.job, &self.delivery, succeeded)
+            .await
     }
 }
 

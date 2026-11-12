@@ -15,6 +15,9 @@ mod create_failed_jobs_table;
 #[path = "0001_01_01_000004_create_job_batches_table.rs"]
 mod create_job_batches_table;
 
+#[path = "0001_01_01_000005_create_job_batches_jobs_table.rs"]
+mod create_job_batches_jobs_table;
+
 pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000000_create_users_table.rs",
@@ -35,5 +38,9 @@ pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000004_create_job_batches_table.rs",
         &create_job_batches_table::Definition,
+    ),
+    MigrationEntry::new(
+        "database/migrations/0001_01_01_000005_create_job_batches_jobs_table.rs",
+        &create_job_batches_jobs_table::Definition,
     ),
 ];

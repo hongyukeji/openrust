@@ -1,18 +1,19 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex, Weak},
 };
 
 use serde::Deserialize;
 
 use crate::{
+    bus::{Batch, DatabaseBatchRepository},
     container::Container,
     contracts::{
         config::Repository,
         container::Container as _,
         queue::{Factory, JobHandler, Queue as Contract},
     },
-    database::{DatabaseError, DatabaseManager, Transaction},
+    database::{Connection, DatabaseError, DatabaseManager, Transaction},
     redis::RedisManager,
 };
 
@@ -32,6 +33,7 @@ pub struct QueueManager {
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
     after_commit: bool,
+    database: Option<Connection>,
 }
 
 #[derive(Deserialize)]
@@ -77,17 +79,7 @@ impl QueueManager {
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
     ) -> QueueResult<DispatchResult> {
-        if let Some((owner, active)) = self
-            .owner
-            .upgrade()
-            .zip(crate::support::facades::current_container())
-            && Arc::ptr_eq(&owner, &active)
-            && let Ok(context) = crate::log::context::Context::repository()
-        {
-            payload.context = crate::log::context::Context::hooks()
-                .map_err(backend)?
-                .dehydrate(&context);
-        }
+        self.capture_context(&mut payload)?;
         let configured = self.resolve(options.connection.as_deref())?;
         let queue = configured.queue.clone();
         let selected = options.queue.as_deref();
@@ -114,6 +106,102 @@ impl QueueManager {
                 .map(dispatch_result);
         }
         dispatch(&*queue, &payload, &options).await
+    }
+
+    fn capture_context(&self, payload: &mut Payload) -> QueueResult<()> {
+        if let Some((owner, active)) = self
+            .owner
+            .upgrade()
+            .zip(crate::support::facades::current_container())
+            && Arc::ptr_eq(&owner, &active)
+            && let Ok(context) = crate::log::context::Context::repository()
+        {
+            payload.context = crate::log::context::Context::hooks()
+                .map_err(backend)?
+                .dehydrate(&context);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn batch_repository(&self) -> QueueResult<DatabaseBatchRepository> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let manager = owner
+            .make::<DatabaseManager>()
+            .map_err(QueueError::Unavailable)?;
+        let name = self.config.get("queue.batching.database");
+        let connection = manager
+            .connection(name.as_ref().and_then(serde_json::Value::as_str))
+            .map_err(backend)?;
+        let table = self
+            .config
+            .get("queue.batching.table")
+            .and_then(|value| value.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "job_batches".into());
+        DatabaseBatchRepository::new(connection, table)
+    }
+
+    pub(crate) async fn dispatch_batch(
+        &self,
+        name: String,
+        options: serde_json::Map<String, serde_json::Value>,
+        mut jobs: Vec<Payload>,
+    ) -> QueueResult<Batch> {
+        let count = u32::try_from(jobs.len())
+            .ok()
+            .filter(|count| i32::try_from(*count).is_ok())
+            .ok_or(QueueError::InvalidPayload)?;
+        let mut ids = HashSet::with_capacity(jobs.len());
+        for job in &jobs {
+            if job.batch_id.is_some() || !ids.insert(job.uuid()) {
+                return Err(QueueError::InvalidPayload);
+            }
+        }
+        let configured = self.resolve(
+            options
+                .get("connection")
+                .and_then(serde_json::Value::as_str),
+        )?;
+        let connection = configured
+            .database
+            .as_ref()
+            .ok_or(QueueError::InvalidBatchConnection)?;
+        let repository = self.batch_repository()?;
+        let queue = options
+            .get("queue")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        let mut transaction = repository.begin().await?;
+        if !transaction.belongs_to(connection) {
+            return Err(QueueError::InvalidBatchConnection);
+        }
+        let result = async {
+            let batch = repository
+                .store_in_transaction(&mut transaction, name, options, count)
+                .await?;
+            for job in &mut jobs {
+                self.capture_context(job)?;
+                job.batch_id = Some(batch.id.clone());
+                configured
+                    .queue
+                    .push_in_transaction(job, queue.as_deref(), None, &mut transaction)
+                    .await?;
+            }
+            Ok(batch)
+        }
+        .await;
+        match result {
+            Ok(batch) => {
+                transaction.commit().await.map_err(backend)?;
+                Ok(batch)
+            }
+            Err(error) => {
+                transaction.rollBack(None).await.map_err(backend)?;
+                Err(error)
+            }
+        }
     }
 
     fn resolve(&self, name: Option<&str>) -> QueueResult<Arc<ConfiguredQueue>> {
@@ -154,27 +242,35 @@ impl QueueManager {
             },
             None => return Err(QueueError::UnknownConnection { name: name.into() }),
         };
-        let queue = self.make(name, &settings)?;
+        let (queue, database) = self.make(name, &settings)?;
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
+            database,
         });
         connections.insert(name.into(), configured.clone());
         Ok(configured)
     }
 
-    fn make(&self, name: &str, settings: &Settings) -> QueueResult<Arc<dyn Contract>> {
+    fn make(
+        &self,
+        name: &str,
+        settings: &Settings,
+    ) -> QueueResult<(Arc<dyn Contract>, Option<Connection>)> {
         let registry = self.registry.clone();
         let queue = queue_name(settings.queue.as_deref(), "default")?.to_owned();
         let retry_after = settings.retry_after.unwrap_or(90);
         if !(1..=i64::from(i32::MAX)).contains(&retry_after) {
             return Err(QueueError::InvalidConfiguration);
         }
-        let driver: Arc<dyn Contract> = match settings.driver.as_str() {
-            "sync" => Arc::new(SyncQueue {
-                name: name.into(),
-                registry,
-            }),
+        let driver: (Arc<dyn Contract>, Option<Connection>) = match settings.driver.as_str() {
+            "sync" => (
+                Arc::new(SyncQueue {
+                    name: name.into(),
+                    registry,
+                }),
+                None,
+            ),
             "database" => {
                 let owner = self
                     .owner
@@ -188,14 +284,17 @@ impl QueueManager {
                     .map_err(backend)?;
                 let table = settings.table.clone().unwrap_or_else(|| "jobs".into());
                 connection.queue_table(&table).map_err(backend)?;
-                Arc::new(DatabaseQueue {
-                    name: name.into(),
-                    queue,
-                    table,
-                    retry_after,
-                    connection,
-                    registry,
-                })
+                (
+                    Arc::new(DatabaseQueue {
+                        name: name.into(),
+                        queue,
+                        table,
+                        retry_after,
+                        connection: connection.clone(),
+                        registry,
+                    }),
+                    Some(connection),
+                )
             }
             "redis" => {
                 let owner = self
@@ -208,14 +307,17 @@ impl QueueManager {
                 let connection = manager
                     .connection(settings.connection.as_deref())
                     .map_err(backend)?;
-                Arc::new(RedisQueue {
-                    name: name.into(),
-                    queue,
-                    retry_after,
-                    block_for: settings.block_for,
-                    connection,
-                    registry,
-                })
+                (
+                    Arc::new(RedisQueue {
+                        name: name.into(),
+                        queue,
+                        retry_after,
+                        block_for: settings.block_for,
+                        connection,
+                        registry,
+                    }),
+                    None,
+                )
             }
             driver => return Err(QueueError::UnsupportedDriver(driver.into())),
         };

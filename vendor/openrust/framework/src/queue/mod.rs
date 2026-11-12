@@ -46,6 +46,7 @@ pub enum QueueError {
         name: String,
     },
     InvalidPayload,
+    InvalidBatchConnection,
     Timeout,
     MaxAttempts,
     InvalidConfiguration,
@@ -72,6 +73,9 @@ impl std::fmt::Display for QueueError {
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
             Self::Timeout => f.write_str("queued job timed out"),
             Self::MaxAttempts => f.write_str("queued job exceeded its allowed attempts"),
+            Self::InvalidBatchConnection => f.write_str(
+                "job batches require a database queue on the batch repository connection",
+            ),
             Self::InvalidPayload => f.write_str("invalid queue payload"),
             Self::LostReservation => f.write_str("queue job reservation has expired or changed"),
             Self::Unavailable(_) => f.write_str("application queue manager is unavailable"),
@@ -138,6 +142,8 @@ pub struct Payload {
     context: crate::log::context::DehydratedContext,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     delivery_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    batch_id: Option<String>,
 }
 
 impl Payload {
@@ -154,6 +160,7 @@ impl Payload {
             options: JobOptions::default(),
             context: Default::default(),
             delivery_id: None,
+            batch_id: None,
         })
     }
 
@@ -164,6 +171,11 @@ impl Payload {
 
     pub fn version(&self) -> u32 {
         self.version
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel batch identifier")]
+    pub fn batchId(&self) -> Option<&str> {
+        self.batch_id.as_deref()
     }
 
     pub fn uuid(&self) -> &str {

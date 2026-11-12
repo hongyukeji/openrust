@@ -63,22 +63,30 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 ## 工作批次 {#job-batching}
 
-執行 `./artisan migrate` 建立 `job_batches` 帳本。`DatabaseBatchRepository` 儲存批次計數、失敗工作 ID、取消時間和完成時間。顯示目前進度時，從寫入連線讀取批次。
+執行 `./artisan migrate` 建立批次帳本和投遞紀錄。在應用程式啟動時註冊工作處理器，再透過 `Bus::batch` 一起派送這些工作。
 
 ```rust
 use openrust::{
-    bus::DatabaseBatchRepository,
-    database::Connection,
-    queue::QueueResult,
+    bus::Batch,
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
 };
 
-async fn batch_progress(connection: Connection, id: &str) -> QueueResult<Option<u32>> {
-    let batches = DatabaseBatchRepository::new(connection, "job_batches")?;
-    Ok(batches.find(id).await?.map(|batch| batch.progress()))
+async fn dispatch_reports() -> QueueResult<Batch> {
+    Bus::batch([
+        Payload::new("reports.generate", "summary")?,
+        Payload::new("reports.generate", "detail")?,
+    ])
+    .name("monthly reports")
+    .onQueue("batch")
+    .dispatch()
+    .await
 }
 ```
 
-目前已提供 SQL 帳本。批次派送和 Worker 自動記帳依賴批次執行環境，接入後才能使用 `make:job --batched`。
+執行 `./artisan queue:work database --queue=batch --stop-when-empty` 處理批次。用 `Bus::findBatch(&id)` 讀取目前狀態，用 `Bus::cancelBatch(&id)` 主動取消批次。工作最終失敗時預設取消批次。透過 `allowFailures()` 允許批次繼續，透過 `SkipIfBatchCancelled` 略過已取消批次的工作。失敗工作在重試成功前仍計入待處理數。
+
+批次派送目前使用與批次儲存庫相同連線的資料庫佇列。批次建立和所有入列操作在同一交易提交。自訂批次資料表時，還需建立同名加 `_jobs` 後綴的投遞紀錄表。Redis 派送、回呼、清理及 `make:job --batched` 範本待接入。
 
 ## 工作中介軟體 {#job-middleware}
 

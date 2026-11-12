@@ -2,7 +2,7 @@ use chrono::{DateTime, Timelike, Utc};
 use serde_json::{Map, Value as Json};
 
 use crate::{
-    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
+    database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value, query::Record},
     queue::{QueueResult, backend, new_id},
 };
 
@@ -13,6 +13,7 @@ use super::Batch;
 pub struct DatabaseBatchRepository {
     connection: Connection,
     table: String,
+    jobs_table: String,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel batch repository methods")]
@@ -20,7 +21,13 @@ impl DatabaseBatchRepository {
     pub fn new(connection: Connection, table: impl Into<String>) -> QueueResult<Self> {
         let table = table.into();
         connection.queue_table(&table).map_err(backend)?;
-        Ok(Self { connection, table })
+        let jobs_table = format!("{table}_jobs");
+        connection.queue_table(&jobs_table).map_err(backend)?;
+        Ok(Self {
+            connection,
+            table,
+            jobs_table,
+        })
     }
 
     pub async fn store(
@@ -28,34 +35,141 @@ impl DatabaseBatchRepository {
         name: impl Into<String>,
         options: Map<String, Json>,
     ) -> QueueResult<Batch> {
-        let batch = Batch {
-            id: new_id()?,
-            name: name.into(),
-            total_jobs: 0,
-            pending_jobs: 0,
-            failed_jobs: 0,
-            failed_job_ids: Vec::new(),
-            options,
-            cancelled_at: None,
-            created_at: now(),
-            finished_at: None,
-        };
-        let mut values = state(&batch).map_err(backend)?;
-        values.extend([
-            ("id".into(), batch.id.as_str().into()),
-            ("name".into(), batch.name.as_str().into()),
-            (
-                "options".into(),
-                Json::Object(batch.options.clone()).to_string().into(),
-            ),
-            ("created_at".into(), batch.created_at.timestamp().into()),
-        ]);
+        let batch = new_batch(name.into(), options, 0)?;
         self.connection
             .table(&self.table)
-            .insert(&[values])
+            .insert(&[insert_values(&batch).map_err(backend)?])
             .await
             .map_err(backend)?;
         Ok(batch)
+    }
+
+    pub(crate) async fn begin(&self) -> QueueResult<Transaction> {
+        self.connection.beginTransaction().await.map_err(backend)
+    }
+
+    pub(crate) async fn store_in_transaction(
+        &self,
+        transaction: &mut Transaction,
+        name: String,
+        options: Map<String, Json>,
+        count: u32,
+    ) -> QueueResult<Batch> {
+        let batch = new_batch(name, options, count)?;
+        transaction
+            .table(&self.table)
+            .insert(&[insert_values(&batch).map_err(backend)?])
+            .await
+            .map_err(backend)?;
+        Ok(batch)
+    }
+
+    pub(crate) async fn recorded(
+        &self,
+        id: &str,
+        job: &str,
+        delivery: &str,
+    ) -> QueueResult<Option<bool>> {
+        let row = self
+            .connection
+            .table(&self.jobs_table)
+            .useWritePdo()
+            .r#where("batch_id", "=", id)
+            .r#where("job_id", "=", job)
+            .whereNested(|query| {
+                query
+                    .r#where("delivery_id", "=", delivery)
+                    .orWhere("succeeded", "=", true)
+            })
+            .orderByDesc("succeeded")
+            .first()
+            .await
+            .map_err(backend)?;
+        row.as_ref().map(succeeded).transpose().map_err(backend)
+    }
+
+    pub(crate) async fn record(
+        &self,
+        id: &str,
+        job: &str,
+        delivery: &str,
+        succeeded: bool,
+    ) -> QueueResult<()> {
+        let repository = self.clone();
+        let (id, job, delivery) = (id.to_owned(), job.to_owned(), delivery.to_owned());
+        self.connection
+            .transaction(
+                move |transaction| {
+                    let repository = repository.clone();
+                    let (id, job, delivery) = (id.clone(), job.clone(), delivery.clone());
+                    Box::pin(async move {
+                        let Some(row) = transaction
+                            .table(&repository.table)
+                            .r#where("id", "=", id.as_str())
+                            .lockForUpdate()
+                            .first()
+                            .await?
+                        else {
+                            return Ok(());
+                        };
+                        let previous = transaction
+                            .table(&repository.jobs_table)
+                            .r#where("batch_id", "=", id.as_str())
+                            .r#where("job_id", "=", job.as_str())
+                            .whereNested(|query| {
+                                query
+                                    .r#where("delivery_id", "=", delivery.as_str())
+                                    .orWhere("succeeded", "=", true)
+                            })
+                            .lockForUpdate()
+                            .first()
+                            .await?;
+                        if previous.is_some() {
+                            return Ok(());
+                        }
+                        let mut batch = decode(row)?;
+                        if succeeded {
+                            batch.pending_jobs =
+                                batch.pending_jobs.checked_sub(1).ok_or(invalid())?;
+                            batch.failed_job_ids.retain(|failed| failed != &job);
+                            if batch.pending_jobs == 0 && !batch.finished() {
+                                batch.finished_at = Some(now());
+                            }
+                        } else {
+                            batch.failed_jobs = increment(batch.failed_jobs, 1)?;
+                            if !batch.failed_job_ids.contains(&job) {
+                                batch.failed_job_ids.push(job.clone());
+                            }
+                            if !batch.allowsFailures() && !batch.cancelled() {
+                                let now = now();
+                                batch.cancelled_at = Some(now);
+                                batch.finished_at = Some(now);
+                            }
+                        }
+                        let values = [
+                            ("batch_id".into(), id.as_str().into()),
+                            ("job_id".into(), job.as_str().into()),
+                            ("delivery_id".into(), delivery.as_str().into()),
+                            ("succeeded".into(), succeeded.into()),
+                        ]
+                        .into_iter()
+                        .collect();
+                        transaction
+                            .table(&repository.jobs_table)
+                            .insert(&[values])
+                            .await?;
+                        transaction
+                            .table(&repository.table)
+                            .r#where("id", "=", id.as_str())
+                            .update(state(&batch)?)
+                            .await?;
+                        Ok(())
+                    })
+                },
+                10,
+            )
+            .await
+            .map_err(backend)
     }
 
     pub async fn find(&self, id: &str) -> QueueResult<Option<Batch>> {
@@ -168,6 +282,43 @@ impl DatabaseBatchRepository {
             )
             .await
             .map_err(backend)
+    }
+}
+
+fn new_batch(name: String, options: Map<String, Json>, count: u32) -> QueueResult<Batch> {
+    Ok(Batch {
+        id: new_id()?,
+        name,
+        total_jobs: count,
+        pending_jobs: count,
+        failed_jobs: 0,
+        failed_job_ids: Vec::new(),
+        options,
+        cancelled_at: None,
+        created_at: now(),
+        finished_at: None,
+    })
+}
+
+fn insert_values(batch: &Batch) -> DatabaseResult<Record> {
+    let mut values = state(batch)?;
+    values.extend([
+        ("id".into(), batch.id.as_str().into()),
+        ("name".into(), batch.name.as_str().into()),
+        (
+            "options".into(),
+            Json::Object(batch.options.clone()).to_string().into(),
+        ),
+        ("created_at".into(), batch.created_at.timestamp().into()),
+    ]);
+    Ok(values)
+}
+
+fn succeeded(row: &Row) -> DatabaseResult<bool> {
+    match row.get("succeeded") {
+        Some(Value::Bool(true) | Value::Integer(1)) => Ok(true),
+        Some(Value::Bool(false) | Value::Integer(0)) => Ok(false),
+        _ => Err(invalid()),
     }
 }
 

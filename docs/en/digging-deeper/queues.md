@@ -63,22 +63,30 @@ Use `./artisan queue:work database --stop-when-empty` to process pending jobs an
 
 ## Job batching {#job-batching}
 
-Run `./artisan migrate` to create the `job_batches` ledger. `DatabaseBatchRepository` persists batch counts, failed job IDs, and cancellation and completion timestamps. Read a batch from the write connection when displaying its current progress.
+Run `./artisan migrate` to create the batch ledger and delivery history. Register the job handler during application boot, then dispatch the jobs together with `Bus::batch`.
 
 ```rust
 use openrust::{
-    bus::DatabaseBatchRepository,
-    database::Connection,
-    queue::QueueResult,
+    bus::Batch,
+    queue::{Payload, QueueResult},
+    support::facades::Bus,
 };
 
-async fn batch_progress(connection: Connection, id: &str) -> QueueResult<Option<u32>> {
-    let batches = DatabaseBatchRepository::new(connection, "job_batches")?;
-    Ok(batches.find(id).await?.map(|batch| batch.progress()))
+async fn dispatch_reports() -> QueueResult<Batch> {
+    Bus::batch([
+        Payload::new("reports.generate", "summary")?,
+        Payload::new("reports.generate", "detail")?,
+    ])
+    .name("monthly reports")
+    .onQueue("batch")
+    .dispatch()
+    .await
 }
 ```
 
-This release provides the SQL ledger. Batch dispatch and automatic updates from the worker require the batch runtime. `make:job --batched` remains unavailable until that integration is in place.
+Run `./artisan queue:work database --queue=batch --stop-when-empty` to process the batch. Read its current state with `Bus::findBatch(&id)` and cancel it explicitly with `Bus::cancelBatch(&id)`. By default, a terminal job failure cancels the batch. Add `allowFailures()` to let the batch continue without cancellation, and attach `SkipIfBatchCancelled` to skip a job after cancellation. A failed job stays pending until it succeeds on retry.
+
+Batch dispatch currently supports a database queue using the same connection as the batch repository. Batch creation and all enqueues commit in one transaction. If you configure a different batch table, also provision its companion table with the `_jobs` suffix. Redis dispatch, callbacks, pruning, and the `make:job --batched` template are pending.
 
 ## Job middleware {#job-middleware}
 
