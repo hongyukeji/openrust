@@ -1353,6 +1353,12 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         .await
         .unwrap();
     });
+    #[cfg(windows)]
+    if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_some() {
+        verify_windows_ctrl_c(&root.0, &db, &*queue, address).await;
+        server.abort();
+        return;
+    }
     request(address, "flaky").await;
     let output = run(&root.0, &["queue:work", "--json", "--once", "--tries=2"]).await;
     let rows = json_lines(&output);
@@ -3333,4 +3339,118 @@ async fn long_job_hooks_require_a_measured_duration_above_the_threshold_and_are_
         }
     }
     assert_eq!(count.load(Ordering::Relaxed), 1);
+}
+
+#[cfg(windows)]
+#[test]
+#[ignore = "Sends an OS console event to the isolated Worker console"]
+fn windows_send_worker_ctrl_c() {
+    #[link(name = "Kernel32")]
+    unsafe extern "system" {
+        fn AttachConsole(process_id: u32) -> i32;
+        fn SetConsoleCtrlHandler(
+            handler: Option<unsafe extern "system" fn(u32) -> i32>,
+            add: i32,
+        ) -> i32;
+        fn GenerateConsoleCtrlEvent(event: u32, process_group: u32) -> i32;
+    }
+    let pid = std::env::var("OPENRUST_TEST_WORKER_CONSOLE_PID")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let check = |result| assert_ne!(result, 0, "{}", std::io::Error::last_os_error());
+    // The detached sender attaches only to the Worker's new console.
+    unsafe {
+        check(AttachConsole(pid));
+        check(SetConsoleCtrlHandler(None, 1));
+        check(GenerateConsoleCtrlEvent(0, 0));
+    }
+}
+
+#[cfg(windows)]
+async fn verify_windows_ctrl_c(
+    root: &Path,
+    db: &openrust::database::Connection,
+    queue: &dyn openrust::contracts::queue::Queue,
+    address: SocketAddr,
+) {
+    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    const DETACHED_PROCESS: u32 = 0x0000_0008;
+    let count = |name: &'static str| async move {
+        db.table("receipts")
+            .r#where("name", "=", name)
+            .count("*")
+            .await
+            .unwrap()
+    };
+    let wait = |name: &'static str| async move {
+        timeout(Duration::from_secs(10), async {
+            while count(name).await == 0 {
+                sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap_or_else(|_| panic!("missing receipt {name}"));
+    };
+
+    request(address, "signal_gate").await;
+    request(address, "control_default").await;
+    let mut worker = artisan(root, &["queue:work", "--json", "--sleep=1"])
+        .creation_flags(CREATE_NEW_CONSOLE)
+        .env("QUEUE_WORKER_TEST_REAL_EXIT", "1")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    wait("signal_gate").await;
+
+    let sender = Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "windows_send_worker_ctrl_c",
+            "--ignored",
+            "--nocapture",
+        ])
+        .creation_flags(DETACHED_PROCESS)
+        .env(
+            "OPENRUST_TEST_WORKER_CONSOLE_PID",
+            worker.id().unwrap().to_string(),
+        )
+        .output()
+        .await
+        .unwrap();
+    assert!(sender.status.success(), "{sender:?}");
+    wait(WorkerInterrupted::NAME).await;
+    assert_eq!(
+        db.table("receipts")
+            .r#where("name", "=", WorkerInterrupted::NAME)
+            .r#where("value", "=", 2)
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    assert!(worker.try_wait().unwrap().is_none());
+
+    db.statement(
+        "insert into receipts (name, value) values ('signal_gate_release', 1)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let status = timeout(Duration::from_secs(10), worker.wait())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(status.code(), Some(0));
+    let rows = captured_worker_output(&mut worker).await;
+    assert_eq!(rows.last().unwrap()["reason"], "interrupted");
+    assert_eq!(rows.last().unwrap()["jobs_processed"], 1);
+    assert_eq!(count("signal_gate_done").await, 1);
+    assert_eq!(queue.size(None).await.unwrap(), 1);
+    assert_eq!(count("control_default").await, 0);
+    run(root, &["queue:work", "--once"]).await;
+    assert_eq!(count("control_default").await, 1);
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+    println!("Windows Ctrl+C completed the current job and retained the next job.");
 }

@@ -344,7 +344,7 @@ kill -s CONT "$WORKER_PID"
 kill -s TERM "$WORKER_PID"
 ```
 
-On Unix, `SIGTERM`, `SIGQUIT`, and `SIGINT` request a graceful stop. On Windows, Ctrl+C requests the same stop. The daemon emits `WorkerInterrupted` before `WorkerStopping` and lets its current job finish. The signal number, connection, queues, and worker options are available to listeners. A blocking driver reservation that has already begun can return before a pause takes effect.
+On Unix, `SIGTERM`, `SIGQUIT`, and `SIGINT` request a graceful stop. On Windows, Ctrl+C requests the same stop. On Windows 11, the SQLite Worker was verified using a console-generated Ctrl+C event. The daemon emits `WorkerInterrupted` before `WorkerStopping` and lets its current job finish. The signal number, connection, queues, and worker options are available to listeners. A blocking driver reservation that has already begun can return before a pause takes effect.
 
 #### Notifying a running job {#notifying-a-running-job}
 

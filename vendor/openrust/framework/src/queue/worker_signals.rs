@@ -93,7 +93,7 @@ impl<'a> WorkerSignals<'a> {
         state: &watch::Sender<WorkerSignalState>,
     ) {
         loop {
-            let result = match self.receive().await {
+            match self.receive().await {
                 Ok(WorkerSignal::Interrupt(signal)) => {
                     state.send_replace(WorkerSignalState::Stopping);
                     let result = manager
@@ -114,13 +114,16 @@ impl<'a> WorkerSignals<'a> {
                 #[cfg(unix)]
                 Ok(WorkerSignal::Pause) => {
                     state.send_replace(WorkerSignalState::Paused);
-                    manager
+                    if let Err(error) = manager
                         .emit_control_event(WorkerPausing {
                             connection_name: self.connection.into(),
                             queue: self.queue.clone(),
                             worker_options: self.options.clone(),
                         })
                         .await
+                    {
+                        worker.report_worker_error(&error).await;
+                    }
                 }
                 #[cfg(unix)]
                 Ok(WorkerSignal::Resume) => {
@@ -132,16 +135,15 @@ impl<'a> WorkerSignals<'a> {
                         })
                         .await;
                     state.send_replace(WorkerSignalState::Running);
-                    result
+                    if let Err(error) = result {
+                        worker.report_worker_error(&error).await;
+                    }
                 }
                 Err(error) => {
                     worker.report_worker_error(&super::backend(error)).await;
                     shutdown.cancel();
                     return;
                 }
-            };
-            if let Err(error) = result {
-                worker.report_worker_error(&error).await;
             }
         }
     }
