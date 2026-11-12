@@ -377,9 +377,13 @@ impl Worker {
                     stop_on_timeout: !cadence.single_run && options.kill_on_timeout,
                     ..Default::default()
                 };
-                let result = self
-                    .process(job.as_mut(), options, &mut attempt, signal_state.as_ref())
-                    .await;
+                let result = Box::pin(self.process(
+                    job.as_mut(),
+                    options,
+                    &mut attempt,
+                    signal_state.as_ref(),
+                ))
+                .await;
                 let stopping_for_timeout = attempt.stop_on_timeout && attempt.timed_out;
                 let cause = attempt.cause.as_ref();
                 let mut disconnected = false;
@@ -597,9 +601,8 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
-        let result = self
-            .attempt(job, options, &manager, batch.as_ref(), attempt, signals)
-            .await;
+        let result =
+            Box::pin(self.attempt(job, options, &manager, batch.as_ref(), attempt, signals)).await;
         self.finish_attempt_marker(&mut attempt.marker).await;
         if attempt.stop_on_timeout && attempt.timed_out {
             return result;
@@ -721,7 +724,8 @@ impl Worker {
                         Err(error) => Err(error),
                     }
                 } else {
-                    isolated_scope(self.app.clone(), async {
+                    // Keep the scoped execution future out of the worker's attempt frame.
+                    Box::pin(isolated_scope(self.app.clone(), async {
                     use crate::log::context::Context;
                     let context_repository = Context::repository().map_err(super::backend)?;
                     Context::hooks()
@@ -792,7 +796,7 @@ impl Worker {
                             Err(QueueError::Timeout)
                         }
                     }
-                })
+                }))
                 .await
                 };
                 status.duration = Some(attempt_duration(started.elapsed()));

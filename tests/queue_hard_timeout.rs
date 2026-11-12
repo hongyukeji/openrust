@@ -128,7 +128,7 @@ mod acceptance {
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
                     "listener-first" | "listener-second" | "selection-default"
-                    | "selection-priority" | "maintenance-probe" => {}
+                    | "selection-priority" | "maintenance-probe" | "callback-follow-up" => {}
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -611,6 +611,12 @@ mod acceptance {
             .await
             .unwrap()
             .unwrap();
+        assert!(
+            result.status.code().is_some_and(|code| code >= 0),
+            "Worker exited abnormally with {}: {}",
+            result.status,
+            String::from_utf8_lossy(&result.stderr)
+        );
         let stdout = String::from_utf8(result.stdout).unwrap();
         let lines: Vec<Value> = stdout
             .lines()
@@ -919,6 +925,7 @@ mod acceptance {
 
     async fn verify_failed_handler(
         root: &Path,
+        app: &Application,
         manager: &QueueManager,
         queue: &dyn openrust::contracts::queue::Queue,
     ) {
@@ -958,21 +965,47 @@ mod acceptance {
             .await
             .unwrap()
         };
-        for kind in ["callback-terminal", "callback-error"] {
+        let kinds = ["callback-terminal", "callback-error"];
+        for kind in kinds {
             let response = request(kind).await;
             assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
-            let (status, lines) = artisan(root, &once, false).await;
-            assert_eq!(status, Some(0), "{lines:?}");
-            assert_eq!(lines.last().unwrap()["status"], "failed");
+        }
+        let next = Payload::new("hard-timeout-probe", "callback-follow-up").unwrap();
+        queue.push(&next, named).await.unwrap();
+        let (status, lines) = artisan(
+            root,
+            &["--queue=callback-probe", "--stop-when-empty"],
+            false,
+        )
+        .await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["jobs_processed"], 3);
+        let outcomes = lines
+            .iter()
+            .filter(|line| matches!(line["status"].as_str(), Some("failed" | "success")))
+            .collect::<Vec<_>>();
+        assert_eq!(outcomes.len(), 3, "{lines:?}");
+        assert_eq!(outcomes[2]["uuid"], next.uuid());
+        assert_eq!(outcomes[2]["status"], "success");
+        let provider = app
+            .container()
+            .get::<dyn FailedJobProviderInterface>("queue.failer")
+            .unwrap();
+        for (kind, outcome) in kinds.into_iter().zip(outcomes) {
+            assert_eq!(outcome["status"], "failed");
+            let uuid = outcome["uuid"].as_str().unwrap();
+            let record = provider.find(uuid).await.unwrap().unwrap();
+            assert_eq!(record.payload.data().as_str(), Some(kind));
+            assert_eq!(record.exception, "queue job execution failed");
             let marker = std::fs::read_to_string(root.join(format!("{kind}.failed"))).unwrap();
             assert!(marker.starts_with(&format!(
                 "{}:callback-probe:1:",
                 queue.get_connection_name()
             )));
-            assert_eq!(queue.size(named).await.unwrap(), 0);
             let event = std::fs::read_to_string(root.join(format!("{kind}.event"))).unwrap();
             assert!(event.contains("original probe error"), "{event}");
         }
+        assert_eq!(queue.size(named).await.unwrap(), 0);
         assert!(root.join("callback-error.reported").is_file());
         for kind in [
             "sync-success",
@@ -1666,9 +1699,9 @@ mod acceptance {
         assert!(root.0.join("blocking.failed").is_file());
         assert!(root.0.join("external.failed").is_file());
         assert!(!root.0.join("continue.failed").exists());
+        verify_failed_handler(&root.0, &app, &manager, &*queue).await;
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
         if cfg!(unix) {
-            verify_failed_handler(&root.0, &manager, &*queue).await;
-            assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
             if backend != "redis" {
                 verify_prune_failed(&root.0, &app, &db).await;
             }
