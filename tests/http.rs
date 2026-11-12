@@ -1,13 +1,16 @@
 use std::sync::{Arc, Mutex};
 
 use openrust::{
+    broadcasting::{BroadcastException, ChannelAuthorization, ChannelParameters},
     contracts::{
+        auth::Authenticatable,
         http::{Kernel as _, Middleware},
         routing::Registrar as _,
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{Body, HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{MiddlewareEntry, RouteGroup, Router},
+    support::facades::Broadcast,
 };
 
 type Trace = Arc<Mutex<Vec<(&'static str, bool)>>>;
@@ -289,6 +292,40 @@ async fn api_prefix_can_be_overridden_without_changing_the_middleware_group() {
             kernel.handle(&mut default_request).await.status(),
             StatusCode::NOT_FOUND
         );
+    }
+}
+
+#[tokio::test]
+async fn broadcasting_loads_channel_rules_and_denies_without_a_driver() {
+    let register = || {
+        Broadcast::channel(
+            "App.Models.User.{id}",
+            |_: &dyn Authenticatable, _: &ChannelParameters| Ok(ChannelAuthorization::Denied),
+        )
+    };
+    assert!(matches!(
+        register(),
+        Err(BroadcastException::NoRegistrationScope)
+    ));
+
+    let application = Application::configure(std::env::current_dir().unwrap())
+        .withBroadcasting(register)
+        .withRouting(Routing::default())
+        .withMiddleware(|middleware| {
+            middleware.group("web", [MiddlewareEntry::Instance(record("web"))]);
+        })
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(application);
+    kernel.bootstrap().await.unwrap();
+
+    for method in [Method::GET, Method::POST] {
+        let (mut request, trace) = request(method, "/broadcasting/auth");
+        assert_eq!(
+            kernel.handle(&mut request).await.status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(*trace.lock().unwrap(), [("web", true), ("web", false)]);
     }
 }
 
