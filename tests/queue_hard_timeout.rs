@@ -120,6 +120,17 @@ mod unix {
                     }
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
+                    "listener-first" | "listener-second" => {}
+                    "listener-timeout" => {
+                        Process::run(format!(
+                            r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
+                            self.0.display()
+                        ))
+                        .await
+                        .map_err(|source| QueueError::Execution {
+                            source: Box::new(source),
+                        })?;
+                    }
                     "cpu" => loop {
                         std::hint::spin_loop();
                     },
@@ -1138,6 +1149,90 @@ mod unix {
         }
     }
 
+    async fn verify_listener(root: &Path, queue: &dyn openrust::contracts::queue::Queue) {
+        let command = || {
+            let mut command = tokio::process::Command::new(std::env::current_exe().unwrap());
+            command
+                .args([
+                    "artisan",
+                    "queue:listen",
+                    "--name=probe",
+                    "--queue=listener-probe",
+                    "--sleep=1",
+                    "--rest=0",
+                    "--memory=0",
+                    "--env=testing",
+                ])
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true);
+            command
+        };
+        for kind in ["listener-first", "listener-second"] {
+            let payload = Payload::new("hard-timeout-probe", kind).unwrap();
+            queue.push(&payload, Some("listener-probe")).await.unwrap();
+        }
+        let listener = command()
+            .arg("--timeout=5")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(8), async {
+            loop {
+                if root.join("listener-first.pid").is_file()
+                    && root.join("listener-second.pid").is_file()
+                    && queue.size(Some("listener-probe")).await.unwrap() == 0
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .unwrap();
+        let first = std::fs::read_to_string(root.join("listener-first.pid")).unwrap();
+        let second = std::fs::read_to_string(root.join("listener-second.pid")).unwrap();
+        assert_ne!(first, second);
+        assert!(
+            std::process::Command::new("kill")
+                .args(["-TERM", &listener.id().unwrap().to_string()])
+                .status()
+                .unwrap()
+                .success()
+        );
+        let output = tokio::time::timeout(Duration::from_secs(8), listener.wait_with_output())
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            stdout.contains("Processing jobs from the [listener-probe] queue."),
+            "{stdout}"
+        );
+        assert_eq!(stdout.matches("hard-timeout-probe").count(), 4, "{stdout}");
+        assert_executor_reaped(root, "listener-first");
+        assert_executor_reaped(root, "listener-second");
+
+        let payload = Payload::new("hard-timeout-probe", "listener-timeout").unwrap();
+        queue.push(&payload, Some("listener-probe")).await.unwrap();
+        let output = tokio::time::timeout(
+            Duration::from_secs(8),
+            command().arg("--timeout=1").output(),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(output.status.code(), Some(1), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("process exceeded its timeout"),
+            "{output:?}"
+        );
+        assert_executor_reaped(root, "listener-timeout");
+        assert_executor_reaped(root, "listener-descendant");
+        assert_eq!(queue.size(Some("listener-probe")).await.unwrap(), 1);
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -1299,6 +1394,7 @@ mod unix {
         }
         verify_retry_selection(&root.0, &app, &db, &*queue).await;
         verify_retry_deadline(&root.0, &app, &*queue).await;
+        verify_listener(&root.0, &*queue).await;
         for table in ["jobs", "failed_jobs"] {
             schema.dropIfExists(table).await.unwrap();
         }

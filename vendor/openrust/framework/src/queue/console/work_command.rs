@@ -29,6 +29,9 @@ impl WorkCommand {
                 .arg(Arg::new("connection"))
                 .arg(Arg::new("queue").long("queue"))
                 .arg(flag("once"))
+                .arg(flag("listen-once").hide(true).requires("once"))
+                .arg(flag("force"))
+                .arg(Arg::new("name").long("name").default_value("default"))
                 .arg(flag("json").help("Output the job information as JSON"))
                 .arg(flag("stop-when-empty"))
                 .arg(seconds("stop-when-empty-for").default_value("0"))
@@ -62,6 +65,10 @@ impl Command for WorkCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let args = input.matches();
+            #[cfg(unix)]
+            if args.get_flag("listen-once") {
+                crate::process::inherit_queue_process_group();
+            }
             let container = app.container_handle();
             let manager = container.make::<QueueManager>().map_err(error)?;
             let connection = manager
@@ -80,6 +87,10 @@ impl Command for WorkCommand {
                 .get("queue.memory_limit")
                 .and_then(|value| value.as_u64());
             let options = WorkerOptions {
+                name: args
+                    .get_one::<String>("name")
+                    .expect("Clap default")
+                    .clone(),
                 tries: number("tries"),
                 timeout: duration(number("timeout")),
                 sleep: duration(number("sleep")),
@@ -161,6 +172,12 @@ impl Command for WorkCommand {
                         |event| status.write(event),
                     )
                     .await;
+                if args.get_flag("listen-once") && matches!(result, Ok((0, 0))) {
+                    tokio::select! {
+                        _ = shutdown.cancelled() => {},
+                        _ = tokio::time::sleep(options.sleep) => {},
+                    }
+                }
                 listener.abort();
                 result
             } else {
@@ -196,7 +213,7 @@ impl Command for WorkCommand {
     }
 }
 
-fn memory_limit(value: &str, budget: Option<u64>) -> Result<u64, ConsoleError> {
+pub(super) fn memory_limit(value: &str, budget: Option<u64>) -> Result<u64, ConsoleError> {
     let invalid =
         || ConsoleError::new("--memory requires a whole number of MiB or a finite percentage");
     let Some(percent) = value.strip_suffix('%') else {
@@ -229,10 +246,10 @@ fn memory_limit(value: &str, budget: Option<u64>) -> Result<u64, ConsoleError> {
     Ok(limit as u64)
 }
 
-fn flag(name: &'static str) -> Arg {
+pub(super) fn flag(name: &'static str) -> Arg {
     Arg::new(name).long(name).action(ArgAction::SetTrue)
 }
-fn seconds(name: &'static str) -> Arg {
+pub(super) fn seconds(name: &'static str) -> Arg {
     Arg::new(name).long(name).value_parser(value_parser!(u32))
 }
 fn duration(seconds: u32) -> Duration {

@@ -1057,7 +1057,7 @@ impl Worker {
     }
 }
 
-fn current_memory() -> Option<u64> {
+pub(super) fn current_memory() -> Option<u64> {
     memory_stats::memory_stats().and_then(|usage| u64::try_from(usage.physical_mem).ok())
 }
 

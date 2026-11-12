@@ -88,6 +88,16 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 ./artisan queue:restart
 ```
 
+#### 每輪啟動新的 Worker 程序 {#listening-with-a-fresh-worker-process}
+
+需要每次嘗試重新啟動應用程式時，使用 `queue:listen`。監聽器每輪啟動新的 `queue:work --once` 子程序，並轉送其輸出。
+
+```sh
+./artisan queue:listen database --queue=default --timeout=60
+```
+
+用 `--sleep` 設定空輪詢等待，用 `--rest` 設定兩次子程序啟動間的休息時間。`--timeout` 限制子程序執行時間，設為零可取消程序期限。監聽器收到結束訊號後，會要求目前子程序停止並回收它。
+
 ### Worker 狀態與結束原因 {#worker-status-and-exit-reasons}
 
 Worker 在執行時輸出工作進度及暫停、恢復通知。`--json` 每行輸出一筆 JSON 記錄。`--quiet` 或 `--silent` 會隱藏一般輸出。

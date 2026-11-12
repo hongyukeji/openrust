@@ -154,6 +154,10 @@ impl InvokedProcess {
     }
 
     pub async fn wait(mut self) -> Result<ProcessResult> {
+        self.wait_ref().await
+    }
+
+    pub(crate) async fn wait_ref(&mut self) -> Result<ProcessResult> {
         let result = (&mut self.task).await.map_err(io::Error::other)?;
         self.finish(result)
     }

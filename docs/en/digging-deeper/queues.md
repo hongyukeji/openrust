@@ -88,6 +88,16 @@ Run the restart command during deployment. A worker finishes its current job and
 ./artisan queue:restart
 ```
 
+#### Listening with a fresh worker process {#listening-with-a-fresh-worker-process}
+
+Use `queue:listen` when each attempt should boot a fresh application. The listener starts a new `queue:work --once` child for each poll and forwards its output.
+
+```sh
+./artisan queue:listen database --queue=default --timeout=60
+```
+
+Use `--sleep` for empty polls and `--rest` between children. `--timeout` limits a child process. Set it to zero for no process deadline. On shutdown, the listener requests that its current child stop and reaps it before returning.
+
 ### Worker status and exit reasons {#worker-status-and-exit-reasons}
 
 A worker writes job progress and pause or resume notices while it runs. Use `--json` to emit one JSON record per line. Normal output is suppressed by `--quiet` or `--silent`.

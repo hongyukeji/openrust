@@ -2,6 +2,10 @@ use std::time::Duration;
 
 pub(super) const MEBIBYTE: u64 = 1024 * 1024;
 
+fn default_name() -> String {
+    "default".into()
+}
+
 const fn default_memory() -> u64 {
     128 * MEBIBYTE
 }
@@ -17,6 +21,8 @@ const fn default_timed_out_exit_code() -> u8 {
 /// Controls a queue worker's execution and stopping limits.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct WorkerOptions {
+    #[serde(default = "default_name")]
+    pub name: String,
     pub tries: u32,
     pub timeout: Duration,
     pub backoff: Vec<Duration>,
@@ -38,6 +44,7 @@ pub struct WorkerOptions {
 impl Default for WorkerOptions {
     fn default() -> Self {
         Self {
+            name: default_name(),
             tries: 1,
             timeout: Duration::from_secs(60),
             backoff: Vec::new(),
