@@ -29,7 +29,7 @@
 - 在 macOS arm64 宿主的 Parallels Windows 11 Pro ARM64 虚拟机（Build 26200）中，使用 x64 兼容层运行 `x86_64-pc-windows-msvc` 目标。工具链为 Rust 1.94.0、Cargo 1.94.0 和 MSVC 14.44.35207。执行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`。9 个相关源码和 Cargo 文件的 SHA-256 与提交候选一致。
 - 实际 `queue:work` 使用内置 SQLite 数据库队列。验证 CPU 死循环、同步阻塞、外部进程及其子进程都在超时后退出。`JobTimedOut` 监听器以 Windows 进程列表确认执行器和外部进程树已退出，超过原定运行时间后仍无晚到副作用。未归组的内部执行器在创建应用前退出。
 - 实测超时退出码 124。CPU 任务在租约到期前保持预约，随后由新 Worker 重试并成功。按任务 UUID 验证 `fail_on_timeout` 和最大异常规则写入超时失败记录，关闭超时退出后，同一 Worker 能继续消费。
-- Windows Debug 的终态结算曾触发默认栈溢出。终态结算的 Future 改由堆持有，失败记录写入在独立 Tokio 任务中轮询，沿用原连接的路由状态并等待写入完成。取消等待时会中止写入任务。Windows 强制超时首批验证 x64 与 SQLite。原生 ARM64 及其他驱动的结果见 Windows ARM64 补验小节。非隔离失败回调在该批扩展夹具中复现的 Debug 栈溢出见下节。
+- Windows Debug 的终态结算曾触发默认栈溢出。终态结算的 Future 改由堆持有，失败记录写入在独立 Tokio 任务中轮询，沿用原连接的路由状态并等待写入完成。取消等待时会中止写入任务。Windows 强制超时首批验证 x64 与 SQLite。原生 ARM64 和 x64 MSVC 的 MySQL 与 Redis 验收见后续小节。非隔离失败回调在该批扩展夹具中复现的 Debug 栈溢出见下节。
 - macOS 全工作区主测试进程 592 项通过、7 项忽略。最终候选补跑 SQLite、MySQL 8.4 和 Redis 8 的硬超时进程验收、进程入口测试和严格 Clippy。格式、三语站点构建及 18 项浏览器检查通过。Linux 实测见前节。
 
 ## Windows 非隔离失败回调补验
@@ -50,5 +50,11 @@
 - 从 `b5edaed00a7a10b8907cd7cea625047490c4525f` 的干净归档在同一 Windows 11 ARM64 虚拟机运行 `cargo test --locked --offline --target aarch64-pc-windows-msvc --test queue_hard_timeout`。未优化构建退出 0，PE Machine 为 `0xAA64`。五个相关源码和锁文件的 SHA-256 与 Git 基线一致。
 - 原生 Worker 经 Parallels 共享网络访问宿主机的 MySQL 8.4.13 与 Redis 8.10.3。MySQL 使用专用数据库与仅能访问该库的临时账号。Redis 使用专用容器，由虚拟机环回转发。MySQL 用例的队列和失败记录存于 MySQL。Redis 用例的队列存于 Redis，失败记录存于虚拟机内的 SQLite。
 - SQLite、MySQL 和 Redis 三组真实 `queue:work` 均通过。每组验证 CPU 死循环、同步阻塞及外部进程树的超时回收和无晚到副作用，核对退出码 124、租约到期后重试、按 UUID 写入超时失败记录和关闭超时退出后的继续消费。每组还验证同一 Worker 执行两个非隔离失败任务的回调、报告回调异常、写入对应失败记录，并成功消费下一条任务后以 0 退出。
+
+## Windows x64 MSVC 的 MySQL 与 Redis 补验
+
+- 从 `3bed140d8943aad36a1ef1f155bde9027c142a3c` 的干净归档在 Parallels Windows 11 Pro ARM64 Build 26200 的 x64 兼容层运行 `cargo test --locked --offline --target x86_64-pc-windows-msvc --test queue_hard_timeout`。工具链为 Rust/Cargo 1.94.0、MSVC 14.44.35207。未优化构建退出 0，实际执行的 Worker 夹具 PE Machine 为 `0x8664`。五个相关源码和锁文件的 SHA-256 与 Git 基线一致。
+- SQLite、MySQL 8.4.13 与 Redis 8.10.3 三组真实 `queue:work` 均通过。MySQL 队列和失败记录使用专用 MySQL 库，Redis 队列使用专用 Redis 容器，失败记录使用虚拟机内的 SQLite。
+- 每组验证强制超时回收 CPU 死循环、同步阻塞及外部进程树，无晚到副作用。验证超时退出码 124、租约后重试、按任务 UUID 写入失败记录，以及关闭超时退出后继续消费。每组还验证非隔离失败回调及其异常报告，同一 Worker 成功消费后续任务并以 0 退出。
 
 [English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#hard-job-timeouts)
