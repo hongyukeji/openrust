@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use serde_json::Value;
+
 use crate::{
     cache::Ttl,
-    container::ServiceKey,
+    container::{Container, ServiceKey},
     contracts::queue::{JobHandler, Queue},
     database::Transaction,
     support::facades::Facade,
@@ -41,6 +43,18 @@ impl QueueFacade {
 
     pub fn connection(name: Option<&str>) -> QueueResult<Arc<dyn Queue>> {
         Self::manager()?.connection(name)
+    }
+
+    /// Registers a connection driver in the current application.
+    pub fn extend(
+        driver: impl Into<String>,
+        connector: impl Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Queue>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> QueueResult<()> {
+        Self::manager()?.extend(driver, connector);
+        Ok(())
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel Queue facade")]

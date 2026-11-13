@@ -7,8 +7,10 @@ use std::{
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{
-        container::Container as _, foundation::Application as _, http::Kernel as _,
-        queue::JobHandler,
+        container::Container as _,
+        foundation::Application as _,
+        http::Kernel as _,
+        queue::{Job, JobHandler, Queue as QueueContract},
     },
     database::{Connection, DatabaseManager},
     foundation::{Application, configuration::Routing, http::Kernel},
@@ -176,6 +178,96 @@ async fn application(
     let handler = Arc::new(Handler::default());
     queue.register(JOB, handler.clone()).unwrap();
     (app, queue, db, handler)
+}
+
+struct ExtensionQueue {
+    name: String,
+    inner: Arc<dyn QueueContract>,
+}
+
+impl QueueContract for ExtensionQueue {
+    fn get_connection_name(&self) -> &str {
+        &self.name
+    }
+
+    fn size<'a>(&'a self, queue: Option<&'a str>) -> QueueFuture<'a, QueueResult<u64>> {
+        self.inner.size(queue)
+    }
+
+    fn push<'a>(
+        &'a self,
+        payload: &'a Payload,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<Option<String>>> {
+        self.inner.push(payload, queue)
+    }
+
+    fn later<'a>(
+        &'a self,
+        delay: Delay,
+        payload: &'a Payload,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<Option<String>>> {
+        self.inner.later(delay, payload, queue)
+    }
+
+    fn pop<'a>(
+        &'a self,
+        queue: Option<&'a str>,
+    ) -> QueueFuture<'a, QueueResult<Option<Box<dyn Job>>>> {
+        self.inner.pop(queue)
+    }
+}
+
+#[tokio::test]
+async fn custom_queue_connections_resolve_per_application_and_dispatch_over_http() {
+    let root = tempfile::tempdir().unwrap();
+    let database = root.path().join("queue.sqlite");
+    let config = json!({"driver":"sqlite","database":database});
+    let (app, manager, _, handler) = application(config.clone(), None, "jobs").await;
+    let (other, other_manager, _, _) = application(config, None, "jobs").await;
+    for app in [&app, &other] {
+        app.config()
+            .unwrap()
+            .set(
+                "queue.connections.extension",
+                json!({"driver":"custom","delegate":"sync"}),
+            )
+            .unwrap();
+    }
+    for manager in [&manager, &other_manager] {
+        assert!(matches!(
+            manager.connection(Some("extension")),
+            Err(QueueError::UnsupportedDriver(driver)) if driver == "custom"
+        ));
+    }
+    manager.extend("custom", |container, name, settings| {
+        let manager = container
+            .make::<QueueManager>()
+            .map_err(QueueError::Unavailable)?;
+        let inner = manager.connection(settings["delegate"].as_str())?;
+        Ok(Arc::new(ExtensionQueue {
+            name: name.into(),
+            inner,
+        }))
+    });
+    let first = manager.connection(Some("extension")).unwrap();
+    manager.extend("custom", |_, _, _| Err(QueueError::InvalidConfiguration));
+    assert!(Arc::ptr_eq(
+        &first,
+        &manager.connection(Some("extension")).unwrap()
+    ));
+    assert!(matches!(
+        other_manager.connection(Some("extension")),
+        Err(QueueError::UnsupportedDriver(_))
+    ));
+    let (address, server) = start(app).await;
+    assert_eq!(request(address, "extension").await, "sync");
+    assert_eq!(
+        handler.0.lock().unwrap().as_slice(),
+        &[("default".into(), 1, u64::MAX)]
+    );
+    server.abort();
 }
 
 async fn exercise_storage(

@@ -72,6 +72,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 持久化连接通过队列与任务契约提供 `pop`、`delete` 和 `release`。预约过期后，任务可以重新领取，旧句柄无法确认或释放新预约。Redis 的 `block_for` 单位为秒，`null` 立即返回，`0` 持续等待任务。
 
+### 注册自定义驱动 {#custom-queue-drivers}
+
+在服务提供者中用 `Queue::extend("custom", connector)?` 注册连接工厂，再把 `config/queue.rs` 中命名连接的 `driver` 设为 `custom`。工厂接收应用容器、连接名和完整连接配置，并返回 `Arc<dyn openrust::contracts::queue::Queue>`。返回的连接名和默认队列需与配置一致。
+
+连接按应用缓存。首次并发解析可能构建多个候选连接，因此工厂需要能安全重试。队列契约支持派发和预约。原子批次发布使用内置数据库和 Redis 连接。
+
 ## 在数据库事务中派发
 
 将活动事务作为 `Queue::dispatch` 的最后一个参数。连接开启 `after_commit` 时，任务在最外层提交后派发。可以通过 `DispatchOptions.after_commit` 覆盖连接配置。回滚会丢弃待派发任务。立即派发时，同一连接的数据库队列在事务内写入，sync 处理器可用 `JobContext::transaction` 访问当前事务。

@@ -72,6 +72,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 持久化連線透過佇列與工作契約提供 `pop`、`delete` 和 `release`。預約到期後可重新領取工作，舊控制代碼無法確認或釋放新預約。Redis 的 `block_for` 以秒為單位，`null` 立即傳回，`0` 持續等待工作。
 
+### 註冊自訂驅動程式 {#custom-queue-drivers}
+
+在服務提供者中以 `Queue::extend("custom", connector)?` 註冊連線工廠，再將 `config/queue.rs` 中具名連線的 `driver` 設為 `custom`。工廠接收應用程式容器、連線名稱和完整連線設定，並傳回 `Arc<dyn openrust::contracts::queue::Queue>`。傳回的連線名稱和預設佇列需與設定一致。
+
+連線依應用程式快取。首次並行解析可能建立多個候選連線，因此工廠須能安全重試。佇列契約支援派送和預約。原子批次發布使用內建資料庫和 Redis 連線。
+
 ## 在資料庫交易中派送
 
 將使用中的交易作為 `Queue::dispatch` 的最後一個參數。連線啟用 `after_commit` 時，工作於最外層提交後派送。可以使用 `DispatchOptions.after_commit` 覆寫連線設定。復原會捨棄待派送工作。立即派送時，同一連線的資料庫佇列在交易內寫入，sync 處理器可使用 `JobContext::transaction` 存取目前交易。

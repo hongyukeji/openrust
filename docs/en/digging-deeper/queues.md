@@ -72,6 +72,12 @@ The skeleton uses `QUEUE_CONNECTION=database` by default. Run `./artisan migrate
 
 A stored connection exposes `pop`, `delete` and `release` through the queue and job contracts. An expired reservation can be claimed again. Its previous handle cannot confirm or release the new reservation. Redis `block_for` is measured in seconds. `null` returns immediately, and `0` waits for a job.
 
+### Registering a custom driver {#custom-queue-drivers}
+
+In a service provider, register a connector with `Queue::extend("custom", connector)?`, then set a named connection's `driver` to `custom` in `config/queue.rs`. The connector receives the application container, the connection name and the full connection configuration. Return an `Arc<dyn openrust::contracts::queue::Queue>` whose connection name and default queue match the configuration.
+
+Connections are cached per application. Concurrent first lookups may build several candidates, so make the connector safe to retry. The queue contract supports dispatch and reservation. Atomic batch publication uses the built-in database and Redis connections.
+
 ## Dispatching with database transactions
 
 Pass the active transaction as the last argument of `Queue::dispatch`. A connection with `after_commit` enabled dispatches only after the outer commit. Set `DispatchOptions.after_commit` to override the connection setting. Rolling back discards deferred dispatch. With immediate dispatch, a database queue on the same connection writes within the transaction, and a sync handler can access it via `JobContext::transaction`.

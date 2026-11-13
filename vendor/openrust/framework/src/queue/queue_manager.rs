@@ -8,6 +8,7 @@ use std::{
 };
 
 use serde::Deserialize;
+use serde_json::Value;
 
 use crate::{
     bus::{
@@ -43,12 +44,15 @@ pub struct QueueManager {
     owner: Weak<Container>,
     registry: Arc<Queue>,
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
+    connectors: RwLock<HashMap<String, Arc<Connector>>>,
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
     chain_callbacks: RwLock<HashMap<String, ChainCallback>>,
     pop_callbacks: RwLock<HashMap<String, JobPopCallback>>,
     interruption_polling: AtomicBool,
     clear_prohibited: AtomicBool,
 }
+
+type Connector = dyn Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Contract>> + Send + Sync;
 
 struct ConfiguredQueue {
     queue: Arc<dyn Contract>,
@@ -83,6 +87,7 @@ impl QueueManager {
             registry: Arc::new(Queue::new(owner.clone())),
             owner,
             connections: Mutex::default(),
+            connectors: RwLock::default(),
             batch_callbacks: RwLock::default(),
             chain_callbacks: RwLock::default(),
             pop_callbacks: RwLock::default(),
@@ -147,6 +152,24 @@ impl QueueManager {
 
     pub fn connection(&self, name: Option<&str>) -> QueueResult<Arc<dyn Contract>> {
         Ok(self.resolve(name)?.queue.clone())
+    }
+
+    /// Registers a driver factory for connections which have not been resolved.
+    /// Concurrent first lookups can build candidates, but only one is cached.
+    pub fn extend(
+        &self,
+        driver: impl Into<String>,
+        connector: impl Fn(&Container, &str, &Value) -> QueueResult<Arc<dyn Contract>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        let previous = self
+            .connectors
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(driver.into(), Arc::new(connector));
+        drop(previous);
     }
 
     pub(crate) fn default_is_synchronous(&self) -> QueueResult<bool> {
@@ -1076,20 +1099,52 @@ impl QueueManager {
             .config
             .get("queue.connections")
             .and_then(|connections| connections.get(name).cloned());
-        let settings = match raw {
-            Some(settings) => serde_json::from_value::<Settings>(settings)
-                .map_err(|_| QueueError::InvalidConfiguration)?,
-            None if name == "sync" => Settings {
-                driver: "sync".into(),
-                connection: None,
-                table: None,
-                queue: None,
-                retry_after: None,
-                block_for: None,
-                after_commit: false,
-            },
+        let raw = match raw {
+            Some(raw) => raw,
+            None if name == "sync" => serde_json::json!({"driver": "sync"}),
             None => return Err(QueueError::UnknownConnection { name: name.into() }),
         };
+        let settings = Settings::deserialize(&raw).map_err(|_| QueueError::InvalidConfiguration)?;
+        let connector = self
+            .connectors
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&settings.driver)
+            .cloned();
+        if let Some(connector) = connector {
+            drop(connections);
+            let owner = self
+                .owner
+                .upgrade()
+                .ok_or(QueueError::InvalidConfiguration)?;
+            let queue = connector(&owner, name, &raw)?;
+            if queue.get_connection_name() != name
+                || settings
+                    .queue
+                    .as_deref()
+                    .is_some_and(|configured| configured != queue.default_queue())
+            {
+                return Err(QueueError::InvalidConfiguration);
+            }
+            queue_name(None, queue.default_queue())?;
+            let configured = Arc::new(ConfiguredQueue {
+                default_queue: queue.default_queue().into(),
+                queue,
+                after_commit: settings.after_commit,
+                synchronous: settings.driver == "sync",
+                batch_backend: BatchBackend::Unsupported,
+            });
+            let mut connections = self
+                .connections
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let resolved = connections
+                .entry(name.into())
+                .or_insert_with(|| configured.clone())
+                .clone();
+            drop(connections);
+            return Ok(resolved);
+        }
         let (queue, batch_backend) = self.make(name, &settings)?;
         let configured = Arc::new(ConfiguredQueue {
             queue,
