@@ -60,3 +60,25 @@ fn register() -> Result<(), RoutingError> {
 ## 重定向响应
 
 使用 `Redirect::to` 跳转到 URL，或用 `Redirect::route` 跳转到命名路由。`RedirectOptions` 默认使用 302，并支持响应头。`Redirect::guest` 将访问目标存入当前会话，`Redirect::intended` 读取并清除它。会话没有访问目标时使用回退地址。
+
+### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
+
+在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器返回时，将重定向转换为 HTTP 响应。
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response},
+    support::facades::Redirect,
+};
+use serde_json::json;
+
+async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
+    let redirect = Redirect::to("/profile", Default::default())?
+        .with(request, "status", json!("saved"))?
+        .onlyInput(request, &["name"])
+        .await?;
+    Ok(redirect.into())
+}
+```
+
+向 `withInput` 传入 `None` 时，读取请求的表单或 JSON 字段和查询参数。上传文件会被排除。使用 `onlyInput` 或 `exceptInput` 按点路径筛选字段。下一次请求可用 `request.old(Some("name"))` 读取旧输入，并从会话读取闪存值。

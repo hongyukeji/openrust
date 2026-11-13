@@ -60,3 +60,25 @@ A serialization error goes through [exception handling](errors.md). Built-in exc
 ## Redirect responses
 
 Use `Redirect::to` for a URL or `Redirect::route` for a named route. `RedirectOptions` defaults to 302 and accepts response headers. `Redirect::guest` stores the intended URL in the request session, and `Redirect::intended` consumes it and uses a fallback when the session has no intended URL.
+
+### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
+
+In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Convert the redirect to an HTTP response when returning it from the handler.
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response},
+    support::facades::Redirect,
+};
+use serde_json::json;
+
+async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
+    let redirect = Redirect::to("/profile", Default::default())?
+        .with(request, "status", json!("saved"))?
+        .onlyInput(request, &["name"])
+        .await?;
+    Ok(redirect.into())
+}
+```
+
+Pass `None` to `withInput` to read form or JSON fields and query parameters from the request. Uploaded files are excluded. Use `onlyInput` or `exceptInput` to select fields by dot path. The next request can read old input with `request.old(Some("name"))` and flashed values from the session.

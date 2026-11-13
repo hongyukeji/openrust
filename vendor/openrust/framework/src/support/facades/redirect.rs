@@ -1,5 +1,5 @@
 use crate::{
-    http::{Request, Response},
+    http::{RedirectResponse, Request},
     routing::{RedirectOptions, Redirector, RouteParameter, UrlResult},
 };
 
@@ -13,7 +13,7 @@ impl Redirect {
         Ok(Redirector::new(URL::generator()?))
     }
 
-    pub fn to(path: &str, options: RedirectOptions) -> UrlResult<Response> {
+    pub fn to(path: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {
         Self::redirector()?.to(path, options)
     }
 
@@ -21,7 +21,7 @@ impl Redirect {
         name: &str,
         parameters: &[RouteParameter],
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         Self::redirector()?.route(name, parameters, options)
     }
 
@@ -29,7 +29,7 @@ impl Redirect {
         request: &Request,
         fallback: Option<&str>,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         Self::redirector()?.back(request, fallback, options)
     }
 
@@ -37,7 +37,7 @@ impl Redirect {
         request: &mut Request,
         path: &str,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         Self::redirector()?.guest(request, path, options)
     }
 
@@ -45,7 +45,7 @@ impl Redirect {
         request: &mut Request,
         fallback: &str,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         Self::redirector()?.intended(request, fallback, options)
     }
 }

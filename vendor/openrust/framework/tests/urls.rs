@@ -58,7 +58,8 @@ fn redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "ordinary",
             &[RouteParameter::named("slug", "a b")],
             RedirectOptions::default(),
-        )?)
+        )?
+        .into())
     })
 }
 
@@ -345,32 +346,72 @@ impl Drop for TestRoot {
 }
 
 fn guest(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
-    Box::pin(async {
-        Ok(Redirect::guest(
-            request,
-            "/login",
-            RedirectOptions::default(),
-        )?)
-    })
+    Box::pin(async { Ok(Redirect::guest(request, "/login", RedirectOptions::default())?.into()) })
 }
 
 fn intended(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
-        Ok(Redirect::intended(
-            request,
-            "/fallback",
-            RedirectOptions::default(),
-        )?)
+        Ok(Redirect::intended(request, "/fallback", RedirectOptions::default())?.into())
     })
 }
 
 fn back(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     let result = Redirect::back(request, Some("/fallback"), RedirectOptions::default());
-    Box::pin(std::future::ready(result.map_err(Into::into)))
+    Box::pin(std::future::ready(
+        result.map(Into::into).map_err(Into::into),
+    ))
+}
+
+fn flash_redirect(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mut errors = openrust::support::MessageBag::default();
+        errors.add("name", "Name is required.");
+        let redirect = Redirect::to("/flash", RedirectOptions::default())?
+            .with(request, "status", json!("saved"))?
+            .withErrors(request, &errors, "profile")?
+            .withErrors(request, &errors, "default")?;
+        let redirect = match request.route("mode") {
+            Some("only") => {
+                redirect
+                    .onlyInput(request, &["profile.name", "query"])
+                    .await?
+            }
+            Some("except") => redirect.exceptInput(request, &["profile.secret"]).await?,
+            Some("supplied") => {
+                redirect
+                    .withInput(request, Some(json!({"manual": true})))
+                    .await?
+            }
+            _ => redirect.withInput(request, None).await?,
+        };
+        Ok(redirect.into())
+    })
+}
+
+fn read_flash(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::contracts::session::Session as _;
+        let session = request.session().unwrap();
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "status": session.get("status"),
+                "errors": session.get("errors"),
+                "input": request.old(None),
+            }),
+        )
+    })
+}
+
+fn flash_token(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        use openrust::contracts::session::Session as _;
+        Response::json(StatusCode::OK, json!({"token": request.session()?.token()}))
+    })
 }
 
 #[tokio::test]
-async fn guest_and_intended_use_the_same_encrypted_http_session() {
+async fn redirects_preserve_intended_and_flash_data_in_the_encrypted_http_session() {
     let app = Application::configure(std::env::temp_dir())
         .withConfig(|_, _| {
             Ok([
@@ -389,7 +430,14 @@ async fn guest_and_intended_use_the_same_encrypted_http_session() {
             use openrust::support::facades::Route;
             Route::get("/guarded", guest)?;
             Route::get("/intended", intended)?;
-            Route::get("/back", back)
+            Route::get("/back", back)?;
+            Route::get("/flash", read_flash)?;
+            Route::get("/flash-token", flash_token)?;
+            Route::r#match(
+                &[openrust::http::Method::POST],
+                "/flash/{mode}",
+                flash_redirect,
+            )
         }))
         .create()
         .unwrap();
@@ -431,5 +479,83 @@ async fn guest_and_intended_use_the_same_encrypted_http_session() {
     )
     .await;
     assert!(response.contains(&format!("location: http://{address}/fallback\r\n")));
+    let token = exchange_with(address, "GET", "/flash-token", &host, "", &headers, 200).await;
+    let token: serde_json::Value =
+        serde_json::from_str(token.split_once("\r\n\r\n").unwrap().1).unwrap();
+    let fields = format!(
+        "Content-Type: application/x-www-form-urlencoded\r\nX-CSRF-TOKEN: {}\r\n",
+        token["token"].as_str().unwrap()
+    );
+    for (mode, input) in [
+        ("only", json!({"profile":{"name":"Ada"},"query":"value"})),
+        (
+            "except",
+            json!({"profile":{"name":"Ada"},"query":"value","ignored":"x"}),
+        ),
+        ("supplied", json!({"manual":true})),
+        (
+            "all",
+            json!({"profile":{"name":"Ada","secret":"drop"},"query":"value","ignored":"x"}),
+        ),
+    ] {
+        let response = exchange_with(
+            address,
+            "POST",
+            &format!("/flash/{mode}?query=value"),
+            &host,
+            "profile[name]=Ada&profile[secret]=drop&ignored=x",
+            &format!("{headers}{fields}"),
+            302,
+        )
+        .await;
+        assert!(response.contains(&format!("location: http://{address}/flash\r\n")));
+        let empty = json!({"status":null,"errors":null,"input":null});
+        let read = |headers: String| {
+            let host = &host;
+            async move {
+                let response =
+                    exchange_with(address, "GET", "/flash", host, "", &headers, 200).await;
+                serde_json::from_str::<serde_json::Value>(
+                    response.split_once("\r\n\r\n").unwrap().1,
+                )
+                .unwrap()
+            }
+        };
+        assert_eq!(read(String::new()).await, empty);
+        let flashed = read(headers.clone()).await;
+        assert_eq!(flashed["status"], "saved");
+        assert_eq!(flashed["input"], input);
+        assert_eq!(
+            flashed["errors"],
+            json!({
+                "default": {"name":["Name is required."]},
+                "profile": {"name":["Name is required."]},
+            })
+        );
+        assert_eq!(read(headers.clone()).await, empty);
+    }
+    let multipart = concat!(
+        "--probe\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nAda\r\n",
+        "--probe\r\nContent-Disposition: form-data; name=\"avatar\"; filename=\"a.txt\"\r\n",
+        "Content-Type: text/plain\r\n\r\nfile bytes\r\n--probe--\r\n"
+    );
+    let upload_headers = format!(
+        "{headers}Content-Type: multipart/form-data; boundary=probe\r\nX-CSRF-TOKEN: {}\r\n",
+        token["token"].as_str().unwrap(),
+    );
+    exchange_with(
+        address,
+        "POST",
+        "/flash/all",
+        &host,
+        multipart,
+        &upload_headers,
+        302,
+    )
+    .await;
+    let response = exchange_with(address, "GET", "/flash", &host, "", &headers, 200).await;
+    let flashed: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(flashed["input"], json!({"name": "Ada"}));
     server.abort();
 }

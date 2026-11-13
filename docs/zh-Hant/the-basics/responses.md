@@ -60,3 +60,25 @@ fn register() -> Result<(), RoutingError> {
 ## 重新導向回應
 
 使用 `Redirect::to` 前往 URL，或以 `Redirect::route` 前往命名路由。`RedirectOptions` 預設使用 302，並支援回應標頭。`Redirect::guest` 將存取目標存入目前工作階段，`Redirect::intended` 讀取並清除它。工作階段沒有存取目標時使用備用位址。
+
+### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
+
+在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式傳回時，將重新導向轉換為 HTTP 回應。
+
+```rust
+use openrust::{
+    http::{HttpError, Request, Response},
+    support::facades::Redirect,
+};
+use serde_json::json;
+
+async fn save_profile(request: &mut Request) -> Result<Response, HttpError> {
+    let redirect = Redirect::to("/profile", Default::default())?
+        .with(request, "status", json!("saved"))?
+        .onlyInput(request, &["name"])
+        .await?;
+    Ok(redirect.into())
+}
+```
+
+向 `withInput` 傳入 `None` 時，讀取請求的表單或 JSON 欄位及查詢參數。上傳檔案會被排除。使用 `onlyInput` 或 `exceptInput` 依點路徑篩選欄位。下一次請求可用 `request.old(Some("name"))` 讀取舊輸入，並從工作階段讀取暫存值。

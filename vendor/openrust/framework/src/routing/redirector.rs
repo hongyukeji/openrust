@@ -7,7 +7,7 @@ use ::http::{
 
 use crate::{
     contracts::{routing::UrlGenerator as _, session::Session as _},
-    http::{Body, HeaderMap, Request, Response, StatusCode},
+    http::{Body, HeaderMap, RedirectResponse, Request, Response, StatusCode},
 };
 
 use super::{
@@ -40,11 +40,11 @@ impl Redirector {
         Self { urls }
     }
 
-    pub fn to(&self, path: &str, options: RedirectOptions) -> UrlResult<Response> {
+    pub fn to(&self, path: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {
         redirect_response(&self.urls.to(path, &[], None)?, options)
     }
 
-    pub fn secure(&self, path: &str, options: RedirectOptions) -> UrlResult<Response> {
+    pub fn secure(&self, path: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {
         redirect_response(&self.urls.to(path, &[], Some(true))?, options)
     }
 
@@ -53,7 +53,7 @@ impl Redirector {
         name: &str,
         parameters: &[RouteParameter],
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         redirect_response(&self.urls.route(name, parameters, true)?, options)
     }
 
@@ -63,7 +63,7 @@ impl Redirector {
         parameters: &[RouteParameter],
         expiration: Option<SystemTime>,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         let target =
             self.urls
                 .signedRoute(name, parameters, expiration, SignatureMode::Absolute)?;
@@ -76,15 +76,15 @@ impl Redirector {
         expiration: SystemTime,
         parameters: &[RouteParameter],
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         self.signedRoute(name, parameters, Some(expiration), options)
     }
 
-    pub fn refresh(&self, options: RedirectOptions) -> UrlResult<Response> {
+    pub fn refresh(&self, options: RedirectOptions) -> UrlResult<RedirectResponse> {
         redirect_response(&self.urls.current()?, options)
     }
 
-    pub fn away(&self, target: &str, options: RedirectOptions) -> UrlResult<Response> {
+    pub fn away(&self, target: &str, options: RedirectOptions) -> UrlResult<RedirectResponse> {
         valid_http_url(target).map_err(|_| UrlError::InvalidRedirect)?;
         redirect_response(target, options)
     }
@@ -94,7 +94,7 @@ impl Redirector {
         request: &Request,
         fallback: Option<&str>,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         let target = self.urls.forRequest(request).previous(fallback)?;
         redirect_response(&target, options)
     }
@@ -104,7 +104,7 @@ impl Redirector {
         request: &mut Request,
         path: &str,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         let urls = self.urls.forRequest(request);
         let response = Self::new(urls.clone()).to(path, options)?;
         let target = if request.matched_route
@@ -132,7 +132,7 @@ impl Redirector {
         request: &mut Request,
         fallback: &str,
         options: RedirectOptions,
-    ) -> UrlResult<Response> {
+    ) -> UrlResult<RedirectResponse> {
         let urls = self.urls.forRequest(request);
         let session = request.session_mut().map_err(UrlError::Session)?;
         let target = session
@@ -145,7 +145,10 @@ impl Redirector {
     }
 }
 
-pub(super) fn redirect_response(target: &str, options: RedirectOptions) -> UrlResult<Response> {
+pub(super) fn redirect_response(
+    target: &str,
+    options: RedirectOptions,
+) -> UrlResult<RedirectResponse> {
     if target.is_empty()
         || target.contains('\\')
         || target.bytes().any(|byte| byte.is_ascii_control())
@@ -169,13 +172,15 @@ pub(super) fn redirect_response(target: &str, options: RedirectOptions) -> UrlRe
     let body = format!(
         r#"<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url={escaped}"><title>Redirecting</title></head><body><a href="{escaped}">Redirecting</a></body></html>"#
     );
-    Ok(Response::new(options.status, Body::from(body))
-        .withHeaders(options.headers)
-        .header(
-            CONTENT_TYPE,
-            HeaderValue::from_static("text/html; charset=utf-8"),
-        )
-        .header(LOCATION, header))
+    Ok(RedirectResponse::new(
+        Response::new(options.status, Body::from(body))
+            .withHeaders(options.headers)
+            .header(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            )
+            .header(LOCATION, header),
+    ))
 }
 
 pub(super) struct RedirectRoute {
@@ -191,7 +196,7 @@ impl RedirectRoute {
         }
     }
 
-    fn response(&self, request: &Request) -> UrlResult<Response> {
+    fn response(&self, request: &Request) -> UrlResult<RedirectResponse> {
         let mut target = self.target.clone();
         let mut pattern = self.target.as_str();
         while let Some((_, tail)) = pattern.split_once('{') {
@@ -215,6 +220,6 @@ impl crate::contracts::routing::Handler for RedirectRoute {
         &'a self,
         request: &'a mut Request,
     ) -> crate::http::HttpFuture<'a, Result<Response, crate::http::HttpError>> {
-        Box::pin(async move { Ok(self.response(request)?) })
+        Box::pin(async move { Ok(self.response(request)?.into()) })
     }
 }

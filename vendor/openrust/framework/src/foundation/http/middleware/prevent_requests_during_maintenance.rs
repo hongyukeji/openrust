@@ -82,7 +82,9 @@ impl Middleware for PreventRequestsDuringMaintenance {
                         target_path
                     };
                     if path != target_path {
-                        return Redirect::to(target, Default::default()).map_err(internal);
+                        return Redirect::to(target, Default::default())
+                            .map(Into::into)
+                            .map_err(internal);
                     }
                 }
                 if let Some(template) = data.get("template").and_then(Value::as_str) {
@@ -250,7 +252,7 @@ fn bypass_response(request: &mut Request, secret: &str) -> Result<Response, Http
         Redirect::to("/", Default::default())
     }
     .map_err(internal)?;
-    response
+    Response::from(response)
         .header(CACHE_CONTROL, HeaderValue::from_static("no-store, private"))
         .cookie(&cookie, request)
 }
