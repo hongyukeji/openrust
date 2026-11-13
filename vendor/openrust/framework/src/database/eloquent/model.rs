@@ -985,6 +985,37 @@ pub trait Model: Sized + Send + Sync + 'static {
         concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false)
     }
 
+    /// Loads an aggregate onto this model's cached polymorphic target.
+    fn loadMorphAggregate<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        aggregate: super::RelationAggregateQuery<'a, T>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        async move {
+            self.loadMorphAggregates(name, morph, alias, &[aggregate])
+                .await
+        }
+    }
+
+    /// Loads aggregates onto this model's cached polymorphic target of the selected type.
+    fn loadMorphAggregates<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        aggregates: &'a [super::RelationAggregateQuery<'a, T>],
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        super::collection::load_morph_aggregates(
+            std::slice::from_mut(self),
+            name,
+            morph,
+            alias,
+            aggregates,
+        )
+    }
+
     /// Registers a listener on this application's model event registry.
     fn registerModelEvent(
         app: &crate::foundation::Application,

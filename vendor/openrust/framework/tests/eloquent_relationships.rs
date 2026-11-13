@@ -746,6 +746,107 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
     })
 }
 
+async fn verify_morph_aggregates(
+    db: &Connection,
+    mysql: bool,
+    comments: &mut Collection<Comment>,
+    subjects: &MorphTo<Comment>,
+) {
+    let relation = POST_COMMENTS;
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let aggregates = [
+        RelationAggregateQuery::new(
+            "comments as has_feedback",
+            &relation,
+            RelationAggregate::Exists,
+        ),
+        RelationAggregateQuery::new(
+            "comments as last_feedback",
+            &relation,
+            RelationAggregate::Max("id"),
+        ),
+    ];
+    comments
+        .loadMorphAggregates("subject", subjects, "post", &aggregates)
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    let mut post_index = None;
+    for (index, comment) in comments.iter().enumerate() {
+        let subject = comment
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap();
+        match subject.as_ref().map(MorphTarget::alias) {
+            Some("post") => {
+                let post = subject.as_ref().unwrap().downcast_ref::<Post>().unwrap();
+                let has_feedback = post.getAttribute("last_feedback").unwrap() != &Value::Null;
+                assert_eq!(
+                    post.getAttribute("has_feedback"),
+                    Some(&has_feedback.into())
+                );
+                assert_eq!(
+                    post.getRawOriginal("last_feedback"),
+                    post.getAttribute("last_feedback")
+                );
+                post_index = Some(index);
+            }
+            Some("author") => {
+                let author = subject.as_ref().unwrap().downcast_ref::<Author>().unwrap();
+                assert!(author.getAttribute("posts_count").is_some());
+                assert!(author.getAttribute("last_feedback").is_none());
+            }
+            None => {}
+            Some(alias) => panic!("unexpected alias {alias}"),
+        }
+    }
+    let row = &comments[post_index.unwrap()];
+    let mut model = Comment::from_state(row.state().clone());
+    model
+        .loadMorphAggregate(
+            "subject",
+            subjects,
+            "post",
+            RelationAggregateQuery::new(
+                "comments as feedback_count",
+                &relation,
+                RelationAggregate::Count,
+            ),
+        )
+        .await
+        .unwrap();
+    assert!(model.toArray().unwrap()["subject"]["feedback_count"].is_u64());
+    assert!(
+        row.toArray().unwrap()["subject"]
+            .get("feedback_count")
+            .is_none()
+    );
+
+    let invalid = [
+        RelationAggregateQuery::new("comments as duplicate", &relation, RelationAggregate::Count),
+        RelationAggregateQuery::new(
+            "comments as duplicate",
+            &relation,
+            RelationAggregate::Exists,
+        ),
+    ];
+    assert!(matches!(
+        comments
+            .loadMorphAggregates("subject", subjects, "post", &invalid)
+            .await,
+        Err(DatabaseError::InvalidQuery("duplicate aggregate alias"))
+    ));
+    assert!(matches!(
+        comments
+            .loadMorphAggregates("subject", subjects, "author", &aggregates)
+            .await,
+        Err(DatabaseError::InvalidQuery(
+            "morph type does not match model"
+        ))
+    ));
+}
+
 fn verify_morph_batches(
     db: &Connection,
     mysql: bool,
@@ -804,6 +905,14 @@ fn verify_morph_batches(
         if mysql {
             assert_eq!(select_count(db).await - baseline, 2);
         }
+
+        Box::pin(verify_morph_aggregates(
+            db,
+            mysql,
+            &mut comments,
+            &subjects(),
+        ))
+        .await;
 
         let morph = subjects();
         let mut roots = Comment::queryOn(db)

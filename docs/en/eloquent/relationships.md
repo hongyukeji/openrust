@@ -286,7 +286,7 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 
 ### Loading Polymorphic Target Groups
 
-Use `loadMorph` or `loadMorphCount` after retrieving parent models. Pass the target alias and a typed related relationship. The resulting batch exposes the loaded relationship or count. Open a group with `morphModels` to continue traversing a relationship chain. Each call selects one alias, so different target types can use different relationships even when their primary keys overlap. Newly fetched relations and count attributes are scoped to the returned batch.
+Use `loadMorph` to load a relationship for one typed target group in the returned batch. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.
 
 ```rust
 use openrust::database::{
@@ -303,6 +303,24 @@ pub async fn author_post_counts_for_subjects(comments: &mut Collection<Comment>)
     Ok((0..authors.all().len())
         .filter_map(|index| authors.getAttribute(index, "posts_count").cloned())
         .collect())
+}
+```
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, RelationAggregate, RelationAggregateQuery, relations::{HasMany, MorphTo}},
+};
+
+pub async fn load_subject_totals<M: Model, T: Model, R: Model>(
+    parents: &mut Collection<M>,
+    subjects: &MorphTo<M>,
+    children: &HasMany<T, R>,
+) -> DatabaseResult<()> {
+    parents.loadMorphAggregates("subject", subjects, "post", &[
+        RelationAggregateQuery::new("comments as has_comments", children, RelationAggregate::Exists),
+        RelationAggregateQuery::new("comments", children, RelationAggregate::Count),
+    ]).await
 }
 ```
 

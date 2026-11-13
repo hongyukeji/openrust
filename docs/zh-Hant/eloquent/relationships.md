@@ -286,7 +286,7 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 
 ### 載入多型目標分組
 
-取得父模型後，可用 `loadMorph` 或 `loadMorphCount` 載入指定目標別名的型別化關聯。回傳的批次可讀取載入的關聯或計數。也可用 `morphModels` 開啟指定分組並繼續巡覽關聯鏈。每次呼叫選擇一個別名，主鍵相同的不同目標型別仍可使用各自的關聯。新增關聯和計數屬性隨回傳的批次保存。
+用 `loadMorph` 在回傳的批次中載入指定型別群組的關聯。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 將延後查詢的彙總值寫回已快取的多型目標，之後可從父模型關聯和 JSON 輸出讀取。每次呼叫選擇一個別名，同一別名的多個彙總依主鍵批次合併查詢，其他別名保留各自的值。單一模型也支援 `loadMorphAggregate` 和 `loadMorphAggregates`。
 
 ```rust
 use openrust::database::{
@@ -303,6 +303,24 @@ pub async fn author_post_counts_for_subjects(comments: &mut Collection<Comment>)
     Ok((0..authors.all().len())
         .filter_map(|index| authors.getAttribute(index, "posts_count").cloned())
         .collect())
+}
+```
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, RelationAggregate, RelationAggregateQuery, relations::{HasMany, MorphTo}},
+};
+
+pub async fn load_subject_totals<M: Model, T: Model, R: Model>(
+    parents: &mut Collection<M>,
+    subjects: &MorphTo<M>,
+    children: &HasMany<T, R>,
+) -> DatabaseResult<()> {
+    parents.loadMorphAggregates("subject", subjects, "post", &[
+        RelationAggregateQuery::new("comments as has_comments", children, RelationAggregate::Exists),
+        RelationAggregateQuery::new("comments", children, RelationAggregate::Count),
+    ]).await
 }
 ```
 

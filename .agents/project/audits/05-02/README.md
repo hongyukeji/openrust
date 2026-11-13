@@ -442,3 +442,11 @@ Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽�
 SQLite 与独立 MySQL 8.4.13 验证多个子路径、重复路径、默认预加载覆盖、原集合保留、空集合及错误路径。MySQL 的两条子路径与一个其他默认关系共 5 次 SELECT，包括主模型回读。
 
 Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽略）、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。核心账本仍为 25/66。
+
+## 多态目标延后聚合与写回
+
+按固定 Laravel 的 `Collection::loadMorphCount`、`Model::loadMorphAggregate` 及关系文档实现延后聚合写回。Rust 显式传入登记别名和类型化聚合描述符，复用现有批量聚合查询。每个主键批次共用查询，结果作为原始属性写回父模型缓存的目标快照，父模型 JSON 可读取。其他类型的同键目标不参与写回。先完成查询与校验再安装快照，避免聚合错误导致部分写回。已持有的目标引用仍指向旧快照。核对 `v0.x` 未找到同名多态聚合实现，固定 Goravel 用作连接级 ORM 参考。 [Laravel 集合](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [Laravel 模型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#deferred-count-loading) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与 MySQL 8.4.13 验证父关系与 JSON 可见性、别名隔离、原始属性同步、重复聚合别名和目标类型错误。MySQL 为同组两个聚合执行一次 SELECT。普通多态延后加载 `loadMorph` 的缓存写回仍待核对。
+
+Rust 1.94 全工作区 620 项通过、8 项夹具忽略。双库关系专项、格式、全目标严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。

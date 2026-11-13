@@ -840,9 +840,36 @@ impl<M: Model> Collection<M> {
         related_name: &str,
         relation: &impl ExistenceRelation<Parent = T>,
     ) -> DatabaseResult<RelatedBatch<'_, T>> {
-        let mut targets = self.morphModels::<T>(name, morph, alias).await?;
-        targets.loadCount(related_name, relation).await?;
-        Ok(targets)
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Count),
+        )
+        .await?;
+        self.morphModels::<T>(name, morph, alias).await
+    }
+
+    /// Loads an aggregate onto the cached models of one polymorphic target group.
+    pub async fn loadMorphAggregate<T: Model>(
+        &mut self,
+        name: &str,
+        morph: &MorphTo<M>,
+        alias: &str,
+        aggregate: RelationAggregateQuery<'_, T>,
+    ) -> DatabaseResult<()> {
+        load_morph_aggregates(&mut self.models, name, morph, alias, &[aggregate]).await
+    }
+
+    /// Loads several aggregates in a shared query for each batch of target keys.
+    pub async fn loadMorphAggregates<T: Model>(
+        &mut self,
+        name: &str,
+        morph: &MorphTo<M>,
+        alias: &str,
+        aggregates: &[RelationAggregateQuery<'_, T>],
+    ) -> DatabaseResult<()> {
+        load_morph_aggregates(&mut self.models, name, morph, alias, aggregates).await
     }
 
     pub fn modelKeys(&self) -> Vec<Value> {
@@ -1350,6 +1377,72 @@ impl<M: Model> Collection<M> {
     ) -> DatabaseResult<()> {
         has_relationships::load(&mut self.models, name, relation, true).await
     }
+}
+
+pub(super) async fn load_morph_aggregates<M: Model, T: Model>(
+    models: &mut [M],
+    name: &str,
+    morph: &MorphTo<M>,
+    alias: &str,
+    aggregates: &[RelationAggregateQuery<'_, T>],
+) -> DatabaseResult<()> {
+    if models.is_empty() || aggregates.is_empty() {
+        return Ok(());
+    }
+    morph.validate_target::<T>(alias)?;
+    has_relationships::load(models, name, morph, true).await?;
+    let outputs = models
+        .iter()
+        .map(|model| {
+            model
+                .getRelation::<Option<MorphTarget>>(name)
+                .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+        })
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    let edge = Morph {
+        alias,
+        model: PhantomData::<T>,
+    };
+    let mut targets = IndexMap::new();
+    for output in &outputs {
+        for target in edge.children(output)? {
+            targets.insert(std::ptr::from_ref(target).addr(), target);
+        }
+    }
+    let targets_in_order: Vec<_> = targets.values().copied().collect();
+    let attributes = aggregate_attributes(&targets_in_order, aggregates).await?;
+    let replacements = targets
+        .into_iter()
+        .zip(attributes)
+        .map(|((address, model), attributes)| {
+            let mut state = model.state().clone();
+            state.apply_attributes(attributes.clone());
+            state.original.extend(attributes);
+            (address, Arc::new(T::from_state(state)))
+        })
+        .collect::<HashMap<_, _>>();
+    if replacements.is_empty() {
+        return Ok(());
+    }
+    let updated = outputs
+        .into_iter()
+        .enumerate()
+        .filter(|(_, output)| {
+            output
+                .as_ref()
+                .is_some_and(|target| target.alias() == alias)
+        })
+        .map(|(index, output)| Ok((index, edge.replace(output, &replacements)?)))
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    for (index, output) in updated {
+        let model = &mut models[index];
+        model.unsetRelation(name);
+        model
+            .state_mut()
+            .relations
+            .insert_relation::<MorphTo<M>>(name.to_owned(), output);
+    }
+    Ok(())
 }
 
 pub(super) async fn aggregate_attributes<M: Model>(
