@@ -1477,3 +1477,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 }
+
+impl<P: Model, R: Model> super::NestedRelation for BelongsToMany<P, R> {
+    type Related = R;
+
+    fn with_nested(mut self, nested: super::super::EagerLoads<R>) -> Self {
+        self.keys.with_nested(nested);
+        self
+    }
+}

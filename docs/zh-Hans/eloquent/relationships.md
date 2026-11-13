@@ -278,6 +278,27 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<Vec<Arc<Post>>>("posts")` 读取已加载文章。单条关系使用 `Option<Arc<T>>`。关系名不存在表示尚未加载。多个父模型引用同一个关联模型时，通过 `Arc` 共享。使用模型或集合的 `load` 延后加载，使用集合的 `loadMissing` 保留已加载结果。
 
+### 按路径嵌套预加载 {#nested-eager-loading}
+
+在每一级模型的 `namedRelations()` 中登记对应关系，再将 `posts.comments` 这样的路径传给 `withPaths`。同一次调用中，共用前缀的路径复用父级查询。已有模型或集合可用 `loadPaths`。未知或格式错误的路径返回错误。具有多个多态目标类型的关系，可通过各目标的类型化配置加载子关系。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    eloquent::{Collection, Model, NamedRelations, relations::HasMany},
+};
+
+// In the Model implementation for Author:
+fn namedRelations() -> NamedRelations<Self> {
+    NamedRelations::default().nested("posts", || HasMany::<Self, Post>::new("id", "author_id"))
+}
+
+// Post registers "comments" in its own namedRelations implementation.
+async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+    Author::queryOn(connection).withPaths(&["posts.comments"])?.get().await
+}
+```
+
 ### 默认预加载
 
 在模型中实现 `Model::withDefaultRelations`，声明默认加载的类型化关系。它对应 Laravel 模型的 `$with` 属性。

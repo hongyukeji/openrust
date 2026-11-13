@@ -47,6 +47,14 @@ pub trait Relation: Send + Sync + 'static {
     }
 }
 
+/// A relationship whose related model can load nested paths.
+pub trait NestedRelation: Relation {
+    type Related: Model;
+
+    #[doc(hidden)]
+    fn with_nested(self, nested: super::super::EagerLoads<Self::Related>) -> Self;
+}
+
 /// Builds a correlated subquery for filtering parent models by a relationship.
 #[allow(non_snake_case, reason = "Matches Laravel's relation query contract")]
 pub trait ExistenceRelation: Relation {
@@ -102,6 +110,17 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
     ) {
         self.try_constrain(move |query| Ok(configure(query)));
+    }
+
+    pub fn with_nested(&mut self, nested: super::super::EagerLoads<R>) {
+        let configure = self.configure.take();
+        self.try_constrain(move |query| {
+            let query = match &configure {
+                Some(configure) => configure(query)?,
+                None => query,
+            };
+            Ok(query.with_eager_loads(nested.clone()))
+        });
     }
 
     pub fn try_constrain(

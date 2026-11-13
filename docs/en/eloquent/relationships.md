@@ -278,6 +278,27 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular relations use `Option<Arc<T>>`. A missing relation name means it has not been loaded. Related models are shared through `Arc` when several parents reference them. Use `load` on a model or collection to load after retrieval, and `loadMissing` on a collection to preserve previously loaded values.
 
+### Nested eager loading by path {#nested-eager-loading}
+
+Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error. For a relationship with several polymorphic target types, use its typed per-target configuration to load children.
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    eloquent::{Collection, Model, NamedRelations, relations::HasMany},
+};
+
+// In the Model implementation for Author:
+fn namedRelations() -> NamedRelations<Self> {
+    NamedRelations::default().nested("posts", || HasMany::<Self, Post>::new("id", "author_id"))
+}
+
+// Post registers "comments" in its own namedRelations implementation.
+async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+    Author::queryOn(connection).withPaths(&["posts.comments"])?.get().await
+}
+```
+
 ### Eager Loading by Default
 
 Implement `Model::withDefaultRelations` to declare the typed relationships loaded by default. This is the model's equivalent of Laravel's `$with` property.

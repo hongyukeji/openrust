@@ -140,3 +140,12 @@ impl<P: Model, R: Model> ExistenceRelation for HasMany<P, R> {
         self.0.existence_query(connection, parent_table)
     }
 }
+
+impl<P: Model, R: Model> super::NestedRelation for HasMany<P, R> {
+    type Related = R;
+
+    fn with_nested(mut self, nested: super::super::EagerLoads<R>) -> Self {
+        self.0.with_nested(nested);
+        self
+    }
+}

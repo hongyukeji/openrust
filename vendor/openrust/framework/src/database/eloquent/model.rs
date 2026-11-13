@@ -209,6 +209,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
+    /// Defines the relationship descriptors available to named eager loading.
+    fn namedRelations() -> super::NamedRelations<Self> {
+        super::NamedRelations::default()
+    }
+
     /// Declares relationships to load whenever this model is retrieved.
     fn withDefaultRelations(relations: EagerLoads<Self>) -> EagerLoads<Self> {
         relations
@@ -875,6 +880,14 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn unsetRelation(&mut self, name: &str) {
         self.state_mut().relations.remove(name);
+    }
+
+    /// Eager loads registered paths onto this model.
+    fn loadPaths(&mut self, paths: &[&str]) -> impl Future<Output = DatabaseResult<()>> + Send {
+        async move {
+            let loads = super::NamedRelations::<Self>::prepare(paths)?;
+            concerns::has_relationships::load_eager(loads, std::slice::from_mut(self)).await
+        }
     }
 
     fn load<'a, R: Relation<Parent = Self>>(

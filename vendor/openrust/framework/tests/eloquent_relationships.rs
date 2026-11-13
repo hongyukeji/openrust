@@ -6,7 +6,7 @@ use openrust::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Attributes, Builder, Collection, DynamicRelation, EagerLoads, Model, ModelMetadata,
-            ModelState, RelationAggregate, RelationAggregateQuery, Touches,
+            ModelState, NamedRelations, RelationAggregate, RelationAggregateQuery, Touches,
             casts::AttributeCast,
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
@@ -92,6 +92,10 @@ impl Model for AuthorWithDefaults {
 }
 
 impl Model for Author {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("posts", || POSTS)
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("relation_authors")
             .fillable(&["name"])
@@ -115,6 +119,12 @@ impl Model for Author {
 struct Post(ModelState);
 
 impl Model for Post {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default()
+            .nested("comments", || POST_COMMENTS)
+            .nested("author", || AUTHOR)
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("relation_posts")
             .fillable(&["title", "score"])
@@ -139,6 +149,10 @@ impl Model for Post {
 struct Comment(ModelState);
 
 impl Model for Comment {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("post", || BelongsTo::<Self, Post>::new("post_id", "id"))
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("relation_comments")
             .fillable(&["body"])
@@ -789,6 +803,52 @@ fn verify_morph_batches(
             .unwrap();
         assert!(!posts.all().is_empty());
     })
+}
+
+async fn verify_named_paths(db: &Connection, mysql: bool) {
+    assert!(matches!(
+        Author::queryOn(db).withPaths(&["posts..comments"]),
+        Err(DatabaseError::InvalidQuery("invalid relationship path"))
+    ));
+    assert!(matches!(
+        Author::queryOn(db).withPaths(&["posts.unknown"]),
+        Err(DatabaseError::InvalidQuery("unknown relationship path"))
+    ));
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let mut authors = Author::queryOn(db)
+        .withPaths(&["posts", "posts.comments", "posts.comments", "posts.author"])
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 4);
+    }
+    let mut found_comments = false;
+    for author in authors.iter() {
+        for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
+            assert!(post.relationLoaded("author"));
+            found_comments |= !post
+                .getRelation::<Vec<Arc<Comment>>>("comments")
+                .unwrap()
+                .is_empty();
+        }
+    }
+    assert!(found_comments);
+    authors.loadPaths(&["posts.comments.post"]).await.unwrap();
+    let mut found = false;
+    for author in authors.iter() {
+        for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
+            for comment in post.getRelation::<Vec<Arc<Comment>>>("comments").unwrap() {
+                assert!(comment.relationLoaded("post"));
+                found = true;
+            }
+        }
+    }
+    assert!(found);
+    let mut model = Author::queryOn(db).firstOrFail().await.unwrap();
+    model.loadPaths(&["posts.comments"]).await.unwrap();
+    assert!(model.relationLoaded("posts"));
 }
 
 fn verify_relation_chain(
@@ -3406,6 +3466,7 @@ async fn verify(db: Connection, mysql: bool) {
     verify_collection_reload(&db, mysql).await;
     verify_relation_autoload(&db, mysql).await;
     verify_relation_chain(&db, mysql).await;
+    Box::pin(verify_named_paths(&db, mysql)).await;
     verify_morph_batches(&db, mysql).await;
     verify_relation_identity(&db).await;
     verify_lazy_loading_policy(&db, mysql).await;

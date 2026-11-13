@@ -99,3 +99,11 @@ impl<P: Model, R: Model> ExistenceRelation for MorphOne<P, R> {
         self.0.getRelationExistenceQuery(connection, parent_table)
     }
 }
+
+impl<P: Model, R: Model> super::NestedRelation for MorphOne<P, R> {
+    type Related = R;
+
+    fn with_nested(self, nested: super::super::EagerLoads<R>) -> Self {
+        Self(super::NestedRelation::with_nested(self.0, nested))
+    }
+}

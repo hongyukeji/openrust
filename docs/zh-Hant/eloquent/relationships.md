@@ -278,6 +278,27 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<Vec<Arc<Post>>>("posts")` 讀取已載入文章。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。多個父模型參照同一個關聯模型時，透過 `Arc` 共用。用模型或集合的 `load` 延後載入，使用集合的 `loadMissing` 保留已載入結果。
 
+### 依路徑巢狀預先載入 {#nested-eager-loading}
+
+在每一級模型的 `namedRelations()` 中登錄對應關聯，再將 `posts.comments` 這類路徑傳給 `withPaths`。同一次呼叫中，共用前綴的路徑重用父級查詢。既有模型或集合可用 `loadPaths`。未知或格式錯誤的路徑會回傳錯誤。具有多個多型目標型別的關聯，可透過各目標的型別化設定載入子關聯。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    eloquent::{Collection, Model, NamedRelations, relations::HasMany},
+};
+
+// In the Model implementation for Author:
+fn namedRelations() -> NamedRelations<Self> {
+    NamedRelations::default().nested("posts", || HasMany::<Self, Post>::new("id", "author_id"))
+}
+
+// Post registers "comments" in its own namedRelations implementation.
+async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+    Author::queryOn(connection).withPaths(&["posts.comments"])?.get().await
+}
+```
+
 ### 預設預先載入
 
 在模型中實作 `Model::withDefaultRelations`，宣告預設載入的型別化關聯。它對應 Laravel 模型的 `$with` 屬性。

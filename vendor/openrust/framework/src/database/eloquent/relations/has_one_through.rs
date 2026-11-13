@@ -142,3 +142,12 @@ impl<P: Model, I: Model, R: Model> ExistenceRelation for HasOneThrough<P, I, R> 
         self.0.getRelationExistenceQuery(connection, parent_table)
     }
 }
+
+impl<P: Model, I: Model, R: Model> super::NestedRelation for HasOneThrough<P, I, R> {
+    type Related = R;
+
+    fn with_nested(mut self, nested: super::super::EagerLoads<R>) -> Self {
+        self.0.keys.with_nested(nested);
+        self
+    }
+}

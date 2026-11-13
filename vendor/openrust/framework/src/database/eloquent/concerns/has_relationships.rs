@@ -164,7 +164,15 @@ pub(in crate::database::eloquent) async fn load_eager<M: Model>(
 
 /// The typed relationships to eager load for a model query.
 pub struct EagerLoads<M: Model> {
-    relations: IndexMap<String, Box<dyn EagerLoad<M>>>,
+    relations: IndexMap<String, Arc<dyn EagerLoad<M>>>,
+}
+
+impl<M: Model> Clone for EagerLoads<M> {
+    fn clone(&self) -> Self {
+        Self {
+            relations: self.relations.clone(),
+        }
+    }
 }
 
 impl<M: Model> Default for EagerLoads<M> {
@@ -178,8 +186,12 @@ impl<M: Model> Default for EagerLoads<M> {
 impl<M: Model> EagerLoads<M> {
     #[must_use]
     pub fn with(mut self, name: impl Into<String>, relation: impl Relation<Parent = M>) -> Self {
-        self.relations.insert(name.into(), Box::new(relation));
+        self.relations.insert(name.into(), Arc::new(relation));
         self
+    }
+
+    pub(in crate::database::eloquent) fn extend(&mut self, other: Self) {
+        self.relations.extend(other.relations);
     }
 
     #[must_use]

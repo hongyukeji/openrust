@@ -662,6 +662,16 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
+    /// Adds eager loads by their registered names or dot-separated paths.
+    pub fn withPaths(self, paths: &[&str]) -> DatabaseResult<Self> {
+        Ok(self.with_eager_loads(super::NamedRelations::<M>::prepare(paths)?))
+    }
+
+    pub(super) fn with_eager_loads(mut self, loads: EagerLoads<M>) -> Self {
+        self.eager_load.extend(loads);
+        self
+    }
+
     /// Removes named eager loads from this query.
     #[must_use]
     pub fn without(mut self, names: &[&str]) -> Self {

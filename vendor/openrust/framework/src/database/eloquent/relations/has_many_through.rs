@@ -242,3 +242,12 @@ impl<P: Model, I: Model, R: Model> ExistenceRelation for HasManyThrough<P, I, R>
             .whereColumn(&join.match_key, "=", &parent))
     }
 }
+
+impl<P: Model, I: Model, R: Model> super::NestedRelation for HasManyThrough<P, I, R> {
+    type Related = R;
+
+    fn with_nested(mut self, nested: super::super::EagerLoads<R>) -> Self {
+        self.keys.with_nested(nested);
+        self
+    }
+}

@@ -444,6 +444,12 @@ impl<M: Model> Collection<M> {
             .await
     }
 
+    /// Eager loads the named paths across this collection.
+    pub async fn loadPaths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
+        let loads = super::NamedRelations::<M>::prepare(paths)?;
+        has_relationships::load_eager(loads, &mut self.models).await
+    }
+
     pub async fn load<R: Relation<Parent = M>>(
         &mut self,
         name: &str,
