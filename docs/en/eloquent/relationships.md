@@ -284,6 +284,24 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 }
 ```
 
+### Eager loading by morph target {#morph-target-eager-loading}
+
+Use `morphWith` on a registered target alias to declare typed eager loads. Use `morphWithPaths` for registered paths. These settings compose with existing target constraints and `morphWithCount` when they refer to the same target type and owner key. An unknown alias or a mismatched type returns an error from `morphWith`.
+
+```rust
+use openrust::database::{
+    DatabaseResult, eloquent::{Model, relations::{HasMany, MorphTo}},
+};
+
+pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<MorphTo<M>> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<P>("post", "id")
+        .morphWith::<P>("post", |loads| {
+            loads.with("comments", HasMany::<P, C>::new("id", "post_id"))
+        })
+}
+```
+
 ### Loading Polymorphic Target Groups
 
 Use `loadMorph` to reload a typed relationship on one target group, or `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` to reload registered paths. Loaded values are available through the parent relation and its JSON projection. A previously held target reference still points to its earlier snapshot. Both methods are available on models and collections. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.

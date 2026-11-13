@@ -127,6 +127,7 @@ pub(super) struct RelationKeys<P, R: Model> {
     pub parent: &'static str,
     pub related: &'static str,
     configure: Option<Box<Configure<R>>>,
+    pub(super) morph_constraint: Option<Box<Configure<R>>>,
     pub selection: Option<OneOfMany>,
     pub discriminator: Option<(&'static str, &'static str)>,
     models: PhantomData<fn() -> (P, R)>,
@@ -138,6 +139,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             parent,
             related,
             configure: None,
+            morph_constraint: None,
             discriminator: None,
             selection: None,
             models: PhantomData,
@@ -149,6 +151,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             parent: self.parent,
             related: self.related,
             configure: self.configure,
+            morph_constraint: self.morph_constraint,
             selection: self.selection,
             discriminator: self.discriminator,
             models: PhantomData,
@@ -171,24 +174,27 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         &mut self,
         configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
     ) {
+        self.append_query_configuration(move |query| Ok(configure(query)));
+    }
+
+    pub fn append_query_configuration(
+        &mut self,
+        configure: impl Fn(Builder<'static, R>) -> DatabaseResult<Builder<'static, R>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
         let previous = self.configure.take();
         self.try_constrain(move |mut query| {
             if let Some(previous) = &previous {
                 query = previous(query)?;
             }
-            Ok(configure(query))
+            configure(query)
         });
     }
 
     pub fn with_nested(&mut self, nested: super::super::EagerLoads<R>) {
-        let configure = self.configure.take();
-        self.try_constrain(move |query| {
-            let query = match &configure {
-                Some(configure) => configure(query)?,
-                None => query,
-            };
-            Ok(query.with_eager_loads(nested.clone()))
-        });
+        self.append_constraint(move |query| query.with_eager_loads(nested.clone()));
     }
 
     pub fn try_constrain(
@@ -204,6 +210,10 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
     pub fn configure(&self, query: Builder<'static, R>) -> DatabaseResult<Builder<'static, R>> {
         let query = match &self.configure {
             Some(configure) => configure(query)?,
+            None => query,
+        };
+        let query = match &self.morph_constraint {
+            Some(constraint) => constraint(query)?,
             None => query,
         };
         Ok(if let Some((column, alias)) = self.discriminator {

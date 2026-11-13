@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
-        Attributes, Builder, Model, NamedRelations,
+        Attributes, Builder, EagerLoads, Model, NamedRelations,
         named_relations::{DiscoveredMorphs, PathConstraint},
         touches::TouchedOwners,
     },
@@ -124,8 +124,12 @@ impl<P: Model> MorphTo<P> {
     }
 
     #[must_use]
-    pub fn target<R: Model>(self, alias: &'static str, owner_key: &'static str) -> Self {
-        self.constrain::<R>(alias, owner_key, |query| query)
+    pub fn target<R: Model>(mut self, alias: &'static str, owner_key: &'static str) -> Self {
+        self.targets.insert(
+            alias,
+            Box::new(RelationKeys::<P, R>::new(self.id_column, owner_key)),
+        );
+        self
     }
 
     #[must_use]
@@ -148,23 +152,70 @@ impl<P: Model> MorphTo<P> {
         + Sync
         + 'static,
     ) -> Self {
-        let mut keys = RelationKeys::new(self.id_column, owner_key);
-        keys.try_constrain(configure);
-        self.targets.insert(alias, Box::new(keys));
+        if let Some(keys) = self
+            .targets
+            .get_mut(alias)
+            .and_then(|target| target.as_any_mut().downcast_mut::<RelationKeys<P, R>>())
+            .filter(|keys| keys.related == owner_key)
+        {
+            keys.morph_constraint = Some(Box::new(configure));
+        } else {
+            let mut keys = RelationKeys::<P, R>::new(self.id_column, owner_key);
+            keys.morph_constraint = Some(Box::new(configure));
+            self.targets.insert(alias, Box::new(keys));
+        }
         self
+    }
+
+    /// Adds typed eager loads to an already registered morph target.
+    pub fn morphWith<R: Model>(
+        mut self,
+        alias: &str,
+        configure: impl FnOnce(EagerLoads<R>) -> EagerLoads<R>,
+    ) -> DatabaseResult<Self> {
+        let target = self
+            .targets
+            .get_mut(alias)
+            .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
+        let keys = target
+            .as_any_mut()
+            .downcast_mut::<RelationKeys<P, R>>()
+            .ok_or(DatabaseError::InvalidQuery(
+                "morph type does not match model",
+            ))?;
+        keys.with_nested(configure(EagerLoads::default()));
+        Ok(self)
+    }
+
+    /// Adds registered relationship paths to an already registered morph target.
+    pub fn morphWithPaths<R: Model>(self, alias: &str, paths: &[&str]) -> DatabaseResult<Self> {
+        let loads = NamedRelations::<R>::prepare(paths)?;
+        self.morphWith(alias, |_| loads)
     }
 
     #[must_use]
     pub fn morphWithCount<R: Model>(
-        self,
+        mut self,
         alias: &'static str,
         owner_key: &'static str,
         name: &'static str,
         relation: impl ExistenceRelation<Parent = R>,
     ) -> Self {
-        self.tryConstrain::<R>(alias, owner_key, move |query| {
-            query.withCount(name, &relation)
-        })
+        let configure = move |query: Builder<'static, R>| query.withCount(name, &relation);
+        if let Some(keys) = self
+            .targets
+            .get_mut(alias)
+            .and_then(|target| target.as_any_mut().downcast_mut::<RelationKeys<P, R>>())
+            .filter(|keys| keys.related == owner_key)
+        {
+            keys.append_query_configuration(configure);
+            self
+        } else {
+            let mut keys = RelationKeys::<P, R>::new(self.id_column, owner_key);
+            keys.try_constrain(configure);
+            self.targets.insert(alias, Box::new(keys));
+            self
+        }
     }
 
     pub(in crate::database::eloquent) fn with_constrained_paths(
@@ -497,6 +548,7 @@ impl<M: Model> ProjectableModel for M {
 }
 
 trait Target<P: Model>: Send + Sync {
+    fn as_any_mut(&mut self) -> &mut dyn Any;
     fn model_type(&self) -> TypeId;
     fn owner_key(&self) -> &'static str;
     fn existence_query(
@@ -545,6 +597,10 @@ trait Target<P: Model>: Send + Sync {
 }
 
 impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
+
     fn touch<'a>(
         &'a self,
         model: &'a P,

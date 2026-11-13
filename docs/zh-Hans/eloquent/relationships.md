@@ -284,6 +284,24 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 }
 ```
 
+### 按多态目标预加载 {#morph-target-eager-loading}
+
+用 `morphWith` 为已注册的目标别名声明类型化预加载，也可用 `morphWithPaths` 指定已登记的路径。同一目标类型和所有者键上的预加载可与已有约束及 `morphWithCount` 组合。未知别名或类型不匹配时，`morphWith` 返回错误。
+
+```rust
+use openrust::database::{
+    DatabaseResult, eloquent::{Model, relations::{HasMany, MorphTo}},
+};
+
+pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<MorphTo<M>> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<P>("post", "id")
+        .morphWith::<P>("post", |loads| {
+            loads.with("comments", HasMany::<P, C>::new("id", "post_id"))
+        })
+}
+```
+
 ### 加载多态目标分组
 
 用 `loadMorph` 重载指定目标组的类型化关系，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重载已登记路径。父模型关系和 JSON 输出均可读取新结果，已持有的目标引用继续指向旧快照。模型和集合均支持这两个方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 将延后查询的聚合值写回已缓存的多态目标，随后可从父模型关系和 JSON 输出读取。每次调用选择一个别名，同一别名的多个聚合按主键批量合并查询，其他别名保留各自的值。单模型也支持 `loadMorphAggregate` 和 `loadMorphAggregates`。

@@ -459,7 +459,16 @@ async fn verify_through_and_morph(
     );
     let counted_subjects = MorphTo::<Comment>::new("subject_type", "subject_id")
         .target::<Author>("author", "id")
-        .morphWithCount::<Post>("post", "id", "comments", POST_COMMENTS);
+        .target::<Post>("post", "id")
+        .morphWithPaths::<Post>("post", &["author"])
+        .unwrap()
+        .morphWithCount::<Post>("post", "id", "comments", POST_COMMENTS)
+        .morphWith::<Post>("post", |loads| loads.with("comments", POST_COMMENTS))
+        .unwrap()
+        .constrain::<Post>("post", "id", |mut query| {
+            query.r#where("score", ">", 0);
+            query
+        });
     let counted = Comment::queryOn(db)
         .with("subject", counted_subjects)
         .findOrFail(visible.getKey().unwrap().clone())
@@ -473,6 +482,17 @@ async fn verify_through_and_morph(
         .downcast_ref::<Post>()
         .unwrap();
     assert_eq!(counted_post.getAttribute("comments_count"), Some(&1.into()));
+    assert!(counted_post.relationLoaded("author"));
+    assert!(counted_post.relationLoaded("comments"));
+    assert!(matches!(
+        MorphTo::<Comment>::new("subject_type", "subject_id")
+            .target::<Post>("post", "id")
+            .morphWithPaths::<Author>("post", &["posts"]),
+        Err(DatabaseError::InvalidQuery(
+            "morph type does not match model"
+        ))
+    ));
+    Box::pin(verify_morph_with_constraint(db, visible.getKey().unwrap())).await;
 
     assert!(subject.associate(&mut profile, "post", author).is_err());
     subject.associate(&mut profile, "post", post).unwrap();
@@ -744,6 +764,28 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
         assert!(matched.modelKeys().contains(&3.into()));
         FEATURED_POSTS.detach(&other, None).await.unwrap();
     })
+}
+
+async fn verify_morph_with_constraint(db: &Connection, key: &Value) {
+    let morph = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .constrain::<Post>("post", "id", |mut query| {
+            query.r#where("score", "<", 0);
+            query
+        })
+        .morphWithPaths::<Post>("post", &["author"])
+        .unwrap()
+        .morphWithCount::<Post>("post", "id", "comments", POST_COMMENTS);
+    let comment = Comment::queryOn(db)
+        .with("subject", morph)
+        .findOrFail(key.clone())
+        .await
+        .unwrap();
+    assert!(
+        comment
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+            .is_none()
+    );
 }
 
 async fn verify_morph_relation_writeback(
