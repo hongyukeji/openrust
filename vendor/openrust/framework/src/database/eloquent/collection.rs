@@ -18,6 +18,7 @@ use super::{
 /// A collection of hydrated models, in query order.
 pub struct Collection<M: Model> {
     models: Vec<M>,
+    keys: Option<Vec<ArrayKey>>,
     autoload: bool,
 }
 
@@ -54,8 +55,43 @@ impl<M: Model> Collection<M> {
     pub fn new(models: Vec<M>) -> Self {
         Self {
             models,
+            keys: None,
             autoload: M::automaticallyEagerLoadRelationships(),
         }
+    }
+
+    /// Builds an Eloquent collection with explicit collection keys.
+    pub fn fromEntries<K: Into<ArrayKey>>(entries: impl IntoIterator<Item = (K, M)>) -> Self {
+        let (keys, models) = BaseCollection::fromEntries(entries).into_iter().unzip();
+        Self {
+            models,
+            keys: Some(keys),
+            autoload: M::automaticallyEagerLoadRelationships(),
+        }
+    }
+
+    /// Looks up a collection key independently of a model's primary key or position.
+    pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&M> {
+        let key = key.into().normalized();
+        if let Some(keys) = &self.keys {
+            return keys
+                .iter()
+                .position(|candidate| *candidate == key)
+                .map(|index| &self.models[index]);
+        }
+        match key {
+            ArrayKey::Integer(index) => usize::try_from(index)
+                .ok()
+                .and_then(|index| self.models.get(index)),
+            ArrayKey::String(_) => None,
+        }
+    }
+
+    fn key_at(&self, index: usize) -> ArrayKey {
+        self.keys.as_ref().map_or_else(
+            || ArrayKey::Integer(i64::try_from(index).expect("collection index fits i64")),
+            |keys| keys[index].clone(),
+        )
     }
 
     /// Batch-loads missing relationships when accessed through this collection.
@@ -102,15 +138,19 @@ impl<M: Model> Collection<M> {
 
     /// Converts the models into a base collection, in their current order.
     pub fn toBase(self) -> BaseCollection<M> {
-        self.models.into_iter().collect()
+        match self.keys {
+            Some(keys) => BaseCollection::fromEntries(keys.into_iter().zip(self.models)),
+            None => self.models.into_iter().collect(),
+        }
     }
 
     /// Maps each model and its index into a base collection.
     pub fn map<T>(&self, mut callback: impl FnMut(&M, usize) -> T) -> BaseCollection<T> {
-        self.iter()
-            .enumerate()
-            .map(|(index, model)| callback(model, index))
-            .collect()
+        BaseCollection::fromEntries(
+            self.iter()
+                .enumerate()
+                .map(|(index, model)| (self.key_at(index), callback(model, index))),
+        )
     }
 
     /// Maps owned models into another Eloquent collection.
@@ -123,8 +163,29 @@ impl<M: Model> Collection<M> {
             .collect();
         Collection {
             models,
+            keys: self.keys,
             autoload: self.autoload || N::automaticallyEagerLoadRelationships(),
         }
+    }
+
+    /// Maps models into a keyed Eloquent collection.
+    pub fn mapModelsWithKeys<K, N, I>(
+        self,
+        mut callback: impl FnMut(M, ArrayKey) -> I,
+    ) -> Collection<N>
+    where
+        K: Into<ArrayKey>,
+        N: Model,
+        I: IntoIterator<Item = (K, N)>,
+    {
+        let autoload = self.autoload;
+        let mut result = Collection::fromEntries(
+            self.toBase()
+                .into_iter()
+                .flat_map(|(key, model)| callback(model, key)),
+        );
+        result.autoload |= autoload;
+        result
     }
 
     pub fn mapWithKeys<K, T, I>(
@@ -156,9 +217,7 @@ impl<M: Model> Collection<M> {
 
     /// Returns the collection indices as a base collection.
     pub fn keys(&self) -> BaseCollection<ArrayKey> {
-        (0..self.len())
-            .map(|index| ArrayKey::from(i64::try_from(index).expect("collection index fits i64")))
-            .collect()
+        (0..self.len()).map(|index| self.key_at(index)).collect()
     }
 
     pub fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {
@@ -226,8 +285,14 @@ impl<M: Model> Collection<M> {
     }
 
     pub fn toJson(&self) -> DatabaseResult<String> {
-        serde_json::to_string(&self.toArray()?)
-            .map_err(|_| DatabaseError::InvalidQuery("model collection JSON"))
+        let rows = self.toArray()?;
+        match &self.keys {
+            Some(keys) => BaseCollection::fromEntries(keys.iter().zip(rows))
+                .toJson()
+                .map_err(|_| DatabaseError::InvalidQuery("model collection JSON")),
+            None => serde_json::to_string(&rows)
+                .map_err(|_| DatabaseError::InvalidQuery("model collection JSON")),
+        }
     }
 
     /// Opens a related batch, loading the first relationship if needed.
@@ -415,6 +480,7 @@ impl<M: Model> Collection<M> {
         models.retain(|key, _| requested.contains(key) == keep);
         Ok(Self {
             models: models.into_values().collect(),
+            keys: None,
             autoload: self.autoload,
         })
     }
@@ -433,6 +499,7 @@ impl<M: Model> Collection<M> {
         let dictionary = model_dictionary(self.models.into_iter().chain(models))?;
         Ok(Self {
             models: dictionary.into_values().collect(),
+            keys: None,
             autoload: self.autoload,
         })
     }
@@ -465,6 +532,7 @@ impl<M: Model> Collection<M> {
         }
         Ok(Self {
             models,
+            keys: None,
             autoload: self.autoload,
         })
     }
@@ -491,19 +559,26 @@ impl<M: Model> Collection<M> {
     }
 
     async fn fresh_with_defaults(&self, except: &[&str]) -> DatabaseResult<Self> {
-        let existing = self.iter().filter(|model| model.state().exists());
-        let Some(connection) = collection_connection(existing.clone())? else {
+        let existing = self
+            .iter()
+            .enumerate()
+            .filter(|(_, model)| model.state().exists());
+        let Some(connection) = collection_connection(existing.clone().map(|(_, model)| model))?
+        else {
             return Ok(Self {
                 models: Vec::new(),
+                keys: None,
                 autoload: self.autoload,
             });
         };
         let mut keys = Vec::new();
         let mut bindings = IndexMap::new();
-        for value in existing.filter_map(Model::getKey) {
-            if let Some(key) = dictionary_key(Some(value))? {
+        for (index, model) in existing {
+            if let Some(value) = model.getKey()
+                && let Some(key) = dictionary_key(Some(value))?
+            {
                 bindings.entry(key.clone()).or_insert_with(|| value.clone());
-                keys.push(key);
+                keys.push((index, key));
             }
         }
         let bindings: Vec<_> = bindings.into_values().collect();
@@ -525,7 +600,8 @@ impl<M: Model> Collection<M> {
         }
         let mut positions: HashMap<&Vec<u8>, usize> = HashMap::new();
         let mut models = Vec::with_capacity(keys.len());
-        for key in keys.iter().rev() {
+        let mut retained = self.keys.as_ref().map(|_| Vec::with_capacity(keys.len()));
+        for (index, key) in keys.iter().rev() {
             if let Some(model) = refreshed.remove(key) {
                 positions.insert(key, models.len());
                 models.push(model);
@@ -537,13 +613,22 @@ impl<M: Model> Collection<M> {
                     original.casts.clone(),
                 );
                 models.push(M::from_state(state));
+            } else {
+                continue;
+            }
+            if let Some(retained) = &mut retained {
+                retained.push(self.key_at(*index));
             }
         }
         models.reverse();
+        if let Some(retained) = &mut retained {
+            retained.reverse();
+        }
         let defaults = M::withDefaultRelations(EagerLoads::default()).without(except);
         has_relationships::load_eager(defaults, &mut models).await?;
         Ok(Self {
             models,
+            keys: retained,
             autoload: self.autoload,
         })
     }

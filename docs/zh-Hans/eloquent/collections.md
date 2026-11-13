@@ -118,3 +118,15 @@ pub fn primary_keys<M: Model>(models: &Collection<M>) -> BaseCollection<Option<V
     models.pluck(|model| model.getKey().cloned())
 }
 ```
+
+### 保留模型集合的键
+
+用 `mapModelsWithKeys` 生成带显式键的 Eloquent 集合，也可用 `Collection::fromEntries` 从键与模型配对构造。按集合键取模型用 `getByKey`，按模型主键查找用 `find`，下标用于访问位置。`keys`、`map`、`mapModels`、`fresh`、`toBase` 和 `toJson` 保留集合键。`all` 和 `toArray` 返回按位置排列的值。`only`、`except`、`merge`、`unique`、`diff` 和 `intersect` 对结果重新编号。
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn label_models<M: Model>(models: Collection<M>) -> Collection<M> {
+    models.mapModelsWithKeys(|model, key| [(format!("model-{key}"), model)])
+}
+```

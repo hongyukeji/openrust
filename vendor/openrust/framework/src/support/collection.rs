@@ -22,7 +22,7 @@ pub enum ArrayKey {
 }
 
 impl ArrayKey {
-    pub(super) fn normalized(self) -> Self {
+    pub(crate) fn normalized(self) -> Self {
         match self {
             Self::String(value) => Self::from(value),
             key => key,

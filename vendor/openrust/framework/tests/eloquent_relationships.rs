@@ -1838,6 +1838,36 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
         let empty = Collection::<Author>::new(vec![]);
         assert!(empty.map::<i32>(|_, _| unreachable!()).isEmpty());
         assert_eq!(authors.keys().get(2), Some(&2.into()));
+        let keyed = ordered()
+            .get()
+            .await
+            .unwrap()
+            .mapModelsWithKeys(|model, index| {
+                [(if index == 1.into() { "7" } else { "last" }, model)]
+            });
+        assert_eq!(keyed.modelKeys(), [3.into(), 2.into()]);
+        assert_eq!(keyed.getByKey(7).unwrap().getKey(), Some(&2.into()));
+        assert_eq!(keyed.first().unwrap().getKey(), Some(&3.into()));
+        assert_eq!(keyed.keys().get(0), Some(&"last".into()));
+        assert_eq!(
+            keyed.map(|model, _| model.getKey().cloned()).get("last"),
+            Some(&Some(3.into()))
+        );
+        assert_eq!(
+            serde_json::from_str::<Json>(&keyed.toJson().unwrap()).unwrap()["7"]["id"],
+            json!(2)
+        );
+        let fresh = keyed.fresh().await.unwrap();
+        assert_eq!(fresh.getByKey("last").unwrap().getKey(), Some(&3.into()));
+        assert_eq!(
+            fresh
+                .mapModels(|model, _| model)
+                .toBase()
+                .get(7)
+                .unwrap()
+                .getKey(),
+            Some(&2.into())
+        );
         assert!(empty.mapModels(|model, _| model).is_empty());
         assert!(std::ptr::eq(
             authors.findOrFail(&"2".into()).unwrap(),
