@@ -33,6 +33,7 @@ pub struct Builder<'connection, M: Model> {
     model: PhantomData<M>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's Eloquent Builder API")]
 impl<M: Model> Builder<'static, M> {
     pub(super) fn new(connection: Connection) -> Self {
         Self {
@@ -49,6 +50,30 @@ impl<M: Model> Builder<'static, M> {
             trashed: Trashed::default(),
             model: PhantomData,
         }
+    }
+    /// Filters by the existence of a registered relation or dot-separated path.
+    pub fn whereHasPath(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCount(path, ">=", 1)
+    }
+
+    /// Filters by the absence of a complete registered relation path.
+    pub fn whereDoesntHavePath(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCount(path, "<", 1)
+    }
+
+    /// Applies the count comparison at the final segment of the relation path.
+    pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
+        if path.split('.').any(str::is_empty) {
+            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+        }
+        self.query = super::NamedRelations::<M>::filter(
+            &self.connection,
+            self.query,
+            path,
+            operator,
+            count,
+        )?;
+        Ok(self)
     }
 }
 
@@ -333,41 +358,6 @@ impl<M: Model> Builder<'static, M> {
     ) -> DatabaseResult<Self> {
         let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
         self.query = self.query.whereNotExists(&related)?;
-        Ok(self)
-    }
-
-    /// Filters by the existence of a registered relation or dot-separated path.
-    pub fn whereHasPath(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCount(path, ">=", 1)
-    }
-
-    /// Filters by the absence of a complete registered relation path.
-    pub fn whereDoesntHavePath(self, path: &str) -> DatabaseResult<Self> {
-        self.hasPathCount(path, "<", 1)
-    }
-
-    /// Applies the count comparison at the final segment of the relation path.
-    pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
-        if path.split('.').any(str::is_empty) {
-            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
-        }
-        let absent = (operator, count) == ("<", 1);
-        let (comparison, threshold) = if absent { (">=", 1) } else { (operator, count) };
-        let related = super::NamedRelations::<M>::existence(
-            &self.connection,
-            self.table_name(),
-            path,
-            comparison,
-            threshold,
-        )?;
-        self.query = if absent {
-            self.query.whereNotExists(&related)?
-        } else if path.contains('.') || (operator, count) == (">=", 1) {
-            self.query.whereExists(&related)?
-        } else {
-            let related = related.select_related_aggregate("count", "*")?;
-            self.query.where_related_count(&related, operator, count)?
-        };
         Ok(self)
     }
 

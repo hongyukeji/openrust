@@ -93,7 +93,9 @@ impl Model for AuthorWithDefaults {
 
 impl Model for Author {
     fn namedRelations() -> NamedRelations<Self> {
-        NamedRelations::default().nested("posts", || POSTS)
+        NamedRelations::default()
+            .nested("posts", || POSTS)
+            .nested("details", || POSTS)
     }
 
     fn metadata() -> &'static ModelMetadata {
@@ -122,6 +124,7 @@ impl Model for Post {
     fn namedRelations() -> NamedRelations<Self> {
         NamedRelations::default()
             .nested("comments", || POST_COMMENTS)
+            .nested("details", || POST_COMMENTS)
             .nested("author", || AUTHOR)
     }
 
@@ -150,7 +153,13 @@ struct Comment(ModelState);
 
 impl Model for Comment {
     fn namedRelations() -> NamedRelations<Self> {
-        NamedRelations::default().nested("post", || BelongsTo::<Self, Post>::new("post_id", "id"))
+        NamedRelations::default()
+            .nested("post", || BelongsTo::<Self, Post>::new("post_id", "id"))
+            .morphTo("subject", || {
+                MorphTo::<Self>::new("subject_type", "subject_id")
+                    .target::<Author>("author", "id")
+                    .target::<Post>("post", "id")
+            })
     }
 
     fn metadata() -> &'static ModelMetadata {
@@ -894,6 +903,127 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     let mut model = Author::queryOn(db).firstOrFail().await.unwrap();
     model.loadPaths(&["posts.comments"]).await.unwrap();
     assert!(model.relationLoaded("posts"));
+}
+
+async fn verify_morph_paths(db: &Connection, mysql: bool) {
+    let author = Author::queryOn(db)
+        .whereHasPath("posts")
+        .unwrap()
+        .firstOrFail()
+        .await
+        .unwrap();
+    let table = || db.table("relation_comments");
+    let profile = table()
+        .insertGetId(Attributes::from([
+            ("body".into(), "named morph profile".into()),
+            ("subject_type".into(), "author".into()),
+            ("subject_id".into(), author.getKey().unwrap().clone()),
+        ]))
+        .await
+        .unwrap();
+    let no_target = table()
+        .insertGetId(Attributes::from([(
+            "body".into(),
+            "named morph null".into(),
+        )]))
+        .await
+        .unwrap();
+    let post = Post::queryOn(db)
+        .whereHasPath("comments")
+        .unwrap()
+        .firstOrFail()
+        .await
+        .unwrap();
+    let additional = table()
+        .insertGetId(Attributes::from([
+            ("body".into(), "named morph counted".into()),
+            ("subject_type".into(), "post".into()),
+            ("subject_id".into(), post.getKey().unwrap().clone()),
+        ]))
+        .await
+        .unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let comments = Comment::queryOn(db)
+        .orderBy("id", "asc")
+        .withPaths(&["subject", "subject.details", "subject.details"])
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 5);
+    }
+    let mut aliases = std::collections::HashSet::new();
+    let mut expected = Vec::new();
+    let mut counted = Vec::new();
+    for comment in comments.iter() {
+        let Some(target) = comment
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+        else {
+            continue;
+        };
+        aliases.insert(target.alias());
+        let len = if let Some(author) = target.downcast_ref::<Author>() {
+            author
+                .getRelation::<Vec<Arc<Post>>>("details")
+                .unwrap()
+                .len()
+        } else {
+            target
+                .downcast_ref::<Post>()
+                .unwrap()
+                .getRelation::<Vec<Arc<Comment>>>("details")
+                .unwrap()
+                .len()
+        };
+        if len > 0 {
+            expected.push(comment.getKey().unwrap().clone());
+        }
+        if len >= 2 {
+            counted.push(comment.getKey().unwrap().clone());
+        }
+    }
+    assert_eq!(aliases, ["post", "author"].into_iter().collect());
+    assert!(!expected.is_empty());
+    assert!(!counted.is_empty());
+    let matched = Comment::queryOn(db)
+        .whereHasPath("subject.details")
+        .unwrap()
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    let absent = Comment::queryOn(db)
+        .whereDoesntHavePath("subject.details")
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(!absent.is_empty());
+    assert_eq!(matched.len() + absent.len(), comments.len());
+    assert_eq!(matched.modelKeys(), expected);
+    assert_eq!(
+        Comment::queryOn(db)
+            .hasPathCount("subject.details", ">=", 2)
+            .unwrap()
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        counted
+    );
+    assert!(matches!(
+        Comment::queryOn(db).withPaths(&["subject.comments"]),
+        Err(DatabaseError::InvalidQuery("unknown relationship path"))
+    ));
+    assert!(absent.modelKeys().contains(&no_target));
+    db.table("relation_comments")
+        .whereIn("id", vec![profile, no_target, additional])
+        .delete()
+        .await
+        .unwrap();
 }
 
 fn verify_relation_chain(
@@ -3507,11 +3637,13 @@ async fn verify(db: Connection, mysql: bool) {
     AUTHOR.associate(&mut p1, &first).unwrap();
     p1.save().await.unwrap();
     verify_through_and_morph(&db, mysql, &first, &p1, &hidden).await;
+    Box::pin(verify_morph_paths(&db, mysql)).await;
     verify_one_through(&db, mysql, &first).await;
     verify_collection_reload(&db, mysql).await;
     verify_relation_autoload(&db, mysql).await;
     verify_relation_chain(&db, mysql).await;
     Box::pin(verify_named_paths(&db, mysql)).await;
+
     verify_morph_batches(&db, mysql).await;
     verify_relation_identity(&db).await;
     verify_lazy_loading_policy(&db, mysql).await;

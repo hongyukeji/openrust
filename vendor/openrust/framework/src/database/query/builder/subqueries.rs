@@ -290,12 +290,32 @@ impl Builder<'_> {
     }
 
     pub(in crate::database) fn where_morph_count(
+        self,
+        column: &str,
+        queries: Vec<(&str, Builder<'_>)>,
+        operator: &str,
+        count: u64,
+        include_null: bool,
+    ) -> DatabaseResult<Self> {
+        self.morph_count_predicate(column, queries, operator, count, include_null, false)
+    }
+
+    pub(in crate::database) fn where_not_morph_path(
+        self,
+        column: &str,
+        queries: Vec<(&str, Builder<'_>)>,
+    ) -> DatabaseResult<Self> {
+        self.morph_count_predicate(column, queries, ">=", 1, false, true)
+    }
+
+    fn morph_count_predicate(
         mut self,
         column: &str,
         queries: Vec<(&str, Builder<'_>)>,
         operator: &str,
         count: u64,
         include_null: bool,
+        negated: bool,
     ) -> DatabaseResult<Self> {
         let (operator, count) = related_count_comparison(operator, count)?;
         let column = self.grammar.column(column)?;
@@ -332,6 +352,11 @@ impl Builder<'_> {
                 branches.push(format!("{column} is null"));
             }
             format!("({})", branches.join(" or "))
+        };
+        let predicate = if negated {
+            format!("not coalesce(({predicate}), 0)")
+        } else {
+            predicate
         };
         self.predicates
             .raw(false, Expression::new(predicate).with_bindings(bindings));

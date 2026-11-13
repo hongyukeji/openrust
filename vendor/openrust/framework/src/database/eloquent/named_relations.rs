@@ -10,7 +10,13 @@ use super::{
 type Prepare<M> =
     dyn Fn(EagerLoads<M>, &str, &[&str]) -> DatabaseResult<EagerLoads<M>> + Send + Sync;
 
-type Existence = dyn Fn(&Connection, &str, &str, &str, u64) -> DatabaseResult<query::Builder<'static>>
+type Existence = dyn Fn(
+        &Connection,
+        query::Builder<'static>,
+        &str,
+        &str,
+        u64,
+    ) -> DatabaseResult<query::Builder<'static>>
     + Send
     + Sync;
 
@@ -52,22 +58,31 @@ impl<M: Model> NamedRelations<M> {
                 }),
                 existence: Some(Box::new(
                     move |connection, parent, child, operator, count| {
-                        let query = factory().getRelationExistenceQuery(connection, parent)?;
-                        if child.is_empty() {
-                            return Ok(query);
+                        let mut related = factory()
+                            .getRelationExistenceQuery(connection, parent.relation_qualifier())?;
+                        if !child.is_empty() {
+                            let terminal = (operator, count) == ("<", 1);
+                            let (op, n) = if terminal {
+                                (">=", 1)
+                            } else {
+                                (operator, count)
+                            };
+                            related = NamedRelations::<R::Related>::filter(
+                                connection, related, child, op, n,
+                            )?;
+                            return if terminal {
+                                parent.whereNotExists(&related)
+                            } else {
+                                parent.whereExists(&related)
+                            };
                         }
-                        let related = NamedRelations::<R::Related>::existence(
-                            connection,
-                            query.relation_qualifier(),
-                            child,
-                            operator,
-                            count,
-                        )?;
-                        if child.contains('.') || (operator, count) == (">=", 1) {
-                            query.whereExists(&related)
-                        } else {
-                            let related = related.select_related_aggregate("count", "*")?;
-                            query.where_related_count(&related, operator, count)
+                        match (operator, count) {
+                            (">=", 1) => parent.whereExists(&related),
+                            ("<", 1) => parent.whereNotExists(&related),
+                            _ => {
+                                let related = related.select_related_aggregate("count", "*")?;
+                                parent.where_related_count(&related, operator, count)
+                            }
                         }
                     },
                 )),
@@ -100,9 +115,37 @@ impl<M: Model> NamedRelations<M> {
         self
     }
 
-    pub(super) fn existence(
+    /// Registers an inverse polymorphic relation and its typed target paths.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub fn morphTo(
+        mut self,
+        name: &'static str,
+        factory: impl Fn() -> super::relations::MorphTo<M> + Send + Sync + 'static,
+    ) -> Self {
+        let factory = std::sync::Arc::new(factory);
+        let eager = factory.clone();
+        self.0.insert(
+            name,
+            NamedRelation {
+                prepare: Box::new(move |loads, name, children| {
+                    let mut relation = eager();
+                    relation.with_paths(children)?;
+                    Ok(loads.with(name, relation))
+                }),
+                existence: Some(Box::new(
+                    move |connection, parent, child, operator, count| {
+                        factory().filter_path(connection, parent, child, operator, count)
+                    },
+                )),
+            },
+        );
+        self
+    }
+
+    pub(super) fn filter(
         connection: &Connection,
-        parent: &str,
+        parent: query::Builder<'static>,
         path: &str,
         operator: &str,
         count: u64,

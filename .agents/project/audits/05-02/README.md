@@ -268,3 +268,9 @@ SQLite 和独立 MySQL 8.4.13 实测两级和三级路径、根路径与子路�
 对照固定 Laravel `QueriesRelationships::hasNested` 和 Builder 的嵌套关系测试。OpenRust 复用 `namedRelations()` 中登记的类型化描述符和现有相关子查询。完整链的缺失使用最外层 `NOT EXISTS`，计数只比较最后一级，前面的层级使用存在判断。参考固定 Goravel 的连接级查询装配。复核 `v0.x`，未发现对应点分存在查询入口。多目标 `MorphTo` 仍使用显式目标查询接口。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L79) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php#L1667) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#querying-relationship-existence)
 
 SQLite 和独立 MySQL 8.4.13 验证三级链、完整链缺失、末级计数和非法路径。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、文档调用编译、三语构建及 18 项浏览器检查通过。提交前周额度剩余 90%，项目卷可用 60 GiB。多目标多态路径仍待跟踪，核心账本 25/66。
+
+## 多目标 MorphTo 的点分路径
+
+对照固定 Laravel 的多目标嵌套存在查询测试和 `morphWith` 章节。OpenRust 的 `NamedRelations::morphTo` 使用已登记的目标别名，各目标分别解析同名子路径并批量预加载。存在与计数按别名组合相关子查询，缺失判断取完整分支的补集，包括空值和查无目标。参考固定 Goravel 连接级装配。复核 `v0.x` 未发现对应路径入口。各类型可为同一名称登记不同关系描述符，名称不同可继续用既有类型化目标配置。 [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#nested-eager-loading-morphto-relationships) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证两个别名、重复路径、同名异型子关系、空值和缺失目标、末级计数及错误路径。MySQL 批量预加载共 5 次 SELECT。首轮夹具缺少有效作者目标和达到计数门槛的记录，补齐后双库复验通过。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、文档调用编译、三语构建与 18 项浏览器检查通过。提交前周额度剩余 90%，项目卷可用 60 GiB，核心账本 25/66。

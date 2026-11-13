@@ -7,7 +7,7 @@ use indexmap::IndexMap;
 
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
-    eloquent::{Attributes, Builder, Model, touches::TouchedOwners},
+    eloquent::{Attributes, Builder, Model, NamedRelations, touches::TouchedOwners},
     query,
 };
 
@@ -154,6 +154,47 @@ impl<P: Model> MorphTo<P> {
         self.tryConstrain::<R>(alias, owner_key, move |query| {
             query.withCount(name, &relation)
         })
+    }
+
+    pub(in crate::database::eloquent) fn with_paths(
+        &mut self,
+        children: &[&str],
+    ) -> DatabaseResult<()> {
+        if !children.is_empty() {
+            for target in self.targets.values_mut() {
+                target.with_paths(children)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(in crate::database::eloquent) fn filter_path(
+        &self,
+        connection: &Connection,
+        parent: query::Builder<'static>,
+        child: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<query::Builder<'static>> {
+        let qualifier = parent.relation_qualifier();
+        let column = format!("{qualifier}.{}", self.type_column);
+        let absent = (operator, count) == ("<", 1);
+        let (op, n) = if absent { (">=", 1) } else { (operator, count) };
+        let queries = self
+            .targets
+            .iter()
+            .map(|(&alias, target)| {
+                let query = target.path_query(connection, qualifier, child, op, n)?;
+                Ok((alias, query))
+            })
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        if absent {
+            parent.where_not_morph_path(&column, queries)
+        } else if child.is_empty() {
+            parent.where_morph_count(&column, queries, op, n, false)
+        } else {
+            parent.where_morph_count(&column, queries, ">=", 1, false)
+        }
     }
 
     pub(in crate::database::eloquent) fn existence_queries(
@@ -323,6 +364,15 @@ trait Target<P: Model>: Send + Sync {
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>>;
+    fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()>;
+    fn path_query(
+        &self,
+        connection: &Connection,
+        parent: &str,
+        child: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<query::Builder<'static>>;
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
@@ -361,6 +411,27 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>> {
         RelationKeys::existence_query(self, connection, parent_table)
+    }
+
+    fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()> {
+        self.with_nested(NamedRelations::<R>::prepare(children)?);
+        Ok(())
+    }
+
+    fn path_query(
+        &self,
+        connection: &Connection,
+        parent: &str,
+        child: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<query::Builder<'static>> {
+        let query = self.existence_query(connection, parent)?;
+        if child.is_empty() {
+            Ok(query)
+        } else {
+            NamedRelations::<R>::filter(connection, query, child, operator, count)
+        }
     }
 
     fn load<'a>(

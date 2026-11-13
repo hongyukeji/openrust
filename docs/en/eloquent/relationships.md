@@ -282,7 +282,9 @@ Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular rela
 
 ### Nested eager loading by path {#nested-eager-loading}
 
-Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error. For a relationship with several polymorphic target types, use its typed per-target configuration to load children.
+Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error.
+
+Register a `MorphTo` with `NamedRelations::morphTo` to use paths such as `subject.details` for eager loading, existence, absence, and terminal counts. Each registered target must declare `details`, and those declarations may use different relation types. Eager loading batches by target alias. Existence queries correlate each branch with its alias, and absence includes null or missing targets. Use typed per-target configuration when the child names differ.
 
 ```rust
 use openrust::database::{

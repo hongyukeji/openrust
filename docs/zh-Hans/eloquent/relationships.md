@@ -282,7 +282,9 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 ### 按路径嵌套预加载 {#nested-eager-loading}
 
-在每一级模型的 `namedRelations()` 中登记对应关系，再将 `posts.comments` 这样的路径传给 `withPaths`。同一次调用中，共用前缀的路径复用父级查询。已有模型或集合可用 `loadPaths`。未知或格式错误的路径返回错误。具有多个多态目标类型的关系，可通过各目标的类型化配置加载子关系。
+在每一级模型的 `namedRelations()` 中登记对应关系，再将 `posts.comments` 这样的路径传给 `withPaths`。同一次调用中，共用前缀的路径复用父级查询。已有模型或集合可用 `loadPaths`。未知或格式错误的路径返回错误。
+
+用 `NamedRelations::morphTo` 登记后，`subject.details` 支持预加载、存在、缺失和末级计数。每个已登记目标都要声明 `details`，各目标可使用不同的关系类型。预加载按目标别名分批，缺失查询包含空值或找不到目标的记录。子关系名称不同时，可使用各目标的类型化配置。
 
 ```rust
 use openrust::database::{
