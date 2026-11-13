@@ -27,6 +27,8 @@ pub mod process;
 pub mod queue;
 pub mod redis;
 pub mod routing;
+#[cfg(feature = "sanctum")]
+pub mod sanctum;
 pub mod session;
 pub mod support;
 pub mod testing;

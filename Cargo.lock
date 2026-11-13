@@ -2617,6 +2617,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "clap",
+ "crc32fast",
  "croner",
  "deunicode",
  "dotenvy",

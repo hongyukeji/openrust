@@ -166,6 +166,106 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
     assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
     assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
     assert!(schema.hasTable("users").await.unwrap());
+    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
+    verify_token_storage(db).await;
+    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+}
+
+#[cfg(feature = "sanctum")]
+async fn verify_token_storage(db: &Connection) {
+    use openrust::{database::Value, sanctum::PersonalAccessTokens};
+
+    let store = PersonalAccessTokens::new(db.clone(), "fixture_");
+    let expiry = chrono::DateTime::from_timestamp(1_900_000_000, 0).unwrap();
+    let issued = store
+        .createToken("users", 42, "browser", &["read"], Some(expiry))
+        .await
+        .unwrap();
+    let (id, secret) = issued.plain_text_token.split_once('|').unwrap();
+    assert_eq!(id, issued.access_token.id.to_string());
+    let entropy_and_checksum = secret.strip_prefix("fixture_").unwrap();
+    assert_eq!(entropy_and_checksum.len(), 48);
+    assert!(
+        entropy_and_checksum[..40]
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric())
+    );
+    assert_eq!(
+        &entropy_and_checksum[40..],
+        format!(
+            "{:08x}",
+            crc32fast_for_fixture(&entropy_and_checksum.as_bytes()[..40])
+        )
+    );
+
+    let stored = db
+        .table("personal_access_tokens")
+        .first()
+        .await
+        .unwrap()
+        .unwrap();
+    let Some(Value::Text(hash)) = stored.get("token") else {
+        panic!("missing digest")
+    };
+    assert_eq!(hash.len(), 64);
+    assert!(hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_ne!(hash, secret);
+    assert!(store.findToken(hash).await.unwrap().is_none());
+    for credential in [issued.plain_text_token.as_str(), secret] {
+        let token = store.findToken(credential).await.unwrap().unwrap();
+        assert_eq!(token.id, issued.access_token.id);
+        assert_eq!(
+            (token.tokenable_type.as_str(), token.tokenable_id),
+            ("users", 42)
+        );
+        assert_eq!(token.expires_at, Some(expiry));
+        assert!(token.can("read") && token.cant("write"));
+        assert!(!token.isExpired(expiry - chrono::TimeDelta::seconds(1), None));
+        assert!(token.isExpired(expiry, None));
+        assert!(token.isExpired(
+            token.created_at.unwrap() + chrono::TimeDelta::minutes(1),
+            Some(chrono::TimeDelta::minutes(1))
+        ));
+    }
+    for invalid in [
+        "",
+        "junk",
+        "+1|invalid",
+        "18446744073709551616|invalid",
+        "1|invalid",
+    ] {
+        assert!(store.findToken(invalid).await.unwrap().is_none());
+    }
+    let (a, b) = tokio::join!(
+        store.createToken("users", 42, "one", &["*"], None),
+        store.createToken("users", 42, "two", &["*"], None),
+    );
+    let (a, b) = (a.unwrap(), b.unwrap());
+    assert_ne!(a.plain_text_token.as_str(), b.plain_text_token.as_str());
+    assert!(a.access_token.can("write"));
+    let id = issued.access_token.id;
+    assert!(!store.revokeToken("other", 42, id).await.unwrap());
+    assert!(!store.revokeToken("users", 43, id).await.unwrap());
+    assert!(store.revokeToken("users", 42, id).await.unwrap());
+    assert!(!store.revokeToken("users", 42, id).await.unwrap());
+    assert!(
+        store
+            .findToken(&issued.plain_text_token)
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[cfg(feature = "sanctum")]
+fn crc32fast_for_fixture(bytes: &[u8]) -> u32 {
+    !bytes.iter().fold(u32::MAX, |mut crc, byte| {
+        crc ^= u32::from(*byte);
+        for _ in 0..8 {
+            crc = (crc >> 1) ^ (0xedb8_8320 & 0_u32.wrapping_sub(crc & 1));
+        }
+        crc
+    })
 }
 
 async fn verify(mysql: Option<&str>) {

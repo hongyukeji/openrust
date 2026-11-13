@@ -21,7 +21,7 @@ doc = false
 
 [features]
 standalone = []
-sanctum = []
+sanctum = ["openrust/sanctum"]
 reverb = ["dep:openrust-reverb"]
 
 [dependencies]
