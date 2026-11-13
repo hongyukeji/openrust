@@ -165,6 +165,27 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
+For advanced S3 options, call `temporaryDownloadRequest` or `temporaryUploadRequest` on the named disk and configure the AWS SDK request builder. Both methods return the URL and signed request headers. Send those headers with the request. The disk sets the bucket and prefixed key after applying the builder options.
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryDownloadUrl},
+    support::facades::Storage,
+};
+
+async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
+    Storage::disk(Some("s3"))?
+        .temporaryDownloadRequest(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            |request| request.range("bytes=0-1023"),
+        )
+        .await
+}
+```
+
 ### Custom local disk URL builders {#customizing-temporary-urls}
 
 Register `buildTemporaryUrlsUsing` or `buildTemporaryUploadUrlsUsing` on the local disk during provider boot. The callback receives the validated path, expiration and typed options. The upload callback returns a `TemporaryUploadUrl` with the URL and required headers.

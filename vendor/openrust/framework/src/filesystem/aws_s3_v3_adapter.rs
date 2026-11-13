@@ -9,7 +9,10 @@ use aws_sdk_s3::{
         timeout::TimeoutConfig,
     },
     error::{ProvideErrorMetadata, SdkError},
-    presigning::PresigningConfig,
+    operation::{
+        get_object::builders::GetObjectFluentBuilder, put_object::builders::PutObjectFluentBuilder,
+    },
+    presigning::{PresignedRequest, PresigningConfig},
     primitives::ByteStream,
     types::{
         CompletedMultipartUpload, CompletedPart, Grant, ObjectCannedAcl, ObjectOwnership, Owner,
@@ -24,7 +27,7 @@ use tokio::{
 use url::Url;
 
 use super::{
-    FilesystemError, FilesystemReader, FilesystemResult, TemporaryUploadUrl,
+    FilesystemError, FilesystemReader, FilesystemResult, TemporaryDownloadUrl, TemporaryUploadUrl,
     TemporaryUploadUrlOptions, TemporaryUrlOptions, Visibility, download::OpenedFile,
 };
 
@@ -226,27 +229,23 @@ impl AwsS3V3Adapter {
         expiration: SystemTime,
         options: TemporaryUrlOptions,
     ) -> FilesystemResult<String> {
-        let request = self
-            .client()
-            .await
-            .get_object()
-            .bucket(&self.config.bucket)
-            .key(self.key(path))
-            .set_version_id(options.version_id)
-            .set_response_cache_control(options.response_cache_control)
-            .set_response_content_disposition(options.response_content_disposition)
-            .set_response_content_encoding(options.response_content_encoding)
-            .set_response_content_language(options.response_content_language)
-            .set_response_content_type(options.response_content_type)
-            .set_response_expires(
-                options
-                    .response_expires
-                    .map(aws_sdk_s3::primitives::DateTime::from),
-            )
-            .presigned(presigning(expiration)?)
-            .await
-            .map_err(|error| classify_error(&error))?;
-        self.temporary_request_url(request.uri())
+        let signed = self
+            .presign_get(path, expiration, |request| {
+                request
+                    .set_version_id(options.version_id)
+                    .set_response_cache_control(options.response_cache_control)
+                    .set_response_content_disposition(options.response_content_disposition)
+                    .set_response_content_encoding(options.response_content_encoding)
+                    .set_response_content_language(options.response_content_language)
+                    .set_response_content_type(options.response_content_type)
+                    .set_response_expires(
+                        options
+                            .response_expires
+                            .map(aws_sdk_s3::primitives::DateTime::from),
+                    )
+            })
+            .await?;
+        self.temporary_request_url(signed.uri())
     }
 
     pub(super) async fn temporary_upload_url(
@@ -255,30 +254,60 @@ impl AwsS3V3Adapter {
         expiration: SystemTime,
         options: TemporaryUploadUrlOptions,
     ) -> FilesystemResult<TemporaryUploadUrl> {
-        let request = self
-            .client()
-            .await
-            .put_object()
+        self.temporary_upload_request(path, expiration, |request| {
+            request
+                .set_content_type(options.content_type)
+                .set_content_disposition(options.content_disposition)
+                .set_cache_control(options.cache_control)
+                .set_metadata(options.metadata)
+        })
+        .await
+    }
+
+    pub(super) async fn temporary_download_request(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        configure: impl FnOnce(GetObjectFluentBuilder) -> GetObjectFluentBuilder + Send,
+    ) -> FilesystemResult<TemporaryDownloadUrl> {
+        let signed = self.presign_get(path, expiration, configure).await?;
+        Ok(TemporaryDownloadUrl {
+            url: self.temporary_request_url(signed.uri())?,
+            headers: signed_headers(&signed)?,
+        })
+    }
+
+    async fn presign_get(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        configure: impl FnOnce(GetObjectFluentBuilder) -> GetObjectFluentBuilder + Send,
+    ) -> FilesystemResult<PresignedRequest> {
+        let signing = presigning(expiration)?;
+        configure(self.client().await.get_object())
             .bucket(&self.config.bucket)
             .key(self.key(path))
-            .set_content_type(options.content_type)
-            .set_content_disposition(options.content_disposition)
-            .set_cache_control(options.cache_control)
-            .set_metadata(options.metadata)
-            .presigned(presigning(expiration)?)
+            .presigned(signing)
+            .await
+            .map_err(|error| classify_error(&error))
+    }
+
+    pub(super) async fn temporary_upload_request(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        configure: impl FnOnce(PutObjectFluentBuilder) -> PutObjectFluentBuilder + Send,
+    ) -> FilesystemResult<TemporaryUploadUrl> {
+        let signing = presigning(expiration)?;
+        let signed = configure(self.client().await.put_object())
+            .bucket(&self.config.bucket)
+            .key(self.key(path))
+            .presigned(signing)
             .await
             .map_err(|error| classify_error(&error))?;
-        let mut headers = crate::http::HeaderMap::new();
-        for (name, value) in request.headers() {
-            let name = ::http::HeaderName::from_bytes(name.as_bytes())
-                .map_err(|_| FilesystemError::InvalidConfiguration)?;
-            let value = ::http::HeaderValue::from_str(value)
-                .map_err(|_| FilesystemError::InvalidConfiguration)?;
-            headers.append(name, value);
-        }
         Ok(TemporaryUploadUrl {
-            url: self.temporary_request_url(request.uri())?,
-            headers,
+            url: self.temporary_request_url(signed.uri())?,
+            headers: signed_headers(&signed)?,
         })
     }
 
@@ -690,6 +719,18 @@ fn invalid_response() -> FilesystemError {
     FilesystemError::Backend {
         source: Box::new(std::io::Error::other("invalid S3 response")),
     }
+}
+
+fn signed_headers(request: &PresignedRequest) -> FilesystemResult<crate::http::HeaderMap> {
+    let mut headers = crate::http::HeaderMap::new();
+    for (name, value) in request.headers() {
+        let name = ::http::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| FilesystemError::InvalidConfiguration)?;
+        let value = ::http::HeaderValue::from_str(value)
+            .map_err(|_| FilesystemError::InvalidConfiguration)?;
+        headers.append(name, value);
+    }
+    Ok(headers)
 }
 
 fn presigning(expiration: SystemTime) -> FilesystemResult<PresigningConfig> {

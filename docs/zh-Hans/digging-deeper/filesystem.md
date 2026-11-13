@@ -165,6 +165,27 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
+如需更多 S3 选项，在指定磁盘上调用 `temporaryDownloadRequest` 或 `temporaryUploadRequest`，通过闭包配置 AWS SDK 请求构造器。两种方法都返回 URL 和签名请求头，客户端发送请求时需携带这些头。磁盘在应用选项后设置存储桶和带前缀的对象键。
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryDownloadUrl},
+    support::facades::Storage,
+};
+
+async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
+    Storage::disk(Some("s3"))?
+        .temporaryDownloadRequest(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            |request| request.range("bytes=0-1023"),
+        )
+        .await
+}
+```
+
 ### 自定义本地磁盘签名回调 {#customizing-temporary-urls}
 
 在服务提供者启动时，对本地磁盘注册 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回调接收已校验的路径、过期时间和类型化选项。上传回调返回包含 URL 和所需请求头的 `TemporaryUploadUrl`。

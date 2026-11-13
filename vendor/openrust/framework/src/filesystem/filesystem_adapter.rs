@@ -1,14 +1,17 @@
 use std::sync::{Arc, RwLock};
 use std::{path::PathBuf, time::SystemTime};
 
+use aws_sdk_s3::operation::{
+    get_object::builders::GetObjectFluentBuilder, put_object::builders::PutObjectFluentBuilder,
+};
 use tokio::io::{AsyncRead, AsyncReadExt as _};
 
 use crate::http::{HeaderMap, Response, UploadedFile};
 
 use super::{
     AwsS3V3Adapter, FilesystemError, FilesystemFuture, FilesystemReader, FilesystemResult,
-    LocalFilesystemAdapter, TemporaryUploadUrl, TemporaryUploadUrlOptions, TemporaryUrlOptions,
-    Visibility, WriteOptions, download::OpenedFile, is_staging_name,
+    LocalFilesystemAdapter, TemporaryDownloadUrl, TemporaryUploadUrl, TemporaryUploadUrlOptions,
+    TemporaryUrlOptions, Visibility, WriteOptions, download::OpenedFile, is_staging_name,
 };
 
 type TemporaryUrlBuilder<Options, Output> = dyn for<'a> Fn(&'a str, SystemTime, Options) -> FilesystemFuture<'a, FilesystemResult<Output>>
@@ -194,6 +197,40 @@ impl FilesystemAdapter {
                 })
             }
             Driver::S3(disk) => disk.temporary_upload_url(path, expiration, options).await,
+        }
+    }
+
+    /// Presigns an S3 GET with SDK options. The disk supplies the bucket and key.
+    pub async fn temporaryDownloadRequest(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        configure: impl FnOnce(GetObjectFluentBuilder) -> GetObjectFluentBuilder + Send,
+    ) -> FilesystemResult<TemporaryDownloadUrl> {
+        validate_path(path)?;
+        match &self.driver {
+            Driver::S3(disk) => {
+                disk.temporary_download_request(path, expiration, configure)
+                    .await
+            }
+            Driver::Local(_) => Err(FilesystemError::UnsupportedOperation),
+        }
+    }
+
+    /// Presigns an S3 PUT with SDK options. The disk supplies the bucket and key.
+    pub async fn temporaryUploadRequest(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        configure: impl FnOnce(PutObjectFluentBuilder) -> PutObjectFluentBuilder + Send,
+    ) -> FilesystemResult<TemporaryUploadUrl> {
+        validate_path(path)?;
+        match &self.driver {
+            Driver::S3(disk) => {
+                disk.temporary_upload_request(path, expiration, configure)
+                    .await
+            }
+            Driver::Local(_) => Err(FilesystemError::UnsupportedOperation),
         }
     }
 

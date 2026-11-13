@@ -491,6 +491,78 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
         !response.status.success(),
         "tampered download options were accepted"
     );
+    let partial = disk
+        .temporaryDownloadRequest(path, expires, |request| {
+            request
+                .bucket("ignored-bucket")
+                .key("ignored-key")
+                .range("bytes=0-8")
+        })
+        .await
+        .unwrap();
+    assert_eq!(partial.headers["range"], "bytes=0-8");
+    let response = tokio::process::Command::new("curl")
+        .args([
+            "--fail",
+            "--silent",
+            "--max-time",
+            "10",
+            "-H",
+            "Range: bytes=0-8",
+            &partial.url,
+        ])
+        .output()
+        .await
+        .unwrap();
+    assert!(response.status.success(), "presigned range GET failed");
+    assert_eq!(response.stdout, b"presigned");
+    let response = tokio::process::Command::new("curl")
+        .args(["--fail", "--silent", "--max-time", "10", &partial.url])
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        !response.status.success(),
+        "GET accepted a missing signed Range"
+    );
+
+    let conditional = disk
+        .temporaryUploadRequest("private/create-only.txt", expires, |request| {
+            request
+                .bucket("ignored-bucket")
+                .key("ignored-key")
+                .if_none_match("*")
+        })
+        .await
+        .unwrap();
+    assert_eq!(conditional.headers["if-none-match"], "*");
+    for (body, status) in [("first", b"200"), ("second", b"412")] {
+        let response = tokio::process::Command::new("curl")
+            .args([
+                "--silent",
+                "--max-time",
+                "10",
+                "--output",
+                "/dev/null",
+                "--write-out",
+                "%{http_code}",
+                "-X",
+                "PUT",
+                "-H",
+                "If-None-Match: *",
+                "--data-binary",
+                body,
+                &conditional.url,
+            ])
+            .output()
+            .await
+            .unwrap();
+        assert_eq!(&response.stdout, status);
+    }
+    assert_eq!(
+        disk.get("private/create-only.txt").await.unwrap().unwrap(),
+        b"first"
+    );
     let unsigned = download.split_once('?').unwrap().0;
     let response = tokio::process::Command::new("curl")
         .args(["--fail", "--silent", "--max-time", "10", unsigned])

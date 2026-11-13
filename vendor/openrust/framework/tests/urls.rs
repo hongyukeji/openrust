@@ -356,6 +356,13 @@ fn local_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let disk = openrust::support::facades::Storage::disk(None)?;
         let expiration = SystemTime::now() + Duration::from_secs(60);
         let name = "nested/report + 100%?#.txt";
+        assert!(matches!(
+            disk.temporaryDownloadRequest(name, expiration, |_| panic!(
+                "local disk must not invoke SDK configuration"
+            ))
+            .await,
+            Err(openrust::filesystem::FilesystemError::UnsupportedOperation)
+        ));
         let download = disk.temporaryUrl(name, expiration).await?;
         let upload = disk.temporaryUploadUrl(name, expiration).await?;
         let custom = openrust::support::facades::Storage::disk(Some("custom"))?;

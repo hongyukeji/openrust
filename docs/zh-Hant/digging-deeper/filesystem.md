@@ -165,6 +165,27 @@ async fn report_url() -> FilesystemResult<String> {
 }
 ```
 
+如需更多 S3 選項，在指定磁碟上呼叫 `temporaryDownloadRequest` 或 `temporaryUploadRequest`，透過閉包設定 AWS SDK 請求建構器。兩種方法都傳回 URL 與簽章請求標頭，用戶端送出請求時須附上這些標頭。磁碟在套用選項後設定儲存貯體與帶前綴的物件鍵。
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryDownloadUrl},
+    support::facades::Storage,
+};
+
+async fn report_preview() -> FilesystemResult<TemporaryDownloadUrl> {
+    Storage::disk(Some("s3"))?
+        .temporaryDownloadRequest(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            |request| request.range("bytes=0-1023"),
+        )
+        .await
+}
+```
+
 ### 自訂本機磁碟簽章回呼 {#customizing-temporary-urls}
 
 在服務提供者啟動時，對本機磁碟註冊 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回呼接收已驗證的路徑、到期時間和具型別的選項。上傳回呼傳回包含 URL 和必要請求標頭的 `TemporaryUploadUrl`。

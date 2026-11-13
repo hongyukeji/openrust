@@ -83,6 +83,12 @@ pub struct TemporaryUploadUrlOptions {
     pub metadata: Option<std::collections::HashMap<String, String>>,
 }
 
+/// An S3 download URL and the headers required by its signed request.
+pub struct TemporaryDownloadUrl {
+    pub url: String,
+    pub headers: crate::http::HeaderMap,
+}
+
 /// A signed upload URL and the headers required to use it.
 pub struct TemporaryUploadUrl {
     pub url: String,
