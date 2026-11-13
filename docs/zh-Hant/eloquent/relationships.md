@@ -286,6 +286,8 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 用 `NamedRelations::morphTo` 登錄後，`subject.details` 支援預先載入、存在、缺失和末級計數。每個已登錄目標都須宣告 `details`，各目標可使用不同的關聯型別。預先載入依目標別名分批，缺失查詢包含空值或找不到目標的記錄。子關聯名稱不同時，可使用各目標的型別化設定。
 
+使用非同步的 `whereHasPathAll`、`whereDoesntHavePathAll` 或 `hasPathCountAll`，可在建立查詢前探索每個多型路徑段實際儲存的別名。探索查詢從模型資料表讀取不同別名，獨立於外層查詢的篩選及作用域。只有找到的目標需要宣告子路徑，遇到已儲存但未登錄的別名會回傳錯誤。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,

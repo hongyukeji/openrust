@@ -7,7 +7,10 @@ use indexmap::IndexMap;
 
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
-    eloquent::{Attributes, Builder, Model, NamedRelations, touches::TouchedOwners},
+    eloquent::{
+        Attributes, Builder, Model, NamedRelations, named_relations::DiscoveredMorphs,
+        touches::TouchedOwners,
+    },
     query,
 };
 
@@ -175,16 +178,26 @@ impl<P: Model> MorphTo<P> {
         child: &str,
         operator: &str,
         count: u64,
+        discovered: Option<(&DiscoveredMorphs, &str)>,
     ) -> DatabaseResult<query::Builder<'static>> {
         let qualifier = parent.relation_qualifier();
         let column = format!("{qualifier}.{}", self.type_column);
         let absent = (operator, count) == ("<", 1);
         let (op, n) = if absent { (">=", 1) } else { (operator, count) };
+        let aliases = discovered.and_then(|(found, name)| found.get::<P>(name));
         let queries = self
             .targets
             .iter()
+            .filter(|(alias, _)| aliases.is_none_or(|aliases| aliases.contains(alias)))
             .map(|(&alias, target)| {
-                let query = target.path_query(connection, qualifier, child, op, n)?;
+                let query = target.path_query(
+                    connection,
+                    qualifier,
+                    child,
+                    op,
+                    n,
+                    discovered.map(|(found, _)| found),
+                )?;
                 Ok((alias, query))
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
@@ -195,6 +208,31 @@ impl<P: Model> MorphTo<P> {
         } else {
             parent.where_morph_count(&column, queries, ">=", 1, false)
         }
+    }
+
+    pub(in crate::database::eloquent) async fn discover_path(
+        &self,
+        connection: &Connection,
+        name: &str,
+        child: &str,
+        found: &mut DiscoveredMorphs,
+    ) -> DatabaseResult<()> {
+        let aliases = match found.get::<P>(name) {
+            Some(aliases) => aliases.to_vec(),
+            None => {
+                let aliases = self.discover_types(connection).await?;
+                found.insert::<P>(name, aliases.clone());
+                aliases
+            }
+        };
+        if !child.is_empty() {
+            for alias in aliases {
+                self.targets[alias]
+                    .discover_path(connection, child, found)
+                    .await?;
+            }
+        }
+        Ok(())
     }
 
     pub(in crate::database::eloquent) fn existence_queries(
@@ -364,6 +402,12 @@ trait Target<P: Model>: Send + Sync {
         connection: &Connection,
         parent_table: &str,
     ) -> DatabaseResult<query::Builder<'static>>;
+    fn discover_path<'a>(
+        &self,
+        connection: &'a Connection,
+        child: &'a str,
+        found: &'a mut DiscoveredMorphs,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()>;
     fn path_query(
         &self,
@@ -372,6 +416,7 @@ trait Target<P: Model>: Send + Sync {
         child: &str,
         operator: &str,
         count: u64,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<query::Builder<'static>>;
     fn load<'a>(
         &'a self,
@@ -413,6 +458,15 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         RelationKeys::existence_query(self, connection, parent_table)
     }
 
+    fn discover_path<'a>(
+        &self,
+        connection: &'a Connection,
+        child: &'a str,
+        found: &'a mut DiscoveredMorphs,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        NamedRelations::<R>::discover(connection, child, found)
+    }
+
     fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()> {
         self.with_nested(NamedRelations::<R>::prepare(children)?);
         Ok(())
@@ -425,12 +479,13 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         child: &str,
         operator: &str,
         count: u64,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<query::Builder<'static>> {
         let query = self.existence_query(connection, parent)?;
         if child.is_empty() {
             Ok(query)
         } else {
-            NamedRelations::<R>::filter(connection, query, child, operator, count)
+            NamedRelations::<R>::filter(connection, query, child, operator, count, discovered)
         }
     }
 

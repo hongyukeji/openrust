@@ -1,6 +1,8 @@
+use std::{any::TypeId, collections::HashMap};
+
 use indexmap::IndexMap;
 
-use crate::database::{Connection, DatabaseError, DatabaseResult, query};
+use crate::database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult, query};
 
 use super::{
     EagerLoads, Model,
@@ -16,13 +18,39 @@ type Existence = dyn Fn(
         &str,
         &str,
         u64,
+        Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<query::Builder<'static>>
     + Send
     + Sync;
 
+type Discover = dyn for<'a> Fn(
+        &'a Connection,
+        &'a str,
+        &'a str,
+        &'a mut DiscoveredMorphs,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>
+    + Send
+    + Sync;
+
+#[derive(Default)]
+pub(super) struct DiscoveredMorphs(HashMap<(TypeId, String), Vec<&'static str>>);
+
+impl DiscoveredMorphs {
+    pub(super) fn get<M: Model>(&self, name: &str) -> Option<&[&'static str]> {
+        self.0
+            .get(&(TypeId::of::<M>(), name.to_owned()))
+            .map(Vec::as_slice)
+    }
+
+    pub(super) fn insert<M: Model>(&mut self, name: &str, aliases: Vec<&'static str>) {
+        self.0.insert((TypeId::of::<M>(), name.to_owned()), aliases);
+    }
+}
+
 struct NamedRelation<M: Model> {
     prepare: Box<Prepare<M>>,
     existence: Option<Box<Existence>>,
+    discover: Option<Box<Discover>>,
 }
 
 /// The relation factories available for eager loading and querying by name.
@@ -57,7 +85,7 @@ impl<M: Model> NamedRelations<M> {
                     Ok(loads.with(name, relation))
                 }),
                 existence: Some(Box::new(
-                    move |connection, parent, child, operator, count| {
+                    move |connection, parent, child, operator, count, discovered| {
                         let mut related = factory()
                             .getRelationExistenceQuery(connection, parent.relation_qualifier())?;
                         if !child.is_empty() {
@@ -68,7 +96,7 @@ impl<M: Model> NamedRelations<M> {
                                 (operator, count)
                             };
                             related = NamedRelations::<R::Related>::filter(
-                                connection, related, child, op, n,
+                                connection, related, child, op, n, discovered,
                             )?;
                             return if terminal {
                                 parent.whereNotExists(&related)
@@ -86,6 +114,9 @@ impl<M: Model> NamedRelations<M> {
                         }
                     },
                 )),
+                discover: Some(Box::new(|connection, _, child, found| {
+                    NamedRelations::<R::Related>::discover(connection, child, found)
+                })),
             },
         );
         self
@@ -110,6 +141,7 @@ impl<M: Model> NamedRelations<M> {
                     Ok(loads.with(name, factory()))
                 }),
                 existence: None,
+                discover: None,
             },
         );
         self
@@ -125,6 +157,7 @@ impl<M: Model> NamedRelations<M> {
     ) -> Self {
         let factory = std::sync::Arc::new(factory);
         let eager = factory.clone();
+        let discover = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
@@ -134,10 +167,23 @@ impl<M: Model> NamedRelations<M> {
                     Ok(loads.with(name, relation))
                 }),
                 existence: Some(Box::new(
-                    move |connection, parent, child, operator, count| {
-                        factory().filter_path(connection, parent, child, operator, count)
+                    move |connection, parent, child, operator, count, discovered| {
+                        factory().filter_path(
+                            connection,
+                            parent,
+                            child,
+                            operator,
+                            count,
+                            discovered.map(|found| (found, name)),
+                        )
                     },
                 )),
+                discover: Some(Box::new(move |connection, name, child, found| {
+                    let relation = discover();
+                    Box::pin(
+                        async move { relation.discover_path(connection, name, child, found).await },
+                    )
+                })),
             },
         );
         self
@@ -149,6 +195,7 @@ impl<M: Model> NamedRelations<M> {
         path: &str,
         operator: &str,
         count: u64,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<query::Builder<'static>> {
         let (name, child) = path.split_once('.').unwrap_or((path, ""));
         let registered = M::namedRelations();
@@ -162,7 +209,32 @@ impl<M: Model> NamedRelations<M> {
             .ok_or(DatabaseError::InvalidQuery(
                 "relationship path does not support existence queries",
             ))?;
-        existence(connection, parent, child, operator, count)
+        existence(connection, parent, child, operator, count, discovered)
+    }
+
+    pub(super) fn discover<'a>(
+        connection: &'a Connection,
+        path: &'a str,
+        found: &'a mut DiscoveredMorphs,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            if path.is_empty() {
+                return Ok(());
+            }
+            let (name, child) = path.split_once('.').unwrap_or((path, ""));
+            let registered = M::namedRelations();
+            let relation = registered
+                .0
+                .get(name)
+                .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
+            let discover = relation
+                .discover
+                .as_ref()
+                .ok_or(DatabaseError::InvalidQuery(
+                    "relationship path does not support existence queries",
+                ))?;
+            discover(connection, name, child, found).await
+        })
     }
 
     pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {

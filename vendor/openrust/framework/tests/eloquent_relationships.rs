@@ -1018,9 +1018,70 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         Comment::queryOn(db).withPaths(&["subject.comments"]),
         Err(DatabaseError::InvalidQuery("unknown relationship path"))
     ));
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let discovered = Comment::queryOn(db)
+        .whereHasPathAll("subject.details")
+        .await
+        .unwrap()
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(discovered.modelKeys(), expected);
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+    assert_eq!(
+        Comment::queryOn(db)
+            .hasPathCountAll("subject.details", ">=", 2)
+            .await
+            .unwrap()
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        counted
+    );
+    let missing = Comment::queryOn(db)
+        .whereDoesntHavePathAll("subject.details")
+        .await
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(missing.len(), absent.len());
+    assert!(missing.modelKeys().contains(&no_target));
+    let unknown = table()
+        .insertGetId(Attributes::from([
+            ("body".into(), "unknown named morph".into()),
+            ("subject_type".into(), "unknown".into()),
+            ("deleted_at".into(), "2026-01-01 00:00:00".into()),
+        ]))
+        .await
+        .unwrap();
+    assert!(matches!(
+        Comment::queryOn(db)
+            .whereHasPathAll("subject.details")
+            .await,
+        Err(DatabaseError::InvalidQuery("unknown morph type"))
+    ));
+    table()
+        .whereIn("id", vec![unknown, profile.clone()])
+        .delete()
+        .await
+        .unwrap();
+    let only_posts = Comment::queryOn(db)
+        .whereHasPathAll("subject.comments")
+        .await
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(!only_posts.is_empty());
     assert!(absent.modelKeys().contains(&no_target));
     db.table("relation_comments")
-        .whereIn("id", vec![profile, no_target, additional])
+        .whereIn("id", vec![no_target, additional])
         .delete()
         .await
         .unwrap();

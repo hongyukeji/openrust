@@ -286,6 +286,8 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 用 `NamedRelations::morphTo` 登记后，`subject.details` 支持预加载、存在、缺失和末级计数。每个已登记目标都要声明 `details`，各目标可使用不同的关系类型。预加载按目标别名分批，缺失查询包含空值或找不到目标的记录。子关系名称不同时，可使用各目标的类型化配置。
 
+使用异步的 `whereHasPathAll`、`whereDoesntHavePathAll` 或 `hasPathCountAll`，可在构建查询前发现每个多态路径段实际存储的别名。发现查询从模型表读取不同别名，独立于外层查询的筛选和作用域。只有发现的目标需要声明子路径，遇到已存储但未登记的别名会返回错误。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,

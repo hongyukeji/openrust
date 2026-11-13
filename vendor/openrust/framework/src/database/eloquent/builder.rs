@@ -63,17 +63,54 @@ impl<M: Model> Builder<'static, M> {
 
     /// Applies the count comparison at the final segment of the relation path.
     pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
-        if path.split('.').any(str::is_empty) {
-            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
-        }
+        Self::validate_path(path)?;
         self.query = super::NamedRelations::<M>::filter(
             &self.connection,
             self.query,
             path,
             operator,
             count,
+            None,
         )?;
         Ok(self)
+    }
+
+    /// Discovers stored morph aliases before filtering by a named relation path.
+    pub async fn whereHasPathAll(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCountAll(path, ">=", 1).await
+    }
+
+    /// Discovers stored morph aliases before testing for a missing relation path.
+    pub async fn whereDoesntHavePathAll(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCountAll(path, "<", 1).await
+    }
+
+    /// Discovers stored morph aliases and compares the final segment's count.
+    pub async fn hasPathCountAll(
+        mut self,
+        path: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<Self> {
+        Self::validate_path(path)?;
+        let mut found = super::named_relations::DiscoveredMorphs::default();
+        super::NamedRelations::<M>::discover(&self.connection, path, &mut found).await?;
+        self.query = super::NamedRelations::<M>::filter(
+            &self.connection,
+            self.query,
+            path,
+            operator,
+            count,
+            Some(&found),
+        )?;
+        Ok(self)
+    }
+
+    fn validate_path(path: &str) -> DatabaseResult<()> {
+        if path.split('.').any(str::is_empty) {
+            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+        }
+        Ok(())
     }
 }
 

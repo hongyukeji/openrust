@@ -286,6 +286,8 @@ Register each segment in the corresponding model’s `namedRelations()`. Pass pa
 
 Register a `MorphTo` with `NamedRelations::morphTo` to use paths such as `subject.details` for eager loading, existence, absence, and terminal counts. Each registered target must declare `details`, and those declarations may use different relation types. Eager loading batches by target alias. Existence queries correlate each branch with its alias, and absence includes null or missing targets. Use typed per-target configuration when the child names differ.
 
+Use the asynchronous `whereHasPathAll`, `whereDoesntHavePathAll`, or `hasPathCountAll` to discover the stored aliases at each polymorphic segment before building the query. Discovery reads distinct aliases from the model table independently of the outer query filters and scopes. Only discovered aliases need the child path. An unregistered stored alias returns an error.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
