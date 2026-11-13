@@ -1822,6 +1822,23 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
     Box::pin(async move {
         let ordered = || Author::queryOn(db).orderBy("id", "asc");
         let authors = ordered().get().await.unwrap();
+        let labels = authors.map(|model, index| (index, model.getKey().cloned()));
+        assert_eq!(labels.get(1), Some(&(1, Some(2.into()))));
+        let indexed = authors
+            .mapWithKeys(|model, index| [(format!("author-{index}"), model.getKey().cloned())]);
+        assert_eq!(indexed.get("author-2"), Some(&Some(3.into())));
+        let ids = authors.pluck(|model| model.getKey().cloned());
+        assert_eq!(ids.get(0), Some(&Some(1.into())));
+        let repeated = authors.pluckWithKeys(|_| "id", |model| model.getKey().cloned());
+        assert_eq!(repeated.count(), 1);
+        assert_eq!(repeated.get("id"), Some(&Some(3.into())));
+        let retained = ordered().get().await.unwrap().mapModels(|model, _| model);
+        assert_eq!(retained.modelKeys(), authors.modelKeys());
+        assert_eq!(retained.toBase().get(1).unwrap().getKey(), Some(&2.into()));
+        let empty = Collection::<Author>::new(vec![]);
+        assert!(empty.map::<i32>(|_, _| unreachable!()).isEmpty());
+        assert_eq!(authors.keys().get(2), Some(&2.into()));
+        assert!(empty.mapModels(|model, _| model).is_empty());
         assert!(std::ptr::eq(
             authors.findOrFail(&"2".into()).unwrap(),
             &authors[1]

@@ -6,6 +6,7 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Value};
+use crate::support::{ArrayKey, Collection as BaseCollection};
 
 use super::{
     Attributes, Builder, EagerLoads, Model, ModelState, RelatedBatch, RelatedModels,
@@ -97,6 +98,67 @@ impl<M: Model> Collection<M> {
 
     pub fn all(&self) -> &[M] {
         &self.models
+    }
+
+    /// Converts the models into a base collection, in their current order.
+    pub fn toBase(self) -> BaseCollection<M> {
+        self.models.into_iter().collect()
+    }
+
+    /// Maps each model and its index into a base collection.
+    pub fn map<T>(&self, mut callback: impl FnMut(&M, usize) -> T) -> BaseCollection<T> {
+        self.iter()
+            .enumerate()
+            .map(|(index, model)| callback(model, index))
+            .collect()
+    }
+
+    /// Maps owned models into another Eloquent collection.
+    pub fn mapModels<N: Model>(self, mut callback: impl FnMut(M, usize) -> N) -> Collection<N> {
+        let models = self
+            .models
+            .into_iter()
+            .enumerate()
+            .map(|(index, model)| callback(model, index))
+            .collect();
+        Collection {
+            models,
+            autoload: self.autoload || N::automaticallyEagerLoadRelationships(),
+        }
+    }
+
+    pub fn mapWithKeys<K, T, I>(
+        &self,
+        mut callback: impl FnMut(&M, usize) -> I,
+    ) -> BaseCollection<T>
+    where
+        K: Into<ArrayKey>,
+        I: IntoIterator<Item = (K, T)>,
+    {
+        BaseCollection::fromEntries(
+            self.iter()
+                .enumerate()
+                .flat_map(|(index, model)| callback(model, index)),
+        )
+    }
+
+    pub fn pluck<T>(&self, project: impl FnMut(&M) -> T) -> BaseCollection<T> {
+        self.iter().map(project).collect()
+    }
+
+    pub fn pluckWithKeys<K: Into<ArrayKey>, T>(
+        &self,
+        mut key: impl FnMut(&M) -> K,
+        mut project: impl FnMut(&M) -> T,
+    ) -> BaseCollection<T> {
+        BaseCollection::fromEntries(self.iter().map(|model| (key(model), project(model))))
+    }
+
+    /// Returns the collection indices as a base collection.
+    pub fn keys(&self) -> BaseCollection<ArrayKey> {
+        (0..self.len())
+            .map(|index| ArrayKey::from(i64::try_from(index).expect("collection index fits i64")))
+            .collect()
     }
 
     pub fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {

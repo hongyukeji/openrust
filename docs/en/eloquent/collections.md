@@ -103,3 +103,18 @@ pub async fn load_author_totals(authors: &mut Collection<Author>) -> DatabaseRes
     ]).await
 }
 ```
+
+### Mapping and Converting Collections
+
+`map`, `mapWithKeys`, `pluck`, `pluckWithKeys`, and `keys` return a Support collection. Use `mapModels` when the result should retain Eloquent methods, or `toBase` to move the original models into a Support collection. Eloquent collections use zero-based positions. Keyed projections preserve the supplied keys and use the last value for a repeated key.
+
+```rust
+use openrust::{
+    database::{Value, eloquent::{Collection, Model}},
+    support::Collection as BaseCollection,
+};
+
+pub fn primary_keys<M: Model>(models: &Collection<M>) -> BaseCollection<Option<Value>> {
+    models.pluck(|model| model.getKey().cloned())
+}
+```

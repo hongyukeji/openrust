@@ -103,3 +103,18 @@ pub async fn load_author_totals(authors: &mut Collection<Author>) -> DatabaseRes
     ]).await
 }
 ```
+
+### 映射與集合轉換
+
+`map`、`mapWithKeys`、`pluck`、`pluckWithKeys` 和 `keys` 回傳 Support 集合。映射結果需要繼續使用 Eloquent 方法時，使用 `mapModels`。用 `toBase` 將原有模型移入 Support 集合。Eloquent 集合使用零基位置，帶鍵投影保留指定的鍵，同一個鍵保留最後寫入的值。
+
+```rust
+use openrust::{
+    database::{Value, eloquent::{Collection, Model}},
+    support::Collection as BaseCollection,
+};
+
+pub fn primary_keys<M: Model>(models: &Collection<M>) -> BaseCollection<Option<Value>> {
+    models.pluck(|model| model.getKey().cloned())
+}
+```
