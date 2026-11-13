@@ -450,3 +450,9 @@ Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽�
 SQLite 与 MySQL 8.4.13 验证父关系与 JSON 可见性、别名隔离、原始属性同步、重复聚合别名和目标类型错误。MySQL 为同组两个聚合执行一次 SELECT。普通多态延后加载 `loadMorph` 的缓存写回仍待核对。
 
 Rust 1.94 全工作区 620 项通过、8 项夹具忽略。双库关系专项、格式、全目标严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 多态目标延后关系加载与写回
+
+对照固定 Laravel 的 `Model::loadMorph`、`Collection::loadMorph` 及 Nested Lazy Eager Loading and morphTo。Rust 每次显式选择登记别名，接受类型化关系或通过 `loadMorphPaths` 接受多个已登记路径。关系和聚合共用目标快照替换，每个共享目标只复制一次，查询全部成功后更新父模型的关系缓存。已持有的目标引用继续指向旧快照。旧版 `v0.x` 未找到直接对应入口，固定 Goravel 用作连接级 ORM 参考。 [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#nested-lazy-eager-loading-morphto) · [Laravel 集合](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 实测已有关系覆盖、嵌套路径、同主键不同别名隔离、父模型 JSON、旧引用及 SQL 失败后保留关系。MySQL 同组重载一次 SELECT。SQLite 首轮测试的未限定列名被当作字面量，改用限定列名后双库失败路径均通过。最终工作区 620 项通过、8 项夹具忽略，Rust 1.94 格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建与 18 项浏览器检查通过。

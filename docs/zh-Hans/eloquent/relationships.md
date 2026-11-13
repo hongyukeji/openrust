@@ -286,7 +286,7 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 
 ### 加载多态目标分组
 
-用 `loadMorph` 在返回的批次中加载指定类型组的关系。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 将延后查询的聚合值写回已缓存的多态目标，随后可从父模型关系和 JSON 输出读取。每次调用选择一个别名，同一别名的多个聚合按主键批量合并查询，其他别名保留各自的值。单模型也支持 `loadMorphAggregate` 和 `loadMorphAggregates`。
+用 `loadMorph` 重载指定目标组的类型化关系，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重载已登记路径。父模型关系和 JSON 输出均可读取新结果，已持有的目标引用继续指向旧快照。模型和集合均支持这两个方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 将延后查询的聚合值写回已缓存的多态目标，随后可从父模型关系和 JSON 输出读取。每次调用选择一个别名，同一别名的多个聚合按主键批量合并查询，其他别名保留各自的值。单模型也支持 `loadMorphAggregate` 和 `loadMorphAggregates`。
 
 ```rust
 use openrust::database::{
@@ -311,6 +311,13 @@ use openrust::database::{
     DatabaseResult,
     eloquent::{Collection, Model, RelationAggregate, RelationAggregateQuery, relations::{HasMany, MorphTo}},
 };
+
+pub async fn load_subject_paths<M: Model, T: Model>(
+    parents: &mut Collection<M>,
+    subjects: &MorphTo<M>,
+) -> DatabaseResult<()> {
+    parents.loadMorphPaths::<T>("subject", subjects, "post", &["comments.post"]).await
+}
 
 pub async fn load_subject_totals<M: Model, T: Model, R: Model>(
     parents: &mut Collection<M>,

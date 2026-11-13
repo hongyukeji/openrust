@@ -826,9 +826,19 @@ impl<M: Model> Collection<M> {
         related_name: &str,
         relation: &impl Relation<Parent = T>,
     ) -> DatabaseResult<RelatedBatch<'_, T>> {
-        let mut targets = self.morphModels::<T>(name, morph, alias).await?;
-        targets.load_missing(related_name, relation).await?;
-        Ok(targets)
+        load_morph_relation(&mut self.models, name, morph, alias, related_name, relation).await?;
+        self.morphModels::<T>(name, morph, alias).await
+    }
+
+    /// Reloads the registered relationship paths for one polymorphic target group.
+    pub async fn loadMorphPaths<T: Model>(
+        &mut self,
+        name: &str,
+        morph: &MorphTo<M>,
+        alias: &str,
+        paths: &[&str],
+    ) -> DatabaseResult<()> {
+        load_morph_paths::<M, T>(&mut self.models, name, morph, alias, paths).await
     }
 
     /// Loads a relationship count on one polymorphic target group.
@@ -1379,6 +1389,37 @@ impl<M: Model> Collection<M> {
     }
 }
 
+pub(super) async fn load_morph_relation<M: Model, T: Model>(
+    models: &mut [M],
+    name: &str,
+    morph: &MorphTo<M>,
+    alias: &str,
+    related_name: &str,
+    relation: &impl Relation<Parent = T>,
+) -> DatabaseResult<()> {
+    let mut targets = MorphSnapshots::<T>::prepare(models, name, morph, alias).await?;
+    has_relationships::load(&mut targets.models, related_name, relation, false).await?;
+    targets.install(models, name);
+    Ok(())
+}
+
+pub(super) async fn load_morph_paths<M: Model, T: Model>(
+    models: &mut [M],
+    name: &str,
+    morph: &MorphTo<M>,
+    alias: &str,
+    paths: &[&str],
+) -> DatabaseResult<()> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let loads = NamedRelations::<T>::prepare(paths)?;
+    let mut targets = MorphSnapshots::<T>::prepare(models, name, morph, alias).await?;
+    has_relationships::load_eager(loads, &mut targets.models).await?;
+    targets.install(models, name);
+    Ok(())
+}
+
 pub(super) async fn load_morph_aggregates<M: Model, T: Model>(
     models: &mut [M],
     name: &str,
@@ -1389,60 +1430,69 @@ pub(super) async fn load_morph_aggregates<M: Model, T: Model>(
     if models.is_empty() || aggregates.is_empty() {
         return Ok(());
     }
-    morph.validate_target::<T>(alias)?;
-    has_relationships::load(models, name, morph, true).await?;
-    let outputs = models
-        .iter()
-        .map(|model| {
-            model
+    let mut targets = MorphSnapshots::<T>::prepare(models, name, morph, alias).await?;
+    let refs: Vec<_> = targets.models.iter().collect();
+    let attributes = aggregate_attributes(&refs, aggregates).await?;
+    for (model, attributes) in targets.models.iter_mut().zip(attributes) {
+        let state = model.state_mut();
+        state.apply_attributes(attributes.clone());
+        state.original.extend(attributes);
+    }
+    targets.install(models, name);
+    Ok(())
+}
+
+// One working copy per shared target. Install only after all queries succeed.
+struct MorphSnapshots<T: Model> {
+    models: Vec<T>,
+    parents: Vec<(usize, usize, MorphTarget)>,
+}
+
+impl<T: Model> MorphSnapshots<T> {
+    async fn prepare<M: Model>(
+        models: &mut [M],
+        name: &str,
+        morph: &MorphTo<M>,
+        alias: &str,
+    ) -> DatabaseResult<Self> {
+        morph.validate_target::<T>(alias)?;
+        has_relationships::load(models, name, morph, true).await?;
+        let mut copies = IndexMap::new();
+        let mut parents = Vec::new();
+        for (index, parent) in models.iter().enumerate() {
+            let output = parent
                 .getRelation::<Option<MorphTarget>>(name)
-                .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+                .ok_or(DatabaseError::InvalidQuery("relationship output type"))?;
+            if let Some(target) = output.as_ref().filter(|target| target.alias() == alias) {
+                let model = target
+                    .downcast_ref::<T>()
+                    .ok_or(DatabaseError::InvalidQuery(
+                        "morph type does not match model",
+                    ))?;
+                let entry = copies.entry(std::ptr::from_ref(model).addr());
+                let position = entry.index();
+                entry.or_insert_with(|| T::from_state(model.state().clone()));
+                parents.push((index, position, target.clone()));
+            }
+        }
+        Ok(Self {
+            models: copies.into_values().collect(),
+            parents,
         })
-        .collect::<DatabaseResult<Vec<_>>>()?;
-    let edge = Morph {
-        alias,
-        model: PhantomData::<T>,
-    };
-    let mut targets = IndexMap::new();
-    for output in &outputs {
-        for target in edge.children(output)? {
-            targets.insert(std::ptr::from_ref(target).addr(), target);
+    }
+
+    fn install<M: Model>(self, models: &mut [M], name: &str) {
+        let replacements: Vec<_> = self.models.into_iter().map(Arc::new).collect();
+        for (index, position, mut target) in self.parents {
+            target.replace_model(replacements[position].clone());
+            let model = &mut models[index];
+            model.unsetRelation(name);
+            model
+                .state_mut()
+                .relations
+                .insert_relation::<MorphTo<M>>(name.to_owned(), Some(target));
         }
     }
-    let targets_in_order: Vec<_> = targets.values().copied().collect();
-    let attributes = aggregate_attributes(&targets_in_order, aggregates).await?;
-    let replacements = targets
-        .into_iter()
-        .zip(attributes)
-        .map(|((address, model), attributes)| {
-            let mut state = model.state().clone();
-            state.apply_attributes(attributes.clone());
-            state.original.extend(attributes);
-            (address, Arc::new(T::from_state(state)))
-        })
-        .collect::<HashMap<_, _>>();
-    if replacements.is_empty() {
-        return Ok(());
-    }
-    let updated = outputs
-        .into_iter()
-        .enumerate()
-        .filter(|(_, output)| {
-            output
-                .as_ref()
-                .is_some_and(|target| target.alias() == alias)
-        })
-        .map(|(index, output)| Ok((index, edge.replace(output, &replacements)?)))
-        .collect::<DatabaseResult<Vec<_>>>()?;
-    for (index, output) in updated {
-        let model = &mut models[index];
-        model.unsetRelation(name);
-        model
-            .state_mut()
-            .relations
-            .insert_relation::<MorphTo<M>>(name.to_owned(), output);
-    }
-    Ok(())
 }
 
 pub(super) async fn aggregate_attributes<M: Model>(

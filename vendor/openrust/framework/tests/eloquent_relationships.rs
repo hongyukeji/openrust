@@ -746,6 +746,116 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
     })
 }
 
+async fn verify_morph_relation_writeback(
+    db: &Connection,
+    mysql: bool,
+    comments: &mut Collection<Comment>,
+    subjects: &MorphTo<Comment>,
+) {
+    let subject = |comment: &Comment| {
+        comment
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+            .clone()
+    };
+    let index = comments
+        .iter()
+        .position(|comment| {
+            subject(comment).is_some_and(|target| {
+                target.alias() == "post"
+                    && target.downcast_ref::<Post>().unwrap().getKey() == Some(&1.into())
+            })
+        })
+        .unwrap();
+    let before = subject(&comments[index]).unwrap();
+    assert!(
+        !before
+            .downcast_ref::<Post>()
+            .unwrap()
+            .getRelation::<Vec<Arc<Comment>>>("comments")
+            .unwrap()
+            .is_empty()
+    );
+    assert!(comments[index].toArray().unwrap()["subject"]["comments"].is_array());
+    let author = comments
+        .iter()
+        .find_map(|comment| subject(comment).filter(|target| target.alias() == "author"))
+        .unwrap();
+    assert!(
+        !author
+            .downcast_ref::<Author>()
+            .unwrap()
+            .relationLoaded("comments")
+    );
+
+    let empty = POST_COMMENTS.constrain(|mut query| {
+        query.r#where("id", "<", 0);
+        query
+    });
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    comments
+        .loadMorph("subject", subjects, "post", "comments", &empty)
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    assert_eq!(
+        comments[index].toArray().unwrap()["subject"]["comments"],
+        json!([])
+    );
+    assert!(
+        !before
+            .downcast_ref::<Post>()
+            .unwrap()
+            .getRelation::<Vec<Arc<Comment>>>("comments")
+            .unwrap()
+            .is_empty()
+    );
+
+    let invalid = POST_COMMENTS.constrain(|mut query| {
+        query.r#where("relation_comments.missing_comment_column", "=", 1);
+        query
+    });
+    assert!(
+        comments
+            .loadMorph("subject", subjects, "post", "comments", &invalid)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        comments[index].toArray().unwrap()["subject"]["comments"],
+        json!([])
+    );
+
+    comments
+        .loadMorphPaths::<Post>("subject", subjects, "post", &["comments.post"])
+        .await
+        .unwrap();
+    let nested = subject(&comments[index]).unwrap();
+    let children = nested
+        .downcast_ref::<Post>()
+        .unwrap()
+        .getRelation::<Vec<Arc<Comment>>>("comments")
+        .unwrap();
+    assert!(!children.is_empty());
+    assert!(
+        children
+            .iter()
+            .all(|comment| comment.relationLoaded("post"))
+    );
+    let projected = comments[index].toArray().unwrap();
+    assert!(projected["subject"]["comments"].is_array());
+
+    let mut single = Comment::from_state(comments[index].state().clone());
+    single
+        .loadMorph("subject", subjects, "post", "comments", &empty)
+        .await
+        .unwrap();
+    assert_eq!(single.toArray().unwrap()["subject"]["comments"], json!([]));
+    assert_eq!(comments[index].toArray().unwrap(), projected);
+}
+
 async fn verify_morph_aggregates(
     db: &Connection,
     mysql: bool,
@@ -906,6 +1016,13 @@ fn verify_morph_batches(
             assert_eq!(select_count(db).await - baseline, 2);
         }
 
+        Box::pin(verify_morph_relation_writeback(
+            db,
+            mysql,
+            &mut comments,
+            &subjects(),
+        ))
+        .await;
         Box::pin(verify_morph_aggregates(
             db,
             mysql,

@@ -985,6 +985,42 @@ pub trait Model: Sized + Send + Sync + 'static {
         concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false)
     }
 
+    /// Reloads a relationship on this model's cached polymorphic target.
+    fn loadMorph<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl Relation<Parent = T>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        super::collection::load_morph_relation(
+            std::slice::from_mut(self),
+            name,
+            morph,
+            alias,
+            related_name,
+            relation,
+        )
+    }
+
+    /// Reloads registered relationship paths on this model's cached polymorphic target.
+    fn loadMorphPaths<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        paths: &'a [&'a str],
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        super::collection::load_morph_paths::<Self, T>(
+            std::slice::from_mut(self),
+            name,
+            morph,
+            alias,
+            paths,
+        )
+    }
+
     /// Loads an aggregate onto this model's cached polymorphic target.
     fn loadMorphAggregate<'a, T: Model>(
         &'a mut self,

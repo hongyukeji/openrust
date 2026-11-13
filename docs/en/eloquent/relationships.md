@@ -286,7 +286,7 @@ fn withDefaultCounts(query: Builder<'static, Self>) -> DatabaseResult<Builder<'s
 
 ### Loading Polymorphic Target Groups
 
-Use `loadMorph` to load a relationship for one typed target group in the returned batch. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.
+Use `loadMorph` to reload a typed relationship on one target group, or `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` to reload registered paths. Loaded values are available through the parent relation and its JSON projection. A previously held target reference still points to its earlier snapshot. Both methods are available on models and collections. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.
 
 ```rust
 use openrust::database::{
@@ -311,6 +311,13 @@ use openrust::database::{
     DatabaseResult,
     eloquent::{Collection, Model, RelationAggregate, RelationAggregateQuery, relations::{HasMany, MorphTo}},
 };
+
+pub async fn load_subject_paths<M: Model, T: Model>(
+    parents: &mut Collection<M>,
+    subjects: &MorphTo<M>,
+) -> DatabaseResult<()> {
+    parents.loadMorphPaths::<T>("subject", subjects, "post", &["comments.post"]).await
+}
 
 pub async fn load_subject_totals<M: Model, T: Model, R: Model>(
     parents: &mut Collection<M>,
