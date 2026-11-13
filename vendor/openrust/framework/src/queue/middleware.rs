@@ -31,16 +31,19 @@ pub trait JobMiddleware: Send + Sync {
 pub struct JobNext<'a> {
     handler: &'a dyn JobHandler,
     middleware: &'a [Arc<dyn JobMiddleware>],
+    app: &'a crate::container::Container,
 }
 
 impl<'a> JobNext<'a> {
     pub(super) fn new(
         handler: &'a dyn JobHandler,
         middleware: &'a [Arc<dyn JobMiddleware>],
+        app: &'a crate::container::Container,
     ) -> Self {
         Self {
             handler,
             middleware,
+            app,
         }
     }
 
@@ -50,7 +53,20 @@ impl<'a> JobNext<'a> {
         payload: &'a Payload,
     ) -> QueueFuture<'a, QueueResult<()>> {
         if let Some((middleware, remaining)) = self.middleware.split_first() {
-            middleware.handle(context, payload, Self::new(self.handler, remaining))
+            middleware.handle(
+                context,
+                payload,
+                Self::new(self.handler, remaining, self.app),
+            )
+        } else if payload
+            .unique_lock
+            .as_ref()
+            .is_some_and(|lock| lock.until_processing)
+        {
+            Box::pin(async move {
+                super::unique_job::release(self.app, payload).await?;
+                self.handler.handle(context, payload).await
+            })
         } else {
             self.handler.handle(context, payload)
         }

@@ -1,6 +1,6 @@
 use std::time::SystemTime;
 
-use crate::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult};
+use crate::queue::{JobContext, Payload, QueueError, QueueFuture, QueueResult, UniqueJob};
 
 use super::Interruptible;
 
@@ -12,6 +12,12 @@ pub trait JobHandler: Send + Sync {
 
     fn middleware(&self) -> Vec<std::sync::Arc<dyn crate::queue::middleware::JobMiddleware>> {
         Vec::new()
+    }
+
+    /// Determines whether a dispatched payload holds an application cache lock.
+    #[allow(non_snake_case, reason = "Uses Laravel's unique job naming")]
+    fn uniqueJob(&self, _payload: &Payload) -> Option<UniqueJob> {
+        None
     }
 
     fn handle<'a>(

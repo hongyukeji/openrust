@@ -595,6 +595,7 @@ impl Worker {
                     .await?;
             }
             job.delete().await?;
+            self.release_unique_lock(job.payload()).await;
             return Ok(WorkResult::Failed);
         }
         let manager = self
@@ -943,6 +944,7 @@ impl Worker {
                 return self.complete_recorded(job, recorded).await;
             }
             self.complete(job, edit.map(|edit| edit.next)).await?;
+            self.release_unique_lock(job.payload()).await;
             false
         };
         self.observe_job_event(manager, job, JobProcessed::NAME, |connection_name, job| {
@@ -1076,6 +1078,7 @@ impl Worker {
         }
         job.fail(Some(error)).await?;
         let payload = job.payload();
+        self.release_unique_lock(payload).await;
         if !payload.chain_catches().is_empty() {
             isolated_scope(self.app.clone(), manager.run_chain_catches(payload, error)).await;
         }
@@ -1099,6 +1102,12 @@ impl Worker {
             self.report_worker_error(&callback_error).await;
         }
         Ok(WorkResult::Failed)
+    }
+
+    async fn release_unique_lock(&self, payload: &Payload) {
+        if let Err(error) = super::unique_job::release(&self.app, payload).await {
+            self.report_worker_error(&error).await;
+        }
     }
 }
 

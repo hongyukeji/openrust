@@ -20,9 +20,11 @@ mod queue_manager;
 mod queue_service_provider;
 mod redis_queue;
 mod sync_queue;
+mod unique_job;
 mod worker;
 mod worker_attempt_marker;
 mod worker_control;
+pub use unique_job::UniqueJob;
 mod worker_hooks;
 mod worker_options;
 mod worker_signals;
@@ -180,6 +182,8 @@ pub struct Payload {
     name: String,
     data: serde_json::Value,
     options: JobOptions,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unique_lock: Option<unique_job::UniqueJobLock>,
     #[serde(
         default,
         skip_serializing_if = "crate::log::context::DehydratedContext::is_empty"
@@ -219,6 +223,7 @@ impl Payload {
             name,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
+            unique_lock: None,
             context: Default::default(),
             delivery_id: None,
             batch_id: None,
@@ -267,6 +272,7 @@ impl Payload {
     }
 
     pub(super) fn renewed(mut self) -> QueueResult<Self> {
+        self.unique_lock = None;
         self.delivery_id = Some(new_id()?);
         Ok(self)
     }
@@ -372,6 +378,7 @@ pub enum DispatchResult {
     Completed,
     Queued(String),
     Deferred,
+    Duplicate,
 }
 
 pub(super) fn queue_name<'a>(selected: Option<&'a str>, default: &'a str) -> QueueResult<&'a str> {

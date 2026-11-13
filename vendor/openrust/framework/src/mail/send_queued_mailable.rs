@@ -95,7 +95,9 @@ impl SendQueuedMailable {
             .map_err(MailError::Queue)?
         {
             DispatchResult::Queued(id) => Ok(Some(id)),
-            DispatchResult::Deferred | DispatchResult::Completed => Ok(None),
+            DispatchResult::Deferred | DispatchResult::Completed | DispatchResult::Duplicate => {
+                Ok(None)
+            }
         }
     }
 }

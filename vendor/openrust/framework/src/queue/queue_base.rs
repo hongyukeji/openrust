@@ -81,7 +81,7 @@ impl Queue {
         Ok(())
     }
 
-    fn handler(&self, name: &str) -> Option<Arc<dyn JobHandler>> {
+    pub(super) fn handler(&self, name: &str) -> Option<Arc<dyn JobHandler>> {
         self.handlers
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -135,7 +135,7 @@ impl Queue {
             .owner
             .upgrade()
             .ok_or(QueueError::InvalidConfiguration)?;
-        application_scope(owner, async {
+        application_scope(owner.clone(), async {
             let middleware = handler.middleware();
             let running = context
                 .running_handler
@@ -145,7 +145,7 @@ impl Queue {
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(handler.clone());
             }
-            let result = super::middleware::JobNext::new(handler.as_ref(), &middleware)
+            let result = super::middleware::JobNext::new(handler.as_ref(), &middleware, &owner)
                 .run(context, payload)
                 .await;
             if let Some(running) = running {

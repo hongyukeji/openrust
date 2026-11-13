@@ -29,8 +29,8 @@ mod acceptance {
         http::{HttpError, HttpFuture, Request, Response},
         log::context::Context,
         queue::{
-            Delay, DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture,
-            QueueManager, QueueResult,
+            Delay, DispatchOptions, DispatchResult, JobContext, JobOptions, Payload, QueueError,
+            QueueFuture, QueueManager, QueueResult, UniqueJob,
             console::ClearCommand,
             failed::{FailedJob, FailedJobProviderInterface},
         },
@@ -73,6 +73,17 @@ mod acceptance {
 
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
+        #[allow(non_snake_case, reason = "Implements Laravel-style uniqueness policy")]
+        fn uniqueJob(&self, payload: &Payload) -> Option<UniqueJob> {
+            let kind = payload.data().as_str()?;
+            kind.starts_with("unique-").then(|| UniqueJob {
+                id: kind.into(),
+                for_seconds: Some(60),
+                via: Some("redis".into()),
+                until_processing: kind == "unique-until-processing",
+            })
+        }
+
         fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
             if !self.1 {
                 return Vec::new();
@@ -117,6 +128,8 @@ mod acceptance {
                     }
                     "callback-terminal"
                     | "callback-retry"
+                    | "unique-retry"
+                    | "unique-failure"
                     | "callback-error"
                     | "callback-sync"
                     | "callback-sync-error"
@@ -149,6 +162,9 @@ mod acceptance {
                     "runtime-drain" => {
                         wait_for_file(&self.0, "runtime-job.release").await;
                         std::fs::write(self.0.join("runtime-job.complete"), []).map_err(error)?;
+                    }
+                    "unique-until-processing" => {
+                        wait_for_file(&self.0, "unique.release").await;
                     }
                     "cpu" => loop {
                         std::hint::spin_loop();
@@ -1003,6 +1019,79 @@ mod acceptance {
         let (first, second) = tokio::join!(run(&[], false), run(&[], false));
         assert_eq!(removed(first) + removed(second), 31);
         assert_eq!(count("prune-fresh-0").await, 1);
+    }
+
+    async fn verify_unique_jobs(root: &Path, manager: &QueueManager) {
+        let publish = |kind, tries| async move {
+            manager
+                .dispatch(
+                    Payload::new("hard-timeout-probe", kind)
+                        .unwrap()
+                        .with_options(JobOptions {
+                            max_tries: Some(tries),
+                            ..JobOptions::default()
+                        }),
+                    DispatchOptions {
+                        queue: Some("unique-probe".into()),
+                        ..DispatchOptions::default()
+                    },
+                    None,
+                )
+                .await
+                .unwrap()
+        };
+        let args = ["--once", "--queue=unique-probe"];
+        let (a, b) = tokio::join!(publish("unique-retry", 2), publish("unique-retry", 2));
+        assert!(matches!(
+            (a, b),
+            (DispatchResult::Queued(_), DispatchResult::Duplicate)
+                | (DispatchResult::Duplicate, DispatchResult::Queued(_))
+        ));
+        assert_eq!(artisan(root, &args, false).await.0, Some(0));
+        assert_eq!(publish("unique-retry", 2).await, DispatchResult::Duplicate);
+        assert_eq!(artisan(root, &args, false).await.0, Some(0));
+        assert!(matches!(
+            publish("unique-retry", 2).await,
+            DispatchResult::Queued(_)
+        ));
+        for _ in 0..2 {
+            assert_eq!(artisan(root, &args, false).await.0, Some(0));
+        }
+        for _ in 0..2 {
+            assert!(matches!(
+                publish("unique-failure", 1).await,
+                DispatchResult::Queued(_)
+            ));
+            assert_eq!(
+                publish("unique-failure", 1).await,
+                DispatchResult::Duplicate
+            );
+            assert_eq!(artisan(root, &args, false).await.0, Some(0));
+            assert!(root.join("unique-failure.failed").is_file());
+            std::fs::remove_file(root.join("unique-failure.failed")).unwrap();
+        }
+        assert!(matches!(
+            publish("unique-until-processing", 1).await,
+            DispatchResult::Queued(_)
+        ));
+        assert_eq!(
+            publish("unique-until-processing", 1).await,
+            DispatchResult::Duplicate
+        );
+        let run = artisan(root, &args, false);
+        let observe = async {
+            wait_for_file(root, "unique-until-processing.pid").await;
+            let result = publish("unique-until-processing", 1).await;
+            std::fs::write(root.join("unique.release"), []).unwrap();
+            assert!(matches!(result, DispatchResult::Queued(_)));
+        };
+        let ((status, _), ()) = tokio::join!(run, observe);
+        assert_eq!(status, Some(0));
+        assert_eq!(
+            publish("unique-until-processing", 1).await,
+            DispatchResult::Duplicate
+        );
+        assert_eq!(artisan(root, &args, false).await.0, Some(0));
     }
 
     async fn verify_failed_handler(
@@ -2230,6 +2319,14 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_UNIQUE_ONLY").is_some() {
+            if backend != "sqlite" {
+                verify_unique_jobs(&root.0, &manager).await;
+                assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);
+                eprintln!("Unique job process acceptance passed on {backend}");
+            }
+            return;
+        }
         for (kind, fail_on_timeout) in [("cpu", false), ("blocking", true), ("external", true)] {
             let payload = Payload::new("hard-timeout-probe", kind)
                 .unwrap()
@@ -2358,6 +2455,14 @@ mod acceptance {
         assert!(!root.0.join("continue.failed").exists());
         verify_failed_handler(&root.0, &app, &manager, &*queue).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 6);
+        if backend != "sqlite" && std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_some() {
+            verify_unique_jobs(&root.0, &manager).await;
+            assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 8);
+            db.statement("delete from failed_jobs where queue = 'unique-probe'", &[])
+                .await
+                .unwrap();
+            eprintln!("Unique job process acceptance passed on {backend}");
+        }
         if cfg!(unix) {
             if backend != "redis" {
                 verify_prune_failed(&root.0, &app, &db).await;

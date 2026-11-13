@@ -655,6 +655,7 @@ fn conditional_chain_route(request: &mut Request) -> HttpFuture<'_, Result<Respo
             Some(DispatchResult::Queued(_)) => "queued",
             Some(DispatchResult::Completed) => "completed",
             Some(DispatchResult::Deferred) => "deferred",
+            Some(DispatchResult::Duplicate) => "duplicate",
             None => "skipped",
         };
         Response::json(StatusCode::OK, json!({ "state": state, "calls": calls }))

@@ -85,6 +85,7 @@ fn send(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
                 DispatchResult::Completed => "sync".to_owned(),
                 DispatchResult::Queued(id) => id,
                 DispatchResult::Deferred => unreachable!(),
+                DispatchResult::Duplicate => "duplicate".into(),
             }),
         )
     })

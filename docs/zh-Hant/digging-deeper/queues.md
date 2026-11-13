@@ -66,6 +66,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+## 唯一工作 {#unique-jobs}
+
+在 `JobHandler::uniqueJob(&self, payload: &Payload) -> Option<UniqueJob>` 傳回唯一策略。`id` 在已註冊的工作名稱內識別工作。派送程序和 Worker 分開執行時，將 `via` 設為 `redis` 等共享快取儲存庫。`for_seconds` 可指定鎖租期。重複派送傳回 `DispatchResult::Duplicate`。
+
+預設策略在重試期間保留鎖，在成功或最終失敗時釋放。設定 `until_processing: true` 可在處理常式執行前釋放。使用中交易的唯一工作在提交後取得鎖，明確指定 `after_commit: false` 會傳回錯誤。批次工作依批次派送規則處理。
+
 ## 連線與預約
 
 應用程式骨架預設使用 `QUEUE_CONNECTION=database`。執行 `./artisan migrate` 建立 `jobs` 資料表。`sync` 立即執行並傳回處理結果，`database` 和 `redis` 將工作加入佇列。連線可以設定預設佇列和 `retry_after`。使用 `Delay::For` 設定相對時長，或使用 `Delay::Until` 指定絕對時間。

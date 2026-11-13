@@ -353,14 +353,29 @@ impl QueueManager {
         self.capture_context(&mut payload)?;
         let configured = self.resolve(options.connection.as_deref())?;
         let queue = configured.queue.clone();
+        payload.unique_lock = None;
+        let unique = if payload.batch_id.is_none() && payload.chained_batch.is_none() {
+            self.registry
+                .handler(payload.name())
+                .and_then(|handler| handler.uniqueJob(&payload))
+        } else {
+            None
+        };
+        let owner = unique
+            .as_ref()
+            .map(|_| self.owner.upgrade().ok_or(QueueError::InvalidConfiguration))
+            .transpose()?;
         let selected = options.queue.as_deref();
         let transaction = transaction.filter(|transaction| transaction.transactionLevel() != 0);
         if let Some(transaction) = transaction {
-            if options.after_commit.unwrap_or(configured.after_commit) {
+            if unique.is_some() && options.after_commit == Some(false) {
+                return Err(QueueError::InvalidConfiguration);
+            }
+            if unique.is_some() || options.after_commit.unwrap_or(configured.after_commit) {
                 transaction
                     .afterCommit(move || {
                         Box::pin(async move {
-                            dispatch(&*queue, &payload, &options)
+                            dispatch_unique(&*queue, payload, &options, owner.zip(unique))
                                 .await
                                 .map(|_| ())
                                 .map_err(|source| DatabaseError::AfterCommit {
@@ -376,7 +391,7 @@ impl QueueManager {
                 .await
                 .map(dispatch_result);
         }
-        dispatch(&*queue, &payload, &options).await
+        dispatch_unique(&*queue, payload, &options, owner.zip(unique)).await
     }
 
     pub(crate) async fn retry_failed(
@@ -1293,6 +1308,26 @@ async fn dispatch(
         None => queue.push(payload, selected).await,
     }
     .map(dispatch_result)
+}
+
+async fn dispatch_unique(
+    queue: &dyn Contract,
+    mut payload: Payload,
+    options: &DispatchOptions,
+    unique: Option<(Arc<Container>, super::UniqueJob)>,
+) -> QueueResult<DispatchResult> {
+    let Some((owner, policy)) = unique else {
+        return dispatch(queue, &payload, options).await;
+    };
+    if !super::unique_job::acquire(&owner, &mut payload, policy).await? {
+        return Ok(DispatchResult::Duplicate);
+    }
+    let result = dispatch(queue, &payload, options).await;
+    if !matches!(result, Ok(DispatchResult::Queued(_))) {
+        let released = super::unique_job::release(&owner, &payload).await;
+        return result.and(released.map(|()| DispatchResult::Completed));
+    }
+    result
 }
 
 fn dispatch_result(id: Option<String>) -> DispatchResult {

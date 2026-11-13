@@ -66,6 +66,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+## Unique jobs {#unique-jobs}
+
+Return a policy from `JobHandler::uniqueJob(&self, payload: &Payload) -> Option<UniqueJob>` to make a job unique. `id` identifies a job within its registered name. Set `via` to a shared cache store such as `redis` when producers and workers run in separate processes. `for_seconds` sets an optional lock lease. A competing dispatch returns `DispatchResult::Duplicate`.
+
+The default policy keeps the lock through retries and releases it on completion or terminal failure. Set `until_processing: true` to release it immediately before the handler runs. Unique dispatch within an active transaction acquires the lock after commit and rejects an explicit `after_commit: false`. Batch jobs use their batch delivery rules.
+
 ## Connections and reservations
 
 The skeleton uses `QUEUE_CONNECTION=database` by default. Run `./artisan migrate` to create `jobs`. `sync` executes immediately and returns the handler's result. `database` and `redis` enqueue jobs. A connection can override its default queue and `retry_after`. Use `Delay::For` for a duration or `Delay::Until` for an absolute time.
