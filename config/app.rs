@@ -30,7 +30,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "url": url,
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
-        "timezone": "UTC",
+        "timezone": get(env, "APP_TIMEZONE", "UTC")?,
         "locale": get(env, "APP_LOCALE", "en")?,
         "fallback_locale": get(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": get(env, "APP_FAKER_LOCALE", "en_US")?,
