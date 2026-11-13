@@ -42,6 +42,19 @@ impl DeferredCallbacks {
     }
 
     pub(crate) async fn invoke(&self, application: &Application, successful: bool) {
+        self.invoke_with(successful, |error| async move {
+            let _ = application.report(error.as_ref()).await;
+        })
+        .await;
+    }
+
+    pub(crate) async fn invoke_with<F>(
+        &self,
+        successful: bool,
+        report: impl Fn(Box<dyn std::error::Error + Send + Sync>) -> F,
+    ) where
+        F: Future<Output = ()>,
+    {
         let callbacks = std::mem::take(
             &mut *self
                 .0
@@ -52,7 +65,7 @@ impl DeferredCallbacks {
             if (successful || callback.always.load(Ordering::Acquire))
                 && let Err(error) = callback.future.await
             {
-                let _ = application.report(error.as_ref()).await;
+                report(error).await;
             }
         }
     }

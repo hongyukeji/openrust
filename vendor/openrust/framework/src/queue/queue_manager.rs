@@ -74,6 +74,7 @@ enum BatchBackend {
 struct Settings {
     driver: String,
     connection: Option<String>,
+    connections: Option<Vec<String>>,
     table: Option<String>,
     queue: Option<String>,
     retry_after: Option<i64>,
@@ -83,6 +84,20 @@ struct Settings {
 }
 
 impl QueueManager {
+    pub(super) async fn run_background(
+        &self,
+        name: String,
+        queue: String,
+        payload: Payload,
+    ) -> QueueResult<()> {
+        SyncQueue {
+            name,
+            registry: self.registry.clone(),
+        }
+        .push(&payload, Some(&queue))
+        .await
+        .map(|_| ())
+    }
     pub(super) fn new(config: Arc<dyn Repository>, owner: Weak<Container>) -> Self {
         Self {
             config,
@@ -1240,7 +1255,10 @@ impl QueueManager {
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
-            synchronous: settings.driver == "sync",
+            synchronous: matches!(
+                settings.driver.as_str(),
+                "sync" | "null" | "deferred" | "background"
+            ),
             default_queue: settings.queue.clone().unwrap_or_else(|| "default".into()),
             batch_backend,
         });
@@ -1260,6 +1278,32 @@ impl QueueManager {
             return Err(QueueError::InvalidConfiguration);
         }
         let driver: (Arc<dyn Contract>, BatchBackend) = match settings.driver.as_str() {
+            "null" | "deferred" | "background" => {
+                use super::lifecycle_queue::{Lifecycle, LifecycleQueue};
+                let lifecycle = match settings.driver.as_str() {
+                    "null" => Lifecycle::Null,
+                    "deferred" => Lifecycle::Deferred,
+                    _ => Lifecycle::Background,
+                };
+                (
+                    Arc::new(LifecycleQueue {
+                        name: name.into(),
+                        queue,
+                        registry,
+                        lifecycle,
+                    }),
+                    BatchBackend::Unsupported,
+                )
+            }
+            "failover" => (
+                Arc::new(super::failover_queue::FailoverQueue::new(
+                    name,
+                    queue,
+                    settings.connections.clone().unwrap_or_default(),
+                    registry,
+                )?),
+                BatchBackend::Unsupported,
+            ),
             "sync" => (
                 Arc::new(SyncQueue {
                     name: name.into(),

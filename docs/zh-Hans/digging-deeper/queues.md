@@ -90,6 +90,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 连接按应用缓存。首次并发解析可能构建多个候选连接，因此工厂需要能安全重试。队列契约支持派发和预约。原子批次发布使用内置数据库和 Redis 连接。
 
+## 其他队列连接 {#additional-queue-connections}
+
+`null` 连接丢弃任务。`deferred` 在 HTTP 请求或 Artisan 命令成功后，在同一进程执行。`background` 在同一终止阶段启动独立 Artisan 进程。这些连接无持久预约，派发延时不影响执行。后台进程由发起进程监督。Deferred 和 Background 接收普通任务，要求活动的 HTTP 或 Artisan 生命周期。成功的 Worker 尝试也会执行本次登记的生命周期任务。发布时保持生产端和 Worker 的处理器名称与 JSON 字段兼容。PHP 序列化对象和闭包使用独立的线格式。
+
+按优先顺序配置 `failover.connections`。发布失败时尝试下一个连接，连接开始失败时派发 `QueueFailedOver`。Failover 连接从首选连接读取和预约。为持久后备连接单独启动 Worker。存储写入成功但确认失败时可能重复执行，任务处理器需保持幂等。
+
 ## 在数据库事务中派发
 
 将活动事务作为 `Queue::dispatch` 的最后一个参数。连接开启 `after_commit` 时，任务在最外层提交后派发。可以通过 `DispatchOptions.after_commit` 覆盖连接配置。回滚会丢弃待派发任务。立即派发时，同一连接的数据库队列在事务内写入，sync 处理器可用 `JobContext::transaction` 访问当前事务。

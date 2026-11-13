@@ -16,6 +16,22 @@ use super::{
 pub struct QueueServiceProvider;
 
 impl ServiceProvider for QueueServiceProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> QueueFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let registry = app
+                .container_handle()
+                .make::<crate::concurrency::Registry>()?;
+            registry.register(
+                super::lifecycle_queue::BACKGROUND_TASK,
+                |(name, queue, payload): (String, String, super::Payload)| async move {
+                    let manager = super::QueueFacade::manager()?;
+                    manager.run_background(name, queue, payload).await
+                },
+            )?;
+            Ok(())
+        })
+    }
+
     fn register<'a>(&'a mut self, app: &'a Application) -> QueueFuture<'a, ProviderResult> {
         Box::pin(async move {
             let container = app.container_handle();

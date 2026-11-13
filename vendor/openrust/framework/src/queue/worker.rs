@@ -602,8 +602,16 @@ impl Worker {
             .app
             .make::<QueueManager>()
             .map_err(QueueError::Unavailable)?;
-        let result =
-            Box::pin(self.attempt(job, options, &manager, batch.as_ref(), attempt, signals)).await;
+        let deferred = crate::concurrency::DeferredCallbacks::default();
+        let result = Box::pin(deferred.scope(self.attempt(
+            job,
+            options,
+            &manager,
+            batch.as_ref(),
+            attempt,
+            signals,
+        )))
+        .await;
         self.finish_attempt_marker(&mut attempt.marker).await;
         if attempt.stop_on_timeout && attempt.timed_out {
             return result;
@@ -621,6 +629,20 @@ impl Worker {
             }
         })
         .await;
+        if !deferred.is_empty() {
+            isolated_scope(
+                self.app.clone(),
+                deferred.invoke_with(
+                    matches!(result, Ok(WorkResult::Processed)),
+                    |error| async move {
+                        if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
+                            let _ = handler.report(&Exception::Error(error.as_ref())).await;
+                        }
+                    },
+                ),
+            )
+            .await;
+        }
         if !attempt.handled_failure
             && let Some(error) = attempt.cause.as_ref()
         {

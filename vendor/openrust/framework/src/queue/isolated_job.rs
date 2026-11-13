@@ -77,7 +77,13 @@ pub(crate) async fn serve(
         }
         result
     });
-    let result = execution.await;
+    let deferred = crate::concurrency::DeferredCallbacks::default();
+    let result = deferred.scope(execution).await;
+    isolated_scope(
+        container,
+        deferred.invoke(&app, result.is_ok() && context.release_after.is_none()),
+    )
+    .await;
     let response = Response {
         error: result.err().map(|error| {
             let mut text = error.to_string();

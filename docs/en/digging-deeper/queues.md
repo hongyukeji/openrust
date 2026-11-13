@@ -90,6 +90,12 @@ In a service provider, register a connector with `Queue::extend("custom", connec
 
 Connections are cached per application. Concurrent first lookups may build several candidates, so make the connector safe to retry. The queue contract supports dispatch and reservation. Atomic batch publication uses the built-in database and Redis connections.
 
+## Additional queue connections {#additional-queue-connections}
+
+The `null` connection discards jobs. The `deferred` connection executes after a successful HTTP response or Artisan command in the same process. The `background` connection uses that lifecycle to invoke a separate Artisan process. These connections hold no durable reservations and do not wait for a dispatch delay. Background execution is supervised by the originating process. Deferred and background dispatch require an active HTTP or Artisan lifecycle and accept ordinary jobs. A successful worker attempt can also schedule lifecycle jobs. Deploy compatible handler names and JSON fields across producers and workers. PHP serialized objects and closures are a separate wire format.
+
+Configure `failover.connections` in priority order. Publication tries the next connection on error and emits `QueueFailedOver` when a connection begins failing. The failover connection reads and reserves from its first connection. Run separate workers for durable fallback connections. An ambiguous storage error after a successful write can lead to duplicate execution. Keep handlers idempotent.
+
 ## Dispatching with database transactions
 
 Pass the active transaction as the last argument of `Queue::dispatch`. A connection with `after_commit` enabled dispatches only after the outer commit. Set `DispatchOptions.after_commit` to override the connection setting. Rolling back discards deferred dispatch. With immediate dispatch, a database queue on the same connection writes within the transaction, and a sync handler can access it via `JobContext::transaction`.

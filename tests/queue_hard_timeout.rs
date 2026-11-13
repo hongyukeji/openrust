@@ -15,7 +15,10 @@ mod acceptance {
 
     use openrust::contracts::http::Kernel as _;
     use openrust::{
-        console::{Application as Artisan, ConsoleError},
+        console::{
+            Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
+            Output,
+        },
         contracts::events::{Event as EventPayload, Listener},
         contracts::{container::Container as _, foundation::Application as _, queue::JobHandler},
         database::{Connection as DatabaseConnection, DatabaseManager, Value as DatabaseValue},
@@ -186,10 +189,37 @@ mod acceptance {
                     }
                     "deadline-refresh" | "deadline-clear" | "sync-success" | "sync-after-error" => {
                     }
-                    "listener-first" | "listener-second" | "selection-default"
-                    | "selection-priority" | "maintenance-probe" | "callback-follow-up"
-                    | "runtime-next" | "bus-now" | "bus-sync" | "bus-after-response"
-                    | "bus-queued" | "bus-bulk" => {}
+                    "listener-first"
+                    | "listener-second"
+                    | "selection-default"
+                    | "selection-priority"
+                    | "maintenance-probe"
+                    | "callback-follow-up"
+                    | "runtime-next"
+                    | "bus-now"
+                    | "bus-sync"
+                    | "bus-after-response"
+                    | "bus-queued"
+                    | "bus-bulk"
+                    | "driver-null"
+                    | "driver-deferred"
+                    | "driver-background"
+                    | "driver-failover"
+                    | "driver-primary"
+                    | "driver-console"
+                    | "driver-worker-deferred" => {}
+                    "driver-worker" => {
+                        Queue::dispatch(
+                            Payload::new("hard-timeout-probe", "driver-worker-deferred")?,
+                            DispatchOptions {
+                                connection: Some("deferred".into()),
+                                ..Default::default()
+                            },
+                            None,
+                        )
+                        .await?;
+                        assert!(!self.0.join("driver-worker-deferred.pid").exists());
+                    }
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -629,6 +659,29 @@ mod acceptance {
         Box::pin(async { Ok(Response::empty(axum::http::StatusCode::NO_CONTENT)) })
     }
 
+    fn driver_probe(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let driver = request.route("driver").unwrap();
+            let kind = request.route("kind").unwrap();
+            Queue::dispatch(
+                Payload::new("hard-timeout-probe", kind)?,
+                DispatchOptions {
+                    connection: Some(driver.into()),
+                    queue: Some("driver-probe".into()),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await?;
+            let status = if request.uri().query().is_some() {
+                axum::http::StatusCode::BAD_REQUEST
+            } else {
+                axum::http::StatusCode::NO_CONTENT
+            };
+            Ok(Response::empty(status))
+        })
+    }
+
     fn bus_probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async {
             let payload = |kind| Payload::new("hard-timeout-probe", kind);
@@ -660,10 +713,46 @@ mod acceptance {
         router.get("/callback/{kind}", dispatch_probe)?;
         router.get("/runtime", runtime_probe)?;
         router.get("/bus", bus_probe)?;
+        router.get("/driver/{driver}/{kind}", driver_probe)?;
         Ok(router)
     }
 
-    fn register_schedule(_: &mut Artisan) -> Result<(), ConsoleError> {
+    struct DeferredProbeCommand(CommandDefinition);
+
+    impl Command for DeferredProbeCommand {
+        fn definition(&self) -> &CommandDefinition {
+            &self.0
+        }
+
+        fn handle<'a>(
+            &'a self,
+            app: &'a Application,
+            _: &'a Input,
+            _: &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+            Box::pin(async move {
+                let payload = Payload::new("hard-timeout-probe", "driver-console")
+                    .map_err(|error| ConsoleError::new(error.to_string()))?;
+                Queue::dispatch(
+                    payload,
+                    DispatchOptions {
+                        connection: Some("deferred".into()),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))?;
+                assert!(!app.base_path().join("driver-console.pid").exists());
+                Ok(0)
+            })
+        }
+    }
+
+    fn register_schedule(artisan: &mut Artisan) -> Result<(), ConsoleError> {
+        artisan.add_command(Box::new(DeferredProbeCommand(CommandDefinition::new(
+            clap::Command::new("probe:deferred"),
+        ))))?;
         if std::env::var_os("RUNNER_TEST_SCHEDULE").is_some() {
             Schedule::configure(|schedule| {
                 schedule.useClock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
@@ -726,7 +815,10 @@ mod acceptance {
                             "database": {"driver": "database", "retry_after": RETRY_AFTER,
                                 "queue": queue_name},
                             "redis": {"driver": "redis", "retry_after": RETRY_AFTER, "queue": queue_name},
-                            "sync": {"driver": "sync"}, "inline": {"driver": "sync"}
+                            "sync": {"driver": "sync"}, "inline": {"driver": "sync"},
+                            "null": {"driver": "null"}, "deferred": {"driver": "deferred"},
+                            "background": {"driver": "background"},
+                            "failover": {"driver": "failover", "connections": ["database", "redis"]}
                         },
                         "failed": {
                             "driver": if std::env::var_os("QUEUE_PRUNE_TEST_NULL").is_some() { "null" } else { "database-uuids" },
@@ -1095,6 +1187,66 @@ mod acceptance {
         let (first, second) = tokio::join!(run(&[], false), run(&[], false));
         assert_eq!(removed(first) + removed(second), 31);
         assert_eq!(count("prune-fresh-0").await, 1);
+    }
+
+    async fn verify_queue_drivers(root: &Path, db: &DatabaseConnection) {
+        let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+            .args(["artisan", "probe:deferred"])
+            .env("APP_BASE_PATH", root)
+            .output()
+            .await
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        assert!(root.join("driver-console.pid").is_file());
+        let mut kernel = Kernel::new(application(root.to_owned()).unwrap());
+        kernel.bootstrap().await.unwrap();
+        let kernel = Arc::new(kernel);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
+            kernel.clone().handleTransport(request)
+        });
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        let send = |path: &'static str, status: &'static str| async move {
+            let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+            stream.write_all(format!("GET /driver/{path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).await.unwrap();
+            assert!(response.starts_with(status), "{response}");
+        };
+        send("null/driver-null", "HTTP/1.1 204").await;
+        send("deferred/driver-null?skip=1", "HTTP/1.1 400").await;
+        send("deferred/driver-deferred", "HTTP/1.1 204").await;
+        send("background/driver-background", "HTTP/1.1 204").await;
+        for kind in ["driver-deferred", "driver-background"] {
+            wait_for_file(root, &format!("{kind}.pid")).await;
+        }
+        assert!(!root.join("driver-null.pid").exists());
+        let pid = |kind| std::fs::read_to_string(root.join(format!("{kind}.pid"))).unwrap();
+        assert_eq!(pid("driver-deferred"), std::process::id().to_string());
+        assert_ne!(pid("driver-background"), std::process::id().to_string());
+
+        send("failover/driver-primary", "HTTP/1.1 204").await;
+        let (status, _) =
+            artisan(root, &["database", "--queue=driver-probe", "--once"], false).await;
+        assert_eq!(status, Some(0));
+        assert!(root.join("driver-primary.pid").exists());
+        send("database/driver-worker", "HTTP/1.1 204").await;
+        let (status, _) =
+            artisan(root, &["database", "--queue=driver-probe", "--once"], false).await;
+        assert_eq!(status, Some(0));
+        assert!(root.join("driver-worker-deferred.pid").exists());
+        db.statement("alter table jobs rename to jobs_unavailable", &[])
+            .await
+            .unwrap();
+        send("failover/driver-failover", "HTTP/1.1 204").await;
+        db.statement("alter table jobs_unavailable rename to jobs", &[])
+            .await
+            .unwrap();
+        let (status, _) = artisan(root, &["redis", "--queue=driver-probe", "--once"], false).await;
+        assert_eq!(status, Some(0));
+        assert!(root.join("driver-failover.pid").exists());
+        server.abort();
     }
 
     async fn verify_fail_on_exception(root: &Path, manager: &QueueManager) {
@@ -2460,6 +2612,13 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_QUEUE_DRIVERS_ONLY").is_some() {
+            if backend != "sqlite" && std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_some() {
+                verify_queue_drivers(&root.0, &db).await;
+                eprintln!("Queue driver process acceptance passed on {backend}");
+            }
+            return;
+        }
         if std::env::var_os("OPENRUST_TEST_FAIL_EXCEPTION_ONLY").is_some() {
             verify_fail_on_exception(&root.0, &manager).await;
             assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);

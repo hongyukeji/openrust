@@ -46,6 +46,7 @@ pub struct Kernel {
     register_planned: bool,
     command_registration: Option<Result<(), ConsoleError>>,
     has_scheduled_tasks: bool,
+    deferred: crate::concurrency::DeferredCallbacks,
 }
 
 impl Kernel {
@@ -57,6 +58,7 @@ impl Kernel {
             register_planned: false,
             command_registration: None,
             has_scheduled_tasks: false,
+            deferred: Default::default(),
         }
     }
 
@@ -282,8 +284,8 @@ impl console::Kernel for Kernel {
                         .await;
                     return 1;
                 }
-                self.artisan
-                    .handle(&self.application, arguments, output)
+                self.deferred
+                    .scope(self.artisan.handle(&self.application, arguments, output))
                     .await
             },
         ))
@@ -292,9 +294,12 @@ impl console::Kernel for Kernel {
     fn terminate<'a>(
         &'a mut self,
         _arguments: &'a [OsString],
-        _status: i32,
+        status: i32,
     ) -> ConsoleFuture<'a, ()> {
-        Box::pin(async {})
+        Box::pin(facades::scope(
+            self.application.container_handle(),
+            self.deferred.invoke(&self.application, status == 0),
+        ))
     }
 
     fn register_command(&mut self, command: Box<dyn Command>) -> Result<(), ConsoleError> {

@@ -53,6 +53,7 @@ pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigE
                 "block_for": null,
                 "after_commit": false,
             },
+            "null": {"driver": "null"},
             "deferred": {"driver": "deferred"},
             "background": {"driver": "background"},
             "failover": {"driver": "failover", "connections": ["database", "deferred"]},

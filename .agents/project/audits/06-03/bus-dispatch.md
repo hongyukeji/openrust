@@ -8,4 +8,4 @@
 
 ## 驱动范围
 
-固定 Laravel 的内置连接器为 Sync、Database、Redis、Null、Deferred、Background、Failover、Beanstalkd、SQS。本轮实际 Worker 矩阵使用 MySQL 数据库队列和 Redis，另回归 SQLite 与 sync 行为。Null、Deferred、Background、Failover、Beanstalkd、SQS 继续跟踪。进程生命周期驱动需要独立验证终止和退出语义，Failover 需要验证故障切换与重复派发，Beanstalkd、SQS 需要相应真实服务。 [固定 Laravel 连接器](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Connectors)
+固定 Laravel 的内置连接器为 Sync、Database、Redis、Null、Deferred、Background、Failover、Beanstalkd、SQS。本轮实际 Worker 矩阵使用 MySQL 数据库队列和 Redis，另回归 SQLite 与 sync 行为。Null、Deferred、Background 和 Failover 的后续实现见[驱动验收](lifecycle-failover-drivers.md)。Beanstalkd、SQS 需要相应真实服务。 [固定 Laravel 连接器](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Connectors)

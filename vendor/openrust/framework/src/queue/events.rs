@@ -269,3 +269,8 @@ pub(super) fn attempt_exception_message(error: &QueueError) -> String {
     }
     message
 }
+
+queue_event!(
+    /// A dispatch failed on one connection in a failover queue.
+    QueueFailedOver { connection: String, job: Payload, exception: String }
+);
