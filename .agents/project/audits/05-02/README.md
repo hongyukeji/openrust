@@ -434,3 +434,11 @@ SQLite 和独立 MySQL 8.4.13 验证三段路径、OR 组合、整条路径缺�
 SQLite 和独立 MySQL 8.4.13 验证混合目标、未出现在数据中的已登记目标、空目标缺失匹配、末级闭包筛选及同条件预加载。首轮 MySQL 专项触发测试夹具的 Debug 栈溢出，将夹具中的查询 future 放到堆上后双库专项通过。
 
 Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽略）、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。核心账本仍为 25/66。
+
+## 集合刷新时预加载多个命名关系
+
+对照固定 Laravel 集合的 `fresh($with)`、空集合测试与 Collections 文档，集合刷新可指定多个关系和点分路径。Rust 保留无参 `fresh()` 和接受类型化描述符的 `freshWith()`，通过 `freshWithPaths(&[...])` 表达 Laravel 的路径列表。显式路径覆盖同名的默认预加载，其余默认预加载继续生效。原集合保留原来的属性和关系。固定 Goravel 用作连接级装配参考。旧版 `v0.x` 的单模型 `fresh_with` 已支持关系路径，本批沿用其刷新后加载的职责划分并复用现有集合水合与路径注册。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-collections.md#method-fresh) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证多个子路径、重复路径、默认预加载覆盖、原集合保留、空集合及错误路径。MySQL 的两条子路径与一个其他默认关系共 5 次 SELECT，包括主模型回读。
+
+Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽略）、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。核心账本仍为 25/66。

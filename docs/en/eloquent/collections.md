@@ -82,7 +82,7 @@ pub async fn requery_author_keys(connection: &Connection, keys: &[Value]) -> Dat
 
 ### Refreshing Models and Loading Aggregates
 
-`fresh` reads existing models again on their original connection, bypassing parent model scopes. It returns a new collection in the original order and omits unsaved models and rows that no longer exist. Soft-deleted rows remain eligible. Use `freshWith` with a typed relationship to eager load it on the new collection.
+`fresh` reads existing models again on their original connection, bypassing parent model scopes. It returns a new collection in the original order and omits unsaved models and rows that no longer exist. Soft-deleted rows remain eligible. Use `freshWith` with a typed relationship to eager load it on the new collection. Use `freshWithPaths` to reload several registered relationships, including dot-separated paths. Requested roots take precedence over default loads with the same name, and other default loads still apply.
 
 `loadCount`, `loadExists`, `loadSum`, `loadAvg`, `loadMin` and `loadMax` fetch aggregate attributes for models already loaded. Use `loadAggregate` to pass the aggregate as a `RelationAggregate` value. The methods batch by primary key and leave unrelated pending changes intact. If a model row has disappeared, the load returns an error before updating any model in the collection.
 
@@ -94,7 +94,7 @@ use openrust::database::{
 
 pub async fn reload_authors(authors: &Collection<Author>) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id");
-    let mut authors = authors.freshWith("posts", &posts).await?;
+    let mut authors = authors.freshWithPaths(&["posts.comments"]).await?;
     authors.loadCount("posts", &posts).await?;
     Ok(authors)
 }

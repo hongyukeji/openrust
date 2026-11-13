@@ -47,6 +47,10 @@ impl Model for StrictAuthor {
 struct AuthorWithDefaults(ModelState);
 
 impl Model for AuthorWithDefaults {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("posts", || HasMany::<Self, Post>::new("id", "author_id"))
+    }
+
     fn automaticallyEagerLoadRelationships() -> bool {
         true
     }
@@ -2028,6 +2032,37 @@ fn verify_default_eager_loads(
                     .unwrap()
                     .is_empty()
         }));
+
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        let named =
+            Box::pin(source.freshWithPaths(&["posts.comments", "posts.author", "posts.comments"]))
+                .await
+                .unwrap();
+        assert_eq!(named.modelKeys(), source.modelKeys());
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 5);
+        }
+        for model in named.iter() {
+            assert!(model.relationLoaded("mentees"));
+            let posts = model.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+            assert!(!posts.is_empty());
+            assert!(
+                posts
+                    .iter()
+                    .all(|post| post.relationLoaded("comments") && post.relationLoaded("author"))
+            );
+        }
+        assert!(source.iter().all(|model| !model.relationLoaded("posts")));
+        assert!(matches!(
+            Box::pin(source.freshWithPaths(&["posts.invalid"])).await,
+            Err(DatabaseError::InvalidQuery("unknown relationship path"))
+        ));
+        assert!(
+            Box::pin(Collection::<AuthorWithDefaults>::new(vec![]).freshWithPaths(&["posts"]))
+                .await
+                .unwrap()
+                .is_empty()
+        );
 
         let baseline = if mysql { select_count(db).await } else { 0 };
         let mut keyed = source.toQuery().unwrap().get().await.unwrap();

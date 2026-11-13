@@ -82,7 +82,7 @@ pub async fn requery_author_keys(connection: &Connection, keys: &[Value]) -> Dat
 
 ### 重新读取模型与加载聚合
 
-`fresh` 在原连接上跳过父模型作用域，按原顺序返回重新读取的模型集合，并跳过未保存的模型和已从数据库移除的记录。软删除的记录仍可读取。用 `freshWith` 传入类型化关系，可在新集合中预加载该关系。
+`fresh` 在原连接上跳过父模型作用域，按原顺序返回重新读取的模型集合，并跳过未保存的模型和已从数据库移除的记录。软删除的记录仍可读取。用 `freshWith` 传入类型化关系，可在新集合中预加载该关系。用 `freshWithPaths` 可同时重新加载多个已注册关系，支持点分路径。指定路径的首段与默认预加载同名时，以指定路径为准，其余默认预加载照常执行。
 
 `loadCount`、`loadExists`、`loadSum`、`loadAvg`、`loadMin` 和 `loadMax` 为已加载的模型补充聚合属性。也可以通过 `loadAggregate` 显式传入 `RelationAggregate`。它们按主键分批查询，保留其他属性的未保存修改。如果有模型记录已经消失，加载会在修改集合中任何模型之前返回错误。
 
@@ -94,7 +94,7 @@ use openrust::database::{
 
 pub async fn reload_authors(authors: &Collection<Author>) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id");
-    let mut authors = authors.freshWith("posts", &posts).await?;
+    let mut authors = authors.freshWithPaths(&["posts.comments"]).await?;
     authors.loadCount("posts", &posts).await?;
     Ok(authors)
 }

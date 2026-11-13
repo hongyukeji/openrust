@@ -11,8 +11,8 @@ use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseRes
 use crate::support::{ArrayKey, Collection as BaseCollection, CollectionResult};
 
 use super::{
-    Attributes, Builder, EagerLoads, Model, ModelState, RelatedBatch, RelatedModels,
-    RelationAggregate, RelationAggregateQuery,
+    Attributes, Builder, EagerLoads, Model, ModelState, NamedRelations, RelatedBatch,
+    RelatedModels, RelationAggregate, RelationAggregateQuery,
     concerns::has_relationships,
     relations::{ExistenceRelation, MorphTarget, MorphTo, Relation, relation::dictionary_key},
 };
@@ -1130,10 +1130,27 @@ impl<M: Model> Collection<M> {
 
     /// Re-reads existing models without parent scopes, in the original collection order.
     pub async fn fresh(&self) -> DatabaseResult<Self> {
-        self.fresh_with_defaults(&[]).await
+        self.fresh_with_loads(M::withDefaultRelations).await
     }
 
-    async fn fresh_with_defaults(&self, except: &[&str]) -> DatabaseResult<Self> {
+    /// Re-reads the collection and eager loads the registered relationship paths.
+    pub async fn freshWithPaths(&self, paths: &[&str]) -> DatabaseResult<Self> {
+        if self.is_empty() {
+            return self.fresh().await;
+        }
+        let requested = NamedRelations::<M>::prepare(paths)?;
+        self.fresh_with_loads(|defaults| {
+            let mut loads = M::withDefaultRelations(defaults);
+            loads.extend(requested);
+            loads
+        })
+        .await
+    }
+
+    async fn fresh_with_loads(
+        &self,
+        configure: impl FnOnce(EagerLoads<M>) -> EagerLoads<M>,
+    ) -> DatabaseResult<Self> {
         let existing = self
             .iter()
             .enumerate()
@@ -1199,8 +1216,7 @@ impl<M: Model> Collection<M> {
         if let Some(retained) = &mut retained {
             retained.reverse();
         }
-        let defaults = M::withDefaultRelations(EagerLoads::default()).without(except);
-        has_relationships::load_eager(defaults, &mut models).await?;
+        has_relationships::load_eager(configure(EagerLoads::default()), &mut models).await?;
         Ok(Self {
             models,
             keys: retained,
@@ -1214,7 +1230,9 @@ impl<M: Model> Collection<M> {
         name: &str,
         relation: &R,
     ) -> DatabaseResult<Self> {
-        let mut refreshed = self.fresh_with_defaults(&[name]).await?;
+        let mut refreshed = self
+            .fresh_with_loads(|defaults| M::withDefaultRelations(defaults).without(&[name]))
+            .await?;
         refreshed.load(name, relation).await?;
         Ok(refreshed)
     }
