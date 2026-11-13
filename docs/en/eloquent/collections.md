@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 Use `load` and `loadMissing` to batch relationships on an existing collection. See [eager loading](./relationships.md#eager-loading).
 
+### Looking Up Models by Key
+
+`find` returns an optional model. `findOrFail` returns `DatabaseError::ModelNotFound` when the key is absent. Use `contains` and `doesntContain` for membership checks. For a list of keys, use `findMany` or `findManyOrFail`. Both return borrowed models in collection order. `findManyOrFail` requires every distinct key to be present, even when the collection contains repeated model keys. These operations use the hydrated collection and issue no SQL.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};
+
+pub fn required_models<'a, M: Model>(
+    models: &'a Collection<M>,
+    keys: &[Value],
+) -> DatabaseResult<Vec<&'a M>> {
+    models.findManyOrFail(keys)
+}
+```
+
 ### Working with Model Keys
 
 `merge` and `unique` retain the last model for each key at its first position. `diff` and `intersect` compare model keys and preserve the source collection order. Use `toQuery` to build a query for the selected keys on their original connection. The collection must be nonempty and all models must use the same connection.

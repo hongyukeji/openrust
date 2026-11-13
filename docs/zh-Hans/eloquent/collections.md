@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 集合的 `load` 和 `loadMissing` 可批量加载关系。见[预加载](./relationships.md#预加载)。
 
+### 按主键查找模型
+
+`find` 返回可选模型。主键不存在时，`findOrFail` 返回 `DatabaseError::ModelNotFound`。用 `contains` 和 `doesntContain` 检查主键是否在集合中。传入一组主键时，使用 `findMany` 或 `findManyOrFail`，两者都按集合顺序返回模型引用。`findManyOrFail` 要求每个不同的主键都存在，即使集合内有重复主键。这些方法直接读取已加载的模型，不执行 SQL。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};
+
+pub fn required_models<'a, M: Model>(
+    models: &'a Collection<M>,
+    keys: &[Value],
+) -> DatabaseResult<Vec<&'a M>> {
+    models.findManyOrFail(keys)
+}
+```
+
 ### 按模型主键操作
 
 `merge` 和 `unique` 为每个键保留最后一个模型，沿用该键首次出现的位置。`diff` 和 `intersect` 按模型键比较并保持原集合顺序。`toQuery` 使用原连接为选中的键构建查询，集合须有模型且都使用同一个连接。

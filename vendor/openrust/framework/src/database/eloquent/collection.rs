@@ -240,6 +240,47 @@ impl<M: Model> Collection<M> {
         Ok(self.find(key)?.is_some())
     }
 
+    pub fn doesntContain(&self, key: &Value) -> DatabaseResult<bool> {
+        Ok(!self.contains(key)?)
+    }
+
+    pub fn findOrFail(&self, key: &Value) -> DatabaseResult<&M> {
+        self.find(key)?
+            .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
+    }
+
+    /// Selects matching models from this collection in collection order.
+    pub fn findMany(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
+        self.find_many(&Self::lookup_keys(keys)?)
+    }
+
+    /// Selects matching models, returning an error if a requested key is missing.
+    pub fn findManyOrFail(&self, keys: &[Value]) -> DatabaseResult<Vec<&M>> {
+        let mut remaining = Self::lookup_keys(keys)?;
+        let models = self.find_many(&remaining)?;
+        for model in &models {
+            if let Some(key) = dictionary_key(model.getKey())? {
+                remaining.remove(&key);
+            }
+        }
+        if keys.contains(&Value::Null) || !remaining.is_empty() {
+            return Err(DatabaseError::ModelNotFound(M::metadata().table));
+        }
+        Ok(models)
+    }
+
+    fn find_many(&self, keys: &HashSet<Vec<u8>>) -> DatabaseResult<Vec<&M>> {
+        let mut models = Vec::new();
+        if !keys.is_empty() {
+            for model in &self.models {
+                if dictionary_key(model.getKey())?.is_some_and(|key| keys.contains(&key)) {
+                    models.push(model);
+                }
+            }
+        }
+        Ok(models)
+    }
+
     pub fn only(self, keys: &[Value]) -> DatabaseResult<Self> {
         self.filter_keys(keys, true)
     }
@@ -249,18 +290,23 @@ impl<M: Model> Collection<M> {
     }
 
     fn filter_keys(self, keys: &[Value], keep: bool) -> DatabaseResult<Self> {
-        let mut requested = HashSet::new();
-        for key in keys {
-            if let Some(key) = dictionary_key(Some(key))? {
-                requested.insert(key);
-            }
-        }
+        let requested = Self::lookup_keys(keys)?;
         let mut models = model_dictionary(self.models)?;
         models.retain(|key, _| requested.contains(key) == keep);
         Ok(Self {
             models: models.into_values().collect(),
             autoload: self.autoload,
         })
+    }
+
+    fn lookup_keys(keys: &[Value]) -> DatabaseResult<HashSet<Vec<u8>>> {
+        let mut requested = HashSet::with_capacity(keys.len());
+        for key in keys {
+            if let Some(key) = dictionary_key(Some(key))? {
+                requested.insert(key);
+            }
+        }
+        Ok(requested)
     }
 
     pub fn merge(self, models: impl IntoIterator<Item = M>) -> DatabaseResult<Self> {

@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 集合的 `load` 和 `loadMissing` 可批次載入關聯。請見[預先載入](./relationships.md#預先載入)。
 
+### 依主鍵查找模型
+
+`find` 回傳可選模型。主鍵不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。用 `contains` 和 `doesntContain` 檢查主鍵是否在集合中。傳入一組主鍵時，使用 `findMany` 或 `findManyOrFail`，兩者都依集合順序回傳模型參照。`findManyOrFail` 要求每個不同的主鍵都存在，即使集合內有重複主鍵。這些方法直接讀取已載入的模型，不執行 SQL。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};
+
+pub fn required_models<'a, M: Model>(
+    models: &'a Collection<M>,
+    keys: &[Value],
+) -> DatabaseResult<Vec<&'a M>> {
+    models.findManyOrFail(keys)
+}
+```
+
 ### 依模型主鍵操作
 
 `merge` 和 `unique` 為每個鍵保留最後一個模型，沿用該鍵首次出現的位置。`diff` 和 `intersect` 依模型鍵比較並維持原集合順序。`toQuery` 使用原連線為選中的鍵建立查詢，集合須有模型且都使用同一個連線。

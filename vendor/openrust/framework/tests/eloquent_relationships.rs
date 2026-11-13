@@ -1821,6 +1821,49 @@ fn verify_one_through<'a>(
 fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture<'_, ()> {
     Box::pin(async move {
         let ordered = || Author::queryOn(db).orderBy("id", "asc");
+        let authors = ordered().get().await.unwrap();
+        assert!(std::ptr::eq(
+            authors.findOrFail(&"2".into()).unwrap(),
+            &authors[1]
+        ));
+        assert!(!authors.doesntContain(&2.into()).unwrap());
+        assert!(authors.doesntContain(&20.into()).unwrap());
+        for error in [
+            authors.findOrFail(&20.into()).err(),
+            authors.findManyOrFail(&[1.into(), 20.into()]).err(),
+            authors.findManyOrFail(&[Value::Null]).err(),
+            Collection::<Author>::new(vec![])
+                .findOrFail(&1.into())
+                .err(),
+        ] {
+            assert!(matches!(
+                error,
+                Some(DatabaseError::ModelNotFound("relation_authors"))
+            ));
+        }
+        let found_keys = |models: Vec<&Author>| {
+            models
+                .into_iter()
+                .map(|author| author.getKey().unwrap().clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            found_keys(
+                authors
+                    .findMany(&[3.into(), 20.into(), "1".into()])
+                    .unwrap()
+            ),
+            vec![1.into(), 3.into()]
+        );
+        assert_eq!(
+            found_keys(
+                authors
+                    .findManyOrFail(&[3.into(), "1".into(), 1.into()])
+                    .unwrap()
+            ),
+            vec![1.into(), 3.into()]
+        );
+        assert!(authors.findManyOrFail(&[]).unwrap().is_empty());
         let replacement = || async {
             let mut updated = ordered().findOrFail(1).await.unwrap();
             updated.setAttribute("name", "Replacement");
@@ -1841,7 +1884,16 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
             .into_iter()
             .collect::<Vec<_>>();
         duplicate.push(replacement().await);
-        let distinct = Collection::new(duplicate).unique().unwrap();
+        let duplicate = Collection::new(duplicate);
+        assert_eq!(
+            found_keys(duplicate.findMany(&[1.into(), 1.into()]).unwrap()),
+            vec![1.into(), 1.into()]
+        );
+        assert!(matches!(
+            duplicate.findManyOrFail(&[1.into(), 20.into()]),
+            Err(DatabaseError::ModelNotFound("relation_authors"))
+        ));
+        let distinct = duplicate.unique().unwrap();
         assert_eq!(distinct.modelKeys(), vec![1.into(), 2.into(), 3.into()]);
         assert_eq!(
             distinct[0].getAttribute("name"),
