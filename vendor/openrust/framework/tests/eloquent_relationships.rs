@@ -1414,6 +1414,48 @@ fn verify_relation_autoload(
             assert_eq!(select_count(db).await - baseline, 1);
         }
 
+        let mut detached = ordered()
+            .get()
+            .await
+            .unwrap()
+            .withRelationshipAutoloading()
+            .into_iter();
+        let mut first = detached.next().unwrap();
+        let mut second = detached.next().unwrap();
+        let mut empty = detached.next().unwrap();
+        drop(detached);
+        assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
+        assert!(!first.relationLoaded("posts"));
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        let posts = POSTS;
+        let (first_posts, second_posts) = tokio::join!(
+            first.getRelationOrLoad("posts", &posts),
+            second.getRelationOrLoad("posts", &posts)
+        );
+        assert!(!first_posts.unwrap().is_empty());
+        assert!(!second_posts.unwrap().is_empty());
+        assert!(
+            empty
+                .getRelationOrLoad("posts", &posts)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+        first.unsetRelation("posts");
+        assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
+        second.unsetRelation("posts");
+        second.setAttribute("id", 3);
+        assert!(
+            second
+                .getRelationOrLoad("posts", &posts)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
         let mut other = ordered().get().await.unwrap();
         assert!(other.iter().all(|author| !author.relationLoaded("posts")));
         let posts = POSTS;

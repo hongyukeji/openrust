@@ -13,6 +13,8 @@ use super::{
 #[derive(Clone, Default)]
 pub struct ModelState {
     pub(in crate::database::eloquent) relations: LoadedRelations,
+    pub(in crate::database::eloquent) detached_autoload:
+        Option<Box<super::super::detached_autoload::DetachedAutoload>>,
     pub(in crate::database::eloquent) attributes: Attributes,
     pub(in crate::database::eloquent) original: Attributes,
     pub(in crate::database::eloquent) changes: Attributes,

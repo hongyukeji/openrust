@@ -537,7 +537,14 @@ impl<M: Model> Collection<M> {
     }
 
     /// Converts the models into a base collection, in their current order.
-    pub fn toBase(self) -> BaseCollection<M> {
+    pub fn toBase(mut self) -> BaseCollection<M> {
+        if self.autoload {
+            super::detached_autoload::attach(&mut self.models);
+        }
+        self.into_base()
+    }
+
+    fn into_base(self) -> BaseCollection<M> {
         match self.keys {
             Some(keys) => BaseCollection::fromEntries(keys.into_iter().zip(self.models)),
             None => self.models.into_iter().collect(),
@@ -580,7 +587,7 @@ impl<M: Model> Collection<M> {
     {
         let autoload = self.autoload;
         let mut result = Collection::fromEntries(
-            self.toBase()
+            self.into_base()
                 .into_iter()
                 .flat_map(|(key, model)| callback(model, key)),
         );
@@ -1271,7 +1278,10 @@ impl<M: Model> IntoIterator for Collection<M> {
     type Item = M;
     type IntoIter = std::vec::IntoIter<M>;
 
-    fn into_iter(self) -> Self::IntoIter {
+    fn into_iter(mut self) -> Self::IntoIter {
+        if self.autoload {
+            super::detached_autoload::attach(&mut self.models);
+        }
         self.models.into_iter()
     }
 }

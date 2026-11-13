@@ -4,6 +4,7 @@ mod builder;
 pub mod casts;
 mod collection;
 pub mod concerns;
+mod detached_autoload;
 mod dynamic_relations;
 pub mod factories;
 mod metadata;

@@ -340,3 +340,9 @@ SQLite 和独立 MySQL 8.4.13 验证混合别名、别名不匹配返回空、�
 对照固定 Laravel 的关联回调传播、缺失关系链加载和多层多态集成测试。OpenRust 的普通与多态借用共用关系链，每一层可继续调用 `relatedModelAt` 或 `morphModel`。缺失访问从根集合开始按层收集模型，按实例去重，最后向根集合逐层写回快照。Rust 用可变借用表达集合所有权，已有 `Arc` 保留原快照，多态分组沿用登记别名。脱离集合后继续使用 PHP 式对象回调仍待跟踪。复核 `v0.x` 未找到关联自动加载回调，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 加载链](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L242) · [Laravel 多层测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证 `subject.author.posts` 混合多态、单值和多值关系，跨根模型复用并写回序列化结果。MySQL 对尚未加载的作者和文章分别发出 1 次 SELECT，后续访问复用结果。原有普通、多态、禁用及失败重试用例通过。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 88%，项目卷可用 60 GiB。核心账本 25/66。
+
+## 移出集合的模型继续批量加载
+
+对照固定 Laravel 集合自动预加载及其测试。Rust 在消费集合时，为移出的根模型保留共享的同批快照。关系首次访问由同批模型共同查询，各模型在自己的访问点安装结果，保留现有借用接口。异步互斥保护并发首次访问，SQL 失败可重试。显式卸载关系或更改属性和连接后，改用当前模型查询。快照保留模型状态，PHP 对象的即时共享修改和脱离集合的后代自动传播仍需跟踪。复核 `v0.x` 未找到集合自动加载回调，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 集合源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [Laravel 自动加载测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证移出集合后仍可加载、SQL 失败可重试、并发访问和空结果复用、显式卸载及主键变化。MySQL 两个并发访问与第三个空结果共用 1 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 88%，项目卷可用 60 GiB。核心账本 25/66。

@@ -67,6 +67,12 @@ impl LoadedRelations {
         Ok(output)
     }
 
+    pub(in crate::database::eloquent) fn copy_from(&mut self, name: &str, other: &Self) {
+        if let Some(value) = other.values.get(name) {
+            self.values.insert(name.to_owned(), value.clone());
+        }
+    }
+
     pub(in crate::database::eloquent) fn remove(&mut self, name: &str) {
         self.values.remove(name);
     }

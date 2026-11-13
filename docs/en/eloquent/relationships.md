@@ -280,6 +280,26 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular relations use `Option<Arc<T>>`. A missing relation name means it has not been loaded. Related models are shared through `Arc` when several parents reference them. Use `load` on a model or collection to load after retrieval, and `loadMissing` on a collection to preserve previously loaded values.
 
+Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together, and each model installs its result when it accesses the relationship. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn moved_author_post_counts<Author: Model, Post: Model>(
+    authors: Collection<Author>,
+) -> DatabaseResult<Vec<usize>> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let mut counts = Vec::new();
+    for mut author in authors.withRelationshipAutoloading() {
+        counts.push(author.getRelationOrLoad("posts", &posts).await?.len());
+    }
+    Ok(counts)
+}
+```
+
 ### Nested eager loading by path {#nested-eager-loading}
 
 Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error.
@@ -358,7 +378,7 @@ pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseRes
 
 Call `withRelationshipAutoloading` on a collection, then await `getRelationOrLoad` to access a model's typed relationship. The first missing access batches the load across that collection. Previously loaded values, including empty results, are reused. Enable it by default for a model by returning `true` from `Model::automaticallyEagerLoadRelationships`.
 
-Use `modelAt(index)` to borrow a model from its collection and call `getRelationOrLoad` on that model. An invalid index returns `None`. The mutable borrow keeps the current collection available across the async call, so loaded values are visible on its siblings after the borrow ends. A model moved out of the collection uses the standalone loading policy.
+Use `modelAt(index)` to borrow a model from its collection and call `getRelationOrLoad` on that model. An invalid index returns `None`. The mutable borrow keeps the current collection available across the async call, so loaded values are visible on its siblings after the borrow ends.
 
 ```rust
 use openrust::database::{

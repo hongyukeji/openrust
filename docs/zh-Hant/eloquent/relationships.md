@@ -280,6 +280,26 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<Vec<Arc<Post>>>("posts")` 讀取已載入文章。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。多個父模型參照同一個關聯模型時，透過 `Arc` 共用。用模型或集合的 `load` 延後載入，使用集合的 `loadMissing` 保留已載入結果。
 
+透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢，各模型在存取時安裝自己的結果。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn moved_author_post_counts<Author: Model, Post: Model>(
+    authors: Collection<Author>,
+) -> DatabaseResult<Vec<usize>> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let mut counts = Vec::new();
+    for mut author in authors.withRelationshipAutoloading() {
+        counts.push(author.getRelationOrLoad("posts", &posts).await?.len());
+    }
+    Ok(counts)
+}
+```
+
 ### 依路徑巢狀預先載入 {#nested-eager-loading}
 
 在每一級模型的 `namedRelations()` 中登錄對應關聯，再將 `posts.comments` 這類路徑傳給 `withPaths`。同一次呼叫中，共用前綴的路徑重用父級查詢。既有模型或集合可用 `loadPaths`。未知或格式錯誤的路徑會回傳錯誤。
@@ -358,7 +378,7 @@ pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseRes
 
 在集合上呼叫 `withRelationshipAutoloading` 後，透過非同步 `getRelationOrLoad` 讀取模型的型別化關聯。首次存取尚未載入的關聯時，框架對目前集合執行批次載入。後續存取會沿用已載入的值，包含空結果。可讓模型的 `Model::automaticallyEagerLoadRelationships` 回傳 `true` 來預設啟用。
 
-透過 `modelAt(index)` 從集合借用模型，再在模型上呼叫 `getRelationOrLoad`。索引超出範圍時回傳 `None`。非同步載入期間持有集合的可變借用，借用結束後可從同一集合的其他模型讀取已載入的值。移出集合的模型遵循單模型載入策略。
+透過 `modelAt(index)` 從集合借用模型，再在模型上呼叫 `getRelationOrLoad`。索引超出範圍時回傳 `None`。非同步載入期間持有集合的可變借用，借用結束後可從同一集合的其他模型讀取已載入的值。
 
 ```rust
 use openrust::database::{
