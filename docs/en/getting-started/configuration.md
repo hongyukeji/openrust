@@ -82,11 +82,11 @@ Run Artisan `down` to return HTTP 503 while you deploy. Use `up` to reopen the a
 
 Use `--retry` for a positive delay in seconds or a retry date, and `--refresh` to tell a browser when to reload. Local date-times use the application timezone and are sent in GMT. `--redirect` takes a local path. `--render` prerenders a named view once when you run `down`, passing it `$retryAfter`. `--status` overrides the default 503. Requests that expect JSON follow the usual exception renderer and skip the browser redirect and prerendered view.
 
-To check the site during maintenance, open the URL printed by `--with-secret`. The application sets a signed browser cookie valid for 12 hours and redirects to the home page when no intended session URL is available. Use `--secret` to supply your own path. Use `withMiddleware` in `bootstrap/app.rs` to leave specific endpoints available.
+To check the site during maintenance, open the URL printed by `--with-secret`. The application sets a signed browser cookie valid for 12 hours and redirects to the home page when no intended session URL is available. Use `--secret` to supply your own path. The configured health path (default `/up`) stays accessible during maintenance mode. Use `withMiddleware` in `bootstrap/app.rs` to leave additional endpoints available.
 
 ```rust
 .withMiddleware(|middleware| {
-    middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+    middleware.preventRequestsDuringMaintenance(["status/*"]);
 })
 ```
 

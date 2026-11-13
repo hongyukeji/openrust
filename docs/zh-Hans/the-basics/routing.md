@@ -36,7 +36,7 @@ curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-端点会分发 `openrust::foundation::events::DiagnosingHealth`。可以注册同步监听器检查数据库或缓存等依赖。监听器失败时，框架报告错误并返回 500，响应为 “Application experiencing problems” 页面或 `{"status":"down"}`。调试模式下由常规异常处理器渲染错误。健康页内置样式。
+端点会分发 `openrust::foundation::events::DiagnosingHealth`。可以注册同步监听器检查数据库或缓存等依赖。监听器失败时，框架报告错误并返回 500，响应为 “Application experiencing problems” 页面或 `{"status":"down"}`。调试模式下由常规异常处理器渲染错误。健康页内置样式。维护模式下仍可访问配置的健康路径。
 
 ## 查看路由列表
 

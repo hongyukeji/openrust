@@ -111,7 +111,7 @@ impl ApplicationBuilder {
         self
     }
 
-    pub fn create(self) -> Result<Application, BootstrapError> {
+    pub fn create(mut self) -> Result<Application, BootstrapError> {
         let invalid_path = |source| BootstrapError::InvalidBasePath {
             path: self.base_path.clone(),
             source,
@@ -127,6 +127,14 @@ impl ApplicationBuilder {
             Some(register) => Some(self.routing.unwrap_or_default().channels(register)),
             None => self.routing,
         };
+        if let Some(path) = routing.as_ref().and_then(Routing::health_path) {
+            let path = path.trim_matches('/');
+            let path = if path.is_empty() { "/" } else { path }.to_owned();
+            self.middleware_configurators
+                .push(Box::new(move |middleware| {
+                    middleware.preventRequestsDuringMaintenance([path]);
+                }));
+        }
         let application = Application::new(
             base_path,
             self.load_config,

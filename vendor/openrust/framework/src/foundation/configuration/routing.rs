@@ -69,6 +69,10 @@ impl Routing {
         self
     }
 
+    pub(super) fn health_path(&self) -> Option<&str> {
+        self.health.as_deref()
+    }
+
     pub(crate) fn resolve_api_prefix(
         &self,
         config: &dyn Repository,

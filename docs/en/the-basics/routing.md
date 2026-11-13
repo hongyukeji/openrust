@@ -36,7 +36,7 @@ curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-The endpoint dispatches `openrust::foundation::events::DiagnosingHealth`. Register synchronous listeners to check dependencies such as the database or cache. If a listener fails, the framework reports the error and returns 500 with “Application experiencing problems” or `{"status":"down"}`. In debug mode, the normal exception handler renders the failure. The health page ships with its own styles.
+The endpoint dispatches `openrust::foundation::events::DiagnosingHealth`. Register synchronous listeners to check dependencies such as the database or cache. If a listener fails, the framework reports the error and returns 500 with “Application experiencing problems” or `{"status":"down"}`. In debug mode, the normal exception handler renders the failure. The health page ships with its own styles. The configured health path stays accessible during maintenance mode.
 
 ## Listing Your Routes
 

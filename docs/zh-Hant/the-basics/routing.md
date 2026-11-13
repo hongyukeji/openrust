@@ -36,7 +36,7 @@ curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-端點會分派 `openrust::foundation::events::DiagnosingHealth`。可以註冊同步監聽器檢查資料庫或快取等相依服務。監聽器失敗時，框架回報錯誤並回傳 500，回應為「Application experiencing problems」頁面或 `{"status":"down"}`。除錯模式下由一般例外處理器算繪錯誤。健康頁面內建樣式。
+端點會分派 `openrust::foundation::events::DiagnosingHealth`。可以註冊同步監聽器檢查資料庫或快取等相依服務。監聽器失敗時，框架回報錯誤並回傳 500，回應為「Application experiencing problems」頁面或 `{"status":"down"}`。除錯模式下由一般例外處理器算繪錯誤。健康頁面內建樣式。維護模式下仍可存取設定的健康路徑。
 
 ## 查看路由清單
 

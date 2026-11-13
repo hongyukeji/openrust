@@ -73,16 +73,17 @@ async fn array_maintenance_is_application_local_even_with_the_same_root() {
 async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_application_local() {
     use openrust::{foundation::configuration::Routing, testing::TestApp};
 
-    let configure = |builder: openrust::foundation::configuration::ApplicationBuilder| {
-        builder.withRouting(Routing::default().health("/up"))
-    };
     let mut excluded = TestApp::create(|builder| {
-        configure(builder).withMiddleware(|middleware| {
-            middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
-        })
+        builder
+            .withRouting(Routing::default().health("/up"))
+            .withMiddleware(|middleware| {
+                middleware.preventRequestsDuringMaintenance(["status/*"]);
+            })
     })
     .unwrap();
-    let mut normal = TestApp::create(configure).unwrap();
+    let mut normal =
+        TestApp::create(|builder| builder.withRouting(Routing::default().health("/ready")))
+            .unwrap();
     let events = excluded.fakeEvents(&[]).await.unwrap();
     let enabled = "foundation.maintenance_mode_enabled";
     let disabled = "foundation.maintenance_mode_disabled";
@@ -101,12 +102,13 @@ async fn artisan_dispatches_maintenance_events_and_http_exclusions_are_applicati
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(payload["except"], json!(["up", "status/*"]));
+    assert_eq!(payload["except"], json!(["status/*", "up"]));
     assert_eq!(normal.artisan(["down"]).await.status, 0);
     assert_eq!(excluded.get("/up").await.unwrap().status(), 200);
     assert_eq!(excluded.get("/status/missing").await.unwrap().status(), 404);
     assert_eq!(excluded.get("/other").await.unwrap().status(), 503);
     assert_eq!(normal.get("/up").await.unwrap().status(), 503);
+    assert_eq!(normal.get("/ready").await.unwrap().status(), 200);
     assert_eq!(normal.get("/status/missing").await.unwrap().status(), 503);
     assert_eq!(events.dispatched(enabled).len(), 2);
 

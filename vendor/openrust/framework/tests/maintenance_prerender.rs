@@ -51,7 +51,7 @@ async fn request(address: SocketAddr, method: &str, path: &str, accept: &str) ->
     .unwrap()
 }
 
-async fn verify_startup(fail: bool) {
+async fn verify_startup(fail: bool, health: &'static str, other_health: &'static str) {
     let directory = tempfile::tempdir().unwrap();
     let probe = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = probe.local_addr().unwrap();
@@ -63,7 +63,6 @@ async fn verify_startup(fail: bool) {
         &marker,
         json!({
             "template": "<h1>Early maintenance snapshot</h1>",
-            "except": ["up"],
             "retry": 60,
             "redirect": "/offline",
             "status": 503
@@ -85,10 +84,7 @@ async fn verify_startup(fail: bool) {
             release: release.clone(),
             fail,
         })])
-        .withMiddleware(|middleware| {
-            middleware.preventRequestsDuringMaintenance(["up"]);
-        })
-        .withRouting(Routing::default().health("/up"))
+        .withRouting(Routing::default().health(health))
         .create()
         .unwrap();
 
@@ -102,8 +98,9 @@ async fn verify_startup(fail: bool) {
     let redirect = request(address, "GET", "/", "text/html").await;
     assert!(redirect.starts_with("HTTP/1.1 302 "), "{redirect}");
     assert!(redirect.contains("location: /offline"));
-    let waiting =
-        tokio::spawn(async move { request(address, "GET", "/up", "application/json").await });
+    let unrelated = request(address, "GET", other_health, "text/html").await;
+    assert!(unrelated.starts_with("HTTP/1.1 302 "), "{unrelated}");
+    let waiting = tokio::spawn(async move { request(address, "GET", health, "text/html").await });
     sleep(Duration::from_millis(50)).await;
     assert!(
         !waiting.is_finished(),
@@ -126,6 +123,12 @@ async fn verify_startup(fail: bool) {
         );
     } else {
         assert!(passed.starts_with("HTTP/1.1 200 "), "{passed}");
+        assert!(passed.contains("Application up"), "{passed}");
+        let json = request(address, "GET", health, "application/json").await;
+        assert!(json.starts_with("HTTP/1.1 200 "), "{json}");
+        assert!(json.ends_with(r#"{"status":"up"}"#), "{json}");
+        let unrelated = request(address, "GET", other_health, "application/json").await;
+        assert!(unrelated.starts_with("HTTP/1.1 503 "), "{unrelated}");
         std::fs::remove_file(marker).unwrap();
         let restored = request(address, "GET", "/offline", "text/html").await;
         assert!(restored.starts_with("HTTP/1.1 404 "), "{restored}");
@@ -137,13 +140,18 @@ async fn verify_startup(fail: bool) {
 #[tokio::test]
 async fn prerender_serves_while_bootstrap_waits_and_hands_off_to_the_kernel() {
     tokio::task::LocalSet::new()
-        .run_until(verify_startup(false))
+        .run_until(async {
+            tokio::join!(
+                verify_startup(false, "/up", "/status/ready"),
+                verify_startup(false, "/status/ready", "/up"),
+            );
+        })
         .await;
 }
 
 #[tokio::test]
 async fn prerender_stays_available_after_a_bootstrap_failure_until_up() {
     tokio::task::LocalSet::new()
-        .run_until(verify_startup(true))
+        .run_until(verify_startup(true, "/up", "/status/ready"))
         .await;
 }

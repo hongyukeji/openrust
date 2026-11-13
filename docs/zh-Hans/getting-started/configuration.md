@@ -82,11 +82,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 `--retry` 接受正数秒数或重试日期，`--refresh` 指定浏览器刷新间隔。未注明时区的日期时间使用应用时区，响应头统一使用 GMT。`--redirect` 接受站内路径。`--render` 在执行 `down` 时将命名视图渲染一次，并传入 `$retryAfter`。`--status` 可覆盖默认的 503。期望 JSON 的请求沿用常规异常渲染，跳过浏览器跳转和预渲染页面。
 
-维护期间可打开 `--with-secret` 打印的 URL 检查站点。应用设置有效期为 12 小时的签名 Cookie，当前会话没有原目标时跳转至首页。可以用 `--secret` 指定自己的路径。需要保留端点时，在 `bootstrap/app.rs` 的 `withMiddleware` 中配置。
+维护期间可打开 `--with-secret` 打印的 URL 检查站点。应用设置有效期为 12 小时的签名 Cookie，当前会话没有原目标时跳转至首页。可以用 `--secret` 指定自己的路径。配置的健康路径（默认 `/up`）在维护期间仍可访问。需要保留其他端点时，在 `bootstrap/app.rs` 的 `withMiddleware` 中配置。
 
 ```rust
 .withMiddleware(|middleware| {
-    middleware.preventRequestsDuringMaintenance(["up", "status/*"]);
+    middleware.preventRequestsDuringMaintenance(["status/*"]);
 })
 ```
 

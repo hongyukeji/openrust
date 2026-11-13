@@ -111,18 +111,21 @@ fn maintenance_status(data: &MaintenancePayload) -> StatusCode {
 pub(in crate::foundation::http) fn prerender(
     request: &Request,
     data: &MaintenancePayload,
+    except: &[String],
 ) -> Option<Response> {
     let template = data.get("template")?.as_str()?;
     if request.expectsJson()
-        || data
-            .get("except")
-            .and_then(Value::as_array)
-            .is_some_and(|paths| {
-                paths
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .any(|path| request.matches_url_or_path(path))
-            })
+        || except
+            .iter()
+            .map(String::as_str)
+            .chain(
+                data.get("except")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str),
+            )
+            .any(|path| request.matches_url_or_path(path))
     {
         return None;
     }

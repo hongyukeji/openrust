@@ -34,6 +34,7 @@ type BootState = Option<Result<Arc<Kernel>, ()>>;
 struct EarlyHttp {
     marker: PathBuf,
     kernel: watch::Receiver<BootState>,
+    except: Arc<[String]>,
 }
 
 pub(super) async fn has_template(marker: &Path) -> bool {
@@ -46,6 +47,7 @@ pub(super) async fn has_template(marker: &Path) -> bool {
 
 pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> {
     let app = kernel.application.share();
+    let except = kernel.middleware.maintenance_exceptions.clone().into();
     let (configured, mut configuration) = oneshot::channel();
     let mut boot = Box::pin(async move {
         let mut kernel = kernel;
@@ -92,6 +94,7 @@ pub(super) async fn serve(kernel: Kernel, marker: PathBuf) -> RuntimeResult<()> 
         state: EarlyHttp {
             marker: marker.clone(),
             kernel: receiver,
+            except,
         },
     });
     let mut runners = runner::RunnerSet::default();
@@ -195,7 +198,7 @@ async fn handle(
     let (parts, body) = incoming.into_parts();
     let request = Request::from_parts(parts, body);
     if let Ok(Some(data)) = maintenance::read_file(&state.marker).await
-        && let Some(response) = middleware::prerender(&request, &data)
+        && let Some(response) = middleware::prerender(&request, &data, &state.except)
     {
         let (parts, body) = response.into_parts();
         return TransportResponse::from_parts(parts, body);

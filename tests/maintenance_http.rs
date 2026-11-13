@@ -128,6 +128,13 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     let root = first.root();
     let views = root.join("resources/views");
     fs::create_dir_all(&views).unwrap();
+    fs::write(views.join("welcome.html"), "<p>Maintenance test</p>").unwrap();
+    fs::create_dir_all(second.root().join("resources/views")).unwrap();
+    fs::write(
+        second.root().join("resources/views/welcome.html"),
+        "<p>Second application</p>",
+    )
+    .unwrap();
     let view = views.join("offline.blade.html");
     fs::write(
         &view,
@@ -142,13 +149,18 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     assert_eq!(get("/up", "text/html", None).status(), 200);
     assert!(success(root, &["up"]).contains("already up"));
     assert!(success(root, &["down"]).contains("now in maintenance"));
-    assert_eq!(get("/up", "text/html", None).status(), 503);
-    assert_eq!(other.request("GET", "/up", "text/html", None).status(), 200);
+    let marker: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.join("storage/framework/down")).unwrap()).unwrap();
+    assert_eq!(marker["except"], serde_json::json!(["up"]));
+    assert_eq!(get("/up", "text/html", None).status(), 200);
+    assert_eq!(get("/", "text/html", None).status(), 503);
+    assert_eq!(other.request("GET", "/", "text/html", None).status(), 200);
 
     let failed = artisan(root, &["down", "--render=missing-view"]);
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("Failed to enter maintenance mode"));
-    assert_eq!(get("/up", "text/html", None).status(), 503);
+    assert_eq!(get("/up", "text/html", None).status(), 200);
+    assert_eq!(get("/", "text/html", None).status(), 503);
 
     assert!(
         success(
@@ -165,7 +177,14 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
         )
         .contains("options updated")
     );
-    let redirect = get("/up", "text/html", None);
+    let probe = get("/up", "application/json", None);
+    assert_eq!(probe.status(), 200);
+    assert_eq!(probe.body, r#"{"status":"up"}"#);
+    assert_eq!(probe.header("retry-after"), None);
+    let head = live.request("HEAD", "/up", "text/html", None);
+    assert_eq!(head.status(), 200);
+    assert!(head.body.is_empty());
+    let redirect = get("/", "text/html", None);
     assert_eq!(redirect.status(), 302);
     assert!(
         redirect
@@ -183,7 +202,7 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     );
     assert_eq!(html.header("retry-after"), Some("60"));
     assert_eq!(html.header("refresh"), Some("15"));
-    let json = get("/up", "application/json", None);
+    let json = get("/", "application/json", None);
     assert_eq!(json.status(), 502);
     assert_eq!(json.header("content-type"), Some("application/json"));
     assert_eq!(json.header("retry-after"), Some("60"));
@@ -205,14 +224,9 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     assert_eq!(bypass.header("cache-control"), Some("no-store, private"));
     let cookie = cookie.split(';').next().unwrap();
     assert!(cookie.starts_with("laravel_maintenance="));
-    assert_eq!(get("/up", "text/html", Some(cookie)).status(), 200);
+    assert_eq!(get("/", "application/json", Some(cookie)).status(), 200);
     assert_eq!(
-        get(
-            "/up",
-            "application/json",
-            Some("laravel_maintenance=invalid")
-        )
-        .status(),
+        get("/", "application/json", Some("laravel_maintenance=invalid")).status(),
         502
     );
 
@@ -225,14 +239,14 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     let generated = state["secret"].as_str().unwrap();
     assert_eq!(generated.len(), 32);
     assert_ne!(generated, "maintenance-test-bypass");
-    let rejected = get("/up", "application/json", Some(cookie));
+    let rejected = get("/", "application/json", Some(cookie));
     assert_eq!(rejected.status(), 503);
     assert_eq!(
         rejected.header("retry-after"),
         Some("Mon, 05 Jun 2028 14:30:00 GMT")
     );
     assert!(success(root, &["up"]).contains("now live"));
-    assert_eq!(get("/up", "text/html", None).status(), 200);
+    assert_eq!(get("/", "text/html", None).status(), 200);
     assert!(success(root, &["up"]).contains("already up"));
 }
 
@@ -270,8 +284,19 @@ fn artisan_maintenance_cache_is_shared_by_http_instances() {
     };
     run(first.root(), "down");
     let before = [&first_server, &second_server].map(|server| {
+        assert_eq!(
+            server
+                .request("GET", "/up", "application/json", None)
+                .status(),
+            200
+        );
         server
-            .request("GET", "/up", "application/json", None)
+            .request(
+                "GET",
+                "/maintenance-probe-missing",
+                "application/json",
+                None,
+            )
             .status()
     });
     run(second.root(), "up");
@@ -279,9 +304,14 @@ fn artisan_maintenance_cache_is_shared_by_http_instances() {
     for server in [&first_server, &second_server] {
         assert_eq!(
             server
-                .request("GET", "/up", "application/json", None)
+                .request(
+                    "GET",
+                    "/maintenance-probe-missing",
+                    "application/json",
+                    None
+                )
                 .status(),
-            200
+            404
         );
     }
     assert!(!first.root().join("storage/framework/down").exists());
@@ -294,7 +324,7 @@ fn artisan_prerenders_laravels_standard_maintenance_error_view() {
     let root = fixture.root();
     let live = Server::start(root, &[("APP_MAINTENANCE_DRIVER", "file")]);
     success(root, &["down", "--render=errors::503"]);
-    let default = live.request("GET", "/up", "text/html", None);
+    let default = live.request("GET", "/", "text/html", None);
     assert_eq!(default.status(), 503);
     assert!(default.body.contains("Service Unavailable"));
 
@@ -306,7 +336,7 @@ fn artisan_prerenders_laravels_standard_maintenance_error_view() {
     )
     .unwrap();
     success(root, &["down", "--render=errors::503", "--retry=120"]);
-    let custom = live.request("GET", "/up", "text/html", None);
+    let custom = live.request("GET", "/", "text/html", None);
     assert_eq!(custom.status(), 503);
     assert!(custom.body.contains("Back after 120"));
     success(root, &["up"]);
