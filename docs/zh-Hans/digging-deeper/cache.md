@@ -19,6 +19,24 @@
 ./artisan cache:clear file
 ```
 
+## 缓存记忆化 {#cache-memoization}
+
+用 `Cache::memo(None)` 选择默认仓储，或用 `Cache::memo(Some("redis"))` 选择命名仓储。首次查询访问后端，同一 HTTP 请求或队列任务内的重复查询复用命中及未命中结果。通过记忆化仓储修改条目会先清除对应的内存结果，再写入后端。普通仓储的写入在内存结果失效后或下一个请求、任务中可见。 在框架管理的生命周期之外，每次调用都会创建独立的记忆化仓储。从已结束的生命周期保留的仓储会直接读取后端。
+
+```rust
+use openrust::{
+    cache::{CacheResult, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+pub async fn report() -> CacheResult<Option<Value>> {
+    let cache = Cache::memo(Some("redis"))?;
+    let _ = cache.get("reports/latest").await?;
+    Cache::memo(Some("redis"))?.get("reports/latest").await
+}
+```
+
 ## 原子锁
 
 用 `Cache::lock` 创建锁句柄。`get` 尝试一次，`block` 在限定时间内等待。持有者可释放或刷新有效锁。跨进程释放时，用持有者令牌调用 `Cache::restoreLock`。使用有限租期可在进程提前结束后恢复。

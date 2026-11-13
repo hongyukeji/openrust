@@ -17,6 +17,7 @@ mod file_store;
 mod lock;
 mod memcached_lock;
 mod memcached_store;
+mod memoized_store;
 mod null_store;
 mod rate_limiter;
 pub mod rate_limiting;

@@ -27,6 +27,13 @@ impl Cache {
             .store(name)
     }
 
+    /// Memoizes reads of the default store or a named store for this lifecycle.
+    pub fn memo(name: Option<&str>) -> CacheResult<Arc<Repository>> {
+        Self::getFacadeRoot()
+            .map_err(CacheError::Unavailable)?
+            .memo(name)
+    }
+
     pub async fn get(key: &str) -> CacheResult<Option<Value>> {
         Self::store(None)?.get(key).await
     }

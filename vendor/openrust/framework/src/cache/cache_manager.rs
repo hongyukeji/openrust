@@ -1,19 +1,21 @@
 use std::{
     collections::HashMap,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, Weak},
 };
 
 use serde::Deserialize;
 
 use crate::{
-    contracts::{cache::Factory, config::Repository as Config},
+    container::Container,
+    contracts::{cache::Factory, config::Repository as Config, container::Container as _},
     database::DatabaseManager,
     redis::RedisManager,
 };
 
 use super::{
     ArrayStore, CacheError, CacheResult, DatabaseStore, FileStore, RedisStore, Repository, backend,
+    memoized_store::{MemoizedRepositories, MemoizedStore},
 };
 
 /// Resolves named cache stores and repositories.
@@ -23,6 +25,7 @@ pub struct CacheManager {
     base: PathBuf,
     redis: Arc<RedisManager>,
     stores: Mutex<HashMap<String, Arc<Repository>>>,
+    owner: Weak<Container>,
 }
 
 #[derive(Deserialize)]
@@ -55,12 +58,34 @@ impl CacheManager {
             database,
             base,
             stores: Mutex::default(),
+            owner: Weak::new(),
         }
     }
 
     pub(super) fn with_redis(mut self, redis: Arc<RedisManager>) -> Self {
         self.redis = redis;
         self
+    }
+
+    pub(super) fn with_owner(mut self, owner: Weak<Container>) -> Self {
+        self.owner = owner;
+        self
+    }
+
+    /// Memoizes reads of the selected store within the current application lifecycle.
+    pub fn memo(&self, name: Option<&str>) -> CacheResult<Arc<Repository>> {
+        let repository = self.store(name)?;
+        if let Some(owner) = self
+            .owner
+            .upgrade()
+            .filter(|owner| owner.has_active_scope())
+        {
+            let repositories = owner
+                .make::<MemoizedRepositories>()
+                .map_err(CacheError::Unavailable)?;
+            return Ok(repositories.repository(repository));
+        }
+        Ok(MemoizedStore::wrap(repository, None))
     }
 
     pub fn getDefaultDriver(&self) -> CacheResult<String> {

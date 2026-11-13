@@ -12,6 +12,7 @@ use crate::{
     support::{ProviderResult, ServiceProvider},
 };
 
+use super::memoized_store::MemoizedRepositories;
 use super::{CacheManager, RateLimiter};
 
 /// Registers the cache manager in the application container.
@@ -22,12 +23,16 @@ impl ServiceProvider for CacheServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let base = app.base_path().to_path_buf();
+            let owner = Arc::downgrade(&app.container_handle());
+            container.scoped::<MemoizedRepositories, _>(|_| Ok(Arc::default()))?;
             container.singletonNamed("cache", move |container| {
                 let config = container.get::<dyn Config>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let redis = container.get::<RedisManager>("redis")?;
                 Ok(Arc::new(
-                    CacheManager::new(config, database, base.clone()).with_redis(redis),
+                    CacheManager::new(config, database, base.clone())
+                        .with_redis(redis)
+                        .with_owner(owner.clone()),
                 ))
             })?;
             container.alias(

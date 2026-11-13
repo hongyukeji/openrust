@@ -19,6 +19,24 @@
 ./artisan cache:clear file
 ```
 
+## 快取記憶化 {#cache-memoization}
+
+用 `Cache::memo(None)` 選擇預設儲存庫，或用 `Cache::memo(Some("redis"))` 選擇具名儲存庫。首次查詢會存取後端，同一 HTTP 請求或佇列工作內的重複查詢會重用命中及未命中結果。透過記憶化儲存庫修改項目會先清除對應的記憶體結果，再寫入後端。一般儲存庫的寫入在記憶體結果失效後或下一個請求、工作中可見。 在框架管理的生命週期之外，每次呼叫都會建立獨立的記憶化儲存庫。從已結束的生命週期保留的儲存庫會直接讀取後端。
+
+```rust
+use openrust::{
+    cache::{CacheResult, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+pub async fn report() -> CacheResult<Option<Value>> {
+    let cache = Cache::memo(Some("redis"))?;
+    let _ = cache.get("reports/latest").await?;
+    Cache::memo(Some("redis"))?.get("reports/latest").await
+}
+```
+
 ## 原子鎖
 
 用 `Cache::lock` 建立鎖的控制代碼。`get` 嘗試一次，`block` 在限定時間內等待。持有者可釋放或更新有效的鎖。跨處理程序釋放時，用持有者權杖呼叫 `Cache::restoreLock`。使用有限租期可在處理程序提前結束後復原。

@@ -19,6 +19,24 @@ Use `Cache::store(Some("file"))` for a named store or call the facade directly f
 ./artisan cache:clear file
 ```
 
+## Cache Memoization {#cache-memoization}
+
+Use `Cache::memo(None)` for the default store or `Cache::memo(Some("redis"))` for a named store. The first lookup reads the backend. Repeated lookups reuse hits and misses in the current HTTP request or queue job. Changes made through the memoized repository invalidate the affected keys before forwarding to the backend. Writes made through the plain repository become visible after invalidation or in the next request or job. Outside a managed lifecycle, each call creates a separate memoized repository. A repository retained from a completed lifecycle reads the backend directly.
+
+```rust
+use openrust::{
+    cache::{CacheResult, Value},
+    contracts::cache::Repository as _,
+    support::facades::Cache,
+};
+
+pub async fn report() -> CacheResult<Option<Value>> {
+    let cache = Cache::memo(Some("redis"))?;
+    let _ = cache.get("reports/latest").await?;
+    Cache::memo(Some("redis"))?.get("reports/latest").await
+}
+```
+
 ## Atomic Locks
 
 Use `Cache::lock` to create a lock handle. `get` tries once and `block` waits for a bounded interval. An owner can release or refresh a live lock. To release it from another process, pass the owner token to `Cache::restoreLock`. Use a finite lease to recover if the process ends before release.
