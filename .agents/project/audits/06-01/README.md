@@ -3,7 +3,7 @@
 - 核对固定 Laravel 的命名 URL、参数编码、签名与过期、重定向和本地临时文件机制。参考固定 Goravel 的 HTTP 重定向响应接口。复用 `v0.x` 的原始查询串验签、恒定时间比较、密钥轮换及固定 PHP 夹具，并移植重定向和签名 HTTP 用例的关键路径。 [Laravel URLs](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/urls.md) · [Laravel URL 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Routing/RoutingUrlGeneratorTest.php) · [Laravel 文件路由](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemServiceProvider.php) · [Goravel Response](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/http/response.go)
 - 路由装配后按生效路由建立应用级名称索引。请求上下文保留原始 URI，按需解析 Host，CLI 使用 `APP_URL`。支持具名、位置与嵌套参数、可选段、默认值、域名模板与模型主路由键。签名使用配置原值、查询顺序与前任密钥。常规验签失败返回 403。
 - 重定向支持指定状态、命名路由、一次性 intended 会话状态与同源 Referer。开启 `serve` 的本地磁盘提供签名 GET 和 PUT，生产环境无效签名返回 404。未签名的现有公开静态文件仍按原挂载顺序服务。S3 临时链接由现有 AWS SDK 生成，上传时转发签名要求的请求头。
-- Rust 使用有序类型表达 PHP 参数数组，并显式传入模型投影、时间和会话请求。缺少签名密钥时拒绝签发，`expires` 始终参与验签。HTTP URL 不读取转发头。S3 请求选项由类型化 SDK 构建器配置，目标桶和对象键始终由磁盘及调用路径决定。
+- Rust 使用有序类型表达 PHP 参数数组，并显式传入模型引用、时间和会话请求。缺少签名密钥时拒绝签发，`expires` 始终参与验签。HTTP URL 不读取转发头。S3 请求选项由类型化 SDK 构建器配置，目标桶和对象键始终由磁盘及调用路径决定。
 - 以 `407954e9` 为隔离基线。Rust 1.94.0 格式、464 项锁定离线工作区测试、全目标严格 Clippy 和 `./artisan inspire` 通过。`./artisan route:list --path=storage` 显示本地 GET／HEAD 与 PUT 路由。实际 HTTP 覆盖相对和绝对签名、篡改、过期、Host 改动、轮换、公开静态文件、局部磁盘上传下载、会话重定向和一次性 intended。分页链接在 SQLite 和真实 MySQL 8.4 上复验。
 - 真实 RustFS 使用预签名 PUT 和 GET 完成无客户端凭据的上传及读取，去掉签名后读取失败。三语正文的同一 Rust 示例从文档抽取并通过实际 HTTP，VitePress 构建、12 项通用浏览器检查与 6 项专题浏览器检查通过。
 
@@ -20,7 +20,7 @@
 ## 模型 URL 的自定义绑定列
 
 - 按固定 Laravel `RouteUrlGenerator` 的模型参数投影和路由测试，具名与位置模型参数在填入占位符时选择指定列，无指定列时使用默认键。旧版 `v0.x` 的 URL 生成器使用显式字符串参数，未找到对应的自动投影实现。Goravel 的编译型路由登记继续作为装配参考。 [Laravel RouteUrlGenerator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RouteUrlGenerator.php) · [Laravel 路由测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Routing/RoutingUrlGeneratorTest.php)
-- Rust 参数保留已加载的标量属性快照与默认键。生成 URL 时无需再次查询数据库。字段缺失或非标量时，必填占位符报缺少参数。Eloquent 使用已加载的原始标量属性，PHP 动态访问器和延迟加载仍有差异。
+- Rust 参数保留已加载的标量属性快照与默认键。生成 URL 时无需再次查询数据库。字段缺失或非标量时，必填占位符报缺少参数。该批读取原始属性。访问器与类型转换的后续验收见下文。
 - 实际 HTTP 与 SQLite、MySQL 8.4.13 覆盖默认 slug、自定义 id、具名与位置模型参数、动作 URL、缺失列、跟随生成链接、签名成功和篡改拒绝。原有 URL 与绑定回归同时运行。
 
 ## 临时 URL 选项与回调
@@ -38,3 +38,10 @@
 
 - 固定 Laravel 将调用方选项合并到 S3 命令参数。OpenRust 保留常用选项接口，另提供磁盘级 `temporaryDownloadRequest` 和 `temporaryUploadRequest`，接收编译检查的 SDK 构建器配置，并返回 URL 与必须随请求发送的签名头。磁盘在回调之后设置桶与带前缀的对象键。Laravel 允许命令选项覆盖这两个字段，其下载接口返回 URL 字符串。Goravel 的签名接口接收路径和过期时间。旧版 `v0.x` 的 OpenDAL 版本化签名已在前批复用，未找到同类构建器入口。 [Laravel S3 Adapter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/AwsS3V3Adapter.php) · [Goravel Storage](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/filesystem/storage.go)
 - 真实 RustFS 与 curl 验证 Range 签名下载、缺少签名头拒绝、条件 PUT 首次写入及重复时返回 412，以及桶与对象键仍按磁盘配置生效。本地磁盘拒绝 S3 构建器入口。S3 与 URL 专项、严格 Clippy、三语示例编译、文档构建及 12 项浏览器检查通过。独立 ACL 后端的两个条件用例未执行其真实服务分支。
+
+## 模型访问器与类型转换
+
+- 固定 Laravel 在匹配具名或位置参数后读取自定义绑定字段，普通占位符使用模型默认路由键。Rust 借用模型，按占位符调用现有 Eloquent 属性读取入口，支持无原始列的虚拟访问器、类型转换和默认路由键。属性读取错误由 `UrlError::ModelAttribute` 保留原因。访问器应通过模型属性或已加载数据提供标量；URL 生成保持同步，生成器无需启动关系懒加载。 [Laravel URL 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/urls.md#eloquent-models) · [Laravel RouteUrlGenerator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/RouteUrlGenerator.php) · [Laravel 路由测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Routing/RoutingUrlGeneratorTest.php)
+- 参考固定 Goravel 的编译型处理器契约。旧版 `v0.x` URL 参数使用字符串映射；本批沿用其共享属性读取及一次渲染后追加签名的做法，避免对同一个签名目标重复调用访问器。 [Goravel Router](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/route/route.go)
+- Rust 1.94.0 专项 `cargo test -p openrust-framework --test eloquent_route_binding --test urls --locked --offline` 通过。真实 SQLite 和 MySQL 8.4.13 的 HTTP 请求覆盖具名和位置参数、虚拟访问器、默认键访问器、类型转换、缺失字段、访问器错误、访问生成链接、签名成功及篡改拒绝。三语示例编译、VitePress 构建及 12 项浏览器检查通过。
+- 全工作区锁定离线测试 610 项通过、7 项夹具忽略。Rust 1.94.0 格式与全工作区全目标严格 Clippy 通过。实际二进制的 `artisan inspire` 退出 0。

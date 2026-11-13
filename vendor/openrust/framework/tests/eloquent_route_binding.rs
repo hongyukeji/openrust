@@ -9,8 +9,12 @@ use openrust::{
         http::{Kernel as _, Middleware},
     },
     database::{
-        DatabaseManager, Value as DbValue,
-        eloquent::{Model, ModelMetadata, ModelState, relations::HasMany},
+        DatabaseError, DatabaseManager, Value as DbValue,
+        eloquent::{
+            Model, ModelMetadata, ModelState,
+            casts::{Attribute, AttributeCast},
+            relations::HasMany,
+        },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
@@ -63,6 +67,27 @@ impl Model for Post {
         &mut self.0
     }
 
+    fn attribute(name: &str) -> Option<Attribute> {
+        match name {
+            "slug" => Some(Attribute::get(|raw, _| match raw {
+                Some(DbValue::Text(slug)) => Ok(slug.to_uppercase().into()),
+                _ => Ok(DbValue::Null),
+            })),
+            "public_slug" => Some(Attribute::get(|_, attributes| {
+                match attributes.get("slug") {
+                    Some(DbValue::Text(slug)) => Ok(format!("public-{slug}").into()),
+                    _ => Ok(DbValue::Null),
+                }
+            })),
+            "broken_slug" => Some(Attribute::get(|_, _| Err(DatabaseError::InvalidScalar))),
+            _ => None,
+        }
+    }
+
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("padded", AttributeCast::Integer)]
+    }
+
     fn getRouteKeyName() -> &'static str {
         "slug"
     }
@@ -104,7 +129,7 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             .route_model::<Post>("post")
             .or_else(|| request.route_model::<Post>("explicit"))
             .ok_or(HttpError::NotFound)?;
-        let Some(DbValue::Text(slug)) = post.getRouteKey() else {
+        let Some(DbValue::Text(slug)) = post.getAttribute("slug") else {
             return Err(HttpError::InvalidRequest);
         };
         let named = RouteParameter::model("post", post)?;
@@ -113,17 +138,31 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
             URL::route("missing-column", std::slice::from_ref(&named), false),
             Err(UrlError::MissingParameter)
         ));
+        assert!(matches!(
+            URL::route("broken-column", std::slice::from_ref(&named), false),
+            Err(UrlError::ModelAttribute(DatabaseError::InvalidScalar))
+        ));
         Response::json(
             StatusCode::OK,
             json!({
                 "slug": slug,
                 "by_id": URL::route("post-id", std::slice::from_ref(&named), false)?,
-            "signed": URL::signedRoute("post-signed", &[named], None, SignatureMode::Relative)?,
+                "named_accessor": URL::route("post-accessor", std::slice::from_ref(&named), false)?,
+                "position_accessor": URL::route("post-accessor", std::slice::from_ref(&positional), false)?,
+                "by_cast": URL::route("post-cast", std::slice::from_ref(&named), false)?,
+                "signed_accessor": URL::signedRoute(
+                    "post-accessor-signed", std::slice::from_ref(&named), None, SignatureMode::Relative
+                )?,
+                "signed": URL::signedRoute("post-signed", &[named], None, SignatureMode::Relative)?,
                 "by_slug": URL::route("post-slug", std::slice::from_ref(&positional), false)?,
                 "action": URL::action("PostController@byId", &[positional], false)?,
             }),
         )
     })
+}
+
+fn empty(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
 }
 
 fn custom_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
@@ -163,6 +202,22 @@ fn api() -> Result<(), RoutingError> {
         route
             .model::<Post>("post")?
             .name("post-signed")
+            .middleware_name("signed:relative");
+        Ok(())
+    })?;
+    for (path, name) in [
+        ("/accessor/{post:public_slug}", "post-accessor"),
+        ("/cast/{post:padded}", "post-cast"),
+        ("/broken/{post:broken_slug}", "broken-column"),
+    ] {
+        Route::getWith(path, empty, |route| {
+            route.name(name);
+            Ok(())
+        })?;
+    }
+    Route::getWith("/signed-accessor/{post:public_slug}", empty, |route| {
+        route
+            .name("post-accessor-signed")
             .middleware_name("signed:relative");
         Ok(())
     })?;
@@ -244,9 +299,9 @@ async fn verify(config: Value) {
         "DROP TABLE IF EXISTS route_posts",
         "DROP TABLE IF EXISTS route_accounts",
         "CREATE TABLE route_accounts (id BIGINT PRIMARY KEY)",
-        "CREATE TABLE route_posts (id BIGINT PRIMARY KEY, account_id BIGINT, slug VARCHAR(40), deleted_at VARCHAR(30))",
+        "CREATE TABLE route_posts (id BIGINT PRIMARY KEY, account_id BIGINT, slug VARCHAR(40), padded VARCHAR(12), deleted_at VARCHAR(30))",
         "INSERT INTO route_accounts VALUES (1), (2)",
-        "INSERT INTO route_posts VALUES (1, 1, 'first', NULL), (2, 2, 'second', NULL), (3, 1, 'deleted', '2026-01-01 00:00:00')",
+        "INSERT INTO route_posts VALUES (1, 1, 'first', '007', NULL), (2, 2, 'second', '008', NULL), (3, 1, 'deleted', '009', '2026-01-01 00:00:00')",
     ] {
         connection.statement(sql, &[]).await.unwrap();
     }
@@ -280,7 +335,20 @@ async fn verify(config: Value) {
         serde_json::from_str(&request(address, "/posts/first", 200).await).unwrap();
     assert_eq!(generated["by_id"], "/api/id/1");
     assert_eq!(generated["action"], generated["by_id"]);
-    assert_eq!(generated["by_slug"], "/posts/first");
+    assert_eq!(generated["by_slug"], "/posts/FIRST");
+    assert_eq!(generated["named_accessor"], "/api/accessor/public-first");
+    assert_eq!(generated["position_accessor"], generated["named_accessor"]);
+    assert_eq!(generated["by_cast"], "/api/cast/7");
+    request(address, generated["named_accessor"].as_str().unwrap(), 204).await;
+    let signed_accessor = generated["signed_accessor"].as_str().unwrap();
+    assert!(signed_accessor.starts_with("/api/signed-accessor/public-first?signature="));
+    request(address, signed_accessor, 204).await;
+    request(
+        address,
+        &signed_accessor.replace("public-first", "public-second"),
+        403,
+    )
+    .await;
     request(address, generated["by_id"].as_str().unwrap(), 200).await;
     request(address, "/api/id/first", 404).await;
     let signed = generated["signed"].as_str().unwrap();

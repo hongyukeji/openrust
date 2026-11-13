@@ -40,28 +40,41 @@ pub trait Registrar {
 }
 
 /// A model that can be looked up using a matched route parameter.
-pub trait UrlRoutable: Sized + Send + Sync + 'static {
-    fn get_route_key_name() -> &'static str {
+pub trait UrlRoutable: Send + Sync + 'static {
+    fn get_route_key_name() -> &'static str
+    where
+        Self: Sized,
+    {
         "id"
     }
 
     /// Projects the model's key for use in a named URL.
-    fn get_route_key(&self) -> Option<crate::routing::UrlValue> {
-        None
+    fn get_route_key(
+        &self,
+    ) -> crate::routing::UrlResult<Option<crate::routing::UrlValue<'static>>> {
+        Ok(None)
     }
 
-    /// Snapshots the scalar attributes available for custom route binding columns.
-    fn route_url_attributes(&self) -> std::collections::HashMap<String, crate::routing::UrlValue> {
-        Default::default()
+    /// Reads the attribute selected by the route's custom binding field.
+    fn route_url_attribute(
+        &self,
+        _field: &str,
+    ) -> crate::routing::UrlResult<Option<crate::routing::UrlValue<'static>>> {
+        Ok(None)
     }
 
     fn resolve_route_binding(
         binding: BindingContext<'_>,
-    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>>;
+    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>>
+    where
+        Self: Sized;
 
     fn resolve_child_route_binding(
         _binding: BindingContext<'_>,
-    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
+    ) -> HttpFuture<'_, Result<Option<Self>, HttpError>>
+    where
+        Self: Sized,
+    {
         Box::pin(async {
             Err(HttpError::Internal {
                 source: std::io::Error::other("model has no scoped route binding resolver").into(),

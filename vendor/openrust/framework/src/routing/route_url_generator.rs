@@ -71,7 +71,7 @@ impl RouteUrlGenerator {
             output.push('/');
         }
         output.push_str(&utf8_percent_encode(path, ROUTE_ENCODE).to_string());
-        let query = query_string(&remaining, true);
+        let query = query_string(&remaining, true)?;
         if !query.is_empty() {
             output.push(if output.contains('?') { '&' } else { '?' });
             output.push_str(&query);
@@ -115,13 +115,13 @@ impl RouteUrlGenerator {
             } else {
                 None
             };
-            let value = match (&value, field) {
-                (Some(UrlValue::Model { attributes, .. }), Some(field)) => attributes.get(field),
-                (Some(UrlValue::Model { key, .. }), None) => Some(key.as_ref()),
-                _ => value.as_ref(),
+            let value = match (value, field) {
+                (Some(UrlValue::Model(model)), Some(field)) => model.route_url_attribute(field)?,
+                (Some(UrlValue::Model(model)), None) => model.get_route_key()?,
+                (value, _) => value,
             };
             if let Some(value) = value.filter(|value| !value.empty()) {
-                let value = value.scalar().ok_or(UrlError::InvalidParameter)?;
+                let value = value.scalar()?.ok_or(UrlError::InvalidParameter)?;
                 if host
                     && (value.is_empty()
                         || !value

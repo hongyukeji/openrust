@@ -4,16 +4,17 @@
 
 Use `URL::route` with a route name and ordered parameters. Pass `true` for an absolute URL or `false` for a path. A `RouteParameter` can be named or positional. Parameters left after substituting the route pattern become the query string.
 
-Use `RouteParameter::model("article", &article)?` or `RouteParameter::positional_model(&article)?` to pass an Eloquent model. For a placeholder such as `{article:slug}`, URL generation reads the loaded `slug` attribute. Without a binding column, it uses the model’s route key. A required binding column that is absent from the loaded model produces a missing parameter error.
+Use `RouteParameter::model("article", &article)?` or `RouteParameter::positional_model(&article)?` to pass an Eloquent model. A placeholder such as `{article:slug}` reads `slug` through Eloquent, including its accessor or cast. A placeholder without a binding field uses the model’s route key. URL generation borrows the model and reads only the selected field, without querying the database. A missing required field returns `UrlError::MissingParameter`. A failed accessor or cast returns `UrlError::ModelAttribute`.
 
 ```rust
 use openrust::{
+    database::eloquent::Model,
     routing::{RouteParameter, UrlResult},
     support::facades::URL,
 };
 
-fn article_link() -> UrlResult<String> {
-    URL::route("article", &[RouteParameter::named("article", "42")], true)
+fn article_link(article: &impl Model) -> UrlResult<String> {
+    URL::route("article", &[RouteParameter::model("article", article)?], true)
 }
 ```
 

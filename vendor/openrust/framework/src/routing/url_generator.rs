@@ -11,7 +11,10 @@ use subtle::ConstantTimeEq;
 
 use crate::{
     config::Value,
-    contracts::{config::Repository, routing::UrlGenerator as Contract},
+    contracts::{
+        config::Repository,
+        routing::{UrlGenerator as Contract, UrlRoutable},
+    },
     http::{HttpError, Request, Uri},
 };
 
@@ -33,31 +36,42 @@ pub struct UrlGenerator {
 }
 
 /// Route parameters in application-supplied order.
-pub type RouteParameters = Vec<RouteParameter>;
+pub type RouteParameters<'a> = Vec<RouteParameter<'a>>;
 
 /// A positional or named route or query parameter.
 #[derive(Clone, Debug, PartialEq)]
-pub enum RouteParameter {
-    Positional(UrlValue),
-    Named(String, UrlValue),
+pub enum RouteParameter<'a> {
+    Positional(UrlValue<'a>),
+    Named(String, UrlValue<'a>),
 }
 
 /// The scalar and nested values accepted by the URL encoder.
-#[derive(Clone, PartialEq)]
-pub enum UrlValue {
+#[derive(Clone)]
+pub enum UrlValue<'a> {
     Null,
     Bool(bool),
     Number(serde_json::Number),
     String(String),
-    Array(RouteParameters),
+    Array(RouteParameters<'a>),
     #[doc(hidden)]
-    Model {
-        key: Box<UrlValue>,
-        attributes: Arc<HashMap<String, UrlValue>>,
-    },
+    Model(&'a dyn UrlRoutable),
 }
 
-impl fmt::Debug for UrlValue {
+impl PartialEq for UrlValue<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Null, Self::Null) => true,
+            (Self::Bool(left), Self::Bool(right)) => left == right,
+            (Self::Number(left), Self::Number(right)) => left == right,
+            (Self::String(left), Self::String(right)) => left == right,
+            (Self::Array(left), Self::Array(right)) => left == right,
+            (Self::Model(left), Self::Model(right)) => std::ptr::eq(*left, *right),
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Debug for UrlValue<'_> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Null => formatter.write_str("Null"),
@@ -65,10 +79,7 @@ impl fmt::Debug for UrlValue {
             Self::Number(value) => formatter.debug_tuple("Number").field(value).finish(),
             Self::String(value) => formatter.debug_tuple("String").field(value).finish(),
             Self::Array(value) => formatter.debug_tuple("Array").field(value).finish(),
-            Self::Model { key, .. } => formatter
-                .debug_struct("Model")
-                .field("key", key)
-                .finish_non_exhaustive(),
+            Self::Model(_) => formatter.debug_struct("Model").finish_non_exhaustive(),
         }
     }
 }
@@ -97,6 +108,7 @@ pub enum UrlError {
     MissingParameter,
     InvalidParameter,
     InvalidOrigin,
+    ModelAttribute(crate::database::DatabaseError),
     MissingSigningKey,
     ReservedSignatureParameter,
     InvalidRedirect,
@@ -111,6 +123,7 @@ impl fmt::Display for UrlError {
             Self::MissingRoute => "Named route is not defined.",
             Self::MissingParameter => "Required route parameter is missing.",
             Self::InvalidParameter => "Invalid URL parameter.",
+            Self::ModelAttribute(_) => "Could not read the URL model attribute.",
             Self::InvalidOrigin => "Invalid HTTP URL origin.",
             Self::MissingSigningKey => "URL signing key is missing.",
             Self::ReservedSignatureParameter => "URL parameter is reserved for signing.",
@@ -121,7 +134,14 @@ impl fmt::Display for UrlError {
     }
 }
 
-impl std::error::Error for UrlError {}
+impl std::error::Error for UrlError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::ModelAttribute(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 
 impl From<UrlError> for HttpError {
     fn from(source: UrlError) -> Self {
@@ -131,27 +151,29 @@ impl From<UrlError> for HttpError {
     }
 }
 
-impl From<&str> for UrlValue {
+impl From<&str> for UrlValue<'_> {
     fn from(value: &str) -> Self {
         Self::String(value.to_owned())
     }
 }
 
-impl From<String> for UrlValue {
+impl From<String> for UrlValue<'_> {
     fn from(value: String) -> Self {
         Self::String(value)
     }
 }
 
-impl UrlValue {
-    pub(super) fn scalar(&self) -> Option<String> {
-        match self {
+impl UrlValue<'_> {
+    pub(super) fn scalar(&self) -> UrlResult<Option<String>> {
+        Ok(match self {
             Self::Null | Self::Array(_) => None,
-            Self::Model { key, .. } => key.scalar(),
+            Self::Model(model) => {
+                return model.get_route_key()?.map_or(Ok(None), |key| key.scalar());
+            }
             Self::Bool(value) => Some(u8::from(*value).to_string()),
             Self::Number(value) => Some(value.to_string()),
             Self::String(value) => Some(value.clone()),
-        }
+        })
     }
 
     pub(super) fn empty(&self) -> bool {
@@ -159,38 +181,23 @@ impl UrlValue {
     }
 }
 
-impl RouteParameter {
-    pub fn named(name: impl Into<String>, value: impl Into<UrlValue>) -> Self {
+impl<'a> RouteParameter<'a> {
+    pub fn named(name: impl Into<String>, value: impl Into<UrlValue<'a>>) -> Self {
         Self::Named(name.into(), value.into())
     }
 
-    pub fn positional(value: impl Into<UrlValue>) -> Self {
+    pub fn positional(value: impl Into<UrlValue<'a>>) -> Self {
         Self::Positional(value.into())
     }
 
-    pub fn model(
-        name: impl Into<String>,
-        model: &impl crate::contracts::routing::UrlRoutable,
-    ) -> UrlResult<Self> {
-        Ok(Self::named(name, Self::model_value(model)?))
+    /// Borrows the model until the URL is generated.
+    pub fn model(name: impl Into<String>, model: &'a impl UrlRoutable) -> UrlResult<Self> {
+        Ok(Self::named(name, UrlValue::Model(model)))
     }
 
-    pub fn positional_model(
-        model: &impl crate::contracts::routing::UrlRoutable,
-    ) -> UrlResult<Self> {
-        Ok(Self::Positional(Self::model_value(model)?))
-    }
-
-    fn model_value(model: &impl crate::contracts::routing::UrlRoutable) -> UrlResult<UrlValue> {
-        let key = model.get_route_key();
-        let attributes = model.route_url_attributes();
-        if key.is_none() && attributes.is_empty() {
-            return Err(UrlError::MissingParameter);
-        }
-        Ok(UrlValue::Model {
-            key: Box::new(key.unwrap_or(UrlValue::Null)),
-            attributes: Arc::new(attributes),
-        })
+    /// Borrows the model for the next positional route parameter.
+    pub fn positional_model(model: &'a impl UrlRoutable) -> UrlResult<Self> {
+        Ok(Self::positional(UrlValue::Model(model)))
     }
 
     fn name(&self) -> Option<&str> {
@@ -396,19 +403,19 @@ impl Contract for UrlGenerator {
         let (path, query) = path
             .split_once('?')
             .map_or((path, None), |(path, query)| (path, Some(query)));
-        for segment in std::iter::once(path.trim_matches('/').to_owned())
-            .chain(parameters.iter().map(|parameter| {
-                let value = match parameter {
-                    RouteParameter::Named(_, value) | RouteParameter::Positional(value) => value,
-                };
-                value
-                    .scalar()
-                    .map_or_else(String::new, |value| encode(&value))
-            }))
-            .filter(|segment| !segment.is_empty())
-        {
+        let path = path.trim_matches('/');
+        if !path.is_empty() {
             output.push('/');
-            output.push_str(&segment);
+            output.push_str(path);
+        }
+        for parameter in parameters {
+            let value = match parameter {
+                RouteParameter::Named(_, value) | RouteParameter::Positional(value) => value,
+            };
+            if let Some(value) = value.scalar()?.filter(|value| !value.is_empty()) {
+                output.push('/');
+                output.push_str(&encode(&value));
+            }
         }
         if let Some(query) = query {
             output.push('?');
@@ -480,7 +487,7 @@ impl Contract for UrlGenerator {
         }
         let path = url.as_str();
         let mut output = path.to_owned();
-        let query = query_string(&merged, false);
+        let query = query_string(&merged, false)?;
         if !query.is_empty() {
             output.push('?');
             output.push_str(&query);
@@ -538,9 +545,15 @@ impl Contract for UrlGenerator {
         parameters.sort_by(|left, right| left.name().cmp(&right.name()));
         let key = self.signing_key()?;
         let absolute = mode == SignatureMode::Absolute;
-        let target = self.route(name, &parameters, absolute)?;
-        parameters.push(RouteParameter::named("signature", signature(&target, &key)));
-        self.route(name, &parameters, absolute)
+        let mut target = self.route(name, &parameters, absolute)?;
+        let signature = signature(&target, &key);
+        target.push_str(if target.contains('?') {
+            "&signature="
+        } else {
+            "?signature="
+        });
+        target.push_str(&signature);
+        Ok(target)
     }
 
     fn temporarySignedRoute(
@@ -655,27 +668,27 @@ pub(super) fn encode(text: &str) -> String {
     utf8_percent_encode(text, NON_UNRESERVED).to_string()
 }
 
-pub(super) fn query_string(parameters: &[RouteParameter], route: bool) -> String {
+pub(super) fn query_string(parameters: &[RouteParameter], route: bool) -> UrlResult<String> {
     let mut parts = Vec::new();
     let mut index = 0;
     for parameter in parameters {
         match parameter {
-            RouteParameter::Named(key, value) => append_query(&mut parts, key, value),
+            RouteParameter::Named(key, value) => append_query(&mut parts, key, value)?,
             RouteParameter::Positional(value) if route => {
-                if let Some(value) = value.scalar() {
+                if let Some(value) = value.scalar()? {
                     parts.push(encode(&value));
                 }
             }
             RouteParameter::Positional(value) => {
-                append_query(&mut parts, &index.to_string(), value);
+                append_query(&mut parts, &index.to_string(), value)?;
                 index += 1;
             }
         }
     }
-    parts.join("&")
+    Ok(parts.join("&"))
 }
 
-fn json_parameters(value: Value) -> RouteParameters {
+fn json_parameters(value: Value) -> RouteParameters<'static> {
     match value {
         Value::Object(values) => values
             .into_iter()
@@ -699,7 +712,7 @@ fn json_parameters(value: Value) -> RouteParameters {
     }
 }
 
-fn query_value(value: Value) -> UrlValue {
+fn query_value(value: Value) -> UrlValue<'static> {
     match value {
         Value::String(value) => UrlValue::String(value),
         Value::Array(_) => UrlValue::Array(json_parameters(value)),
@@ -713,17 +726,17 @@ fn query_value(value: Value) -> UrlValue {
     }
 }
 
-fn append_query(parts: &mut Vec<String>, key: &str, value: &UrlValue) {
+fn append_query(parts: &mut Vec<String>, key: &str, value: &UrlValue<'_>) -> UrlResult<()> {
     match value {
         UrlValue::Array(children) => {
             let mut index = 0;
             for child in children {
                 match child {
                     RouteParameter::Named(name, value) => {
-                        append_query(parts, &format!("{key}[{name}]"), value);
+                        append_query(parts, &format!("{key}[{name}]"), value)?;
                     }
                     RouteParameter::Positional(value) => {
-                        append_query(parts, &format!("{key}[{index}]"), value);
+                        append_query(parts, &format!("{key}[{index}]"), value)?;
                         index += 1;
                     }
                 }
@@ -731,9 +744,10 @@ fn append_query(parts: &mut Vec<String>, key: &str, value: &UrlValue) {
         }
         UrlValue::Null => {}
         value => {
-            if let Some(value) = value.scalar() {
+            if let Some(value) = value.scalar()? {
                 parts.push(format!("{}={}", encode(key), encode(&value)));
             }
         }
     }
+    Ok(())
 }

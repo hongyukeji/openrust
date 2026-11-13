@@ -2,7 +2,7 @@ use crate::{
     contracts::routing::UrlRoutable,
     database::{DatabaseError, DatabaseResult, Value, connection::Pool},
     http::{HttpError, HttpFuture},
-    routing::{BindingContext, UrlValue},
+    routing::{BindingContext, UrlError, UrlResult, UrlValue},
 };
 
 use super::{Builder, Model};
@@ -12,32 +12,12 @@ impl<M: Model> UrlRoutable for M {
         M::getRouteKeyName()
     }
 
-    fn get_route_key(&self) -> Option<crate::routing::UrlValue> {
-        let key = match M::getRouteKey(self)? {
-            Value::Integer(value) => crate::routing::UrlValue::Number((*value).into()),
-            Value::Unsigned(value) => crate::routing::UrlValue::Number((*value).into()),
-            Value::Text(value) => crate::routing::UrlValue::String(value.clone()),
-            _ => return None,
-        };
-        Some(key)
+    fn get_route_key(&self) -> UrlResult<Option<UrlValue<'static>>> {
+        url_value(M::getRouteKey(self))
     }
 
-    fn route_url_attributes(&self) -> std::collections::HashMap<String, UrlValue> {
-        self.state()
-            .getAttributes()
-            .iter()
-            .filter_map(|(name, value)| {
-                let value = match value {
-                    Value::Integer(value) => UrlValue::Number((*value).into()),
-                    Value::Unsigned(value) => UrlValue::Number((*value).into()),
-                    Value::Text(value) => UrlValue::String(value.clone()),
-                    Value::Bool(value) => UrlValue::Bool(*value),
-                    Value::Real(value) => UrlValue::Number(serde_json::Number::from_f64(*value)?),
-                    _ => return None,
-                };
-                Some((name.clone(), value))
-            })
-            .collect()
+    fn route_url_attribute(&self, field: &str) -> UrlResult<Option<UrlValue<'static>>> {
+        url_value(self.getAttributeValue(field))
     }
 
     fn resolve_route_binding(
@@ -50,6 +30,20 @@ impl<M: Model> UrlRoutable for M {
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>> {
         M::resolveChildRouteBinding(binding)
+    }
+}
+
+fn url_value(value: DatabaseResult<Option<Value>>) -> UrlResult<Option<UrlValue<'static>>> {
+    match value.map_err(UrlError::ModelAttribute)? {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Integer(value)) => Ok(Some(UrlValue::Number(value.into()))),
+        Some(Value::Unsigned(value)) => Ok(Some(UrlValue::Number(value.into()))),
+        Some(Value::Text(value)) => Ok(Some(UrlValue::String(value))),
+        Some(Value::Bool(value)) => Ok(Some(UrlValue::Bool(value))),
+        Some(Value::Real(value)) => serde_json::Number::from_f64(value)
+            .map(|value| Some(UrlValue::Number(value)))
+            .ok_or(UrlError::InvalidParameter),
+        _ => Err(UrlError::InvalidParameter),
     }
 }
 

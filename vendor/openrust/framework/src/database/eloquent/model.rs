@@ -612,8 +612,8 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::metadata().primary_key
     }
 
-    fn getRouteKey(&self) -> Option<&Value> {
-        self.getAttribute(Self::getRouteKeyName())
+    fn getRouteKey(&self) -> DatabaseResult<Option<Value>> {
+        self.getAttributeValue(Self::getRouteKeyName())
     }
 
     fn routeBindingValue(field: &str, value: &str) -> Option<Value> {

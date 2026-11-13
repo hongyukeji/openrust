@@ -4,16 +4,17 @@
 
 通过 `URL::route` 传入路由名称与有序参数。传 `true` 返回绝对 URL，传 `false` 返回路径。`RouteParameter` 支持命名参数和位置参数。替换路由占位符后剩余的参数会进入查询串。
 
-用 `RouteParameter::model("article", &article)?` 或 `RouteParameter::positional_model(&article)?` 传入 Eloquent 模型。遇到 `{article:slug}` 时，生成 URL 会读取已加载的 `slug` 属性。普通占位符使用模型默认路由键。必填绑定列未加载时，返回缺少参数错误。
+用 `RouteParameter::model("article", &article)?` 或 `RouteParameter::positional_model(&article)?` 传入 Eloquent 模型。`{article:slug}` 通过 Eloquent 读取 `slug`，应用对应访问器或类型转换。没有指定绑定字段的占位符使用模型的路由键。生成 URL 时借用模型，只读取选中的字段，无需查询数据库。必填字段缺失返回 `UrlError::MissingParameter`，访问器或类型转换失败返回 `UrlError::ModelAttribute`。
 
 ```rust
 use openrust::{
+    database::eloquent::Model,
     routing::{RouteParameter, UrlResult},
     support::facades::URL,
 };
 
-fn article_link() -> UrlResult<String> {
-    URL::route("article", &[RouteParameter::named("article", "42")], true)
+fn article_link(article: &impl Model) -> UrlResult<String> {
+    URL::route("article", &[RouteParameter::model("article", article)?], true)
 }
 ```
 
