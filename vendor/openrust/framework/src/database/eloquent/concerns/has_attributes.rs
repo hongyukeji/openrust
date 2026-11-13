@@ -107,6 +107,15 @@ impl ModelState {
         self.was_recently_created
     }
 
+    pub(in crate::database::eloquent) fn replica(&self, attributes: Attributes) -> Self {
+        Self {
+            attributes,
+            relations: self.relations.clone(),
+            connection: self.connection.clone(),
+            ..Self::default()
+        }
+    }
+
     pub(in crate::database::eloquent) fn hydrated_attributes(
         attributes: Attributes,
         connection: Connection,

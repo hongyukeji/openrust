@@ -47,6 +47,18 @@ impl Model for Flight {
 
 使用 `softDeletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `withTrashed` 或 `onlyTrashed` 查询它们，用 `restore` 清除删除时间，用 `forceDelete` 永久删除。
 
+## 复制模型 {#replicating-models}
+
+调用 `replicate(&[]).await?` 创建尚未保存的副本。框架会排除主键、已配置的时间戳和内部中间表键。可传入其他要排除的列名。副本保留已加载的关系，也可以单独移除关系。副本沿用源模型的数据库连接并触发 `Replicating` 生命周期事件。使用 `replicateQuietly` 跳过该事件，调用 `save` 插入副本。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
+    source.replicate(&["secret"]).await
+}
+```
+
 ## 查询作用域
 
 实现 `Scope<Model>` 可复用查询约束。用 `withScope` 应用它，或在模型的 `globalScopes` 注册全局作用域。使用 `withoutGlobalScope` 移除指定作用域。以下示例使用上面的 `Flight` 模型，数据表需包含已声明字段和时间戳。

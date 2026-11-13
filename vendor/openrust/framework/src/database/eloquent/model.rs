@@ -268,6 +268,56 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(model)
     }
 
+    /// Creates an unsaved copy, excluding identity, timestamps, and the given attributes.
+    fn replicate<'a>(
+        &'a self,
+        except: &'a [&str],
+    ) -> impl Future<Output = DatabaseResult<Self>> + Send + 'a {
+        async move {
+            let metadata = Self::metadata();
+            let source = self.state();
+            let attributes = source
+                .attributes
+                .iter()
+                .filter(|(column, _)| {
+                    let column = column.as_str();
+                    column != metadata.primary_key
+                        && Some(column) != metadata.created_at
+                        && Some(column) != metadata.updated_at
+                        && column != "laravel_through_key"
+                        && !except.contains(&column)
+                })
+                .map(|(column, value)| (column.clone(), value.clone()))
+                .collect();
+            let mut replica = Self::from_state(source.replica(attributes));
+            let connection = match source.connection.clone() {
+                Some(connection) => Some(connection),
+                None if Connection::model_container(None).is_some() => {
+                    Some(DB::connection(metadata.connection)?)
+                }
+                None => None,
+            };
+            if let Some(connection) = connection {
+                concerns::has_events::fire(
+                    &mut replica,
+                    &connection,
+                    concerns::ModelEvent::Replicating,
+                    false,
+                )
+                .await?;
+            }
+            Ok(replica)
+        }
+    }
+
+    /// Creates an unsaved copy with model lifecycle events suppressed.
+    fn replicateQuietly<'a>(
+        &'a self,
+        except: &'a [&str],
+    ) -> impl Future<Output = DatabaseResult<Self>> + Send + 'a {
+        Self::withoutEvents(self.replicate(except))
+    }
+
     /// Overrides casts for this model instance. Later entries win for the same attribute.
     fn mergeCasts(
         &mut self,

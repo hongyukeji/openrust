@@ -40,3 +40,9 @@
 - SQLite 和独立 MySQL 8.4.13 实际模型写入验证写前取消、响应优先级、回退、异常传播、静默、两应用隔离、事务提交及回滚。提交后监听器收到派发时的自有载荷，并能解析所属应用的连接。
 - 三语文档示例分别编译运行，验证载荷和原模型后续修改互相独立。实际 Artisan 的 `event:list --json` 和 `make:model MappedFlight` 通过。复制和自动唯一 ID 继续跟踪。
 - Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。
+
+## 模型复制
+
+- 对照固定 Laravel 的 `replicate`、`replicateQuietly` 及生成列排除回归。Rust 使用异步接口调用现有模型事件。副本排除主键、配置的时间戳、内部中间表键和调用者指定列，保留已加载关系。副本沿用源连接，这是为了让显式连接绑定的 Rust 模型在原库保存。固定 Goravel 作为模型装配参考，`v0.x` 未找到独立复制入口。自动唯一 ID 和生成列刷新有各自的前置实现，复制的相应自动排除随这些能力接入。 [Laravel 模型复制](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#replicating-models) · [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentIntegrationTest.php)
+- SQLite 和独立 MySQL 8.4.13 验证当前原始属性、字段排除、原始快照重置、关系保留及独立移除、事件修改副本、静默复制、插入新主键和原记录保持。三语示例编译运行，实际 Artisan 生成 `ReplicableFlight` 通过。
+- Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建和 18 项浏览器检查通过。

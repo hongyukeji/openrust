@@ -47,6 +47,18 @@ In an application request or command, use `Flight::query()?` for a model-aware b
 
 Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `withTrashed` or `onlyTrashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.
 
+## Replicating Models {#replicating-models}
+
+Call `replicate(&[]).await?` to create an unsaved copy. The primary key, configured timestamps, and internal through key are excluded. Pass additional column names to omit them. Loaded relations are available on the copy and can be removed independently. The copy keeps the source database connection and receives the `Replicating` lifecycle event. Use `replicateQuietly` to skip that event. Call `save` to insert the copy.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+async fn copy_without_secret<M: Model>(source: &M) -> DatabaseResult<M> {
+    source.replicate(&["secret"]).await
+}
+```
+
 ## Query Scopes
 
 Implement `Scope<Model>` to reuse a query constraint. Apply it with `withScope`, or register it in the model’s `globalScopes`. Remove a named global scope with `withoutGlobalScope`. This example uses the `Flight` model above and a table with the declared columns and timestamps.

@@ -11,6 +11,7 @@ use openrust::{
         eloquent::{
             Model, ModelMetadata, ModelState, Observer,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
+            relations::HasMany,
         },
     },
     events::{
@@ -764,8 +765,127 @@ async fn verify_mapped_events(config: Json, id: &str) {
         .unwrap();
 }
 
+struct ReplicaArticle(ModelState);
+
+impl Model for ReplicaArticle {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("replica_articles");
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct ReplicatingListener;
+
+impl ModelEventListener<ReplicaArticle> for ReplicatingListener {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        replica: &'a mut ReplicaArticle,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            assert_eq!(event, Replicating);
+            assert!(!replica.state().exists());
+            assert!(replica.getKey().is_none());
+            assert!(replica.relationLoaded("children"));
+            assert_eq!(replica.getConnectionName(), Some(connection.getName()));
+            replica.setAttribute("title", "from-listener");
+            Ok(ModelEventResponse::Cancel)
+        })
+    }
+}
+
+async fn verify_replication(config: Json, id: &str) {
+    let (app, db) = app_with_database(config, vec![]).await;
+    db.statement(&format!("CREATE TABLE replica_articles (id {id}, parent_id BIGINT NULL, title VARCHAR(30) NOT NULL, secret VARCHAR(30) NULL, created_at DATETIME NULL, updated_at DATETIME NULL)"), &[]).await.unwrap();
+    db.insert("INSERT INTO replica_articles (id, title, secret, created_at, updated_at) VALUES (1, 'original', 'private', '2020-01-01 00:00:00', '2020-01-01 00:00:00')", &[]).await.unwrap();
+    db.insert(
+        "INSERT INTO replica_articles (id, parent_id, title) VALUES (2, 1, 'child')",
+        &[],
+    )
+    .await
+    .unwrap();
+    let mut source = ReplicaArticle::queryOn(&db)
+        .find(1_i64)
+        .await
+        .unwrap()
+        .unwrap();
+    source
+        .load(
+            "children",
+            &HasMany::<ReplicaArticle, ReplicaArticle>::new("id", "parent_id"),
+        )
+        .await
+        .unwrap();
+    source.setAttribute("laravel_through_key", 1_i64);
+    source.setAttribute("title", "unsaved-edit");
+    ReplicaArticle::registerModelEvent(&app, Replicating, ReplicatingListener).unwrap();
+
+    let mut copy = source.replicate(&["secret", "id"]).await.unwrap();
+    assert_eq!(
+        copy.getAttribute("title"),
+        Some(&Value::from("from-listener"))
+    );
+    for column in [
+        "id",
+        "secret",
+        "created_at",
+        "updated_at",
+        "laravel_through_key",
+    ] {
+        assert!(copy.getAttribute(column).is_none(), "{column}");
+    }
+    assert!(!copy.state().wasRecentlyCreated());
+    assert!(copy.state().getOriginal().is_empty());
+    assert!(copy.state().getChanges().is_empty());
+    assert_eq!(copy.getConnectionName(), source.getConnectionName());
+    copy.unsetRelation("children");
+    assert!(source.relationLoaded("children"));
+    assert!(copy.save().await.unwrap());
+    assert_ne!(copy.getKey(), source.getKey());
+
+    let mut quiet = source.replicateQuietly(&[]).await.unwrap();
+    assert_eq!(
+        quiet.getAttribute("title"),
+        Some(&Value::from("unsaved-edit"))
+    );
+    assert_eq!(quiet.getAttribute("secret"), Some(&Value::from("private")));
+    assert!(quiet.relationLoaded("children"));
+    assert!(quiet.save().await.unwrap());
+    assert_ne!(quiet.getKey(), copy.getKey());
+    assert_eq!(
+        db.scalar("SELECT title FROM replica_articles WHERE id = 1", &[])
+            .await
+            .unwrap(),
+        Value::from("original")
+    );
+
+    let detached = ReplicaArticle::from_state(ModelState::default());
+    assert!(!detached.replicate(&[]).await.unwrap().state().exists());
+    db.statement("DROP TABLE replica_articles", &[])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
+    verify_replication(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
     verify(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
@@ -793,6 +913,7 @@ async fn model_events_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
+        verify_replication(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_transaction_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_after_commit_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
