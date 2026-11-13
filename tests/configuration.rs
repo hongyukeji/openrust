@@ -26,6 +26,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(
         defaults.keys().map(String::as_str).collect::<Vec<_>>(),
         [
+            "api",
             "app",
             "auth",
             "broadcasting",
@@ -41,12 +42,12 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "mail",
             "queue",
             "reverb",
-            "routing",
             "services",
             "session",
             "view",
         ]
     );
+    assert_eq!(defaults["api"]["prefix"], "api");
     assert_eq!(defaults["auth"]["defaults"]["guard"], "web");
     assert_eq!(
         defaults["cache"]["stores"]["file"]["path"],
@@ -68,7 +69,6 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
     assert_eq!(defaults["reverb"]["enabled"], false);
     assert_eq!(defaults["app"]["disabled_runners"], json!([]));
     assert_eq!(defaults["grpc"]["clients"], json!({}));
-    assert_eq!(defaults["routing"]["api_prefix"], "api");
 
     for (contents, default_db, cache_db) in [
         ("", 0, 0),

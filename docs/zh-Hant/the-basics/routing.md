@@ -2,7 +2,7 @@
 
 在 `routes/web.rs` 宣告 Web 路由。應用程式啟動時透過 `openrust::routing::Router` 註冊這些路由及 `/up` 健康檢查。需要讀取請求的處理器接收可變的 `Request`，並傳回非同步 HTTP 結果。框架呼叫 Web 路由模組的 `register()` 時繫結目前應用程式的 Router。匯入 `openrust::support::facades::Route` 後，可以用 `Route::get("/", || view("welcome"))` 宣告具名檢視。
 
-在 `routes/api.rs` 宣告 API 路由。應用程式骨架預設掛載到 `/api` 並套用 `api` 中介軟體群組。設定 `ROUTING_API_PREFIX=/v1/internal` 可修改 `routing.api_prefix`，在 Builder 中呼叫 `Routing::apiPrefix("v2")` 則優先於設定。首尾斜線可以省略。設定 `ROUTING_API_PREFIX=` 或傳入空字串可省略前綴，`api` 中介軟體群組仍會套用。
+在 `routes/api.rs` 定義 API 路由。應用程式從 `config/api.rs` 載入 `api.prefix`，並套用 `api` 中介軟體群組。預設前綴為 `/api`。在 `.env` 中設定 `API_PREFIX=api/admin` 可掛載至 `/api/admin`，設定 `API_PREFIX=` 可省略前綴。在 `withRouting` 中明確呼叫 `Routing::apiPrefix(...)` 時，以該呼叫為準。
 
 在 `routes/api.rs` 的無參數 `register() -> Result<(), RoutingError>` 中使用 `Route` Facade 宣告 API 端點。路由路徑相對於 API 前綴。GET 路由需要命名、模型繫結或路由層級中介軟體時，可使用 `Route::getWith`。
 

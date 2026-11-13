@@ -165,30 +165,31 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
 
     for (environment, explicit, effective, cors) in [
         ("", None, "api", Cors::Default),
+        ("API_PREFIX=api/admin\n", None, "api/admin", Cors::Default),
         (
-            "ROUTING_API_PREFIX=//v1/internal//\n",
+            "API_PREFIX=//v1/internal//\n",
             None,
             "v1/internal",
             Cors::Default,
         ),
         (
-            "ROUTING_API_PREFIX=/env\n",
+            "API_PREFIX=/env\n",
             Some("/builder/v2/"),
             "builder/v2",
             Cors::Default,
         ),
-        ("ROUTING_API_PREFIX=/env\n", Some(""), "", Cors::Default),
-        ("ROUTING_API_PREFIX=/\n", None, "", Cors::Default),
-        ("ROUTING_API_PREFIX=\n", None, "", Cors::Default),
+        ("API_PREFIX=/env\n", Some(""), "", Cors::Default),
+        ("API_PREFIX=/\n", None, "", Cors::Default),
+        ("API_PREFIX=\n", None, "", Cors::Default),
         ("CORS_PATHS=*\n", None, "api", Cors::All),
         (
-            "ROUTING_API_PREFIX=/v1\nCORS_PATHS=\"/custom/*, /v1/*\"\n",
+            "API_PREFIX=/v1\nCORS_PATHS=\"/custom/*, /v1/*\"\n",
             None,
             "v1",
             Cors::Custom,
         ),
         ("CORS_PATHS=\n", None, "api", Cors::Disabled),
-        ("ROUTING_API_PREFIX=/v1\n", None, "v1", Cors::ByHost),
+        ("API_PREFIX=/v1\n", None, "v1", Cors::ByHost),
     ] {
         let root = TestRoot::new("api-prefix");
         fs::write(root.0.join(".env"), environment).unwrap();
@@ -309,9 +310,7 @@ async fn api_routing_and_json_follow_the_prefix_while_cors_uses_configured_paths
             ("/host-only/missing", host),
         ] {
             let allowed = match cors {
-                Cors::Default => {
-                    matches!(path, "/api/missing" | "/sanctum/csrf-cookie" | "/api/probe")
-                }
+                Cors::Default => path.starts_with("/api/") || path == "/sanctum/csrf-cookie",
                 Cors::All => true,
                 Cors::Custom => matches!(path, "/custom/missing" | "/v1/probe"),
                 Cors::Disabled => false,

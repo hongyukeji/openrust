@@ -80,11 +80,11 @@ impl Routing {
         if let Some(prefix) = &self.api_prefix {
             return Ok(Arc::from(prefix.trim_matches('/')));
         }
-        match config.get("routing.api_prefix") {
+        match config.get("api.prefix") {
             None => Ok(Arc::from("api")),
             Some(Value::String(prefix)) => Ok(Arc::from(prefix.trim_matches('/'))),
             Some(_) => Err(ConfigError::InvalidType {
-                key: "routing.api_prefix".into(),
+                key: "api.prefix".into(),
                 expected: "a string",
             }),
         }

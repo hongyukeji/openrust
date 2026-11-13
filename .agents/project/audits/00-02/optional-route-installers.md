@@ -24,3 +24,8 @@
 - 隔离副本以 `837a9a4c` 为基线。真实 TCP 验证默认前缀、`ROUTING_API_PREFIX` 多级前缀和不同环境值下的 Builder 显式覆盖。API 中间件以响应头验证，Web 路由保留自己的分组。空前缀、默认及按主机 CORS 预检、JSON／HTML 404 和显式 JSON 请求通过。该基线的 CORS 默认配置为所有路径，本批保留配置和实现。
 - 实跑 `install:api`。预置骨架保留原文件、输出和退出码，缺接线骨架恢复同样源码并通过构建。仅在隔离安装后的路由文件加入命名探针，实际二进制验证 `GET /v1/installation-probe` 返回 204，`route:list` 显示名称及 `api` 分组，旧路径返回 HTML 404，独立 `artisan inspire` 和 SIGINT 正常。
 - macOS ARM64、Rust 1.99.1 锁定离线定向测试 56 项通过，含授权、模型绑定、CSRF、分页、会话认证、API 资源与中间件生命周期。Rust 1.94.0 格式检查、三语构建及 12 项浏览器检查通过。
+
+## API 前缀配置入口
+
+- `config/api.rs` 读取 `API_PREFIX` 并通过配置仓储提供 `api.prefix`，默认值为 `api`，沿用旧版应用的环境变量名。显式调用 `Routing::apiPrefix` 优先。路由装配解析同一有效前缀用于挂载和 API 错误识别。旧路由配置入口已移除。
+- macOS ARM64、Rust 1.94.0 运行 `cargo +1.94.0 test --locked --offline --test startup --test configuration --test http -- --test-threads=1`，40 项通过。真实 TCP 覆盖默认 `/api`、自定义 `/api/admin`、无前缀、API 分组标记和 JSON／HTML 404，含独立 CORS 路径。原有 Artisan 路由安装回归通过。三语 VitePress 构建及根路径和 `/docs/` 的 12 项浏览器检查通过。
