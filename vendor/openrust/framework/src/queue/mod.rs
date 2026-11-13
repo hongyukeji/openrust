@@ -1,5 +1,6 @@
 //! Queue drivers, workers, and dispatch data.
 
+mod beanstalkd_queue;
 mod chain_edit;
 mod chain_routing;
 pub mod connectors;

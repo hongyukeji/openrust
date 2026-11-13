@@ -96,6 +96,12 @@ The `null` connection discards jobs. The `deferred` connection executes after a 
 
 Configure `failover.connections` in priority order. Publication tries the next connection on error and emits `QueueFailedOver` when a connection begins failing. The failover connection reads and reserves from its first connection. Run separate workers for durable fallback connections. An ambiguous storage error after a successful write can lead to duplicate execution. Keep handlers idempotent.
 
+### Beanstalkd {#beanstalkd}
+
+Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANSTALKD_QUEUE_PORT` (default 11300), `BEANSTALKD_QUEUE` and `BEANSTALKD_QUEUE_RETRY_AFTER`. Run `./artisan queue:work beanstalkd --queue=default`. A queue maps to a tube. The server manages delayed jobs and reservation expiry. Keep the worker timeout below the reservation lifetime. Use the connection’s `block_for` setting to allow blocking reservations.
+
+Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. Batch publication remains tracked for this driver. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
+
 ## Dispatching with database transactions
 
 Pass the active transaction as the last argument of `Queue::dispatch`. A connection with `after_commit` enabled dispatches only after the outer commit. Set `DispatchOptions.after_commit` to override the connection setting. Rolling back discards deferred dispatch. With immediate dispatch, a database queue on the same connection writes within the transaction, and a sync handler can access it via `JobContext::transaction`.

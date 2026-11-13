@@ -96,6 +96,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 按优先顺序配置 `failover.connections`。发布失败时尝试下一个连接，连接开始失败时派发 `QueueFailedOver`。Failover 连接从首选连接读取和预约。为持久后备连接单独启动 Worker。存储写入成功但确认失败时可能重复执行，任务处理器需保持幂等。
 
+### Beanstalkd {#beanstalkd}
+
+设置 `QUEUE_CONNECTION=beanstalkd`，并配置 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（默认 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。运行 `./artisan queue:work beanstalkd --queue=default`。每个队列映射到一个 tube，服务端管理任务延迟和预约到期。Worker 超时应短于预约有效期。可用连接配置的 `block_for` 启用阻塞预约。
+
+确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。该驱动的批次发布继续跟踪。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
+
 ## 在数据库事务中派发
 
 将活动事务作为 `Queue::dispatch` 的最后一个参数。连接开启 `after_commit` 时，任务在最外层提交后派发。可以通过 `DispatchOptions.after_commit` 覆盖连接配置。回滚会丢弃待派发任务。立即派发时，同一连接的数据库队列在事务内写入，sync 处理器可用 `JobContext::transaction` 访问当前事务。

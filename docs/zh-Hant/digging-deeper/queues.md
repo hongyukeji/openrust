@@ -96,6 +96,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 依優先順序設定 `failover.connections`。發佈失敗時嘗試下一個連線，連線開始失敗時派送 `QueueFailedOver`。Failover 連線從首選連線讀取和預約。為持久備援連線單獨啟動 Worker。儲存寫入成功但確認失敗時可能重複執行，工作處理常式須維持冪等。
 
+### Beanstalkd {#beanstalkd}
+
+設定 `QUEUE_CONNECTION=beanstalkd`，並設定 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（預設 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。執行 `./artisan queue:work beanstalkd --queue=default`。每個佇列對應一個 tube，由伺服器管理工作延遲與預約到期。Worker 逾時應短於預約有效期。可用連線設定的 `block_for` 啟用阻塞預約。
+
+確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。此驅動程式的批次發佈持續追蹤。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
+
 ## 在資料庫交易中派送
 
 將使用中的交易作為 `Queue::dispatch` 的最後一個參數。連線啟用 `after_commit` 時，工作於最外層提交後派送。可以使用 `DispatchOptions.after_commit` 覆寫連線設定。復原會捨棄待派送工作。立即派送時，同一連線的資料庫佇列在交易內寫入，sync 處理器可使用 `JobContext::transaction` 存取目前交易。

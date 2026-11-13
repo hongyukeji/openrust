@@ -73,6 +73,8 @@ enum BatchBackend {
 #[derive(Deserialize)]
 struct Settings {
     driver: String,
+    host: Option<String>,
+    port: Option<u16>,
     connection: Option<String>,
     connections: Option<Vec<String>>,
     table: Option<String>,
@@ -1358,6 +1360,27 @@ impl QueueManager {
                         registry,
                     }),
                     BatchBackend::Database(connection),
+                )
+            }
+            "beanstalkd" => {
+                super::beanstalkd_queue::tube(&queue)?;
+                let host = settings.host.clone().unwrap_or_else(|| "localhost".into());
+                let port = settings.port.unwrap_or(11300);
+                if host.trim().is_empty() || port == 0 {
+                    return Err(QueueError::InvalidConfiguration);
+                }
+                (
+                    Arc::new(super::beanstalkd_queue::BeanstalkdQueue {
+                        name: name.into(),
+                        queue,
+                        host,
+                        port,
+                        retry_after: u32::try_from(retry_after)
+                            .map_err(|_| QueueError::InvalidConfiguration)?,
+                        block_for: settings.block_for.unwrap_or_default(),
+                        registry,
+                    }),
+                    BatchBackend::Unsupported,
                 )
             }
             "redis" => {

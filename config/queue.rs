@@ -23,6 +23,7 @@ pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigE
             "beanstalkd": {
                 "driver": "beanstalkd",
                 "host": get(env, "BEANSTALKD_QUEUE_HOST", "localhost")?,
+                "port": get(env, "BEANSTALKD_QUEUE_PORT", 11300)?,
                 "queue": get(env, "BEANSTALKD_QUEUE", "default")?,
                 "retry_after": get(env, "BEANSTALKD_QUEUE_RETRY_AFTER", 90)?,
                 "block_for": 0,

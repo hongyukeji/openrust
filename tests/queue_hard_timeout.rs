@@ -173,7 +173,8 @@ mod acceptance {
                     "throttle-terminal" => {
                         return Err(error(std::io::Error::other("hard throttle terminal")));
                     }
-                    "callback-terminal"
+                    "beanstalk-failure"
+                    | "callback-terminal"
                     | "callback-retry"
                     | "unique-retry"
                     | "unique-failure"
@@ -207,7 +208,8 @@ mod acceptance {
                     | "driver-failover"
                     | "driver-primary"
                     | "driver-console"
-                    | "driver-worker-deferred" => {}
+                    | "driver-worker-deferred"
+                    | "beanstalk-probe" => {}
                     "driver-detached" | "unique-lifecycle" => {
                         wait_for_file(&self.0, &format!("{kind}.release")).await;
                         std::fs::write(self.0.join(format!("{kind}.done")), []).map_err(error)?;
@@ -831,6 +833,9 @@ mod acceptance {
                             "sync": {"driver": "sync"}, "inline": {"driver": "sync"},
                             "null": {"driver": "null"}, "deferred": {"driver": "deferred"},
                             "background": {"driver": "background"},
+                            "beanstalkd": {"driver":"beanstalkd","host":"127.0.0.1",
+                                "port": std::env::var("OPENRUST_TEST_BEANSTALKD_PORT").ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(11300),
+                                "retry_after":2,"block_for":1},
                             "failover": {"driver": "failover", "connections": ["database", "redis"]}
                         },
                         "failed": {
@@ -2667,6 +2672,84 @@ mod acceptance {
         println!("Shared and standalone Worker memory policy acceptance passed");
     }
 
+    async fn verify_beanstalkd(root: &Path, manager: &QueueManager, db: &DatabaseConnection) {
+        let queue = manager.connection(Some("beanstalkd")).unwrap();
+        let tube = format!("openrust-probe-{}", std::process::id());
+        let payload = Payload::new("hard-timeout-probe", "beanstalk-probe").unwrap();
+        queue
+            .later(
+                openrust::queue::Delay::For(Duration::from_secs(1)),
+                &payload,
+                Some(&tube),
+            )
+            .await
+            .unwrap();
+        assert_eq!(queue.delayedSize(Some(&tube)).await.unwrap(), Some(1));
+        assert!(queue.pop_now(Some(&tube)).await.unwrap().is_none());
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        let mut first = queue.pop_now(Some(&tube)).await.unwrap().unwrap();
+        assert_eq!(first.attempts(), 1);
+        assert!(queue.pop_now(Some(&tube)).await.unwrap().is_none());
+        first.release(Duration::ZERO).await.unwrap();
+        let mut stale = queue.pop_now(Some(&tube)).await.unwrap().unwrap();
+        assert_eq!(stale.attempts(), 2);
+        tokio::time::sleep(Duration::from_millis(2100)).await;
+        let mut current = queue.pop_now(Some(&tube)).await.unwrap().unwrap();
+        assert_eq!(current.attempts(), 3);
+        assert!(matches!(
+            stale.delete().await,
+            Err(QueueError::LostReservation)
+        ));
+        current.delete().await.unwrap();
+        assert_eq!(queue.size(Some(&tube)).await.unwrap(), 0);
+
+        let (reserved, published) = tokio::join!(queue.pop(Some(&tube)), async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            queue.push(&payload, Some(&tube)).await
+        });
+        let published = published.unwrap().unwrap();
+        let mut reserved = reserved.unwrap().unwrap();
+        assert_eq!(reserved.get_job_id(), published);
+        reserved.delete().await.unwrap();
+
+        let pending = Payload::new("hard-timeout-probe", "beanstalk-probe").unwrap();
+        queue.push(&pending, Some(&tube)).await.unwrap();
+        let terminal = Payload::new("hard-timeout-probe", "beanstalk-failure")
+            .unwrap()
+            .with_options(JobOptions {
+                max_tries: Some(1),
+                ..Default::default()
+            });
+        queue.push(&terminal, Some(&tube)).await.unwrap();
+        let argument = format!("--queue={tube}");
+        let (status, lines) =
+            artisan(root, &["beanstalkd", &argument, "--stop-when-empty"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["jobs_processed"], 2);
+        assert!(root.join("beanstalk-probe.pid").exists());
+        assert!(root.join("beanstalk-failure.failed").exists());
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
+        assert_eq!(queue.size(Some(&tube)).await.unwrap(), 0);
+
+        let retry = Payload::new("hard-timeout-probe", "callback-retry").unwrap();
+        queue.push(&retry, Some(&tube)).await.unwrap();
+        assert_eq!(
+            artisan(root, &["beanstalkd", &argument, "--once"], false)
+                .await
+                .0,
+            Some(0)
+        );
+        assert_eq!(queue.pendingSize(Some(&tube)).await.unwrap(), Some(1));
+        assert_eq!(
+            artisan(root, &["beanstalkd", &argument, "--once"], false)
+                .await
+                .0,
+            Some(0)
+        );
+        assert!(root.join("retried").exists());
+        assert_eq!(queue.size(Some(&tube)).await.unwrap(), 0);
+    }
+
     async fn exercise(backend: &str) {
         let root = TempRoot(std::env::temp_dir().join(format!(
             "openrust-hard-timeout-{}-{backend}",
@@ -2712,6 +2795,13 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_BEANSTALKD_PORT").is_some() {
+            if backend != "redis" {
+                verify_beanstalkd(&root.0, &manager, &db).await;
+                eprintln!("Beanstalkd process acceptance passed with {backend} failure storage");
+            }
+            return;
+        }
         if std::env::var_os("OPENRUST_TEST_QUEUE_DRIVERS_ONLY").is_some() {
             if backend != "sqlite" && std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_some() {
                 verify_queue_drivers(&root.0, &db).await;
