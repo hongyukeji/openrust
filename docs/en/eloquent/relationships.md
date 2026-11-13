@@ -424,27 +424,33 @@ pub async fn count_post_comments(authors: &mut Collection<Author>) -> DatabaseRe
 }
 ```
 
+A borrowed related model can call `relatedModelAt` or `morphModel` again. Each step retains the original collection. For example, follow a comment’s subject to a post, then the post’s author, and access the author’s posts. The first missing access batches that step across the root collection and makes the result available to subsequent reads and serialization.
+
 For a polymorphic parent relationship, call `morphModel::<Post>("subject", &subjects, "post")` on a borrowed root model. It validates the alias and target type and returns `None` when the root has no target of that alias. On first access to a missing relationship, automatic eager loading batches only targets with the selected alias. Results are written back to the root collection.
 
 ```rust
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Collection, Model, relations::{HasMany, MorphTo}},
+    eloquent::{Collection, Model, relations::{BelongsTo, HasMany, MorphTo}},
 };
 
-pub async fn first_subject_comment_count<Root: Model, Post: Model, Comment: Model>(
+pub async fn first_subject_author_post_count<Root: Model, Post: Model, Author: Model>(
     roots: &mut Collection<Root>,
 ) -> DatabaseResult<usize> {
     let subjects = MorphTo::<Root>::new("subject_type", "subject_id")
         .target::<Post>("post", "id");
-    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let author = BelongsTo::<Post, Author>::new("author_id", "id");
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
     let Some(mut root) = roots.modelAt(0) else {
         return Ok(0);
     };
     let Some(mut post) = root.morphModel::<Post>("subject", &subjects, "post").await? else {
         return Ok(0);
     };
-    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+    let Some(mut author) = post.relatedModelAt("author", &author, 0).await? else {
+        return Ok(0);
+    };
+    Ok(author.getRelationOrLoad("posts", &posts).await?.len())
 }
 ```
 

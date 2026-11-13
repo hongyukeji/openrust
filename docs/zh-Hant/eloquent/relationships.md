@@ -424,27 +424,33 @@ pub async fn count_post_comments(authors: &mut Collection<Author>) -> DatabaseRe
 }
 ```
 
+借用的關聯模型可以繼續呼叫 `relatedModelAt` 或 `morphModel`，每一層都保留對根集合的存取。例如，從留言的多型目標取出文章，再取出文章的作者並讀取其文章。首次存取缺少的關聯會在根集合範圍內批次載入該層，結果供後續讀取和序列化。
+
 父關聯為多型關聯時，在借用的根模型上呼叫 `morphModel::<Post>("subject", &subjects, "post")`。此方法驗證別名和目標型別，目前根模型沒有該別名的目標時回傳 `None`。首次存取缺少的關聯時，自動預載入僅批次處理所選別名的目標，結果寫回根集合。
 
 ```rust
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Collection, Model, relations::{HasMany, MorphTo}},
+    eloquent::{Collection, Model, relations::{BelongsTo, HasMany, MorphTo}},
 };
 
-pub async fn first_subject_comment_count<Root: Model, Post: Model, Comment: Model>(
+pub async fn first_subject_author_post_count<Root: Model, Post: Model, Author: Model>(
     roots: &mut Collection<Root>,
 ) -> DatabaseResult<usize> {
     let subjects = MorphTo::<Root>::new("subject_type", "subject_id")
         .target::<Post>("post", "id");
-    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let author = BelongsTo::<Post, Author>::new("author_id", "id");
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
     let Some(mut root) = roots.modelAt(0) else {
         return Ok(0);
     };
     let Some(mut post) = root.morphModel::<Post>("subject", &subjects, "post").await? else {
         return Ok(0);
     };
-    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+    let Some(mut author) = post.relatedModelAt("author", &author, 0).await? else {
+        return Ok(0);
+    };
+    Ok(author.getRelationOrLoad("posts", &posts).await?.len())
 }
 ```
 

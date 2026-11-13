@@ -820,7 +820,7 @@ fn verify_morph_batches(
             .collect();
         assert!(post_indexes.len() >= 2);
         let baseline = if mysql { select_count(db).await } else { 0 };
-        for index in post_indexes {
+        for &index in &post_indexes {
             let mut root = roots.modelAt(index).unwrap();
             assert!(
                 root.morphModel::<Author>("subject", &morph, "author")
@@ -859,6 +859,37 @@ fn verify_morph_batches(
                 ),
                 _ => unreachable!(),
             }
+        }
+
+        let author_relation = AUTHOR;
+        let posts_relation = POSTS;
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        for &index in &post_indexes {
+            let mut root = roots.modelAt(index).unwrap();
+            let mut post = root
+                .morphModel::<Post>("subject", &morph, "post")
+                .await
+                .unwrap()
+                .unwrap();
+            let mut author = post
+                .relatedModelAt("author", &author_relation, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(
+                !author
+                    .getRelationOrLoad("posts", &posts_relation)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 2);
+        }
+        for index in post_indexes {
+            let subject = &roots.toArray().unwrap()[index]["subject"];
+            assert!(subject["author"]["posts"].is_array());
         }
 
         let mut authors = Author::queryOn(db).get().await.unwrap();
