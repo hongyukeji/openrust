@@ -165,3 +165,15 @@ impl<P: Model, I: Model, R: Model> super::NestedRelation for HasOneThrough<P, I,
         self
     }
 }
+
+impl<P: Model, I: Model, R: Model> super::ConstrainableRelation for HasOneThrough<P, I, R> {
+    type Related = R;
+
+    fn constrain_query(
+        mut self,
+        configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
+    ) -> Self {
+        self.0.keys.append_constraint(configure);
+        self
+    }
+}

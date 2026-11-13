@@ -157,6 +157,27 @@ fn inherit_items(app: &Application) -> DatabaseResult<()> {
 
 Use `whereHasPath("posts.comments")` to find authors with a post that has comments. Use `whereDoesntHavePath` to find authors with no complete matching chain, including authors with no posts. `hasPathCount("posts.comments", ">=", 2)` requires at least one post with two or more comments. Each earlier segment uses existence and the count applies to the final segment. Register queryable descriptors with `namedRelations().nested(...)` in the model declaration.
 
+### Filtering by related columns {#filtering-by-related-columns}
+
+Pass a typed relationship, column, operator, and value to `whereRelation` or `whereDoesntHaveRelation`. The absence variant matches parents with no related row satisfying the condition. `withWhereRelation` also eager loads the matching rows. Use the `orWhere…` variants to add alternatives to the parent query. For a `MorphTo` relationship, use `whereMorphRelation` or `whereMorphDoesntHaveRelation` and pass the registered aliases whose target tables expose the selected column.
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn authors_with_visible_posts<A: Model, P: Model>(
+    connection: &Connection,
+    posts: HasMany<A, P>,
+) -> DatabaseResult<Collection<A>> {
+    A::queryOn(connection)
+        .withWhereRelation("posts", posts, "published", "=", true)?
+        .get()
+        .await
+}
+```
+
 ### Querying All Related Models
 
 Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for Laravel's wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.

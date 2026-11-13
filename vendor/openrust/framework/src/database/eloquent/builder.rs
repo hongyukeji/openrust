@@ -12,7 +12,10 @@ use super::{
     Attributes, Collection, EagerLoads, Model, ModelState, RelationAggregate, Scope,
     casts::{AttributeCast, CastOverrides},
     concerns::{has_relationships::load_eager, has_timestamps::timestamp},
-    relations::{BelongsTo, BelongsToMany, ExistenceRelation, MorphIdentity, MorphTo, Relation},
+    relations::{
+        BelongsTo, BelongsToMany, ConstrainableRelation, ExistenceRelation, MorphIdentity, MorphTo,
+        Relation,
+    },
     soft_deletes,
     soft_deleting_scope::Trashed,
 };
@@ -373,12 +376,27 @@ impl<M: Model> Builder<'static, M> {
         self.whereHas(relation)
     }
 
-    pub fn whereHas(
+    pub fn whereHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+        self.relation_exists(relation, false, false)
+    }
+
+    pub fn orHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+        self.orWhereHas(relation)
+    }
+
+    pub fn orWhereHas(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+        self.relation_exists(relation, true, false)
+    }
+
+    fn relation_exists(
         mut self,
         relation: &impl ExistenceRelation<Parent = M>,
+        or: bool,
+        negated: bool,
     ) -> DatabaseResult<Self> {
         let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
-        self.query = self.query.whereExists(&related)?;
+        self.predicates
+            .raw(or, self.query.exists_expression(&related, negated)?);
         Ok(self)
     }
 
@@ -402,12 +420,120 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub fn whereDoesntHave(
-        mut self,
+        self,
         relation: &impl ExistenceRelation<Parent = M>,
     ) -> DatabaseResult<Self> {
-        let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
-        self.query = self.query.whereNotExists(&related)?;
-        Ok(self)
+        self.relation_exists(relation, false, true)
+    }
+
+    pub fn doesntHave(self, relation: &impl ExistenceRelation<Parent = M>) -> DatabaseResult<Self> {
+        self.whereDoesntHave(relation)
+    }
+
+    pub fn orDoesntHave(
+        self,
+        relation: &impl ExistenceRelation<Parent = M>,
+    ) -> DatabaseResult<Self> {
+        self.orWhereDoesntHave(relation)
+    }
+
+    pub fn orWhereDoesntHave(
+        self,
+        relation: &impl ExistenceRelation<Parent = M>,
+    ) -> DatabaseResult<Self> {
+        self.relation_exists(relation, true, true)
+    }
+
+    pub fn whereRelation(
+        self,
+        relation: impl ConstrainableRelation<Parent = M>,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.whereHas(&Self::constrain_relation(
+            relation,
+            column,
+            operator,
+            value.into(),
+        ))
+    }
+
+    pub fn orWhereRelation(
+        self,
+        relation: impl ConstrainableRelation<Parent = M>,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.orWhereHas(&Self::constrain_relation(
+            relation,
+            column,
+            operator,
+            value.into(),
+        ))
+    }
+
+    pub fn whereDoesntHaveRelation(
+        self,
+        relation: impl ConstrainableRelation<Parent = M>,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.whereDoesntHave(&Self::constrain_relation(
+            relation,
+            column,
+            operator,
+            value.into(),
+        ))
+    }
+
+    pub fn orWhereDoesntHaveRelation(
+        self,
+        relation: impl ConstrainableRelation<Parent = M>,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.orWhereDoesntHave(&Self::constrain_relation(
+            relation,
+            column,
+            operator,
+            value.into(),
+        ))
+    }
+
+    pub fn withWhereRelation(
+        self,
+        name: impl Into<String>,
+        relation: impl ConstrainableRelation<Parent = M>,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.withWhereHas(
+            name,
+            Self::constrain_relation(relation, column, operator, value.into()),
+        )
+    }
+
+    fn constrain_relation<R: ConstrainableRelation<Parent = M>>(
+        relation: R,
+        column: &str,
+        operator: &str,
+        value: Value,
+    ) -> R {
+        let column = column.to_owned();
+        let operator = operator.to_owned();
+        relation.constrain_query(move |mut query| {
+            let column = query.qualifyColumn(&column);
+            let existing = mem::take(&mut query.predicates);
+            query.predicates = query::Conditions::default()
+                .whereNested(|_| existing)
+                .r#where(&column, &operator, value.clone());
+            query
+        })
     }
 
     pub fn whereHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
@@ -629,7 +755,7 @@ impl<M: Model> Builder<'static, M> {
     }
 
     fn has_morph_count(
-        mut self,
+        self,
         relation: &MorphTo<M>,
         aliases: &[&str],
         operator: &str,
@@ -637,11 +763,159 @@ impl<M: Model> Builder<'static, M> {
         include_null: bool,
     ) -> DatabaseResult<Self> {
         let queries = relation.existence_queries(&self.connection, self.table_name(), aliases)?;
+        self.morph_predicate(relation, queries, (operator, count), include_null, false)
+    }
+
+    fn morph_predicate(
+        mut self,
+        relation: &MorphTo<M>,
+        queries: Vec<(&str, query::Builder<'_>)>,
+        (operator, count): (&str, u64),
+        include_null: bool,
+        or: bool,
+    ) -> DatabaseResult<Self> {
         let column = self.qualifyColumn(relation.type_column());
-        self.query =
-            self.query
-                .where_morph_count(&column, queries, operator, count, include_null)?;
+        let expression = self.query.morph_count_expression(
+            &column,
+            queries,
+            operator,
+            count,
+            include_null,
+            false,
+        )?;
+        self.predicates.raw(or, expression);
         Ok(self)
+    }
+
+    pub fn hasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.whereHasMorph(relation, aliases)
+    }
+
+    pub fn doesntHaveMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.whereDoesntHaveMorph(relation, aliases)
+    }
+
+    pub fn orHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        self.orWhereHasMorph(relation, aliases)
+    }
+
+    pub fn orDoesntHaveMorph(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+    ) -> DatabaseResult<Self> {
+        self.orWhereDoesntHaveMorph(relation, aliases)
+    }
+
+    pub fn orWhereHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
+        let queries = relation.existence_queries(&self.connection, self.table_name(), aliases)?;
+        self.morph_predicate(relation, queries, (">=", 1), false, true)
+    }
+
+    pub fn orWhereDoesntHaveMorph(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+    ) -> DatabaseResult<Self> {
+        let queries = relation.existence_queries(&self.connection, self.table_name(), aliases)?;
+        self.morph_predicate(relation, queries, ("<", 1), false, true)
+    }
+
+    pub fn whereMorphRelation(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.constrained_morph(
+            relation,
+            aliases,
+            (column, operator, value.into()),
+            false,
+            false,
+        )
+    }
+
+    pub fn orWhereMorphRelation(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.constrained_morph(
+            relation,
+            aliases,
+            (column, operator, value.into()),
+            false,
+            true,
+        )
+    }
+
+    pub fn whereMorphDoesntHaveRelation(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.constrained_morph(
+            relation,
+            aliases,
+            (column, operator, value.into()),
+            true,
+            false,
+        )
+    }
+
+    pub fn orWhereMorphDoesntHaveRelation(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.constrained_morph(
+            relation,
+            aliases,
+            (column, operator, value.into()),
+            true,
+            true,
+        )
+    }
+
+    fn constrained_morph(
+        self,
+        relation: &MorphTo<M>,
+        aliases: &[&str],
+        (column, operator, value): (&str, &str, Value),
+        negated: bool,
+        or: bool,
+    ) -> DatabaseResult<Self> {
+        let queries = relation
+            .existence_queries(&self.connection, self.table_name(), aliases)?
+            .into_iter()
+            .map(|(alias, query)| {
+                let qualified = if column.contains('.') {
+                    column.to_owned()
+                } else {
+                    format!("{}.{column}", query.relation_qualifier())
+                };
+                (alias, query.r#where(&qualified, operator, value.clone()))
+            })
+            .collect();
+        self.morph_predicate(
+            relation,
+            queries,
+            (if negated { "<" } else { ">=" }, 1),
+            false,
+            or,
+        )
     }
 
     pub fn withWhereHas(

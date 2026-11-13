@@ -1503,3 +1503,15 @@ impl<P: Model, R: Model> super::NestedRelation for BelongsToMany<P, R> {
         self
     }
 }
+
+impl<P: Model, R: Model> super::ConstrainableRelation for BelongsToMany<P, R> {
+    type Related = R;
+
+    fn constrain_query(
+        mut self,
+        configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
+    ) -> Self {
+        self.keys.append_constraint(configure);
+        self
+    }
+}

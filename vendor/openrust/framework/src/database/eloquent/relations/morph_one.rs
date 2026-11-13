@@ -121,3 +121,16 @@ impl<P: Model, R: Model> super::NestedRelation for MorphOne<P, R> {
         Self(super::NestedRelation::with_nested(self.0, nested))
     }
 }
+
+impl<P: Model, R: Model> super::ConstrainableRelation for MorphOne<P, R> {
+    type Related = R;
+
+    fn constrain_query(
+        self,
+        configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
+    ) -> Self {
+        Self(super::ConstrainableRelation::constrain_query(
+            self.0, configure,
+        ))
+    }
+}

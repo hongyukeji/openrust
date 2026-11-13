@@ -81,6 +81,19 @@ pub trait ExistenceRelation: Relation {
     ) -> DatabaseResult<query::Builder<'static>>;
 }
 
+/// A typed relation whose related query accepts additional constraints.
+pub trait ConstrainableRelation: ExistenceRelation {
+    type Related: Model;
+
+    fn constrain_query(
+        self,
+        configure: impl Fn(Builder<'static, Self::Related>) -> Builder<'static, Self::Related>
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self;
+}
+
 type Configure<R> =
     dyn Fn(Builder<'static, R>) -> DatabaseResult<Builder<'static, R>> + Send + Sync;
 
@@ -126,6 +139,19 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
     ) {
         self.try_constrain(move |query| Ok(configure(query)));
+    }
+
+    pub fn append_constraint(
+        &mut self,
+        configure: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send + Sync + 'static,
+    ) {
+        let previous = self.configure.take();
+        self.try_constrain(move |mut query| {
+            if let Some(previous) = &previous {
+                query = previous(query)?;
+            }
+            Ok(configure(query))
+        });
     }
 
     pub fn with_nested(&mut self, nested: super::super::EagerLoads<R>) {

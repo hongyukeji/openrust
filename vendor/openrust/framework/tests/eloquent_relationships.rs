@@ -1896,6 +1896,165 @@ fn verify_default_eager_loads(
     })
 }
 
+fn verify_related_column_queries(db: &Connection) -> openrust::database::DatabaseFuture<'_, ()> {
+    Box::pin(async move {
+        let filtered = Author::queryOn(db)
+            .withWhereRelation(
+                "posts",
+                POSTS.constrain(|mut query| {
+                    query
+                        .r#where("title", "=", "First post")
+                        .orWhere("title", "=", "Second post");
+                    query
+                }),
+                "score",
+                ">",
+                15,
+            )
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(filtered.modelKeys(), [2.into()]);
+        let loaded = filtered[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].getAttribute("title"), Some(&"Second post".into()));
+        let mut either = Author::queryOn(db);
+        either.whereKey(3);
+        assert_eq!(
+            either
+                .orWhereRelation(POSTS, "score", ">", 15)
+                .unwrap()
+                .orderBy("id", "asc")
+                .get()
+                .await
+                .unwrap()
+                .modelKeys(),
+            [2.into(), 3.into()],
+        );
+        let mut either_missing = Author::queryOn(db);
+        either_missing.whereKey(2);
+        assert_eq!(
+            either_missing
+                .orWhereDoesntHaveRelation(POSTS, "score", ">", 15)
+                .unwrap()
+                .orderBy("id", "asc")
+                .get()
+                .await
+                .unwrap()
+                .modelKeys(),
+            [1.into(), 2.into(), 3.into()],
+        );
+        assert_eq!(
+            Author::queryOn(db)
+                .whereDoesntHaveRelation(POSTS, "score", ">", 15)
+                .unwrap()
+                .orderBy("id", "asc")
+                .get()
+                .await
+                .unwrap()
+                .modelKeys(),
+            [1.into(), 3.into()],
+        );
+        assert_eq!(
+            Author::queryOn(db)
+                .whereRelation(MENTEES, "id", "=", 2)
+                .unwrap()
+                .get()
+                .await
+                .unwrap()
+                .modelKeys(),
+            [1.into()],
+        );
+    })
+}
+
+fn verify_morph_column_queries<'a>(
+    db: &'a Connection,
+    subjects: &'a MorphTo<Comment>,
+) -> openrust::database::DatabaseFuture<'a, ()> {
+    Box::pin(async move {
+        let selected = || {
+            let mut query = Comment::queryOn(db);
+            query.r#where("body", "like", "wild %");
+            query
+        };
+        let column_match = selected()
+            .whereMorphRelation(subjects, &["author", "post"], "id", "=", 1)
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(column_match.len(), 1);
+        assert_eq!(
+            column_match[0].getAttribute("body"),
+            Some(&"wild live".into())
+        );
+        let column_absent = selected()
+            .whereMorphDoesntHaveRelation(subjects, &["post"], "id", "=", 1)
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(column_absent.len(), 1);
+        assert_eq!(
+            column_absent[0].getAttribute("body"),
+            Some(&"wild missing".into())
+        );
+        let mut either = Comment::queryOn(db);
+        either.r#where("body", "=", "wild null");
+        let either = either
+            .orWhereMorphRelation(subjects, &["author"], "id", "=", 1)
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert!(
+            either
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild live".into()))
+        );
+        assert!(
+            either
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild null".into()))
+        );
+        assert!(
+            !either
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild missing".into()))
+        );
+        let mut either_missing = Comment::queryOn(db);
+        either_missing.r#where("body", "=", "wild null");
+        let either_missing = either_missing
+            .orWhereMorphDoesntHaveRelation(subjects, &["post"], "id", "=", 1)
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert!(
+            either_missing
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild missing".into()))
+        );
+        assert!(
+            either_missing
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild null".into()))
+        );
+        assert!(
+            !either_missing
+                .iter()
+                .any(|model| model.getAttribute("body") == Some(&"wild live".into()))
+        );
+        assert!(
+            selected()
+                .whereMorphRelation(subjects, &["unknown"], "id", "=", 1)
+                .is_err()
+        );
+    })
+}
+
 fn verify_morph_wildcard(
     db: &Connection,
     mysql: bool,
@@ -1918,6 +2077,7 @@ fn verify_morph_wildcard(
             query.r#where("body", "like", "wild %");
             query.orderBy("body", "asc")
         };
+        verify_morph_column_queries(db, &subjects).await;
         let baseline = if mysql { select_count(db).await } else { 0 };
         let present = selected()
             .whereHasMorphAll(&subjects)
@@ -3728,6 +3888,7 @@ async fn verify(db: Connection, mysql: bool) {
         .await
         .unwrap();
     assert!(hidden.delete().await.unwrap());
+    verify_related_column_queries(&db).await;
     let baseline = if mysql { select_count(&db).await } else { 0 };
     let nested = Author::queryOn(&db)
         .withWhereHas(

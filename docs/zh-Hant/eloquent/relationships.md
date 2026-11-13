@@ -157,6 +157,27 @@ fn inherit_items(app: &Application) -> DatabaseResult<()> {
 
 用 `whereHasPath("posts.comments")` 篩選至少有一篇文章含留言的作者。用 `whereDoesntHavePath` 篩選沒有完整相符鏈的作者，包含沒有文章的作者。`hasPathCount("posts.comments", ">=", 2)` 要求至少有一篇文章包含兩則留言。前面各段判斷存在，計數只比較最後一段。在模型的 `namedRelations()` 中透過 `nested` 登錄可查詢的描述符。
 
+### 依關聯欄位篩選 {#filtering-by-related-columns}
+
+向 `whereRelation` 或 `whereDoesntHaveRelation` 傳入型別化關聯、欄位、比較運算子和值。缺失變體比對沒有任何關聯資料列符合條件的父模型。`withWhereRelation` 也會預載入符合條件的關聯資料列。`orWhere…` 變體為父查詢加入替代條件。對於 `MorphTo` 關聯，使用 `whereMorphRelation` 或 `whereMorphDoesntHaveRelation`，並傳入目標表含所選欄位的已登記別名。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn authors_with_visible_posts<A: Model, P: Model>(
+    connection: &Connection,
+    posts: HasMany<A, P>,
+) -> DatabaseResult<Collection<A>> {
+    A::queryOn(connection)
+        .withWhereRelation("posts", posts, "published", "=", true)?
+        .get()
+        .await
+}
+```
+
 ### 查詢所有多型目標型別
 
 使用非同步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 對應 Laravel 的萬用字元查詢。這些方法先從模型表讀取不同的多型別名，目前查詢的篩選條件和作用域不參與這次讀取。請在關聯上註冊已儲存的別名。查詢缺少目標的記錄時，`whereDoesntHaveMorphAll` 也會比對型別為空的記錄。

@@ -412,3 +412,11 @@ SQLite 与独立 MySQL 8.4.13 通过 `queue:work --queue=pivot-restoration --onc
 继续核对关系存在查询的入口。固定 Laravel 的 `whereRelation`、`withWhereRelation` 及普通和多态关系的 OR、缺失变体尚无全部对应公开入口。现有 `whereHas`、`withWhereHas`、`whereHasMorph` 和 SQL 子查询构造可复用。集合的 `collapse` 已由 Support 集合承担，`flipBy` 由投影明确标量键，自动预加载的链式遍历继续由类型化关系批次执行。 [Laravel 关系查询源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L448)
 
 SQLite 与独立 MySQL 8.4.13 验证有序主键、整数与数字字符串归一、后项覆盖、空集合、跳过空主键、保留二进制键及借用原模型。Rust 1.94 格式、全目标严格 Clippy、620 项工作区测试、实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。
+
+## 按关联列筛选及 OR 存在查询
+
+对照固定 Laravel 的 `QueriesRelationships` 和 `EloquentWhereHasTest`。普通关系支持 `whereRelation`、`withWhereRelation`、缺失及 OR 变体。类型化关系追加列条件时保留已有约束，筛选和预加载共用同一描述符。多态查询在已登记别名的目标子查询追加列条件，复用原有计数和存在表达式。OR 与父模型的普通谓词一起组合，全局作用域仍约束整个组合。复核旧版 `v0.x` 未找到可提取的同名入口，复用现行关系 SQL。固定 Goravel ORM 为连接级查询参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentWhereHasTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+本批使用类型化关系描述符。Laravel 的字符串点分路径列筛选、列条件闭包重载仍需分别核对。现有命名路径存在与计数查询继续使用 `whereHasPath`、`whereDoesntHavePath` 和 `hasPathCount`。
+
+SQLite 和独立 MySQL 8.4.13 验证普通与多态列筛选、缺失、OR、自关联别名、软删除、未知多态别名和筛选后预加载。首轮全量触发关系集成测试的 Debug 栈溢出。将新增验收拆为独立堆分配的异步夹具后，双库专项和全量 620 项通过。Rust 1.94 格式、全目标严格 Clippy、Artisan、三语示例编译、VitePress 构建和 18 项浏览器检查通过。

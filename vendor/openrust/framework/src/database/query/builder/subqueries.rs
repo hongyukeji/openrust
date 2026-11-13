@@ -290,33 +290,38 @@ impl Builder<'_> {
     }
 
     pub(in crate::database) fn where_morph_count(
-        self,
-        column: &str,
-        queries: Vec<(&str, Builder<'_>)>,
-        operator: &str,
-        count: u64,
-        include_null: bool,
-    ) -> DatabaseResult<Self> {
-        self.morph_count_predicate(column, queries, operator, count, include_null, false)
-    }
-
-    pub(in crate::database) fn where_not_morph_path(
-        self,
-        column: &str,
-        queries: Vec<(&str, Builder<'_>)>,
-    ) -> DatabaseResult<Self> {
-        self.morph_count_predicate(column, queries, ">=", 1, false, true)
-    }
-
-    fn morph_count_predicate(
         mut self,
         column: &str,
         queries: Vec<(&str, Builder<'_>)>,
         operator: &str,
         count: u64,
         include_null: bool,
-        negated: bool,
     ) -> DatabaseResult<Self> {
+        let expression =
+            self.morph_count_expression(column, queries, operator, count, include_null, false)?;
+        self.predicates.raw(false, expression);
+        Ok(self)
+    }
+
+    pub(in crate::database) fn where_not_morph_path(
+        mut self,
+        column: &str,
+        queries: Vec<(&str, Builder<'_>)>,
+    ) -> DatabaseResult<Self> {
+        let expression = self.morph_count_expression(column, queries, ">=", 1, false, true)?;
+        self.predicates.raw(false, expression);
+        Ok(self)
+    }
+
+    pub(in crate::database) fn morph_count_expression(
+        &self,
+        column: &str,
+        queries: Vec<(&str, Builder<'_>)>,
+        operator: &str,
+        count: u64,
+        include_null: bool,
+        negated: bool,
+    ) -> DatabaseResult<Expression> {
         let (operator, count) = related_count_comparison(operator, count)?;
         let column = self.grammar.column(column)?;
         let mut bindings = Vec::new();
@@ -358,9 +363,7 @@ impl Builder<'_> {
         } else {
             predicate
         };
-        self.predicates
-            .raw(false, Expression::new(predicate).with_bindings(bindings));
-        Ok(self)
+        Ok(Expression::new(predicate).with_bindings(bindings))
     }
 
     pub fn whereExists(self, query: &Builder<'_>) -> DatabaseResult<Self> {

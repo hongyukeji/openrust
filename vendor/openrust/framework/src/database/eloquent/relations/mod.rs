@@ -32,4 +32,4 @@ pub use morph_to::{MorphIdentity, MorphTarget, MorphTo};
 pub use morph_to_many::MorphToMany;
 pub use one_of_many::OneOfManyAggregate;
 pub use pivot::Pivot;
-pub use relation::{ExistenceRelation, NestedRelation, Relation};
+pub use relation::{ConstrainableRelation, ExistenceRelation, NestedRelation, Relation};
