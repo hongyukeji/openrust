@@ -47,6 +47,18 @@ static TICKET: ModelMetadata = ModelMetadata::new("tickets")
     .uniqueIds(&["id", "reference"]);
 ```
 
+### 寫入後重新整理屬性 {#refreshing-attributes-after-writes}
+
+透過 `ModelMetadata::refreshes` 宣告由資料庫管理的欄位。插入或實際更新後，Eloquent 從寫入連線讀取這些欄位，再呼叫 `Created` 或 `Updated` 監聽器。顯式交易在同一交易內回讀。複製模型時排除這些欄位，由資料庫為新列計算值。
+
+```rust
+use openrust::database::eloquent::ModelMetadata;
+
+static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
+    .fillable(&["title"])
+    .refreshes(&["title_length"]);
+```
+
 ## 查詢模型
 
 在應用程式請求或指令中使用 `Flight::query()?` 取得模型查詢建構器，使用 `Flight::all().await?` 取得套用作用域後的模型集合，或用 `Flight::find(id).await?` 依主鍵查找。模型不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定資料庫連線。

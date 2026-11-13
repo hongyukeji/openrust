@@ -879,8 +879,117 @@ async fn verify_replication(config: Json, id: &str) {
         .unwrap();
 }
 
+struct GeneratedArticle(ModelState);
+
+impl Model for GeneratedArticle {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("generated_articles")
+            .timestamps(None, None)
+            .fillable(&["title"])
+            .refreshes(&["title_length"]);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct GeneratedObserver(Arc<Mutex<Vec<ModelEvent>>>);
+
+impl ModelEventListener<GeneratedArticle> for GeneratedObserver {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        model: &'a mut GeneratedArticle,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            let Some(Value::Text(title)) = model.getAttribute("title") else {
+                panic!("missing title");
+            };
+            let length = i64::try_from(title.len()).unwrap();
+            assert_eq!(
+                model.getAttribute("title_length"),
+                Some(&Value::Integer(length))
+            );
+            self.0.lock().unwrap().push(event);
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+async fn verify_refreshes(config: Json, id: &str) {
+    let (app, db) = app_with_database(config, vec![]).await;
+    db.statement(&format!("CREATE TABLE generated_articles (id {id}, title VARCHAR(30) NOT NULL, title_length BIGINT GENERATED ALWAYS AS (LENGTH(title)) STORED)"), &[]).await.unwrap();
+
+    let events = Arc::new(Mutex::new(Vec::new()));
+    for event in [Created, Updated, Saved] {
+        GeneratedArticle::registerModelEvent(&app, event, GeneratedObserver(events.clone()))
+            .unwrap();
+    }
+    let mut article =
+        GeneratedArticle::newInstanceOn(&db, [("title".into(), "abc".into())].into()).unwrap();
+    assert!(article.save().await.unwrap());
+    assert_eq!(
+        article.state().getOriginal().get("title_length"),
+        Some(&Value::Integer(3))
+    );
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    article.setAttribute("title", "longer");
+    article.setAttribute("id", 100_i64);
+    assert!(article.saveInTransaction(&mut transaction).await.unwrap());
+    assert_eq!(
+        article.state().getChanges().get("title_length"),
+        Some(&Value::Integer(6))
+    );
+    assert_eq!(
+        article.state().getOriginal().get("title_length"),
+        Some(&Value::Integer(6))
+    );
+    assert!(!article.isDirty().unwrap());
+    transaction.commit().await.unwrap();
+
+    let mut copy = article.replicateQuietly(&[]).await.unwrap();
+    assert!(copy.getAttribute("title_length").is_none());
+    assert!(copy.save().await.unwrap());
+    assert_ne!(copy.getKey(), article.getKey());
+    assert_eq!(copy.getAttribute("title_length"), Some(&Value::Integer(6)));
+    assert_eq!(
+        *events.lock().unwrap(),
+        [Created, Saved, Updated, Saved, Created, Saved]
+    );
+
+    let key = copy.getKey().unwrap().clone();
+    db.delete("DELETE FROM generated_articles WHERE id = ?", &[key])
+        .await
+        .unwrap();
+    copy.setAttribute("title", "gone");
+    assert!(matches!(
+        copy.save().await,
+        Err(DatabaseError::ModelNotFound("generated_articles"))
+    ));
+    assert!(copy.state().exists());
+    assert_eq!(events.lock().unwrap().len(), 6);
+    db.statement("DROP TABLE generated_articles", &[])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
+    verify_refreshes(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
     verify_replication(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
@@ -913,6 +1022,7 @@ async fn model_events_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
+        verify_refreshes(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_replication(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_transaction_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;

@@ -47,6 +47,18 @@ static TICKET: ModelMetadata = ModelMetadata::new("tickets")
     .uniqueIds(&["id", "reference"]);
 ```
 
+### Refreshing attributes after writes {#refreshing-attributes-after-writes}
+
+Declare database-managed columns with `ModelMetadata::refreshes`. After an insert or an update that writes changes, Eloquent reads those columns from the write connection before calling `Created` or `Updated` listeners. Explicit transactions read back on the same transaction. Replication omits these columns so the database can compute their values for the new row.
+
+```rust
+use openrust::database::eloquent::ModelMetadata;
+
+static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
+    .fillable(&["title"])
+    .refreshes(&["title_length"]);
+```
+
 ## Retrieving Models
 
 In an application request or command, use `Flight::query()?` for a model-aware builder, `Flight::all().await?` for all scoped models, or `Flight::find(id).await?` for one primary key. `findOrFail` returns `DatabaseError::ModelNotFound` for an absent model. Use `queryOn` to select an explicit database connection.

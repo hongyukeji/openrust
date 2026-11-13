@@ -47,6 +47,18 @@ static TICKET: ModelMetadata = ModelMetadata::new("tickets")
     .uniqueIds(&["id", "reference"]);
 ```
 
+### 写入后刷新属性 {#refreshing-attributes-after-writes}
+
+通过 `ModelMetadata::refreshes` 声明由数据库管理的列。插入或实际更新后，Eloquent 从写连接读取这些列，再调用 `Created` 或 `Updated` 监听器。显式事务在同一事务内回读。复制模型时排除这些列，由数据库为新行计算值。
+
+```rust
+use openrust::database::eloquent::ModelMetadata;
+
+static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
+    .fillable(&["title"])
+    .refreshes(&["title_length"]);
+```
+
 ## 查询模型
 
 在应用请求或命令中使用 `Flight::query()?` 获取模型查询构造器，使用 `Flight::all().await?` 获取应用作用域后的模型集合，或用 `Flight::find(id).await?` 按主键查找。模型不存在时，`findOrFail` 返回 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定数据库连接。

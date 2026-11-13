@@ -331,6 +331,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                         && Some(column) != metadata.updated_at
                         && column != "laravel_through_key"
                         && !Self::uniqueIds().contains(&column)
+                        && !metadata.refreshes.contains(&column)
                         && !except.contains(&column)
                 })
                 .map(|(column, value)| (column.clone(), value.clone()))

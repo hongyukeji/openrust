@@ -149,7 +149,32 @@ pub(super) async fn save<M: Model>(
     }
     state.exists = true;
     state.connection = Some(connection.clone());
-    let persisted = state.attributes.clone();
+    if !metadata.refreshes.is_empty() {
+        let refreshed =
+            refresh_saved_attributes(model, &connection, transaction.as_deref_mut()).await;
+        match refreshed {
+            Ok(refreshed) => {
+                let state = model.state_mut();
+                if exists {
+                    for (column, value) in &refreshed {
+                        if state.original.get(column) == Some(value) {
+                            state.changes.remove(column);
+                        } else {
+                            state.changes.insert(column.clone(), value.clone());
+                        }
+                    }
+                }
+                state.apply_attributes(refreshed);
+            }
+            Err(error) => {
+                // The write already ran; a retry must operate on the persisted identity.
+                let state = model.state_mut();
+                state.original.clone_from(&state.attributes);
+                return Err(error);
+            }
+        }
+    }
+    let persisted = model.state().attributes.clone();
     let result = async {
         fire_with_transaction(
             model,
@@ -166,6 +191,26 @@ pub(super) async fn save<M: Model>(
     // Record the write even if a post-write listener fails. Preserve listener mutations as dirty.
     model.state_mut().original = persisted;
     result
+}
+
+async fn refresh_saved_attributes<M: Model>(
+    model: &M,
+    connection: &Connection,
+    transaction: Option<&mut Transaction>,
+) -> DatabaseResult<super::Attributes> {
+    let metadata = M::metadata();
+    let key = model
+        .getKey()
+        .filter(|key| !matches!(key, Value::Null))
+        .ok_or(DatabaseError::InvalidQuery("model primary key"))?;
+    table(connection, transaction, metadata.table)
+        .useWritePdo()
+        .select(metadata.refreshes.iter().copied())
+        .r#where(metadata.primary_key, "=", key.clone())
+        .first()
+        .await?
+        .map(|row| row.into_columns().into_iter().collect())
+        .ok_or(DatabaseError::ModelNotFound(metadata.table))
 }
 
 async fn finish_save<M: Model>(

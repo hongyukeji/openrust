@@ -52,3 +52,9 @@
 - 对照固定 Laravel `HasUniqueIds`、`HasUuids`、`HasUlids` 和 `HasUniqueStringIds`。Rust 用静态 `ModelMetadata::uniqueId` 和 `uniqueIds` 声明生成策略与列，复用 `v0.x` 的 UUIDv7、空值填充及属性写入契约。默认作用于主键，包含主键时按非自增字符串处理。保留 `newUniqueId` 和 `isValidUniqueId` 的类型化覆盖入口。Goravel 模型装配作为编译期参考。 [Laravel UUID 与 ULID 主键](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#uuid-and-ulid-keys) · [Laravel HasUniqueStringIds](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasUniqueStringIds.php)
 - SQLite 与独立 MySQL 8.4.13 实际插入验证 UUIDv7、小写 ULID、空值填充、保留显式标识符、复制排除并重新生成。真实 TCP HTTP 验证 UUID 主键及 ULID 指定列绑定成功，格式错误即使存在对应数据库行也返回 404。三语示例编译运行。数据库生成列刷新仍待收尾。
 - Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。实际 Artisan 生成 `Ticket` 成功。三语站点构建及 18 项浏览器检查通过。
+
+## 写入后刷新属性
+
+- 对照固定 Laravel 的 `refreshSavedAttributes` 和生成列复制回归。Rust 通过 `ModelMetadata::refreshes` 声明回读列，沿用 `v0.x` 依主键及当前事务读取的思路。回读走写连接且不应用查询作用域，在 `Created`、`Updated` 和 `Saved` 之前合并属性。更新主键后用新键回读已写入行。复制排除这些列。回读失败向调用方返回错误，模型保留已写入状态。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#refreshing-attributes-after-writes) · [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentIntegrationTest.php)
+- SQLite 与独立 MySQL 8.4.13 实测生成列插入、显式事务更新、变更主键、写后事件、原始值与变更快照、复制重新生成、回读缺行错误。三语示例编译运行。
+- 以 `7511e70d` 干净源码加本批差异验收。Rust 1.94.0 格式、618 项工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。实际 Artisan 生成 `GeneratedArticle` 通过。隔离三语构建及 18 项浏览器检查通过。05-01 核心闭合。

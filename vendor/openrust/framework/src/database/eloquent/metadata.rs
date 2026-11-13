@@ -17,6 +17,7 @@ pub struct ModelMetadata {
     pub(super) date_format: &'static str,
     pub(super) hidden: &'static [&'static str],
     pub(super) visible: &'static [&'static str],
+    pub(super) refreshes: &'static [&'static str],
     pub(super) appends: &'static [&'static str],
 }
 
@@ -38,6 +39,7 @@ impl ModelMetadata {
             date_format: "%Y-%m-%d %H:%M:%S",
             hidden: &[],
             visible: &[],
+            refreshes: &[],
             appends: &[],
         }
     }
@@ -96,6 +98,12 @@ impl ModelMetadata {
 
     pub const fn dateFormat(mut self, format: &'static str) -> Self {
         self.date_format = format;
+        self
+    }
+
+    /// Reloads these database-managed columns after an insert or update.
+    pub const fn refreshes(mut self, columns: &'static [&'static str]) -> Self {
+        self.refreshes = columns;
         self
     }
 
