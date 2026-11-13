@@ -372,6 +372,23 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 }
 ```
 
+## Defining Custom Intermediate Table Models {#defining-custom-intermediate-table-models}
+
+Use `using::<Membership>()` on a many-to-many relationship to load and write intermediate rows as a typed Eloquent model. Declare the model’s casts and fillable attributes as usual. Read the result with `getRelation::<Membership>("membership")` when the accessor is renamed. The relation supplies the table, connection, and original link keys, including the morph type for polymorphic links. Use `incrementing(false)` for a composite-key table. An incrementing pivot requires an actual primary key column.
+
+Relationship writes use the custom model’s lifecycle and cast rules. Use the relationship’s `withTimestamps` or `withTimestampColumns` to configure pivot timestamps. For soft deletes, promote the intermediate row to an ordinary Eloquent model.
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .using::<Membership>()
+        .withPivot(["approved"])
+        .r#as("membership")
+}
+```
+
 ## Inserting and Updating Related Models
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.

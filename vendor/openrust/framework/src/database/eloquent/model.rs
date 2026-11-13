@@ -326,13 +326,16 @@ pub trait Model: Sized + Send + Sync + 'static {
                 .iter()
                 .filter(|(column, _)| {
                     let column = column.as_str();
-                    column != metadata.primary_key
-                        && Some(column) != metadata.created_at
-                        && Some(column) != metadata.updated_at
-                        && column != "laravel_through_key"
-                        && !Self::uniqueIds().contains(&column)
-                        && !metadata.refreshes.contains(&column)
-                        && !except.contains(&column)
+                    source
+                        .pivot_identity
+                        .is_some_and(|identity| identity.columns().any(|key| key == column))
+                        || (column != metadata.primary_key
+                            && Some(column) != metadata.created_at
+                            && Some(column) != metadata.updated_at
+                            && column != "laravel_through_key"
+                            && !Self::uniqueIds().contains(&column)
+                            && !metadata.refreshes.contains(&column)
+                            && !except.contains(&column))
                 })
                 .map(|(column, value)| (column.clone(), value.clone()))
                 .collect();
@@ -757,7 +760,9 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn getTable(&self) -> &'static str {
-        Self::metadata().table
+        self.state()
+            .pivot_identity
+            .map_or(Self::metadata().table, |identity| identity.table)
     }
 
     fn getConnectionName(&self) -> Option<&str> {

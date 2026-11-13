@@ -70,6 +70,11 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         self.0.withTimestampColumns(created, updated).map(Self)
     }
 
+    #[must_use]
+    pub fn using<M: Model>(self) -> Self {
+        Self(self.0.using::<M>())
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     fn apply_pivot_predicate(

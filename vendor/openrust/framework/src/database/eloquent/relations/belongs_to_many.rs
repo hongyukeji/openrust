@@ -16,6 +16,7 @@ use crate::database::{
 
 use super::{
     ExistenceRelation, Pivot, Relation,
+    custom_pivot::{CustomPivot, PivotIdentity},
     pivot_constraints::{PivotConstraints, pivot_predicates},
     relation::{ParentKeys, RelationKeys, dictionary_key},
 };
@@ -29,6 +30,7 @@ pub struct BelongsToMany<P: Model, R: Model> {
     pivot_constraints: PivotConstraints,
     pivot_orders: Vec<(String, String)>,
     pivot_timestamps: Option<PivotTimestampColumns>,
+    custom_pivot: Option<CustomPivot>,
 }
 
 /// Keys attached, detached, or updated by a pivot synchronization.
@@ -61,6 +63,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             pivot_constraints: PivotConstraints::new(),
             pivot_orders: Vec::new(),
             pivot_timestamps: None,
+            custom_pivot: None,
         }
     }
 
@@ -193,6 +196,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(PivotWriteTimestamps { insert, update })
     }
 
+    /// Hydrates and persists links using the declared model.
+    #[must_use]
+    pub fn using<M: Model>(mut self) -> Self {
+        self.custom_pivot = Some(CustomPivot::new::<M>());
+        self
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     pub(super) fn apply_pivot_predicate(
@@ -224,53 +234,119 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.attachWith(parent, keys, Attributes::new()).await
     }
 
-    pub async fn attachWith(
-        &self,
-        parent: &P,
-        keys: &[Value],
+    pub fn attachWith<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: &'a [Value],
         attributes: Attributes,
-    ) -> DatabaseResult<()> {
-        self.validate_pivot_attributes(&attributes)?;
-        let owner = self.owner(parent)?;
-        let keys = key_map(keys.iter().cloned())?;
-        let connection = self.keys.connection(parent)?;
-        let timestamps = self.pivot_write_timestamps(&connection)?;
-        let mut rows = self.pivot.records(owner, keys.values());
-        for row in &mut rows {
-            row.extend(timestamps.insert.clone());
-            row.extend(self.pivot_constraints.defaults.clone());
-            row.extend(attributes.clone());
-        }
-        connection.table(self.pivot.table).insert(&rows).await?;
-        Ok(())
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            self.validate_pivot_attributes(&attributes)?;
+            let owner = self.owner(parent)?;
+            let keys = key_map(keys.iter().cloned())?;
+            let connection = self.keys.connection(parent)?;
+            let timestamps = self.pivot_write_timestamps(&connection)?;
+            let mut rows = self.pivot.records(owner, keys.values());
+            for row in &mut rows {
+                row.extend(timestamps.insert.clone());
+                row.extend(self.pivot_constraints.defaults.clone());
+                row.extend(attributes.clone());
+            }
+            if let Some(custom) = self.custom_pivot {
+                let identity = self.pivot.identity(self.timestamp_columns());
+                let source = connection.clone();
+                let rows = Arc::new(rows);
+                connection
+                    .transaction(
+                        move |transaction| {
+                            let source = source.clone();
+                            let rows = rows.clone();
+                            Box::pin(async move {
+                                for row in rows.iter() {
+                                    (custom.insert)(transaction, &source, identity, row.clone())
+                                        .await?;
+                                }
+                                Ok(())
+                            })
+                        },
+                        3,
+                    )
+                    .await?;
+            } else {
+                connection.table(self.pivot.table).insert(&rows).await?;
+            }
+            Ok(())
+        })
     }
 
-    pub async fn updateExistingPivot(
-        &self,
-        parent: &P,
-        related: &Value,
+    pub fn updateExistingPivot<'a>(
+        &'a self,
+        parent: &'a P,
+        related: &'a Value,
         mut attributes: Attributes,
-    ) -> DatabaseResult<u64> {
-        self.validate_pivot_attributes(&attributes)?;
-        let owner = self.owner(parent)?;
-        if dictionary_key(Some(related))?.is_none() {
-            return Err(DatabaseError::InvalidQuery("pivot key is null"));
-        }
-        let (_, updated) = self.timestamp_columns();
-        if attributes.is_empty() && updated.is_none() {
-            return Ok(0);
-        }
-        let connection = self.keys.connection(parent)?;
-        if let Some(column) = updated {
-            attributes.retain(|name, _| !name.eq_ignore_ascii_case(column));
-            attributes.extend(self.pivot_write_timestamps(&connection)?.update);
-        }
-        let query = connection.table(self.pivot.table);
-        self.pivot_constraints
-            .apply(self.pivot.for_owner(query, owner))
-            .r#where(self.pivot.related, "=", related.clone())
-            .update(attributes)
-            .await
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        Box::pin(async move {
+            self.validate_pivot_attributes(&attributes)?;
+            let owner = self.owner(parent)?;
+            if dictionary_key(Some(related))?.is_none() {
+                return Err(DatabaseError::InvalidQuery("pivot key is null"));
+            }
+            let (_, updated) = self.timestamp_columns();
+            if attributes.is_empty() && (updated.is_none() || self.custom_pivot.is_some()) {
+                return Ok(0);
+            }
+            let connection = self.keys.connection(parent)?;
+            if let Some(custom) = self.custom_pivot {
+                let pivot = self.pivot;
+                let identity = pivot.identity(self.timestamp_columns());
+                let owner = owner.clone();
+                let related = related.clone();
+                let constraints = self.pivot_constraints.clone();
+                let source = connection.clone();
+                return connection
+                    .transaction(
+                        move |transaction| {
+                            let owner = owner.clone();
+                            let related = related.clone();
+                            let constraints = constraints.clone();
+                            let source = source.clone();
+                            let attributes = attributes.clone();
+                            Box::pin(async move {
+                                let raw = constraints
+                                    .apply(pivot.for_owner(transaction.table(pivot.table), &owner))
+                                    .r#where(pivot.related, "=", related)
+                                    .lockForUpdate()
+                                    .first()
+                                    .await?;
+                                if let Some(raw) = raw {
+                                    return (custom.update)(
+                                        transaction,
+                                        &source,
+                                        identity,
+                                        raw.into_columns().into_iter().collect(),
+                                        attributes,
+                                    )
+                                    .await
+                                    .map(u64::from);
+                                }
+                                Ok(0)
+                            })
+                        },
+                        3,
+                    )
+                    .await;
+            }
+            if let Some(column) = updated {
+                attributes.retain(|name, _| !name.eq_ignore_ascii_case(column));
+                attributes.extend(self.pivot_write_timestamps(&connection)?.update);
+            }
+            let query = connection.table(self.pivot.table);
+            self.pivot_constraints
+                .apply(self.pivot.for_owner(query, owner))
+                .r#where(self.pivot.related, "=", related.clone())
+                .update(attributes)
+                .await
+        })
     }
 
     fn validate_pivot_attributes(&self, attributes: &Attributes) -> DatabaseResult<()> {
@@ -289,17 +365,69 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(())
     }
 
-    pub async fn detach(&self, parent: &P, keys: Option<&[Value]>) -> DatabaseResult<u64> {
-        let owner = self.owner(parent)?;
-        let query = self.keys.connection(parent)?.table(self.pivot.table);
-        let mut query = self
-            .pivot_constraints
-            .apply(self.pivot.for_owner(query, owner));
-        if let Some(keys) = keys {
-            let keys = key_map(keys.iter().cloned())?;
-            query = query.whereIn(self.pivot.related, keys.into_values().collect());
-        }
-        query.delete().await
+    pub fn detach<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: Option<&'a [Value]>,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        Box::pin(async move {
+            let owner = self.owner(parent)?;
+            if let Some(custom) = self.custom_pivot {
+                let pivot = self.pivot;
+                let identity = pivot.identity(self.timestamp_columns());
+                let constraints = self.pivot_constraints.clone();
+                let owner = owner.clone();
+                let keys = keys
+                    .map(|keys| {
+                        key_map(keys.iter().cloned())
+                            .map(|keys| keys.into_values().collect::<Vec<_>>())
+                    })
+                    .transpose()?;
+                let connection = self.keys.connection(parent)?;
+                let source = connection.clone();
+                return connection
+                    .transaction(
+                        move |transaction| {
+                            let source = source.clone();
+                            let constraints = constraints.clone();
+                            let keys = keys.clone();
+                            let owner = owner.clone();
+                            Box::pin(async move {
+                                let mut query = constraints
+                                    .apply(pivot.for_owner(transaction.table(pivot.table), &owner));
+                                if let Some(keys) = keys {
+                                    query = query.whereIn(pivot.related, keys);
+                                }
+                                let rows = query.lockForUpdate().get().await?;
+                                let mut removed = 0;
+                                for row in rows {
+                                    removed += u64::from(
+                                        (custom.delete)(
+                                            transaction,
+                                            &source,
+                                            identity,
+                                            row.into_columns().into_iter().collect(),
+                                        )
+                                        .await?,
+                                    );
+                                }
+                                Ok(removed)
+                            })
+                        },
+                        3,
+                    )
+                    .await;
+            }
+            let query = self.keys.connection(parent)?.table(self.pivot.table);
+            let mut query = self
+                .pivot_constraints
+                .apply(self.pivot.for_owner(query, owner));
+            if let Some(keys) = keys {
+                let keys = key_map(keys.iter().cloned())?;
+                query = query.whereIn(self.pivot.related, keys.into_values().collect());
+            }
+            query.delete().await
+        })
     }
 
     pub async fn sync(&self, parent: &P, keys: &[Value]) -> DatabaseResult<SyncChanges> {
@@ -342,45 +470,66 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
-    async fn synchronize(
-        &self,
-        parent: &P,
-        records: impl Iterator<Item = (Value, Attributes)>,
+    fn synchronize<'a>(
+        &'a self,
+        parent: &'a P,
+        records: impl Iterator<Item = (Value, Attributes)> + Send + 'a,
         detach: bool,
-    ) -> DatabaseResult<SyncChanges> {
-        let owner = self.owner(parent)?.clone();
-        let desired = records
-            .map(|(key, attributes)| {
-                self.validate_pivot_attributes(&attributes)?;
-                let normalized = dictionary_key(Some(&key))?
-                    .ok_or(DatabaseError::InvalidQuery("pivot key is null"))?;
-                Ok((normalized, (key, attributes)))
-            })
-            .collect::<DatabaseResult<DesiredPivots>>()?;
-        if desired.is_empty() && !detach {
-            return Ok(SyncChanges::default());
-        }
-        let desired = Arc::new(desired);
-        let pivot = self.pivot;
-        let constraints = Arc::new(self.pivot_constraints.clone());
-        let connection = self.keys.connection(parent)?;
-        let timestamps = Arc::new(self.pivot_write_timestamps(&connection)?);
-        connection
-            .transaction(
-                move |transaction| {
-                    Box::pin(sync_pivot(
-                        transaction,
-                        pivot,
-                        owner.clone(),
-                        desired.clone(),
-                        constraints.clone(),
-                        timestamps.clone(),
-                        detach,
-                    ))
-                },
-                3,
-            )
-            .await
+    ) -> DatabaseFuture<'a, DatabaseResult<SyncChanges>> {
+        Box::pin(async move {
+            let owner = self.owner(parent)?.clone();
+            let desired = records
+                .map(|(key, attributes)| {
+                    self.validate_pivot_attributes(&attributes)?;
+                    let normalized = dictionary_key(Some(&key))?
+                        .ok_or(DatabaseError::InvalidQuery("pivot key is null"))?;
+                    Ok((normalized, (key, attributes)))
+                })
+                .collect::<DatabaseResult<DesiredPivots>>()?;
+            if desired.is_empty() && !detach {
+                return Ok(SyncChanges::default());
+            }
+            let desired = Arc::new(desired);
+            let pivot = self.pivot;
+            let constraints = Arc::new(self.pivot_constraints.clone());
+            let connection = self.keys.connection(parent)?;
+            let timestamps = Arc::new(self.pivot_write_timestamps(&connection)?);
+            let custom = self.custom_pivot;
+            let identity = pivot.identity(self.timestamp_columns());
+            let source = connection.clone();
+            connection
+                .transaction(
+                    move |transaction| {
+                        if let Some(custom) = custom {
+                            return Box::pin(sync_custom_pivot(
+                                transaction,
+                                CustomSync {
+                                    pivot,
+                                    custom,
+                                    identity,
+                                    source: source.clone(),
+                                    owner: owner.clone(),
+                                    desired: desired.clone(),
+                                    constraints: constraints.clone(),
+                                    timestamps: timestamps.clone(),
+                                    detach,
+                                },
+                            ));
+                        }
+                        Box::pin(sync_pivot(
+                            transaction,
+                            pivot,
+                            owner.clone(),
+                            desired.clone(),
+                            constraints.clone(),
+                            timestamps.clone(),
+                            detach,
+                        ))
+                    },
+                    3,
+                )
+                .await
+        })
     }
 
     fn owner<'a>(&self, parent: &'a P) -> DatabaseResult<&'a Value> {
@@ -410,6 +559,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         pivot_names.push(column);
                     }
                 }
+            }
+            if let Some(primary_key) = self.custom_pivot.and_then(|custom| custom.primary_key)
+                && !pivot_names.contains(&primary_key)
+            {
+                pivot_names.push(primary_key);
             }
             let pivot_columns: Vec<_> = pivot_names
                 .iter()
@@ -468,11 +622,23 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                             .zip(pivot)
                             .map(|(name, (_, value))| ((*name).into(), value))
                             .collect();
-                        state.relations.insert(
-                            self.pivot_accessor.into(),
-                            Pivot::new(attributes),
-                            Pivot::serialize,
-                        );
+                        if let Some(custom) = self.custom_pivot {
+                            let mut defaults = self.pivot_constraints.defaults.clone();
+                            defaults.extend(attributes);
+                            (custom.hydrate)(
+                                &mut state.relations,
+                                self.pivot_accessor,
+                                defaults,
+                                &connection,
+                                self.pivot.identity(self.timestamp_columns()),
+                            )?;
+                        } else {
+                            state.relations.insert(
+                                self.pivot_accessor.into(),
+                                Pivot::new(attributes),
+                                Pivot::serialize,
+                            );
+                        }
                         owners.push(owner);
                         models.push(R::from_state(state));
                     }
@@ -524,6 +690,16 @@ struct PivotKeys {
 }
 
 impl PivotKeys {
+    fn identity(self, timestamps: PivotTimestampColumns) -> PivotIdentity {
+        PivotIdentity {
+            table: self.table,
+            foreign: self.foreign,
+            related: self.related,
+            morph: self.morph.map(|(column, _)| column),
+            timestamps,
+        }
+    }
+
     fn restrict_type<'a>(&self, query: query::Builder<'a>, qualified: bool) -> query::Builder<'a> {
         match self.morph {
             Some((column, alias)) if qualified => {
@@ -562,6 +738,76 @@ struct PivotWriteTimestamps {
 }
 
 type DesiredPivots = IndexMap<Vec<u8>, (Value, Attributes)>;
+
+struct CustomSync {
+    pivot: PivotKeys,
+    custom: CustomPivot,
+    identity: PivotIdentity,
+    source: Connection,
+    owner: Value,
+    desired: Arc<DesiredPivots>,
+    constraints: Arc<PivotConstraints>,
+    timestamps: Arc<PivotWriteTimestamps>,
+    detach: bool,
+}
+
+async fn sync_custom_pivot(
+    transaction: &mut Transaction,
+    sync: CustomSync,
+) -> DatabaseResult<SyncChanges> {
+    let CustomSync {
+        pivot,
+        custom,
+        identity,
+        source,
+        owner,
+        desired,
+        constraints,
+        timestamps,
+        detach,
+    } = sync;
+    let rows = constraints
+        .apply(pivot.for_owner(transaction.table(pivot.table), &owner))
+        .lockForUpdate()
+        .get()
+        .await?;
+    let mut current = IndexMap::new();
+    let mut changes = SyncChanges::default();
+    for row in rows {
+        let raw: Attributes = row.into_columns().into_iter().collect();
+        let key = raw
+            .get(pivot.related)
+            .ok_or(DatabaseError::InvalidQuery("missing related pivot key"))?
+            .clone();
+        let normalized =
+            dictionary_key(Some(&key))?.ok_or(DatabaseError::InvalidQuery("pivot key is null"))?;
+        if detach && !desired.contains_key(&normalized) {
+            if (custom.delete)(transaction, &source, identity, raw).await? {
+                changes.detached.push(key);
+            }
+        } else {
+            current.insert(normalized, raw);
+        }
+    }
+    for (normalized, (key, attributes)) in desired.iter() {
+        if let Some(raw) = current.shift_remove(normalized) {
+            if !attributes.is_empty()
+                && (custom.update)(transaction, &source, identity, raw, attributes.clone()).await?
+            {
+                changes.updated.push(key.clone());
+            }
+        } else {
+            let mut row = pivot.record(&owner, key);
+            row.extend(timestamps.insert.clone());
+            row.extend(constraints.defaults.clone());
+            row.extend(attributes.clone());
+            if (custom.insert)(transaction, &source, identity, row).await? {
+                changes.attached.push(key.clone());
+            }
+        }
+    }
+    Ok(changes)
+}
 
 async fn sync_pivot(
     transaction: &mut Transaction,

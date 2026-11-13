@@ -372,6 +372,23 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 }
 ```
 
+## 定义自定义中间表模型 {#defining-custom-intermediate-table-models}
+
+在多对多关系中调用 `using::<Membership>()`，用类型化 Eloquent 模型加载和写入中间行。模型可声明属性转换和批量赋值字段。重命名访问器后，用 `getRelation::<Membership>("membership")` 读取。关系提供表名、连接和原始关联键，多态关系还提供类型判别列。复合键表用 `incrementing(false)`，自增模型需要实际的主键列。
+
+关系写入采用自定义模型的生命周期和属性转换。通过关系的 `withTimestamps` 或 `withTimestampColumns` 配置时间戳。需要软删除时，将中间行建模为普通 Eloquent 模型。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .using::<Membership>()
+        .withPivot(["approved"])
+        .r#as("membership")
+}
+```
+
 ## 新建和更新关联模型
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。

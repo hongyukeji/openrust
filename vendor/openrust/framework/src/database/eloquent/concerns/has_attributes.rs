@@ -20,6 +20,8 @@ pub struct ModelState {
     value_objects: Option<Box<ValueObjects>>,
     serialization: Option<Box<SerializationOptions>>,
     pub(in crate::database::eloquent) connection: Option<Connection>,
+    pub(in crate::database::eloquent) pivot_identity:
+        Option<super::super::relations::custom_pivot::PivotIdentity>,
     pub(in crate::database::eloquent) exists: bool,
     pub(in crate::database::eloquent) was_recently_created: bool,
 }
@@ -112,6 +114,19 @@ impl ModelState {
             attributes,
             relations: self.relations.clone(),
             connection: self.connection.clone(),
+            original: self
+                .pivot_identity
+                .map_or_else(Attributes::new, |identity| {
+                    identity
+                        .columns()
+                        .filter_map(|name| {
+                            self.original
+                                .get(name)
+                                .map(|value| (name.into(), value.clone()))
+                        })
+                        .collect()
+                }),
+            pivot_identity: self.pivot_identity,
             ..Self::default()
         }
     }

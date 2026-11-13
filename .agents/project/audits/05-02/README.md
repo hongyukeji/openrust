@@ -182,3 +182,11 @@ Rust 1.94 格式、启用 Sanctum 的全工作区回归（621 次通过、0 失�
 SQLite 和独立 MySQL 8.4.13 实测惰性加载倒序、预加载正序、多态加载、显式插入时间覆盖、直接更新和同步刷新更新时间、创建时间保留及自定义时间戳列。自定义 Pivot 模型、其专用转换和生命周期仍是后续范围。
 
 Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译及隔离构建、18 项浏览器检查通过。提交前额度 93%，磁盘可用 60 GiB。核心账本维持 25/66。
+
+## 自定义中间表模型
+
+按固定 Laravel 的 `using`、`AsPivot` 和 `InteractsWithPivotTable` 接入类型化中间模型。参考固定 Goravel 的连接级 ORM，复用 `v0.x` 将水合、插入、更新和删除分派到自定义类型的设计。Rust 使用 `using::<M>()` 静态声明，关系注入表、连接和原始复合身份。可选自增主键和多态类型也参与定位。读取复用 Eloquent 转换与序列化，写入复用模型生命周期和事务。自定义 Pivot 的软删除需通过普通 Eloquent 模型实现。Laravel 的 `as` 使用 Rust 原始标识符 `r#as`。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#defining-custom-intermediate-table-models) · [Laravel AsPivot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/AsPivot.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和 MySQL 8.4.13 实测自定义访问器、属性转换、脏属性更新、attach/sync/detach 生命周期、监听器取消、事件与写操作同事务回滚，以及复合身份和多态类型隔离。自定义 Pivot 的反向关系自动水合按 Laravel 后续小节单独跟踪。
+
+Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离构建和 18 项浏览器检查通过。提交前额度 93%，磁盘可用 60 GiB。05-02 仍待整体闭合，核心账本维持 25/66。

@@ -1918,6 +1918,270 @@ async fn verify_pivot_timestamps(db: &Connection, owner: &Author, first: &Value,
     assert_eq!(custom.detach(owner, None).await.unwrap(), 1);
 }
 
+struct Membership(ModelState);
+
+impl Model for Membership {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("unused_memberships")
+            .incrementing(false)
+            .timestamps(None, None)
+            .fillable(&["label"]);
+        &METADATA
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("label", AttributeCast::Integer)]
+    }
+}
+
+struct MembershipEvents;
+
+impl openrust::database::eloquent::concerns::ModelEventListener<Membership> for MembershipEvents {
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        _: &'a mut Membership,
+        _: &'a Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+    > {
+        Box::pin(async { panic!("relationship writes must dispatch inside their transaction") })
+    }
+
+    fn handleInTransaction<'a>(
+        &'a self,
+        event: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut Membership,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+    > {
+        use openrust::database::eloquent::concerns::{ModelEvent::*, ModelEventResponse::*};
+        Box::pin(async move {
+            let label = model.getAttributeValue("label")?;
+            if matches!(event, Saving | Deleting) && label == Some(99.into()) {
+                return Ok(Cancel);
+            }
+            if matches!(event, Created | Updated | Deleted) {
+                transaction
+                    .statement(
+                        "INSERT INTO relation_membership_events (event) VALUES (?)",
+                        &[format!("{event:?}").into()],
+                    )
+                    .await?;
+                if event == Created && label == Some(77.into()) {
+                    return Err(DatabaseError::InvalidQuery("reject pivot after writing"));
+                }
+            }
+            Ok(Continue)
+        })
+    }
+}
+
+async fn verify_custom_pivot(config: Json) {
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        database::eloquent::concerns::ModelEvent::{Created, Deleted, Deleting, Saving, Updated},
+        foundation::Application,
+    };
+    let mut app = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let repository = app.config().unwrap();
+    repository.set("database.default", json!("pivot")).unwrap();
+    repository
+        .set("database.connections.pivot", config)
+        .unwrap();
+    let db = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    for (event, listener) in [Saving, Created, Updated, Deleting, Deleted]
+        .into_iter()
+        .map(|event| (event, MembershipEvents))
+    {
+        Membership::registerModelEvent(&app, event, listener).unwrap();
+    }
+    for sql in [
+        "DROP TABLE IF EXISTS relation_membership_events",
+        "DROP TABLE IF EXISTS relation_featured_posts",
+        "DROP TABLE IF EXISTS relation_posts",
+        "DROP TABLE IF EXISTS relation_authors",
+        "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME)",
+        "CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (author_id, post_id))",
+        "CREATE TABLE relation_membership_events (event VARCHAR(30) NOT NULL)",
+        "INSERT INTO relation_authors VALUES (1,'first'),(2,'second')",
+        "INSERT INTO relation_posts VALUES (1,1,'first',NULL),(2,1,'second',NULL)",
+        "INSERT INTO relation_featured_posts VALUES (2,1,'55'),(1,2,'99')",
+    ] {
+        db.statement(sql, &[]).await.unwrap();
+    }
+    let owner = Author::queryOn(&db).findOrFail(1).await.unwrap();
+    let relation = FEATURED_POSTS
+        .using::<Membership>()
+        .withPivot(["label"])
+        .r#as("membership");
+    assert!(
+        relation
+            .attachWith(
+                &owner,
+                &[1.into()],
+                Attributes::from([("label".into(), 77.into())])
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        db.table("relation_membership_events")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    relation
+        .attachWith(
+            &owner,
+            &[1.into()],
+            Attributes::from([("label".into(), "12".into())]),
+        )
+        .await
+        .unwrap();
+    let eager = Author::queryOn(&db)
+        .with(
+            "posts",
+            FEATURED_POSTS
+                .using::<Membership>()
+                .withPivot(["label"])
+                .r#as("membership"),
+        )
+        .findOrFail(1)
+        .await
+        .unwrap();
+    let posts = eager.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let pivot = posts
+        .iter()
+        .find(|post| post.getKey() == Some(&1.into()))
+        .unwrap()
+        .getRelation::<Membership>("membership")
+        .unwrap();
+    assert_eq!(pivot.getTable(), "relation_featured_posts");
+    assert!(pivot.state().exists());
+    assert_eq!(pivot.getAttributeValue("label").unwrap(), Some(12.into()));
+    assert_eq!(
+        posts
+            .iter()
+            .find(|post| post.getKey() == Some(&1.into()))
+            .unwrap()
+            .toArray()
+            .unwrap()["membership"]["label"],
+        12
+    );
+    assert_eq!(
+        relation
+            .updateExistingPivot(
+                &owner,
+                &1.into(),
+                Attributes::from([("label".into(), 12.into())])
+            )
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        relation
+            .updateExistingPivot(
+                &owner,
+                &1.into(),
+                Attributes::from([("label".into(), 20.into())])
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    let report = relation.sync(&owner, &[]).await.unwrap();
+    assert_eq!(report.detached, vec![1.into()]);
+    assert_eq!(relation.detach(&owner, Some(&[2.into()])).await.unwrap(), 0);
+    assert_eq!(
+        db.table("relation_featured_posts")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        db.table("relation_membership_events")
+            .count("*")
+            .await
+            .unwrap(),
+        3
+    );
+    db.statement("CREATE TABLE relation_morph_memberships (subject_type VARCHAR(40), subject_id BIGINT, tag_id BIGINT, label VARCHAR(80), PRIMARY KEY (subject_type, subject_id, tag_id))", &[]).await.unwrap();
+    db.statement(
+        "INSERT INTO relation_morph_memberships VALUES ('author',1,2,'35')",
+        &[],
+    )
+    .await
+    .unwrap();
+    let morph = MorphToMany::<Author, Post>::new(
+        "relation_morph_memberships",
+        "subject_id",
+        "tag_id",
+        "id",
+        "id",
+        "subject_type",
+        "featured",
+    )
+    .using::<Membership>()
+    .withPivot(["label"]);
+    let changes = morph
+        .syncWithPivotValues(
+            &owner,
+            &[2.into()],
+            Attributes::from([("label".into(), "15".into())]),
+            true,
+        )
+        .await
+        .unwrap();
+    assert_eq!(changes.attached, vec![2.into()]);
+    let posts = morph.getResults(&owner).await.unwrap();
+    let pivot = posts[0].getRelation::<Membership>("pivot").unwrap();
+    assert_eq!(pivot.getAttribute("subject_type"), Some(&"featured".into()));
+    assert_eq!(pivot.getAttributeValue("label").unwrap(), Some(15.into()));
+    assert_eq!(morph.detach(&owner, Some(&[2.into()])).await.unwrap(), 1);
+    assert_eq!(
+        db.table("relation_morph_memberships")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    db.statement("DROP TABLE relation_morph_memberships", &[])
+        .await
+        .unwrap();
+    for sql in [
+        "DROP TABLE relation_membership_events",
+        "DROP TABLE relation_featured_posts",
+        "DROP TABLE relation_posts",
+        "DROP TABLE relation_authors",
+    ] {
+        db.statement(sql, &[]).await.unwrap();
+    }
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
@@ -2589,10 +2853,14 @@ async fn verify(db: Connection, mysql: bool) {
 
 #[tokio::test]
 async fn relationship_keys_and_eager_loading_on_sqlite() {
-    verify(
+    Box::pin(verify(
         connect(json!({"driver":"sqlite","database":":memory:","max_connections":1,"foreign_key_constraints":true})),
         false,
-    )
+    ))
+    .await;
+    Box::pin(verify_custom_pivot(
+        json!({"driver":"sqlite","database":":memory:","max_connections":1}),
+    ))
     .await;
 }
 
@@ -2604,5 +2872,6 @@ async fn relationship_keys_and_query_counts_on_mysql() {
         let db = connect(json!({"url":url,"max_connections":1}));
         // Keep the large integration fixture off the default debug test stack.
         Box::pin(verify(db, true)).await;
+        Box::pin(verify_custom_pivot(json!({"url":url,"max_connections":1}))).await;
     }
 }

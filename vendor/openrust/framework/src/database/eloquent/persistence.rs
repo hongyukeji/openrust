@@ -68,6 +68,34 @@ fn persisted_key<M: Model>(model: &M) -> DatabaseResult<Value> {
         .ok_or(DatabaseError::InvalidQuery("model primary key"))
 }
 
+fn persistence_table<M: Model>(model: &M) -> &'static str {
+    model
+        .state()
+        .pivot_identity
+        .map_or(M::metadata().table, |identity| identity.table)
+}
+
+fn scoped_model<'a, M: Model>(
+    model: &M,
+    query: crate::database::query::Builder<'a>,
+) -> DatabaseResult<crate::database::query::Builder<'a>> {
+    let state = model.state();
+    if let Some(identity) = state.pivot_identity {
+        let query = identity.constrain(query, &state.original)?;
+        if let Some(key) = state.original.get(M::metadata().primary_key)
+            && *key != Value::Null
+            && !identity
+                .columns()
+                .any(|column| column == M::metadata().primary_key)
+        {
+            return Ok(query.r#where(M::metadata().primary_key, "=", key.clone()));
+        }
+        Ok(query)
+    } else {
+        Ok(query.r#where(M::metadata().primary_key, "=", persisted_key(model)?))
+    }
+}
+
 pub(super) async fn save<M: Model>(
     model: &mut M,
     mut transaction: Option<&mut Transaction>,
@@ -101,10 +129,13 @@ pub(super) async fn save<M: Model>(
         model.state().attributes.clone()
     };
 
-    let timestamp_columns = [
-        metadata.updated_at,
-        if exists { None } else { metadata.created_at },
-    ];
+    let (created_at, updated_at) = model
+        .state()
+        .pivot_identity
+        .map_or((metadata.created_at, metadata.updated_at), |identity| {
+            identity.timestamps
+        });
+    let timestamp_columns = [updated_at, if exists { None } else { created_at }];
     let missing =
         timestamp_columns.map(|column| column.filter(|column| !attributes.contains_key(*column)));
     if missing.iter().any(Option::is_some) {
@@ -120,10 +151,34 @@ pub(super) async fn save<M: Model>(
     if exists && attributes.is_empty() {
         return finish_save(model, &connection, transaction).await;
     }
-    let query = table(&connection, transaction.as_deref_mut(), metadata.table);
+    if let Some(identity) = model.state().pivot_identity {
+        for column in identity.columns() {
+            if attributes
+                .keys()
+                .any(|name| name != column && name.eq_ignore_ascii_case(column))
+            {
+                return Err(DatabaseError::InvalidQuery(
+                    "pivot model cannot replace relationship keys",
+                ));
+            }
+            if attributes
+                .get(column)
+                .or_else(|| model.state().attributes.get(column))
+                != model.state().original.get(column)
+            {
+                return Err(DatabaseError::InvalidQuery(
+                    "pivot model cannot replace relationship keys",
+                ));
+            }
+        }
+    }
+    let query = table(
+        &connection,
+        transaction.as_deref_mut(),
+        persistence_table(model),
+    );
     if exists {
-        query
-            .r#where(metadata.primary_key, "=", persisted_key(model)?)
+        scoped_model(model, query)?
             .update(attributes.clone())
             .await?;
     } else if M::getIncrementing() {
@@ -199,18 +254,34 @@ async fn refresh_saved_attributes<M: Model>(
     transaction: Option<&mut Transaction>,
 ) -> DatabaseResult<super::Attributes> {
     let metadata = M::metadata();
-    let key = model
-        .getKey()
-        .filter(|key| !matches!(key, Value::Null))
-        .ok_or(DatabaseError::InvalidQuery("model primary key"))?;
-    table(connection, transaction, metadata.table)
+    let query = table(connection, transaction, persistence_table(model))
         .useWritePdo()
-        .select(metadata.refreshes.iter().copied())
-        .r#where(metadata.primary_key, "=", key.clone())
+        .select(metadata.refreshes.iter().copied());
+    let state = model.state();
+    let query = if let Some(identity) = state.pivot_identity {
+        let query = identity.constrain(query, &state.original)?;
+        match model.getKey().filter(|key| **key != Value::Null) {
+            Some(key)
+                if !identity
+                    .columns()
+                    .any(|column| column == metadata.primary_key) =>
+            {
+                query.r#where(metadata.primary_key, "=", key.clone())
+            }
+            _ => query,
+        }
+    } else {
+        let key = model
+            .getKey()
+            .filter(|key| !matches!(key, Value::Null))
+            .ok_or(DatabaseError::InvalidQuery("model primary key"))?;
+        query.r#where(metadata.primary_key, "=", key.clone())
+    };
+    query
         .first()
         .await?
         .map(|row| row.into_columns().into_iter().collect())
-        .ok_or(DatabaseError::ModelNotFound(metadata.table))
+        .ok_or(DatabaseError::ModelNotFound(persistence_table(model)))
 }
 
 async fn finish_save<M: Model>(
@@ -273,11 +344,14 @@ pub(super) async fn delete<M: Model>(
     {
         return Ok(false);
     }
-    let query = table(&connection, transaction.as_deref_mut(), metadata.table).r#where(
-        metadata.primary_key,
-        "=",
-        persisted_key(model)?,
-    );
+    let query = scoped_model(
+        model,
+        table(
+            &connection,
+            transaction.as_deref_mut(),
+            persistence_table(model),
+        ),
+    )?;
     if let Some(column) = metadata.deleted_at.filter(|_| !force) {
         let attributes = soft_deletes::deletion_attributes(metadata, column, &connection)?;
         query.update(attributes.clone()).await?;

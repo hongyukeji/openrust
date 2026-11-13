@@ -2,6 +2,7 @@
 
 mod belongs_to;
 mod belongs_to_many;
+pub(super) mod custom_pivot;
 mod default_model;
 mod has_many;
 mod has_many_through;
