@@ -26,3 +26,9 @@
 - SQLite 和 MySQL 8.4.13 验证 Provider 注册、保存前修改及取消、插入后在同一连接写入记录、同一清单内重复事件去重，以及未注册应用的隔离。现有生命周期、静默和错误重试用例一并执行。三语 Observer 示例在 SQLite 编译并运行。实际二进制验证 `make:model ObserverArticle` 和 `inspire`。
 - PHP 反射与 `ObservedBy` 属性由 Rust 显式类型装配表达。事务后 Observer 依赖模型写入接收显式事务，`make:observer` 生成器仍待接线。
 - Rust 1.94.0 格式、615 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。
+
+## Observer 生成器
+
+- 对照固定 Laravel 的 `make:observer` 与生成器测试，接入普通结构体、`--model/-m` 的五个写后回调及 `--force/-f`。沿用编译型应用装配和现有模板发布机制。旧版 `v0.x` 未找到对应生成器。Rust 模块声明和 Provider 注册由应用完成，交互式模型候选提示仍待接入。 [Laravel ObserverMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ObserverMakeCommand.php) · [Laravel 生成器测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Generators/ObserverMakeCommandTest.php) · [Goravel Database Provider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/service_provider.go)
+- 实际 Artisan 验证普通和绑定模型生成、嵌套及限定模型名、重复拒绝、并发只成功一次、强制覆盖、非法路径拒绝和两个自定义模板。生成的普通及绑定模型代码以 Rust 1.94.0 编译，绑定模型的版本通过 SQLite 真实保存验收。
+- Rust 1.94.0 格式、616 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。

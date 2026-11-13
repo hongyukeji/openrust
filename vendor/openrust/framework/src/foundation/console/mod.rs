@@ -13,6 +13,7 @@ mod key_generate_command;
 mod lang_publish_command;
 mod maintenance_command;
 mod model_make_command;
+mod observer_make_command;
 mod policy_make_command;
 mod provider_make_command;
 mod source_edit;
@@ -100,6 +101,7 @@ impl Kernel {
                             test_command::register(&mut self.artisan)?;
                             stub_publish_command::register(&mut self.artisan)?;
                             model_make_command::register(&mut self.artisan)?;
+                            observer_make_command::register(&mut self.artisan)?;
                             policy_make_command::register(&mut self.artisan)?;
                             provider_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;

@@ -1,0 +1,61 @@
+use openrust::database::{
+    Connection, DatabaseFuture, DatabaseResult,
+    eloquent::{
+        Observer,
+        concerns::{ModelEvent, ModelEventResponse},
+    },
+};
+
+use {{model}} as ObservedModel;
+
+pub struct {{class}};
+
+impl Observer<ObservedModel> for {{class}} {
+    const EVENTS: &'static [ModelEvent] = &[
+        ModelEvent::Created,
+        ModelEvent::Updated,
+        ModelEvent::Deleted,
+        ModelEvent::Restored,
+        ModelEvent::ForceDeleted,
+    ];
+
+    fn created<'a>(
+        &'a self,
+        _model: &'a mut ObservedModel,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Continue) })
+    }
+
+    fn updated<'a>(
+        &'a self,
+        _model: &'a mut ObservedModel,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Continue) })
+    }
+
+    fn deleted<'a>(
+        &'a self,
+        _model: &'a mut ObservedModel,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Continue) })
+    }
+
+    fn restored<'a>(
+        &'a self,
+        _model: &'a mut ObservedModel,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Continue) })
+    }
+
+    fn forceDeleted<'a>(
+        &'a self,
+        _model: &'a mut ObservedModel,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Continue) })
+    }
+}

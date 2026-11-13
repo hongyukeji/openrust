@@ -130,6 +130,8 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
 
 ### 观察者 {#observers}
 
+运行 `./artisan make:observer FlightObserver --model=Flight`，在 `app/observers/flight_observer.rs` 生成五个写入后生命周期方法。声明模块，并在服务提供者启动时注册观察者。省略 `--model` 会生成普通结构体，使用 `--force` 可覆盖已有文件。通过 `./artisan stub:publish` 发布并自定义 `observer.rs.stub` 和 `observer.plain.rs.stub`。
+
 用 `Observer<M>` 集中实现模型生命周期方法，在服务提供者启动时调用 `M::observe` 注册。通过 `EVENTS` 指定要注册的生命周期方法。方法接收模型及本次操作的数据库连接，写前方法可以返回 `ModelEventResponse::Cancel` 取消写入。注册表归当前应用所有。
 
 ```rust

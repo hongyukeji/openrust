@@ -106,6 +106,8 @@ pub(crate) enum Stub {
     MigrationCreate,
     MigrationUpdate,
     Model,
+    Observer,
+    PlainObserver,
     Policy,
     Provider,
     Seeder,
@@ -114,7 +116,7 @@ pub(crate) enum Stub {
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 26] = [
+    pub(crate) const ALL: [Self; 28] = [
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,
@@ -136,6 +138,8 @@ impl Stub {
         Self::MigrationCreate,
         Self::MigrationUpdate,
         Self::Model,
+        Self::Observer,
+        Self::PlainObserver,
         Self::Policy,
         Self::Provider,
         Self::Seeder,
@@ -220,6 +224,14 @@ impl Stub {
             Self::Model => (
                 "model.rs.stub",
                 include_str!("../foundation/console/stubs/model.rs.stub"),
+            ),
+            Self::Observer => (
+                "observer.rs.stub",
+                include_str!("../foundation/console/stubs/observer.rs.stub"),
+            ),
+            Self::PlainObserver => (
+                "observer.plain.rs.stub",
+                include_str!("../foundation/console/stubs/observer.plain.rs.stub"),
             ),
             Self::Policy => (
                 "policy.rs.stub",

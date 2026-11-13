@@ -658,7 +658,7 @@ fn artisan_publishes_stubs_used_by_source_generators() {
         [first.join().unwrap(), second.join().unwrap()]
     });
     assert!(outcomes.iter().all(|output| output.status.success()));
-    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 26);
+    assert_eq!(fs::read_dir(&stubs).unwrap().count(), 28);
     assert_eq!(fs::read_to_string(&console).unwrap(), "// preserved\n");
     assert!(!other.0.join("stubs").exists());
     assert!(run(&root.0, &["stub:publish", "--force"]).status.success());
@@ -675,6 +675,16 @@ fn artisan_publishes_stubs_used_by_source_generators() {
             "console",
             &["make:command", "Example"][..],
             "app/console/commands/example.rs",
+        ),
+        (
+            "observer",
+            &["make:observer", "FlightObserver", "-m", "Flight"],
+            "app/observers/flight_observer.rs",
+        ),
+        (
+            "observer.plain",
+            &["make:observer", "PlainObserver"],
+            "app/observers/plain_observer.rs",
         ),
         ("model", &["make:model", "Flight"], "app/models/flight.rs"),
         (
@@ -1089,6 +1099,64 @@ fn artisan_generates_event_and_listener_variants() {
             .unwrap()
             .starts_with("// custom event\n")
     );
+}
+
+#[test]
+fn artisan_generates_observers_with_laravel_options() {
+    let root = TestRoot::new("make-observer");
+    let other = TestRoot::new("make-observer-other");
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+    let args = [
+        "make:observer",
+        "Travel/FlightObserver",
+        "-m",
+        r"\App\Models\Travel\Flight",
+    ];
+    let results = std::thread::scope(|scope| {
+        let first = scope.spawn(|| run(&args));
+        let second = scope.spawn(|| run(&args));
+        [first.join().unwrap(), second.join().unwrap()]
+    });
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| result.status.success())
+            .count(),
+        1
+    );
+    let path = root.0.join("app/observers/travel/flight_observer.rs");
+    let source = fs::read_to_string(&path).unwrap();
+    assert!(source.contains("crate::app::r#models::r#travel::r#flight::Flight as ObservedModel"));
+    for method in ["created", "updated", "deleted", "restored", "forceDeleted"] {
+        assert!(source.contains(&format!("fn {method}<'a>")), "{method}");
+    }
+    assert_eq!(run(&args).status.code(), Some(1));
+    assert_eq!(fs::read_to_string(&path).unwrap(), source);
+    assert!(
+        run(&["make:observer", "Travel/FlightObserver", "-f"])
+            .status
+            .success()
+    );
+    assert_eq!(
+        fs::read_to_string(path).unwrap(),
+        "pub struct FlightObserver;
+"
+    );
+    for arguments in [
+        ["make:observer", "../Escape", "--model=Flight"],
+        ["make:observer", "Invalid", "--model=../Escape"],
+    ] {
+        assert_eq!(run(&arguments).status.code(), Some(1));
+    }
+    assert!(!root.0.join("app/observers/invalid.rs").exists());
+    assert!(!other.0.join("app").exists());
 }
 
 #[test]
