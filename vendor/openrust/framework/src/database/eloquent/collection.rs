@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
+    sync::Arc,
 };
 
 use indexmap::IndexMap;
@@ -47,6 +48,132 @@ impl<M: Model> CollectionModel<'_, M> {
         self.collection
             .getRelationOrLoad(self.index, name, relation)
             .await
+    }
+
+    /// Opens a single related model while retaining access to the root collection.
+    pub async fn relatedModelAt<'a, R>(
+        &'a mut self,
+        name: &str,
+        relation: &'a R,
+        index: usize,
+    ) -> DatabaseResult<Option<RelatedCollectionModel<'a, M, R>>>
+    where
+        R: Relation<Parent = M>,
+        R::Output: RelatedModels,
+    {
+        if index >= self.getRelationOrLoad(name, relation).await?.models().len() {
+            return Ok(None);
+        }
+        Ok(Some(RelatedCollectionModel {
+            parents: &mut *self.collection,
+            parent_index: self.index,
+            name: name.to_owned(),
+            index,
+            relation,
+        }))
+    }
+}
+
+/// A related model borrowed through its root collection.
+pub struct RelatedCollectionModel<'a, M: Model, R: Relation<Parent = M>>
+where
+    R::Output: RelatedModels,
+{
+    parents: &'a mut Collection<M>,
+    parent_index: usize,
+    name: String,
+    index: usize,
+    relation: &'a R,
+}
+
+impl<M: Model, R: Relation<Parent = M>> Deref for RelatedCollectionModel<'_, M, R>
+where
+    R::Output: RelatedModels,
+{
+    type Target = <R::Output as RelatedModels>::Model;
+
+    fn deref(&self) -> &Self::Target {
+        &self.parents[self.parent_index]
+            .getRelation::<R::Output>(&self.name)
+            .expect("related model remains installed")
+            .models()[self.index]
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+impl<M: Model, R: Relation<Parent = M>> RelatedCollectionModel<'_, M, R>
+where
+    R::Output: RelatedModels,
+{
+    /// Accesses a descendant relationship and writes loaded values to the root graph.
+    pub async fn getRelationOrLoad<S: Relation<Parent = <R::Output as RelatedModels>::Model>>(
+        &mut self,
+        name: &str,
+        relation: &S,
+    ) -> DatabaseResult<&S::Output> {
+        if !self.relationLoaded(name) {
+            let autoload = self.parents.autoload;
+            if autoload {
+                self.parents.loadMissing(&self.name, self.relation).await?;
+            }
+            let selected = self.parent_index;
+            let models = &mut self.parents.models;
+            let parents = if autoload {
+                models.as_mut_slice()
+            } else {
+                std::slice::from_mut(&mut models[selected])
+            };
+            let outputs = parents
+                .iter()
+                .map(|parent| {
+                    parent
+                        .getRelation::<R::Output>(&self.name)
+                        .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?;
+            let mut replacements = IndexMap::new();
+            for (position, output) in outputs.iter().enumerate() {
+                for (index, model) in output.models().iter().enumerate() {
+                    if !model.relationLoaded(name)
+                        && (autoload || (position == 0 && index == self.index))
+                    {
+                        replacements
+                            .entry(Arc::as_ptr(model).addr())
+                            .or_insert_with(|| S::Parent::from_state(model.state().clone()));
+                    }
+                }
+            }
+            let (pointers, mut copies): (Vec<_>, Vec<_>) = replacements.into_iter().unzip();
+            if autoload {
+                has_relationships::load(&mut copies, name, relation, true).await?;
+            } else {
+                has_relationships::load_on_access(&mut copies[0], name, relation).await?;
+            }
+            let replacements: HashMap<_, _> = pointers
+                .into_iter()
+                .zip(copies.into_iter().map(Arc::new))
+                .collect();
+            let outputs = outputs
+                .into_iter()
+                .map(|output| {
+                    output.replace_models(|model| {
+                        replacements
+                            .get(&Arc::as_ptr(model).addr())
+                            .cloned()
+                            .unwrap_or_else(|| model.clone())
+                    })
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?;
+            for (parent, output) in parents.iter_mut().zip(outputs) {
+                parent
+                    .state_mut()
+                    .relations
+                    .insert(self.name.clone(), output, R::serialize);
+            }
+        }
+        <Self as Deref>::deref(self)
+            .getRelation(name)
+            .ok_or(DatabaseError::InvalidQuery("relationship output type"))
     }
 }
 

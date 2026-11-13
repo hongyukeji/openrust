@@ -1325,13 +1325,82 @@ fn verify_relation_autoload(
 
         let mut other = ordered().get().await.unwrap();
         assert!(other.iter().all(|author| !author.relationLoaded("posts")));
+        let posts = POSTS;
+        let mut descendant = ordered().get().await.unwrap();
+        descendant
+            .getRelationOrLoad(0, "posts", &POSTS)
+            .await
+            .unwrap();
+        let mut descendant = descendant.withRelationshipAutoloading();
+        let broken_comments = POST_COMMENTS.constrain(|mut query| {
+            query.r#where("relation_comments.unknown_relation_column", "=", "error");
+            query
+        });
+        {
+            let mut author = descendant.modelAt(0).unwrap();
+            let mut post = author
+                .relatedModelAt("posts", &posts, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            assert!(
+                post.getRelationOrLoad("comments", &broken_comments)
+                    .await
+                    .is_err()
+            );
+            assert!(!post.relationLoaded("comments"));
+        }
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        for index in [0, 1] {
+            let mut author = descendant.modelAt(index).unwrap();
+            let mut post = author
+                .relatedModelAt("posts", &posts, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            post.getRelationOrLoad("comments", &POST_COMMENTS)
+                .await
+                .unwrap();
+        }
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+        let json = descendant.toArray().unwrap();
+        assert!(json[0]["posts"][0].get("comments").is_some());
+        assert!(json[1]["posts"][0].get("comments").is_some());
+        assert!(
+            descendant
+                .modelAt(2)
+                .unwrap()
+                .relatedModelAt("posts", &posts, 0)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        {
+            let mut author = other.modelAt(0).unwrap();
+            let mut post = author
+                .relatedModelAt("posts", &posts, 0)
+                .await
+                .unwrap()
+                .unwrap();
+            post.getRelationOrLoad("comments", &POST_COMMENTS)
+                .await
+                .unwrap();
+        }
+        assert!(!other[1].relationLoaded("posts"));
+        assert!(
+            other.toArray().unwrap()[0]["posts"][0]
+                .get("comments")
+                .is_some()
+        );
         other
             .modelAt(2)
             .unwrap()
             .getRelationOrLoad("posts", &POSTS)
             .await
             .unwrap();
-        assert!(!other[0].relationLoaded("posts"));
+        assert!(!other[1].relationLoaded("posts"));
         let mut single = ordered().findOrFail(3).await.unwrap();
         assert!(
             single

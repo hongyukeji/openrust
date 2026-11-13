@@ -385,6 +385,29 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### 批量加载关系链
 
+在从集合借用的模型上调用 `relatedModelAt` 可访问单个关联模型。启用自动预加载后，该模型缺失的关系会在同一父关系下的所有关联模型上批量加载，结果写回根集合，供后续读取和序列化。关闭自动预加载时，访问遵循所选模型的延迟加载规则。关系为空或位置越界时返回 `None`。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn first_comment_count<Author: Model, Post: Model, Comment: Model>(
+    authors: &mut Collection<Author>,
+) -> DatabaseResult<usize> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let Some(mut author) = authors.modelAt(0) else {
+        return Ok(0);
+    };
+    let Some(mut post) = author.relatedModelAt("posts", &posts, 0).await? else {
+        return Ok(0);
+    };
+    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+}
+```
+
 用 `relatedModels` 打开经单值或多值关系取得的模型批次。它复用已加载的值。在批次上调用 `getRelationOrLoad`，可跨批次读取下一层关系，也可以继续调用 `relatedModels` 深入下一层。批次读取的结果在该批次存续期间缓存。共享实例只出现一次，空关系不会加入模型。
 
 ```rust

@@ -28,7 +28,7 @@ use crate::database::Value;
 mod searchable;
 
 pub use builder::Builder;
-pub use collection::{Collection, CollectionModel};
+pub use collection::{Collection, CollectionModel, RelatedCollectionModel};
 pub(crate) use concerns::has_events::ModelEvents;
 pub use concerns::{
     ModelState,

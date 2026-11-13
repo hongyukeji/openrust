@@ -385,6 +385,29 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### Loading a Relationship Chain
 
+Use `relatedModelAt` on a model borrowed from the collection to access one related model. With automatic eager loading enabled, a missing relationship on that model is loaded across all related models reached by the same parent relationship. The root collection retains the results for later reads and serialization. With automatic eager loading disabled, the access follows the selected model’s lazy-loading policy. An empty relationship or out-of-range position returns `None`.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn first_comment_count<Author: Model, Post: Model, Comment: Model>(
+    authors: &mut Collection<Author>,
+) -> DatabaseResult<usize> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let Some(mut author) = authors.modelAt(0) else {
+        return Ok(0);
+    };
+    let Some(mut post) = author.relatedModelAt("posts", &posts, 0).await? else {
+        return Ok(0);
+    };
+    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+}
+```
+
 Use `relatedModels` to open a batch of models reached through a singular or plural relationship. It reuses already-loaded values. Call `getRelationOrLoad` on that batch to fetch the next relationship across its models, or call `relatedModels` again to traverse another level. Results fetched on a batch are cached for that batch's lifetime. Shared instances appear once, and empty relationships contribute no models.
 
 ```rust
