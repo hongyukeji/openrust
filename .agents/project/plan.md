@@ -125,6 +125,18 @@
 | <a id="unit-08-03"></a>08-03 gRPC 扩展 | [00-03](#unit-00-03) | OpenRust 扩展，参考 [Goravel gRPC 配置](https://github.com/goravel/goravel/blob/31651f646ccedf1701471bf01285111270a9d370/config/grpc.go) | [digging-deeper/grpc.md](../../docs/en/digging-deeper/grpc.md) | 按需安装后用真实客户端调用服务，验证端口冲突、错误状态及关停。 |
 | <a id="unit-08-04"></a>08-04 安装、部署和发布资料 | [00-03](#unit-00-03) | [installation](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/installation.md)、[deployment](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/deployment.md)、[releases](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/releases.md)、[upgrade](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/upgrade.md)、[contributions](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/contributions.md) | [getting-started/installation.md](../../docs/en/getting-started/installation.md)、[getting-started/deployment.md](../../docs/en/getting-started/deployment.md)、[prologue/releases.md](../../docs/en/prologue/releases.md)、[prologue/upgrade.md](../../docs/en/prologue/upgrade.md)、[prologue/contributions.md](../../docs/en/prologue/contributions.md) | 从全新检出执行安装和发布示例；发布时用目标平台、数据库及驱动的验收记录填写支持矩阵。 |
 
+## Sanctum 与 API 安装
+
+固定 [Sanctum v4.4.0](https://github.com/laravel/sanctum/releases/tag/v4.4.0) 的源码提交 [`a28ea5d4c2b123420562d6a3a233414f84b70774`](https://github.com/laravel/sanctum/tree/a28ea5d4c2b123420562d6a3a233414f84b70774)。其 Illuminate 约束包含 `^13.0`，覆盖当前 Laravel 13.40.0。旧版 `v0.x` 有令牌哈希查询、过期、撤销和最后使用时间测试。复用前逐项核对固定 Sanctum 的多态归属、令牌格式、撤销及时间字段。
+
+| 单元 | 前置 | 范围与验收 |
+| --- | --- | --- |
+| <a id="unit-sanctum-01"></a>Sanctum-01 令牌迁移与注册 | [02-06](#unit-02-06) 迁移执行基础 | 先接 `personal_access_tokens` 的固定字段、索引和迁移注册。真实 Artisan 在 SQLite 与 MySQL 8.4 验证首次迁移、重复迁移、回滚和重建。 |
+| <a id="unit-sanctum-02"></a>Sanctum-02 令牌和 SPA 认证 | [Sanctum-01](#unit-sanctum-01)、[05-08](#unit-05-08) 认证基础、[04-04](#unit-04-04) Session 基础 | 接通令牌签发、哈希、能力、过期、撤销及 `auth:sanctum`。显式 `statefulApi` 接入 Session、Cookie、CSRF。通过实际 HTTP 验收有效凭据、拒绝路径、来源匹配及 SPA 与 Bearer 路径。 |
+| <a id="unit-sanctum-03"></a>Sanctum-03 API 安装命令 | [Sanctum-02](#unit-sanctum-02)、[00-02](#unit-00-02) API 路由 | 接通 `install:api` 和受保护的 `/user`，验收首次安装、重复运行、已有路由、`--force`、`--without-migration-prompt` 和迁移交互。用真实 HTTP 核对默认 `/api/user` 和 `API_PREFIX=api/admin` 的成功及 401。 |
+
+保留 `config/api.rs` 与 `API_PREFIX`。按固定 [Laravel ApiInstallCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ApiInstallCommand.php) 验收可观察行为，记录 Composer 安装与 Cargo 编译装配的差异。Passport 就绪后再接 `--passport`。三批分别同步三语 Sanctum 文档和相关安装／路由章节，实际验收后本地提交。
+
 ## T 测试文档随批交付
 
 | 单元 | 前置 | Laravel 章节 | OpenRust 三语正文路径 | 验收条件 |

@@ -156,7 +156,7 @@
 | [Pulse](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pulse.md) | [packages/pulse.md](../../../docs/en/packages/pulse.md) | 需确认 |
 | [Reverb](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/reverb.md) | [packages/reverb.md](../../../docs/en/packages/reverb.md) | [08-02](../plan.md#unit-08-02) |
 | [Sail](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sail.md) | [packages/sail.md](../../../docs/en/packages/sail.md) | 需确认 |
-| [Sanctum](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sanctum.md) | [packages/sanctum.md](../../../docs/en/packages/sanctum.md) | 需确认 |
+| [Sanctum](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sanctum.md) | [packages/sanctum.md](../../../docs/en/packages/sanctum.md) | [Sanctum-01 至 03](../plan.md#sanctum-与-api-安装) |
 | [Scout](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/scout.md) | [packages/scout.md](../../../docs/en/packages/scout.md) | 需确认 |
 | [Socialite](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/socialite.md) | [packages/socialite.md](../../../docs/en/packages/socialite.md) | 需确认 |
 | [Telescope](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/telescope.md) | [packages/telescope.md](../../../docs/en/packages/telescope.md) | 需确认 |
