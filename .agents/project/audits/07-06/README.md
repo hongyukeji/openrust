@@ -16,3 +16,7 @@ Eloquent 使用 `Searchable` 声明列策略，Rust 枚举表达 Scout 的列属
 - 临时 SQLite 迁移、Artisan inspire、首页和 /up 通过。
 
 下一单元 07-07 Package Development，依赖 01-02、03-08、06-08。
+
+## MySQL 核心主线复验
+
+Rust 1.94.0 锁定离线 `search` 专项 4 项通过，连接独立 MySQL 8.4.13 验收库。实测索引建立、自然语言与布尔查询、分页、事务重试后的索引更新和删除。SQLite 覆盖已有的 LIKE 查询与全文方言拒绝。
