@@ -7,6 +7,7 @@ pub mod concerns;
 pub mod factories;
 mod metadata;
 mod model;
+mod observer;
 mod persistence;
 mod related_batch;
 pub mod relations;
@@ -32,6 +33,7 @@ pub use concerns::{
 };
 pub use metadata::ModelMetadata;
 pub use model::Model;
+pub use observer::Observer;
 pub use related_batch::{RelatedBatch, RelatedModels};
 pub use scope::Scope;
 pub use serialization::VisibilityCondition;

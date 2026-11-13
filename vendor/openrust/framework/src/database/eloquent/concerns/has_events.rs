@@ -60,13 +60,27 @@ impl ModelEvents {
         event: ModelEvent,
         listener: impl ModelEventListener<M> + 'static,
     ) {
+        self.listen_to::<M>(&[event], listener);
+    }
+
+    pub(crate) fn listen_to<M: Model>(
+        &self,
+        events: &[ModelEvent],
+        listener: impl ModelEventListener<M> + 'static,
+    ) {
         let listener: Arc<dyn ModelEventListener<M>> = Arc::new(listener);
-        self.0
-            .write()
-            .unwrap()
-            .entry((TypeId::of::<M>(), event))
-            .or_default()
-            .push(Arc::new(listener));
+        let listener: Arc<dyn Any + Send + Sync> = Arc::new(listener);
+        let mut registrations = self.0.write().unwrap();
+        for event in events
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>()
+        {
+            registrations
+                .entry((TypeId::of::<M>(), event))
+                .or_default()
+                .push(Arc::clone(&listener));
+        }
     }
 
     fn listeners<M: Model>(&self, event: ModelEvent) -> Vec<Arc<dyn Any + Send + Sync>> {

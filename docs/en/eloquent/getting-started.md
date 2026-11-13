@@ -127,3 +127,41 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
     M::registerModelEvent(app, ModelEvent::Saving, RequireTitle)
 }
 ```
+
+### Observers {#observers}
+
+Group lifecycle methods in an `Observer<M>` and register it with `M::observe` during provider boot. List the lifecycle events in `EVENTS`; the framework registers only those methods. Observer handlers receive the model and the operation’s database connection. A pre-write handler can return `ModelEventResponse::Cancel`. The registry belongs to the application.
+
+```rust
+use openrust::{
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{Model, Observer, concerns::{ModelEvent, ModelEventResponse}},
+    },
+    foundation::Application,
+};
+
+struct NormalizeTitle;
+
+impl<M: Model> Observer<M> for NormalizeTitle {
+    const EVENTS: &'static [ModelEvent] = &[ModelEvent::Saving];
+
+    fn saving<'a>(
+        &'a self,
+        model: &'a mut M,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            if let Some(openrust::database::Value::Text(title)) = model.getAttribute("title") {
+                let title = title.trim().to_owned();
+                model.setAttribute("title", title);
+            }
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
+    M::observe(app, NormalizeTitle)
+}
+```

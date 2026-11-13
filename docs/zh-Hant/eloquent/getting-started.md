@@ -127,3 +127,41 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
     M::registerModelEvent(app, ModelEvent::Saving, RequireTitle)
 }
 ```
+
+### 觀察者 {#observers}
+
+用 `Observer<M>` 集中實作模型生命週期方法，在服務提供者啟動時呼叫 `M::observe` 註冊。透過 `EVENTS` 指定要註冊的生命週期方法。方法接收模型及本次操作的資料庫連線，寫入前可回傳 `ModelEventResponse::Cancel` 取消寫入。註冊表由目前應用程式持有。
+
+```rust
+use openrust::{
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{Model, Observer, concerns::{ModelEvent, ModelEventResponse}},
+    },
+    foundation::Application,
+};
+
+struct NormalizeTitle;
+
+impl<M: Model> Observer<M> for NormalizeTitle {
+    const EVENTS: &'static [ModelEvent] = &[ModelEvent::Saving];
+
+    fn saving<'a>(
+        &'a self,
+        model: &'a mut M,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            if let Some(openrust::database::Value::Text(title)) = model.getAttribute("title") {
+                let title = title.trim().to_owned();
+                model.setAttribute("title", title);
+            }
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
+    M::observe(app, NormalizeTitle)
+}
+```

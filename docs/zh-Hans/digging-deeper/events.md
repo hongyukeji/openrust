@@ -86,6 +86,8 @@ fn discover_events() -> DiscoverEvents {
 
 在部署环境执行 `./artisan event:cache`，缓存编译清单中的发现结果。新进程读取这些结果，并运行对应的编译注册函数。手动监听器和无条件注册照常运行。缓存位于 `storage/framework/cache/events.json`。部署新构建或修改发现配置后重新生成。执行 `./artisan event:clear` 后，下次启动重新计算发现条件。缓存损坏或监听器清单不匹配时也会重新发现。
 
+模型生命周期处理程序可在服务提供者启动时注册为 [Eloquent 观察者](../eloquent/getting-started.md#observers)。
+
 ## 派发事件
 
 调用 `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?`，也可派发实现 `contracts::events::Event` 的类型。精确匹配的监听器按注册顺序执行，随后执行匹配的通配符组。`ListenerResponse::Stop` 停止传播，`Event::until` 返回首个监听响应。

@@ -709,6 +709,19 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(())
     }
 
+    /// Registers a typed observer's lifecycle methods for this application.
+    fn observe<O: super::Observer<Self>>(
+        app: &crate::foundation::Application,
+        observer: O,
+    ) -> DatabaseResult<()> {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        app.container()
+            .make::<super::ModelEvents>()
+            .map_err(DatabaseError::Unavailable)?
+            .listen_to::<Self>(O::EVENTS, super::observer::ObserverListener(observer));
+        Ok(())
+    }
+
     /// Suppresses model events in the current async call chain.
     fn withoutEvents<F: Future + Send>(work: F) -> impl Future<Output = F::Output> + Send {
         concerns::has_events::without_events(work)

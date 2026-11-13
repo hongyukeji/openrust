@@ -5,11 +5,12 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Model, ModelMetadata, ModelState,
+            Model, ModelMetadata, ModelState, Observer,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
         },
     },
     foundation::Application,
+    support::{ProviderResult, ServiceProvider},
 };
 use serde_json::{Value as Json, json};
 
@@ -80,8 +81,67 @@ impl ModelEventListener<Article> for Record {
     }
 }
 
-async fn app_with_database(config: Json) -> (Application, Connection) {
+struct ArticleObserver;
+
+impl Observer<Article> for ArticleObserver {
+    const EVENTS: &'static [ModelEvent] = &[Saving, Created, Created];
+
+    fn saving<'a>(
+        &'a self,
+        model: &'a mut Article,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            match model.getAttribute("title") {
+                Some(Value::Text(title)) if title == "blocked" => {
+                    return Ok(ModelEventResponse::Cancel);
+                }
+                Some(Value::Text(title)) if title == "observer" => {
+                    model.setAttribute("title", "registered");
+                }
+                _ => {}
+            }
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+
+    fn created<'a>(
+        &'a self,
+        model: &'a mut Article,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            connection
+                .insert(
+                    "INSERT INTO model_observer_log (article_id) VALUES (?)",
+                    &[model.getKey().unwrap().clone()],
+                )
+                .await?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+struct ObserverProvider;
+
+impl ServiceProvider for ObserverProvider {
+    fn boot<'a>(
+        &'a mut self,
+        app: &'a Application,
+    ) -> openrust::http::HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            Article::observe(app, ArticleObserver)?;
+            Ok(())
+        })
+    }
+}
+
+async fn app_with_database(
+    config: Json,
+    providers: Vec<Box<dyn ServiceProvider>>,
+) -> (Application, Connection) {
     let mut app = Application::configure(std::env::temp_dir())
+        .withProviders(providers)
         .create()
         .unwrap();
     app.boot().await.unwrap();
@@ -102,11 +162,37 @@ async fn app_with_database(config: Json) -> (Application, Connection) {
 }
 
 async fn verify(config: Json, id: &str) {
-    let (app, db) = app_with_database(config).await;
+    let (app, db) = app_with_database(config, vec![Box::new(ObserverProvider)]).await;
     db.statement("DROP TABLE IF EXISTS model_event_articles", &[])
         .await
         .unwrap();
     db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
+
+    db.statement("DROP TABLE IF EXISTS model_observer_log", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE model_observer_log (article_id BIGINT NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let mut blocked = Article::queryOn(&db)
+        .make([("title".into(), "blocked".into())].into())
+        .unwrap();
+    assert!(!blocked.save().await.unwrap());
+    assert!(!blocked.state().exists());
+    let observed = Article::queryOn(&db)
+        .create([("title".into(), "observer".into())].into())
+        .await
+        .unwrap();
+    assert_eq!(observed.getAttribute("title"), Some(&"registered".into()));
+    assert_eq!(
+        db.scalar("SELECT COUNT(*) FROM model_observer_log", &[])
+            .await
+            .unwrap(),
+        Value::Integer(1)
+    );
 
     let log = Arc::new(Mutex::new(Vec::new()));
     for event in [
@@ -188,14 +274,17 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(take(), [Saving, Updating, Updated, Saved]);
 
     let (_other, other_db) =
-        app_with_database(json!({"driver":"sqlite","database":":memory:"})).await;
+        app_with_database(json!({"driver":"sqlite","database":":memory:"}), vec![]).await;
     other_db.statement("CREATE TABLE model_event_articles (id INTEGER PRIMARY KEY, title TEXT, deleted_at TEXT)", &[]).await.unwrap();
     let other = Article::queryOn(&other_db)
-        .create([("title".into(), "draft".into())].into())
+        .create([("title".into(), "observer".into())].into())
         .await
         .unwrap();
-    assert_eq!(other.getAttribute("title"), Some(&"draft".into()));
+    assert_eq!(other.getAttribute("title"), Some(&"observer".into()));
     assert!(take().is_empty());
+    db.statement("DROP TABLE model_observer_log", &[])
+        .await
+        .unwrap();
     db.statement("DROP TABLE model_event_articles", &[])
         .await
         .unwrap();
