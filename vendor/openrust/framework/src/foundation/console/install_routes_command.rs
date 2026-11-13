@@ -1,6 +1,6 @@
 use std::{
     fs::{self, OpenOptions},
-    io::{self, Write as _},
+    io::{self, IsTerminal as _, Write as _},
     path::Path,
 };
 
@@ -39,7 +39,7 @@ const INSTALLERS: &[InstallSpec] = &[
         equivalent: None,
         bootstrap_anchor: ".commands(",
         stub: include_bytes!("stubs/api-routes.stub"),
-        next_steps: "Add your API endpoints and rebuild the application.",
+        next_steps: "Rebuild with `cargo build --features sanctum`.",
     },
     InstallSpec {
         command: "install:broadcasting",
@@ -69,10 +69,24 @@ const INSTALLERS: &[InstallSpec] = &[
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     for spec in INSTALLERS {
+        let mut syntax = clap::Command::new(spec.command).about(spec.description);
+        if spec.command == "install:api" {
+            syntax = syntax
+                .arg(
+                    clap::Arg::new("force")
+                        .long("force")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Overwrite an existing API routes file"),
+                )
+                .arg(
+                    clap::Arg::new("without-migration-prompt")
+                        .long("without-migration-prompt")
+                        .action(clap::ArgAction::SetTrue)
+                        .help("Do not prompt to run pending migrations"),
+                );
+        }
         artisan.add_command(Box::new(InstallRoutesCommand {
-            definition: CommandDefinition::new(
-                clap::Command::new(spec.command).about(spec.description),
-            ),
+            definition: CommandDefinition::new(syntax),
             spec,
         }))?;
     }
@@ -92,25 +106,65 @@ impl Command for InstallRoutesCommand {
     fn handle<'a>(
         &'a self,
         app: &'a Application,
-        _input: &'a Input,
+        input: &'a Input,
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let root = app.base_path().to_owned();
             let spec = self.spec;
-            tokio::task::spawn_blocking(move || install(&root, spec))
+            let api = spec.command == "install:api";
+            let force = api && input.matches().get_flag("force");
+            let existing = tokio::task::spawn_blocking(move || install(&root, spec, force))
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))??;
+            if api && existing && !force {
+                output.stderr.push_str("API routes file already exists.\n");
+            }
             output.stdout.push_str(&format!(
                 "routes/{}.rs is installed. {}\n",
                 spec.module, spec.next_steps
             ));
+            if api && !input.matches().get_flag("without-migration-prompt") {
+                if !cfg!(feature = "sanctum") {
+                    output
+                        .stdout
+                        .push_str("Run `artisan migrate` after rebuilding with Sanctum.\n");
+                } else if !input.matches().get_flag("no-interaction")
+                    && tokio::task::spawn_blocking(confirm_migrations)
+                        .await
+                        .map_err(|error| ConsoleError::new(error.to_string()))??
+                {
+                    return Ok(app.share().run_console(&["migrate".into()], output).await);
+                }
+            }
             Ok(0)
         })
     }
 }
 
-fn install(root: &Path, spec: &InstallSpec) -> Result<(), ConsoleError> {
+fn confirm_migrations() -> Result<bool, ConsoleError> {
+    if !io::stdin().is_terminal() {
+        return Ok(false);
+    }
+    let mut stderr = io::stderr().lock();
+    write!(
+        stderr,
+        "Would you like to run all pending database migrations? [Y/n] "
+    )
+    .and_then(|_| stderr.flush())
+    .map_err(|error| ConsoleError::new(error.to_string()))?;
+    let mut response = String::new();
+    let count = io::stdin()
+        .read_line(&mut response)
+        .map_err(|error| ConsoleError::new(error.to_string()))?;
+    Ok(count != 0
+        && matches!(
+            response.trim().to_ascii_lowercase().as_str(),
+            "" | "y" | "yes"
+        ))
+}
+
+fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, ConsoleError> {
     // The manifest stays in place while installers replace the route and bootstrap files.
     let _manifest = lock_manifest(root)?;
     let routes_module = root.join("routes/mod.rs");
@@ -160,17 +214,22 @@ fn install(root: &Path, spec: &InstallSpec) -> Result<(), ConsoleError> {
         )?)
     };
 
-    create_routes(&routes, spec.stub)?;
+    let existing = !create_routes(&routes, spec.stub)?;
+    if existing && force {
+        let previous = read(&routes)?;
+        let stub = std::str::from_utf8(spec.stub).expect("API stub is UTF-8");
+        replace(&routes, &previous, stub)?;
+    }
     if let Some(updated) = modules_update {
         replace(&routes_module, &modules, &updated)?;
     }
     if let Some(updated) = startup_update {
         replace(&bootstrap, &startup, &updated)?;
     }
-    Ok(())
+    Ok(existing)
 }
 
-fn create_routes(path: &Path, stub: &[u8]) -> Result<(), ConsoleError> {
+fn create_routes(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {
     match OpenOptions::new().write(true).create_new(true).open(path) {
         Ok(mut file) => {
             if let Err(error) = file.write_all(stub) {
@@ -179,8 +238,10 @@ fn create_routes(path: &Path, stub: &[u8]) -> Result<(), ConsoleError> {
                 return Err(file_error(path, error));
             }
         }
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists && path.is_file() => {
+            return Ok(false);
+        }
         Err(error) => return Err(file_error(path, error)),
     }
-    Ok(())
+    Ok(true)
 }

@@ -59,7 +59,8 @@ SQLite 和 MySQL 8.4 已验证模型持久化、读取和软删除事件，以�
 | --- | --- | --- |
 | [08-02 Reverb](08-02/README.md) | WebSocket 协议和 Redis 跨进程基础已有实测 | 全局在线成员、跨节点客户端事件及协议剩余接口 |
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
-| [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Sanctum、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
+| Sanctum | [令牌迁移](sanctum-01/README.md)、[Bearer 与 SPA](sanctum-02/README.md)、[API 安装](sanctum-03/README.md)已验收 | 自定义令牌模型和回调、定期清理及 Session 失效机制 |
+| [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | macOS ARM64、Linux ARM64 和部分 Windows 运行路径已有实测 | Linux x86_64、Windows 完整部署、生产 TLS、目标数据库版本矩阵及托管 AWS SQS 标准／FIFO 实机验收 |
 
 ## 额外队列驱动与载荷定稿

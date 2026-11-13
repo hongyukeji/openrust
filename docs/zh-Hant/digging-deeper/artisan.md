@@ -61,7 +61,7 @@ Windows 上使用 `artisan.bat`。編譯後的應用程式透過 `main artisan` 
 ./artisan install:grpc
 ```
 
-應用程式骨架已包含 `routes/api.rs`。舊版原始碼可用 `./artisan install:api` 補上 API 路由檔案與啟動接線，既有路由會保留。廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
+使用 `./artisan install:api` 建立並註冊 API 路由。預設保留既有路由。功能開關與遷移選項請參閱 [Sanctum 安裝](../packages/sanctum.md#installation)。 廣播接入後會註冊 `/broadcasting/auth`，授權需要廣播驅動程式和頻道規則。gRPC 須註冊 Tonic 服務，並設定 `GRPC_HOST` 和 `GRPC_PORT` 才會開啟監聽。
 
 ## 產生命令 {#generating-commands}
 

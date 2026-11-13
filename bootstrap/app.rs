@@ -16,7 +16,6 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
         .withRouting(
             Routing::default()
                 .web(routes::web::register)
-                .api(routes::api::register)
                 .commands(routes::console::register)
                 .health("/up"),
         )

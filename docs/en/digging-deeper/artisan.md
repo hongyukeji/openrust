@@ -61,7 +61,7 @@ Run these commands from a source checkout to generate the route files and update
 ./artisan install:grpc
 ```
 
-The application skeleton includes `routes/api.rs`. For older source checkouts, `./artisan install:api` adds the API route file and bootstrap registration while preserving existing routes. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
+Use `./artisan install:api` to create and register API routes. It preserves existing routes by default. See [Sanctum installation](../packages/sanctum.md#installation) for the feature flag and migration options. Broadcasting registers `/broadcasting/auth` and requires a driver and channel rules. For gRPC, register Tonic services and set `GRPC_HOST` and `GRPC_PORT` to enable the listener.
 
 ## Generating Commands {#generating-commands}
 

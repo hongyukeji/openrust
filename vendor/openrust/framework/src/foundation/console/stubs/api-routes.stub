@@ -1,7 +1,35 @@
-//! Application API routes, mounted under the configured API prefix.
-
 use openrust::routing::RoutingError;
 
 pub(crate) fn register() -> Result<(), RoutingError> {
+    #[cfg(feature = "sanctum")]
+    openrust::support::facades::Route::getWith("/user", user, |route| {
+        route.middleware_name("auth:sanctum");
+        Ok(())
+    })?;
     Ok(())
+}
+
+#[cfg(feature = "sanctum")]
+fn user(
+    request: &mut openrust::http::Request,
+) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
+    use openrust::{
+        database::eloquent::Model,
+        http::{HttpError, Response, StatusCode},
+        support::facades::Auth,
+    };
+    use std::any::Any;
+
+    Box::pin(async move {
+        let user = Auth::user(request)
+            .await?
+            .ok_or(HttpError::Unauthenticated)?;
+        let user = (user.as_ref() as &dyn Any)
+            .downcast_ref::<crate::app::models::User>()
+            .ok_or(HttpError::Unauthenticated)?;
+        let attributes = user.toArray().map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?;
+        Response::json(StatusCode::OK, attributes)
+    })
 }

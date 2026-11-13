@@ -1,5 +1,9 @@
 # Sanctum
 
+## 安裝 API 路由 {#installation}
+
+執行 `./artisan install:api` 建立並註冊 `routes/api.rs`。以 `cargo build --features sanctum` 建置後啟用產生的 `GET /api/user` 與編譯註冊的遷移。啟用 Sanctum 的執行檔會在互動終端詢問是否執行待處理的遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `artisan migrate`。使用 `--force` 將既有 API 路由檔案替換為產生的範本。
+
 ## 權杖資料表遷移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能編譯應用程式，註冊 `personal_access_tokens` 遷移。遷移和復原均使用含有此功能的執行檔。
@@ -10,7 +14,7 @@ cargo build --features sanctum
 ./target/debug/main artisan migrate:status
 ```
 
-遷移建立多型歸屬欄位、唯一的 64 字元權杖雜湊欄位、可為空值的能力和時間欄位，以及到期時間索引。此功能同時註冊 Sanctum 守衛與 CSRF Cookie 路由。`install:api` 的 API 骨架另有交付批次。
+遷移建立多型歸屬欄位、唯一的 64 字元權杖雜湊欄位、可為空值的能力和時間欄位，以及到期時間索引。此功能同時註冊 Sanctum 守衛與 CSRF Cookie 路由。
 
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 

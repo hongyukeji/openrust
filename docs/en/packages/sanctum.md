@@ -1,5 +1,9 @@
 # Sanctum
 
+## Installing API routes {#installation}
+
+Run `./artisan install:api` to create `routes/api.rs` and register it in the application. Build with `cargo build --features sanctum` to enable the generated `GET /api/user` endpoint and the compiled migration. In a Sanctum-enabled binary, the interactive installer offers to run pending migrations. For CI, use `--without-migration-prompt` and run `artisan migrate` separately. Use `--force` to replace an existing API routes file with the generated template.
+
 ## Token table migration {#token-table-migration}
 
 Build the application with the `sanctum` Cargo feature to register the compiled `personal_access_tokens` migration. Use the resulting binary for migration and rollback.
@@ -10,7 +14,7 @@ cargo build --features sanctum
 ./target/debug/main artisan migrate:status
 ```
 
-The migration creates a polymorphic owner, a unique 64-character token hash column, nullable abilities and timestamps, and an expiration index. The feature also registers the Sanctum guard and CSRF cookie route. API scaffolding through `install:api` is tracked separately.
+The migration creates a polymorphic owner, a unique 64-character token hash column, nullable abilities and timestamps, and an expiration index. The feature also registers the Sanctum guard and CSRF cookie route.
 
 ## Issuing personal access tokens {#issuing-api-tokens}
 

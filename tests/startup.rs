@@ -37,14 +37,15 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     let bootstrap = root.0.join("bootstrap/app.rs");
     fs::write(&modules, "pub(crate) mod console;\npub(crate) mod web;\n").unwrap();
     fs::write(&bootstrap, "custom bootstrap\n").unwrap();
-    let run = |command: &str| {
+    let run = |args: &[&str]| {
         Command::new(env!("CARGO_BIN_EXE_main"))
-            .args(["artisan", command])
+            .arg("artisan")
+            .args(args)
             .env("APP_BASE_PATH", &root.0)
             .output()
             .unwrap()
     };
-    let result = run("install:api");
+    let result = run(&["install:api", "--without-migration-prompt"]);
     assert_eq!(result.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
     assert!(!root.0.join("routes/api.rs").exists());
@@ -52,27 +53,12 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
 
     let default_bootstrap = include_str!("../bootstrap/app.rs");
     let default_modules = include_str!("../routes/mod.rs");
-    let default_api = include_str!("../routes/api.rs");
     let api = root.0.join("routes/api.rs");
     fs::write(&bootstrap, default_bootstrap).unwrap();
     fs::write(&modules, default_modules).unwrap();
-    fs::write(&api, default_api).unwrap();
-    assert!(run("install:api").status.success());
-    assert_eq!(fs::read_to_string(&bootstrap).unwrap(), default_bootstrap);
-    assert_eq!(fs::read_to_string(&modules).unwrap(), default_modules);
-    assert_eq!(fs::read_to_string(&api).unwrap(), default_api);
-
-    fs::remove_file(&api).unwrap();
-    fs::write(
-        &modules,
-        default_modules.replace("pub(crate) mod api;\n", ""),
-    )
-    .unwrap();
-    fs::write(
-        &bootstrap,
-        default_bootstrap.replace("                .api(routes::api::register)\n", ""),
-    )
-    .unwrap();
+    assert!(!api.exists());
+    assert!(!default_bootstrap.contains(".api(routes::api::register)"));
+    assert!(!default_modules.contains("mod api;"));
     for (command, module, registration) in [
         ("install:api", "api", ".api(routes::api::register)"),
         (
@@ -82,7 +68,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
         ),
         ("install:grpc", "grpc", ".withGrpc(routes::grpc::register)"),
     ] {
-        let result = run(command);
+        let result = run(&[command]);
         assert!(
             result.status.success(),
             "{}",
@@ -91,7 +77,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
         let routes = root.0.join(format!("routes/{module}.rs"));
         assert!(fs::read_to_string(&routes).unwrap().contains("fn register"));
         fs::write(&routes, "// Existing application routes\n").unwrap();
-        assert!(run(command).status.success());
+        assert!(run(&[command]).status.success());
         assert_eq!(
             fs::read_to_string(&routes).unwrap(),
             "// Existing application routes\n"
@@ -111,6 +97,11 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             1
         );
     }
+
+    let forced = run(&["install:api", "--force", "--without-migration-prompt"]);
+    assert!(forced.status.success());
+    assert!(fs::read_to_string(&api).unwrap().contains("auth:sanctum"));
+    assert!(!String::from_utf8_lossy(&forced.stdout).contains("pending database migrations"));
 }
 
 #[tokio::test]

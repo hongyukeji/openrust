@@ -2,7 +2,7 @@
 
 Declare web routes in `routes/web.rs`. The application registers those routes and the `/up` health check through `openrust::routing::Router` during startup. A handler that needs the request takes a mutable `Request` and returns an asynchronous HTTP result. The framework binds the application router while calling the Web route module’s `register()`. Declare a named view with `Route::get("/", || view("welcome"))`, using `openrust::support::facades::Route`.
 
-Declare API routes in `routes/api.rs`. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::apiPrefix(...)` in `withRouting` takes precedence.
+Run `./artisan install:api` to generate and register `routes/api.rs`. Declare API routes there. The application loads `api.prefix` from `config/api.rs` and applies the `api` middleware group. The default prefix is `/api`. Set `API_PREFIX=api/admin` in `.env` to mount routes under `/api/admin`, or set `API_PREFIX=` to omit the prefix. An explicit `Routing::apiPrefix(...)` in `withRouting` takes precedence.
 
 In `routes/api.rs`, declare API endpoints in the parameterless `register() -> Result<(), RoutingError>` using the `Route` facade. Route paths are relative to the API prefix. Use `Route::getWith` when a GET route needs a name, model binding, or route-level middleware.
 

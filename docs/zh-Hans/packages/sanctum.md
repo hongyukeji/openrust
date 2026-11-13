@@ -1,5 +1,9 @@
 # Sanctum
 
+## 安装 API 路由 {#installation}
+
+运行 `./artisan install:api` 创建并注册 `routes/api.rs`。使用 `cargo build --features sanctum` 构建后启用生成的 `GET /api/user` 和编译注册的迁移。启用了 Sanctum 的二进制会在交互终端询问是否执行待运行的迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `artisan migrate`。使用 `--force` 将已有 API 路由文件替换为生成模板。
+
 ## 令牌表迁移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能编译应用，注册 `personal_access_tokens` 迁移。迁移和回滚都使用带有该功能的二进制。
@@ -10,7 +14,7 @@ cargo build --features sanctum
 ./target/debug/main artisan migrate:status
 ```
 
-迁移创建多态归属字段、唯一的 64 字符令牌哈希列、可空的能力和时间字段，以及过期时间索引。该功能同时注册 Sanctum 守卫和 CSRF Cookie 路由。`install:api` 的 API 骨架另有交付批次。
+迁移创建多态归属字段、唯一的 64 字符令牌哈希列、可空的能力和时间字段，以及过期时间索引。该功能同时注册 Sanctum 守卫和 CSRF Cookie 路由。
 
 ## 签发个人访问令牌 {#issuing-api-tokens}
 
