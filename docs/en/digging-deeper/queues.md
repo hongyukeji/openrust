@@ -640,7 +640,7 @@ If SQS reports a partial failure, OpenRust stops sending further chunks and keep
 
 For FIFO batches and cross-connection chain delivery, OpenRust derives the default deduplication ID from the serialized job so a replay uses the same ID. Explicit deduplication settings still apply. Amazon SQS suppresses replay only within its five-minute deduplication window.
 
-For Standard SQS and Beanstalkd, recovery can enqueue copies of the same batch job. A worker that finds a recorded completion settles the copy without running the handler again or updating the batch count. Workers can still overlap before either completion is recorded, so handlers should remain idempotent.
+Standard SQS and Beanstalkd deliver at least once. Recovery can enqueue multiple copies of the same job UUID, and separate workers can enter the handler before either settles. Use an application idempotency key for side effects. Once a result is recorded for that delivery, workers acknowledge other copies using the recorded outcome. The SQL batch counts and terminal callbacks are updated once per delivery. A failure callback also runs only on the worker that records the terminal failure. A process crash can interrupt callbacks after settlement.
 
 ### Batch callbacks {#batch-callbacks}
 

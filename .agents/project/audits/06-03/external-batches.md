@@ -23,3 +23,11 @@
 - Laravel 的 `CallQueuedHandler` 以任务 UUID 记录批次完成，再确认当前消息。OpenRust 的 Worker 可读取已写入的完成记录，重投递时复用该记录。标准 SQS 与 Beanstalkd 仍按至少一次边界处理。本批沿用现有实现，补齐实际故障验收。 [Laravel CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) · [AWS 标准队列投递](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) · [Beanstalkd 协议](https://github.com/beanstalkd/beanstalkd/blob/v1.13/doc/protocol.txt)
 - 真实 HTTP 派发三项任务后，SQL 触发器拒绝删除待发布记录。标准 SQS（ElasticMQ 1.6.15）与 Beanstalkd 1.13 均已接收三条。解除触发器，并发运行两个 `queue:publish-batches`，待发布记录清空，队列出现六条。独立 `queue:work` 排空队列，三个处理器各执行一次，批次待处理和失败计数均为零，完成回调一次。
 - Beanstalkd 覆盖 SQLite 与 MySQL 8.4，标准 SQS 覆盖 MySQL 8.4。MySQL 使用专用实例启用故障注入触发器。上述结果适用于副本到达 Worker 时已有完成记录的路径。并行 Worker 仍可能同时进入处理器。托管 AWS 验收仍待完成。
+
+## 并发副本结算
+
+- 固定 Laravel 先运行处理器，再记录批次结果并确认消息。OpenRust 使用 SQL 投递账本约束重复结算，沿用旧版的事务重试思路和当前应用作用域。标准 SQS 与 Beanstalkd 支持至少一次投递，处理器的业务副作用须使用应用幂等键。 [Laravel CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) · [Laravel Batch](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Bus/Batch.php) · [AWS 标准队列投递](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) · [Beanstalkd 1.13 协议](https://github.com/beanstalkd/beanstalkd/blob/v1.13/doc/protocol.txt)
+- 真实 HTTP 派发后故意拒绝 SQL 发布确认，再并行运行两个 `queue:publish-batches`。两个独立 `queue:work --once --tries=1` 通过数据库屏障同时进入处理器。记录断言相同任务 UUID、两个不同进程、处理器执行两次、队列最终清空、单条 SQL 结算和一次批次终态回调。
+- 验收覆盖两个副本都成功、都失败、先成功后失败。双失败只留下一个失败记录并执行一次任务失败回调。先成功后失败复用成功结算，并移除败方写入的失败记录。进程在终态提交和回调执行之间退出仍可能丢失回调。
+- ElasticMQ 1.6.15 标准队列与 MySQL 8.4.13，Beanstalkd 1.13 与 MySQL 8.4.13／SQLite 均通过。托管 AWS 实机转入[发布验收](../08-04/README.md#托管-aws-sqs-发布验收)。
+- 以 `71039e86` 干净源码加本批差异验收。Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。独立 MySQL 8.4.13 和 Redis 8.10.3 的 Artisan Worker 重试、终态记录和上下文恢复通过。三语构建及 18 项浏览器检查通过。

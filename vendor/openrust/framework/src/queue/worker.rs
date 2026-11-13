@@ -871,7 +871,7 @@ impl Worker {
             let failure = if terminal {
                 // Keep terminal failure settlement out of the attempt future's stack frame.
                 let result = Box::pin(self.fail(manager, job, error, batch)).await;
-                if result.is_ok() {
+                if matches!(result, Ok(WorkResult::Failed)) && job.has_failed() {
                     self.observe_job_event(
                         manager,
                         job,
@@ -905,7 +905,7 @@ impl Worker {
             if status.handled_failure {
                 return failure;
             }
-            failure?;
+            let failure = failure?;
             self.observe_job_event(
                 manager,
                 job,
@@ -918,7 +918,7 @@ impl Worker {
             )
             .await;
             if terminal {
-                return Ok(WorkResult::Failed);
+                return Ok(failure);
             }
 
             let configured = &job.options().backoff;
@@ -1092,11 +1092,18 @@ impl Worker {
         error: &QueueError,
         batch: Option<&BatchCompletion>,
     ) -> QueueResult<WorkResult> {
-        self.failed.log(&FailedJob::new(job, error)).await?;
-        if let Some(batch) = batch {
-            batch
-                .record(&self.app, job.payload(), Some(&error.to_string()), None)
-                .await?;
+        let failed = FailedJob::new(job, error);
+        self.failed.log(&failed).await?;
+        if let Some(batch) = batch
+            && !batch
+                .record(&self.app, job.payload(), Some(&failed.exception), None)
+                .await?
+            && let Some(recorded) = batch.recorded().await?
+        {
+            if recorded.succeeded {
+                self.failed.forget_retry(&failed).await?;
+            }
+            return self.complete_recorded(job, recorded).await;
         }
         job.fail(Some(error)).await?;
         let payload = job.payload();

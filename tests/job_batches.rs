@@ -244,6 +244,62 @@ impl JobHandler for Probe {
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
                 .unwrap();
+            if data.contains("-parallel") {
+                db.statement(
+                    "insert into parallel_attempts (name, uuid, pid) values (?, ?, ?)",
+                    &[
+                        data.into(),
+                        payload.uuid().into(),
+                        i64::from(std::process::id()).into(),
+                    ],
+                )
+                .await
+                .unwrap();
+                timeout(Duration::from_secs(10), async {
+                    while db
+                        .table("parallel_attempts")
+                        .r#where("name", "=", data)
+                        .count("*")
+                        .await
+                        .unwrap()
+                        < 2
+                    {
+                        tokio::time::sleep(Duration::from_millis(20)).await;
+                    }
+                })
+                .await
+                .expect("both workers must enter the handler before settlement");
+                if data.ends_with("-mixed") {
+                    let first = db
+                        .table("parallel_attempts")
+                        .r#where("name", "=", data)
+                        .orderBy("id", "asc")
+                        .first()
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    if first.get("pid") != Some(&Value::Integer(i64::from(std::process::id()))) {
+                        timeout(Duration::from_secs(10), async {
+                            while db
+                                .table("job_batches_jobs")
+                                .r#where("batch_id", "=", payload.batchId().unwrap())
+                                .count("*")
+                                .await
+                                .unwrap()
+                                == 0
+                            {
+                                tokio::time::sleep(Duration::from_millis(20)).await;
+                            }
+                        })
+                        .await
+                        .expect("the successful worker must settle first");
+                        return Err(QueueError::InvalidPayload);
+                    }
+                }
+                if data.ends_with("-fatal") {
+                    return Err(QueueError::InvalidPayload);
+                }
+            }
             if data.ends_with(".edit-batched") {
                 let added = Payload::new("reports.generate", format!("{data}-added"))?;
                 context.prependToChain(added)?;
@@ -269,6 +325,28 @@ impl JobHandler for Probe {
                     == 0
             {
                 return Err(QueueError::InvalidPayload);
+            }
+            Ok(())
+        })
+    }
+    fn failed<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+        _: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            if let Some(data) = payload.data().as_str().filter(|data| {
+                data.ends_with("-parallel-fatal") || data.ends_with("-parallel-mixed")
+            }) {
+                DB::connection(None)
+                    .unwrap()
+                    .statement(
+                        "insert into receipts (name) values (?)",
+                        &[format!("{data}.failed").into()],
+                    )
+                    .await
+                    .unwrap();
             }
             Ok(())
         })
@@ -415,6 +493,20 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             ])?)
             .onConnection(kind)
             .then("reports.then"),
+            "sqs-parallel"
+            | "beanstalkd-parallel"
+            | "sqs-parallel-fatal"
+            | "beanstalkd-parallel-fatal"
+            | "sqs-parallel-mixed"
+            | "beanstalkd-parallel-mixed" => {
+                let (connection, _) = kind.split_once('-').unwrap();
+                Bus::batch(jobs(&[kind])?)
+                    .onConnection(connection)
+                    .allowFailures()
+                    .then("reports.then")
+                    .catch("reports.catch")
+                    .finally("reports.finally")
+            }
             "sqs-chunks" => {
                 let mut jobs = (0..10)
                     .map(|index| {
@@ -878,6 +970,7 @@ async fn exercise(mysql: Option<&str>) {
         .unwrap();
     let mut schema = db.getSchemaBuilder();
     for table in [
+        "parallel_attempts",
         "pending_ack_block",
         "chain_ack_guard",
         "job_chain_deliveries",
@@ -921,6 +1014,15 @@ async fn exercise(mysql: Option<&str>) {
             table.string("batch_id", 36);
             table.string("phase", 32);
             table.string("failure", 255).nullable();
+        })
+        .await
+        .unwrap();
+    schema
+        .create("parallel_attempts", |table| {
+            table.id();
+            table.string("name", 255);
+            table.string("uuid", 36);
+            table.integer("pid");
         })
         .await
         .unwrap();
@@ -1316,6 +1418,15 @@ async fn exercise(mysql: Option<&str>) {
         assert_eq!(batches.find(id).await.unwrap().unwrap().progress(), 100);
         verify_external_batch_ack_replay(&root.0, &db, &queue, address, "sqs", true).await;
     }
+    for driver in ["beanstalkd", "sqs"]
+        .into_iter()
+        .filter(|driver| match *driver {
+            "beanstalkd" => beanstalk_port.is_some(),
+            _ => sqs_url.is_some(),
+        })
+    {
+        verify_parallel_duplicates(&root.0, &db, &queue, address, driver, mysql.is_some()).await;
+    }
     if fifo.is_some() {
         verify_fifo_batch_replay(&root.0, &db, &queue, address).await;
     }
@@ -1429,6 +1540,86 @@ async fn verify_external_batch_ack_replay(
     assert_eq!(batch.failed_jobs, 0);
     assert!(batch.finished());
     assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
+}
+
+async fn verify_parallel_duplicates(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    driver: &str,
+    mysql: bool,
+) {
+    let queue = manager.connection(Some(driver)).unwrap();
+    let reject = if mysql {
+        "create trigger reject_parallel_ack before delete on job_batches_outbox for each row signal sqlstate '45000' set message_text = 'injected publication acknowledgement failure'"
+    } else {
+        "create trigger reject_parallel_ack before delete on job_batches_outbox begin select raise(abort, 'injected publication acknowledgement failure'); end"
+    };
+    for (suffix, fatal) in [("", false), ("-fatal", true), ("-mixed", false)] {
+        let kind = format!("{driver}-parallel{suffix}");
+        let failed_before = db.table("failed_jobs").count("*").await.unwrap();
+        db.unprepared(reject).await.unwrap();
+        let batch = request(address, &kind, 200).await.unwrap();
+        let id = batch["id"].as_str().unwrap();
+        let pending = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
+        assert_eq!(pending().count("*").await.unwrap(), 1);
+        assert_eq!(queue.size(None).await.unwrap(), 1);
+        db.unprepared("drop trigger reject_parallel_ack")
+            .await
+            .unwrap();
+        let publish = ["queue:publish-batches"];
+        tokio::join!(artisan(base, &publish), artisan(base, &publish));
+        assert_eq!(pending().count("*").await.unwrap(), 0);
+        assert_eq!(queue.size(None).await.unwrap(), 2);
+
+        let work = ["queue:work", driver, "--once", "--tries=1"];
+        tokio::join!(artisan(base, &work), artisan(base, &work));
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+        assert_eq!(chain_receipt(db, &kind).await, 2);
+        let attempts = db
+            .table("parallel_attempts")
+            .r#where("name", "=", kind.as_str())
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(attempts.len(), 2);
+        assert_eq!(attempts[0].get("uuid"), attempts[1].get("uuid"));
+        assert_ne!(attempts[0].get("pid"), attempts[1].get("pid"));
+        let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
+            .unwrap()
+            .find(id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(batch.total_jobs, 1);
+        assert_eq!(batch.pending_jobs, u32::from(fatal));
+        assert_eq!(batch.failed_jobs, u32::from(fatal));
+        let transitions = db
+            .table("job_batches_jobs")
+            .r#where("batch_id", "=", id)
+            .count("*")
+            .await
+            .unwrap();
+        assert_eq!(transitions, 1);
+        assert_eq!(
+            db.table("failed_jobs").count("*").await.unwrap(),
+            failed_before + u64::from(fatal)
+        );
+        assert_eq!(
+            chain_receipt(db, &format!("{kind}.failed")).await,
+            u64::from(fatal)
+        );
+        let phases: Vec<_> = callback_trace(db, id)
+            .await
+            .into_iter()
+            .map(|(phase, _)| phase)
+            .collect();
+        assert_eq!(phases, [if fatal { "catch" } else { "then" }, "finally"]);
+        if !fatal {
+            assert!(batch.finished());
+        }
+    }
 }
 
 async fn verify_fifo_batch_replay(
