@@ -11,7 +11,7 @@ use openrust::{
     database::{
         DatabaseError, DatabaseManager, Value as DbValue,
         eloquent::{
-            Model, ModelMetadata, ModelState,
+            Model, ModelMetadata, ModelState, UniqueId,
             casts::{Attribute, AttributeCast},
             relations::HasMany,
         },
@@ -27,6 +27,67 @@ use tokio::{
     net::{TcpListener, TcpStream},
     time::timeout,
 };
+
+struct Ticket<const ULID: bool>(ModelState);
+
+impl<const ULID: bool> Model for Ticket<ULID> {
+    fn metadata() -> &'static ModelMetadata {
+        static UUID: ModelMetadata = ModelMetadata::new("route_tickets")
+            .timestamps(None, None)
+            .uniqueId(UniqueId::Uuid)
+            .uniqueIds(&["id", "reference"]);
+        static ULID_META: ModelMetadata = ModelMetadata::new("route_tickets")
+            .timestamps(None, None)
+            .uniqueId(UniqueId::Ulid)
+            .uniqueIds(&["id", "reference"]);
+        if ULID { &ULID_META } else { &UUID }
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn create_ticket<const ULID: bool>(db: &openrust::database::Connection) -> (String, String) {
+    let mut ticket = Ticket::<ULID>::newInstanceOn(db, Default::default()).unwrap();
+    ticket.setAttribute("id", "0");
+    let supplied = if ULID {
+        "01arz3ndektsv4rrffq69g5fav"
+    } else {
+        "00000000-0000-4000-8000-000000000042"
+    };
+    ticket.setAttribute("reference", supplied);
+    assert!(ticket.save().await.unwrap());
+    assert_eq!(ticket.getAttribute("reference"), Some(&supplied.into()));
+
+    let mut replica = ticket.replicate(&[]).await.unwrap();
+    assert!(replica.getKey().is_none());
+    assert!(replica.getAttribute("reference").is_none());
+    assert!(replica.save().await.unwrap());
+    let (Some(DbValue::Text(id)), Some(DbValue::Text(reference))) =
+        (replica.getKey(), replica.getAttribute("reference"))
+    else {
+        panic!("replica must generate both identifiers");
+    };
+    assert_ne!(replica.getKey(), ticket.getKey());
+    assert_ne!(id, reference);
+    for value in [id, reference] {
+        if ULID {
+            assert_eq!(value.len(), 26);
+            assert_eq!(value, &value.to_ascii_lowercase());
+            assert!(ulid::Ulid::from_string(value).is_ok());
+        } else {
+            assert_eq!(uuid::Uuid::parse_str(value).unwrap().get_version_num(), 7);
+        }
+    }
+    (id.clone(), reference.clone())
+}
 
 struct Account(ModelState);
 
@@ -170,6 +231,14 @@ fn custom_missing(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 }
 
 fn api() -> Result<(), RoutingError> {
+    Route::getWith("/uuid/{ticket}", empty, |route| {
+        route.model::<Ticket<false>>("ticket")?;
+        Ok(())
+    })?;
+    Route::getWith("/ulid/{ticket:reference}", empty, |route| {
+        route.model::<Ticket<true>>("ticket")?;
+        Ok(())
+    })?;
     Route::getWith("/accounts/{account}/posts/{post:slug}", lookup, |route| {
         route
             .model::<Account>("account")?
@@ -296,8 +365,10 @@ async fn verify(config: Value) {
         .connection(None)
         .unwrap();
     for sql in [
+        "DROP TABLE IF EXISTS route_tickets",
         "DROP TABLE IF EXISTS route_posts",
         "DROP TABLE IF EXISTS route_accounts",
+        "CREATE TABLE route_tickets (id VARCHAR(36) PRIMARY KEY, reference VARCHAR(36) NOT NULL UNIQUE)",
         "CREATE TABLE route_accounts (id BIGINT PRIMARY KEY)",
         "CREATE TABLE route_posts (id BIGINT PRIMARY KEY, account_id BIGINT, slug VARCHAR(40), padded VARCHAR(12), deleted_at VARCHAR(30))",
         "INSERT INTO route_accounts VALUES (1), (2)",
@@ -305,6 +376,15 @@ async fn verify(config: Value) {
     ] {
         connection.statement(sql, &[]).await.unwrap();
     }
+    let (uuid, _) = create_ticket::<false>(&connection).await;
+    let (_, ulid_reference) = create_ticket::<true>(&connection).await;
+    connection
+        .statement(
+            "INSERT INTO route_tickets VALUES ('bad-uuid', 'bad-ulid')",
+            &[],
+        )
+        .await
+        .unwrap();
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -370,13 +450,17 @@ async fn verify(config: Value) {
     ] {
         request(address, path, 404).await;
     }
+    request(address, &format!("/api/uuid/{uuid}"), 204).await;
+    request(address, &format!("/api/ulid/{ulid_reference}"), 204).await;
+    request(address, "/api/uuid/bad-uuid", 404).await;
+    request(address, "/api/ulid/bad-ulid", 404).await;
     request(address, "/api/missing/absent", 410).await;
     assert_eq!(
         request(address, "/alias/test", 200).await,
         r#"{"alias":"TEST"}"#
     );
     server.abort();
-    for table in ["route_posts", "route_accounts"] {
+    for table in ["route_posts", "route_accounts", "route_tickets"] {
         connection
             .statement(&format!("DROP TABLE {table}"), &[])
             .await

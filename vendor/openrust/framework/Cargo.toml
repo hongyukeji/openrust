@@ -60,8 +60,8 @@ tonic = { version = "~0.14.6", default-features = false, features = ["codegen", 
 bigdecimal = "=0.4.11"
 chrono-tz = "=0.10.4"
 croner = "=4.0.3"
-ulid = { version = "=1.2.1", default-features = false }
-uuid = { version = "=1.29.2", default-features = false }
+ulid = { version = "=1.2.1", default-features = false, features = ["std"] }
+uuid = { version = "=1.29.2", default-features = false, features = ["std", "v7"] }
 webp = { version = "=0.3.1", default-features = false }
 zeroize = "1.9.0"
 

@@ -268,6 +268,51 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(model)
     }
 
+    fn uniqueIds() -> &'static [&'static str] {
+        let metadata = Self::metadata();
+        metadata.unique_ids.unwrap_or_else(|| {
+            if metadata.unique_id.is_some() {
+                std::slice::from_ref(&metadata.primary_key)
+            } else {
+                &[]
+            }
+        })
+    }
+
+    fn usesUniqueIds() -> bool {
+        !Self::uniqueIds().is_empty()
+    }
+
+    fn newUniqueId(&self) -> DatabaseResult<Option<String>> {
+        Self::metadata()
+            .unique_id
+            .map(super::UniqueId::generate)
+            .transpose()
+    }
+
+    fn isValidUniqueId(value: &str) -> bool {
+        Self::metadata()
+            .unique_id
+            .is_none_or(|kind| kind.valid(value))
+    }
+
+    fn setUniqueIds(&mut self) -> impl Future<Output = DatabaseResult<()>> + Send {
+        async {
+            for column in Self::uniqueIds() {
+                if super::unique_ids::is_empty(self.getAttributeValue(column)?) {
+                    let id = self.newUniqueId()?.map_or(Value::Null, Value::Text);
+                    self.setAttributeValueAsync(column, id).await?;
+                }
+            }
+            Ok(())
+        }
+    }
+
+    fn getIncrementing() -> bool {
+        let metadata = Self::metadata();
+        metadata.incrementing && !Self::uniqueIds().contains(&metadata.primary_key)
+    }
+
     /// Creates an unsaved copy, excluding identity, timestamps, and the given attributes.
     fn replicate<'a>(
         &'a self,
@@ -285,6 +330,7 @@ pub trait Model: Sized + Send + Sync + 'static {
                         && Some(column) != metadata.created_at
                         && Some(column) != metadata.updated_at
                         && column != "laravel_through_key"
+                        && !Self::uniqueIds().contains(&column)
                         && !except.contains(&column)
                 })
                 .map(|(column, value)| (column.clone(), value.clone()))
@@ -675,7 +721,10 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn routeBindingValue(field: &str, value: &str) -> Option<Value> {
-        if field == Self::metadata().primary_key && Self::metadata().incrementing {
+        if Self::uniqueIds().contains(&field) && !Self::isValidUniqueId(value) {
+            return None;
+        }
+        if field == Self::metadata().primary_key && Self::getIncrementing() {
             return value
                 .parse::<i64>()
                 .map(Value::Integer)

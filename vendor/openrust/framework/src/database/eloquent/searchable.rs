@@ -55,7 +55,7 @@ impl<M: Searchable> SearchBuilder<M> {
             })
             .collect::<Vec<_>>();
         if !term.trim().is_empty() {
-            let exact_key = if M::metadata().incrementing
+            let exact_key = if M::getIncrementing()
                 && columns.iter().any(|column| column.name() == key)
                 && term.bytes().all(|byte| byte.is_ascii_digit())
             {

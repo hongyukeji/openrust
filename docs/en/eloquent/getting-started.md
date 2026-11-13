@@ -35,6 +35,18 @@ impl Model for Flight {
 
 The defaults are the `id` primary key, an incrementing identifier, and `created_at` and `updated_at` timestamps. Use `primaryKey`, `incrementing`, `timestamps`, or `connection` on `ModelMetadata` to configure the model. Declare the columns that may be mass assigned with `fillable`.
 
+### UUID and ULID keys {#uuid-and-ulid-keys}
+
+Choose `UniqueId::Uuid` for UUIDv7 or `UniqueId::Ulid` for lowercase ULIDs. By default the primary key is generated and treated as a non-incrementing string. Use `uniqueIds` to choose the generated columns. On insertion, Eloquent fills empty values after `Saving` and before `Creating`, and preserves supplied non-empty values. Replication drops these columns so a new insert can generate fresh identifiers. Model binding returns 404 for malformed identifiers on these columns.
+
+```rust
+use openrust::database::eloquent::{ModelMetadata, UniqueId};
+
+static TICKET: ModelMetadata = ModelMetadata::new("tickets")
+    .uniqueId(UniqueId::Uuid)
+    .uniqueIds(&["id", "reference"]);
+```
+
 ## Retrieving Models
 
 In an application request or command, use `Flight::query()?` for a model-aware builder, `Flight::all().await?` for all scoped models, or `Flight::find(id).await?` for one primary key. `findOrFail` returns `DatabaseError::ModelNotFound` for an absent model. Use `queryOn` to select an explicit database connection.

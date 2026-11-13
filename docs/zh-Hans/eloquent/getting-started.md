@@ -35,6 +35,18 @@ impl Model for Flight {
 
 默认主键为自增的 `id`，并维护 `created_at` 和 `updated_at`。在 `ModelMetadata` 中通过 `primaryKey`、`incrementing`、`timestamps` 或 `connection` 配置模型。使用 `fillable` 声明可批量赋值的字段。
 
+### UUID 与 ULID 主键 {#uuid-and-ulid-keys}
+
+使用 `UniqueId::Uuid` 生成 UUIDv7，或使用 `UniqueId::Ulid` 生成小写 ULID。默认生成主键，并将其作为非自增字符串。使用 `uniqueIds` 指定生成列。插入时，Eloquent 在 `Saving` 之后、`Creating` 之前填充空值，保留已提供的非空值。复制时排除这些列，新记录插入时重新生成标识符。这些列的路由模型绑定遇到格式错误会返回 404。
+
+```rust
+use openrust::database::eloquent::{ModelMetadata, UniqueId};
+
+static TICKET: ModelMetadata = ModelMetadata::new("tickets")
+    .uniqueId(UniqueId::Uuid)
+    .uniqueIds(&["id", "reference"]);
+```
+
 ## 查询模型
 
 在应用请求或命令中使用 `Flight::query()?` 获取模型查询构造器，使用 `Flight::all().await?` 获取应用作用域后的模型集合，或用 `Flight::find(id).await?` 按主键查找。模型不存在时，`findOrFail` 返回 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定数据库连接。

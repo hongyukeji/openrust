@@ -35,6 +35,18 @@ impl Model for Flight {
 
 預設主鍵為遞增的 `id`，並維護 `created_at` 和 `updated_at`。在 `ModelMetadata` 中透過 `primaryKey`、`incrementing`、`timestamps` 或 `connection` 設定模型。使用 `fillable` 宣告可批次賦值的欄位。
 
+### UUID 與 ULID 主鍵 {#uuid-and-ulid-keys}
+
+使用 `UniqueId::Uuid` 產生 UUIDv7，或使用 `UniqueId::Ulid` 產生小寫 ULID。預設產生主鍵，並將其視為非自動遞增字串。使用 `uniqueIds` 指定產生欄位。插入時，Eloquent 在 `Saving` 之後、`Creating` 之前填入空值，保留已提供的非空值。複製時排除這些欄位，新記錄插入時重新產生識別碼。這些欄位的路由模型繫結遇到格式錯誤會回傳 404。
+
+```rust
+use openrust::database::eloquent::{ModelMetadata, UniqueId};
+
+static TICKET: ModelMetadata = ModelMetadata::new("tickets")
+    .uniqueId(UniqueId::Uuid)
+    .uniqueIds(&["id", "reference"]);
+```
+
 ## 查詢模型
 
 在應用程式請求或指令中使用 `Flight::query()?` 取得模型查詢建構器，使用 `Flight::all().await?` 取得套用作用域後的模型集合，或用 `Flight::find(id).await?` 依主鍵查找。模型不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定資料庫連線。

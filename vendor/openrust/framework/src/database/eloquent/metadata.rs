@@ -1,3 +1,5 @@
+use super::UniqueId;
+
 /// Table, connection, keys, and persistence options declared by a model.
 #[derive(Clone, Copy)]
 pub struct ModelMetadata {
@@ -5,6 +7,8 @@ pub struct ModelMetadata {
     pub(super) connection: Option<&'static str>,
     pub(super) primary_key: &'static str,
     pub(super) incrementing: bool,
+    pub(super) unique_id: Option<UniqueId>,
+    pub(super) unique_ids: Option<&'static [&'static str]>,
     pub(super) fillable: &'static [&'static str],
     pub(super) guarded: &'static [&'static str],
     pub(super) created_at: Option<&'static str>,
@@ -24,6 +28,8 @@ impl ModelMetadata {
             connection: None,
             primary_key: "id",
             incrementing: true,
+            unique_id: None,
+            unique_ids: None,
             fillable: &[],
             guarded: &["*"],
             created_at: Some("created_at"),
@@ -48,6 +54,18 @@ impl ModelMetadata {
 
     pub const fn incrementing(mut self, enabled: bool) -> Self {
         self.incrementing = enabled;
+        self
+    }
+
+    /// Generates unique identifiers for the primary key unless other columns are declared.
+    pub const fn uniqueId(mut self, strategy: UniqueId) -> Self {
+        self.unique_id = Some(strategy);
+        self
+    }
+
+    /// Replaces the default primary-key column list for unique identifiers.
+    pub const fn uniqueIds(mut self, columns: &'static [&'static str]) -> Self {
+        self.unique_ids = Some(columns);
         self
     }
 

@@ -78,6 +78,9 @@ pub(super) async fn save<M: Model>(
         return Ok(false);
     }
     let exists = model.state().exists;
+    if !exists && M::usesUniqueIds() {
+        model.setUniqueIds().await?;
+    }
     if exists && model.getDirty()?.is_empty() {
         return finish_save(model, &connection, transaction).await;
     }
@@ -123,7 +126,7 @@ pub(super) async fn save<M: Model>(
             .r#where(metadata.primary_key, "=", persisted_key(model)?)
             .update(attributes.clone())
             .await?;
-    } else if metadata.incrementing {
+    } else if M::getIncrementing() {
         let id = query.insertGetId(attributes.clone()).await?;
         // MySQL reports zero for an explicitly supplied non-generated key.
         if !matches!(id, Value::Integer(0) | Value::Unsigned(0))
