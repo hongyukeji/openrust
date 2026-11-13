@@ -74,6 +74,8 @@ schedule
 
 有子分鐘任務時，`schedule:run` 持續到當前分鐘結束。`./artisan schedule:interrupt` 透過所選快取儲存通知當前分鐘的重複迴圈結束。任務錯誤交由例外報告器處理，後續到期任務繼續執行，排程命令處理完後成功結束。排程基礎設施發生錯誤時，命令以失敗狀態結束。
 
+用 `./artisan schedule:test --name=reports:daily` 在前景立即執行選定任務。在互動式終端中可省略 `--name`，從已登記的任務中選擇。用 `./artisan schedule:clear-cache` 清除已登記任務的重疊鎖，包含共用 Redis 中的鎖。
+
 ## 任務輸出 {#task-output}
 
 用 `sendOutputTo` 覆寫檔案，用 `appendOutputTo` 附加。兩者都擷取排程 Artisan 命令與系統執行檔的標準輸出和標準錯誤，包含非零結束時的輸出。相對路徑以應用程式根目錄為基準。
@@ -82,6 +84,8 @@ schedule
 schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
 schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
 ```
+
+用 `emailOutputTo(["ops@example.com"])` 在任務執行後寄送非空輸出。用 `emailOutputOnFailure(["ops@example.com"])` 僅在任務失敗時寄送，即使沒有輸出也會寄送。兩者使用應用程式的郵件服務。
 
 ## 任務鉤子 {#task-hooks}
 

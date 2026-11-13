@@ -26,6 +26,13 @@ impl CacheEventMutex {
 }
 
 impl CacheEventMutex {
+    pub(super) async fn clear(&self, event: &Event) -> CacheResult<()> {
+        self.store
+            .lock(&event.mutex_key(), event.overlap, None)?
+            .force_release()
+            .await
+    }
+
     pub(super) async fn take_owner(&self, event: &Event) -> Option<String> {
         self.locks
             .lock()

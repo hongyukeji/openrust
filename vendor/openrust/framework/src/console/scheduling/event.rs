@@ -26,6 +26,10 @@ type OutputHook = dyn for<'a> Fn(
     + Sync;
 
 enum AfterHook {
+    Email {
+        recipients: Vec<crate::mail::mailables::Address>,
+        only_if_output: bool,
+    },
     Plain(Arc<Callback>),
     WithOutput {
         callback: Arc<OutputHook>,
@@ -205,7 +209,16 @@ impl Event {
                     } if !only_if_output || !captured.is_empty() => {
                         callback(app, output, captured).await?;
                     }
-                    AfterHook::WithOutput { .. } => {}
+                    AfterHook::Email {
+                        recipients,
+                        only_if_output,
+                    } if !only_if_output || !captured.is_empty() => {
+                        let subject = self.description.clone().unwrap_or_else(|| {
+                            format!("Scheduled Job Output For [{}]", self.getSummaryForDisplay())
+                        });
+                        super::task_output::email(recipients, subject, captured).await?;
+                    }
+                    AfterHook::Email { .. } | AfterHook::WithOutput { .. } => {}
                 }
             }
         }
@@ -237,7 +250,7 @@ impl Event {
     pub(super) fn captures_output(&self) -> bool {
         self.after_hooks
             .iter()
-            .any(|(_, hook)| matches!(hook, AfterHook::WithOutput { .. }))
+            .any(|(_, hook)| matches!(hook, AfterHook::WithOutput { .. } | AfterHook::Email { .. }))
     }
 
     fn output_hook(
@@ -306,6 +319,44 @@ impl Event {
         only_if_output: bool,
     ) -> &mut Self {
         self.output_hook(HookKind::Failure, only_if_output, callback)
+    }
+
+    pub fn emailOutputTo(
+        &mut self,
+        recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
+    ) -> &mut Self {
+        self.email_output(HookKind::After, recipients, true)
+    }
+
+    pub fn emailWrittenOutputTo(
+        &mut self,
+        recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
+    ) -> &mut Self {
+        self.emailOutputTo(recipients)
+    }
+
+    pub fn emailOutputOnFailure(
+        &mut self,
+        recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
+    ) -> &mut Self {
+        self.email_output(HookKind::Failure, recipients, false)
+    }
+
+    fn email_output(
+        &mut self,
+        kind: HookKind,
+        recipients: impl IntoIterator<Item = impl Into<crate::mail::mailables::Address>>,
+        only_if_output: bool,
+    ) -> &mut Self {
+        let recipients = recipients.into_iter().map(Into::into).collect();
+        self.after_hooks.push((
+            kind,
+            AfterHook::Email {
+                recipients,
+                only_if_output,
+            },
+        ));
+        self
     }
 
     pub fn pingBefore(&mut self, url: impl Into<String>) -> &mut Self {
@@ -533,6 +584,17 @@ impl Event {
 
     pub(super) fn filters_pass(&self, app: &Application) -> bool {
         self.filters.iter().all(|condition| condition(app))
+    }
+
+    pub(super) fn command_name(&self) -> String {
+        match &self.action {
+            Action::Command(args) | Action::Exec(args) => args
+                .iter()
+                .map(|arg| arg.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
+            _ => self.getSummaryForDisplay(),
+        }
     }
 
     pub fn getSummaryForDisplay(&self) -> String {

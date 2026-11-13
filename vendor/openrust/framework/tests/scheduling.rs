@@ -173,6 +173,20 @@ fn routes() -> Result<(), ConsoleError> {
                 fixed
             }
         });
+        if profile == "output-mail" {
+            schedule
+                .command("fixture:hello", [])
+                .name("Scheduled success")
+                .emailOutputTo(["success@example.test"]);
+            schedule
+                .command("fixture:missing", [])
+                .name("Scheduled failure")
+                .emailOutputOnFailure(["failure@example.test"]);
+            schedule
+                .command("fixture:hello", [])
+                .emailOutputOnFailure(["unexpected@example.test"]);
+            return Ok(());
+        }
         if profile == "output" {
             schedule
                 .command("fixture:hello", [])
@@ -539,8 +553,9 @@ fn root(port: Option<u16>) -> PathBuf {
         "database":{"redis":{"default":{"host":"127.0.0.1","port":port.unwrap_or(6379)}}},
         "cache":{"default":if port.is_some() {"redis"} else {"array"}, "prefix":format!("schedule:{id}:"),
                  "stores":{"redis":{"driver":"redis","connection":"default"},"array":{"driver":"array"}}},
+        "mail":{"default":"log","from":{"address":"scheduler@example.test"},"mailers":{"log":{"transport":"log"}}},
         "queue":{"default":"sync","connections":{"sync":{"driver":"sync"}}},
-        "logging":{"default":"stderr","channels":{"stderr":{"driver":"errorlog"}}}
+        "logging":{"default":"stderr","channels":{"stderr":{"driver":"stderr"}}}
     });
     std::fs::write(root.join("config.json"), config.to_string()).unwrap();
     root
@@ -1163,5 +1178,61 @@ async fn artisan_redirects_scheduled_output_and_passes_failed_output_to_hooks() 
         std::fs::read(root.join("failure-hook.log")).unwrap(),
         failure
     );
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_emails_scheduled_output_and_manually_runs_selected_commands() {
+    let root = root(None);
+    let scheduled = run(&root, "output-mail", MONDAY, &["schedule:run"]).await;
+    let delivered = String::from_utf8_lossy(&scheduled.stderr);
+    assert!(delivered.contains("success@example.test"), "{scheduled:?}");
+    assert!(delivered.contains("failure@example.test"), "{scheduled:?}");
+    assert!(
+        delivered.contains("Scheduled success") && delivered.contains("artisan command"),
+        "{scheduled:?}"
+    );
+    assert!(
+        !delivered.contains("unexpected@example.test"),
+        "{scheduled:?}"
+    );
+    let selected = run(
+        &root,
+        "basic",
+        MONDAY + 3600,
+        &["schedule:test", "--name=fixture:hello"],
+    )
+    .await;
+    let selected = String::from_utf8_lossy(&selected.stdout);
+    assert!(
+        selected.contains("Running [fixture:hello]") && selected.contains("artisan command"),
+        "{selected}"
+    );
+    let missing = run(&root, "basic", MONDAY, &["schedule:test", "--name=unknown"]).await;
+    assert!(String::from_utf8_lossy(&missing.stdout).contains("No matching scheduled command"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_clears_redis_schedule_mutexes_for_registered_tasks() {
+    let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_PORT") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS").is_none());
+        return;
+    };
+    let root = root(Some(port.parse().unwrap()));
+    let winner = RunningScheduler::start(artisan(&root, "overlap", MONDAY, &["schedule:run"]));
+    wait_for_receipts(&root, 1).await;
+    let cleared = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
+    assert!(String::from_utf8_lossy(&cleared.stdout).contains("Deleting mutex for [shared]"));
+    let empty = run(&root, "overlap", MONDAY, &["schedule:clear-cache"]).await;
+    assert!(String::from_utf8_lossy(&empty.stdout).contains("No mutex files were found"));
+    std::fs::write(root.join("release"), "").unwrap();
+    let winner = timeout(Duration::from_secs(5), winner.wait_with_output())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_success(&winner);
+    run(&root, "overlap", MONDAY, &["schedule:run"]).await;
+    wait_for_receipts(&root, 2).await;
     std::fs::remove_dir_all(root).unwrap();
 }

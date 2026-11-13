@@ -74,6 +74,8 @@ Call `./artisan schedule:run` each minute from your process scheduler, or use `.
 
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
 
+Use `./artisan schedule:test --name=reports:daily` to run a selected task immediately in the foreground. With an interactive terminal, omit `--name` to select from the registered tasks. Use `./artisan schedule:clear-cache` to remove overlap locks for registered tasks, including locks in the shared Redis store.
+
 ## Task output {#task-output}
 
 Use `sendOutputTo` to replace a file or `appendOutputTo` to append to it. Both capture stdout and stderr from scheduled Artisan commands and executables, including commands that exit unsuccessfully. Relative paths are resolved from the application root.
@@ -82,6 +84,8 @@ Use `sendOutputTo` to replace a file or `appendOutputTo` to append to it. Both c
 schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
 schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
 ```
+
+Use `emailOutputTo(["ops@example.com"])` to send nonempty output after a run. `emailOutputOnFailure(["ops@example.com"])` sends only on a failed run, including failures without output. Both use the application mailer.
 
 ## Task hooks {#task-hooks}
 

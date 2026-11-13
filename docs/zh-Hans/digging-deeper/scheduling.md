@@ -74,6 +74,8 @@ schedule
 
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
 
+用 `./artisan schedule:test --name=reports:daily` 在前台立即运行选定任务。在交互式终端中可省略 `--name`，从已登记任务中选择。用 `./artisan schedule:clear-cache` 清理已登记任务的重叠锁，包括共享 Redis 中的锁。
+
 ## 任务输出 {#task-output}
 
 用 `sendOutputTo` 覆盖文件，用 `appendOutputTo` 追加。两者均捕获调度 Artisan 命令与系统可执行程序的标准输出和标准错误，包括非零退出时的输出。相对路径以应用根目录为基准。
@@ -82,6 +84,8 @@ schedule
 schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
 schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
 ```
+
+用 `emailOutputTo(["ops@example.com"])` 在任务运行后发送非空输出。用 `emailOutputOnFailure(["ops@example.com"])` 仅在任务失败时发送，即使输出为空也会发送。两者使用应用邮件器。
 
 ## 任务钩子 {#task-hooks}
 

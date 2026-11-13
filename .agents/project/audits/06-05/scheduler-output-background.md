@@ -14,3 +14,9 @@
 - 使用共享文件缓存运行独立后台命令，父 `schedule:run` 返回时任务仍在等待。第二个调度进程触发重叠跳过。放行后验证成功退出 0、命令非零退出 7、后置钩子失败退出 1 均触发后台完成事件。重复执行验证锁释放、输出追加与钩子顺序。
 - 三语部署站点构建通过，根路径与 `/docs/` 共 12 项浏览器检查通过。
 - macOS ARM64，Rust 1.99.1 的锁定离线工作区测试通过，汇总 596 项通过、7 项夹具忽略，含 SQLite 队列硬超时进程验收。Rust 1.94.0 工作区格式、全目标全特性严格 Clippy 和 13 项调度测试通过。Rust 1.99.1 的严格 Clippy 另报分页和 Redis 限流器中两处既有代码告警。
+
+## 输出邮件、清锁与手工运行
+
+- `emailOutputTo` 和 `emailWrittenOutputTo` 复用输出钩子并只发送非空输出。 `emailOutputOnFailure` 在命令失败时发送，即使输出为空。通过应用邮件器组装文本邮件。 [固定 Laravel Event](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/Event.php)
+- `schedule:clear-cache` 遍历已注册任务并强制释放现存重叠锁。 `schedule:test --name` 选择唯一匹配的命令或回调，前台执行，跳过日历筛选且保留任务重叠检查和钩子。交互终端可按序号选择。 [ScheduleClearCacheCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleClearCacheCommand.php) · [ScheduleTestCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Scheduling/ScheduleTestCommand.php)
+- Rust 1.94.0 实际 Artisan 进程验收 15 项通过。邮件使用应用日志邮件器验证成功内容、失败内容与收件人，以及成功时不发失败邮件。真实 Redis 8.10.3 验证跨进程清理、重复执行和后续可重新取得锁。手工运行验证非计划时间执行和未知命令提示。三语站点构建及 12 项浏览器检查通过。

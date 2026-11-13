@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fmt::Write as _,
-    io::{self, Write},
+    io::{self, IsTerminal, Write},
     path::PathBuf,
     process::Stdio,
     sync::Arc,
@@ -53,6 +53,8 @@ enum Operation {
     Pause,
     Resume,
     Background,
+    ClearCache,
+    Test,
 }
 
 /// Runs events registered during Artisan bootstrap.
@@ -86,6 +88,12 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
         (Operation::Pause, "schedule:pause", "Pause the scheduler"),
         (Operation::Resume, "schedule:resume", "Resume the schedule"),
         (
+            Operation::ClearCache,
+            "schedule:clear-cache",
+            "Remove cached scheduler locks",
+        ),
+        (Operation::Test, "schedule:test", "Run a scheduled command"),
+        (
             Operation::Background,
             "schedule:finish",
             "Complete a background scheduled task",
@@ -110,6 +118,14 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
                 )
                 .arg(Arg::new("key").required(true))
                 .arg(Arg::new("owner").long("owner"));
+        }
+        if matches!(operation, Operation::Test) {
+            syntax = syntax.arg(
+                Arg::new("name")
+                    .long("name")
+                    .value_name("NAME")
+                    .help("The name of the scheduled command to run"),
+            );
         }
         if matches!(operation, Operation::Resume) {
             syntax = syntax.visible_alias("schedule:continue");
@@ -138,6 +154,8 @@ impl Command for ScheduleRunCommand {
         Box::pin(async move {
             match self.operation {
                 Operation::List => self.list(app, output)?,
+                Operation::ClearCache => self.clear_cache(output).await?,
+                Operation::Test => self.test_task(app, input, output).await?,
                 Operation::Interrupt => self.interrupt(output).await?,
                 Operation::Pause => {
                     if !self.schedule.pausable {
@@ -217,6 +235,95 @@ impl ScheduleRunCommand {
         if self.schedule.events().next().is_none() {
             output.info("No scheduled tasks have been defined.");
         }
+        Ok(())
+    }
+
+    async fn clear_cache(&self, output: &mut Output) -> Result<(), ConsoleError> {
+        let mutex = CacheEventMutex::new(self.store()?);
+        let mut cleared = false;
+        for task in self.schedule.events() {
+            if mutex.exists(task).await.map_err(error)? {
+                mutex.clear(task).await.map_err(error)?;
+                output.info(&format!("Deleting mutex for [{}]", task.command_name()));
+                cleared = true;
+            }
+        }
+        if !cleared {
+            output.info("No mutex files were found.");
+        }
+        Ok(())
+    }
+
+    async fn test_task(
+        &self,
+        app: &Application,
+        input: &Input,
+        output: &mut Output,
+    ) -> Result<(), ConsoleError> {
+        let tasks: Vec<_> = self.schedule.events().collect();
+        if tasks.is_empty() {
+            output.info("No scheduled commands have been defined.");
+            return Ok(());
+        }
+        let task = if let Some(name) = input
+            .matches()
+            .get_one::<String>("name")
+            .filter(|name| !name.is_empty())
+        {
+            let mut matches = tasks
+                .iter()
+                .copied()
+                .filter(|task| task.command_name() == *name);
+            matches.next().filter(|_| matches.next().is_none())
+        } else {
+            if !io::stdin().is_terminal() {
+                return Err(error(
+                    "Use --name to select a scheduled task without an interactive terminal.",
+                ));
+            }
+            let mut terminal = io::stderr().lock();
+            writeln!(terminal, "Which command would you like to run?").map_err(error)?;
+            for (index, task) in tasks.iter().enumerate() {
+                writeln!(terminal, "  {}. {}", index + 1, task.command_name()).map_err(error)?;
+            }
+            terminal.flush().map_err(error)?;
+            drop(terminal);
+            let mut choice = String::new();
+            io::stdin().read_line(&mut choice).map_err(error)?;
+            choice
+                .trim()
+                .parse::<usize>()
+                .ok()
+                .and_then(|index| index.checked_sub(1))
+                .and_then(|index| tasks.get(index).copied())
+        };
+        let Some(task) = task else {
+            output.info("No matching scheduled command found.");
+            return Ok(());
+        };
+        output.info(&format!(
+            "Running [{}]{}",
+            task.command_name(),
+            if task.background {
+                " normally in background"
+            } else {
+                ""
+            }
+        ));
+        let mutex = task
+            .overlap
+            .map(|_| self.store().map(CacheEventMutex::new))
+            .transpose()?;
+        if let Some(mutex) = &mutex
+            && !mutex.create(task).await.map_err(error)?
+        {
+            return Ok(());
+        }
+        let result = self.invoke_with_hooks(app, output, task).await;
+        if let Some(mutex) = &mutex {
+            mutex.forget(task).await.map_err(error)?;
+        }
+        result?;
         Ok(())
     }
 
