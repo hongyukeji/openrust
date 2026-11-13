@@ -17,6 +17,9 @@ pub(crate) struct DeferredCallbacks(Arc<Mutex<Vec<Callback>>>);
 struct Callback {
     always: Arc<AtomicBool>,
     future: HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>,
+    skipped: Option<
+        HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>,
+    >,
 }
 
 #[must_use]
@@ -62,8 +65,13 @@ impl DeferredCallbacks {
                 .unwrap_or_else(std::sync::PoisonError::into_inner),
         );
         for callback in callbacks {
-            if (successful || callback.always.load(Ordering::Acquire))
-                && let Err(error) = callback.future.await
+            let future = if successful || callback.always.load(Ordering::Acquire) {
+                Some(callback.future)
+            } else {
+                callback.skipped
+            };
+            if let Some(future) = future
+                && let Err(error) = future.await
             {
                 report(error).await;
             }
@@ -73,6 +81,16 @@ impl DeferredCallbacks {
 
 pub(crate) fn enqueue<E>(
     future: HttpFuture<'static, std::result::Result<(), E>>,
+) -> Result<DeferredCallback>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    enqueue_with_skip(future, None)
+}
+
+pub(crate) fn enqueue_with_skip<E>(
+    future: HttpFuture<'static, std::result::Result<(), E>>,
+    skipped: Option<HttpFuture<'static, std::result::Result<(), E>>>,
 ) -> Result<DeferredCallback>
 where
     E: std::error::Error + Send + Sync + 'static,
@@ -87,6 +105,9 @@ where
                 .push(Callback {
                     always: always.clone(),
                     future: Box::pin(async move { future.await.map_err(Into::into) }),
+                    skipped: skipped.map(|future| {
+                        Box::pin(async move { future.await.map_err(Into::into) }) as _
+                    }),
                 });
             DeferredCallback(always)
         })

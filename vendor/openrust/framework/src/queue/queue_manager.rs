@@ -90,13 +90,37 @@ impl QueueManager {
         queue: String,
         payload: Payload,
     ) -> QueueResult<()> {
-        SyncQueue {
+        let result = SyncQueue {
             name,
             registry: self.registry.clone(),
         }
         .push(&payload, Some(&queue))
         .await
-        .map(|_| ())
+        .map(|_| ());
+        result.and(self.release_lifecycle_lock(&payload).await)
+    }
+
+    pub(super) async fn release_lifecycle_lock(&self, payload: &Payload) -> QueueResult<()> {
+        if payload.unique_lock.is_none() {
+            return Ok(());
+        }
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        super::unique_job::release(&owner, payload).await
+    }
+
+    pub(super) fn background_driver(&self) -> QueueResult<crate::concurrency::Driver> {
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        owner
+            .make::<crate::concurrency::Manager>()
+            .map_err(QueueError::Unavailable)?
+            .driver(Some("process"))
+            .map_err(backend)
     }
     pub(super) fn new(config: Arc<dyn Repository>, owner: Weak<Container>) -> Self {
         Self {

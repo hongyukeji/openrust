@@ -117,16 +117,17 @@ impl Driver {
         }))
     }
 
-    pub(crate) fn defer_detached(&self, task: Task) -> Result<DeferredCallback> {
+    pub(crate) fn prepare_detached(
+        &self,
+        task: Task,
+    ) -> Result<impl FnOnce() -> Result<()> + use<>> {
         let owner = self.owner.upgrade().ok_or(Error::OutsideRequest)?;
         let environment = owner
             .get::<PathBuf>("env.file")
             .map_err(Error::Unavailable)?;
         let context = self.capture_context()?;
         let process = self.process.clone();
-        deferred::enqueue(Box::pin(async move {
-            process.launch_detached(task, context, &environment)
-        }))
+        Ok(move || process.launch_detached(task, context, &environment))
     }
 
     fn capture_context(&self) -> Result<DehydratedContext> {

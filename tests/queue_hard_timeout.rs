@@ -208,9 +208,9 @@ mod acceptance {
                     | "driver-primary"
                     | "driver-console"
                     | "driver-worker-deferred" => {}
-                    "driver-detached" => {
-                        wait_for_file(&self.0, "driver-detached.release").await;
-                        std::fs::write(self.0.join("driver-detached.done"), []).map_err(error)?;
+                    "driver-detached" | "unique-lifecycle" => {
+                        wait_for_file(&self.0, &format!("{kind}.release")).await;
+                        std::fs::write(self.0.join(format!("{kind}.done")), []).map_err(error)?;
                     }
                     "driver-worker" => {
                         Queue::dispatch(
@@ -667,7 +667,7 @@ mod acceptance {
         Box::pin(async move {
             let driver = request.route("driver").unwrap();
             let kind = request.route("kind").unwrap();
-            Queue::dispatch(
+            let result = Queue::dispatch(
                 Payload::new("hard-timeout-probe", kind)?,
                 DispatchOptions {
                     connection: Some(driver.into()),
@@ -677,7 +677,9 @@ mod acceptance {
                 None,
             )
             .await?;
-            let status = if request.uri().query().is_some() {
+            let status = if result == DispatchResult::Duplicate {
+                axum::http::StatusCode::CONFLICT
+            } else if request.uri().query().is_some() {
                 axum::http::StatusCode::BAD_REQUEST
             } else {
                 axum::http::StatusCode::NO_CONTENT
@@ -1253,6 +1255,76 @@ mod acceptance {
         let pid = |kind| std::fs::read_to_string(root.join(format!("{kind}.pid"))).unwrap();
         assert_eq!(pid("driver-deferred"), std::process::id().to_string());
         assert_ne!(pid("driver-background"), std::process::id().to_string());
+
+        for (connection, skipped, accepted) in [
+            (
+                "deferred",
+                "deferred/unique-lifecycle?skip=1",
+                "deferred/unique-lifecycle",
+            ),
+            (
+                "background",
+                "background/unique-lifecycle?skip=1",
+                "background/unique-lifecycle",
+            ),
+        ] {
+            send(skipped, "HTTP/1.1 400").await;
+            let mut manager_app = application(root.to_owned()).unwrap();
+            manager_app.boot().await.unwrap();
+            let manager = manager_app.container().make::<QueueManager>().unwrap();
+            let retry = || {
+                manager.dispatch(
+                    Payload::new("hard-timeout-probe", "unique-lifecycle").unwrap(),
+                    DispatchOptions {
+                        connection: Some(connection.into()),
+                        ..Default::default()
+                    },
+                    None,
+                )
+            };
+            // Out-of-lifecycle dispatch errors after acquisition, so it also proves cleanup.
+            let wait_until_released = || async {
+                tokio::time::timeout(Duration::from_secs(4), async {
+                    loop {
+                        match retry().await {
+                            Ok(DispatchResult::Duplicate) => {
+                                tokio::time::sleep(Duration::from_millis(20)).await
+                            }
+                            Err(error) => {
+                                assert!(
+                                    std::error::Error::source(&error).is_some_and(|cause| {
+                                        cause
+                                            .downcast_ref::<openrust::concurrency::Error>()
+                                            .is_some_and(|error| {
+                                                matches!(
+                                                    error,
+                                                    openrust::concurrency::Error::OutsideRequest
+                                                )
+                                            })
+                                    }),
+                                    "{error:?}"
+                                );
+                                break;
+                            }
+                            Ok(result) => panic!("expected a lifecycle error, got {result:?}"),
+                        }
+                    }
+                })
+                .await
+                .unwrap();
+            };
+            wait_until_released().await;
+            assert!(!root.join("unique-lifecycle.pid").exists());
+            send(accepted, "HTTP/1.1 204").await;
+            wait_for_file(root, "unique-lifecycle.pid").await;
+            send(accepted, "HTTP/1.1 409").await;
+            std::fs::write(root.join("unique-lifecycle.release"), []).unwrap();
+            wait_for_file(root, "unique-lifecycle.done").await;
+            wait_until_released().await;
+            for suffix in ["pid", "release", "done"] {
+                std::fs::remove_file(root.join(format!("unique-lifecycle.{suffix}"))).unwrap();
+            }
+        }
 
         send("failover/driver-primary", "HTTP/1.1 204").await;
         let (status, _) =

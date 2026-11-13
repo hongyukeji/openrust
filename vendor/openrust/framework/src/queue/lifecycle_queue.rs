@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use crate::{
-    concurrency::{Concurrency, Task, enqueue_deferred},
+    concurrency::{Task, enqueue_with_skip},
     contracts::queue::{Job, Queue as Contract, QueueMetrics},
 };
 
-use super::{Delay, Payload, Queue, QueueFuture, QueueResult, SyncQueue, backend};
+use super::{Delay, Payload, Queue, QueueFuture, QueueResult, backend};
 
 pub(super) const BACKGROUND_TASK: &str = "openrust.queue.background";
 
@@ -57,33 +57,46 @@ impl Contract for LifecycleQueue {
             if matches!(self.lifecycle, Lifecycle::Null) {
                 return Ok(None);
             }
-            if payload.unique_lock.is_some() {
-                return Err(super::QueueError::InvalidConfiguration);
-            }
             let queue = super::queue_name(queue, &self.queue)?.to_owned();
+            let manager = self.registry.manager()?;
+            let skipped = payload.unique_lock.as_ref().map(|_| {
+                let manager = manager.clone();
+                let payload = payload.clone();
+                Box::pin(async move { manager.release_lifecycle_lock(&payload).await }) as _
+            });
+            let id = payload.uuid().to_owned();
+            let payload = payload.clone();
+            let name = self.name.clone();
             match self.lifecycle {
                 Lifecycle::Null => unreachable!(),
                 Lifecycle::Deferred => {
-                    let sync = SyncQueue {
-                        name: self.name.clone(),
-                        registry: self.registry.clone(),
-                    };
-                    let payload = payload.clone();
-                    let _ = enqueue_deferred(Box::pin(async move {
-                        sync.push(&payload, Some(&queue)).await.map(|_| ())
-                    }))
+                    let _ = enqueue_with_skip(
+                        Box::pin(async move { manager.run_background(name, queue, payload).await }),
+                        skipped,
+                    )
                     .map_err(backend)?;
                 }
                 Lifecycle::Background => {
-                    let task = Task::new(BACKGROUND_TASK, (&self.name, queue, payload))
+                    let task =
+                        Task::new(BACKGROUND_TASK, (name, queue, &payload)).map_err(backend)?;
+                    let launch = manager
+                        .background_driver()?
+                        .prepare_detached(task)
                         .map_err(backend)?;
-                    let _ = Concurrency::driver(Some("process"))
-                        .map_err(backend)?
-                        .defer_detached(task)
-                        .map_err(backend)?;
+                    let _ = enqueue_with_skip(
+                        Box::pin(async move {
+                            if let Err(error) = launch() {
+                                manager.release_lifecycle_lock(&payload).await?;
+                                return Err(backend(error));
+                            }
+                            Ok(())
+                        }),
+                        skipped,
+                    )
+                    .map_err(backend)?;
                 }
             }
-            Ok(None)
+            Ok(Some(id))
         })
     }
 
