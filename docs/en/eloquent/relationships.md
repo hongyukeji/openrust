@@ -340,6 +340,22 @@ pub async fn author_post_count(connection: &Connection, id: i64) -> DatabaseResu
 }
 ```
 
+## Filtering by Intermediate Table Columns {#filtering-queries-via-intermediate-table-columns}
+
+Use `wherePivot` for a comparison, `wherePivotIn` or `wherePivotNotIn` for a list, `wherePivotBetween` or `wherePivotNotBetween` for an inclusive range, and `wherePivotNull` or `wherePivotNotNull` for null checks. The corresponding `orWherePivot…` methods combine alternatives inside the same owner and morph scope. Filters apply to loading, existence queries, and selecting existing links for updates, detach, and sync.
+
+Use `withPivotValue` to apply an equality filter and supply the same value when inserting a link through `attach` or `sync`. Explicit insert attributes take precedence. The default must be non-null and cannot replace relationship keys.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsToMany}};
+
+pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R>> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withPivot(["approved"])
+        .withPivotValue("approved", true)
+}
+```
+
 ## Inserting and Updating Related Models
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.

@@ -13,6 +13,7 @@ use crate::database::{
 
 use super::{
     ExistenceRelation, Pivot, Relation,
+    pivot_constraints::{PivotConstraints, pivot_predicates},
     relation::{ParentKeys, RelationKeys, dictionary_key},
 };
 
@@ -22,6 +23,7 @@ pub struct BelongsToMany<P: Model, R: Model> {
     pivot: PivotKeys,
     pivot_columns: Vec<&'static str>,
     pivot_accessor: &'static str,
+    pivot_constraints: PivotConstraints,
 }
 
 /// Keys attached, detached, or updated by a pivot synchronization.
@@ -51,6 +53,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             },
             pivot_columns: Vec::new(),
             pivot_accessor: "pivot",
+            pivot_constraints: PivotConstraints::new(),
         }
     }
 
@@ -90,6 +93,33 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self
     }
 
+    pivot_predicates!(apply_pivot_predicate);
+
+    pub(super) fn apply_pivot_predicate(
+        mut self,
+        column: &str,
+        predicate: impl FnOnce(query::Conditions, &str) -> query::Conditions,
+    ) -> Self {
+        self.pivot_constraints
+            .add(self.pivot.table, column, predicate);
+        self
+    }
+
+    /// Filters the relation and supplies the value when inserting new links.
+    pub fn withPivotValue(mut self, column: &str, value: impl Into<Value>) -> DatabaseResult<Self> {
+        let value = value.into();
+        if matches!(value, Value::Null) || column.is_empty() || column.contains('.') {
+            return Err(DatabaseError::InvalidQuery(
+                "pivot default requires a column and a non-null value",
+            ));
+        }
+        self.validate_pivot_attributes(&Attributes::from([(column.into(), value.clone())]))?;
+        self.pivot_constraints
+            .defaults
+            .insert(column.into(), value.clone());
+        Ok(self.wherePivot(column, "=", value))
+    }
+
     pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
         self.attachWith(parent, keys, Attributes::new()).await
     }
@@ -105,6 +135,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let keys = key_map(keys.iter().cloned())?;
         let mut rows = self.pivot.records(owner, keys.values());
         for row in &mut rows {
+            row.extend(self.pivot_constraints.defaults.clone());
             row.extend(attributes.clone());
         }
         self.keys
@@ -130,21 +161,22 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             return Ok(0);
         }
         let query = self.keys.connection(parent)?.table(self.pivot.table);
-        self.pivot
-            .for_owner(query, owner)
+        self.pivot_constraints
+            .apply(self.pivot.for_owner(query, owner))
             .r#where(self.pivot.related, "=", related.clone())
             .update(attributes)
             .await
     }
 
     fn validate_pivot_attributes(&self, attributes: &Attributes) -> DatabaseResult<()> {
-        if attributes.contains_key(self.pivot.foreign)
-            || attributes.contains_key(self.pivot.related)
-            || self
-                .pivot
-                .morph
-                .is_some_and(|(kind, _)| attributes.contains_key(kind))
-        {
+        let protected = [self.pivot.foreign, self.pivot.related]
+            .into_iter()
+            .chain(self.pivot.morph.map(|(column, _)| column));
+        if attributes.keys().any(|column| {
+            protected
+                .clone()
+                .any(|key| column.eq_ignore_ascii_case(key))
+        }) {
             return Err(DatabaseError::InvalidQuery(
                 "pivot attributes cannot replace relationship keys",
             ));
@@ -155,7 +187,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     pub async fn detach(&self, parent: &P, keys: Option<&[Value]>) -> DatabaseResult<u64> {
         let owner = self.owner(parent)?;
         let query = self.keys.connection(parent)?.table(self.pivot.table);
-        let mut query = self.pivot.for_owner(query, owner);
+        let mut query = self
+            .pivot_constraints
+            .apply(self.pivot.for_owner(query, owner));
         if let Some(keys) = keys {
             let keys = key_map(keys.iter().cloned())?;
             query = query.whereIn(self.pivot.related, keys.into_values().collect());
@@ -223,6 +257,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         }
         let desired = Arc::new(desired);
         let pivot = self.pivot;
+        let constraints = Arc::new(self.pivot_constraints.clone());
         self.keys
             .connection(parent)?
             .transaction(
@@ -232,6 +267,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         pivot,
                         owner.clone(),
                         desired.clone(),
+                        constraints.clone(),
                         detach,
                     ))
                 },
@@ -284,8 +320,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .0
                     .join(self.pivot.table, &related_key, "=", &pivot_key);
                 let rows = self
-                    .pivot
-                    .restrict_type(query, true)
+                    .pivot_constraints
+                    .apply(self.pivot.restrict_type(query, true))
                     .addSelect(pivot_columns.iter().map(String::as_str))
                     .get()
                     .await?;
@@ -404,10 +440,15 @@ async fn sync_pivot(
     pivot: PivotKeys,
     owner: Value,
     desired: Arc<DesiredPivots>,
+    constraints: Arc<PivotConstraints>,
     detach: bool,
 ) -> DatabaseResult<SyncChanges> {
     let query = transaction.table(pivot.table).select([pivot.related]);
-    let current = pivot.for_owner(query, &owner).lockForUpdate().get().await?;
+    let current = constraints
+        .apply(pivot.for_owner(query, &owner))
+        .lockForUpdate()
+        .get()
+        .await?;
     let current = key_map(
         current
             .into_iter()
@@ -420,8 +461,8 @@ async fn sync_pivot(
         .collect();
     for keys in detached.chunks(500) {
         let query = transaction.table(pivot.table);
-        pivot
-            .for_owner(query, &owner)
+        constraints
+            .apply(pivot.for_owner(query, &owner))
             .whereIn(pivot.related, keys.to_vec())
             .delete()
             .await?;
@@ -434,6 +475,7 @@ async fn sync_pivot(
     for (normalized, (key, attributes)) in desired.iter() {
         if !current.contains_key(normalized) {
             let mut row = pivot.record(&owner, key);
+            row.extend(constraints.defaults.clone());
             row.extend(attributes.clone());
             inserts
                 .entry(row.keys().cloned().collect())
@@ -442,8 +484,8 @@ async fn sync_pivot(
             changes.attached.push(key.clone());
         } else if !attributes.is_empty() {
             let query = transaction.table(pivot.table);
-            let affected = pivot
-                .for_owner(query, &owner)
+            let affected = constraints
+                .apply(pivot.for_owner(query, &owner))
                 .r#where(pivot.related, "=", key.clone())
                 .whereNot(|conditions| {
                     attributes
@@ -496,7 +538,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .0
             .join(self.pivot.table, &related, "=", &related_pivot)
             .whereColumn(&foreign_pivot, "=", &parent);
-        let query = self.pivot.restrict_type(query, true);
+        let query = self
+            .pivot_constraints
+            .apply(self.pivot.restrict_type(query, true));
         Ok(match target_keys {
             Some(keys) => query.whereIn(&target_key, keys),
             None => query,

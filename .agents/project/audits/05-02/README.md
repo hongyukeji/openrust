@@ -166,3 +166,11 @@
 - 按固定 Laravel `QueriesRelationships` 补齐 `orWhereBelongsTo`、`orWhereAttachedTo`、`orWhereMorphedTo` 和 `orWhereNotMorphedTo`。Rust 继续显式传入类型化描述符。多态 `MorphToMany` 复用中间表存在查询并保留类型判别条件。存在谓词与调用方条件进入同一组，外层仍应用全局作用域和软删除筛选。参考固定 Goravel 的连接级查询。旧版 `v0.x` 有 Pivot 关联实现，未发现对应身份 OR 入口。 [Laravel 查询源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php) · [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#querying-relations)
 - SQLite 与独立 MySQL 8.4.13 通过真实 SQL 验证自定义所属键、普通条件与关系 OR 混用、正反多态身份、空外键、相同键的多态 Pivot 区分以及软删除过滤。05-02 仍需核对其余 Pivot 契约及关系加载差异。
 - Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。真实 `artisan inspire`、隔离三语构建与 18 项浏览器检查通过。
+
+## 中间表过滤与插入默认值
+
+对照固定 Laravel 的 `BelongsToMany`、`InteractsWithPivotTable` 及集成测试。参考固定 Goravel ORM 的连接级查询入口。复用 `v0.x` 的等值过滤和插入默认值规则，SQL 谓词由现有 Query Builder 生成。Rust 的 `wherePivot` 显式传比较运算符，区间用二元素数组，`withPivotValue` 用 `Result` 报告非法默认值。OR 条件按声明顺序编译为括号组，并与父模型及多态类型条件相交，避免写操作影响其他关联。插入默认值在显式属性之前应用，关系键始终受保护。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#filtering-queries-via-intermediate-table-columns) · [Laravel 关系测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentBelongsToManyTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 使用实际模型和数据库验收惰性及预加载、存在性查询、`attach` 与 `sync` 的插入默认值、显式覆盖、作用域内更新和解除关联，以及 OR 与多态归属隔离。中间表排序、时间戳和自定义 Pivot 模型仍分别跟踪。
+
+Rust 1.94 格式、启用 Sanctum 的全工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离文档构建及 18 项浏览器检查通过。提交前额度 93%，磁盘 60 GiB。05-02 仍有未闭合项目，核心账本维持 25/66。

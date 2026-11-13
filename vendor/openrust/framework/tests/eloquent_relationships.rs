@@ -559,6 +559,9 @@ async fn verify_through_and_morph(
         "subject_type",
         "post",
     );
+    let post_tags = post_tags
+        .wherePivot("label", "=", "post link")
+        .orWherePivotNull("label");
     assert_eq!(post_tags.sync(post, &[]).await.unwrap().detached, vec![key]);
     assert!(tagged_posts.getResults(author).await.unwrap().is_empty());
     assert_eq!(author_tags.getResults(author).await.unwrap().len(), 1);
@@ -1701,6 +1704,119 @@ fn verify_collection_reload(
     })
 }
 
+async fn verify_pivot_constraints(
+    db: &Connection,
+    first: &Author,
+    first_key: &Value,
+    second_key: &Value,
+) {
+    let ids = |posts: Vec<Arc<Post>>| {
+        posts
+            .iter()
+            .map(|post| post.getKey().unwrap().clone())
+            .collect::<Vec<_>>()
+    };
+    let selected = FEATURED_POSTS.withPivotValue("label", "selected").unwrap();
+    assert!(FEATURED_POSTS.withPivotValue("label", Value::Null).is_err());
+    assert!(FEATURED_POSTS.withPivotValue("AUTHOR_ID", 5).is_err());
+    selected
+        .attach(first, std::slice::from_ref(first_key))
+        .await
+        .unwrap();
+    let changed = selected
+        .syncWithoutDetaching(first, &[first_key.clone(), second_key.clone()])
+        .await
+        .unwrap();
+    assert_eq!(changed.attached, vec![second_key.clone()]);
+    assert_eq!(selected.getResults(first).await.unwrap().len(), 2);
+    let updated = selected
+        .updateExistingPivot(
+            first,
+            second_key,
+            Attributes::from([("label".into(), "hidden".into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(updated, 1);
+    assert_eq!(
+        ids(selected.getResults(first).await.unwrap()),
+        vec![first_key.clone()]
+    );
+    assert_eq!(
+        selected
+            .updateExistingPivot(
+                first,
+                second_key,
+                Attributes::from([("label".into(), "ignored".into())]),
+            )
+            .await
+            .unwrap(),
+        0
+    );
+    let alternatives = FEATURED_POSTS
+        .wherePivotIn("label", vec!["selected".into()])
+        .orWherePivotNull("label");
+    assert_eq!(
+        ids(alternatives.getResults(first).await.unwrap()),
+        vec![first_key.clone()]
+    );
+    assert_eq!(
+        Author::queryOn(db)
+            .has(&alternatives)
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+    let hidden = FEATURED_POSTS
+        .wherePivotNotIn("label", vec!["selected".into()])
+        .wherePivotBetween("label", ["a".into(), "m".into()])
+        .wherePivotNotBetween("label", ["a".into(), "f".into()])
+        .wherePivotNotNull("label");
+    let owners = Author::queryOn(db)
+        .with("filtered", hidden)
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(
+        ids(owners[0]
+            .getRelation::<Vec<Arc<Post>>>("filtered")
+            .unwrap()
+            .clone()),
+        vec![second_key.clone()]
+    );
+    assert!(
+        owners[1]
+            .getRelation::<Vec<Arc<Post>>>("filtered")
+            .unwrap()
+            .is_empty()
+    );
+    let changed = selected.sync(first, &[]).await.unwrap();
+    assert_eq!(changed.detached, vec![first_key.clone()]);
+    assert_eq!(selected.detach(first, None).await.unwrap(), 0);
+    selected
+        .attachWith(
+            first,
+            std::slice::from_ref(first_key),
+            Attributes::from([("label".into(), "explicit".into())]),
+        )
+        .await
+        .unwrap();
+    assert!(selected.getResults(first).await.unwrap().is_empty());
+    let constrained = FEATURED_POSTS.wherePivot("label", "=", "selected");
+    assert_eq!(constrained.detach(first, None).await.unwrap(), 0);
+    assert_eq!(FEATURED_POSTS.detach(first, None).await.unwrap(), 2);
+    constrained
+        .attach(first, std::slice::from_ref(first_key))
+        .await
+        .unwrap();
+    assert!(constrained.getResults(first).await.unwrap().is_empty());
+    assert_eq!(FEATURED_POSTS.detach(first, None).await.unwrap(), 1);
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
@@ -2326,6 +2442,13 @@ async fn verify(db: Connection, mysql: bool) {
     assert_eq!(FEATURED_POSTS.detach(&first, None).await.unwrap(), 1);
     assert!(FEATURED_POSTS.getResults(&first).await.unwrap().is_empty());
     assert_eq!(FEATURED_POSTS.getResults(&second).await.unwrap().len(), 1);
+    Box::pin(verify_pivot_constraints(
+        &db,
+        &first,
+        &first_key,
+        &second_key,
+    ))
+    .await;
     AUTHOR.associate(&mut p1, &first).unwrap();
     p1.save().await.unwrap();
     verify_through_and_morph(&db, mysql, &first, &p1, &hidden).await;

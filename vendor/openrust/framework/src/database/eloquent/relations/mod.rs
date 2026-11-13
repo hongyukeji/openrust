@@ -14,6 +14,7 @@ mod morph_to;
 mod morph_to_many;
 mod one_of_many;
 mod pivot;
+mod pivot_constraints;
 pub(super) mod relation;
 
 pub use belongs_to::BelongsTo;

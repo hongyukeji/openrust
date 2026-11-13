@@ -340,6 +340,22 @@ pub async fn author_post_count(connection: &Connection, id: i64) -> DatabaseResu
 }
 ```
 
+## 按中间表列过滤 {#filtering-queries-via-intermediate-table-columns}
+
+用 `wherePivot` 比较列值，用 `wherePivotIn` 或 `wherePivotNotIn` 匹配列表，用 `wherePivotBetween` 或 `wherePivotNotBetween` 匹配含端点的区间，用 `wherePivotNull` 或 `wherePivotNotNull` 检查空值。对应的 `orWherePivot…` 方法在同一归属和多态范围内组合条件。过滤适用于关系加载、存在性查询，以及更新、解除关联和同步时对已有记录的选择。
+
+用 `withPivotValue` 添加等值过滤，并在 `attach` 或 `sync` 创建关联时填入同一个值。显式写入属性优先。默认值必须非空，且不能覆盖关系键。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsToMany}};
+
+pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R>> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withPivot(["approved"])
+        .withPivotValue("approved", true)
+}
+```
+
 ## 新建和更新关联模型
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。

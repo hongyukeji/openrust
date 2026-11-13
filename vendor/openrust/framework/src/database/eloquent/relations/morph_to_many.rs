@@ -1,12 +1,12 @@
 use std::ops::Deref;
 
 use crate::database::{
-    Connection, DatabaseFuture, DatabaseResult,
+    Connection, DatabaseFuture, DatabaseResult, Value,
     eloquent::{Builder, Model},
     query,
 };
 
-use super::{BelongsToMany, ExistenceRelation, Relation};
+use super::{BelongsToMany, ExistenceRelation, Relation, pivot_constraints::pivot_predicates};
 
 /// Links two models through an intermediate table with a morph discriminator.
 pub struct MorphToMany<P: Model, R: Model>(BelongsToMany<P, R>);
@@ -45,6 +45,21 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
     #[must_use]
     pub fn withPivot(self, columns: impl IntoIterator<Item = &'static str>) -> Self {
         Self(self.0.withPivot(columns))
+    }
+
+    pivot_predicates!(apply_pivot_predicate);
+
+    fn apply_pivot_predicate(
+        self,
+        column: &str,
+        predicate: impl FnOnce(query::Conditions, &str) -> query::Conditions,
+    ) -> Self {
+        Self(self.0.apply_pivot_predicate(column, predicate))
+    }
+
+    /// Filters the relation and supplies the value when inserting new links.
+    pub fn withPivotValue(self, column: &str, value: impl Into<Value>) -> DatabaseResult<Self> {
+        self.0.withPivotValue(column, value).map(Self)
     }
 
     #[must_use]

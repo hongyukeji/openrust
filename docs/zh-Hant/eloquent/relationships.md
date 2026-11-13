@@ -340,6 +340,22 @@ pub async fn author_post_count(connection: &Connection, id: i64) -> DatabaseResu
 }
 ```
 
+## 依中介資料表欄位篩選 {#filtering-queries-via-intermediate-table-columns}
+
+用 `wherePivot` 比較欄位值，以 `wherePivotIn` 或 `wherePivotNotIn` 比對清單，以 `wherePivotBetween` 或 `wherePivotNotBetween` 比對包含端點的區間，以 `wherePivotNull` 或 `wherePivotNotNull` 檢查空值。對應的 `orWherePivot…` 方法在同一歸屬與多型範圍內組合條件。篩選適用於關聯載入、存在性查詢，以及更新、解除關聯與同步時對既有記錄的選取。
+
+用 `withPivotValue` 加入等值篩選，並於 `attach` 或 `sync` 建立關聯時填入同一個值。明確寫入的屬性優先。預設值必須非空，且不能覆寫關聯鍵。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsToMany}};
+
+pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R>> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withPivot(["approved"])
+        .withPivotValue("approved", true)
+}
+```
+
 ## 建立和更新關聯模型
 
 `HasMany::create` 和 `save` 在儲存前填入關聯模型外鍵。`BelongsTo::associate` 和 `dissociate` 修改子模型的記憶體狀態。呼叫子模型的 `save` 持久化修改。
