@@ -342,9 +342,26 @@ impl<M: Model> Builder<'static, M> {
 
     /// Filters by the foreign key and the owners' configured owner key.
     pub fn whereBelongsTo<R: Model>(
+        self,
+        relation: &BelongsTo<M, R>,
+        owners: &[R],
+    ) -> DatabaseResult<Self> {
+        self.where_belongs_to(relation, owners, false)
+    }
+
+    pub fn orWhereBelongsTo<R: Model>(
+        self,
+        relation: &BelongsTo<M, R>,
+        owners: &[R],
+    ) -> DatabaseResult<Self> {
+        self.where_belongs_to(relation, owners, true)
+    }
+
+    fn where_belongs_to<R: Model>(
         mut self,
         relation: &BelongsTo<M, R>,
         owners: &[R],
+        or: bool,
     ) -> DatabaseResult<Self> {
         if owners.is_empty() {
             return Err(DatabaseError::InvalidQuery(
@@ -362,15 +379,37 @@ impl<M: Model> Builder<'static, M> {
             })
             .collect();
         let foreign_key = self.qualifyColumn(foreign_key);
-        self.whereIn(&foreign_key, keys);
+        self.predicates = if or {
+            self.predicates.orWhereIn(&foreign_key, keys)
+        } else {
+            self.predicates.whereIn(&foreign_key, keys)
+        };
         Ok(self)
     }
 
     /// Filters by related models linked through the intermediate table.
+    /// A polymorphic descriptor dereferences to its discriminator-aware relation.
     pub fn whereAttachedTo<R: Model>(
+        self,
+        relation: &BelongsToMany<M, R>,
+        related: &[R],
+    ) -> DatabaseResult<Self> {
+        self.where_attached_to(relation, related, false)
+    }
+
+    pub fn orWhereAttachedTo<R: Model>(
+        self,
+        relation: &BelongsToMany<M, R>,
+        related: &[R],
+    ) -> DatabaseResult<Self> {
+        self.where_attached_to(relation, related, true)
+    }
+
+    fn where_attached_to<R: Model>(
         mut self,
         relation: &BelongsToMany<M, R>,
         related: &[R],
+        or: bool,
     ) -> DatabaseResult<Self> {
         if related.is_empty() {
             return Err(DatabaseError::InvalidQuery(
@@ -382,7 +421,8 @@ impl<M: Model> Builder<'static, M> {
             .map(|model| model.getKey().cloned().unwrap_or(Value::Null))
             .collect();
         let query = relation.existence_query(&self.connection, self.table_name(), Some(keys))?;
-        self.query = self.query.whereExists(&query)?;
+        self.predicates
+            .raw(or, self.query.exists_expression(&query, false)?);
         Ok(self)
     }
 
@@ -391,7 +431,7 @@ impl<M: Model> Builder<'static, M> {
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
     ) -> DatabaseResult<Self> {
-        self.where_morph_identity(relation, identities, false)
+        self.where_morph_identity(relation, identities, false, false)
     }
 
     pub fn whereNotMorphedTo(
@@ -399,7 +439,23 @@ impl<M: Model> Builder<'static, M> {
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
     ) -> DatabaseResult<Self> {
-        self.where_morph_identity(relation, identities, true)
+        self.where_morph_identity(relation, identities, false, true)
+    }
+
+    pub fn orWhereMorphedTo(
+        self,
+        relation: &MorphTo<M>,
+        identities: &[MorphIdentity],
+    ) -> DatabaseResult<Self> {
+        self.where_morph_identity(relation, identities, true, false)
+    }
+
+    pub fn orWhereNotMorphedTo(
+        self,
+        relation: &MorphTo<M>,
+        identities: &[MorphIdentity],
+    ) -> DatabaseResult<Self> {
+        self.where_morph_identity(relation, identities, true, true)
     }
 
     /// Filters by a stored morph alias or by a null type.
@@ -415,6 +471,7 @@ impl<M: Model> Builder<'static, M> {
         mut self,
         relation: &MorphTo<M>,
         identities: &[MorphIdentity],
+        or: bool,
         negated: bool,
     ) -> DatabaseResult<Self> {
         if identities.is_empty() {
@@ -443,10 +500,11 @@ impl<M: Model> Builder<'static, M> {
                     })
                 })
         };
-        self.predicates = if negated {
-            self.predicates.whereNot(configure)
-        } else {
-            self.predicates.whereNested(configure)
+        self.predicates = match (or, negated) {
+            (false, false) => self.predicates.whereNested(configure),
+            (false, true) => self.predicates.whereNot(configure),
+            (true, false) => self.predicates.orWhereNested(configure),
+            (true, true) => self.predicates.orWhereNot(configure),
         };
         Ok(self)
     }

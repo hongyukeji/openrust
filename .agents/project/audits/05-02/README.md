@@ -160,3 +160,9 @@
 ## 独立补交复验
 
 以 05-01 本地提交 `e898b923` 为基线。关系、加载和集合独立通过 Rust 1.94.0 的格式、435 项锁定离线工作区测试、全目标严格 Clippy 和 Artisan inspire。实际 SQLite 与 MySQL 8.4 关系测试通过。转换及序列化断言归入 05-03。
+
+## 关系身份筛选的 OR 变体
+
+- 按固定 Laravel `QueriesRelationships` 补齐 `orWhereBelongsTo`、`orWhereAttachedTo`、`orWhereMorphedTo` 和 `orWhereNotMorphedTo`。Rust 继续显式传入类型化描述符。多态 `MorphToMany` 复用中间表存在查询并保留类型判别条件。存在谓词与调用方条件进入同一组，外层仍应用全局作用域和软删除筛选。参考固定 Goravel 的连接级查询。旧版 `v0.x` 有 Pivot 关联实现，未发现对应身份 OR 入口。 [Laravel 查询源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php) · [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#querying-relations)
+- SQLite 与独立 MySQL 8.4.13 通过真实 SQL 验证自定义所属键、普通条件与关系 OR 混用、正反多态身份、空外键、相同键的多态 Pivot 区分以及软删除过滤。05-02 仍需核对其余 Pivot 契约及关系加载差异。
+- Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。真实 `artisan inspire`、隔离三语构建与 18 项浏览器检查通过。

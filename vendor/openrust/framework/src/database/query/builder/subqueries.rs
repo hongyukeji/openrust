@@ -353,13 +353,19 @@ impl Builder<'_> {
         or: bool,
         negated: bool,
     ) -> DatabaseResult<Self> {
+        let expression = self.exists_expression(query, negated)?;
+        self.predicates.raw(or, expression);
+        Ok(self)
+    }
+
+    pub(in crate::database) fn exists_expression(
+        &self,
+        query: &Builder<'_>,
+        negated: bool,
+    ) -> DatabaseResult<Expression> {
         let query = self.subquery_expression(query)?;
         let operator = if negated { "not exists" } else { "exists" };
-        self.predicates.raw(
-            or,
-            Expression::new(format!("{operator} ({})", query.sql)).with_bindings(query.bindings),
-        );
-        Ok(self)
+        Ok(Expression::new(format!("{operator} ({})", query.sql)).with_bindings(query.bindings))
     }
 
     pub fn whereInSub(self, column: &str, query: &Builder<'_>) -> DatabaseResult<Self> {

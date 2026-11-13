@@ -131,6 +131,8 @@ pub async fn comments_with_existing_subject(connection: &Connection) -> Database
 
 Use `whereBelongsTo` with a typed relation and a slice of owners. It compares the foreign key against the configured owner key. Use `whereAttachedTo` to match rows linked through a many-to-many relationship. For a polymorphic relation, use `identity` to obtain a type and owner key pair, then pass one or more pairs to `whereMorphedTo` or `whereNotMorphedTo`. Use `whereMorphType` to filter by alias alone or pass `None` for an unset type.
 
+Use `orWhereBelongsTo`, `orWhereAttachedTo`, `orWhereMorphedTo`, or `orWhereNotMorphedTo` to add a relationship identity as an alternative to the preceding conditions. `whereAttachedTo` and `orWhereAttachedTo` also accept a `MorphToMany` descriptor and apply its intermediate-table discriminator. Global scopes and soft-delete filters still apply.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,

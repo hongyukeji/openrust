@@ -481,7 +481,7 @@ impl Conditions {
         );
     }
 
-    pub(super) fn raw(&mut self, or: bool, expression: Expression) {
+    pub(in crate::database) fn raw(&mut self, or: bool, expression: Expression) {
         self.push(or, Predicate::Raw(expression));
     }
 }

@@ -519,6 +519,29 @@ async fn verify_through_and_morph(
             .await
             .is_err()
     );
+    assert_eq!(
+        Post::queryOn(db)
+            .whereAttachedTo(&post_tags, std::slice::from_ref(author))
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        vec![1.into()]
+    );
+    let mut tagged = Post::queryOn(db);
+    tagged.r#where("id", "=", 2).orWhere("id", "=", 3);
+    assert_eq!(
+        tagged
+            .orWhereAttachedTo(&post_tags, std::slice::from_ref(author))
+            .unwrap()
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        vec![1.into(), 2.into()]
+    );
     let tags = post_tags
         .withPivot(["label"])
         .getResults(post)
@@ -626,14 +649,57 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
             .unwrap();
         assert_eq!(bodies(&matched), vec!["First".into()]);
 
+        let mut disjunction = Comment::queryOn(db);
+        disjunction.r#where("body", "=", "identity blank");
+        let found = disjunction
+            .orWhereMorphedTo(&relation, &[relation.identity("author", &author).unwrap()])
+            .unwrap()
+            .orderBy("body", "asc")
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(
+            bodies(&found),
+            vec![
+                "author profile".into(),
+                "identity author".into(),
+                "identity blank".into()
+            ]
+        );
+
+        let mut disjunction = Comment::queryOn(db);
+        disjunction.r#where("body", "=", "identity post");
+        let found = disjunction
+            .orWhereNotMorphedTo(&relation, &[relation.identity("post", &post).unwrap()])
+            .unwrap()
+            .get()
+            .await
+            .unwrap();
+        assert!(bodies(&found).contains(&"identity post".into()));
+        assert!(bodies(&found).contains(&"identity author".into()));
+        assert!(!bodies(&found).contains(&"identity null key".into()));
+
         let by_name = BelongsTo::<Comment, Author>::new("body", "name");
         let matched = Comment::queryOn(db)
-            .whereBelongsTo(&by_name, &[author])
+            .whereBelongsTo(&by_name, std::slice::from_ref(&author))
             .unwrap()
             .get()
             .await
             .unwrap();
         assert_eq!(bodies(&matched), vec!["First".into()]);
+        let mut disjunction = Comment::queryOn(db);
+        disjunction.r#where("body", "=", "identity blank");
+        let found = disjunction
+            .orWhereBelongsTo(&by_name, &[author])
+            .unwrap()
+            .orderBy("body", "asc")
+            .get()
+            .await
+            .unwrap();
+        assert_eq!(
+            bodies(&found),
+            vec!["First".into(), "identity blank".into()]
+        );
         FEATURED_POSTS.attach(&other, &[1.into()]).await.unwrap();
         let matched = Author::queryOn(db)
             .whereAttachedTo(&FEATURED_POSTS, &[post])

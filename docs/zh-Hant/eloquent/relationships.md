@@ -131,6 +131,8 @@ pub async fn comments_with_existing_subject(connection: &Connection) -> Database
 
 用 `whereBelongsTo` 傳入型別化關聯和所屬模型切片，依設定的所屬鍵比較外鍵。用 `whereAttachedTo` 查找透過多對多關聯連接的記錄。多型關聯可用 `identity` 取得型別和所屬鍵，再傳給 `whereMorphedTo` 或 `whereNotMorphedTo`。僅按別名篩選時用 `whereMorphType`，傳入 `None` 查找型別為空的記錄。
 
+用 `orWhereBelongsTo`、`orWhereAttachedTo`、`orWhereMorphedTo` 或 `orWhereNotMorphedTo` 將關聯身分作為前述條件的替代條件。`whereAttachedTo` 和 `orWhereAttachedTo` 也接受 `MorphToMany` 描述符，並套用中介資料表的多型型別條件。全域作用域與軟刪除篩選繼續生效。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
