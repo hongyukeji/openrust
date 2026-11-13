@@ -63,6 +63,20 @@ static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
 
 In an application request or command, use `Flight::query()?` for a model-aware builder, `Flight::all().await?` for all scoped models, or `Flight::find(id).await?` for one primary key. `findOrFail` returns `DatabaseError::ModelNotFound` for an absent model. Use `queryOn` to select an explicit database connection.
 
+### Refreshing models {#refreshing-models}
+
+`fresh()` reads a separate instance. `freshWithPaths(&["posts.comments"])` also preloads registered paths. `refresh()` updates the current instance and reloads its loaded registered relations. Both use the model’s original key and write connection, bypassing global scopes and including soft-deleted rows. An unsaved model yields `None` from `fresh()` and stays as it is after `refresh()`. For a missing database row, `refresh()` returns `ModelNotFound`. Register relationships in `namedRelations()` to allow `refresh()` to reload them. Intermediate Pivot projections are retained. If reloading a relationship fails, the current attributes contain the values just read and the original snapshot stays at its previous values.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+pub async fn reload<M: Model>(model: &mut M) -> DatabaseResult<Option<M>> {
+    let copy = model.fresh().await?;
+    model.refresh().await?;
+    Ok(copy)
+}
+```
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.

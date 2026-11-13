@@ -1,7 +1,7 @@
 use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{
-    Model, ModelState,
+    Builder, Model, ModelState,
     concerns::{
         has_events::{ModelEvent::*, fire_with_transaction},
         has_timestamps::timestamp,
@@ -75,7 +75,7 @@ fn persistence_table<M: Model>(model: &M) -> &'static str {
         .map_or(M::metadata().table, |identity| identity.table)
 }
 
-fn scoped_model<'a, M: Model>(
+pub(super) fn scoped_model<'a, M: Model>(
     model: &M,
     query: crate::database::query::Builder<'a>,
 ) -> DatabaseResult<crate::database::query::Builder<'a>> {
@@ -94,6 +94,36 @@ fn scoped_model<'a, M: Model>(
     } else {
         Ok(query.r#where(M::metadata().primary_key, "=", persisted_key(model)?))
     }
+}
+
+pub(super) fn reload_query<M: Model>(model: &M) -> DatabaseResult<Builder<'static, M>> {
+    let connection = connection(model)?;
+    let mut query = M::queryOn(&connection).withoutGlobalScopes().useWritePdo();
+    query.casts.clone_from(&model.state().casts);
+    query.for_persisted_model(model)
+}
+
+pub(super) async fn refresh<M: Model>(model: &mut M) -> DatabaseResult<&mut M> {
+    if !model.state().exists {
+        return Ok(model);
+    }
+
+    let loaded = reload_query(model)?
+        .first()
+        .await?
+        .ok_or(DatabaseError::ModelNotFound(model.getTable()))?;
+    let state = model.state_mut();
+    if let Some(link) = state.detached_autoload.take() {
+        state.relations = link.visible_relations(state, |_| true);
+    }
+    let names = state.relations.reloadable_names();
+    let paths: Vec<_> = names.iter().map(String::as_str).collect();
+    state.attributes = loaded.state().attributes.clone();
+    state.invalidate_value_objects();
+    model.loadPaths(&paths).await?;
+    let state = model.state_mut();
+    state.original.clone_from(&state.attributes);
+    Ok(model)
 }
 
 pub(super) async fn save<M: Model>(

@@ -1035,6 +1035,50 @@ async fn verify_path_constraints(db: &Connection) {
     );
 }
 
+async fn verify_model_reload_relations(db: &Connection, model: &Author) {
+    let fresh = model
+        .freshWithPaths(&["posts.comments"])
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(fresh.relationLoaded("posts"));
+    assert_eq!(fresh.getKey(), model.getKey());
+    let mut author = Author::queryOn(db)
+        .withPaths(&["posts"])
+        .unwrap()
+        .findOrFail(model.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    let before = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let cached = before[0].clone();
+    author.refresh().await.unwrap();
+    let after = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    assert!(!Arc::ptr_eq(&cached, &after[0]));
+
+    author.load("unregistered", &POSTS).await.unwrap();
+    let prior_name = author.getRawOriginal("name").unwrap().clone();
+    let key = author.getKey().unwrap().clone();
+    db.table("relation_authors")
+        .r#where("id", "=", key.clone())
+        .update(Attributes::from([(
+            "name".into(),
+            "Database reload".into(),
+        )]))
+        .await
+        .unwrap();
+    assert!(matches!(
+        author.refresh().await,
+        Err(DatabaseError::InvalidQuery("unknown relationship path"))
+    ));
+    assert_eq!(author.getAttribute("name"), Some(&"Database reload".into()));
+    assert_eq!(author.getRawOriginal("name"), Some(&prior_name));
+    db.table("relation_authors")
+        .r#where("id", "=", key)
+        .update(Attributes::from([("name".into(), prior_name)]))
+        .await
+        .unwrap();
+}
+
 async fn verify_named_paths(db: &Connection, mysql: bool) {
     assert!(matches!(
         Author::queryOn(db).withPaths(&["posts..comments"]),
@@ -1099,6 +1143,16 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(db).await - baseline, 4);
     }
+    let with_posts = authors
+        .iter()
+        .find(|author| {
+            !author
+                .getRelation::<Vec<Arc<Post>>>("posts")
+                .unwrap()
+                .is_empty()
+        })
+        .unwrap();
+    Box::pin(verify_model_reload_relations(db, with_posts)).await;
     let metadata_baseline = if mysql { select_count(db).await } else { 0 };
     assert_eq!(
         authors.getQueueableClass(),
@@ -3709,6 +3763,19 @@ async fn verify_inferred_pivot_touch(db: &Connection) {
     assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
 }
 
+async fn verify_pivot_reload(pivot: &Membership) {
+    let mut refreshed = Membership::from_state(pivot.state().clone());
+    let fresh = refreshed.fresh().await.unwrap().unwrap();
+    assert_eq!(fresh.getTable(), "relation_featured_posts");
+    assert_eq!(fresh.getAttributeValue("label").unwrap(), Some(20.into()));
+    refreshed.refresh().await.unwrap();
+    assert_eq!(
+        refreshed.getAttributeValue("label").unwrap(),
+        Some(20.into())
+    );
+    assert!(!refreshed.state().isDirty());
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -3904,6 +3971,7 @@ async fn verify_custom_pivot(config: Json) {
             .unwrap(),
         1
     );
+    Box::pin(verify_pivot_reload(pivot)).await;
     let report = relation.sync(&owner, &[]).await.unwrap();
     assert_eq!(report.detached, vec![1.into()]);
     assert_eq!(relation.detach(&owner, Some(&[2.into()])).await.unwrap(), 0);

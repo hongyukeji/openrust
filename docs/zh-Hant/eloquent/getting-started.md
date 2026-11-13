@@ -63,6 +63,20 @@ static ARTICLE: ModelMetadata = ModelMetadata::new("articles")
 
 在應用程式請求或指令中使用 `Flight::query()?` 取得模型查詢建構器，使用 `Flight::all().await?` 取得套用作用域後的模型集合，或用 `Flight::find(id).await?` 依主鍵查找。模型不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。可用 `queryOn` 指定資料庫連線。
 
+### 重新整理模型 {#refreshing-models}
+
+`fresh()` 重新讀取獨立實例，`freshWithPaths(&["posts.comments"])` 也能預先載入已登記的路徑。`refresh()` 更新目前的實例，並重新載入已載入的登記關聯。兩者都按原主鍵從寫入連線讀取，略過全域作用域並包含軟刪除記錄。未儲存的模型呼叫 `fresh()` 會得到 `None`，呼叫 `refresh()` 則維持原狀。資料庫記錄已移除時，`refresh()` 回傳 `ModelNotFound`。需要重新載入的關聯須在 `namedRelations()` 登記，中介資料表的 Pivot 投影會保留。重新載入關聯失敗時，目前的屬性保留剛讀取的值，原始快照維持先前的值。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+pub async fn reload<M: Model>(model: &mut M) -> DatabaseResult<Option<M>> {
+    let copy = model.fresh().await?;
+    model.refresh().await?;
+    Ok(copy)
+}
+```
+
 ## 插入和更新模型
 
 `create` 依批次賦值規則儲存新模型。`setAttribute` 設定單一屬性，`save` 以原主鍵寫入已變更的屬性。寫入成功後同步模型快照。建構器的 `update` 和 `delete` 回傳受影響列數。

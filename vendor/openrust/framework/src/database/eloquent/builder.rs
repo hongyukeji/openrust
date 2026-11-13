@@ -576,6 +576,14 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
+    pub(super) fn for_persisted_model(mut self, model: &M) -> DatabaseResult<Self> {
+        if let Some(identity) = model.state().pivot_identity {
+            self = self.for_pivot(identity);
+        }
+        self.query = super::persistence::scoped_model(model, self.query)?;
+        Ok(self)
+    }
+
     pub(super) fn alias_relation(mut self, alias: &str) -> Self {
         self.query = self
             .query

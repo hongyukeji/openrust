@@ -273,6 +273,32 @@ pub trait Model: Sized + Send + Sync + 'static {
         async move { Self::query()?.findOrFail(key).await }
     }
 
+    /// Reads a new instance from the write connection using the original model key.
+    fn fresh(&self) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send {
+        self.freshWithPaths(&[])
+    }
+
+    /// Reads a new instance and preloads the requested registered paths.
+    fn freshWithPaths<'a>(
+        &'a self,
+        paths: &'a [&'a str],
+    ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
+        async move {
+            if !self.state().exists {
+                return Ok(None);
+            }
+            persistence::reload_query(self)?
+                .withPaths(paths)?
+                .first()
+                .await
+        }
+    }
+
+    /// Reloads this instance and its loaded registered relationships.
+    fn refresh(&mut self) -> impl Future<Output = DatabaseResult<&mut Self>> + Send {
+        persistence::refresh(self)
+    }
+
     fn create(attributes: Attributes) -> impl Future<Output = DatabaseResult<Self>> + Send {
         async { Self::query()?.create(attributes).await }
     }

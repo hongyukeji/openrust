@@ -16,6 +16,7 @@ trait LoadedRelation: Send + Sync {
     fn value(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<Option<Json>>;
     fn queueable_paths(&self) -> Option<Vec<String>>;
+    fn reloadable(&self) -> bool;
 }
 
 struct LoadedValue<T> {
@@ -35,6 +36,9 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
 
     fn queueable_paths(&self) -> Option<Vec<String>> {
         self.queueable_paths.map(|paths| paths(&self.value))
+    }
+    fn reloadable(&self) -> bool {
+        self.queueable_paths.is_some()
     }
 }
 
@@ -79,6 +83,14 @@ impl LoadedRelations {
                 queueable_paths: Some(R::queueableRelations),
             }),
         );
+    }
+
+    pub(in crate::database::eloquent) fn reloadable_names(&self) -> Vec<String> {
+        self.values
+            .iter()
+            .filter(|(_, relation)| relation.reloadable())
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 
     pub(in crate::database::eloquent) fn queueable_paths(&self) -> Vec<String> {

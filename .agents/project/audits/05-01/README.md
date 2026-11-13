@@ -58,3 +58,11 @@
 - 对照固定 Laravel 的 `refreshSavedAttributes` 和生成列复制回归。Rust 通过 `ModelMetadata::refreshes` 声明回读列，沿用 `v0.x` 依主键及当前事务读取的思路。回读走写连接且不应用查询作用域，在 `Created`、`Updated` 和 `Saved` 之前合并属性。更新主键后用新键回读已写入行。复制排除这些列。回读失败向调用方返回错误，模型保留已写入状态。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#refreshing-attributes-after-writes) · [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentIntegrationTest.php)
 - SQLite 与独立 MySQL 8.4.13 实测生成列插入、显式事务更新、变更主键、写后事件、原始值与变更快照、复制重新生成、回读缺行错误。三语示例编译运行。
 - 以 `7511e70d` 干净源码加本批差异验收。Rust 1.94.0 格式、618 项工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。实际 Artisan 生成 `GeneratedArticle` 通过。隔离三语构建及 18 项浏览器检查通过。05-01 核心闭合。
+
+## 单模型刷新与关系重载
+
+按固定 Laravel 的 Refreshing Models 实现 `fresh()`、`freshWithPaths()` 和 `refresh()`。从模型的写连接按原身份无作用域回读，复用现行水合与 Retrieved 事件。普通模型使用原主键，Pivot 复用持久化的复合键和多态身份约束。原位刷新保留实例配置及 Pivot 投影，通过已登记的名称重载直接关系，成功后同步原始属性。读取失败保留旧状态，关系失败保留新属性及原始快照。参考 Goravel 的连接级 ORM，复用旧版 `fresh_with`、`refresh` 的职责划分和失败顺序。 [Laravel 模型源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentIntegrationTest.php) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#refreshing-models) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证原主键、全局作用域、软删除、新模型、数据库记录已删除、命名路径、缓存关系替换与复合键 Pivot 回读。锁定回读 `refreshForUpdate` 仍需接入当前事务 API 并验证锁的生命周期。
+
+工作区 620 项通过、8 项夹具忽略。最终差异通过双库模型与关系专项，额外验证未登记关系错误时保留新属性与旧快照。Rust 1.94 格式、全目标严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。

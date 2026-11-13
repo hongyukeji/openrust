@@ -1492,6 +1492,51 @@ async fn verify_query_casts(db: &Connection, key: Value) {
     );
 }
 
+async fn verify_model_reload(db: &Connection, model: &mut Article) {
+    let key = model.getKey().unwrap().clone();
+    db.table("articles")
+        .r#where("article_id", "=", key.clone())
+        .update(attrs([
+            ("title", "Read back".into()),
+            ("account", 99.into()),
+            ("deleted_at", "2026-01-01 00:00:00".into()),
+        ]))
+        .await
+        .unwrap();
+    assert!(
+        Article::queryOn(db)
+            .find(key.clone())
+            .await
+            .unwrap()
+            .is_none()
+    );
+    model.setAttribute("article_id", 9999);
+    model.setAttribute("title", "Local edit");
+    let fresh = model.fresh().await.unwrap().unwrap();
+    assert_eq!(fresh.getKey(), Some(&key));
+    assert_eq!(fresh.getAttribute("title"), Some(&"Read back".into()));
+    assert!(fresh.trashed());
+    assert_eq!(model.getAttribute("title"), Some(&"Local edit".into()));
+    assert_eq!(model.refresh().await.unwrap().getKey(), Some(&key));
+    assert!(!model.state().isDirty());
+    assert_eq!(model.getRawOriginal("title"), Some(&"Read back".into()));
+
+    db.table("articles")
+        .r#where("article_id", "=", key)
+        .delete()
+        .await
+        .unwrap();
+    assert!(model.fresh().await.unwrap().is_none());
+    assert!(matches!(
+        model.refresh().await,
+        Err(DatabaseError::ModelNotFound("articles"))
+    ));
+    assert_eq!(model.getAttribute("title"), Some(&"Read back".into()));
+    let mut unsaved = Article::newInstance(Attributes::new()).unwrap();
+    assert!(unsaved.fresh().await.unwrap().is_none());
+    assert!(!unsaved.refresh().await.unwrap().state().exists());
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.statement("DROP TABLE IF EXISTS articles", &[])
         .await
@@ -1629,6 +1674,7 @@ async fn verify(db: Connection, mysql: bool) {
     bulk.whereKey(other);
     assert_eq!(bulk.forceDelete().await.unwrap(), 1);
     assert_eq!(query().get().await.unwrap().len(), 1);
+    Box::pin(verify_model_reload(&db, &mut hydrated)).await;
     db.statement("DROP TABLE articles", &[]).await.unwrap();
 
     db.statement("DROP TABLE IF EXISTS labels", &[])
