@@ -47,6 +47,29 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         Self(self.0.withPivot(columns))
     }
 
+    #[must_use]
+    pub fn orderByPivot(self, column: &str, direction: &str) -> Self {
+        Self(self.0.orderByPivot(column, direction))
+    }
+
+    #[must_use]
+    pub fn orderByPivotDesc(self, column: &str) -> Self {
+        Self(self.0.orderByPivotDesc(column))
+    }
+
+    #[must_use]
+    pub fn withTimestamps(self) -> Self {
+        Self(self.0.withTimestamps())
+    }
+
+    pub fn withTimestampColumns(
+        self,
+        created: Option<&'static str>,
+        updated: Option<&'static str>,
+    ) -> DatabaseResult<Self> {
+        self.0.withTimestampColumns(created, updated).map(Self)
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     fn apply_pivot_predicate(

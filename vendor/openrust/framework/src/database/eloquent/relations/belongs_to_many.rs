@@ -6,7 +6,10 @@ use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, Model, ModelState,
-        concerns::{has_relationships::load_eager, queries_relationships::cast_existence},
+        concerns::{
+            has_relationships::load_eager, has_timestamps::timestamp,
+            queries_relationships::cast_existence,
+        },
     },
     query,
 };
@@ -24,6 +27,8 @@ pub struct BelongsToMany<P: Model, R: Model> {
     pivot_columns: Vec<&'static str>,
     pivot_accessor: &'static str,
     pivot_constraints: PivotConstraints,
+    pivot_orders: Vec<(String, String)>,
+    pivot_timestamps: Option<PivotTimestampColumns>,
 }
 
 /// Keys attached, detached, or updated by a pivot synchronization.
@@ -54,6 +59,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             pivot_columns: Vec::new(),
             pivot_accessor: "pivot",
             pivot_constraints: PivotConstraints::new(),
+            pivot_orders: Vec::new(),
+            pivot_timestamps: None,
         }
     }
 
@@ -91,6 +98,99 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     pub fn r#as(mut self, name: &'static str) -> Self {
         self.pivot_accessor = name;
         self
+    }
+
+    /// Orders related rows by a column of the intermediate table.
+    #[must_use]
+    pub fn orderByPivot(mut self, column: &str, direction: &str) -> Self {
+        let column = if column.contains('.') {
+            column.to_owned()
+        } else {
+            format!("{}.{column}", self.pivot.table)
+        };
+        self.pivot_orders.push((column, direction.into()));
+        self
+    }
+
+    #[must_use]
+    pub fn orderByPivotDesc(self, column: &str) -> Self {
+        self.orderByPivot(column, "desc")
+    }
+
+    /// Selects and maintains the parent's conventional timestamp columns on the pivot.
+    #[must_use]
+    pub fn withTimestamps(self) -> Self {
+        let (created, updated) = Self::default_timestamp_columns();
+        self.with_timestamp_columns((Some(created), Some(updated)))
+    }
+
+    /// Sets explicit timestamp columns. A `None` skips that column.
+    pub fn withTimestampColumns(
+        self,
+        created: Option<&'static str>,
+        updated: Option<&'static str>,
+    ) -> DatabaseResult<Self> {
+        let columns = Attributes::from_iter(
+            created
+                .into_iter()
+                .chain(updated)
+                .map(|column| (column.into(), Value::Null)),
+        );
+        if columns
+            .keys()
+            .any(|name| name.is_empty() || name.contains('.'))
+            || matches!((created, updated), (Some(a), Some(b)) if a.eq_ignore_ascii_case(b))
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "invalid pivot timestamp columns",
+            ));
+        }
+        self.validate_pivot_attributes(&columns)?;
+        Ok(self.with_timestamp_columns((created, updated)))
+    }
+
+    fn with_timestamp_columns(mut self, columns: PivotTimestampColumns) -> Self {
+        self.pivot_timestamps = Some(columns);
+        self
+    }
+
+    fn default_timestamp_columns() -> (&'static str, &'static str) {
+        let metadata = P::metadata();
+        (
+            metadata.created_at.unwrap_or("created_at"),
+            metadata.updated_at.unwrap_or("updated_at"),
+        )
+    }
+
+    fn timestamp_columns(&self) -> PivotTimestampColumns {
+        self.pivot_timestamps.unwrap_or_else(|| {
+            let (created, updated) = Self::default_timestamp_columns();
+            (
+                self.pivot_columns.contains(&created).then_some(created),
+                self.pivot_columns.contains(&updated).then_some(updated),
+            )
+        })
+    }
+
+    fn pivot_write_timestamps(
+        &self,
+        connection: &Connection,
+    ) -> DatabaseResult<PivotWriteTimestamps> {
+        let (created, updated) = self.timestamp_columns();
+        let mut insert = Attributes::new();
+        let mut update = Attributes::new();
+        if created.is_some() || updated.is_some() {
+            let now = timestamp(connection, P::metadata().date_format)?;
+            if let Some(column) = created {
+                insert.insert(column.into(), now.clone());
+            }
+            if let Some(column) = updated {
+                insert.insert(column.into(), now.clone());
+                update.insert(column.into(), now);
+            }
+            self.validate_pivot_attributes(&insert)?;
+        }
+        Ok(PivotWriteTimestamps { insert, update })
     }
 
     pivot_predicates!(apply_pivot_predicate);
@@ -133,16 +233,15 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.validate_pivot_attributes(&attributes)?;
         let owner = self.owner(parent)?;
         let keys = key_map(keys.iter().cloned())?;
+        let connection = self.keys.connection(parent)?;
+        let timestamps = self.pivot_write_timestamps(&connection)?;
         let mut rows = self.pivot.records(owner, keys.values());
         for row in &mut rows {
+            row.extend(timestamps.insert.clone());
             row.extend(self.pivot_constraints.defaults.clone());
             row.extend(attributes.clone());
         }
-        self.keys
-            .connection(parent)?
-            .table(self.pivot.table)
-            .insert(&rows)
-            .await?;
+        connection.table(self.pivot.table).insert(&rows).await?;
         Ok(())
     }
 
@@ -150,17 +249,23 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         &self,
         parent: &P,
         related: &Value,
-        attributes: Attributes,
+        mut attributes: Attributes,
     ) -> DatabaseResult<u64> {
         self.validate_pivot_attributes(&attributes)?;
         let owner = self.owner(parent)?;
         if dictionary_key(Some(related))?.is_none() {
             return Err(DatabaseError::InvalidQuery("pivot key is null"));
         }
-        if attributes.is_empty() {
+        let (_, updated) = self.timestamp_columns();
+        if attributes.is_empty() && updated.is_none() {
             return Ok(0);
         }
-        let query = self.keys.connection(parent)?.table(self.pivot.table);
+        let connection = self.keys.connection(parent)?;
+        if let Some(column) = updated {
+            attributes.retain(|name, _| !name.eq_ignore_ascii_case(column));
+            attributes.extend(self.pivot_write_timestamps(&connection)?.update);
+        }
+        let query = connection.table(self.pivot.table);
         self.pivot_constraints
             .apply(self.pivot.for_owner(query, owner))
             .r#where(self.pivot.related, "=", related.clone())
@@ -258,8 +363,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let desired = Arc::new(desired);
         let pivot = self.pivot;
         let constraints = Arc::new(self.pivot_constraints.clone());
-        self.keys
-            .connection(parent)?
+        let connection = self.keys.connection(parent)?;
+        let timestamps = Arc::new(self.pivot_write_timestamps(&connection)?);
+        connection
             .transaction(
                 move |transaction| {
                     Box::pin(sync_pivot(
@@ -268,6 +374,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         owner.clone(),
                         desired.clone(),
                         constraints.clone(),
+                        timestamps.clone(),
                         detach,
                     ))
                 },
@@ -292,11 +399,18 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let pivot_key = format!("{}.{}", self.pivot.table, self.pivot.related);
             let related_key = format!("{}.{}", R::metadata().table, self.keys.related);
             let related_columns = format!("{}.*", R::metadata().table);
-            let pivot_names: Vec<_> = [self.pivot.foreign, self.pivot.related]
+            let mut pivot_names: Vec<_> = [self.pivot.foreign, self.pivot.related]
                 .into_iter()
                 .chain(self.pivot.morph.map(|(kind, _)| kind))
                 .chain(self.pivot_columns.iter().copied())
                 .collect();
+            if let Some((created, updated)) = self.pivot_timestamps {
+                for column in created.into_iter().chain(updated) {
+                    if !pivot_names.contains(&column) {
+                        pivot_names.push(column);
+                    }
+                }
+            }
             let pivot_columns: Vec<_> = pivot_names
                 .iter()
                 .enumerate()
@@ -319,9 +433,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .scoped()?
                     .0
                     .join(self.pivot.table, &related_key, "=", &pivot_key);
-                let rows = self
+                let query = self
                     .pivot_constraints
-                    .apply(self.pivot.restrict_type(query, true))
+                    .apply(self.pivot.restrict_type(query, true));
+                let query = self
+                    .pivot_orders
+                    .iter()
+                    .fold(query, |query, (column, direction)| {
+                        query.orderBy(column, direction)
+                    });
+                let rows = query
                     .addSelect(pivot_columns.iter().map(String::as_str))
                     .get()
                     .await?;
@@ -433,6 +554,13 @@ impl PivotKeys {
     }
 }
 
+type PivotTimestampColumns = (Option<&'static str>, Option<&'static str>);
+
+struct PivotWriteTimestamps {
+    insert: Attributes,
+    update: Attributes,
+}
+
 type DesiredPivots = IndexMap<Vec<u8>, (Value, Attributes)>;
 
 async fn sync_pivot(
@@ -441,6 +569,7 @@ async fn sync_pivot(
     owner: Value,
     desired: Arc<DesiredPivots>,
     constraints: Arc<PivotConstraints>,
+    timestamps: Arc<PivotWriteTimestamps>,
     detach: bool,
 ) -> DatabaseResult<SyncChanges> {
     let query = transaction.table(pivot.table).select([pivot.related]);
@@ -475,6 +604,7 @@ async fn sync_pivot(
     for (normalized, (key, attributes)) in desired.iter() {
         if !current.contains_key(normalized) {
             let mut row = pivot.record(&owner, key);
+            row.extend(timestamps.insert.clone());
             row.extend(constraints.defaults.clone());
             row.extend(attributes.clone());
             inserts
@@ -483,6 +613,14 @@ async fn sync_pivot(
                 .push(row);
             changes.attached.push(key.clone());
         } else if !attributes.is_empty() {
+            let mut attributes = attributes.clone();
+            attributes.retain(|name, _| {
+                !timestamps
+                    .update
+                    .keys()
+                    .any(|column| name.eq_ignore_ascii_case(column))
+            });
+            attributes.extend(timestamps.update.clone());
             let query = transaction.table(pivot.table);
             let affected = constraints
                 .apply(pivot.for_owner(query, &owner))
@@ -494,7 +632,7 @@ async fn sync_pivot(
                             conditions.whereNullSafeEquals(column, value.clone())
                         })
                 })
-                .update(attributes.clone())
+                .update(attributes)
                 .await?;
             if affected > 0 {
                 changes.updated.push(key.clone());

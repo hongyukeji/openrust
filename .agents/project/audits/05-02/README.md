@@ -174,3 +174,11 @@
 SQLite 与独立 MySQL 8.4.13 使用实际模型和数据库验收惰性及预加载、存在性查询、`attach` 与 `sync` 的插入默认值、显式覆盖、作用域内更新和解除关联，以及 OR 与多态归属隔离。中间表排序、时间戳和自定义 Pivot 模型仍分别跟踪。
 
 Rust 1.94 格式、启用 Sanctum 的全工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离文档构建及 18 项浏览器检查通过。提交前额度 93%，磁盘 60 GiB。05-02 仍有未闭合项目，核心账本维持 25/66。
+
+## 中间表排序与时间戳
+
+按固定 Laravel 的 `orderByPivot`、`orderByPivotDesc`、`withTimestamps` 和中间表写入测试实现。参考固定 Goravel ORM 的连接级查询，复用 `v0.x` 通过父模型格式生成时间戳、插入时显式值优先、更新时刷新更新时间的行为。Rust 以无参 `withTimestamps()` 使用父模型列名和标准回退，以 `withTimestampColumns` 的两个 `Option` 显式指定或省略列。排序在相关模型加载查询中生效，存在查询和写操作无需排序。 [Laravel 排序文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#ordering-queries-via-intermediate-table-columns) · [固定 Laravel 关系测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentBelongsToManyTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测惰性加载倒序、预加载正序、多态加载、显式插入时间覆盖、直接更新和同步刷新更新时间、创建时间保留及自定义时间戳列。自定义 Pivot 模型、其专用转换和生命周期仍是后续范围。
+
+Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译及隔离构建、18 项浏览器检查通过。提交前额度 93%，磁盘可用 60 GiB。核心账本维持 25/66。

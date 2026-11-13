@@ -356,6 +356,22 @@ pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R
 }
 ```
 
+## Ordering by Intermediate Table Columns {#ordering-queries-via-intermediate-table-columns}
+
+Use `orderByPivot("position", "asc")` or `orderByPivotDesc("created_at")` to order related models by a pivot column. Ordering applies to lazy and eager loads, including polymorphic many-to-many relationships.
+
+Use `withTimestamps()` to select and maintain the pivot timestamps. Column names follow the parent model, with `created_at` and `updated_at` as fallbacks. Use `withTimestampColumns(Some("linked_at"), None)?` for a custom creation column with no update timestamp. Inserts initialize both configured columns and accept explicit values. Updating an existing link refreshes the update timestamp and preserves the creation timestamp unless the caller changes it explicitly.
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withTimestamps()
+        .orderByPivotDesc("created_at")
+}
+```
+
 ## Inserting and Updating Related Models
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.

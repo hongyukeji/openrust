@@ -543,6 +543,9 @@ async fn verify_through_and_morph(
         vec![1.into(), 2.into()]
     );
     let tags = post_tags
+        .withTimestampColumns(None, Some("linked_at"))
+        .unwrap()
+        .orderByPivotDesc("linked_at")
         .withPivot(["label"])
         .getResults(post)
         .await
@@ -550,6 +553,7 @@ async fn verify_through_and_morph(
     let pivot = tags[0].getRelation::<MorphPivot>("pivot").unwrap();
     assert_eq!(pivot.getAttribute("subject_type"), Some(&"post".into()));
     assert_eq!(pivot.getAttribute("label"), Some(&"post link".into()));
+    assert_eq!(pivot.getAttribute("linked_at"), Some(&Value::Null));
     let post_tags = MorphToMany::<Post, Author>::new(
         "relation_subject_tags",
         "subject_id",
@@ -1817,6 +1821,103 @@ async fn verify_pivot_constraints(
     assert_eq!(FEATURED_POSTS.detach(first, None).await.unwrap(), 1);
 }
 
+async fn verify_pivot_timestamps(db: &Connection, owner: &Author, first: &Value, second: &Value) {
+    const EARLIER: &str = "2000-01-01 00:00:00";
+    const LATER: &str = "2001-01-01 00:00:00";
+    let relation = FEATURED_POSTS
+        .withTimestamps()
+        .orderByPivotDesc("created_at");
+    for (key, value) in [(first, EARLIER), (second, LATER)] {
+        relation
+            .attachWith(
+                owner,
+                std::slice::from_ref(key),
+                Attributes::from([
+                    ("created_at".into(), value.into()),
+                    ("updated_at".into(), EARLIER.into()),
+                ]),
+            )
+            .await
+            .unwrap();
+    }
+    let posts = relation.getResults(owner).await.unwrap();
+    assert_eq!(posts[0].getKey(), Some(second));
+    let eager = Author::queryOn(db)
+        .with(
+            "ordered",
+            FEATURED_POSTS
+                .withTimestamps()
+                .orderByPivot("relation_featured_posts.created_at", "asc"),
+        )
+        .findOrFail(owner.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    let posts = eager.getRelation::<Vec<Arc<Post>>>("ordered").unwrap();
+    assert_eq!(posts[0].getKey(), Some(first));
+    assert_eq!(
+        relation
+            .updateExistingPivot(owner, first, Attributes::new())
+            .await
+            .unwrap(),
+        1
+    );
+    let report = relation
+        .syncWithPivotAttributes(
+            owner,
+            &[(
+                second.clone(),
+                Attributes::from([
+                    ("label".into(), "changed".into()),
+                    ("updated_at".into(), EARLIER.into()),
+                ]),
+            )],
+            false,
+        )
+        .await
+        .unwrap();
+    assert_eq!(report.updated, vec![second.clone()]);
+    let posts = relation.getResults(owner).await.unwrap();
+    for (post, expected) in posts.iter().zip([LATER, EARLIER]) {
+        let pivot = post.getRelation::<Pivot>("pivot").unwrap();
+        assert_eq!(pivot.getAttribute("created_at"), Some(&expected.into()));
+        assert!(
+            matches!(pivot.getAttribute("updated_at"), Some(Value::Text(value)) if value.as_str() > LATER)
+        );
+    }
+    assert_eq!(relation.detach(owner, None).await.unwrap(), 2);
+    relation
+        .attach(owner, std::slice::from_ref(first))
+        .await
+        .unwrap();
+    let posts = relation.getResults(owner).await.unwrap();
+    let pivot = posts[0].getRelation::<Pivot>("pivot").unwrap();
+    let created = pivot.getAttribute("created_at");
+    assert!(matches!(created, Some(Value::Text(value)) if value.as_str() > LATER));
+    assert_eq!(created, pivot.getAttribute("updated_at"));
+    assert_eq!(relation.detach(owner, None).await.unwrap(), 1);
+
+    let custom = FEATURED_POSTS
+        .withTimestampColumns(None, Some("linked_at"))
+        .unwrap();
+    assert!(
+        FEATURED_POSTS
+            .withTimestampColumns(Some("author_id"), None)
+            .is_err()
+    );
+    let report = custom
+        .syncWithoutDetaching(owner, std::slice::from_ref(first))
+        .await
+        .unwrap();
+    assert_eq!(report.attached, vec![first.clone()]);
+    let posts = custom.getResults(owner).await.unwrap();
+    let pivot = posts[0].getRelation::<Pivot>("pivot").unwrap();
+    assert!(
+        matches!(pivot.getAttribute("linked_at"), Some(Value::Text(value)) if value.as_str() > LATER)
+    );
+    assert_eq!(pivot.getAttribute("created_at"), None);
+    assert_eq!(custom.detach(owner, None).await.unwrap(), 1);
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
@@ -1833,9 +1934,9 @@ async fn verify(db: Connection, mysql: bool) {
     .await
     .unwrap();
     db.statement(&format!("CREATE TABLE relation_posts (id {id}, author_id BIGINT REFERENCES relation_authors(id), title VARCHAR(80) NOT NULL, score BIGINT DEFAULT 0, deleted_at DATETIME)"), &[]).await.unwrap();
-    db.statement("CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (author_id, post_id), FOREIGN KEY (author_id) REFERENCES relation_authors(id), FOREIGN KEY (post_id) REFERENCES relation_posts(id))", &[]).await.unwrap();
+    db.statement("CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), created_at VARCHAR(32), updated_at VARCHAR(32), linked_at VARCHAR(32), PRIMARY KEY (author_id, post_id), FOREIGN KEY (author_id) REFERENCES relation_authors(id), FOREIGN KEY (post_id) REFERENCES relation_posts(id))", &[]).await.unwrap();
     db.statement(&format!("CREATE TABLE relation_comments (id {id}, post_id BIGINT, subject_id BIGINT, subject_type VARCHAR(80), body VARCHAR(80), deleted_at DATETIME)"), &[]).await.unwrap();
-    db.statement("CREATE TABLE relation_subject_tags (subject_type VARCHAR(80) NOT NULL, subject_id BIGINT NOT NULL, tag_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (subject_type, subject_id, tag_id), FOREIGN KEY (tag_id) REFERENCES relation_authors(id))", &[]).await.unwrap();
+    db.statement("CREATE TABLE relation_subject_tags (subject_type VARCHAR(80) NOT NULL, subject_id BIGINT NOT NULL, tag_id BIGINT NOT NULL, label VARCHAR(80), linked_at VARCHAR(32), PRIMARY KEY (subject_type, subject_id, tag_id), FOREIGN KEY (tag_id) REFERENCES relation_authors(id))", &[]).await.unwrap();
     let author =
         |name: &str| Author::queryOn(&db).create(Attributes::from([("name".into(), name.into())]));
     let first = author("First").await.unwrap();
@@ -2443,6 +2544,13 @@ async fn verify(db: Connection, mysql: bool) {
     assert!(FEATURED_POSTS.getResults(&first).await.unwrap().is_empty());
     assert_eq!(FEATURED_POSTS.getResults(&second).await.unwrap().len(), 1);
     Box::pin(verify_pivot_constraints(
+        &db,
+        &first,
+        &first_key,
+        &second_key,
+    ))
+    .await;
+    Box::pin(verify_pivot_timestamps(
         &db,
         &first,
         &first_key,

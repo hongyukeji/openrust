@@ -356,6 +356,22 @@ pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R
 }
 ```
 
+## 按中间表列排序 {#ordering-queries-via-intermediate-table-columns}
+
+使用 `orderByPivot("position", "asc")` 或 `orderByPivotDesc("created_at")` 按中间表列排列关联模型。惰性加载和预加载都支持此排序，包括多态多对多关系。
+
+使用 `withTimestamps()` 读取并维护中间表时间戳。列名沿用父模型，缺省为 `created_at` 和 `updated_at`。用 `withTimestampColumns(Some("linked_at"), None)?` 指定自定义创建列并省略更新列。插入会填充配置的时间戳列，显式值优先。更新已有关系时自动刷新更新时间，创建时间仅在调用方显式修改时改变。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withTimestamps()
+        .orderByPivotDesc("created_at")
+}
+```
+
 ## 新建和更新关联模型
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。

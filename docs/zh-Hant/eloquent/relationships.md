@@ -356,6 +356,22 @@ pub fn approved_roles<U: Model, R: Model>() -> DatabaseResult<BelongsToMany<U, R
 }
 ```
 
+## 依中介資料表欄位排序 {#ordering-queries-via-intermediate-table-columns}
+
+使用 `orderByPivot("position", "asc")` 或 `orderByPivotDesc("created_at")` 依中介資料表欄位排列關聯模型。延遲載入和預先載入皆支援此排序，包括多型多對多關聯。
+
+使用 `withTimestamps()` 讀取並維護中介資料表時間戳記。欄位名稱沿用父模型，預設為 `created_at` 和 `updated_at`。使用 `withTimestampColumns(Some("linked_at"), None)?` 指定自訂建立欄位並省略更新欄位。插入會填入設定的時間戳記欄位，明確指定的值優先。更新既有關聯時會刷新更新時間，建立時間只在呼叫方明確修改時改變。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .withTimestamps()
+        .orderByPivotDesc("created_at")
+}
+```
+
 ## 建立和更新關聯模型
 
 `HasMany::create` 和 `save` 在儲存前填入關聯模型外鍵。`BelongsTo::associate` 和 `dissociate` 修改子模型的記憶體狀態。呼叫子模型的 `save` 持久化修改。
