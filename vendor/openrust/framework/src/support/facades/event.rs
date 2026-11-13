@@ -58,6 +58,14 @@ impl Event {
             .await
     }
 
+    /// Delivers selected events after the callback succeeds.
+    pub async fn defer<T>(
+        names: Option<&[&str]>,
+        callback: impl Future<Output = EventResult<T>>,
+    ) -> EventResult<T> {
+        Self::dispatcher()?.defer(names, callback).await
+    }
+
     pub async fn dispatchInTransaction(
         event: impl Payload,
         transaction: &mut crate::database::Transaction,

@@ -37,6 +37,23 @@ struct BroadcastRegistration {
     immediate: bool,
 }
 
+struct DeferredEvents {
+    dispatcher: Arc<RwLock<Registrations>>,
+    names: Option<HashSet<String>>,
+    events: std::cell::RefCell<Vec<DeferredEvent>>,
+}
+
+struct DeferredEvent {
+    event: Arc<dyn Event>,
+    halt: bool,
+    after_commit: bool,
+    socket: Option<String>,
+}
+
+tokio::task_local! {
+    static DEFERRED_EVENTS: Option<DeferredEvents>;
+}
+
 /// Registers and dispatches events to listeners in one application.
 #[derive(Clone, Default)]
 pub struct Dispatcher {
@@ -126,6 +143,47 @@ impl Dispatcher {
         self.read().listeners.listing()
     }
 
+    /// Delivers selected events in order after the callback succeeds.
+    pub async fn defer<T>(
+        &self,
+        names: Option<&[&str]>,
+        callback: impl Future<Output = EventResult<T>>,
+    ) -> EventResult<T> {
+        let (scope, result) = DEFERRED_EVENTS
+            .scope(
+                Some(DeferredEvents {
+                    dispatcher: self.registrations.clone(),
+                    names: names.map(|names| names.iter().map(|name| (*name).into()).collect()),
+                    events: Default::default(),
+                }),
+                async {
+                    let result = callback.await;
+                    let events = DEFERRED_EVENTS.with(|scope| {
+                        std::mem::take(&mut *scope.as_ref().unwrap().events.borrow_mut())
+                    });
+                    (events, result)
+                },
+            )
+            .await;
+        let result = result?;
+        DEFERRED_EVENTS
+            .scope(None, async {
+                for deferred in scope {
+                    let mut context = EventContext::new();
+                    context.socket = deferred.socket;
+                    self.dispatch_event(
+                        deferred.event,
+                        &mut context,
+                        deferred.halt,
+                        deferred.after_commit,
+                    )
+                    .await?;
+                }
+                Ok(result)
+            })
+            .await
+    }
+
     pub async fn dispatchAfterCommit(
         &self,
         event: impl ShouldDispatchAfterCommit,
@@ -150,6 +208,31 @@ impl Dispatcher {
         halt: bool,
         always_defer: bool,
     ) -> EventResult<DispatchResult> {
+        if context.active_transaction().is_none()
+            && DEFERRED_EVENTS
+                .try_with(|scope| {
+                    scope.as_ref().is_some_and(|scope| {
+                        if !Arc::ptr_eq(&scope.dispatcher, &self.registrations)
+                            || scope
+                                .names
+                                .as_ref()
+                                .is_some_and(|names| !names.contains(event.name()))
+                        {
+                            return false;
+                        }
+                        scope.events.borrow_mut().push(DeferredEvent {
+                            event: event.clone(),
+                            halt,
+                            after_commit: always_defer,
+                            socket: context.socket.clone(),
+                        });
+                        true
+                    })
+                })
+                .unwrap_or(false)
+        {
+            return Ok(DispatchResult::Deferred);
+        }
         let (fake, after_commit) = {
             let registrations = self.read();
             (

@@ -75,6 +75,10 @@ Call `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?` or disp
 
 Pass the active transaction to `Event::dispatchInTransaction`. Use `Delivery::AfterCommit` for a single listener, or implement `ShouldDispatchAfterCommit` and call `Event::dispatchAfterCommit` to defer the entire event. A successful savepoint keeps its callbacks for the outer commit. Rolling back discards callbacks from the affected scope. Without an active transaction the listener runs immediately. A callback error after commit is reported as `DatabaseError::AfterCommit`.
 
+## Deferring events {#deferring-events}
+
+Use `Event::defer(None, async { … })` to collect events and deliver them in order when the callback returns `Ok`. Pass `Some(&["orders.created"])` to defer selected event names. Returning an error discards pending events. The scope belongs to the current async task and application. For dispatch with an explicitly supplied database transaction, use the transaction APIs above.
+
 ## Testing {#testing}
 
 `TestApp::fakeEvents` records selected dispatches in the fixture. Inside an active application scope you can also use `Event::fake`. Use an empty slice to select every event. Pass exact event names to limit the fake, or call `except` to let selected events reach their listeners.

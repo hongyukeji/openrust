@@ -215,10 +215,44 @@ fn isolated(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn deferred(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        Event::defer(Some(&["order.whole"]), async {
+            assert!(matches!(
+                Event::dispatch(Notice::new("order.whole", "first", &observed)).await?,
+                DispatchResult::Deferred
+            ));
+            Event::dispatch(Notice::new("order.answer", "immediate", &observed)).await?;
+            assert_eq!(
+                *observed.lock().unwrap(),
+                ["answer:immediate", "skipped:immediate", "wild:immediate"]
+            );
+            Event::defer(None, async {
+                Event::dispatch(Notice::new("order.whole", "nested", &observed)).await?;
+                Ok(())
+            })
+            .await?;
+            Event::dispatch(Notice::new("order.whole", "last", &observed)).await?;
+            Ok(())
+        })
+        .await?;
+        let failure: EventResult<()> = Event::defer(None, async {
+            Event::dispatch(Notice::new("order.whole", "discarded", &observed)).await?;
+            Err(EventError::InvalidPayload)
+        })
+        .await;
+        assert!(matches!(failure, Err(EventError::InvalidPayload)));
+        let result = observed.lock().unwrap().clone();
+        Response::json(StatusCode::OK, result)
+    })
+}
+
 fn routing(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/events", run)?;
     router.get("/isolated", isolated)?;
+    router.get("/deferred", deferred)?;
     Ok(router)
 }
 
@@ -309,6 +343,20 @@ async fn verify(connection: Json) {
         ])
     );
     assert_eq!(other, json!([]));
+    assert_eq!(
+        request(address, "/deferred").await,
+        json!([
+            "answer:immediate",
+            "skipped:immediate",
+            "wild:immediate",
+            "whole:nested",
+            "wild:nested",
+            "whole:first",
+            "wild:first",
+            "whole:last",
+            "wild:last"
+        ])
+    );
 
     let result = db
         .transaction(
