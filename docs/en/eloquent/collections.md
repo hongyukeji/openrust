@@ -174,7 +174,7 @@ pub fn label_with_columns<M: Model>(
 
 Use these methods to inspect the compiled model type, primary keys, database connection name, and loaded relationship paths. Keys keep the collection order and duplicates. The relationship list contains only paths loaded on every model and is independent of JSON visibility. Reading this metadata issues no queries. An empty collection has no class or connection. Mixing connection names returns an error.
 
-The class name is for diagnostics. Queue jobs use a compiled registration and explicit JSON payload fields. These methods do not capture or restore job arguments automatically.
+For dispatch and restoration, see [queued model relationships](../digging-deeper/queues.md#queued-model-relationships).
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};

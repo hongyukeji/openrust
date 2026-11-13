@@ -21,7 +21,13 @@ use openrust::{
         http::Kernel as _,
         queue::{Interruptible, JobHandler},
     },
-    database::{DB, DatabaseManager, Value},
+    database::{
+        Connection, DB, DatabaseError, DatabaseManager, Value,
+        eloquent::{
+            Collection, Model, ModelCollectionIdentifier, ModelIdentifier, ModelMetadata,
+            ModelState, NamedRelations, relations::HasMany,
+        },
+    },
     events::{
         Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerRegistry,
         ListenerResponse, QueuedListenerOptions,
@@ -91,6 +97,88 @@ impl JobMiddleware for Tag {
             assert!(Context::get("middleware").map_err(execution)?.is_none());
             Context::add("middleware", json!("tagged")).map_err(execution)?;
             next.run(context, payload).await
+        })
+    }
+}
+
+struct QueuedModel(ModelState);
+
+impl Model for QueuedModel {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata =
+            ModelMetadata::new("queued_models").softDeletes("deleted_at");
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default()
+            .nested("children", || HasMany::<Self, Self>::new("id", "parent_id"))
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct ModelJob {
+    single: ModelIdentifier<QueuedModel>,
+    omitted: ModelIdentifier<QueuedModel>,
+    missing: ModelIdentifier<QueuedModel>,
+    collection: ModelCollectionIdentifier<QueuedModel>,
+}
+
+struct RestoreModels;
+
+impl JobHandler for RestoreModels {
+    fn handle<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let job: ModelJob = serde_json::from_value(payload.data().clone())
+                .map_err(|_| QueueError::InvalidPayload)?;
+            let restored = job.single.restore().await.map_err(execution)?;
+            assert_eq!(restored.getConnectionName(), Some("models"));
+            assert_eq!(restored.getAttribute("label"), Some(&"updated".into()));
+            assert_eq!(
+                restored
+                    .getRelation::<Vec<Arc<QueuedModel>>>("children")
+                    .unwrap()
+                    .len(),
+                2
+            );
+            let omitted = job.omitted.restore().await.map_err(execution)?;
+            assert!(!omitted.relationLoaded("children"));
+            assert!(matches!(
+                job.missing.restore().await,
+                Err(DatabaseError::ModelNotFound("queued_models"))
+            ));
+            let collection = job.collection.restore().await.map_err(execution)?;
+            assert_eq!(collection.modelKeys(), [2.into(), 1.into(), 2.into()]);
+            assert!(
+                collection
+                    .iter()
+                    .all(|model| model.relationLoaded("children"))
+            );
+            let connection = DB::connection(None).map_err(execution)?;
+            connection
+                .statement(
+                    "INSERT INTO receipts (name, value) VALUES ('restored-models', 1)",
+                    &[],
+                )
+                .await
+                .map_err(execution)?;
+            Ok(())
         })
     }
 }
@@ -818,6 +906,7 @@ impl ServiceProvider for Providers {
             if std::env::var_os("QUEUE_WORKER_DISABLE_POLLING").is_some() {
                 Queue::withoutInterruptionPolling()?;
             }
+            Queue::register("restore-models", Arc::new(RestoreModels))?;
             Queue::starting(control_hook)?;
             Queue::stopping(control_hook)?;
             if std::env::var_os("QUEUE_WORKER_VETO").is_some() {
@@ -1273,6 +1362,132 @@ impl Drop for TempRoot {
     }
 }
 
+async fn verify_model_restoration(root: &Path, app: &Application, db: &Connection) {
+    let models = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(Some("models"))
+        .unwrap();
+    let mut schema = models.getSchemaBuilder();
+    schema.dropIfExists("queued_models").await.unwrap();
+    schema
+        .create("queued_models", |table| {
+            table.bigInteger("id").primary();
+            table.bigInteger("parent_id").nullable();
+            table.string("label", 80);
+            table.timestamp("deleted_at", 0).nullable();
+        })
+        .await
+        .unwrap();
+    models.statement(
+        "INSERT INTO queued_models (id, parent_id, label) VALUES (1,NULL,'original'), (2,NULL,'other'), (3,NULL,'missing'), (4,1,'child')",
+        &[],
+    ).await.unwrap();
+    if root.join("models-reader.sqlite").is_file() {
+        let reader = app
+            .container()
+            .make::<DatabaseManager>()
+            .unwrap()
+            .connection(Some("models::read"))
+            .unwrap();
+        reader.statement(
+            "CREATE TABLE IF NOT EXISTS queued_models (id BIGINT PRIMARY KEY, parent_id BIGINT, label VARCHAR(80), deleted_at DATETIME)",
+            &[],
+        ).await.unwrap();
+        reader.statement(
+            "INSERT INTO queued_models (id, parent_id, label) VALUES (1,NULL,'original'), (2,NULL,'other'), (3,NULL,'missing'), (4,1,'child')",
+            &[],
+        ).await.unwrap();
+    }
+    let captured = QueuedModel::queryOn(&models)
+        .withPaths(&["children"])
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    let single = captured.findOrFail(&1.into()).unwrap();
+    let missing = captured.findOrFail(&3.into()).unwrap();
+    let ordered = [2, 3, 1, 2].map(|id| {
+        QueuedModel::from_state(captured.findOrFail(&id.into()).unwrap().state().clone())
+    });
+    let payload = Payload::new(
+        "restore-models",
+        ModelJob {
+            single: ModelIdentifier::capture(single).unwrap(),
+            omitted: ModelIdentifier::capture(single).unwrap().withoutRelations(),
+            missing: ModelIdentifier::capture(missing).unwrap(),
+            collection: ModelCollectionIdentifier::capture(&Collection::new(Vec::from(ordered)))
+                .unwrap(),
+        },
+    )
+    .unwrap();
+    assert!(!payload.data().to_string().contains("original"));
+    app.container()
+        .make::<QueueManager>()
+        .unwrap()
+        .dispatch(
+            payload,
+            DispatchOptions {
+                queue: Some("model-restoration".into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    models.statement("UPDATE queued_models SET label = 'updated', deleted_at = '2026-01-01 00:00:00' WHERE id = 1", &[]).await.unwrap();
+    models
+        .statement("DELETE FROM queued_models WHERE id = 3", &[])
+        .await
+        .unwrap();
+    models
+        .statement(
+            "INSERT INTO queued_models (id, parent_id, label) VALUES (5,1,'new child')",
+            &[],
+        )
+        .await
+        .unwrap();
+    if root.join("models-reader.sqlite").is_file() {
+        let reader = app
+            .container()
+            .make::<DatabaseManager>()
+            .unwrap()
+            .connection(Some("models::read"))
+            .unwrap();
+        reader
+            .statement("UPDATE queued_models SET label = 'stale' WHERE id = 1", &[])
+            .await
+            .unwrap();
+        reader
+            .statement(
+                "INSERT INTO queued_models (id, parent_id, label) VALUES (5,1,'new child')",
+                &[],
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            QueuedModel::queryOn(&reader)
+                .findOrFail(1)
+                .await
+                .unwrap()
+                .getAttribute("label"),
+            Some(&"stale".into())
+        );
+    }
+    run(root, &["queue:work", "--queue=model-restoration", "--once"]).await;
+    assert_eq!(
+        db.scalar(
+            "SELECT value FROM receipts WHERE name = 'restored-models'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        1.into()
+    );
+    schema.dropIfExists("queued_models").await.unwrap();
+}
+
 async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     let id = format!("{:016x}", fastrand::u64(..));
     let root = TempRoot(std::env::temp_dir().join(format!("openrust-worker-{id}")));
@@ -1283,9 +1498,17 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         || json!({"driver":"sqlite", "database":"fixture.sqlite"}),
         |url| json!({"url":url}),
     );
+    let model_config = mysql.map_or_else(
+        || {
+            std::fs::File::create(root.0.join("models.sqlite")).unwrap();
+            std::fs::File::create(root.0.join("models-reader.sqlite")).unwrap();
+            json!({"driver":"sqlite", "database":"models.sqlite", "read":{"database":"models-reader.sqlite"}})
+        },
+        |url| json!({"url":url}),
+    );
     let config = json!({
         "database": {
-            "default": "worker", "connections": {"worker":db_config},
+            "default": "worker", "connections": {"worker":db_config, "models":model_config},
             "redis": {"options":{"prefix":format!("openrust-worker:{id}:")}, "default":{"port":redis.unwrap_or(6379)}}
         },
         "cache": {"default":if redis.is_some() {"redis"} else {"file"},"stores":{"redis":{"driver":"redis"},"file":{"driver":"file","path":"control-cache"}}},
@@ -1341,6 +1564,9 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         })
         .await
         .unwrap();
+    if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
+        verify_model_restoration(&root.0, &app, &db).await;
+    }
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

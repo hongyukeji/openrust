@@ -174,7 +174,7 @@ pub fn label_with_columns<M: Model>(
 
 可以讀取編譯時確定的模型型別、主鍵、資料庫連線名稱和已載入的關聯路徑。主鍵保留集合順序和重複項目。關聯清單只包含每個模型都已載入的路徑，獨立於 JSON 可見性設定。讀取中繼資料不會執行查詢。空集合沒有模型型別和連線名稱，混用連線名稱會傳回錯誤。
 
-型別名稱用於診斷。佇列任務使用編譯註冊和明確的 JSON 承載欄位。這些方法不會自動擷取或還原任務引數。
+派送與還原範例見[佇列模型關聯](../digging-deeper/queues.md#queued-model-relationships)。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};

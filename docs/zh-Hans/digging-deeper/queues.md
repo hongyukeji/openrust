@@ -66,6 +66,38 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+### 队列模型关系 {#queued-model-relationships}
+
+单个模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任务的 Serde 字段中声明模型类型，将标识写入 `Payload`。JSON 保存带类型的键、数据库连接名和已加载的关系路径。在已注册的处理器中调用 `restore`。模型查询走写连接、跳过全局作用域，然后补加载已登记的关系。用 `Model::namedRelations` 登记这些路径。派发前的关系查询约束不会保留。
+
+用 `withoutRelations` 省略已捕获的关系路径，模型的默认关系仍会加载。单个模型缺失时返回 `DatabaseError::ModelNotFound`，由处理器决定如何处理。集合跳过缺失行，保留载荷中的顺序和重复键。
+
+模型类型由编译时的处理器确定。队列继续使用现有 JSON 格式，由 Rust 类型解析模型。
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model, ModelCollectionIdentifier},
+    queue::{Payload, QueueError, QueueResult},
+};
+
+pub fn report_payload<M: Model>(models: &Collection<M>) -> QueueResult<Payload> {
+    let ids = ModelCollectionIdentifier::capture(models).map_err(execution)?;
+    Payload::new("reports.generate", ids)
+}
+
+pub async fn restore_report_models<M: Model>(
+    payload: &Payload,
+) -> QueueResult<Collection<M>> {
+    let ids: ModelCollectionIdentifier<M> = serde_json::from_value(payload.data().clone())
+        .map_err(|_| QueueError::InvalidPayload)?;
+    ids.restore().await.map_err(execution)
+}
+
+fn execution(source: openrust::database::DatabaseError) -> QueueError {
+    QueueError::Execution { source: Box::new(source) }
+}
+```
+
 ## Bus 派发 {#bus-dispatch}
 
 用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派发已登记的队列任务。`dispatchSync` 使用同步队列，保留任务中间件和事件。`dispatchNow` 在当前进程经应用的 `pipeThrough` 管道调用已登记处理器。`bulk` 接收载荷与选项对，按顺序返回结果，遇到第一个错误即停止。用 `Bus::map` 登记处理器，用 `hasCommandHandler` 或 `getCommandHandler` 查询。

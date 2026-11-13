@@ -66,6 +66,38 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+### 佇列模型關聯 {#queued-model-relationships}
+
+單一模型用 `ModelIdentifier::capture`，集合用 `ModelCollectionIdentifier::capture`。在任務的 Serde 欄位宣告模型型別，將識別資料寫入 `Payload`。JSON 保存帶型別的鍵、資料庫連線名稱和已載入的關聯路徑。在已註冊的處理器呼叫 `restore`。模型查詢走寫入連線、略過全域作用域，再補載已登記的關聯。用 `Model::namedRelations` 登記這些路徑。派送前的關聯查詢條件不會保留。
+
+用 `withoutRelations` 省略擷取的關聯路徑，模型的預設關聯仍會載入。單一模型缺失時傳回 `DatabaseError::ModelNotFound`，由處理器決定如何處理。集合略過缺失資料列，保留承載資料中的順序和重複鍵。
+
+模型型別由編譯時的處理器決定。佇列沿用既有 JSON 格式，由 Rust 型別解析模型。
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model, ModelCollectionIdentifier},
+    queue::{Payload, QueueError, QueueResult},
+};
+
+pub fn report_payload<M: Model>(models: &Collection<M>) -> QueueResult<Payload> {
+    let ids = ModelCollectionIdentifier::capture(models).map_err(execution)?;
+    Payload::new("reports.generate", ids)
+}
+
+pub async fn restore_report_models<M: Model>(
+    payload: &Payload,
+) -> QueueResult<Collection<M>> {
+    let ids: ModelCollectionIdentifier<M> = serde_json::from_value(payload.data().clone())
+        .map_err(|_| QueueError::InvalidPayload)?;
+    ids.restore().await.map_err(execution)
+}
+
+fn execution(source: openrust::database::DatabaseError) -> QueueError {
+    QueueError::Execution { source: Box::new(source) }
+}
+```
+
 ## Bus 派送 {#bus-dispatch}
 
 用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipeThrough` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。

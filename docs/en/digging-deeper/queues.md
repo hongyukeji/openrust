@@ -66,6 +66,38 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+### Queued model relationships {#queued-model-relationships}
+
+Use `ModelIdentifier::capture` for one model or `ModelCollectionIdentifier::capture` for a collection. Declare the model type in the job’s Serde fields and store the identifiers in `Payload`. The JSON stores typed keys, the database connection name and loaded relation paths. Call `restore` inside the registered handler. The model query uses the write connection, bypasses global scopes, and then loads missing named relations. Declare those paths with `Model::namedRelations`. Previous relationship filters are not preserved.
+
+`withoutRelations` omits captured paths. Model defaults still apply. A missing single model returns `DatabaseError::ModelNotFound`. A collection skips missing rows and preserves payload order and duplicate keys. The handler decides how to handle a missing single model.
+
+The model type comes from the compiled handler’s Rust type. This keeps the existing JSON job format and avoids resolving a class name from the payload.
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model, ModelCollectionIdentifier},
+    queue::{Payload, QueueError, QueueResult},
+};
+
+pub fn report_payload<M: Model>(models: &Collection<M>) -> QueueResult<Payload> {
+    let ids = ModelCollectionIdentifier::capture(models).map_err(execution)?;
+    Payload::new("reports.generate", ids)
+}
+
+pub async fn restore_report_models<M: Model>(
+    payload: &Payload,
+) -> QueueResult<Collection<M>> {
+    let ids: ModelCollectionIdentifier<M> = serde_json::from_value(payload.data().clone())
+        .map_err(|_| QueueError::InvalidPayload)?;
+    ids.restore().await.map_err(execution)
+}
+
+fn execution(source: openrust::database::DatabaseError) -> QueueError {
+    QueueError::Execution { source: Box::new(source) }
+}
+```
+
 ## Bus dispatch {#bus-dispatch}
 
 Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipeThrough` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.

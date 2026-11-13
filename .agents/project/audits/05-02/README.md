@@ -384,3 +384,11 @@ SQLite 和独立 MySQL 8.4.13 用真实查询模型验证异长多列、空列�
 队列任务仍通过编译注册和 JSON 载荷传递参数。需要继续按固定 Laravel 核对模型标识的捕获和恢复，包括写连接读取、缺失模型、集合顺序和关系重载。 [Laravel 队列恢复源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SerializesAndRestoresModelIdentifiers.php)
 
 SQLite 和独立 MySQL 8.4.13 验证实际模型的键顺序与重复项、普通和多态嵌套路径、已加载空关系、交集、隐藏设置独立、自动加载后的元数据、空集合和混合连接错误。MySQL 会话计数确认读取元数据新增 0 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、619 次工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。首轮全量测试的 MySQL SELECT 断言误写为 1 次，修正后完整复验通过。提交前周额度剩余 86%，项目卷可用 60 GiB。核心账本 25/66。
+
+## 队列任务恢复 Eloquent 模型
+
+对照固定 Laravel 的 `SerializesAndRestoresModelIdentifiers`、`newQueryForRestoration` 和模型序列化集成测试。Rust 以 `ModelIdentifier<M>` 和 `ModelCollectionIdentifier<M>` 表达显式 JSON 字段，编译注册的处理器选定模型类型。捕获时保存带类型的主键、数据库连接名和已加载关系路径。恢复时从当前应用解析连接，主模型查询使用写连接并跳过全局作用域，保留模型默认预加载，再补载登记的关系。集合跳过缺失行，保留原顺序及重复键。单模型缺失返回 `ModelNotFound`，由处理器处理。已检查旧分支 `v0.x`，无对应模型标识代码可提取。Goravel 的任务签名与参数契约用于对照编译注册边界。 [Laravel 恢复源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SerializesAndRestoresModelIdentifiers.php) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Queue/ModelSerializationTest.php) · [Goravel 任务契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/job.go)
+
+Laravel 的任务级缺失模型自动删除及自定义 Pivot 标识恢复仍待单独核对。
+
+在 SQLite 和独立 MySQL 8.4.13 上，用实际 `queue:work --queue=model-restoration --once` 运行编译注册的任务。派发后更新并软删除单个模型、硬删除集合中的一行、插入新的关联行。独立 Worker 成功读到更新值和新增关系，集合保留顺序及重复键，并验证关系省略与单模型缺失错误。SQLite 的读写分离夹具额外验证陈旧副本不会用于主模型恢复。Rust 1.94 全目标严格 Clippy、格式、620 次工作区测试、实际 `artisan inspire`、三语文档示例编译、站点构建和 18 项浏览器检查通过。提交前周额度剩余 86%，项目卷可用 60 GiB。

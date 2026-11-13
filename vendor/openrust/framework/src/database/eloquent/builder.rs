@@ -776,6 +776,13 @@ impl<M: Model> Builder<'static, M> {
         Ok(model)
     }
 
+    /// Reads this query from the write connection.
+    #[must_use]
+    pub fn useWritePdo(mut self) -> Self {
+        self.query = self.query.useWritePdo();
+        self
+    }
+
     pub async fn get(self) -> DatabaseResult<Collection<M>> {
         let (query, hydration) = self.hydration_query()?;
         let mut models = hydration.rows(query.get().await?);
