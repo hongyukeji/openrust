@@ -133,3 +133,34 @@ S3 visibility uses object ACLs. If no visibility is specified, the write leaves 
 ## Temporary file URLs
 
 Use `disk.temporaryUrl(path, expiration).await?` for a download or `disk.temporaryUploadUrl(path, expiration).await?` for an upload. Send the returned `headers` with the upload `url`. For a local disk, enable `serve` in the disk configuration. Its route uses the path in the disk's `url`, or `/storage` when no URL is set. The local upload link accepts PUT. The S3 adapter signs against the configured bucket endpoint. The client needs network access to that endpoint.
+
+### S3 request options {#s3-request-parameters}
+
+Use `temporaryUrlWith` to sign download response headers or a version ID. Use `temporaryUploadUrlWith` to sign upload content headers and metadata. Send the returned headers with the PUT request. The disk supplies the bucket and object path.
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryUrlOptions},
+    support::facades::Storage,
+};
+
+async fn report_url() -> FilesystemResult<String> {
+    Storage::disk(Some("s3"))?
+        .temporaryUrlWith(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            TemporaryUrlOptions {
+                response_content_type: Some("text/csv".into()),
+                response_content_disposition: Some("attachment; filename=report.csv".into()),
+                ..Default::default()
+            },
+        )
+        .await
+}
+```
+
+### Custom local disk URL builders {#customizing-temporary-urls}
+
+Register `buildTemporaryUrlsUsing` or `buildTemporaryUploadUrlsUsing` on the local disk during provider boot. The callback receives the validated path, expiration and typed options. The upload callback returns a `TemporaryUploadUrl` with the URL and required headers.

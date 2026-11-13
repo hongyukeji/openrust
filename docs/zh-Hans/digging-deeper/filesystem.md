@@ -133,3 +133,34 @@ S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的�
 ## 临时文件 URL
 
 用 `disk.temporaryUrl(path, expiration).await?` 生成下载链接，或用 `disk.temporaryUploadUrl(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。
+
+### S3 请求选项 {#s3-request-parameters}
+
+用 `temporaryUrlWith` 签入下载响应头或版本 ID。用 `temporaryUploadUrlWith` 签入上传内容头和对象元数据，并在 PUT 请求中携带返回的请求头。存储桶和对象路径由磁盘提供。
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryUrlOptions},
+    support::facades::Storage,
+};
+
+async fn report_url() -> FilesystemResult<String> {
+    Storage::disk(Some("s3"))?
+        .temporaryUrlWith(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            TemporaryUrlOptions {
+                response_content_type: Some("text/csv".into()),
+                response_content_disposition: Some("attachment; filename=report.csv".into()),
+                ..Default::default()
+            },
+        )
+        .await
+}
+```
+
+### 自定义本地磁盘签名回调 {#customizing-temporary-urls}
+
+在服务提供者启动时，对本地磁盘注册 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回调接收已校验的路径、过期时间和类型化选项。上传回调返回包含 URL 和所需请求头的 `TemporaryUploadUrl`。

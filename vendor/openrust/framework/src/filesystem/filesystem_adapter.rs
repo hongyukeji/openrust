@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::{path::PathBuf, time::SystemTime};
 
 use tokio::io::{AsyncRead, AsyncReadExt as _};
@@ -6,15 +6,23 @@ use tokio::io::{AsyncRead, AsyncReadExt as _};
 use crate::http::{HeaderMap, Response, UploadedFile};
 
 use super::{
-    AwsS3V3Adapter, FilesystemError, FilesystemReader, FilesystemResult, LocalFilesystemAdapter,
-    TemporaryUploadUrl, Visibility, WriteOptions, download::OpenedFile, is_staging_name,
+    AwsS3V3Adapter, FilesystemError, FilesystemFuture, FilesystemReader, FilesystemResult,
+    LocalFilesystemAdapter, TemporaryUploadUrl, TemporaryUploadUrlOptions, TemporaryUrlOptions,
+    Visibility, WriteOptions, download::OpenedFile, is_staging_name,
 };
+
+type TemporaryUrlBuilder<Options, Output> = dyn for<'a> Fn(&'a str, SystemTime, Options) -> FilesystemFuture<'a, FilesystemResult<Output>>
+    + Send
+    + Sync;
 
 /// Applies disk configuration and exposes filesystem operations.
 pub struct FilesystemAdapter {
     driver: Driver,
     url: Option<String>,
     signed_route: Option<String>,
+    temporary_url_builder: RwLock<Option<Arc<TemporaryUrlBuilder<TemporaryUrlOptions, String>>>>,
+    temporary_upload_url_builder:
+        RwLock<Option<Arc<TemporaryUrlBuilder<TemporaryUploadUrlOptions, TemporaryUploadUrl>>>>,
     throw: bool,
     report: bool,
 }
@@ -36,6 +44,8 @@ impl FilesystemAdapter {
             driver: Driver::Local(local),
             url,
             signed_route: None,
+            temporary_url_builder: RwLock::default(),
+            temporary_upload_url_builder: RwLock::default(),
             throw,
             report,
         }
@@ -51,6 +61,8 @@ impl FilesystemAdapter {
             driver: Driver::S3(Box::new(driver)),
             url,
             signed_route: None,
+            temporary_url_builder: RwLock::default(),
+            temporary_upload_url_builder: RwLock::default(),
             throw,
             report,
         }
@@ -63,7 +75,59 @@ impl FilesystemAdapter {
     }
 
     pub fn providesTemporaryUrls(&self) -> bool {
-        self.signed_route.is_some() || matches!(self.driver, Driver::S3(_))
+        self.signed_route.is_some()
+            || matches!(self.driver, Driver::S3(_))
+            || self
+                .temporary_url_builder
+                .read()
+                .expect("temporary URL builder lock")
+                .is_some()
+    }
+
+    pub fn providesTemporaryUploadUrls(&self) -> bool {
+        self.signed_route.is_some()
+            || matches!(self.driver, Driver::S3(_))
+            || self
+                .temporary_upload_url_builder
+                .read()
+                .expect("temporary upload URL builder lock")
+                .is_some()
+    }
+
+    /// Sets the download URL builder for a local disk. S3 uses its native signer.
+    pub fn buildTemporaryUrlsUsing(
+        &self,
+        builder: impl for<'a> Fn(
+            &'a str,
+            SystemTime,
+            TemporaryUrlOptions,
+        ) -> FilesystemFuture<'a, FilesystemResult<String>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        *self
+            .temporary_url_builder
+            .write()
+            .expect("temporary URL builder lock") = Some(Arc::new(builder));
+    }
+
+    /// Sets the upload URL builder for a local disk. S3 uses its native signer.
+    pub fn buildTemporaryUploadUrlsUsing(
+        &self,
+        builder: impl for<'a> Fn(
+            &'a str,
+            SystemTime,
+            TemporaryUploadUrlOptions,
+        ) -> FilesystemFuture<'a, FilesystemResult<TemporaryUploadUrl>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        *self
+            .temporary_upload_url_builder
+            .write()
+            .expect("temporary upload URL builder lock") = Some(Arc::new(builder));
     }
 
     pub async fn temporaryUrl(
@@ -71,10 +135,30 @@ impl FilesystemAdapter {
         path: &str,
         expiration: SystemTime,
     ) -> FilesystemResult<String> {
+        self.temporaryUrlWith(path, expiration, TemporaryUrlOptions::default())
+            .await
+    }
+
+    pub async fn temporaryUrlWith(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        options: TemporaryUrlOptions,
+    ) -> FilesystemResult<String> {
         validate_path(path)?;
         match &self.driver {
-            Driver::Local(_) => self.temporary_local_url(path, expiration, false),
-            Driver::S3(disk) => disk.temporary_url(path, expiration).await,
+            Driver::Local(_) => {
+                let builder = self
+                    .temporary_url_builder
+                    .read()
+                    .expect("temporary URL builder lock")
+                    .clone();
+                if let Some(builder) = builder {
+                    return builder(path, expiration, options).await;
+                }
+                self.temporary_local_url(path, expiration, false)
+            }
+            Driver::S3(disk) => disk.temporary_url(path, expiration, options).await,
         }
     }
 
@@ -83,13 +167,33 @@ impl FilesystemAdapter {
         path: &str,
         expiration: SystemTime,
     ) -> FilesystemResult<TemporaryUploadUrl> {
+        self.temporaryUploadUrlWith(path, expiration, TemporaryUploadUrlOptions::default())
+            .await
+    }
+
+    pub async fn temporaryUploadUrlWith(
+        &self,
+        path: &str,
+        expiration: SystemTime,
+        options: TemporaryUploadUrlOptions,
+    ) -> FilesystemResult<TemporaryUploadUrl> {
         validate_path(path)?;
         match &self.driver {
-            Driver::Local(_) => Ok(TemporaryUploadUrl {
-                url: self.temporary_local_url(path, expiration, true)?,
-                headers: HeaderMap::new(),
-            }),
-            Driver::S3(disk) => disk.temporary_upload_url(path, expiration).await,
+            Driver::Local(_) => {
+                let builder = self
+                    .temporary_upload_url_builder
+                    .read()
+                    .expect("temporary upload URL builder lock")
+                    .clone();
+                if let Some(builder) = builder {
+                    return builder(path, expiration, options).await;
+                }
+                Ok(TemporaryUploadUrl {
+                    url: self.temporary_local_url(path, expiration, true)?,
+                    headers: HeaderMap::new(),
+                })
+            }
+            Driver::S3(disk) => disk.temporary_upload_url(path, expiration, options).await,
         }
     }
 

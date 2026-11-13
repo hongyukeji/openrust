@@ -91,6 +91,28 @@ impl Storage {
         Self::disk(None)?.temporaryUploadUrl(path, expiration).await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn temporaryUrlWith(
+        path: &str,
+        expiration: SystemTime,
+        options: super::TemporaryUrlOptions,
+    ) -> FilesystemResult<String> {
+        Self::disk(None)?
+            .temporaryUrlWith(path, expiration, options)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Storage facade API")]
+    pub async fn temporaryUploadUrlWith(
+        path: &str,
+        expiration: SystemTime,
+        options: super::TemporaryUploadUrlOptions,
+    ) -> FilesystemResult<super::TemporaryUploadUrl> {
+        Self::disk(None)?
+            .temporaryUploadUrlWith(path, expiration, options)
+            .await
+    }
+
     pub async fn download(
         path: &str,
         name: Option<&str>,

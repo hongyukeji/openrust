@@ -133,3 +133,34 @@ S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體�
 ## 暫存檔案 URL
 
 使用 `disk.temporaryUrl(path, expiration).await?` 產生下載連結，或使用 `disk.temporaryUploadUrl(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。
+
+### S3 請求選項 {#s3-request-parameters}
+
+用 `temporaryUrlWith` 將下載回應標頭或版本 ID 納入簽章。用 `temporaryUploadUrlWith` 簽入上傳內容標頭和物件中繼資料，並在 PUT 請求中附上傳回的請求標頭。儲存貯體和物件路徑由磁碟提供。
+
+```rust
+use std::time::{Duration, SystemTime};
+
+use openrust::{
+    filesystem::{FilesystemResult, TemporaryUrlOptions},
+    support::facades::Storage,
+};
+
+async fn report_url() -> FilesystemResult<String> {
+    Storage::disk(Some("s3"))?
+        .temporaryUrlWith(
+            "reports/current.csv",
+            SystemTime::now() + Duration::from_secs(300),
+            TemporaryUrlOptions {
+                response_content_type: Some("text/csv".into()),
+                response_content_disposition: Some("attachment; filename=report.csv".into()),
+                ..Default::default()
+            },
+        )
+        .await
+}
+```
+
+### 自訂本機磁碟簽章回呼 {#customizing-temporary-urls}
+
+在服務提供者啟動時，對本機磁碟註冊 `buildTemporaryUrlsUsing` 或 `buildTemporaryUploadUrlsUsing`。回呼接收已驗證的路徑、到期時間和具型別的選項。上傳回呼傳回包含 URL 和必要請求標頭的 `TemporaryUploadUrl`。

@@ -15,7 +15,10 @@ use aws_sdk_s3::{
 };
 use openrust::{
     config::Repository,
-    filesystem::{FilesystemError, FilesystemManager, S3DiskConfig, Visibility, WriteOptions},
+    filesystem::{
+        FilesystemError, FilesystemManager, S3DiskConfig, TemporaryUploadUrlOptions,
+        TemporaryUrlOptions, Visibility, WriteOptions,
+    },
     http::HeaderMap,
 };
 use serde_json::json;
@@ -406,7 +409,20 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
     let disk = service.manager().disk(None).unwrap();
     let path = "private/signed + 文本.txt";
     let expires = std::time::SystemTime::now() + Duration::from_secs(60);
-    let upload = disk.temporaryUploadUrl(path, expires).await.unwrap();
+    let upload = disk
+        .temporaryUploadUrlWith(
+            path,
+            expires,
+            TemporaryUploadUrlOptions {
+                content_type: Some("text/plain".into()),
+                metadata: Some([("probe".into(), "signed".into())].into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    assert_eq!(upload.headers["content-type"], "text/plain");
+    assert_eq!(upload.headers["x-amz-meta-probe"], "signed");
     let mut client = tokio::process::Command::new("curl");
     client.args(["--fail", "--silent", "--max-time", "10", "-X", "PUT"]);
     for (name, value) in &upload.headers {
@@ -420,14 +436,55 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
         .await
         .unwrap();
     assert!(response.status.success(), "presigned PUT failed");
-    let download = disk.temporaryUrl(path, expires).await.unwrap();
+    let download = disk
+        .temporaryUrlWith(
+            path,
+            expires,
+            TemporaryUrlOptions {
+                response_content_type: Some("application/octet-stream".into()),
+                response_content_disposition: Some("attachment; filename=report.txt".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
     let response = tokio::process::Command::new("curl")
-        .args(["--fail", "--silent", "--max-time", "10", &download])
+        .args([
+            "--fail",
+            "--silent",
+            "--include",
+            "--max-time",
+            "10",
+            &download,
+        ])
         .output()
         .await
         .unwrap();
     assert!(response.status.success(), "presigned GET failed");
-    assert_eq!(response.stdout, b"presigned payload");
+    let body = String::from_utf8(response.stdout).unwrap();
+    let (headers, payload) = body.split_once("\r\n\r\n").unwrap();
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("content-type: application/octet-stream")
+    );
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("content-disposition: attachment; filename=report.txt")
+    );
+    assert_eq!(payload, "presigned payload");
+    let tampered = download.replace("report.txt", "other.txt");
+    assert_ne!(tampered, download);
+    let response = tokio::process::Command::new("curl")
+        .args(["--fail", "--silent", "--max-time", "10", &tampered])
+        .output()
+        .await
+        .unwrap();
+    assert!(
+        !response.status.success(),
+        "tampered download options were accepted"
+    );
     let unsigned = download.split_once('?').unwrap().0;
     let response = tokio::process::Command::new("curl")
         .args(["--fail", "--silent", "--max-time", "10", unsigned])

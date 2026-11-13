@@ -62,6 +62,27 @@ pub struct WriteOptions {
     pub visibility: Option<Visibility>,
 }
 
+/// S3 GetObject options included in a temporary download signature.
+#[derive(Clone, Debug, Default)]
+pub struct TemporaryUrlOptions {
+    pub version_id: Option<String>,
+    pub response_cache_control: Option<String>,
+    pub response_content_disposition: Option<String>,
+    pub response_content_encoding: Option<String>,
+    pub response_content_language: Option<String>,
+    pub response_content_type: Option<String>,
+    pub response_expires: Option<std::time::SystemTime>,
+}
+
+/// S3 PutObject options included in a temporary upload signature.
+#[derive(Clone, Debug, Default)]
+pub struct TemporaryUploadUrlOptions {
+    pub content_type: Option<String>,
+    pub content_disposition: Option<String>,
+    pub cache_control: Option<String>,
+    pub metadata: Option<std::collections::HashMap<String, String>>,
+}
+
 /// A signed upload URL and the headers required to use it.
 pub struct TemporaryUploadUrl {
     pub url: String,

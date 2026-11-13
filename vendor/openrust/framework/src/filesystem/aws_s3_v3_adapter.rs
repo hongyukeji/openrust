@@ -24,8 +24,8 @@ use tokio::{
 use url::Url;
 
 use super::{
-    FilesystemError, FilesystemReader, FilesystemResult, TemporaryUploadUrl, Visibility,
-    download::OpenedFile,
+    FilesystemError, FilesystemReader, FilesystemResult, TemporaryUploadUrl,
+    TemporaryUploadUrlOptions, TemporaryUrlOptions, Visibility, download::OpenedFile,
 };
 
 const PART_SIZE: usize = 8 * 1024 * 1024;
@@ -202,6 +202,7 @@ impl AwsS3V3Adapter {
         &self,
         path: &str,
         expiration: SystemTime,
+        options: TemporaryUrlOptions,
     ) -> FilesystemResult<String> {
         let request = self
             .client()
@@ -209,6 +210,17 @@ impl AwsS3V3Adapter {
             .get_object()
             .bucket(&self.config.bucket)
             .key(self.key(path))
+            .set_version_id(options.version_id)
+            .set_response_cache_control(options.response_cache_control)
+            .set_response_content_disposition(options.response_content_disposition)
+            .set_response_content_encoding(options.response_content_encoding)
+            .set_response_content_language(options.response_content_language)
+            .set_response_content_type(options.response_content_type)
+            .set_response_expires(
+                options
+                    .response_expires
+                    .map(aws_sdk_s3::primitives::DateTime::from),
+            )
             .presigned(presigning(expiration)?)
             .await
             .map_err(|error| classify_error(&error))?;
@@ -219,6 +231,7 @@ impl AwsS3V3Adapter {
         &self,
         path: &str,
         expiration: SystemTime,
+        options: TemporaryUploadUrlOptions,
     ) -> FilesystemResult<TemporaryUploadUrl> {
         let request = self
             .client()
@@ -226,6 +239,10 @@ impl AwsS3V3Adapter {
             .put_object()
             .bucket(&self.config.bucket)
             .key(self.key(path))
+            .set_content_type(options.content_type)
+            .set_content_disposition(options.content_disposition)
+            .set_cache_control(options.cache_control)
+            .set_metadata(options.metadata)
             .presigned(presigning(expiration)?)
             .await
             .map_err(|error| classify_error(&error))?;

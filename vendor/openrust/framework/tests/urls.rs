@@ -358,6 +358,50 @@ fn local_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         let name = "nested/report + 100%?#.txt";
         let download = disk.temporaryUrl(name, expiration).await?;
         let upload = disk.temporaryUploadUrl(name, expiration).await?;
+        let custom = openrust::support::facades::Storage::disk(Some("custom"))?;
+        assert!(!custom.providesTemporaryUrls());
+        assert!(!custom.providesTemporaryUploadUrls());
+        custom.buildTemporaryUrlsUsing(|path, expiration, options| {
+            Box::pin(async move {
+                assert_eq!(options.response_content_type.as_deref(), Some("text/plain"));
+                openrust::support::facades::Storage::temporaryUrl(path, expiration).await
+            })
+        });
+        custom.buildTemporaryUploadUrlsUsing(|path, expiration, options| {
+            Box::pin(async move {
+                assert_eq!(options.content_type.as_deref(), Some("text/plain"));
+                openrust::support::facades::Storage::temporaryUploadUrl(path, expiration).await
+            })
+        });
+        assert!(custom.providesTemporaryUrls());
+        assert!(custom.providesTemporaryUploadUrls());
+        assert_eq!(
+            custom
+                .temporaryUrlWith(
+                    name,
+                    expiration,
+                    openrust::filesystem::TemporaryUrlOptions {
+                        response_content_type: Some("text/plain".into()),
+                        ..Default::default()
+                    }
+                )
+                .await?,
+            download
+        );
+        assert_eq!(
+            custom
+                .temporaryUploadUrlWith(
+                    name,
+                    expiration,
+                    openrust::filesystem::TemporaryUploadUrlOptions {
+                        content_type: Some("text/plain".into()),
+                        ..Default::default()
+                    }
+                )
+                .await?
+                .url,
+            upload.url
+        );
         let expired = disk
             .temporaryUrl(name, SystemTime::now() - Duration::from_secs(5))
             .await?;
@@ -378,7 +422,7 @@ async fn serves_private_local_files_only_with_the_matching_temporary_method() {
     let app = Application::configure(root)
         .withConfig(|_, _| Ok([
             ("app".into(), json!({"url":"https://example.test","key":LARAVEL_KEY})),
-            ("filesystems".into(), json!({"default":"local","disks":{"local":{"driver":"local","root":"private","serve":true}}})),
+            ("filesystems".into(), json!({"default":"local","disks":{"local":{"driver":"local","root":"private","serve":true},"custom":{"driver":"local","root":"custom"}}})),
         ].into()))
         .withRouting(Routing::default().web(|| {
             use openrust::support::facades::Route;
