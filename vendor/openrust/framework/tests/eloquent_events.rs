@@ -1,7 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use openrust::{
-    contracts::{container::Container as _, foundation::Application as _},
+    contracts::{
+        container::Container as _, events::ShouldHandleEventsAfterCommit,
+        foundation::Application as _,
+    },
     database::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
@@ -16,6 +19,7 @@ use serde_json::{Value as Json, json};
 
 use ModelEvent::*;
 
+#[derive(Clone)]
 struct Article(ModelState);
 
 impl Model for Article {
@@ -164,6 +168,132 @@ impl ModelEventListener<Article> for TransactionAudit {
             Ok(ModelEventResponse::Continue)
         })
     }
+}
+
+struct CommittedAudit;
+
+impl ShouldHandleEventsAfterCommit for CommittedAudit {}
+
+impl Observer<Article> for CommittedAudit {
+    const EVENTS: &'static [ModelEvent] = &[Creating, Created];
+
+    fn creating<'a>(
+        &'a self,
+        model: &'a mut Article,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            if model.getAttribute("title") == Some(&"after-veto".into()) {
+                return Ok(ModelEventResponse::Cancel);
+            }
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+
+    fn created<'a>(
+        &'a self,
+        model: &'a mut Article,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            let title = model.getAttribute("title").unwrap();
+            if title == &"after-error".into() {
+                return Err(DatabaseError::InvalidQuery("observer after commit"));
+            }
+            if title == &"event-snapshot".into() {
+                assert_eq!(
+                    openrust::database::DB::connection(None)?.getName(),
+                    connection.getName()
+                );
+            }
+            assert_eq!(
+                connection
+                    .scalar(
+                        "SELECT COUNT(*) FROM model_event_articles WHERE id = ?",
+                        &[model.getKey().unwrap().clone()]
+                    )
+                    .await?,
+                Value::Integer(1)
+            );
+            connection
+                .insert(
+                    "INSERT INTO committed_observer_log (title) VALUES (?)",
+                    std::slice::from_ref(title),
+                )
+                .await?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+async fn verify_after_commit(app: &Application, db: &Connection) {
+    Article::observeAfterCommit(app, CommittedAudit).unwrap();
+    let article = |title: &str| {
+        Article::queryOn(db)
+            .make([("title".into(), title.into())].into())
+            .unwrap()
+    };
+    let log_count = "SELECT COUNT(*) FROM committed_observer_log";
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    assert!(
+        !article("after-veto")
+            .saveInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    article("outer-rollback")
+        .saveInTransaction(&mut transaction)
+        .await
+        .unwrap();
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(db.scalar(log_count, &[]).await.unwrap(), Value::Integer(0));
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction.beginTransaction().await.unwrap();
+    article("savepoint-rollback")
+        .saveInTransaction(&mut transaction)
+        .await
+        .unwrap();
+    transaction.rollBack(None).await.unwrap();
+    transaction.beginTransaction().await.unwrap();
+    let mut committed = article("event-snapshot");
+    committed.saveInTransaction(&mut transaction).await.unwrap();
+    committed.setAttribute("title", "later-change");
+    transaction.commit().await.unwrap();
+    assert_eq!(
+        transaction.scalar(log_count, &[]).await.unwrap(),
+        Value::Integer(0)
+    );
+    transaction.commit().await.unwrap();
+    assert_eq!(
+        db.scalar("SELECT title FROM committed_observer_log", &[])
+            .await
+            .unwrap(),
+        "event-snapshot".into()
+    );
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    article("after-error")
+        .saveInTransaction(&mut transaction)
+        .await
+        .unwrap();
+    assert!(matches!(
+        transaction.commit().await,
+        Err(DatabaseError::AfterCommit { .. })
+    ));
+    assert_eq!(
+        db.scalar(
+            "SELECT COUNT(*) FROM model_event_articles WHERE title = 'after-error'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        Value::Integer(1)
+    );
+    assert_eq!(db.scalar(log_count, &[]).await.unwrap(), Value::Integer(1));
+    assert!(article("immediate").save().await.unwrap());
+    assert_eq!(db.scalar(log_count, &[]).await.unwrap(), Value::Integer(2));
 }
 
 async fn verify_transaction(app: &Application, db: &Connection, other: &Connection) {
@@ -442,6 +572,24 @@ async fn verify_transaction_backend(config: Json, id: &str) {
         .unwrap();
 }
 
+async fn verify_after_commit_backend(config: Json, id: &str) {
+    let (app, db) = app_with_database(config, vec![]).await;
+    db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
+    db.statement(
+        "CREATE TABLE committed_observer_log (title VARCHAR(30) NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    verify_after_commit(&app, &db).await;
+    db.statement("DROP TABLE committed_observer_log", &[])
+        .await
+        .unwrap();
+    db.statement("DROP TABLE model_event_articles", &[])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
     verify(
@@ -450,6 +598,11 @@ async fn model_events_on_sqlite() {
     )
     .await;
     verify_transaction_backend(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
+    verify_after_commit_backend(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
     )
@@ -463,5 +616,6 @@ async fn model_events_on_mysql() {
     if let Some(url) = url {
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_transaction_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
+        verify_after_commit_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
     }
 }

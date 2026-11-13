@@ -722,6 +722,28 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(())
     }
 
+    /// Registers an observer whose non-vetoing callbacks wait for the transaction to commit.
+    ///
+    /// A deferred callback receives a clone of the model taken when the event fires.
+    fn observeAfterCommit<O>(
+        app: &crate::foundation::Application,
+        observer: O,
+    ) -> DatabaseResult<()>
+    where
+        Self: Clone,
+        O: super::Observer<Self> + crate::contracts::events::ShouldHandleEventsAfterCommit,
+    {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        app.container()
+            .make::<super::ModelEvents>()
+            .map_err(DatabaseError::Unavailable)?
+            .listen_to::<Self>(
+                O::EVENTS,
+                super::observer::AfterCommitObserver::new(observer),
+            );
+        Ok(())
+    }
+
     /// Suppresses model events in the current async call chain.
     fn withoutEvents<F: Future + Send>(work: F) -> impl Future<Output = F::Output> + Send {
         concerns::has_events::without_events(work)

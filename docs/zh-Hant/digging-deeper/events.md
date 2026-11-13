@@ -96,6 +96,8 @@ fn discover_events() -> DiscoverEvents {
 
 透過 `Event::dispatchInTransaction` 明確傳入目前交易。使用 `Delivery::AfterCommit` 延後單一監聽器，或實作 `ShouldDispatchAfterCommit` 並呼叫 `Event::dispatchAfterCommit` 延後整個事件。儲存點成功提交後，回呼保留至最外層提交時執行。復原會清除受影響範圍內的回呼。沒有使用中的交易時立即執行。提交後的回呼失敗會以 `DatabaseError::AfterCommit` 回報。
 
+模型專屬回呼見[觀察者與資料庫交易](../eloquent/getting-started.md#observers-and-database-transactions)。
+
 ## 延遲派送事件 {#deferring-events}
 
 以 `Event::defer(None, async { … })` 收集事件，在回呼傳回 `Ok` 後依序派送。傳入 `Some(&["orders.created"])` 可僅延遲指定名稱。回呼傳回錯誤時捨棄待派送事件。延遲範圍屬於目前的非同步工作和應用程式。明確傳入資料庫交易時，使用上一節的交易派送介面。

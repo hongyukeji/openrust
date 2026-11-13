@@ -75,15 +75,29 @@ impl ValueObjectCast {
         cache: &ValueObjects,
     ) -> DatabaseResult<Value> {
         match cache.entries.get(name) {
-            Some(value) => (self.project)(value.as_ref()),
+            Some(value) => (self.project)(value.value.as_ref()),
             None => (self.read)(name, attributes),
         }
     }
 }
 
-#[derive(Default)]
+struct CachedObject {
+    value: Box<Object>,
+    clone_value: fn(&Object) -> Box<Object>,
+}
+
+impl Clone for CachedObject {
+    fn clone(&self) -> Self {
+        Self {
+            value: (self.clone_value)(self.value.as_ref()),
+            clone_value: self.clone_value,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
 pub(in crate::database::eloquent) struct ValueObjects {
-    entries: BTreeMap<String, Box<Object>>,
+    entries: BTreeMap<String, CachedObject>,
 }
 
 impl ValueObjects {
@@ -92,7 +106,7 @@ impl ValueObjects {
     };
 
     pub(in crate::database::eloquent) fn get<T: CastableObject>(&self, name: &str) -> Option<&T> {
-        self.entries.get(name)?.downcast_ref()
+        self.entries.get(name)?.value.downcast_ref()
     }
 
     pub(in crate::database::eloquent) fn insert<T: CastableObject>(
@@ -100,7 +114,20 @@ impl ValueObjects {
         name: &str,
         value: T,
     ) {
-        self.entries.insert(name.into(), Box::new(value));
+        self.entries.insert(
+            name.into(),
+            CachedObject {
+                value: Box::new(value),
+                clone_value: |value| {
+                    Box::new(
+                        value
+                            .downcast_ref::<T>()
+                            .expect("cached object type")
+                            .clone(),
+                    )
+                },
+            },
+        );
     }
 }
 

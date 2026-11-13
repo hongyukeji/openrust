@@ -196,3 +196,41 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
     M::observe(app, NormalizeTitle)
 }
 ```
+
+#### Observers and database transactions {#observers-and-database-transactions}
+
+Implement `ShouldHandleEventsAfterCommit` and register the observer with `Model::observeAfterCommit`. With explicit model transactions, the six pre-write callbacks still run immediately and can cancel the write. Other callbacks run after the outermost successful commit. A rollback discards the callbacks from its transaction or savepoint. Without a transaction the observer runs immediately. Rust requires a cloneable model and captures its state when the event fires. If a deferred callback fails, commit returns `DatabaseError::AfterCommit`; the database write is already committed.
+
+```rust
+use openrust::{
+    contracts::events::ShouldHandleEventsAfterCommit,
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{Model, Observer, concerns::{ModelEvent, ModelEventResponse}},
+    },
+    foundation::Application,
+};
+
+struct ArticleCommitted;
+
+impl ShouldHandleEventsAfterCommit for ArticleCommitted {}
+
+impl<M: Model> Observer<M> for ArticleCommitted {
+    const EVENTS: &'static [ModelEvent] = &[ModelEvent::Created];
+
+    fn created<'a>(
+        &'a self,
+        _model: &'a mut M,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            connection.insert("INSERT INTO article_audit (action) VALUES (?)", &["created".into()]).await?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+fn register<M: Model + Clone>(app: &Application) -> DatabaseResult<()> {
+    M::observeAfterCommit(app, ArticleCommitted)
+}
+```

@@ -1,4 +1,4 @@
-use std::{any::Any, collections::BTreeMap};
+use std::{any::Any, collections::BTreeMap, sync::Arc};
 
 use indexmap::IndexMap;
 use serde_json::{Map, Value as Json};
@@ -7,9 +7,9 @@ use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
 
 use super::super::{Model, relations::Relation};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(in crate::database::eloquent) struct LoadedRelations {
-    values: BTreeMap<String, Box<dyn LoadedRelation>>,
+    values: BTreeMap<String, Arc<dyn LoadedRelation>>,
 }
 
 trait LoadedRelation: Send + Sync {
@@ -51,7 +51,7 @@ impl LoadedRelations {
         project: fn(&T) -> DatabaseResult<Option<Json>>,
     ) {
         self.values
-            .insert(name, Box::new(LoadedValue { value, project }));
+            .insert(name, Arc::new(LoadedValue { value, project }));
     }
 
     pub(in crate::database::eloquent) fn project(

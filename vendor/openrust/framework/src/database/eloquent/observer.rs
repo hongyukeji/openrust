@@ -1,4 +1,9 @@
-use crate::database::{Connection, DatabaseFuture, DatabaseResult};
+use std::sync::Arc;
+
+use crate::{
+    database::{Connection, DatabaseFuture, DatabaseResult, Transaction},
+    support::facades::application_scope,
+};
 
 use super::{
     Model,
@@ -57,4 +62,59 @@ model_observer! {
     Deleted => deleted,
     ForceDeleting => forceDeleting,
     ForceDeleted => forceDeleted,
+}
+
+pub(super) struct AfterCommitObserver<O>(Arc<ObserverListener<O>>);
+
+impl<O> AfterCommitObserver<O> {
+    pub(super) fn new(observer: O) -> Self {
+        Self(Arc::new(ObserverListener(observer)))
+    }
+}
+
+impl<M: Model + Clone, O: Observer<M>> ModelEventListener<M> for AfterCommitObserver<O> {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        model: &'a mut M,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        self.0.handle(event, model, connection)
+    }
+
+    fn handleInTransaction<'a>(
+        &'a self,
+        event: ModelEvent,
+        model: &'a mut M,
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        if matches!(
+            event,
+            ModelEvent::Creating
+                | ModelEvent::Updating
+                | ModelEvent::Saving
+                | ModelEvent::Deleting
+                | ModelEvent::Restoring
+                | ModelEvent::ForceDeleting
+        ) {
+            return self.handle(event, model, transaction.query_connection());
+        }
+        let mut snapshot = model.clone();
+        let observer = Arc::clone(&self.0);
+        let connection = transaction.query_connection().clone();
+        let application = Connection::model_container(Some(&connection));
+        Box::pin(async move {
+            transaction.afterCommit(move || {
+                Box::pin(async move {
+                    let handle = observer.handle(event, &mut snapshot, &connection);
+                    match application {
+                        Some(application) => application_scope(application, handle).await?,
+                        None => handle.await?,
+                    };
+                    Ok(())
+                })
+            })?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
 }

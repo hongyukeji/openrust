@@ -10,7 +10,7 @@ use super::{
 };
 
 /// Raw attributes and snapshots for one model instance.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ModelState {
     pub(in crate::database::eloquent) relations: LoadedRelations,
     pub(in crate::database::eloquent) attributes: Attributes,

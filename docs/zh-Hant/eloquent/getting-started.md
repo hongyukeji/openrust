@@ -196,3 +196,41 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
     M::observe(app, NormalizeTitle)
 }
 ```
+
+#### 觀察者與資料庫交易 {#observers-and-database-transactions}
+
+實作 `ShouldHandleEventsAfterCommit` 並透過 `Model::observeAfterCommit` 註冊。使用顯式模型交易時，六個寫入前回呼仍即時執行，可取消寫入。其他回呼等待最外層提交成功。交易或儲存點回復時捨棄對應回呼。無交易時即時執行。Rust 要求模型可複製，並在事件觸發時保留模型狀態。延後回呼失敗時，提交回傳 `DatabaseError::AfterCommit`，資料庫寫入已經提交。
+
+```rust
+use openrust::{
+    contracts::events::ShouldHandleEventsAfterCommit,
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{Model, Observer, concerns::{ModelEvent, ModelEventResponse}},
+    },
+    foundation::Application,
+};
+
+struct ArticleCommitted;
+
+impl ShouldHandleEventsAfterCommit for ArticleCommitted {}
+
+impl<M: Model> Observer<M> for ArticleCommitted {
+    const EVENTS: &'static [ModelEvent] = &[ModelEvent::Created];
+
+    fn created<'a>(
+        &'a self,
+        _model: &'a mut M,
+        connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            connection.insert("INSERT INTO article_audit (action) VALUES (?)", &["created".into()]).await?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+fn register<M: Model + Clone>(app: &Application) -> DatabaseResult<()> {
+    M::observeAfterCommit(app, ArticleCommitted)
+}
+```

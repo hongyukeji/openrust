@@ -116,7 +116,7 @@ impl ListenerRegistry {
     pub fn listenAfterCommit(
         &mut self,
         event: &str,
-        listener: impl ShouldHandleEventsAfterCommit + 'static,
+        listener: impl Listener + ShouldHandleEventsAfterCommit + 'static,
     ) -> EventResult<()> {
         self.listen(event, Arc::new(listener), Delivery::AfterCommit)
     }

@@ -96,6 +96,8 @@ fn discover_events() -> DiscoverEvents {
 
 通过 `Event::dispatchInTransaction` 显式传入当前事务。用 `Delivery::AfterCommit` 延后单个监听器，或实现 `ShouldDispatchAfterCommit` 并调用 `Event::dispatchAfterCommit` 延后整个事件。保存点成功提交后，回调留到最外层提交执行。回滚会清除受影响范围内的回调。没有活动事务时立即执行。提交后的回调失败以 `DatabaseError::AfterCommit` 报告。
 
+模型专属回调见[观察者与数据库事务](../eloquent/getting-started.md#observers-and-database-transactions)。
+
 ## 延迟派发事件 {#deferring-events}
 
 用 `Event::defer(None, async { … })` 收集事件，在回调返回 `Ok` 后按顺序派发。传入 `Some(&["orders.created"])` 可只延迟指定名称。回调返回错误时丢弃待派发事件。延迟范围属于当前异步任务和应用。显式传入数据库事务时，使用上节的事务派发接口。

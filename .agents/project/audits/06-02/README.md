@@ -32,3 +32,10 @@
 - 对照固定 Laravel 的 `make:observer` 与生成器测试，接入普通结构体、`--model/-m` 的五个写后回调及 `--force/-f`。沿用编译型应用装配和现有模板发布机制。旧版 `v0.x` 未找到对应生成器。Rust 模块声明和 Provider 注册由应用完成，交互式模型候选提示仍待接入。 [Laravel ObserverMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ObserverMakeCommand.php) · [Laravel 生成器测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Generators/ObserverMakeCommandTest.php) · [Goravel Database Provider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/service_provider.go)
 - 实际 Artisan 验证普通和绑定模型生成、嵌套及限定模型名、重复拒绝、并发只成功一次、强制覆盖、非法路径拒绝和两个自定义模板。生成的普通及绑定模型代码以 Rust 1.94.0 编译，绑定模型的版本通过 SQLite 真实保存验收。
 - Rust 1.94.0 格式、616 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。
+
+## 事务后 Observer
+
+- 对照固定 Laravel Dispatcher 对六个写前方法的即时执行例外，以及事务测试的嵌套提交与连接隔离。Rust 通过 `ShouldHandleEventsAfterCommit` 和 `observeAfterCommit` 显式装配，沿用 Goravel 的事务句柄思路。旧版 `v0.x` 提供模型事件与显式事务派发基础，当前复用已有事务回调管理器。 [Laravel Observer 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#observers-and-database-transactions) · [Laravel Dispatcher](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Events/Dispatcher.php) · [Laravel 事务测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/DatabaseTransactionsTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+- Laravel 的回调保留对象引用。Rust 延后回调持有事件时刻的模型克隆，在原应用作用域执行。模型状态克隆保留属性、关系和序列化设置，值对象按其类型的克隆契约复制。事务上下文由模型的显式事务入口提供。
+- SQLite 与独立 MySQL 8.4.13 验证写前取消、无事务即时执行、外层提交、保存点及外层回滚、事件时刻属性、回调访问已提交行及回调失败时保留已提交记录。三语示例各在 SQLite 执行一次。实际 `artisan inspire` 退出成功。
+- Rust 1.94.0 格式、616 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建、12 项通用和 6 项正文浏览器检查通过。
