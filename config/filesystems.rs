@@ -57,6 +57,7 @@ pub(super) fn load(
                 "bucket": optional_aws("AWS_BUCKET")?,
                 "url": optional_aws("AWS_URL")?,
                 "endpoint": optional_aws("AWS_ENDPOINT")?,
+                "temporary_url": optional_aws("AWS_TEMPORARY_URL")?,
                 "use_path_style_endpoint": get(env, "AWS_USE_PATH_STYLE_ENDPOINT", false)?,
                 "throw": false,
                 "report": false,

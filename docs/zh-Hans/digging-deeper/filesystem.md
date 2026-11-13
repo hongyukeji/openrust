@@ -134,6 +134,10 @@ S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的�
 
 用 `disk.temporaryUrl(path, expiration).await?` 生成下载链接，或用 `disk.temporaryUploadUrl(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。
 
+### S3 临时 URL 基地址 {#s3-temporary-url-origin}
+
+在 S3 磁盘设置 `temporary_url`，或用 `AWS_TEMPORARY_URL` 配置默认 S3 磁盘。它替换 GET 和 PUT 链接的协议、主机和端口，保留已签名的路径和查询串。代理转发到 S3 端点时需要使用签名中的原始 Host、路径和查询串。
+
 ### S3 请求选项 {#s3-request-parameters}
 
 用 `temporaryUrlWith` 签入下载响应头或版本 ID。用 `temporaryUploadUrlWith` 签入上传内容头和对象元数据，并在 PUT 请求中携带返回的请求头。存储桶和对象路径由磁盘提供。

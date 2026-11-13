@@ -134,6 +134,10 @@ S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體�
 
 使用 `disk.temporaryUrl(path, expiration).await?` 產生下載連結，或使用 `disk.temporaryUploadUrl(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。
 
+### S3 臨時 URL 基底位址 {#s3-temporary-url-origin}
+
+在 S3 磁碟設定 `temporary_url`，或用 `AWS_TEMPORARY_URL` 設定預設 S3 磁碟。它替換 GET 和 PUT 連結的協定、主機和連接埠，保留已簽章的路徑與查詢字串。代理轉送至 S3 端點時須使用簽章中的原始 Host、路徑與查詢字串。
+
 ### S3 請求選項 {#s3-request-parameters}
 
 用 `temporaryUrlWith` 將下載回應標頭或版本 ID 納入簽章。用 `temporaryUploadUrlWith` 簽入上傳內容標頭和物件中繼資料，並在 PUT 請求中附上傳回的請求標頭。儲存貯體和物件路徑由磁碟提供。

@@ -64,11 +64,16 @@ impl Service {
                 "root": root, "use_path_style_endpoint": true, "throw": throw,
             })
         };
+        let mut temporary = disk("tenant-a", true);
+        temporary["temporary_url"] = json!("http://download.example.test:8080/ignored?unused=1");
+        let mut invalid_temporary = disk("tenant-a", true);
+        invalid_temporary["temporary_url"] = json!("ftp://download.example.test");
         let repository = Repository::new(BTreeMap::from([(
             "filesystems".into(),
             json!({
                 "default": "s3", "disks": {
                     "s3": disk("tenant-a", true), "isolated": disk("tenant-b", false),
+                    "temporary": temporary, "invalid-temporary": invalid_temporary,
                     "cdn": {
                         "driver": "s3", "bucket": self.bucket, "region": "us-east-1",
                         "root": "tenant-a", "url": "https://cdn.example.test/files/",
@@ -273,6 +278,7 @@ async fn configured_s3_disks_stream_real_objects_and_clean_failed_uploads() {
             secret: Some("wrong-secret".into()),
             token: None,
             endpoint: Some(service.endpoint.clone()),
+            temporary_url: None,
             root: "".into(),
             use_path_style_endpoint: true,
             visibility: None,
@@ -497,5 +503,151 @@ async fn presigned_download_and_upload_work_without_client_credentials() {
             .await
             .is_err()
     );
+    service.clear().await;
+}
+
+#[tokio::test]
+async fn temporary_origin_preserves_signed_path_and_version() {
+    use aws_sdk_s3::{
+        primitives::ByteStream,
+        types::{BucketVersioningStatus, VersioningConfiguration},
+    };
+    let Some(service) = Service::start("OPENRUST_TEST_S3").await else {
+        assert!(env::var_os("OPENRUST_REQUIRE_S3_PRESIGN").is_none());
+        return;
+    };
+    let manager = service.manager();
+    assert!(matches!(
+        manager.disk(Some("invalid-temporary")),
+        Err(FilesystemError::InvalidConfiguration)
+    ));
+    let disk = manager.disk(Some("temporary")).unwrap();
+    let path = "nested/version + % 文本.txt";
+    let key = format!("tenant-a/{path}");
+    let expires = std::time::SystemTime::now() + Duration::from_secs(60);
+    service
+        .client
+        .put_bucket_versioning()
+        .bucket(&service.bucket)
+        .versioning_configuration(
+            VersioningConfiguration::builder()
+                .status(BucketVersioningStatus::Enabled)
+                .build(),
+        )
+        .send()
+        .await
+        .unwrap();
+    let mut versions = Vec::new();
+    for body in ["original", "updated"] {
+        let result = service
+            .client
+            .put_object()
+            .bucket(&service.bucket)
+            .key(&key)
+            .body(ByteStream::from_static(body.as_bytes()))
+            .send()
+            .await
+            .unwrap();
+        versions.push(result.version_id().expect("versioned PUT").to_owned());
+    }
+    let signed = disk
+        .temporaryUrlWith(
+            path,
+            expires,
+            TemporaryUrlOptions {
+                version_id: Some(versions[0].clone()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let signed = url::Url::parse(&signed).unwrap();
+    assert_eq!(
+        signed.origin().ascii_serialization(),
+        "http://download.example.test:8080"
+    );
+    assert!(!signed.path().contains("/ignored"));
+    assert!(!signed.query_pairs().any(|(key, _)| key == "unused"));
+    assert!(
+        signed
+            .query_pairs()
+            .any(|(key, value)| key == "versionId" && value == versions[0])
+    );
+    let target = service.endpoint.strip_prefix("http://").unwrap();
+    let route = format!("download.example.test:8080:{target}");
+    // Emulate a proxy restoring the Host that the SDK signed.
+    let response = tokio::process::Command::new("curl")
+        .args([
+            "--fail",
+            "--silent",
+            "--noproxy",
+            "*",
+            "--max-time",
+            "10",
+            "--connect-to",
+            &route,
+            "-H",
+            &format!("Host: {target}"),
+            signed.as_str(),
+        ])
+        .output()
+        .await
+        .unwrap();
+    assert!(response.status.success(), "versioned GET failed");
+    assert_eq!(response.stdout, b"original");
+
+    let upload = disk.temporaryUploadUrl(path, expires).await.unwrap();
+    assert!(upload.url.starts_with("http://download.example.test:8080/"));
+    assert!(!upload.url.contains("/ignored"));
+    let mut request = tokio::process::Command::new("curl");
+    request.args([
+        "--fail",
+        "--silent",
+        "--noproxy",
+        "*",
+        "--max-time",
+        "10",
+        "--connect-to",
+        &route,
+        "-H",
+        &format!("Host: {target}"),
+        "-X",
+        "PUT",
+    ]);
+    for (name, value) in &upload.headers {
+        request
+            .arg("-H")
+            .arg(format!("{name}: {}", value.to_str().unwrap()));
+    }
+    let result = request
+        .args(["--data-binary", "third", "--include", &upload.url])
+        .output()
+        .await
+        .unwrap();
+    assert!(result.status.success(), "rewritten PUT failed");
+    let latest = service
+        .client
+        .get_object()
+        .bucket(&service.bucket)
+        .key(&key)
+        .send()
+        .await
+        .unwrap();
+    versions.push(latest.version_id().unwrap().to_owned());
+    assert_eq!(
+        latest.body.collect().await.unwrap().into_bytes().as_ref(),
+        b"third"
+    );
+    for version in versions {
+        service
+            .client
+            .delete_object()
+            .bucket(&service.bucket)
+            .key(&key)
+            .version_id(version)
+            .send()
+            .await
+            .unwrap();
+    }
     service.clear().await;
 }

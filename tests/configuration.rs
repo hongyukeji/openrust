@@ -91,7 +91,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     fs::write(
         root.join(".env"),
-        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\n",
+        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nAWS_TEMPORARY_URL=https://downloads.example.test\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\n",
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
@@ -112,6 +112,10 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         json!(["queue", "schedul?", "app:*"])
     );
     assert_eq!(configured["app"]["url"], "http://localhost:9081");
+    assert_eq!(
+        configured["filesystems"]["disks"]["s3"]["temporary_url"],
+        "https://downloads.example.test"
+    );
     assert_eq!(configured["cache"]["prefix"], "examplestore-cache-");
     assert_eq!(
         configured["filesystems"]["disks"]["public"]["url"],

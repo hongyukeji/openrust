@@ -3,7 +3,7 @@
 - 核对固定 Laravel 的命名 URL、参数编码、签名与过期、重定向和本地临时文件机制。参考固定 Goravel 的 HTTP 重定向响应接口。复用 `v0.x` 的原始查询串验签、恒定时间比较、密钥轮换及固定 PHP 夹具，并移植重定向和签名 HTTP 用例的关键路径。 [Laravel URLs](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/urls.md) · [Laravel URL 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Routing/RoutingUrlGeneratorTest.php) · [Laravel 文件路由](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemServiceProvider.php) · [Goravel Response](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/http/response.go)
 - 路由装配后按生效路由建立应用级名称索引。请求上下文保留原始 URI，按需解析 Host，CLI 使用 `APP_URL`。支持具名、位置与嵌套参数、可选段、默认值、域名模板与模型主路由键。签名使用配置原值、查询顺序与前任密钥。常规验签失败返回 403。
 - 重定向支持指定状态、命名路由、一次性 intended 会话状态与同源 Referer。开启 `serve` 的本地磁盘提供签名 GET 和 PUT，生产环境无效签名返回 404。未签名的现有公开静态文件仍按原挂载顺序服务。S3 临时链接由现有 AWS SDK 生成，上传时转发签名要求的请求头。
-- Rust 使用有序类型表达 PHP 参数数组，并显式传入模型投影、时间和会话请求。缺少签名密钥时拒绝签发，`expires` 始终参与验签。HTTP URL 不读取转发头。S3 SDK 全量请求选项及独立 temporary_url 基地址仍有差异。
+- Rust 使用有序类型表达 PHP 参数数组，并显式传入模型投影、时间和会话请求。缺少签名密钥时拒绝签发，`expires` 始终参与验签。HTTP URL 不读取转发头。S3 SDK 全量请求选项仍有差异。
 - 以 `407954e9` 为隔离基线。Rust 1.94.0 格式、464 项锁定离线工作区测试、全目标严格 Clippy 和 `./artisan inspire` 通过。`./artisan route:list --path=storage` 显示本地 GET／HEAD 与 PUT 路由。实际 HTTP 覆盖相对和绝对签名、篡改、过期、Host 改动、轮换、公开静态文件、局部磁盘上传下载、会话重定向和一次性 intended。分页链接在 SQLite 和真实 MySQL 8.4 上复验。
 - 真实 RustFS 使用预签名 PUT 和 GET 完成无客户端凭据的上传及读取，去掉签名后读取失败。三语正文的同一 Rust 示例从文档抽取并通过实际 HTTP，VitePress 构建、12 项通用浏览器检查与 6 项专题浏览器检查通过。
 
@@ -27,4 +27,9 @@
 
 - 对照固定 Laravel 的 S3 命令选项和本地磁盘回调。Goravel 的 Driver 提供两参数下载签名，OpenRust 保留两参数接口，以 `temporaryUrlWith` 和 `temporaryUploadUrlWith` 接收类型化选项。旧版 `v0.x` 的只读版本化签名使用 OpenDAL，当前复用 AWS SDK 签名器并接入版本 ID。 [Laravel S3 Adapter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/AwsS3V3Adapter.php) · [Laravel Local Adapter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/LocalFilesystemAdapter.php) · [Goravel Storage](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/filesystem/storage.go)
 - 本地 GET／PUT 回调绑定到磁盘，先验证路径，调用前释放配置锁。真实 HTTP 通过未启用 `serve` 的磁盘生成链接，并用签名 GET／PUT 实际读写。原有默认签名、过期和方法隔离同时通过。
-- 真实 RustFS 无客户端凭据验收 PUT 内容类型与元数据请求头、GET 响应类型和下载文件名。篡改文件名、去掉签名、过期签发均被拒绝。版本 ID 已接到 SDK，版本化对象下载仍待专项验收。Laravel 的独立 `temporary_url` 基地址及其他 SDK 参数继续跟踪。
+- 真实 RustFS 无客户端凭据验收 PUT 内容类型与元数据请求头、GET 响应类型和下载文件名。篡改文件名、去掉签名、过期签发均被拒绝。版本化对象下载及独立基地址的验收见下节。其他 SDK 参数继续跟踪。
+
+## S3 临时 URL 基地址与对象版本
+
+- 固定 Laravel 先签名，再按 `temporary_url` 替换协议、主机和端口。OpenRust 保留 SDK 返回的原始路径与查询串，公开基地址与签名端点分别配置。代理需恢复签名使用的 Host。磁盘配置也可经应用的 `AWS_TEMPORARY_URL` 传入。 [Laravel S3 Adapter](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/AwsS3V3Adapter.php) · [Laravel replaceBaseUrl](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemAdapter.php)
+- 沿用 Goravel 路径与过期时间的调用契约。旧版 `v0.x` 的 OpenDAL 验收以具体对象版本读取为准，本批复用该验收思路，沿用现有 AWS SDK。RustFS 开启版本控制后对同一键写入两次，使用改写基地址的预签名 GET 读取首版。预签名 PUT 生成第三版。客户端通过 curl 模拟代理的地址和 Host 转发。测试同时核对基地址中的路径与查询不参与替换、无效协议被拒绝。 [Goravel Storage](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/filesystem/storage.go)

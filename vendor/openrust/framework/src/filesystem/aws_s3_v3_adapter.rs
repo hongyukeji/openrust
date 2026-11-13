@@ -40,6 +40,7 @@ pub struct S3DiskConfig {
     pub secret: Option<String>,
     pub token: Option<String>,
     pub endpoint: Option<String>,
+    pub temporary_url: Option<String>,
     #[serde(default)]
     pub root: String,
     #[serde(default)]
@@ -55,6 +56,7 @@ pub struct S3DiskConfig {
 pub struct AwsS3V3Adapter {
     config: S3DiskConfig,
     client: OnceCell<Client>,
+    temporary_origin: Option<::http::Uri>,
 }
 
 impl AwsS3V3Adapter {
@@ -85,6 +87,25 @@ impl AwsS3V3Adapter {
             return Err(FilesystemError::InvalidConfiguration);
         }
 
+        let temporary_origin = config
+            .temporary_url
+            .as_deref()
+            .map(|value| {
+                let url = Url::parse(value).map_err(|_| FilesystemError::InvalidConfiguration)?;
+                if !matches!(url.scheme(), "http" | "https")
+                    || url.host_str().is_none()
+                    || !url.username().is_empty()
+                    || url.password().is_some()
+                {
+                    return Err(FilesystemError::InvalidConfiguration);
+                }
+                let origin = &url[..url::Position::BeforePath];
+                origin
+                    .parse()
+                    .map_err(|_| FilesystemError::InvalidConfiguration)
+            })
+            .transpose()?;
+
         config.root = config.root.trim_matches('/').to_owned();
         if !config.root.is_empty() {
             super::filesystem_adapter::validate_path(&config.root)
@@ -93,6 +114,7 @@ impl AwsS3V3Adapter {
         Ok(Self {
             config,
             client: OnceCell::new(),
+            temporary_origin,
         })
     }
 
@@ -224,7 +246,7 @@ impl AwsS3V3Adapter {
             .presigned(presigning(expiration)?)
             .await
             .map_err(|error| classify_error(&error))?;
-        Ok(request.uri().to_owned())
+        self.temporary_request_url(request.uri())
     }
 
     pub(super) async fn temporary_upload_url(
@@ -255,9 +277,24 @@ impl AwsS3V3Adapter {
             headers.append(name, value);
         }
         Ok(TemporaryUploadUrl {
-            url: request.uri().to_owned(),
+            url: self.temporary_request_url(request.uri())?,
             headers,
         })
+    }
+
+    fn temporary_request_url(&self, signed: &str) -> FilesystemResult<String> {
+        let Some(origin) = &self.temporary_origin else {
+            return Ok(signed.to_owned());
+        };
+        let mut parts = signed
+            .parse::<::http::Uri>()
+            .map_err(|_| FilesystemError::InvalidConfiguration)?
+            .into_parts();
+        parts.scheme = origin.scheme().cloned();
+        parts.authority = origin.authority().cloned();
+        ::http::Uri::from_parts(parts)
+            .map(|url| url.to_string())
+            .map_err(|_| FilesystemError::InvalidConfiguration)
     }
 
     pub(super) async fn file_exists(&self, path: &str) -> FilesystemResult<bool> {

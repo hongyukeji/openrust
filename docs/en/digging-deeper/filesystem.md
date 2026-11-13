@@ -134,6 +134,10 @@ S3 visibility uses object ACLs. If no visibility is specified, the write leaves 
 
 Use `disk.temporaryUrl(path, expiration).await?` for a download or `disk.temporaryUploadUrl(path, expiration).await?` for an upload. Send the returned `headers` with the upload `url`. For a local disk, enable `serve` in the disk configuration. Its route uses the path in the disk's `url`, or `/storage` when no URL is set. The local upload link accepts PUT. The S3 adapter signs against the configured bucket endpoint. The client needs network access to that endpoint.
 
+### S3 temporary URL origin {#s3-temporary-url-origin}
+
+Set `temporary_url` on the S3 disk, or `AWS_TEMPORARY_URL` for the default S3 configuration, to replace the scheme, host and port in generated GET and PUT links. The signed path and query stay intact. Configure the proxy to forward the original signed Host, path and query to the S3 endpoint.
+
 ### S3 request options {#s3-request-parameters}
 
 Use `temporaryUrlWith` to sign download response headers or a version ID. Use `temporaryUploadUrlWith` to sign upload content headers and metadata. Send the returned headers with the PUT request. The disk supplies the bucket and object path.
