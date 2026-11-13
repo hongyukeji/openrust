@@ -39,3 +39,10 @@
 - Laravel 的回调保留对象引用。Rust 延后回调持有事件时刻的模型克隆，在原应用作用域执行。模型状态克隆保留属性、关系和序列化设置，值对象按其类型的克隆契约复制。事务上下文由模型的显式事务入口提供。
 - SQLite 与独立 MySQL 8.4.13 验证写前取消、无事务即时执行、外层提交、保存点及外层回滚、事件时刻属性、回调访问已提交行及回调失败时保留已提交记录。三语示例各在 SQLite 执行一次。实际 `artisan inspire` 退出成功。
 - Rust 1.94.0 格式、616 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建、12 项通用和 6 项正文浏览器检查通过。
+
+## 事件契约监听器与闭合复核
+
+- 固定 Laravel 按精确、通配、接口监听器的顺序派发。Rust 用 `Event::interfaces()` 显式声明契约名称，避免运行时反射。接口监听器收到原始类型化载荷，通配匹配依据原始事件名。沿用 v0.x 的精确与通配匹配，旧版未找到接口匹配。Goravel 的显式事件与监听器登记作为装配参考。 [Laravel Dispatcher](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Events/Dispatcher.php) · [Laravel 事件测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Events/EventsDispatcherTest.php) · [Goravel Event Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/event/application.go)
+- 真实 HTTP 验证精确、通配及两个接口的执行顺序、原始载荷和停止传播。SQLite 与独立 MySQL 8.4.13 复验原有事务派发，事件专项同时复验条件发现、独立进程缓存和应用隔离。实际二进制运行 `event:list --json` 成功。
+- 复核覆盖编译清单、缓存、订阅、同步和事务后派发、Observer 及事件接口。类监听器按派发解析容器依赖仍缺少框架入口。队列监听器的 Worker 验收和扩展行为归 06-04。06-02 继续保留为部分验收。
+- Rust 1.94.0 格式、617 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语构建、12 项通用和 6 项事件正文浏览器检查通过。

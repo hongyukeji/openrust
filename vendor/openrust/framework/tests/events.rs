@@ -54,6 +54,10 @@ impl Payload for Notice {
     fn name(&self) -> &str {
         self.name
     }
+
+    fn interfaces(&self) -> &[&str] {
+        &["contracts.notice", "contracts.delivery"]
+    }
 }
 
 impl ShouldDispatchAfterCommit for Notice {}
@@ -251,11 +255,22 @@ fn deferred(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+fn interface_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        Event::dispatch(Notice::new("interface.ready", "normal", &observed)).await?;
+        Event::dispatch(Notice::new("interface.stop", "stopped", &observed)).await?;
+        let result = observed.lock().unwrap().clone();
+        Response::json(StatusCode::OK, result)
+    })
+}
+
 fn routing(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/events", run)?;
     router.get("/isolated", isolated)?;
     router.get("/deferred", deferred)?;
+    router.get("/interfaces", interface_listeners)?;
     Ok(router)
 }
 
@@ -389,6 +404,40 @@ async fn verify(connection: Json) {
     server.abort();
     other_server.abort();
     db.statement("drop table event_records", &[]).await.unwrap();
+}
+
+#[tokio::test]
+async fn event_contracts_run_after_wildcards_over_http() {
+    fn register_interfaces(registry: &mut ListenerRegistry) -> EventResult<()> {
+        for (event, label) in [
+            ("interface.ready", "exact"),
+            ("interface.*", "wild"),
+            ("contracts.notice", "notice"),
+            ("contracts.delivery", "delivery"),
+            ("contracts.*", "skip-interface-wildcard"),
+            ("interface.stop", "stop"),
+        ] {
+            registry.listen(event, Arc::new(Record(label)), Delivery::Sync)?;
+        }
+        Ok(())
+    }
+    let app = Application::configure(std::env::temp_dir())
+        .withEvents(DiscoverEvents::new(&[register_interfaces]))
+        .withRouting(Routing::new(routing))
+        .create()
+        .unwrap();
+    let (address, server) = start(app).await;
+    assert_eq!(
+        request(address, "/interfaces").await,
+        json!([
+            "exact:normal",
+            "wild:normal",
+            "notice:normal",
+            "delivery:normal",
+            "stop:stopped"
+        ])
+    );
+    server.abort();
 }
 
 #[tokio::test]

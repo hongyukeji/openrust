@@ -347,7 +347,9 @@ impl Dispatcher {
             return Ok(Vec::new());
         }
         self.broadcast(event.as_ref(), context).await?;
-        let listeners = self.read().listeners.selected(event.name());
+        let name = event.name();
+        let interfaces = event.interfaces();
+        let listeners = self.read().listeners.selected(name, interfaces);
         let mut responses = Vec::with_capacity(listeners.len());
         for registration in listeners {
             let response = if let Some(queued) = registration.queued {

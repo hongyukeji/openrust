@@ -3,6 +3,14 @@ use std::any::Any;
 /// A typed event with a name shared by exact and wildcard listeners.
 pub trait Event: Any + Send + Sync {
     fn name(&self) -> &str;
+
+    /// Additional event contracts whose exact listeners receive this payload.
+    ///
+    /// Contract names must be distinct and differ from the event name. The
+    /// returned order controls delivery after the exact and wildcard listeners.
+    fn interfaces(&self) -> &[&str] {
+        &[]
+    }
 }
 
 impl dyn Event {

@@ -92,6 +92,8 @@ fn discover_events() -> DiscoverEvents {
 
 调用 `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?`，也可派发实现 `contracts::events::Event` 的类型。精确匹配的监听器按注册顺序执行，随后执行匹配的通配符组。`ListenerResponse::Stop` 停止传播，`Event::until` 返回首个监听响应。
 
+类型化事件可通过 `Event::interfaces()` 声明共享契约名称，并用 `Event::listen` 按该名称注册监听器。例如，订单事件可返回 `&["orders.lifecycle"]`，与其他订单事件共用监听器。精确契约监听器在事件自身的精确和通配监听器之后按声明顺序执行。处理器收到原始载荷，通配匹配使用实际派发的事件名。
+
 ## 数据库事务提交后派发
 
 通过 `Event::dispatchInTransaction` 显式传入当前事务。用 `Delivery::AfterCommit` 延后单个监听器，或实现 `ShouldDispatchAfterCommit` 并调用 `Event::dispatchAfterCommit` 延后整个事件。保存点成功提交后，回调留到最外层提交执行。回滚会清除受影响范围内的回调。没有活动事务时立即执行。提交后的回调失败以 `DatabaseError::AfterCommit` 报告。

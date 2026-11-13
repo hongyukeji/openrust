@@ -148,15 +148,24 @@ impl ListenerRegistry {
                 .any(|pattern| wildcard_matches(pattern, event))
     }
 
-    pub(super) fn selected(&self, event: &str) -> Vec<Registration> {
+    pub(super) fn selected(&self, name: &str, interfaces: &[&str]) -> Vec<Registration> {
         self.exact
-            .get(event)
+            .get(name)
             .into_iter()
             .chain(
                 self.wildcard
                     .iter()
-                    .filter(|(pattern, _)| wildcard_matches(pattern, event))
+                    .filter(|(pattern, _)| wildcard_matches(pattern, name))
                     .map(|(_, listeners)| listeners),
+            )
+            .chain(
+                interfaces
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, interface)| {
+                        **interface != name && !interfaces[..*index].contains(interface)
+                    })
+                    .filter_map(|(_, interface)| self.exact.get(*interface)),
             )
             .flatten()
             .cloned()

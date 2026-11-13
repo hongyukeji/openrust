@@ -92,6 +92,8 @@ For model lifecycle handlers, register an [Eloquent observer](../eloquent/gettin
 
 Call `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?` or dispatch a type that implements `contracts::events::Event`. Exact registrations run in registration order, followed by matching wildcard groups. `ListenerResponse::Stop` stops propagation. `Event::until` returns the first listener response.
 
+Typed events may declare shared contract names through `Event::interfaces()`. Register a listener under a contract name with `Event::listen`. For example, an order event can return `&["orders.lifecycle"]` to share a listener with other order events. These exact contract listeners run after the event’s exact and wildcard listeners, in the declared contract order. Each handler receives the original payload. Wildcard matching uses the dispatched event name.
+
 ## Dispatching after a database transaction
 
 Pass the active transaction to `Event::dispatchInTransaction`. Use `Delivery::AfterCommit` for a single listener, or implement `ShouldDispatchAfterCommit` and call `Event::dispatchAfterCommit` to defer the entire event. A successful savepoint keeps its callbacks for the outer commit. Rolling back discards callbacks from the affected scope. Without an active transaction the listener runs immediately. A callback error after commit is reported as `DatabaseError::AfterCommit`.
