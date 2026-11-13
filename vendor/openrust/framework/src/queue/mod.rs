@@ -104,7 +104,7 @@ impl std::fmt::Display for QueueError {
             Self::Timeout => f.write_str("queued job timed out"),
             Self::MaxAttempts => f.write_str("queued job exceeded its allowed attempts"),
             Self::InvalidBatchConnection => {
-                f.write_str("job batches require a database or Redis queue")
+                f.write_str("queue connection does not support job batches")
             }
             Self::InvalidPayload => f.write_str("invalid queue payload"),
             Self::LostReservation => f.write_str("queue job reservation has expired or changed"),

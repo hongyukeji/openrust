@@ -306,6 +306,23 @@ impl DatabaseBatchRepository {
             .map_err(backend)
     }
 
+    pub(crate) async fn retain_publication_payloads(
+        &self,
+        transaction: &mut Transaction,
+        publication: &PublicationKey,
+        payloads: &[Payload],
+    ) -> QueueResult<()> {
+        let payloads = serde_json::to_string(payloads).map_err(|_| QueueError::InvalidPayload)?;
+        let (table, column) = self.publication_table(publication);
+        transaction
+            .table(table)
+            .r#where(column, "=", publication.id())
+            .update([("payloads".into(), payloads.into())].into_iter().collect())
+            .await
+            .map_err(backend)?;
+        Ok(())
+    }
+
     pub(crate) async fn acknowledge_publication(
         &self,
         transaction: &mut Transaction,

@@ -67,6 +67,7 @@ struct ConfiguredQueue {
 enum BatchBackend {
     Database(Connection),
     Redis(Arc<RedisQueue>),
+    External,
     Unsupported,
 }
 
@@ -771,7 +772,7 @@ impl QueueManager {
                 transaction.commit().await.map_err(backend)?;
                 Ok(None)
             }
-            BatchBackend::Unsupported => {
+            BatchBackend::External | BatchBackend::Unsupported => {
                 use crate::log::context::Context;
                 let repository = Context::repository().map_err(backend)?;
                 Context::hooks()
@@ -816,7 +817,7 @@ impl QueueManager {
                     .map_err(backend)?;
                 Ok(())
             }
-            BatchBackend::Unsupported => Ok(()),
+            BatchBackend::External | BatchBackend::Unsupported => Ok(()),
         }
     }
 
@@ -1050,7 +1051,7 @@ impl QueueManager {
                 .and_then(serde_json::Value::as_str),
         )?;
         match &configured.batch_backend {
-            BatchBackend::Database(_) | BatchBackend::Redis(_) => {}
+            BatchBackend::Database(_) | BatchBackend::Redis(_) | BatchBackend::External => {}
             _ => return Err(QueueError::InvalidBatchConnection),
         }
         configured.queue_name(options.get("queue").and_then(Value::as_str))?;
@@ -1207,6 +1208,34 @@ impl QueueManager {
                     crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
                 }
             }
+            BatchBackend::External => {
+                for (index, payload) in publication.payloads.iter().enumerate() {
+                    if let Err(error) = configured
+                        .queue
+                        .push(payload, Some(&publication.queue))
+                        .await
+                    {
+                        if index != 0 {
+                            repository
+                                .retain_publication_payloads(
+                                    &mut transaction,
+                                    key,
+                                    &publication.payloads[index..],
+                                )
+                                .await?;
+                        }
+                        transaction.commit().await.map_err(backend)?;
+                        return Err(error);
+                    }
+                }
+                repository
+                    .acknowledge_publication(&mut transaction, key)
+                    .await?;
+                transaction.commit().await.map_err(backend)?;
+                if matches!(key, PublicationKey::Initial(_)) {
+                    crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
+                }
+            }
             _ => return Err(QueueError::InvalidBatchConnection),
         }
         Ok(true)
@@ -1331,7 +1360,7 @@ impl QueueManager {
                                 .map_err(backend)
                         },
                     )?),
-                    BatchBackend::Unsupported,
+                    BatchBackend::External,
                 )
             }
             "null" | "deferred" | "background" => {
@@ -1410,7 +1439,7 @@ impl QueueManager {
                         block_for: settings.block_for.unwrap_or_default(),
                         registry,
                     }),
-                    BatchBackend::Unsupported,
+                    BatchBackend::External,
                 )
             }
             "redis" => {
@@ -1450,7 +1479,7 @@ impl ConfiguredQueue {
     fn needs_batch_publication(&self, repository: &DatabaseBatchRepository) -> bool {
         match &self.batch_backend {
             BatchBackend::Database(connection) => !repository.uses_connection(connection),
-            BatchBackend::Redis(_) => true,
+            BatchBackend::Redis(_) | BatchBackend::External => true,
             BatchBackend::Unsupported => false,
         }
     }

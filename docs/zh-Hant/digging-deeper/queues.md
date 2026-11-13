@@ -100,7 +100,7 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 設定 `QUEUE_CONNECTION=beanstalkd`，並設定 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（預設 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。執行 `./artisan queue:work beanstalkd --queue=default`。每個佇列對應一個 tube，由伺服器管理工作延遲與預約到期。Worker 逾時應短於預約有效期。可用連線設定的 `block_for` 啟用阻塞預約。
 
-確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。此驅動程式的批次發佈持續追蹤。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
+確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
 
 工作鏈從資料庫或 Redis 佇列切換到 Beanstalkd 或 SQS 時，來源 Worker 依後繼工作的設定延遲轉送。目的端發佈失敗時，來源 Worker 釋放轉送工作供重試。標準 SQS 與 Beanstalkd 在發佈成功、來源確認中斷時仍可能重複發佈後繼工作。
 
@@ -108,7 +108,7 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 設定 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 與 `AWS_DEFAULT_REGION`，也可直接提供完整佇列 URL。`SQS_SUFFIX` 只套用於佇列名稱，放在 `.fifo` 之前。憑證可由 AWS 憑證鏈提供，也可設定存取金鑰、祕密金鑰及選用的工作階段權杖。`SQS_ENDPOINT` 指定自訂服務端點。建立佇列後執行 `./artisan queue:work sqs`。
 
-FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。批次發佈持續追蹤。
+FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。
 
 設定 `SQS_OVERFLOW_ENABLED=true` 後，序列化大小達到 1 MiB 的承載資料存入快取，SQS 訊息攜帶指標。透過 `SQS_OVERFLOW_STORE` 讓生產者與 Worker 使用同一個共用快取。設定 `SQS_OVERFLOW_ALWAYS=true` 後，小型工作也使用指標。工作釋放後保留承載資料，成功確認後預設刪除。可設定 `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` 保留。
 
@@ -631,6 +631,12 @@ OpenRust 先在 SQL 提交批次和待發佈紀錄，再聯絡 Redis。發佈失
 ### 向獨立資料庫發佈批次 {#cross-database-batches}
 
 以 `queue.batching.database` 選擇批次帳本連線，再以 `onConnection` 選擇使用獨立連線的資料庫佇列。對兩個資料庫執行遷移，佇列目標需要 `jobs` 和 `job_chain_deliveries`。帳本儲存待發佈的初始工作、新增工作與接續工作。目標資料庫在同一交易寫入收據與工作。帳本確認失敗時，`queue:publish-batches` 重用收據，避免重複入列。以 `queue:work <connection>` 消費目標佇列。
+
+### 向 Beanstalkd 或 SQS 發佈批次 {#external-batches}
+
+透過 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 選擇驅動程式。發佈端與 Worker 使用同一 SQL 批次儲存庫。儲存庫先提交批次和待發佈記錄，再由驅動程式逐項傳送。初次發佈、追加和續接使用同一個復原指令。
+
+如果前面的工作已傳送成功，後續傳送失敗，OpenRust 儲存剩餘工作，`queue:publish-batches` 從中斷處復原。程序當機、服務端回應不明或 SQL 提交失敗可能造成重複發佈，工作處理常式須維持冪等。標準 SQS 和 Beanstalkd 的傳送確認與 SQL 更新無法原子提交。
 
 ### 批次回呼 {#batch-callbacks}
 

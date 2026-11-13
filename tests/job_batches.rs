@@ -405,6 +405,13 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "database-cross" => Bus::batch(jobs(&["cross-first", "cross-second"])?)
                 .onConnection("destination")
                 .onQueue("database-cross"),
+            "beanstalkd" | "sqs" => Bus::batch(jobs(&[
+                &format!("{kind}-external-first"),
+                &format!("{kind}-external-second"),
+                &format!("{kind}-external-third"),
+            ])?)
+            .onConnection(kind)
+            .then("reports.then"),
             "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
             "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
             _ => unreachable!(),
@@ -814,6 +821,23 @@ async fn exercise(mysql: Option<&str>) {
         settings["database"]["connections"]["destination"] = json!({"url":url});
         settings["queue"]["connections"]["destination"] =
             json!({"driver":"database","connection":"destination","retry_after":90});
+    }
+    let beanstalk_port = std::env::var("OPENRUST_TEST_BEANSTALKD_PORT").ok();
+    if let Some(port) = &beanstalk_port {
+        settings["queue"]["connections"]["beanstalkd"] = json!({
+            "driver": "beanstalkd", "host": "127.0.0.1", "port": port.parse::<u16>().unwrap(),
+            "queue": format!("batch-{}", uuid_suffix()), "block_for": 0,
+        });
+    }
+    let sqs_url = std::env::var("OPENRUST_TEST_SQS_URL")
+        .ok()
+        .filter(|_| mysql.is_some());
+    if let Some(url) = &sqs_url {
+        settings["queue"]["connections"]["sqs"] = json!({
+            "driver": "sqs", "queue": url,
+            "endpoint": std::env::var("OPENRUST_TEST_SQS_ENDPOINT").unwrap(),
+            "key": "local", "secret": "local", "region": "us-east-1", "block_for": 0,
+        });
     }
     std::fs::write(root.0.join("settings.json"), settings.to_string()).unwrap();
     let mut app = application(&root.0);
@@ -1234,7 +1258,71 @@ async fn exercise(mysql: Option<&str>) {
     if let Some(destination) = destination {
         verify_database_cross_batch(&root.0, &db, &destination, address).await;
     }
+    if beanstalk_port.is_some() {
+        verify_external_batch(&root.0, &db, &queue, address, "beanstalkd").await;
+        verify_chained_batches(&root.0, &db, &queue, address, "beanstalkd", "ok").await;
+    }
+    if sqs_url.is_some() {
+        verify_external_batch(&root.0, &db, &queue, address, "sqs").await;
+    }
     server.abort();
+}
+
+async fn verify_external_batch(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    driver: &str,
+) {
+    let queue = manager.connection(Some(driver)).unwrap();
+    let batch = request(address, driver, 200).await.unwrap();
+    let id = batch["id"].as_str().unwrap();
+    let initial = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
+    assert_eq!(batch["pendingJobs"], 3);
+    let partial =
+        driver == "sqs" && std::env::var_os("OPENRUST_TEST_SQS_BATCH_REJECT_SECOND").is_some();
+    if partial {
+        // The SQS fixture rejects the second SendMessage once, after the first succeeds.
+        let pending = initial().first().await.unwrap().unwrap();
+        let Some(Value::Text(payloads)) = pending.get("payloads") else {
+            panic!("expected queued payloads");
+        };
+        let pending: Vec<Payload> = serde_json::from_str(payloads).unwrap();
+        assert_eq!(
+            pending.iter().map(Payload::data).collect::<Vec<_>>(),
+            [&json!("sqs-external-second"), &json!("sqs-external-third")]
+        );
+        assert_eq!(queue.size(None).await.unwrap(), 1);
+    } else {
+        assert_eq!(initial().count("*").await.unwrap(), 0);
+    }
+
+    let extra = format!("{driver}-external-extra");
+    request(address, &format!("append/{id}/{extra}"), 200).await;
+    if partial {
+        let publish = ["queue:publish-batches"];
+        tokio::join!(artisan(base, &publish), artisan(base, &publish));
+    }
+    assert_eq!(initial().count("*").await.unwrap(), 0);
+    assert_eq!(queue.size(None).await.unwrap(), 4);
+    artisan(base, &["queue:work", driver, "--stop-when-empty"]).await;
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+    for step in ["first", "second", "third", "extra"] {
+        assert_eq!(
+            chain_receipt(db, &format!("{driver}-external-{step}")).await,
+            1
+        );
+    }
+    let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
+        .unwrap()
+        .find(id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(batch.finished());
+    assert_eq!(batch.progress(), 100);
+    assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
 }
 
 async fn chain_receipt(db: &Connection, name: &str) -> u64 {

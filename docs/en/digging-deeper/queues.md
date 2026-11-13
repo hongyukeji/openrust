@@ -100,7 +100,7 @@ Configure `failover.connections` in priority order. Publication tries the next c
 
 Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANSTALKD_QUEUE_PORT` (default 11300), `BEANSTALKD_QUEUE` and `BEANSTALKD_QUEUE_RETRY_AFTER`. Run `./artisan queue:work beanstalkd --queue=default`. A queue maps to a tube. The server manages delayed jobs and reservation expiry. Keep the worker timeout below the reservation lifetime. Use the connection’s `block_for` setting to allow blocking reservations.
 
-Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. Batch publication remains tracked for this driver. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
+Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
 
 When a chain crosses from a database or Redis queue into Beanstalkd or SQS, the source worker forwards the successor with its configured delay. If the destination rejects publication, the source worker releases the forwarding job for retry. Standard SQS and Beanstalkd can still duplicate a successor if publication succeeds and the source acknowledgement is interrupted.
 
@@ -108,7 +108,7 @@ When a chain crosses from a database or Redis queue into Beanstalkd or SQS, the 
 
 Set `QUEUE_CONNECTION=sqs`, `SQS_PREFIX`, `SQS_QUEUE` and `AWS_DEFAULT_REGION`. You may provide a complete queue URL. `SQS_SUFFIX` applies to names and precedes the `.fifo` extension. Use the AWS credential chain or configure the access key, secret and optional session token. `SQS_ENDPOINT` selects a custom service endpoint. Run `./artisan queue:work sqs` after provisioning the queue.
 
-For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period. Batch publishing remains tracked separately.
+For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period.
 
 Set `SQS_OVERFLOW_ENABLED=true` to store serialized payloads of 1 MiB or more in a cache and send a pointer through SQS. Select the same shared cache on producers and workers with `SQS_OVERFLOW_STORE`. Set `SQS_OVERFLOW_ALWAYS=true` to use pointers for smaller jobs too. Releasing a job keeps its payload. A successful acknowledgement removes it by default. Set `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` to retain it.
 
@@ -631,6 +631,12 @@ OpenRust commits the batch and the Redis publication intent in SQL before contac
 ### Publishing batches to a separate database {#cross-database-batches}
 
 Set `queue.batching.database` to the ledger connection and choose a database queue with its own connection through `onConnection`. Migrate both databases. The queue destination needs `jobs` and `job_chain_deliveries`. The ledger stores pending initial jobs, additions and continuations. The destination commits its receipt and jobs in one transaction. If the ledger acknowledgement fails, `queue:publish-batches` reuses the receipt and avoids duplicate inserts. Use `queue:work <connection>` on the destination.
+
+### Publishing batches to Beanstalkd or SQS {#external-batches}
+
+Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Use the same SQL batch repository configuration in the publisher and workers. The repository commits the batch and its pending publication before the driver sends jobs in order. Initial publication, additions and continuations use the same recovery command.
+
+When a send fails after earlier sends have succeeded, OpenRust saves the remaining jobs and `queue:publish-batches` resumes from that point. A crash, ambiguous broker response or SQL commit failure can replay a send. Keep handlers idempotent. Standard SQS and Beanstalkd cannot atomically acknowledge a send together with the SQL publication update.
 
 ### Batch callbacks {#batch-callbacks}
 

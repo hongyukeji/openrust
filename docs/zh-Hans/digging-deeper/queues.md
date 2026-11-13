@@ -100,7 +100,7 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 设置 `QUEUE_CONNECTION=beanstalkd`，并配置 `BEANSTALKD_QUEUE_HOST`、`BEANSTALKD_QUEUE_PORT`（默认 11300）、`BEANSTALKD_QUEUE` 和 `BEANSTALKD_QUEUE_RETRY_AFTER`。运行 `./artisan queue:work beanstalkd --queue=default`。每个队列映射到一个 tube，服务端管理任务延迟和预约到期。Worker 超时应短于预约有效期。可用连接配置的 `block_for` 启用阻塞预约。
 
-确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。该驱动的批次发布继续跟踪。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
+确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
 
 任务链从数据库或 Redis 队列切换到 Beanstalkd 或 SQS 时，来源 Worker 按后继任务的配置延迟转发。目标发布失败时，来源 Worker 释放转发任务以供重试。标准 SQS 与 Beanstalkd 在发布成功、来源确认中断时仍可能重复发布后继任务。
 
@@ -108,7 +108,7 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 配置 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 和 `AWS_DEFAULT_REGION`，也可以直接提供完整队列 URL。`SQS_SUFFIX` 只用于队列名，放在 `.fifo` 之前。凭据可由 AWS 凭据链提供，也可配置访问密钥、密钥和可选会话令牌。`SQS_ENDPOINT` 指定自定义服务端点。创建队列后运行 `./artisan queue:work sqs`。
 
-FIFO 可用 `Payload::onGroup` 和 `withDeduplicationId` 设置稳定标识。空的去重 ID 使用队列的内容去重配置。逐消息延时适用于标准队列。SQS 可见性超时控制重投递，Worker 超时应短于可见期。批次发布继续跟踪。
+FIFO 可用 `Payload::onGroup` 和 `withDeduplicationId` 设置稳定标识。空的去重 ID 使用队列的内容去重配置。逐消息延时适用于标准队列。SQS 可见性超时控制重投递，Worker 超时应短于可见期。
 
 设置 `SQS_OVERFLOW_ENABLED=true` 后，序列化大小达到 1 MiB 的载荷存入缓存，SQS 消息携带指针。通过 `SQS_OVERFLOW_STORE` 让生产者和 Worker 使用同一个共享缓存。设置 `SQS_OVERFLOW_ALWAYS=true` 后，小任务也使用指针。任务释放后保留载荷，成功确认后默认删除。可设置 `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` 保留。
 
@@ -631,6 +631,12 @@ OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布
 ### 向独立数据库发布批次 {#cross-database-batches}
 
 用 `queue.batching.database` 选择批次账本连接，再用 `onConnection` 选择使用独立连接的数据库队列。对两个数据库执行迁移，队列目标需要 `jobs` 和 `job_chain_deliveries`。账本保存待发布的初始任务、追加任务及续接任务。目标数据库在同一事务写入回执和任务。账本确认失败时，`queue:publish-batches` 复用回执，避免重复入队。用 `queue:work <connection>` 消费目标队列。
+
+### 向 Beanstalkd 或 SQS 发布批次 {#external-batches}
+
+通过 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 选择驱动。发布端和 Worker 使用同一 SQL 批次仓库。仓库先提交批次和待发布记录，再由驱动逐项发送。初次发布、追加和续接使用同一个恢复命令。
+
+如果前面的任务已发送成功，后续发送失败，OpenRust 保存剩余任务，`queue:publish-batches` 从中断处恢复。进程崩溃、服务端响应不明或 SQL 提交失败可能导致重复发布，任务处理器需保持幂等。标准 SQS 和 Beanstalkd 的发送确认与 SQL 更新无法原子提交。
 
 ### 批次回调 {#batch-callbacks}
 
