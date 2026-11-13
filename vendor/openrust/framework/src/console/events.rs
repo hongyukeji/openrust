@@ -70,3 +70,16 @@ impl Event for ScheduledTaskFailed {
         "console.scheduled_task_failed"
     }
 }
+
+/// Fired after a background scheduled command has finished and released its overlap lock.
+#[derive(Clone)]
+pub struct ScheduledBackgroundTaskFinished {
+    pub task: Arc<scheduling::Event>,
+    pub exit_code: i32,
+}
+
+impl Event for ScheduledBackgroundTaskFinished {
+    fn name(&self) -> &str {
+        "console.scheduled_background_task_finished"
+    }
+}

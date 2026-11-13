@@ -74,6 +74,15 @@ Call `./artisan schedule:run` each minute from your process scheduler, or use `.
 
 Sub-minute tasks keep `schedule:run` active through the end of the current minute. `./artisan schedule:interrupt` signals repeat loops in that minute through the selected cache store. Task failures go to the exception reporter and remaining due tasks still run. The command exits successfully after processing task failures. Scheduler infrastructure errors exit with a failure status.
 
+## Task output {#task-output}
+
+Use `sendOutputTo` to replace a file or `appendOutputTo` to append to it. Both capture stdout and stderr from scheduled Artisan commands and executables, including commands that exit unsuccessfully. Relative paths are resolved from the application root.
+
+```rust
+schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
+schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
+```
+
 ## Task hooks {#task-hooks}
 
 Attach a hook to a task or a schedule group. In this example, `hook` creates an asynchronous callback that receives the application and console output.
@@ -87,6 +96,18 @@ schedule
 ```
 
 The scheduler runs `before` hooks before the task. `after` and `then` are aliases. `onSuccess` and `onFailure` run when the task completes with the corresponding result. After hooks run in registration order. Nested groups inherit the outer hooks and add their own. A failing hook is reported through the application exception handler.
+
+Use `thenWithOutput`, `onSuccessWithOutput`, or `onFailureWithOutput` for a hook that receives captured bytes as its third argument. Pass `true` as the second argument to skip empty output. An explicit output file supplies its full contents, including earlier runs in append mode.
+
+### Pinging URLs {#pinging-urls}
+
+Use `pingBefore`, `thenPing`, `pingOnSuccess`, and `pingOnFailure` to send HTTP GET requests at the corresponding hook. Their `If` variants take a boolean followed by the URL. Failed requests are reported and the scheduler continues.
+
+## Background tasks {#background-tasks}
+
+Call `runInBackground()` on a scheduled command or executable. OpenRust runs the task and its after hooks in a separate instance of the application binary. The parent runs the before hooks and can exit while the task continues. Use a shared cache store such as file or Redis with `withoutOverlapping()`.
+
+`ScheduledBackgroundTaskFinished` is dispatched by the child after completion and lock release. It carries the task and exit code, including on failure. Register listeners for `console.scheduled_background_task_finished` during application assembly.
 
 ## Events {#events}
 

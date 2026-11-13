@@ -173,6 +173,27 @@ fn routes() -> Result<(), ConsoleError> {
                 fixed
             }
         });
+        if profile == "output" {
+            schedule
+                .command("fixture:hello", [])
+                .sendOutputTo("overwrite.log");
+            schedule
+                .command("fixture:hello", [])
+                .appendOutputTo("append.log");
+            schedule
+                .command("fixture:missing", [])
+                .sendOutputTo("failure.log")
+                .onFailureWithOutput(
+                    |app, _, bytes| {
+                        Box::pin(async move {
+                            std::fs::write(app.base_path().join("failure-hook.log"), bytes)
+                                .map_err(console_error)
+                        })
+                    },
+                    true,
+                );
+            return Ok(());
+        }
         if profile == "basic" {
             schedule.command("fixture:hello", []).dailyAt("17:00")?;
             schedule
@@ -1114,5 +1135,33 @@ async fn artisan_runs_task_hooks_in_order_with_group_inheritance() {
     assert!(stdout.contains("failed before-error: before hook error"));
     assert!(stdout.contains("failed after-error: after hook error"));
     assert!(!stdout.lines().any(|line| line == "before-error"));
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
+async fn artisan_redirects_scheduled_output_and_passes_failed_output_to_hooks() {
+    let root = root(None);
+    for name in ["overwrite.log", "append.log"] {
+        std::fs::write(root.join(name), b"existing\n").unwrap();
+    }
+    for _ in 0..2 {
+        let result = run(&root, "output", MONDAY, &["schedule:run"]).await;
+        assert!(result.status.success(), "{result:?}");
+        assert!(!String::from_utf8_lossy(&result.stdout).contains("artisan command"));
+    }
+    assert_eq!(
+        std::fs::read(root.join("overwrite.log")).unwrap(),
+        b"artisan command\n"
+    );
+    assert_eq!(
+        std::fs::read(root.join("append.log")).unwrap(),
+        b"existing\nartisan command\nartisan command\n"
+    );
+    let failure = std::fs::read(root.join("failure.log")).unwrap();
+    assert!(!failure.is_empty());
+    assert_eq!(
+        std::fs::read(root.join("failure-hook.log")).unwrap(),
+        failure
+    );
     std::fs::remove_dir_all(root).unwrap();
 }

@@ -1,4 +1,4 @@
-use std::{ffi::OsString, fmt::Write, sync::Arc, time::Duration};
+use std::{ffi::OsString, fmt::Write, path::PathBuf, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Timelike, Utc};
 use chrono_tz::Tz;
@@ -17,6 +17,22 @@ use crate::{
 pub(super) type Callback = dyn for<'a> Fn(&'a Application, &'a mut Output) -> ConsoleFuture<'a, Result<(), ConsoleError>>
     + Send
     + Sync;
+type OutputHook = dyn for<'a> Fn(
+        &'a Application,
+        &'a mut Output,
+        &'a [u8],
+    ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+    + Send
+    + Sync;
+
+enum AfterHook {
+    Plain(Arc<Callback>),
+    WithOutput {
+        callback: Arc<OutputHook>,
+        only_if_output: bool,
+    },
+}
+
 type Condition = dyn Fn(&Application) -> bool + Send + Sync;
 
 #[derive(Clone, Copy)]
@@ -50,7 +66,9 @@ pub struct Event {
     filters: Vec<Box<Condition>>,
     attributes: Map<String, Value>,
     before_hooks: Vec<Arc<Callback>>,
-    after_hooks: Vec<(HookKind, Arc<Callback>)>,
+    after_hooks: Vec<(HookKind, AfterHook)>,
+    pub(super) destination: Option<super::task_output::Destination>,
+    pub(super) background: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's scheduling API")]
@@ -72,6 +90,8 @@ impl Event {
             attributes: Map::new(),
             before_hooks: Vec::new(),
             after_hooks: Vec::new(),
+            destination: None,
+            background: false,
         }
     }
 
@@ -147,7 +167,7 @@ impl Event {
     pub(super) fn add_hook(&mut self, kind: HookKind, hook: Arc<Callback>) {
         match kind {
             HookKind::Before => self.before_hooks.push(hook),
-            _ => self.after_hooks.push((kind, hook)),
+            _ => self.after_hooks.push((kind, AfterHook::Plain(hook))),
         }
     }
 
@@ -167,6 +187,7 @@ impl Event {
         app: &Application,
         output: &mut Output,
         succeeded: bool,
+        captured: &[u8],
     ) -> Result<(), ConsoleError> {
         for (kind, hook) in &self.after_hooks {
             let applies = match kind {
@@ -176,10 +197,183 @@ impl Event {
                 HookKind::Failure => !succeeded,
             };
             if applies {
-                hook(app, output).await?;
+                match hook {
+                    AfterHook::Plain(hook) => hook(app, output).await?,
+                    AfterHook::WithOutput {
+                        callback,
+                        only_if_output,
+                    } if !only_if_output || !captured.is_empty() => {
+                        callback(app, output, captured).await?;
+                    }
+                    AfterHook::WithOutput { .. } => {}
+                }
             }
         }
         Ok(())
+    }
+
+    pub fn sendOutputTo(&mut self, path: impl Into<PathBuf>) -> &mut Self {
+        self.destination = Some(super::task_output::Destination {
+            path: path.into(),
+            append: false,
+        });
+        self
+    }
+
+    pub fn appendOutputTo(&mut self, path: impl Into<PathBuf>) -> &mut Self {
+        self.sendOutputTo(path);
+        self.destination
+            .as_mut()
+            .expect("destination just set")
+            .append = true;
+        self
+    }
+
+    pub fn runInBackground(&mut self) -> &mut Self {
+        self.background = true;
+        self
+    }
+
+    pub(super) fn captures_output(&self) -> bool {
+        self.after_hooks
+            .iter()
+            .any(|(_, hook)| matches!(hook, AfterHook::WithOutput { .. }))
+    }
+
+    fn output_hook(
+        &mut self,
+        kind: HookKind,
+        only_if_output: bool,
+        callback: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+            &'a [u8],
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> &mut Self {
+        self.after_hooks.push((
+            kind,
+            AfterHook::WithOutput {
+                callback: Arc::new(callback),
+                only_if_output,
+            },
+        ));
+        self
+    }
+
+    pub fn thenWithOutput(
+        &mut self,
+        callback: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+            &'a [u8],
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+        only_if_output: bool,
+    ) -> &mut Self {
+        self.output_hook(HookKind::After, only_if_output, callback)
+    }
+
+    pub fn onSuccessWithOutput(
+        &mut self,
+        callback: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+            &'a [u8],
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+        only_if_output: bool,
+    ) -> &mut Self {
+        self.output_hook(HookKind::Success, only_if_output, callback)
+    }
+
+    pub fn onFailureWithOutput(
+        &mut self,
+        callback: impl for<'a> Fn(
+            &'a Application,
+            &'a mut Output,
+            &'a [u8],
+        ) -> ConsoleFuture<'a, Result<(), ConsoleError>>
+        + Send
+        + Sync
+        + 'static,
+        only_if_output: bool,
+    ) -> &mut Self {
+        self.output_hook(HookKind::Failure, only_if_output, callback)
+    }
+
+    pub fn pingBefore(&mut self, url: impl Into<String>) -> &mut Self {
+        self.pingBeforeIf(true, url)
+    }
+
+    pub fn pingBeforeIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+        if enabled {
+            self.add_ping(HookKind::Before, url.into());
+        }
+        self
+    }
+
+    pub fn thenPing(&mut self, url: impl Into<String>) -> &mut Self {
+        self.thenPingIf(true, url)
+    }
+
+    pub fn thenPingIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+        if enabled {
+            self.add_ping(HookKind::After, url.into());
+        }
+        self
+    }
+
+    pub fn pingOnSuccess(&mut self, url: impl Into<String>) -> &mut Self {
+        self.pingOnSuccessIf(true, url)
+    }
+
+    pub fn pingOnSuccessIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+        if enabled {
+            self.add_ping(HookKind::Success, url.into());
+        }
+        self
+    }
+
+    pub fn pingOnFailure(&mut self, url: impl Into<String>) -> &mut Self {
+        self.pingOnFailureIf(true, url)
+    }
+
+    pub fn pingOnFailureIf(&mut self, enabled: bool, url: impl Into<String>) -> &mut Self {
+        if enabled {
+            self.add_ping(HookKind::Failure, url.into());
+        }
+        self
+    }
+
+    fn add_ping(&mut self, kind: HookKind, url: String) {
+        let url: Arc<str> = Arc::from(url);
+        self.add_hook(
+            kind,
+            Arc::new(move |app, _| {
+                let url = url.clone();
+                Box::pin(async move {
+                    let result = async {
+                        crate::support::facades::Http::pendingRequest()?
+                            .timeout(Duration::from_secs(10))
+                            .get(&url)
+                            .await?
+                            .throw()
+                    }
+                    .await;
+                    if let Err(error) = result {
+                        let _ = app.report(&error).await;
+                    }
+                    Ok(())
+                })
+            }),
+        );
     }
 
     pub fn cron(&mut self, expression: &str) -> Result<&mut Self, ConsoleError> {

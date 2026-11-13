@@ -74,6 +74,15 @@ schedule
 
 有子分钟任务时，`schedule:run` 持续到当前分钟结束。`./artisan schedule:interrupt` 通过所选缓存存储通知当前分钟的重复循环退出。任务错误交给异常报告器，后续到期任务继续执行，调度命令处理完后成功退出。调度基础设施发生错误时，命令以失败状态退出。
 
+## 任务输出 {#task-output}
+
+用 `sendOutputTo` 覆盖文件，用 `appendOutputTo` 追加。两者均捕获调度 Artisan 命令与系统可执行程序的标准输出和标准错误，包括非零退出时的输出。相对路径以应用根目录为基准。
+
+```rust
+schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
+schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
+```
+
 ## 任务钩子 {#task-hooks}
 
 可为单个任务或调度组注册钩子。示例中的 `hook` 创建接收应用和控制台输出的异步回调。
@@ -87,6 +96,18 @@ schedule
 ```
 
 调度器在执行任务前运行 `before`。`after` 与 `then` 等价。`onSuccess` 和 `onFailure` 按任务结果执行。任务结束后的钩子按注册顺序运行。嵌套组继承外层钩子，并可追加自己的钩子。钩子异常交给应用异常处理器报告。
+
+用 `thenWithOutput`、`onSuccessWithOutput` 或 `onFailureWithOutput` 让钩子的第三个参数接收输出字节。第二个参数传入 `true` 时跳过空输出。指定输出文件时，钩子读取完整文件，追加模式也包含之前运行的内容。
+
+### URL 探测 {#pinging-urls}
+
+用 `pingBefore`、`thenPing`、`pingOnSuccess` 和 `pingOnFailure` 在对应钩子发送 HTTP GET 请求。`If` 变体依次接收布尔值和 URL。请求失败会报告异常，调度继续执行。
+
+## 后台任务 {#background-tasks}
+
+对调度命令或可执行程序调用 `runInBackground()`。OpenRust 在同一应用二进制的独立进程中执行任务及后置钩子。父进程先运行前置钩子，可在任务仍运行时退出。与 `withoutOverlapping()` 一起使用时，选择文件或 Redis 等共享缓存。
+
+子进程完成任务并释放锁后派发 `ScheduledBackgroundTaskFinished`。事件携带任务和退出码，也覆盖任务失败。应用装配时为 `console.scheduled_background_task_finished` 注册监听器。
 
 ## 事件 {#events}
 

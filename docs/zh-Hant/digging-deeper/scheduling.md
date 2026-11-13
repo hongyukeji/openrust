@@ -74,6 +74,15 @@ schedule
 
 有子分鐘任務時，`schedule:run` 持續到當前分鐘結束。`./artisan schedule:interrupt` 透過所選快取儲存通知當前分鐘的重複迴圈結束。任務錯誤交由例外報告器處理，後續到期任務繼續執行，排程命令處理完後成功結束。排程基礎設施發生錯誤時，命令以失敗狀態結束。
 
+## 任務輸出 {#task-output}
+
+用 `sendOutputTo` 覆寫檔案，用 `appendOutputTo` 附加。兩者都擷取排程 Artisan 命令與系統執行檔的標準輸出和標準錯誤，包含非零結束時的輸出。相對路徑以應用程式根目錄為基準。
+
+```rust
+schedule.command("reports:daily", []).sendOutputTo("storage/logs/daily.log");
+schedule.command("reports:audit", []).appendOutputTo("storage/logs/audit.log");
+```
+
 ## 任務鉤子 {#task-hooks}
 
 可為個別任務或排程群組註冊鉤子。範例中的 `hook` 建立接收應用程式與主控台輸出的非同步回呼。
@@ -87,6 +96,18 @@ schedule
 ```
 
 排程器在執行任務前執行 `before`。`after` 與 `then` 等價。`onSuccess` 和 `onFailure` 依任務結果執行。任務結束後的鉤子依註冊順序執行。巢狀群組繼承外層鉤子，並可追加自己的鉤子。鉤子例外交由應用程式例外處理器回報。
+
+用 `thenWithOutput`、`onSuccessWithOutput` 或 `onFailureWithOutput` 讓鉤子的第三個參數接收輸出位元組。第二個參數傳入 `true` 時略過空輸出。指定輸出檔案時，鉤子讀取完整檔案，附加模式也包含先前執行的內容。
+
+### URL 探測 {#pinging-urls}
+
+用 `pingBefore`、`thenPing`、`pingOnSuccess` 和 `pingOnFailure` 在對應鉤子傳送 HTTP GET 請求。`If` 變體依序接收布林值和 URL。請求失敗會回報例外，排程繼續執行。
+
+## 背景任務 {#background-tasks}
+
+對排程命令或執行檔呼叫 `runInBackground()`。OpenRust 在同一應用程式執行檔的獨立程序中執行任務及後置鉤子。父程序先執行前置鉤子，可在任務仍執行時結束。與 `withoutOverlapping()` 一起使用時，選擇檔案或 Redis 等共用快取。
+
+子程序完成任務並釋放鎖後派送 `ScheduledBackgroundTaskFinished`。事件攜帶任務和結束碼，也涵蓋任務失敗。應用程式組裝時為 `console.scheduled_background_task_finished` 註冊監聽器。
 
 ## 事件 {#events}
 

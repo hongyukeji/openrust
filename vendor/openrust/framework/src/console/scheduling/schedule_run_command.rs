@@ -2,6 +2,8 @@ use std::{
     error::Error,
     fmt::Write as _,
     io::{self, Write},
+    path::PathBuf,
+    process::Stdio,
     sync::Arc,
     time::{Duration, SystemTime},
 };
@@ -18,13 +20,13 @@ use crate::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
         events::{
-            SchedulePaused, ScheduleResumed, ScheduledTaskFailed, ScheduledTaskFinished,
-            ScheduledTaskSkipped, ScheduledTaskStarting,
+            SchedulePaused, ScheduleResumed, ScheduledBackgroundTaskFinished, ScheduledTaskFailed,
+            ScheduledTaskFinished, ScheduledTaskSkipped, ScheduledTaskStarting,
         },
     },
     container::EnvironmentResult,
     contracts::cache::Repository as _,
-    contracts::foundation::Application as _,
+    contracts::{container::Container as _, foundation::Application as _},
     foundation::Application,
     queue::DispatchOptions,
     support::facades::{Cache, Event as Events, Queue},
@@ -39,7 +41,7 @@ const PAUSED: &str = "illuminate:schedule:paused";
 
 enum TaskOutcome {
     Succeeded,
-    NonZeroExit(ConsoleError),
+    NonZeroExit(i32, ConsoleError),
 }
 
 #[derive(Clone, Copy)]
@@ -50,6 +52,7 @@ enum Operation {
     Work,
     Pause,
     Resume,
+    Background,
 }
 
 /// Runs events registered during Artisan bootstrap.
@@ -82,6 +85,11 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
         ),
         (Operation::Pause, "schedule:pause", "Pause the scheduler"),
         (Operation::Resume, "schedule:resume", "Resume the schedule"),
+        (
+            Operation::Background,
+            "schedule:finish",
+            "Complete a background scheduled task",
+        ),
     ] {
         let mut syntax = clap::Command::new(name).about(description);
         if matches!(operation, Operation::Run) {
@@ -91,6 +99,17 @@ pub(crate) fn register(artisan: &mut Artisan, schedule: Schedule) -> Result<(), 
                     .action(ArgAction::SetTrue)
                     .help("Suppress the message when no tasks run"),
             );
+        }
+        if matches!(operation, Operation::Background) {
+            syntax = syntax
+                .hide(true)
+                .arg(
+                    Arg::new("index")
+                        .required(true)
+                        .value_parser(clap::value_parser!(usize)),
+                )
+                .arg(Arg::new("key").required(true))
+                .arg(Arg::new("owner").long("owner"));
         }
         if matches!(operation, Operation::Resume) {
             syntax = syntax.visible_alias("schedule:continue");
@@ -141,6 +160,7 @@ impl Command for ScheduleRunCommand {
                     Events::dispatch(ScheduleResumed).await.map_err(error)?;
                     output.info("Scheduled task processing has resumed.");
                 }
+                Operation::Background => return self.finish_background(app, input, output).await,
                 Operation::Run | Operation::Work => {
                     if let Some(shutdown) = input.shutdown() {
                         self.work(app, output, shutdown).await?;
@@ -165,6 +185,7 @@ impl Command for ScheduleRunCommand {
 }
 
 struct Due<'a> {
+    index: usize,
     event: &'a Arc<Event>,
     election: Option<bool>,
     next_run: Instant,
@@ -258,12 +279,13 @@ impl ScheduleRunCommand {
             ));
         };
         let mut due = Vec::new();
-        for event in self.schedule.event_handles() {
+        for (index, event) in self.schedule.event_handles().enumerate() {
             if !event.runsInMaintenanceMode() && app.isDownForMaintenance().await.map_err(error)? {
                 continue;
             }
             if event.due(time.into(), default_zone)? && event.runs_in_environment(&environment) {
                 due.push(Due {
+                    index,
                     event,
                     election: None,
                     next_run: start,
@@ -408,7 +430,12 @@ impl ScheduleRunCommand {
             .await
             .map_err(error)?;
             let start = Instant::now();
-            let result = self.invoke_with_hooks(app, output, event).await;
+            let result = if event.background {
+                self.launch_background(app, output, entry.index, event, overlap)
+                    .await
+            } else {
+                self.invoke_with_hooks(app, output, event).await
+            };
             Ok::<_, ConsoleError>((result, start.elapsed()))
         }
         .await;
@@ -427,7 +454,7 @@ impl ScheduleRunCommand {
             .map(|exception| Arc::new(exception) as Arc<dyn Error + Send + Sync>)
             .or_else(|| match outcome {
                 TaskOutcome::Succeeded => None,
-                TaskOutcome::NonZeroExit(exception) => Some(Arc::new(exception)),
+                TaskOutcome::NonZeroExit(_, exception) => Some(Arc::new(exception)),
             }),
             Err(exception) => Some(Arc::new(exception)),
         };
@@ -458,10 +485,24 @@ impl ScheduleRunCommand {
         event: &Event,
     ) -> Result<TaskOutcome, ConsoleError> {
         event.call_before_hooks(app, output).await?;
-        let outcome = self.invoke(app, output, event).await;
+        self.invoke_with_after_hooks(app, output, event).await
+    }
+
+    async fn invoke_with_after_hooks(
+        &self,
+        app: &Application,
+        output: &mut Output,
+        event: &Event,
+    ) -> Result<TaskOutcome, ConsoleError> {
+        let (outcome, captured) = self.invoke(app, output, event).await?;
         if outcome.is_ok() || matches!(event.action, Action::Callback(_) | Action::Job(..)) {
             event
-                .call_after_hooks(app, output, matches!(outcome, Ok(TaskOutcome::Succeeded)))
+                .call_after_hooks(
+                    app,
+                    output,
+                    matches!(outcome, Ok(TaskOutcome::Succeeded)),
+                    &captured,
+                )
                 .await?;
         }
         outcome
@@ -472,56 +513,269 @@ impl ScheduleRunCommand {
         app: &Application,
         output: &mut Output,
         event: &Event,
-    ) -> Result<TaskOutcome, ConsoleError> {
-        match &event.action {
+    ) -> Result<(Result<TaskOutcome, ConsoleError>, Vec<u8>), ConsoleError> {
+        let command = matches!(event.action, Action::Command(_) | Action::Exec(_));
+        if !command && (event.destination.is_some() || event.captures_output() || event.background)
+        {
+            return Err(error(
+                "Output and background options require a scheduled command or executable.",
+            ));
+        }
+        let mut destination = event
+            .destination
+            .as_ref()
+            .map(|destination| destination.open(app))
+            .transpose()?;
+        let capture = event.captures_output();
+        let mut captured = Vec::new();
+        let outcome = match &event.action {
             Action::Callback(callback) => {
                 callback(app, output).await.map(|()| TaskOutcome::Succeeded)
             }
             Action::Command(arguments) => {
-                let status = self.artisan.handle(app, arguments, output).await;
-                if status == 0 {
-                    Ok(TaskOutcome::Succeeded)
+                let mut command_output = Output::default();
+                let target = if destination.is_some() || capture {
+                    &mut command_output
                 } else {
-                    Ok(TaskOutcome::NonZeroExit(error(format!(
-                        "Artisan exited with status {status}"
-                    ))))
+                    output
+                };
+                let status = self.artisan.handle(app, arguments, target).await;
+                if let Some(file) = &mut destination {
+                    file.write_all(command_output.stdout.as_bytes())
+                        .map_err(error)?;
+                    file.write_all(command_output.stderr.as_bytes())
+                        .map_err(error)?;
                 }
+                if capture {
+                    captured = command_output.stdout.into_bytes();
+                    captured.extend(command_output.stderr.into_bytes());
+                }
+                Ok(exit_outcome(
+                    status,
+                    format!("Artisan exited with status {status}"),
+                ))
             }
             Action::Exec(arguments) => {
-                let result = tokio::process::Command::new(&arguments[0])
+                let mut command = tokio::process::Command::new(&arguments[0]);
+                command
                     .args(&arguments[1..])
                     .current_dir(app.base_path())
-                    .kill_on_drop(true)
-                    .output()
-                    .await
-                    .map_err(error)?;
-                output
-                    .stdout
-                    .push_str(&String::from_utf8_lossy(&result.stdout));
-                output
-                    .stderr
-                    .push_str(&String::from_utf8_lossy(&result.stderr));
-                if result.status.success() {
-                    Ok(TaskOutcome::Succeeded)
+                    .kill_on_drop(true);
+                if destination.is_some() || capture {
+                    let file = match destination.take() {
+                        Some(file) => file,
+                        None => tempfile::tempfile().map_err(error)?,
+                    };
+                    command
+                        .stdout(Stdio::from(file.try_clone().map_err(error)?))
+                        .stderr(Stdio::from(file.try_clone().map_err(error)?));
+                    let status = command.status().await.map_err(error)?;
+                    if capture {
+                        use std::io::{Read, Seek};
+                        if let Some(destination) = &event.destination {
+                            captured = tokio::fs::read(app.base_path().join(&destination.path))
+                                .await
+                                .map_err(error)?;
+                        } else {
+                            let mut file = file;
+                            file.rewind().map_err(error)?;
+                            file.read_to_end(&mut captured).map_err(error)?;
+                        }
+                    }
+                    Ok(exit_outcome(status.code().unwrap_or(1), status))
                 } else {
-                    Ok(TaskOutcome::NonZeroExit(error(result.status)))
+                    let result = command.output().await.map_err(error)?;
+                    output
+                        .stdout
+                        .push_str(&String::from_utf8_lossy(&result.stdout));
+                    output
+                        .stderr
+                        .push_str(&String::from_utf8_lossy(&result.stderr));
+                    Ok(exit_outcome(
+                        result.status.code().unwrap_or(1),
+                        result.status,
+                    ))
                 }
             }
-            Action::Job(payload, options) => {
-                Queue::dispatch(
-                    payload.for_scheduled_dispatch().map_err(error)?,
-                    DispatchOptions {
-                        connection: options.connection.clone(),
-                        queue: options.queue.clone(),
-                        ..DispatchOptions::default()
-                    },
-                    None,
-                )
+            Action::Job(payload, options) => Queue::dispatch(
+                payload.for_scheduled_dispatch().map_err(error)?,
+                DispatchOptions {
+                    connection: options.connection.clone(),
+                    queue: options.queue.clone(),
+                    ..DispatchOptions::default()
+                },
+                None,
+            )
+            .await
+            .map(|_| TaskOutcome::Succeeded)
+            .map_err(error),
+        };
+        if capture
+            && matches!(event.action, Action::Command(_))
+            && let Some(destination) = &event.destination
+        {
+            captured = tokio::fs::read(app.base_path().join(&destination.path))
                 .await
                 .map_err(error)?;
-                Ok(TaskOutcome::Succeeded)
+        }
+        Ok((outcome, captured))
+    }
+
+    async fn launch_background(
+        &self,
+        app: &Application,
+        output: &mut Output,
+        index: usize,
+        event: &Event,
+        overlap: Option<&CacheEventMutex>,
+    ) -> Result<TaskOutcome, ConsoleError> {
+        if overlap.is_some() {
+            let config = app.configuration_repository().map_err(error)?;
+            let default = config.get("cache.default");
+            let name = self
+                .schedule
+                .store
+                .as_deref()
+                .filter(|name| !name.is_empty())
+                .or_else(|| default.as_ref().and_then(serde_json::Value::as_str))
+                .unwrap_or("database");
+            if config
+                .get(&format!("cache.stores.{name}.driver"))
+                .and_then(|driver| driver.as_str().map(str::to_owned))
+                .as_deref()
+                == Some("array")
+            {
+                return Err(error(
+                    "Background overlap prevention requires a shared cache store.",
+                ));
             }
         }
+        if !matches!(event.action, Action::Command(_) | Action::Exec(_)) {
+            return Err(error(
+                "Background scheduling requires a command or executable.",
+            ));
+        }
+        event.call_before_hooks(app, output).await?;
+        let environment_file = app.container().get::<PathBuf>("env.file").map_err(error)?;
+        let mut command = tokio::process::Command::new(std::env::current_exe().map_err(error)?);
+        command
+            .args([
+                "artisan",
+                "schedule:finish",
+                &index.to_string(),
+                &event.mutex_key(),
+            ])
+            .env("APP_BASE_PATH", app.base_path())
+            .current_dir(app.base_path())
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(environment) = environment_file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.strip_prefix(".env."))
+        {
+            command.arg(format!("--env={environment}"));
+        }
+        #[cfg(unix)]
+        command.process_group(0);
+        #[cfg(windows)]
+        command.creation_flags(0x0000_0200); // CREATE_NEW_PROCESS_GROUP
+        let owner = match overlap {
+            Some(overlap) => overlap.take_owner(event).await,
+            None => None,
+        };
+        if let Some(owner) = &owner {
+            command.args(["--owner", owner]);
+        }
+        match command.spawn() {
+            Ok(mut child) => {
+                tokio::spawn(async move {
+                    let _ = child.wait().await;
+                });
+                Ok(TaskOutcome::Succeeded)
+            }
+            Err(source) => {
+                if let (Some(overlap), Some(owner)) = (overlap, owner) {
+                    overlap.release_owner(event, &owner).await.map_err(error)?;
+                }
+                Err(error(source))
+            }
+        }
+    }
+
+    async fn finish_background(
+        &self,
+        app: &Application,
+        input: &Input,
+        output: &mut Output,
+    ) -> Result<i32, ConsoleError> {
+        let args = input.matches();
+        let index = *args.get_one::<usize>("index").expect("required index");
+        let key = args.get_one::<String>("key").expect("required key");
+        let owner = args.get_one::<String>("owner");
+        let lock = owner
+            .map(|owner| {
+                use crate::contracts::cache::LockProvider as _;
+                self.store()?.restore_lock(key, owner).map_err(error)
+            })
+            .transpose()?;
+        let task = self
+            .schedule
+            .event_handles()
+            .nth(index)
+            .filter(|task| task.background && task.mutex_key() == *key);
+        let start = Instant::now();
+        let result = match task {
+            Some(task) => self.invoke_with_after_hooks(app, output, task).await,
+            None => Err(error("The scheduled background task could not be found.")),
+        };
+        let release = match lock {
+            Some(mut lock) => lock.release().await.map(|_| ()).map_err(error),
+            None => Ok(()),
+        };
+        let (code, failure) = match result {
+            Ok(TaskOutcome::Succeeded) => (0, None),
+            Ok(TaskOutcome::NonZeroExit(code, failure)) => (code, Some(failure)),
+            Err(failure) => (1, Some(failure)),
+        };
+        if let Some(task) = task {
+            let failed_event = if let Some(failure) = failure {
+                let failure = Arc::new(failure);
+                let _ = app.report(failure.as_ref()).await;
+                Events::dispatch(ScheduledTaskFailed {
+                    task: task.clone(),
+                    exception: failure,
+                    runtime: start.elapsed(),
+                })
+                .await
+                .map(|_| ())
+                .map_err(error)
+            } else {
+                Ok(())
+            };
+            release?;
+            let finished = Events::dispatch(ScheduledBackgroundTaskFinished {
+                task: task.clone(),
+                exit_code: code,
+            })
+            .await
+            .map_err(error);
+            failed_event?;
+            finished?;
+        } else {
+            release?;
+            return Err(failure.expect("missing task has a failure"));
+        }
+        Ok(code)
+    }
+}
+
+fn exit_outcome(code: i32, message: impl std::fmt::Display) -> TaskOutcome {
+    if code == 0 {
+        TaskOutcome::Succeeded
+    } else {
+        TaskOutcome::NonZeroExit(code, error(message))
     }
 }
 
