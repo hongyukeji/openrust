@@ -22,3 +22,32 @@ fn article_link() -> UrlResult<String> {
 ## 請求 URL 與資源 URL
 
 HTTP 請求內使用目前請求的通訊協定與主機。應用程式作用域內的命令列使用 `APP_URL`。`URL::asset` 支援 `ASSET_URL`。一般 URL 可使用 `URL::to`、`URL::current` 和 `URL::query`。
+
+## 控制器動作 URL {#urls-for-controller-actions}
+
+註冊 Rust 處理常式時為路由設定穩定的動作識別碼。用 `URL::action` 產生 URL，用 `Redirect::action` 重新導向。參數規則與命名路由相同。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    routing::{RouteParameter, Router, RoutingError},
+    support::facades::URL,
+};
+
+const SHOW: &str = "ArticleController@show";
+
+fn show(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+}
+
+fn register(router: &mut Router) -> Result<(), RoutingError> {
+    router.get("/articles/{article}", show)?.setAction(SHOW)?;
+    Ok(())
+}
+
+fn article_url() -> Result<String, openrust::routing::UrlError> {
+    URL::action(SHOW, &[RouteParameter::named("article", "42")], true)
+}
+```
+
+網域路由優先，同類生效路由中取第一筆註冊。Rust 註冊編譯好的處理常式，因此明確宣告動作識別碼。

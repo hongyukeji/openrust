@@ -25,6 +25,14 @@ impl Redirect {
         Self::redirector()?.route(name, parameters, options)
     }
 
+    pub fn action(
+        action: &str,
+        parameters: &[RouteParameter],
+        options: RedirectOptions,
+    ) -> UrlResult<RedirectResponse> {
+        Self::redirector()?.action(action, parameters, options)
+    }
+
     pub fn back(
         request: &Request,
         fallback: Option<&str>,

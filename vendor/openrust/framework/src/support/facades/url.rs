@@ -38,6 +38,14 @@ impl URL {
         Self::generator()?.route(name, parameters, absolute)
     }
 
+    pub fn action(
+        action: &str,
+        parameters: &[RouteParameter],
+        absolute: bool,
+    ) -> UrlResult<String> {
+        Self::generator()?.action(action, parameters, absolute)
+    }
+
     pub fn to(
         path: &str,
         parameters: &[RouteParameter],

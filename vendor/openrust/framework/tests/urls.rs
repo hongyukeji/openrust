@@ -10,7 +10,7 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{
-        RedirectOptions, RouteParameter, Router, RoutingError, SignatureMode, UrlError,
+        RedirectOptions, RouteGroup, RouteParameter, Router, RoutingError, SignatureMode, UrlError,
         UrlGenerator, UrlValue,
     },
     support::facades::{Redirect, URL},
@@ -63,6 +63,40 @@ fn redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     })
 }
 
+const SHOW_ARTICLE: &str = "ArticleController@show";
+
+fn action_links(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parameters = [RouteParameter::named("article", "a b")];
+        assert!(matches!(
+            URL::action("OldController@show", &parameters, true),
+            Err(UrlError::MissingAction)
+        ));
+        assert!(matches!(
+            URL::action(SHOW_ARTICLE, &[], true),
+            Err(UrlError::MissingParameter)
+        ));
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "absolute": URL::action(SHOW_ARTICLE, &parameters, true)?,
+                "relative": URL::action(SHOW_ARTICLE, &parameters, false)?,
+            }),
+        )
+    })
+}
+
+fn action_redirect(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        Ok(Redirect::action(
+            SHOW_ARTICLE,
+            &[RouteParameter::named("article", "42")],
+            RedirectOptions::default(),
+        )?
+        .into())
+    })
+}
+
 fn routes(router: &mut Router) -> Result<(), RoutingError> {
     router
         .get("/article/{article}", article)?
@@ -76,6 +110,29 @@ fn routes(router: &mut Router) -> Result<(), RoutingError> {
         .get("/page/{slug}/{suffix?}", article)?
         .name("ordinary")
         .defaults("slug", "default");
+    router
+        .get("/action-articles/{article}", article)?
+        .setAction("OldController@show")?;
+    router
+        .get("/action-articles/{article}", article)?
+        .setAction(SHOW_ARTICLE)?;
+    router
+        .get("/action-alias/{article}", article)?
+        .setAction(SHOW_ARTICLE)?;
+    router
+        .get("/account", article)?
+        .setAction("AccountController@show")?;
+    router.group(
+        RouteGroup::new().domain("{tenant}.example.test"),
+        |router| {
+            router
+                .get("/account", article)?
+                .setAction("AccountController@show")?;
+            Ok(())
+        },
+    )?;
+    router.get("/action-links", action_links)?;
+    router.get("/action-redirect", action_redirect)?;
     router.get("/links", links)?;
     router.get("/redirect", redirect)?;
     router.permanentRedirect("/old/{id}", "/new/{id}")?;
@@ -137,6 +194,29 @@ async fn named_routes_match_php_fixture_and_keep_ordered_parameters() {
     let mut app = make();
     app.boot().await.unwrap();
     let urls = app.container().make::<UrlGenerator>().unwrap();
+    let action_parameters = [RouteParameter::named("article", "42")];
+    assert_eq!(
+        urls.action(SHOW_ARTICLE, &action_parameters, true).unwrap(),
+        "https://example.test/action-articles/42"
+    );
+    assert_eq!(
+        urls.action(
+            r"\AccountController@show",
+            &[RouteParameter::named("tenant", "demo")],
+            true
+        )
+        .unwrap(),
+        "https://demo.example.test/account"
+    );
+    let mut other = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    other.boot().await.unwrap();
+    let other_urls = other.container().make::<UrlGenerator>().unwrap();
+    assert!(matches!(
+        other_urls.action(SHOW_ARTICLE, &action_parameters, true),
+        Err(UrlError::MissingAction)
+    ));
     let parameters = [
         RouteParameter::named("article", "42"),
         RouteParameter::named("z", "last"),
@@ -253,6 +333,17 @@ async fn signs_and_redirects_over_real_http() {
     exchange(address, &absolute, &host, 200).await;
     config.set("app.previous_keys", json!([])).unwrap();
     exchange(address, &absolute, &host, 403).await;
+    let response = exchange(address, "/action-links", &host, 200).await;
+    let actions: serde_json::Value =
+        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(
+        actions["absolute"],
+        format!("http://{host}/action-articles/a%20b")
+    );
+    assert_eq!(actions["relative"], "/action-articles/a%20b");
+    let response = exchange(address, "/action-redirect", &host, 302).await;
+    assert!(response.contains(&format!("location: http://{host}/action-articles/42\r\n")));
+    exchange(address, "/action-articles/42", &host, 200).await;
     let response = exchange(address, "/redirect", &host, 302).await;
     assert!(response.contains(&format!("location: http://{address}/page/a%20b\r\n")));
     let response = exchange(address, "/old/a%20b", &host, 301).await;

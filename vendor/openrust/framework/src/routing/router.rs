@@ -111,18 +111,32 @@ impl Router {
         Self::default()
     }
 
-    pub(crate) fn named_routes(&self) -> HashMap<String, super::RouteUrlGenerator> {
-        let active: std::collections::HashSet<_> =
-            self.by_method.values().flatten().copied().collect();
-        let mut named = HashMap::new();
+    pub(crate) fn url_routes(&self) -> super::url_generator::UrlRoutes {
+        let active: HashSet<_> = self.by_method.values().flatten().copied().collect();
+        let mut urls = super::url_generator::UrlRoutes::default();
         for (index, route) in self.routes.iter().enumerate() {
-            if let Some(name) = route.getName().filter(|_| active.contains(&index)) {
-                named
+            if active.contains(&index)
+                && let Some(name) = route.getName()
+            {
+                urls.named
                     .entry(name.to_owned())
                     .or_insert_with(|| route.url_pattern());
             }
         }
-        named
+        // Laravel rebuilds the action lookup with domain routes first.
+        for domain in [true, false] {
+            for (index, route) in self.routes.iter().enumerate() {
+                if route.domain.is_some() == domain
+                    && active.contains(&index)
+                    && let Some(action) = &route.controller_action
+                {
+                    urls.actions
+                        .entry(action.clone())
+                        .or_insert_with(|| route.url_pattern());
+                }
+            }
+        }
+        urls
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's Router API")]
@@ -160,7 +174,11 @@ impl Router {
                     method: methods.join("|"),
                     uri: uri.to_owned(),
                     name: route.getName().map(str::to_owned),
-                    action: route.action.to_owned(),
+                    action: route
+                        .controller_action
+                        .as_deref()
+                        .unwrap_or(route.action)
+                        .to_owned(),
                     path: format!("{file}:{}", route.definition.line()),
                     vendor,
                     middleware: route

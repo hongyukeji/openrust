@@ -61,6 +61,8 @@ A serialization error goes through [exception handling](errors.md). Built-in exc
 
 Use `Redirect::to` for a URL or `Redirect::route` for a named route. `RedirectOptions` defaults to 302 and accepts response headers. `Redirect::guest` stores the intended URL in the request session, and `Redirect::intended` consumes it and uses a fallback when the session has no intended URL.
 
+Use `Redirect::action` for a [registered controller action](./urls.md#urls-for-controller-actions).
+
 ### Redirecting with flashed session data {#redirecting-with-flashed-session-data}
 
 In a web route with a session, chain `with` to flash a value, `withInput` to retain input, and `withErrors` to attach a named `MessageBag`. The Rust methods take the current mutable request. Convert the redirect to an HTTP response when returning it from the handler.

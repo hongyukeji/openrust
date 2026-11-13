@@ -57,6 +57,15 @@ impl Redirector {
         redirect_response(&self.urls.route(name, parameters, true)?, options)
     }
 
+    pub fn action(
+        &self,
+        action: &str,
+        parameters: &[RouteParameter],
+        options: RedirectOptions,
+    ) -> UrlResult<RedirectResponse> {
+        redirect_response(&self.urls.action(action, parameters, true)?, options)
+    }
+
     pub fn signedRoute(
         &self,
         name: &str,

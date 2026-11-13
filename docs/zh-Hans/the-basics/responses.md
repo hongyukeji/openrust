@@ -61,6 +61,8 @@ fn register() -> Result<(), RoutingError> {
 
 使用 `Redirect::to` 跳转到 URL，或用 `Redirect::route` 跳转到命名路由。`RedirectOptions` 默认使用 302，并支持响应头。`Redirect::guest` 将访问目标存入当前会话，`Redirect::intended` 读取并清除它。会话没有访问目标时使用回退地址。
 
+用 `Redirect::action` 跳转到[已注册的控制器动作](./urls.md#urls-for-controller-actions)。
+
 ### 重定向时闪存会话数据 {#redirecting-with-flashed-session-data}
 
 在启用会话的 Web 路由中，使用 `with` 闪存值，`withInput` 保留输入，`withErrors` 附加命名的 `MessageBag`。Rust 方法显式接收当前请求的可变引用。处理器返回时，将重定向转换为 HTTP 响应。

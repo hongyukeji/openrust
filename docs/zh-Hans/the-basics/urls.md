@@ -22,3 +22,32 @@ fn article_link() -> UrlResult<String> {
 ## 请求 URL 与资源 URL
 
 HTTP 请求内使用当前请求的协议和主机。应用作用域内的命令行使用 `APP_URL`。`URL::asset` 支持 `ASSET_URL`。普通 URL 可使用 `URL::to`、`URL::current` 和 `URL::query`。
+
+## 控制器动作 URL {#urls-for-controller-actions}
+
+注册 Rust 处理器时为路由设置稳定的动作标识。用 `URL::action` 生成 URL，用 `Redirect::action` 跳转。参数规则与命名路由相同。
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    routing::{RouteParameter, Router, RoutingError},
+    support::facades::URL,
+};
+
+const SHOW: &str = "ArticleController@show";
+
+fn show(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+}
+
+fn register(router: &mut Router) -> Result<(), RoutingError> {
+    router.get("/articles/{article}", show)?.setAction(SHOW)?;
+    Ok(())
+}
+
+fn article_url() -> Result<String, openrust::routing::UrlError> {
+    URL::action(SHOW, &[RouteParameter::named("article", "42")], true)
+}
+```
+
+域名路由优先，同类生效路由中取首条注册。Rust 注册编译好的处理器，因此显式声明动作标识。

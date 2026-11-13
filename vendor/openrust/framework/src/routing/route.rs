@@ -19,6 +19,7 @@ pub struct Route {
     pub(super) domain: Option<String>,
     pub(super) public_files_first: bool,
     pub(super) action: &'static str,
+    pub(super) controller_action: Option<String>,
     pub(super) definition: &'static Location<'static>,
     host_pattern: Option<RoutePattern>,
     pub(super) handler: Arc<dyn Handler>,
@@ -55,6 +56,7 @@ impl Route {
             domain,
             public_files_first: false,
             action: "Closure",
+            controller_action: None,
             definition: Location::caller(),
             host_pattern,
             handler,
@@ -74,6 +76,21 @@ impl Route {
 
     pub(super) fn url_pattern(&self) -> super::RouteUrlGenerator {
         super::RouteUrlGenerator::new(self.uri.clone(), self.domain.clone(), self.defaults.clone())
+    }
+
+    /// Associates a stable controller action identifier with the registered handler.
+    #[allow(non_snake_case, reason = "Matches Laravel route action naming")]
+    pub fn setAction(&mut self, action: &str) -> Result<&mut Self, RoutingError> {
+        let action = action.trim_matches('\\');
+        if action.is_empty()
+            || action
+                .chars()
+                .any(|character| character.is_control() || character.is_whitespace())
+        {
+            return Err(RoutingError::InvalidAction);
+        }
+        self.controller_action = Some(action.to_owned());
+        Ok(self)
     }
 
     pub fn name(&mut self, name: &str) -> &mut Self {

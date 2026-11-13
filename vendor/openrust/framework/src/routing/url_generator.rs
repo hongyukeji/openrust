@@ -17,10 +17,16 @@ use crate::{
 
 use super::RouteUrlGenerator;
 
+#[derive(Default)]
+pub(crate) struct UrlRoutes {
+    pub(super) named: HashMap<String, RouteUrlGenerator>,
+    pub(super) actions: HashMap<String, RouteUrlGenerator>,
+}
+
 /// Generates named routes and signed URLs for the application.
 #[derive(Clone)]
 pub struct UrlGenerator {
-    routes: Arc<HashMap<String, RouteUrlGenerator>>,
+    routes: Arc<UrlRoutes>,
     config: Arc<dyn Repository>,
     uri: Option<Uri>,
     previous: Option<String>,
@@ -66,6 +72,7 @@ pub type UrlResult<T> = Result<T, UrlError>;
 #[non_exhaustive]
 pub enum UrlError {
     MissingRoute,
+    MissingAction,
     MissingParameter,
     InvalidParameter,
     InvalidOrigin,
@@ -79,6 +86,7 @@ pub enum UrlError {
 impl fmt::Display for UrlError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
+            Self::MissingAction => "Controller action is not defined.",
             Self::MissingRoute => "Named route is not defined.",
             Self::MissingParameter => "Required route parameter is missing.",
             Self::InvalidParameter => "Invalid URL parameter.",
@@ -155,10 +163,7 @@ impl RouteParameter {
 }
 
 impl UrlGenerator {
-    pub(crate) fn new(
-        routes: HashMap<String, RouteUrlGenerator>,
-        config: Arc<dyn Repository>,
-    ) -> Self {
+    pub(crate) fn new(routes: UrlRoutes, config: Arc<dyn Repository>) -> Self {
         Self {
             routes: Arc::new(routes),
             config,
@@ -379,7 +384,21 @@ impl Contract for UrlGenerator {
         parameters: &[RouteParameter],
         absolute: bool,
     ) -> UrlResult<String> {
-        let route = self.routes.get(name).ok_or(UrlError::MissingRoute)?;
+        let route = self.routes.named.get(name).ok_or(UrlError::MissingRoute)?;
+        route.to(&self.root(None)?, parameters, absolute)
+    }
+
+    fn action(
+        &self,
+        action: &str,
+        parameters: &[RouteParameter],
+        absolute: bool,
+    ) -> UrlResult<String> {
+        let route = self
+            .routes
+            .actions
+            .get(action.trim_matches('\\'))
+            .ok_or(UrlError::MissingAction)?;
         route.to(&self.root(None)?, parameters, absolute)
     }
 

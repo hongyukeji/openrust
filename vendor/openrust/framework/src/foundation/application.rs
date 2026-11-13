@@ -734,7 +734,7 @@ impl Application {
             .instanceNamed(
                 "url",
                 Arc::new(crate::routing::UrlGenerator::new(
-                    routes.named_routes(),
+                    routes.url_routes(),
                     config.clone(),
                 )),
             )

@@ -19,6 +19,12 @@ pub trait UrlGenerator: Send + Sync {
     ) -> UrlResult<String>;
     fn route(&self, name: &str, parameters: &[RouteParameter], absolute: bool)
     -> UrlResult<String>;
+    fn action(
+        &self,
+        action: &str,
+        parameters: &[RouteParameter],
+        absolute: bool,
+    ) -> UrlResult<String>;
     fn query(
         &self,
         path: &str,

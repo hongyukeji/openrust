@@ -61,6 +61,8 @@ fn register() -> Result<(), RoutingError> {
 
 使用 `Redirect::to` 前往 URL，或以 `Redirect::route` 前往命名路由。`RedirectOptions` 預設使用 302，並支援回應標頭。`Redirect::guest` 將存取目標存入目前工作階段，`Redirect::intended` 讀取並清除它。工作階段沒有存取目標時使用備用位址。
 
+用 `Redirect::action` 前往[已註冊的控制器動作](./urls.md#urls-for-controller-actions)。
+
 ### 重新導向時暫存工作階段資料 {#redirecting-with-flashed-session-data}
 
 在啟用工作階段的 Web 路由中，使用 `with` 暫存值，`withInput` 保留輸入，`withErrors` 附加命名的 `MessageBag`。Rust 方法明確接收目前請求的可變參考。處理常式傳回時，將重新導向轉換為 HTTP 回應。

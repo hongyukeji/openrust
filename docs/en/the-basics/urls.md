@@ -22,3 +22,32 @@ Use `URL::signedRoute` for a persistent link or `URL::temporarySignedRoute` with
 ## Request and asset URLs
 
 Inside HTTP handlers the generator uses the request scheme and authority. CLI code in the application scope uses `APP_URL`. `URL::asset` honors `ASSET_URL`. Use `URL::to`, `URL::current` or `URL::query` for ordinary URLs.
+
+## Controller action URLs {#urls-for-controller-actions}
+
+Set a stable action identifier on the route that registers the Rust handler. Use `URL::action` to generate a URL and `Redirect::action` to redirect. The same parameter rules apply as for named routes.
+
+```rust
+use openrust::{
+    http::{HttpError, HttpFuture, Request, Response, StatusCode},
+    routing::{RouteParameter, Router, RoutingError},
+    support::facades::URL,
+};
+
+const SHOW: &str = "ArticleController@show";
+
+fn show(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+}
+
+fn register(router: &mut Router) -> Result<(), RoutingError> {
+    router.get("/articles/{article}", show)?.setAction(SHOW)?;
+    Ok(())
+}
+
+fn article_url() -> Result<String, openrust::routing::UrlError> {
+    URL::action(SHOW, &[RouteParameter::named("article", "42")], true)
+}
+```
+
+Domain routes take precedence. Among active routes of the same kind, the first registration wins. The identifier is explicit because Rust registers compiled handlers.
