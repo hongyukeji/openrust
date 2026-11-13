@@ -9,7 +9,8 @@ use openrust::{
     contracts::{
         container::Container as _,
         events::{
-            Dispatcher as _, Event as Payload, Listener, ShouldDispatchAfterCommit, Subscriber,
+            Dispatcher as _, Event as Payload, Listener, ShouldBeDiscovered,
+            ShouldDispatchAfterCommit, Subscriber,
         },
         foundation::Application as _,
         http::Kernel as _,
@@ -23,6 +24,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{Router, RoutingError},
     support::facades::Event,
+    testing::TestApp,
 };
 use serde_json::{Value as Json, json};
 use tokio::{
@@ -400,4 +402,126 @@ async fn event_delivery_over_http_on_mysql() {
     if let Some(url) = url {
         verify(json!({"url":url})).await;
     }
+}
+
+struct ProductionListener;
+
+impl ShouldBeDiscovered for ProductionListener {
+    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+        app.environment(Some("production".into()))
+            .map(bool::from)
+            .map_err(EventError::Unavailable)
+    }
+}
+
+impl Listener for ProductionListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Payload,
+        context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        static RECORD: Record = Record("production");
+        RECORD.handle(event, context)
+    }
+}
+
+fn production_listener(registry: &mut ListenerRegistry) -> EventResult<()> {
+    registry.listen("order.ready", Arc::new(ProductionListener), Delivery::Sync)
+}
+
+fn discovery_manifest() -> DiscoverEvents {
+    DiscoverEvents::new(&[]).withListener::<ProductionListener>(production_listener)
+}
+
+#[tokio::test]
+async fn discovery_policy_filters_http_and_artisan_per_application() {
+    let production = Application::configure(std::env::temp_dir())
+        .withConfig(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
+        .withEvents(discovery_manifest())
+        .withRouting(Routing::new(routing))
+        .create()
+        .unwrap();
+    let testing = Application::configure(std::env::temp_dir())
+        .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
+        .withEvents(discovery_manifest())
+        .withRouting(Routing::new(routing))
+        .create()
+        .unwrap();
+    let ((production, production_server), (testing, testing_server)) =
+        tokio::join!(start(production), start(testing));
+    let (included, excluded) = tokio::join!(
+        request(production, "/isolated"),
+        request(testing, "/isolated"),
+    );
+    assert_eq!(included, json!(["production:isolated"]));
+    assert_eq!(excluded, json!([]));
+    production_server.abort();
+    testing_server.abort();
+
+    let mut production = TestApp::create(|builder| {
+        builder
+            .withConfig(|_, _| Ok([("app".into(), json!({"env":"production"}))].into()))
+            .withEvents(discovery_manifest())
+    })
+    .unwrap();
+    let mut testing = TestApp::create(|builder| builder.withEvents(discovery_manifest())).unwrap();
+    let arguments = ["event:list", "--event=order.ready", "--json"];
+    let (included, excluded) =
+        tokio::join!(production.artisan(arguments), testing.artisan(arguments));
+    included.assertSuccessful();
+    excluded.assertSuccessful();
+    let entries: Json = serde_json::from_str(&included.stdout).unwrap();
+    assert_eq!(entries[0]["event"], "order.ready");
+    assert_eq!(
+        entries[0]["listeners"],
+        json!([std::any::type_name::<ProductionListener>()])
+    );
+    assert_eq!(
+        serde_json::from_str::<Json>(&excluded.stdout).unwrap(),
+        json!([])
+    );
+    testing
+        .app()
+        .container()
+        .make::<Dispatcher>()
+        .unwrap()
+        .register(production_listener)
+        .unwrap();
+    assert!(
+        testing
+            .app()
+            .container()
+            .make::<Dispatcher>()
+            .unwrap()
+            .hasListeners("order.ready")
+    );
+}
+
+#[tokio::test]
+async fn failed_discovery_leaves_the_manifest_unregistered() {
+    struct FailingPolicy;
+
+    impl Listener for FailingPolicy {
+        fn handle<'a>(
+            &'a self,
+            _: &'a dyn Payload,
+            _: &'a mut EventContext<'_>,
+        ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+            unreachable!("the policy rejects discovery")
+        }
+    }
+
+    impl ShouldBeDiscovered for FailingPolicy {
+        fn shouldBeDiscovered(_: &Application) -> EventResult<bool> {
+            Err(EventError::InvalidRegistration)
+        }
+    }
+
+    let mut app = TestApp::create(|builder| {
+        builder.withEvents(DiscoverEvents::new(&[register]).withListener::<FailingPolicy>(register))
+    })
+    .unwrap();
+    assert!(app.boot().await.is_err());
+    let dispatcher = app.app().container().make::<Dispatcher>().unwrap();
+    assert!(!dispatcher.hasListeners("order.ready"));
 }

@@ -6,3 +6,10 @@
 - Rust 的事件使用类型与编译登记清单。PHP 的运行时目录扫描、事件缓存命令、动态监听器类解析与 Eloquent Observer 装配仍待接入。队列监听器保留公开骨架，运行接线依赖 06-03 和 06-04。
 - 以 `6396f9bb` 为隔离基线。Rust 1.94.0 格式、466 项锁定离线工作区测试、全目标严格 Clippy 和 `./artisan inspire` 通过。SQLite 和真实 MySQL 8.4 的 HTTP 验收覆盖精确和通配符匹配、顺序、停止传播、`until`、Subscriber、应用隔离、保存点提交、保存点和整笔回滚、丢弃事务，以及提交后回调读取已提交数据。回调错误用例验证数据保留且事务未重试。
 - 三语示例从正文抽取，在实际 HTTP 中返回监听器结果。示例应用的 Artisan 过滤和 JSON 输出通过。VitePress 构建、12 项通用浏览器组合与 6 项事件页浏览器检查通过。
+
+## 动态发现
+
+- 固定 Laravel 在发现阶段通过 `ShouldBeDiscovered::shouldBeDiscovered` 过滤监听器。Rust 在 `withEvents` 的编译清单中通过 `withListener` 明确关联条件与注册函数。条件借用正在启动的应用，可读取其环境和配置。注册清单先收集结果，条件失败时不发布该清单。手动注册独立于发现条件。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Events/DiscoverEvents.php) · [Laravel 发现测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Foundation/DiscoverEventsTest.php) · [Laravel 动态发现](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/events.md#dynamic-event-discovery)
+- 参考 Goravel 的编译型服务提供者装配。旧版 `v0.x` 提供显式监听器注册，未找到同类发现条件。本批复用现有应用级 Dispatcher 和注册表。运行时 PHP 文件反射由编译清单替代，生产事件缓存及 Observer 分开跟踪。 [Goravel 事件服务提供者](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/event/service_provider.go)
+- 并行启动生产与测试应用，用真实 HTTP 和 Artisan `event:list --event=order.ready --json` 核对条件命中、跳过及应用隔离。条件错误时启动失败且清单无部分注册。三语正文 Rust 示例编译并运行 Artisan，VitePress 构建和 12 项浏览器检查通过。
+- Rust 1.94.0 格式检查、锁定离线工作区测试（612 项通过，7 项夹具忽略）及全工作区全目标严格 Clippy 通过。实际二进制的 `artisan inspire` 成功退出。六项事件页检查覆盖两种站点前缀及三语导航。

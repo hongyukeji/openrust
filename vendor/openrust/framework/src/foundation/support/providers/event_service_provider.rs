@@ -20,7 +20,7 @@ impl ServiceProvider for EventServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> EventFuture<'a, ProviderResult> {
         Box::pin(async move {
             let events = app.container().make::<Dispatcher>()?;
-            events.register(|registry| self.discovery.register(registry))?;
+            events.register(|registry| self.discovery.register(app, registry))?;
             Ok(())
         })
     }

@@ -35,18 +35,29 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在應用程式中宣告註冊函式，透過 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。
 
+需要動態探索時，實作 `ShouldBeDiscovered`，用 `withListener` 接入監聽器註冊。用 `withEvents(discover_events())` 接入產生的清單。啟動時，探索條件讀取目前應用並決定是否註冊監聽器。條件回傳錯誤時，本次清單註冊失敗。透過 `Event::listen` 手動註冊的監聽器獨立於探索條件。
+
 ```rust
 use std::sync::Arc;
 
 use openrust::{
-    contracts::events::{Event, Listener},
+    contracts::events::{Event, Listener, ShouldBeDiscovered},
     events::{
         Delivery, EventContext, EventError, EventFuture, EventResult,
         ListenerRegistry, ListenerResponse, NamedEvent,
     },
+    foundation::{Application, events::DiscoverEvents},
 };
 
 struct OrderListener;
+
+impl ShouldBeDiscovered for OrderListener {
+    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+        app.environment(Some("production".into()))
+            .map(bool::from)
+            .map_err(EventError::Unavailable)
+    }
+}
 
 impl Listener for OrderListener {
     fn handle<'a>(
@@ -64,6 +75,10 @@ impl Listener for OrderListener {
 
 fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
     registry.listen("orders.created", Arc::new(OrderListener), Delivery::Sync)
+}
+
+fn discover_events() -> DiscoverEvents {
+    DiscoverEvents::new(&[]).withListener::<OrderListener>(register_orders)
 }
 ```
 

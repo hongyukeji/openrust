@@ -35,18 +35,29 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 Declare event registration functions in your application and pass them to `withEvents(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.
 
+For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `withEvents(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
+
 ```rust
 use std::sync::Arc;
 
 use openrust::{
-    contracts::events::{Event, Listener},
+    contracts::events::{Event, Listener, ShouldBeDiscovered},
     events::{
         Delivery, EventContext, EventError, EventFuture, EventResult,
         ListenerRegistry, ListenerResponse, NamedEvent,
     },
+    foundation::{Application, events::DiscoverEvents},
 };
 
 struct OrderListener;
+
+impl ShouldBeDiscovered for OrderListener {
+    fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+        app.environment(Some("production".into()))
+            .map(bool::from)
+            .map_err(EventError::Unavailable)
+    }
+}
 
 impl Listener for OrderListener {
     fn handle<'a>(
@@ -64,6 +75,10 @@ impl Listener for OrderListener {
 
 fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
     registry.listen("orders.created", Arc::new(OrderListener), Delivery::Sync)
+}
+
+fn discover_events() -> DiscoverEvents {
+    DiscoverEvents::new(&[]).withListener::<OrderListener>(register_orders)
 }
 ```
 
