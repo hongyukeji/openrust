@@ -102,6 +102,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。该驱动的批次发布继续跟踪。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
 
+### Amazon SQS {#amazon-sqs}
+
+配置 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 和 `AWS_DEFAULT_REGION`，也可以直接提供完整队列 URL。`SQS_SUFFIX` 只用于队列名，放在 `.fifo` 之前。凭据可由 AWS 凭据链提供，也可配置访问密钥、密钥和可选会话令牌。`SQS_ENDPOINT` 指定自定义服务端点。创建队列后运行 `./artisan queue:work sqs`。
+
+FIFO 可用 `Payload::onGroup` 和 `withDeduplicationId` 设置稳定标识。空的去重 ID 使用队列的内容去重配置。逐消息延时适用于标准队列。SQS 可见性超时控制重投递，Worker 超时应短于可见期。大载荷溢出存储和批次发布继续跟踪。
+
 ## 在数据库事务中派发
 
 将活动事务作为 `Queue::dispatch` 的最后一个参数。连接开启 `after_commit` 时，任务在最外层提交后派发。可以通过 `DispatchOptions.after_commit` 覆盖连接配置。回滚会丢弃待派发任务。立即派发时，同一连接的数据库队列在事务内写入，sync 处理器可用 `JobContext::transaction` 访问当前事务。

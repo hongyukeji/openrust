@@ -102,6 +102,12 @@ Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANST
 
 Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. Batch publication remains tracked for this driver. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
 
+### Amazon SQS {#amazon-sqs}
+
+Set `QUEUE_CONNECTION=sqs`, `SQS_PREFIX`, `SQS_QUEUE` and `AWS_DEFAULT_REGION`. You may provide a complete queue URL. `SQS_SUFFIX` applies to names and precedes the `.fifo` extension. Use the AWS credential chain or configure the access key, secret and optional session token. `SQS_ENDPOINT` selects a custom service endpoint. Run `./artisan queue:work sqs` after provisioning the queue.
+
+For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period. Large-message overflow storage and batch publication remain tracked.
+
 ## Dispatching with database transactions
 
 Pass the active transaction as the last argument of `Queue::dispatch`. A connection with `after_commit` enabled dispatches only after the outer commit. Set `DispatchOptions.after_commit` to override the connection setting. Rolling back discards deferred dispatch. With immediate dispatch, a database queue on the same connection writes within the transaction, and a sync handler can access it via `JobContext::transaction`.

@@ -102,6 +102,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。此驅動程式的批次發佈持續追蹤。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
 
+### Amazon SQS {#amazon-sqs}
+
+設定 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 與 `AWS_DEFAULT_REGION`，也可直接提供完整佇列 URL。`SQS_SUFFIX` 只套用於佇列名稱，放在 `.fifo` 之前。憑證可由 AWS 憑證鏈提供，也可設定存取金鑰、祕密金鑰及選用的工作階段權杖。`SQS_ENDPOINT` 指定自訂服務端點。建立佇列後執行 `./artisan queue:work sqs`。
+
+FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。大型承載資料的溢出儲存及批次發佈持續追蹤。
+
 ## 在資料庫交易中派送
 
 將使用中的交易作為 `Queue::dispatch` 的最後一個參數。連線啟用 `after_commit` 時，工作於最外層提交後派送。可以使用 `DispatchOptions.after_commit` 覆寫連線設定。復原會捨棄待派送工作。立即派送時，同一連線的資料庫佇列在交易內寫入，sync 處理器可使用 `JobContext::transaction` 存取目前交易。

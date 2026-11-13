@@ -33,6 +33,8 @@ pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigE
                 "driver": "sqs",
                 "key": get(env, "AWS_ACCESS_KEY_ID", Value::Null)?,
                 "secret": get(env, "AWS_SECRET_ACCESS_KEY", Value::Null)?,
+                "token": get(env, "AWS_SESSION_TOKEN", Value::Null)?,
+                "endpoint": get(env, "SQS_ENDPOINT", Value::Null)?,
                 "prefix": get(env, "SQS_PREFIX", "https://sqs.us-east-1.amazonaws.com/your-account-id")?,
                 "queue": get(env, "SQS_QUEUE", "default")?,
                 "suffix": get(env, "SQS_SUFFIX", Value::Null)?,

@@ -173,7 +173,8 @@ mod acceptance {
                     "throttle-terminal" => {
                         return Err(error(std::io::Error::other("hard throttle terminal")));
                     }
-                    "beanstalk-failure"
+                    "sqs-failure"
+                    | "beanstalk-failure"
                     | "callback-terminal"
                     | "callback-retry"
                     | "unique-retry"
@@ -209,7 +210,8 @@ mod acceptance {
                     | "driver-primary"
                     | "driver-console"
                     | "driver-worker-deferred"
-                    | "beanstalk-probe" => {}
+                    | "beanstalk-probe"
+                    | "sqs-probe" => {}
                     "driver-detached" | "unique-lifecycle" => {
                         wait_for_file(&self.0, &format!("{kind}.release")).await;
                         std::fs::write(self.0.join(format!("{kind}.done")), []).map_err(error)?;
@@ -833,6 +835,9 @@ mod acceptance {
                             "sync": {"driver": "sync"}, "inline": {"driver": "sync"},
                             "null": {"driver": "null"}, "deferred": {"driver": "deferred"},
                             "background": {"driver": "background"},
+                            "sqs": {"driver":"sqs", "queue": env.get_utf8("OPENRUST_TEST_SQS_URL")?.unwrap_or("http://127.0.0.1:9324/000000000000/default"),
+                                "endpoint":env.get_utf8("OPENRUST_TEST_SQS_ENDPOINT")?, "region":"us-east-1", "key":"local", "secret":"local",
+                                "block_for":0, "visibility_timeout":2},
                             "beanstalkd": {"driver":"beanstalkd","host":"127.0.0.1",
                                 "port": std::env::var("OPENRUST_TEST_BEANSTALKD_PORT").ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(11300),
                                 "retry_after":2,"block_for":1},
@@ -2672,6 +2677,69 @@ mod acceptance {
         println!("Shared and standalone Worker memory policy acceptance passed");
     }
 
+    async fn verify_sqs(root: &Path, manager: &QueueManager, db: &DatabaseConnection) {
+        let queue = manager.connection(Some("sqs")).unwrap();
+        let standard = std::env::var("OPENRUST_TEST_SQS_URL").unwrap();
+        let fifo = std::env::var("OPENRUST_TEST_SQS_FIFO_URL").unwrap();
+        let payload = Payload::new("hard-timeout-probe", "sqs-probe").unwrap();
+        queue
+            .later(Delay::For(Duration::from_secs(1)), &payload, None)
+            .await
+            .unwrap();
+        assert_eq!(queue.delayedSize(None).await.unwrap(), Some(1));
+        assert!(queue.pop_now(None).await.unwrap().is_none());
+        tokio::time::sleep(Duration::from_millis(1100)).await;
+        let mut first = queue.pop_now(None).await.unwrap().unwrap();
+        assert_eq!(first.attempts(), 1);
+        assert_eq!(first.get_queue(), standard);
+        assert!(queue.pop_now(None).await.unwrap().is_none());
+        first.release(Duration::ZERO).await.unwrap();
+        let second = queue.pop_now(None).await.unwrap().unwrap();
+        assert_eq!(second.attempts(), 2);
+        tokio::time::sleep(Duration::from_millis(2100)).await;
+        let mut third = queue.pop_now(None).await.unwrap().unwrap();
+        assert_eq!(third.attempts(), 3);
+        third.delete().await.unwrap();
+
+        for value in ["first", "duplicate", "second"] {
+            let dedup = if value == "second" { "second" } else { "first" };
+            let payload = Payload::new("hard-timeout-probe", value)
+                .unwrap()
+                .onGroup("ordered")
+                .withDeduplicationId(dedup);
+            queue.push(&payload, Some(&fifo)).await.unwrap();
+        }
+        let mut job = queue.pop_now(Some(&fifo)).await.unwrap().unwrap();
+        assert_eq!(job.payload().data(), "first");
+        assert!(queue.pop_now(Some(&fifo)).await.unwrap().is_none());
+        job.delete().await.unwrap();
+        let mut job = queue.pop_now(Some(&fifo)).await.unwrap().unwrap();
+        assert_eq!(job.payload().data(), "second");
+        job.delete().await.unwrap();
+        assert!(queue.pop_now(Some(&fifo)).await.unwrap().is_none());
+
+        let terminal = Payload::new("hard-timeout-probe", "sqs-failure")
+            .unwrap()
+            .with_options(JobOptions {
+                max_tries: Some(1),
+                ..Default::default()
+            });
+        queue.push(&terminal, None).await.unwrap();
+        queue.push(&payload, None).await.unwrap();
+        let (status, lines) = artisan(root, &["sqs", "--stop-when-empty"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["jobs_processed"], 2);
+        assert!(root.join("sqs-probe.pid").exists());
+        assert!(root.join("sqs-failure.failed").exists());
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
+        queue.push(&payload, None).await.unwrap();
+        assert_eq!(
+            queue.clearable().unwrap().clear(&standard).await.unwrap(),
+            1
+        );
+        assert_eq!(queue.size(None).await.unwrap(), 0);
+    }
+
     async fn verify_beanstalkd(root: &Path, manager: &QueueManager, db: &DatabaseConnection) {
         let queue = manager.connection(Some("beanstalkd")).unwrap();
         let tube = format!("openrust-probe-{}", std::process::id());
@@ -2795,6 +2863,13 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_SQS_URL").is_some() {
+            if backend == "mysql" {
+                verify_sqs(&root.0, &manager, &db).await;
+                eprintln!("SQS process acceptance passed with MySQL failure storage");
+            }
+            return;
+        }
         if std::env::var_os("OPENRUST_TEST_BEANSTALKD_PORT").is_some() {
             if backend != "redis" {
                 verify_beanstalkd(&root.0, &manager, &db).await;

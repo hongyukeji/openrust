@@ -5,6 +5,7 @@ mod chain_edit;
 mod chain_routing;
 pub mod connectors;
 pub mod console;
+mod sqs_queue;
 pub use chain_edit::ChainJob;
 pub(crate) use chain_edit::ChainUpdate;
 mod database_queue;
@@ -186,6 +187,10 @@ pub struct Payload {
     data: serde_json::Value,
     options: JobOptions,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    sqs_group: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sqs_deduplication: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     unique_lock: Option<unique_job::UniqueJobLock>,
     #[serde(
         default,
@@ -226,6 +231,8 @@ impl Payload {
             name,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
+            sqs_group: None,
+            sqs_deduplication: None,
             unique_lock: None,
             context: Default::default(),
             delivery_id: None,
@@ -240,6 +247,19 @@ impl Payload {
 
     pub fn with_options(mut self, options: JobOptions) -> Self {
         self.options = options;
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel Queueable")]
+    pub fn onGroup(mut self, group: impl Into<String>) -> Self {
+        self.sqs_group = Some(group.into());
+        self
+    }
+
+    /// An empty ID selects the FIFO queue's content-based deduplication.
+    #[allow(non_snake_case, reason = "Matches Laravel's queue payload naming")]
+    pub fn withDeduplicationId(mut self, id: impl Into<String>) -> Self {
+        self.sqs_deduplication = Some(id.into());
         self
     }
 

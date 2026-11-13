@@ -1277,7 +1277,7 @@ impl QueueManager {
             drop(connections);
             return Ok(resolved);
         }
-        let (queue, batch_backend) = self.make(name, &settings)?;
+        let (queue, batch_backend) = self.make(name, &settings, &raw)?;
         let configured = Arc::new(ConfiguredQueue {
             queue,
             after_commit: settings.after_commit,
@@ -1296,6 +1296,7 @@ impl QueueManager {
         &self,
         name: &str,
         settings: &Settings,
+        raw: &Value,
     ) -> QueueResult<(Arc<dyn Contract>, BatchBackend)> {
         let registry = self.registry.clone();
         let queue = queue_name(settings.queue.as_deref(), "default")?.to_owned();
@@ -1304,6 +1305,19 @@ impl QueueManager {
             return Err(QueueError::InvalidConfiguration);
         }
         let driver: (Arc<dyn Contract>, BatchBackend) = match settings.driver.as_str() {
+            "sqs" => {
+                let options = super::sqs_queue::Options::deserialize(raw)
+                    .map_err(|_| QueueError::InvalidConfiguration)?;
+                (
+                    Arc::new(super::sqs_queue::SqsQueue::new(
+                        name.into(),
+                        queue,
+                        registry,
+                        options,
+                    )?),
+                    BatchBackend::Unsupported,
+                )
+            }
             "null" | "deferred" | "background" => {
                 use super::lifecycle_queue::{Lifecycle, LifecycleQueue};
                 let lifecycle = match settings.driver.as_str() {
