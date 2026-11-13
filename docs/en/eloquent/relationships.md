@@ -435,6 +435,19 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 
 Laravel declares these relationships by name in `$touches`. OpenRust uses typed relation descriptors. Laravel removes global scopes for the timestamp write. OpenRust keeps them on both the owner lookup and the write, so a tenant scope can prevent an out-of-scope update.
 
+For a polymorphic owner, use `Touches::morphTo` with the same descriptor used to load the relationship. The persisted type selects the registered model, and the persisted ID is matched against that model’s owner key. Null type or ID values are skipped. An unregistered alias returns an error, so use `saveInTransaction` if the child write and the touch must roll back together.
+
+```rust
+fn touches() -> openrust::database::eloquent::Touches<Self> {
+    use openrust::database::eloquent::{Touches, relations::MorphTo};
+
+    Touches::default().morphTo(
+        MorphTo::<Self>::new("commentable_type", "commentable_id")
+            .target::<Post>("post", "id"),
+    )
+}
+```
+
 Enable `withTouchingParent()` on a many-to-many relation to update the declaring model’s timestamp when its links change. The parent update uses the same transaction and starts from persisted attributes. Reload the parent to read the new timestamp.
 
 ```rust

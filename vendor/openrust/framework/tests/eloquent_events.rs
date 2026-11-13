@@ -11,7 +11,7 @@ use openrust::{
         eloquent::{
             Model, ModelMetadata, ModelState, Observer, Touches,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            relations::{BelongsTo, HasMany},
+            relations::{BelongsTo, HasMany, MorphTo},
         },
     },
     events::{
@@ -1006,7 +1006,16 @@ impl Model for TouchNode {
     }
 
     fn touches() -> Touches<Self> {
-        Touches::default().belongsTo(BelongsTo::<Self, Self>::new("parent_id", "id"))
+        Touches::default()
+            .belongsTo(BelongsTo::<Self, Self>::new("parent_id", "id"))
+            .morphTo(
+                MorphTo::<Self>::new("owner_type", "owner_id")
+                    .target::<Self>("node", "id")
+                    .constrain::<Self>("external", "external_id", |mut query| {
+                        query.r#where("title", "=", "visible");
+                        query
+                    }),
+            )
     }
 }
 
@@ -1039,7 +1048,7 @@ async fn verify_touch_owners(config: Json, id: &str) {
         .await
         .unwrap();
     db.statement(
-        &format!("CREATE TABLE touch_nodes (id {id}, parent_id BIGINT NULL, title VARCHAR(30), updated_at VARCHAR(30))"),
+        &format!("CREATE TABLE touch_nodes (id {id}, parent_id BIGINT NULL, owner_id BIGINT NULL, owner_type VARCHAR(30), external_id BIGINT NULL UNIQUE, title VARCHAR(30), updated_at VARCHAR(30))"),
         &[],
     ).await.unwrap();
     let seed = "2000-01-01 00:00:00";
@@ -1106,6 +1115,64 @@ async fn verify_touch_owners(config: Json, id: &str) {
     orphan.setAttribute("title", "missing owner");
     orphan.save().await.unwrap();
     orphan.setAttribute("parent_id", Value::Null);
+    orphan.save().await.unwrap();
+
+    db.statement(
+        "INSERT INTO touch_nodes (id, external_id, title, updated_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)",
+        &[5.into(), 6.into(), "visible".into(), seed.into(), 6.into(), 5.into(), "hidden".into(), seed.into()],
+    ).await.unwrap();
+    let mut tx = db.beginTransaction().await.unwrap();
+    orphan
+        .setAttribute("owner_type", "external")
+        .setAttribute("owner_id", 6);
+    orphan.saveInTransaction(&mut tx).await.unwrap();
+    assert_ne!(
+        tx.scalar(read_timestamp, &[5.into()]).await.unwrap(),
+        seed.into()
+    );
+    assert_eq!(
+        tx.scalar(read_timestamp, &[6.into()]).await.unwrap(),
+        seed.into()
+    );
+    tx.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.scalar(read_timestamp, &[5.into()]).await.unwrap(),
+        seed.into()
+    );
+
+    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
+    orphan
+        .setAttribute("owner_type", "external")
+        .setAttribute("owner_id", 5);
+    orphan.save().await.unwrap();
+    assert_eq!(
+        db.scalar(read_timestamp, &[6.into()]).await.unwrap(),
+        seed.into()
+    );
+    orphan
+        .setAttribute("owner_type", "node")
+        .setAttribute("owner_id", 6);
+    orphan.save().await.unwrap();
+    assert_ne!(
+        db.scalar(read_timestamp, &[6.into()]).await.unwrap(),
+        seed.into()
+    );
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    orphan.setAttribute("owner_type", "unregistered");
+    assert!(matches!(
+        orphan.saveInTransaction(&mut tx).await,
+        Err(DatabaseError::InvalidQuery("unknown morph type"))
+    ));
+    tx.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.scalar("SELECT owner_type FROM touch_nodes WHERE id = 4", &[])
+            .await
+            .unwrap(),
+        "node".into()
+    );
+    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
+    orphan.setAttribute("owner_type", Value::Null);
     orphan.save().await.unwrap();
     db.statement("DROP TABLE touch_nodes", &[]).await.unwrap();
 }

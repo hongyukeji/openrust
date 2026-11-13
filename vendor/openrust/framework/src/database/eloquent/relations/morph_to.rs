@@ -6,8 +6,8 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Value,
-    eloquent::{Builder, Model},
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    eloquent::{Attributes, Builder, Model, touches::TouchedOwners},
     query,
 };
 
@@ -248,6 +248,28 @@ impl<P: Model> MorphTo<P> {
         model.state_mut().relations.clear();
     }
 
+    pub(in crate::database::eloquent) async fn touch_owner(
+        &self,
+        model: &P,
+        attributes: &Attributes,
+        visited: &mut TouchedOwners,
+        transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<()> {
+        if dictionary_key(attributes.get(self.id_column))?.is_none() {
+            return Ok(());
+        }
+        let alias = match attributes.get(self.type_column) {
+            None | Some(Value::Null) => return Ok(()),
+            Some(Value::Text(alias)) => alias,
+            _ => return Err(DatabaseError::InvalidQuery("morph type column")),
+        };
+        self.targets
+            .get(alias.as_str())
+            .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
+            .touch(model, attributes, visited, transaction)
+            .await
+    }
+
     async fn match_targets(&self, parents: &[&P]) -> DatabaseResult<Vec<Option<MorphTarget>>> {
         let mut groups = IndexMap::<&str, Vec<(usize, &P)>>::new();
         for (index, parent) in parents.iter().copied().enumerate() {
@@ -305,9 +327,26 @@ trait Target<P: Model>: Send + Sync {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>>;
+    fn touch<'a>(
+        &'a self,
+        model: &'a P,
+        attributes: &'a Attributes,
+        visited: &'a mut TouchedOwners,
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
 }
 
 impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
+    fn touch<'a>(
+        &'a self,
+        model: &'a P,
+        attributes: &'a Attributes,
+        visited: &'a mut TouchedOwners,
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(self.touch_owner(model, attributes, visited, transaction))
+    }
+
     fn model_type(&self) -> TypeId {
         TypeId::of::<R>()
     }

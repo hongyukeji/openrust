@@ -4,7 +4,7 @@ use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, V
 
 use super::{
     Attributes, Model,
-    relations::{BelongsTo, relation::dictionary_key},
+    relations::{BelongsTo, MorphTo, relation::dictionary_key},
 };
 
 trait Touch<M: Model>: Send + Sync {
@@ -18,6 +18,18 @@ trait Touch<M: Model>: Send + Sync {
 }
 
 impl<M: Model, R: Model> Touch<M> for BelongsTo<M, R> {
+    fn touch<'a>(
+        &'a self,
+        model: &'a M,
+        attributes: &'a Attributes,
+        visited: &'a mut TouchedOwners,
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(self.touch_owner(model, attributes, visited, transaction))
+    }
+}
+
+impl<M: Model> Touch<M> for MorphTo<M> {
     fn touch<'a>(
         &'a self,
         model: &'a M,
@@ -43,6 +55,14 @@ impl<M: Model> Touches<M> {
     #[must_use]
     #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
     pub fn belongsTo<R: Model>(mut self, relation: BelongsTo<M, R>) -> Self {
+        self.0.push(Box::new(relation));
+        self
+    }
+
+    /// Adds a polymorphic belongs-to relationship to touch after a dirty save.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    pub fn morphTo(mut self, relation: MorphTo<M>) -> Self {
         self.0.push(Box::new(relation));
         self
     }

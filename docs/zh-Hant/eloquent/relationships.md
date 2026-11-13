@@ -435,6 +435,19 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 
 Laravel 在 `$touches` 中列出關聯名稱。OpenRust 使用帶型別的關聯描述符。 Laravel 寫入時間戳記時移除全域作用域。OpenRust 在查詢和寫入時都保留全域作用域，因此租戶作用域可以阻止越界更新。
 
+所屬模型是多型關聯時，透過 `Touches::morphTo` 傳入載入關聯時使用的描述符。框架根據已持久化的型別選擇已註冊模型，再用已持久化的 ID 比對該模型的所屬鍵。型別或 ID 為空時略過。未註冊的別名會回傳錯誤，需要讓子模型寫入和時間戳記更新一併回復時，請使用 `saveInTransaction`。
+
+```rust
+fn touches() -> openrust::database::eloquent::Touches<Self> {
+    use openrust::database::eloquent::{Touches, relations::MorphTo};
+
+    Touches::default().morphTo(
+        MorphTo::<Self>::new("commentable_type", "commentable_id")
+            .target::<Post>("post", "id"),
+    )
+}
+```
+
 在多對多關聯使用 `withTouchingParent()`，關聯變更時更新宣告端模型的時間戳記。更新從已持久化的屬性開始，並與中介資料表寫入共用交易。重新載入父模型後可讀取新時間戳記。
 
 ```rust

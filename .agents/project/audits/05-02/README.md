@@ -214,3 +214,9 @@ SQLite 和独立 MySQL 8.4.13 验证同一调用的新增和解除、重复键�
 SQLite 和独立 MySQL 8.4.13 实测无变更保存、递归和循环关系、所属模型的 `Saved` 事件顺序、事务内可见性和回滚、缺失和空外键。多态所属关系、多对多相关端触碰及其他关系加载差异仍在 05-02 跟踪，核心账本 25/66。
 
 Rust 1.94 格式、全目标严格 Clippy、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、实际二进制 `artisan inspire`、三语示例编译、隔离站点构建和 18 项浏览器检查通过。Rust 1.99 的严格 Clippy 在既有分页和 Redis 限流代码上报告两项 lint。提交前周额度剩余 92%，项目卷可用 59 GiB。
+
+## 保存模型时触碰多态所属模型
+
+对照固定 Laravel `MorphTo::touch` 的空外键规则和 `HasRelationships::touchOwners` 的传播用例，参考固定 Goravel ORM 的连接级装配。复核 `v0.x` 的保存后触碰与事务回归，本批沿用已有时机。Rust 用 `Touches::morphTo` 接入既有别名表、所属键和类型约束，与 `BelongsTo` 共用触碰、事件与循环防护。类型和 ID 从已持久化属性解析，未注册别名按框架的多态查询契约返回错误。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphTo.php#L282) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php#L2968) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#touching-parent-timestamps) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测自定义所属键、别名切换、关系约束、空类型、未知别名、同事务可见性和回滚。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离构建和 18 项浏览器检查通过。提交前周额度剩余 92%，项目卷可用 60 GiB。核心账本仍为 25/66，多对多相关端触碰继续跟踪。

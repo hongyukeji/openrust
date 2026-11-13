@@ -2,14 +2,7 @@ use std::sync::Arc;
 
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
-    eloquent::{
-        Attributes, Builder, Model, ModelState,
-        concerns::{
-            has_events::{ModelEvent, fire_with_transaction},
-            has_timestamps::timestamp,
-        },
-        touches::TouchedOwners,
-    },
+    eloquent::{Attributes, Builder, Model, touches::TouchedOwners},
     query,
 };
 
@@ -78,69 +71,10 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         model: &P,
         attributes: &Attributes,
         visited: &mut TouchedOwners,
-        mut transaction: Option<&mut Transaction>,
+        transaction: Option<&mut Transaction>,
     ) -> DatabaseResult<()> {
-        let Some(foreign_key) = attributes
-            .get(self.0.parent)
-            .filter(|key| **key != Value::Null)
-        else {
-            return Ok(());
-        };
-        let connection = self.0.connection(model)?;
-        let relation = self
-            .0
-            .configure(R::queryOn(&connection))?
-            .restrict_relation(self.0.related, std::slice::from_ref(foreign_key));
-        let casts = relation.casts.clone();
-        let query = relation.scoped()?.0.useWritePdo();
-        let row = match transaction.as_deref_mut() {
-            Some(tx) => query.in_transaction(tx)?.first().await?,
-            None => query.first().await?,
-        };
-        let Some(row) = row else {
-            return Ok(());
-        };
-        let mut attributes: Attributes = row.into_columns().into_iter().collect();
-        let metadata = R::metadata();
-        let key = attributes
-            .get(metadata.primary_key)
-            .filter(|key| **key != Value::Null)
-            .cloned()
-            .ok_or(DatabaseError::InvalidQuery("touch owner primary key"))?;
-        if !visited.visit::<R>(&connection, Some(&key))? {
-            return Ok(());
-        }
-        if let Some(column) = metadata.updated_at {
-            let time = timestamp(&connection, metadata.date_format)?;
-            let query = self
-                .0
-                .configure(R::queryOn(&connection))?
-                .restrict_relation(self.0.related, std::slice::from_ref(foreign_key))
-                .restrict_relation(metadata.primary_key, &[key])
-                .scoped()?
-                .0;
-            let update = Attributes::from([(column.into(), time.clone())]);
-            match transaction.as_deref_mut() {
-                Some(tx) => query.in_transaction(tx)?.update(update).await?,
-                None => query.update(update).await?,
-            };
-            attributes.insert(column.into(), time);
-        }
-        let mut owner = R::from_state(ModelState::hydrated_attributes(
-            attributes.clone(),
-            connection.clone(),
-            casts,
-        ));
-        fire_with_transaction(
-            &mut owner,
-            &connection,
-            ModelEvent::Saved,
-            false,
-            transaction.as_deref_mut(),
-        )
-        .await?;
-        R::touches()
-            .run(&owner, &attributes, visited, transaction)
+        self.0
+            .touch_owner(model, attributes, visited, transaction)
             .await
     }
 }

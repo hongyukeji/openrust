@@ -1,11 +1,18 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::database::{
-    Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value, query,
+    Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value, query,
 };
 
 use super::{
-    super::{Builder, Model},
+    super::{
+        Attributes, Builder, Model, ModelState,
+        concerns::{
+            has_events::{ModelEvent, fire_with_transaction},
+            has_timestamps::timestamp,
+        },
+        touches::TouchedOwners,
+    },
     one_of_many::OneOfMany,
 };
 
@@ -119,6 +126,75 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             Some(connection) => Ok(connection.clone()),
             None => DB::connection(R::metadata().connection.or(P::metadata().connection)),
         }
+    }
+
+    pub(super) async fn touch_owner(
+        &self,
+        model: &P,
+        attributes: &Attributes,
+        visited: &mut TouchedOwners,
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<()> {
+        let Some(foreign_key) = attributes
+            .get(self.parent)
+            .filter(|key| **key != Value::Null)
+        else {
+            return Ok(());
+        };
+        let connection = self.connection(model)?;
+        let relation = self
+            .configure(R::queryOn(&connection))?
+            .restrict_relation(self.related, std::slice::from_ref(foreign_key));
+        let casts = relation.casts.clone();
+        let query = relation.scoped()?.0.useWritePdo();
+        let row = match transaction.as_deref_mut() {
+            Some(tx) => query.in_transaction(tx)?.first().await?,
+            None => query.first().await?,
+        };
+        let Some(row) = row else {
+            return Ok(());
+        };
+        let mut attributes: Attributes = row.into_columns().into_iter().collect();
+        let metadata = R::metadata();
+        let key = attributes
+            .get(metadata.primary_key)
+            .filter(|key| **key != Value::Null)
+            .cloned()
+            .ok_or(DatabaseError::InvalidQuery("touch owner primary key"))?;
+        if !visited.visit::<R>(&connection, Some(&key))? {
+            return Ok(());
+        }
+        if let Some(column) = metadata.updated_at {
+            let time = timestamp(&connection, metadata.date_format)?;
+            let query = self
+                .configure(R::queryOn(&connection))?
+                .restrict_relation(self.related, std::slice::from_ref(foreign_key))
+                .restrict_relation(metadata.primary_key, &[key])
+                .scoped()?
+                .0;
+            let update = Attributes::from([(column.into(), time.clone())]);
+            match transaction.as_deref_mut() {
+                Some(tx) => query.in_transaction(tx)?.update(update).await?,
+                None => query.update(update).await?,
+            };
+            attributes.insert(column.into(), time);
+        }
+        let mut owner = R::from_state(ModelState::hydrated_attributes(
+            attributes.clone(),
+            connection.clone(),
+            casts,
+        ));
+        fire_with_transaction(
+            &mut owner,
+            &connection,
+            ModelEvent::Saved,
+            false,
+            transaction.as_deref_mut(),
+        )
+        .await?;
+        R::touches()
+            .run(&owner, &attributes, visited, transaction)
+            .await
     }
 
     pub fn existence_builder(
