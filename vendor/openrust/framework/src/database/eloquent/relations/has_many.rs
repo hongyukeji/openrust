@@ -22,6 +22,13 @@ impl<P: Model, R: Model> HasMany<P, R> {
         HasOne::from_many(self)
     }
 
+    /// Uses the same keys and constraints with a composed parent model.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches the Eloquent relationship API")]
+    pub fn forParent<M: Model>(self) -> HasMany<M, R> {
+        HasMany(self.0.for_parent())
+    }
+
     pub(super) const fn morph(
         local_key: &'static str,
         foreign_key: &'static str,

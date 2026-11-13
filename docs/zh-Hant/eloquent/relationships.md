@@ -134,6 +134,21 @@ async fn orders_with_customer(
 }
 ```
 
+組合模型需要共用具名解析器時，可透過 `inheritRelationUsing` 明確登錄後備解析。第一個閉包提供基礎模型，第二個閉包將關聯調整為新的父模型型別。`HasMany::forParent` 會保留鍵和查詢條件。本模型的登錄優先，後備解析在同一應用程式內進行，循環解析會回傳錯誤。
+
+```rust
+use openrust::database::eloquent::relations::HasMany;
+
+fn inherit_items(app: &Application) -> DatabaseResult<()> {
+    SpecialOrder::inheritRelationUsing(
+        app,
+        "items",
+        |order| Order::from_state(order.state().clone()),
+        HasMany::<Order, Item>::forParent,
+    )
+}
+```
+
 ## 查詢關聯是否存在
 
 `has` 和 `whereHas` 保留存在符合關聯記錄的父模型。`whereDoesntHave` 保留沒有符合記錄的父模型。這些方法在同一資料庫連線使用相關子查詢。`withWhereHas` 使用同一個關聯進行篩選及預先載入。

@@ -134,6 +134,21 @@ async fn orders_with_customer(
 }
 ```
 
+组合模型需要共享命名解析器时，可通过 `inheritRelationUsing` 显式登记回退。第一个闭包提供基础模型，第二个闭包将关系适配到新的父模型类型。`HasMany::forParent` 会保留键和查询约束。本模型的登记优先，回退在同一应用内解析，循环回退会返回错误。
+
+```rust
+use openrust::database::eloquent::relations::HasMany;
+
+fn inherit_items(app: &Application) -> DatabaseResult<()> {
+    SpecialOrder::inheritRelationUsing(
+        app,
+        "items",
+        |order| Order::from_state(order.state().clone()),
+        HasMany::<Order, Item>::forParent,
+    )
+}
+```
+
 ## 查询关系是否存在
 
 `has` 和 `whereHas` 保留存在匹配关联记录的父模型。`whereDoesntHave` 保留没有匹配记录的父模型。这些方法在同一数据库连接中使用相关子查询。`withWhereHas` 用同一个关系进行筛选和预加载。

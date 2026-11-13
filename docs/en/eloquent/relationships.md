@@ -134,6 +134,21 @@ async fn orders_with_customer(
 }
 ```
 
+To share a named resolver between composed models, register an explicit fallback with `inheritRelationUsing`. The first closure supplies the base model, and the second adapts the relation to the new parent type. For `HasMany`, `forParent` carries the keys and query constraints forward. A local registration takes priority. Fallbacks resolve within the same application and reject cycles.
+
+```rust
+use openrust::database::eloquent::relations::HasMany;
+
+fn inherit_items(app: &Application) -> DatabaseResult<()> {
+    SpecialOrder::inheritRelationUsing(
+        app,
+        "items",
+        |order| Order::from_state(order.state().clone()),
+        HasMany::<Order, Item>::forParent,
+    )
+}
+```
+
 ## Querying Relationship Existence
 
 `has` and `whereHas` keep parents with a matching related row. Use `whereDoesntHave` to keep parents without a match. These methods use a correlated subquery on the same database connection. `withWhereHas` applies the same relation to filtering and eager loading.

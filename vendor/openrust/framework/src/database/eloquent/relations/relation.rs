@@ -81,6 +81,17 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         }
     }
 
+    pub(super) fn for_parent<M: Model>(self) -> RelationKeys<M, R> {
+        RelationKeys {
+            parent: self.parent,
+            related: self.related,
+            configure: self.configure,
+            selection: self.selection,
+            discriminator: self.discriminator,
+            models: PhantomData,
+        }
+    }
+
     pub const fn with_discriminator(mut self, column: &'static str, alias: &'static str) -> Self {
         self.discriminator = Some((column, alias));
         self

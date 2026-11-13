@@ -15,8 +15,16 @@ use super::{
     relations::{ExistenceRelation, Relation},
 };
 
-type Resolver<M, R> = dyn Fn(&M) -> R + Send + Sync;
-type Registrations = HashMap<(TypeId, String), Box<dyn Any + Send + Sync>>;
+type Resolver<M, R> = dyn Fn(&RelationResolvers, &str, &M, &mut Vec<TypeId>) -> DatabaseResult<Option<R>>
+    + Send
+    + Sync;
+type Registrations = HashMap<(TypeId, String), Resolvers>;
+
+#[derive(Default)]
+struct Resolvers {
+    local: Option<Box<dyn Any + Send + Sync>>,
+    inherited: Option<Box<dyn Any + Send + Sync>>,
+}
 
 #[derive(Default)]
 pub(crate) struct RelationResolvers(RwLock<Registrations>);
@@ -27,11 +35,38 @@ impl RelationResolvers {
         name: String,
         resolver: impl Fn(&M) -> R + Send + Sync + 'static,
     ) {
-        let resolver: Arc<Resolver<M, R>> = Arc::new(resolver);
+        let resolver: Arc<Resolver<M, R>> =
+            Arc::new(move |_, _, model, _| Ok(Some(resolver(model))));
         self.0
             .write()
             .unwrap()
-            .insert((TypeId::of::<M>(), name), Box::new(resolver));
+            .entry((TypeId::of::<M>(), name))
+            .or_default()
+            .local = Some(Box::new(resolver));
+    }
+
+    pub(super) fn inherit<M, B, S, R>(
+        &self,
+        name: String,
+        base: impl Fn(&M) -> B + Send + Sync + 'static,
+        adapt: impl Fn(S) -> R + Send + Sync + 'static,
+    ) where
+        M: Model,
+        B: Model,
+        S: Relation<Parent = B>,
+        R: Relation<Parent = M>,
+    {
+        let resolver: Arc<Resolver<M, R>> = Arc::new(move |registry, name, model, path| {
+            registry
+                .lookup(&base(model), name, path)
+                .map(|relation| relation.map(&adapt))
+        });
+        self.0
+            .write()
+            .unwrap()
+            .entry((TypeId::of::<M>(), name))
+            .or_default()
+            .inherited = Some(Box::new(resolver));
     }
 
     pub(super) fn resolve<M: Model, R: Relation<Parent = M>>(
@@ -44,11 +79,27 @@ impl RelationResolvers {
         let registry = container
             .make::<Self>()
             .map_err(DatabaseError::Unavailable)?;
-        let resolver = registry
+        registry.lookup(model, name, &mut Vec::new())
+    }
+
+    fn lookup<M: Model, R: Relation<Parent = M>>(
+        &self,
+        model: &M,
+        name: &str,
+        path: &mut Vec<TypeId>,
+    ) -> DatabaseResult<Option<R>> {
+        let model_type = TypeId::of::<M>();
+        if path.contains(&model_type) {
+            return Err(DatabaseError::InvalidQuery(
+                "cyclic dynamic relationship inheritance",
+            ));
+        }
+        let resolver = self
             .0
             .read()
             .unwrap()
-            .get(&(TypeId::of::<M>(), name.to_owned()))
+            .get(&(model_type, name.to_owned()))
+            .and_then(|entry| entry.local.as_ref().or(entry.inherited.as_ref()))
             .map(|resolver| {
                 resolver
                     .downcast_ref::<Arc<Resolver<M, R>>>()
@@ -58,7 +109,13 @@ impl RelationResolvers {
                     ))
             })
             .transpose()?;
-        Ok(resolver.map(|resolver| resolver(model)))
+        let Some(resolver) = resolver else {
+            return Ok(None);
+        };
+        path.push(model_type);
+        let result = resolver(self, name, model, path);
+        path.pop();
+        result
     }
 }
 

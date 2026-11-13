@@ -801,6 +801,32 @@ pub trait Model: Sized + Send + Sync + 'static {
         Ok(())
     }
 
+    /// Falls back to another model's named resolver when this model has no local resolver.
+    ///
+    /// The closures construct the base model for resolution and adapt its typed relation.
+    fn inheritRelationUsing<B, S, R>(
+        app: &crate::foundation::Application,
+        name: impl Into<String>,
+        base: impl Fn(&Self) -> B + Send + Sync + 'static,
+        adapt: impl Fn(S) -> R + Send + Sync + 'static,
+    ) -> DatabaseResult<()>
+    where
+        B: Model,
+        S: Relation<Parent = B>,
+        R: Relation<Parent = Self>,
+    {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        let name = name.into();
+        if name.is_empty() || name.contains('.') {
+            return Err(DatabaseError::InvalidQuery("dynamic relationship name"));
+        }
+        app.container()
+            .make::<super::RelationResolvers>()
+            .map_err(DatabaseError::Unavailable)?
+            .inherit::<Self, B, S, R>(name, base, adapt);
+        Ok(())
+    }
+
     /// Resolves a named relationship using the model's application.
     fn relationResolver<R: Relation<Parent = Self>>(
         &self,

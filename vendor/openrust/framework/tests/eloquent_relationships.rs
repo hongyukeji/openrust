@@ -3623,11 +3623,104 @@ async fn verify_dynamic_relations(config: Json) {
         .unwrap();
     assert_eq!(prototype_matches.len(), 1);
     assert_eq!(prototype_matches[0].getKey(), Some(&2.into()));
+    Box::pin(verify_dynamic_fallback(&first, &second, &db, &other)).await;
     for table in ["relation_posts", "relation_authors"] {
         db.statement(&format!("DROP TABLE {table}"), &[])
             .await
             .unwrap();
     }
+}
+
+async fn verify_dynamic_fallback(
+    first: &openrust::foundation::Application,
+    second: &openrust::foundation::Application,
+    db: &Connection,
+    other: &Connection,
+) {
+    type Posts = HasMany<Author, Post>;
+    type ComposedPosts = HasMany<StrictAuthor, Post>;
+    let name = "fallbackPosts";
+    let relation = DynamicRelation::<ComposedPosts>::new(name);
+    let base = |model: &StrictAuthor| Author::from_state(model.state().clone());
+    StrictAuthor::inheritRelationUsing(first, name, base, Posts::forParent).unwrap();
+    assert!(matches!(
+        StrictAuthor::queryOn(db).whereHas(&relation),
+        Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
+    ));
+    Author::resolveRelationUsing(first, name, |_| {
+        Posts::new("id", "author_id").constrain(|mut query| {
+            query.r#where("title", "=", "third");
+            query
+        })
+    })
+    .unwrap();
+    let authors = StrictAuthor::queryOn(db)
+        .withWhereHas(name, relation)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(authors.len(), 1);
+    assert_eq!(authors[0].getKey(), Some(&2.into()));
+    assert_eq!(
+        authors[0].getRelation::<Vec<Arc<Post>>>(name).unwrap()[0].getKey(),
+        Some(&3.into())
+    );
+    let outside = StrictAuthor::queryOn(other).findOrFail(2).await.unwrap();
+    assert!(
+        outside
+            .relationResolver::<ComposedPosts>(name)
+            .unwrap()
+            .is_none()
+    );
+    StrictAuthor::inheritRelationUsing(second, name, base, Posts::forParent).unwrap();
+    assert!(
+        outside
+            .relationResolver::<ComposedPosts>(name)
+            .unwrap()
+            .is_none()
+    );
+
+    StrictAuthor::resolveRelationUsing(first, name, |_| ComposedPosts::new("id", "author_id"))
+        .unwrap();
+    let relation = DynamicRelation::<ComposedPosts>::new(name);
+    assert_eq!(
+        StrictAuthor::queryOn(db)
+            .whereHas(&relation)
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .len(),
+        2
+    );
+    let base_relation = DynamicRelation::<Posts>::new(name);
+    assert_eq!(
+        Author::queryOn(db)
+            .whereHas(&base_relation)
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let cyclic = "cyclic";
+    StrictAuthor::inheritRelationUsing(first, cyclic, base, Posts::forParent).unwrap();
+    Author::inheritRelationUsing(
+        first,
+        cyclic,
+        |model| StrictAuthor::from_state(model.state().clone()),
+        ComposedPosts::forParent,
+    )
+    .unwrap();
+    assert!(matches!(
+        StrictAuthor::queryOn(db).whereHas(&DynamicRelation::<ComposedPosts>::new(cyclic)),
+        Err(DatabaseError::InvalidQuery(
+            "cyclic dynamic relationship inheritance"
+        ))
+    ));
 }
 
 #[tokio::test]

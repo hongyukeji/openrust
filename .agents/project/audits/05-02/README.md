@@ -250,3 +250,9 @@ SQLite 和独立 MySQL 8.4.13 验证同模型同名解析器在两个应用间�
 对照固定 Laravel 的 `getRelationWithoutConstraints`。查询在与 Builder 相同的连接上创建未保存模型，通过应用注册表解析具名关系，再复用现有相关子查询构建器。相同的 `DynamicRelation<R>` 可用于存在、缺失、计数及关系聚合。查询解析在 SQL 执行前完成，实例级预加载仍接收真实父模型。固定 Goravel 的连接级查询装配为参考，`v0.x` 未找到动态关系解析对应实现。Rust 使用显式描述符类型，模型结构体之间的 PHP 类继承回退仍有差异。 [Laravel 查询源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php) · [Laravel 动态关系](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#dynamic-relationships) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证同名跨应用隔离、缺失和描述符类型错误、正反存在、关系计数投影，以及使用未保存模型解析查询、使用真实父模型预加载的差异。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离构建及 18 项浏览器检查通过。提交前周额度剩余 91%，项目卷可用 60 GiB，核心账本维持 25/66。
+
+## 组合模型的动态关系回退
+
+对照固定 Laravel `relationResolver` 和继承覆盖测试。Rust 的模型组合通过 `inheritRelationUsing` 显式指定基础模型适配和关系适配，`HasMany::forParent` 复用键与查询约束。同名本地登记优先，回退随基础模型解析器的登记生效，应用容器隔离贯穿解析链，循环返回错误。参考固定 Goravel 的连接级 ORM 装配，`v0.x` 未找到对应的动态解析器。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php#L90) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentDynamicRelationsTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证基础模型后注册、约束保留、关系存在查询及预加载、本地覆盖、应用隔离和循环拒绝。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离构建和 18 项浏览器检查通过。提交前周额度剩余 91%，项目卷可用 60 GiB。关系字符串路径及剩余加载差异继续跟踪，核心账本 25/66。
