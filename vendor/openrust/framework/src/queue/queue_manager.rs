@@ -1314,6 +1314,17 @@ impl QueueManager {
                         queue,
                         registry,
                         options,
+                        |store| {
+                            let owner = self
+                                .owner
+                                .upgrade()
+                                .ok_or(QueueError::InvalidConfiguration)?;
+                            owner
+                                .make::<CacheManager>()
+                                .map_err(QueueError::Unavailable)?
+                                .store(store)
+                                .map_err(backend)
+                        },
                     )?),
                     BatchBackend::Unsupported,
                 )

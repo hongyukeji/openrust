@@ -106,7 +106,11 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 設定 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 與 `AWS_DEFAULT_REGION`，也可直接提供完整佇列 URL。`SQS_SUFFIX` 只套用於佇列名稱，放在 `.fifo` 之前。憑證可由 AWS 憑證鏈提供，也可設定存取金鑰、祕密金鑰及選用的工作階段權杖。`SQS_ENDPOINT` 指定自訂服務端點。建立佇列後執行 `./artisan queue:work sqs`。
 
-FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。大型承載資料的溢出儲存及批次發佈持續追蹤。
+FIFO 可使用 `Payload::onGroup` 和 `withDeduplicationId` 設定穩定識別碼。空白的去重 ID 使用佇列的內容去重設定。逐訊息延遲適用於標準佇列。SQS 可見性逾時控制重新投遞，Worker 逾時應短於可見期。批次發佈持續追蹤。
+
+設定 `SQS_OVERFLOW_ENABLED=true` 後，序列化大小達到 1 MiB 的承載資料存入快取，SQS 訊息攜帶指標。透過 `SQS_OVERFLOW_STORE` 讓生產者與 Worker 使用同一個共用快取。設定 `SQS_OVERFLOW_ALWAYS=true` 後，小型工作也使用指標。工作釋放後保留承載資料，成功確認後預設刪除。可設定 `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` 保留。
+
+選用的 `SQS_OVERFLOW_TTL_SECONDS` 應涵蓋投遞延遲、重試與從無法投遞的佇列重新投遞所需的時間。到期機制可回收傳送結果不明或 FIFO 去重留下的承載資料。設定 `SQS_OVERFLOW_FLUSH_ON_CLEAR=true` 後，清空佇列會清空所選快取。僅對該佇列獨占的快取啟用，例如獨立的 Redis 資料庫。
 
 ## 在資料庫交易中派送
 

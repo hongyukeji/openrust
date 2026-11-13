@@ -106,7 +106,11 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 配置 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 和 `AWS_DEFAULT_REGION`，也可以直接提供完整队列 URL。`SQS_SUFFIX` 只用于队列名，放在 `.fifo` 之前。凭据可由 AWS 凭据链提供，也可配置访问密钥、密钥和可选会话令牌。`SQS_ENDPOINT` 指定自定义服务端点。创建队列后运行 `./artisan queue:work sqs`。
 
-FIFO 可用 `Payload::onGroup` 和 `withDeduplicationId` 设置稳定标识。空的去重 ID 使用队列的内容去重配置。逐消息延时适用于标准队列。SQS 可见性超时控制重投递，Worker 超时应短于可见期。大载荷溢出存储和批次发布继续跟踪。
+FIFO 可用 `Payload::onGroup` 和 `withDeduplicationId` 设置稳定标识。空的去重 ID 使用队列的内容去重配置。逐消息延时适用于标准队列。SQS 可见性超时控制重投递，Worker 超时应短于可见期。批次发布继续跟踪。
+
+设置 `SQS_OVERFLOW_ENABLED=true` 后，序列化大小达到 1 MiB 的载荷存入缓存，SQS 消息携带指针。通过 `SQS_OVERFLOW_STORE` 让生产者和 Worker 使用同一个共享缓存。设置 `SQS_OVERFLOW_ALWAYS=true` 后，小任务也使用指针。任务释放后保留载荷，成功确认后默认删除。可设置 `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` 保留。
+
+可选的 `SQS_OVERFLOW_TTL_SECONDS` 应覆盖投递延迟、重试和从死信队列重新投递所需的时间。过期机制可以回收发送结果不明或 FIFO 去重留下的载荷。设置 `SQS_OVERFLOW_FLUSH_ON_CLEAR=true` 后，清空队列会清空所选缓存。仅对该队列独占的缓存开启，例如独立的 Redis 数据库。
 
 ## 在数据库事务中派发
 

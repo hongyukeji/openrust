@@ -10,7 +10,13 @@ use aws_sdk_sqs::{
 };
 use tokio::sync::OnceCell;
 
-use crate::contracts::queue::{ClearableQueue, Job, Queue as Contract, QueueMetrics};
+use crate::{
+    cache::{Repository, Ttl, Value},
+    contracts::{
+        cache::Repository as _,
+        queue::{ClearableQueue, Job, Queue as Contract, QueueMetrics},
+    },
+};
 
 use super::{
     Delay, JobContext, Payload, Queue, QueueError, QueueFuture, QueueResult, backend,
@@ -36,6 +42,36 @@ pub(super) struct Options {
 struct Overflow {
     #[serde(default)]
     enabled: bool,
+    store: Option<String>,
+    #[serde(default)]
+    always: bool,
+    #[serde(default = "default_delete")]
+    delete_after_processing: bool,
+    #[serde(default)]
+    flush_on_clear: bool,
+    ttl_seconds: Option<i64>,
+}
+
+fn default_delete() -> bool {
+    true
+}
+
+#[derive(Clone)]
+struct OverflowStore {
+    cache: Arc<Repository>,
+    always: bool,
+    delete_after_processing: bool,
+    flush_on_clear: bool,
+    ttl: Option<Ttl>,
+}
+
+const PAYLOAD_LIMIT: usize = 1024 * 1024;
+const POINTER_PREFIX: &str = "laravel:sqs-payloads:";
+
+#[derive(serde::Deserialize, serde::Serialize)]
+struct Pointer {
+    #[serde(rename = "@pointer")]
+    key: String,
 }
 
 pub(super) struct SqsQueue {
@@ -44,6 +80,7 @@ pub(super) struct SqsQueue {
     registry: Arc<Queue>,
     options: Arc<Options>,
     client: OnceCell<Client>,
+    overflow: Option<OverflowStore>,
 }
 
 impl SqsQueue {
@@ -52,25 +89,40 @@ impl SqsQueue {
         queue: String,
         registry: Arc<Queue>,
         options: Options,
+        resolve_cache: impl FnOnce(Option<&str>) -> QueueResult<Arc<Repository>>,
     ) -> QueueResult<Self> {
         if options.key.is_some() != options.secret.is_some()
             || options
                 .visibility_timeout
                 .is_some_and(|value| !(0..=43200).contains(&value))
             || options.block_for.is_some_and(|value| value > 20)
-            || options
-                .overflow
-                .as_ref()
-                .is_some_and(|overflow| overflow.enabled)
         {
             return Err(QueueError::InvalidConfiguration);
         }
+        let overflow = options
+            .overflow
+            .as_ref()
+            .filter(|overflow| overflow.enabled)
+            .map(|overflow| {
+                if overflow.ttl_seconds.is_some_and(|ttl| ttl <= 0) {
+                    return Err(QueueError::InvalidConfiguration);
+                }
+                Ok(OverflowStore {
+                    cache: resolve_cache(overflow.store.as_deref())?,
+                    always: overflow.always,
+                    delete_after_processing: overflow.delete_after_processing,
+                    flush_on_clear: overflow.flush_on_clear,
+                    ttl: overflow.ttl_seconds.map(Ttl::Seconds),
+                })
+            })
+            .transpose()?;
         let driver = Self {
             name,
             queue,
             registry,
             options: Arc::new(options),
             client: OnceCell::new(),
+            overflow,
         };
         driver.url(None)?;
         Ok(driver)
@@ -149,7 +201,15 @@ impl SqsQueue {
         delay: Option<Delay>,
     ) -> QueueResult<Option<String>> {
         let url = self.url(queue)?;
-        send(self.client().await, &url, payload, delay, None).await
+        send(
+            self.client().await,
+            &url,
+            payload,
+            delay,
+            None,
+            self.overflow.as_ref(),
+        )
+        .await
     }
 
     async fn reserve(
@@ -180,7 +240,28 @@ impl SqsQueue {
             .and_then(|values| values.get(&MessageSystemAttributeName::ApproximateReceiveCount))
             .and_then(|value| value.parse().ok())
             .ok_or(QueueError::InvalidPayload)?;
-        let payload = Payload::decode(message.body().ok_or(QueueError::InvalidPayload)?)?;
+        let body = message.body().ok_or(QueueError::InvalidPayload)?;
+        let pointer = self
+            .overflow
+            .as_ref()
+            .and_then(|_| serde_json::from_str::<Pointer>(body).ok());
+        let payload = if let (Some(store), Some(pointer)) = (&self.overflow, &pointer) {
+            let id = pointer
+                .key
+                .strip_prefix(POINTER_PREFIX)
+                .ok_or(QueueError::InvalidPayload)?;
+            if uuid::Uuid::parse_str(id).is_err() {
+                return Err(QueueError::InvalidPayload);
+            }
+            let Some(Value::Json(serde_json::Value::String(body))) =
+                store.cache.get(&pointer.key).await.map_err(backend)?
+            else {
+                return Err(QueueError::InvalidPayload);
+            };
+            Payload::decode(&body)?
+        } else {
+            Payload::decode(body)?
+        };
         Ok(Some(Box::new(ReservedJob {
             registry: self.registry.clone(),
             storage: Box::new(SqsReservation {
@@ -188,6 +269,8 @@ impl SqsQueue {
                 options: self.options.clone(),
                 url: url.clone(),
                 receipt: receipt.into(),
+                overflow: self.overflow.clone(),
+                pointer,
             }),
             id: id.into(),
             context: JobContext {
@@ -309,6 +392,11 @@ impl ClearableQueue for SqsQueue {
                 .send()
                 .await
                 .map_err(backend)?;
+            if let Some(store) = &self.overflow
+                && store.flush_on_clear
+            {
+                store.cache.flush().await.map_err(backend)?;
+            }
             Ok(size)
         })
     }
@@ -319,6 +407,8 @@ struct SqsReservation {
     options: Arc<Options>,
     url: String,
     receipt: String,
+    overflow: Option<OverflowStore>,
+    pointer: Option<Pointer>,
 }
 
 impl Reservation for SqsReservation {
@@ -338,6 +428,7 @@ impl Reservation for SqsReservation {
                 next,
                 delay,
                 Some(next.uuid()),
+                self.overflow.as_ref(),
             )
             .await?;
             self.delete().await
@@ -353,6 +444,11 @@ impl Reservation for SqsReservation {
                 .send()
                 .await
                 .map_err(settlement_error)?;
+            if let (Some(store), Some(pointer)) = (&self.overflow, &self.pointer)
+                && store.delete_after_processing
+            {
+                store.cache.forget(&pointer.key).await.map_err(backend)?;
+            }
             Ok(())
         })
     }
@@ -377,14 +473,27 @@ async fn send(
     payload: &Payload,
     delay: Option<Delay>,
     chain_id: Option<&str>,
+    overflow: Option<&OverflowStore>,
 ) -> QueueResult<Option<String>> {
     let body = serde_json::to_string(payload).map_err(backend)?;
-    if body.len() > 1024 * 1024 {
+    let overflow = overflow.filter(|store| store.always || body.len() >= PAYLOAD_LIMIT);
+    if overflow.is_none() && body.len() > PAYLOAD_LIMIT {
         return Err(QueueError::InvalidPayload);
     }
-    let mut command = client.send_message().queue_url(url).message_body(body);
+    let mut command = client.send_message().queue_url(url);
     if url.ends_with(".fifo") {
         let deduplication = match (&payload.sqs_deduplication, chain_id) {
+            (Some(value), _) if value.is_empty() && overflow.is_some() => {
+                // Match content-based deduplication of the original body instead of its random pointer.
+                let digest = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, body.as_bytes());
+                Some(
+                    digest
+                        .as_ref()
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect(),
+                )
+            }
             (Some(value), _) => (!value.is_empty()).then(|| value.clone()),
             (None, Some(id)) => Some(id.into()),
             (None, None) => Some(super::new_id()?),
@@ -407,7 +516,22 @@ async fn send(
             command = command.delay_seconds(seconds(duration, 900)?);
         }
     }
-    let result = command.send().await.map_err(backend)?;
+    let body = if let Some(store) = overflow {
+        let key = format!("{POINTER_PREFIX}{}", super::new_id()?);
+        if !store
+            .cache
+            .put(&key, &Value::Json(body.into()), store.ttl)
+            .await
+            .map_err(backend)?
+        {
+            return Err(QueueError::InvalidPayload);
+        }
+        serde_json::to_string(&Pointer { key }).map_err(backend)?
+    } else {
+        body
+    };
+    // A send error can mean the service accepted the message without returning a response.
+    let result = command.message_body(body).send().await.map_err(backend)?;
     Ok(Some(
         result
             .message_id()

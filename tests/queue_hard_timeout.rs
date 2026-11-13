@@ -151,7 +151,10 @@ mod acceptance {
             payload: &'a Payload,
         ) -> QueueFuture<'a, QueueResult<()>> {
             Box::pin(async move {
-                let kind = payload.data().as_str().unwrap();
+                let kind = payload.data().as_str().unwrap_or_else(|| {
+                    assert_eq!(payload.data()["body"].as_str().unwrap().len(), 1024 * 1024);
+                    "sqs-overflow"
+                });
                 let error = |source: std::io::Error| QueueError::Execution {
                     source: Box::new(source),
                 };
@@ -211,7 +214,8 @@ mod acceptance {
                     | "driver-console"
                     | "driver-worker-deferred"
                     | "beanstalk-probe"
-                    | "sqs-probe" => {}
+                    | "sqs-probe"
+                    | "sqs-overflow" => {}
                     "driver-detached" | "unique-lifecycle" => {
                         wait_for_file(&self.0, &format!("{kind}.release")).await;
                         std::fs::write(self.0.join(format!("{kind}.done")), []).map_err(error)?;
@@ -509,10 +513,12 @@ mod acceptance {
                     ($ty:ty, $value:ident, $duration:expr, $exception:expr) => {
                         if let Some($value) = event.downcast_ref::<$ty>() {
                             let job = &$value.job;
-                            let kind = job.payload.data().as_str().unwrap();
-                            if $value.connection_name != "sync" || !kind.starts_with("sync-") {
+                            if $value.connection_name != "sync" {
                                 return Ok(None);
                             }
+                            let Some(kind) = job.payload.data().as_str().filter(|kind| kind.starts_with("sync-")) else {
+                                return Ok(None);
+                            };
                             assert!(job.id.is_empty());
                             assert_eq!(job.queue, "sync");
                             assert_eq!(job.attempts, 1);
@@ -837,7 +843,12 @@ mod acceptance {
                             "background": {"driver": "background"},
                             "sqs": {"driver":"sqs", "queue": env.get_utf8("OPENRUST_TEST_SQS_URL")?.unwrap_or("http://127.0.0.1:9324/000000000000/default"),
                                 "endpoint":env.get_utf8("OPENRUST_TEST_SQS_ENDPOINT")?, "region":"us-east-1", "key":"local", "secret":"local",
-                                "block_for":0, "visibility_timeout":2},
+                                "block_for":0, "visibility_timeout":2,
+                                "overflow":{"enabled":std::env::var_os("OPENRUST_TEST_SQS_OVERFLOW").is_some(),"store":"redis",
+                                    "always":std::env::var("OPENRUST_TEST_SQS_OVERFLOW").as_deref() == Ok("always"),
+                                    "delete_after_processing":std::env::var("OPENRUST_TEST_SQS_OVERFLOW").as_deref() != Ok("retain"),
+                                    "ttl_seconds":if std::env::var("OPENRUST_TEST_SQS_OVERFLOW").as_deref() == Ok("retain") { Some(60) } else { None },
+                                    "flush_on_clear":std::env::var_os("OPENRUST_TEST_SQS_OVERFLOW").is_some()}},
                             "beanstalkd": {"driver":"beanstalkd","host":"127.0.0.1",
                                 "port": std::env::var("OPENRUST_TEST_BEANSTALKD_PORT").ok().and_then(|port| port.parse::<u16>().ok()).unwrap_or(11300),
                                 "retry_after":2,"block_for":1},
@@ -912,7 +923,7 @@ mod acceptance {
             .map(|line| serde_json::from_str(line).unwrap())
             .collect();
         assert!(
-            !lines.is_empty() || result.status.success(),
+            result.status.code() != Some(101) && (!lines.is_empty() || result.status.success()),
             "{}",
             String::from_utf8_lossy(&result.stderr)
         );
@@ -2677,7 +2688,12 @@ mod acceptance {
         println!("Shared and standalone Worker memory policy acceptance passed");
     }
 
-    async fn verify_sqs(root: &Path, manager: &QueueManager, db: &DatabaseConnection) {
+    async fn verify_sqs(
+        root: &Path,
+        manager: &QueueManager,
+        db: &DatabaseConnection,
+        redis: &Connection,
+    ) {
         let queue = manager.connection(Some("sqs")).unwrap();
         let standard = std::env::var("OPENRUST_TEST_SQS_URL").unwrap();
         let fifo = std::env::var("OPENRUST_TEST_SQS_FIFO_URL").unwrap();
@@ -2732,6 +2748,85 @@ mod acceptance {
         assert!(root.join("sqs-probe.pid").exists());
         assert!(root.join("sqs-failure.failed").exists());
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
+        let large = Payload::new(
+            "hard-timeout-probe",
+            json!({"body":"x".repeat(1024 * 1024)}),
+        )
+        .unwrap();
+        // Overflow acceptance purges the configured Redis database. Use a dedicated instance.
+        if let Ok(mode) = std::env::var("OPENRUST_TEST_SQS_OVERFLOW") {
+            let count = || async {
+                let pattern = redis.key("*laravel:sqs-payloads:*");
+                let openrust::redis::Value::Array(keys) =
+                    redis.command("KEYS", &[pattern.as_bytes()]).await.unwrap()
+                else {
+                    panic!("expected Redis keys");
+                };
+                keys.len()
+            };
+            // In always mode, the FIFO duplicate left one unused pointer in the cache.
+            let retained = usize::from(mode == "always");
+            assert_eq!(count().await, retained);
+            queue.push(&payload, None).await.unwrap();
+            assert_eq!(count().await, retained * 2);
+            queue
+                .pop_now(None)
+                .await
+                .unwrap()
+                .unwrap()
+                .delete()
+                .await
+                .unwrap();
+            assert_eq!(count().await, retained);
+            queue.push(&large, None).await.unwrap();
+            assert_eq!(count().await, retained + 1);
+            let mut job = queue.pop_now(None).await.unwrap().unwrap();
+            assert_eq!(job.payload().data(), large.data());
+            job.release(Duration::ZERO).await.unwrap();
+            assert_eq!(count().await, retained + 1);
+            let mut job = queue.pop_now(None).await.unwrap().unwrap();
+            assert_eq!(job.attempts(), 2);
+            job.delete().await.unwrap();
+            let retained = retained + usize::from(mode == "retain");
+            assert_eq!(count().await, retained);
+            queue.push(&large, None).await.unwrap();
+            let (status, lines) = artisan(root, &["sqs", "--once"], false).await;
+            assert_eq!(status, Some(0), "{lines:?}");
+            assert!(root.join("sqs-overflow.pid").exists());
+            let retained = retained + usize::from(mode == "retain");
+            assert_eq!(count().await, retained);
+            if mode == "retain" {
+                let pattern = redis.key("*laravel:sqs-payloads:*");
+                let openrust::redis::Value::Array(keys) =
+                    redis.command("KEYS", &[pattern.as_bytes()]).await.unwrap()
+                else {
+                    panic!("expected Redis keys");
+                };
+                for key in keys {
+                    let openrust::redis::Value::BulkString(key) = key else {
+                        panic!("expected Redis key");
+                    };
+                    let openrust::redis::Value::Int(ttl) =
+                        redis.command("TTL", &[&key]).await.unwrap()
+                    else {
+                        panic!("expected Redis TTL");
+                    };
+                    assert!((1..=60).contains(&ttl));
+                }
+            }
+            queue.push(&large, None).await.unwrap();
+            assert_eq!(count().await, retained + 1);
+            assert_eq!(
+                queue.clearable().unwrap().clear(&standard).await.unwrap(),
+                1
+            );
+            assert_eq!(count().await, 0);
+            return;
+        }
+        assert!(matches!(
+            queue.push(&large, None).await,
+            Err(QueueError::InvalidPayload)
+        ));
         queue.push(&payload, None).await.unwrap();
         assert_eq!(
             queue.clearable().unwrap().clear(&standard).await.unwrap(),
@@ -2865,7 +2960,13 @@ mod acceptance {
         let queue = manager.connection(None).unwrap();
         if std::env::var_os("OPENRUST_TEST_SQS_URL").is_some() {
             if backend == "mysql" {
-                verify_sqs(&root.0, &manager, &db).await;
+                let redis = app
+                    .container()
+                    .make::<RedisManager>()
+                    .unwrap()
+                    .connection(None)
+                    .unwrap();
+                verify_sqs(&root.0, &manager, &db, &redis).await;
                 eprintln!("SQS process acceptance passed with MySQL failure storage");
             }
             return;

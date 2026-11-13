@@ -43,9 +43,10 @@ pub(super) fn load(env: &Environment, database: &Value) -> Result<Value, ConfigE
                 "overflow": {
                     "enabled": get(env, "SQS_OVERFLOW_ENABLED", false)?,
                     "store": get(env, "SQS_OVERFLOW_STORE", Value::Null)?,
-                    "always": false,
-                    "delete_after_processing": true,
+                    "always": get(env, "SQS_OVERFLOW_ALWAYS", false)?,
+                    "delete_after_processing": get(env, "SQS_OVERFLOW_DELETE_AFTER_PROCESSING", true)?,
                     "flush_on_clear": get(env, "SQS_OVERFLOW_FLUSH_ON_CLEAR", false)?,
+                    "ttl_seconds": optional_integer(env, "SQS_OVERFLOW_TTL_SECONDS")?,
                 },
             },
             "redis": {

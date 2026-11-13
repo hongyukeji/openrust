@@ -106,7 +106,11 @@ Reservation settlement uses the TCP session that owns the job. Chain handoff pub
 
 Set `QUEUE_CONNECTION=sqs`, `SQS_PREFIX`, `SQS_QUEUE` and `AWS_DEFAULT_REGION`. You may provide a complete queue URL. `SQS_SUFFIX` applies to names and precedes the `.fifo` extension. Use the AWS credential chain or configure the access key, secret and optional session token. `SQS_ENDPOINT` selects a custom service endpoint. Run `./artisan queue:work sqs` after provisioning the queue.
 
-For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period. Large-message overflow storage and batch publication remain tracked.
+For FIFO, use `Payload::onGroup` and `withDeduplicationId` to set stable keys. An empty deduplication ID uses the queue’s content-based setting. Per-message delay applies to standard queues. SQS visibility controls redelivery. Keep the worker timeout below the configured visibility period. Batch publishing remains tracked separately.
+
+Set `SQS_OVERFLOW_ENABLED=true` to store serialized payloads of 1 MiB or more in a cache and send a pointer through SQS. Select the same shared cache on producers and workers with `SQS_OVERFLOW_STORE`. Set `SQS_OVERFLOW_ALWAYS=true` to use pointers for smaller jobs too. Releasing a job keeps its payload. A successful acknowledgement removes it by default. Set `SQS_OVERFLOW_DELETE_AFTER_PROCESSING=false` to retain it.
+
+`SQS_OVERFLOW_TTL_SECONDS` is optional. Set it long enough to cover delivery delays, retries and redrive. Expiration can reclaim unused payloads after ambiguous sends or FIFO deduplication. `SQS_OVERFLOW_FLUSH_ON_CLEAR=true` clears the entire selected cache after purging a queue. Use that setting only with a cache dedicated to that queue, such as a dedicated Redis database.
 
 ## Dispatching with database transactions
 
