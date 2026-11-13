@@ -814,6 +814,51 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         Author::queryOn(db).withPaths(&["posts.unknown"]),
         Err(DatabaseError::InvalidQuery("unknown relationship path"))
     ));
+    let matching = Author::queryOn(db)
+        .whereHasPath("posts.comments.post")
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    let missing = Author::queryOn(db)
+        .whereDoesntHavePath("posts.comments.post")
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(!matching.is_empty());
+    assert!(!missing.is_empty());
+    assert!(matching.iter().all(|author| {
+        missing
+            .iter()
+            .all(|other| other.getKey() != author.getKey())
+    }));
+    assert_eq!(
+        matching.len() + missing.len(),
+        Author::queryOn(db).get().await.unwrap().len()
+    );
+    let one_comment_post = Author::queryOn(db)
+        .hasPathCount("posts.comments.post", "=", 1)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(one_comment_post.len(), matching.len());
+    let two_comment_posts = Author::queryOn(db)
+        .hasPathCount("posts.comments.post", ">=", 2)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(two_comment_posts.is_empty());
+    assert!(matches!(
+        Author::queryOn(db).whereHasPath("posts."),
+        Err(DatabaseError::InvalidQuery("invalid relationship path"))
+    ));
+    assert!(matches!(
+        Author::queryOn(db).whereDoesntHavePath("posts.unknown"),
+        Err(DatabaseError::InvalidQuery("unknown relationship path"))
+    ));
     let baseline = if mysql { select_count(db).await } else { 0 };
     let mut authors = Author::queryOn(db)
         .withPaths(&["posts", "posts.comments", "posts.comments", "posts.author"])

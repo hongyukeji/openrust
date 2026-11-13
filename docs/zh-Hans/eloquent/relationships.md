@@ -155,6 +155,8 @@ fn inherit_items(app: &Application) -> DatabaseResult<()> {
 
 `hasCount` 将关联记录数与指定数字比较。对 `MorphTo` 使用 `whereHasMorph`、`whereDoesntHaveMorph` 或 `hasMorphCount` 时，显式传入类型别名。`morphWithCount` 登记目标类型，并为目标模型自己的关系加载计数。
 
+用 `whereHasPath("posts.comments")` 筛选至少有一篇文章含评论的作者。用 `whereDoesntHavePath` 筛选没有完整匹配链的作者，包含没有文章的作者。`hasPathCount("posts.comments", ">=", 2)` 要求至少有一篇文章包含两条评论。前面各段判断存在，计数只比较最后一段。在模型的 `namedRelations()` 中通过 `nested` 登记可查询的描述符。
+
 ### 查询所有多态目标类型
 
 使用异步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 对应 Laravel 的通配查询。它们先从模型表读取不同的多态别名，当前查询的筛选条件和作用域不参与这次读取。需要在关系上注册存储的别名。查询缺失目标时，`whereDoesntHaveMorphAll` 也匹配类型为空的记录。

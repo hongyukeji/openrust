@@ -1,17 +1,26 @@
 use indexmap::IndexMap;
 
-use crate::database::{DatabaseError, DatabaseResult};
+use crate::database::{Connection, DatabaseError, DatabaseResult, query};
 
 use super::{
     EagerLoads, Model,
-    relations::{NestedRelation, Relation},
+    relations::{ExistenceRelation, NestedRelation, Relation},
 };
 
 type Prepare<M> =
     dyn Fn(EagerLoads<M>, &str, &[&str]) -> DatabaseResult<EagerLoads<M>> + Send + Sync;
 
-/// The relation factories available for eager loading by name.
-pub struct NamedRelations<M: Model>(IndexMap<&'static str, Box<Prepare<M>>>);
+type Existence = dyn Fn(&Connection, &str, &str, &str, u64) -> DatabaseResult<query::Builder<'static>>
+    + Send
+    + Sync;
+
+struct NamedRelation<M: Model> {
+    prepare: Box<Prepare<M>>,
+    existence: Option<Box<Existence>>,
+}
+
+/// The relation factories available for eager loading and querying by name.
+pub struct NamedRelations<M: Model>(IndexMap<&'static str, NamedRelation<M>>);
 
 impl<M: Model> Default for NamedRelations<M> {
     fn default() -> Self {
@@ -22,22 +31,47 @@ impl<M: Model> Default for NamedRelations<M> {
 impl<M: Model> NamedRelations<M> {
     /// Registers a relation with a single related model type for nested paths.
     #[must_use]
-    pub fn nested<R: NestedRelation<Parent = M>>(
+    pub fn nested<R: NestedRelation<Parent = M> + ExistenceRelation>(
         mut self,
         name: &'static str,
         factory: impl Fn() -> R + Send + Sync + 'static,
     ) -> Self {
+        let factory = std::sync::Arc::new(factory);
+        let eager = factory.clone();
         self.0.insert(
             name,
-            Box::new(move |loads, name, children| {
-                let relation = factory();
-                let relation = if children.is_empty() {
-                    relation
-                } else {
-                    relation.with_nested(NamedRelations::<R::Related>::prepare(children)?)
-                };
-                Ok(loads.with(name, relation))
-            }),
+            NamedRelation {
+                prepare: Box::new(move |loads, name, children| {
+                    let relation = eager();
+                    let relation = if children.is_empty() {
+                        relation
+                    } else {
+                        relation.with_nested(NamedRelations::<R::Related>::prepare(children)?)
+                    };
+                    Ok(loads.with(name, relation))
+                }),
+                existence: Some(Box::new(
+                    move |connection, parent, child, operator, count| {
+                        let query = factory().getRelationExistenceQuery(connection, parent)?;
+                        if child.is_empty() {
+                            return Ok(query);
+                        }
+                        let related = NamedRelations::<R::Related>::existence(
+                            connection,
+                            query.relation_qualifier(),
+                            child,
+                            operator,
+                            count,
+                        )?;
+                        if child.contains('.') || (operator, count) == (">=", 1) {
+                            query.whereExists(&related)
+                        } else {
+                            let related = related.select_related_aggregate("count", "*")?;
+                            query.where_related_count(&related, operator, count)
+                        }
+                    },
+                )),
+            },
         );
         self
     }
@@ -51,16 +85,41 @@ impl<M: Model> NamedRelations<M> {
     ) -> Self {
         self.0.insert(
             name,
-            Box::new(move |loads, name, children| {
-                if !children.is_empty() {
-                    return Err(DatabaseError::InvalidQuery(
-                        "relationship path cannot be nested",
-                    ));
-                }
-                Ok(loads.with(name, factory()))
-            }),
+            NamedRelation {
+                prepare: Box::new(move |loads, name, children| {
+                    if !children.is_empty() {
+                        return Err(DatabaseError::InvalidQuery(
+                            "relationship path cannot be nested",
+                        ));
+                    }
+                    Ok(loads.with(name, factory()))
+                }),
+                existence: None,
+            },
         );
         self
+    }
+
+    pub(super) fn existence(
+        connection: &Connection,
+        parent: &str,
+        path: &str,
+        operator: &str,
+        count: u64,
+    ) -> DatabaseResult<query::Builder<'static>> {
+        let (name, child) = path.split_once('.').unwrap_or((path, ""));
+        let registered = M::namedRelations();
+        let relation = registered
+            .0
+            .get(name)
+            .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
+        let existence = relation
+            .existence
+            .as_ref()
+            .ok_or(DatabaseError::InvalidQuery(
+                "relationship path does not support existence queries",
+            ))?;
+        existence(connection, parent, child, operator, count)
     }
 
     pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {
@@ -83,7 +142,7 @@ impl<M: Model> NamedRelations<M> {
                 .0
                 .get(name)
                 .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-            loads = prepare(loads, name, &children)?;
+            loads = (prepare.prepare)(loads, name, &children)?;
         }
         Ok(loads)
     }

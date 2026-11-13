@@ -84,6 +84,13 @@ impl Builder<'_> {
         )
     }
 
+    pub(in crate::database) fn relation_qualifier(&self) -> &str {
+        match &self.source {
+            Source::Table(table) => table.rsplit_once(" as ").map_or(table, |(_, alias)| alias),
+            Source::Query(_, alias) => alias,
+        }
+    }
+
     pub(super) fn subquery_expression(&self, query: &Builder<'_>) -> DatabaseResult<Expression> {
         if !self
             .executor

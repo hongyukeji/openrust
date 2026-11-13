@@ -336,6 +336,41 @@ impl<M: Model> Builder<'static, M> {
         Ok(self)
     }
 
+    /// Filters by the existence of a registered relation or dot-separated path.
+    pub fn whereHasPath(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCount(path, ">=", 1)
+    }
+
+    /// Filters by the absence of a complete registered relation path.
+    pub fn whereDoesntHavePath(self, path: &str) -> DatabaseResult<Self> {
+        self.hasPathCount(path, "<", 1)
+    }
+
+    /// Applies the count comparison at the final segment of the relation path.
+    pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
+        if path.split('.').any(str::is_empty) {
+            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+        }
+        let absent = (operator, count) == ("<", 1);
+        let (comparison, threshold) = if absent { (">=", 1) } else { (operator, count) };
+        let related = super::NamedRelations::<M>::existence(
+            &self.connection,
+            self.table_name(),
+            path,
+            comparison,
+            threshold,
+        )?;
+        self.query = if absent {
+            self.query.whereNotExists(&related)?
+        } else if path.contains('.') || (operator, count) == (">=", 1) {
+            self.query.whereExists(&related)?
+        } else {
+            let related = related.select_related_aggregate("count", "*")?;
+            self.query.where_related_count(&related, operator, count)?
+        };
+        Ok(self)
+    }
+
     pub fn whereHasMorph(self, relation: &MorphTo<M>, aliases: &[&str]) -> DatabaseResult<Self> {
         self.hasMorphCount(relation, aliases, ">=", 1)
     }

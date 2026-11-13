@@ -155,6 +155,8 @@ fn inherit_items(app: &Application) -> DatabaseResult<()> {
 
 `hasCount` compares the related row count with a number. For a `MorphTo` relation, pass explicit aliases to `whereHasMorph`, `whereDoesntHaveMorph`, or `hasMorphCount`. Use `morphWithCount` to register a target type with a count on one of its own relationships.
 
+Use `whereHasPath("posts.comments")` to find authors with a post that has comments. Use `whereDoesntHavePath` to find authors with no complete matching chain, including authors with no posts. `hasPathCount("posts.comments", ">=", 2)` requires at least one post with two or more comments. Each earlier segment uses existence and the count applies to the final segment. Register queryable descriptors with `namedRelations().nested(...)` in the model declaration.
+
 ### Querying All Related Models
 
 Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for Laravel's wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.
