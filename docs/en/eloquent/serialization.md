@@ -42,7 +42,7 @@ pub fn register_model_routes<M: Model>() -> Result<(), RoutingError> {
 
 ## Conditional Visibility
 
-Use `makeVisibleIf` and `makeHiddenIf` with a boolean or a predicate that receives the current model. A false condition leaves visibility as it was. On an Eloquent collection, `makeVisible`, `makeHidden`, `setVisible`, `setHidden`, and `append` apply to each model.
+Use `makeVisibleIf` and `makeHiddenIf` with a boolean or a predicate that receives the current model. A false condition leaves visibility as it was.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::Model};
@@ -51,5 +51,20 @@ pub fn conditional_json(record: &mut impl Model, may_read: bool) -> DatabaseResu
     record.makeVisibleIf(may_read, &["label"]);
     record.makeHiddenIf(!may_read, &["label"]);
     record.toJson()
+}
+```
+
+## Collection Visibility and Appends
+
+On an Eloquent collection, visibility and append methods apply to each model. `mergeHidden` and `mergeVisible` extend the corresponding lists. `setAppends` replaces the append list, and `withoutAppends` clears it, including model defaults. Appended fields still follow each model’s visibility rules.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model},
+};
+
+pub fn public_json<M: Model>(records: &mut Collection<M>) -> DatabaseResult<String> {
+    records.mergeHidden(&["internal_note"]).withoutAppends().toJson()
 }
 ```

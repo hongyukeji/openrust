@@ -683,7 +683,68 @@ async fn verify_casts(db: &Connection, mysql: bool) {
     verify_factory_casts(db).await;
     verify_json_collection_casts(db).await;
     verify_binary_and_vector_casts(db).await;
+    verify_collection_projection(db, model.getKey().unwrap()).await;
     db.statement("DROP TABLE cast_records", &[]).await.unwrap();
+}
+
+async fn verify_collection_projection(db: &Connection, key: &Value) {
+    let second = CastRecord::queryOn(db)
+        .create(attrs([("label", "Other".into())]))
+        .await
+        .unwrap();
+    let query = || {
+        let mut query = CastRecord::queryOn(db);
+        query.whereIn("id", vec![key.clone(), second.getKey().unwrap().clone()]);
+        query.orderBy("id", "asc")
+    };
+    let mut records = query().get().await.unwrap();
+    let untouched = query().get().await.unwrap();
+    assert_eq!(records.len(), 2);
+
+    records
+        .setVisible(&["id", "label"])
+        .mergeVisible(&["summary", "number"])
+        .mergeHidden(&["number"]);
+    for record in records.all() {
+        assert_eq!(record.getHidden(), ["label", "invalid_blob", "number"]);
+        assert_eq!(record.getVisible(), ["id", "label", "summary", "number"]);
+    }
+    let original = serde_json::from_str::<Json>(&records.toJson().unwrap()).unwrap();
+    for record in original.as_array().unwrap() {
+        assert!(record.get("summary").is_some());
+        assert!(record.get("label").is_none());
+        assert!(record.get("number").is_none());
+    }
+
+    records.setAppends(&["label"]);
+    assert!(
+        records
+            .iter()
+            .all(|record| record.getAppends() == ["label"])
+    );
+    assert!(
+        records
+            .toArray()
+            .unwrap()
+            .iter()
+            .all(|row| !row.contains_key("summary"))
+    );
+    records.setAppends(&["summary"]).withoutAppends();
+    assert!(records.iter().all(|record| record.getAppends().is_empty()));
+    assert!(
+        records
+            .toArray()
+            .unwrap()
+            .iter()
+            .all(|row| !row.contains_key("summary"))
+    );
+    assert!(
+        untouched
+            .toArray()
+            .unwrap()
+            .iter()
+            .all(|row| row.contains_key("summary"))
+    );
 }
 
 async fn verify_binary_and_vector_casts(db: &Connection) {

@@ -113,6 +113,13 @@ impl<M: Model> Collection<M> {
         self
     }
 
+    pub fn mergeHidden(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.mergeHidden(attributes);
+        }
+        self
+    }
+
     pub fn makeVisible(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
             model.makeVisible(attributes);
@@ -127,11 +134,29 @@ impl<M: Model> Collection<M> {
         self
     }
 
+    pub fn mergeVisible(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.mergeVisible(attributes);
+        }
+        self
+    }
+
     pub fn append(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
             model.append(attributes);
         }
         self
+    }
+
+    pub fn setAppends(&mut self, attributes: &[&str]) -> &mut Self {
+        for model in &mut self.models {
+            model.setAppends(attributes);
+        }
+        self
+    }
+
+    pub fn withoutAppends(&mut self) -> &mut Self {
+        self.setAppends(&[])
     }
 
     pub fn toArray(&self) -> DatabaseResult<Vec<serde_json::Map<String, serde_json::Value>>> {

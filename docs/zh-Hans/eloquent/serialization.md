@@ -42,7 +42,7 @@ pub fn register_model_routes<M: Model>() -> Result<(), RoutingError> {
 
 ## 条件可见性
 
-`makeVisibleIf` 和 `makeHiddenIf` 接受布尔值或读取当前模型的条件函数。条件为假时保留现有可见性。对 Eloquent 集合调用 `makeVisible`、`makeHidden`、`setVisible`、`setHidden` 或 `append`，会应用到每个模型。
+`makeVisibleIf` 和 `makeHiddenIf` 接受布尔值或读取当前模型的条件函数。条件为假时保留现有可见性。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::Model};
@@ -51,5 +51,20 @@ pub fn conditional_json(record: &mut impl Model, may_read: bool) -> DatabaseResu
     record.makeVisibleIf(may_read, &["label"]);
     record.makeHiddenIf(!may_read, &["label"]);
     record.toJson()
+}
+```
+
+## 集合可见性与追加字段
+
+集合上的可见性和追加方法会应用到每个模型。`mergeHidden` 和 `mergeVisible` 扩展对应列表。`setAppends` 替换追加列表，`withoutAppends` 清空列表，包括模型的默认追加项。追加字段仍遵循各模型的可见性规则。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model},
+};
+
+pub fn public_json<M: Model>(records: &mut Collection<M>) -> DatabaseResult<String> {
+    records.mergeHidden(&["internal_note"]).withoutAppends().toJson()
 }
 ```
