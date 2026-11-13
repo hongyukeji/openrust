@@ -86,3 +86,44 @@ pub async fn save_flight(connection: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 ```
+
+## Model events {#model-events}
+
+Register a typed listener with `Model::registerModelEvent` during application boot. Listeners can change the model before the write or return `ModelEventResponse::Cancel` to cancel it. A successful save emits `Saved` even when the attributes are unchanged. Bulk builder updates and deletes do not emit instance events. Use `saveQuietly`, `deleteQuietly`, `forceDeleteQuietly`, `restoreQuietly`, or `Model::withoutEvents` to suppress model events in the current async call chain. An error from a post-write listener is returned to the caller. The database write has already run.
+
+```rust
+use openrust::{
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{
+            Model,
+            concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
+        },
+    },
+    foundation::Application,
+};
+
+struct RequireTitle;
+
+impl<M: Model> ModelEventListener<M> for RequireTitle {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        model: &'a mut M,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            Ok(match model.getAttribute("title") {
+                Some(openrust::database::Value::Text(title)) if !title.trim().is_empty() => {
+                    ModelEventResponse::Continue
+                }
+                _ => ModelEventResponse::Cancel,
+            })
+        })
+    }
+}
+
+fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
+    M::registerModelEvent(app, ModelEvent::Saving, RequireTitle)
+}
+```

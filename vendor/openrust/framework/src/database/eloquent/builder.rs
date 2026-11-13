@@ -649,6 +649,7 @@ impl<M: Model> Builder<'static, M> {
     pub async fn get(self) -> DatabaseResult<Collection<M>> {
         let (query, hydration) = self.hydration_query()?;
         let mut models = hydration.rows(query.get().await?);
+        super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
         load_eager(hydration.eager, &mut models).await?;
         Ok(Collection::new(models))
     }
@@ -672,6 +673,7 @@ impl<M: Model> Builder<'static, M> {
             .paginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)
     }
@@ -695,6 +697,7 @@ impl<M: Model> Builder<'static, M> {
             .simplePaginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)
     }
@@ -718,6 +721,7 @@ impl<M: Model> Builder<'static, M> {
             .cursorPaginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)
     }

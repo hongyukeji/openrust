@@ -32,6 +32,9 @@ impl ServiceProvider for DatabaseServiceProvider {
                 let manager = container.get::<DatabaseManager>("db")?;
                 Ok(manager)
             })?;
+            container.singleton::<super::eloquent::ModelEvents, _>(|_| {
+                Ok(Arc::new(super::eloquent::ModelEvents::default()))
+            })?;
             container.singleton::<super::seeder::SeederRegistry, _>(|_| {
                 Ok(Arc::new(super::seeder::SeederRegistry::default()))
             })?;

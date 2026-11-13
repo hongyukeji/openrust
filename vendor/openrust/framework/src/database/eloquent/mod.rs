@@ -24,6 +24,7 @@ mod searchable;
 
 pub use builder::Builder;
 pub use collection::Collection;
+pub(crate) use concerns::has_events::ModelEvents;
 pub use concerns::{
     ModelState,
     has_relationships::EagerLoads,

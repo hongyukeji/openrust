@@ -1,6 +1,13 @@
 use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Value};
 
-use super::{Model, ModelState, concerns::has_timestamps::timestamp, soft_deletes};
+use super::{
+    Model, ModelState,
+    concerns::{
+        has_events::{ModelEvent::*, fire},
+        has_timestamps::timestamp,
+    },
+    soft_deletes,
+};
 
 fn connection<M: Model>(model: &M) -> DatabaseResult<Connection> {
     match &model.state().connection {
@@ -23,18 +30,28 @@ fn persisted_key<M: Model>(model: &M) -> DatabaseResult<Value> {
 pub(super) async fn save<M: Model>(model: &mut M) -> DatabaseResult<bool> {
     let metadata = M::metadata();
     let connection = connection(model)?;
-    let state = model.state();
-    let exists = state.exists;
+    if !fire(model, &connection, Saving, true).await? {
+        return Ok(false);
+    }
+    let exists = model.state().exists;
+    if exists && model.getDirty()?.is_empty() {
+        return finish_save(model, &connection).await;
+    }
+    if !fire(
+        model,
+        &connection,
+        if exists { Updating } else { Creating },
+        true,
+    )
+    .await?
+    {
+        return Ok(false);
+    }
     let mut attributes = if exists {
         model.getDirty()?
     } else {
-        state.attributes.clone()
+        model.state().attributes.clone()
     };
-    if exists && attributes.is_empty() {
-        let state = model.state_mut();
-        state.original.clone_from(&state.attributes);
-        return Ok(true);
-    }
 
     let timestamp_columns = [
         metadata.updated_at,
@@ -52,6 +69,9 @@ pub(super) async fn save<M: Model>(model: &mut M) -> DatabaseResult<bool> {
         );
     }
 
+    if exists && attributes.is_empty() {
+        return finish_save(model, &connection).await;
+    }
     let query = connection.table(metadata.table);
     if exists {
         query
@@ -67,21 +87,42 @@ pub(super) async fn save<M: Model>(model: &mut M) -> DatabaseResult<bool> {
             attributes.insert(metadata.primary_key.into(), id);
         }
     } else if attributes.is_empty() {
-        return Ok(true);
+        return finish_save(model, &connection).await;
     } else {
         query.insert(std::slice::from_ref(&attributes)).await?;
     }
 
     let state = model.state_mut();
     state.apply_attributes(attributes.clone());
-    state.original.clone_from(&state.attributes);
     if exists {
-        state.changes = attributes;
+        state.changes.clone_from(&attributes);
     } else {
         state.was_recently_created = true;
     }
     state.exists = true;
-    state.connection = Some(connection);
+    state.connection = Some(connection.clone());
+    let persisted = state.attributes.clone();
+    let result = async {
+        fire(
+            model,
+            &connection,
+            if exists { Updated } else { Created },
+            false,
+        )
+        .await?;
+        fire(model, &connection, Saved, false).await?;
+        Ok(true)
+    }
+    .await;
+    // Record the write even if a post-write listener fails. Preserve listener mutations as dirty.
+    model.state_mut().original = persisted;
+    result
+}
+
+async fn finish_save<M: Model>(model: &mut M, connection: &Connection) -> DatabaseResult<bool> {
+    let persisted = model.state().attributes.clone();
+    fire(model, connection, Saved, false).await?;
+    model.state_mut().original = persisted;
     Ok(true)
 }
 
@@ -102,6 +143,13 @@ pub(super) async fn delete<M: Model>(model: &mut M, force: bool) -> DatabaseResu
     }
     let metadata = M::metadata();
     let connection = connection(model)?;
+    let force = force && metadata.deleted_at.is_some();
+    if force && !fire(model, &connection, ForceDeleting, true).await? {
+        return Ok(false);
+    }
+    if !fire(model, &connection, Deleting, true).await? {
+        return Ok(false);
+    }
     let query =
         connection
             .table(metadata.table)
@@ -110,9 +158,14 @@ pub(super) async fn delete<M: Model>(model: &mut M, force: bool) -> DatabaseResu
         let attributes = soft_deletes::deletion_attributes(metadata, column, &connection)?;
         query.update(attributes.clone()).await?;
         sync_columns(model.state_mut(), attributes);
+        fire(model, &connection, Trashed, false).await?;
     } else {
         query.delete().await?;
         model.state_mut().exists = false;
+    }
+    fire(model, &connection, Deleted, false).await?;
+    if force {
+        fire(model, &connection, ForceDeleted, false).await?;
     }
     Ok(true)
 }
@@ -124,12 +177,17 @@ pub(super) async fn restore<M: Model>(model: &mut M) -> DatabaseResult<bool> {
     if !model.state().exists {
         return Ok(false);
     }
-    let previous = model
-        .state_mut()
-        .attributes
-        .insert(column.into(), Value::Null);
+    let connection = connection(model)?;
+    if !fire(model, &connection, Restoring, true).await? {
+        return Ok(false);
+    }
+    let previous = model.getAttribute(column).cloned();
+    model.state_mut().setAttribute(column, Value::Null);
     let result = save(model).await;
-    if result.is_err() {
+    if matches!(result, Ok(true)) {
+        fire(model, &connection, Restored, false).await?;
+    } else if model.state().original.get(column) != Some(&Value::Null) {
+        model.state_mut().invalidate_value_objects();
         let attributes = &mut model.state_mut().attributes;
         match previous {
             Some(value) => {

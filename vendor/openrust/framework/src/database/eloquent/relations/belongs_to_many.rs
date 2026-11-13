@@ -320,6 +320,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         models.push(R::from_state(state));
                     }
                 }
+                super::super::concerns::has_events::retrieved(&mut models, &connection).await?;
                 load_eager(eager_load, &mut models).await?;
                 for (owner, model) in owners.into_iter().zip(models) {
                     dictionary.entry(owner).or_default().push(Arc::new(model));

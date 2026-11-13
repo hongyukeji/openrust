@@ -175,6 +175,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                         )));
                     }
                 }
+                super::super::concerns::has_events::retrieved(&mut related, &connection).await?;
                 load_eager(eager_load, &mut related).await?;
                 for (key, model) in matches.into_iter().zip(related) {
                     dictionary.entry(key).or_default().push(Arc::new(model));

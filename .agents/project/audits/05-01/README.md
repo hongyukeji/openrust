@@ -20,3 +20,10 @@
 ## 独立补交复验
 
 以本地 `24bb4bbd` 为基线，拆出关系、转换和序列化差异。Rust 1.94.0 格式、433 项工作区测试和全目标严格 Clippy 通过。模型读写与作用域在 SQLite 和真实 MySQL 复验通过。Artisan 实际验证 `inspire`、模型生成、同名拒绝及 `--force` 覆盖。
+
+## 模型生命周期派发
+
+- 对照固定 Laravel 的保存、删除和恢复顺序及模型测试，参考 Goravel 的显式类型模型。沿用 `v0.x` 的预事件取消和 Tokio 调用链静默机制。本版使用应用容器内的类型化注册表，在实际操作的连接上借用可变模型。监听器执行前释放注册表锁。查询构造器批量写入保持 Laravel 的实例事件边界。 [Laravel 模型事件](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#events) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php)
+- SQLite 与独立 MySQL 8.4.13 验证写前修改、取消、无变更保存、查询加载、软删除、恢复、强制删除、静默写入、应用隔离、SQL 失败及写后监听器错误。写后错误时保留已执行的持久化状态，避免把重试当作首次插入。Rust 的静默范围是当前异步调用链。
+- 生命周期派发已接入。Observer、映射到普通事件 Dispatcher、复制及其 `replicating` 事件、事务后观察者和自动唯一 ID 仍待跟踪。
+- Rust 1.94.0 格式、615 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语监听器示例分别在 SQLite 执行，VitePress 构建及 18 项浏览器检查通过。实际二进制运行 `make:model LifecycleArticle` 与 `inspire` 成功。

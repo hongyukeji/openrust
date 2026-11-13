@@ -695,6 +695,41 @@ pub trait Model: Sized + Send + Sync + 'static {
         concerns::has_relationships::load(std::slice::from_mut(self), name, relation, false)
     }
 
+    /// Registers a listener on this application's model event registry.
+    fn registerModelEvent(
+        app: &crate::foundation::Application,
+        event: super::concerns::ModelEvent,
+        listener: impl super::concerns::ModelEventListener<Self> + 'static,
+    ) -> DatabaseResult<()> {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        app.container()
+            .make::<super::ModelEvents>()
+            .map_err(DatabaseError::Unavailable)?
+            .listen::<Self>(event, listener);
+        Ok(())
+    }
+
+    /// Suppresses model events in the current async call chain.
+    fn withoutEvents<F: Future + Send>(work: F) -> impl Future<Output = F::Output> + Send {
+        concerns::has_events::without_events(work)
+    }
+
+    fn saveQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::withoutEvents(self.save())
+    }
+
+    fn deleteQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::withoutEvents(self.delete())
+    }
+
+    fn forceDeleteQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::withoutEvents(self.forceDelete())
+    }
+
+    fn restoreQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::withoutEvents(self.restore())
+    }
+
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::save(self)
     }

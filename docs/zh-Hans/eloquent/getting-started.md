@@ -86,3 +86,44 @@ pub async fn save_flight(connection: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 ```
+
+## 模型事件 {#model-events}
+
+应用启动时用 `Model::registerModelEvent` 注册类型化监听器。监听器可以在写入前修改模型，也可返回 `ModelEventResponse::Cancel` 取消写入。成功保存会触发 `Saved`，包括属性没有变化的情况。查询构造器的批量更新和删除不派发实例事件。使用 `saveQuietly`、`deleteQuietly`、`forceDeleteQuietly`、`restoreQuietly` 或 `Model::withoutEvents` 在当前异步调用链内抑制模型事件。写入后监听器的错误会返回给调用方，此时数据库写入已执行。
+
+```rust
+use openrust::{
+    database::{
+        Connection, DatabaseFuture, DatabaseResult,
+        eloquent::{
+            Model,
+            concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
+        },
+    },
+    foundation::Application,
+};
+
+struct RequireTitle;
+
+impl<M: Model> ModelEventListener<M> for RequireTitle {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        model: &'a mut M,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            Ok(match model.getAttribute("title") {
+                Some(openrust::database::Value::Text(title)) if !title.trim().is_empty() => {
+                    ModelEventResponse::Continue
+                }
+                _ => ModelEventResponse::Cancel,
+            })
+        })
+    }
+}
+
+fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
+    M::registerModelEvent(app, ModelEvent::Saving, RequireTitle)
+}
+```
