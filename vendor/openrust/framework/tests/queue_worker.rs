@@ -41,7 +41,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     queue::{
         DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
-        QueueResult, WorkerStopReason,
+        QueueResult, UniqueJob, WorkerStopReason,
         events::{
             JobAttempted, JobExceptionOccurred, JobFailed, JobInterrupted, JobPopped, JobPopping,
             JobProcessed, JobProcessing, JobReleased, JobReleasedAfterException, JobTimedOut,
@@ -57,7 +57,7 @@ use openrust::{
     routing::{Router, RoutingError},
     support::{
         ProviderResult, ServiceProvider,
-        facades::{Context, Event, Queue, RateLimiter},
+        facades::{Bus, Context, Event, Queue, RateLimiter},
     },
 };
 use serde_json::{Value as Json, json};
@@ -180,6 +180,39 @@ impl JobHandler for RestoreModels {
                 .map_err(execution)?;
             Ok(())
         })
+    }
+}
+
+struct RestoreRequiredModel;
+
+impl JobHandler for RestoreRequiredModel {
+    fn uniqueJob(&self, _: &Payload) -> Option<UniqueJob> {
+        Some(UniqueJob {
+            id: "required-model".into(),
+            ..Default::default()
+        })
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let id: ModelIdentifier<QueuedModel> = serde_json::from_value(payload.data().clone())
+                .map_err(|_| QueueError::InvalidPayload)?;
+            id.restoreForJob().await?;
+            panic!("the required model should be missing")
+        })
+    }
+
+    fn failed<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        _: &'a Payload,
+        _: &'a QueueError,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        panic!("a job with an unrestorable argument has no failure callback")
     }
 }
 
@@ -907,6 +940,7 @@ impl ServiceProvider for Providers {
                 Queue::withoutInterruptionPolling()?;
             }
             Queue::register("restore-models", Arc::new(RestoreModels))?;
+            Queue::register("restore-required", Arc::new(RestoreRequiredModel))?;
             Queue::starting(control_hook)?;
             Queue::stopping(control_hook)?;
             if std::env::var_os("QUEUE_WORKER_VETO").is_some() {
@@ -1061,7 +1095,26 @@ fn dispatch(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
         Context::add("trace", json!(trace)).unwrap();
         Context::addHidden("secret", json!("remove")).unwrap();
         Context::addHidden("protected", json!("hidden")).unwrap();
-        if kind == "timed_pause" {
+        if matches!(kind, "missing-chain" | "missing-sync") {
+            let model = QueuedModel::newInstance(Default::default()).map_err(|source| {
+                HttpError::Internal {
+                    source: Box::new(source),
+                }
+            })?;
+            let id = ModelIdentifier::capture(&model).map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })?;
+            let jobs = [
+                Payload::new("restore-required", id)?.deleteWhenMissingModels(),
+                Payload::new("restore-required", "chain successor must not run")?,
+            ];
+            let chain = Bus::chain(jobs).onQueue("missing-chain");
+            if kind == "missing-sync" {
+                chain.onConnection("sync").dispatch().await?;
+            } else {
+                chain.dispatch().await?;
+            }
+        } else if kind == "timed_pause" {
             let connection = Queue::connection(None)?;
             let name = connection.get_connection_name();
             Queue::pauseFor(name, "default", Ttl::Seconds(3)).await?;
@@ -1485,6 +1538,45 @@ async fn verify_model_restoration(root: &Path, app: &Application, db: &Connectio
         .unwrap(),
         1.into()
     );
+    let required = || {
+        Payload::new(
+            "restore-required",
+            ModelIdentifier::capture(missing).unwrap(),
+        )
+        .unwrap()
+        .with_options(JobOptions {
+            max_tries: Some(4),
+            ..Default::default()
+        })
+    };
+    let manager = app.container().make::<QueueManager>().unwrap();
+    let queue = manager.connection(None).unwrap();
+    let options = || DispatchOptions {
+        queue: Some("missing-model".into()),
+        ..Default::default()
+    };
+    manager.dispatch(required(), options(), None).await.unwrap();
+    let output = run(
+        root,
+        &["queue:work", "--queue=missing-model", "--once", "--json"],
+    )
+    .await;
+    assert_eq!(json_lines(&output)[1]["status"], "failed");
+    assert_eq!(queue.size(Some("missing-model")).await.unwrap(), 0);
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
+    for _ in 0..2 {
+        assert!(matches!(
+            manager
+                .dispatch(required().deleteWhenMissingModels(), options(), None)
+                .await
+                .unwrap(),
+            openrust::queue::DispatchResult::Queued(_)
+        ));
+        run(root, &["queue:work", "--queue=missing-model", "--once"]).await;
+        assert_eq!(queue.size(Some("missing-model")).await.unwrap(), 0);
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
+    }
+    run(root, &["queue:flush"]).await;
     schema.dropIfExists("queued_models").await.unwrap();
 }
 
@@ -1514,7 +1606,7 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         "cache": {"default":if redis.is_some() {"redis"} else {"file"},"stores":{"redis":{"driver":"redis"},"file":{"driver":"file","path":"control-cache"}}},
         "queue": {
             "default": default_queue, "output_timezone": "Asia/Shanghai",
-            "connections":{"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0},"crash":{"driver":default_queue,"retry_after":2}},
+            "connections":{"sync":{"driver":"sync"},"database":{"driver":"database","retry_after":30},"redis":{"driver":"redis","retry_after":30,"block_for":0},"crash":{"driver":default_queue,"retry_after":2}},
             "failed":{"driver":"database-uuids","database":"worker","table":"failed_jobs"}
         }
     });
@@ -1579,6 +1671,13 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
         .await
         .unwrap();
     });
+    if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_none() {
+        request(address, "missing-sync").await;
+        request(address, "missing-chain").await;
+        run(&root.0, &["queue:work", "--queue=missing-chain", "--once"]).await;
+        assert_eq!(queue.size(Some("missing-chain")).await.unwrap(), 0);
+        assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    }
     #[cfg(windows)]
     if std::env::var_os("OPENRUST_TEST_WORKER_CTRL_C_ONLY").is_some() {
         verify_windows_ctrl_c(&root.0, &db, &*queue, address).await;

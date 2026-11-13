@@ -98,6 +98,27 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 }
 ```
 
+#### Missing models {#ignoring-missing-models}
+
+Call `ModelIdentifier::restoreForJob().await?` when the model is required by a queued job. A missing model normally fails the job immediately. Call `Payload::deleteWhenMissingModels()` when dispatching to acknowledge it quietly instead. The worker releases a unique lock in either case. Quiet acknowledgement records success for the affected batch member and stops that member’s chain. Other database errors keep their normal handling.
+
+```rust
+use openrust::{
+    database::eloquent::{Model, ModelIdentifier},
+    queue::{Payload, QueueError, QueueResult},
+};
+
+pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
+    Ok(Payload::new("reports.generate", id)?.deleteWhenMissingModels())
+}
+
+pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
+    let id: ModelIdentifier<M> = serde_json::from_value(payload.data().clone())
+        .map_err(|_| QueueError::InvalidPayload)?;
+    id.restoreForJob().await
+}
+```
+
 ## Bus dispatch {#bus-dispatch}
 
 Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipeThrough` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.

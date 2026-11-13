@@ -97,6 +97,9 @@ mod acceptance {
             context: &'a mut JobContext<'_>,
             payload: &'a Payload,
         ) -> QueueFuture<'a, QueueResult<()>> {
+            if payload.data() == "missing-model" {
+                return Box::pin(async { Err(QueueError::MissingModel("users".into())) });
+            }
             if payload.data() == "fail-on-exception" {
                 Box::pin(async {
                     Err(QueueError::Execution {
@@ -1424,6 +1427,38 @@ mod acceptance {
             let marker = root.join("fail-on-exception.failed");
             assert!(std::fs::read_to_string(&marker).unwrap().contains(":1:"));
             std::fs::remove_file(marker).unwrap();
+        }
+        for discard in [false, true] {
+            let payload = Payload::new("fail-on-exception-probe", "missing-model")
+                .unwrap()
+                .with_options(JobOptions {
+                    hard_timeout: true,
+                    max_tries: Some(3),
+                    ..Default::default()
+                });
+            let payload = if discard {
+                payload.deleteWhenMissingModels()
+            } else {
+                payload
+            };
+            let uuid = payload.uuid().to_owned();
+            manager.dispatch(payload, options(), None).await.unwrap();
+            let (status, lines) = artisan(root, &args, false).await;
+            assert_eq!(status, Some(0), "{lines:?}");
+            assert_eq!(
+                lines.last().unwrap()["status"],
+                if discard { "success" } else { "failed" }
+            );
+            assert!(!root.join("missing-model.failed").exists());
+            if !discard {
+                let output = tokio::process::Command::new(std::env::current_exe().unwrap())
+                    .args(["artisan", "queue:forget", &uuid])
+                    .env("APP_BASE_PATH", root)
+                    .output()
+                    .await
+                    .unwrap();
+                assert!(output.status.success(), "{output:?}");
+            }
         }
         let payload = Payload::new("fail-on-exception-probe", "callback-retry").unwrap();
         manager.dispatch(payload, options(), None).await.unwrap();

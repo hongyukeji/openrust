@@ -31,6 +31,7 @@ struct Request {
 #[derive(Serialize, Deserialize)]
 struct Response {
     error: Option<String>,
+    missing_model: Option<String>,
     release_after: Option<Duration>,
     fail_immediately: bool,
     stop_retries: Option<bool>,
@@ -68,6 +69,7 @@ pub(crate) async fn serve(
             .await;
         if let Err(error) = &result
             && !context.fail_immediately
+            && !matches!(error, super::QueueError::MissingModel(_))
         {
             context.stop_retries = Some(
                 container
@@ -84,7 +86,12 @@ pub(crate) async fn serve(
         deferred.invoke(&app, result.is_ok() && context.release_after.is_none()),
     )
     .await;
+    let missing_model = match &result {
+        Err(super::QueueError::MissingModel(table)) => Some(table.clone()),
+        _ => None,
+    };
     let response = Response {
+        missing_model,
         error: result.err().map(|error| {
             let mut text = error.to_string();
             let mut source = error.source();
@@ -187,6 +194,9 @@ pub(super) async fn execute(
     context.fail_immediately = response.fail_immediately;
     context.stop_retries = response.stop_retries;
     context.chain_update = response.chain_update;
+    if let Some(table) = response.missing_model {
+        return Ok(Some(Err(QueueError::MissingModel(table))));
+    }
     Ok(Some(response.error.map_or(Ok(()), |error| {
         Err(QueueError::Execution {
             source: Box::new(io::Error::other(error)),

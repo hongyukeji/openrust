@@ -66,6 +66,7 @@ pub enum QueueError {
         name: String,
     },
     InvalidPayload,
+    MissingModel(String),
     InvalidBatchConnection,
     Timeout,
     MaxAttempts,
@@ -107,6 +108,7 @@ impl std::fmt::Display for QueueError {
                 f.write_str("queue connection does not support job batches")
             }
             Self::InvalidPayload => f.write_str("invalid queue payload"),
+            Self::MissingModel(table) => write!(f, "queued model in {table:?} was not found"),
             Self::LostReservation => f.write_str("queue job reservation has expired or changed"),
             Self::Unavailable(_) => f.write_str("application queue manager is unavailable"),
             Self::Backend { .. } => f.write_str("queue storage operation failed"),
@@ -186,6 +188,8 @@ pub struct Payload {
     name: String,
     data: serde_json::Value,
     options: JobOptions,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    delete_when_missing_models: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     sqs_group: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -231,6 +235,7 @@ impl Payload {
             name,
             data: serde_json::to_value(data).map_err(|_| QueueError::InvalidPayload)?,
             options: JobOptions::default(),
+            delete_when_missing_models: false,
             sqs_group: None,
             sqs_deduplication: None,
             unique_lock: None,
@@ -243,6 +248,14 @@ impl Payload {
             chain_route: None,
             chain_delivery: None,
         })
+    }
+
+    /// Acknowledges this job if an explicitly restored model is missing.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's queued model policy")]
+    pub fn deleteWhenMissingModels(mut self) -> Self {
+        self.delete_when_missing_models = true;
+        self
     }
 
     pub fn with_options(mut self, options: JobOptions) -> Self {

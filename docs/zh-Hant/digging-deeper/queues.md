@@ -98,6 +98,27 @@ fn execution(source: openrust::database::DatabaseError) -> QueueError {
 }
 ```
 
+#### 模型缺失 {#ignoring-missing-models}
+
+任務依賴特定模型時，呼叫 `ModelIdentifier::restoreForJob().await?`。模型缺失時預設立即將任務標記為失敗。派送時呼叫 `Payload::deleteWhenMissingModels()` 可靜默確認該任務。兩種情況都會釋放唯一任務鎖。靜默確認會將該成員記為批次成功，並停止其任務鏈。其他資料庫錯誤沿用既有處理。
+
+```rust
+use openrust::{
+    database::eloquent::{Model, ModelIdentifier},
+    queue::{Payload, QueueError, QueueResult},
+};
+
+pub fn make_job<M: Model>(id: ModelIdentifier<M>) -> QueueResult<Payload> {
+    Ok(Payload::new("reports.generate", id)?.deleteWhenMissingModels())
+}
+
+pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
+    let id: ModelIdentifier<M> = serde_json::from_value(payload.data().clone())
+        .map_err(|_| QueueError::InvalidPayload)?;
+    id.restoreForJob().await
+}
+```
+
 ## Bus 派送 {#bus-dispatch}
 
 用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipeThrough` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。

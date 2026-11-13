@@ -591,7 +591,13 @@ impl Worker {
         {
             if let Some(batch) = &batch {
                 batch
-                    .record(&self.app, job.payload(), Some(&failed.exception), None)
+                    .record(
+                        &self.app,
+                        job.payload(),
+                        Some(&failed.exception),
+                        None,
+                        false,
+                    )
                     .await?;
             }
             job.delete().await?;
@@ -827,10 +833,14 @@ impl Worker {
             }
         };
 
-        if let Err(error) = result {
+        let missing_model = matches!(&result, Err(QueueError::MissingModel(_)));
+        let discard = missing_model && job.payload().delete_when_missing_models;
+        if let Err(error) = result
+            && !discard
+        {
             let timed_out = matches!(error, QueueError::Timeout);
             let stop_for_timeout = status.stop_on_timeout && status.timed_out;
-            status.handled_failure = context.fail_immediately;
+            status.handled_failure = context.fail_immediately || missing_model;
             let exceeded_exceptions = if !status.handled_failure
                 && !already_exhausted
                 && !crash_exhausted
@@ -952,20 +962,24 @@ impl Worker {
         }
 
         self.finish_attempt_marker(&mut status.marker).await;
-        let released = if let Some(delay) = context.release_after {
+        let released = if let Some(delay) = context.release_after.filter(|_| !discard) {
             job.release(delay).await?;
             true
         } else {
             let edit = context.chain_update.take();
             if let Some(batch) = batch
                 && !batch
-                    .record(&self.app, job.payload(), None, edit.as_ref())
+                    .record(&self.app, job.payload(), None, edit.as_ref(), discard)
                     .await?
                 && let Some(recorded) = batch.recorded().await?
             {
                 return self.complete_recorded(job, recorded).await;
             }
-            self.complete(job, edit.map(|edit| edit.next)).await?;
+            if discard {
+                job.delete().await?;
+            } else {
+                self.complete(job, edit.map(|edit| edit.next)).await?;
+            }
             self.release_unique_lock(job.payload()).await;
             false
         };
@@ -1060,7 +1074,11 @@ impl Worker {
         recorded: RecordedBatchJob,
     ) -> QueueResult<WorkResult> {
         if recorded.succeeded {
-            self.complete(job, recorded.successor).await?;
+            if recorded.discarded {
+                job.delete().await?;
+            } else {
+                self.complete(job, recorded.successor).await?;
+            }
             return Ok(WorkResult::Processed);
         }
         job.delete().await?;
@@ -1096,7 +1114,13 @@ impl Worker {
         self.failed.log(&failed).await?;
         if let Some(batch) = batch
             && !batch
-                .record(&self.app, job.payload(), Some(&failed.exception), None)
+                .record(
+                    &self.app,
+                    job.payload(),
+                    Some(&failed.exception),
+                    None,
+                    false,
+                )
                 .await?
             && let Some(recorded) = batch.recorded().await?
         {
@@ -1108,6 +1132,9 @@ impl Worker {
         job.fail(Some(error)).await?;
         let payload = job.payload();
         self.release_unique_lock(payload).await;
+        if matches!(error, QueueError::MissingModel(_)) {
+            return Ok(WorkResult::Failed);
+        }
         if !payload.chain_catches().is_empty() {
             isolated_scope(self.app.clone(), manager.run_chain_catches(payload, error)).await;
         }
@@ -1227,10 +1254,18 @@ impl BatchCompletion {
         job: &super::Payload,
         failure: Option<&str>,
         edit: Option<&ChainUpdate>,
+        discard: bool,
     ) -> QueueResult<bool> {
         let Some(transition) = self
             .repository
-            .record(&self.id, &self.job, &self.delivery, failure.is_none(), edit)
+            .record(
+                &self.id,
+                &self.job,
+                &self.delivery,
+                failure.is_none(),
+                edit,
+                discard,
+            )
             .await?
         else {
             return Ok(false);

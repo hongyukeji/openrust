@@ -392,6 +392,7 @@ impl JobHandler for ChainProbe {
                 context.prependToChain(batch)?;
             }
             match step {
+                "missing-model" => Err(QueueError::MissingModel("users".into())),
                 "retry" | "edit-retry" if context.attempts() == 1 => {
                     Err(QueueError::InvalidPayload)
                 }
@@ -442,6 +443,18 @@ fn chain_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
 fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let kind = request.route("kind").unwrap();
+        if kind == "missing-model" {
+            let jobs = [
+                Payload::new("chain.step", "database.missing-model")?.deleteWhenMissingModels(),
+                Payload::new("chain.step", "database.must-not-run")?,
+            ];
+            let batch = Bus::batch([])
+                .addChain(jobs)
+                .onQueue("chain")
+                .dispatch()
+                .await?;
+            return Response::json(StatusCode::OK, &batch);
+        }
         if kind == "cancel-explicit" {
             let job = Payload::new("reports.generate", "skipped")?;
             let batch = Bus::batch([job]).onQueue("explicit").dispatch().await?;
@@ -1056,6 +1069,33 @@ async fn exercise(mysql: Option<&str>) {
     request(address, "sync", 500).await;
     request(address, "missing-callback", 500).await;
     assert_eq!(db.table("job_batches").count("*").await.unwrap(), 0);
+    let missing = request(address, "missing-model", 200).await.unwrap();
+    let missing_id = missing["id"].as_str().unwrap();
+    let replay = db
+        .scalar("select payload from jobs where queue = 'chain'", &[])
+        .await
+        .unwrap();
+    let once = ["queue:work", "database", "--queue=chain", "--once"];
+    artisan(&root.0, &once).await;
+    let completed = batches.find(missing_id).await.unwrap().unwrap();
+    assert_eq!(completed.pending_jobs, 1);
+    assert_eq!(completed.failed_jobs, 0);
+    db.statement("insert into jobs (queue,payload,attempts,reserved_at,available_at,created_at) values ('chain',?,0,null,0,0)", &[replay]).await.unwrap();
+    artisan(&root.0, &once).await;
+    assert_eq!(db.table("jobs").count("*").await.unwrap(), 0);
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    for table in ["batch_callbacks", "job_batches_jobs", "job_batches"] {
+        let column = if table == "job_batches" {
+            "id"
+        } else {
+            "batch_id"
+        };
+        db.table(table)
+            .r#where(column, "=", missing_id)
+            .delete()
+            .await
+            .unwrap();
+    }
     let success = request(address, "success", 200).await.unwrap();
     let id = success["id"].as_str().unwrap();
     assert_eq!(success["pendingJobs"], 2);

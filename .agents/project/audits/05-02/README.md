@@ -392,3 +392,9 @@ SQLite 和独立 MySQL 8.4.13 验证实际模型的键顺序与重复项、普�
 Laravel 的任务级缺失模型自动删除及自定义 Pivot 标识恢复仍待单独核对。
 
 在 SQLite 和独立 MySQL 8.4.13 上，用实际 `queue:work --queue=model-restoration --once` 运行编译注册的任务。派发后更新并软删除单个模型、硬删除集合中的一行、插入新的关联行。独立 Worker 成功读到更新值和新增关系，集合保留顺序及重复键，并验证关系省略与单模型缺失错误。SQLite 的读写分离夹具额外验证陈旧副本不会用于主模型恢复。Rust 1.94 全目标严格 Clippy、格式、620 次工作区测试、实际 `artisan inspire`、三语文档示例编译、站点构建和 18 项浏览器检查通过。提交前周额度剩余 86%，项目卷可用 60 GiB。
+
+## 队列任务的缺失模型策略
+
+对照固定 Laravel `CallQueuedHandler::handleModelNotFound`。Rust 处理器显式调用 `ModelIdentifier::restoreForJob` 保留模型恢复错误，派发时通过 `Payload::deleteWhenMissingModels` 设置策略。默认立即记录失败并释放唯一锁。静默确认同样释放唯一锁，并把当前批次成员记为成功。任务链不会从缺失模型继续，批次记录保留这一决定供重复投递复用。批次的未运行后续成员保留原待处理状态。普通查询和其他数据库错误仍使用原有契约。复核 `v0.x` 未发现对应实现，参考固定 Goravel 的编译注册任务签名。 [Laravel 处理器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php#L304) · [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queues.md#ignoring-missing-models) · [Goravel 任务契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/job.go)
+
+SQLite 与独立 MySQL 8.4.13 实测派发后删除模型、首次消费即失败、显式丢弃、唯一任务可再次派发、同步与持久链停止、批次成功记账与重复投递、硬超时隔离进程往返。全量工作区验收 620 项通过，随后用最终夹具补跑双库硬超时专项和 MySQL 批次专项。Rust 1.94 格式、全目标严格 Clippy、`artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。自定义 Pivot 模型标识恢复继续跟踪。

@@ -45,8 +45,8 @@ impl SyncQueue {
             let mut next = None;
             loop {
                 let job = next.as_ref().unwrap_or(payload);
-                self.execute_attempt(&dispatcher, &mut context, job).await?;
-                if context.release_after.is_some() {
+                let discarded = self.execute_attempt(&dispatcher, &mut context, job).await?;
+                if discarded || context.release_after.is_some() {
                     return Ok(None);
                 }
                 next = context
@@ -79,8 +79,9 @@ impl SyncQueue {
         dispatcher: &Dispatcher,
         context: &mut JobContext<'_>,
         payload: &Payload,
-    ) -> QueueResult<()> {
+    ) -> QueueResult<bool> {
         let mut duration = None;
+        let mut discarded = false;
         let execution = async {
             emit(dispatcher, JobProcessing::NAME, || JobProcessing {
                 connection_name: self.name.clone(),
@@ -91,7 +92,12 @@ impl SyncQueue {
             let execution = self.registry.fire(context, payload).await;
             let elapsed = attempt_duration(started.elapsed());
             duration = Some(elapsed);
-            execution?;
+            match execution {
+                Err(QueueError::MissingModel(_)) if payload.delete_when_missing_models => {
+                    discarded = true;
+                }
+                result => result?,
+            }
             emit(dispatcher, JobProcessed::NAME, || JobProcessed {
                 connection_name: self.name.clone(),
                 job: snapshot(payload),
@@ -101,7 +107,7 @@ impl SyncQueue {
         }
         .await;
         let (exception, outcome) = match execution {
-            Ok(()) => (None, Ok(())),
+            Ok(()) => (None, Ok(discarded)),
             Err(error) => {
                 let message = attempt_exception_message(&error);
                 let failure = self
@@ -137,6 +143,9 @@ impl SyncQueue {
         })
         .await?;
         let failure = async {
+            if matches!(error, QueueError::MissingModel(_)) {
+                return Ok(());
+            }
             if !payload.chain_catches().is_empty() {
                 self.registry.run_chain_catches(payload, error).await?;
             }

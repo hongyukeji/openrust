@@ -142,6 +142,18 @@ impl<M: Model> ModelIdentifier<M> {
         self
     }
 
+    /// Restores a job argument and preserves its missing-model outcome for queue settlement.
+    pub async fn restoreForJob(self) -> crate::queue::QueueResult<M> {
+        use crate::queue::QueueError;
+
+        self.restore().await.map_err(|source| match source {
+            DatabaseError::ModelNotFound(table) => QueueError::MissingModel(table.into()),
+            source => QueueError::Execution {
+                source: Box::new(source),
+            },
+        })
+    }
+
     /// Resolves the model using the current application's database configuration.
     pub async fn restore(self) -> DatabaseResult<M> {
         if matches!(self.id, ModelKey::Null) {

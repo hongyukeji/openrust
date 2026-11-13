@@ -397,14 +397,16 @@ impl DatabaseBatchRepository {
             .map_err(backend)?;
         row.as_ref()
             .map(|row| {
-                let successor = match row.get("chain_successor") {
-                    Some(Value::Text(raw)) => Some(Payload::decode(raw)?),
-                    Some(Value::Null) | None => None,
+                let (successor, discarded) = match row.get("chain_successor") {
+                    Some(Value::Text(raw)) if raw == "null" => (None, true),
+                    Some(Value::Text(raw)) => (Some(Payload::decode(raw)?), false),
+                    Some(Value::Null) | None => (None, false),
                     _ => return Err(QueueError::InvalidPayload),
                 };
                 Ok(RecordedBatchJob {
                     succeeded: succeeded(row).map_err(backend)?,
                     successor,
+                    discarded,
                 })
             })
             .transpose()
@@ -417,9 +419,15 @@ impl DatabaseBatchRepository {
         delivery: &str,
         succeeded: bool,
         edit: Option<&ChainUpdate>,
+        discard: bool,
     ) -> QueueResult<Option<BatchTransition>> {
         let added = edit.map_or(0, |edit| edit.added);
-        let successor = edit.map(|edit| edit.next.encode()).transpose()?;
+        // JSON null records a deliberate stop. SQL NULL retains the original chain.
+        let successor = if discard {
+            Some("null".to_owned())
+        } else {
+            edit.map(|edit| edit.next.encode()).transpose()?
+        };
         let repository = self.clone();
         let (id, job, delivery) = (id.to_owned(), job.to_owned(), delivery.to_owned());
         self.connection
@@ -753,6 +761,7 @@ impl DatabaseBatchRepository {
 pub(crate) struct RecordedBatchJob {
     pub(crate) succeeded: bool,
     pub(crate) successor: Option<Payload>,
+    pub(crate) discarded: bool,
 }
 
 pub(crate) enum PublicationKey {
