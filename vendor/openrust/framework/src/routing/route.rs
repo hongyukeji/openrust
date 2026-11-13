@@ -32,6 +32,7 @@ pub struct Route {
     scope_bindings: Option<bool>,
     with_trashed_bindings: bool,
     missing: Option<Arc<dyn Handler>>,
+    pub(super) session_block: Option<crate::session::RouteBlock>,
 }
 
 impl Route {
@@ -67,6 +68,7 @@ impl Route {
             scope_bindings: None,
             with_trashed_bindings: false,
             missing: None,
+            session_block: None,
         })
     }
 
@@ -76,6 +78,22 @@ impl Route {
 
     pub fn name(&mut self, name: &str) -> &mut Self {
         self.name.push_str(name);
+        self
+    }
+
+    /// Acquires a session lock before the session is read and holds it through saving.
+    pub fn block(&mut self, lock_seconds: u64, wait_seconds: u64) -> &mut Self {
+        self.session_block = Some(crate::session::RouteBlock {
+            lock_seconds,
+            wait_seconds,
+        });
+        self
+    }
+
+    /// Clears the route-specific session blocking settings.
+    #[allow(non_snake_case, reason = "Matches Laravel's Route API")]
+    pub fn withoutBlocking(&mut self) -> &mut Self {
+        self.session_block = None;
         self
     }
 

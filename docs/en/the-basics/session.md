@@ -33,3 +33,22 @@ fn remember(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>
 ## Regenerating the Session ID
 
 `regenerate(true)` removes the previous ID from storage, preserves attributes and rotates the CSRF token. Use `invalidate()` to clear attributes and rotate the ID.
+
+## Session Blocking
+
+By default, requests using the same session can run concurrently. Call `block(lock_seconds, wait_seconds)` when registering a session route to serialize requests that use the same session ID.
+
+```rust
+use openrust::support::facades::Route;
+
+Route::getWith("/profile", remember, |route| {
+    route.block(10, 10);
+    Ok(())
+})?;
+```
+
+The first argument is the lock lifetime and the second is the maximum time to wait for a held lock. The middleware acquires the lock before reading the session and releases it after saving it. A lock timeout goes through the exception handler and returns HTTP 500 by default.
+
+Set `SESSION_BLOCK=true` to apply blocking to every route that starts a session. Configure the defaults with `SESSION_BLOCK_LOCK_SECONDS` and `SESSION_BLOCK_WAIT_SECONDS` (both 10 seconds). A route's explicit settings override the defaults. `withoutBlocking()` clears the route-specific settings. When global blocking is enabled, the route still uses the global settings.
+
+Set `SESSION_BLOCK_STORE` to a cache store that supports atomic locks, such as `redis`. The default cache store is used when this option is unset. Use a shared store across application processes. The `array` cache only coordinates requests within one process.

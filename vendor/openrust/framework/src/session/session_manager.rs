@@ -32,6 +32,10 @@ struct Settings {
     partitioned: bool,
     encrypt: bool,
     lottery: [u32; 2],
+    block: bool,
+    block_store: Option<String>,
+    block_lock_seconds: u64,
+    block_wait_seconds: u64,
 }
 
 impl Default for Settings {
@@ -47,6 +51,10 @@ impl Default for Settings {
             partitioned: false,
             encrypt: false,
             lottery: [2, 100],
+            block: false,
+            block_store: None,
+            block_lock_seconds: 10,
+            block_wait_seconds: 10,
         }
     }
 }
@@ -93,6 +101,25 @@ impl SessionManager {
 
     pub(crate) fn is_configured(&self) -> bool {
         self.settings.driver.is_some()
+    }
+
+    pub(crate) async fn lock(
+        &self,
+        options: Option<super::RouteBlock>,
+        id: &str,
+    ) -> Result<Option<super::SessionLock>, crate::http::HttpError> {
+        if !self.settings.block && options.is_none_or(|route| route.lock_seconds == 0) {
+            return Ok(None);
+        }
+        let lease = options
+            .map(|route| route.lock_seconds)
+            .filter(|seconds| *seconds != 0)
+            .unwrap_or(self.settings.block_lock_seconds);
+        let wait = options.map_or(self.settings.block_wait_seconds, |route| route.wait_seconds);
+        super::SessionLock::acquire(self.settings.block_store.as_deref(), id, lease, wait)
+            .await
+            .map(Some)
+            .map_err(super::blocking::http_error)
     }
 
     pub(crate) fn build(&self, request: &Request) -> SessionResult<Option<Store>> {

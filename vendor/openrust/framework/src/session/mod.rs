@@ -1,6 +1,7 @@
 //! Session state shared within an HTTP request.
 
 mod array_session_handler;
+mod blocking;
 mod cache_based_session_handler;
 mod cookie_session_handler;
 mod database_session_handler;
@@ -15,6 +16,7 @@ mod store;
 use std::{future::Future, pin::Pin};
 
 pub use array_session_handler::ArraySessionHandler;
+pub(crate) use blocking::{RouteBlock, SessionLock};
 pub use cache_based_session_handler::CacheBasedSessionHandler;
 pub use cookie_session_handler::CookieSessionHandler;
 pub use database_session_handler::{DatabaseSessionHandler, DatabaseSessionMetadata};

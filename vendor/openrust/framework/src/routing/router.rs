@@ -369,6 +369,7 @@ impl Router {
             .parts_mut()
             .extensions
             .remove::<super::middleware::MatchedRouteDomain>();
+        request.session_block = None;
         let path = request.uri().path().trim_end_matches('/');
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()
@@ -407,6 +408,7 @@ impl Router {
                     .extensions
                     .insert(super::middleware::MatchedRouteDomain(domain.clone()));
             }
+            request.session_block = route.session_block;
             let plan = route.binding_plan(&self.bindings, &parameters);
             request.set_route_parameters(parameters);
             request.binding_plan = plan;

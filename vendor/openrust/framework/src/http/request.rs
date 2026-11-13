@@ -43,6 +43,7 @@ pub struct Request {
     pub(crate) exceptions: Option<Arc<Handler>>,
     pub(crate) api_prefix: Option<Arc<str>>,
     pub(crate) matched_route: bool,
+    pub(crate) session_block: Option<crate::session::RouteBlock>,
     pub(crate) route_terminators: Vec<Arc<dyn crate::contracts::http::Middleware>>,
 }
 
@@ -67,6 +68,7 @@ impl Request {
             exceptions: None,
             api_prefix: None,
             matched_route: false,
+            session_block: None,
             route_terminators: Vec::new(),
         }
     }

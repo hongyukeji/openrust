@@ -3,8 +3,8 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{
-        container::Container as _, foundation::Application as _, http::Kernel as _,
-        session::Session,
+        cache::LockProvider, container::Container as _, foundation::Application as _,
+        http::Kernel as _, session::Session,
     },
     cookie::middleware::{AddQueuedCookiesToResponse, EncryptCookies},
     database::DatabaseManager,
@@ -63,6 +63,41 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 
 fn register() -> Result<(), RoutingError> {
     Route::get("/session/{action}", route)
+}
+
+fn register_blocked() -> Result<(), RoutingError> {
+    Route::getWith("/session/{action}", blocked_route, |route| {
+        route.block(10, 2);
+        Ok(())
+    })?;
+    Route::getWith("/session/immediate/{action}", blocked_route, |route| {
+        route.block(10, 0);
+        Ok(())
+    })?;
+    Route::getWith("/session/default/{action}", blocked_route, |route| {
+        route.block(10, 2).withoutBlocking();
+        Ok(())
+    })
+}
+
+fn blocked_route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let action = request.route("action").unwrap_or_default().to_owned();
+        if action == "error" {
+            return Err(HttpError::NotFound);
+        }
+        let session = request.session_mut()?;
+        let mut count = session
+            .get("count")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(0);
+        if action == "increment" {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            count += 1;
+            session.put("count", json!(count))?;
+        }
+        Response::json(StatusCode::OK, json!({"id":session.getId(), "count":count}))
+    })
 }
 
 async fn transport(
@@ -164,16 +199,13 @@ fn read(response: &str) -> (&str, Value) {
     assert!(response.starts_with("HTTP/1.1 200 "), "{response}");
     let header = response
         .lines()
-        .find_map(|line| line.strip_prefix("set-cookie: probe_session="))
+        .filter_map(|line| line.strip_prefix("set-cookie: "))
+        .find(|value| value.starts_with("probe_session="))
         .unwrap();
     assert!(header.contains("; httponly"));
     assert!(!header.contains("Max-Age="));
-    let first = response
-        .lines()
-        .find_map(|line| line.strip_prefix("set-cookie: "))
-        .unwrap();
     (
-        first.split(';').next().unwrap(),
+        header.split(';').next().unwrap(),
         serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap(),
     )
 }
@@ -274,6 +306,146 @@ async fn request_sessions_round_trip_through_mysql() {
     assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL").is_none());
     if configured {
         verify("database").await;
+    }
+}
+
+async fn verify_blocking(mysql_redis: bool, global: bool) {
+    fn config(
+        root: &std::path::Path,
+        mysql_redis: bool,
+        global: bool,
+    ) -> std::collections::BTreeMap<String, Value> {
+        let mut config = std::collections::BTreeMap::from([
+            ("app".into(), json!({"key": "a".repeat(32), "debug": true})),
+            (
+                "session".into(),
+                json!({
+                    "driver": if mysql_redis {"database"} else {"array"},
+                    "cookie":"probe_session", "lottery":[0,100], "table":"blocking_sessions",
+                    "block_store": if mysql_redis {"redis"} else {"array"},
+                    "block":global, "block_wait_seconds":0,
+                    "expire_on_close": true,
+                }),
+            ),
+            (
+                "cache".into(),
+                json!({
+                    "default":"array",
+                    "prefix":format!("openrust-session-block:{}:", root.file_name().unwrap().to_string_lossy()),
+                    "stores":{"array":{"driver":"array"}, "redis":{"driver":"redis","connection":"default"}}
+                }),
+            ),
+        ]);
+        if mysql_redis {
+            let url = std::env::var("OPENRUST_TEST_SESSION_MYSQL_URL").unwrap();
+            let port = std::env::var("OPENRUST_TEST_REDIS_PORT").unwrap();
+            config.insert("database".into(), json!({
+                "default":"session_test","connections":{"session_test":{"url":url,"use_upsert_alias":true}},
+                "redis":{"options":{"prefix":""},"default":{"url":format!("redis://127.0.0.1:{port}/")}}
+            }));
+        }
+        config
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let app = Application::configure(root.path().to_owned())
+        .withConfig(match (mysql_redis, global) {
+            (true, _) => |root, _| Ok(config(root, true, false)),
+            (false, true) => |root, _| Ok(config(root, false, true)),
+            (false, false) => |root, _| Ok(config(root, false, false)),
+        })
+        .withRouting(Routing::default().web(register_blocked))
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let container = kernel.get_application().container();
+    let database = mysql_redis.then(|| {
+        container
+            .get::<DatabaseManager>("db")
+            .unwrap()
+            .connection(None)
+            .unwrap()
+    });
+    if let Some(db) = &database {
+        db.statement("create table blocking_sessions (id varchar(255) primary key, user_id bigint null, ip_address varchar(45) null, user_agent text null, payload longtext not null, last_activity integer not null)", &[]).await.unwrap();
+    }
+    let cache = container
+        .get::<openrust::cache::CacheManager>("cache")
+        .unwrap()
+        .store(Some(if mysql_redis { "redis" } else { "array" }))
+        .unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let service = transport
+        .with_state(Arc::new(kernel))
+        .into_make_service_with_connect_info::<SocketAddr>();
+    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+
+    let initial = send(address, "read", "").await;
+    let (cookie, value) = read(&initial);
+    let key = format!("session:{}", value["id"].as_str().unwrap());
+    let mut held = cache
+        .lock(&key, Some(Duration::from_secs(10)), None)
+        .unwrap();
+    assert!(held.get().await.unwrap());
+    let blocked = send(address, "immediate/increment", cookie).await;
+    assert!(blocked.starts_with("HTTP/1.1 500 "), "{blocked}");
+    assert!(
+        blocked.contains("Timed out acquiring the cache lock."),
+        "{blocked}"
+    );
+    assert!(!blocked.contains("set-cookie:"));
+    let default = send(address, "default/read", cookie).await;
+    if global {
+        assert!(default.starts_with("HTTP/1.1 500 "), "{default}");
+    } else {
+        assert_eq!(read(&default).1["count"], 0);
+    }
+    assert_eq!(read(&send(address, "increment", "").await).1["count"], 1);
+    held.release().await.unwrap();
+
+    let (first, second) = tokio::join!(
+        send(address, "increment", cookie),
+        send(address, "increment", cookie)
+    );
+    let mut counts = [
+        read(&first).1["count"].as_i64().unwrap(),
+        read(&second).1["count"].as_i64().unwrap(),
+    ];
+    counts.sort_unstable();
+    assert_eq!(counts, [1, 2]);
+    let failed = send(address, "error", cookie).await;
+    assert!(failed.starts_with("HTTP/1.1 404 "), "{failed}");
+    assert!(
+        held.get().await.unwrap(),
+        "downstream error must release the lock"
+    );
+    held.release().await.unwrap();
+    let recovered = send(address, "immediate/increment", cookie).await;
+    assert_eq!(read(&recovered).1["count"], 3);
+
+    server.abort();
+    if let Some(db) = database {
+        db.statement("drop table blocking_sessions", &[])
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn blocked_requests_wait_per_session_and_release_the_lock_on_errors() {
+    verify_blocking(false, false).await;
+    verify_blocking(false, true).await;
+}
+
+#[tokio::test]
+async fn mysql_sessions_use_redis_for_request_locks() {
+    let configured = std::env::var_os("OPENRUST_TEST_SESSION_MYSQL_URL").is_some()
+        && std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_some();
+    assert!(configured || std::env::var_os("OPENRUST_REQUIRE_SESSION_MYSQL_REDIS").is_none());
+    if configured {
+        verify_blocking(true, false).await;
     }
 }
 
