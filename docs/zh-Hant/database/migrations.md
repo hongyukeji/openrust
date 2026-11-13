@@ -116,6 +116,18 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 SQLite 對需要重建的欄位或外鍵變更執行資料表重建。請在活動交易之外，透過連線的 Schema Builder 發起重建。重建擁有自己的交易，並恢復連線的外鍵設定。會隱含提交的 MySQL DDL 也透過連線的 Schema Builder 執行。
 
+### MySQL 欄位修飾詞
+
+用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。
+
+```rust
+Schema::table("books", |table| {
+    table.string("internal_note", 120).nullable().invisible();
+    table.timestamp("reviewed_at", 6).useCurrent().useCurrentOnUpdate();
+    table.string("edition", 20).nullable().after("title");
+}).await?;
+```
+
 ## 索引
 
 用 `index`、`unique` 或 `primary` 傳入欄位切片。可以指定名稱，或傳 `None` 使用慣例名稱。用 `getIndexes`、`hasIndex` 和 `renameIndex` 檢視或重新命名索引。MySQL 支援在相容欄位建立全文索引。

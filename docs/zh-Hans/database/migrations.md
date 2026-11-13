@@ -116,6 +116,18 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 
 SQLite 对需要重建的列或外键变更执行表重建。请在活动事务之外，通过连接的 Schema Builder 发起重建。重建拥有自己的事务，并恢复连接的外键设置。会隐式提交的 MySQL DDL 也通过连接的 Schema Builder 执行。
 
+### MySQL 列修饰符
+
+用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。
+
+```rust
+Schema::table("books", |table| {
+    table.string("internal_note", 120).nullable().invisible();
+    table.timestamp("reviewed_at", 6).useCurrent().useCurrentOnUpdate();
+    table.string("edition", 20).nullable().after("title");
+}).await?;
+```
+
 ## 索引
 
 用 `index`、`unique` 或 `primary` 传入列切片。可以指定名称，或传 `None` 使用约定名称。用 `getIndexes`、`hasIndex` 和 `renameIndex` 查看或重命名索引。MySQL 支持在兼容列上建全文索引。

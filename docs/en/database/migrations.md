@@ -116,6 +116,18 @@ Use `change` to specify a replacement column definition, including the modifiers
 
 SQLite rebuilds the table for column and foreign key changes that require it. Run a rebuild through the connection's schema builder outside an active transaction. The rebuild owns its transaction and restores the connection's foreign key settings. MySQL DDL that implicitly commits also runs through the connection's schema builder.
 
+### MySQL Column Modifiers
+
+Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.
+
+```rust
+Schema::table("books", |table| {
+    table.string("internal_note", 120).nullable().invisible();
+    table.timestamp("reviewed_at", 6).useCurrent().useCurrentOnUpdate();
+    table.string("edition", 20).nullable().after("title");
+}).await?;
+```
+
 ## Indexes
 
 Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or `None` for the conventional name. Use `getIndexes`, `hasIndex` and `renameIndex` to inspect or rename an index. MySQL supports full-text indexes on compatible columns.

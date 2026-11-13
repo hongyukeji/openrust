@@ -30,6 +30,12 @@ pub(super) enum DefaultValue {
     CurrentTimestamp,
 }
 
+#[derive(Clone)]
+pub(super) enum Position {
+    First,
+    After(String),
+}
+
 /// A column's type and modifiers.
 #[derive(Clone)]
 pub struct ColumnDefinition {
@@ -44,6 +50,9 @@ pub struct ColumnDefinition {
     pub(super) default: Option<DefaultValue>,
     pub(super) change: bool,
     pub(super) comment: Option<String>,
+    pub(super) current_on_update: bool,
+    pub(super) invisible: bool,
+    pub(super) position: Option<Position>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's column modifiers")]
@@ -61,6 +70,9 @@ impl ColumnDefinition {
             default: None,
             change: false,
             comment: None,
+            current_on_update: false,
+            invisible: false,
+            position: None,
         }
     }
 
@@ -102,6 +114,30 @@ impl ColumnDefinition {
 
     pub fn useCurrent(&mut self) -> &mut Self {
         self.default = Some(DefaultValue::CurrentTimestamp);
+        self
+    }
+
+    /// Updates a MySQL timestamp or datetime when another value in the row changes.
+    pub fn useCurrentOnUpdate(&mut self) -> &mut Self {
+        self.current_on_update = true;
+        self
+    }
+
+    /// Excludes a MySQL column from wildcard selects.
+    pub fn invisible(&mut self) -> &mut Self {
+        self.invisible = true;
+        self
+    }
+
+    /// Places the column first when altering a MySQL table.
+    pub fn first(&mut self) -> &mut Self {
+        self.position = Some(Position::First);
+        self
+    }
+
+    /// Places the column after an existing column when altering a MySQL table.
+    pub fn after(&mut self, column: &str) -> &mut Self {
+        self.position = Some(Position::After(column.to_owned()));
         self
     }
 

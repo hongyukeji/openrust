@@ -6,7 +6,7 @@ use crate::database::{
     schema::{
         Blueprint, ColumnDefinition, ForeignKeyDefinition, IndexDefinition,
         blueprint::Command,
-        column_definition::{ColumnType, DefaultValue},
+        column_definition::{ColumnType, DefaultValue, Position},
         index_definition::IndexType,
     },
 };
@@ -126,6 +126,11 @@ impl Grammar {
         for command in blueprint.commands {
             match command {
                 Command::Column(column) if !column.change => {
+                    if column.position.is_some() {
+                        return Err(DatabaseError::InvalidSchema(
+                            "column position during create",
+                        ));
+                    }
                     columns += 1;
                     definitions.push(self.column(&column)?);
                     self.column_indexes(table, &column, &mut indexes)?;
@@ -392,6 +397,11 @@ impl Grammar {
     }
 
     pub fn column(&self, column: &ColumnDefinition) -> DatabaseResult<String> {
+        if !self.mysql()
+            && (column.invisible || column.current_on_update || column.position.is_some())
+        {
+            return Err(DatabaseError::UnsupportedSchema("MySQL column modifier"));
+        }
         let kind = self.column_type(column.kind)?;
         let integer = matches!(
             column.kind,
@@ -430,10 +440,28 @@ impl Grammar {
         } else if column.primary {
             sql.push_str(" primary key");
         }
+        if column.current_on_update {
+            let precision = match column.kind {
+                ColumnType::DateTime(precision) | ColumnType::Timestamp(precision) => precision,
+                _ => return Err(DatabaseError::InvalidSchema("on-update timestamp column")),
+            };
+            write!(sql, " on update {}", current_timestamp(precision))
+                .expect("writing to a String");
+        }
+        if column.invisible {
+            sql.push_str(" invisible");
+        }
         if self.mysql()
             && let Some(comment) = &column.comment
         {
             write!(sql, " comment {}", self.string(comment)?).expect("writing to a String");
+        }
+        match &column.position {
+            Some(Position::First) => sql.push_str(" first"),
+            Some(Position::After(name)) => {
+                write!(sql, " after {}", self.identifier(name)?).expect("writing to a String");
+            }
+            None => {}
         }
         Ok(sql)
     }
@@ -521,11 +549,7 @@ impl Grammar {
                 ColumnType::DateTime(p) | ColumnType::Timestamp(p) => p,
                 _ => 0,
             };
-            return Ok(if self.mysql() && precision > 0 {
-                format!("CURRENT_TIMESTAMP({precision})")
-            } else {
-                "CURRENT_TIMESTAMP".into()
-            });
+            return Ok(current_timestamp(if self.mysql() { precision } else { 0 }));
         };
         match value {
             Value::Null => Ok("null".into()),
@@ -553,5 +577,13 @@ impl Grammar {
             value.to_owned()
         };
         Ok(format!("'{}'", value.replace('\'', "''")))
+    }
+}
+
+fn current_timestamp(precision: u8) -> String {
+    if precision > 0 {
+        format!("CURRENT_TIMESTAMP({precision})")
+    } else {
+        "CURRENT_TIMESTAMP".into()
     }
 }

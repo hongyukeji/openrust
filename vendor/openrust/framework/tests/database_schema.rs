@@ -179,13 +179,20 @@ async fn verify(db: Connection, mysql: bool) {
 
 #[tokio::test]
 async fn schema_builds_and_inspects_real_sqlite() {
-    verify(
-        connection(
-            json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),
-        ),
-        false,
-    )
-    .await;
+    let db = connection(
+        json!({"driver":"sqlite","database":":memory:","prefix":"app_","prefix_indexes":true}),
+    );
+    verify(db.clone(), false).await;
+    let mut schema = db.getSchemaBuilder();
+    assert!(matches!(
+        schema
+            .create("bad", |table| {
+                table.string("hidden", 80).invisible();
+            })
+            .await,
+        Err(DatabaseError::UnsupportedSchema(_))
+    ));
+    assert!(!schema.hasTable("bad").await.unwrap());
 }
 
 #[tokio::test]
@@ -194,11 +201,108 @@ async fn schema_builds_and_inspects_real_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
         return;
     };
-    verify(
-        connection(json!({"url":url,"prefix":"app_","prefix_indexes":true})),
-        true,
+    let db = connection(json!({"url":url,"prefix":"app_","prefix_indexes":true}));
+    verify(db.clone(), true).await;
+    verify_mysql_column_modifiers(db).await;
+}
+
+async fn verify_mysql_column_modifiers(db: Connection) {
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("column_modifiers").await.unwrap();
+    schema
+        .create("column_modifiers", |table| {
+            table.id();
+            table.string("label", 80);
+            table.string("hidden", 80).invisible().default("secret");
+            table
+                .timestamp("touched_at", 6)
+                .useCurrent()
+                .useCurrentOnUpdate();
+            table
+                .dateTime("changed_at", 3)
+                .useCurrent()
+                .useCurrentOnUpdate();
+        })
+        .await
+        .unwrap();
+    schema
+        .table("column_modifiers", |table| {
+            table.string("lead", 80).nullable().first();
+            table.string("middle", 80).nullable().after("label");
+            table.string("label", 120).change().after("touched_at");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumnListing("column_modifiers").await.unwrap(),
+        [
+            "lead",
+            "id",
+            "middle",
+            "hidden",
+            "touched_at",
+            "label",
+            "changed_at"
+        ]
+    );
+
+    db.insert(
+        "insert into app_column_modifiers (label) values ('initial')",
+        &[],
     )
-    .await;
+    .await
+    .unwrap();
+    let row = db
+        .selectOne("select * from app_column_modifiers", &[])
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(row.get("hidden").is_none());
+    assert!(matches!(row.get("touched_at"), Some(Value::Text(value)) if !value.is_empty()));
+    assert!(matches!(row.get("changed_at"), Some(Value::Text(value)) if !value.is_empty()));
+    assert_eq!(
+        db.table("column_modifiers").value("hidden").await.unwrap(),
+        "secret".into()
+    );
+
+    db.update("update app_column_modifiers set touched_at = '2020-01-01 00:00:00', changed_at = '2020-01-01 00:00:00'", &[])
+        .await.unwrap();
+    db.update("update app_column_modifiers set label = 'updated'", &[])
+        .await
+        .unwrap();
+    let row = db.selectOne("select date_format(touched_at, '%Y-%m-%d %H:%i:%s.%f') as touched_at, date_format(changed_at, '%Y-%m-%d %H:%i:%s.%f') as changed_at from app_column_modifiers", &[])
+        .await.unwrap().unwrap();
+    for column in ["touched_at", "changed_at"] {
+        assert!(
+            matches!(row.get(column), Some(Value::Text(value)) if value.len() == 26 && !value.starts_with("2020-01-01"))
+        );
+    }
+
+    assert!(matches!(
+        schema
+            .table("column_modifiers", |table| {
+                table.integer("not_added");
+                table.integer("bad").useCurrentOnUpdate();
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema(_))
+    ));
+    assert!(
+        !schema
+            .hasColumn("column_modifiers", "not_added")
+            .await
+            .unwrap()
+    );
+    assert!(matches!(
+        schema
+            .create("bad_position", |table| {
+                table.integer("bad").first();
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema(_))
+    ));
+    assert!(!schema.hasTable("bad_position").await.unwrap());
+    schema.drop("column_modifiers").await.unwrap();
 }
 
 #[tokio::test]
