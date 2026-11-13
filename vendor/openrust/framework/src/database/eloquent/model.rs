@@ -206,6 +206,11 @@ pub trait Model: Sized + Send + Sync + 'static {
             .map_err(|_| DatabaseError::InvalidQuery("model JSON"))
     }
 
+    /// Declares the relationship definitions allowed to restore this custom pivot from a job.
+    fn queueablePivots() -> Vec<super::QueueablePivot> {
+        Vec::new()
+    }
+
     /// Declares the inverse relationship names available on this custom pivot model.
     fn pivotInverseRelations() -> &'static [&'static str] {
         &[]

@@ -226,6 +226,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(PivotWriteTimestamps { insert, update })
     }
 
+    /// Declares this relationship's table and keys for custom pivot queue restoration.
+    pub fn queueablePivot(&self) -> super::super::QueueablePivot {
+        super::super::QueueablePivot(self.pivot.identity(self.timestamp_columns()))
+    }
+
     /// Hydrates and persists links using the declared model.
     #[must_use]
     pub fn using<M: Model>(mut self) -> Self {
@@ -1238,7 +1243,7 @@ impl PivotKeys {
             table: self.table,
             foreign: self.foreign,
             related: self.related,
-            morph: self.morph.map(|(column, _)| column),
+            morph: self.morph,
             timestamps,
         }
     }

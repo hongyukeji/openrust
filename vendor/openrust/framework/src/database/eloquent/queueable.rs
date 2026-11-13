@@ -6,9 +6,12 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::database::{DB, DatabaseError, DatabaseResult, Value};
+use crate::database::{DB, DatabaseError, DatabaseResult, Value, query::Conditions};
 
-use super::{Builder, Collection, Model, ModelState, relations::relation::dictionary_key};
+use super::{
+    Builder, Collection, Model, ModelState,
+    relations::{custom_pivot::PivotIdentity, relation::dictionary_key},
+};
 
 thread_local! {
     static VISITING: RefCell<HashSet<usize>> = RefCell::default();
@@ -55,8 +58,10 @@ pub(super) fn common_relations<'a, M: Model + 'a>(
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ModelIdentifier<M: Model> {
-    id: ModelKey,
+    id: IdentifierKey,
     connection: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pivot: Option<PivotDefinition>,
     relations: Vec<String>,
     #[serde(skip)]
     model: PhantomData<fn() -> M>,
@@ -66,8 +71,10 @@ pub struct ModelIdentifier<M: Model> {
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ModelCollectionIdentifier<M: Model> {
-    ids: Vec<ModelKey>,
+    ids: Vec<IdentifierKey>,
     connection: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pivot: Option<PivotDefinition>,
     relations: Vec<String>,
     #[serde(skip)]
     model: PhantomData<fn() -> M>,
@@ -116,6 +123,109 @@ impl From<ModelKey> for Value {
     }
 }
 
+/// A compiled relationship definition permitted to restore a custom pivot.
+pub struct QueueablePivot(pub(super) PivotIdentity);
+
+#[derive(Serialize, Deserialize, PartialEq, Eq)]
+struct PivotDefinition {
+    table: String,
+    columns: Vec<String>,
+    timestamps: (Option<String>, Option<String>),
+    morph_alias: Option<String>,
+}
+
+impl From<PivotIdentity> for PivotDefinition {
+    fn from(identity: PivotIdentity) -> Self {
+        Self {
+            table: identity.table.into(),
+            morph_alias: identity.morph.map(|(_, alias)| alias.to_owned()),
+            columns: identity.columns().map(str::to_owned).collect(),
+            timestamps: (
+                identity.timestamps.0.map(str::to_owned),
+                identity.timestamps.1.map(str::to_owned),
+            ),
+        }
+    }
+}
+
+impl PivotDefinition {
+    fn resolve<M: Model>(&self) -> DatabaseResult<PivotIdentity> {
+        M::queueablePivots()
+            .into_iter()
+            .map(|pivot| pivot.0)
+            .find(|identity| Self::from(*identity) == *self)
+            .ok_or(DatabaseError::InvalidQuery("unregistered queued pivot"))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum IdentifierKey {
+    Scalar(ModelKey),
+    Composite(Vec<ModelKey>),
+}
+
+impl IdentifierKey {
+    fn capture<M: Model>(model: &M) -> DatabaseResult<Self> {
+        let key = model.getQueueableId().cloned().unwrap_or(Value::Null);
+        if let Some(pivot) = model.state().pivot_identity
+            && key == Value::Null
+        {
+            return pivot
+                .columns()
+                .map(|column| {
+                    model
+                        .getAttribute(column)
+                        .filter(|value| **value != Value::Null)
+                        .ok_or(DatabaseError::InvalidQuery("missing pivot identity"))?
+                        .clone()
+                        .try_into()
+                })
+                .collect::<DatabaseResult<_>>()
+                .map(Self::Composite);
+        }
+        key.try_into().map(Self::Scalar)
+    }
+
+    fn predicates(
+        self,
+        conditions: Conditions,
+        primary: &str,
+        pivot: PivotIdentity,
+    ) -> DatabaseResult<Conditions> {
+        let conditions = match pivot.morph {
+            Some((column, alias)) => conditions.r#where(column, "=", alias),
+            None => conditions,
+        };
+        match self {
+            Self::Scalar(ModelKey::Null) => Err(DatabaseError::InvalidQuery("missing pivot key")),
+            Self::Scalar(key) => Ok(conditions.r#where(primary, "=", Value::from(key))),
+            Self::Composite(keys) => {
+                if keys.len() != pivot.columns().count()
+                    || keys.iter().any(|key| matches!(key, ModelKey::Null))
+                {
+                    return Err(DatabaseError::InvalidQuery("invalid queued pivot key"));
+                }
+                Ok(pivot
+                    .columns()
+                    .zip(keys)
+                    .fold(conditions, |query, (column, key)| {
+                        query.r#where(column, "=", Value::from(key))
+                    }))
+            }
+        }
+    }
+
+    fn scalar(self) -> DatabaseResult<Value> {
+        match self {
+            Self::Scalar(key) => Ok(key.into()),
+            Self::Composite(_) => Err(DatabaseError::InvalidQuery(
+                "queued composite key requires pivot definition",
+            )),
+        }
+    }
+}
+
 fn restoration_query<M: Model>(connection: Option<&str>) -> DatabaseResult<Builder<'static, M>> {
     let connection = DB::connection(connection.or(M::metadata().connection))?;
     Ok(M::queryOn(&connection).withoutGlobalScopes().useWritePdo())
@@ -125,12 +235,9 @@ fn restoration_query<M: Model>(connection: Option<&str>) -> DatabaseResult<Build
 impl<M: Model> ModelIdentifier<M> {
     pub fn capture(model: &M) -> DatabaseResult<Self> {
         Ok(Self {
-            id: model
-                .getQueueableId()
-                .cloned()
-                .unwrap_or(Value::Null)
-                .try_into()?,
+            id: IdentifierKey::capture(model)?,
             connection: model.getQueueableConnection().map(str::to_owned),
+            pivot: model.state().pivot_identity.map(Into::into),
             relations: model.getQueueableRelations(),
             model: PhantomData,
         })
@@ -156,12 +263,26 @@ impl<M: Model> ModelIdentifier<M> {
 
     /// Resolves the model using the current application's database configuration.
     pub async fn restore(self) -> DatabaseResult<M> {
-        if matches!(self.id, ModelKey::Null) {
-            return Err(DatabaseError::ModelNotFound(M::metadata().table));
-        }
-        let mut model = restoration_query::<M>(self.connection.as_deref())?
-            .findOrFail(Value::from(self.id))
-            .await?;
+        let mut model = if let Some(definition) = self.pivot {
+            let pivot = definition.resolve::<M>()?;
+            let predicates =
+                self.id
+                    .predicates(Conditions::default(), M::metadata().primary_key, pivot)?;
+            let mut query = restoration_query::<M>(self.connection.as_deref())?.for_pivot(pivot);
+            query.whereNested(|_| predicates);
+            query
+                .first()
+                .await?
+                .ok_or(DatabaseError::ModelNotFound(pivot.table))?
+        } else {
+            let key = self.id.scalar()?;
+            if key == Value::Null {
+                return Err(DatabaseError::ModelNotFound(M::metadata().table));
+            }
+            restoration_query::<M>(self.connection.as_deref())?
+                .findOrFail(key)
+                .await?
+        };
         let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
         model.loadMissingPaths(&paths).await?;
         Ok(model)
@@ -172,13 +293,24 @@ impl<M: Model> ModelIdentifier<M> {
 impl<M: Model> ModelCollectionIdentifier<M> {
     pub fn capture(models: &Collection<M>) -> DatabaseResult<Self> {
         let connection = models.getQueueableConnection()?.map(str::to_owned);
+        let identity = models
+            .first()
+            .and_then(|model| model.state().pivot_identity);
+        if models
+            .iter()
+            .any(|model| model.state().pivot_identity != identity)
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "queued collection has multiple pivot definitions",
+            ));
+        }
         Ok(Self {
             ids: models
-                .getQueueableIds()
-                .into_iter()
-                .map(ModelKey::try_from)
+                .iter()
+                .map(IdentifierKey::capture)
                 .collect::<DatabaseResult<_>>()?,
             connection,
+            pivot: identity.map(Into::into),
             relations: models.getQueueableRelations(),
             model: PhantomData,
         })
@@ -190,12 +322,46 @@ impl<M: Model> ModelCollectionIdentifier<M> {
         self
     }
 
-    /// Restores existing models in payload order and omits missing rows.
+    /// Restores existing models and omits missing rows. Ordinary models follow payload
+    /// order, while custom pivots are returned once each in database result order.
     pub async fn restore(self) -> DatabaseResult<Collection<M>> {
+        if let Some(definition) = self.pivot {
+            let pivot = definition.resolve::<M>()?;
+            let mut models = Vec::new();
+            let mut seen = HashSet::new();
+            let mut ids = self.ids.into_iter();
+            loop {
+                // Keep each OR query below driver parameter and expression limits.
+                let batch: Vec<_> = ids.by_ref().take(200).collect();
+                if batch.is_empty() {
+                    break;
+                }
+                let mut predicates = Conditions::default();
+                for id in batch {
+                    let branch =
+                        id.predicates(Conditions::default(), M::metadata().primary_key, pivot)?;
+                    predicates = predicates.orWhereNested(|_| branch);
+                }
+                let mut query =
+                    restoration_query::<M>(self.connection.as_deref())?.for_pivot(pivot);
+                query.whereNested(|_| predicates);
+                for model in query.get().await? {
+                    let columns = M::metadata().primary_key;
+                    let key = std::iter::once(columns)
+                        .chain(pivot.columns())
+                        .map(|column| dictionary_key(model.getAttribute(column)))
+                        .collect::<DatabaseResult<Vec<_>>>()?;
+                    if seen.insert(key) {
+                        models.push(model);
+                    }
+                }
+            }
+            return Ok(Collection::new(models));
+        }
         let mut keys = Vec::with_capacity(self.ids.len());
         let mut bindings = indexmap::IndexMap::new();
         for id in self.ids {
-            let value = Value::from(id);
+            let value = id.scalar()?;
             if let Some(key) = dictionary_key(Some(&value))? {
                 bindings.entry(key.clone()).or_insert(value);
                 keys.push(key);

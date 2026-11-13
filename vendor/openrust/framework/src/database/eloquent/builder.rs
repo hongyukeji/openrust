@@ -22,6 +22,7 @@ pub struct Builder<'connection, M: Model> {
     query: query::Builder<'connection>,
     pub(super) connection: Connection,
     table_alias: Option<String>,
+    pivot: Option<super::relations::custom_pivot::PivotIdentity>,
     existence_attributes: HashSet<String>,
     pub(super) casts: CastOverrides,
     predicates: query::Conditions,
@@ -40,6 +41,7 @@ impl<M: Model> Builder<'static, M> {
             query: connection.table(M::metadata().table),
             connection,
             table_alias: None,
+            pivot: None,
             existence_attributes: HashSet::new(),
             casts: CastOverrides::default(),
             predicates: query::Conditions::default(),
@@ -347,6 +349,16 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) fn take_eager_load(&mut self) -> EagerLoads<M> {
         mem::take(&mut self.eager_load)
+    }
+
+    pub(super) fn for_pivot(
+        mut self,
+        pivot: super::relations::custom_pivot::PivotIdentity,
+    ) -> Self {
+        self.query = self.query.from(pivot.table);
+        self.table_alias = Some(pivot.table.into());
+        self.pivot = Some(pivot);
+        self
     }
 
     pub(super) fn alias_relation(mut self, alias: &str) -> Self {
@@ -868,6 +880,7 @@ impl<M: Model> Builder<'static, M> {
         let eager = query.take_eager_load();
         let existence = query.take_existence_attributes();
         let casts = mem::take(&mut query.casts);
+        let pivot = query.pivot;
         let (query, connection) = query.scoped()?;
         Ok((
             query,
@@ -876,6 +889,7 @@ impl<M: Model> Builder<'static, M> {
                 casts,
                 eager,
                 existence,
+                pivot,
             },
         ))
     }
@@ -946,6 +960,7 @@ struct Hydration<M: Model> {
     casts: CastOverrides,
     eager: EagerLoads<M>,
     existence: HashSet<String>,
+    pivot: Option<super::relations::custom_pivot::PivotIdentity>,
 }
 
 impl<M: Model> Hydration<M> {
@@ -954,11 +969,13 @@ impl<M: Model> Hydration<M> {
             .map(|row| {
                 let mut attributes = row.into_columns().into_iter().collect();
                 cast_existence(&mut attributes, &self.existence);
-                M::from_state(ModelState::hydrated_attributes(
+                let mut state = ModelState::hydrated_attributes(
                     attributes,
                     self.connection.clone(),
                     self.casts.clone(),
-                ))
+                );
+                state.pivot_identity = self.pivot;
+                M::from_state(state)
             })
             .collect()
     }

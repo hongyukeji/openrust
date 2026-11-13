@@ -4,18 +4,20 @@ use crate::database::{
 };
 
 /// The relationship identity carried by a hydrated intermediate model.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(in crate::database::eloquent) struct PivotIdentity {
     pub table: &'static str,
     pub foreign: &'static str,
     pub related: &'static str,
-    pub morph: Option<&'static str>,
+    pub morph: Option<(&'static str, &'static str)>,
     pub timestamps: (Option<&'static str>, Option<&'static str>),
 }
 
 impl PivotIdentity {
     pub(in crate::database::eloquent) fn columns(self) -> impl Iterator<Item = &'static str> {
-        [self.foreign, self.related].into_iter().chain(self.morph)
+        [self.foreign, self.related]
+            .into_iter()
+            .chain(self.morph.map(|(column, _)| column))
     }
 
     pub(in crate::database::eloquent) fn constrain<'a>(

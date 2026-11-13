@@ -25,7 +25,8 @@ use openrust::{
         Connection, DB, DatabaseError, DatabaseManager, Value,
         eloquent::{
             Collection, Model, ModelCollectionIdentifier, ModelIdentifier, ModelMetadata,
-            ModelState, NamedRelations, relations::HasMany,
+            ModelState, NamedRelations, QueueablePivot,
+            relations::{BelongsToMany, HasMany, MorphToMany, Relation},
         },
     },
     events::{
@@ -174,6 +175,108 @@ impl JobHandler for RestoreModels {
             connection
                 .statement(
                     "INSERT INTO receipts (name, value) VALUES ('restored-models', 1)",
+                    &[],
+                )
+                .await
+                .map_err(execution)?;
+            Ok(())
+        })
+    }
+}
+
+struct QueuedPivot(ModelState);
+
+impl Model for QueuedPivot {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("unused_queue_pivot")
+            .incrementing(false)
+            .timestamps(None, None);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn queueablePivots() -> Vec<QueueablePivot> {
+        vec![
+            QUEUE_LINK.queueablePivot(),
+            QUEUE_MORPH_LINK.queueablePivot(),
+        ]
+    }
+}
+
+const QUEUE_LINK: BelongsToMany<QueuedModel, QueuedModel> =
+    BelongsToMany::new("queued_links", "owner_id", "item_id", "id", "id");
+const QUEUE_MORPH_LINK: MorphToMany<QueuedModel, QueuedModel> = MorphToMany::new(
+    "queued_morph_links",
+    "owner_id",
+    "item_id",
+    "id",
+    "id",
+    "kind",
+    "owner",
+);
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct PivotJob {
+    single: ModelIdentifier<QueuedPivot>,
+    missing: ModelIdentifier<QueuedPivot>,
+    morph: ModelIdentifier<QueuedPivot>,
+    keyed: ModelIdentifier<QueuedPivot>,
+    collection: ModelCollectionIdentifier<QueuedPivot>,
+}
+
+struct RestorePivots;
+
+impl JobHandler for RestorePivots {
+    fn handle<'a>(
+        &'a self,
+        _: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        Box::pin(async move {
+            let job: PivotJob = serde_json::from_value(payload.data().clone())
+                .map_err(|_| QueueError::InvalidPayload)?;
+            let mut model = job.single.restoreForJob().await?;
+            assert_eq!(model.getTable(), "queued_links");
+            assert_eq!(model.getAttribute("label"), Some(&"fresh".into()));
+            model.setAttribute("label", "saved by worker");
+            assert!(model.save().await.map_err(execution)?);
+            assert!(
+                matches!(job.missing.restoreForJob().await, Err(QueueError::MissingModel(table)) if table == "queued_links")
+            );
+            let mut morph = job.morph.restoreForJob().await?;
+            assert_eq!(morph.getAttribute("kind"), Some(&"owner".into()));
+            assert_eq!(morph.getAttribute("label"), Some(&"morph".into()));
+            assert!(morph.delete().await.map_err(execution)?);
+            let keyed = job.keyed.restoreForJob().await?;
+            assert_eq!(keyed.getKey(), Some(&19.into()));
+            assert_eq!(keyed.getTable(), "queued_links");
+            let mut forged = payload.data()["single"].clone();
+            forged["pivot"]["table"] = json!("queued_models");
+            let forged: ModelIdentifier<QueuedPivot> =
+                serde_json::from_value(forged).map_err(|_| QueueError::InvalidPayload)?;
+            assert!(matches!(
+                forged.restore().await,
+                Err(DatabaseError::InvalidQuery("unregistered queued pivot"))
+            ));
+            let restored = job.collection.restore().await.map_err(execution)?;
+            assert_eq!(restored.len(), 1);
+            assert_eq!(
+                restored[0].getAttribute("label"),
+                Some(&"saved by worker".into())
+            );
+            DB::connection(None)
+                .map_err(execution)?
+                .statement(
+                    "INSERT INTO receipts (name, value) VALUES ('restored-pivots', 1)",
                     &[],
                 )
                 .await
@@ -940,6 +1043,7 @@ impl ServiceProvider for Providers {
                 Queue::withoutInterruptionPolling()?;
             }
             Queue::register("restore-models", Arc::new(RestoreModels))?;
+            Queue::register("restore-pivots", Arc::new(RestorePivots))?;
             Queue::register("restore-required", Arc::new(RestoreRequiredModel))?;
             Queue::starting(control_hook)?;
             Queue::stopping(control_hook)?;
@@ -1415,6 +1519,133 @@ impl Drop for TempRoot {
     }
 }
 
+async fn verify_pivot_restoration(
+    root: &Path,
+    app: &Application,
+    db: &Connection,
+    models: &Connection,
+) {
+    // The related rows live in the write database for this fixture.
+    let writer = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(Some("models::write"))
+        .unwrap();
+    let mut schema = models.getSchemaBuilder();
+    for table in ["queued_links", "queued_morph_links"] {
+        schema.dropIfExists(table).await.unwrap();
+    }
+    for sql in [
+        "CREATE TABLE queued_links (id BIGINT UNIQUE, owner_id BIGINT NOT NULL, item_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (owner_id, item_id))",
+        "CREATE TABLE queued_morph_links (owner_id BIGINT NOT NULL, item_id BIGINT NOT NULL, kind VARCHAR(20) NOT NULL, label VARCHAR(80), PRIMARY KEY (owner_id, item_id, kind))",
+        "INSERT INTO queued_links VALUES (NULL,1,2,'old'), (NULL,1,4,'missing'), (19,1,5,'keyed'), (NULL,2,2,'neighbor')",
+        "INSERT INTO queued_morph_links VALUES (1,2,'owner','morph'), (1,2,'other','neighbor')",
+    ] {
+        models.statement(sql, &[]).await.unwrap();
+    }
+    let owner = QueuedModel::queryOn(&writer)
+        .withoutGlobalScopes()
+        .findOrFail(1)
+        .await
+        .unwrap();
+    let links = QUEUE_LINK
+        .using::<QueuedPivot>()
+        .withPivot(["id", "label"])
+        .getResults(&owner)
+        .await
+        .unwrap();
+    let morphs = QUEUE_MORPH_LINK
+        .using::<QueuedPivot>()
+        .withPivot(["label"])
+        .getResults(&owner)
+        .await
+        .unwrap();
+    let pivot = |id| {
+        links
+            .iter()
+            .find(|link| link.getKey() == Some(&id))
+            .unwrap()
+            .getRelation::<QueuedPivot>("pivot")
+            .unwrap()
+    };
+    let first = pivot(2.into());
+    let missing = pivot(4.into());
+    let morph = morphs[0].getRelation::<QueuedPivot>("pivot").unwrap();
+    let payload = Payload::new(
+        "restore-pivots",
+        PivotJob {
+            single: ModelIdentifier::capture(first).unwrap(),
+            missing: ModelIdentifier::capture(missing).unwrap(),
+            morph: ModelIdentifier::capture(morph).unwrap(),
+            keyed: ModelIdentifier::capture(pivot(5.into())).unwrap(),
+            collection: ModelCollectionIdentifier::capture(&Collection::new(
+                [missing, first, first]
+                    .map(|pivot| QueuedPivot::from_state(pivot.state().clone()))
+                    .into(),
+            ))
+            .unwrap(),
+        },
+    )
+    .unwrap();
+    let manager = app.container().make::<QueueManager>().unwrap();
+    manager
+        .dispatch(
+            payload,
+            DispatchOptions {
+                queue: Some("pivot-restoration".into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await
+        .unwrap();
+    models
+        .statement(
+            "UPDATE queued_links SET label = 'fresh' WHERE owner_id = 1 AND item_id = 2",
+            &[],
+        )
+        .await
+        .unwrap();
+    models
+        .statement(
+            "DELETE FROM queued_links WHERE owner_id = 1 AND item_id = 4",
+            &[],
+        )
+        .await
+        .unwrap();
+    run(root, &["queue:work", "--queue=pivot-restoration", "--once"]).await;
+    assert_eq!(
+        db.scalar(
+            "SELECT value FROM receipts WHERE name = 'restored-pivots'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        1.into()
+    );
+    assert_eq!(
+        writer
+            .scalar(
+                "SELECT label FROM queued_links WHERE owner_id = 2 AND item_id = 2",
+                &[]
+            )
+            .await
+            .unwrap(),
+        "neighbor".into()
+    );
+    assert_eq!(
+        writer
+            .scalar("SELECT kind FROM queued_morph_links", &[])
+            .await
+            .unwrap(),
+        "other".into()
+    );
+    for table in ["queued_links", "queued_morph_links"] {
+        schema.dropIfExists(table).await.unwrap();
+    }
+}
+
 async fn verify_model_restoration(root: &Path, app: &Application, db: &Connection) {
     let models = app
         .container()
@@ -1538,6 +1769,7 @@ async fn verify_model_restoration(root: &Path, app: &Application, db: &Connectio
         .unwrap(),
         1.into()
     );
+    verify_pivot_restoration(root, app, db, &models).await;
     let required = || {
         Payload::new(
             "restore-required",

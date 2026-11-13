@@ -119,6 +119,21 @@ pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
 }
 ```
 
+#### 自定义 Pivot 模型 {#queued-custom-pivots}
+
+在自定义模型的 `Model::queueablePivots` 方法登记可恢复的关系。对每个生成该模型的关系返回 `relation.queueablePivot()`，沿用同一套中间表、键和时间戳配置。捕获和恢复仍使用模型标识接口。有主键时保存主键，否则保存两端键，多态 Pivot 还保存类型鉴别值。Worker 先匹配编译时登记的关系，再查表。恢复后仍可用原表和关系键更新或删除该记录。
+
+一个 Pivot 集合使用同一个关系定义。恢复返回数据库匹配的记录，跳过缺失行及重复标识。Pivot 集合恢复时不重放捕获的关系路径。
+
+```rust
+use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMany};
+
+pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
+    BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
+        .queueablePivot()
+}
+```
+
 ## Bus 派发 {#bus-dispatch}
 
 用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派发已登记的队列任务。`dispatchSync` 使用同步队列，保留任务中间件和事件。`dispatchNow` 在当前进程经应用的 `pipeThrough` 管道调用已登记处理器。`bulk` 接收载荷与选项对，按顺序返回结果，遇到第一个错误即停止。用 `Bus::map` 登记处理器，用 `hasCommandHandler` 或 `getCommandHandler` 查询。

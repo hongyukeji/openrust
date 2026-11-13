@@ -119,6 +119,21 @@ pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
 }
 ```
 
+#### 自訂 Pivot 模型 {#queued-custom-pivots}
+
+在自訂模型的 `Model::queueablePivots` 方法登記可還原的關聯。對每個產生該模型的關聯傳回 `relation.queueablePivot()`，沿用相同的中介表、鍵和時間戳記設定。擷取和還原仍使用模型識別介面。有主鍵時保存主鍵，否則保存兩端鍵，多型 Pivot 還會保存型別鑑別值。Worker 先比對編譯時登記的關聯，再查詢資料表。還原後仍可用原表和關聯鍵更新或刪除記錄。
+
+一個 Pivot 集合使用相同的關聯定義。還原傳回資料庫符合條件的記錄，略過缺失資料列及重複識別。Pivot 集合還原時不會重新載入擷取的關聯路徑。
+
+```rust
+use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMany};
+
+pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
+    BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
+        .queueablePivot()
+}
+```
+
 ## Bus 派送 {#bus-dispatch}
 
 用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipeThrough` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。

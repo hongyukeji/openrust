@@ -119,6 +119,21 @@ pub async fn restore_job_model<M: Model>(payload: &Payload) -> QueueResult<M> {
 }
 ```
 
+#### Custom pivot models {#queued-custom-pivots}
+
+Declare the allowed relationship definitions in the custom model’s `Model::queueablePivots` method. Return `relation.queueablePivot()` for each relationship that hydrates this model, using the same table, keys and timestamp settings. Capture and restore it using the regular model identifier APIs. The payload uses the primary key when present. Otherwise, it stores both endpoint keys and, for polymorphic pivots, the type discriminator. The worker matches the definition against the compiled model before querying. The restored pivot retains its table and relationship keys for writes.
+
+A pivot collection must come from a single relationship definition. Its restoration returns matching database rows, with repeated identifiers and missing rows omitted. Captured relation paths are not replayed for pivot collections.
+
+```rust
+use openrust::database::eloquent::{Model, QueueablePivot, relations::BelongsToMany};
+
+pub fn queueable_membership<U: Model, R: Model>() -> QueueablePivot {
+    BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
+        .queueablePivot()
+}
+```
+
 ## Bus dispatch {#bus-dispatch}
 
 Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipeThrough` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.

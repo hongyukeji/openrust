@@ -45,7 +45,7 @@ pub use metadata::ModelMetadata;
 pub use model::Model;
 pub use named_relations::NamedRelations;
 pub use observer::Observer;
-pub use queueable::{ModelCollectionIdentifier, ModelIdentifier};
+pub use queueable::{ModelCollectionIdentifier, ModelIdentifier, QueueablePivot};
 pub use related_batch::{RelatedBatch, RelatedModels};
 pub use scope::Scope;
 pub use serialization::VisibilityCondition;
