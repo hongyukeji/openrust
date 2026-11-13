@@ -79,6 +79,27 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 在同一具名連線上，用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查詢。`selectSub` 加入純量投影，`fromSub` 從衍生資料表讀取。交易內用外層建構器的 `subquery` 建立子查詢，整條陳述式透過外層交易連線執行。
 
+## JSON WHERE 子句
+
+用 `whereJsonContains` 和 `whereJsonDoesntContain` 判斷 JSON 是否包含指定值，用 `whereJsonContainsKey` 和 `whereJsonDoesntContainKey` 檢查路徑是否存在，用 `whereJsonLength` 比較長度。用 `->` 分隔路徑段，也可附加 `groups[0]` 這樣的索引。每個方法都有 `orWhere` 變體。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+use serde_json::json;
+
+pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("users")
+        .whereJsonContains("options->languages", json!("en"))
+        .whereJsonContainsKey("options->timezone")
+        .whereJsonLength("options->languages", ">", 1)
+        .get()
+        .await
+}
+```
+
+MySQL 支援純量和陣列候選值。SQLite 的包含條件接受純量。值為 JSON null 的鍵依然存在。路徑和值均透過參數繫結傳入 SQL。
+
 ## 排序、分組、限制和位移
 
 用 `orderBy("id", "asc")` 或 `orderByDesc("id")` 排序。`reorder()` 清除現有排序。用 `groupBy` 和 `having` 篩選分組。`limit` 和 `offset` 選取指定範圍的資料列。`forPage(page, per_page)` 的頁碼從 1 開始。SQLite 和 MySQL 執行位移查詢時要求同時指定限制資料列數。分頁時請指定能穩定決定資料列順序的排序條件。

@@ -1,3 +1,5 @@
+mod json_predicates;
+
 use std::{fmt::Write as _, sync::Arc};
 
 use crate::database::{DatabaseError, DatabaseResult, query::FullTextOptions};

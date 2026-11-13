@@ -79,6 +79,27 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 在同一具名连接上，用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查询。`selectSub` 添加标量投影，`fromSub` 从派生表读取。事务中用外层构造器的 `subquery` 创建子查询，整条语句通过外层事务连接执行。
 
+## JSON WHERE 子句
+
+用 `whereJsonContains` 和 `whereJsonDoesntContain` 判断 JSON 是否包含指定值，用 `whereJsonContainsKey` 和 `whereJsonDoesntContainKey` 检查路径是否存在，用 `whereJsonLength` 比较长度。用 `->` 分隔路径段，也可附加 `groups[0]` 这样的索引。每个方法都有 `orWhere` 变体。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+use serde_json::json;
+
+pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("users")
+        .whereJsonContains("options->languages", json!("en"))
+        .whereJsonContainsKey("options->timezone")
+        .whereJsonLength("options->languages", ">", 1)
+        .get()
+        .await
+}
+```
+
+MySQL 支持标量和数组候选值。SQLite 的包含条件接受标量。值为 JSON null 的键依然存在。路径和值均通过参数绑定传入 SQL。
+
 ## 排序、分组、限制和偏移
 
 用 `orderBy("id", "asc")` 或 `orderByDesc("id")` 排序。`reorder()` 清除已有排序。用 `groupBy` 和 `having` 筛选分组。`limit` 和 `offset` 选取指定范围的行。`forPage(page, per_page)` 的页码从 1 开始。SQLite 和 MySQL 执行偏移查询时要求同时指定限制行数。分页时请指定能稳定确定行顺序的排序条件。

@@ -32,6 +32,9 @@ enum Predicate {
     FullText(Vec<String>, String, FullTextOptions),
     Date(DatePart, String, String, String),
     BetweenColumns(String, [String; 2], bool),
+    JsonContains(String, serde_json::Value, bool),
+    JsonContainsKey(String, bool),
+    JsonLength(String, String, i64),
     Raw(Expression),
 }
 
@@ -88,6 +91,56 @@ macro_rules! predicate_methods {
             (whereDay, orWhereDay, Day, u32, |value| format!("{value:02}")),
             (whereMonth, orWhereMonth, Month, u32, |value| format!("{value:02}")),
             (whereYear, orWhereYear, Year, i32, |value| format!("{value:04}")),
+        }
+
+        pub fn whereJsonContains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+            self.conditions().json_contains(false, selector, value, false);
+            self
+        }
+
+        pub fn orWhereJsonContains(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+            self.conditions().json_contains(true, selector, value, false);
+            self
+        }
+
+        pub fn whereJsonDoesntContain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+            self.conditions().json_contains(false, selector, value, true);
+            self
+        }
+
+        pub fn orWhereJsonDoesntContain(mut self, selector: &str, value: ::serde_json::Value) -> Self {
+            self.conditions().json_contains(true, selector, value, true);
+            self
+        }
+
+        pub fn whereJsonContainsKey(mut self, selector: &str) -> Self {
+            self.conditions().json_contains_key(false, selector, false);
+            self
+        }
+
+        pub fn orWhereJsonContainsKey(mut self, selector: &str) -> Self {
+            self.conditions().json_contains_key(true, selector, false);
+            self
+        }
+
+        pub fn whereJsonDoesntContainKey(mut self, selector: &str) -> Self {
+            self.conditions().json_contains_key(false, selector, true);
+            self
+        }
+
+        pub fn orWhereJsonDoesntContainKey(mut self, selector: &str) -> Self {
+            self.conditions().json_contains_key(true, selector, true);
+            self
+        }
+
+        pub fn whereJsonLength(mut self, selector: &str, operator: &str, value: i64) -> Self {
+            self.conditions().json_length(false, selector, operator, value);
+            self
+        }
+
+        pub fn orWhereJsonLength(mut self, selector: &str, operator: &str, value: i64) -> Self {
+            self.conditions().json_length(true, selector, operator, value);
+            self
         }
 
         pub fn whereBetweenColumns(mut self, column: &str, bounds: [&str; 2]) -> Self {
@@ -407,6 +460,27 @@ impl Conditions {
         );
     }
 
+    pub(super) fn json_contains(
+        &mut self,
+        or: bool,
+        selector: &str,
+        value: serde_json::Value,
+        negated: bool,
+    ) {
+        self.push(or, Predicate::JsonContains(selector.into(), value, negated));
+    }
+
+    pub(super) fn json_contains_key(&mut self, or: bool, selector: &str, negated: bool) {
+        self.push(or, Predicate::JsonContainsKey(selector.into(), negated));
+    }
+
+    pub(super) fn json_length(&mut self, or: bool, selector: &str, operator: &str, value: i64) {
+        self.push(
+            or,
+            Predicate::JsonLength(selector.into(), operator.into(), value),
+        );
+    }
+
     pub(super) fn raw(&mut self, or: bool, expression: Expression) {
         self.push(or, Predicate::Raw(expression));
     }
@@ -507,6 +581,26 @@ impl Predicate {
             Self::FullText(columns, value, options) => {
                 sql.push_str(&grammar.full_text(columns, *options)?);
                 bindings.push(value.clone().into());
+            }
+            Self::JsonContains(selector, value, negated) => {
+                if *negated {
+                    sql.push_str("not ");
+                }
+                sql.push_str(&grammar.json_contains(selector, value, bindings)?);
+            }
+            Self::JsonContainsKey(selector, negated) => {
+                let predicate = grammar.json_contains_key(selector, bindings)?;
+                if *negated {
+                    sql.push_str(&format!("not ({predicate})"));
+                } else {
+                    sql.push_str(&predicate);
+                }
+            }
+            Self::JsonLength(selector, comparison, value) => {
+                let operator = operator(comparison, grammar)?;
+                let length = grammar.json_length(selector, bindings)?;
+                sql.push_str(&format!("{length} {operator} ?"));
+                bindings.push((*value).into());
             }
             Self::Raw(expression) => {
                 sql.push_str(&expression.sql);

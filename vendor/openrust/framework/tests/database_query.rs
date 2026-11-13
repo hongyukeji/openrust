@@ -404,3 +404,206 @@ async fn query_builder_runs_on_mysql_8_4() {
     };
     verify_queries(connection(json!({"url":url,"prefix":"app_"}))).await;
 }
+
+async fn verify_json_predicates(db: Connection, mysql: bool) {
+    db.statement("DROP TABLE IF EXISTS app_json_predicates", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE app_json_predicates (id INTEGER PRIMARY KEY, document JSON, seen INTEGER NOT NULL DEFAULT 0)",
+        &[],
+    )
+    .await
+    .unwrap();
+    for (id, document) in [
+        (
+            1,
+            Value::Json(json!({
+                "settings": {"tags": ["en", "de"], "marker": null},
+                "groups": [[{"name": "root"}]],
+                "dotted.key": {"O'Reilly": ["quoted"]}
+            })),
+        ),
+        (2, Value::Json(json!({"settings": {"tags": ["en"]}}))),
+        (3, Value::Json(json!({"settings": {"tags": []}}))),
+        (4, Value::Null),
+    ] {
+        db.insert(
+            "INSERT INTO app_json_predicates (id, document) VALUES (?, ?)",
+            &[id.into(), document],
+        )
+        .await
+        .unwrap();
+    }
+
+    let table = || db.table("json_predicates as j");
+    let tags = "j.document->settings->tags";
+    let marker = "j.document->settings->marker";
+    let ids = |ids: &[i64]| ids.iter().copied().map(Value::from).collect::<Vec<_>>();
+
+    let query = table().r#where("j.id", ">", 0).whereNested(|group| {
+        group
+            .whereJsonContains(tags, json!("de"))
+            .orWhereJsonLength(tags, "=", 0)
+    });
+    let expected_path = Value::from(r#"$."settings"."tags""#);
+    let mut bindings = ids(&[0]);
+    if mysql {
+        bindings.extend([Value::Json(json!("de")), expected_path.clone()]);
+        assert!(
+            query
+                .toSql()
+                .unwrap()
+                .contains("json_contains(`app_j`.`document`, ?, ?)")
+        );
+    } else {
+        bindings.extend([expected_path.clone(), "de".into()]);
+        assert!(
+            query
+                .toSql()
+                .unwrap()
+                .contains(r#"json_each("app_j"."document", ?)"#)
+        );
+    }
+    bindings.extend([expected_path, 0.into()]);
+    assert_eq!(query.getBindings().unwrap(), bindings);
+    assert_eq!(
+        query.orderBy("id", "asc").pluck("id").await.unwrap(),
+        ids(&[1, 3])
+    );
+
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .orWhereJsonContains("j.document->dotted.key->O'Reilly", json!("quoted"))
+            .whereJsonContainsKey("j.document->groups[0][0]->name")
+            .pluck("id")
+            .await
+            .unwrap(),
+        ids(&[1])
+    );
+    assert_eq!(
+        table()
+            .whereJsonDoesntContainKey(marker)
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        ids(&[2, 3, 4])
+    );
+    assert_eq!(
+        table()
+            .whereJsonDoesntContain(tags, json!("de"))
+            .orWhereJsonContainsKey(marker)
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        if mysql {
+            ids(&[1, 2, 3])
+        } else {
+            ids(&[1, 2, 3, 4])
+        }
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .orWhereJsonDoesntContainKey(marker)
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        ids(&[1, 2, 3, 4])
+    );
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .orWhereJsonDoesntContain(tags, json!("en"))
+            .orderBy("id", "asc")
+            .pluck("id")
+            .await
+            .unwrap(),
+        if mysql { ids(&[1, 3]) } else { ids(&[1, 3, 4]) }
+    );
+    assert!(
+        table()
+            .whereJsonLength(tags, ">= 0 or 1 = 1", 0)
+            .toSql()
+            .is_err()
+    );
+    assert!(
+        table()
+            .whereJsonContainsKey("j.document->invalid\0key")
+            .toSql()
+            .is_err()
+    );
+
+    if mysql {
+        assert_eq!(
+            table()
+                .whereJsonContains(tags, json!(["en", "de"]))
+                .pluck("id")
+                .await
+                .unwrap(),
+            ids(&[1])
+        );
+        assert!(table().whereJsonContainsKey("j.document").toSql().is_err());
+    } else {
+        assert!(
+            table()
+                .whereJsonContains(tags, json!(["en", "de"]))
+                .toSql()
+                .is_err()
+        );
+    }
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    assert_eq!(
+        transaction
+            .table("json_predicates")
+            .whereJsonLength("document->settings->tags", ">", 1)
+            .update(BTreeMap::from([("seen".into(), 1.into())]))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        transaction
+            .table("json_predicates")
+            .whereJsonContainsKey("document->settings->marker")
+            .value("seen")
+            .await
+            .unwrap(),
+        1.into()
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        table()
+            .whereJsonContainsKey(marker)
+            .value("seen")
+            .await
+            .unwrap(),
+        0.into()
+    );
+}
+
+#[tokio::test]
+async fn json_predicates_run_on_sqlite() {
+    verify_json_predicates(
+        connection(json!({"driver":"sqlite","database":":memory:","prefix":"app_"})),
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn json_predicates_run_on_mysql_8_4() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(
+            std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none(),
+            "MySQL acceptance requires an isolated database"
+        );
+        return;
+    };
+    verify_json_predicates(connection(json!({"url":url,"prefix":"app_"})), true).await;
+}

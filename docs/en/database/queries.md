@@ -79,6 +79,27 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 Use `whereExists`, `whereNotExists`, `whereInSub` or `whereSub` with a query on the same named connection. `selectSub` adds a scalar projection and `fromSub` selects from a derived table. Inside a transaction, build the embedded query with `subquery` on the outer builder. The outer query executes the whole statement on its transaction connection.
 
+## JSON Where Clauses
+
+Use `whereJsonContains` and `whereJsonDoesntContain` to test JSON containment, `whereJsonContainsKey` and `whereJsonDoesntContainKey` to check path existence, and `whereJsonLength` to compare the length. Separate path segments with `->` and append indexes such as `groups[0]`. Each method has an `orWhere` variant.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Row};
+use serde_json::json;
+
+pub async fn matching_users(connection: &Connection) -> DatabaseResult<Vec<Row>> {
+    connection
+        .table("users")
+        .whereJsonContains("options->languages", json!("en"))
+        .whereJsonContainsKey("options->timezone")
+        .whereJsonLength("options->languages", ">", 1)
+        .get()
+        .await
+}
+```
+
+MySQL accepts scalar and array candidates. SQLite containment accepts scalar candidates. A key whose value is JSON null still exists. Paths and values are bound separately from SQL.
+
 ## Ordering, Grouping, Limit and Offset
 
 Use `orderBy("id", "asc")` or `orderByDesc("id")` to sort. `reorder()` clears the current sort. Use `groupBy` and `having` to filter groups. `limit` and `offset` select a range of rows. `forPage(page, per_page)` takes a one-based page number. SQLite and MySQL require a limit when executing an offset. Include a deterministic sort when selecting pages.
