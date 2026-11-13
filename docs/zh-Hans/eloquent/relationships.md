@@ -192,6 +192,18 @@ pub fn matching_posts<M: Model>(
 }
 ```
 
+使用异步方法 `whereRelationPathAll` 或 `whereDoesntHaveRelationPathAll`，先发现已存储的别名，再应用末级列条件。`withWhereRelationPathAll` 和 `withWhereRelationPathAllWith` 在筛选与预加载间共用这次发现的别名。发现的每种目标都必须支持剩余路径。发现过程直接读取模型表，独立于父查询的筛选和作用域。该查询构建器随后沿用这组别名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub async fn approved_subject_comments<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPathAll("subject.comments", "approved", "=", true).await
+}
+```
+
 ### 查询所有多态目标类型
 
 使用异步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 对应 Laravel 的通配查询。它们先从模型表读取不同的多态别名，当前查询的筛选条件和作用域不参与这次读取。需要在关系上注册存储的别名。查询缺失目标时，`whereDoesntHaveMorphAll` 也匹配类型为空的记录。

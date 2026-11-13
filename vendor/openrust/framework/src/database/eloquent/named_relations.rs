@@ -13,7 +13,13 @@ use super::{
 pub(super) type PathConstraint =
     Arc<dyn Fn(query::Conditions, &str) -> query::Conditions + Send + Sync>;
 
-type Prepare<M> = dyn Fn(EagerLoads<M>, &str, &[&str], Option<&PathConstraint>) -> DatabaseResult<EagerLoads<M>>
+type Prepare<M> = dyn Fn(
+        EagerLoads<M>,
+        &str,
+        &[&str],
+        Option<&PathConstraint>,
+        Option<&DiscoveredMorphs>,
+    ) -> DatabaseResult<EagerLoads<M>>
     + Send
     + Sync;
 
@@ -90,7 +96,7 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint| {
+                prepare: Box::new(move |loads, name, children, constraint, discovered| {
                     let relation = eager();
                     let relation = if children.is_empty() {
                         match constraint {
@@ -104,7 +110,7 @@ impl<M: Model> NamedRelations<M> {
                         }
                     } else {
                         relation.with_nested(NamedRelations::<R::Related>::prepare_constrained(
-                            children, constraint,
+                            children, constraint, discovered,
                         )?)
                     };
                     Ok(loads.with(name, relation))
@@ -176,7 +182,7 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint| {
+                prepare: Box::new(move |loads, name, children, constraint, _| {
                     if constraint.is_some() {
                         return Err(DatabaseError::InvalidQuery(
                             "relationship path does not support constraints",
@@ -222,9 +228,9 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint| {
+                prepare: Box::new(move |loads, name, children, constraint, discovered| {
                     let mut relation = eager();
-                    relation.with_constrained_paths(children, constraint)?;
+                    relation.with_constrained_paths(name, children, constraint, discovered)?;
                     Ok(loads.with(name, relation))
                 }),
                 load_missing: Box::new(move |models, name, children| {
@@ -326,12 +332,13 @@ impl<M: Model> NamedRelations<M> {
     }
 
     pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {
-        Self::prepare_constrained(paths, None)
+        Self::prepare_constrained(paths, None, None)
     }
 
     pub(super) fn prepare_constrained(
         paths: &[&str],
         constraint: Option<&PathConstraint>,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<EagerLoads<M>> {
         let grouped = group_paths(paths)?;
         let registered = M::namedRelations();
@@ -341,7 +348,7 @@ impl<M: Model> NamedRelations<M> {
                 .0
                 .get(name)
                 .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-            loads = (prepare.prepare)(loads, name, &children, constraint)?;
+            loads = (prepare.prepare)(loads, name, &children, constraint, discovered)?;
         }
         Ok(loads)
     }

@@ -25,6 +25,7 @@ pub struct MorphTo<P: Model> {
     type_column: &'static str,
     id_column: &'static str,
     targets: IndexMap<&'static str, Box<dyn Target<P>>>,
+    path_aliases: Option<Vec<&'static str>>,
 }
 
 /// A polymorphic model loaded from a registered alias.
@@ -118,6 +119,7 @@ impl<P: Model> MorphTo<P> {
             type_column,
             id_column,
             targets: IndexMap::new(),
+            path_aliases: None,
         }
     }
 
@@ -167,12 +169,23 @@ impl<P: Model> MorphTo<P> {
 
     pub(in crate::database::eloquent) fn with_constrained_paths(
         &mut self,
+        name: &str,
         children: &[&str],
         constraint: Option<&PathConstraint>,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<()> {
+        self.path_aliases = discovered
+            .and_then(|found| found.get::<P>(name))
+            .map(<[_]>::to_vec);
         if !children.is_empty() || constraint.is_some() {
-            for target in self.targets.values_mut() {
-                target.with_paths(children, constraint)?;
+            for (alias, target) in &mut self.targets {
+                if self
+                    .path_aliases
+                    .as_ref()
+                    .is_none_or(|aliases| aliases.contains(alias))
+                {
+                    target.with_paths(children, constraint, discovered)?;
+                }
             }
         }
         Ok(())
@@ -415,6 +428,13 @@ impl<P: Model> MorphTo<P> {
                 .targets
                 .get_key_value(alias)
                 .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
+            if self
+                .path_aliases
+                .as_ref()
+                .is_some_and(|aliases| !aliases.contains(&alias))
+            {
+                continue;
+            }
             let (indexes, parents): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
             let loaded = target.load(&parents).await?;
             for (index, model) in indexes.into_iter().zip(loaded) {
@@ -495,6 +515,7 @@ trait Target<P: Model>: Send + Sync {
         &mut self,
         children: &[&str],
         constraint: Option<&PathConstraint>,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<()>;
     fn path_query(
         &self,
@@ -589,6 +610,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         &mut self,
         children: &[&str],
         constraint: Option<&PathConstraint>,
+        discovered: Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<()> {
         if children.is_empty() {
             if let Some(constraint) = constraint {
@@ -599,7 +621,7 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             }
         } else {
             self.with_nested(NamedRelations::<R>::prepare_constrained(
-                children, constraint,
+                children, constraint, discovered,
             )?);
         }
         Ok(())

@@ -192,6 +192,18 @@ pub fn matching_posts<M: Model>(
 }
 ```
 
+Use the asynchronous `whereRelationPathAll` or `whereDoesntHaveRelationPathAll` to discover the stored aliases before applying a final column predicate. `withWhereRelationPathAll` and `withWhereRelationPathAllWith` share the discovered aliases between filtering and eager loading. Every discovered target must support the remaining path. Alias discovery reads the model table independently of the parent query's filters and scopes. The selected aliases are fixed for that builder.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub async fn approved_subject_comments<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPathAll("subject.comments", "approved", "=", true).await
+}
+```
+
 ### Querying All Related Models
 
 Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for Laravel's wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.

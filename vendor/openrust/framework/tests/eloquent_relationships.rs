@@ -1373,6 +1373,7 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         .unwrap();
     assert_eq!(missing.len(), absent.len());
     assert!(missing.modelKeys().contains(&no_target));
+    Box::pin(verify_discovered_path_targets(db, &expected)).await;
     let unknown = table()
         .insertGetId(Attributes::from([
             ("body".into(), "unknown named morph".into()),
@@ -1400,12 +1401,67 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     assert!(!only_posts.is_empty());
+    Box::pin(verify_discovered_path_filter(db, &additional, &no_target)).await;
     assert!(absent.modelKeys().contains(&no_target));
     db.table("relation_comments")
         .whereIn("id", vec![no_target, additional])
         .delete()
         .await
         .unwrap();
+}
+
+async fn verify_discovered_path_targets(db: &Connection, expected: &[Value]) {
+    let query = Comment::queryOn(db)
+        .withWhereRelationPathAll("subject.details", "id", ">", 0)
+        .await
+        .unwrap()
+        .orderBy("id", "asc");
+    let mixed = Box::pin(query.get()).await.unwrap();
+    assert_eq!(mixed.modelKeys(), expected);
+    let mut aliases = std::collections::HashSet::new();
+    for row in mixed.toArray().unwrap() {
+        assert!(!row["subject"]["details"].as_array().unwrap().is_empty());
+        aliases.insert(row["subject_type"].as_str().unwrap().to_owned());
+    }
+    assert_eq!(
+        aliases,
+        ["author".into(), "post".into()].into_iter().collect()
+    );
+}
+
+async fn verify_discovered_path_filter(db: &Connection, additional: &Value, no_target: &Value) {
+    let path = "subject.comments";
+    let body = "named morph counted";
+    let query = Comment::queryOn(db)
+        .whereRelationPathAll(path, "body", "=", body)
+        .await
+        .unwrap()
+        .orderBy("id", "asc");
+    let filtered = Box::pin(query.get()).await.unwrap();
+    assert!(filtered.modelKeys().contains(additional));
+
+    let query = Comment::queryOn(db)
+        .whereDoesntHaveRelationPathAll(path, "body", "=", body)
+        .await
+        .unwrap();
+    let absent = Box::pin(query.get()).await.unwrap();
+    assert!(absent.modelKeys().contains(no_target));
+    assert!(!absent.modelKeys().contains(additional));
+
+    let query = Comment::queryOn(db)
+        .withWhereRelationPathAllWith(path, move |conditions, qualifier| {
+            conditions.r#where(&format!("{qualifier}.body"), "=", body)
+        })
+        .await
+        .unwrap()
+        .orderBy("id", "asc");
+    let loaded = Box::pin(query.get()).await.unwrap();
+    assert_eq!(loaded.modelKeys(), filtered.modelKeys());
+    for row in loaded.toArray().unwrap() {
+        let comments = row["subject"]["comments"].as_array().unwrap();
+        assert_eq!(comments.len(), 1);
+        assert_eq!(comments[0]["body"], body);
+    }
 }
 
 fn verify_relation_chain(

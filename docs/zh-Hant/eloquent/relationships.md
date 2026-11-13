@@ -192,6 +192,18 @@ pub fn matching_posts<M: Model>(
 }
 ```
 
+使用非同步方法 `whereRelationPathAll` 或 `whereDoesntHaveRelationPathAll`，先找出已儲存的別名，再套用末層欄位條件。`withWhereRelationPathAll` 和 `withWhereRelationPathAllWith` 在篩選與預先載入間共用這次找到的別名。找到的每種目標都必須支援剩餘路徑。探索過程直接讀取模型資料表，獨立於父查詢的篩選和作用域。該查詢建構器隨後沿用這組別名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub async fn approved_subject_comments<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPathAll("subject.comments", "approved", "=", true).await
+}
+```
+
 ### 查詢所有多型目標型別
 
 使用非同步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 對應 Laravel 的萬用字元查詢。這些方法先從模型表讀取不同的多型別名，目前查詢的篩選條件和作用域不參與這次讀取。請在關聯上註冊已儲存的別名。查詢缺少目標的記錄時，`whereDoesntHaveMorphAll` 也會比對型別為空的記錄。

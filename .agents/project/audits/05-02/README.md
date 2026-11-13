@@ -426,3 +426,11 @@ SQLite 和独立 MySQL 8.4.13 验证普通与多态列筛选、缺失、OR、自
 按固定 Laravel `hasNested` 和 `EloquentWhereHasTest` 处理点分路径。列条件和闭包作用于末级关系。否定匹配没有任何完整路径满足条件的父模型，OR 在父查询中组合整条路径。预加载沿原路径执行，仅末级使用同一条件。Rust 用类型擦除的查询条件闭包接受末级表限定名，以便支持自关联别名和多态分支。核对旧版 v0.x 后沿用当前命名关系注册与 SQL 子查询机制，参考 Goravel 的连接级查询入口。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L79) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentWhereHasTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证三段路径、OR 组合、整条路径缺失、末级闭包、自关联表限定、多态末级和条件预加载。全量 620 项及双库专项通过，8 项测试夹具维持忽略。Rust 1.94 格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 多态通配路径的末级筛选与预加载
+
+组合固定 Laravel 的通配别名发现、路径末级条件和按多态目标约束预加载。OpenRust 在异步路径入口读取实际别名，并将同一组别名用于生成相关子查询和准备预加载。末级支持列条件或分组闭包，缺失查询包含空多态目标。Rust 以异步入口显式区分额外数据库查询，目标注册仍使用编译期类型。已发现的目标须支持余下的路径。固定 Goravel 继续作为连接级装配参考，旧版 `v0.x` 未找到对应的通配路径约束。 [Laravel 关系查询](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L232) · [Laravel 多态预加载](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphTo.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证混合目标、未出现在数据中的已登记目标、空目标缺失匹配、末级闭包筛选及同条件预加载。首轮 MySQL 专项触发测试夹具的 Debug 栈溢出，将夹具中的查询 future 放到堆上后双库专项通过。
+
+Rust 1.94 格式、全目标严格 Clippy、工作区 620 项（8 项夹具忽略）、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。核心账本仍为 25/66。

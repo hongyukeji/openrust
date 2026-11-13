@@ -98,9 +98,7 @@ impl<M: Model> Builder<'static, M> {
         operator: &str,
         count: u64,
     ) -> DatabaseResult<Self> {
-        Self::validate_path(path)?;
-        let mut found = super::named_relations::DiscoveredMorphs::default();
-        super::NamedRelations::<M>::discover(&self.connection, path, &mut found).await?;
+        let found = self.discover_path(path).await?;
         let expression = super::NamedRelations::<M>::filter(
             &self.connection,
             &self.query,
@@ -125,6 +123,7 @@ impl<M: Model> Builder<'static, M> {
             ">=",
             false,
             &Self::path_column(column, operator, value.into()),
+            None,
         )
     }
 
@@ -140,6 +139,7 @@ impl<M: Model> Builder<'static, M> {
             ">=",
             true,
             &Self::path_column(column, operator, value.into()),
+            None,
         )
     }
 
@@ -155,6 +155,7 @@ impl<M: Model> Builder<'static, M> {
             "<",
             false,
             &Self::path_column(column, operator, value.into()),
+            None,
         )
     }
 
@@ -170,6 +171,7 @@ impl<M: Model> Builder<'static, M> {
             "<",
             true,
             &Self::path_column(column, operator, value.into()),
+            None,
         )
     }
 
@@ -180,7 +182,7 @@ impl<M: Model> Builder<'static, M> {
         constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
     ) -> DatabaseResult<Self> {
         let constraint: super::named_relations::PathConstraint = std::sync::Arc::new(constraint);
-        self.filter_path_with(path, ">=", false, &constraint)
+        self.filter_path_with(path, ">=", false, &constraint, None)
     }
 
     pub fn withWhereRelationPath(
@@ -190,7 +192,11 @@ impl<M: Model> Builder<'static, M> {
         operator: &str,
         value: impl Into<Value>,
     ) -> DatabaseResult<Self> {
-        self.with_where_path(path, Self::path_column(column, operator, value.into()))
+        self.with_where_path(
+            path,
+            Self::path_column(column, operator, value.into()),
+            None,
+        )
     }
 
     /// Applies the same grouped predicate when filtering and loading the path.
@@ -199,19 +205,80 @@ impl<M: Model> Builder<'static, M> {
         path: &str,
         constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
     ) -> DatabaseResult<Self> {
-        self.with_where_path(path, std::sync::Arc::new(constraint))
+        self.with_where_path(path, std::sync::Arc::new(constraint), None)
+    }
+
+    /// Filters the final relationship after discovering stored morph aliases.
+    pub async fn whereRelationPathAll(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        let constraint = Self::path_column(column, operator, value.into());
+        let found = self.discover_path(path).await?;
+        self.filter_path_with(path, ">=", false, &constraint, Some(&found))
+    }
+
+    /// Tests for the absence of a matching relationship after morph alias discovery.
+    pub async fn whereDoesntHaveRelationPathAll(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        let constraint = Self::path_column(column, operator, value.into());
+        let found = self.discover_path(path).await?;
+        self.filter_path_with(path, "<", false, &constraint, Some(&found))
+    }
+
+    /// Applies the final column predicate using the same aliases for filtering and loading.
+    pub async fn withWhereRelationPathAll(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        let constraint = Self::path_column(column, operator, value.into());
+        let found = self.discover_path(path).await?;
+        self.with_where_path(path, constraint, Some(&found))
+    }
+
+    /// Applies a grouped final predicate using the same aliases for filtering and loading.
+    pub async fn withWhereRelationPathAllWith(
+        self,
+        path: &str,
+        constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
+    ) -> DatabaseResult<Self> {
+        let found = self.discover_path(path).await?;
+        self.with_where_path(path, std::sync::Arc::new(constraint), Some(&found))
+    }
+
+    async fn discover_path(
+        &self,
+        path: &str,
+    ) -> DatabaseResult<super::named_relations::DiscoveredMorphs> {
+        Self::validate_path(path)?;
+        let mut found = super::named_relations::DiscoveredMorphs::default();
+        super::NamedRelations::<M>::discover(&self.connection, path, &mut found).await?;
+        Ok(found)
     }
 
     fn with_where_path(
         self,
         path: &str,
         constraint: super::named_relations::PathConstraint,
+        discovered: Option<&super::named_relations::DiscoveredMorphs>,
     ) -> DatabaseResult<Self> {
-        let query = self.filter_path_with(path, ">=", false, &constraint)?;
+        let query = self.filter_path_with(path, ">=", false, &constraint, discovered)?;
         Ok(
             query.with_eager_loads(super::NamedRelations::<M>::prepare_constrained(
                 &[path],
                 Some(&constraint),
+                discovered,
             )?),
         )
     }
@@ -222,6 +289,7 @@ impl<M: Model> Builder<'static, M> {
         operator: &str,
         or: bool,
         constraint: &super::named_relations::PathConstraint,
+        discovered: Option<&super::named_relations::DiscoveredMorphs>,
     ) -> DatabaseResult<Self> {
         Self::validate_path(path)?;
         let expression = super::NamedRelations::<M>::filter(
@@ -229,7 +297,7 @@ impl<M: Model> Builder<'static, M> {
             &self.query,
             path,
             (operator, 1),
-            None,
+            discovered,
             Some(constraint),
         )?;
         self.predicates.raw(or, expression);
