@@ -232,3 +232,9 @@ SQLite 和独立 MySQL 8.4.13 实测默认关闭、主动触碰、五种 Pivot �
 对照固定 Laravel 的 `HasRelationships::touchOwners`、`BelongsToMany::touch` 和多对多保存测试。参考固定 Goravel 的连接级事务，复用 `v0.x` 的保存后触碰钩子及相关模型批量更新时间戳契约。Rust 以 `Touches::belongsToMany` 和 `Touches::morphToMany` 声明，使用已持久化的父键。批量更新沿用 Pivot 过滤、类型和模型作用域。相关模型自身还有触碰声明时继续传播，沿用已访问模型记录防止循环。对应 Laravel 集合分支，批量更新本身不派发相关模型的 `Saved` 事件。 [Laravel 传播源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php#L934) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentBelongsToManyTest.php#L1030) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证无变更保存、普通和多态多对多触碰、Pivot 过滤、软删除隔离、循环传播、递归触碰其他父模型，以及显式事务内可见性和回滚。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离站点构建和 18 项浏览器检查通过。提交前周额度剩余 91%，项目卷可用 60 GiB。Pivot 写入时从模型声明自动推断触碰仍待接入。核心账本维持 25/66。
+
+## 从模型声明推断 Pivot 写入触碰
+
+固定 Laravel 的 `touchIfTouching` 分别检查父模型的当前关系和相关模型的反向关系。OpenRust 使用已注册的类型化描述符识别正反向关系，匹配模型类型、中间表、键映射、多态判别条件和 Pivot 过滤。Pivot 过滤按编译后的 SQL 和绑定值匹配，因此同一声明和写入宜复用描述符。复用 `v0.x` 的双端触碰与事务路径，保留显式开关。参考固定 Goravel 的连接级事务。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentBelongsToManyTest.php#L1049) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证正向附加、反向解除、过滤值和多态别名隔离、触碰失败时回滚 Pivot。首次反向测试在重置时间戳前加载父模型，旧快照影响断言。调整夹具顺序后两库复验通过。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离构建及 18 项浏览器检查通过。提交前周额度剩余 91%，项目卷可用 60 GiB。动态关系和其他加载差异继续跟踪，核心账本 25/66。

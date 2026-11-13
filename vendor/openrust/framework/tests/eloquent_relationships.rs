@@ -2355,6 +2355,103 @@ async fn verify_save_touches_related(db: &Connection) {
     assert_ne!(db.scalar(author_timestamp, &[]).await.unwrap(), OLD.into());
 }
 
+async fn verify_inferred_pivot_touch(db: &Connection) {
+    const OLD: &str = "2000-01-01 00:00:00";
+    let parent = SaveTouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    let timestamp = "SELECT updated_at FROM relation_posts WHERE id = ?";
+    let reset = "UPDATE relation_posts SET updated_at = ?";
+    db.statement(reset, &[OLD.into()]).await.unwrap();
+
+    let relation = || {
+        BelongsToMany::<SaveTouchAuthor, TouchPost>::new(
+            "relation_featured_posts",
+            "author_id",
+            "post_id",
+            "id",
+            "id",
+        )
+    };
+    relation()
+        .wherePivot("label", "=", "unmatched")
+        .attachWith(
+            &parent,
+            &[4.into()],
+            Attributes::from([("label".into(), "unmatched".into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(db.scalar(timestamp, &[4.into()]).await.unwrap(), OLD.into());
+    relation().detach(&parent, Some(&[4.into()])).await.unwrap();
+
+    let filtered = relation().wherePivot("label", "=", "eligible");
+    assert!(
+        filtered
+            .attachWith(
+                &parent,
+                &[4.into()],
+                Attributes::from([("label".into(), "eligible".into())]),
+            )
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        db.scalar(
+            "SELECT COUNT(*) FROM relation_featured_posts WHERE author_id = 1 AND post_id = 4",
+            &[]
+        )
+        .await
+        .unwrap(),
+        0.into()
+    );
+    filtered.detach(&parent, Some(&[1.into()])).await.unwrap();
+    filtered
+        .attachWith(
+            &parent,
+            &[1.into()],
+            Attributes::from([("label".into(), "eligible".into())]),
+        )
+        .await
+        .unwrap();
+    assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_eq!(db.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+
+    db.statement(reset, &[OLD.into()]).await.unwrap();
+    let post = TouchPost::queryOn(db).findOrFail(1).await.unwrap();
+    let inverse = BelongsToMany::<TouchPost, SaveTouchAuthor>::new(
+        "relation_featured_posts",
+        "post_id",
+        "author_id",
+        "id",
+        "id",
+    )
+    .wherePivot("label", "=", "eligible");
+    assert_eq!(inverse.detach(&post, Some(&[1.into()])).await.unwrap(), 1);
+    assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+
+    db.statement(reset, &[OLD.into()]).await.unwrap();
+    let morph = |alias| {
+        MorphToMany::<SaveTouchAuthor, TouchPost>::new(
+            "relation_morph_memberships",
+            "subject_id",
+            "tag_id",
+            "id",
+            "id",
+            "subject_type",
+            alias,
+        )
+    };
+    morph("different")
+        .attach(&parent, &[1.into()])
+        .await
+        .unwrap();
+    assert_eq!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    morph("featured")
+        .attach(&parent, &[1.into()])
+        .await
+        .unwrap();
+    assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -2649,6 +2746,7 @@ async fn verify_custom_pivot(config: Json) {
     db.statement("INSERT INTO relation_posts VALUES (3,1,'deleted','2000-01-01 00:00:00','2000-01-01 00:00:00'),(4,1,'reject touch',NULL,'2000-01-01 00:00:00')", &[]).await.unwrap();
     Box::pin(verify_related_touch(&db)).await;
     Box::pin(verify_save_touches_related(&db)).await;
+    Box::pin(verify_inferred_pivot_touch(&db)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();

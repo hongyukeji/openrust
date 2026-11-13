@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{any::TypeId, collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 
@@ -356,6 +356,41 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(())
     }
 
+    pub(in crate::database::eloquent) fn touch_identity(&self) -> PivotTouchIdentity<'_> {
+        PivotTouchIdentity {
+            related_type: TypeId::of::<R>(),
+            pivot: self.pivot,
+            parent_key: self.keys.parent,
+            related_key: self.keys.related,
+            constraints: &self.pivot_constraints,
+        }
+    }
+
+    fn pivot_touches(
+        &self,
+        parent: &P,
+        owner: &Value,
+        connection: &Connection,
+    ) -> DatabaseResult<(Option<Arc<ModelState>>, Option<RelatedTouch>)> {
+        let identity = self.touch_identity();
+        let parent_state = if P::metadata().updated_at.is_some()
+            && (self.touch_parent
+                || R::touches().contains_pivot(&identity.inverse::<P>(), connection)?)
+        {
+            Some(self.touch_state(parent, connection)?)
+        } else {
+            None
+        };
+        let related_touch = if R::metadata().updated_at.is_some()
+            && (self.touch_related || P::touches().contains_pivot(&identity, connection)?)
+        {
+            self.related_touch(owner)
+        } else {
+            None
+        };
+        Ok((parent_state, related_touch))
+    }
+
     fn related_touch(&self, owner: &Value) -> Option<RelatedTouch> {
         Some(RelatedTouch {
             pivot: self.pivot,
@@ -415,11 +450,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 row.extend(self.pivot_constraints.defaults.clone());
                 row.extend(attributes.clone());
             }
-            let parent_state = self.touch_state(parent, &connection)?;
-            let related_touch = self
-                .touch_related
-                .then(|| self.related_touch(owner))
-                .flatten();
+            let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             let custom = self.custom_pivot;
             if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let identity = self.pivot.identity(self.timestamp_columns());
@@ -495,11 +526,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 attributes.retain(|name, _| !name.eq_ignore_ascii_case(column));
                 attributes.extend(self.pivot_write_timestamps(&connection)?.update);
             }
-            let parent_state = self.touch_state(parent, &connection)?;
-            let related_touch = self
-                .touch_related
-                .then(|| self.related_touch(owner))
-                .flatten();
+            let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let pivot = self.pivot;
                 let identity = pivot.identity(self.timestamp_columns());
@@ -589,11 +616,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Box::pin(async move {
             let owner = self.owner(parent)?;
             let connection = self.keys.connection(parent)?;
-            let parent_state = self.touch_state(parent, &connection)?;
-            let related_touch = self
-                .touch_related
-                .then(|| self.related_touch(owner))
-                .flatten();
+            let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             let custom = self.custom_pivot;
             if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let pivot = self.pivot;
@@ -778,11 +801,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let custom = self.custom_pivot;
             let identity = pivot.identity(self.timestamp_columns());
             let source = connection.clone();
-            let parent_state = self.touch_state(parent, &connection)?;
-            let related_touch = self
-                .touch_related
-                .then(|| self.related_touch(&owner))
-                .flatten();
+            let (parent_state, related_touch) = self.pivot_touches(parent, &owner, &connection)?;
             connection
                 .transaction(
                     move |transaction| {
@@ -845,14 +864,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 
-    fn touch_state(
-        &self,
-        parent: &P,
-        connection: &Connection,
-    ) -> DatabaseResult<Option<Arc<ModelState>>> {
-        if !self.touch_parent || P::metadata().updated_at.is_none() {
-            return Ok(None);
-        }
+    fn touch_state(&self, parent: &P, connection: &Connection) -> DatabaseResult<Arc<ModelState>> {
         if !parent.state().exists() {
             return Err(DatabaseError::InvalidQuery(
                 "pivot parent touch requires a persisted model",
@@ -871,7 +883,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 "pivot parent touch requires one connection",
             ));
         }
-        Ok(Some(Arc::new(parent.state().clone())))
+        Ok(Arc::new(parent.state().clone()))
     }
 
     fn owner<'a>(&self, parent: &'a P) -> DatabaseResult<&'a Value> {
@@ -1159,12 +1171,53 @@ fn key_map(keys: impl IntoIterator<Item = Value>) -> DatabaseResult<IndexMap<Vec
         .collect()
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct PivotKeys {
     table: &'static str,
     foreign: &'static str,
     related: &'static str,
     morph: Option<(&'static str, &'static str)>,
+}
+
+pub(in crate::database::eloquent) struct PivotTouchIdentity<'a> {
+    related_type: TypeId,
+    pivot: PivotKeys,
+    parent_key: &'static str,
+    related_key: &'static str,
+    constraints: &'a PivotConstraints,
+}
+
+impl PivotTouchIdentity<'_> {
+    fn inverse<P: Model>(&self) -> Self {
+        Self {
+            related_type: TypeId::of::<P>(),
+            pivot: PivotKeys {
+                foreign: self.pivot.related,
+                related: self.pivot.foreign,
+                ..self.pivot
+            },
+            parent_key: self.related_key,
+            related_key: self.parent_key,
+            constraints: self.constraints,
+        }
+    }
+
+    pub(in crate::database::eloquent) fn matches(
+        &self,
+        other: &Self,
+        connection: &Connection,
+    ) -> DatabaseResult<bool> {
+        if self.related_type != other.related_type
+            || self.pivot != other.pivot
+            || self.parent_key != other.parent_key
+            || self.related_key != other.related_key
+        {
+            return Ok(false);
+        }
+        let left = self.constraints.apply(connection.table(self.pivot.table));
+        let right = other.constraints.apply(connection.table(other.pivot.table));
+        Ok(left.toSql()? == right.toSql()? && left.getBindings()? == right.getBindings()?)
+    }
 }
 
 impl PivotKeys {

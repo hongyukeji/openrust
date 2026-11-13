@@ -4,10 +4,17 @@ use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, V
 
 use super::{
     Attributes, Model,
-    relations::{BelongsTo, BelongsToMany, MorphTo, MorphToMany, relation::dictionary_key},
+    relations::{
+        BelongsTo, BelongsToMany, MorphTo, MorphToMany, PivotTouchIdentity,
+        relation::dictionary_key,
+    },
 };
 
 trait Touch<M: Model>: Send + Sync {
+    fn pivot_identity(&self) -> Option<PivotTouchIdentity<'_>> {
+        None
+    }
+
     fn touch<'a>(
         &'a self,
         model: &'a M,
@@ -42,6 +49,10 @@ impl<M: Model> Touch<M> for MorphTo<M> {
 }
 
 impl<M: Model, R: Model> Touch<M> for BelongsToMany<M, R> {
+    fn pivot_identity(&self) -> Option<PivotTouchIdentity<'_>> {
+        Some(self.touch_identity())
+    }
+
     fn touch<'a>(
         &'a self,
         model: &'a M,
@@ -92,6 +103,21 @@ impl<M: Model> Touches<M> {
     #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
     pub fn morphToMany<R: Model>(self, relation: MorphToMany<M, R>) -> Self {
         self.belongsToMany(relation.into_inner())
+    }
+
+    pub(super) fn contains_pivot(
+        &self,
+        identity: &PivotTouchIdentity<'_>,
+        connection: &Connection,
+    ) -> DatabaseResult<bool> {
+        for touch in &self.0 {
+            if let Some(declared) = touch.pivot_identity()
+                && declared.matches(identity, connection)?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub(super) fn is_empty(&self) -> bool {
