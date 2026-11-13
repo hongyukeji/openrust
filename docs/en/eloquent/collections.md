@@ -37,6 +37,18 @@ pub fn required_models<'a, M: Model>(
 }
 ```
 
+### Matching Models and Predicates
+
+`findModel` and `findModelOrFail` look up the supplied model’s primary key. Use `containsModel` or `doesntContainModel` to check identity by exact key value and type, table, and connection name. `Model::is` and `Model::isNot` use the same identity rule. For a predicate, call `containsWhere` or `doesntContainWhere` with a closure receiving the model and its zero-based index.
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn has_model_in_prefix<M: Model>(models: &Collection<M>, candidate: &M) -> bool {
+    models.containsWhere(|model, index| index < 3 && model.is(candidate))
+}
+```
+
 ### Working with Model Keys
 
 `merge` and `unique` retain the last model for each key at its first position. `diff` and `intersect` compare model keys and preserve the source collection order. Use `toQuery` to build a query for the selected keys on their original connection. The collection must be nonempty and all models must use the same connection.

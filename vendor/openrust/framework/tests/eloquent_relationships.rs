@@ -1864,6 +1864,44 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
             vec![1.into(), 3.into()]
         );
         assert!(authors.findManyOrFail(&[]).unwrap().is_empty());
+        let reloaded = ordered().findOrFail(2).await.unwrap();
+        assert!(authors[1].is(&reloaded));
+        assert!(authors.containsModel(&reloaded));
+        let mut same_table = StrictAuthor::queryOn(db).make(Attributes::new()).unwrap();
+        same_table.setAttribute("id", reloaded.getKey().unwrap().clone());
+        assert!(authors.containsModel(&same_table));
+        same_table.setAttribute("id", "2");
+        assert!(authors.doesntContainModel(&same_table));
+        assert!(std::ptr::eq(
+            authors.findModelOrFail(&reloaded).unwrap(),
+            &authors[1]
+        ));
+        let mut post = Post::queryOn(db).make(Attributes::new()).unwrap();
+        post.setAttribute("id", reloaded.getKey().unwrap().clone());
+        assert!(authors[1].isNot(&post));
+        assert!(authors.doesntContainModel(&post));
+        assert!(std::ptr::eq(
+            authors.findModel(&post).unwrap().unwrap(),
+            &authors[1]
+        ));
+        post.setAttribute("id", 20);
+        assert!(matches!(
+            authors.findModelOrFail(&post),
+            Err(DatabaseError::ModelNotFound("relation_authors"))
+        ));
+        let mut unbound = Author::newInstance(Attributes::new()).unwrap();
+        unbound.setAttribute("id", reloaded.getKey().unwrap().clone());
+        assert_ne!(unbound.getConnectionName(), reloaded.getConnectionName());
+        assert!(authors.doesntContainModel(&unbound));
+        unbound.setAttribute("id", "2");
+        assert!(authors.findModel(&unbound).unwrap().is_some());
+        let mut visited = Vec::new();
+        assert!(authors.containsWhere(|author, index| {
+            visited.push(index);
+            author.getAttribute("name") == Some(&"Second".into())
+        }));
+        assert_eq!(visited, [0, 1]);
+        assert!(authors.doesntContainWhere(|_, index| index == 20));
         let replacement = || async {
             let mut updated = ordered().findOrFail(1).await.unwrap();
             updated.setAttribute("name", "Replacement");

@@ -37,6 +37,18 @@ pub fn required_models<'a, M: Model>(
 }
 ```
 
+### 依模型或述詞查找
+
+`findModel` 和 `findModelOrFail` 取傳入模型的主鍵來查找。用 `containsModel` 或 `doesntContainModel` 比較模型身分，主鍵值和型別、資料表名稱、連線名稱均須相同。`Model::is` 和 `Model::isNot` 使用同一規則。依條件檢查時，用 `containsWhere` 或 `doesntContainWhere`，閉包接收模型和從零開始的索引。
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn has_model_in_prefix<M: Model>(models: &Collection<M>, candidate: &M) -> bool {
+    models.containsWhere(|model, index| index < 3 && model.is(candidate))
+}
+```
+
 ### 依模型主鍵操作
 
 `merge` 和 `unique` 為每個鍵保留最後一個模型，沿用該鍵首次出現的位置。`diff` 和 `intersect` 依模型鍵比較並維持原集合順序。`toQuery` 使用原連線為選中的鍵建立查詢，集合須有模型且都使用同一個連線。

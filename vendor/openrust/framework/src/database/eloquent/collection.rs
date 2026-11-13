@@ -269,6 +269,39 @@ impl<M: Model> Collection<M> {
         Ok(!self.contains(key)?)
     }
 
+    /// Checks model identity using the key, table, and connection name.
+    pub fn containsModel(&self, model: &impl Model) -> bool {
+        self.iter().any(|candidate| candidate.is(model))
+    }
+
+    pub fn doesntContainModel(&self, model: &impl Model) -> bool {
+        !self.containsModel(model)
+    }
+
+    /// Checks whether a model and its collection index satisfy the predicate.
+    pub fn containsWhere(&self, mut predicate: impl FnMut(&M, usize) -> bool) -> bool {
+        self.iter()
+            .enumerate()
+            .any(|(index, model)| predicate(model, index))
+    }
+
+    pub fn doesntContainWhere(&self, predicate: impl FnMut(&M, usize) -> bool) -> bool {
+        !self.containsWhere(predicate)
+    }
+
+    /// Finds a model by the supplied model's primary key.
+    pub fn findModel(&self, model: &impl Model) -> DatabaseResult<Option<&M>> {
+        match model.getKey() {
+            Some(key) => self.find(key),
+            None => Ok(None),
+        }
+    }
+
+    pub fn findModelOrFail(&self, model: &impl Model) -> DatabaseResult<&M> {
+        self.findModel(model)?
+            .ok_or(DatabaseError::ModelNotFound(M::metadata().table))
+    }
+
     pub fn findOrFail(&self, key: &Value) -> DatabaseResult<&M> {
         self.find(key)?
             .ok_or(DatabaseError::ModelNotFound(M::metadata().table))

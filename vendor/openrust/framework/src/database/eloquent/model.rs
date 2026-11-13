@@ -788,6 +788,17 @@ pub trait Model: Sized + Send + Sync + 'static {
             .or(Self::metadata().connection)
     }
 
+    /// Compares the primary key, table, and connection name of two models.
+    fn is(&self, other: &impl Model) -> bool {
+        self.getKey().unwrap_or(&Value::Null) == other.getKey().unwrap_or(&Value::Null)
+            && self.getTable() == other.getTable()
+            && self.getConnectionName() == other.getConnectionName()
+    }
+
+    fn isNot(&self, other: &impl Model) -> bool {
+        !self.is(other)
+    }
+
     /// Registers or replaces a named relation resolver in this application's container.
     fn resolveRelationUsing<R: Relation<Parent = Self>>(
         app: &crate::foundation::Application,
