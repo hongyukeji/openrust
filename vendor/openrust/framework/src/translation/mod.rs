@@ -69,3 +69,12 @@ impl std::error::Error for TranslationError {
         }
     }
 }
+
+pub(crate) fn language_path(root: &std::path::Path) -> std::path::PathBuf {
+    let legacy = root.join("resources/lang");
+    if legacy.is_dir() {
+        legacy
+    } else {
+        root.join("lang")
+    }
+}

@@ -22,12 +22,7 @@ impl ServiceProvider for TranslationServiceProvider {
         Box::pin(async move {
             let container = app.container();
             let root = app.base_path();
-            let legacy = root.join("resources/lang");
-            let lang = if legacy.is_dir() {
-                legacy
-            } else {
-                root.join("lang")
-            };
+            let lang = super::language_path(root);
             container.singletonNamed("translation.loader", move |_| {
                 Ok(Arc::new(FileLoader::new(lang.clone())))
             })?;

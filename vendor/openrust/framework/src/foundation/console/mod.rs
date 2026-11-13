@@ -8,6 +8,7 @@ mod event_make_command;
 mod install_routes_command;
 mod job_make_command;
 mod key_generate_command;
+mod lang_publish_command;
 mod maintenance_command;
 mod model_make_command;
 mod policy_make_command;
@@ -96,6 +97,7 @@ impl Kernel {
                             policy_make_command::register(&mut self.artisan)?;
                             provider_make_command::register(&mut self.artisan)?;
                             key_generate_command::register(&mut self.artisan)?;
+                            lang_publish_command::register(&mut self.artisan)?;
                             maintenance_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;

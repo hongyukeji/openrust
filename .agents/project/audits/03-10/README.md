@@ -17,3 +17,9 @@
 - 文档站构建成功，根路径与子路径通过 12 项通用浏览器检查与 6 项国际化正文专项检查。
 
 下一批为 04-01 路由参数、分组及诊断，依赖 00-02 和 01-01。
+
+## 发布默认语言目录
+
+对照固定 Laravel `LangPublishCommand` 及四份英文语言资源。将 PHP 数组转为运行时可读取的 JSON，保留上游 MIT 许可证，命令运行无需 PHP。发布与加载共享路径解析，已有 `resources/lang` 时写入该目录，其他应用写入根 `lang/en`。旧版 `v0.x` 有语言文件及加载器，未找到发布命令。 [固定 Laravel 命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/LangPublishCommand.php)
+
+macOS ARM64 使用 Rust 1.94.0 构建真实二进制，在临时应用运行默认发布、重复发布、`--existing`、`--force` 及两个选项同时使用。核对四个 JSON 文件、既有自定义值和缺失文件的处理，验证旧目录可发布。三语文档构建及 12 项浏览器检查通过。
