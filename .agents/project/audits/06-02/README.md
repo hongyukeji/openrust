@@ -13,3 +13,9 @@
 - 参考 Goravel 的编译型服务提供者装配。旧版 `v0.x` 提供显式监听器注册，未找到同类发现条件。本批复用现有应用级 Dispatcher 和注册表。运行时 PHP 文件反射由编译清单替代，生产事件缓存及 Observer 分开跟踪。 [Goravel 事件服务提供者](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/event/service_provider.go)
 - 并行启动生产与测试应用，用真实 HTTP 和 Artisan `event:list --event=order.ready --json` 核对条件命中、跳过及应用隔离。条件错误时启动失败且清单无部分注册。三语正文 Rust 示例编译并运行 Artisan，VitePress 构建和 12 项浏览器检查通过。
 - Rust 1.94.0 格式检查、锁定离线工作区测试（612 项通过，7 项夹具忽略）及全工作区全目标严格 Clippy 通过。实际二进制的 `artisan inspire` 成功退出。六项事件页检查覆盖两种站点前缀及三语导航。
+
+## 生产事件缓存
+
+- 固定 Laravel 的 Provider 启动时读取发现缓存，`event:cache` 重新发现，`event:clear` 删除缓存。OpenRust 将条件结果写入应用根下的 `storage/framework/cache/events.json`。注册函数仍由二进制提供，无条件和手动注册照常运行。固定 Goravel 参考编译型装配，旧版 `v0.x` 只有显式注册，无同类命令可复用。 [Laravel EventCacheCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/EventCacheCommand.php) · [Laravel EventClearCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/EventClearCommand.php) · [Goravel 事件 Provider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/event/service_provider.go)
+- 验收覆盖根应用二进制的三个事件命令。带编译清单的应用在独立进程执行 Artisan，另用真实 HTTP 验证监听器派发。覆盖缓存命中、清除后重新发现、重复清除、损坏和清单变化时回退、两个应用隔离、并发刷新和失败后保留旧文件。刷新以同目录原子替换发布。部署新构建或更改发现配置后应重新生成。
+- Rust 1.94.0 格式、锁定离线工作区测试、事件专项、全目标严格 Clippy 均通过。VitePress 构建、12 项通用与 6 项事件页浏览器检查通过。

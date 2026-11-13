@@ -1,5 +1,6 @@
 use std::{
     net::SocketAddr,
+    process::Command,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -408,6 +409,13 @@ struct ProductionListener;
 
 impl ShouldBeDiscovered for ProductionListener {
     fn shouldBeDiscovered(app: &Application) -> EventResult<bool> {
+        if app
+            .environment(Some("broken".into()))
+            .map(bool::from)
+            .map_err(EventError::Unavailable)?
+        {
+            return Err(EventError::InvalidRegistration);
+        }
         app.environment(Some("production".into()))
             .map(bool::from)
             .map_err(EventError::Unavailable)
@@ -524,4 +532,102 @@ async fn failed_discovery_leaves_the_manifest_unregistered() {
     assert!(app.boot().await.is_err());
     let dispatcher = app.app().container().make::<Dispatcher>().unwrap();
     assert!(!dispatcher.hasListeners("order.ready"));
+}
+
+#[tokio::test]
+#[ignore = "Spawned by the event cache acceptance test"]
+async fn event_cache_artisan_fixture() {
+    let root = std::env::var_os("EVENT_CACHE_TEST_ROOT").unwrap();
+    let app = Application::configure(root.into())
+        .withConfig(|_, _| {
+            let environment = std::env::var("EVENT_CACHE_TEST_ENV").unwrap();
+            Ok([("app".into(), json!({"env": environment}))].into())
+        })
+        .withEvents(discovery_manifest())
+        .create()
+        .unwrap();
+    let arguments = std::env::var("EVENT_CACHE_TEST_COMMAND").unwrap();
+    let arguments: Vec<_> = arguments.split_ascii_whitespace().map(Into::into).collect();
+    assert_eq!(
+        app.handleCommand(&arguments).await.unwrap(),
+        std::env::var("EVENT_CACHE_TEST_EXIT")
+            .unwrap()
+            .parse::<i32>()
+            .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn event_cache_survives_process_restart_and_clears_per_application() {
+    let root = tempfile::tempdir().unwrap();
+    let other = tempfile::tempdir().unwrap();
+    let run = |root: &std::path::Path, environment: &str, command: &str, exit: &str| {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "event_cache_artisan_fixture",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("EVENT_CACHE_TEST_ROOT", root)
+            .env("EVENT_CACHE_TEST_ENV", environment)
+            .env("EVENT_CACHE_TEST_COMMAND", command)
+            .env("EVENT_CACHE_TEST_EXIT", exit)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    let list = "event:list --event=order.ready --json";
+    let cache_path = root.path().join("storage/framework/cache/events.json");
+    assert!(
+        run(root.path(), "production", "event:cache", "0").contains("Events cached successfully.")
+    );
+    let cached = std::fs::read(&cache_path).unwrap();
+    assert!(run(root.path(), "testing", list, "0").contains("ProductionListener"));
+    assert!(run(other.path(), "testing", list, "0").contains("[]"));
+    let app = Application::configure(root.path().to_owned())
+        .withConfig(|_, _| Ok([("app".into(), json!({"env":"testing"}))].into()))
+        .withEvents(discovery_manifest())
+        .withRouting(Routing::new(routing))
+        .create()
+        .unwrap();
+    let (address, server) = start(app).await;
+    assert_eq!(
+        request(address, "/isolated").await,
+        json!(["production:isolated"])
+    );
+    server.abort();
+
+    run(root.path(), "broken", "event:cache", "1");
+    assert_eq!(std::fs::read(&cache_path).unwrap(), cached);
+    assert!(
+        run(root.path(), "testing", "event:clear", "0")
+            .contains("Cached events cleared successfully.")
+    );
+    assert!(!cache_path.exists());
+    assert!(run(root.path(), "testing", list, "0").contains("[]"));
+    run(root.path(), "testing", "event:cache", "0");
+    assert!(run(root.path(), "production", list, "0").contains("[]"));
+    std::fs::write(
+        &cache_path,
+        br#"{"version":1,"decisions":[["old-listener",false]]}"#,
+    )
+    .unwrap();
+    assert!(run(root.path(), "production", list, "0").contains("ProductionListener"));
+    std::thread::scope(|scope| {
+        scope.spawn(|| run(root.path(), "production", "event:cache", "0"));
+        scope.spawn(|| run(root.path(), "testing", "event:cache", "0"));
+    });
+    let snapshot: Json = serde_json::from_slice(&std::fs::read(&cache_path).unwrap()).unwrap();
+    assert_eq!(snapshot["decisions"].as_array().unwrap().len(), 1);
+    std::fs::write(&cache_path, b"{corrupt").unwrap();
+    assert!(run(root.path(), "production", list, "0").contains("ProductionListener"));
+    run(root.path(), "testing", "event:clear", "0");
+    run(root.path(), "testing", "event:clear", "0");
 }

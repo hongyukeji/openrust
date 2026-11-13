@@ -82,6 +82,10 @@ fn discover_events() -> DiscoverEvents {
 }
 ```
 
+### 正式環境的事件探索 {#event-discovery-in-production}
+
+在部署環境執行 `./artisan event:cache`，快取編譯清單中的探索結果。新程序讀取這些結果，並執行對應的編譯註冊函式。手動監聽器與無條件註冊照常執行。快取位於 `storage/framework/cache/events.json`。部署新版或修改探索設定後重新產生。執行 `./artisan event:clear` 後，下次啟動重新計算探索條件。快取損毀或監聽器清單不符時也會重新探索。
+
 ## 派送事件
 
 呼叫 `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?`，也可派送實作 `contracts::events::Event` 的型別。精確比對的監聽器依註冊順序執行，接著執行符合的萬用字元群組。`ListenerResponse::Stop` 停止傳播，`Event::until` 傳回第一個監聽回應。

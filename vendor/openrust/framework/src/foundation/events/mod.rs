@@ -1,6 +1,7 @@
 //! Discovery of application event handlers.
 
 mod discover_events;
+pub(super) mod event_cache;
 
 pub use discover_events::DiscoverEvents;
 

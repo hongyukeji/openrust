@@ -82,6 +82,10 @@ fn discover_events() -> DiscoverEvents {
 }
 ```
 
+### Event discovery in production {#event-discovery-in-production}
+
+Run `./artisan event:cache` in the deployment environment to cache the compiled manifest’s discovery decisions. A new process uses those decisions and runs the selected compiled registrars. Manual listeners and unconditional registrations run as usual. The cache lives at `storage/framework/cache/events.json`. Refresh it after deploying a new build or changing discovery configuration. Run `./artisan event:clear` to resume live discovery on the next boot. A malformed cache or a mismatched listener list falls back to live discovery.
+
 ## Dispatching events
 
 Call `Event::dispatch(NamedEvent::new("orders.created", 42_u64)).await?` or dispatch a type that implements `contracts::events::Event`. Exact registrations run in registration order, followed by matching wildcard groups. `ListenerResponse::Stop` stops propagation. `Event::until` returns the first listener response.

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     contracts::{container::Container as _, foundation::Application as _},
     events::{Dispatcher, EventFuture},
@@ -7,12 +9,14 @@ use crate::{
 
 /// Registers the application's compiled listener declarations.
 pub struct EventServiceProvider {
-    discovery: DiscoverEvents,
+    discovery: Arc<DiscoverEvents>,
 }
 
 impl EventServiceProvider {
     pub fn new(discovery: DiscoverEvents) -> Self {
-        Self { discovery }
+        Self {
+            discovery: Arc::new(discovery),
+        }
     }
 }
 
@@ -20,7 +24,9 @@ impl ServiceProvider for EventServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> EventFuture<'a, ProviderResult> {
         Box::pin(async move {
             let events = app.container().make::<Dispatcher>()?;
-            events.register(|registry| self.discovery.register(app, registry))?;
+            let decisions = self.discovery.load(app)?;
+            events.register(|registry| self.discovery.register(&decisions, registry))?;
+            app.container().instance(self.discovery.clone())?;
             Ok(())
         })
     }
