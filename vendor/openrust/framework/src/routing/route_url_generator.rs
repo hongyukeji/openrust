@@ -91,7 +91,9 @@ impl RouteUrlGenerator {
             let (key, optional) = placeholder
                 .strip_suffix('?')
                 .map_or((placeholder, false), |key| (key, true));
-            let key = key.split_once(':').map_or(key, |(key, _)| key);
+            let (key, field) = key
+                .split_once(':')
+                .map_or((key, None), |(key, field)| (key, Some(field)));
             let named = parameters.iter().position(|parameter| {
                 matches!(parameter, RouteParameter::Named(name, value) if name == key && !value.empty())
             });
@@ -112,6 +114,11 @@ impl RouteUrlGenerator {
                 Some(value)
             } else {
                 None
+            };
+            let value = match (&value, field) {
+                (Some(UrlValue::Model { attributes, .. }), Some(field)) => attributes.get(field),
+                (Some(UrlValue::Model { key, .. }), None) => Some(key.as_ref()),
+                _ => value.as_ref(),
             };
             if let Some(value) = value.filter(|value| !value.empty()) {
                 let value = value.scalar().ok_or(UrlError::InvalidParameter)?;

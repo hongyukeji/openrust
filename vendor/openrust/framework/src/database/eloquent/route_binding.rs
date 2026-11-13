@@ -2,7 +2,7 @@ use crate::{
     contracts::routing::UrlRoutable,
     database::{DatabaseError, DatabaseResult, Value, connection::Pool},
     http::{HttpError, HttpFuture},
-    routing::BindingContext,
+    routing::{BindingContext, UrlValue},
 };
 
 use super::{Builder, Model};
@@ -20,6 +20,24 @@ impl<M: Model> UrlRoutable for M {
             _ => return None,
         };
         Some(key)
+    }
+
+    fn route_url_attributes(&self) -> std::collections::HashMap<String, UrlValue> {
+        self.state()
+            .getAttributes()
+            .iter()
+            .filter_map(|(name, value)| {
+                let value = match value {
+                    Value::Integer(value) => UrlValue::Number((*value).into()),
+                    Value::Unsigned(value) => UrlValue::Number((*value).into()),
+                    Value::Text(value) => UrlValue::String(value.clone()),
+                    Value::Bool(value) => UrlValue::Bool(*value),
+                    Value::Real(value) => UrlValue::Number(serde_json::Number::from_f64(*value)?),
+                    _ => return None,
+                };
+                Some((name.clone(), value))
+            })
+            .collect()
     }
 
     fn resolve_route_binding(

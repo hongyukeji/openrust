@@ -2,7 +2,9 @@
 
 ## 命名路由 URL
 
-透過 `URL::route` 傳入路由名稱與有序參數。傳 `true` 取得絕對 URL，傳 `false` 取得路徑。`RouteParameter` 支援具名參數和位置參數。替換路由預留位置後剩餘的參數會加入查詢字串。可使用 `RouteParameter::model` 傳入 Eloquent 路由鍵。
+透過 `URL::route` 傳入路由名稱與有序參數。傳 `true` 取得絕對 URL，傳 `false` 取得路徑。`RouteParameter` 支援具名參數和位置參數。替換路由預留位置後剩餘的參數會加入查詢字串。
+
+使用 `RouteParameter::model("article", &article)?` 或 `RouteParameter::positional_model(&article)?` 傳入 Eloquent 模型。遇到 `{article:slug}` 時，產生 URL 會讀取已載入的 `slug` 屬性。一般預留位置使用模型預設路由鍵。必填綁定欄位未載入時，回傳缺少參數錯誤。
 
 ```rust
 use openrust::{

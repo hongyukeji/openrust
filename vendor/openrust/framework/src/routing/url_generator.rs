@@ -43,13 +43,34 @@ pub enum RouteParameter {
 }
 
 /// The scalar and nested values accepted by the URL encoder.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum UrlValue {
     Null,
     Bool(bool),
     Number(serde_json::Number),
     String(String),
     Array(RouteParameters),
+    #[doc(hidden)]
+    Model {
+        key: Box<UrlValue>,
+        attributes: Arc<HashMap<String, UrlValue>>,
+    },
+}
+
+impl fmt::Debug for UrlValue {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Null => formatter.write_str("Null"),
+            Self::Bool(value) => formatter.debug_tuple("Bool").field(value).finish(),
+            Self::Number(value) => formatter.debug_tuple("Number").field(value).finish(),
+            Self::String(value) => formatter.debug_tuple("String").field(value).finish(),
+            Self::Array(value) => formatter.debug_tuple("Array").field(value).finish(),
+            Self::Model { key, .. } => formatter
+                .debug_struct("Model")
+                .field("key", key)
+                .finish_non_exhaustive(),
+        }
+    }
 }
 
 /// Selects whether a signature includes the origin.
@@ -126,6 +147,7 @@ impl UrlValue {
     pub(super) fn scalar(&self) -> Option<String> {
         match self {
             Self::Null | Self::Array(_) => None,
+            Self::Model { key, .. } => key.scalar(),
             Self::Bool(value) => Some(u8::from(*value).to_string()),
             Self::Number(value) => Some(value.to_string()),
             Self::String(value) => Some(value.clone()),
@@ -150,8 +172,25 @@ impl RouteParameter {
         name: impl Into<String>,
         model: &impl crate::contracts::routing::UrlRoutable,
     ) -> UrlResult<Self> {
-        let key = model.get_route_key().ok_or(UrlError::MissingParameter)?;
-        Ok(Self::named(name, key))
+        Ok(Self::named(name, Self::model_value(model)?))
+    }
+
+    pub fn positional_model(
+        model: &impl crate::contracts::routing::UrlRoutable,
+    ) -> UrlResult<Self> {
+        Ok(Self::Positional(Self::model_value(model)?))
+    }
+
+    fn model_value(model: &impl crate::contracts::routing::UrlRoutable) -> UrlResult<UrlValue> {
+        let key = model.get_route_key();
+        let attributes = model.route_url_attributes();
+        if key.is_none() && attributes.is_empty() {
+            return Err(UrlError::MissingParameter);
+        }
+        Ok(UrlValue::Model {
+            key: Box::new(key.unwrap_or(UrlValue::Null)),
+            attributes: Arc::new(attributes),
+        })
     }
 
     fn name(&self) -> Option<&str> {

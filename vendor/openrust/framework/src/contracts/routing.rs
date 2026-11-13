@@ -50,6 +50,11 @@ pub trait UrlRoutable: Sized + Send + Sync + 'static {
         None
     }
 
+    /// Snapshots the scalar attributes available for custom route binding columns.
+    fn route_url_attributes(&self) -> std::collections::HashMap<String, crate::routing::UrlValue> {
+        Default::default()
+    }
+
     fn resolve_route_binding(
         binding: BindingContext<'_>,
     ) -> HttpFuture<'_, Result<Option<Self>, HttpError>>;

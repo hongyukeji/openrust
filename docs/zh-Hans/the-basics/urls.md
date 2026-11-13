@@ -2,7 +2,9 @@
 
 ## 命名路由 URL
 
-通过 `URL::route` 传入路由名称与有序参数。传 `true` 返回绝对 URL，传 `false` 返回路径。`RouteParameter` 支持命名参数和位置参数。替换路由占位符后剩余的参数会进入查询串。可用 `RouteParameter::model` 传入 Eloquent 路由键。
+通过 `URL::route` 传入路由名称与有序参数。传 `true` 返回绝对 URL，传 `false` 返回路径。`RouteParameter` 支持命名参数和位置参数。替换路由占位符后剩余的参数会进入查询串。
+
+用 `RouteParameter::model("article", &article)?` 或 `RouteParameter::positional_model(&article)?` 传入 Eloquent 模型。遇到 `{article:slug}` 时，生成 URL 会读取已加载的 `slug` 属性。普通占位符使用模型默认路由键。必填绑定列未加载时，返回缺少参数错误。
 
 ```rust
 use openrust::{

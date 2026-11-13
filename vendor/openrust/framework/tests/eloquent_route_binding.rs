@@ -14,8 +14,8 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Next, Request, Response, StatusCode},
-    routing::{BindingContext, RoutingError},
-    support::facades::Route,
+    routing::{BindingContext, RouteParameter, RoutingError, SignatureMode, UrlError},
+    support::facades::{Route, URL},
 };
 use serde_json::{Value, json};
 use tokio::{
@@ -107,7 +107,22 @@ fn lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let Some(DbValue::Text(slug)) = post.getRouteKey() else {
             return Err(HttpError::InvalidRequest);
         };
-        Response::json(StatusCode::OK, json!({"slug":slug}))
+        let named = RouteParameter::model("post", post)?;
+        let positional = RouteParameter::positional_model(post)?;
+        assert!(matches!(
+            URL::route("missing-column", std::slice::from_ref(&named), false),
+            Err(UrlError::MissingParameter)
+        ));
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "slug": slug,
+                "by_id": URL::route("post-id", std::slice::from_ref(&named), false)?,
+            "signed": URL::signedRoute("post-signed", &[named], None, SignatureMode::Relative)?,
+                "by_slug": URL::route("post-slug", std::slice::from_ref(&positional), false)?,
+                "action": URL::action("PostController@byId", &[positional], false)?,
+            }),
+        )
     })
 }
 
@@ -138,7 +153,21 @@ fn api() -> Result<(), RoutingError> {
         Ok(())
     })?;
     Route::getWith("/id/{post:id}", lookup, |route| {
-        route.model::<Post>("post")?;
+        route
+            .model::<Post>("post")?
+            .name("post-id")
+            .setAction("PostController@byId")?;
+        Ok(())
+    })?;
+    Route::getWith("/signed/{post:id}", lookup, |route| {
+        route
+            .model::<Post>("post")?
+            .name("post-signed")
+            .middleware_name("signed:relative");
+        Ok(())
+    })?;
+    Route::getWith("/missing-column/{post:unknown}", lookup, |route| {
+        route.name("missing-column");
         Ok(())
     })?;
     Route::getWith("/trashed/{post}", lookup, |route| {
@@ -156,7 +185,10 @@ fn web() -> Result<(), RoutingError> {
     Route::bind("alias", |binding| {
         Box::pin(async move { Ok(Some(binding.value().to_uppercase())) })
     })?;
-    Route::get("/posts/{explicit}", lookup)?;
+    Route::getWith("/posts/{explicit}", lookup, |route| {
+        route.name("post-slug");
+        Ok(())
+    })?;
     Route::get("/alias/{alias}", alias)?;
     Ok(())
 }
@@ -190,6 +222,7 @@ async fn request(address: SocketAddr, path: &str, status: u16) -> String {
 
 async fn verify(config: Value) {
     let mut app = Application::configure(std::env::temp_dir())
+        .withConfig(|_, _| Ok([("app".into(), json!({"key":"a".repeat(32)}))].into()))
         .withRouting(Routing::default().api(api).web(web))
         .create()
         .unwrap();
@@ -243,6 +276,22 @@ async fn verify(config: Value) {
             slug
         );
     }
+    let generated: Value =
+        serde_json::from_str(&request(address, "/posts/first", 200).await).unwrap();
+    assert_eq!(generated["by_id"], "/api/id/1");
+    assert_eq!(generated["action"], generated["by_id"]);
+    assert_eq!(generated["by_slug"], "/posts/first");
+    request(address, generated["by_id"].as_str().unwrap(), 200).await;
+    request(address, "/api/id/first", 404).await;
+    let signed = generated["signed"].as_str().unwrap();
+    assert!(signed.starts_with("/api/signed/1?signature="));
+    request(address, signed, 200).await;
+    request(
+        address,
+        &signed.replacen("/signed/1?", "/signed/2?", 1),
+        403,
+    )
+    .await;
     for path in [
         "/posts/deleted",
         "/api/id/1x",

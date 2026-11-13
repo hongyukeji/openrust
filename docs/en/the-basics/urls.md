@@ -2,7 +2,9 @@
 
 ## Named route URLs
 
-Use `URL::route` with a route name and ordered parameters. Pass `true` for an absolute URL or `false` for a path. A `RouteParameter` can be named or positional. Parameters left after substituting the route pattern become the query string. Use `RouteParameter::model` to pass an Eloquent route key.
+Use `URL::route` with a route name and ordered parameters. Pass `true` for an absolute URL or `false` for a path. A `RouteParameter` can be named or positional. Parameters left after substituting the route pattern become the query string.
+
+Use `RouteParameter::model("article", &article)?` or `RouteParameter::positional_model(&article)?` to pass an Eloquent model. For a placeholder such as `{article:slug}`, URL generation reads the loaded `slug` attribute. Without a binding column, it uses the model’s route key. A required binding column that is absent from the loaded model produces a missing parameter error.
 
 ```rust
 use openrust::{
