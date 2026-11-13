@@ -358,6 +358,8 @@ pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseRes
 
 在集合上调用 `withRelationshipAutoloading` 后，通过异步 `getRelationOrLoad` 读取模型的类型化关系。首次访问尚未加载的关系时，框架对当前集合执行批量加载。后续访问复用已加载的值，包括空结果。可让模型的 `Model::automaticallyEagerLoadRelationships` 返回 `true` 来默认启用。
 
+通过 `modelAt(index)` 从集合借用模型，再在模型上调用 `getRelationOrLoad`。索引越界返回 `None`。异步加载期间持有集合的可变借用，借用结束后可从同一集合的其他模型读取已加载的值。移出集合的模型遵循单模型加载策略。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
@@ -373,7 +375,9 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
     let posts = HasMany::<Author, Post>::new("id", "author_id");
     let mut counts = Vec::with_capacity(authors.len());
     for index in 0..authors.len() {
-        counts.push(authors.getRelationOrLoad(index, "posts", &posts).await?.len());
+        if let Some(mut author) = authors.modelAt(index) {
+            counts.push(author.getRelationOrLoad("posts", &posts).await?.len());
+        }
     }
     Ok(counts)
 }

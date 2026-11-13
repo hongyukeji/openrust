@@ -286,3 +286,9 @@ SQLite 和独立 MySQL 8.4.13 验证两个已存储别名、忽略未出现别�
 对照固定 Laravel 的 `Collection::loadMissingRelation`、`loadMissingRelationshipChain` 及自动加载集成测试。模型和集合通过 `loadMissingPaths` 复用已登记路径，按层批量补齐缺失结果，多态段按别名和目标类型处理。Rust 的共享模型使用 `Arc`，已加载关系上的新后代安装到当前关系图的快照。之前取出的引用仍读取原快照。参考固定 Goravel 的连接级查询装配，复核 `v0.x` 未找到同类路径补齐实现。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L263) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证普通三级路径、重用已加载的父级、模型和集合入口、多态目标分组、序列化和重复调用。MySQL 普通链只发出 1 次缺失后代查询，多态链为两个目标类型各发出 1 次。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、文档调用编译、三语构建及 18 项浏览器检查通过。提交前周额度剩余 89%，项目卷可用 60 GiB，核心账本 25/66。
+
+## 从集合借用单模型触发自动预加载
+
+对照固定 Laravel 的 `withRelationshipAutoloading`、`attemptToAutoloadRelation` 和自动预加载集成测试。OpenRust 的 `Collection::modelAt` 在一次异步访问中可变借用所属集合，并通过 `getRelationOrLoad` 批量补齐当前集合的缺失关系。借用结束后，同集合中的其他模型可读取已加载的关系。移出集合的模型遵循单模型加载策略。后代链使用 `relatedModels` 或 `loadMissingPaths`。PHP 的对象回调可沿后代传播并在模型脱离集合后继续引用根集合，这两个行为仍单独跟踪。参考固定 Goravel 的连接级 ORM 装配，复核 `v0.x` 未发现关系自动加载回调。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#automatic-eager-loading) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测集合借用、索引越界、SQL 失败后重试、空值复用、默认关闭及集合隔离。MySQL 首次访问缺失关系只发出 1 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、三语示例编译、隔离站点构建和 18 项浏览器检查通过。提交前周额度剩余 89%，项目卷可用 60 GiB。核心账本 25/66。

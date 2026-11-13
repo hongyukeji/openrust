@@ -20,6 +20,34 @@ pub struct Collection<M: Model> {
     autoload: bool,
 }
 
+/// A model borrowed from its collection for relationship access.
+pub struct CollectionModel<'a, M: Model> {
+    collection: &'a mut Collection<M>,
+    index: usize,
+}
+
+impl<M: Model> Deref for CollectionModel<'_, M> {
+    type Target = M;
+
+    fn deref(&self) -> &M {
+        &self.collection.models[self.index]
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+impl<M: Model> CollectionModel<'_, M> {
+    /// Reads a relationship using the owning collection's autoload policy.
+    pub async fn getRelationOrLoad<R: Relation<Parent = M>>(
+        &mut self,
+        name: &str,
+        relation: &R,
+    ) -> DatabaseResult<&R::Output> {
+        self.collection
+            .getRelationOrLoad(self.index, name, relation)
+            .await
+    }
+}
+
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent Collection API")]
 impl<M: Model> Collection<M> {
     pub fn new(models: Vec<M>) -> Self {
@@ -34,6 +62,14 @@ impl<M: Model> Collection<M> {
     pub fn withRelationshipAutoloading(mut self) -> Self {
         self.autoload = true;
         self
+    }
+
+    /// Borrows a model with access to its collection for batch relationship loading.
+    pub fn modelAt(&mut self, index: usize) -> Option<CollectionModel<'_, M>> {
+        (index < self.models.len()).then_some(CollectionModel {
+            collection: self,
+            index,
+        })
     }
 
     /// Reads one model's relationship, loading the missing values on first access.

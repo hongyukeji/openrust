@@ -1284,13 +1284,25 @@ fn verify_relation_autoload(
             query.r#where("relation_posts.unknown_relation_column", "=", "error");
             query
         });
-        assert!(group.getRelationOrLoad(1, "posts", &broken).await.is_err());
+        assert!(group.modelAt(20).is_none());
+        assert!(
+            group
+                .modelAt(1)
+                .unwrap()
+                .getRelationOrLoad("posts", &broken)
+                .await
+                .is_err()
+        );
         assert!(group[0].relationLoaded("posts"));
         assert!(!group[1].relationLoaded("posts"));
         assert!(!group[2].relationLoaded("posts"));
 
         let baseline = if mysql { select_count(db).await } else { 0 };
-        group.getRelationOrLoad(1, "posts", &POSTS).await.unwrap();
+        {
+            let mut author = group.modelAt(1).unwrap();
+            assert_eq!(author.getKey(), Some(&2.into()));
+            author.getRelationOrLoad("posts", &POSTS).await.unwrap();
+        }
         assert!(
             group
                 .getRelationOrLoad(2, "posts", &POSTS)
@@ -1313,7 +1325,12 @@ fn verify_relation_autoload(
 
         let mut other = ordered().get().await.unwrap();
         assert!(other.iter().all(|author| !author.relationLoaded("posts")));
-        other.getRelationOrLoad(2, "posts", &POSTS).await.unwrap();
+        other
+            .modelAt(2)
+            .unwrap()
+            .getRelationOrLoad("posts", &POSTS)
+            .await
+            .unwrap();
         assert!(!other[0].relationLoaded("posts"));
         let mut single = ordered().findOrFail(3).await.unwrap();
         assert!(

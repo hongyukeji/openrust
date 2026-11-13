@@ -358,6 +358,8 @@ pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseRes
 
 Call `withRelationshipAutoloading` on a collection, then await `getRelationOrLoad` to access a model's typed relationship. The first missing access batches the load across that collection. Previously loaded values, including empty results, are reused. Enable it by default for a model by returning `true` from `Model::automaticallyEagerLoadRelationships`.
 
+Use `modelAt(index)` to borrow a model from its collection and call `getRelationOrLoad` on that model. An invalid index returns `None`. The mutable borrow keeps the current collection available across the async call, so loaded values are visible on its siblings after the borrow ends. A model moved out of the collection uses the standalone loading policy.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
@@ -373,7 +375,9 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
     let posts = HasMany::<Author, Post>::new("id", "author_id");
     let mut counts = Vec::with_capacity(authors.len());
     for index in 0..authors.len() {
-        counts.push(authors.getRelationOrLoad(index, "posts", &posts).await?.len());
+        if let Some(mut author) = authors.modelAt(index) {
+            counts.push(author.getRelationOrLoad("posts", &posts).await?.len());
+        }
     }
     Ok(counts)
 }
