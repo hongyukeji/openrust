@@ -1,7 +1,7 @@
 use std::{
     any::Any,
     collections::{HashMap, HashSet},
-    sync::Arc,
+    sync::{Arc, OnceLock},
 };
 
 use indexmap::IndexMap;
@@ -18,17 +18,22 @@ use super::{
 #[derive(Clone)]
 pub(super) struct DetachedAutoload {
     batch: Arc<dyn Any + Send + Sync>,
+    published: Arc<OnceLock<Box<PublishedRelation>>>,
+    snapshot: Arc<ModelState>,
     index: usize,
     invalidated: HashSet<String>,
 }
 
 struct Batch<M> {
-    state: Mutex<BatchState<M>>,
+    peers: Mutex<Vec<M>>,
 }
 
-struct BatchState<M> {
-    peers: Vec<M>,
-    propagated: HashMap<String, Vec<LoadedRelations>>,
+// Immutable entries keep borrowed relationship values valid while another model
+// publishes a different relationship. The batch mutex serializes publication.
+struct PublishedRelation {
+    name: String,
+    values: Vec<LoadedRelations>,
+    next: OnceLock<Box<PublishedRelation>>,
 }
 
 pub(super) fn attach<M: Model>(models: &mut [M]) {
@@ -47,20 +52,21 @@ pub(super) fn attach<M: Model>(models: &mut [M]) {
             M::from_state(state)
         })
         .collect();
+    let published = Arc::new(OnceLock::new());
     let batch = Arc::new(Batch {
-        state: Mutex::new(BatchState {
-            peers,
-            propagated: HashMap::new(),
-        }),
+        peers: Mutex::new(peers),
     });
     for (index, model) in models.iter_mut().enumerate() {
-        model.state_mut().detached_autoload.get_or_insert_with(|| {
-            Box::new(DetachedAutoload {
+        if model.state().detached_autoload.is_none() {
+            let snapshot = Arc::new(model.state().clone());
+            model.state_mut().detached_autoload = Some(Box::new(DetachedAutoload {
                 batch: batch.clone(),
+                published: published.clone(),
+                snapshot,
                 index,
                 invalidated: HashSet::new(),
-            })
-        });
+            }));
+        }
     }
 }
 
@@ -91,6 +97,43 @@ impl DetachedAutoload {
     pub(super) fn invalidate(&mut self, name: &str) {
         self.invalidated.insert(name.to_owned());
     }
+
+    fn entries(&self) -> impl Iterator<Item = &PublishedRelation> {
+        std::iter::successors(self.published.get().map(Box::as_ref), |entry| {
+            entry.next.get().map(Box::as_ref)
+        })
+    }
+
+    fn can_share(&self, state: &ModelState, name: &str) -> bool {
+        !self.invalidated.contains(name)
+            && same_source(state, &self.snapshot)
+            && (!state.relations.contains(name)
+                || state.relations.same_value(name, &self.snapshot.relations))
+    }
+
+    pub(super) fn value<'a>(
+        &'a self,
+        state: &ModelState,
+        name: &str,
+    ) -> Option<&'a LoadedRelations> {
+        let entry = self.entries().find(|entry| entry.name == name)?;
+        self.can_share(state, name)
+            .then_some(&entry.values[self.index])
+    }
+
+    pub(super) fn project(
+        &self,
+        state: &ModelState,
+        include: impl Fn(&str) -> bool,
+    ) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+        let mut relations = state.relations.clone();
+        for entry in self.entries() {
+            if include(&entry.name) && self.can_share(state, &entry.name) {
+                relations.copy_from(&entry.name, &entry.values[self.index]);
+            }
+        }
+        relations.project(include)
+    }
 }
 
 pub(super) async fn load_on_model_access<M: Model, R: Relation<Parent = M>>(
@@ -112,46 +155,34 @@ pub(super) async fn load_on_model_access<M: Model, R: Relation<Parent = M>>(
             load_on_access(model, name, relation).await
         };
     };
-    let local_value = model.state().relations.only(name);
-    let loaded = {
-        let mut state = batch.state.lock().await;
-        if link.invalidated.contains(name)
-            || (local_value.contains(name)
-                && !local_value.same_value(name, &state.peers[link.index].state().relations)
-                && !state
-                    .propagated
-                    .get(name)
-                    .is_some_and(|original| local_value.same_value(name, &original[link.index])))
-            || !same_source(model.state(), state.peers[link.index].state())
-        {
-            None
-        } else {
-            load(&mut state.peers, name, relation, true).await?;
-            if state.peers[link.index]
-                .getRelation::<R::Output>(name)
-                .is_some()
-                && !state.propagated.contains_key(name)
-            {
-                let original = state
-                    .peers
-                    .iter()
-                    .map(|peer| peer.state().relations.only(name))
-                    .collect();
-                propagate::<M, R>(&mut state.peers, name);
-                state.propagated.insert(name.to_owned(), original);
-            }
-            Some(state.peers[link.index].state().relations.only(name))
-        }
-    };
-    if let Some(loaded) = loaded {
-        let local: &mut LoadedRelations = &mut model.state_mut().relations;
-        local.copy_from(name, &loaded);
-        Ok(())
-    } else {
-        let models = std::slice::from_mut(model);
-        load(models, name, relation, true).await?;
-        Ok(())
+    if !link.can_share(model.state(), name) {
+        return load(std::slice::from_mut(model), name, relation, true).await;
     }
+    let mut peers = batch.peers.lock().await;
+    let mut tail = link.published.as_ref();
+    for entry in link.entries() {
+        if entry.name == name {
+            return Ok(());
+        }
+        tail = &entry.next;
+    }
+    load(&mut peers, name, relation, true).await?;
+    if peers[link.index].getRelation::<R::Output>(name).is_some() {
+        propagate::<M, R>(&mut peers, name);
+        let values = peers
+            .iter()
+            .map(|peer| peer.state().relations.only(name))
+            .collect();
+        assert!(
+            tail.set(Box::new(PublishedRelation {
+                name: name.to_owned(),
+                values,
+                next: OnceLock::new()
+            }))
+            .is_ok()
+        );
+    }
+    Ok(())
 }
 
 fn propagate<M: Model, R: Relation<Parent = M>>(models: &mut [M], name: &str) {

@@ -190,9 +190,11 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn relationsToArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
         let state = self.state();
-        state
-            .relations
-            .project(|name| state.serialization().includes(Self::metadata(), name))
+        let include = |name: &str| state.serialization().includes(Self::metadata(), name);
+        match &state.detached_autoload {
+            Some(link) => link.project(state, include),
+            None => state.relations.project(include),
+        }
     }
 
     fn toArray(&self) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
@@ -865,11 +867,24 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn relationLoaded(&self, name: &str) -> bool {
-        self.state().relations.contains(name)
+        let state = self.state();
+        state.relations.contains(name)
+            || state
+                .detached_autoload
+                .as_ref()
+                .is_some_and(|link| link.value(state, name).is_some())
     }
 
     fn getRelation<T: Send + Sync + 'static>(&self, name: &str) -> Option<&T> {
-        self.state().relations.get(name)
+        let state = self.state();
+        if let Some(shared) = state
+            .detached_autoload
+            .as_ref()
+            .and_then(|link| link.value(state, name))
+        {
+            return shared.get(name);
+        }
+        state.relations.get(name)
     }
 
     /// Reads a relationship, querying once if it has not been loaded.

@@ -280,7 +280,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<Vec<Arc<Post>>>("posts")` 读取已加载文章。单条关系使用 `Option<Arc<T>>`。关系名不存在表示尚未加载。多个父模型引用同一个关联模型时，通过 `Arc` 共享。使用模型或集合的 `load` 延后加载，使用集合的 `loadMissing` 保留已加载结果。
 
-通过 `into_iter` 或 `toBase` 消费已启用自动预加载的集合后，移出的模型共享同批模型快照。首次访问缺失关系时批量查询，各模型在访问时安装自己的结果。显式取消关系加载，或修改模型属性、连接后，下次访问会直接查询该模型。
+通过 `into_iter` 或 `toBase` 消费已启用自动预加载的集合后，移出的模型共享同批模型快照。首次访问缺失关系时批量查询。查询完成后，其他模型可通过 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的结果，无需另行加载。显式取消关系加载，或修改模型属性、连接后，下次访问会直接查询该模型。
 
 ```rust
 use openrust::database::{
@@ -405,7 +405,7 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### 批量加载关系链
 
-从已启用自动预加载的集合移出的模型调用 `getRelationOrLoad` 时，返回的关联模型也能继续批量加载。预先加载的关系同样适用，多态目标按别名分组。需要在借用结束后保留关联模型时，可复制状态来构造独立模型。独立模型共享批次，在访问时安装自己的关系结果。原有 `Arc` 快照保留原值。
+从已启用自动预加载的集合移出的模型调用 `getRelationOrLoad` 时，返回的关联模型也能继续批量加载。预先加载的关系同样适用，多态目标按别名分组。需要在借用结束后保留关联模型时，可复制状态来构造独立模型。独立模型共享批次。新加载的后代关系也可通过已关联的 `Arc` 模型读取，序列化根模型时同样可见。直接修改属性只影响当前拥有的模型。
 
 ```rust
 use openrust::database::{

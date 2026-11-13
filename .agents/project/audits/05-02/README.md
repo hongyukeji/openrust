@@ -352,3 +352,9 @@ SQLite 和独立 MySQL 8.4.13 验证移出集合后仍可加载、SQL 失败可�
 对照固定 Laravel 的关联回调传播和多层多态集成测试。Rust 的 `getRelationOrLoad` 将普通关系输出按实例去重并分配后代批次，多态关系按登记别名分组。已预加载的关系同样在首次访问时建立后代批次。独立模型通过状态快照共享查询，每个模型在访问时安装自己的结果，已持有的 `Arc` 保留原快照。自定义关系可实现输出传播钩子，默认保留原返回行为。PHP 对象的即时共享修改仍单独跟踪。复核 `v0.x` 未找到关联自动加载回调，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 回调传播](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php#L182) · [Laravel 多层测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证普通后代的失败重试及并发复用，以及预先加载的多态目标在移出后的批量加载。MySQL 两组用例分别只执行 1 次后代 SELECT。Rust 1.94 格式、全目标严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。首轮全量遇到 SQLite 队列延迟用例 `LostReservation`，原样复跑 619 次工作区测试全部通过。队列用例的时间窗口仍需单独复核。提交前周额度剩余 88%，项目卷可用 60 GiB。核心账本 25/66。
+
+## 批量关系结果的同步可见性
+
+对照固定 Laravel 集合自动加载测试中其他模型立即报告关系已加载的断言。OpenRust 的移出模型共享只追加的关系结果。首次查询完成后，同批模型的 `relationLoaded`、`getRelation` 和序列化可直接读取结果，嵌套序列化也可读取已发布的后代关系。已借用的返回值由不可变条目持有，写入新关系无需更换已有条目。显式卸载和本地覆盖优先于共享结果，模型属性或连接改变时使用当前模型状态。普通属性写入仍属于各模型的 Rust 值。复核 `v0.x` 未找到对应共享关系缓存，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测首次加载后同批模型同步可见、后代序列化、空结果和本地卸载隔离，现有并发及失败重试回归通过。MySQL 仍为每层 1 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 87%，项目卷可用 60 GiB。核心账本 25/66。

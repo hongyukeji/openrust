@@ -280,7 +280,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 使用 `getRelation::<Vec<Arc<Post>>>("posts")` 讀取已載入文章。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。多個父模型參照同一個關聯模型時，透過 `Arc` 共用。用模型或集合的 `load` 延後載入，使用集合的 `loadMissing` 保留已載入結果。
 
-透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢，各模型在存取時安裝自己的結果。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
+透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢。查詢完成後，其他模型可透過 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的結果，無需另行載入。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
 
 ```rust
 use openrust::database::{
@@ -405,7 +405,7 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### 批次載入關聯鏈
 
-從已啟用自動預載入的集合移出的模型呼叫 `getRelationOrLoad` 時，回傳的關聯模型也能繼續批次載入。預先載入的關聯同樣適用，多型目標依別名分組。需要在借用結束後保留關聯模型時，可複製狀態來建構獨立模型。獨立模型共用批次，在存取時安裝自己的關聯結果。原有 `Arc` 快照保留原值。
+從已啟用自動預載入的集合移出的模型呼叫 `getRelationOrLoad` 時，回傳的關聯模型也能繼續批次載入。預先載入的關聯同樣適用，多型目標依別名分組。需要在借用結束後保留關聯模型時，可複製狀態來建構獨立模型。獨立模型共用批次。新載入的後代關聯也可透過已連結的 `Arc` 模型讀取，序列化根模型時同樣可見。直接修改屬性只影響目前擁有的模型。
 
 ```rust
 use openrust::database::{

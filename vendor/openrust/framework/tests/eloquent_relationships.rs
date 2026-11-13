@@ -1457,12 +1457,13 @@ fn verify_relation_autoload(
         assert!(!first.relationLoaded("posts"));
         let baseline = if mysql { select_count(db).await } else { 0 };
         let posts = POSTS;
-        let (first_posts, second_posts) = tokio::join!(
-            first.getRelationOrLoad("posts", &posts),
-            second.getRelationOrLoad("posts", &posts)
-        );
-        let mut first_post = Post::from_state(first_posts.unwrap()[0].state().clone());
-        let mut second_post = Post::from_state(second_posts.unwrap()[0].state().clone());
+        let first_posts = first.getRelationOrLoad("posts", &posts).await.unwrap();
+        let mut first_post = Post::from_state(first_posts[0].state().clone());
+        assert!(second.relationLoaded("posts"));
+        assert!(second.toArray().unwrap()["posts"].is_array());
+        let second_posts = second.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        let mut second_post = Post::from_state(second_posts[0].state().clone());
+        assert!(empty.relationLoaded("posts"));
         assert!(
             empty
                 .getRelationOrLoad("posts", &posts)
@@ -1492,10 +1493,14 @@ fn verify_relation_autoload(
         );
         left.unwrap();
         right.unwrap();
+        assert!(second.toArray().unwrap()["posts"][0]["comments"].is_array());
         if mysql {
             assert_eq!(select_count(db).await - baseline, 1);
         }
         first.unsetRelation("posts");
+        assert!(!first.relationLoaded("posts"));
+        assert!(!first.toArray().unwrap().contains_key("posts"));
+        assert!(second.relationLoaded("posts"));
         assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
         second.unsetRelation("posts");
         second.setAttribute("id", 3);

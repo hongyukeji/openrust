@@ -280,7 +280,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular relations use `Option<Arc<T>>`. A missing relation name means it has not been loaded. Related models are shared through `Arc` when several parents reference them. Use `load` on a model or collection to load after retrieval, and `loadMissing` on a collection to preserve previously loaded values.
 
-Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together, and each model installs its result when it accesses the relationship. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
+Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together. Once it completes, the other models can read their results through `relationLoaded`, `getRelation`, and JSON serialization without another access or query. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
 
 ```rust
 use openrust::database::{
@@ -405,7 +405,7 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### Loading a Relationship Chain
 
-When an owned model comes from an autoload-enabled collection, `getRelationOrLoad` also prepares the returned models for batched access. This applies to previously eager-loaded relations and to polymorphic targets grouped by alias. To keep a related model beyond the borrow, copy its state into an owned model. The owned model shares the batch, and installs its own relationship result when accessed. Existing `Arc` snapshots keep their original values.
+When an owned model comes from an autoload-enabled collection, `getRelationOrLoad` also prepares the returned models for batched access. This applies to previously eager-loaded relations and to polymorphic targets grouped by alias. To keep a related model beyond the borrow, copy its state into an owned model. The owned model shares the batch. Newly loaded descendant relationships are also visible through the linked `Arc` models, including when serializing the root model. Direct attribute edits remain local to the owned model.
 
 ```rust
 use openrust::database::{
