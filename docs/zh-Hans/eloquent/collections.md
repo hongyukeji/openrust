@@ -150,6 +150,10 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
 
 `zip` 按位置将模型和值配对，返回由元组组成的 Support 集合。较短的一侧用 `None` 补齐。`flatten` 将模型转为使用连续整数键的 Support 集合，模型本身作为叶节点。要合并嵌套集合，可以先将每个模型投影为 Support 集合，再对结果调用 `collapse`。
 
+额外列数在运行时确定时，用 `zipMany` 配对同一元素类型的多列。每行单独保留模型，并为每个额外列保留一个可选值，空列也占一列。
+
+用 `flipBy` 将投影得到的标量键与原集合键交换。返回 `None` 可跳过当前项，投影键重复时保留最后一个原集合键。值类型为 `ArrayKey` 的 Support 集合可直接调用 `flip`。
+
 `pad` 接收带符号的目标长度和用于填充的模型。负数向前填充，正数向后填充。需要填充时，整数键重新编号，字符串键保留。新增模型由传入模型的状态构造。
 
 ```rust
@@ -158,10 +162,10 @@ use openrust::{
     support::Collection as BaseCollection,
 };
 
-pub fn label_by_position<M: Model>(
+pub fn label_with_columns<M: Model>(
     models: Collection<M>,
-    labels: Vec<String>,
-) -> BaseCollection<(Option<M>, Option<String>)> {
-    models.zip(labels)
+    columns: Vec<Vec<String>>,
+) -> BaseCollection<(Option<M>, Vec<Option<String>>)> {
+    models.zipMany(columns)
 }
 ```

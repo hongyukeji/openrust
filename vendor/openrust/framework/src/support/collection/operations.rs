@@ -183,6 +183,27 @@ impl<T> Collection<T> {
         .collect()
     }
 
+    /// Combines any number of additional columns, padding each row with `None`.
+    pub fn zipMany<U, I>(
+        self,
+        columns: impl IntoIterator<Item = I>,
+    ) -> Collection<(Option<T>, Vec<Option<U>>)>
+    where
+        I: IntoIterator<Item = U>,
+    {
+        let mut first = self.items.into_values().fuse();
+        let mut columns: Vec<_> = columns
+            .into_iter()
+            .map(|column| column.into_iter().fuse())
+            .collect();
+        std::iter::from_fn(move || {
+            let first = first.next();
+            let rest: Vec<_> = columns.iter_mut().map(Iterator::next).collect();
+            (first.is_some() || rest.iter().any(Option::is_some)).then_some((first, rest))
+        })
+        .collect()
+    }
+
     /// Pads on the left for negative sizes and on the right for positive sizes.
     pub fn pad(self, size: isize, value: T) -> CollectionResult<Self>
     where
@@ -450,6 +471,13 @@ impl<T> Collection<T> {
     ) -> Self {
         self.items.sort_by(|left, _, right, _| compare(left, right));
         self
+    }
+}
+
+impl Collection<ArrayKey> {
+    /// Exchanges keys and values. The last entry wins for duplicate values.
+    pub fn flip(self) -> Self {
+        Self::fromEntries(self.into_iter().map(|(key, value)| (value, key)))
     }
 }
 

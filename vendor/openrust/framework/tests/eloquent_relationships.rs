@@ -2131,6 +2131,27 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
         );
         let shorter = keyed.fresh().await.unwrap().zip(["a"]);
         assert!(shorter.get(1).unwrap().1.is_none());
+        let columns = keyed
+            .fresh()
+            .await
+            .unwrap()
+            .zipMany([&["a"][..], &["x", "y", "z"], &[]]);
+        assert_eq!(columns.count(), 3);
+        assert_eq!(columns.get(0).unwrap().1, [Some(&"a"), Some(&"x"), None]);
+        assert_eq!(columns.get(1).unwrap().1, [None, Some(&"y"), None]);
+        let (model, values) = columns.get(2).unwrap();
+        assert!(model.is_none());
+        assert_eq!(values, &[None, Some(&"z"), None]);
+        let empty_columns = keyed.fresh().await.unwrap().zipMany::<i32, [i32; 0]>([]);
+        assert_eq!(empty_columns.count(), 2);
+        assert!(empty_columns.get(0).unwrap().1.is_empty());
+
+        let flipped = keyed.flipBy(|author| (author.getKey() == Some(&2.into())).then_some("42"));
+        assert_eq!(flipped.count(), 1);
+        assert_eq!(flipped.get(42), Some(&7.into()));
+        let collision = keyed.flipBy(|_| Some("shared"));
+        assert_eq!(collision.count(), 1);
+        assert_eq!(collision.get("shared"), Some(&7.into()));
         let padding = &keyed[0];
         let no_padding = keyed.fresh().await.unwrap().pad(2, padding).unwrap();
         assert!(no_padding.get(7).is_some());

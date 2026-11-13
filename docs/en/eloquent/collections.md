@@ -150,6 +150,10 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
 
 `zip` pairs models with values by position and returns a Support collection of tuples. The shorter side is filled with `None`. `flatten` returns the models in a Support collection with consecutive integer keys. Eloquent models are leaves. To collapse nested collections, first project each model to a Support collection and call `collapse` on the result.
 
+Use `zipMany` for a runtime number of extra columns of the same item type. Each row keeps the model separately and contains one optional value per extra column, even when a column is empty.
+
+Use `flipBy` to exchange a projected scalar key with its original collection key. Return `None` to skip an item. Repeated projected keys keep the last original key. Call `flip` directly on a Support collection of `ArrayKey` values.
+
 `pad` accepts a signed target length and a model to use for padding. Negative lengths pad the beginning, positive lengths pad the end. When padding is needed, integer keys are renumbered and string keys are preserved. Each added model is constructed from the supplied model state.
 
 ```rust
@@ -158,10 +162,10 @@ use openrust::{
     support::Collection as BaseCollection,
 };
 
-pub fn label_by_position<M: Model>(
+pub fn label_with_columns<M: Model>(
     models: Collection<M>,
-    labels: Vec<String>,
-) -> BaseCollection<(Option<M>, Option<String>)> {
-    models.zip(labels)
+    columns: Vec<Vec<String>>,
+) -> BaseCollection<(Option<M>, Vec<Option<String>>)> {
+    models.zipMany(columns)
 }
 ```

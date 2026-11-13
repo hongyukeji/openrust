@@ -635,6 +635,28 @@ impl<M: Model> Collection<M> {
         self.toBase().zip(items)
     }
 
+    /// Combines models with any number of additional columns by position.
+    pub fn zipMany<T, I>(
+        self,
+        columns: impl IntoIterator<Item = I>,
+    ) -> BaseCollection<(Option<M>, Vec<Option<T>>)>
+    where
+        I: IntoIterator<Item = T>,
+    {
+        self.toBase().zipMany(columns)
+    }
+
+    /// Exchanges projected scalar keys with the original collection keys.
+    pub fn flipBy<K: Into<ArrayKey>>(
+        &self,
+        mut project: impl FnMut(&M) -> Option<K>,
+    ) -> BaseCollection<ArrayKey> {
+        BaseCollection::fromEntries(self.iter().enumerate().filter_map(|(index, model)| {
+            project(model).map(|value| (self.key_at(index), value.into()))
+        }))
+        .flip()
+    }
+
     /// Pads the base collection with independent snapshots of the given model.
     pub fn pad(self, size: isize, model: &M) -> CollectionResult<BaseCollection<M>> {
         self.toBase()

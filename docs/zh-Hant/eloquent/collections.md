@@ -150,6 +150,10 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
 
 `zip` 依位置將模型與值配對，回傳由元組組成的 Support 集合。較短的一側用 `None` 補齊。`flatten` 將模型轉為使用連續整數鍵的 Support 集合，模型本身作為葉節點。要合併巢狀集合，可以先將每個模型投影為 Support 集合，再對結果呼叫 `collapse`。
 
+額外欄數在執行時決定時，用 `zipMany` 配對同一元素型別的多欄。每列單獨保留模型，並為每個額外欄保留一個可選值，空欄也占一欄。
+
+用 `flipBy` 將投影取得的純量鍵與原集合鍵交換。回傳 `None` 可略過目前項目，投影鍵重複時保留最後一個原集合鍵。值型別為 `ArrayKey` 的 Support 集合可直接呼叫 `flip`。
+
 `pad` 接收帶正負號的目標長度與填充用的模型。負數向前填充，正數向後填充。需要填充時，整數鍵重新編號，字串鍵保留。新增模型由傳入模型的狀態建構。
 
 ```rust
@@ -158,10 +162,10 @@ use openrust::{
     support::Collection as BaseCollection,
 };
 
-pub fn label_by_position<M: Model>(
+pub fn label_with_columns<M: Model>(
     models: Collection<M>,
-    labels: Vec<String>,
-) -> BaseCollection<(Option<M>, Option<String>)> {
-    models.zip(labels)
+    columns: Vec<Vec<String>>,
+) -> BaseCollection<(Option<M>, Vec<Option<String>>)> {
+    models.zipMany(columns)
 }
 ```
