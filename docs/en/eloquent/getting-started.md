@@ -87,6 +87,35 @@ pub async fn save_flight(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+## Writing models in a transaction {#model-transactions}
+
+Pass the same mutable transaction to `saveInTransaction`, `updateInTransaction`, `deleteInTransaction`, `forceDeleteInTransaction` or `restoreInTransaction`. The caller controls commit and rollback. A model already bound to a connection must use a transaction from that connection. To make listener SQL participate in the transaction, override `ModelEventListener::handleInTransaction` and issue SQL through the supplied transaction. Existing connection-based callbacks continue to receive the pooled connection. A rollback reverts database writes. Discard or reload model instances that reflected rolled-back writes.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::Model};
+
+async fn save_in_transaction<M: Model>(
+    connection: &Connection,
+    model: &mut M,
+) -> DatabaseResult<bool> {
+    let mut transaction = connection.beginTransaction().await?;
+    match model.saveInTransaction(&mut transaction).await {
+        Ok(true) => {
+            transaction.commit().await?;
+            Ok(true)
+        }
+        Ok(false) => {
+            transaction.rollBack(None).await?;
+            Ok(false)
+        }
+        Err(error) => {
+            transaction.rollBack(None).await?;
+            Err(error)
+        }
+    }
+}
+```
+
 ## Model events {#model-events}
 
 Register a typed listener with `Model::registerModelEvent` during application boot. Listeners can change the model before the write or return `ModelEventResponse::Cancel` to cancel it. A successful save emits `Saved` even when the attributes are unchanged. Bulk builder updates and deletes do not emit instance events. Use `saveQuietly`, `deleteQuietly`, `forceDeleteQuietly`, `restoreQuietly`, or `Model::withoutEvents` to suppress model events in the current async call chain. An error from a post-write listener is returned to the caller. The database write has already run.

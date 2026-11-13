@@ -136,6 +136,137 @@ impl ServiceProvider for ObserverProvider {
     }
 }
 
+struct TransactionAudit;
+
+impl ModelEventListener<Article> for TransactionAudit {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        _: &'a mut Article,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { panic!("expected the active transaction") })
+    }
+
+    fn handleInTransaction<'a>(
+        &'a self,
+        _: ModelEvent,
+        model: &'a mut Article,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            transaction
+                .insert(
+                    "INSERT INTO model_observer_log (article_id) VALUES (?)",
+                    &[model.getKey().unwrap().clone()],
+                )
+                .await?;
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+async fn verify_transaction(app: &Application, db: &Connection, other: &Connection) {
+    Article::registerModelEvent(app, Created, TransactionAudit).unwrap();
+    let article = |title: &str| {
+        Article::queryOn(db)
+            .make([("title".into(), title.into())].into())
+            .unwrap()
+    };
+    let mut wrong = other.beginTransaction().await.unwrap();
+    assert!(matches!(
+        article("wrong").saveInTransaction(&mut wrong).await,
+        Err(DatabaseError::InvalidQuery("model transaction connection"))
+    ));
+    wrong.rollBack(None).await.unwrap();
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    assert!(
+        !article("cancel")
+            .saveInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    let mut rolled_back = article("rolled-back");
+    assert!(
+        rolled_back
+            .saveInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    assert!(rolled_back.getKey().is_some());
+    assert_eq!(
+        transaction
+            .scalar("SELECT COUNT(*) FROM model_observer_log", &[])
+            .await
+            .unwrap(),
+        Value::Integer(1)
+    );
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.scalar("SELECT COUNT(*) FROM model_observer_log", &[])
+            .await
+            .unwrap(),
+        Value::Integer(0)
+    );
+    assert_eq!(
+        db.scalar(
+            "SELECT COUNT(*) FROM model_event_articles WHERE title = 'rolled-back'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        Value::Integer(0)
+    );
+    assert!(matches!(
+        article("closed").saveInTransaction(&mut transaction).await,
+        Err(DatabaseError::TransactionClosed)
+    ));
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    let mut committed = article("commit");
+    assert!(committed.saveInTransaction(&mut transaction).await.unwrap());
+    assert!(
+        committed
+            .updateInTransaction(
+                [("title".into(), "updated-tx".into())].into(),
+                &mut transaction
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        committed
+            .deleteInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    assert!(committed.trashed());
+    assert!(
+        committed
+            .restoreInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    assert!(!committed.trashed());
+    transaction.commit().await.unwrap();
+    let key = committed.getKey().unwrap().clone();
+    let fresh = Article::queryOn(db).findOrFail(key.clone()).await.unwrap();
+    assert_eq!(fresh.getAttribute("title"), Some(&"updated-tx".into()));
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction.beginTransaction().await.unwrap();
+    assert!(
+        committed
+            .forceDeleteInTransaction(&mut transaction)
+            .await
+            .unwrap()
+    );
+    transaction.rollBack(None).await.unwrap();
+    transaction.commit().await.unwrap();
+    assert!(Article::queryOn(db).find(key).await.unwrap().is_some());
+}
+
 async fn app_with_database(
     config: Json,
     providers: Vec<Box<dyn ServiceProvider>>,
@@ -290,9 +421,35 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
 }
 
+async fn verify_transaction_backend(config: Json, id: &str) {
+    let (app, db) = app_with_database(config, vec![]).await;
+    let (_other, other) =
+        app_with_database(json!({"driver":"sqlite","database":":memory:"}), vec![]).await;
+    db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
+    db.statement(
+        "CREATE TABLE model_observer_log (article_id BIGINT NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    Article::registerModelEvent(&app, Creating, Record(Arc::default())).unwrap();
+    verify_transaction(&app, &db, &other).await;
+    db.statement("DROP TABLE model_observer_log", &[])
+        .await
+        .unwrap();
+    db.statement("DROP TABLE model_event_articles", &[])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
     verify(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
+    verify_transaction_backend(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
     )
@@ -305,5 +462,6 @@ async fn model_events_on_mysql() {
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
+        verify_transaction_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
     }
 }

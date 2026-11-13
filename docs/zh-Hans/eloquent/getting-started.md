@@ -87,6 +87,35 @@ pub async fn save_flight(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+## 在事务中写入模型 {#model-transactions}
+
+将同一可变事务传给 `saveInTransaction`、`updateInTransaction`、`deleteInTransaction`、`forceDeleteInTransaction` 或 `restoreInTransaction`。由调用方提交或回滚。已有来源连接的模型必须使用该连接的事务。监听器的 SQL 若要加入同一事务，应实现 `ModelEventListener::handleInTransaction` 并通过收到的事务执行。现有基于连接的回调继续接收池化连接。回滚撤销数据库写入。已反映本次写入的模型实例应丢弃或重新查询。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::Model};
+
+async fn save_in_transaction<M: Model>(
+    connection: &Connection,
+    model: &mut M,
+) -> DatabaseResult<bool> {
+    let mut transaction = connection.beginTransaction().await?;
+    match model.saveInTransaction(&mut transaction).await {
+        Ok(true) => {
+            transaction.commit().await?;
+            Ok(true)
+        }
+        Ok(false) => {
+            transaction.rollBack(None).await?;
+            Ok(false)
+        }
+        Err(error) => {
+            transaction.rollBack(None).await?;
+            Err(error)
+        }
+    }
+}
+```
+
 ## 模型事件 {#model-events}
 
 应用启动时用 `Model::registerModelEvent` 注册类型化监听器。监听器可以在写入前修改模型，也可返回 `ModelEventResponse::Cancel` 取消写入。成功保存会触发 `Saved`，包括属性没有变化的情况。查询构造器的批量更新和删除不派发实例事件。使用 `saveQuietly`、`deleteQuietly`、`forceDeleteQuietly`、`restoreQuietly` 或 `Model::withoutEvents` 在当前异步调用链内抑制模型事件。写入后监听器的错误会返回给调用方，此时数据库写入已执行。

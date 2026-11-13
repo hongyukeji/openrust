@@ -7,7 +7,7 @@ use std::{
 
 use crate::{
     contracts::container::Container as _,
-    database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult},
+    database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction},
 };
 
 use super::super::Model;
@@ -40,6 +40,7 @@ pub enum ModelEventResponse {
 }
 
 /// Handles model lifecycle events with access to the current operation's connection.
+#[allow(non_snake_case, reason = "Uses Laravel-style lifecycle names")]
 pub trait ModelEventListener<M: Model>: Send + Sync {
     fn handle<'a>(
         &'a self,
@@ -47,6 +48,16 @@ pub trait ModelEventListener<M: Model>: Send + Sync {
         model: &'a mut M,
         connection: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>>;
+
+    /// Handles a lifecycle event inside an explicit model transaction.
+    fn handleInTransaction<'a>(
+        &'a self,
+        event: ModelEvent,
+        model: &'a mut M,
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        self.handle(event, model, transaction.query_connection())
+    }
 }
 
 type Registrations = HashMap<(TypeId, ModelEvent), Vec<Arc<dyn Any + Send + Sync>>>;
@@ -107,6 +118,16 @@ pub(in crate::database::eloquent) async fn fire<M: Model>(
     event: ModelEvent,
     halt: bool,
 ) -> DatabaseResult<bool> {
+    fire_with_transaction(model, connection, event, halt, None).await
+}
+
+pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
+    model: &mut M,
+    connection: &Connection,
+    event: ModelEvent,
+    halt: bool,
+    mut transaction: Option<&mut Transaction>,
+) -> DatabaseResult<bool> {
     if SUPPRESSED.try_with(|()| ()).is_ok() {
         return Ok(true);
     }
@@ -120,7 +141,15 @@ pub(in crate::database::eloquent) async fn fire<M: Model>(
         let listener = listener
             .downcast_ref::<Arc<dyn ModelEventListener<M>>>()
             .expect("model event listeners are registered by model type");
-        match listener.handle(event, model, connection).await? {
+        let response = match transaction.as_deref_mut() {
+            Some(transaction) => {
+                listener
+                    .handleInTransaction(event, model, transaction)
+                    .await?
+            }
+            None => listener.handle(event, model, connection).await?,
+        };
+        match response {
             ModelEventResponse::Stop if halt => break,
             ModelEventResponse::Cancel if halt => return Ok(false),
             _ => {}

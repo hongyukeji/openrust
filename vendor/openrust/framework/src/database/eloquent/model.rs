@@ -744,26 +744,62 @@ pub trait Model: Sized + Send + Sync + 'static {
     }
 
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::save(self)
+        persistence::save(self, None)
     }
 
     fn update(
         &mut self,
         attributes: Attributes,
     ) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::update(self, attributes)
+        persistence::update(self, attributes, None)
     }
 
     fn delete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::delete(self, false)
+        persistence::delete(self, false, None)
     }
 
     fn forceDelete(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::delete(self, true)
+        persistence::delete(self, true, None)
     }
 
     fn restore(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
-        persistence::restore(self)
+        persistence::restore(self, None)
+    }
+
+    fn saveInTransaction<'a>(
+        &'a mut self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::save(self, Some(transaction))
+    }
+
+    fn updateInTransaction<'a>(
+        &'a mut self,
+        attributes: Attributes,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::update(self, attributes, Some(transaction))
+    }
+
+    fn deleteInTransaction<'a>(
+        &'a mut self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::delete(self, false, Some(transaction))
+    }
+
+    fn forceDeleteInTransaction<'a>(
+        &'a mut self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::delete(self, true, Some(transaction))
+    }
+
+    fn restoreInTransaction<'a>(
+        &'a mut self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<bool>> + Send + 'a {
+        persistence::restore(self, Some(transaction))
     }
 
     fn trashed(&self) -> bool {

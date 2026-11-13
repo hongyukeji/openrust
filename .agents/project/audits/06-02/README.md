@@ -24,7 +24,7 @@
 
 - 对照固定 Laravel 的 `Model::observe` 和生命周期方法注册。Rust 使用 `Observer<M>` 与编译期 `EVENTS` 清单，通过应用服务提供者注册。沿用 05-01 类型化监听器及 v0.x 的生命周期派发基础。固定 Goravel 的编译型 Provider 作为装配参考。 [Laravel HasEvents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasEvents.php) · [Laravel Observer 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#observers) · [Goravel ORM Provider](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/service_provider.go)
 - SQLite 和 MySQL 8.4.13 验证 Provider 注册、保存前修改及取消、插入后在同一连接写入记录、同一清单内重复事件去重，以及未注册应用的隔离。现有生命周期、静默和错误重试用例一并执行。三语 Observer 示例在 SQLite 编译并运行。实际二进制验证 `make:model ObserverArticle` 和 `inspire`。
-- PHP 反射与 `ObservedBy` 属性由 Rust 显式类型装配表达。事务后 Observer 依赖模型写入接收显式事务，`make:observer` 生成器仍待接线。
+- PHP 反射与 `ObservedBy` 属性由 Rust 显式类型装配表达。事务后 Observer 使用 05-01 的显式事务写入作为前置。生成器见下节。
 - Rust 1.94.0 格式、615 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。
 
 ## Observer 生成器

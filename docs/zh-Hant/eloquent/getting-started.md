@@ -87,6 +87,35 @@ pub async fn save_flight(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+## 在交易中寫入模型 {#model-transactions}
+
+將同一可變交易傳給 `saveInTransaction`、`updateInTransaction`、`deleteInTransaction`、`forceDeleteInTransaction` 或 `restoreInTransaction`。由呼叫端提交或回復。已有來源連線的模型必須使用該連線的交易。監聽器的 SQL 若要加入同一交易，應實作 `ModelEventListener::handleInTransaction` 並透過收到的交易執行。現有以連線為基礎的回呼繼續接收池化連線。回復會撤銷資料庫寫入。已反映本次寫入的模型實例應捨棄或重新查詢。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::Model};
+
+async fn save_in_transaction<M: Model>(
+    connection: &Connection,
+    model: &mut M,
+) -> DatabaseResult<bool> {
+    let mut transaction = connection.beginTransaction().await?;
+    match model.saveInTransaction(&mut transaction).await {
+        Ok(true) => {
+            transaction.commit().await?;
+            Ok(true)
+        }
+        Ok(false) => {
+            transaction.rollBack(None).await?;
+            Ok(false)
+        }
+        Err(error) => {
+            transaction.rollBack(None).await?;
+            Err(error)
+        }
+    }
+}
+```
+
 ## 模型事件 {#model-events}
 
 應用程式啟動時用 `Model::registerModelEvent` 註冊型別化監聽器。監聽器可以在寫入前修改模型，也可回傳 `ModelEventResponse::Cancel` 取消寫入。成功儲存會觸發 `Saved`，包括屬性未變更的情況。查詢建構器的批次更新與刪除不派送實例事件。使用 `saveQuietly`、`deleteQuietly`、`forceDeleteQuietly`、`restoreQuietly` 或 `Model::withoutEvents` 在目前非同步呼叫鏈內抑制模型事件。寫入後監聽器的錯誤會回傳給呼叫端，此時資料庫寫入已執行。

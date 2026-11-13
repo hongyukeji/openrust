@@ -27,3 +27,9 @@
 - SQLite 与独立 MySQL 8.4.13 验证写前修改、取消、无变更保存、查询加载、软删除、恢复、强制删除、静默写入、应用隔离、SQL 失败及写后监听器错误。写后错误时保留已执行的持久化状态，避免把重试当作首次插入。Rust 的静默范围是当前异步调用链。
 - 生命周期派发已接入。映射到普通事件 Dispatcher、复制及其 `replicating` 事件、事务后观察者和自动唯一 ID 仍待跟踪。
 - Rust 1.94.0 格式、615 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语监听器示例分别在 SQLite 执行，VitePress 构建及 18 项浏览器检查通过。实际二进制运行 `make:model LifecycleArticle` 与 `inspire` 成功。
+
+## 显式事务中的模型写入
+
+- 对照固定 Laravel 的模型事务保存及事务隔离测试，参考 Goravel 向回调提供事务句柄的方式。复用 `v0.x` 由事务查询执行同一保存流程的做法。Rust 的五个 `*InTransaction` 写入方法借用活动事务，已绑定连接的模型校验查询来源。调用方控制提交和回滚，模型实例仍反映本次写入尝试。 [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 事务测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/DatabaseTransactionsTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+- SQLite 与独立 MySQL 8.4.13 实测事务内自动键、更新、软删除、恢复、保存点回滚后保留记录、写前取消、同事务监听器审计回滚、不同应用连接拒绝和关闭事务拒绝。生命周期监听器可接收当前事务。已有 Observer 回调继续使用连接；事务后 Observer 在 06-02 接入。
+- Rust 1.94.0 格式、616 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语示例分别在 SQLite 编译运行，VitePress 构建、12 项通用和 6 项模型正文浏览器检查通过。实际二进制的 `artisan inspire` 正常退出。
