@@ -450,12 +450,15 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 
 Enable `withTouchingParent()` on a many-to-many relation to update the declaring model’s timestamp when its links change. The parent update uses the same transaction and starts from persisted attributes. Reload the parent to read the new timestamp.
 
+Enable `withTouchingRelated()` to refresh all models still linked after an attach, pivot update, detach, sync, or toggle changes the relationship. The update shares the pivot transaction and respects pivot filters, morph type, and related model scopes. It updates timestamps in bulk. Call `touch(&parent)` to refresh linked models explicitly, even on a descriptor without automatic touching.
+
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Model, relations::{BelongsToMany, ToggleChanges}}};
 
 pub async fn toggle_roles<U: Model, R: Model>(user: &U, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
     BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
         .withTouchingParent()
+        .withTouchingRelated()
         .toggleOrFail(user, keys)
         .await
 }

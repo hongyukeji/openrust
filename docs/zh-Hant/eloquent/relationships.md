@@ -450,12 +450,15 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 
 在多對多關聯使用 `withTouchingParent()`，關聯變更時更新宣告端模型的時間戳記。更新從已持久化的屬性開始，並與中介資料表寫入共用交易。重新載入父模型後可讀取新時間戳記。
 
+使用 `withTouchingRelated()` 後，附加、更新中介資料表、解除、同步或切換產生變更時，框架批次更新操作後仍有關聯的模型。更新時間戳記與中介資料表寫入共用交易，並遵循中介資料表篩選、多型型別和相關模型的作用域。可透過 `touch(&parent)` 主動更新相關模型，即使關聯未啟用自動觸碰。
+
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Model, relations::{BelongsToMany, ToggleChanges}}};
 
 pub async fn toggle_roles<U: Model, R: Model>(user: &U, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
     BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
         .withTouchingParent()
+        .withTouchingRelated()
         .toggleOrFail(user, keys)
         .await
 }

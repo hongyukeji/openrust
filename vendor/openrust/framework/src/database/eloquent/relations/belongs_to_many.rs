@@ -34,6 +34,7 @@ pub struct BelongsToMany<P: Model, R: Model> {
     custom_pivot: Option<CustomPivot>,
     pivot_inverses: (Option<String>, Option<String>),
     touch_parent: bool,
+    touch_related: bool,
 }
 
 /// Keys attached, detached, or updated by a pivot synchronization.
@@ -91,6 +92,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             custom_pivot: None,
             pivot_inverses: (None, None),
             touch_parent: false,
+            touch_related: false,
         }
     }
 
@@ -265,6 +267,36 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self
     }
 
+    /// Refreshes the timestamps of models still linked after a pivot change.
+    #[must_use]
+    pub fn withTouchingRelated(mut self) -> Self {
+        self.touch_related = true;
+        self
+    }
+
+    /// Refreshes the timestamps of the models linked through this relation.
+    pub async fn touch(&self, parent: &P) -> DatabaseResult<()> {
+        if R::metadata().updated_at.is_none() {
+            return Ok(());
+        }
+        let connection = self.keys.connection(parent)?;
+        if let Some(touch) = self.related_touch(self.owner(parent)?) {
+            let query = touch.query::<R>(&connection)?;
+            query.update(touch.attributes::<R>(&connection)?).await?;
+        }
+        Ok(())
+    }
+
+    fn related_touch(&self, owner: &Value) -> Option<RelatedTouch> {
+        Some(RelatedTouch {
+            pivot: self.pivot,
+            constraints: self.pivot_constraints.clone(),
+            owner: owner.clone(),
+            related_key: self.keys.related,
+            column: R::metadata().updated_at?,
+        })
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     pub(super) fn apply_pivot_predicate(
@@ -315,14 +347,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 row.extend(attributes.clone());
             }
             let parent_state = self.touch_state(parent, &connection)?;
+            let related_touch = self
+                .touch_related
+                .then(|| self.related_touch(owner))
+                .flatten();
             let custom = self.custom_pivot;
-            if custom.is_some() || parent_state.is_some() {
+            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let identity = self.pivot.identity(self.timestamp_columns());
                 let source = connection.clone();
                 let rows = Arc::new(rows);
                 connection
                     .transaction(
                         move |transaction| {
+                            let related_touch = related_touch.clone();
                             let source = source.clone();
                             let rows = rows.clone();
                             let parent_state = parent_state.clone();
@@ -344,7 +381,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                             && !rows.is_empty();
                                 }
                                 if changed {
-                                    touch_parent::<P>(parent_state, &source, transaction).await?;
+                                    touch_endpoints::<P, R>(
+                                        parent_state,
+                                        related_touch,
+                                        &source,
+                                        transaction,
+                                    )
+                                    .await?;
                                 }
                                 Ok(())
                             })
@@ -384,7 +427,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 attributes.extend(self.pivot_write_timestamps(&connection)?.update);
             }
             let parent_state = self.touch_state(parent, &connection)?;
-            if custom.is_some() || parent_state.is_some() {
+            let related_touch = self
+                .touch_related
+                .then(|| self.related_touch(owner))
+                .flatten();
+            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let pivot = self.pivot;
                 let identity = pivot.identity(self.timestamp_columns());
                 let owner = owner.clone();
@@ -394,6 +441,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 return connection
                     .transaction(
                         move |transaction| {
+                            let related_touch = related_touch.clone();
                             let (owner, related, constraints, source, attributes, parent_state) = (
                                 owner.clone(),
                                 related.clone(),
@@ -424,7 +472,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                     query.update(attributes).await?
                                 };
                                 if affected != 0 {
-                                    touch_parent::<P>(parent_state, &source, transaction).await?;
+                                    touch_endpoints::<P, R>(
+                                        parent_state,
+                                        related_touch,
+                                        &source,
+                                        transaction,
+                                    )
+                                    .await?;
                                 }
                                 Ok(affected)
                             })
@@ -467,8 +521,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let owner = self.owner(parent)?;
             let connection = self.keys.connection(parent)?;
             let parent_state = self.touch_state(parent, &connection)?;
+            let related_touch = self
+                .touch_related
+                .then(|| self.related_touch(owner))
+                .flatten();
             let custom = self.custom_pivot;
-            if custom.is_some() || parent_state.is_some() {
+            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
                 let pivot = self.pivot;
                 let identity = pivot.identity(self.timestamp_columns());
                 let constraints = self.pivot_constraints.clone();
@@ -483,6 +541,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 return connection
                     .transaction(
                         move |transaction| {
+                            let related_touch = related_touch.clone();
                             let (source, constraints, keys, owner, parent_state) = (
                                 source.clone(),
                                 constraints.clone(),
@@ -515,7 +574,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                     query.delete().await?
                                 };
                                 if removed != 0 {
-                                    touch_parent::<P>(parent_state, &source, transaction).await?;
+                                    touch_endpoints::<P, R>(
+                                        parent_state,
+                                        related_touch,
+                                        &source,
+                                        transaction,
+                                    )
+                                    .await?;
                                 }
                                 Ok(removed)
                             })
@@ -645,9 +710,14 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let identity = pivot.identity(self.timestamp_columns());
             let source = connection.clone();
             let parent_state = self.touch_state(parent, &connection)?;
+            let related_touch = self
+                .touch_related
+                .then(|| self.related_touch(&owner))
+                .flatten();
             connection
                 .transaction(
                     move |transaction| {
+                        let related_touch = related_touch.clone();
                         let parent_state = parent_state.clone();
                         let (source, owner, desired, constraints, timestamps) = (
                             source.clone(),
@@ -689,7 +759,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                 || !changes.detached.is_empty()
                                 || !changes.updated.is_empty()
                             {
-                                touch_parent::<P>(parent_state, &source, transaction).await?;
+                                touch_endpoints::<P, R>(
+                                    parent_state,
+                                    related_touch,
+                                    &source,
+                                    transaction,
+                                )
+                                .await?;
                             }
                             Ok(changes)
                         })
@@ -895,6 +971,63 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         Box::pin(self.match_many(parents))
     }
+}
+
+#[derive(Clone)]
+struct RelatedTouch {
+    pivot: PivotKeys,
+    constraints: PivotConstraints,
+    owner: Value,
+    related_key: &'static str,
+    column: &'static str,
+}
+
+impl RelatedTouch {
+    fn query<R: Model>(&self, connection: &Connection) -> DatabaseResult<query::Builder<'static>> {
+        let linked = self
+            .constraints
+            .apply(
+                self.pivot
+                    .for_owner(connection.table(self.pivot.table), &self.owner),
+            )
+            .select([self.pivot.related]);
+        R::queryOn(connection)
+            .scoped()?
+            .0
+            .whereInSub(self.related_key, &linked)
+    }
+
+    fn attributes<R: Model>(&self, connection: &Connection) -> DatabaseResult<Attributes> {
+        Ok(Attributes::from([(
+            self.column.into(),
+            timestamp(connection, R::metadata().date_format)?,
+        )]))
+    }
+
+    async fn run<R: Model>(
+        &self,
+        connection: &Connection,
+        transaction: &mut Transaction,
+    ) -> DatabaseResult<()> {
+        self.query::<R>(connection)?
+            .in_transaction(transaction)?
+            .update(self.attributes::<R>(connection)?)
+            .await?;
+        Ok(())
+    }
+}
+
+async fn touch_endpoints<P: Model, R: Model>(
+    parent: Option<Arc<ModelState>>,
+    related: Option<RelatedTouch>,
+    connection: &Connection,
+    transaction: &mut Transaction,
+) -> DatabaseResult<()> {
+    touch_parent::<P>(parent, connection, transaction).await?;
+    if let Some(related) = related {
+        related.run::<R>(connection, transaction).await?;
+    }
+    Ok(())
 }
 
 async fn touch_parent<P: Model>(

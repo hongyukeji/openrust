@@ -2121,6 +2121,154 @@ async fn verify_toggle_and_touch(db: &Connection) {
     assert_eq!(other.getAttribute("updated_at"), Some(&OLD.into()));
 }
 
+struct TouchPost(ModelState);
+
+impl Model for TouchPost {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("relation_posts")
+            .timestamps(None, Some("updated_at"))
+            .softDeletes("deleted_at");
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_related_touch(db: &Connection) {
+    const OLD: &str = "2000-01-01 00:00:00";
+    let parent = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    let relation = || {
+        BelongsToMany::<TouchAuthor, TouchPost>::new(
+            "relation_featured_posts",
+            "author_id",
+            "post_id",
+            "id",
+            "id",
+        )
+    };
+    db.statement(
+        "DELETE FROM relation_featured_posts WHERE author_id = 1",
+        &[],
+    )
+    .await
+    .unwrap();
+    relation().attach(&parent, &[1.into()]).await.unwrap();
+    let timestamp = "SELECT updated_at FROM relation_posts WHERE id = ?";
+    assert_eq!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+
+    let touching = relation().withTouchingRelated();
+    for action in ["attach", "update", "detach", "sync", "toggle"] {
+        db.statement("UPDATE relation_posts SET updated_at = ?", &[OLD.into()])
+            .await
+            .unwrap();
+        match action {
+            "attach" => touching.attach(&parent, &[2.into()]).await.unwrap(),
+            "update" => {
+                touching
+                    .updateExistingPivot(
+                        &parent,
+                        &2.into(),
+                        Attributes::from([("label".into(), "updated".into())]),
+                    )
+                    .await
+                    .unwrap();
+            }
+            "detach" => {
+                touching.detach(&parent, Some(&[2.into()])).await.unwrap();
+            }
+            "sync" => {
+                touching.sync(&parent, &[1.into(), 2.into()]).await.unwrap();
+            }
+            "toggle" => {
+                touching.toggle(&parent, &[2.into()]).await.unwrap();
+            }
+            _ => unreachable!(),
+        }
+        assert_ne!(
+            db.scalar(timestamp, &[1.into()]).await.unwrap(),
+            OLD.into(),
+            "{action}"
+        );
+        if matches!(action, "detach" | "toggle") {
+            assert_eq!(
+                db.scalar(timestamp, &[2.into()]).await.unwrap(),
+                OLD.into(),
+                "{action}"
+            );
+        } else {
+            assert_ne!(
+                db.scalar(timestamp, &[2.into()]).await.unwrap(),
+                OLD.into(),
+                "{action}"
+            );
+        }
+    }
+
+    db.statement("UPDATE relation_posts SET updated_at = ?", &[OLD.into()])
+        .await
+        .unwrap();
+    touching.sync(&parent, &[1.into()]).await.unwrap();
+    assert_eq!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+
+    relation()
+        .attach(&parent, &[2.into(), 3.into()])
+        .await
+        .unwrap();
+    db.statement("UPDATE relation_featured_posts SET label = 'eligible' WHERE author_id = 1 AND post_id IN (1, 3)", &[]).await.unwrap();
+    relation()
+        .wherePivot("label", "=", "eligible")
+        .touch(&parent)
+        .await
+        .unwrap();
+    assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_eq!(db.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+    assert_eq!(db.scalar(timestamp, &[3.into()]).await.unwrap(), OLD.into());
+
+    db.statement(
+        "INSERT INTO relation_morph_memberships VALUES ('author',1,1,'other')",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement("UPDATE relation_posts SET updated_at = ?", &[OLD.into()])
+        .await
+        .unwrap();
+    let morph = MorphToMany::<TouchAuthor, TouchPost>::new(
+        "relation_morph_memberships",
+        "subject_id",
+        "tag_id",
+        "id",
+        "id",
+        "subject_type",
+        "featured",
+    )
+    .withTouchingRelated();
+    morph.attach(&parent, &[2.into()]).await.unwrap();
+    assert_eq!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_ne!(db.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+
+    assert!(touching.attach(&parent, &[4.into()]).await.is_err());
+    assert_eq!(
+        db.table("relation_featured_posts")
+            .r#where("author_id", "=", 1)
+            .r#where("post_id", "=", 4)
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -2155,11 +2303,11 @@ async fn verify_custom_pivot(config: Json) {
         "DROP TABLE IF EXISTS relation_posts",
         "DROP TABLE IF EXISTS relation_authors",
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80), updated_at VARCHAR(32))",
-        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME)",
+        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME, updated_at VARCHAR(32), CHECK (id <> 4 OR updated_at = '2000-01-01 00:00:00'))",
         "CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (author_id, post_id))",
         "CREATE TABLE relation_membership_events (event VARCHAR(30) NOT NULL)",
         "INSERT INTO relation_authors VALUES (1,'first','2000-01-01 00:00:00'),(2,'second','2000-01-01 00:00:00')",
-        "INSERT INTO relation_posts VALUES (1,1,'first',NULL),(2,1,'second',NULL)",
+        "INSERT INTO relation_posts VALUES (1,1,'first',NULL,'2000-01-01 00:00:00'),(2,1,'second',NULL,'2000-01-01 00:00:00')",
         "INSERT INTO relation_featured_posts VALUES (2,1,'55'),(1,2,'99')",
     ] {
         db.statement(sql, &[]).await.unwrap();
@@ -2412,6 +2560,8 @@ async fn verify_custom_pivot(config: Json) {
         1
     );
     Box::pin(verify_toggle_and_touch(&db)).await;
+    db.statement("INSERT INTO relation_posts VALUES (3,1,'deleted','2000-01-01 00:00:00','2000-01-01 00:00:00'),(4,1,'reject touch',NULL,'2000-01-01 00:00:00')", &[]).await.unwrap();
+    Box::pin(verify_related_touch(&db)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();
