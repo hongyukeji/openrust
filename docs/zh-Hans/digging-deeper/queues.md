@@ -634,9 +634,9 @@ OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布
 
 ### 向 Beanstalkd 或 SQS 发布批次 {#external-batches}
 
-通过 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 选择驱动。发布端和 Worker 使用同一 SQL 批次仓库。仓库先提交批次和待发布记录，再由驱动逐项发送。初次发布、追加和续接使用同一个恢复命令。
+通过 `Bus::batch(jobs).onConnection("beanstalkd")` 或 `.onConnection("sqs")` 选择驱动。发布端和 Worker 使用同一 SQL 批次仓库。仓库先提交批次和待发布记录，再发送任务。SQS 使用 `SendMessageBatch`，每次最多 10 条消息，消息体总计最多 1 MiB。初次发布、追加和续接使用同一个恢复命令。
 
-如果前面的任务已发送成功，后续发送失败，OpenRust 保存剩余任务，`queue:publish-batches` 从中断处恢复。进程崩溃、服务端响应不明或 SQL 提交失败可能导致重复发布，任务处理器需保持幂等。标准 SQS 和 Beanstalkd 的发送确认与 SQL 更新无法原子提交。
+SQS 返回部分失败时，OpenRust 停止发送后续分块，将失败和未发送的条目留给 `queue:publish-batches` 重试，并移除同一响应中已确认成功的条目。Beanstalkd 从最后一次已确认发送之后恢复。进程崩溃、服务端响应不明或 SQL 提交失败可能导致重复发布，任务处理器需保持幂等。标准 SQS 和 Beanstalkd 的发送确认与 SQL 更新无法原子提交。
 
 FIFO 批次和跨连接任务链转发的默认去重 ID 由序列化任务生成，重试时保持一致。显式去重设置仍然生效。Amazon SQS 仅在五分钟去重窗口内抑制重复投递。
 

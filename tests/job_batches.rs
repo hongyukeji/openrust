@@ -236,7 +236,10 @@ impl JobHandler for Probe {
     ) -> QueueFuture<'a, QueueResult<()>> {
         Box::pin(async move {
             assert!(payload.batchId().is_some());
-            let data = payload.data().as_str().unwrap();
+            let data = payload.data().as_str().unwrap_or_else(|| {
+                assert_eq!(payload.data()["body"].as_str().unwrap().len(), 180_000);
+                payload.data()["name"].as_str().unwrap()
+            });
             let db = DB::connection(None).unwrap();
             db.statement("insert into receipts (name) values (?)", &[data.into()])
                 .await
@@ -412,6 +415,23 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             ])?)
             .onConnection(kind)
             .then("reports.then"),
+            "sqs-chunks" => {
+                let mut jobs = (0..10)
+                    .map(|index| {
+                        Payload::new("reports.generate", format!("sqs-chunks-small-{index}"))
+                    })
+                    .collect::<QueueResult<Vec<_>>>()?;
+                for index in 0..6 {
+                    jobs.push(Payload::new(
+                        "reports.generate",
+                        json!({
+                            "name": format!("sqs-chunks-large-{index}"),
+                            "body": "x".repeat(180_000),
+                        }),
+                    )?);
+                }
+                Bus::batch(jobs).onConnection("sqs")
+            }
             "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
             "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
             _ => unreachable!(),
@@ -1272,6 +1292,19 @@ async fn exercise(mysql: Option<&str>) {
     }
     if sqs_url.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "sqs").await;
+        let batch = request(address, "sqs-chunks", 200).await.unwrap();
+        let id = batch["id"].as_str().unwrap();
+        assert_eq!(
+            queue
+                .connection(Some("sqs"))
+                .unwrap()
+                .size(None)
+                .await
+                .unwrap(),
+            16
+        );
+        artisan(&root.0, &["queue:work", "sqs", "--stop-when-empty"]).await;
+        assert_eq!(batches.find(id).await.unwrap().unwrap().progress(), 100);
     }
     if fifo.is_some() {
         verify_fifo_batch_replay(&root.0, &db, &queue, address).await;
@@ -1294,7 +1327,7 @@ async fn verify_external_batch(
     let partial =
         driver == "sqs" && std::env::var_os("OPENRUST_TEST_SQS_BATCH_REJECT_SECOND").is_some();
     if partial {
-        // The SQS fixture rejects the second SendMessage once, after the first succeeds.
+        // The SQS fixture accepts the first and third entries and rejects the second in HTTP 200.
         let pending = initial().first().await.unwrap().unwrap();
         let Some(Value::Text(payloads)) = pending.get("payloads") else {
             panic!("expected queued payloads");
@@ -1302,9 +1335,9 @@ async fn verify_external_batch(
         let pending: Vec<Payload> = serde_json::from_str(payloads).unwrap();
         assert_eq!(
             pending.iter().map(Payload::data).collect::<Vec<_>>(),
-            [&json!("sqs-external-second"), &json!("sqs-external-third")]
+            [&json!("sqs-external-second")]
         );
-        assert_eq!(queue.size(None).await.unwrap(), 1);
+        assert_eq!(queue.size(None).await.unwrap(), 2);
     } else {
         assert_eq!(initial().count("*").await.unwrap(), 0);
     }
@@ -1348,8 +1381,8 @@ async fn verify_fifo_batch_replay(
     )
     .await
     .unwrap();
-    // The proxy accepts the third send at the broker, then returns an error once.
-    // The outbox now retains that accepted job, allowing SQL acknowledgement to be faulted too.
+    // The proxy accepts the batch at the broker, then returns an error once.
+    // The outbox retains the accepted jobs, allowing SQL acknowledgement to be faulted too.
     let batch = request(address, "sqs-fifo", 200).await.unwrap();
     let id = batch["id"].as_str().unwrap();
     let outbox = || db.table("job_batches_outbox").r#where("batch_id", "=", id);

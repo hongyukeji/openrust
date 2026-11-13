@@ -6,7 +6,7 @@ use std::{
 use aws_sdk_sqs::{
     Client,
     config::{BehaviorVersion, Credentials, Region},
-    types::{MessageSystemAttributeName, QueueAttributeName},
+    types::{MessageSystemAttributeName, QueueAttributeName, SendMessageBatchRequestEntry},
 };
 use tokio::sync::OnceCell;
 
@@ -228,6 +228,40 @@ impl SqsQueue {
             self.overflow.as_ref(),
         )
         .await
+    }
+
+    pub(super) async fn send_batch(
+        &self,
+        queue: &str,
+        payloads: &[Payload],
+        confirmed: &mut [bool],
+    ) -> QueueResult<()> {
+        let url = self.url(Some(queue))?;
+        let client = self.client().await;
+        let mut entries = Vec::with_capacity(10);
+        let mut bytes = 0;
+        let mut start = 0;
+        for (index, payload) in payloads.iter().enumerate() {
+            let entry = prepare_message(&url, payload, None, true, self.overflow.as_ref()).await?;
+            let size = entry.message_body().len();
+            if entries.len() == 10 || bytes + size > PAYLOAD_LIMIT {
+                send_batch_chunk(
+                    client,
+                    &url,
+                    std::mem::take(&mut entries),
+                    &mut confirmed[start..index],
+                )
+                .await?;
+                start = index;
+                bytes = 0;
+            }
+            bytes += size;
+            entries.push(entry);
+        }
+        if !entries.is_empty() {
+            send_batch_chunk(client, &url, entries, &mut confirmed[start..]).await?;
+        }
+        Ok(())
     }
 
     async fn reserve(
@@ -493,12 +527,79 @@ async fn send(
     stable_deduplication: bool,
     overflow: Option<&OverflowStore>,
 ) -> QueueResult<Option<String>> {
+    let entry = prepare_message(url, payload, delay, stable_deduplication, overflow).await?;
+    // A send error can mean the service accepted the message without returning a response.
+    let result = client
+        .send_message()
+        .queue_url(url)
+        .message_body(entry.message_body)
+        .set_message_group_id(entry.message_group_id)
+        .set_message_deduplication_id(entry.message_deduplication_id)
+        .set_delay_seconds(entry.delay_seconds)
+        .send()
+        .await
+        .map_err(backend)?;
+    Ok(Some(
+        result
+            .message_id()
+            .ok_or(QueueError::InvalidPayload)?
+            .into(),
+    ))
+}
+
+async fn send_batch_chunk(
+    client: &Client,
+    url: &str,
+    mut entries: Vec<SendMessageBatchRequestEntry>,
+    confirmed: &mut [bool],
+) -> QueueResult<()> {
+    for (index, entry) in entries.iter_mut().enumerate() {
+        entry.id = index.to_string();
+    }
+    let result = client
+        .send_message_batch()
+        .queue_url(url)
+        .set_entries(Some(entries))
+        .send()
+        .await
+        .map_err(backend)?;
+    for success in result.successful() {
+        let Some(slot) = success
+            .id()
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| confirmed.get_mut(index))
+        else {
+            return Err(QueueError::InvalidPayload);
+        };
+        *slot = true;
+    }
+    if let Some(failure) = result.failed().first() {
+        return Err(backend(std::io::Error::other(format!(
+            "SQS rejected {} batch entries (first code: {})",
+            result.failed().len(),
+            failure.code(),
+        ))));
+    }
+    if confirmed.iter().any(|sent| !sent) {
+        return Err(QueueError::InvalidPayload);
+    }
+    Ok(())
+}
+
+async fn prepare_message(
+    url: &str,
+    payload: &Payload,
+    delay: Option<Delay>,
+    stable_deduplication: bool,
+    overflow: Option<&OverflowStore>,
+) -> QueueResult<SendMessageBatchRequestEntry> {
     let body = serde_json::to_string(payload).map_err(backend)?;
     let overflow = overflow.filter(|store| store.always || body.len() >= PAYLOAD_LIMIT);
     if overflow.is_none() && body.len() > PAYLOAD_LIMIT {
         return Err(QueueError::InvalidPayload);
     }
-    let mut command = client.send_message().queue_url(url);
+    let mut command = SendMessageBatchRequestEntry::builder().id("0");
     if url.ends_with(".fifo") {
         let deduplication = match &payload.sqs_deduplication {
             value
@@ -551,14 +652,7 @@ async fn send(
     } else {
         body
     };
-    // A send error can mean the service accepted the message without returning a response.
-    let result = command.message_body(body).send().await.map_err(backend)?;
-    Ok(Some(
-        result
-            .message_id()
-            .ok_or(QueueError::InvalidPayload)?
-            .into(),
-    ))
+    command.message_body(body).build().map_err(backend)
 }
 
 fn seconds(duration: Duration, max: i32) -> QueueResult<i32> {

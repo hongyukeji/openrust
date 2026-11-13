@@ -634,9 +634,9 @@ Set `queue.batching.database` to the ledger connection and choose a database que
 
 ### Publishing batches to Beanstalkd or SQS {#external-batches}
 
-Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Use the same SQL batch repository configuration in the publisher and workers. The repository commits the batch and its pending publication before the driver sends jobs in order. Initial publication, additions and continuations use the same recovery command.
+Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConnection("sqs")`. Use the same SQL batch repository configuration in the publisher and workers. The repository commits the batch and its pending publication before sending jobs. SQS uses `SendMessageBatch`, with up to 10 messages and 1 MiB of message bodies per request. Initial publication, additions and continuations use the same recovery command.
 
-When a send fails after earlier sends have succeeded, OpenRust saves the remaining jobs and `queue:publish-batches` resumes from that point. A crash, ambiguous broker response or SQL commit failure can replay a send. Keep handlers idempotent. Standard SQS and Beanstalkd cannot atomically acknowledge a send together with the SQL publication update.
+If SQS reports a partial failure, OpenRust stops sending further chunks and keeps failed and unsent entries for `queue:publish-batches`. Successful entries in the same response are removed from the pending publication. For Beanstalkd, recovery resumes after the last confirmed send. A crash, ambiguous broker response or SQL commit failure can replay a send. Keep handlers idempotent. Standard SQS and Beanstalkd cannot atomically acknowledge a send together with the SQL publication update.
 
 For FIFO batches and cross-connection chain delivery, OpenRust derives the default deduplication ID from the serialized job so a replay uses the same ID. Explicit deduplication settings still apply. Amazon SQS suppresses replay only within its five-minute deduplication window.
 

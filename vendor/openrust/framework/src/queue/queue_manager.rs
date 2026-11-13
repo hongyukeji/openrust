@@ -1216,27 +1216,37 @@ impl QueueManager {
                 }
             }
             BatchBackend::Beanstalkd | BatchBackend::Sqs(_) => {
-                let destination = Some(publication.queue.as_str());
-                for (index, payload) in publication.payloads.iter().enumerate() {
-                    let result = match &configured.batch_backend {
-                        BatchBackend::Sqs(sqs) => {
-                            sqs.send_durable(payload, destination, None).await
+                let mut payloads = publication.payloads;
+                let mut confirmed = vec![false; payloads.len()];
+                let result = if let BatchBackend::Sqs(sqs) = &configured.batch_backend {
+                    sqs.send_batch(&publication.queue, &payloads, &mut confirmed)
+                        .await
+                } else {
+                    let mut result = Ok(());
+                    for (payload, confirmed) in payloads.iter().zip(&mut confirmed) {
+                        result = configured
+                            .queue
+                            .push(payload, Some(&publication.queue))
+                            .await
+                            .map(|_| ());
+                        if result.is_err() {
+                            break;
                         }
-                        _ => configured.queue.push(payload, destination).await,
-                    };
-                    if let Err(error) = result {
-                        if index != 0 {
-                            repository
-                                .retain_publication_payloads(
-                                    &mut transaction,
-                                    key,
-                                    &publication.payloads[index..],
-                                )
-                                .await?;
-                        }
-                        transaction.commit().await.map_err(backend)?;
-                        return Err(error);
+                        *confirmed = true;
                     }
+                    result
+                };
+                if let Err(error) = result {
+                    let count = payloads.len();
+                    let mut confirmed = confirmed.into_iter();
+                    payloads.retain(|_| !confirmed.next().expect("one result per payload"));
+                    if payloads.len() != count {
+                        repository
+                            .retain_publication_payloads(&mut transaction, key, &payloads)
+                            .await?;
+                    }
+                    transaction.commit().await.map_err(backend)?;
+                    return Err(error);
                 }
                 repository
                     .acknowledge_publication(&mut transaction, key)
