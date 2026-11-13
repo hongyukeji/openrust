@@ -123,6 +123,17 @@ fn eager_customer() -> DynamicRelation<CustomerRelation> {
 
 使用 `getDynamicRelationOrLoad` 读取并缓存结果，或将 `DynamicRelation` 传给 `with`、`load` 和 `loadMissing`。Rust 需要显式指定描述符类型。解析器可为每个模型实例选择不同查询约束，因此动态预加载可能逐个父模型查询。已水合模型按其数据库连接所属的应用解析。
 
+注册的关系支持存在查询时，可将同一个描述符传给 `whereHas`、`whereDoesntHave`、`hasCount` 和 `withCount`。解析器收到的是查询连接上的未保存模型，因此查询条件需在没有具体父模型记录时也能构建。
+
+```rust
+async fn orders_with_customer(
+    connection: &openrust::database::Connection,
+) -> DatabaseResult<openrust::database::eloquent::Collection<Order>> {
+    let customer = eager_customer();
+    Order::queryOn(connection).whereHas(&customer)?.get().await
+}
+```
+
 ## 查询关系是否存在
 
 `has` 和 `whereHas` 保留存在匹配关联记录的父模型。`whereDoesntHave` 保留没有匹配记录的父模型。这些方法在同一数据库连接中使用相关子查询。`withWhereHas` 用同一个关系进行筛选和预加载。

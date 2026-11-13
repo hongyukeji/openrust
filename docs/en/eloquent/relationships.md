@@ -123,6 +123,17 @@ fn eager_customer() -> DynamicRelation<CustomerRelation> {
 
 Use `getDynamicRelationOrLoad` for cached access, or use `DynamicRelation` with `with`, `load`, and `loadMissing`. The descriptor type is explicit in Rust. The resolver can select different query constraints for each model instance, so dynamic eager loading can issue one query per parent. A hydrated model resolves against its connection’s application.
 
+Use the same descriptor with `whereHas`, `whereDoesntHave`, `hasCount`, and `withCount` when the registered relation supports existence queries. The resolver receives an unsaved model on the query connection, so its conditions must work without an individual parent row.
+
+```rust
+async fn orders_with_customer(
+    connection: &openrust::database::Connection,
+) -> DatabaseResult<openrust::database::eloquent::Collection<Order>> {
+    let customer = eager_customer();
+    Order::queryOn(connection).whereHas(&customer)?.get().await
+}
+```
+
 ## Querying Relationship Existence
 
 `has` and `whereHas` keep parents with a matching related row. Use `whereDoesntHave` to keep parents without a match. These methods use a correlated subquery on the same database connection. `withWhereHas` applies the same relation to filtering and eager loading.

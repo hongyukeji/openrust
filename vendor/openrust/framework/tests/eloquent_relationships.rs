@@ -3475,6 +3475,7 @@ async fn verify_dynamic_relations(config: Json) {
     }
 
     type Posts = HasMany<Author, Post>;
+    let named = DynamicRelation::<Posts>::new("selectedPosts");
     let register = |app: &Application, title| {
         Author::resolveRelationUsing(app, "selectedPosts", move |_| {
             Posts::new("id", "author_id").constrain(move |mut query| {
@@ -3500,6 +3501,10 @@ async fn verify_dynamic_relations(config: Json) {
         Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
     ));
     assert!(!other_author.relationLoaded("selectedPosts"));
+    assert!(matches!(
+        Author::queryOn(&other).whereHas(&named),
+        Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
+    ));
     register(&second, "second");
     assert_eq!(
         other_author
@@ -3520,6 +3525,45 @@ async fn verify_dynamic_relations(config: Json) {
     assert!(author.toArray().unwrap().contains_key("selected_posts"));
     assert!(matches!(
         author.relationResolver::<BelongsTo<Author, Post>>("selectedPosts"),
+        Err(DatabaseError::InvalidQuery(
+            "dynamic relationship descriptor type"
+        ))
+    ));
+
+    Author::resolveRelationUsing(&second, "selectedPosts", |_| Posts::new("id", "author_id"))
+        .unwrap();
+    let exists = Author::queryOn(&db)
+        .whereHas(&named)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(exists.len(), 1);
+    assert_eq!(exists[0].getKey(), Some(&1.into()));
+    let absent = Author::queryOn(&db)
+        .whereDoesntHave(&named)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(absent.len(), 1);
+    assert_eq!(absent[0].getKey(), Some(&2.into()));
+    let counts = Author::queryOn(&other)
+        .hasCount(&named, ">=", 2)
+        .unwrap()
+        .withCount("selectedPosts", &named)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(counts.len(), 1);
+    assert_eq!(
+        counts[0].getAttribute("selected_posts_count"),
+        Some(&2.into())
+    );
+    let wrong = DynamicRelation::<BelongsTo<Author, Post>>::new("selectedPosts");
+    assert!(matches!(
+        Author::queryOn(&db).whereHas(&wrong),
         Err(DatabaseError::InvalidQuery(
             "dynamic relationship descriptor type"
         ))
@@ -3571,6 +3615,14 @@ async fn verify_dynamic_relations(config: Json) {
             .unwrap();
         assert_eq!(posts[0].getKey(), Some(&id.into()));
     }
+    let prototype_matches = Author::queryOn(&db)
+        .whereHas(&named)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(prototype_matches.len(), 1);
+    assert_eq!(prototype_matches[0].getKey(), Some(&2.into()));
     for table in ["relation_posts", "relation_authors"] {
         db.statement(&format!("DROP TABLE {table}"), &[])
             .await

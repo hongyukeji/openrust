@@ -10,7 +10,10 @@ use crate::{
     database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult},
 };
 
-use super::{Model, relations::Relation};
+use super::{
+    Attributes, Model,
+    relations::{ExistenceRelation, Relation},
+};
 
 type Resolver<M, R> = dyn Fn(&M) -> R + Send + Sync;
 type Registrations = HashMap<(TypeId, String), Box<dyn Any + Send + Sync>>;
@@ -72,6 +75,11 @@ impl<R: Relation> DynamicRelation<R> {
             relation: PhantomData,
         }
     }
+
+    fn resolve(&self, parent: &R::Parent) -> DatabaseResult<R> {
+        RelationResolvers::resolve(parent, &self.name)?
+            .ok_or(DatabaseError::InvalidQuery("unknown dynamic relationship"))
+    }
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
@@ -90,10 +98,7 @@ impl<R: Relation> Relation for DynamicRelation<R> {
         Box::pin(async move {
             let descriptors = parents
                 .iter()
-                .map(|parent| {
-                    RelationResolvers::resolve::<_, R>(*parent, &self.name)?
-                        .ok_or(DatabaseError::InvalidQuery("unknown dynamic relationship"))
-                })
+                .map(|parent| self.resolve(parent))
                 .collect::<DatabaseResult<Vec<_>>>()?;
             let mut results = Vec::with_capacity(parents.len());
             for (parent, descriptor) in parents.iter().zip(descriptors) {
@@ -101,5 +106,18 @@ impl<R: Relation> Relation for DynamicRelation<R> {
             }
             Ok(results)
         })
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+impl<R: ExistenceRelation> ExistenceRelation for DynamicRelation<R> {
+    fn getRelationExistenceQuery(
+        &self,
+        connection: &Connection,
+        parent_table: &str,
+    ) -> DatabaseResult<crate::database::query::Builder<'static>> {
+        let prototype = R::Parent::newInstanceOn(connection, Attributes::new())?;
+        self.resolve(&prototype)?
+            .getRelationExistenceQuery(connection, parent_table)
     }
 }
