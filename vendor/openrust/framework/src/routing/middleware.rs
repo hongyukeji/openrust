@@ -38,6 +38,9 @@ impl MiddlewareEntry {
 
 pub(crate) type MiddlewareStack = Vec<Arc<dyn Middleware>>;
 
+#[derive(Clone)]
+pub(super) struct MatchedRouteDomain(pub String);
+
 #[derive(Default)]
 pub(crate) struct MiddlewareRegistry {
     pub(crate) groups: HashMap<String, Vec<MiddlewareEntry>>,
@@ -103,10 +106,15 @@ impl MiddlewareRegistry {
         if name == "signed" {
             return Some(Arc::new(ValidateSignature::absolute()));
         }
-        let (alias, parameters) = name.split_once(':')?;
-        if parameters.is_empty() {
-            return None;
-        }
+        let (alias, parameters) = if name == "throttle" {
+            (name, "")
+        } else {
+            let (alias, parameters) = name.split_once(':')?;
+            if parameters.is_empty() {
+                return None;
+            }
+            (alias, parameters)
+        };
         let mut aliases = self
             .parameterized_aliases
             .lock()

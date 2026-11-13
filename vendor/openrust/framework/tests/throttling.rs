@@ -8,8 +8,12 @@ use std::{
 
 use axum::{extract::State, handler::Handler as _};
 use openrust::{
+    auth::{AuthIdentifier, AuthManager},
     cache::rate_limiting::{Attempt, Limit},
-    contracts::http::Kernel as _,
+    contracts::{
+        auth::Authenticatable, container::Container as _, foundation::Application as _,
+        http::Kernel as _,
+    },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
@@ -30,6 +34,7 @@ struct Limits;
 impl ServiceProvider for Limits {
     fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async {
+            RateLimiter::r#for("9", |_| Limit::perMinute(1))?;
             RateLimiter::r#for("short", |_| Limit::perSecond(2))?;
             RateLimiter::r#for("shared", |_| Limit::perMinute(5))?;
             RateLimiter::r#for("multi", |request| {
@@ -48,6 +53,53 @@ impl ServiceProvider for Limits {
                     })
             })?;
             RateLimiter::r#for("infinite", |_| Limit::none())?;
+            Ok(())
+        })
+    }
+}
+
+struct Identity(String);
+
+impl Authenticatable for Identity {
+    fn get_auth_identifier_name(&self) -> &str {
+        "id"
+    }
+    fn get_auth_identifier(&self) -> AuthIdentifier {
+        AuthIdentifier::String(self.0.clone())
+    }
+    fn get_auth_password_name(&self) -> &str {
+        "password"
+    }
+    fn get_auth_password(&self) -> Option<&str> {
+        None
+    }
+    fn get_remember_token(&self) -> Option<&str> {
+        None
+    }
+    fn set_remember_token(&mut self, _: Option<String>) {}
+    fn get_remember_token_name(&self) -> &str {
+        "remember_token"
+    }
+}
+
+struct Authentication;
+
+impl ServiceProvider for Authentication {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .make::<AuthManager>()?
+                .viaRequest("header", |request| {
+                    Box::pin(async move {
+                        Ok(request
+                            .headers()
+                            .get("x-fixture-user")
+                            .and_then(|header| header.to_str().ok())
+                            .map(|id| {
+                                Box::new(Identity(format!("用户:{id}"))) as Box<dyn Authenticatable>
+                            }))
+                    })
+                });
             Ok(())
         })
     }
@@ -127,8 +179,28 @@ fn routes() -> Result<(), RoutingError> {
             .get("/multi-probe", empty)?
             .middleware_name("throttle:multi");
         router.get("/manual", manual)?;
+        for (path, throttle) in [
+            ("/defaults", "throttle"),
+            ("/budget", "throttle:1|2,1,budget"),
+            ("/same-budget", "throttle:1|2,1,budget"),
+            ("/other-budget", "throttle:1|2,1,other-budget"),
+            ("/fraction", "throttle:1,0.02,fraction"),
+            ("/numeric-name", "throttle:9"),
+            ("/explicit-numeric", "throttle:9,1,explicit"),
+        ] {
+            router.get(path, empty)?.middleware_name(throttle);
+        }
         Ok(())
-    })
+    })?;
+    for domain in ["{tenant}.example.test", "other.test"] {
+        Route::group(RouteGroup::new().domain(domain), |router| {
+            router
+                .get("/domain", empty)?
+                .middleware_name("throttle:1,1,domain");
+            Ok(())
+        })?;
+    }
+    Ok(())
 }
 
 async fn transport(
@@ -141,10 +213,16 @@ async fn transport(
 async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let app = Application::configure(std::env::temp_dir())
         .withConfig(|_, _| {
-            let mut config = std::collections::BTreeMap::from([(
-                "cache".into(),
-                json!({"default":"array","stores":{"array":{"driver":"array"}}}),
-            )]);
+            let mut config = std::collections::BTreeMap::from([
+                (
+                    "cache".into(),
+                    json!({"default":"array","stores":{"array":{"driver":"array"}}}),
+                ),
+                (
+                    "auth".into(),
+                    json!({"defaults":{"guard":"header"},"guards":{"header":{"driver":"header"}}}),
+                ),
+            ]);
             if let Ok(port) = std::env::var("OPENRUST_TEST_REDIS_PORT") {
                 let prefix = std::env::var("OPENRUST_THROTTLE_FIXTURE").unwrap_or_default();
                 let url = format!("redis://127.0.0.1:{port}/");
@@ -155,7 +233,7 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             }
             Ok(config)
         })
-        .withProviders(vec![Box::new(Limits)])
+        .withProviders(vec![Box::new(Limits), Box::new(Authentication)])
         .withMiddleware(move |middleware| {
             if redis {
                 middleware.throttleWithRedis();
@@ -171,7 +249,9 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
     let server = tokio::spawn(async move {
         axum::serve(
             listener,
-            transport.with_state(Arc::new(kernel)).into_make_service(),
+            transport
+                .with_state(Arc::new(kernel))
+                .into_make_service_with_connect_info::<SocketAddr>(),
         )
         .await
         .unwrap();
@@ -180,9 +260,14 @@ async fn start(redis: bool) -> (SocketAddr, tokio::task::JoinHandle<()>) {
 }
 
 async fn send(address: SocketAddr, path: &str) -> String {
+    send_as(address, path, "example.test", None).await
+}
+
+async fn send_as(address: SocketAddr, path: &str, host: &str, user: Option<&str>) -> String {
     timeout(Duration::from_secs(5), async {
         let mut stream = TcpStream::connect(address).await.unwrap();
-        stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        let identity = user.map_or_else(String::new, |id| format!("X-Fixture-User: {id}\r\n"));
+        stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {host}\r\n{identity}Accept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
         let mut wire = String::new();
         stream.read_to_string(&mut wire).await.unwrap();
         wire
@@ -311,4 +396,81 @@ async fn redis_admission_is_atomic_across_two_http_processes() {
         }
     }
     assert_eq!((allowed, denied), (5, 19));
+}
+
+async fn exercise_numeric(first: SocketAddr, second: SocketAddr) {
+    let default = send(first, "/defaults").await;
+    assert_eq!(status(&default), 204, "{default}");
+    assert!(default.contains("x-ratelimit-limit: 60"), "{default}");
+
+    let guest = send(first, "/budget").await;
+    assert_eq!(status(&guest), 204, "{guest}");
+    assert!(guest.contains("x-ratelimit-limit: 1"), "{guest}");
+    // A client-controlled Host change and a different route with the same prefix
+    // both leave an unbound route's guest signature unchanged.
+    assert_eq!(
+        status(&send_as(second, "/same-budget", "different.test", None).await),
+        429
+    );
+    assert_eq!(status(&send(first, "/other-budget").await), 204);
+
+    let owner = send_as(first, "/budget", "example.test", Some("alpha")).await;
+    assert_eq!(status(&owner), 204, "{owner}");
+    assert!(owner.contains("x-ratelimit-limit: 2"), "{owner}");
+    assert_eq!(
+        status(&send_as(second, "/same-budget", "other.test", Some("alpha")).await),
+        204
+    );
+    assert_eq!(
+        status(&send_as(first, "/budget", "example.test", Some("alpha")).await),
+        429
+    );
+    assert_eq!(
+        status(&send_as(second, "/budget", "example.test", Some("beta")).await),
+        204
+    );
+
+    assert_eq!(
+        status(&send_as(first, "/domain", "a.example.test", None).await),
+        204
+    );
+    assert_eq!(
+        status(&send_as(second, "/domain", "b.example.test", None).await),
+        429
+    );
+    assert_eq!(
+        status(&send_as(second, "/domain", "other.test", None).await),
+        204
+    );
+
+    assert_eq!(status(&send(first, "/fraction").await), 204);
+    let fraction = send(second, "/fraction").await;
+    assert_eq!(status(&fraction), 429, "{fraction}");
+    assert!(fraction.contains("retry-after: 1"), "{fraction}");
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(status(&send(second, "/fraction").await), 204);
+
+    let named = send(first, "/numeric-name").await;
+    assert!(named.contains("x-ratelimit-limit: 1"), "{named}");
+    let numeric = send(second, "/explicit-numeric").await;
+    assert!(numeric.contains("x-ratelimit-limit: 9"), "{numeric}");
+}
+
+#[tokio::test]
+async fn numeric_throttling_uses_matched_domains_and_authenticated_identifiers() {
+    let (address, server) = start(false).await;
+    exercise_numeric(address, address).await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn numeric_throttling_shares_identity_buckets_across_redis_processes() {
+    if std::env::var_os("OPENRUST_TEST_REDIS_PORT").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS").is_none());
+        return;
+    }
+    let prefix = format!("openrust-throttle-{:016x}:", fastrand::u64(..));
+    let (first, _first) = fixture(&prefix);
+    let (second, _second) = fixture(&prefix);
+    exercise_numeric(first, second).await;
 }

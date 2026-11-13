@@ -20,3 +20,9 @@
 ## 遗漏回归补交
 
 命名限流双应用测试在原验收日志通过，未进入 `cb0e43e6`。在包含路由安装器的 `a6f560e8` 上复验 `named_limiters` 与 `throttling`。真实 HTTP 覆盖两个应用的同名策略隔离、重复键、响应回调及跨进程 Redis 节流。Rust 1.94.0 锁定离线测试、格式及定向严格 Clippy 通过。三语正文沿用原交付。
+
+## 数字节流与认证签名补验
+
+- 在已有数字参数和认证 ID 支持上补齐 `throttle` 的每分钟 60 次默认值、数字参数的命名策略解析优先级、小数分钟和 `访客|认证` 配额。访客按路由声明的域名和连接 IP 计数。认证请求按原始认证标识计数。复核旧版 `http/rate_limit.rs` 的用户或 IP 策略，沿用当前框架固定窗口和原子 Redis 计数。 [Laravel ThrottleRequests](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Routing/Middleware/ThrottleRequests.php#L80-L215)
+- macOS arm64、Rust 1.94.0，`cargo test -p openrust-framework --test named_limiters --test throttling --locked --offline` 通过六项。真实 HTTP 覆盖默认额度、访客与认证额度、身份隔离、不同路由前缀、通配域名、不同路由域名、客户端 Host 变化、额度响应头、429、到期恢复和数字名称的命名策略。使用 Redis 8.10.3 复验两个独立 HTTP 进程共享认证与访客的配额。
+- 小数分钟转换为整秒，现有后端支持 1 秒至 365 天窗口。Laravel 可从认证模型的动态属性读取配额，Rust 的 `Authenticatable` 接口公开认证标识，按应用属性配置额度可使用命名限流器。Redis Cluster 留到发布前验收。

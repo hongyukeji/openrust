@@ -117,9 +117,11 @@ fn upload(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
 }
 ```
 
+用 `middleware_name("throttle:30,0.5,uploads:")` 將額度設為每 30 秒 30 次。只寫 `throttle` 時預設每分鐘 60 次。`throttle:5|20,1,uploads:` 分別給訪客和已驗證使用者每分鐘 5 次和 20 次。訪客依路由宣告的網域和連線對端 IP 共用額度，已驗證請求依驗證識別碼共用額度。為不同規則設定不同的前綴即可分別計數。
+
 ### 使用 Redis 節流
 
-在 `withMiddleware` 中呼叫 `middleware.throttleWithRedis()`，讓命名節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。
+在 `withMiddleware` 中呼叫 `middleware.throttleWithRedis()`，讓命名和數字節流別名使用預設 Redis 連線。使用相同 Redis 連線設定和鍵前綴的程序共用配額。Redis 原子檢查並消耗各項額度。使用 `after` 的規則在回應回傳後計數。
 
 ## 路由模型繫結
 

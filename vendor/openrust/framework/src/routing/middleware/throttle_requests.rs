@@ -20,7 +20,7 @@ const LIMIT: HeaderName = HeaderName::from_static("x-ratelimit-limit");
 const REMAINING: HeaderName = HeaderName::from_static("x-ratelimit-remaining");
 const RESET: HeaderName = HeaderName::from_static("x-ratelimit-reset");
 
-/// Applies a named cache-backed limiter to a route.
+/// Applies a named or numeric cache-backed limiter to a route.
 pub struct ThrottleRequests {
     name: String,
 }
@@ -61,18 +61,22 @@ pub(super) async fn handle(
     request: &mut Request,
     next: Next<'_>,
 ) -> Result<Response, HttpError> {
-    let (namespace, limits) =
-        if let Some(callback) = RateLimiter::limiter(name).map_err(internal)? {
-            let limits = match callback(request) {
-                LimiterResponse::Limit(limit) => vec![limit],
-                LimiterResponse::Limits(limits) => limits,
-                LimiterResponse::Response(response) => return Ok(response),
-                LimiterResponse::Unlimited(_) => return Ok(next.run(request).await),
-            };
-            (name, limits)
-        } else {
-            ("numeric", vec![numeric_limit(name, request).await?])
+    let named = if name.is_empty() || name.contains(',') {
+        None
+    } else {
+        RateLimiter::limiter(name).map_err(internal)?
+    };
+    let (namespace, limits) = if let Some(callback) = named {
+        let limits = match callback(request) {
+            LimiterResponse::Limit(limit) => vec![limit],
+            LimiterResponse::Limits(limits) => limits,
+            LimiterResponse::Response(response) => return Ok(response),
+            LimiterResponse::Unlimited(_) => return Ok(next.run(request).await),
         };
+        (name, limits)
+    } else {
+        ("numeric", vec![numeric_limit(name, request).await?])
+    };
     if limits.is_empty() {
         return Ok(next.run(request).await);
     }
@@ -153,19 +157,22 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
         ))
     };
     let mut fields = parameters.split(',');
-    let max_attempts = fields
-        .next()
-        .and_then(|value| value.parse::<u64>().ok())
-        .ok_or_else(invalid)?;
-    let minutes = fields
+    let attempts = fields.next().ok_or_else(invalid)?;
+    let attempts = if parameters.is_empty() {
+        "60"
+    } else {
+        attempts
+    };
+    let seconds = fields
         .next()
         .unwrap_or("1")
-        .parse::<u64>()
-        .map_err(|_| invalid())?;
-    let decay = minutes
-        .checked_mul(60)
-        .filter(|&seconds| seconds > 0)
-        .ok_or_else(invalid)?;
+        .parse::<f64>()
+        .map_err(|_| invalid())?
+        * 60.0;
+    // The fixed-window backends accept integer seconds and at most one year.
+    if !(1.0..=31_536_000.0).contains(&seconds) {
+        return Err(invalid());
+    }
     let prefix = fields.next().unwrap_or_default();
     if fields.next().is_some() {
         return Err(invalid());
@@ -176,6 +183,17 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
         Err(crate::auth::AuthError::Configuration("guard" | "guard name")) => None,
         Err(error) => return Err(error.into()),
     };
+    let attempts = match attempts.split_once('|') {
+        Some((guest, authenticated)) => {
+            if user.is_some() {
+                authenticated
+            } else {
+                guest
+            }
+        }
+        None => attempts,
+    };
+    let max_attempts = attempts.parse::<u64>().map_err(|_| invalid())?;
     let key = match user {
         Some(user) => match user.get_auth_identifier() {
             AuthIdentifier::Integer(id) => format!("{prefix}:user:{id}"),
@@ -183,25 +201,25 @@ async fn numeric_limit(parameters: &str, request: &mut Request) -> Result<Limit,
             AuthIdentifier::String(id) => format!("{prefix}:user:{id}"),
         },
         None => {
-            let host = request
-                .uri()
-                .host()
-                .or_else(|| {
-                    request
-                        .headers()
-                        .get(::http::header::HOST)
-                        .and_then(|value| value.to_str().ok())
-                })
-                .unwrap_or_default();
+            if !request.matched_route {
+                return Err(internal(std::io::Error::other(
+                    "unable to generate the throttle request signature without a matched route",
+                )));
+            }
+            let domain = request
+                .parts()
+                .extensions
+                .get::<super::MatchedRouteDomain>()
+                .map_or("", |domain| domain.0.as_str());
             let ip = request
                 .parts()
                 .extensions
                 .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
                 .map_or_else(|| "unknown".into(), |address| address.0.ip().to_string());
-            format!("{prefix}:guest:{host}:{ip}")
+            format!("{prefix}:guest:{domain}:{ip}")
         }
     };
-    Ok(Limit::new(key, max_attempts, decay))
+    Ok(Limit::new(key, max_attempts, seconds as u64))
 }
 
 fn headers(limit: &Limit, bucket: Bucket, retry: Option<u64>) -> Result<HeaderMap, HttpError> {

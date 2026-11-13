@@ -3,7 +3,7 @@ use crate::{
     http::{HttpError, HttpFuture, Next, Request, Response},
 };
 
-/// Applies a named limiter using a Redis duration counter.
+/// Applies a named or numeric limiter using a Redis duration counter.
 pub struct ThrottleRequestsWithRedis {
     name: String,
 }

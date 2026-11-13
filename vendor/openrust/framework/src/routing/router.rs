@@ -365,6 +365,10 @@ impl Router {
         request.set_route_parameters(Vec::new());
         request.route_terminators.clear();
         request.matched_route = false;
+        request
+            .parts_mut()
+            .extensions
+            .remove::<super::middleware::MatchedRouteDomain>();
         let path = request.uri().path().trim_end_matches('/');
         let path = percent_decode_str(if path.is_empty() { "/" } else { path })
             .decode_utf8()
@@ -397,6 +401,12 @@ impl Router {
             }
             let parameters = route.parameters(host, &path);
             request.matched_route = true;
+            if let Some(domain) = &route.domain {
+                request
+                    .parts_mut()
+                    .extensions
+                    .insert(super::middleware::MatchedRouteDomain(domain.clone()));
+            }
             let plan = route.binding_plan(&self.bindings, &parameters);
             request.set_route_parameters(parameters);
             request.binding_plan = plan;
