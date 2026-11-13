@@ -13,4 +13,4 @@
 - Redis 8 实际跨进程验收。重叠时竞争者跳过，失败后能重新取得锁。同一分钟仅一台运行，下一分钟可重新选举。子分钟任务收到共享中断后停止。Unix SIGTERM 下常驻进程完成当前任务并退出。
 - 三语文档构建通过。通用浏览器检查 12 项，调度页面在两个部署路径共 6 项。三语共同 Rust 示例已编译，并通过实际 `schedule:list` 验证表达式和时区。
 
-本单元交付 `schedule:run/list/work/interrupt`。完整的 Laravel 调度命令目录还包含清锁、暂停、恢复和手工测试，当前保留命令骨架。后续计划为 06-06 Mail 与 Notifications。
+本单元已交付 `schedule:run/list/work/interrupt`，并完成暂停和恢复、输出邮件、清锁及手工测试。后续计划为 06-06 Mail 与 Notifications。 [暂停和恢复验收](scheduler-pause.md) · [输出与调度命令验收](scheduler-output-background.md)
