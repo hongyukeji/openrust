@@ -77,11 +77,103 @@ fn success(output: Output) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
+#[cfg(feature = "sanctum")]
+const SANCTUM_PATH: &str =
+    "database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs";
+
+#[cfg(feature = "sanctum")]
+async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
+    let run = |args: &[&str]| success(root.run("local", mysql, args));
+    let mut schema = db.getSchemaBuilder();
+    let columns = schema.getColumns("personal_access_tokens").await.unwrap();
+    assert_eq!(
+        columns
+            .iter()
+            .map(|column| column.name.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "id",
+            "tokenable_type",
+            "tokenable_id",
+            "name",
+            "token",
+            "abilities",
+            "last_used_at",
+            "expires_at",
+            "created_at",
+            "updated_at",
+        ]
+    );
+    let indexes = schema.getIndexes("personal_access_tokens").await.unwrap();
+    for (columns, unique) in [
+        (&["id"][..], true),
+        (&["tokenable_type", "tokenable_id"][..], false),
+        (&["token"][..], true),
+        (&["expires_at"][..], false),
+    ] {
+        assert!(
+            indexes.iter().any(|index| {
+                index.unique == unique
+                    && index
+                        .columns
+                        .iter()
+                        .map(Option::as_deref)
+                        .eq(columns.iter().copied().map(Some))
+            }),
+            "missing index on {columns:?}"
+        );
+    }
+
+    let token = "a".repeat(64);
+    let insert = "INSERT INTO personal_access_tokens (tokenable_type, tokenable_id, name, token) VALUES (?, ?, ?, ?)";
+    db.insert(
+        insert,
+        &[
+            "app::models::User".into(),
+            42.into(),
+            "device".into(),
+            token.as_str().into(),
+        ],
+    )
+    .await
+    .unwrap();
+    assert!(
+        db.insert(
+            insert,
+            &[
+                "app::models::Other".into(),
+                42.into(),
+                "other".into(),
+                token.as_str().into()
+            ]
+        )
+        .await
+        .is_err()
+    );
+    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("Nothing to migrate"));
+    assert_eq!(
+        db.table("personal_access_tokens").count("*").await.unwrap(),
+        1
+    );
+    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
+    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
+    assert!(schema.hasTable("personal_access_tokens").await.unwrap());
+    assert_eq!(
+        db.table("personal_access_tokens").count("*").await.unwrap(),
+        0
+    );
+    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
+    assert!(schema.hasTable("users").await.unwrap());
+}
+
 async fn verify(mysql: Option<&str>) {
     let root = Root::new();
     let db = root.connection(mysql);
     let mut schema = db.getSchemaBuilder();
     for name in [
+        "personal_access_tokens",
         "job_chain_deliveries",
         "job_batches_continuations",
         "job_batches_additions",
@@ -136,11 +228,18 @@ async fn verify(mysql: Option<&str>) {
     assert!(schema.hasTable("job_batches").await.unwrap());
     verify_batches(db.clone()).await;
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 12);
+    assert_eq!(
+        db.table("migrations").count("*").await.unwrap(),
+        12 + u64::from(cfg!(feature = "sanctum"))
+    );
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
+    #[cfg(feature = "sanctum")]
+    verify_sanctum(&root, mysql, &db).await;
+    #[cfg(not(feature = "sanctum"))]
+    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(
         !schema
@@ -164,6 +263,12 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
+    if cfg!(feature = "sanctum") {
+        assert!(
+            success(run(&["migrate:rollback", "--step=1"]))
+                .contains("create_personal_access_tokens_table")
+        );
+    }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(!schema.hasTable("job_chain_deliveries").await.unwrap());
@@ -211,6 +316,12 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
+    if cfg!(feature = "sanctum") {
+        assert!(
+            success(run(&["migrate:rollback", "--step=1"]))
+                .contains("create_personal_access_tokens_table")
+        );
+    }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -237,6 +348,12 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
+    if cfg!(feature = "sanctum") {
+        assert!(
+            success(run(&["migrate:rollback", "--step=1"]))
+                .contains("create_personal_access_tokens_table")
+        );
+    }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
@@ -418,7 +535,10 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("jobs").await.unwrap());
     assert!(schema.hasTable("failed_jobs").await.unwrap());
     assert!(schema.hasTable("job_batches").await.unwrap());
-    assert_eq!(db.table("migrations").count("*").await.unwrap(), 12);
+    assert_eq!(
+        db.table("migrations").count("*").await.unwrap(),
+        12 + u64::from(cfg!(feature = "sanctum"))
+    );
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());
 }

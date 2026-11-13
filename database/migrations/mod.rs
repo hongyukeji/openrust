@@ -36,6 +36,10 @@ mod create_job_chain_deliveries_table;
 #[path = "0001_01_01_000011_add_acknowledged_at_to_job_chain_deliveries.rs"]
 mod add_acknowledged_at_to_job_chain_deliveries;
 
+#[cfg(feature = "sanctum")]
+#[path = "2019_12_14_000001_create_personal_access_tokens_table.rs"]
+mod create_personal_access_tokens_table;
+
 pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000000_create_users_table.rs",
@@ -84,5 +88,10 @@ pub(crate) const ENTRIES: &[MigrationEntry] = &[
     MigrationEntry::new(
         "database/migrations/0001_01_01_000011_add_acknowledged_at_to_job_chain_deliveries.rs",
         &add_acknowledged_at_to_job_chain_deliveries::Definition,
+    ),
+    #[cfg(feature = "sanctum")]
+    MigrationEntry::new(
+        "database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs",
+        &create_personal_access_tokens_table::Definition,
     ),
 ];
