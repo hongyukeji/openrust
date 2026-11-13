@@ -405,6 +405,30 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### 批量加载关系链
 
+从已启用自动预加载的集合移出的模型调用 `getRelationOrLoad` 时，返回的关联模型也能继续批量加载。预先加载的关系同样适用，多态目标按别名分组。需要在借用结束后保留关联模型时，可复制状态来构造独立模型。独立模型共享批次，在访问时安装自己的关系结果。原有 `Arc` 快照保留原值。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn moved_post_comment_counts<Author: Model, Post: Model, Comment: Model>(
+    authors: Collection<Author>,
+) -> DatabaseResult<Vec<usize>> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let mut counts = Vec::new();
+    for mut author in authors.withRelationshipAutoloading() {
+        for post in author.getRelationOrLoad("posts", &posts).await? {
+            let mut post = Post::from_state(post.state().clone());
+            counts.push(post.getRelationOrLoad("comments", &comments).await?.len());
+        }
+    }
+    Ok(counts)
+}
+```
+
 在从集合借用的模型上调用 `relatedModelAt` 可访问单个关联模型。启用自动预加载后，该模型缺失的关系会在同一父关系下的所有关联模型上批量加载，结果写回根集合，供后续读取和序列化。关闭自动预加载时，访问遵循所选模型的延迟加载规则。关系为空或位置越界时返回 `None`。
 
 ```rust

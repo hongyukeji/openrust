@@ -405,6 +405,30 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### 批次載入關聯鏈
 
+從已啟用自動預載入的集合移出的模型呼叫 `getRelationOrLoad` 時，回傳的關聯模型也能繼續批次載入。預先載入的關聯同樣適用，多型目標依別名分組。需要在借用結束後保留關聯模型時，可複製狀態來建構獨立模型。獨立模型共用批次，在存取時安裝自己的關聯結果。原有 `Arc` 快照保留原值。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn moved_post_comment_counts<Author: Model, Post: Model, Comment: Model>(
+    authors: Collection<Author>,
+) -> DatabaseResult<Vec<usize>> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let mut counts = Vec::new();
+    for mut author in authors.withRelationshipAutoloading() {
+        for post in author.getRelationOrLoad("posts", &posts).await? {
+            let mut post = Post::from_state(post.state().clone());
+            counts.push(post.getRelationOrLoad("comments", &comments).await?.len());
+        }
+    }
+    Ok(counts)
+}
+```
+
 在從集合借用的模型上呼叫 `relatedModelAt` 可存取單個關聯模型。啟用自動預載入後，該模型缺少的關聯會在同一父關聯下的所有關聯模型上批次載入，結果寫回根集合，供後續讀取和序列化。關閉自動預載入時，存取遵循所選模型的延遲載入規則。關聯為空或位置超出範圍時回傳 `None`。
 
 ```rust

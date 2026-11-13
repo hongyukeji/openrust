@@ -405,6 +405,30 @@ pub async fn author_post_counts(connection: &Connection) -> DatabaseResult<Vec<u
 
 ### Loading a Relationship Chain
 
+When an owned model comes from an autoload-enabled collection, `getRelationOrLoad` also prepares the returned models for batched access. This applies to previously eager-loaded relations and to polymorphic targets grouped by alias. To keep a related model beyond the borrow, copy its state into an owned model. The owned model shares the batch, and installs its own relationship result when accessed. Existing `Arc` snapshots keep their original values.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+pub async fn moved_post_comment_counts<Author: Model, Post: Model, Comment: Model>(
+    authors: Collection<Author>,
+) -> DatabaseResult<Vec<usize>> {
+    let posts = HasMany::<Author, Post>::new("id", "author_id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let mut counts = Vec::new();
+    for mut author in authors.withRelationshipAutoloading() {
+        for post in author.getRelationOrLoad("posts", &posts).await? {
+            let mut post = Post::from_state(post.state().clone());
+            counts.push(post.getRelationOrLoad("comments", &comments).await?.len());
+        }
+    }
+    Ok(counts)
+}
+```
+
 Use `relatedModelAt` on a model borrowed from the collection to access one related model. With automatic eager loading enabled, a missing relationship on that model is loaded across all related models reached by the same parent relationship. The root collection retains the results for later reads and serialization. With automatic eager loading disabled, the access follows the selected model’s lazy-loading policy. An empty relationship or out-of-range position returns `None`.
 
 ```rust

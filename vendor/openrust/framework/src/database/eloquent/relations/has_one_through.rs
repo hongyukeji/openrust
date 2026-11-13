@@ -111,6 +111,14 @@ impl<P: Model, I: Model, R: Model> Relation for HasOneThrough<P, I, R> {
     type Parent = P;
     type Output = Option<Arc<R>>;
 
+    fn attachAutoload(outputs: &mut [Self::Output]) {
+        super::super::detached_autoload::attach_outputs(outputs);
+    }
+
+    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+        Some(output.clone())
+    }
+
     fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         super::super::serialization::one(output)
     }

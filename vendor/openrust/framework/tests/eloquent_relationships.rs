@@ -892,6 +892,35 @@ fn verify_morph_batches(
             assert!(subject["author"]["posts"].is_array());
         }
 
+        let mut moved_posts = Vec::new();
+        for mut root in Comment::queryOn(db)
+            .with("subject", subjects())
+            .get()
+            .await
+            .unwrap()
+            .withRelationshipAutoloading()
+        {
+            if let Some(post) = root
+                .getRelationOrLoad("subject", &morph)
+                .await
+                .unwrap()
+                .as_ref()
+                .and_then(MorphTarget::downcast_ref::<Post>)
+            {
+                moved_posts.push(Post::from_state(post.state().clone()));
+            }
+        }
+        assert!(moved_posts.len() >= 2);
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        for post in &mut moved_posts {
+            post.getRelationOrLoad("comments", &POST_COMMENTS)
+                .await
+                .unwrap();
+        }
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+
         let mut authors = Author::queryOn(db).get().await.unwrap();
         let mut comments = authors
             .relatedModels("comments", &COMMENTS_THROUGH)
@@ -1432,8 +1461,8 @@ fn verify_relation_autoload(
             first.getRelationOrLoad("posts", &posts),
             second.getRelationOrLoad("posts", &posts)
         );
-        assert!(!first_posts.unwrap().is_empty());
-        assert!(!second_posts.unwrap().is_empty());
+        let mut first_post = Post::from_state(first_posts.unwrap()[0].state().clone());
+        let mut second_post = Post::from_state(second_posts.unwrap()[0].state().clone());
         assert!(
             empty
                 .getRelationOrLoad("posts", &posts)
@@ -1441,6 +1470,28 @@ fn verify_relation_autoload(
                 .unwrap()
                 .is_empty()
         );
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+        let bad_comments = POST_COMMENTS.constrain(|mut query| {
+            query.r#where("relation_comments.unknown_relation_column", "=", "error");
+            query
+        });
+        assert!(
+            first_post
+                .getRelationOrLoad("comments", &bad_comments)
+                .await
+                .is_err()
+        );
+        assert!(!second_post.relationLoaded("comments"));
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        let comments = POST_COMMENTS;
+        let (left, right) = tokio::join!(
+            first_post.getRelationOrLoad("comments", &comments),
+            second_post.getRelationOrLoad("comments", &comments)
+        );
+        left.unwrap();
+        right.unwrap();
         if mysql {
             assert_eq!(select_count(db).await - baseline, 1);
         }

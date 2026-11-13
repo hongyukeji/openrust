@@ -144,6 +144,14 @@ impl<R: Relation> Relation for DynamicRelation<R> {
     type Parent = R::Parent;
     type Output = R::Output;
 
+    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+        R::autoloadOutput(output)
+    }
+
+    fn attachAutoload(outputs: &mut [Self::Output]) {
+        R::attachAutoload(outputs);
+    }
+
     fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         R::serialize(output)
     }

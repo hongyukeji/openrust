@@ -118,6 +118,14 @@ impl<P: Model, R: Model> Relation for HasMany<P, R> {
     type Parent = P;
     type Output = Vec<Arc<R>>;
 
+    fn attachAutoload(outputs: &mut [Self::Output]) {
+        super::super::detached_autoload::attach_outputs(outputs);
+    }
+
+    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+        Some(output.clone())
+    }
+
     fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         super::super::serialization::many(output)
     }

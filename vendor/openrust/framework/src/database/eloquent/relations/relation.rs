@@ -27,6 +27,17 @@ pub trait Relation: Send + Sync + 'static {
         Ok(None)
     }
 
+    /// Associates model outputs with a shared automatic loading batch.
+    #[doc(hidden)]
+    fn attachAutoload(_outputs: &mut [Self::Output]) {}
+
+    /// Copies the loaded output for automatic loading propagation.
+    #[doc(hidden)]
+    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+        let _ = output;
+        None
+    }
+
     /// Returns one result per parent, in the original order.
     fn matchResults<'a>(
         &'a self,

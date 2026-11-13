@@ -428,11 +428,36 @@ type ErasedModel = Arc<dyn ProjectableModel>;
 trait ProjectableModel: Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<serde_json::Value>;
+    fn attach_autoload(&self, group: &mut [&mut MorphTarget]);
 }
 
 impl<M: Model> ProjectableModel for M {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn attach_autoload(&self, group: &mut [&mut MorphTarget]) {
+        let mut models = IndexMap::new();
+        for target in group.iter() {
+            if let Some(model) = target.downcast_ref::<M>() {
+                models
+                    .entry(std::ptr::from_ref(model).addr())
+                    .or_insert_with(|| M::from_state(model.state().clone()));
+            }
+        }
+        let (addresses, mut models): (Vec<_>, Vec<_>) = models.into_iter().unzip();
+        super::super::detached_autoload::attach(&mut models);
+        let replacements: IndexMap<_, _> = addresses
+            .into_iter()
+            .zip(models.into_iter().map(Arc::new))
+            .collect();
+        for target in group {
+            if let Some(model) = target.downcast_ref::<M>()
+                && let Some(replacement) = replacements.get(&std::ptr::from_ref(model).addr())
+            {
+                target.replace_model(replacement.clone());
+            }
+        }
     }
 
     fn project(&self) -> DatabaseResult<serde_json::Value> {
@@ -590,6 +615,21 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
 impl<P: Model> Relation for MorphTo<P> {
     type Parent = P;
     type Output = Option<MorphTarget>;
+
+    fn attachAutoload(outputs: &mut [Self::Output]) {
+        let mut groups = IndexMap::<_, Vec<_>>::new();
+        for target in outputs.iter_mut().flatten() {
+            groups.entry(target.alias()).or_default().push(target);
+        }
+        for mut group in groups.into_values() {
+            let representative = group[0].model.clone();
+            representative.attach_autoload(&mut group);
+        }
+    }
+
+    fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
+        Some(output.clone())
+    }
 
     fn serialize(output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         output

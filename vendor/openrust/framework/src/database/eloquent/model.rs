@@ -857,10 +857,8 @@ pub trait Model: Sized + Send + Sync + 'static {
         name: &str,
     ) -> impl Future<Output = DatabaseResult<&R::Output>> + Send {
         async move {
-            if !self.relationLoaded(name) {
-                let relation = super::DynamicRelation::<R>::new(name);
-                super::detached_autoload::load_on_model_access(self, name, &relation).await?;
-            }
+            let relation = super::DynamicRelation::<R>::new(name);
+            super::detached_autoload::load_on_model_access(self, name, &relation).await?;
             self.getRelation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
         }
@@ -881,9 +879,7 @@ pub trait Model: Sized + Send + Sync + 'static {
         relation: &'a R,
     ) -> impl Future<Output = DatabaseResult<&'a R::Output>> + Send + 'a {
         async move {
-            if !self.relationLoaded(name) {
-                super::detached_autoload::load_on_model_access(self, name, relation).await?;
-            }
+            super::detached_autoload::load_on_model_access(self, name, relation).await?;
             self.getRelation(name)
                 .ok_or(DatabaseError::InvalidQuery("relationship output type"))
         }
