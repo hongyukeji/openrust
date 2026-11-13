@@ -1,11 +1,12 @@
-use std::{any::TypeId, collections::HashMap};
+use std::{any::TypeId, collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 
 use crate::database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult, query};
 
 use super::{
-    EagerLoads, Model,
+    EagerLoads, Model, RelatedModels,
+    concerns::has_relationships::load,
     relations::{ExistenceRelation, NestedRelation, Relation},
 };
 
@@ -47,8 +48,13 @@ impl DiscoveredMorphs {
     }
 }
 
+type LoadMissing<M> = dyn for<'a> Fn(&'a mut [M], &'a str, &'a [&'a str]) -> DatabaseFuture<'a, DatabaseResult<()>>
+    + Send
+    + Sync;
+
 struct NamedRelation<M: Model> {
     prepare: Box<Prepare<M>>,
+    load_missing: Box<LoadMissing<M>>,
     existence: Option<Box<Existence>>,
     discover: Option<Box<Discover>>,
 }
@@ -69,9 +75,13 @@ impl<M: Model> NamedRelations<M> {
         mut self,
         name: &'static str,
         factory: impl Fn() -> R + Send + Sync + 'static,
-    ) -> Self {
+    ) -> Self
+    where
+        R::Output: RelatedModels<Model = R::Related>,
+    {
         let factory = std::sync::Arc::new(factory);
         let eager = factory.clone();
+        let missing = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
@@ -83,6 +93,16 @@ impl<M: Model> NamedRelations<M> {
                         relation.with_nested(NamedRelations::<R::Related>::prepare(children)?)
                     };
                     Ok(loads.with(name, relation))
+                }),
+                load_missing: Box::new(move |models, name, children| {
+                    let relation = missing();
+                    Box::pin(async move {
+                        load(models, name, &relation, true).await?;
+                        if children.is_empty() {
+                            return Ok(());
+                        }
+                        load_missing_children::<M, R>(models, name, children).await
+                    })
                 }),
                 existence: Some(Box::new(
                     move |connection, parent, child, operator, count, discovered| {
@@ -129,6 +149,8 @@ impl<M: Model> NamedRelations<M> {
         name: &'static str,
         factory: impl Fn() -> R + Send + Sync + 'static,
     ) -> Self {
+        let factory = Arc::new(factory);
+        let eager = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
@@ -138,7 +160,18 @@ impl<M: Model> NamedRelations<M> {
                             "relationship path cannot be nested",
                         ));
                     }
-                    Ok(loads.with(name, factory()))
+                    Ok(loads.with(name, eager()))
+                }),
+                load_missing: Box::new(move |models, name, children| {
+                    let relation = factory();
+                    Box::pin(async move {
+                        if !children.is_empty() {
+                            return Err(DatabaseError::InvalidQuery(
+                                "relationship path cannot be nested",
+                            ));
+                        }
+                        load(models, name, &relation, true).await
+                    })
                 }),
                 existence: None,
                 discover: None,
@@ -157,6 +190,7 @@ impl<M: Model> NamedRelations<M> {
     ) -> Self {
         let factory = std::sync::Arc::new(factory);
         let eager = factory.clone();
+        let missing = factory.clone();
         let discover = factory.clone();
         self.0.insert(
             name,
@@ -165,6 +199,13 @@ impl<M: Model> NamedRelations<M> {
                     let mut relation = eager();
                     relation.with_paths(children)?;
                     Ok(loads.with(name, relation))
+                }),
+                load_missing: Box::new(move |models, name, children| {
+                    let relation = missing();
+                    Box::pin(async move {
+                        load(models, name, &relation, true).await?;
+                        relation.load_missing_paths(models, name, children).await
+                    })
                 }),
                 existence: Some(Box::new(
                     move |connection, parent, child, operator, count, discovered| {
@@ -237,19 +278,26 @@ impl<M: Model> NamedRelations<M> {
         })
     }
 
-    pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {
-        let mut grouped = IndexMap::<&str, Vec<&str>>::new();
-        for path in paths {
-            if path.split('.').any(str::is_empty) {
-                return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+    pub(super) fn load_missing<'a>(
+        models: &'a mut [M],
+        paths: &'a [&'a str],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let grouped = group_paths(paths)?;
+            let registered = M::namedRelations();
+            for (name, children) in grouped {
+                let relation = registered
+                    .0
+                    .get(name)
+                    .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
+                (relation.load_missing)(models, name, &children).await?;
             }
-            if let Some((name, child)) = path.split_once('.') {
-                grouped.entry(name).or_default().push(child);
-            } else {
-                grouped.entry(path).or_default();
-            }
-        }
+            Ok(())
+        })
+    }
 
+    pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {
+        let grouped = group_paths(paths)?;
         let registered = M::namedRelations();
         let mut loads = EagerLoads::default();
         for (name, children) in grouped {
@@ -261,4 +309,80 @@ impl<M: Model> NamedRelations<M> {
         }
         Ok(loads)
     }
+}
+
+fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, Vec<&'a str>>> {
+    let mut grouped = IndexMap::<&str, Vec<&str>>::new();
+    for path in paths {
+        if path.split('.').any(str::is_empty) {
+            return Err(DatabaseError::InvalidQuery("invalid relationship path"));
+        }
+        if let Some((name, child)) = path.split_once('.') {
+            grouped.entry(name).or_default().push(child);
+        } else {
+            grouped.entry(path).or_default();
+        }
+    }
+
+    Ok(grouped)
+}
+
+/// Loads children once per shared model instance and maps each original pointer to its replacement.
+pub(super) async fn load_missing_models<'a, M: Model>(
+    models: impl Iterator<Item = &'a M> + Send,
+    children: &[&str],
+) -> DatabaseResult<HashMap<usize, Arc<M>>> {
+    let mut positions = IndexMap::new();
+    for model in models {
+        positions
+            .entry(std::ptr::from_ref(model).addr())
+            .or_insert_with(|| M::from_state(model.state().clone()));
+    }
+    let (keys, mut copies): (Vec<_>, Vec<_>) = positions.into_iter().unzip();
+    NamedRelations::<M>::load_missing(&mut copies, children).await?;
+    Ok(keys
+        .into_iter()
+        .zip(copies.into_iter().map(Arc::new))
+        .collect())
+}
+
+async fn load_missing_children<M, R>(
+    models: &mut [M],
+    name: &str,
+    children: &[&str],
+) -> DatabaseResult<()>
+where
+    M: Model,
+    R: NestedRelation<Parent = M>,
+    R::Output: RelatedModels<Model = R::Related>,
+{
+    let outputs = models
+        .iter()
+        .map(|model| {
+            model
+                .getRelation::<R::Output>(name)
+                .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+        })
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    let replacements = load_missing_models(
+        outputs
+            .iter()
+            .flat_map(|output| output.models())
+            .map(Arc::as_ref),
+        children,
+    )
+    .await?;
+    let outputs = outputs
+        .into_iter()
+        .map(|output| {
+            output.replace_models(|model| replacements[&Arc::as_ptr(model).addr()].clone())
+        })
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    for (model, output) in models.iter_mut().zip(outputs) {
+        model
+            .state_mut()
+            .relations
+            .insert(name.to_owned(), output, R::serialize);
+    }
+    Ok(())
 }

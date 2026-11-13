@@ -889,7 +889,18 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         }
     }
     assert!(found_comments);
-    authors.loadPaths(&["posts.comments.post"]).await.unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    authors
+        .loadMissingPaths(&["posts.comments.post", "posts.author"])
+        .await
+        .unwrap();
+    authors
+        .loadMissingPaths(&["posts.comments.post"])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
     let mut found = false;
     for author in authors.iter() {
         for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
@@ -902,6 +913,10 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     assert!(found);
     let mut model = Author::queryOn(db).firstOrFail().await.unwrap();
     model.loadPaths(&["posts.comments"]).await.unwrap();
+    model
+        .loadMissingPaths(&["posts.comments.post"])
+        .await
+        .unwrap();
     assert!(model.relationLoaded("posts"));
 }
 
@@ -984,6 +999,30 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
             counted.push(comment.getKey().unwrap().clone());
         }
     }
+    let mut deferred = Comment::queryOn(db)
+        .withPaths(&["subject"])
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    deferred
+        .loadMissingPaths(&["subject.details"])
+        .await
+        .unwrap();
+    deferred
+        .loadMissingPaths(&["subject.details"])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+    let projected = deferred.toArray().unwrap();
+    assert!(
+        projected
+            .iter()
+            .any(|comment| comment["subject"].get("details").is_some())
+    );
     assert_eq!(aliases, ["post", "author"].into_iter().collect());
     assert!(!expected.is_empty());
     assert!(!counted.is_empty());

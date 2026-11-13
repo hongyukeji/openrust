@@ -450,6 +450,11 @@ impl<M: Model> Collection<M> {
         has_relationships::load_eager(loads, &mut self.models).await
     }
 
+    /// Loads missing relationships along the supplied registered paths.
+    pub async fn loadMissingPaths(&mut self, paths: &[&str]) -> DatabaseResult<()> {
+        super::NamedRelations::<M>::load_missing(&mut self.models, paths).await
+    }
+
     pub async fn load<R: Relation<Parent = M>>(
         &mut self,
         name: &str,

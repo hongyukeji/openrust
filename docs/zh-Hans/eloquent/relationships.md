@@ -284,6 +284,8 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 
 在每一级模型的 `namedRelations()` 中登记对应关系，再将 `posts.comments` 这样的路径传给 `withPaths`。同一次调用中，共用前缀的路径复用父级查询。已有模型或集合可用 `loadPaths`。未知或格式错误的路径返回错误。
 
+在模型或集合上调用 `loadMissingPaths(&["posts.comments"])`，可沿已登记路径补齐缺失关系。已加载结果会保留，包括空结果。缺失的后代按批加载，多态目标按类型分组，根模型序列化时可读到新增结果。需要给共享的相关模型补齐后代时，OpenRust 会在关系缓存中安装新快照，之前持有的 `Arc` 仍指向旧快照。
+
 用 `NamedRelations::morphTo` 登记后，`subject.details` 支持预加载、存在、缺失和末级计数。每个已登记目标都要声明 `details`，各目标可使用不同的关系类型。预加载按目标别名分批，缺失查询包含空值或找不到目标的记录。子关系名称不同时，可使用各目标的类型化配置。
 
 使用异步的 `whereHasPathAll`、`whereDoesntHavePathAll` 或 `hasPathCountAll`，可在构建查询前发现每个多态路径段实际存储的别名。发现查询从模型表读取不同别名，独立于外层查询的筛选和作用域。只有发现的目标需要声明子路径，遇到已存储但未登记的别名会返回错误。

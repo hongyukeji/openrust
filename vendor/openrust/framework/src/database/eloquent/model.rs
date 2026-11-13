@@ -890,6 +890,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         }
     }
 
+    /// Loads missing relationships along the supplied registered paths.
+    fn loadMissingPaths<'a>(
+        &'a mut self,
+        paths: &'a [&'a str],
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        super::NamedRelations::<Self>::load_missing(std::slice::from_mut(self), paths)
+    }
+
     fn load<'a, R: Relation<Parent = Self>>(
         &'a mut self,
         name: &'a str,

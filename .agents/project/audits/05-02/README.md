@@ -280,3 +280,9 @@ SQLite 和独立 MySQL 8.4.13 验证两个别名、重复路径、同名异型�
 对照固定 Laravel 的 `hasMorph('*')` 和多目标嵌套查询测试。异步路径入口先通过已有 `MorphTo::discover_types` 从各多态段的模型表读取实际别名，再复用现有相关子查询。发现按模型类型和关系名称在单次构建中复用，独立于外层筛选与作用域。Rust 通过 `whereHasPathAll`、`whereDoesntHavePathAll` 和 `hasPathCountAll` 显式区分需要数据库查询的类型发现。已存储的未知别名按现有多态契约返回错误。参考固定 Goravel 的连接级查询装配，复核 `v0.x` 未找到对应通配路径实现。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L232) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证两个已存储别名、忽略未出现别名的子路径、缺失和空值、末级计数，以及软删除记录中未知别名仍触发错误。MySQL 通配路径共 2 次 SELECT，一次发现和一次结果查询。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、文档调用编译、三语构建和 18 项浏览器检查通过。提交前周额度剩余 90%，项目卷可用 60 GiB，核心账本 25/66。
+
+## 沿路径补齐缺失关系
+
+对照固定 Laravel 的 `Collection::loadMissingRelation`、`loadMissingRelationshipChain` 及自动加载集成测试。模型和集合通过 `loadMissingPaths` 复用已登记路径，按层批量补齐缺失结果，多态段按别名和目标类型处理。Rust 的共享模型使用 `Arc`，已加载关系上的新后代安装到当前关系图的快照。之前取出的引用仍读取原快照。参考固定 Goravel 的连接级查询装配，复核 `v0.x` 未找到同类路径补齐实现。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L263) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证普通三级路径、重用已加载的父级、模型和集合入口、多态目标分组、序列化和重复调用。MySQL 普通链只发出 1 次缺失后代查询，多态链为两个目标类型各发出 1 次。Rust 1.94 格式、全目标严格 Clippy、621 次工作区测试、实际 `artisan inspire`、文档调用编译、三语构建及 18 项浏览器检查通过。提交前周额度剩余 89%，项目卷可用 60 GiB，核心账本 25/66。

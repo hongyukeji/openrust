@@ -14,6 +14,19 @@ pub trait RelatedModels {
     type Model: Model;
 
     fn models(&self) -> &[Arc<Self::Model>];
+
+    #[doc(hidden)]
+    fn replace_models(
+        &self,
+        _replace: impl FnMut(&Arc<Self::Model>) -> Arc<Self::Model>,
+    ) -> DatabaseResult<Self>
+    where
+        Self: Sized,
+    {
+        Err(DatabaseError::InvalidQuery(
+            "relationship output does not support nested loading",
+        ))
+    }
 }
 
 impl<M: Model> RelatedModels for Vec<Arc<M>> {
@@ -22,6 +35,10 @@ impl<M: Model> RelatedModels for Vec<Arc<M>> {
     fn models(&self) -> &[Arc<M>] {
         self
     }
+
+    fn replace_models(&self, replace: impl FnMut(&Arc<M>) -> Arc<M>) -> DatabaseResult<Self> {
+        Ok(self.iter().map(replace).collect())
+    }
 }
 
 impl<M: Model> RelatedModels for Option<Arc<M>> {
@@ -29,6 +46,10 @@ impl<M: Model> RelatedModels for Option<Arc<M>> {
 
     fn models(&self) -> &[Arc<M>] {
         self.as_slice()
+    }
+
+    fn replace_models(&self, replace: impl FnMut(&Arc<M>) -> Arc<M>) -> DatabaseResult<Self> {
+        Ok(self.as_ref().map(replace))
     }
 }
 

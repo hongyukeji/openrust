@@ -284,6 +284,8 @@ Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular rela
 
 Register each segment in the corresponding model’s `namedRelations()`. Pass paths such as `posts.comments` to `withPaths`. Shared prefixes in one call are loaded together, so sibling paths reuse the same parent query. Use `loadPaths` on an existing model or collection. Unknown or malformed paths return an error.
 
+Use `loadMissingPaths(&["posts.comments"])` on a model or collection to fill gaps along registered paths. Already-loaded relations, including empty results, keep their values. Missing descendants are loaded in batches, including separate groups for polymorphic targets, and are visible in the root model’s serialization. When adding descendants to a shared related model, OpenRust installs a new snapshot in the loaded relationship. A previously held `Arc` continues to refer to the earlier snapshot.
+
 Register a `MorphTo` with `NamedRelations::morphTo` to use paths such as `subject.details` for eager loading, existence, absence, and terminal counts. Each registered target must declare `details`, and those declarations may use different relation types. Eager loading batches by target alias. Existence queries correlate each branch with its alias, and absence includes null or missing targets. Use typed per-target configuration when the child names differ.
 
 Use the asynchronous `whereHasPathAll`, `whereDoesntHavePathAll`, or `hasPathCountAll` to discover the stored aliases at each polymorphic segment before building the query. Discovery reads distinct aliases from the model table independently of the outer query filters and scopes. Only discovered aliases need the child path. An unregistered stored alias returns an error.

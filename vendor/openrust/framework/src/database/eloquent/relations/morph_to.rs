@@ -27,6 +27,7 @@ pub struct MorphTo<P: Model> {
 }
 
 /// A polymorphic model loaded from a registered alias.
+#[derive(Clone)]
 pub struct MorphTarget {
     alias: &'static str,
     model: ErasedModel,
@@ -167,6 +168,47 @@ impl<P: Model> MorphTo<P> {
             for target in self.targets.values_mut() {
                 target.with_paths(children)?;
             }
+        }
+        Ok(())
+    }
+
+    pub(in crate::database::eloquent) async fn load_missing_paths(
+        &self,
+        models: &mut [P],
+        name: &str,
+        children: &[&str],
+    ) -> DatabaseResult<()> {
+        if children.is_empty() {
+            return Ok(());
+        }
+        let mut outputs = models
+            .iter()
+            .map(|model| {
+                model
+                    .getRelation::<Option<MorphTarget>>(name)
+                    .cloned()
+                    .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+            })
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        let mut groups = IndexMap::<_, Vec<_>>::new();
+        for target in outputs.iter_mut().flatten() {
+            groups
+                .entry(target.alias)
+                .or_default()
+                .push(&mut target.model);
+        }
+        for (alias, mut targets) in groups {
+            self.targets
+                .get(alias)
+                .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
+                .load_missing_paths(&mut targets, children)
+                .await?;
+        }
+        for (model, output) in models.iter_mut().zip(outputs) {
+            model
+                .state_mut()
+                .relations
+                .insert(name.to_owned(), output, Self::serialize);
         }
         Ok(())
     }
@@ -408,6 +450,11 @@ trait Target<P: Model>: Send + Sync {
         child: &'a str,
         found: &'a mut DiscoveredMorphs,
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
+    fn load_missing_paths<'a>(
+        &'a self,
+        targets: &'a mut [&mut ErasedModel],
+        children: &'a [&'a str],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>;
     fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()>;
     fn path_query(
         &self,
@@ -465,6 +512,37 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         found: &'a mut DiscoveredMorphs,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         NamedRelations::<R>::discover(connection, child, found)
+    }
+
+    fn load_missing_paths<'a>(
+        &'a self,
+        targets: &'a mut [&mut ErasedModel],
+        children: &'a [&'a str],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let models =
+                targets
+                    .iter()
+                    .map(|target| {
+                        target.as_ref().as_any().downcast_ref::<R>().ok_or(
+                            DatabaseError::InvalidQuery("morph type does not match model"),
+                        )
+                    })
+                    .collect::<DatabaseResult<Vec<_>>>()?;
+            let replacements = super::super::named_relations::load_missing_models(
+                models.iter().copied(),
+                children,
+            )
+            .await?;
+            let keys = models
+                .into_iter()
+                .map(|model| std::ptr::from_ref(model).addr())
+                .collect::<Vec<_>>();
+            for (target, key) in targets.iter_mut().zip(keys) {
+                **target = replacements[&key].clone();
+            }
+            Ok(())
+        })
     }
 
     fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()> {
