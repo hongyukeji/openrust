@@ -2342,6 +2342,34 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
             duplicate.findManyOrFail(&[1.into(), 20.into()]),
             Err(DatabaseError::ModelNotFound("relation_authors"))
         ));
+        let mut dictionary_models: Vec<_> = duplicate
+            .iter()
+            .map(|model| Author::from_state(model.state().clone()))
+            .collect();
+        dictionary_models[3].setAttribute("id", "1");
+        let mut binary = Author::newInstance(Attributes::new()).unwrap();
+        binary.setAttribute("id", Value::Bytes(vec![0, 255]));
+        dictionary_models.push(binary);
+        dictionary_models.push(Author::newInstance(Attributes::new()).unwrap());
+        let dictionary_models = Collection::new(dictionary_models);
+        let dictionary = dictionary_models.getDictionary().unwrap();
+        let keys: Vec<_> = dictionary.keys().map(Vec::as_slice).collect();
+        assert_eq!(keys, [&b"1"[..], &b"2"[..], &b"3"[..], &[0, 255]]);
+        assert!(std::ptr::eq(
+            dictionary[b"1".as_slice()],
+            &dictionary_models[3]
+        ));
+        assert_eq!(
+            dictionary[b"1".as_slice()].getAttribute("name"),
+            Some(&"Replacement".into())
+        );
+        assert!(
+            Collection::<Author>::new(vec![])
+                .getDictionary()
+                .unwrap()
+                .is_empty()
+        );
+
         let projected = duplicate.duplicatesBy(|author| author.getKey().cloned());
         assert_eq!(projected.get(3), Some(&Some(1.into())));
         assert_eq!(projected.count(), 1);

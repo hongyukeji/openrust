@@ -987,7 +987,7 @@ impl<M: Model> Collection<M> {
 
     fn filter_keys(self, keys: &[Value], keep: bool) -> DatabaseResult<Self> {
         let requested = Self::lookup_keys(keys)?;
-        let mut models = model_dictionary(self.models)?;
+        let mut models = model_dictionary(self.models, Model::getKey)?;
         models.retain(|key, _| requested.contains(key) == keep);
         Ok(Self {
             models: models.into_values().collect(),
@@ -1006,8 +1006,16 @@ impl<M: Model> Collection<M> {
         Ok(requested)
     }
 
+    /// Indexes borrowed models by their normalized primary keys.
+    ///
+    /// Missing keys are skipped. Later models replace earlier values at the same
+    /// key without changing its position. Keys retain binary data.
+    pub fn getDictionary(&self) -> DatabaseResult<IndexMap<Vec<u8>, &M>> {
+        model_dictionary(self.iter(), |model| model.getKey())
+    }
+
     pub fn merge(self, models: impl IntoIterator<Item = M>) -> DatabaseResult<Self> {
-        let dictionary = model_dictionary(self.models.into_iter().chain(models))?;
+        let dictionary = model_dictionary(self.models.into_iter().chain(models), Model::getKey)?;
         Ok(Self {
             models: dictionary.into_values().collect(),
             keys: None,
@@ -1414,12 +1422,13 @@ fn collection_connection<'a, M: Model>(
     Ok(Some(connection))
 }
 
-fn model_dictionary<M: Model>(
-    models: impl IntoIterator<Item = M>,
-) -> DatabaseResult<IndexMap<Vec<u8>, M>> {
+fn model_dictionary<T>(
+    models: impl IntoIterator<Item = T>,
+    key_of: impl Fn(&T) -> Option<&Value>,
+) -> DatabaseResult<IndexMap<Vec<u8>, T>> {
     let mut dictionary = IndexMap::new();
     for model in models {
-        if let Some(key) = dictionary_key(model.getKey())? {
+        if let Some(key) = dictionary_key(key_of(&model))? {
             dictionary.insert(key, model);
         }
     }

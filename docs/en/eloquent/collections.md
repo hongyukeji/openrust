@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 Use `load` and `loadMissing` to batch relationships on an existing collection. See [eager loading](./relationships.md#eager-loading).
 
+### Primary-key dictionary {#primary-key-dictionary}
+
+Use `getDictionary` to index borrowed models by their normalized primary keys. The dictionary keeps the first position of each key and the last model with that key. Models without a key are skipped. Numeric keys use their decimal bytes, text keys use UTF-8 bytes, and binary keys retain their raw bytes. For example, the integer `1` and the string `"1"` share a key. This operation uses the loaded models and issues no queries.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, Model}};
+
+pub fn find_by_bytes<'a, M: Model>(
+    models: &'a Collection<M>,
+    key: &[u8],
+) -> DatabaseResult<Option<&'a M>> {
+    Ok(models.getDictionary()?.get(key).copied())
+}
+```
+
 ### Looking Up Models by Key
 
 `find` returns an optional model. `findOrFail` returns `DatabaseError::ModelNotFound` when the key is absent. Use `contains` and `doesntContain` for membership checks. For a list of keys, use `findMany` or `findManyOrFail`. Both return borrowed models in collection order. `findManyOrFail` requires every distinct key to be present, even when the collection contains repeated model keys. These operations use the hydrated collection and issue no SQL.

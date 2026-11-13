@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 集合的 `load` 和 `loadMissing` 可批次載入關聯。請見[預先載入](./relationships.md#預先載入)。
 
+### 主鍵字典 {#primary-key-dictionary}
+
+用 `getDictionary` 按正規化主鍵索引已載入模型。字典保留每個鍵第一次出現的位置，並使用該鍵最後出現的模型。沒有主鍵的模型會略過。數值鍵使用十進位位元組，文字鍵使用 UTF-8 位元組，二進位鍵保留原始位元組。例如整數 `1` 和字串 `"1"` 共用一個鍵。此操作不發出查詢。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, Model}};
+
+pub fn find_by_bytes<'a, M: Model>(
+    models: &'a Collection<M>,
+    key: &[u8],
+) -> DatabaseResult<Option<&'a M>> {
+    Ok(models.getDictionary()?.get(key).copied())
+}
+```
+
 ### 依主鍵查找模型
 
 `find` 回傳可選模型。主鍵不存在時，`findOrFail` 回傳 `DatabaseError::ModelNotFound`。用 `contains` 和 `doesntContain` 檢查主鍵是否在集合中。傳入一組主鍵時，使用 `findMany` 或 `findManyOrFail`，兩者都依集合順序回傳模型參照。`findManyOrFail` 要求每個不同的主鍵都存在，即使集合內有重複主鍵。這些方法直接讀取已載入的模型，不執行 SQL。

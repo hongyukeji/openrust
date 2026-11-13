@@ -404,3 +404,11 @@ SQLite 与独立 MySQL 8.4.13 实测派发后删除模型、首次消费即失�
 对照固定 Laravel `AsPivot`、`MorphPivot` 和 `EloquentPivotSerializationTest`。有独立主键时按主键恢复，否则按两端键恢复，多态 Pivot 同时匹配鉴别值。Rust 将键分开保存为类型化 JSON，并要求模型通过 `queueablePivots` 登记相同的关系定义，避免从载荷直接选择任意表和列。Worker 从写连接读取，并在模型水合时恢复中间表、关系键及时间戳设置。Pivot 集合返回查询匹配的记录，不重复恢复同一行，也不重放捕获的关系路径。旧版 Pivot 装配已有可复用的关系身份设计，当前实现沿用现行水合和持久化代码。固定 Goravel 的任务签名作为编译注册参考。 [Laravel Pivot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/AsPivot.php#L258) · [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentPivotSerializationTest.php) · [Goravel 任务契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/queue/job.go)
 
 SQLite 与独立 MySQL 8.4.13 通过 `queue:work --queue=pivot-restoration --once` 验收独立主键、复合键、多态同键隔离、派发后删除、集合重复键、未登记表拒绝，以及恢复后更新和删除。全量工作区 620 项通过，最终形态另通过双库关系和 Worker 专项。Rust 1.94 格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建与 18 项浏览器检查通过。05-02 仍需按固定关系和集合基线复核剩余差异。
+
+## Eloquent 集合的主键字典
+
+对照固定 Laravel 的 `Collection::getDictionary` 及合并、差集和交集测试，新增公开的 `getDictionary()`，与 `merge`、`unique`、`only`、`except` 共用索引构造。空主键跳过，重复主键保留首次出现的位置和最后出现的值。Rust 使用有序字节键和模型借用，保留二进制主键并避免复制模型。复核旧版 `v0.x` 未找到可直接复用的主键字典。固定 Goravel 的连接级 ORM 作为数据来源与装配对照。 [Laravel 集合源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L684) · [集合测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+继续核对关系存在查询的入口。固定 Laravel 的 `whereRelation`、`withWhereRelation` 及普通和多态关系的 OR、缺失变体尚无全部对应公开入口。现有 `whereHas`、`withWhereHas`、`whereHasMorph` 和 SQL 子查询构造可复用。集合的 `collapse` 已由 Support 集合承担，`flipBy` 由投影明确标量键，自动预加载的链式遍历继续由类型化关系批次执行。 [Laravel 关系查询源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L448)
+
+SQLite 与独立 MySQL 8.4.13 验证有序主键、整数与数字字符串归一、后项覆盖、空集合、跳过空主键、保留二进制键及借用原模型。Rust 1.94 格式、全目标严格 Clippy、620 项工作区测试、实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。

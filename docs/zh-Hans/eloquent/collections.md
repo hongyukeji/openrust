@@ -22,6 +22,21 @@ pub async fn selected_author_keys(connection: &Connection, keys: &[Value]) -> Da
 
 集合的 `load` 和 `loadMissing` 可批量加载关系。见[预加载](./relationships.md#预加载)。
 
+### 主键字典 {#primary-key-dictionary}
+
+用 `getDictionary` 按规范化主键索引已加载模型。字典保留每个键首次出现的位置，并使用该键最后出现的模型。没有主键的模型会跳过。数值键使用十进制字节，文本键使用 UTF-8 字节，二进制键保留原始字节。例如整数 `1` 和字符串 `"1"` 共用一个键。此操作不发起查询。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Collection, Model}};
+
+pub fn find_by_bytes<'a, M: Model>(
+    models: &'a Collection<M>,
+    key: &[u8],
+) -> DatabaseResult<Option<&'a M>> {
+    Ok(models.getDictionary()?.get(key).copied())
+}
+```
+
 ### 按主键查找模型
 
 `find` 返回可选模型。主键不存在时，`findOrFail` 返回 `DatabaseError::ModelNotFound`。用 `contains` 和 `doesntContain` 检查主键是否在集合中。传入一组主键时，使用 `findMany` 或 `findManyOrFail`，两者都按集合顺序返回模型引用。`findManyOrFail` 要求每个不同的主键都存在，即使集合内有重复主键。这些方法直接读取已加载的模型，不执行 SQL。
