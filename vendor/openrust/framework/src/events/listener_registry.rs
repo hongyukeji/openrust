@@ -2,19 +2,33 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use crate::contracts::{
-    events::{Event, Listener, ShouldHandleEventsAfterCommit},
-    queue::JobHandler,
+use crate::{
+    container::Container,
+    contracts::{
+        container::Container as _,
+        events::{Event, Listener, ShouldHandleEventsAfterCommit},
+        queue::JobHandler,
+    },
 };
 
-use super::{CallQueuedListener, Delivery, EventError, EventResult, QueuedListenerOptions};
+use super::{
+    CallQueuedListener, Delivery, EventError, EventFuture, EventResult, QueuedListenerOptions,
+};
 
 #[derive(Clone)]
 pub(super) struct Registration {
-    pub listener: Arc<dyn Listener>,
+    pub source: ListenerSource,
     label: &'static str,
     pub after_commit: bool,
-    pub queued: Option<Arc<QueuedRegistration>>,
+}
+
+type ListenerResolver = fn(&Container) -> EventFuture<'_, EventResult<Arc<dyn Listener>>>;
+
+#[derive(Clone)]
+pub(super) enum ListenerSource {
+    Instance(Arc<dyn Listener>),
+    Container(ListenerResolver),
+    Queued(Arc<QueuedRegistration>),
 }
 
 pub(super) struct QueuedRegistration {
@@ -37,6 +51,44 @@ impl ListenerRegistry {
         listener: Arc<dyn Listener>,
         delivery: Delivery,
     ) -> EventResult<()> {
+        self.add_listener(
+            event,
+            listener.name(),
+            ListenerSource::Instance(listener),
+            delivery,
+        )
+    }
+
+    /// Resolves the listener from the dispatcher's application container on delivery.
+    #[allow(non_snake_case, reason = "Matches Laravel's listener naming")]
+    pub fn listenClass<L: Listener + 'static>(
+        &mut self,
+        event: &str,
+        delivery: Delivery,
+    ) -> EventResult<()> {
+        self.add_listener(
+            event,
+            std::any::type_name::<L>(),
+            ListenerSource::Container(|container| {
+                Box::pin(async move {
+                    let listener = container
+                        .makeAsync::<L>()
+                        .await
+                        .map_err(EventError::Unavailable)?;
+                    Ok(listener as Arc<dyn Listener>)
+                })
+            }),
+            delivery,
+        )
+    }
+
+    fn add_listener(
+        &mut self,
+        event: &str,
+        label: &'static str,
+        source: ListenerSource,
+        delivery: Delivery,
+    ) -> EventResult<()> {
         if event.trim().is_empty() {
             return Err(EventError::InvalidRegistration);
         }
@@ -48,10 +100,9 @@ impl ListenerRegistry {
         self.add(
             event,
             Registration {
-                label: listener.name(),
-                listener,
+                label,
+                source,
                 after_commit,
-                queued: None,
             },
         );
         Ok(())
@@ -94,9 +145,8 @@ impl ListenerRegistry {
             event,
             Registration {
                 label: listener.name(),
-                listener,
+                source: ListenerSource::Queued(Arc::new(queued)),
                 after_commit: false,
-                queued: Some(Arc::new(queued)),
             },
         );
         Ok(())
@@ -107,8 +157,12 @@ impl ListenerRegistry {
             .values()
             .chain(self.wildcard.values())
             .flatten()
-            .filter_map(|registration| registration.queued.as_ref())
-            .map(|queued| (queued.name.clone(), queued.handler.clone()))
+            .filter_map(|registration| match &registration.source {
+                ListenerSource::Queued(queued) => {
+                    Some((queued.name.clone(), queued.handler.clone()))
+                }
+                _ => None,
+            })
             .collect()
     }
 

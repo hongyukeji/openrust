@@ -35,6 +35,8 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在應用程式中宣告註冊函式，透過 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。應用程式啟動時載入已編譯的清單。實作 `Subscriber` 後，可使用 `Event::subscribe` 成組註冊監聽器。執行 `./artisan event:list --event=orders --json` 查看註冊結果。
 
+在清單中呼叫 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 註冊監聽器型別，也可以在應用程式作用域內呼叫 `Event::listenClass`。在應用程式容器中為該型別繫結工廠，非同步依賴可用 `bindAsync`。派送到該監聽器時，框架從所屬應用程式的容器解析實例。缺少繫結會使派送失敗。使用 `Delivery::AfterCommit` 時，實例在派送時解析，交易成功提交後呼叫。
+
 需要動態探索時，實作 `ShouldBeDiscovered`，用 `withListener` 接入監聽器註冊。用 `withEvents(discover_events())` 接入產生的清單。啟動時，探索條件讀取目前應用並決定是否註冊監聽器。條件回傳錯誤時，本次清單註冊失敗。透過 `Event::listen` 手動註冊的監聽器獨立於探索條件。
 
 ```rust

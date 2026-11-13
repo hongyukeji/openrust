@@ -39,6 +39,11 @@ impl Event {
         Self::dispatcher()?.listen(name, listener, delivery)
     }
 
+    /// Registers a listener resolved by the current application's container on delivery.
+    pub fn listenClass<L: Listener + 'static>(name: &str, delivery: Delivery) -> EventResult<()> {
+        Self::dispatcher()?.listenClass::<L>(name, delivery)
+    }
+
     pub fn subscribe(subscriber: &dyn Subscriber) -> EventResult<()> {
         Self::dispatcher()?.subscribe(subscriber)
     }

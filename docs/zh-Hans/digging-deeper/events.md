@@ -35,6 +35,8 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 在应用中声明注册函数，通过 `withEvents(DiscoverEvents::new(&[register_orders]))` 接入。应用启动时加载编译后的清单。实现 `Subscriber` 后，可用 `Event::subscribe` 成组登记监听器。运行 `./artisan event:list --event=orders --json` 查看注册结果。
 
+在清单中调用 `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` 注册监听器类型，也可以在应用作用域内调用 `Event::listenClass`。在应用容器中为该类型绑定工厂，异步依赖可用 `bindAsync`。派发到该监听器时，框架从所属应用的容器解析实例。缺少绑定会使派发失败。使用 `Delivery::AfterCommit` 时，实例在派发时解析，事务成功提交后调用。
+
 需要动态发现时，实现 `ShouldBeDiscovered`，用 `withListener` 接入监听器注册。用 `withEvents(discover_events())` 接入生成的清单。启动时，发现条件读取当前应用并决定是否注册监听器。条件返回错误时，本次清单注册失败。通过 `Event::listen` 手动注册的监听器独立于发现条件。
 
 ```rust

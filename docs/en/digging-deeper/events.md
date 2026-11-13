@@ -35,6 +35,8 @@ fn register_orders(registry: &mut ListenerRegistry) -> EventResult<()> {
 
 Declare event registration functions in your application and pass them to `withEvents(DiscoverEvents::new(&[register_orders]))`. The application loads this compiled manifest during boot. Implement `Subscriber` and call `Event::subscribe` to register related listeners together. Use `./artisan event:list --event=orders --json` to inspect the resulting registrations.
 
+Register a listener type with `registry.listenClass::<OrderListener>("orders.created", Delivery::Sync)?` in the manifest, or use `Event::listenClass` in the application scope. Bind the type with an application container factory, such as `bindAsync` for asynchronous dependencies. The dispatcher resolves it when the event reaches that listener, using the owning application's container. A missing binding fails the dispatch. With `Delivery::AfterCommit`, dispatch resolves the instance immediately and a successful commit invokes it.
+
 For dynamic discovery, implement `ShouldBeDiscovered` and attach the listener registration with `withListener`. Pass the resulting manifest to `withEvents(discover_events())`. During boot, the policy reads the current application and decides whether to include that listener. Returning an error aborts the manifest registration. Manual registration through `Event::listen` is independent of discovery.
 
 ```rust

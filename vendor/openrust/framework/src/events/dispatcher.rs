@@ -8,13 +8,15 @@ use crate::{
     broadcasting::{BroadcastEvent, BroadcastException, JOB},
     container::Container,
     contracts::broadcasting::{Factory as BroadcastFactory, ShouldBroadcast, ShouldBroadcastNow},
-    contracts::container::Container as _,
+    contracts::container::{BindingResolutionError, Container as _},
     contracts::events::{
         Dispatcher as Contract, Event, Listener, ShouldDispatchAfterCommit, Subscriber,
     },
     database::{DatabaseError, Transaction},
     support::facades::{application_scope, current_container},
 };
+
+use super::listener_registry::ListenerSource;
 
 use super::{
     Delivery, DispatchResult, EventContext, EventError, EventFake, EventFuture, EventResult,
@@ -96,6 +98,14 @@ impl Dispatcher {
         }
         self.write().listeners.extend(registry);
         Ok(())
+    }
+
+    pub fn listenClass<L: Listener + 'static>(
+        &self,
+        event: &str,
+        delivery: Delivery,
+    ) -> EventResult<()> {
+        self.register(|registry| registry.listenClass::<L>(event, delivery))
     }
 
     pub fn markAfterCommit<E: ShouldDispatchAfterCommit>(&self) {
@@ -352,38 +362,37 @@ impl Dispatcher {
         let listeners = self.read().listeners.selected(name, interfaces);
         let mut responses = Vec::with_capacity(listeners.len());
         for registration in listeners {
-            let response = if let Some(queued) = registration.queued {
-                let payload =
-                    crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
+            let after_commit = registration.after_commit;
+            let response = match registration.source {
+                ListenerSource::Queued(queued) => {
+                    let payload =
+                        crate::queue::Payload::new(&queued.name, (queued.encode)(event.as_ref())?)
+                            .map_err(EventError::Queue)?;
+                    let options = crate::queue::DispatchOptions {
+                        connection: queued.options.connection.clone(),
+                        queue: queued.options.queue.clone(),
+                        delay: queued.options.delay.map(crate::queue::Delay::For),
+                        after_commit: queued.options.after_commit,
+                    };
+                    self.queue()?
+                        .dispatch(payload, options, context.active_transaction())
+                        .await
                         .map_err(EventError::Queue)?;
-                let options = crate::queue::DispatchOptions {
-                    connection: queued.options.connection.clone(),
-                    queue: queued.options.queue.clone(),
-                    delay: queued.options.delay.map(crate::queue::Delay::For),
-                    after_commit: queued.options.after_commit,
-                };
-                self.queue()?
-                    .dispatch(payload, options, context.active_transaction())
-                    .await
-                    .map_err(EventError::Queue)?;
-                None
-            } else if registration.after_commit
-                && let Some(transaction) = context.active_transaction()
-            {
-                let event = event.clone();
-                defer(transaction, async move {
-                    registration
-                        .listener
-                        .handle(event.as_ref(), &mut EventContext::new())
-                        .await?;
-                    Ok(())
-                })?;
-                None
-            } else {
-                registration
-                    .listener
-                    .handle(event.as_ref(), context)
+                    None
+                }
+                ListenerSource::Instance(listener) => {
+                    invoke(listener, &event, context, after_commit).await?
+                }
+                ListenerSource::Container(resolve) => {
+                    let owner = self.owner.upgrade().ok_or(EventError::Unavailable(
+                        BindingResolutionError::FacadeNotSet,
+                    ))?;
+                    application_scope(owner.clone(), async {
+                        let listener = resolve(&owner).await?;
+                        invoke(listener, &event, context, after_commit).await
+                    })
                     .await?
+                }
             };
             if halt {
                 if response.is_some() {
@@ -443,6 +452,25 @@ impl Contract for Dispatcher {
             }
         })
     }
+}
+
+async fn invoke(
+    listener: Arc<dyn Listener>,
+    event: &Arc<dyn Event>,
+    context: &mut EventContext<'_>,
+    after_commit: bool,
+) -> EventResult<Option<ListenerResponse>> {
+    if after_commit && let Some(transaction) = context.active_transaction() {
+        let event = event.clone();
+        defer(transaction, async move {
+            listener
+                .handle(event.as_ref(), &mut EventContext::new())
+                .await?;
+            Ok(())
+        })?;
+        return Ok(None);
+    }
+    listener.handle(event.as_ref(), context).await
 }
 
 fn defer(

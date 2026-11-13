@@ -1,7 +1,10 @@
 use std::{
     net::SocketAddr,
     process::Command,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 
@@ -265,12 +268,63 @@ fn interface_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     })
 }
 
+struct ClassListener(Record);
+
+struct ListenerLabel(&'static str);
+
+impl Listener for ClassListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Payload,
+        context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        self.0.handle(event, context)
+    }
+}
+
+fn class_listeners(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let dispatcher = Event::dispatcher()?;
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        assert!(dispatcher.listing().iter().any(|(name, labels)| {
+            name == "class.ready" && labels == &[std::any::type_name::<ClassListener>()]
+        }));
+        Event::listenClass::<ClassListener>("class.facade", Delivery::Sync)?;
+        for (name, note) in [
+            ("class.ready", "first"),
+            ("class.facade", "second"),
+            ("class.stop", "stopped"),
+        ] {
+            Event::dispatch(Notice::new(name, note, &observed)).await?;
+        }
+        let db = DB::connection(None).map_err(internal)?;
+        let mut transaction = db.beginTransaction().await.map_err(internal)?;
+        Event::dispatchInTransaction(
+            Notice::new("class.committed", "committed", &observed),
+            &mut transaction,
+        )
+        .await?;
+        assert_eq!(observed.lock().unwrap().len(), 3);
+        transaction.commit().await.map_err(internal)?;
+        let mut transaction = db.beginTransaction().await.map_err(internal)?;
+        Event::dispatchInTransaction(
+            Notice::new("class.committed", "rolled back", &observed),
+            &mut transaction,
+        )
+        .await?;
+        transaction.rollBack(None).await.map_err(internal)?;
+        let result = observed.lock().unwrap().clone();
+        Response::json(StatusCode::OK, result)
+    })
+}
+
 fn routing(_: &Application) -> Result<Router, RoutingError> {
     let mut router = Router::new();
     router.get("/events", run)?;
     router.get("/isolated", isolated)?;
     router.get("/deferred", deferred)?;
     router.get("/interfaces", interface_listeners)?;
+    router.get("/class-listeners", class_listeners)?;
     Ok(router)
 }
 
@@ -438,6 +492,79 @@ async fn event_contracts_run_after_wildcards_over_http() {
         ])
     );
     server.abort();
+}
+
+async fn verify_class_listeners(connection: Json) {
+    fn register_classes(registry: &mut ListenerRegistry) -> EventResult<()> {
+        registry.listenClass::<ClassListener>("class.ready", Delivery::Sync)?;
+        registry.listen("class.stop", Arc::new(Record("stop")), Delivery::Sync)?;
+        registry.listenClass::<ClassListener>("class.stop", Delivery::Sync)?;
+        registry.listenClass::<ClassListener>("class.committed", Delivery::AfterCommit)
+    }
+
+    for label in ["first-app", "second-app"] {
+        let mut app = Application::configure(std::env::temp_dir())
+            .withEvents(DiscoverEvents::new(&[register_classes]))
+            .withRouting(Routing::new(routing))
+            .create()
+            .unwrap();
+        app.boot().await.unwrap();
+        let config = app.config().unwrap();
+        config.set("database.default", json!("events")).unwrap();
+        config
+            .set("database.connections.events", connection.clone())
+            .unwrap();
+
+        let dispatcher = app.container().make::<Dispatcher>().unwrap();
+        let observed = Arc::new(Mutex::new(Vec::new()));
+        assert!(matches!(
+            dispatcher
+                .dispatch(
+                    Arc::new(Notice::new("class.ready", "unbound", &observed)),
+                    &mut EventContext::new(),
+                )
+                .await,
+            Err(EventError::Unavailable(_))
+        ));
+        assert!(observed.lock().unwrap().is_empty());
+
+        let resolved = Arc::new(AtomicUsize::new(0));
+        let resolutions = resolved.clone();
+        app.container()
+            .instance(Arc::new(ListenerLabel(label)))
+            .unwrap();
+        app.container()
+            .bindAsync::<ClassListener, _>(move |container| {
+                resolutions.fetch_add(1, Ordering::Relaxed);
+                Box::pin(async move {
+                    let label = container.makeAsync::<ListenerLabel>().await?;
+                    Ok(Arc::new(ClassListener(Record(label.0))))
+                })
+            })
+            .await
+            .unwrap();
+        let (address, server) = start(app).await;
+        assert_eq!(resolved.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            request(address, "/class-listeners").await,
+            json!([
+                format!("{label}:first"),
+                format!("{label}:second"),
+                "stop:stopped",
+                format!("{label}:committed")
+            ])
+        );
+        assert_eq!(resolved.load(Ordering::Relaxed), 4);
+        server.abort();
+    }
+}
+
+#[tokio::test]
+async fn class_listeners_resolve_lazily_in_their_application() {
+    verify_class_listeners(json!({"driver":"sqlite", "database":":memory:"})).await;
+    if let Ok(url) = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL") {
+        verify_class_listeners(json!({"url":url})).await;
+    }
 }
 
 #[tokio::test]

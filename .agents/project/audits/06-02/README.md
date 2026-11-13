@@ -46,3 +46,10 @@
 - 真实 HTTP 验证精确、通配及两个接口的执行顺序、原始载荷和停止传播。SQLite 与独立 MySQL 8.4.13 复验原有事务派发，事件专项同时复验条件发现、独立进程缓存和应用隔离。实际二进制运行 `event:list --json` 成功。
 - 复核覆盖编译清单、缓存、订阅、同步和事务后派发、Observer 及事件接口。类监听器按派发解析容器依赖仍缺少框架入口。队列监听器的 Worker 验收和扩展行为归 06-04。06-02 继续保留为部分验收。
 - Rust 1.94.0 格式、617 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语构建、12 项通用和 6 项事件正文浏览器检查通过。
+
+## 类监听器容器解析
+
+- 对照固定 Laravel Dispatcher 的延迟容器解析和提交后监听器回调。Rust 通过 `listenClass::<L>` 注册编译期类型，由派发器所属的容器提供绑定。保留现有实例监听和队列注册。Goravel 的编译注册作为参考，旧版 `v0.x` 已有派发时调用的类型化 Provider 监听器。 [Laravel 定义监听器](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/events.md#defining-listeners) · [Laravel Dispatcher](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Events/Dispatcher.php) · [Goravel Event Application](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/event/application.go)
+- SQLite 与独立 MySQL 8.4.13 的真实 HTTP 验收覆盖编译清单与 Facade 注册、异步工厂解析应用依赖、两应用隔离、缺少绑定后重试、传播停止、提交执行与回滚取消。延后监听器在派发时解析实例。Artisan 列表读取注册信息，无需构造监听器。
+- 06-02 核心验收范围已闭合。队列监听器的 Worker 运行及扩展行为继续归 06-04。
+- Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。独立 MySQL 专项 7 项通过。根应用实际执行 `artisan event:list --json` 成功。三语站点构建和 18 项浏览器检查通过。
