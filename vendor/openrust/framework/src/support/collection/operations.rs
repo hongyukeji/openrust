@@ -172,6 +172,63 @@ impl<T> Collection<T> {
         self.items.into_values().collect()
     }
 
+    /// Pairs values by position, filling the shorter side with `None`.
+    pub fn zip<U>(self, items: impl IntoIterator<Item = U>) -> Collection<(Option<T>, Option<U>)> {
+        let mut left = self.items.into_values().fuse();
+        let mut right = items.into_iter().fuse();
+        std::iter::from_fn(move || match (left.next(), right.next()) {
+            (None, None) => None,
+            pair => Some(pair),
+        })
+        .collect()
+    }
+
+    /// Pads on the left for negative sizes and on the right for positive sizes.
+    pub fn pad(self, size: isize, value: T) -> CollectionResult<Self>
+    where
+        T: Clone,
+    {
+        self.pad_with(size, || value.clone())
+    }
+
+    pub(crate) fn pad_with(
+        self,
+        size: isize,
+        mut value: impl FnMut() -> T,
+    ) -> CollectionResult<Self> {
+        let length = size.unsigned_abs();
+        let count = length.saturating_sub(self.count());
+        if count == 0 {
+            return Ok(self);
+        }
+        let mut output = Self::new();
+        output
+            .items
+            .try_reserve(length)
+            .map_err(|_| CollectionError::InvalidArgument)?;
+        if size < 0 {
+            for _ in 0..count {
+                output.push(value())?;
+            }
+        }
+        for (key, item) in self {
+            match key {
+                ArrayKey::Integer(_) => {
+                    output.push(item)?;
+                }
+                key => {
+                    output.put(key, item);
+                }
+            }
+        }
+        if size > 0 {
+            for _ in 0..count {
+                output.push(value())?;
+            }
+        }
+        Ok(output)
+    }
+
     pub fn only<K: Into<ArrayKey>>(self, keys: impl IntoIterator<Item = K>) -> Self {
         let keys: HashSet<_> = keys
             .into_iter()

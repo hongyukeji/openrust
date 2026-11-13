@@ -145,3 +145,23 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
     persisted
 }
 ```
+
+### Positional Conversions
+
+`zip` pairs models with values by position and returns a Support collection of tuples. The shorter side is filled with `None`. `flatten` returns the models in a Support collection with consecutive integer keys. Eloquent models are leaves. To collapse nested collections, first project each model to a Support collection and call `collapse` on the result.
+
+`pad` accepts a signed target length and a model to use for padding. Negative lengths pad the beginning, positive lengths pad the end. When padding is needed, integer keys are renumbered and string keys are preserved. Each added model is constructed from the supplied model state.
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model},
+    support::Collection as BaseCollection,
+};
+
+pub fn label_by_position<M: Model>(
+    models: Collection<M>,
+    labels: Vec<String>,
+) -> BaseCollection<(Option<M>, Option<String>)> {
+    models.zip(labels)
+}
+```

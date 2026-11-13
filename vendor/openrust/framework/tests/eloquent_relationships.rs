@@ -2117,6 +2117,32 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
         );
         let fresh = keyed.fresh().await.unwrap();
         assert_eq!(fresh.getByKey("last").unwrap().getKey(), Some(&3.into()));
+        let zipped = keyed.fresh().await.unwrap().zip(["a", "b", "c"]);
+        assert_eq!(zipped.count(), 3);
+        assert_eq!(
+            zipped.get(0).unwrap().0.as_ref().unwrap().getKey(),
+            Some(&3.into())
+        );
+        assert_eq!(
+            zipped
+                .get(2)
+                .map(|(model, label)| (model.is_none(), *label)),
+            Some((true, Some("c")))
+        );
+        let shorter = keyed.fresh().await.unwrap().zip(["a"]);
+        assert!(shorter.get(1).unwrap().1.is_none());
+        let padding = &keyed[0];
+        let no_padding = keyed.fresh().await.unwrap().pad(2, padding).unwrap();
+        assert!(no_padding.get(7).is_some());
+        let padded = keyed.fresh().await.unwrap().pad(-4, padding).unwrap();
+        assert_eq!(padded.count(), 4);
+        assert_eq!(padded.get(2).unwrap().getKey(), Some(&2.into()));
+        assert!(padded.get("last").is_some());
+        let right = keyed.fresh().await.unwrap().pad(3, padding).unwrap();
+        assert_eq!(right.get(1).unwrap().getKey(), Some(&3.into()));
+        let flat = keyed.fresh().await.unwrap().flatten();
+        assert_eq!(flat.get(1).unwrap().getKey(), Some(&2.into()));
+        assert!(flat.get("last").is_none());
         assert_eq!(
             fresh
                 .mapModels(|model, _| model)

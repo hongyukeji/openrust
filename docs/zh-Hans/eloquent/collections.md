@@ -145,3 +145,23 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
     persisted
 }
 ```
+
+### 按位置转换集合
+
+`zip` 按位置将模型和值配对，返回由元组组成的 Support 集合。较短的一侧用 `None` 补齐。`flatten` 将模型转为使用连续整数键的 Support 集合，模型本身作为叶节点。要合并嵌套集合，可以先将每个模型投影为 Support 集合，再对结果调用 `collapse`。
+
+`pad` 接收带符号的目标长度和用于填充的模型。负数向前填充，正数向后填充。需要填充时，整数键重新编号，字符串键保留。新增模型由传入模型的状态构造。
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model},
+    support::Collection as BaseCollection,
+};
+
+pub fn label_by_position<M: Model>(
+    models: Collection<M>,
+    labels: Vec<String>,
+) -> BaseCollection<(Option<M>, Option<String>)> {
+    models.zip(labels)
+}
+```

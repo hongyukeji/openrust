@@ -8,7 +8,7 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
-use crate::support::{ArrayKey, Collection as BaseCollection};
+use crate::support::{ArrayKey, Collection as BaseCollection, CollectionResult};
 
 use super::{
     Attributes, Builder, EagerLoads, Model, ModelState, RelatedBatch, RelatedModels,
@@ -625,6 +625,25 @@ impl<M: Model> Collection<M> {
     /// Returns the collection indices as a base collection.
     pub fn keys(&self) -> BaseCollection<ArrayKey> {
         (0..self.len()).map(|index| self.key_at(index)).collect()
+    }
+
+    /// Combines models and values by position, including any unpaired values.
+    pub fn zip<T>(
+        self,
+        items: impl IntoIterator<Item = T>,
+    ) -> BaseCollection<(Option<M>, Option<T>)> {
+        self.toBase().zip(items)
+    }
+
+    /// Pads the base collection with independent snapshots of the given model.
+    pub fn pad(self, size: isize, model: &M) -> CollectionResult<BaseCollection<M>> {
+        self.toBase()
+            .pad_with(size, || M::from_state(model.state().clone()))
+    }
+
+    /// Returns a base collection with consecutive integer keys.
+    pub fn flatten(self) -> BaseCollection<M> {
+        self.into_iter().collect()
     }
 
     pub fn countBy<K: Into<ArrayKey>>(
