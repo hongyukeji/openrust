@@ -17,3 +17,9 @@
 - 按固定 Laravel 的 `SqsQueue::chunkBatchEntries` 和 AWS API 限制，以最多 10 项、消息体共 1 MiB 分块。复用单条发送的载荷溢出和 FIFO 选项。遇到响应中的失败时停止发送后续分块。SQL 待发布记录保留失败及未发送的条目，即使成功项位于失败项之后。 [Laravel SqsQueue](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SqsQueue.php) · [AWS SendMessageBatch](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_SendMessageBatch.html)
 - ElasticMQ 1.6.15 和 MySQL 8.4.13。代理将首项与第三项交给真实队列，返回 HTTP 200 并将第二项标记失败。并发恢复只重发第二项，追加任务随后发布。另以 16 项验证实际请求分块为 10、5、1，独立 Artisan Worker 消费完毕。FIFO 接收成功但响应报错、SQL 确认失败和重放去重回归同时通过。
 - 1 MiB 分块用例使用 ElasticMQ 1.6.15 的 relaxed 模式，代理逐请求断言条数和字节上限。格式、两项测试目标的严格 Clippy、三语站点构建和 12 项浏览器检查通过。
+
+## 标准 SQS 与 Beanstalkd 确认失败后的恢复
+
+- Laravel 的 `CallQueuedHandler` 以任务 UUID 记录批次完成，再确认当前消息。OpenRust 的 Worker 可读取已写入的完成记录，重投递时复用该记录。标准 SQS 与 Beanstalkd 仍按至少一次边界处理。本批沿用现有实现，补齐实际故障验收。 [Laravel CallQueuedHandler](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/CallQueuedHandler.php) · [AWS 标准队列投递](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html) · [Beanstalkd 协议](https://github.com/beanstalkd/beanstalkd/blob/v1.13/doc/protocol.txt)
+- 真实 HTTP 派发三项任务后，SQL 触发器拒绝删除待发布记录。标准 SQS（ElasticMQ 1.6.15）与 Beanstalkd 1.13 均已接收三条。解除触发器，并发运行两个 `queue:publish-batches`，待发布记录清空，队列出现六条。独立 `queue:work` 排空队列，三个处理器各执行一次，批次待处理和失败计数均为零，完成回调一次。
+- Beanstalkd 覆盖 SQLite 与 MySQL 8.4，标准 SQS 覆盖 MySQL 8.4。MySQL 使用专用实例启用故障注入触发器。上述结果适用于副本到达 Worker 时已有完成记录的路径。并行 Worker 仍可能同时进入处理器。托管 AWS 验收仍待完成。

@@ -1289,6 +1289,15 @@ async fn exercise(mysql: Option<&str>) {
     if beanstalk_port.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "beanstalkd").await;
         verify_chained_batches(&root.0, &db, &queue, address, "beanstalkd", "ok").await;
+        verify_external_batch_ack_replay(
+            &root.0,
+            &db,
+            &queue,
+            address,
+            "beanstalkd",
+            mysql.is_some(),
+        )
+        .await;
     }
     if sqs_url.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "sqs").await;
@@ -1305,6 +1314,7 @@ async fn exercise(mysql: Option<&str>) {
         );
         artisan(&root.0, &["queue:work", "sqs", "--stop-when-empty"]).await;
         assert_eq!(batches.find(id).await.unwrap().unwrap().progress(), 100);
+        verify_external_batch_ack_replay(&root.0, &db, &queue, address, "sqs", true).await;
     }
     if fifo.is_some() {
         verify_fifo_batch_replay(&root.0, &db, &queue, address).await;
@@ -1366,6 +1376,58 @@ async fn verify_external_batch(
         .unwrap();
     assert!(batch.finished());
     assert_eq!(batch.progress(), 100);
+    assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
+}
+
+async fn verify_external_batch_ack_replay(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+    driver: &str,
+    mysql: bool,
+) {
+    let reject = if mysql {
+        "create trigger reject_external_ack before delete on job_batches_outbox for each row signal sqlstate '45000' set message_text = 'injected publication acknowledgement failure'"
+    } else {
+        "create trigger reject_external_ack before delete on job_batches_outbox begin select raise(abort, 'injected publication acknowledgement failure'); end"
+    };
+    db.unprepared(reject).await.unwrap();
+
+    let batch = request(address, driver, 200).await.unwrap();
+    let id = batch["id"].as_str().unwrap();
+    let pending = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
+    let queue = manager.connection(Some(driver)).unwrap();
+    assert_eq!(pending().count("*").await.unwrap(), 1);
+    assert_eq!(queue.size(None).await.unwrap(), 3);
+
+    db.unprepared("drop trigger reject_external_ack")
+        .await
+        .unwrap();
+    let publish = ["queue:publish-batches"];
+    tokio::join!(artisan(base, &publish), artisan(base, &publish));
+    assert_eq!(pending().count("*").await.unwrap(), 0);
+    assert_eq!(queue.size(None).await.unwrap(), 6);
+
+    artisan(base, &["queue:work", driver, "--stop-when-empty"]).await;
+    assert_eq!(queue.size(None).await.unwrap(), 0);
+    for step in ["first", "second", "third"] {
+        // The preceding batch and this batch each execute one copy of the named job.
+        assert_eq!(
+            chain_receipt(db, &format!("{driver}-external-{step}")).await,
+            2
+        );
+    }
+    let batch = openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches")
+        .unwrap()
+        .find(id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(batch.total_jobs, 3);
+    assert_eq!(batch.pending_jobs, 0);
+    assert_eq!(batch.failed_jobs, 0);
+    assert!(batch.finished());
     assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
 }
 
