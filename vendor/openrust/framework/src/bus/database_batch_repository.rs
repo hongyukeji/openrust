@@ -745,6 +745,24 @@ pub(crate) enum PublicationKey {
 }
 
 impl PublicationKey {
+    pub(crate) fn database_receipt(&self) -> String {
+        use std::fmt::Write as _;
+        let kind = match self {
+            Self::Initial(_) => "initial",
+            Self::Addition(_) => "addition",
+            Self::Continuation(_) => "continuation",
+        };
+        let digest = aws_lc_rs::digest::digest(
+            &aws_lc_rs::digest::SHA256,
+            format!("{kind}:{}", self.id()).as_bytes(),
+        );
+        let mut receipt = String::from("b:");
+        for byte in &digest.as_ref()[..16] {
+            write!(receipt, "{byte:02x}").expect("writing to a String");
+        }
+        receipt
+    }
+
     fn restrict<'a>(&self, query: Builder<'a>) -> Builder<'a> {
         if matches!(self, Self::Continuation(_)) {
             query.r#where("ready", "=", true)

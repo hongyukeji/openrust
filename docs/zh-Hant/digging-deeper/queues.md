@@ -598,6 +598,10 @@ OpenRust 先在 SQL 提交批次和待發佈紀錄，再聯絡 Redis。發佈失
 ./artisan queue:publish-batches --limit=1
 ```
 
+### 向獨立資料庫發佈批次 {#cross-database-batches}
+
+以 `queue.batching.database` 選擇批次帳本連線，再以 `onConnection` 選擇使用獨立連線的資料庫佇列。對兩個資料庫執行遷移，佇列目標需要 `jobs` 和 `job_chain_deliveries`。帳本儲存待發佈的初始工作、新增工作與接續工作。目標資料庫在同一交易寫入收據與工作。帳本確認失敗時，`queue:publish-batches` 重用收據，避免重複入列。以 `queue:work <connection>` 消費目標佇列。
+
 ### 批次回呼 {#batch-callbacks}
 
 在應用程式和 Worker 的 Provider 啟動時，使用穩定名稱註冊回呼。批次持久保存這些名稱，獨立 Worker 可依名稱解析。回呼接收批次快照，適用時也會收到工作最終失敗的訊息。

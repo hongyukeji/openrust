@@ -598,6 +598,10 @@ OpenRust 先在 SQL 中提交批次和待发布记录，再联系 Redis。发布
 ./artisan queue:publish-batches --limit=1
 ```
 
+### 向独立数据库发布批次 {#cross-database-batches}
+
+用 `queue.batching.database` 选择批次账本连接，再用 `onConnection` 选择使用独立连接的数据库队列。对两个数据库执行迁移，队列目标需要 `jobs` 和 `job_chain_deliveries`。账本保存待发布的初始任务、追加任务及续接任务。目标数据库在同一事务写入回执和任务。账本确认失败时，`queue:publish-batches` 复用回执，避免重复入队。用 `queue:work <connection>` 消费目标队列。
+
 ### 批次回调 {#batch-callbacks}
 
 在应用和 Worker 的 Provider 启动时，用稳定名称注册回调。批次持久化这些名称，独立 Worker 可按名称解析。回调接收批次快照，适用时也会收到任务最终失败的消息。

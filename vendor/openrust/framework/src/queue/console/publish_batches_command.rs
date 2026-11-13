@@ -60,7 +60,7 @@ impl Command for PublishBatchesCommand {
                     }
                 }
             }
-            output.info(&format!("{published} Redis batches published."));
+            output.info(&format!("{published} batches published."));
             if continuations != 0 {
                 output.info(&format!(
                     "{continuations} chained batch continuations published."
@@ -73,7 +73,7 @@ impl Command for PublishBatchesCommand {
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     let syntax = Syntax::new("queue:publish-batches")
-        .about("Publish pending Redis batches and chained batch continuations")
+        .about("Publish pending batches and chained batch continuations")
         .arg(
             Arg::new("limit")
                 .long("limit")

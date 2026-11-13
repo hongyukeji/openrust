@@ -598,6 +598,10 @@ OpenRust commits the batch and the Redis publication intent in SQL before contac
 ./artisan queue:publish-batches --limit=1
 ```
 
+### Publishing batches to a separate database {#cross-database-batches}
+
+Set `queue.batching.database` to the ledger connection and choose a database queue with its own connection through `onConnection`. Migrate both databases. The queue destination needs `jobs` and `job_chain_deliveries`. The ledger stores pending initial jobs, additions and continuations. The destination commits its receipt and jobs in one transaction. If the ledger acknowledgement fails, `queue:publish-batches` reuses the receipt and avoids duplicate inserts. Use `queue:work <connection>` on the destination.
+
 ### Batch callbacks {#batch-callbacks}
 
 Register each callback by a stable name during provider boot in both the application and worker. The batch stores these names so a separate worker can resolve them. The callback receives a batch snapshot and, where applicable, the terminal failure message.

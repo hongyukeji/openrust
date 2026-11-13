@@ -14,7 +14,7 @@
 | 03 应用基础服务 | 2/9 | 03-03 S3；03-04 加密和密钥轮换 | 03-01 文件目录和元数据；03-05 自定义哈希驱动；03-06–09 缓存标签、故障切换、Redis Cluster、Blade 属性包和动态组件等；03-10 国际化扩展行为复核 |
 | 04 HTTP 请求链 | 3/9 | 04-06 Web 表单回传；04-08 异常报告限流；04-09 上传、下载与普通对象 URL | 04-01–05 路由诊断、请求及控制器接口、可信代理与转发 HTTPS、Session 上一 URL 与额外驱动、文件和数据库验证规则；04-07 认证模型属性配额及额外 Redis 部署形态 |
 | 05 Eloquent、认证与 API | 1/9 | 05-05 路由模型绑定 | 05-01–04 模型事件、部分关系和 Pivot 契约、Cast 和工厂多态；05-06–07 Blade 分页、部分 Resource 推断及条件接口；05-08–09 HTTP Basic、认证事件、其他设备失效、密码确认、Gate 事件及 Blade 授权指令 |
-| 06 URL、后台任务与通知 | 3/8 | 06-05 调度；06-07 密码重置和邮箱验证；06-08 Artisan 帮助及交互本地化 | 06-01–02 URL／重定向边界、事件缓存与 Observer；06-03–04 Bus 派发边界和跨存储批次边界；06-06 部分邮件传输、通知和 Fake |
+| 06 URL、后台任务与通知 | 3/8 | 06-05 调度；06-07 密码重置和邮箱验证；06-08 Artisan 帮助及交互本地化 | 06-01–02 URL／重定向边界、事件缓存与 Observer；06-03–04 Bus 派发边界、其余任务中间件和额外驱动；06-06 部分邮件传输、通知和 Fake |
 | 07 框架专题 | 0/7 | 各有范围验收 | 07-01–07 Helpers／Strings、HTTP Client 批处理及事件、Processes 的 TTY／waitUntil、Concurrency 非 HTTP 延迟执行、图像格式和动画、PostgreSQL 全文搜索、包资源发布和发现 |
 | 08-01 框架广播 | 0/1 | 频道授权与分发有范围验收 | 模型频道参数绑定、匿名广播及广播唯一任务 |
 | T 测试能力 | 3/4 | T-01 测试应用；T-02 HTTP／Artisan 测试入口；T-04 容器与事件替身 | T-03 RefreshDatabase 事务策略及其他驱动测试库管理 |
@@ -46,9 +46,9 @@
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Sanctum、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | macOS ARM64、Linux ARM64 和部分 Windows 运行路径已有实测 | Linux x86_64、Windows 完整部署、生产 TLS 与目标数据库版本矩阵 |
 
-## 队列唯一任务
+## 队列唯一任务与跨存储批次
 
-MySQL 与 Redis 队列均通过独立 Worker 验收。 [唯一任务验收](06-03/unique-jobs.md)
+MySQL 与 Redis 队列均通过唯一任务的独立 Worker 验收，提交 `641241a0`。独立 MySQL 连接的批次发布、追加、故障恢复和 Worker 消费已通过专项验收。 [唯一任务验收](06-03/unique-jobs.md) · [跨数据库批次验收](06-04/job-batch-cross-database.md)
 
 ## 本轮整体验收
 

@@ -6,3 +6,5 @@
 - 类型化队列监听器用编译期登记的稳定 ID 与 JSON 编解码。入队前捕获公开和隐藏 Context，每次尝试恢复并运行 hydrated 回调。dehydrating 回调可修改待序列化副本。PHP 任务对象序列化、Worker 进程级硬终止、queue:restart、失败钩子和其他内置中间件仍有差异。自行派生的任务需由应用管理其取消。
 - 隔离基线 `063b0071`。Rust 1.94.0 格式、472 项锁定离线工作区测试、严格 Clippy、`./artisan queue:work --help` 和 `./artisan inspire` 通过。SQLite、真实 MySQL 8.4、Redis 8 均通过 HTTP 派发与独立 Artisan Worker 的重试、超时、失败记录、手工重试、SIGTERM 收尾、监听器事务边界和 Context 隔离。MySQL 独立验收库复验迁移、回滚与 fresh。
 - 三语 Context 示例从正文抽取并在上述三种 Worker 路径运行。VitePress 构建、12 项通用浏览器检查及 6 项队列和 Context 专题检查通过。
+
+[跨数据库批次发布与恢复验收](job-batch-cross-database.md)

@@ -402,6 +402,9 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "redis-batch" => Bus::batch(jobs(&["redis-first", "redis-second"])?)
                 .onConnection("redis")
                 .onQueue("redis-batch"),
+            "database-cross" => Bus::batch(jobs(&["cross-first", "cross-second"])?)
+                .onConnection("destination")
+                .onQueue("database-cross"),
             "missing-callback" => Bus::batch(jobs(&["summary"])?).then("reports.missing"),
             "sync" => Bus::batch(jobs(&["skipped"])?).onConnection("sync"),
             _ => unreachable!(),
@@ -794,7 +797,7 @@ async fn exercise(mysql: Option<&str>) {
         .map(|port| port.parse::<u16>().unwrap());
     assert!(redis_port.is_some() || std::env::var_os("OPENRUST_REQUIRE_REDIS").is_none());
     let redis_prefix = format!("openrust-batch-test:{}:", uuid_suffix());
-    let settings = json!({
+    let mut settings = json!({
         "database": {"default":"batch", "connections":{"batch":connection},
             "redis":{"default":{"port":redis_port.unwrap_or(6379)},"options":{"prefix":redis_prefix}}},
         "logging": {"default":"single","channels":{"single":{"driver":"single","path":"batch.log","locking":true}}},
@@ -806,6 +809,12 @@ async fn exercise(mysql: Option<&str>) {
             "batching": {"database":"batch","table":"job_batches"}
         }
     });
+    let destination_url = std::env::var("OPENRUST_TEST_BATCH_DESTINATION_MYSQL_URL").ok();
+    if let Some(url) = destination_url.as_ref().filter(|_| mysql.is_some()) {
+        settings["database"]["connections"]["destination"] = json!({"url":url});
+        settings["queue"]["connections"]["destination"] =
+            json!({"driver":"database","connection":"destination","retry_after":90});
+    }
     std::fs::write(root.0.join("settings.json"), settings.to_string()).unwrap();
     let mut app = application(&root.0);
     app.boot().await.unwrap();
@@ -839,6 +848,18 @@ async fn exercise(mysql: Option<&str>) {
         schema.dropIfExists(table).await.unwrap();
     }
     artisan(&root.0, &["migrate", "--force"]).await;
+    let destination = if mysql.is_some() && destination_url.is_some() {
+        artisan(&root.0, &["migrate", "--force", "--database=destination"]).await;
+        Some(
+            app.container()
+                .make::<DatabaseManager>()
+                .unwrap()
+                .connection(Some("destination"))
+                .unwrap(),
+        )
+    } else {
+        None
+    };
     db.statement("create table receipts (name varchar(255) not null)", &[])
         .await
         .unwrap();
@@ -1210,6 +1231,9 @@ async fn exercise(mysql: Option<&str>) {
     verify_same_connection_routing(&root.0, &db, &queue, address, "database").await;
     verify_sync_successors(&root.0, &db, address, "database").await;
     verify_chain_receipt_pruning(&root.0, &db).await;
+    if let Some(destination) = destination {
+        verify_database_cross_batch(&root.0, &db, &destination, address).await;
+    }
     server.abort();
 }
 
@@ -2223,6 +2247,85 @@ async fn verify_database_append(base: &Path, db: &Connection, address: std::net:
     );
 }
 
+async fn verify_database_cross_batch(
+    base: &Path,
+    db: &Connection,
+    destination: &Connection,
+    address: std::net::SocketAddr,
+) {
+    destination
+        .statement("rename table jobs to jobs_unavailable", &[])
+        .await
+        .unwrap();
+    let batch = request(address, "database-cross", 200).await.unwrap();
+    let id = batch["id"].as_str().unwrap();
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
+    assert_eq!(
+        destination
+            .table("job_chain_deliveries")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+    request(address, &format!("append/{id}/cross-addition"), 200).await;
+    assert_eq!(
+        db.table("job_batches_additions").count("*").await.unwrap(),
+        1
+    );
+    destination
+        .statement("rename table jobs_unavailable to jobs", &[])
+        .await
+        .unwrap();
+
+    db.statement("create table pending_ack_block (batch_id varchar(255) primary key, foreign key (batch_id) references job_batches_outbox(batch_id))", &[]).await.unwrap();
+    db.table("pending_ack_block")
+        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
+        .await
+        .unwrap();
+    artisan_status(base, &["queue:publish-batches"], 1).await;
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 1);
+    assert_eq!(destination.table("jobs").count("*").await.unwrap(), 2);
+    db.statement("drop table pending_ack_block", &[])
+        .await
+        .unwrap();
+    let args = ["queue:publish-batches"];
+    let _ = tokio::join!(artisan(base, &args), artisan(base, &args));
+    assert_eq!(db.table("job_batches_outbox").count("*").await.unwrap(), 0);
+    assert_eq!(
+        db.table("job_batches_additions").count("*").await.unwrap(),
+        0
+    );
+    assert_eq!(destination.table("jobs").count("*").await.unwrap(), 3);
+    assert_eq!(
+        destination
+            .table("job_chain_deliveries")
+            .whereNotNull("acknowledged_at")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+
+    artisan(
+        base,
+        &[
+            "queue:work",
+            "destination",
+            "--queue=database-cross",
+            "--stop-when-empty",
+        ],
+    )
+    .await;
+    assert_eq!(destination.table("jobs").count("*").await.unwrap(), 0);
+    for name in ["cross-first", "cross-second", "cross-addition"] {
+        assert_eq!(chain_receipt(db, name).await, 1);
+    }
+    let repository =
+        openrust::bus::DatabaseBatchRepository::new(db.clone(), "job_batches").unwrap();
+    assert_eq!(repository.find(id).await.unwrap().unwrap().progress(), 100);
+}
+
 async fn verify_redis_batch(
     base: &Path,
     db: &Connection,
@@ -2272,7 +2375,7 @@ async fn verify_redis_batch(
     assert_eq!(
         [left, right]
             .iter()
-            .filter(|output| output.contains("1 Redis batches published."))
+            .filter(|output| output.contains("1 batches published."))
             .count(),
         1
     );
@@ -2353,10 +2456,7 @@ async fn verify_redis_batch(
     let additions = db.table("job_batches_additions").get().await.unwrap();
     redis.command("DEL", &[ready.as_bytes()]).await.unwrap();
     let recovered = artisan(base, &["queue:publish-batches"]).await;
-    assert!(
-        recovered.contains("2 Redis batches published."),
-        "{recovered}"
-    );
+    assert!(recovered.contains("2 batches published."), "{recovered}");
     assert_eq!(
         db.table("job_batches_additions").count("*").await.unwrap(),
         0

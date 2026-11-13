@@ -99,9 +99,9 @@ impl std::fmt::Display for QueueError {
             Self::InvalidConfiguration => f.write_str("invalid queue configuration"),
             Self::Timeout => f.write_str("queued job timed out"),
             Self::MaxAttempts => f.write_str("queued job exceeded its allowed attempts"),
-            Self::InvalidBatchConnection => f.write_str(
-                "job batches require Redis or a database queue on the batch repository connection",
-            ),
+            Self::InvalidBatchConnection => {
+                f.write_str("job batches require a database or Redis queue")
+            }
             Self::InvalidPayload => f.write_str("invalid queue payload"),
             Self::LostReservation => f.write_str("queue job reservation has expired or changed"),
             Self::Unavailable(_) => f.write_str("application queue manager is unavailable"),
