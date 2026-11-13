@@ -156,6 +156,10 @@ impl<R: Relation> Relation for DynamicRelation<R> {
         R::serialize(output)
     }
 
+    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+        R::queueableRelations(output)
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a Self::Parent],

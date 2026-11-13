@@ -211,7 +211,7 @@ impl<'a, M: Model> RelatedBatch<'a, M> {
             return Err(DatabaseError::InvalidQuery("relation result cardinality"));
         }
         for (index, value) in indexes.into_iter().zip(values) {
-            self.loaded[index].insert(name.to_owned(), value, R::serialize);
+            self.loaded[index].insert_relation::<R>(name.to_owned(), value);
         }
         Ok(())
     }

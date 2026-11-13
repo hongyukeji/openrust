@@ -212,7 +212,7 @@ impl<P: Model> MorphTo<P> {
             model
                 .state_mut()
                 .relations
-                .insert(name.to_owned(), output, Self::serialize);
+                .insert_relation::<Self>(name.to_owned(), output);
         }
         Ok(())
     }
@@ -428,6 +428,7 @@ type ErasedModel = Arc<dyn ProjectableModel>;
 trait ProjectableModel: Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<serde_json::Value>;
+    fn queueable_relations(&self) -> Vec<String>;
     fn attach_autoload(&self, group: &mut [&mut MorphTarget]);
 }
 
@@ -462,6 +463,10 @@ impl<M: Model> ProjectableModel for M {
 
     fn project(&self) -> DatabaseResult<serde_json::Value> {
         self.toArray().map(serde_json::Value::Object)
+    }
+
+    fn queueable_relations(&self) -> Vec<String> {
+        self.getQueueableRelations()
     }
 }
 
@@ -636,6 +641,12 @@ impl<P: Model> Relation for MorphTo<P> {
             .as_ref()
             .map_or(Ok(serde_json::Value::Null), |target| target.model.project())
             .map(Some)
+    }
+
+    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+        output
+            .as_ref()
+            .map_or_else(Vec::new, |target| target.model.queueable_relations())
     }
 
     fn matchResults<'a>(

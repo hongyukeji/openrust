@@ -169,3 +169,18 @@ pub fn label_with_columns<M: Model>(
     models.zipMany(columns)
 }
 ```
+
+### 队列元数据
+
+可以读取编译时确定的模型类型、主键、数据库连接名和已加载的关系路径。主键保留集合顺序和重复项。关系列表只包含每个模型都已加载的路径，独立于 JSON 可见性设置。读取元数据不会执行查询。空集合没有模型类型和连接名，混用连接名会返回错误。
+
+类型名用于诊断。队列任务使用编译注册和显式 JSON 载荷字段。这些方法不会自动捕获或恢复任务参数。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Collection, Model}};
+
+pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>> {
+    models.getQueueableConnection()?;
+    Ok(models.getQueueableIds())
+}
+```

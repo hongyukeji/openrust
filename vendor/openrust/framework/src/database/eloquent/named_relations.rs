@@ -382,7 +382,7 @@ where
         model
             .state_mut()
             .relations
-            .insert(name.to_owned(), output, R::serialize);
+            .insert_relation::<R>(name.to_owned(), output);
     }
     Ok(())
 }

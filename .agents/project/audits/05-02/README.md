@@ -376,3 +376,11 @@ SQLite 和独立 MySQL 8.4.13 实测实际查询模型的位置配对、两侧�
 对照固定 Laravel 的可变参数 `zip`、`flip`、Support 回归和 Eloquent 返回类型测试。Rust 的 `zipMany` 接收同一元素类型的任意数量输入列，模型列保持独立类型，各列用 `Option` 表达缺项。Support 的 `flip` 使用 `ArrayKey`，Eloquent 的 `flipBy` 以闭包表达从模型取得标量键，`None` 跳过，重复键采用最后写入值。Laravel 的异构附加列可通过 Rust 枚举统一表示。复核 `v0.x` 的 Support 集合未发现可直接复用的对应方法，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Collection.php#L1775) · [Laravel Support 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php) · [Laravel Eloquent 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php#L618) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 用真实查询模型验证异长多列、空列、无附加列、数字字符串键、跳过项及重复键覆盖。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 87%，项目卷可用 60 GiB。核心账本 25/66。
+
+## Eloquent 集合的队列元数据
+
+对照固定 Laravel 的 `QueueableCollection`、`QueueableEntity` 和集合回归用例。集合以 `Collection<M>` 在编译时约束模型类型，运行时类型名只用于诊断。主键保持集合顺序、重复项及空值。关系快照保留原始注册名，按模型、嵌套集合和多态目标递归取得已加载路径，并对集合取交集。批量自动加载发布的快照也参与计算。读取不触发查询、不经过 JSON 可见性，也不收录内部 Pivot 投影。复核 `v0.x` 未发现可直接复用的队列模型标识实现，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 集合源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L876) · [Laravel 集合测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php#L655) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+队列任务仍通过编译注册和 JSON 载荷传递参数。需要继续按固定 Laravel 核对模型标识的捕获和恢复，包括写连接读取、缺失模型、集合顺序和关系重载。 [Laravel 队列恢复源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SerializesAndRestoresModelIdentifiers.php)
+
+SQLite 和独立 MySQL 8.4.13 验证实际模型的键顺序与重复项、普通和多态嵌套路径、已加载空关系、交集、隐藏设置独立、自动加载后的元数据、空集合和混合连接错误。MySQL 会话计数确认读取元数据新增 0 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、619 次工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。首轮全量测试的 MySQL SELECT 断言误写为 1 次，修正后完整复验通过。提交前周额度剩余 86%，项目卷可用 60 GiB。核心账本 25/66。

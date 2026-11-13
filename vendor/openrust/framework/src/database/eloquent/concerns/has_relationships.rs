@@ -15,11 +15,13 @@ pub(in crate::database::eloquent) struct LoadedRelations {
 trait LoadedRelation: Send + Sync {
     fn value(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<Option<Json>>;
+    fn queueable_paths(&self) -> Option<Vec<String>>;
 }
 
 struct LoadedValue<T> {
     value: T,
     project: fn(&T) -> DatabaseResult<Option<Json>>,
+    queueable_paths: Option<fn(&T) -> Vec<String>>,
 }
 
 impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
@@ -29,6 +31,10 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
 
     fn project(&self) -> DatabaseResult<Option<Json>> {
         (self.project)(&self.value)
+    }
+
+    fn queueable_paths(&self) -> Option<Vec<String>> {
+        self.queueable_paths.map(|paths| paths(&self.value))
     }
 }
 
@@ -50,8 +56,40 @@ impl LoadedRelations {
         value: T,
         project: fn(&T) -> DatabaseResult<Option<Json>>,
     ) {
-        self.values
-            .insert(name, Arc::new(LoadedValue { value, project }));
+        self.values.insert(
+            name,
+            Arc::new(LoadedValue {
+                value,
+                project,
+                queueable_paths: None,
+            }),
+        );
+    }
+
+    pub(in crate::database::eloquent) fn insert_relation<R: Relation>(
+        &mut self,
+        name: String,
+        value: R::Output,
+    ) {
+        self.values.insert(
+            name,
+            Arc::new(LoadedValue {
+                value,
+                project: R::serialize,
+                queueable_paths: Some(R::queueableRelations),
+            }),
+        );
+    }
+
+    pub(in crate::database::eloquent) fn queueable_paths(&self) -> Vec<String> {
+        let mut paths = Vec::new();
+        for (name, relation) in &self.values {
+            if let Some(children) = relation.queueable_paths() {
+                paths.push(name.clone());
+                paths.extend(children.into_iter().map(|child| format!("{name}.{child}")));
+            }
+        }
+        paths
     }
 
     pub(in crate::database::eloquent) fn project(
@@ -121,7 +159,7 @@ where
         models[index]
             .state_mut()
             .relations
-            .insert(name.to_owned(), value, R::serialize);
+            .insert_relation::<R>(name.to_owned(), value);
     }
     Ok(())
 }

@@ -790,6 +790,20 @@ pub trait Model: Sized + Send + Sync + 'static {
             .or(Self::metadata().connection)
     }
 
+    /// Returns the primary key used by queue payloads.
+    fn getQueueableId(&self) -> Option<&Value> {
+        self.getKey()
+    }
+
+    /// Returns loaded relation names and nested paths without running queries or accessors.
+    fn getQueueableRelations(&self) -> Vec<String> {
+        super::queueable::model_relations(self.state())
+    }
+
+    fn getQueueableConnection(&self) -> Option<&str> {
+        self.getConnectionName()
+    }
+
     /// Compares the primary key, table, and connection name of two models.
     fn is(&self, other: &impl Model) -> bool {
         self.getKey().unwrap_or(&Value::Null) == other.getKey().unwrap_or(&Value::Null)

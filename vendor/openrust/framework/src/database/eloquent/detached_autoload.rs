@@ -126,13 +126,21 @@ impl DetachedAutoload {
         state: &ModelState,
         include: impl Fn(&str) -> bool,
     ) -> DatabaseResult<serde_json::Map<String, serde_json::Value>> {
+        self.visible_relations(state, &include).project(include)
+    }
+
+    pub(super) fn visible_relations(
+        &self,
+        state: &ModelState,
+        include: impl Fn(&str) -> bool,
+    ) -> LoadedRelations {
         let mut relations = state.relations.clone();
         for entry in self.entries() {
             if include(&entry.name) && self.can_share(state, &entry.name) {
                 relations.copy_from(&entry.name, &entry.values[self.index]);
             }
         }
-        relations.project(include)
+        relations
     }
 }
 
@@ -201,7 +209,7 @@ fn propagate<M: Model, R: Relation<Parent = M>>(models: &mut [M], name: &str) {
         models[index]
             .state_mut()
             .relations
-            .insert(name.to_owned(), output, R::serialize);
+            .insert_relation::<R>(name.to_owned(), output);
     }
 }
 

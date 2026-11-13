@@ -226,6 +226,10 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         super::super::serialization::many(output)
     }
 
+    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+        super::super::queueable::common_relations(output.iter().map(Arc::as_ref))
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a P],

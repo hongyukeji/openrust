@@ -27,6 +27,11 @@ pub trait Relation: Send + Sync + 'static {
         Ok(None)
     }
 
+    /// Returns the loaded relationship paths shared by this relation's related models.
+    fn queueableRelations(_output: &Self::Output) -> Vec<String> {
+        Vec::new()
+    }
+
     /// Associates model outputs with a shared automatic loading batch.
     #[doc(hidden)]
     fn attachAutoload(_outputs: &mut [Self::Output]) {}

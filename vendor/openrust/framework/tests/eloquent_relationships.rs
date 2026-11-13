@@ -998,6 +998,25 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(db).await - baseline, 4);
     }
+    let metadata_baseline = if mysql { select_count(db).await } else { 0 };
+    assert_eq!(
+        authors.getQueueableClass(),
+        Some(std::any::type_name::<Author>())
+    );
+    assert_eq!(authors.getQueueableIds(), authors.modelKeys());
+    assert_eq!(authors.getQueueableConnection().unwrap(), Some("relations"));
+    let shared = authors.getQueueableRelations();
+    assert!(shared.contains(&"posts".into()));
+    for author in authors.iter() {
+        assert!(
+            shared
+                .iter()
+                .all(|path| author.getQueueableRelations().contains(path))
+        );
+    }
+    if mysql {
+        assert_eq!(select_count(db).await - metadata_baseline, 0);
+    }
     let mut found_comments = false;
     for author in authors.iter() {
         for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
@@ -1038,6 +1057,38 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     assert!(model.relationLoaded("posts"));
+    let mut loaded = Author::queryOn(db)
+        .whereHasPath("posts")
+        .unwrap()
+        .firstOrFail()
+        .await
+        .unwrap();
+    loaded.loadPaths(&["posts.author"]).await.unwrap();
+    loaded.makeHidden(&["posts"]);
+    assert_eq!(loaded.getQueueableRelations(), ["posts", "posts.author"]);
+    let mut other = Author::from_state(loaded.state().clone());
+    other.unsetRelation("posts");
+    other.loadPaths(&["posts"]).await.unwrap();
+    let key = loaded.getQueueableId().unwrap().clone();
+    let models = Collection::new(vec![loaded, other]);
+    assert_eq!(models.getQueueableIds(), [key.clone(), key]);
+    assert_eq!(models.getQueueableRelations(), ["posts"]);
+    let mixed = Collection::new(vec![
+        Author::from_state(models[0].state().clone()),
+        Author::newInstance(Attributes::new()).unwrap(),
+    ]);
+    assert!(matches!(
+        mixed.getQueueableConnection(),
+        Err(DatabaseError::InvalidQuery(
+            "queueable collection has multiple connections"
+        ))
+    ));
+    assert_eq!(mixed.getQueueableIds()[1], Value::Null);
+    let empty = Collection::<Author>::new(vec![]);
+    assert_eq!(empty.getQueueableClass(), None);
+    assert_eq!(empty.getQueueableConnection().unwrap(), None);
+    assert!(empty.getQueueableIds().is_empty());
+    assert!(empty.getQueueableRelations().is_empty());
 }
 
 async fn verify_morph_paths(db: &Connection, mysql: bool) {
@@ -1096,8 +1147,14 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
             .getRelation::<Option<MorphTarget>>("subject")
             .unwrap()
         else {
+            assert_eq!(comment.getQueueableRelations(), ["subject"]);
             continue;
         };
+        assert!(
+            comment
+                .getQueueableRelations()
+                .contains(&"subject.details".into())
+        );
         aliases.insert(target.alias());
         let len = if let Some(author) = target.downcast_ref::<Author>() {
             author
@@ -1460,6 +1517,7 @@ fn verify_relation_autoload(
         let first_posts = first.getRelationOrLoad("posts", &posts).await.unwrap();
         let mut first_post = Post::from_state(first_posts[0].state().clone());
         assert!(second.relationLoaded("posts"));
+        assert!(second.getQueueableRelations().contains(&"posts".into()));
         assert!(second.toArray().unwrap()["posts"].is_array());
         let second_posts = second.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
         let mut second_post = Post::from_state(second_posts[0].state().clone());
@@ -1501,6 +1559,7 @@ fn verify_relation_autoload(
         assert!(!first.relationLoaded("posts"));
         assert!(!first.toArray().unwrap().contains_key("posts"));
         assert!(second.relationLoaded("posts"));
+        assert!(second.getQueueableRelations().contains(&"posts".into()));
         assert!(first.getRelationOrLoad("posts", &broken).await.is_err());
         second.unsetRelation("posts");
         second.setAttribute("id", 3);

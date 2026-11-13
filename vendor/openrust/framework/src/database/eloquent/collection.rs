@@ -443,7 +443,7 @@ where
                 model
                     .state_mut()
                     .relations
-                    .insert((*name).to_owned(), output, R::serialize);
+                    .insert_relation::<R>((*name).to_owned(), output);
             }
             Ok(())
         })
@@ -850,6 +850,41 @@ impl<M: Model> Collection<M> {
             .iter()
             .map(|model| model.getKey().cloned().unwrap_or(Value::Null))
             .collect()
+    }
+
+    /// Reports the compiled model type for a nonempty collection.
+    pub fn getQueueableClass(&self) -> Option<&'static str> {
+        self.first().map(|_| std::any::type_name::<M>())
+    }
+
+    /// Returns model identifiers in collection order, including duplicates.
+    pub fn getQueueableIds(&self) -> Vec<Value> {
+        self.iter()
+            .map(|model| model.getQueueableId().cloned().unwrap_or(Value::Null))
+            .collect()
+    }
+
+    /// Returns the loaded relation paths shared by all models.
+    pub fn getQueueableRelations(&self) -> Vec<String> {
+        super::queueable::common_relations(self.iter())
+    }
+
+    /// Rejects collections spanning multiple database connection names.
+    pub fn getQueueableConnection(&self) -> DatabaseResult<Option<&str>> {
+        let Some(first) = self.first() else {
+            return Ok(None);
+        };
+        let connection = first.getConnectionName();
+        if self
+            .iter()
+            .skip(1)
+            .any(|model| model.getConnectionName() != connection)
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "queueable collection has multiple connections",
+            ));
+        }
+        Ok(connection)
     }
 
     pub fn find(&self, key: &Value) -> DatabaseResult<Option<&M>> {

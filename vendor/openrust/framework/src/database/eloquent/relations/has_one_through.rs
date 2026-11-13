@@ -123,6 +123,12 @@ impl<P: Model, I: Model, R: Model> Relation for HasOneThrough<P, I, R> {
         super::super::serialization::one(output)
     }
 
+    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+        output
+            .as_deref()
+            .map_or_else(Vec::new, Model::getQueueableRelations)
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a P],

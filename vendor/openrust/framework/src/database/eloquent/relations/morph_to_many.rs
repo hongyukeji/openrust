@@ -152,6 +152,10 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
         super::super::serialization::many(output)
     }
 
+    fn queueableRelations(output: &Self::Output) -> Vec<String> {
+        super::super::queueable::common_relations(output.iter().map(|model| model.as_ref()))
+    }
+
     fn matchResults<'a>(
         &'a self,
         parents: &'a [&'a P],

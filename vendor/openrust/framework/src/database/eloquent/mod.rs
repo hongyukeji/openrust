@@ -12,6 +12,7 @@ mod model;
 mod named_relations;
 mod observer;
 mod persistence;
+mod queueable;
 mod related_batch;
 pub mod relations;
 mod route_binding;
