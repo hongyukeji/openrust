@@ -64,6 +64,7 @@ pub enum DatabaseError {
     Pagination(crate::pagination::PaginationError),
     MassAssignment(String),
     ModelNotFound(&'static str),
+    ModelEvent(Box<crate::events::EventError>),
     LazyLoadingViolation {
         model: &'static str,
         relation: String,
@@ -136,6 +137,7 @@ impl std::fmt::Display for DatabaseError {
             Self::ModelNotFound(table) => {
                 write!(formatter, "model for table {table:?} was not found")
             }
+            Self::ModelEvent(_) => formatter.write_str("model event dispatch failed"),
             Self::LazyLoadingViolation { model, relation } => {
                 write!(
                     formatter,
@@ -182,6 +184,7 @@ impl std::error::Error for DatabaseError {
             }
             Self::Driver { source, .. } => Some(source),
             Self::AfterCommit { source } => Some(source.as_ref()),
+            Self::ModelEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),

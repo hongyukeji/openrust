@@ -27,6 +27,14 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
+    /// Maps a lifecycle event to a typed application event using the current model state.
+    fn dispatchesEvents(
+        &self,
+        _event: concerns::ModelEvent,
+    ) -> Option<std::sync::Arc<dyn crate::contracts::events::Event>> {
+        None
+    }
+
     fn attribute(_name: &str) -> Option<Attribute> {
         None
     }

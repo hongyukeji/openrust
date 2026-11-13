@@ -157,6 +157,40 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
 }
 ```
 
+### Mapping model events {#mapping-model-events}
+
+Override `dispatchesEvents` to build an event from the model at the current lifecycle point. Register listeners for the returned event through the [application dispatcher](../digging-deeper/events.md). A pre-write listener can return `ListenerResponse::Value(Box::new(false))` to cancel the write. An absent response falls through to regular model listeners and observers. A handled response takes precedence. For a transaction-aware save, the dispatcher receives that transaction. After-commit listeners receive the owned event payload captured when the lifecycle event fired.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::events::Event,
+    database::{Value, eloquent::{Model, ModelMetadata, ModelState, concerns::ModelEvent}},
+    events::NamedEvent,
+};
+
+struct Flight(ModelState);
+
+impl Model for Flight {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("flights").fillable(&["name"]);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self { Self(state) }
+    fn state(&self) -> &ModelState { &self.0 }
+    fn state_mut(&mut self) -> &mut ModelState { &mut self.0 }
+
+    #[allow(non_snake_case)]
+    fn dispatchesEvents(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
+        let (ModelEvent::Saved, Some(Value::Text(name))) = (event, self.getAttribute("name")) else {
+            return None;
+        };
+        Some(Arc::new(NamedEvent::new("flight.saved", name.clone())))
+    }
+}
+```
+
 ### Observers {#observers}
 
 Run `./artisan make:observer FlightObserver --model=Flight` to generate `app/observers/flight_observer.rs` with the five post-write lifecycle methods. Declare the module and register the observer during provider boot. Omit `--model` to generate a plain observer struct, or use `--force` to replace an existing file. Use `./artisan stub:publish` to customize `observer.rs.stub` and `observer.plain.rs.stub`.

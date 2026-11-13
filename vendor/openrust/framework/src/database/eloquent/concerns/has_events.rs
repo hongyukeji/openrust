@@ -6,8 +6,10 @@ use std::{
 };
 
 use crate::{
-    contracts::container::Container as _,
+    contracts::{container::Container as _, events::Dispatcher as _},
     database::{Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction},
+    events::{DispatchResult, Dispatcher, EventContext, ListenerResponse},
+    support::facades::application_scope,
 };
 
 use super::super::Model;
@@ -134,6 +136,48 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
     let Some(container) = Connection::model_container(Some(connection)) else {
         return Ok(true);
     };
+    if let Some(mapped) = model.dispatchesEvents(event) {
+        let dispatcher = container
+            .make::<Dispatcher>()
+            .map_err(DatabaseError::Unavailable)?;
+        let mut context = match transaction.as_deref_mut() {
+            Some(transaction) => EventContext::in_transaction(transaction),
+            None => EventContext::new(),
+        };
+        let response = application_scope(container.clone(), async {
+            if halt {
+                let response = dispatcher.until(mapped, &mut context).await?;
+                return Ok(match response {
+                    Some(ListenerResponse::Value(value))
+                        if value.downcast_ref::<bool>() == Some(&false) =>
+                    {
+                        ModelEventResponse::Cancel
+                    }
+                    Some(ListenerResponse::Value(value))
+                        if empty_mapped_response(value.as_ref()) =>
+                    {
+                        ModelEventResponse::Continue
+                    }
+                    Some(_) => ModelEventResponse::Stop,
+                    None => ModelEventResponse::Continue,
+                });
+            }
+            Ok(match dispatcher.dispatch(mapped, &mut context).await? {
+                DispatchResult::Completed(responses) if responses.iter().any(Option::is_some) => {
+                    ModelEventResponse::Stop
+                }
+                _ => ModelEventResponse::Continue,
+            })
+        })
+        .await
+        .map_err(|error| DatabaseError::ModelEvent(Box::new(error)))?;
+
+        match response {
+            ModelEventResponse::Cancel => return Ok(false),
+            ModelEventResponse::Stop => return Ok(true),
+            ModelEventResponse::Continue => {}
+        }
+    }
     let events = container
         .make::<ModelEvents>()
         .map_err(DatabaseError::Unavailable)?;
@@ -156,6 +200,26 @@ pub(in crate::database::eloquent) async fn fire_with_transaction<M: Model>(
         }
     }
     Ok(true)
+}
+
+// PHP empty scalar responses fall through to the model's lifecycle listeners.
+fn empty_mapped_response(response: &dyn Any) -> bool {
+    macro_rules! is_zero {
+        ($($scalar:ty),+) => {
+            $(response.downcast_ref::<$scalar>() == Some(&(0 as $scalar)))||+
+        };
+    }
+
+    response.is::<()>()
+        || is_zero!(
+            i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
+        )
+        || response
+            .downcast_ref::<String>()
+            .is_some_and(|value| value.is_empty() || value == "0")
+        || response
+            .downcast_ref::<&str>()
+            .is_some_and(|value| matches!(*value, "" | "0"))
 }
 
 pub(in crate::database::eloquent) async fn retrieved<M: Model>(

@@ -157,6 +157,40 @@ fn register<M: Model>(app: &Application) -> DatabaseResult<()> {
 }
 ```
 
+### 對應模型事件 {#mapping-model-events}
+
+實作 `dispatchesEvents`，依模型目前的生命週期階段建構事件，透過[應用程式派發器](../digging-deeper/events.md)註冊相應監聽器。寫入前監聽器可回傳 `ListenerResponse::Value(Box::new(false))` 取消寫入。沒有回應時回退至一般模型監聽器及觀察者，已處理的回應優先。交易寫入會將目前交易傳給派發器。提交後監聽器收到生命週期事件觸發時建構的自有承載資料。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::events::Event,
+    database::{Value, eloquent::{Model, ModelMetadata, ModelState, concerns::ModelEvent}},
+    events::NamedEvent,
+};
+
+struct Flight(ModelState);
+
+impl Model for Flight {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("flights").fillable(&["name"]);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self { Self(state) }
+    fn state(&self) -> &ModelState { &self.0 }
+    fn state_mut(&mut self) -> &mut ModelState { &mut self.0 }
+
+    #[allow(non_snake_case)]
+    fn dispatchesEvents(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
+        let (ModelEvent::Saved, Some(Value::Text(name))) = (event, self.getAttribute("name")) else {
+            return None;
+        };
+        Some(Arc::new(NamedEvent::new("flight.saved", name.clone())))
+    }
+}
+```
+
 ### 觀察者 {#observers}
 
 執行 `./artisan make:observer FlightObserver --model=Flight`，在 `app/observers/flight_observer.rs` 產生五個寫入後生命週期方法。宣告模組，並在服務提供者啟動時註冊觀察者。省略 `--model` 會產生一般結構體，使用 `--force` 可覆寫既有檔案。透過 `./artisan stub:publish` 發布並自訂 `observer.rs.stub` 與 `observer.plain.rs.stub`。

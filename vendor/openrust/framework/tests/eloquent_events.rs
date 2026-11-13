@@ -2,15 +2,19 @@ use std::sync::{Arc, Mutex};
 
 use openrust::{
     contracts::{
-        container::Container as _, events::ShouldHandleEventsAfterCommit,
+        container::Container as _,
+        events::{Dispatcher as _, Event, Listener, ShouldHandleEventsAfterCommit},
         foundation::Application as _,
     },
     database::{
-        Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Model, ModelMetadata, ModelState, Observer,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
         },
+    },
+    events::{
+        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerResponse,
     },
     foundation::Application,
     support::{ProviderResult, ServiceProvider},
@@ -31,6 +35,24 @@ impl Model for Article {
         &METADATA
     }
 
+    #[allow(non_snake_case, reason = "Implements the Eloquent event mapping hook")]
+    fn dispatchesEvents(&self, event: ModelEvent) -> Option<Arc<dyn Event>> {
+        let name = match event {
+            Saving => "article.saving",
+            Saved => "article.saved",
+            _ => return None,
+        };
+        let Value::Text(title) = self.getAttribute("title")? else {
+            return None;
+        };
+        title.starts_with("mapped-").then(|| {
+            Arc::new(ArticleLifecycle {
+                name,
+                title: title.clone(),
+            }) as Arc<dyn Event>
+        })
+    }
+
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }
@@ -41,6 +63,53 @@ impl Model for Article {
 
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
+    }
+}
+
+struct ArticleLifecycle {
+    name: &'static str,
+    title: String,
+}
+
+impl Event for ArticleLifecycle {
+    fn name(&self) -> &str {
+        self.name
+    }
+}
+
+struct MappedListener(Arc<Mutex<Vec<String>>>);
+
+impl Listener for MappedListener {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn Event,
+        context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = event
+                .downcast_ref::<ArticleLifecycle>()
+                .ok_or(EventError::InvalidPayload)?;
+            self.0
+                .lock()
+                .unwrap()
+                .push(format!("{}:{}", event.name, event.title));
+            if event.name == "article.saving" {
+                return Ok(match event.title.as_str() {
+                    "mapped-cancel" => Some(ListenerResponse::Value(Box::new(false))),
+                    "mapped-handled" => Some(ListenerResponse::Value(Box::new(true))),
+                    "mapped-zero" => Some(ListenerResponse::Value(Box::new("0"))),
+                    "mapped-error" => return Err(EventError::InvalidPayload),
+                    "mapped-transaction" => {
+                        assert!(context.transaction().is_some());
+                        None
+                    }
+                    _ => None,
+                });
+            }
+            assert!(context.transaction().is_none());
+            DB::connection(None).map_err(EventError::Transaction)?;
+            Ok((event.title == "mapped-handled").then(|| ListenerResponse::Value(Box::new(1_u32))))
+        })
     }
 }
 
@@ -590,6 +659,111 @@ async fn verify_after_commit_backend(config: Json, id: &str) {
         .unwrap();
 }
 
+async fn verify_mapped_events(config: Json, id: &str) {
+    let sqlite = config["driver"] == "sqlite";
+    let (app, db) = app_with_database(config.clone(), vec![]).await;
+    let (isolated, isolated_db) = app_with_database(config, vec![]).await;
+    db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
+
+    let calls = Arc::new(Mutex::new(Vec::new()));
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    dispatcher
+        .listen(
+            "article.saving",
+            Arc::new(MappedListener(calls.clone())),
+            Delivery::Sync,
+        )
+        .unwrap();
+    dispatcher
+        .listen(
+            "article.saved",
+            Arc::new(MappedListener(calls.clone())),
+            Delivery::AfterCommit,
+        )
+        .unwrap();
+    let fallback = Arc::new(Mutex::new(Vec::new()));
+    Article::registerModelEvent(&app, Saving, Record(fallback.clone())).unwrap();
+    Article::registerModelEvent(&app, Saved, Record(fallback.clone())).unwrap();
+
+    for (title, saved) in [
+        ("mapped-cancel", false),
+        ("mapped-handled", true),
+        ("mapped-zero", true),
+    ] {
+        let mut article =
+            Article::newInstanceOn(&db, [("title".into(), title.into())].into()).unwrap();
+        assert_eq!(article.save().await.unwrap(), saved);
+        assert_eq!(article.state().exists(), saved);
+    }
+    assert_eq!(*fallback.lock().unwrap(), [Saving, Saved]);
+
+    let mut error =
+        Article::newInstanceOn(&db, [("title".into(), "mapped-error".into())].into()).unwrap();
+    assert!(matches!(
+        error.save().await,
+        Err(DatabaseError::ModelEvent(_))
+    ));
+    assert!(!error.state().exists());
+
+    for (suffix, commit) in [("", true), ("-rollback", false)] {
+        let mut transaction = db.beginTransaction().await.unwrap();
+        let mut article =
+            Article::newInstanceOn(&db, [("title".into(), "mapped-transaction".into())].into())
+                .unwrap();
+        if !commit {
+            transaction
+                .delete(
+                    "DELETE FROM model_event_articles WHERE title = ?",
+                    &["mapped-transaction".into()],
+                )
+                .await
+                .unwrap();
+        }
+        assert!(article.saveInTransaction(&mut transaction).await.unwrap());
+        article.setAttribute("title", format!("edited{suffix}"));
+        if commit {
+            assert!(
+                !calls
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|call| call == "article.saved:mapped-transaction")
+            );
+            transaction.commit().await.unwrap();
+        } else {
+            transaction.rollBack(None).await.unwrap();
+        }
+    }
+    assert_eq!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|call| *call == "article.saved:mapped-transaction")
+            .count(),
+        1
+    );
+
+    let before = calls.lock().unwrap().len();
+    let mut quiet =
+        Article::newInstanceOn(&db, [("title".into(), "mapped-quiet".into())].into()).unwrap();
+    assert!(quiet.saveQuietly().await.unwrap());
+    if sqlite {
+        isolated_db.statement(&format!("CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"), &[]).await.unwrap();
+    }
+    let mut other = Article::newInstanceOn(
+        &isolated_db,
+        [("title".into(), "mapped-isolated".into())].into(),
+    )
+    .unwrap();
+    assert!(other.save().await.unwrap());
+    assert_eq!(calls.lock().unwrap().len(), before);
+    drop(isolated);
+    db.statement("DROP TABLE model_event_articles", &[])
+        .await
+        .unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
     verify(
@@ -598,6 +772,11 @@ async fn model_events_on_sqlite() {
     )
     .await;
     verify_transaction_backend(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
+    verify_mapped_events(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
     )
@@ -617,5 +796,6 @@ async fn model_events_on_mysql() {
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_transaction_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_after_commit_backend(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
+        verify_mapped_events(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
     }
 }

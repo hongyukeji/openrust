@@ -33,3 +33,10 @@
 - 对照固定 Laravel 的模型事务保存及事务隔离测试，参考 Goravel 向回调提供事务句柄的方式。复用 `v0.x` 由事务查询执行同一保存流程的做法。Rust 的五个 `*InTransaction` 写入方法借用活动事务，已绑定连接的模型校验查询来源。调用方控制提交和回滚，模型实例仍反映本次写入尝试。 [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 事务测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/DatabaseTransactionsTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
 - SQLite 与独立 MySQL 8.4.13 实测事务内自动键、更新、软删除、恢复、保存点回滚后保留记录、写前取消、同事务监听器审计回滚、不同应用连接拒绝和关闭事务拒绝。生命周期监听器可接收当前事务。已有 Observer 回调继续使用连接；事务后 Observer 在 06-02 接入。
 - Rust 1.94.0 格式、616 项锁定离线工作区测试及全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语示例分别在 SQLite 编译运行，VitePress 构建、12 项通用和 6 项模型正文浏览器检查通过。实际二进制的 `artisan inspire` 正常退出。
+
+## 模型事件映射
+
+- 对照固定 Laravel 的 `HasEvents::fireModelEvent`，先经所属应用派发类型事件，再按响应决定取消、完成或回退到模型监听器。复用 `v0.x` 的派发优先级、事务传播与空响应回归，沿用固定 Goravel 参考的编译期模型装配。Rust 用 `Model::dispatchesEvents` 返回拥有数据的类型事件，现有模型监听器和 Observer 继续借用可变模型。写前布尔 `false` 取消写入，常用零值和空字符串回退。任意 Rust 对象是有效响应，应用可显式返回 `None` 表示无响应。 [Laravel HasEvents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasEvents.php) · [Laravel 模型事件](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#events) · [Goravel ORM Model](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/model.go)
+- SQLite 和独立 MySQL 8.4.13 实际模型写入验证写前取消、响应优先级、回退、异常传播、静默、两应用隔离、事务提交及回滚。提交后监听器收到派发时的自有载荷，并能解析所属应用的连接。
+- 三语文档示例分别编译运行，验证载荷和原模型后续修改互相独立。实际 Artisan 的 `event:list --json` 和 `make:model MappedFlight` 通过。复制和自动唯一 ID 继续跟踪。
+- Rust 1.94.0 格式、618 项锁定离线工作区测试、全目标严格 Clippy 通过，8 项进程夹具标记忽略。三语站点构建及 18 项浏览器检查通过。
