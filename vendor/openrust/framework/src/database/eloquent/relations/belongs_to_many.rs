@@ -7,7 +7,8 @@ use crate::database::{
     eloquent::{
         Attributes, Builder, Model, ModelState,
         concerns::{
-            has_relationships::load_eager, has_timestamps::timestamp,
+            has_relationships::{LoadedRelations, load_eager},
+            has_timestamps::timestamp,
             queries_relationships::cast_existence,
         },
     },
@@ -31,6 +32,7 @@ pub struct BelongsToMany<P: Model, R: Model> {
     pivot_orders: Vec<(String, String)>,
     pivot_timestamps: Option<PivotTimestampColumns>,
     custom_pivot: Option<CustomPivot>,
+    pivot_inverses: (Option<String>, Option<String>),
 }
 
 /// Keys attached, detached, or updated by a pivot synchronization.
@@ -64,6 +66,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             pivot_orders: Vec::new(),
             pivot_timestamps: None,
             custom_pivot: None,
+            pivot_inverses: (None, None),
         }
     }
 
@@ -200,6 +203,34 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     #[must_use]
     pub fn using<M: Model>(mut self) -> Self {
         self.custom_pivot = Some(CustomPivot::new::<M>());
+        self.pivot_inverses = (None, None);
+        self
+    }
+
+    /// Hydrates declared inverse relations from the models already participating in this load.
+    pub fn chaperone(self) -> Self {
+        self.chaperoneWith(None, None)
+            .expect("inferred names cannot fail validation")
+    }
+
+    /// Uses explicit inverse names for either endpoint and infers omitted names.
+    pub fn chaperoneWith(
+        mut self,
+        declaring: Option<&str>,
+        related: Option<&str>,
+    ) -> DatabaseResult<Self> {
+        if let Some(custom) = self.custom_pivot {
+            self.pivot_inverses = (
+                pivot_inverse::<P>(custom, declaring, self.pivot.foreign)?,
+                pivot_inverse::<R>(custom, related, self.pivot.related)?,
+            );
+        }
+        Ok(self)
+    }
+
+    #[must_use]
+    pub fn withoutChaperone(mut self) -> Self {
+        self.pivot_inverses = (None, None);
         self
     }
 
@@ -544,6 +575,17 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
         if !keys.bindings.is_empty() {
             let connection = self.keys.batch_connection(parents)?;
+            let (declaring_inverse, related_inverse) = &self.pivot_inverses;
+            let mut declaring_models = HashMap::new();
+            if declaring_inverse.is_some() {
+                for parent in parents {
+                    if let Some(key) = dictionary_key(parent.getAttribute(self.keys.parent))? {
+                        declaring_models
+                            .entry(key)
+                            .or_insert_with(|| Arc::new(P::from_state(parent.state().clone())));
+                    }
+                }
+            }
             let parent_column = format!("{}.{}", self.pivot.table, self.pivot.foreign);
             let pivot_key = format!("{}.{}", self.pivot.table, self.pivot.related);
             let related_key = format!("{}.{}", R::metadata().table, self.keys.related);
@@ -625,12 +667,30 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         if let Some(custom) = self.custom_pivot {
                             let mut defaults = self.pivot_constraints.defaults.clone();
                             defaults.extend(attributes);
+                            let mut inverses = LoadedRelations::default();
+                            if let Some(name) = declaring_inverse {
+                                inverses.insert(
+                                    name.clone(),
+                                    declaring_models.get(&owner).cloned(),
+                                    super::super::serialization::one::<P>,
+                                );
+                            }
+                            if let Some(name) = related_inverse {
+                                // An owned snapshot avoids a strong reference cycle through the pivot.
+                                let related = Arc::new(R::from_state(state.clone()));
+                                inverses.insert(
+                                    name.clone(),
+                                    Some(related),
+                                    super::super::serialization::one::<R>,
+                                );
+                            }
                             (custom.hydrate)(
                                 &mut state.relations,
                                 self.pivot_accessor,
                                 defaults,
                                 &connection,
                                 self.pivot.identity(self.timestamp_columns()),
+                                inverses,
                             )?;
                         } else {
                             state.relations.insert(
@@ -669,6 +729,38 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
         Box::pin(self.match_many(parents))
     }
+}
+
+fn pivot_inverse<M: Model>(
+    pivot: CustomPivot,
+    explicit: Option<&str>,
+    foreign_key: &str,
+) -> DatabaseResult<Option<String>> {
+    use crate::support::Str;
+
+    if let Some(name) = explicit {
+        if !pivot.inverse_relations.contains(&name) {
+            return Err(DatabaseError::InvalidQuery(
+                "unknown custom pivot inverse relation",
+            ));
+        }
+        return Ok(Some(name.to_owned()));
+    }
+    let stem = foreign_key
+        .rsplit_once(M::metadata().primary_key)
+        .map_or(foreign_key, |(stem, _)| stem);
+    let model_name = std::any::type_name::<M>()
+        .split('<')
+        .next()
+        .unwrap_or_default()
+        .rsplit("::")
+        .next()
+        .unwrap_or_default();
+    Ok([Str::camel(stem), Str::camel(model_name)]
+        .into_iter()
+        .find(|candidate| {
+            !candidate.is_empty() && pivot.inverse_relations.contains(&candidate.as_str())
+        }))
 }
 
 fn key_map(keys: impl IntoIterator<Item = Value>) -> DatabaseResult<IndexMap<Vec<u8>, Value>> {

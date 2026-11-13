@@ -389,6 +389,22 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 }
 ```
 
+### 自动水合中间表反向关系 {#automatically-hydrating-pivot-relationships}
+
+在中间表模型的 `pivotInverseRelations()` 中声明反向关系名称。在 `using::<Membership>()` 之后调用 `chaperone()`，从中间表外键和模型类型推断名称。用 `chaperoneWith(Some("owner"), Some("item"))?` 显式指定名称，用 `withoutChaperone()` 关闭水合。
+
+惰性加载和预加载均从当前已加载的模型填充反向关系。通过 `getRelation` 读取 `Option<Arc<T>>`。反向关系保存水合时的模型快照，使 Rust 能序列化该关系图并避免循环引用。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .using::<Membership>()
+        .chaperone()
+}
+```
+
 ## 新建和更新关联模型
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。

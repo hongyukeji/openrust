@@ -34,8 +34,14 @@ impl PivotIdentity {
     }
 }
 
-type Hydrate =
-    fn(&mut LoadedRelations, &str, Attributes, &Connection, PivotIdentity) -> DatabaseResult<()>;
+type Hydrate = fn(
+    &mut LoadedRelations,
+    &str,
+    Attributes,
+    &Connection,
+    PivotIdentity,
+    LoadedRelations,
+) -> DatabaseResult<()>;
 type Insert = for<'a> fn(
     &'a mut Transaction,
     &'a Connection,
@@ -58,6 +64,7 @@ type Delete = for<'a> fn(
 
 #[derive(Clone, Copy)]
 pub(super) struct CustomPivot {
+    pub inverse_relations: &'static [&'static str],
     pub primary_key: Option<&'static str>,
     pub hydrate: Hydrate,
     pub insert: Insert,
@@ -68,9 +75,11 @@ pub(super) struct CustomPivot {
 impl CustomPivot {
     pub fn new<M: Model>() -> Self {
         Self {
+            inverse_relations: M::pivotInverseRelations(),
             primary_key: M::getIncrementing().then_some(M::metadata().primary_key),
-            hydrate: |relations, accessor, attributes, connection, identity| {
-                let model = hydrated::<M>(attributes, connection, identity)?;
+            hydrate: |relations, accessor, attributes, connection, identity, inverses| {
+                let mut model = hydrated::<M>(attributes, connection, identity)?;
+                model.state_mut().relations = inverses;
                 relations.insert(accessor.into(), model, |model| {
                     model.toArray().map(serde_json::Value::Object).map(Some)
                 });

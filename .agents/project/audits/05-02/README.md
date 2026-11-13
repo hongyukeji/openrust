@@ -190,3 +190,11 @@ Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败�
 SQLite 和 MySQL 8.4.13 实测自定义访问器、属性转换、脏属性更新、attach/sync/detach 生命周期、监听器取消、事件与写操作同事务回滚，以及复合身份和多态类型隔离。自定义 Pivot 的反向关系自动水合按 Laravel 后续小节单独跟踪。
 
 Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离构建和 18 项浏览器检查通过。提交前额度 93%，磁盘可用 60 GiB。05-02 仍待整体闭合，核心账本维持 25/66。
+
+## 自动水合中间表反向关系
+
+按固定 Laravel `SupportsPivotInverseRelations` 和 `EloquentBelongsToManyTest` 接入 `chaperone`、显式名称和 `withoutChaperone`。固定 Goravel 的连接级 ORM 为查询装配参考。复核 `v0.x`，已有自定义 Pivot 的关系容器与序列化入口。Rust 复用现行类型化 `LoadedRelations`，以 `Model::pivotInverseRelations` 声明可用名称，以 `chaperoneWith` 接收显式名称，避免运行时方法反射。反向引用保存已加载模型的快照，相关端快照在挂载当前 Pivot 前构造，以避免强引用和序列化循环。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#automatically-hydrating-pivot-relationships) · [固定源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/SupportsPivotInverseRelations.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和 MySQL 8.4.13 专项覆盖推断、显式名称、无效名称拒绝、停用、默认 Pivot 保持原行为、改名访问器、多态 Pivot、多父模型身份和 JSON 序列化。MySQL 通过同一连接的 `Com_select` 证明惰性加载 1 次、预加载 2 次，访问和序列化反向关系无额外 SELECT。05-02 余下关系契约继续跟踪，包括切换关联和触碰父模型时间戳。
+
+Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离站点构建及 18 项浏览器检查通过。提交前额度 92%，磁盘可用 60 GiB。05-02 尚未整体闭合，核心账本 25/66。

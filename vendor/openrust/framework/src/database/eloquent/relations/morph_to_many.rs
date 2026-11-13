@@ -75,6 +75,23 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         Self(self.0.using::<M>())
     }
 
+    pub fn chaperone(self) -> Self {
+        Self(self.0.chaperone())
+    }
+
+    pub fn chaperoneWith(
+        self,
+        declaring: Option<&str>,
+        related: Option<&str>,
+    ) -> DatabaseResult<Self> {
+        self.0.chaperoneWith(declaring, related).map(Self)
+    }
+
+    #[must_use]
+    pub fn withoutChaperone(self) -> Self {
+        Self(self.0.withoutChaperone())
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     fn apply_pivot_predicate(

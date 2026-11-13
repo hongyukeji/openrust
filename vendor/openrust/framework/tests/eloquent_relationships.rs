@@ -1937,6 +1937,10 @@ impl Model for Membership {
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
     }
+    fn pivotInverseRelations() -> &'static [&'static str] {
+        &["author", "post", "owner", "item"]
+    }
+
     fn casts() -> &'static [(&'static str, AttributeCast)] {
         &[("label", AttributeCast::Integer)]
     }
@@ -1989,6 +1993,7 @@ impl openrust::database::eloquent::concerns::ModelEventListener<Membership> for 
 }
 
 async fn verify_custom_pivot(config: Json) {
+    let mysql = config.get("url").is_some();
     use openrust::{
         contracts::{container::Container as _, foundation::Application as _},
         database::eloquent::concerns::ModelEvent::{Created, Deleted, Deleting, Saving, Updated},
@@ -2060,18 +2065,88 @@ async fn verify_custom_pivot(config: Json) {
         )
         .await
         .unwrap();
+    assert!(
+        FEATURED_POSTS
+            .using::<Membership>()
+            .chaperoneWith(Some("invalid"), None)
+            .is_err()
+    );
+
+    let baseline = if mysql { select_count(&db).await } else { 0 };
     let eager = Author::queryOn(&db)
         .with(
             "posts",
             FEATURED_POSTS
                 .using::<Membership>()
+                .chaperone()
                 .withPivot(["label"])
                 .r#as("membership"),
         )
-        .findOrFail(1)
+        .orderBy("id", "asc")
+        .get()
         .await
         .unwrap();
-    let posts = eager.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    for author in eager.iter() {
+        let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        for post in posts {
+            let pivot = post.getRelation::<Membership>("membership").unwrap();
+            assert_eq!(
+                pivot
+                    .getRelation::<Option<Arc<Author>>>("author")
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .getKey(),
+                author.getKey()
+            );
+            assert_eq!(
+                pivot
+                    .getRelation::<Option<Arc<Post>>>("post")
+                    .unwrap()
+                    .as_ref()
+                    .unwrap()
+                    .getKey(),
+                post.getKey()
+            );
+            assert_eq!(
+                post.toArray().unwrap()["membership"]["post"]["id"],
+                post.toArray().unwrap()["id"]
+            );
+            assert!(
+                post.toArray().unwrap()["membership"]["post"]
+                    .get("membership")
+                    .is_none()
+            );
+        }
+    }
+    if mysql {
+        assert_eq!(select_count(&db).await - baseline, 2);
+    }
+    let lazy = FEATURED_POSTS
+        .using::<Membership>()
+        .chaperoneWith(Some("owner"), Some("item"))
+        .unwrap();
+    let baseline = if mysql { select_count(&db).await } else { 0 };
+    let posts = lazy.getResults(&owner).await.unwrap();
+    let pivot = posts[0].getRelation::<Membership>("pivot").unwrap();
+    assert!(pivot.relationLoaded("owner") && pivot.relationLoaded("item"));
+    assert!(!pivot.relationLoaded("author"));
+    if mysql {
+        assert_eq!(select_count(&db).await - baseline, 1);
+    }
+    let posts = lazy.withoutChaperone().getResults(&owner).await.unwrap();
+    assert!(
+        !posts[0]
+            .getRelation::<Membership>("pivot")
+            .unwrap()
+            .relationLoaded("owner")
+    );
+    assert!(
+        FEATURED_POSTS.chaperone().getResults(&owner).await.unwrap()[0]
+            .getRelation::<Pivot>("pivot")
+            .is_some()
+    );
+    let posts = eager[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
     let pivot = posts
         .iter()
         .find(|post| post.getKey() == Some(&1.into()))
@@ -2146,6 +2221,7 @@ async fn verify_custom_pivot(config: Json) {
         "featured",
     )
     .using::<Membership>()
+    .chaperone()
     .withPivot(["label"]);
     let changes = morph
         .syncWithPivotValues(
@@ -2159,6 +2235,7 @@ async fn verify_custom_pivot(config: Json) {
     assert_eq!(changes.attached, vec![2.into()]);
     let posts = morph.getResults(&owner).await.unwrap();
     let pivot = posts[0].getRelation::<Membership>("pivot").unwrap();
+    assert!(pivot.relationLoaded("author") && pivot.relationLoaded("post"));
     assert_eq!(pivot.getAttribute("subject_type"), Some(&"featured".into()));
     assert_eq!(pivot.getAttributeValue("label").unwrap(), Some(15.into()));
     assert_eq!(morph.detach(&owner, Some(&[2.into()])).await.unwrap(), 1);

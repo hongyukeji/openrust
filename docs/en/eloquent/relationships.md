@@ -389,6 +389,22 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 }
 ```
 
+### Automatically Hydrating Pivot Relationships {#automatically-hydrating-pivot-relationships}
+
+Declare the inverse names on your pivot model with `pivotInverseRelations()`. Call `chaperone()` after `using::<Membership>()` to infer names from the pivot keys and model types. Use `chaperoneWith(Some("owner"), Some("item"))?` for explicit names and `withoutChaperone()` to disable hydration.
+
+Both lazy and eager loads populate the inverses from the models already loaded. Read them as `Option<Arc<T>>` through `getRelation`. The inverses hold snapshots of the endpoints at hydration time so Rust can serialize the graph without a reference cycle.
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .using::<Membership>()
+        .chaperone()
+}
+```
+
 ## Inserting and Updating Related Models
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.

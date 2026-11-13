@@ -389,6 +389,22 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 }
 ```
 
+### 自動水合中介資料表反向關聯 {#automatically-hydrating-pivot-relationships}
+
+在中介模型的 `pivotInverseRelations()` 中宣告反向關聯名稱。在 `using::<Membership>()` 之後呼叫 `chaperone()`，從中介資料表外鍵與模型型別推斷名稱。以 `chaperoneWith(Some("owner"), Some("item"))?` 明確指定名稱，並以 `withoutChaperone()` 關閉水合。
+
+延遲載入和預先載入皆由目前已載入的模型填入反向關聯。透過 `getRelation` 讀取 `Option<Arc<T>>`。反向關聯保存水合時的模型快照，使 Rust 能序列化關聯圖並避免循環參照。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsToMany};
+
+pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
+    BelongsToMany::new("role_user", "user_id", "role_id", "id", "id")
+        .using::<Membership>()
+        .chaperone()
+}
+```
+
 ## 建立和更新關聯模型
 
 `HasMany::create` 和 `save` 在儲存前填入關聯模型外鍵。`BelongsTo::associate` 和 `dissociate` 修改子模型的記憶體狀態。呼叫子模型的 `save` 持久化修改。
