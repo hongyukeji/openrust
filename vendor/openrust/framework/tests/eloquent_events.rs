@@ -9,9 +9,9 @@ use openrust::{
     database::{
         Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Model, ModelMetadata, ModelState, Observer,
+            Model, ModelMetadata, ModelState, Observer, Touches,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            relations::HasMany,
+            relations::{BelongsTo, HasMany},
         },
     },
     events::{
@@ -983,8 +983,140 @@ async fn verify_refreshes(config: Json, id: &str) {
         .unwrap();
 }
 
+struct TouchNode(ModelState);
+
+impl Model for TouchNode {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("touch_nodes")
+            .timestamps(None, Some("updated_at"))
+            .fillable(&["parent_id", "title"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn touches() -> Touches<Self> {
+        Touches::default().belongsTo(BelongsTo::<Self, Self>::new("parent_id", "id"))
+    }
+}
+
+struct RecordTouches(Arc<Mutex<Vec<(ModelEvent, Value)>>>);
+
+impl ModelEventListener<TouchNode> for RecordTouches {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        model: &'a mut TouchNode,
+        _connection: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            self.0
+                .lock()
+                .unwrap()
+                .push((event, model.getKey().unwrap().clone()));
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
+async fn verify_touch_owners(config: Json, id: &str) {
+    let (app, db) = app_with_database(config, Vec::new()).await;
+    let events = Arc::new(Mutex::new(Vec::new()));
+    for event in [Saving, Saved, Updating, Updated] {
+        TouchNode::registerModelEvent(&app, event, RecordTouches(events.clone())).unwrap();
+    }
+    db.statement("DROP TABLE IF EXISTS touch_nodes", &[])
+        .await
+        .unwrap();
+    db.statement(
+        &format!("CREATE TABLE touch_nodes (id {id}, parent_id BIGINT NULL, title VARCHAR(30), updated_at VARCHAR(30))"),
+        &[],
+    ).await.unwrap();
+    let seed = "2000-01-01 00:00:00";
+    for (id, parent) in [(1, 2), (2, 3), (3, 1), (4, 99)] {
+        db.statement(
+            "INSERT INTO touch_nodes (id, parent_id, title, updated_at) VALUES (?, ?, ?, ?)",
+            &[id.into(), parent.into(), "seed".into(), seed.into()],
+        )
+        .await
+        .unwrap();
+    }
+    let read_timestamp = "SELECT updated_at FROM touch_nodes WHERE id = ?";
+    let mut child = TouchNode::queryOn(&db).findOrFail(1).await.unwrap();
+    child.save().await.unwrap();
+    assert_eq!(
+        events.lock().unwrap().drain(..).collect::<Vec<_>>(),
+        [(Saving, 1.into()), (Saved, 1.into())]
+    );
+    assert_eq!(
+        db.scalar(read_timestamp, &[2.into()]).await.unwrap(),
+        seed.into()
+    );
+
+    child.setAttribute("title", "rolled back");
+    let mut transaction = db.beginTransaction().await.unwrap();
+    child.saveInTransaction(&mut transaction).await.unwrap();
+    for owner in [2, 3] {
+        assert_ne!(
+            transaction
+                .scalar(read_timestamp, &[owner.into()])
+                .await
+                .unwrap(),
+            seed.into()
+        );
+    }
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(
+        events.lock().unwrap().drain(..).collect::<Vec<_>>(),
+        [
+            (Saving, 1.into()),
+            (Updating, 1.into()),
+            (Updated, 1.into()),
+            (Saved, 1.into()),
+            (Saved, 2.into()),
+            (Saved, 3.into()),
+        ]
+    );
+    for owner in [2, 3] {
+        assert_eq!(
+            db.scalar(read_timestamp, &[owner.into()]).await.unwrap(),
+            seed.into()
+        );
+    }
+    let mut child = TouchNode::queryOn(&db).findOrFail(1).await.unwrap();
+    child.setAttribute("title", "committed");
+    child.save().await.unwrap();
+    for owner in [2, 3] {
+        assert_ne!(
+            db.scalar(read_timestamp, &[owner.into()]).await.unwrap(),
+            seed.into()
+        );
+    }
+    let mut orphan = TouchNode::queryOn(&db).findOrFail(4).await.unwrap();
+    orphan.setAttribute("title", "missing owner");
+    orphan.save().await.unwrap();
+    orphan.setAttribute("parent_id", Value::Null);
+    orphan.save().await.unwrap();
+    db.statement("DROP TABLE touch_nodes", &[]).await.unwrap();
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
+    verify_touch_owners(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
     verify_refreshes(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
@@ -1022,6 +1154,7 @@ async fn model_events_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
+        verify_touch_owners(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_refreshes(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_replication(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;

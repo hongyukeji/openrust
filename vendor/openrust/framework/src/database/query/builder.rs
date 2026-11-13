@@ -92,6 +92,21 @@ impl<'connection> Builder<'connection> {
         Self::new(Executor::Transaction(transaction), grammar, table)
     }
 
+    pub(crate) fn in_transaction<'a>(
+        self,
+        transaction: &'a mut Transaction,
+    ) -> DatabaseResult<Builder<'a>>
+    where
+        'connection: 'a,
+    {
+        if !transaction.belongs_to(self.executor.source()) {
+            return Err(DatabaseError::InvalidQuery("query transaction connection"));
+        }
+        let mut query: Builder<'a> = self;
+        query.executor = Executor::Transaction(transaction);
+        Ok(query)
+    }
+
     fn new(executor: Executor<'connection>, grammar: Grammar, table: &str) -> Self {
         Self {
             executor,

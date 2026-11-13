@@ -7,7 +7,7 @@ use crate::{
 };
 
 use super::{
-    Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, Scope,
+    Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, Scope, Touches,
     VisibilityCondition,
     casts::{self, Attribute, AttributeCast, CastableEnum, CastableObject},
     concerns, persistence,
@@ -25,6 +25,11 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
         &[]
+    }
+
+    /// Declares the owners whose timestamps a dirty save should update.
+    fn touches() -> Touches<Self> {
+        Touches::default()
     }
 
     /// Maps a lifecycle event to a typed application event using the current model state.

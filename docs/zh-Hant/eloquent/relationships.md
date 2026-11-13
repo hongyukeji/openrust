@@ -421,6 +421,20 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
+在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。
+
+在 `Model for Comment` 的實作中宣告指向 `Post` 的關聯。
+
+```rust
+fn touches() -> openrust::database::eloquent::Touches<Self> {
+    use openrust::database::eloquent::{Touches, relations::BelongsTo};
+
+    Touches::default().belongsTo(BelongsTo::<Self, Post>::new("post_id", "id"))
+}
+```
+
+Laravel 在 `$touches` 中列出關聯名稱。OpenRust 使用帶型別的關聯描述符。 Laravel 寫入時間戳記時移除全域作用域。OpenRust 在查詢和寫入時都保留全域作用域，因此租戶作用域可以阻止越界更新。
+
 在多對多關聯使用 `withTouchingParent()`，關聯變更時更新宣告端模型的時間戳記。更新從已持久化的屬性開始，並與中介資料表寫入共用交易。重新載入父模型後可讀取新時間戳記。
 
 ```rust

@@ -16,6 +16,7 @@ mod scope;
 mod serialization;
 mod soft_deletes;
 mod soft_deleting_scope;
+mod touches;
 mod unique_ids;
 
 use std::collections::BTreeMap;
@@ -38,6 +39,7 @@ pub use observer::Observer;
 pub use related_batch::{RelatedBatch, RelatedModels};
 pub use scope::Scope;
 pub use serialization::VisibilityCondition;
+pub use touches::Touches;
 pub use unique_ids::UniqueId;
 
 /// The raw attributes of a model, keyed by column name.

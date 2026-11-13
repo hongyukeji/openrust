@@ -6,7 +6,7 @@ use super::{
         has_events::{ModelEvent::*, fire_with_transaction},
         has_timestamps::timestamp,
     },
-    soft_deletes,
+    soft_deletes, touches,
 };
 
 fn connection<M: Model>(model: &M) -> DatabaseResult<Connection> {
@@ -239,7 +239,8 @@ pub(super) async fn save<M: Model>(
             transaction.as_deref_mut(),
         )
         .await?;
-        fire_with_transaction(model, &connection, Saved, false, transaction).await?;
+        fire_with_transaction(model, &connection, Saved, false, transaction.as_deref_mut()).await?;
+        touches::touch_owners(model, &persisted, &connection, transaction).await?;
         Ok(true)
     }
     .await;

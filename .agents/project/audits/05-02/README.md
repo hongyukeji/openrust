@@ -203,6 +203,14 @@ Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败�
 
 对照固定 Laravel 的 `toggle`、`toggleOrFail` 与 `touchIfTouching`，参考固定 Goravel ORM 的连接级装配。复用 `v0.x` 的按已有关系划分新增和删除、按类型派发自定义 Pivot 写入及通过父模型保存时间戳的做法。Rust 的 `toggle` 和 `toggleOrFail` 均使用现有事务路径，`toggleWithPivotAttributes` 接收按键分配的属性。通过 `withTouchingParent` 显式启用多对多声明端触碰，附加、更新、解除、同步及切换产生变更时，父模型和 Pivot 共用事务。父模型由已持久化快照构造，调用方重读后可取得最新值。 [Laravel 切换关联](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#toggling-associations) · [Laravel 触碰时间戳](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#touching-parent-timestamps) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
-常规模型保存时由所属关系声明 `touches`、触碰相关端和递归传播仍需单独实现。05-02 维持部分验收。
+本批验收涵盖多对多关系的声明端触碰。相关端触碰继续跟踪。
 
 SQLite 和独立 MySQL 8.4.13 验证同一调用的新增和解除、重复键去重、非法键拒绝、自定义 Pivot 插入失败后恢复已解除的关系、多态类型隔离、五种 Pivot 写入触碰、空操作和其他父模型隔离、调用方未保存属性保护。Rust 1.94 格式、621 次工作区测试、严格 Clippy、实际 Artisan、三语示例编译、隔离构建及 18 项浏览器检查通过。提交前额度 92%，磁盘可用 60 GiB。核心账本维持 25/66。
+
+## 保存模型时触碰所属模型
+
+对照固定 Laravel 的 `finishSave`、`touchOwners` 和传播回归用例。沿用 `v0.x` 在 `Saved` 后使用当前事务触碰所属模型的时机，参考固定 Goravel ORM 的连接级装配。Laravel 通过 `$touches` 保存关系名称，Rust 通过 `Model::touches()` 返回带类型的 `BelongsTo` 描述符。使用已持久化的外键及关系作用域，按模型类型、连接及主键去重。Laravel 的时间戳更新移除全局作用域，Rust 在查询和更新时均保留作用域，以维持租户隔离。显式事务中的所属查询、更新和事件共用一个连接。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#touching-parent-timestamps) · [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php#L2968) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测无变更保存、递归和循环关系、所属模型的 `Saved` 事件顺序、事务内可见性和回滚、缺失和空外键。多态所属关系、多对多相关端触碰及其他关系加载差异仍在 05-02 跟踪，核心账本 25/66。
+
+Rust 1.94 格式、全目标严格 Clippy、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、实际二进制 `artisan inspire`、三语示例编译、隔离站点构建和 18 项浏览器检查通过。Rust 1.99 的严格 Clippy 在既有分页和 Redis 限流代码上报告两项 lint。提交前周额度剩余 92%，项目卷可用 59 GiB。

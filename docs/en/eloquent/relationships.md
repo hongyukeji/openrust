@@ -421,6 +421,20 @@ Use `toggle` to remove existing links and insert missing links for the supplied 
 
 ## Touching parent timestamps {#touching-parent-timestamps}
 
+Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.
+
+In a `Model for Comment` implementation, declare the relationship to `Post`.
+
+```rust
+fn touches() -> openrust::database::eloquent::Touches<Self> {
+    use openrust::database::eloquent::{Touches, relations::BelongsTo};
+
+    Touches::default().belongsTo(BelongsTo::<Self, Post>::new("post_id", "id"))
+}
+```
+
+Laravel declares these relationships by name in `$touches`. OpenRust uses typed relation descriptors. Laravel removes global scopes for the timestamp write. OpenRust keeps them on both the owner lookup and the write, so a tenant scope can prevent an out-of-scope update.
+
 Enable `withTouchingParent()` on a many-to-many relation to update the declaring model’s timestamp when its links change. The parent update uses the same transaction and starts from persisted attributes. Reload the parent to read the new timestamp.
 
 ```rust
