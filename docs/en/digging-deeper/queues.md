@@ -638,6 +638,8 @@ Select the broker with `Bus::batch(jobs).onConnection("beanstalkd")` or `.onConn
 
 When a send fails after earlier sends have succeeded, OpenRust saves the remaining jobs and `queue:publish-batches` resumes from that point. A crash, ambiguous broker response or SQL commit failure can replay a send. Keep handlers idempotent. Standard SQS and Beanstalkd cannot atomically acknowledge a send together with the SQL publication update.
 
+For FIFO batches and cross-connection chain delivery, OpenRust derives the default deduplication ID from the serialized job so a replay uses the same ID. Explicit deduplication settings still apply. Amazon SQS suppresses replay only within its five-minute deduplication window.
+
 ### Batch callbacks {#batch-callbacks}
 
 Register each callback by a stable name during provider boot in both the application and worker. The batch stores these names so a separate worker can resolve them. The callback receives a batch snapshot and, where applicable, the terminal failure message.

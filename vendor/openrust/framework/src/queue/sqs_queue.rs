@@ -206,7 +206,25 @@ impl SqsQueue {
             &url,
             payload,
             delay,
-            None,
+            false,
+            self.overflow.as_ref(),
+        )
+        .await
+    }
+
+    pub(super) async fn send_durable(
+        &self,
+        payload: &Payload,
+        queue: Option<&str>,
+        delay: Option<Delay>,
+    ) -> QueueResult<Option<String>> {
+        let url = self.url(queue)?;
+        send(
+            self.client().await,
+            &url,
+            payload,
+            delay,
+            true,
             self.overflow.as_ref(),
         )
         .await
@@ -427,7 +445,7 @@ impl Reservation for SqsReservation {
                 url.as_deref().unwrap_or(&self.url),
                 next,
                 delay,
-                Some(next.uuid()),
+                true,
                 self.overflow.as_ref(),
             )
             .await?;
@@ -472,7 +490,7 @@ async fn send(
     url: &str,
     payload: &Payload,
     delay: Option<Delay>,
-    chain_id: Option<&str>,
+    stable_deduplication: bool,
     overflow: Option<&OverflowStore>,
 ) -> QueueResult<Option<String>> {
     let body = serde_json::to_string(payload).map_err(backend)?;
@@ -482,9 +500,13 @@ async fn send(
     }
     let mut command = client.send_message().queue_url(url);
     if url.ends_with(".fifo") {
-        let deduplication = match (&payload.sqs_deduplication, chain_id) {
-            (Some(value), _) if value.is_empty() && overflow.is_some() => {
-                // Match content-based deduplication of the original body instead of its random pointer.
+        let deduplication = match &payload.sqs_deduplication {
+            value
+                if value.as_ref().map_or(stable_deduplication, |id| {
+                    id.is_empty() && overflow.is_some()
+                }) =>
+            {
+                // Retries and overflow use the original body rather than a random wire ID.
                 let digest = aws_lc_rs::digest::digest(&aws_lc_rs::digest::SHA256, body.as_bytes());
                 Some(
                     digest
@@ -494,9 +516,8 @@ async fn send(
                         .collect(),
                 )
             }
-            (Some(value), _) => (!value.is_empty()).then(|| value.clone()),
-            (None, Some(id)) => Some(id.into()),
-            (None, None) => Some(super::new_id()?),
+            Some(value) => (!value.is_empty()).then(|| value.clone()),
+            None => Some(super::new_id()?),
         };
         command = command
             .message_group_id(

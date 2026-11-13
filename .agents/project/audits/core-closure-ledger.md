@@ -48,7 +48,7 @@
 
 ## 额外队列驱动与载荷定稿
 
-已接通 Null、Deferred、Background 和 Failover。Rust 任务载荷采用版本化 JSON 与编译注册。Beanstalkd 基础驱动、批次和链中批次已通过真实 Worker。SQS 标准／FIFO 与溢出载荷已通过独立 ElasticMQ、Redis 和真实 Artisan。跨连接转发已验收目标延迟及 SQS 拒绝后的重试。SQS 批次已验收部分发布、恢复和追加。发布成功后确认中断的恢复及托管 AWS 继续跟踪。 [外部队列批次验收](06-03/external-batches.md) [Beanstalkd 验收](06-03/beanstalkd.md) · [SQS 验收](06-03/sqs.md)
+已接通 Null、Deferred、Background 和 Failover。Rust 任务载荷采用版本化 JSON 与编译注册。Beanstalkd 基础驱动、批次和链中批次已通过真实 Worker。SQS 标准／FIFO 与溢出载荷已通过独立 ElasticMQ、Redis 和真实 Artisan。跨连接转发已验收目标延迟及 SQS 拒绝后的重试。SQS 标准批次已验收部分发布、恢复和追加。FIFO 已验收 broker 接收后响应失败、SQL 确认失败和并发恢复。标准队列的至少一次边界、SQS 原生批量传输及托管 AWS 继续跟踪。 [外部队列批次验收](06-03/external-batches.md) [Beanstalkd 验收](06-03/beanstalkd.md) · [SQS 验收](06-03/sqs.md)
 
 Background 已在 macOS 实测发起进程退出后仍可完成。Deferred 与 Background 的共享唯一锁通过真实 HTTP 和 Artisan 专项。 [驱动验收与边界](06-03/lifecycle-failover-drivers.md)
 

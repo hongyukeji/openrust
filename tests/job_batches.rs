@@ -405,7 +405,7 @@ fn route(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             "database-cross" => Bus::batch(jobs(&["cross-first", "cross-second"])?)
                 .onConnection("destination")
                 .onQueue("database-cross"),
-            "beanstalkd" | "sqs" => Bus::batch(jobs(&[
+            "beanstalkd" | "sqs" | "sqs-fifo" => Bus::batch(jobs(&[
                 &format!("{kind}-external-first"),
                 &format!("{kind}-external-second"),
                 &format!("{kind}-external-third"),
@@ -839,6 +839,14 @@ async fn exercise(mysql: Option<&str>) {
             "key": "local", "secret": "local", "region": "us-east-1", "block_for": 0,
         });
     }
+    let fifo = std::env::var("OPENRUST_TEST_SQS_FIFO_URL")
+        .ok()
+        .filter(|_| mysql.is_some());
+    if let Some(url) = &fifo {
+        let mut settings_fifo = settings["queue"]["connections"]["sqs"].clone();
+        settings_fifo["queue"] = json!(url);
+        settings["queue"]["connections"]["sqs-fifo"] = settings_fifo;
+    }
     std::fs::write(root.0.join("settings.json"), settings.to_string()).unwrap();
     let mut app = application(&root.0);
     app.boot().await.unwrap();
@@ -1265,6 +1273,9 @@ async fn exercise(mysql: Option<&str>) {
     if sqs_url.is_some() {
         verify_external_batch(&root.0, &db, &queue, address, "sqs").await;
     }
+    if fifo.is_some() {
+        verify_fifo_batch_replay(&root.0, &db, &queue, address).await;
+    }
     server.abort();
 }
 
@@ -1322,6 +1333,55 @@ async fn verify_external_batch(
         .unwrap();
     assert!(batch.finished());
     assert_eq!(batch.progress(), 100);
+    assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
+}
+
+async fn verify_fifo_batch_replay(
+    base: &Path,
+    db: &Connection,
+    manager: &QueueManager,
+    address: std::net::SocketAddr,
+) {
+    db.statement(
+        "create table reject_fifo_ack (batch_id varchar(255) primary key, foreign key (batch_id) references job_batches_outbox(batch_id))",
+        &[],
+    )
+    .await
+    .unwrap();
+    // The proxy accepts the third send at the broker, then returns an error once.
+    // The outbox now retains that accepted job, allowing SQL acknowledgement to be faulted too.
+    let batch = request(address, "sqs-fifo", 200).await.unwrap();
+    let id = batch["id"].as_str().unwrap();
+    let outbox = || db.table("job_batches_outbox").r#where("batch_id", "=", id);
+    db.table("reject_fifo_ack")
+        .insert(&[[("batch_id".into(), id.into())].into_iter().collect()])
+        .await
+        .unwrap();
+    assert_eq!(outbox().count("*").await.unwrap(), 1);
+    let queue = manager.connection(Some("sqs-fifo")).unwrap();
+    assert_eq!(queue.size(None).await.unwrap(), 3);
+
+    artisan_status(base, &["queue:publish-batches"], 1).await;
+    assert_eq!(outbox().count("*").await.unwrap(), 1);
+    assert_eq!(queue.size(None).await.unwrap(), 3);
+
+    db.statement("drop table reject_fifo_ack", &[])
+        .await
+        .unwrap();
+    let publish = ["queue:publish-batches"];
+    tokio::join!(artisan(base, &publish), artisan(base, &publish));
+    assert_eq!(outbox().count("*").await.unwrap(), 0);
+    assert_eq!(queue.size(None).await.unwrap(), 3);
+
+    let work = ["queue:work", "sqs-fifo", "--once"];
+    for (index, step) in ["first", "second", "third"].into_iter().enumerate() {
+        artisan(base, &work).await;
+        assert_eq!(
+            chain_receipt(db, &format!("sqs-fifo-external-{step}")).await,
+            1
+        );
+        assert_eq!(queue.size(None).await.unwrap(), 2 - index as u64);
+    }
     assert_eq!(callback_trace(db, id).await, [("then".into(), None)]);
 }
 

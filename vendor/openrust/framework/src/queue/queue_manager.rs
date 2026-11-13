@@ -67,7 +67,8 @@ struct ConfiguredQueue {
 enum BatchBackend {
     Database(Connection),
     Redis(Arc<RedisQueue>),
-    External,
+    Beanstalkd,
+    Sqs(Arc<super::sqs_queue::SqsQueue>),
     Unsupported,
 }
 
@@ -772,16 +773,19 @@ impl QueueManager {
                 transaction.commit().await.map_err(backend)?;
                 Ok(None)
             }
-            BatchBackend::External | BatchBackend::Unsupported => {
+            BatchBackend::Sqs(_) | BatchBackend::Beanstalkd | BatchBackend::Unsupported => {
                 use crate::log::context::Context;
                 let repository = Context::repository().map_err(backend)?;
                 Context::hooks()
                     .map_err(backend)?
                     .hydrate(&delivery.job.context, &repository);
                 let queue = delivery.queue.as_deref();
-                let result = match delivery.delay {
-                    Some(delay) => target.queue.later(delay, &delivery.job, queue).await,
-                    None => target.queue.push(&delivery.job, queue).await,
+                let result = match (&target.batch_backend, delivery.delay) {
+                    (BatchBackend::Sqs(sqs), delay) => {
+                        sqs.send_durable(&delivery.job, queue, delay).await
+                    }
+                    (_, Some(delay)) => target.queue.later(delay, &delivery.job, queue).await,
+                    (_, None) => target.queue.push(&delivery.job, queue).await,
                 };
                 if target.synchronous {
                     Ok(result.err())
@@ -817,7 +821,7 @@ impl QueueManager {
                     .map_err(backend)?;
                 Ok(())
             }
-            BatchBackend::External | BatchBackend::Unsupported => Ok(()),
+            BatchBackend::Sqs(_) | BatchBackend::Beanstalkd | BatchBackend::Unsupported => Ok(()),
         }
     }
 
@@ -1051,7 +1055,10 @@ impl QueueManager {
                 .and_then(serde_json::Value::as_str),
         )?;
         match &configured.batch_backend {
-            BatchBackend::Database(_) | BatchBackend::Redis(_) | BatchBackend::External => {}
+            BatchBackend::Database(_)
+            | BatchBackend::Redis(_)
+            | BatchBackend::Beanstalkd
+            | BatchBackend::Sqs(_) => {}
             _ => return Err(QueueError::InvalidBatchConnection),
         }
         configured.queue_name(options.get("queue").and_then(Value::as_str))?;
@@ -1208,13 +1215,16 @@ impl QueueManager {
                     crate::bus::events::emit(crate::bus::events::BatchDispatched { batch }).await;
                 }
             }
-            BatchBackend::External => {
+            BatchBackend::Beanstalkd | BatchBackend::Sqs(_) => {
+                let destination = Some(publication.queue.as_str());
                 for (index, payload) in publication.payloads.iter().enumerate() {
-                    if let Err(error) = configured
-                        .queue
-                        .push(payload, Some(&publication.queue))
-                        .await
-                    {
+                    let result = match &configured.batch_backend {
+                        BatchBackend::Sqs(sqs) => {
+                            sqs.send_durable(payload, destination, None).await
+                        }
+                        _ => configured.queue.push(payload, destination).await,
+                    };
+                    if let Err(error) = result {
                         if index != 0 {
                             repository
                                 .retain_publication_payloads(
@@ -1342,26 +1352,24 @@ impl QueueManager {
             "sqs" => {
                 let options = super::sqs_queue::Options::deserialize(raw)
                     .map_err(|_| QueueError::InvalidConfiguration)?;
-                (
-                    Arc::new(super::sqs_queue::SqsQueue::new(
-                        name.into(),
-                        queue,
-                        registry,
-                        options,
-                        |store| {
-                            let owner = self
-                                .owner
-                                .upgrade()
-                                .ok_or(QueueError::InvalidConfiguration)?;
-                            owner
-                                .make::<CacheManager>()
-                                .map_err(QueueError::Unavailable)?
-                                .store(store)
-                                .map_err(backend)
-                        },
-                    )?),
-                    BatchBackend::External,
-                )
+                let sqs = Arc::new(super::sqs_queue::SqsQueue::new(
+                    name.into(),
+                    queue,
+                    registry,
+                    options,
+                    |store| {
+                        let owner = self
+                            .owner
+                            .upgrade()
+                            .ok_or(QueueError::InvalidConfiguration)?;
+                        owner
+                            .make::<CacheManager>()
+                            .map_err(QueueError::Unavailable)?
+                            .store(store)
+                            .map_err(backend)
+                    },
+                )?);
+                (sqs.clone(), BatchBackend::Sqs(sqs))
             }
             "null" | "deferred" | "background" => {
                 use super::lifecycle_queue::{Lifecycle, LifecycleQueue};
@@ -1439,7 +1447,7 @@ impl QueueManager {
                         block_for: settings.block_for.unwrap_or_default(),
                         registry,
                     }),
-                    BatchBackend::External,
+                    BatchBackend::Beanstalkd,
                 )
             }
             "redis" => {
@@ -1479,7 +1487,7 @@ impl ConfiguredQueue {
     fn needs_batch_publication(&self, repository: &DatabaseBatchRepository) -> bool {
         match &self.batch_backend {
             BatchBackend::Database(connection) => !repository.uses_connection(connection),
-            BatchBackend::Redis(_) | BatchBackend::External => true,
+            BatchBackend::Redis(_) | BatchBackend::Beanstalkd | BatchBackend::Sqs(_) => true,
             BatchBackend::Unsupported => false,
         }
     }
