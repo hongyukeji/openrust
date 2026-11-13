@@ -45,7 +45,7 @@ mod acceptance {
         routing::{Router, RoutingError},
         support::{
             ProviderResult, ServiceProvider,
-            facades::{Event, Process, Queue, Schedule},
+            facades::{Bus, Event, Process, Queue, Schedule},
         },
     };
     use serde_json::{Value, json};
@@ -144,7 +144,8 @@ mod acceptance {
                     }
                     "listener-first" | "listener-second" | "selection-default"
                     | "selection-priority" | "maintenance-probe" | "callback-follow-up"
-                    | "runtime-next" => {}
+                    | "runtime-next" | "bus-now" | "bus-sync" | "bus-after-response"
+                    | "bus-queued" | "bus-bulk" => {}
                     "listener-timeout" => {
                         Process::run(format!(
                             r#"cd '{}' && printf '%s' "$$" > listener-descendant.pid && exec sleep 4"#,
@@ -580,10 +581,37 @@ mod acceptance {
         Box::pin(async { Ok(Response::empty(axum::http::StatusCode::NO_CONTENT)) })
     }
 
+    fn bus_probe(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async {
+            let payload = |kind| Payload::new("hard-timeout-probe", kind);
+            assert!(Bus::hasCommandHandler("hard-timeout-probe")?);
+            assert!(!Bus::hasCommandHandler("unregistered")?);
+            Bus::dispatchNow(payload("bus-now")?).await?;
+            assert_eq!(
+                Bus::dispatchSync(payload("bus-sync")?, DispatchOptions::default(), None).await?,
+                DispatchResult::Completed,
+            );
+            Bus::dispatchAfterResponse(payload("bus-after-response")?, DispatchOptions::default())
+                .await?;
+            let options = || DispatchOptions {
+                queue: Some("bus-probe".into()),
+                ..Default::default()
+            };
+            assert!(matches!(
+                Bus::dispatch(payload("bus-queued")?, options(), None).await?,
+                DispatchResult::Queued(_)
+            ));
+            let results = Bus::bulk([(payload("bus-bulk")?, options())]).await?;
+            assert!(matches!(results.as_slice(), [DispatchResult::Queued(_)]));
+            Ok(Response::empty(axum::http::StatusCode::NO_CONTENT))
+        })
+    }
+
     fn routes(_: &Application) -> Result<Router, RoutingError> {
         let mut router = Router::new();
         router.get("/callback/{kind}", dispatch_probe)?;
         router.get("/runtime", runtime_probe)?;
+        router.get("/bus", bus_probe)?;
         Ok(router)
     }
 
@@ -1019,6 +1047,40 @@ mod acceptance {
         let (first, second) = tokio::join!(run(&[], false), run(&[], false));
         assert_eq!(removed(first) + removed(second), 31);
         assert_eq!(count("prune-fresh-0").await, 1);
+    }
+
+    async fn verify_bus_dispatch(root: &Path) {
+        let mut kernel = Kernel::new(application(root.to_owned()).unwrap());
+        kernel.bootstrap().await.unwrap();
+        let kernel = Arc::new(kernel);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = axum::Router::new().fallback(move |request: axum::extract::Request| {
+            kernel.clone().handleTransport(request)
+        });
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream
+            .write_all(
+                format!("GET /bus HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                    .as_bytes(),
+            )
+            .await
+            .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+        for kind in ["bus-now", "bus-sync", "bus-after-response"] {
+            wait_for_file(root, &format!("{kind}.pid")).await;
+        }
+        assert!(!root.join("bus-queued.pid").exists());
+        let (status, lines) =
+            artisan(root, &["--queue=bus-probe", "--stop-when-empty"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["jobs_processed"], 2);
+        assert!(root.join("bus-queued.pid").exists());
+        assert!(root.join("bus-bulk.pid").exists());
+        server.abort();
     }
 
     async fn verify_unique_jobs(root: &Path, manager: &QueueManager) {
@@ -2319,6 +2381,11 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_BUS_ONLY").is_some() {
+            verify_bus_dispatch(&root.0).await;
+            eprintln!("Bus dispatch process acceptance passed on {backend}");
+            return;
+        }
         if std::env::var_os("OPENRUST_TEST_UNIQUE_ONLY").is_some() {
             if backend != "sqlite" {
                 verify_unique_jobs(&root.0, &manager).await;
@@ -2447,6 +2514,7 @@ mod acceptance {
                 .connection(None)
                 .unwrap()
         });
+        verify_bus_dispatch(&root.0).await;
         verify_clear(&root.0, &*queue, redis.as_deref()).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
         assert!(!root.0.join("cpu.failed").exists());

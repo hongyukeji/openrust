@@ -9,6 +9,7 @@ mod registry;
 
 pub use deferred::DeferredCallback;
 pub(crate) use deferred::DeferredCallbacks;
+pub(crate) use deferred::enqueue as enqueue_deferred;
 pub(crate) use facade::ConcurrencyServiceProvider;
 pub use facade::{Concurrency, Driver, Manager};
 pub(crate) use invoke_serialized_closure::register;

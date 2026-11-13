@@ -16,7 +16,7 @@ pub(crate) struct DeferredCallbacks(Arc<Mutex<Vec<Callback>>>);
 
 struct Callback {
     always: Arc<AtomicBool>,
-    future: HttpFuture<'static, Result<()>>,
+    future: HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>,
 }
 
 #[must_use]
@@ -52,13 +52,18 @@ impl DeferredCallbacks {
             if (successful || callback.always.load(Ordering::Acquire))
                 && let Err(error) = callback.future.await
             {
-                let _ = application.report(&error).await;
+                let _ = application.report(error.as_ref()).await;
             }
         }
     }
 }
 
-pub(super) fn enqueue(future: HttpFuture<'static, Result<()>>) -> Result<DeferredCallback> {
+pub(crate) fn enqueue<E>(
+    future: HttpFuture<'static, std::result::Result<(), E>>,
+) -> Result<DeferredCallback>
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
     CURRENT
         .try_with(|current| {
             let always = Arc::new(AtomicBool::new(false));
@@ -68,7 +73,7 @@ pub(super) fn enqueue(future: HttpFuture<'static, Result<()>>) -> Result<Deferre
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(Callback {
                     always: always.clone(),
-                    future,
+                    future: Box::pin(async move { future.await.map_err(Into::into) }),
                 });
             DeferredCallback(always)
         })

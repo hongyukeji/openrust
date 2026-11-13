@@ -66,6 +66,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+## Bus dispatch {#bus-dispatch}
+
+Use `Bus::dispatch(payload, options, transaction)` or `dispatchToQueue` for a registered queue job. `dispatchSync` selects the sync queue and keeps its middleware and events. `dispatchNow` calls the registered handler in the current process through the application’s `pipeThrough` pipeline. `bulk` accepts payload and options pairs, returns results in order, and stops on the first error. Use `Bus::map` to register handlers and `hasCommandHandler` or `getCommandHandler` to look them up.
+
+Await `Bus::dispatchAfterResponse(payload, options)` within an HTTP request to register sync execution during termination. Use `withoutDispatchingAfterResponses` during application setup to execute inline instead. Durable workers resolve compiled handlers from the registered name and decode the JSON payload.
+
 ## Unique jobs {#unique-jobs}
 
 Return a policy from `JobHandler::uniqueJob(&self, payload: &Payload) -> Option<UniqueJob>` to make a job unique. `id` identifies a job within its registered name. Set `via` to a shared cache store such as `redis` when producers and workers run in separate processes. `for_seconds` sets an optional lock lease. A competing dispatch returns `DispatchResult::Duplicate`.

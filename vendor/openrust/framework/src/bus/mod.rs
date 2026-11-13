@@ -23,7 +23,8 @@ pub use pending_batch::PendingBatch;
 pub use pending_chain::{ChainCallback, ChainCondition, PendingChain};
 
 use crate::{
-    queue::{Payload, QueueResult},
+    database::Transaction,
+    queue::{DispatchOptions, DispatchResult, Payload, QueueResult},
     support::facades::Queue,
 };
 
@@ -32,6 +33,116 @@ pub struct Bus;
 
 #[allow(non_snake_case, reason = "Matches Laravel Bus")]
 impl Bus {
+    /// Dispatches a queueable payload through the application's queue manager.
+    pub async fn dispatch(
+        payload: Payload,
+        options: DispatchOptions,
+        transaction: Option<&mut Transaction>,
+    ) -> QueueResult<DispatchResult> {
+        Queue::dispatch(payload, options, transaction).await
+    }
+
+    pub async fn dispatchToQueue(
+        payload: Payload,
+        options: DispatchOptions,
+        transaction: Option<&mut Transaction>,
+    ) -> QueueResult<DispatchResult> {
+        Self::dispatch(payload, options, transaction).await
+    }
+
+    /// Executes through the sync queue, including job middleware and queue events.
+    pub async fn dispatchSync(
+        payload: Payload,
+        mut options: DispatchOptions,
+        transaction: Option<&mut Transaction>,
+    ) -> QueueResult<DispatchResult> {
+        options.connection = Some("sync".into());
+        options.delay = None;
+        Self::dispatch(payload, options, transaction).await
+    }
+
+    /// Calls the registered handler directly in the current process.
+    pub async fn dispatchNow(payload: Payload) -> QueueResult<()> {
+        Queue::manager()?.dispatch_now(&payload).await
+    }
+
+    /// Dispatches the supplied jobs in order using their individual options.
+    pub async fn bulk(
+        jobs: impl IntoIterator<Item = (Payload, DispatchOptions)>,
+    ) -> QueueResult<Vec<DispatchResult>> {
+        let manager = Queue::manager()?;
+        let mut results = Vec::new();
+        for (payload, options) in jobs {
+            results.push(manager.dispatch(payload, options, None).await?);
+        }
+        Ok(results)
+    }
+
+    /// Runs the job on the sync queue during HTTP termination.
+    pub async fn dispatchAfterResponse(
+        payload: Payload,
+        options: DispatchOptions,
+    ) -> QueueResult<()> {
+        let manager = Queue::manager()?;
+        if !manager.bus_after_response() {
+            return Self::dispatchSync(payload, options, None).await.map(|_| ());
+        }
+        let mut options = options;
+        options.connection = Some("sync".into());
+        options.delay = None;
+        let callback = crate::concurrency::enqueue_deferred::<crate::queue::QueueError>(Box::pin(
+            async move {
+                manager.dispatch(payload, options, None).await?;
+                Ok(())
+            },
+        ))
+        .map_err(crate::queue::backend)?;
+        let _ = callback.always();
+        Ok(())
+    }
+
+    pub fn withDispatchingAfterResponses() -> QueueResult<()> {
+        Queue::manager()?.set_bus_after_response(true);
+        Ok(())
+    }
+
+    pub fn withoutDispatchingAfterResponses() -> QueueResult<()> {
+        Queue::manager()?.set_bus_after_response(false);
+        Ok(())
+    }
+
+    pub fn pipeThrough(
+        pipes: Vec<std::sync::Arc<dyn crate::queue::middleware::JobMiddleware>>,
+    ) -> QueueResult<()> {
+        Queue::manager()?.set_bus_pipes(pipes);
+        Ok(())
+    }
+
+    pub fn hasCommandHandler(name: &str) -> QueueResult<bool> {
+        Ok(Self::getCommandHandler(name)?.is_some())
+    }
+
+    pub fn getCommandHandler(
+        name: &str,
+    ) -> QueueResult<Option<std::sync::Arc<dyn crate::contracts::queue::JobHandler>>> {
+        Ok(Queue::manager()?.command_handler(name))
+    }
+
+    pub fn map(
+        handlers: impl IntoIterator<
+            Item = (
+                String,
+                std::sync::Arc<dyn crate::contracts::queue::JobHandler>,
+            ),
+        >,
+    ) -> QueueResult<()> {
+        let manager = Queue::manager()?;
+        for (name, handler) in handlers {
+            manager.register(&name, handler)?;
+        }
+        Ok(())
+    }
+
     pub fn chain(jobs: impl IntoIterator<Item = Payload>) -> PendingChain {
         PendingChain::new(jobs)
     }

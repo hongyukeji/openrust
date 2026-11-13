@@ -66,6 +66,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+## Bus 派送 {#bus-dispatch}
+
+用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派送已登錄的佇列工作。`dispatchSync` 使用同步佇列，保留工作中介軟體和事件。`dispatchNow` 在目前程序經應用程式的 `pipeThrough` 管線呼叫已登錄的處理常式。`bulk` 接收承載資料與選項配對，依序傳回結果，遇到第一個錯誤即停止。用 `Bus::map` 登錄處理常式，用 `hasCommandHandler` 或 `getCommandHandler` 查詢。
+
+在 HTTP 請求內等待 `Bus::dispatchAfterResponse(payload, options)` 完成登錄，工作在終止階段同步執行。可在應用程式組裝時用 `withoutDispatchingAfterResponses` 切換為立即執行。持久佇列的 Worker 依已登錄名稱解析編譯後的處理常式，並解碼 JSON 承載資料。
+
 ## 唯一工作 {#unique-jobs}
 
 在 `JobHandler::uniqueJob(&self, payload: &Payload) -> Option<UniqueJob>` 傳回唯一策略。`id` 在已註冊的工作名稱內識別工作。派送程序和 Worker 分開執行時，將 `via` 設為 `redis` 等共享快取儲存庫。`for_seconds` 可指定鎖租期。重複派送傳回 `DispatchResult::Duplicate`。

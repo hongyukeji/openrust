@@ -43,6 +43,8 @@ pub struct QueueManager {
     config: Arc<dyn Repository>,
     owner: Weak<Container>,
     registry: Arc<Queue>,
+    bus_pipes: RwLock<Vec<Arc<dyn super::middleware::JobMiddleware>>>,
+    bus_after_response: AtomicBool,
     connections: Mutex<HashMap<String, Arc<ConfiguredQueue>>>,
     connectors: RwLock<HashMap<String, Arc<Connector>>>,
     batch_callbacks: RwLock<HashMap<String, BatchCallback>>,
@@ -85,6 +87,8 @@ impl QueueManager {
         Self {
             config,
             registry: Arc::new(Queue::new(owner.clone())),
+            bus_pipes: RwLock::default(),
+            bus_after_response: AtomicBool::new(true),
             owner,
             connections: Mutex::default(),
             connectors: RwLock::default(),
@@ -117,6 +121,56 @@ impl QueueManager {
 
     pub fn register(&self, name: &str, handler: Arc<dyn JobHandler>) -> QueueResult<()> {
         self.registry.register(name, handler)
+    }
+
+    pub(crate) fn command_handler(&self, name: &str) -> Option<Arc<dyn JobHandler>> {
+        self.registry.handler(name)
+    }
+
+    pub(crate) async fn dispatch_now(&self, payload: &Payload) -> QueueResult<()> {
+        let handler = self
+            .command_handler(payload.name())
+            .ok_or_else(|| QueueError::UnknownJob(payload.name().into()))?;
+        let owner = self
+            .owner
+            .upgrade()
+            .ok_or(QueueError::InvalidConfiguration)?;
+        let mut context = super::JobContext {
+            connection: "sync".into(),
+            queue: "sync".into(),
+            attempts: 1,
+            ..Default::default()
+        };
+        let pipes = self
+            .bus_pipes
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        application_scope(owner.clone(), async {
+            super::middleware::JobNext::new(handler.as_ref(), &pipes, &owner)
+                .run(&mut context, payload)
+                .await
+        })
+        .await
+    }
+
+    pub(crate) fn set_bus_pipes(&self, pipes: Vec<Arc<dyn super::middleware::JobMiddleware>>) {
+        let old = std::mem::replace(
+            &mut *self
+                .bus_pipes
+                .write()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+            pipes,
+        );
+        drop(old);
+    }
+
+    pub(crate) fn set_bus_after_response(&self, enabled: bool) {
+        self.bus_after_response.store(enabled, Ordering::Relaxed);
+    }
+
+    pub(crate) fn bus_after_response(&self) -> bool {
+        self.bus_after_response.load(Ordering::Relaxed)
     }
 
     pub(crate) fn register_listeners(

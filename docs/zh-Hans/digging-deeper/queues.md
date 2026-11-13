@@ -66,6 +66,12 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 }
 ```
 
+## Bus 派发 {#bus-dispatch}
+
+用 `Bus::dispatch(payload, options, transaction)` 或 `dispatchToQueue` 派发已登记的队列任务。`dispatchSync` 使用同步队列，保留任务中间件和事件。`dispatchNow` 在当前进程经应用的 `pipeThrough` 管道调用已登记处理器。`bulk` 接收载荷与选项对，按顺序返回结果，遇到第一个错误即停止。用 `Bus::map` 登记处理器，用 `hasCommandHandler` 或 `getCommandHandler` 查询。
+
+在 HTTP 请求内等待 `Bus::dispatchAfterResponse(payload, options)` 完成登记，任务在终止阶段同步执行。可在应用装配时用 `withoutDispatchingAfterResponses` 切换为立即执行。持久队列的 Worker 根据已登记的名称解析编译后的处理器，并解码 JSON 载荷。
+
 ## 唯一任务 {#unique-jobs}
 
 在 `JobHandler::uniqueJob(&self, payload: &Payload) -> Option<UniqueJob>` 返回唯一策略。`id` 在已注册的任务名内标识任务。派发进程和 Worker 分开运行时，将 `via` 设为 `redis` 等共享缓存仓储。`for_seconds` 可指定锁租期。重复派发返回 `DispatchResult::Duplicate`。
