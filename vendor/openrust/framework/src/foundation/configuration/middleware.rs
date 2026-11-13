@@ -21,6 +21,8 @@ pub struct Middleware {
     pub(crate) maintenance_exceptions: Vec<String>,
     pub(crate) registry: MiddlewareRegistry,
     default_web: bool,
+    #[cfg(feature = "sanctum")]
+    stateful_api: bool,
     cookie_exceptions: Arc<HashSet<String>>,
     csrf: PreventRequestForgery,
 }
@@ -33,6 +35,8 @@ impl Default for Middleware {
             maintenance_exceptions: Vec::new(),
             registry: MiddlewareRegistry::default(),
             default_web: true,
+            #[cfg(feature = "sanctum")]
+            stateful_api: false,
             cookie_exceptions: Arc::default(),
             csrf: PreventRequestForgery::default(),
         };
@@ -150,6 +154,8 @@ impl Middleware {
     }
 
     pub(crate) fn configure_web(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
+        #[cfg(feature = "sanctum")]
+        self.configure_stateful_api(config)?;
         if !self.default_web || matches!(config.get("session.driver"), None | Some(Value::Null)) {
             return Ok(());
         }
@@ -182,6 +188,56 @@ impl Middleware {
             "web".into(),
             stack.into_iter().map(MiddlewareEntry::Instance).collect(),
         );
+        Ok(())
+    }
+
+    /// Enables first-party session authentication on the API middleware group.
+    #[cfg(feature = "sanctum")]
+    #[allow(non_snake_case, reason = "Matches Laravel's Middleware API")]
+    pub fn statefulApi(&mut self) -> &mut Self {
+        self.stateful_api = true;
+        self
+    }
+
+    #[cfg(feature = "sanctum")]
+    fn configure_stateful_api(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
+        use crate::sanctum::EnsureFrontendRequestsAreStateful;
+        if !self.stateful_api {
+            return Ok(());
+        }
+        let cookie = config.get("session.cookie");
+        let name = cookie
+            .as_ref()
+            .and_then(Value::as_str)
+            .unwrap_or("openrust_session");
+        if matches!(config.get("session.driver"), None | Some(Value::Null))
+            || self.cookie_exceptions.contains(name)
+            || self.cookie_exceptions.contains("XSRF-TOKEN")
+        {
+            return Err(ConfigError::InvalidType {
+                key: "session".into(),
+                expected: "a session driver and encrypted session and XSRF cookies for stateful API requests",
+            });
+        }
+        let middleware = EnsureFrontendRequestsAreStateful::new(
+            config,
+            [
+                Arc::new(EncryptCookies::for_application(
+                    self.cookie_exceptions.clone(),
+                )),
+                Arc::new(AddQueuedCookiesToResponse),
+                Arc::new(StartSession),
+                Arc::new(self.csrf.clone()),
+            ],
+        )?;
+        self.registry
+            .groups
+            .entry("api".into())
+            .or_default()
+            .insert(0, MiddlewareEntry::Instance(Arc::new(middleware)));
+        self.registry
+            .priority
+            .insert(0, TypeId::of::<EnsureFrontendRequestsAreStateful>());
         Ok(())
     }
 

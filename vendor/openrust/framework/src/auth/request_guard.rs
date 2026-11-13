@@ -7,7 +7,7 @@ use crate::{
 
 use super::{AuthFuture, AuthIdentifier, AuthResult, Credentials, session_guard::AuthContext};
 
-pub(super) type Resolver = dyn for<'a> Fn(&'a mut Request) -> AuthFuture<'a, AuthResult<Option<Box<dyn Authenticatable>>>>
+pub(super) type Resolver = dyn for<'a> Fn(&'a mut Request) -> AuthFuture<'a, AuthResult<Option<Arc<dyn Authenticatable>>>>
     + Send
     + Sync;
 
@@ -33,7 +33,7 @@ impl Guard for RequestGuard<'_> {
         Box::pin(async move {
             if !AuthContext::state(self.request, &self.name).is_some_and(|state| state.resolved) {
                 let user = (self.resolve)(self.request).await?;
-                AuthContext::set(self.request, &self.name, user, false);
+                AuthContext::set_shared(self.request, &self.name, user, false);
             }
             Ok(
                 AuthContext::state(self.request, &self.name)

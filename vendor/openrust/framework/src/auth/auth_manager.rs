@@ -102,7 +102,13 @@ impl AuthManager {
             .write()
             .expect("auth extensions lock")
             .requests
-            .insert(driver.into(), Arc::new(resolve));
+            .insert(
+                driver.into(),
+                Arc::new(move |request| {
+                    let result = resolve(request);
+                    Box::pin(async move { result.await.map(|user| user.map(Arc::from)) })
+                }),
+            );
     }
 
     pub fn getDefaultDriver(&self) -> String {
@@ -133,9 +139,22 @@ impl AuthManager {
         &self,
         request: &mut Request,
     ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
-        let (name, _) = self.guard_config(request, None)?;
+        self.userForGuard(request, None).await
+    }
+
+    pub(crate) async fn userForGuard(
+        &self,
+        request: &mut Request,
+        name: Option<&str>,
+    ) -> AuthResult<Option<Arc<dyn Authenticatable>>> {
+        let (name, _) = self.guard_config(request, name)?;
         self.guard(request, Some(&name))?.user().await?;
         Ok(AuthContext::state(request, &name).and_then(|state| state.user.clone()))
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn selected_guard(request: &Request) -> Option<&str> {
+        AuthContext::get(request)?.selected.as_deref()
     }
 
     fn guard_config(&self, request: &Request, name: Option<&str>) -> AuthResult<(String, Value)> {
@@ -150,10 +169,11 @@ impl AuthManager {
         {
             return Err(AuthError::Configuration("guard name"));
         }
-        let config = self
-            .config
-            .get(&format!("auth.guards.{name}"))
-            .ok_or(AuthError::Configuration("guard"))?;
+        let config = self.config.get(&format!("auth.guards.{name}"));
+        #[cfg(feature = "sanctum")]
+        let config = config
+            .or_else(|| (name == "sanctum").then(|| serde_json::json!({"driver": "sanctum"})));
+        let config = config.ok_or(AuthError::Configuration("guard"))?;
         Ok((name, config))
     }
 
@@ -252,6 +272,21 @@ impl Factory for AuthManager {
         let driver = text(&config, "driver")?;
         match driver {
             "session" => Ok(Box::new(self.session(request, name, &config)?)),
+            #[cfg(feature = "sanctum")]
+            "sanctum" => {
+                let container = self
+                    .container
+                    .upgrade()
+                    .ok_or(AuthError::Configuration("application scope"))?;
+                let settings =
+                    crate::sanctum::Guard::new(name.clone(), self.config.as_ref(), &config)?;
+                let resolve: Arc<Resolver> = Arc::new(move |request| {
+                    let settings = settings.clone();
+                    let container = container.clone();
+                    Box::pin(async move { settings.resolve(&container, request).await })
+                });
+                Ok(Box::new(RequestGuard::new(name, request, resolve)))
+            }
             "token" => {
                 let provider = self.createUserProvider(text(&config, "provider")?)?;
                 let column = config

@@ -18,6 +18,15 @@ impl<'a> Next<'a> {
         }
     }
 
+    #[cfg(feature = "sanctum")]
+    pub(crate) async fn run_through(
+        self,
+        before: &[Arc<dyn Middleware>],
+        request: &mut Request,
+    ) -> Response {
+        Next::new(before, &Continuation(self)).run(request).await
+    }
+
     pub async fn run(self, request: &mut Request) -> Response {
         let result = match self.middleware.split_first() {
             Some((middleware, rest)) => {
@@ -34,5 +43,22 @@ impl<'a> Next<'a> {
                 None => error.bare_response(),
             },
         }
+    }
+}
+
+#[cfg(feature = "sanctum")]
+struct Continuation<'a>(Next<'a>);
+
+#[cfg(feature = "sanctum")]
+impl Handler for Continuation<'_> {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+    ) -> super::HttpFuture<'a, Result<Response, super::HttpError>> {
+        Box::pin(async move {
+            Ok(Next::new(self.0.middleware, self.0.handler)
+                .run(request)
+                .await)
+        })
     }
 }

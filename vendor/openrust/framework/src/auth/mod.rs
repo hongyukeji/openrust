@@ -39,6 +39,11 @@ mod providers;
 pub use facade::Auth;
 
 pub(crate) fn reset_request(request: &mut crate::http::Request) {
+    #[cfg(feature = "sanctum")]
+    request
+        .parts_mut()
+        .extensions
+        .remove::<crate::sanctum::RequestTokens>();
     request
         .parts_mut()
         .extensions

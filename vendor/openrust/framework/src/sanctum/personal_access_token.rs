@@ -14,6 +14,7 @@ const TABLE: &str = "personal_access_tokens";
 const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
 /// A persisted token. Its digest is kept in storage and its secret is only returned at issuance.
+#[derive(Clone)]
 pub struct PersonalAccessToken {
     pub id: u64,
     pub tokenable_type: String,
@@ -169,6 +170,36 @@ impl PersonalAccessTokens {
             .await
             .map(|count| count != 0)
             .map_err(AuthError::backend)
+    }
+
+    pub(crate) async fn record_use(
+        &self,
+        token: &mut PersonalAccessToken,
+        credential: &str,
+    ) -> AuthResult<bool> {
+        let now = seconds_precision(Utc::now());
+        let timestamp = now.format(TIMESTAMP).to_string();
+        let secret = credential
+            .split_once('|')
+            .map_or(credential, |(_, secret)| secret);
+        let modified = self.connection.hasModifiedRecords();
+        let result = self
+            .connection
+            .table(TABLE)
+            .r#where("id", "=", Value::Unsigned(token.id))
+            .r#where("token", "=", token_hash(secret))
+            .update(Record::from([
+                ("last_used_at".into(), timestamp.as_str().into()),
+                ("updated_at".into(), timestamp.as_str().into()),
+            ]))
+            .await;
+        self.connection.setRecordModificationState(modified);
+        let count = result.map_err(AuthError::backend)?;
+        if count == 0 && self.findToken(credential).await?.is_none() {
+            return Ok(false);
+        }
+        token.last_used_at = Some(now);
+        Ok(true)
     }
 
     fn generateTokenString(&self) -> AuthResult<Zeroizing<String>> {

@@ -50,6 +50,14 @@ pub(crate) fn load(
         ("queue".to_owned(), queue),
         ("reverb".to_owned(), reverb::load(env)?),
         ("services".to_owned(), services::load(env)?),
+        #[cfg(feature = "sanctum")]
+        (
+            "sanctum".to_owned(),
+            env.get_utf8("SANCTUM_STATEFUL_DOMAINS")?.map_or_else(
+                || serde_json::json!({}),
+                |domains| serde_json::json!({"stateful": domains}),
+            ),
+        ),
         (
             "session".to_owned(),
             session::load(base_path, env, app.name)?,

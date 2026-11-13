@@ -45,7 +45,10 @@ impl TokenGuard {
                 } else {
                     token.to_owned()
                 };
-                provider.retrieve_by_api_token(&column, &token).await
+                provider
+                    .retrieve_by_api_token(&column, &token)
+                    .await
+                    .map(|user| user.map(Arc::from))
             })
         });
         RequestGuard::new(name, request, resolve)

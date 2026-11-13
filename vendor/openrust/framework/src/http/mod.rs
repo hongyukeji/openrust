@@ -32,3 +32,6 @@ pub(crate) use uploaded_file::random_name as random_upload_name;
 
 /// A request lifecycle step that can be awaited by a multithreaded runtime.
 pub type HttpFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+#[cfg(feature = "sanctum")]
+pub(crate) use request::matches_pattern;

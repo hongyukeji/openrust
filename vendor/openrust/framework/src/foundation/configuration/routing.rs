@@ -113,6 +113,8 @@ impl Routing {
                 Route::register(router, app, register)
             })?;
         }
+        #[cfg(feature = "sanctum")]
+        crate::sanctum::register_routes(app, &mut router)?;
         if let Some(register) = self.channels {
             BroadcastController::register(app, &mut router, register)?;
         }

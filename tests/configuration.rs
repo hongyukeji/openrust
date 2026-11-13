@@ -42,6 +42,8 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
             "mail",
             "queue",
             "reverb",
+            #[cfg(feature = "sanctum")]
+            "sanctum",
             "services",
             "session",
             "view",
@@ -91,7 +93,7 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
 
     fs::write(
         root.join(".env"),
-        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nAWS_TEMPORARY_URL=https://downloads.example.test\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\n",
+        "APP_NAME=ExampleStore\nAPP_PORT=9081\nAPP_DEBUG=true\nDB_CONNECTION=pgsql\nDB_PREFIX=app_\nSESSION_LIFETIME=90\nSESSION_SECURE_COOKIE=false\nSESSION_SAME_SITE=null\nLOG_STACK=single,stderr\nREVERB_SCHEME=http\nREDIS_PASSWORD=null\nAPP_PUBLIC_PATH=site\nPUBLIC_STORAGE_ROOT=uploads\nAWS_TEMPORARY_URL=https://downloads.example.test\nAPP_DISABLED_RUNNERS=\"queue, schedul?, ,app:*\"\nSANCTUM_STATEFUL_DOMAINS=localhost:3000,spa.example:8443\n",
     )
     .unwrap();
     let environment = LoadEnvironmentVariables::bootstrap(&root, None).unwrap();
@@ -107,6 +109,11 @@ fn application_configuration_loads_all_sections_and_typed_overrides() {
         );
     }
     assert_eq!(configured["app"]["debug"], true);
+    #[cfg(feature = "sanctum")]
+    assert_eq!(
+        configured["sanctum"]["stateful"],
+        "localhost:3000,spa.example:8443"
+    );
     assert_eq!(
         configured["app"]["disabled_runners"],
         json!(["queue", "schedul?", "app:*"])

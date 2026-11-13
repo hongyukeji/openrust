@@ -127,6 +127,15 @@ impl MiddlewareRegistry {
                 Arc::new(ThrottleRequestsWithRedis::new(parameters))
             }
             "throttle" => Arc::new(ThrottleRequests::new(parameters)),
+            "auth" => Arc::new(crate::auth::middleware::Authenticate::new(
+                parameters.split(','),
+            )),
+            #[cfg(feature = "sanctum")]
+            "abilities" => Arc::new(crate::sanctum::CheckAbilities::new(parameters.split(','))),
+            #[cfg(feature = "sanctum")]
+            "ability" => Arc::new(crate::sanctum::CheckForAnyAbility::new(
+                parameters.split(','),
+            )),
             "can" => Arc::new(crate::auth::middleware::Authorize::parse(parameters)?),
             "signed" => Arc::new(ValidateSignature::parse(parameters)?),
             "verified" => Arc::new(crate::auth::middleware::EnsureEmailIsVerified::redirect_to(

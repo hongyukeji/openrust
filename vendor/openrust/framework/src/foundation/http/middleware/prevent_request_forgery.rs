@@ -108,7 +108,11 @@ impl Middleware for PreventRequestForgery {
                     .map_err(|source| HttpError::Internal {
                         source: Box::new(source),
                     })?;
-                let cookie = manager.xsrf_cookie(token)?;
+                #[cfg(feature = "sanctum")]
+                let stateful_frontend = crate::sanctum::StatefulFrontend::is_active(request);
+                #[cfg(not(feature = "sanctum"))]
+                let stateful_frontend = false;
+                let cookie = manager.xsrf_cookie(token, stateful_frontend)?;
                 response.setCookie(&cookie, request.is_secure())?;
             }
             Ok(response)

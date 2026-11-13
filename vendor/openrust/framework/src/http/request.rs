@@ -338,7 +338,7 @@ fn split_header(value: &str, separator: char) -> impl Iterator<Item = &str> {
     })
 }
 
-fn matches_pattern(path: &str, pattern: &str) -> bool {
+pub(crate) fn matches_pattern(path: &str, pattern: &str) -> bool {
     let Some((prefix, rest)) = pattern.split_once('*') else {
         return path == pattern;
     };

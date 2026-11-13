@@ -174,7 +174,11 @@ impl SessionManager {
         Ok(())
     }
 
-    pub(crate) fn xsrf_cookie(&self, token: &str) -> Result<Cookie, crate::http::HttpError> {
+    pub(crate) fn xsrf_cookie(
+        &self,
+        token: &str,
+        stateful_frontend: bool,
+    ) -> Result<Cookie, crate::http::HttpError> {
         let minutes =
             i64::try_from(self.settings.lifetime).map_err(|_| SessionError::Configuration)?;
         Ok(facades::Cookie::make(
@@ -183,13 +187,18 @@ impl SessionManager {
             minutes,
             &CookieOptions {
                 http_only: false,
+                same_site: stateful_frontend.then_some(crate::cookie::SameSite::Lax),
                 partitioned: self.settings.partitioned,
                 ..CookieOptions::default()
             },
         )?)
     }
 
-    pub(crate) fn cookie(&self, store: &Store) -> Result<Cookie, crate::http::HttpError> {
+    pub(crate) fn cookie(
+        &self,
+        store: &Store,
+        stateful_frontend: bool,
+    ) -> Result<Cookie, crate::http::HttpError> {
         let minutes = if self.settings.expire_on_close {
             0
         } else {
@@ -200,7 +209,8 @@ impl SessionManager {
             store.getId(),
             minutes,
             &CookieOptions {
-                http_only: self.settings.http_only,
+                http_only: stateful_frontend || self.settings.http_only,
+                same_site: stateful_frontend.then_some(crate::cookie::SameSite::Lax),
                 partitioned: self.settings.partitioned,
                 ..CookieOptions::default()
             },

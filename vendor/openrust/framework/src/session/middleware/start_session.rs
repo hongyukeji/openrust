@@ -81,7 +81,11 @@ async fn handle_session(
     {
         session.setPreviousUrl(path.as_str())?;
     }
-    let cookie = manager.cookie(&session)?;
+    #[cfg(feature = "sanctum")]
+    let stateful_frontend = crate::sanctum::StatefulFrontend::is_active(request);
+    #[cfg(not(feature = "sanctum"))]
+    let stateful_frontend = false;
+    let cookie = manager.cookie(&session, stateful_frontend)?;
     response.setCookie(&cookie, request.is_secure())?;
     session.save().await?;
     Ok(response)

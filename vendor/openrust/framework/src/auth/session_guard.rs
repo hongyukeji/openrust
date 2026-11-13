@@ -49,10 +49,19 @@ impl AuthContext {
         user: Option<Box<dyn Authenticatable>>,
         remembered: bool,
     ) {
+        Self::set_shared(request, name, user.map(Arc::from), remembered);
+    }
+
+    pub(super) fn set_shared(
+        request: &mut Request,
+        name: &str,
+        user: Option<Arc<dyn Authenticatable>>,
+        remembered: bool,
+    ) {
         Self::mutable(request).guards.insert(
             name.to_owned(),
             GuardState {
-                user: user.map(Arc::from),
+                user,
                 resolved: true,
                 via_remember: remembered,
             },
