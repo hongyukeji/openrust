@@ -1,10 +1,12 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction,
     eloquent::{
         Builder, Model, ModelState,
-        concerns::{has_relationships::load_eager, queries_relationships::cast_existence},
+        concerns::{
+            has_relationships::load_eager_with_transaction, queries_relationships::cast_existence,
+        },
     },
     query,
 };
@@ -132,7 +134,11 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         })
     }
 
-    async fn match_many(&self, parents: &[&P]) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
+    async fn match_many(
+        &self,
+        parents: &[&P],
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
         if !keys.bindings.is_empty() {
@@ -155,7 +161,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let rows = join
                     .apply(query.scoped()?.0)
                     .addSelect([match_column.as_str()])
-                    .get()
+                    .get_with_transaction(transaction.as_deref_mut())
                     .await?;
                 let mut matches = Vec::with_capacity(rows.len());
                 let mut related = Vec::with_capacity(rows.len());
@@ -175,8 +181,16 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                         )));
                     }
                 }
-                super::super::concerns::has_events::retrieved(&mut related, &connection).await?;
-                load_eager(eager_load, &mut related).await?;
+                super::super::concerns::has_events::retrieved_with_transaction(
+                    &mut related,
+                    &connection,
+                    transaction
+                        .as_deref_mut()
+                        .filter(|tx| tx.belongs_to(&connection)),
+                )
+                .await?;
+                load_eager_with_transaction(eager_load, &mut related, transaction.as_deref_mut())
+                    .await?;
                 for (key, model) in matches.into_iter().zip(related) {
                     dictionary.entry(key).or_default().push(Arc::new(model));
                 }
@@ -234,7 +248,25 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        Box::pin(self.match_many(parents))
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
+        Box::pin(self.match_many(parents, transaction))
     }
 }
 

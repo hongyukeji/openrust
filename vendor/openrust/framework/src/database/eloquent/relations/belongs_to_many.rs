@@ -7,7 +7,7 @@ use crate::database::{
     eloquent::{
         Attributes, Builder, Model, ModelState,
         concerns::{
-            has_relationships::{LoadedRelations, load_eager},
+            has_relationships::{LoadedRelations, load_eager_with_transaction},
             has_timestamps::timestamp,
             queries_relationships::cast_existence,
         },
@@ -898,7 +898,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))
     }
 
-    async fn match_many(&self, parents: &[&P]) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
+    async fn match_many(
+        &self,
+        parents: &[&P],
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
         if !keys.bindings.is_empty() {
@@ -968,7 +972,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     });
                 let rows = query
                     .addSelect(pivot_columns.iter().map(String::as_str))
-                    .get()
+                    .get_with_transaction(transaction.as_deref_mut())
                     .await?;
                 let mut models = Vec::with_capacity(rows.len());
                 let mut owners = Vec::with_capacity(rows.len());
@@ -1031,8 +1035,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                         models.push(R::from_state(state));
                     }
                 }
-                super::super::concerns::has_events::retrieved(&mut models, &connection).await?;
-                load_eager(eager_load, &mut models).await?;
+                super::super::concerns::has_events::retrieved_with_transaction(
+                    &mut models,
+                    &connection,
+                    transaction
+                        .as_deref_mut()
+                        .filter(|tx| tx.belongs_to(&connection)),
+                )
+                .await?;
+                load_eager_with_transaction(eager_load, &mut models, transaction.as_deref_mut())
+                    .await?;
                 for (owner, model) in owners.into_iter().zip(models) {
                     dictionary.entry(owner).or_default().push(Arc::new(model));
                 }
@@ -1067,7 +1079,25 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        Box::pin(self.match_many(parents))
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model, R: Model> BelongsToMany<P, R> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
+        Box::pin(self.match_many(parents, transaction))
     }
 }
 

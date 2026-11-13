@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Value,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -138,7 +138,25 @@ impl<P: Model, R: Model> Relation for HasMany<P, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        Box::pin(self.0.match_many(parents))
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model, R: Model> HasMany<P, R> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
+        Box::pin(self.0.match_many(parents, transaction))
     }
 }
 

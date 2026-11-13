@@ -41,6 +41,7 @@ impl Model for Article {
         let name = match event {
             Saving => "article.saving",
             Saved => "article.saved",
+            Retrieved => "article.retrieved",
             _ => return None,
         };
         let Value::Text(title) = self.getAttribute("title")? else {
@@ -94,6 +95,19 @@ impl Listener for MappedListener {
                 .lock()
                 .unwrap()
                 .push(format!("{}:{}", event.name, event.title));
+            if event.name == "article.retrieved" {
+                let transaction = context
+                    .transaction()
+                    .expect("locked retrieval has a transaction");
+                let title = transaction
+                    .table("model_event_articles")
+                    .r#where("title", "=", event.title.clone())
+                    .value("title")
+                    .await
+                    .expect("read the uncommitted row");
+                assert_eq!(title, Value::Text(event.title.clone()));
+                return Ok(None);
+            }
             if event.name == "article.saving" {
                 return Ok(match event.title.as_str() {
                     "mapped-cancel" => Some(ListenerResponse::Value(Box::new(false))),
@@ -743,6 +757,31 @@ async fn verify_mapped_events(config: Json, id: &str) {
             .filter(|call| *call == "article.saved:mapped-transaction")
             .count(),
         1
+    );
+
+    let mut article = Article::queryOn(&db).firstOrFail().await.unwrap();
+    dispatcher
+        .listen(
+            "article.retrieved",
+            Arc::new(MappedListener(calls.clone())),
+            Delivery::Sync,
+        )
+        .unwrap();
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction
+        .table("model_event_articles")
+        .r#where("id", "=", article.getKey().unwrap().clone())
+        .update([("title".into(), "mapped-retrieved".into())].into())
+        .await
+        .unwrap();
+    article.refreshForUpdate(&mut transaction).await.unwrap();
+    transaction.rollBack(None).await.unwrap();
+    assert!(
+        calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|call| call == "article.retrieved:mapped-retrieved")
     );
 
     let before = calls.lock().unwrap().len();

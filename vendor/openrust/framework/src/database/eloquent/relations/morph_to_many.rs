@@ -1,7 +1,7 @@
 use std::ops::Deref;
 
 use crate::database::{
-    Connection, DatabaseFuture, DatabaseResult, Value,
+    Connection, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Builder, Model},
     query,
 };
@@ -160,7 +160,28 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        self.0.matchResults(parents)
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model, R: Model> MorphToMany<P, R> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
+        match transaction {
+            Some(tx) => self.0.matchResultsInTransaction(parents, tx),
+            None => self.0.matchResults(parents),
+        }
     }
 }
 

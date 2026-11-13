@@ -330,6 +330,21 @@ impl<'connection> Builder<'connection> {
         Ok(rows)
     }
 
+    pub(crate) fn get_with_transaction<'a>(
+        self,
+        transaction: Option<&'a mut Transaction>,
+    ) -> crate::database::DatabaseFuture<'a, DatabaseResult<Vec<Row>>>
+    where
+        'connection: 'a,
+    {
+        match transaction {
+            Some(tx) if tx.belongs_to(self.executor.source()) => {
+                Box::pin(async move { self.in_transaction(tx)?.get().await })
+            }
+            _ => Box::pin(self.get()),
+        }
+    }
+
     pub async fn first(self) -> DatabaseResult<Option<Row>> {
         Ok(self.limit(1).get().await?.into_iter().next())
     }

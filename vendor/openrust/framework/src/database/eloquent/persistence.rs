@@ -1,9 +1,10 @@
 use crate::database::{Connection, DB, DatabaseError, DatabaseResult, Transaction, Value};
 
 use super::{
-    Builder, Model, ModelState,
+    Builder, Model, ModelState, NamedRelations,
     concerns::{
         has_events::{ModelEvent::*, fire_with_transaction},
+        has_relationships::load_eager_with_transaction,
         has_timestamps::timestamp,
     },
     soft_deletes, touches,
@@ -97,21 +98,39 @@ pub(super) fn scoped_model<'a, M: Model>(
 }
 
 pub(super) fn reload_query<M: Model>(model: &M) -> DatabaseResult<Builder<'static, M>> {
-    let connection = connection(model)?;
-    let mut query = M::queryOn(&connection).withoutGlobalScopes().useWritePdo();
+    reload_query_on(model, &connection(model)?)
+}
+
+fn reload_query_on<M: Model>(
+    model: &M,
+    connection: &Connection,
+) -> DatabaseResult<Builder<'static, M>> {
+    let mut query = M::queryOn(connection).withoutGlobalScopes().useWritePdo();
     query.casts.clone_from(&model.state().casts);
     query.for_persisted_model(model)
 }
 
-pub(super) async fn refresh<M: Model>(model: &mut M) -> DatabaseResult<&mut M> {
+pub(super) async fn refresh<'a, M: Model>(
+    model: &'a mut M,
+    mut transaction: Option<&mut Transaction>,
+) -> DatabaseResult<&'a mut M> {
     if !model.state().exists {
         return Ok(model);
     }
 
-    let loaded = reload_query(model)?
-        .first()
-        .await?
-        .ok_or(DatabaseError::ModelNotFound(model.getTable()))?;
+    let loaded = if let Some(tx) = transaction.as_deref_mut() {
+        let connection = transaction_connection(model, tx)?;
+        reload_query_on(model, &connection)?
+            .lock_for_update()
+            .limit(1)
+            .get_with_transaction(Some(tx))
+            .await?
+            .into_iter()
+            .next()
+    } else {
+        Box::pin(reload_query(model)?.first()).await?
+    }
+    .ok_or(DatabaseError::ModelNotFound(model.getTable()))?;
     let state = model.state_mut();
     if let Some(link) = state.detached_autoload.take() {
         state.relations = link.visible_relations(state, |_| true);
@@ -120,7 +139,8 @@ pub(super) async fn refresh<M: Model>(model: &mut M) -> DatabaseResult<&mut M> {
     let paths: Vec<_> = names.iter().map(String::as_str).collect();
     state.attributes = loaded.state().attributes.clone();
     state.invalidate_value_objects();
-    model.loadPaths(&paths).await?;
+    let loads = NamedRelations::<M>::prepare(&paths)?;
+    load_eager_with_transaction(loads, std::slice::from_mut(model), transaction).await?;
     let state = model.state_mut();
     state.original.clone_from(&state.attributes);
     Ok(model)

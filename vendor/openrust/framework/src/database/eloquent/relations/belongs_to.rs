@@ -106,8 +106,26 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model, R: Model> BelongsTo<P, R> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
         Box::pin(async move {
-            let matches = self.0.match_many(parents).await?;
+            let matches = self.0.match_many(parents, transaction).await?;
             match_defaults(
                 parents,
                 matches.into_iter().map(|rows| rows.into_iter().last()),

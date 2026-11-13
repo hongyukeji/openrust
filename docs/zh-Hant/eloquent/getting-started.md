@@ -77,6 +77,20 @@ pub async fn reload<M: Model>(model: &mut M) -> DatabaseResult<Option<M>> {
 }
 ```
 
+用 `refreshForUpdate(&mut transaction)` 在交易內重新整理模型。MySQL 資料列鎖由呼叫端的交易持有，提交或回滾時釋放。交易須從模型所屬連線開啟。同連線的已載入關聯及其讀取事件可以看到交易內尚未提交的變更。跨連線關聯使用各自的連線。自訂關聯可實作 `matchResultsInTransaction` 參與交易內載入。SQLite 在交易內讀取，遵循 SQLite 的交易鎖規則。
+
+```rust
+use openrust::database::{DatabaseResult, Transaction, eloquent::Model};
+
+pub async fn reload_locked<M: Model>(
+    model: &mut M,
+    transaction: &mut Transaction,
+) -> DatabaseResult<()> {
+    model.refreshForUpdate(transaction).await?;
+    Ok(())
+}
+```
+
 ## 插入和更新模型
 
 `create` 依批次賦值規則儲存新模型。`setAttribute` 設定單一屬性，`save` 以原主鍵寫入已變更的屬性。寫入成功後同步模型快照。建構器的 `update` 和 `delete` 回傳受影響列數。

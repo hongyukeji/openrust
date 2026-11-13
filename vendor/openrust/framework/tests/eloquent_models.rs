@@ -1492,6 +1492,56 @@ async fn verify_query_casts(db: &Connection, key: Value) {
     );
 }
 
+async fn verify_locked_reload(db: &Connection, model: &mut Article, mysql: bool) {
+    let mut wrong = connect(json!({"driver":"sqlite","database":":memory:"}))
+        .beginTransaction()
+        .await
+        .unwrap();
+    assert!(matches!(
+        model.refreshForUpdate(&mut wrong).await,
+        Err(DatabaseError::InvalidQuery("model transaction connection"))
+    ));
+    wrong.rollBack(None).await.unwrap();
+
+    let key = model.getKey().unwrap().clone();
+    for commit in [true, false] {
+        let mut owner = db.beginTransaction().await.unwrap();
+        model.refreshForUpdate(&mut owner).await.unwrap();
+        assert_eq!(model.getKey(), Some(&key));
+        assert_eq!(owner.transactionLevel(), 1);
+
+        if mysql {
+            let mut contender = db.beginTransaction().await.unwrap();
+            let sql = "SELECT article_id FROM articles WHERE article_id = ? FOR UPDATE NOWAIT";
+            let bindings = std::slice::from_ref(&key);
+            let blocked = contender.selectOne(sql, bindings).await.unwrap_err();
+            let DatabaseError::Driver { source, .. } = blocked else {
+                panic!("expected MySQL row lock error");
+            };
+            assert_eq!(
+                source
+                    .as_database_error()
+                    .and_then(|error| error.try_downcast_ref::<sqlx::mysql::MySqlDatabaseError>())
+                    .map(sqlx::mysql::MySqlDatabaseError::number),
+                Some(3572)
+            );
+            if commit {
+                owner.commit().await.unwrap();
+            } else {
+                owner.rollBack(None).await.unwrap();
+            }
+            assert!(contender.selectOne(sql, bindings).await.unwrap().is_some());
+            contender.rollBack(None).await.unwrap();
+        } else {
+            owner.rollBack(None).await.unwrap();
+        }
+        assert!(matches!(
+            model.refreshForUpdate(&mut owner).await,
+            Err(DatabaseError::TransactionClosed)
+        ));
+    }
+}
+
 async fn verify_model_reload(db: &Connection, model: &mut Article) {
     let key = model.getKey().unwrap().clone();
     db.table("articles")
@@ -1674,6 +1724,7 @@ async fn verify(db: Connection, mysql: bool) {
     bulk.whereKey(other);
     assert_eq!(bulk.forceDelete().await.unwrap(), 1);
     assert_eq!(query().get().await.unwrap().len(), 1);
+    Box::pin(verify_locked_reload(&db, &mut hydrated, mysql)).await;
     Box::pin(verify_model_reload(&db, &mut hydrated)).await;
     db.statement("DROP TABLE articles", &[]).await.unwrap();
 

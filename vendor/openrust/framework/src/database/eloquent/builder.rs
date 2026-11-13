@@ -576,6 +576,11 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
+    pub(super) fn lock_for_update(mut self) -> Self {
+        self.query = self.query.lockForUpdate();
+        self
+    }
+
     pub(super) fn for_persisted_model(mut self, model: &M) -> DatabaseResult<Self> {
         if let Some(identity) = model.state().pivot_identity {
             self = self.for_pivot(identity);
@@ -1305,11 +1310,37 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn get(self) -> DatabaseResult<Collection<M>> {
-        let (query, hydration) = self.hydration_query()?;
-        let mut models = hydration.rows(query.get().await?);
-        super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
-        load_eager(hydration.eager, &mut models).await?;
-        Ok(Collection::new(models))
+        self.get_with_transaction(None).await
+    }
+
+    pub(super) fn get_with_transaction<'a>(
+        self,
+        mut transaction: Option<&'a mut crate::database::Transaction>,
+    ) -> crate::database::DatabaseFuture<'a, DatabaseResult<Collection<M>>> {
+        Box::pin(async move {
+            let (query, hydration) = self.hydration_query()?;
+            let mut models = hydration.rows(
+                query
+                    .get_with_transaction(transaction.as_deref_mut())
+                    .await?,
+            );
+            let source = transaction
+                .as_deref_mut()
+                .filter(|tx| tx.belongs_to(&hydration.connection));
+            super::concerns::has_events::retrieved_with_transaction(
+                &mut models,
+                &hydration.connection,
+                source,
+            )
+            .await?;
+            super::concerns::has_relationships::load_eager_with_transaction(
+                hydration.eager,
+                &mut models,
+                transaction,
+            )
+            .await?;
+            Ok(Collection::new(models))
+        })
     }
 
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {

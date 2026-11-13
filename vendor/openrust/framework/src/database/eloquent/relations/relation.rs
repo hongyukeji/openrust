@@ -49,6 +49,19 @@ pub trait Relation: Send + Sync + 'static {
         parents: &'a [&'a Self::Parent],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>>;
 
+    /// Matches related rows while borrowing an explicit transaction.
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        _parents: &'a [&'a Self::Parent],
+        _transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        Box::pin(async {
+            Err(DatabaseError::InvalidQuery(
+                "relation does not support transaction loading",
+            ))
+        })
+    }
+
     fn getResults<'a>(
         &'a self,
         parent: &'a Self::Parent,
@@ -348,7 +361,11 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         }
     }
 
-    pub async fn match_many(&self, parents: &[&P]) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
+    pub async fn match_many(
+        &self,
+        parents: &[&P],
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
         if !keys.bindings.is_empty() {
@@ -358,7 +375,10 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                 let query = self
                     .select_one(self.configure(R::queryOn(&connection))?)?
                     .restrict_relation(self.related, batch);
-                for model in query.get().await? {
+                for model in query
+                    .get_with_transaction(transaction.as_deref_mut())
+                    .await?
+                {
                     if let Some(key) = dictionary_key(model.getAttribute(self.related))? {
                         dictionary.entry(key).or_default().push(Arc::new(model));
                     }

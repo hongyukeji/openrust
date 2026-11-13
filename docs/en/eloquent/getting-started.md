@@ -77,6 +77,20 @@ pub async fn reload<M: Model>(model: &mut M) -> DatabaseResult<Option<M>> {
 }
 ```
 
+Use `refreshForUpdate(&mut transaction)` to refresh a model while holding a MySQL row lock until the caller commits or rolls back. Start the transaction on the model’s connection. Loaded relationships on that connection and their retrieval events can see uncommitted changes in the transaction. Relationships on other connections use their own connection. Custom relation implementations can provide `matchResultsInTransaction` to participate. SQLite reads through the transaction and follows SQLite’s transaction locking rules.
+
+```rust
+use openrust::database::{DatabaseResult, Transaction, eloquent::Model};
+
+pub async fn reload_locked<M: Model>(
+    model: &mut M,
+    transaction: &mut Transaction,
+) -> DatabaseResult<()> {
+    model.refreshForUpdate(transaction).await?;
+    Ok(())
+}
+```
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.

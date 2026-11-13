@@ -1055,6 +1055,28 @@ async fn verify_model_reload_relations(db: &Connection, model: &Author) {
     let after = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
     assert!(!Arc::ptr_eq(&cached, &after[0]));
 
+    let mut tx = db.beginTransaction().await.unwrap();
+    let post_key = after[0].getKey().unwrap().clone();
+    tx.table("relation_posts")
+        .r#where("id", "=", post_key.clone())
+        .update(Attributes::from([(
+            "title".into(),
+            "Uncommitted title".into(),
+        )]))
+        .await
+        .unwrap();
+    author.refreshForUpdate(&mut tx).await.unwrap();
+    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    assert_eq!(
+        posts
+            .iter()
+            .find(|post| post.getKey() == Some(&post_key))
+            .unwrap()
+            .getAttribute("title"),
+        Some(&"Uncommitted title".into()),
+    );
+    tx.rollBack(None).await.unwrap();
+
     author.load("unregistered", &POSTS).await.unwrap();
     let prior_name = author.getRawOriginal("name").unwrap().clone();
     let key = author.getKey().unwrap().clone();

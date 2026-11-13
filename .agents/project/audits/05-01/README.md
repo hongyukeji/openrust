@@ -66,3 +66,11 @@
 SQLite 和独立 MySQL 8.4.13 验证原主键、全局作用域、软删除、新模型、数据库记录已删除、命名路径、缓存关系替换与复合键 Pivot 回读。锁定回读 `refreshForUpdate` 仍需接入当前事务 API 并验证锁的生命周期。
 
 工作区 620 项通过、8 项夹具忽略。最终差异通过双库模型与关系专项，额外验证未登记关系错误时保留新属性与旧快照。Rust 1.94 格式、全目标严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 事务内锁定回读
+
+按固定 Laravel 的 `refreshForUpdate` 和 Pessimistic Locking，从写连接按原身份读回并原位刷新。Rust 通过 `&mut Transaction` 明确连接归属与锁的持有者，沿用 `v0.x` 的事务校验、原身份读取与事务内关系加载。MySQL 生成 `FOR UPDATE`，SQLite 使用其事务锁规则。普通、穿透和多态关系以及 Pivot 的同连接查询和映射 Retrieved 事件可共享此事务，跨连接查询使用所属连接。自定义关系通过 `matchResultsInTransaction` 接入。参考 Goravel 的连接级事务装配。 [Laravel 模型源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 悲观锁文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/queries.md#pessimistic-locking) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 专项覆盖连接不匹配、已关闭事务、事务内关系及 Retrieved 监听器读取未提交行。第二个 MySQL 会话用 `FOR UPDATE NOWAIT` 得到 3572，持有者提交和回滚后分别重试成功。首轮关系测试在 Debug 模式触发栈溢出，缩小事务查询 future 的栈占用后双库专项通过。
+
+最终 Rust 1.94 全工作区 620 项通过、8 项夹具忽略。双库模型、事件和关系专项 7 项通过。格式、严格 Clippy、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。

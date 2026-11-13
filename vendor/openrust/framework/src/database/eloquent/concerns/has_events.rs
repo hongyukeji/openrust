@@ -226,8 +226,23 @@ pub(in crate::database::eloquent) async fn retrieved<M: Model>(
     models: &mut [M],
     connection: &Connection,
 ) -> DatabaseResult<()> {
+    retrieved_with_transaction(models, connection, None).await
+}
+
+pub(in crate::database::eloquent) async fn retrieved_with_transaction<M: Model>(
+    models: &mut [M],
+    connection: &Connection,
+    mut transaction: Option<&mut Transaction>,
+) -> DatabaseResult<()> {
     for model in models {
-        fire(model, connection, ModelEvent::Retrieved, false).await?;
+        fire_with_transaction(
+            model,
+            connection,
+            ModelEvent::Retrieved,
+            false,
+            transaction.as_deref_mut(),
+        )
+        .await?;
     }
     Ok(())
 }

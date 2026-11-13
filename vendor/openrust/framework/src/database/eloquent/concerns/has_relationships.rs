@@ -3,7 +3,7 @@ use std::{any::Any, collections::BTreeMap, sync::Arc};
 use indexmap::IndexMap;
 use serde_json::{Map, Value as Json};
 
-use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult};
+use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult, Transaction};
 
 use super::super::{Model, relations::Relation};
 
@@ -155,6 +155,20 @@ where
     M: Model,
     R: Relation<Parent = M>,
 {
+    load_with_transaction(models, name, relation, only_missing, None).await
+}
+
+async fn load_with_transaction<M, R>(
+    models: &mut [M],
+    name: &str,
+    relation: &R,
+    only_missing: bool,
+    transaction: Option<&mut Transaction>,
+) -> DatabaseResult<()>
+where
+    M: Model,
+    R: Relation<Parent = M>,
+{
     let (indexes, parents): (Vec<_>, Vec<_>) = models
         .iter()
         .enumerate()
@@ -163,7 +177,14 @@ where
     if parents.is_empty() {
         return Ok(());
     }
-    let values = relation.matchResults(&parents).await?;
+    let values = match transaction {
+        Some(transaction) => {
+            relation
+                .matchResultsInTransaction(&parents, transaction)
+                .await?
+        }
+        None => relation.matchResults(&parents).await?,
+    };
     if indexes.len() != values.len() {
         return Err(DatabaseError::InvalidQuery("relation result cardinality"));
     }
@@ -201,6 +222,7 @@ pub(in crate::database::eloquent) trait EagerLoad<M: Model>:
         &'a self,
         name: &'a str,
         models: &'a mut [M],
+        transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
 }
 
@@ -213,8 +235,15 @@ where
         &'a self,
         name: &'a str,
         models: &'a mut [M],
+        transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(load(models, name, self, false))
+        Box::pin(load_with_transaction(
+            models,
+            name,
+            self,
+            false,
+            transaction,
+        ))
     }
 }
 
@@ -222,11 +251,21 @@ pub(in crate::database::eloquent) async fn load_eager<M: Model>(
     eager_load: EagerLoads<M>,
     models: &mut [M],
 ) -> DatabaseResult<()> {
+    load_eager_with_transaction(eager_load, models, None).await
+}
+
+pub(in crate::database::eloquent) async fn load_eager_with_transaction<M: Model>(
+    eager_load: EagerLoads<M>,
+    models: &mut [M],
+    mut transaction: Option<&mut Transaction>,
+) -> DatabaseResult<()> {
     if models.is_empty() {
         return Ok(());
     }
     for (name, relation) in eager_load.relations {
-        relation.load(&name, models).await?;
+        relation
+            .load(&name, models, transaction.as_deref_mut())
+            .await?;
     }
     Ok(())
 }

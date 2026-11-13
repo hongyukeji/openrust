@@ -410,7 +410,11 @@ impl<P: Model> MorphTo<P> {
             .await
     }
 
-    async fn match_targets(&self, parents: &[&P]) -> DatabaseResult<Vec<Option<MorphTarget>>> {
+    async fn match_targets(
+        &self,
+        parents: &[&P],
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<Vec<Option<MorphTarget>>> {
         let mut groups = IndexMap::<&str, Vec<(usize, &P)>>::new();
         for (index, parent) in parents.iter().copied().enumerate() {
             if dictionary_key(parent.getAttribute(self.id_column))?.is_none() {
@@ -436,7 +440,7 @@ impl<P: Model> MorphTo<P> {
                 continue;
             }
             let (indexes, parents): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
-            let loaded = target.load(&parents).await?;
+            let loaded = target.load(&parents, transaction.as_deref_mut()).await?;
             for (index, model) in indexes.into_iter().zip(loaded) {
                 matches[index] = model.map(|model| MorphTarget { alias, model });
             }
@@ -529,6 +533,7 @@ trait Target<P: Model>: Send + Sync {
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>>;
     fn touch<'a>(
         &'a self,
@@ -654,10 +659,11 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>> {
         Box::pin(async move {
             Ok(self
-                .match_many(parents)
+                .match_many(parents, transaction)
                 .await?
                 .into_iter()
                 .map(|models| models.into_iter().last().map(|model| model as ErasedModel))
@@ -703,6 +709,24 @@ impl<P: Model> Relation for MorphTo<P> {
         &'a self,
         parents: &'a [&'a P],
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
-        Box::pin(self.match_targets(parents))
+        self.match_results(parents, None)
+    }
+
+    fn matchResultsInTransaction<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: &'a mut Transaction,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<Self::Output>>> {
+        self.match_results(parents, Some(transaction))
+    }
+}
+
+impl<P: Model> MorphTo<P> {
+    fn match_results<'a>(
+        &'a self,
+        parents: &'a [&'a P],
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
+        Box::pin(self.match_targets(parents, transaction))
     }
 }

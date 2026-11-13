@@ -296,7 +296,15 @@ pub trait Model: Sized + Send + Sync + 'static {
 
     /// Reloads this instance and its loaded registered relationships.
     fn refresh(&mut self) -> impl Future<Output = DatabaseResult<&mut Self>> + Send {
-        persistence::refresh(self)
+        persistence::refresh(self, None)
+    }
+
+    /// Reloads this model under a write lock held by the caller's transaction.
+    fn refreshForUpdate<'a>(
+        &'a mut self,
+        transaction: &'a mut crate::database::Transaction,
+    ) -> impl Future<Output = DatabaseResult<&'a mut Self>> + Send + 'a {
+        persistence::refresh(self, Some(transaction))
     }
 
     fn create(attributes: Attributes) -> impl Future<Output = DatabaseResult<Self>> + Send {
