@@ -39,7 +39,7 @@ mod acceptance {
                 JobAttempted, JobExceptionOccurred, JobFailed, JobProcessed, JobProcessing,
                 JobRetryRequested, JobTimedOut, QueueBusy, WorkerInterrupted, WorkerStarting,
             },
-            middleware::{JobMiddleware, ThrottlesExceptions},
+            middleware::{FailOnException, JobMiddleware, ThrottlesExceptions},
         },
         redis::{RedisManager, connections::Connection},
         routing::{Router, RoutingError},
@@ -70,6 +70,50 @@ mod acceptance {
     }
 
     impl std::error::Error for HardPolicyError {}
+
+    #[derive(Debug)]
+    struct FailProbeError;
+
+    impl std::fmt::Display for FailProbeError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("exception matched by FailOnException")
+        }
+    }
+
+    impl std::error::Error for FailProbeError {}
+
+    struct FailProbe(Probe);
+
+    impl JobHandler for FailProbe {
+        fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+            vec![Arc::new(FailOnException::for_exception::<FailProbeError>())]
+        }
+
+        fn handle<'a>(
+            &'a self,
+            context: &'a mut JobContext<'_>,
+            payload: &'a Payload,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            if payload.data() == "fail-on-exception" {
+                Box::pin(async {
+                    Err(QueueError::Execution {
+                        source: Box::new(FailProbeError),
+                    })
+                })
+            } else {
+                self.0.handle(context, payload)
+            }
+        }
+
+        fn failed<'a>(
+            &'a self,
+            context: &'a mut JobContext<'_>,
+            payload: &'a Payload,
+            cause: &'a QueueError,
+        ) -> QueueFuture<'a, QueueResult<()>> {
+            self.0.failed(context, payload, cause)
+        }
+    }
 
     struct Probe(PathBuf, bool);
     impl JobHandler for Probe {
@@ -540,6 +584,10 @@ mod acceptance {
                 }
                 Queue::register("hard-timeout-probe", Arc::new(Probe(self.0.clone(), false)))?;
                 Queue::register("hard-throttle-probe", Arc::new(Probe(self.0.clone(), true)))?;
+                Queue::register(
+                    "fail-on-exception-probe",
+                    Arc::new(FailProbe(Probe(self.0.clone(), false))),
+                )?;
                 Event::listen(
                     JobFailed::NAME,
                     Arc::new(FailedObserver(self.0.clone())),
@@ -1047,6 +1095,37 @@ mod acceptance {
         let (first, second) = tokio::join!(run(&[], false), run(&[], false));
         assert_eq!(removed(first) + removed(second), 31);
         assert_eq!(count("prune-fresh-0").await, 1);
+    }
+
+    async fn verify_fail_on_exception(root: &Path, manager: &QueueManager) {
+        let options = || DispatchOptions {
+            queue: Some("fail-exception-probe".into()),
+            ..Default::default()
+        };
+        let args = ["--queue=fail-exception-probe", "--once"];
+        for isolated in [false, true] {
+            let payload = Payload::new("fail-on-exception-probe", "fail-on-exception")
+                .unwrap()
+                .with_options(JobOptions {
+                    hard_timeout: isolated,
+                    max_tries: Some(3),
+                    ..Default::default()
+                });
+            manager.dispatch(payload, options(), None).await.unwrap();
+            let (status, lines) = artisan(root, &args, false).await;
+            assert_eq!(status, Some(0), "{lines:?}");
+            assert_eq!(lines.last().unwrap()["status"], "failed");
+            let marker = root.join("fail-on-exception.failed");
+            assert!(std::fs::read_to_string(&marker).unwrap().contains(":1:"));
+            std::fs::remove_file(marker).unwrap();
+        }
+        let payload = Payload::new("fail-on-exception-probe", "callback-retry").unwrap();
+        manager.dispatch(payload, options(), None).await.unwrap();
+        assert_eq!(artisan(root, &args, false).await.0, Some(0));
+        assert!(!root.join("callback-retry.failed").exists());
+        let (status, lines) = artisan(root, &args, false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(lines.last().unwrap()["status"], "success");
     }
 
     async fn verify_bus_dispatch(root: &Path) {
@@ -2381,6 +2460,12 @@ mod acceptance {
             .unwrap();
         let manager = app.container().make::<QueueManager>().unwrap();
         let queue = manager.connection(None).unwrap();
+        if std::env::var_os("OPENRUST_TEST_FAIL_EXCEPTION_ONLY").is_some() {
+            verify_fail_on_exception(&root.0, &manager).await;
+            assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 2);
+            eprintln!("FailOnException process acceptance passed on {backend}");
+            return;
+        }
         if std::env::var_os("OPENRUST_TEST_BUS_ONLY").is_some() {
             verify_bus_dispatch(&root.0).await;
             eprintln!("Bus dispatch process acceptance passed on {backend}");
@@ -2515,6 +2600,13 @@ mod acceptance {
                 .unwrap()
         });
         verify_bus_dispatch(&root.0).await;
+        verify_fail_on_exception(&root.0, &manager).await;
+        db.statement(
+            "delete from failed_jobs where queue = 'fail-exception-probe'",
+            &[],
+        )
+        .await
+        .unwrap();
         verify_clear(&root.0, &*queue, redis.as_deref()).await;
         assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 4);
         assert!(!root.0.join("cpu.failed").exists());

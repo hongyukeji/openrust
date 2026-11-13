@@ -5,3 +5,7 @@
 - Rust 显式传递 `Payload`、派发选项和事务。Worker 在独立进程按稳定名称查找同一应用编译注册的处理器，并解析载荷数据。跨进程契约为 JSON 数据和编译注册，PHP 对象及闭包字节流没有互读契约。直接执行用 Bus 管道，同步执行沿用 sync 队列中间件和事件。
 - `bulk` 按输入顺序逐项派发并返回各项结果。各项沿用唯一任务和事务契约。启用时，响应后派发使用 HTTP 终止阶段。关闭时同步执行。
 - Rust 1.94.0、macOS ARM64。用真实 TCP HTTP 和独立 Artisan `queue:work` 验证直接执行、同步队列、响应后执行、普通派发及批量派发，MySQL 8.4、Redis 8 和 SQLite 均通过。三语文档构建和专项严格 Clippy 通过。
+
+## 驱动范围
+
+固定 Laravel 的内置连接器为 Sync、Database、Redis、Null、Deferred、Background、Failover、Beanstalkd、SQS。本轮实际 Worker 矩阵使用 MySQL 数据库队列和 Redis，另回归 SQLite 与 sync 行为。Null、Deferred、Background、Failover、Beanstalkd、SQS 继续跟踪。进程生命周期驱动需要独立验证终止和退出语义，Failover 需要验证故障切换与重复派发，Beanstalkd、SQS 需要相应真实服务。 [固定 Laravel 连接器](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/Connectors)

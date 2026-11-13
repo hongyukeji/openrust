@@ -784,6 +784,10 @@ fn job_exception_throttle() -> ThrottlesExceptions {
 
 用 `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` 选择 Redis 连接。`when` 和 `reportWhen` 的第二个参数是 `ExceptionThrottleLimiter`，提供缓存服务，或 Redis 窗口的剩余额度和到期时间戳。
 
+### 按异常判定任务失败 {#fail-on-exception}
+
+在 `JobHandler::middleware` 登记 `FailOnException::for_exception::<FatalError>()`，匹配错误因果链中的指定类型。使用 `FailOnException::new(|error, payload| …)` 可按错误和任务数据判断。匹配时在本次尝试记入最终失败并执行失败回调。其他异常沿用正常重试策略。
+
 ### 释放任务 {#releasing-jobs}
 
 从处理器的中间件清单返回 `Release::when` 或 `Release::unless`，按条件延迟任务并跳过处理器。用 `Duration` 指定延迟，用 `Duration::ZERO` 让任务立即可再次预约。释放会消耗一次尝试。

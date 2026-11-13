@@ -8,3 +8,5 @@
 - 三语 Context 示例从正文抽取并在上述三种 Worker 路径运行。VitePress 构建、12 项通用浏览器检查及 6 项队列和 Context 专题检查通过。
 
 [跨数据库批次发布与恢复验收](job-batch-cross-database.md)
+
+[异常失败中间件与上游清单](fail-on-exception.md)

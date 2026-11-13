@@ -784,6 +784,10 @@ Use `by` to share a budget across job types and `byJob` for a budget per job UUI
 
 Use `ThrottlesExceptionsWithRedis::new(10, 300).connection("default")` for a named Redis connection. The second argument to `when` and `reportWhen` is an `ExceptionThrottleLimiter` with the cache service or the Redis window's remaining budget and expiration timestamp.
 
+### Failing jobs on exceptions {#fail-on-exception}
+
+Register `FailOnException::for_exception::<FatalError>()` in `JobHandler::middleware` to fail on a typed error in the cause chain. Use `FailOnException::new(|error, payload| …)` to select failures by error and job data. A match triggers terminal failure and the failure callback on the current attempt. Unmatched errors follow the ordinary retry policy.
+
 ### Releasing jobs {#releasing-jobs}
 
 Return `Release::when` or `Release::unless` from the handler's middleware list to defer a job without invoking the handler. Pass a `Duration` for the delay. Use `Duration::ZERO` to make the job available immediately. A released reservation consumes an attempt.
