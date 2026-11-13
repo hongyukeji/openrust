@@ -1992,6 +1992,135 @@ impl openrust::database::eloquent::concerns::ModelEventListener<Membership> for 
     }
 }
 
+struct TouchAuthor(ModelState);
+
+impl Model for TouchAuthor {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata =
+            ModelMetadata::new("relation_authors").timestamps(None, Some("updated_at"));
+        &METADATA
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_toggle_and_touch(db: &Connection) {
+    const OLD: &str = "2000-01-01 00:00:00";
+    let mut parent = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    parent.setAttribute("name", "unsaved");
+    let relation = BelongsToMany::<TouchAuthor, Post>::new(
+        "relation_featured_posts",
+        "author_id",
+        "post_id",
+        "id",
+        "id",
+    )
+    .withTouchingParent();
+    assert!(
+        relation
+            .toggle(&parent, &[])
+            .await
+            .unwrap()
+            .attached
+            .is_empty()
+    );
+    let old = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    assert_eq!(old.getAttribute("updated_at"), Some(&OLD.into()));
+    assert!(
+        relation
+            .toggleOrFail(&parent, &[2.into(), Value::Null])
+            .await
+            .is_err()
+    );
+    let result = relation
+        .toggleWithPivotAttributes(
+            &parent,
+            &[
+                (
+                    1.into(),
+                    Attributes::from([("label".into(), "toggle".into())]),
+                ),
+                (2.into(), Attributes::new()),
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.attached, vec![1.into()]);
+    assert_eq!(result.detached, vec![2.into()]);
+    let posts = relation
+        .withPivot(["label"])
+        .getResults(&parent)
+        .await
+        .unwrap();
+    assert_eq!(posts.len(), 1);
+    assert_eq!(posts[0].getKey(), Some(&1.into()));
+    assert_eq!(
+        posts[0]
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"toggle".into())
+    );
+    let saved = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    assert_eq!(saved.getAttribute("name"), Some(&"first".into()));
+    assert!(
+        matches!(saved.getAttribute("updated_at"), Some(Value::Text(time)) if time.as_str() > OLD)
+    );
+    let relation = BelongsToMany::<TouchAuthor, Post>::new(
+        "relation_featured_posts",
+        "author_id",
+        "post_id",
+        "id",
+        "id",
+    )
+    .withTouchingParent();
+    for action in ["attach", "update", "detach", "sync"] {
+        db.table("relation_authors")
+            .r#where("id", "=", 1)
+            .update(Attributes::from([("updated_at".into(), OLD.into())]))
+            .await
+            .unwrap();
+        let parent = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+        match action {
+            "attach" => relation.attach(&parent, &[2.into()]).await.unwrap(),
+            "update" => assert_eq!(
+                relation
+                    .updateExistingPivot(
+                        &parent,
+                        &2.into(),
+                        Attributes::from([("label".into(), "updated".into())])
+                    )
+                    .await
+                    .unwrap(),
+                1
+            ),
+            "detach" => assert_eq!(
+                relation.detach(&parent, Some(&[2.into()])).await.unwrap(),
+                1
+            ),
+            "sync" => assert_eq!(
+                relation.sync(&parent, &[2.into()]).await.unwrap().attached,
+                vec![2.into()]
+            ),
+            _ => unreachable!(),
+        }
+        let fresh = TouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+        assert!(
+            matches!(fresh.getAttribute("updated_at"), Some(Value::Text(time)) if time.as_str() > OLD),
+            "{action}"
+        );
+    }
+    let other = TouchAuthor::queryOn(db).findOrFail(2).await.unwrap();
+    assert_eq!(other.getAttribute("updated_at"), Some(&OLD.into()));
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -2025,11 +2154,11 @@ async fn verify_custom_pivot(config: Json) {
         "DROP TABLE IF EXISTS relation_featured_posts",
         "DROP TABLE IF EXISTS relation_posts",
         "DROP TABLE IF EXISTS relation_authors",
-        "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+        "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80), updated_at VARCHAR(32))",
         "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME)",
         "CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (author_id, post_id))",
         "CREATE TABLE relation_membership_events (event VARCHAR(30) NOT NULL)",
-        "INSERT INTO relation_authors VALUES (1,'first'),(2,'second')",
+        "INSERT INTO relation_authors VALUES (1,'first','2000-01-01 00:00:00'),(2,'second','2000-01-01 00:00:00')",
         "INSERT INTO relation_posts VALUES (1,1,'first',NULL),(2,1,'second',NULL)",
         "INSERT INTO relation_featured_posts VALUES (2,1,'55'),(1,2,'99')",
     ] {
@@ -2246,6 +2375,43 @@ async fn verify_custom_pivot(config: Json) {
             .unwrap(),
         1
     );
+    let result = morph.toggle(&owner, &[2.into(), 2.into()]).await.unwrap();
+    assert_eq!(result.attached, vec![2.into()]);
+    let result = morph.toggle(&owner, &[2.into()]).await.unwrap();
+    assert_eq!(result.detached, vec![2.into()]);
+    assert_eq!(
+        db.table("relation_morph_memberships")
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    db.table("relation_featured_posts")
+        .r#where("author_id", "=", 1)
+        .r#where("post_id", "=", 2)
+        .update(Attributes::from([("label".into(), "42".into())]))
+        .await
+        .unwrap();
+    let rollback = relation
+        .toggleWithPivotAttributes(
+            &owner,
+            &[
+                (2.into(), Attributes::new()),
+                (1.into(), Attributes::from([("label".into(), 77.into())])),
+            ],
+        )
+        .await;
+    assert!(rollback.is_err());
+    assert_eq!(
+        db.table("relation_featured_posts")
+            .r#where("author_id", "=", 1)
+            .r#where("post_id", "=", 2)
+            .count("*")
+            .await
+            .unwrap(),
+        1
+    );
+    Box::pin(verify_toggle_and_touch(&db)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();

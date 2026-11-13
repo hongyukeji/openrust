@@ -92,6 +92,11 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         Self(self.0.withoutChaperone())
     }
 
+    #[must_use]
+    pub fn withTouchingParent(self) -> Self {
+        Self(self.0.withTouchingParent())
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     fn apply_pivot_predicate(

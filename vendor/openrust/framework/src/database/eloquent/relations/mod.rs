@@ -19,7 +19,7 @@ mod pivot_constraints;
 pub(super) mod relation;
 
 pub use belongs_to::BelongsTo;
-pub use belongs_to_many::{BelongsToMany, SyncChanges};
+pub use belongs_to_many::{BelongsToMany, SyncChanges, ToggleChanges};
 pub use has_many::HasMany;
 pub use has_many_through::HasManyThrough;
 pub use has_one::HasOne;

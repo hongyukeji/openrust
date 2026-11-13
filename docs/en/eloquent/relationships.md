@@ -414,3 +414,22 @@ For many-to-many links, use `attach`, `detach`, `sync`, or `syncWithoutDetaching
 Use `withPivot(["label"])` to select extra columns from the intermediate table. Read them using `getRelation::<Pivot>("pivot")` on the related model. Use `r#as("membership")` to change the accessor. `attachWith` writes additional columns when creating links, and `updateExistingPivot` updates an existing link and returns its affected-row count.
 
 `syncWithPivotValues` applies the same attributes to every key. Use `syncWithPivotAttributes` with `(key, attributes)` pairs for individual values. Both return attached, detached, and updated keys. A failed sync rolls back its changes.
+
+### Toggling associations {#toggling-associations}
+
+Use `toggle` to remove existing links and insert missing links for the supplied keys. `toggleWithPivotAttributes` supplies per-key attributes for inserts. Both `toggle` and `toggleOrFail` run in one transaction and return attached and detached keys.
+
+## Touching parent timestamps {#touching-parent-timestamps}
+
+Enable `withTouchingParent()` on a many-to-many relation to update the declaring model’s timestamp when its links change. The parent update uses the same transaction and starts from persisted attributes. Reload the parent to read the new timestamp.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Model, relations::{BelongsToMany, ToggleChanges}}};
+
+pub async fn toggle_roles<U: Model, R: Model>(user: &U, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
+    BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
+        .withTouchingParent()
+        .toggleOrFail(user, keys)
+        .await
+}
+```

@@ -414,3 +414,22 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 用 `withPivot(["label"])` 讀取中介資料表的附加欄位，再從關聯模型的 `getRelation::<Pivot>("pivot")` 取得。用 `r#as("membership")` 變更存取名稱。`attachWith` 建立關聯時寫入附加欄位，`updateExistingPivot` 更新既有中介記錄並回傳受影響列數。
 
 `syncWithPivotValues` 為所有鍵套用同一組屬性。`syncWithPivotAttributes` 接收 `(鍵, 屬性)` 配對，為各鍵設定不同屬性。兩者均回傳附加、解除綁定和更新的鍵。同步失敗會復原本次修改。
+
+### 切換關聯 {#toggling-associations}
+
+用 `toggle` 依指定鍵解除既有關聯、建立缺少的關聯。`toggleWithPivotAttributes` 可為每個新增關聯傳入屬性。`toggle` 和 `toggleOrFail` 都在同一交易內執行，回傳新增與解除的鍵。
+
+## 觸碰父模型時間戳記 {#touching-parent-timestamps}
+
+在多對多關聯使用 `withTouchingParent()`，關聯變更時更新宣告端模型的時間戳記。更新從已持久化的屬性開始，並與中介資料表寫入共用交易。重新載入父模型後可讀取新時間戳記。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Model, relations::{BelongsToMany, ToggleChanges}}};
+
+pub async fn toggle_roles<U: Model, R: Model>(user: &U, keys: &[Value]) -> DatabaseResult<ToggleChanges> {
+    BelongsToMany::<U, R>::new("role_user", "user_id", "role_id", "id", "id")
+        .withTouchingParent()
+        .toggleOrFail(user, keys)
+        .await
+}
+```

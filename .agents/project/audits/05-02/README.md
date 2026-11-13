@@ -198,3 +198,11 @@ Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败�
 SQLite 和 MySQL 8.4.13 专项覆盖推断、显式名称、无效名称拒绝、停用、默认 Pivot 保持原行为、改名访问器、多态 Pivot、多父模型身份和 JSON 序列化。MySQL 通过同一连接的 `Com_select` 证明惰性加载 1 次、预加载 2 次，访问和序列化反向关系无额外 SELECT。05-02 余下关系契约继续跟踪，包括切换关联和触碰父模型时间戳。
 
 Rust 1.94 格式、启用 Sanctum 的工作区回归（621 次通过、0 失败，含进程夹具）、全目标严格 Clippy、实际 Artisan、三语示例编译、隔离站点构建及 18 项浏览器检查通过。提交前额度 92%，磁盘可用 60 GiB。05-02 尚未整体闭合，核心账本 25/66。
+
+## 切换关联与父模型时间戳
+
+对照固定 Laravel 的 `toggle`、`toggleOrFail` 与 `touchIfTouching`，参考固定 Goravel ORM 的连接级装配。复用 `v0.x` 的按已有关系划分新增和删除、按类型派发自定义 Pivot 写入及通过父模型保存时间戳的做法。Rust 的 `toggle` 和 `toggleOrFail` 均使用现有事务路径，`toggleWithPivotAttributes` 接收按键分配的属性。通过 `withTouchingParent` 显式启用多对多声明端触碰，附加、更新、解除、同步及切换产生变更时，父模型和 Pivot 共用事务。父模型由已持久化快照构造，调用方重读后可取得最新值。 [Laravel 切换关联](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#toggling-associations) · [Laravel 触碰时间戳](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#touching-parent-timestamps) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+常规模型保存时由所属关系声明 `touches`、触碰相关端和递归传播仍需单独实现。05-02 维持部分验收。
+
+SQLite 和独立 MySQL 8.4.13 验证同一调用的新增和解除、重复键去重、非法键拒绝、自定义 Pivot 插入失败后恢复已解除的关系、多态类型隔离、五种 Pivot 写入触碰、空操作和其他父模型隔离、调用方未保存属性保护。Rust 1.94 格式、621 次工作区测试、严格 Clippy、实际 Artisan、三语示例编译、隔离构建及 18 项浏览器检查通过。提交前额度 92%，磁盘可用 60 GiB。核心账本维持 25/66。
