@@ -45,3 +45,9 @@
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Sanctum、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | macOS ARM64、Linux ARM64 和部分 Windows 运行路径已有实测 | Linux x86_64、Windows 完整部署、生产 TLS 与目标数据库版本矩阵 |
+
+## 本轮整体验收
+
+macOS arm64、Rust 1.94.0。锁定离线工作区测试退出码为 0，日志合计 610 项通过、0 项失败、7 项夹具忽略。MySQL 8.4.13 和 Redis 8.10.3 的真实驱动路径另按上表专项验收。格式检查和三语站点构建通过。
+
+全部测试结束后，用 `cargo clean --target-dir` 清理本轮专用临时目标目录 `/private/tmp/openrust-core.JBsAy8/target`，释放 11.1 GiB，磁盘复查剩余 84 GiB。保留验收日志、工作区和共享依赖。
