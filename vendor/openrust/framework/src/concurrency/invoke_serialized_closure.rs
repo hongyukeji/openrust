@@ -25,7 +25,7 @@ impl Command for InvokeSerializedClosure {
     fn handle<'a>(
         &'a self,
         application: &'a Application,
-        _: &'a Input,
+        input: &'a Input,
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
@@ -38,14 +38,30 @@ impl Command for InvokeSerializedClosure {
             if bytes.len() > protocol::INPUT_LIMIT {
                 return Err(error(super::Error::PayloadTooLarge));
             }
-            let Invocation { task, context, key } =
-                serde_json::from_slice(&bytes).map_err(error)?;
+            let (task, context, key) = if input.matches().get_flag("detached") {
+                let (task, context) = serde_json::from_slice(&bytes).map_err(error)?;
+                (task, context, None)
+            } else {
+                let Invocation { task, context, key } =
+                    serde_json::from_slice(&bytes).map_err(error)?;
+                (task, context, Some(key))
+            };
             let registry = application.container().make::<Registry>().map_err(error)?;
             let repository = Context::repository().map_err(error)?;
             Context::hooks()
                 .map_err(error)?
                 .hydrate(&context, &repository);
-            let outcome = match registry.invoke(task).await {
+            let result = registry.invoke(task).await;
+            let Some(key) = key else {
+                return match result {
+                    Ok(_) => Ok(0),
+                    Err(error) => {
+                        let _ = application.report(&error).await;
+                        Ok(1)
+                    }
+                };
+            };
+            let outcome = match result {
                 Ok(value) => Outcome::Success(value),
                 Err(super::Error::TaskFailed { message, .. }) => Outcome::Failed(message),
                 Err(failure) => Outcome::Failed(failure.to_string()),
@@ -64,6 +80,11 @@ fn error(error: impl std::fmt::Display) -> ConsoleError {
 
 pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
     artisan.add_command(Box::new(InvokeSerializedClosure(CommandDefinition::new(
-        clap::Command::new(protocol::COMMAND).hide(true),
+        clap::Command::new(protocol::COMMAND).hide(true).arg(
+            clap::Arg::new("detached")
+                .long("detached")
+                .hide(true)
+                .action(clap::ArgAction::SetTrue),
+        ),
     ))))
 }

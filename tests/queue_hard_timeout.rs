@@ -208,6 +208,10 @@ mod acceptance {
                     | "driver-primary"
                     | "driver-console"
                     | "driver-worker-deferred" => {}
+                    "driver-detached" => {
+                        wait_for_file(&self.0, "driver-detached.release").await;
+                        std::fs::write(self.0.join("driver-detached.done"), []).map_err(error)?;
+                    }
                     "driver-worker" => {
                         Queue::dispatch(
                             Payload::new("hard-timeout-probe", "driver-worker-deferred")?,
@@ -717,7 +721,7 @@ mod acceptance {
         Ok(router)
     }
 
-    struct DeferredProbeCommand(CommandDefinition);
+    struct DeferredProbeCommand(CommandDefinition, &'static str, &'static str);
 
     impl Command for DeferredProbeCommand {
         fn definition(&self) -> &CommandDefinition {
@@ -731,28 +735,35 @@ mod acceptance {
             _: &'a mut Output,
         ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
             Box::pin(async move {
-                let payload = Payload::new("hard-timeout-probe", "driver-console")
+                let payload = Payload::new("hard-timeout-probe", self.2)
                     .map_err(|error| ConsoleError::new(error.to_string()))?;
                 Queue::dispatch(
                     payload,
                     DispatchOptions {
-                        connection: Some("deferred".into()),
+                        connection: Some(self.1.into()),
                         ..Default::default()
                     },
                     None,
                 )
                 .await
                 .map_err(|error| ConsoleError::new(error.to_string()))?;
-                assert!(!app.base_path().join("driver-console.pid").exists());
+                assert!(!app.base_path().join(format!("{}.pid", self.2)).exists());
                 Ok(0)
             })
         }
     }
 
     fn register_schedule(artisan: &mut Artisan) -> Result<(), ConsoleError> {
-        artisan.add_command(Box::new(DeferredProbeCommand(CommandDefinition::new(
-            clap::Command::new("probe:deferred"),
-        ))))?;
+        for (command, connection, kind) in [
+            ("probe:deferred", "deferred", "driver-console"),
+            ("probe:background", "background", "driver-detached"),
+        ] {
+            artisan.add_command(Box::new(DeferredProbeCommand(
+                CommandDefinition::new(clap::Command::new(command)),
+                connection,
+                kind,
+            )))?;
+        }
         if std::env::var_os("RUNNER_TEST_SCHEDULE").is_some() {
             Schedule::configure(|schedule| {
                 schedule.useClock(|| SystemTime::UNIX_EPOCH + Duration::from_millis(59_950));
@@ -1190,6 +1201,23 @@ mod acceptance {
     }
 
     async fn verify_queue_drivers(root: &Path, db: &DatabaseConnection) {
+        let output = tokio::time::timeout(
+            Duration::from_secs(4),
+            tokio::process::Command::new(std::env::current_exe().unwrap())
+                .args(["artisan", "probe:background"])
+                .env("APP_BASE_PATH", root)
+                .kill_on_drop(true)
+                .output(),
+        )
+        .await
+        .expect("Artisan must exit before the detached job finishes")
+        .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        wait_for_file(root, "driver-detached.pid").await;
+        assert!(!root.join("driver-detached.done").exists());
+        std::fs::write(root.join("driver-detached.release"), []).unwrap();
+        wait_for_file(root, "driver-detached.done").await;
+
         let output = tokio::process::Command::new(std::env::current_exe().unwrap())
             .args(["artisan", "probe:deferred"])
             .env("APP_BASE_PATH", root)

@@ -1,4 +1,9 @@
-use std::{path::PathBuf, time::Duration};
+use std::{
+    io::{Seek as _, Write as _},
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
 
 use indexmap::IndexMap;
 use serde_json::Value;
@@ -23,6 +28,53 @@ pub struct ProcessDriver {
 
 #[allow(non_snake_case, reason = "Matches Laravel's concurrency driver API")]
 impl ProcessDriver {
+    pub(super) fn launch_detached(
+        &self,
+        task: Task,
+        context: DehydratedContext,
+        environment: &Path,
+    ) -> Result<()> {
+        let input = serde_json::to_vec(&(task, context)).map_err(Error::Encoding)?;
+        if input.len() > protocol::INPUT_LIMIT {
+            return Err(Error::PayloadTooLarge);
+        }
+        let mut stdin = tempfile::tempfile().map_err(Error::Io)?;
+        stdin.write_all(&input).map_err(Error::Io)?;
+        stdin.rewind().map_err(Error::Io)?;
+        let mut command = tokio::process::Command::new(std::env::current_exe().map_err(Error::Io)?);
+        command
+            .args(["artisan", protocol::COMMAND, "--detached"])
+            .env("APP_BASE_PATH", &self.base_path)
+            .current_dir(&self.base_path)
+            .stdin(stdin)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        if let Some(environment) = environment
+            .file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.strip_prefix(".env."))
+        {
+            command.arg(format!("--env={environment}"));
+        }
+        #[cfg(unix)]
+        {
+            // setsid is async-signal-safe and detaches the child before the executable starts.
+            unsafe {
+                command.pre_exec(|| rustix::process::setsid().map(|_| ()).map_err(Into::into));
+            }
+        }
+        #[cfg(windows)]
+        command.creation_flags(
+            windows_sys::Win32::System::Threading::DETACHED_PROCESS
+                | windows_sys::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP,
+        );
+        let mut child = command.spawn().map_err(Error::Io)?;
+        tokio::spawn(async move {
+            let _ = child.wait().await;
+        });
+        Ok(())
+    }
+
     pub fn new(
         processes: Factory,
         worker: impl Into<Command>,

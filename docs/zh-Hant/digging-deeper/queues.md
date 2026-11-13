@@ -92,7 +92,7 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 ## 其他佇列連線 {#additional-queue-connections}
 
-`null` 連線捨棄工作。`deferred` 在 HTTP 請求或 Artisan 指令成功後，在同一程序執行。`background` 在同一終止階段啟動獨立 Artisan 程序。這些連線沒有持久預約，派送延遲不影響執行。背景程序由發起程序監督。Deferred 和 Background 接收一般工作，需要使用中的 HTTP 或 Artisan 生命週期。成功的 Worker 嘗試也會執行本次登錄的生命週期工作。部署時維持生產端和 Worker 的處理常式名稱與 JSON 欄位相容。PHP 序列化物件和閉包使用獨立的線格式。
+`null` 連線捨棄工作。`deferred` 在 HTTP 請求或 Artisan 指令成功後，在同一程序執行。`background` 在同一終止階段啟動獨立 Artisan 程序。這些連線沒有持久預約，派送延遲不影響執行。發起程序啟動子程序後即可返回。發起程序結束後，背景工作仍可完成。Deferred 和 Background 接收一般工作，需要使用中的 HTTP 或 Artisan 生命週期。成功的 Worker 嘗試也會執行本次登錄的生命週期工作。部署時維持生產端和 Worker 的處理常式名稱與 JSON 欄位相容。PHP 序列化物件和閉包使用獨立的線格式。
 
 依優先順序設定 `failover.connections`。發佈失敗時嘗試下一個連線，連線開始失敗時派送 `QueueFailedOver`。Failover 連線從首選連線讀取和預約。為持久備援連線單獨啟動 Worker。儲存寫入成功但確認失敗時可能重複執行，工作處理常式須維持冪等。
 

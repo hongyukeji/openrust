@@ -79,7 +79,7 @@ impl Contract for LifecycleQueue {
                         .map_err(backend)?;
                     let _ = Concurrency::driver(Some("process"))
                         .map_err(backend)?
-                        .defer([task])
+                        .defer_detached(task)
                         .map_err(backend)?;
                 }
             }

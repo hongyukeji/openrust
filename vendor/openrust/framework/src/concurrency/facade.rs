@@ -1,5 +1,6 @@
 use std::{
     ffi::OsString,
+    path::PathBuf,
     sync::{Arc, Weak},
     time::Duration,
 };
@@ -113,6 +114,18 @@ impl Driver {
                 .await;
             }
             driver.execute(tasks, None, context).await.map(|_| ())
+        }))
+    }
+
+    pub(crate) fn defer_detached(&self, task: Task) -> Result<DeferredCallback> {
+        let owner = self.owner.upgrade().ok_or(Error::OutsideRequest)?;
+        let environment = owner
+            .get::<PathBuf>("env.file")
+            .map_err(Error::Unavailable)?;
+        let context = self.capture_context()?;
+        let process = self.process.clone();
+        deferred::enqueue(Box::pin(async move {
+            process.launch_detached(task, context, &environment)
         }))
     }
 
