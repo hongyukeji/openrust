@@ -18,6 +18,7 @@ use crate::view::{ViewData, ViewError, ViewResult, rendering::RenderContext};
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
+const COMPILER_VERSION: u32 = 1;
 
 /// Compiles Blade source into a cacheable tree of template instructions.
 pub struct BladeCompiler {
@@ -26,6 +27,8 @@ pub struct BladeCompiler {
 
 #[derive(Serialize, Deserialize)]
 struct Compiled {
+    #[serde(default)]
+    compiler_version: u32,
     source: String,
     template: Template,
 }
@@ -89,11 +92,13 @@ impl BladeCompiler {
         let name = artifact_name(path);
         let fingerprint = digest(source.as_bytes());
         if let Some(compiled) = self.read_artifact(&name)?
+            && compiled.compiler_version == COMPILER_VERSION
             && compiled.source == fingerprint
         {
             return Ok(compiled.template);
         }
         let compiled = Compiled {
+            compiler_version: COMPILER_VERSION,
             source: fingerprint,
             template: Template::compile(source)?,
         };
@@ -145,7 +150,9 @@ impl Compiler for BladeCompiler {
         let source = fs::read(path).map_err(ViewError::ReadFailed)?;
         Ok(self
             .read_artifact(&artifact_name(path))?
-            .is_none_or(|compiled| compiled.source != digest(&source)))
+            .is_none_or(|compiled| {
+                compiled.compiler_version != COMPILER_VERSION || compiled.source != digest(&source)
+            }))
     }
 
     fn compile(&self, path: &Path) -> ViewResult<()> {

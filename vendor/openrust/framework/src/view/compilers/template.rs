@@ -21,6 +21,8 @@ enum Node {
     Section(Expression, Vec<Node>, bool),
     Yield(Expression, Option<Expression>),
     Include(Expression),
+    IncludeIf(Expression),
+    IncludeWhen(Expression, Expression, bool),
     Component {
         name: String,
         attributes: Vec<(String, Expression)>,
@@ -288,6 +290,12 @@ impl<'a> Parser<'a> {
             Node::Extends(expression_value(self.arguments()?)?)
         } else if self.directive("include") {
             Node::Include(expression_value(self.arguments()?)?)
+        } else if self.directive("includeIf") {
+            Node::IncludeIf(expression_value(self.arguments()?)?)
+        } else if self.directive("includeWhen") {
+            self.conditional_include(true)?
+        } else if self.directive("includeUnless") {
+            self.conditional_include(false)?
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -308,6 +316,13 @@ impl<'a> Parser<'a> {
             return Ok(None);
         };
         Ok(Some(node))
+    }
+
+    fn conditional_include(&mut self, when: bool) -> ViewResult<Node> {
+        let (condition, name) = self.named_argument()?;
+        let name =
+            name.ok_or_else(|| invalid("Conditional Blade include requires a view name."))?;
+        Ok(Node::IncludeWhen(condition, name, when))
     }
 
     fn named_argument(&mut self) -> ViewResult<(Expression, Option<Expression>)> {
@@ -628,15 +643,17 @@ fn render_nodes<'a>(
                     echo(output, value(default, data, bindings), true);
                 }
             }
-            Node::Include(expression) => {
+            Node::Include(expression) | Node::IncludeIf(expression) => {
                 let name = name_value(value(expression, data, bindings))?;
-                let mut local_data = data.clone();
-                local_data.extend(
-                    bindings
-                        .iter()
-                        .map(|(key, value)| ((*key).to_owned(), (*value).clone())),
-                );
-                output.push_str(&context.include(name, &local_data)?);
+                if matches!(node, Node::Include(_)) || context.exists(name)? {
+                    output.push_str(&context.include(name, &include_data(data, bindings))?);
+                }
+            }
+            Node::IncludeWhen(condition, expression, when) => {
+                if truthy(value(condition, data, bindings)) == *when {
+                    let name = name_value(value(expression, data, bindings))?;
+                    output.push_str(&context.include(name, &include_data(data, bindings))?);
+                }
             }
             Node::Component {
                 name,
@@ -664,6 +681,16 @@ fn render_nodes<'a>(
         }
     }
     Ok(())
+}
+
+fn include_data(data: &ViewData, bindings: &[(&str, &ViewValue)]) -> ViewData {
+    let mut local_data = data.clone();
+    local_data.extend(
+        bindings
+            .iter()
+            .map(|(key, value)| ((*key).to_owned(), (*value).clone())),
+    );
+    local_data
 }
 
 fn name_value(value: &ViewValue) -> ViewResult<&str> {

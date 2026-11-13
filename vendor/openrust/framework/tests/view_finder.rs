@@ -128,6 +128,13 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     assert!(!compiler.isExpired(&blade).unwrap());
     let artifact = compiler.getCompiledPath(&blade).unwrap();
     assert!(artifact.is_file());
+    let mut legacy: serde_json::Value =
+        serde_json::from_slice(&fs::read(&artifact).unwrap()).unwrap();
+    legacy.as_object_mut().unwrap().remove("compiler_version");
+    fs::write(&artifact, serde_json::to_vec(&legacy).unwrap()).unwrap();
+    assert!(compiler.isExpired(&blade).unwrap());
+    compiler.compile(&blade).unwrap();
+    assert!(!compiler.isExpired(&blade).unwrap());
     fs::write(&blade, "@unless ($none)updated@endunless").unwrap();
     assert!(compiler.isExpired(&blade).unwrap());
     assert_eq!(factory.render("welcome", &data).unwrap(), "updated");
@@ -341,6 +348,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 Route::get("/page", || view("page").with("title", "route"))?;
                 Route::get("/plain", || view("layout"))?;
                 Route::get("/contract", contract_route)?;
+                Route::get("/missing-include", || view("missing_include"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -413,7 +421,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ("middle", "@extends('layout')@section('content', 'parent')"),
         (
             "page",
-            r#"@extends('middle')@section('content')@parent|<x-card :title="$label"><x-slot:header><b>{{ $title }}</b></x-slot:header>@include('partial')<x-badge text="&"/></x-card>@endsection"#,
+            r#"@extends('middle')@section('content')@parent|<x-card :title="$label"><x-slot:header><b>{{ $title }}</b></x-slot:header>@include('partial')@includeIf('missing')@includeIf('partial')@includeWhen($label, 'partial')@includeWhen(false, 'missing')@includeUnless(true, 'missing')@includeUnless(false, 'partial')<x-badge text="&"/></x-card>@endsection"#,
         ),
         (
             "components/card",
@@ -425,6 +433,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "{{ $contract_app }}:{{ $title }}{{ $suffix }}",
         ),
         ("broken", "@extends('missing')"),
+        ("missing_include", "@includeWhen(true, 'missing')"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -439,14 +448,15 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     );
     assert_eq!(
         a,
-        "<main>A|parent|<article><b>route</b><h2>&lt;composer&gt;</h2><i>&lt;composer&gt;</i><mark>&amp;</mark></article></main>"
+        "<main>A|parent|<article><b>route</b><h2>&lt;composer&gt;</h2><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><mark>&amp;</mark></article></main>"
     );
     assert_eq!(
         b,
-        "<main>B|parent|<article><b>route</b><h2>&lt;composer&gt;</h2><i>&lt;composer&gt;</i><mark>&amp;</mark></article></main>"
+        "<main>B|parent|<article><b>route</b><h2>&lt;composer&gt;</h2><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><i>&lt;composer&gt;</i><mark>&amp;</mark></article></main>"
     );
     assert_eq!(unrelated, "<main>A|&lt;fallback&gt;</main>");
     assert!(send(first, "/broken", 500).await.contains("500"));
+    assert!(send(first, "/missing-include", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

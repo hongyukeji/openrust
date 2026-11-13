@@ -71,6 +71,12 @@ impl<'a> RenderContext<'a> {
         factory.render_nested(name, data, &mut nested)
     }
 
+    pub(super) fn exists(&self, name: &str) -> ViewResult<bool> {
+        self.factory
+            .map(|factory| factory.exists(name))
+            .ok_or_else(|| render_error("Nested views require a view factory."))
+    }
+
     pub(super) fn slot(&self, name: &str) -> Option<&str> {
         self.slots.get(name).map(String::as_str)
     }
