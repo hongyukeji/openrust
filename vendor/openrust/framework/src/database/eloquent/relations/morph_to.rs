@@ -26,6 +26,32 @@ pub struct MorphTo<P: Model> {
     id_column: &'static str,
     targets: IndexMap<&'static str, Box<dyn Target<P>>>,
     path_aliases: Option<Vec<&'static str>>,
+    soft_deletes: SoftDeleteMacros,
+}
+
+#[derive(Clone, Copy, Default)]
+struct SoftDeleteMacros {
+    remove_scope: bool,
+    require_live: bool,
+    require_deleted: bool,
+}
+
+impl SoftDeleteMacros {
+    fn apply<R: Model>(self, mut query: Builder<'static, R>) -> Builder<'static, R> {
+        if let Some(column) = R::metadata().deleted_at
+            && self.remove_scope
+        {
+            query = query.withTrashed();
+            let column = query.qualifyColumn(column);
+            if self.require_live {
+                query.whereNested(|conditions| conditions.whereNull(&column));
+            }
+            if self.require_deleted {
+                query.whereNested(|conditions| conditions.whereNotNull(&column));
+            }
+        }
+        query
+    }
 }
 
 /// A polymorphic model loaded from a registered alias.
@@ -120,7 +146,29 @@ impl<P: Model> MorphTo<P> {
             id_column,
             targets: IndexMap::new(),
             path_aliases: None,
+            soft_deletes: SoftDeleteMacros::default(),
         }
+    }
+
+    /// Includes soft-deleted targets when loading this relation.
+    #[must_use]
+    pub fn withTrashed(mut self) -> Self {
+        self.soft_deletes.remove_scope = true;
+        self
+    }
+
+    /// Requires targets with a soft-delete column to be live.
+    #[must_use]
+    pub fn withoutTrashed(mut self) -> Self {
+        self.soft_deletes.require_live = true;
+        self.withTrashed()
+    }
+
+    /// Requires targets with a soft-delete column to be deleted.
+    #[must_use]
+    pub fn onlyTrashed(mut self) -> Self {
+        self.soft_deletes.require_deleted = true;
+        self.withTrashed()
     }
 
     #[must_use]
@@ -491,7 +539,9 @@ impl<P: Model> MorphTo<P> {
                 continue;
             }
             let (indexes, parents): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
-            let loaded = target.load(&parents, transaction.as_deref_mut()).await?;
+            let loaded = target
+                .load(&parents, transaction.as_deref_mut(), self.soft_deletes)
+                .await?;
             for (index, model) in indexes.into_iter().zip(loaded) {
                 matches[index] = model.map(|model| MorphTarget { alias, model });
             }
@@ -586,6 +636,7 @@ trait Target<P: Model>: Send + Sync {
         &'a self,
         parents: &'a [&'a P],
         transaction: Option<&'a mut Transaction>,
+        soft_deletes: SoftDeleteMacros,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>>;
     fn touch<'a>(
         &'a self,
@@ -716,10 +767,11 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         &'a self,
         parents: &'a [&'a P],
         transaction: Option<&'a mut Transaction>,
+        soft_deletes: SoftDeleteMacros,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>> {
         Box::pin(async move {
             Ok(self
-                .match_many(parents, transaction)
+                .match_many_with(parents, transaction, |query| soft_deletes.apply(query))
                 .await?
                 .into_iter()
                 .map(|models| models.into_iter().last().map(|model| model as ErasedModel))

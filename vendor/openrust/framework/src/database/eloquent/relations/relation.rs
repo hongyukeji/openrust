@@ -374,7 +374,17 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
     pub async fn match_many(
         &self,
         parents: &[&P],
+        transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
+        self.match_many_with(parents, transaction, |query| query)
+            .await
+    }
+
+    pub(super) async fn match_many_with(
+        &self,
+        parents: &[&P],
         mut transaction: Option<&mut Transaction>,
+        prepare: impl Fn(Builder<'static, R>) -> Builder<'static, R> + Send,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -383,7 +393,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             // Bound the number of SQL parameters for SQLite as well as MySQL.
             for batch in keys.bindings.chunks(500) {
                 let query = self
-                    .select_one(self.configure(R::queryOn(&connection))?)?
+                    .select_one(self.configure(prepare(R::queryOn(&connection)))?)?
                     .restrict_relation(self.related, batch);
                 for model in query
                     .get_with_transaction(transaction.as_deref_mut())

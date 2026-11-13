@@ -302,6 +302,21 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 }
 ```
 
+### Soft-deleted morph targets {#soft-deleted-morph-targets}
+
+Use `withTrashed()`, `withoutTrashed()`, or `onlyTrashed()` on a `MorphTo` relation. These options affect loaded targets that declare a soft-delete column. Targets without one load normally, including in a mixed group. The options run before target-specific constraints. As in Laravel, explicit live or deleted predicates accumulate when chained. A later `withTrashed()` removes the default scope and preserves those explicit predicates.
+
+```rust
+use openrust::database::eloquent::{Model, relations::MorphTo};
+
+pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<P>("post", "id")
+        .target::<A>("author", "id")
+        .withTrashed()
+}
+```
+
 ### Loading Polymorphic Target Groups
 
 Use `loadMorph` to reload a typed relationship on one target group, or `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` to reload registered paths. Loaded values are available through the parent relation and its JSON projection. A previously held target reference still points to its earlier snapshot. Both methods are available on models and collections. Use `loadMorphCount`, `loadMorphAggregate`, or `loadMorphAggregates` to write deferred aggregates onto the cached targets, where they are available through the parent relation and its JSON projection. Choose an alias for each call. Aggregates for one alias share a query per key batch, and other aliases keep their own values. Single models also support `loadMorphAggregate` and `loadMorphAggregates`.

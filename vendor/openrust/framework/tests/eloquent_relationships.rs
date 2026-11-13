@@ -417,6 +417,13 @@ async fn verify_through_and_morph(
         author.getKey()
     );
 
+    Box::pin(verify_morph_soft_deletes(
+        db,
+        &visible,
+        &hidden_comment,
+        &profile,
+    ))
+    .await;
     let subject = subjects();
     let valid = Comment::queryOn(db)
         .whereHasMorph(&subject, &["post", "author"])
@@ -764,6 +771,70 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
         assert!(matched.modelKeys().contains(&3.into()));
         FEATURED_POSTS.detach(&other, None).await.unwrap();
     })
+}
+
+async fn verify_morph_soft_deletes(
+    db: &Connection,
+    visible: &Comment,
+    hidden: &Comment,
+    profile: &Comment,
+) {
+    let morph = || {
+        MorphTo::<Comment>::new("subject_type", "subject_id")
+            .target::<Post>("post", "id")
+            .target::<Author>("author", "id")
+    };
+    for (relation, expected) in [
+        (morph().withTrashed(), [true, true, true]),
+        (morph().withoutTrashed(), [true, false, true]),
+        (morph().onlyTrashed(), [false, true, true]),
+        (morph().onlyTrashed().withTrashed(), [false, true, true]),
+        (morph().withoutTrashed().onlyTrashed(), [false, false, true]),
+        (
+            morph()
+                .withTrashed()
+                .constrain::<Post>("post", "id", Builder::withoutTrashed),
+            [true, false, true],
+        ),
+        (
+            morph()
+                .onlyTrashed()
+                .constrain::<Post>("post", "id", Builder::withTrashed),
+            [false, true, true],
+        ),
+    ] {
+        let mut query = Comment::queryOn(db).with("subject", relation);
+        let parents = [visible, hidden, profile];
+        query.whereIn(
+            "id",
+            parents
+                .iter()
+                .map(|model| model.getKey().unwrap().clone())
+                .collect(),
+        );
+        let rows = Box::pin(query.get()).await.unwrap();
+        for (parent, loaded) in parents.into_iter().zip(expected) {
+            let row = rows.find(parent.getKey().unwrap()).unwrap().unwrap();
+            let target = row.getRelation::<Option<MorphTarget>>("subject").unwrap();
+            assert_eq!(target.is_some(), loaded);
+        }
+    }
+
+    let target = morph()
+        .withTrashed()
+        .getResults(hidden)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(target.downcast_ref::<Post>().unwrap().trashed());
+    assert!(
+        morph()
+            .withoutTrashed()
+            .getResults(hidden)
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 async fn verify_morph_with_constraint(db: &Connection, key: &Value) {

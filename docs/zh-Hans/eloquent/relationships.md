@@ -302,6 +302,21 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 }
 ```
 
+### 软删除的多态目标 {#soft-deleted-morph-targets}
+
+在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。这些选项作用于声明软删除列的加载目标。混合目标中未声明软删除列的模型照常加载。框架先应用这些选项，再应用各目标约束。与 Laravel 一样，链式调用会叠加显式的未删除或已删除条件。后续调用 `withTrashed()` 会移除默认作用域并保留这些显式条件。
+
+```rust
+use openrust::database::eloquent::{Model, relations::MorphTo};
+
+pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<P>("post", "id")
+        .target::<A>("author", "id")
+        .withTrashed()
+}
+```
+
 ### 加载多态目标分组
 
 用 `loadMorph` 重载指定目标组的类型化关系，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重载已登记路径。父模型关系和 JSON 输出均可读取新结果，已持有的目标引用继续指向旧快照。模型和集合均支持这两个方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 将延后查询的聚合值写回已缓存的多态目标，随后可从父模型关系和 JSON 输出读取。每次调用选择一个别名，同一别名的多个聚合按主键批量合并查询，其他别名保留各自的值。单模型也支持 `loadMorphAggregate` 和 `loadMorphAggregates`。

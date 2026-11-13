@@ -302,6 +302,21 @@ pub fn configure_subjects<M: Model, P: Model, C: Model>() -> DatabaseResult<Morp
 }
 ```
 
+### 軟刪除的多型目標 {#soft-deleted-morph-targets}
+
+在 `MorphTo` 上使用 `withTrashed()`、`withoutTrashed()` 或 `onlyTrashed()`。這些選項作用於宣告軟刪除欄位的載入目標。混合目標中未宣告軟刪除欄位的模型照常載入。框架先套用這些選項，再套用各目標約束。與 Laravel 一樣，鏈式呼叫會疊加明確的未刪除或已刪除條件。後續呼叫 `withTrashed()` 會移除預設作用域並保留這些明確條件。
+
+```rust
+use openrust::database::eloquent::{Model, relations::MorphTo};
+
+pub fn subject_including_deleted<M: Model, P: Model, A: Model>() -> MorphTo<M> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<P>("post", "id")
+        .target::<A>("author", "id")
+        .withTrashed()
+}
+```
+
 ### 載入多型目標分組
 
 用 `loadMorph` 重新載入指定目標群組的型別化關聯，或用 `loadMorphPaths::<Post>("subject", &subjects, "post", &["comments.post"])` 重新載入已登記的路徑。父模型關聯和 JSON 輸出均可讀取新結果，已持有的目標參照仍指向舊快照。模型與集合均支援這兩個方法。用 `loadMorphCount`、`loadMorphAggregate` 或 `loadMorphAggregates` 將延後查詢的彙總值寫回已快取的多型目標，之後可從父模型關聯和 JSON 輸出讀取。每次呼叫選擇一個別名，同一別名的多個彙總依主鍵批次合併查詢，其他別名保留各自的值。單一模型也支援 `loadMorphAggregate` 和 `loadMorphAggregates`。
