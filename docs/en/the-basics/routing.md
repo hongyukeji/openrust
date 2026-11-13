@@ -29,14 +29,14 @@ Static file responses include `Last-Modified` when the file has a usable modific
 
 ## Health Check
 
-The `health("/up")` option in `bootstrap/app.rs` registers a health endpoint. A normal request returns an HTML page containing “Application up”; a request expecting JSON returns `{"status":"up"}`. Both return 200, and HEAD sends no body. The HTML title uses the escaped application name.
+The `health("/up")` option in `bootstrap/app.rs` registers a health endpoint. A healthy request returns 200. The HTML page shows the application name in the title, “Application up”, and how long the request took to reach rendering. Requests expecting JSON receive `{"status":"up"}`. HEAD sends no body.
 
 ```sh
 curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-This confirms that HTTP bootstrap succeeded. Diagnostic event listeners and their failure response are pending the event dispatcher implementation. The health page uses local HTML rather than Laravel's Blade view and external styling assets.
+The endpoint dispatches `openrust::foundation::events::DiagnosingHealth`. Register synchronous listeners to check dependencies such as the database or cache. If a listener fails, the framework reports the error and returns 500 with “Application experiencing problems” or `{"status":"down"}`. In debug mode, the normal exception handler renders the failure. The health page ships with its own styles.
 
 ## Listing Your Routes
 

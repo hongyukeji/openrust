@@ -29,14 +29,14 @@ Route::staticDisk("public")?;
 
 ## 健康检查
 
-`bootstrap/app.rs` 的 `health("/up")` 注册健康端点。普通请求返回包含“Application up”的 HTML 页面，期望 JSON 的请求返回 `{"status":"up"}`。两者均返回 200，HEAD 不发送正文。HTML 标题使用经过转义的应用名称。
+`bootstrap/app.rs` 的 `health("/up")` 注册健康端点。健康时返回 200。HTML 页面的标题显示应用名称，正文显示 “Application up” 和从接收请求到渲染的耗时。期望 JSON 的请求返回 `{"status":"up"}`。HEAD 不发送正文。
 
 ```sh
 curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-这表示 HTTP 引导已成功。诊断事件监听器及其失败响应等待事件分发器实现。健康页面使用本地 HTML，未使用 Laravel 的 Blade 视图和外部样式资源。
+端点会分发 `openrust::foundation::events::DiagnosingHealth`。可以注册同步监听器检查数据库或缓存等依赖。监听器失败时，框架报告错误并返回 500，响应为 “Application experiencing problems” 页面或 `{"status":"down"}`。调试模式下由常规异常处理器渲染错误。健康页内置样式。
 
 ## 查看路由列表
 

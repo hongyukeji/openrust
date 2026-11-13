@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     sync::{Arc, OnceLock},
+    time::Instant,
 };
 
 use ::http::header::ACCEPT;
@@ -26,6 +27,7 @@ pub use context::RequestAttributes;
 pub struct Request {
     parts: RequestParts,
     body: Body,
+    pub(crate) received_at: Instant,
     query_cache: OnceLock<serde_json::Value>,
     cookie_cache: OnceLock<serde_json::Value>,
     decrypted_cookies: Option<serde_json::Value>,
@@ -49,6 +51,7 @@ impl Request {
         Self {
             parts,
             body,
+            received_at: Instant::now(),
             query_cache: OnceLock::new(),
             cookie_cache: OnceLock::new(),
             decrypted_cookies: None,

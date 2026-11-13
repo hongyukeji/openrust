@@ -1,4 +1,8 @@
-use std::sync::{Arc, Weak};
+use std::{
+    error::Error,
+    io,
+    sync::{Arc, Weak},
+};
 
 use ::http::{
     HeaderValue,
@@ -6,12 +10,19 @@ use ::http::{
 };
 
 use crate::{
-    container::Container,
-    contracts::{container::Container as _, routing::Handler},
+    container::{Container, ServiceKey},
+    contracts::{
+        config::Repository,
+        container::Container as _,
+        debug::{Exception, ExceptionHandler},
+        routing::Handler,
+    },
+    foundation::events::DiagnosingHealth,
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
+    support::facades::Event,
 };
 
-/// Reports that the application has booted and can handle HTTP requests.
+/// Reports the application's health after its diagnostic listeners have run.
 pub struct HealthCheck {
     container: Weak<Container>,
 }
@@ -30,22 +41,40 @@ impl Handler for HealthCheck {
         request: &'a mut Request,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let (body, content_type) = if request.expectsJson() {
-                (String::from(r#"{"status":"up"}"#), "application/json")
+            let container = self
+                .container
+                .upgrade()
+                .ok_or_else(|| internal(io::Error::other("application container unavailable")))?;
+            let config = container
+                .get::<dyn Repository>("config")
+                .map_err(internal)?;
+            let healthy = match Event::dispatch(DiagnosingHealth).await {
+                Ok(_) => true,
+                Err(error) => {
+                    if config.get("app.debug").and_then(|value| value.as_bool()) == Some(true) {
+                        return Err(internal(error));
+                    }
+                    if let Ok(handler) = container
+                        .get::<dyn ExceptionHandler>(ServiceKey::typed::<dyn ExceptionHandler>())
+                    {
+                        let _ = handler.report(&Exception::Error(&error)).await;
+                    }
+                    false
+                }
+            };
+            let status = if healthy {
+                StatusCode::OK
             } else {
-                let container = self
-                    .container
-                    .upgrade()
-                    .ok_or_else(|| HttpError::Internal {
-                        source: Box::new(std::io::Error::other(
-                            "application container unavailable",
-                        )),
-                    })?;
-                let config = container
-                    .get::<dyn crate::contracts::config::Repository>("config")
-                    .map_err(|source| HttpError::Internal {
-                        source: Box::new(source),
-                    })?;
+                StatusCode::INTERNAL_SERVER_ERROR
+            };
+            let response = if request.expectsJson() {
+                Response::json(
+                    status,
+                    serde_json::json!({
+                        "status": if healthy { "up" } else { "down" },
+                    }),
+                )?
+            } else {
                 let name = config.get("app.name");
                 let name = name
                     .as_ref()
@@ -56,24 +85,33 @@ impl Handler for HealthCheck {
                     .replace('<', "&lt;")
                     .replace('>', "&gt;")
                     .replace('"', "&quot;")
-                    .replace(char::from(39), "&#039;");
-                (
-                    format!(
-                        r#"<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{name}</title></head><body><h1>Application up</h1><p>HTTP request received.</p></body></html>"#
-                    ),
-                    "text/html; charset=utf-8",
+                    .replace('\'', "&#039;");
+                let state = if healthy { "" } else { " status-down" };
+                let heading = if healthy {
+                    "up"
+                } else {
+                    "experiencing problems"
+                };
+                let millis = request.received_at.elapsed().as_secs_f64() * 1000.0;
+                let body = format!(
+                    include_str!("health_up.html"),
+                    name = name,
+                    state = state,
+                    heading = heading,
+                    millis = millis
+                );
+                Response::new(status, Body::from(body)).header(
+                    CONTENT_TYPE,
+                    HeaderValue::from_static("text/html; charset=utf-8"),
                 )
             };
-            let mut response = Response::new(StatusCode::OK, Body::from(body));
-            response
-                .parts_mut()
-                .headers
-                .insert(CONTENT_TYPE, HeaderValue::from_static(content_type));
-            response
-                .parts_mut()
-                .headers
-                .insert(CACHE_CONTROL, HeaderValue::from_static("no-cache, private"));
-            Ok(response)
+            Ok(response.header(CACHE_CONTROL, HeaderValue::from_static("no-cache, private")))
         })
+    }
+}
+
+fn internal(source: impl Error + Send + Sync + 'static) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(source),
     }
 }

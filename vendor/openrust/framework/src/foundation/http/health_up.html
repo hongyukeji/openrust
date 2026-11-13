@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{name}</title>
+    <style>
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; font-family: system-ui, sans-serif; -webkit-font-smoothing: antialiased; }}
+        ::selection {{ background: #ef4444; color: white; }}
+        main {{ display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f3f4f6; }}
+        .layout {{ width: 100%; padding: 1.5rem; }}
+        .card {{ display: flex; align-items: center; padding: 1rem 1.5rem; background: white; border-radius: .5rem; box-shadow: 0 25px 50px -12px #6b728033; }}
+        .status {{ position: relative; flex: 0 0 .75rem; height: .75rem; border-radius: 50%; color: #4ade80; background: currentColor; }}
+        .status-down {{ color: #dc2626; }}
+        .status::before {{ content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor; animation: ping 1s cubic-bezier(0, 0, .2, 1) infinite; }}
+        .content {{ margin-left: 1.5rem; }}
+        h2 {{ margin: 0; font-size: 1.25rem; font-weight: 600; line-height: 1.75rem; color: #111827; }}
+        p {{ margin: .5rem 0 0; font-size: .875rem; line-height: 1.625; color: #6b7280; }}
+        @keyframes ping {{ 75%, 100% {{ transform: scale(2); opacity: 0; }} }}
+        @media (min-width: 640px) {{ .layout {{ width: 75%; }} }}
+        @media (min-width: 1280px) {{ .layout {{ width: 50%; }} }}
+    </style>
+</head>
+<body>
+    <main>
+        <div class="layout">
+            <div class="card">
+                <span class="status{state}" aria-hidden="true"></span>
+                <div class="content">
+                    <h2>Application {heading}</h2>
+                    <p>HTTP request received. Response rendered in {millis:.0}ms.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

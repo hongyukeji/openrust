@@ -29,14 +29,14 @@ Route::staticDisk("public")?;
 
 ## 健康檢查
 
-`bootstrap/app.rs` 的 `health("/up")` 註冊健康端點。普通請求回傳包含「Application up」的 HTML 頁面，期望 JSON 的請求回傳 `{"status":"up"}`。兩者均回傳 200，HEAD 不傳送本文。HTML 標題使用經過跳脫的應用名稱。
+`bootstrap/app.rs` 的 `health("/up")` 註冊健康端點。健康時回傳 200。HTML 頁面的標題顯示應用程式名稱，本文顯示「Application up」和從收到請求到算繪的時間。期望 JSON 的請求回傳 `{"status":"up"}`。HEAD 不傳送本文。
 
 ```sh
 curl -i http://localhost:8000/up
 curl -i -H 'Accept: application/json' http://localhost:8000/up
 ```
 
-這表示 HTTP 引導已成功。診斷事件監聽器及其失敗回應等待事件分發器實作。健康頁面使用本機 HTML，未使用 Laravel 的 Blade 視圖和外部樣式資源。
+端點會分派 `openrust::foundation::events::DiagnosingHealth`。可以註冊同步監聽器檢查資料庫或快取等相依服務。監聽器失敗時，框架回報錯誤並回傳 500，回應為「Application experiencing problems」頁面或 `{"status":"down"}`。除錯模式下由一般例外處理器算繪錯誤。健康頁面內建樣式。
 
 ## 查看路由清單
 
