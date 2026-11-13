@@ -424,6 +424,30 @@ pub async fn count_post_comments(authors: &mut Collection<Author>) -> DatabaseRe
 }
 ```
 
+父關聯為多型關聯時，在借用的根模型上呼叫 `morphModel::<Post>("subject", &subjects, "post")`。此方法驗證別名和目標型別，目前根模型沒有該別名的目標時回傳 `None`。首次存取缺少的關聯時，自動預載入僅批次處理所選別名的目標，結果寫回根集合。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::{HasMany, MorphTo}},
+};
+
+pub async fn first_subject_comment_count<Root: Model, Post: Model, Comment: Model>(
+    roots: &mut Collection<Root>,
+) -> DatabaseResult<usize> {
+    let subjects = MorphTo::<Root>::new("subject_type", "subject_id")
+        .target::<Post>("post", "id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let Some(mut root) = roots.modelAt(0) else {
+        return Ok(0);
+    };
+    let Some(mut post) = root.morphModel::<Post>("subject", &subjects, "post").await? else {
+        return Ok(0);
+    };
+    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+}
+```
+
 ### 禁止延遲載入
 
 覆寫 `Model::preventsLazyLoading`，可在讀取已儲存模型的關聯時阻止隱式單筆查詢。已載入關聯、明確呼叫 `load` 和集合自動批次載入仍可使用。預設策略允許未儲存或剛建立的模型載入關聯。

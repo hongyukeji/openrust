@@ -72,6 +72,146 @@ impl<M: Model> CollectionModel<'_, M> {
             relation,
         }))
     }
+
+    /// Borrows a polymorphic target while retaining access to the root collection.
+    pub async fn morphModel<'a, T: Model>(
+        &'a mut self,
+        name: &str,
+        relation: &'a MorphTo<M>,
+        alias: &'a str,
+    ) -> DatabaseResult<Option<MorphCollectionModel<'a, M, T>>> {
+        relation.validate_target::<T>(alias)?;
+        let target = self.getRelationOrLoad(name, relation).await?;
+        let Some(target) = target.as_ref().filter(|target| target.alias() == alias) else {
+            return Ok(None);
+        };
+        if target.downcast_ref::<T>().is_none() {
+            return Err(DatabaseError::InvalidQuery(
+                "morph type does not match model",
+            ));
+        }
+        Ok(Some(MorphCollectionModel {
+            parents: &mut *self.collection,
+            parent_index: self.index,
+            name: name.to_owned(),
+            relation,
+            alias,
+            model: std::marker::PhantomData,
+        }))
+    }
+}
+
+/// A polymorphic target borrowed through its root collection.
+pub struct MorphCollectionModel<'a, M: Model, T: Model> {
+    parents: &'a mut Collection<M>,
+    parent_index: usize,
+    name: String,
+    relation: &'a MorphTo<M>,
+    alias: &'a str,
+    model: std::marker::PhantomData<T>,
+}
+
+impl<M: Model, T: Model> Deref for MorphCollectionModel<'_, M, T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        self.parents[self.parent_index]
+            .getRelation::<Option<MorphTarget>>(&self.name)
+            .and_then(Option::as_ref)
+            .and_then(MorphTarget::downcast_ref)
+            .expect("morph target remains installed")
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+impl<M: Model, T: Model> MorphCollectionModel<'_, M, T> {
+    /// Accesses a descendant and batches targets of the selected model type.
+    pub async fn getRelationOrLoad<R: Relation<Parent = T>>(
+        &mut self,
+        name: &str,
+        relation: &R,
+    ) -> DatabaseResult<&R::Output> {
+        if !self.relationLoaded(name) {
+            let autoload = self.parents.autoload;
+            if autoload {
+                self.parents.loadMissing(&self.name, self.relation).await?;
+            }
+            let models = &mut self.parents.models;
+            let parents = if autoload {
+                models.as_mut_slice()
+            } else {
+                std::slice::from_mut(&mut models[self.parent_index])
+            };
+            let mut targets = parents
+                .iter()
+                .map(|parent| {
+                    parent
+                        .getRelation::<Option<MorphTarget>>(&self.name)
+                        .cloned()
+                        .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?;
+            let selected = targets
+                .iter()
+                .flatten()
+                .filter(|target| target.alias() == self.alias);
+            let models = selected
+                .map(|target| {
+                    target
+                        .downcast_ref::<T>()
+                        .ok_or(DatabaseError::InvalidQuery(
+                            "morph type does not match model",
+                        ))
+                })
+                .collect::<DatabaseResult<Vec<_>>>()?;
+            let replacements =
+                load_related_models(models.into_iter(), name, relation, autoload).await?;
+            for (parent, target) in parents.iter_mut().zip(&mut targets) {
+                let Some(model) = target.as_mut().filter(|model| model.alias() == self.alias)
+                else {
+                    continue;
+                };
+                let address =
+                    std::ptr::from_ref(model.downcast_ref::<T>().expect("validated morph target"))
+                        .addr();
+                if let Some(replacement) = replacements.get(&address) {
+                    model.replace_model(replacement.clone());
+                    parent.state_mut().relations.insert(
+                        self.name.clone(),
+                        target.take(),
+                        MorphTo::<M>::serialize,
+                    );
+                }
+            }
+        }
+        <Self as Deref>::deref(self)
+            .getRelation(name)
+            .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+    }
+}
+
+async fn load_related_models<'a, T: Model, R: Relation<Parent = T>>(
+    models: impl Iterator<Item = &'a T> + Send,
+    name: &str,
+    relation: &R,
+    autoload: bool,
+) -> DatabaseResult<HashMap<usize, Arc<T>>> {
+    let mut copies = IndexMap::new();
+    for model in models.filter(|model| !model.relationLoaded(name)) {
+        copies
+            .entry(std::ptr::from_ref(model).addr())
+            .or_insert_with(|| T::from_state(model.state().clone()));
+    }
+    let (pointers, mut copies): (Vec<_>, Vec<_>) = copies.into_iter().unzip();
+    if autoload {
+        has_relationships::load(&mut copies, name, relation, true).await?;
+    } else if let Some(model) = copies.first_mut() {
+        has_relationships::load_on_access(model, name, relation).await?;
+    }
+    Ok(pointers
+        .into_iter()
+        .zip(copies.into_iter().map(Arc::new))
+        .collect())
 }
 
 /// A related model borrowed through its root collection.
@@ -131,28 +271,13 @@ where
                         .ok_or(DatabaseError::InvalidQuery("relationship output type"))
                 })
                 .collect::<DatabaseResult<Vec<_>>>()?;
-            let mut replacements = IndexMap::new();
-            for (position, output) in outputs.iter().enumerate() {
-                for (index, model) in output.models().iter().enumerate() {
-                    if !model.relationLoaded(name)
-                        && (autoload || (position == 0 && index == self.index))
-                    {
-                        replacements
-                            .entry(Arc::as_ptr(model).addr())
-                            .or_insert_with(|| S::Parent::from_state(model.state().clone()));
-                    }
-                }
-            }
-            let (pointers, mut copies): (Vec<_>, Vec<_>) = replacements.into_iter().unzip();
-            if autoload {
-                has_relationships::load(&mut copies, name, relation, true).await?;
-            } else {
-                has_relationships::load_on_access(&mut copies[0], name, relation).await?;
-            }
-            let replacements: HashMap<_, _> = pointers
-                .into_iter()
-                .zip(copies.into_iter().map(Arc::new))
-                .collect();
+            let models = outputs
+                .iter()
+                .flat_map(|output| output.models())
+                .enumerate()
+                .filter(|(index, _)| autoload || *index == self.index)
+                .map(|(_, model)| model.as_ref());
+            let replacements = load_related_models(models, name, relation, autoload).await?;
             let outputs = outputs
                 .into_iter()
                 .map(|output| {

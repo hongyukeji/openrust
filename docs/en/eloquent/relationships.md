@@ -424,6 +424,30 @@ pub async fn count_post_comments(authors: &mut Collection<Author>) -> DatabaseRe
 }
 ```
 
+For a polymorphic parent relationship, call `morphModel::<Post>("subject", &subjects, "post")` on a borrowed root model. It validates the alias and target type and returns `None` when the root has no target of that alias. On first access to a missing relationship, automatic eager loading batches only targets with the selected alias. Results are written back to the root collection.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, relations::{HasMany, MorphTo}},
+};
+
+pub async fn first_subject_comment_count<Root: Model, Post: Model, Comment: Model>(
+    roots: &mut Collection<Root>,
+) -> DatabaseResult<usize> {
+    let subjects = MorphTo::<Root>::new("subject_type", "subject_id")
+        .target::<Post>("post", "id");
+    let comments = HasMany::<Post, Comment>::new("id", "post_id");
+    let Some(mut root) = roots.modelAt(0) else {
+        return Ok(0);
+    };
+    let Some(mut post) = root.morphModel::<Post>("subject", &subjects, "post").await? else {
+        return Ok(0);
+    };
+    Ok(post.getRelationOrLoad("comments", &comments).await?.len())
+}
+```
+
 ### Preventing Lazy Loading
 
 Override `Model::preventsLazyLoading` to reject implicit single-model relation queries when accessing persisted models. Already-loaded relations, explicit `load`, and collection autoloading remain available. The default policy allows unsaved and recently created models.

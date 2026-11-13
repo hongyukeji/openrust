@@ -801,6 +801,66 @@ fn verify_morph_batches(
             assert_eq!(select_count(db).await - baseline, 2);
         }
 
+        let morph = subjects();
+        let mut roots = Comment::queryOn(db)
+            .with("subject", subjects())
+            .get()
+            .await
+            .unwrap()
+            .withRelationshipAutoloading();
+        let post_indexes: Vec<_> = roots
+            .iter()
+            .enumerate()
+            .filter_map(|(index, root)| {
+                let target = root
+                    .getRelation::<Option<MorphTarget>>("subject")?
+                    .as_ref()?;
+                (target.alias() == "post").then_some(index)
+            })
+            .collect();
+        assert!(post_indexes.len() >= 2);
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        for index in post_indexes {
+            let mut root = roots.modelAt(index).unwrap();
+            assert!(
+                root.morphModel::<Author>("subject", &morph, "author")
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            let mut post = root
+                .morphModel::<Post>("subject", &morph, "post")
+                .await
+                .unwrap()
+                .unwrap();
+            post.getRelationOrLoad("comments", &POST_COMMENTS)
+                .await
+                .unwrap();
+        }
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+        for root in roots.iter() {
+            let Some(target) = root.getRelation::<Option<MorphTarget>>("subject").unwrap() else {
+                continue;
+            };
+            match target.alias() {
+                "post" => assert!(
+                    target
+                        .downcast_ref::<Post>()
+                        .unwrap()
+                        .relationLoaded("comments")
+                ),
+                "author" => assert!(
+                    !target
+                        .downcast_ref::<Author>()
+                        .unwrap()
+                        .relationLoaded("comments")
+                ),
+                _ => unreachable!(),
+            }
+        }
+
         let mut authors = Author::queryOn(db).get().await.unwrap();
         let mut comments = authors
             .relatedModels("comments", &COMMENTS_THROUGH)

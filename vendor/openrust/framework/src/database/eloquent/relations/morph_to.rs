@@ -49,6 +49,10 @@ impl MorphTarget {
     pub fn downcast_ref<M: Model>(&self) -> Option<&M> {
         self.model.as_ref().as_any().downcast_ref()
     }
+
+    pub(in crate::database::eloquent) fn replace_model<M: Model>(&mut self, model: Arc<M>) {
+        self.model = model;
+    }
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's polymorphic query API")]
