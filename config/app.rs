@@ -34,7 +34,7 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "locale": get(env, "APP_LOCALE", "en")?,
         "fallback_locale": get(env, "APP_FALLBACK_LOCALE", "en")?,
         "faker_locale": get(env, "APP_FAKER_LOCALE", "en_US")?,
-        "cipher": "AES-256-CBC",
+        "cipher": get(env, "APP_CIPHER", "AES-256-CBC")?,
         "key": get(env, "APP_KEY", Value::Null)?,
         "previous_keys": list(env.get_utf8("APP_PREVIOUS_KEYS")?.unwrap_or_default()),
         "maintenance": {
