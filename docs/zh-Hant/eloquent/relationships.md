@@ -98,6 +98,31 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` 在中介資料表讀寫時使用類型欄位。反向查詢時交換中介資料表的兩個鍵參數，繼續使用同一類型別名。可透過 `MorphPivot` 讀取中介資料表欄位。
 
+### 動態關聯 {#dynamic-relationships}
+
+在服務提供者的 `boot` 方法中，透過 `Model::resolveRelationUsing` 登記具名解析器。閉包接收目前的模型，並回傳明確指定鍵的關聯描述符。登錄表依應用程式隔離。相同模型型別及名稱重新登記後，後續載入使用新的解析器。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{DynamicRelation, Model, relations::BelongsTo}},
+    foundation::Application,
+};
+
+type CustomerRelation = BelongsTo<Order, Customer>;
+
+fn register(app: &Application) -> DatabaseResult<()> {
+    Order::resolveRelationUsing(app, "customer", |_| {
+        CustomerRelation::new("customer_id", "id")
+    })
+}
+
+fn eager_customer() -> DynamicRelation<CustomerRelation> {
+    DynamicRelation::new("customer")
+}
+```
+
+使用 `getDynamicRelationOrLoad` 讀取並快取結果，或將 `DynamicRelation` 傳給 `with`、`load` 和 `loadMissing`。Rust 需要明確指定描述符型別。解析器可為每個模型實例選擇不同查詢約束，因此動態預先載入可能逐一查詢各父模型。已水合模型依其資料庫連線所屬的應用程式解析。
+
 ## 查詢關聯是否存在
 
 `has` 和 `whereHas` 保留存在符合關聯記錄的父模型。`whereDoesntHave` 保留沒有符合記錄的父模型。這些方法在同一資料庫連線使用相關子查詢。`withWhereHas` 使用同一個關聯進行篩選及預先載入。

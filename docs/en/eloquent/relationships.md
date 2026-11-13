@@ -98,6 +98,31 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` adds a type discriminator to intermediate-table reads and writes. For the inverse direction, reverse the two pivot key arguments and use the same alias. The pivot value is available as `MorphPivot`.
 
+### Dynamic relationships {#dynamic-relationships}
+
+Register a named resolver with `Model::resolveRelationUsing` in a service provider’s `boot` method. The closure receives the current model and returns a relationship descriptor with explicit keys. Each application has its own registry. Registering the same name and model type again replaces the resolver for future loads.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{DynamicRelation, Model, relations::BelongsTo}},
+    foundation::Application,
+};
+
+type CustomerRelation = BelongsTo<Order, Customer>;
+
+fn register(app: &Application) -> DatabaseResult<()> {
+    Order::resolveRelationUsing(app, "customer", |_| {
+        CustomerRelation::new("customer_id", "id")
+    })
+}
+
+fn eager_customer() -> DynamicRelation<CustomerRelation> {
+    DynamicRelation::new("customer")
+}
+```
+
+Use `getDynamicRelationOrLoad` for cached access, or use `DynamicRelation` with `with`, `load`, and `loadMissing`. The descriptor type is explicit in Rust. The resolver can select different query constraints for each model instance, so dynamic eager loading can issue one query per parent. A hydrated model resolves against its connection’s application.
+
 ## Querying Relationship Existence
 
 `has` and `whereHas` keep parents with a matching related row. Use `whereDoesntHave` to keep parents without a match. These methods use a correlated subquery on the same database connection. `withWhereHas` applies the same relation to filtering and eager loading.

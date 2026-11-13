@@ -783,6 +783,47 @@ pub trait Model: Sized + Send + Sync + 'static {
             .or(Self::metadata().connection)
     }
 
+    /// Registers or replaces a named relation resolver in this application's container.
+    fn resolveRelationUsing<R: Relation<Parent = Self>>(
+        app: &crate::foundation::Application,
+        name: impl Into<String>,
+        resolver: impl Fn(&Self) -> R + Send + Sync + 'static,
+    ) -> DatabaseResult<()> {
+        use crate::contracts::{container::Container as _, foundation::Application as _};
+        let name = name.into();
+        if name.is_empty() || name.contains('.') {
+            return Err(DatabaseError::InvalidQuery("dynamic relationship name"));
+        }
+        app.container()
+            .make::<super::RelationResolvers>()
+            .map_err(DatabaseError::Unavailable)?
+            .register::<Self, R>(name, resolver);
+        Ok(())
+    }
+
+    /// Resolves a named relationship using the model's application.
+    fn relationResolver<R: Relation<Parent = Self>>(
+        &self,
+        name: &str,
+    ) -> DatabaseResult<Option<R>> {
+        super::RelationResolvers::resolve(self, name)
+    }
+
+    /// Loads a named dynamic relationship on first access.
+    fn getDynamicRelationOrLoad<R: Relation<Parent = Self>>(
+        &mut self,
+        name: &str,
+    ) -> impl Future<Output = DatabaseResult<&R::Output>> + Send {
+        async move {
+            if !self.relationLoaded(name) {
+                let relation = super::DynamicRelation::<R>::new(name);
+                concerns::has_relationships::load_on_access(self, name, &relation).await?;
+            }
+            self.getRelation(name)
+                .ok_or(DatabaseError::InvalidQuery("relationship output type"))
+        }
+    }
+
     fn relationLoaded(&self, name: &str) -> bool {
         self.state().relations.contains(name)
     }

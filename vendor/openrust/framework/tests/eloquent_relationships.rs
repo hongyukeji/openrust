@@ -5,8 +5,8 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Attributes, Builder, Collection, EagerLoads, Model, ModelMetadata, ModelState,
-            RelationAggregate, RelationAggregateQuery, Touches,
+            Attributes, Builder, Collection, DynamicRelation, EagerLoads, Model, ModelMetadata,
+            ModelState, RelationAggregate, RelationAggregateQuery, Touches,
             casts::AttributeCast,
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
@@ -3429,8 +3429,161 @@ async fn verify(db: Connection, mysql: bool) {
         .unwrap();
 }
 
+async fn verify_dynamic_relations(config: Json) {
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        foundation::Application,
+    };
+
+    let mut first = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    let mut second = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    first.boot().await.unwrap();
+    second.boot().await.unwrap();
+
+    let connection = |app: &Application| {
+        let repository = app.config().unwrap();
+        repository
+            .set("database.default", json!("dynamic"))
+            .unwrap();
+        repository
+            .set("database.connections.dynamic", config.clone())
+            .unwrap();
+        app.container()
+            .make::<DatabaseManager>()
+            .unwrap()
+            .connection(None)
+            .unwrap()
+    };
+    let db = connection(&first);
+    let other = connection(&second);
+    for sql in [
+        "DROP TABLE IF EXISTS relation_posts",
+        "DROP TABLE IF EXISTS relation_authors",
+        "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME)",
+        "INSERT INTO relation_authors VALUES (1,'first'),(2,'second')",
+        "INSERT INTO relation_posts VALUES (1,1,'first',NULL),(2,1,'second',NULL),(3,2,'third',NULL)",
+    ] {
+        db.statement(sql, &[]).await.unwrap();
+        if config.get("url").is_none() {
+            other.statement(sql, &[]).await.unwrap();
+        }
+    }
+
+    type Posts = HasMany<Author, Post>;
+    let register = |app: &Application, title| {
+        Author::resolveRelationUsing(app, "selectedPosts", move |_| {
+            Posts::new("id", "author_id").constrain(move |mut query| {
+                query.r#where("title", "=", title);
+                query
+            })
+        })
+        .unwrap();
+    };
+    register(&first, "first");
+    let mut author = Author::queryOn(&db).findOrFail(1).await.unwrap();
+    let mut other_author = Author::queryOn(&other).findOrFail(1).await.unwrap();
+    assert!(
+        other_author
+            .relationResolver::<Posts>("selectedPosts")
+            .unwrap()
+            .is_none()
+    );
+    assert!(matches!(
+        other_author
+            .getDynamicRelationOrLoad::<Posts>("selectedPosts")
+            .await,
+        Err(DatabaseError::InvalidQuery("unknown dynamic relationship"))
+    ));
+    assert!(!other_author.relationLoaded("selectedPosts"));
+    register(&second, "second");
+    assert_eq!(
+        other_author
+            .getDynamicRelationOrLoad::<Posts>("selectedPosts")
+            .await
+            .unwrap()[0]
+            .getKey(),
+        Some(&2.into())
+    );
+    assert_eq!(
+        author
+            .getDynamicRelationOrLoad::<Posts>("selectedPosts")
+            .await
+            .unwrap()[0]
+            .getKey(),
+        Some(&1.into())
+    );
+    assert!(author.toArray().unwrap().contains_key("selected_posts"));
+    assert!(matches!(
+        author.relationResolver::<BelongsTo<Author, Post>>("selectedPosts"),
+        Err(DatabaseError::InvalidQuery(
+            "dynamic relationship descriptor type"
+        ))
+    ));
+
+    register(&first, "second");
+    assert_eq!(
+        author
+            .getDynamicRelationOrLoad::<Posts>("selectedPosts")
+            .await
+            .unwrap()[0]
+            .getKey(),
+        Some(&1.into())
+    );
+    author.unsetRelation("selectedPosts");
+    assert_eq!(
+        author
+            .getDynamicRelationOrLoad::<Posts>("selectedPosts")
+            .await
+            .unwrap()[0]
+            .getKey(),
+        Some(&2.into())
+    );
+
+    Author::resolveRelationUsing(&first, "selectedPosts", |parent| {
+        let title = if parent.getKey() == Some(&1.into()) {
+            "first"
+        } else {
+            "third"
+        };
+        Posts::new("id", "author_id").constrain(move |mut query| {
+            query.r#where("title", "=", title);
+            query
+        })
+    })
+    .unwrap();
+    let authors = Author::queryOn(&db)
+        .orderBy("id", "asc")
+        .with(
+            "selectedPosts",
+            DynamicRelation::<Posts>::new("selectedPosts"),
+        )
+        .get()
+        .await
+        .unwrap();
+    for (author, id) in authors.iter().zip([1, 3]) {
+        let posts = author
+            .getRelation::<Vec<Arc<Post>>>("selectedPosts")
+            .unwrap();
+        assert_eq!(posts[0].getKey(), Some(&id.into()));
+    }
+    for table in ["relation_posts", "relation_authors"] {
+        db.statement(&format!("DROP TABLE {table}"), &[])
+            .await
+            .unwrap();
+    }
+}
+
 #[tokio::test]
 async fn relationship_keys_and_eager_loading_on_sqlite() {
+    Box::pin(verify_dynamic_relations(
+        json!({"driver":"sqlite","database":":memory:","max_connections":1}),
+    ))
+    .await;
     Box::pin(verify(
         connect(json!({"driver":"sqlite","database":":memory:","max_connections":1,"foreign_key_constraints":true})),
         false,
@@ -3450,6 +3603,10 @@ async fn relationship_keys_and_query_counts_on_mysql() {
         let db = connect(json!({"url":url,"max_connections":1}));
         // Keep the large integration fixture off the default debug test stack.
         Box::pin(verify(db, true)).await;
+        Box::pin(verify_dynamic_relations(
+            json!({"url":url,"max_connections":1}),
+        ))
+        .await;
         Box::pin(verify_custom_pivot(json!({"url":url,"max_connections":1}))).await;
     }
 }

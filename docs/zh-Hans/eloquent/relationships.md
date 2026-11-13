@@ -98,6 +98,31 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` 在中间表读写时使用类型字段。反向查询时交换中间表的两个键参数，继续使用同一类型别名。可通过 `MorphPivot` 读取中间表字段。
 
+### 动态关系 {#dynamic-relationships}
+
+在服务提供者的 `boot` 方法中，通过 `Model::resolveRelationUsing` 登记命名解析器。闭包接收当前模型，并返回显式指定键的关系描述符。注册表按应用隔离。同一模型类型和名称再次登记时，新解析器用于后续加载。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{DynamicRelation, Model, relations::BelongsTo}},
+    foundation::Application,
+};
+
+type CustomerRelation = BelongsTo<Order, Customer>;
+
+fn register(app: &Application) -> DatabaseResult<()> {
+    Order::resolveRelationUsing(app, "customer", |_| {
+        CustomerRelation::new("customer_id", "id")
+    })
+}
+
+fn eager_customer() -> DynamicRelation<CustomerRelation> {
+    DynamicRelation::new("customer")
+}
+```
+
+使用 `getDynamicRelationOrLoad` 读取并缓存结果，或将 `DynamicRelation` 传给 `with`、`load` 和 `loadMissing`。Rust 需要显式指定描述符类型。解析器可为每个模型实例选择不同查询约束，因此动态预加载可能逐个父模型查询。已水合模型按其数据库连接所属的应用解析。
+
 ## 查询关系是否存在
 
 `has` 和 `whereHas` 保留存在匹配关联记录的父模型。`whereDoesntHave` 保留没有匹配记录的父模型。这些方法在同一数据库连接中使用相关子查询。`withWhereHas` 用同一个关系进行筛选和预加载。

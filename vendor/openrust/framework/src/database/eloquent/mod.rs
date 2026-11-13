@@ -4,6 +4,7 @@ mod builder;
 pub mod casts;
 mod collection;
 pub mod concerns;
+mod dynamic_relations;
 pub mod factories;
 mod metadata;
 mod model;
@@ -33,6 +34,8 @@ pub use concerns::{
     has_relationships::EagerLoads,
     queries_relationships::{RelationAggregate, RelationAggregateQuery},
 };
+pub use dynamic_relations::DynamicRelation;
+pub(crate) use dynamic_relations::RelationResolvers;
 pub use metadata::ModelMetadata;
 pub use model::Model;
 pub use observer::Observer;
