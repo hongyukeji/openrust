@@ -452,6 +452,18 @@ fn touches() -> openrust::database::eloquent::Touches<Self> {
 
 使用 `withTouchingRelated()` 后，附加、更新中间表、解除、同步或切换产生变更时，框架批量更新操作后仍有关联的模型。更新时间戳与中间表写入共用事务，并遵循中间表筛选、多态类型和相关模型的作用域。可通过 `touch(&parent)` 主动刷新相关模型，即使关系未启用自动触碰。
 
+需要在声明端模型自身发生变更时刷新相关模型，可在 `Model::touches()` 中通过 `belongsToMany` 或 `morphToMany` 声明关系。有变更的保存会批量更新时间戳，并沿相关模型自己的声明递归传播。批量更新不会触发相关模型的 `Saved` 事件。需要在中间表写入时自动更新，则在关系描述符上使用 `withTouchingRelated()`。
+
+```rust
+fn touches() -> openrust::database::eloquent::Touches<Self> {
+    use openrust::database::eloquent::{Touches, relations::BelongsToMany};
+
+    Touches::default().belongsToMany(
+        BelongsToMany::<Self, Role>::new("role_user", "user_id", "role_id", "id", "id"),
+    )
+}
+```
+
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::{Model, relations::{BelongsToMany, ToggleChanges}}};
 

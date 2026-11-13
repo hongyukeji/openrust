@@ -102,6 +102,10 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         Self(self.0.withTouchingRelated())
     }
 
+    pub(in crate::database::eloquent) fn into_inner(self) -> BelongsToMany<P, R> {
+        self.0
+    }
+
     pivot_predicates!(apply_pivot_predicate);
 
     fn apply_pivot_predicate(

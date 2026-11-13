@@ -4,7 +4,7 @@ use crate::database::{Connection, DatabaseFuture, DatabaseResult, Transaction, V
 
 use super::{
     Attributes, Model,
-    relations::{BelongsTo, MorphTo, relation::dictionary_key},
+    relations::{BelongsTo, BelongsToMany, MorphTo, MorphToMany, relation::dictionary_key},
 };
 
 trait Touch<M: Model>: Send + Sync {
@@ -41,6 +41,18 @@ impl<M: Model> Touch<M> for MorphTo<M> {
     }
 }
 
+impl<M: Model, R: Model> Touch<M> for BelongsToMany<M, R> {
+    fn touch<'a>(
+        &'a self,
+        model: &'a M,
+        attributes: &'a Attributes,
+        visited: &'a mut TouchedOwners,
+        transaction: Option<&'a mut Transaction>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(self.touch_owners(model, attributes, visited, transaction))
+    }
+}
+
 /// Typed relationships corresponding to Laravel's model `$touches` list.
 pub struct Touches<M: Model>(Vec<Box<dyn Touch<M>>>);
 
@@ -67,14 +79,33 @@ impl<M: Model> Touches<M> {
         self
     }
 
+    /// Adds a many-to-many relationship to touch after a dirty save.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    pub fn belongsToMany<R: Model>(mut self, relation: BelongsToMany<M, R>) -> Self {
+        self.0.push(Box::new(relation));
+        self
+    }
+
+    /// Adds a polymorphic many-to-many relationship to touch after a dirty save.
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship name")]
+    pub fn morphToMany<R: Model>(self, relation: MorphToMany<M, R>) -> Self {
+        self.belongsToMany(relation.into_inner())
+    }
+
+    pub(super) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub(super) async fn run(
-        self,
+        &self,
         model: &M,
         attributes: &Attributes,
         visited: &mut TouchedOwners,
         mut transaction: Option<&mut Transaction>,
     ) -> DatabaseResult<()> {
-        for touch in self.0 {
+        for touch in &self.0 {
             touch
                 .touch(model, attributes, visited, transaction.as_deref_mut())
                 .await?;
@@ -113,7 +144,7 @@ pub(super) async fn touch_owners<M: Model>(
     transaction: Option<&mut Transaction>,
 ) -> DatabaseResult<()> {
     let touches = M::touches();
-    if touches.0.is_empty() || *persisted == model.state().original {
+    if touches.is_empty() || *persisted == model.state().original {
         return Ok(());
     }
     let mut visited = TouchedOwners::default();

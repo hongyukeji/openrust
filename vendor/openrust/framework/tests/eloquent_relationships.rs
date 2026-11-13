@@ -6,7 +6,7 @@ use openrust::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Attributes, Builder, Collection, EagerLoads, Model, ModelMetadata, ModelState,
-            RelationAggregate, RelationAggregateQuery,
+            RelationAggregate, RelationAggregateQuery, Touches,
             casts::AttributeCast,
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
@@ -2121,6 +2121,49 @@ async fn verify_toggle_and_touch(db: &Connection) {
     assert_eq!(other.getAttribute("updated_at"), Some(&OLD.into()));
 }
 
+struct SaveTouchAuthor(ModelState);
+
+impl Model for SaveTouchAuthor {
+    fn metadata() -> &'static ModelMetadata {
+        TouchAuthor::metadata()
+    }
+
+    fn touches() -> Touches<Self> {
+        Touches::default()
+            .belongsToMany(
+                BelongsToMany::<Self, TouchPost>::new(
+                    "relation_featured_posts",
+                    "author_id",
+                    "post_id",
+                    "id",
+                    "id",
+                )
+                .wherePivot("label", "=", "eligible"),
+            )
+            .morphToMany(MorphToMany::<Self, TouchPost>::new(
+                "relation_morph_memberships",
+                "subject_id",
+                "tag_id",
+                "id",
+                "id",
+                "subject_type",
+                "featured",
+            ))
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
 struct TouchPost(ModelState);
 
 impl Model for TouchPost {
@@ -2129,6 +2172,10 @@ impl Model for TouchPost {
             .timestamps(None, Some("updated_at"))
             .softDeletes("deleted_at");
         &METADATA
+    }
+
+    fn touches() -> Touches<Self> {
+        Touches::default().belongsTo(BelongsTo::<Self, SaveTouchAuthor>::new("author_id", "id"))
     }
 
     fn from_state(state: ModelState) -> Self {
@@ -2267,6 +2314,45 @@ async fn verify_related_touch(db: &Connection) {
             .unwrap(),
         0
     );
+}
+
+async fn verify_save_touches_related(db: &Connection) {
+    const OLD: &str = "2000-01-01 00:00:00";
+    let timestamp = "SELECT updated_at FROM relation_posts WHERE id = ?";
+    let author_timestamp = "SELECT updated_at FROM relation_authors WHERE id = 2";
+    db.statement("UPDATE relation_posts SET updated_at = ?", &[OLD.into()])
+        .await
+        .unwrap();
+    db.statement("UPDATE relation_posts SET author_id = 2 WHERE id = 2", &[])
+        .await
+        .unwrap();
+    let mut parent = SaveTouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    parent.save().await.unwrap();
+    assert_eq!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_eq!(db.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    parent.setAttribute("name", "touch rolled back");
+    parent.saveInTransaction(&mut tx).await.unwrap();
+    assert_ne!(tx.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_ne!(tx.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+    assert_eq!(tx.scalar(timestamp, &[3.into()]).await.unwrap(), OLD.into());
+    assert_ne!(tx.scalar(author_timestamp, &[]).await.unwrap(), OLD.into());
+    tx.rollBack(None).await.unwrap();
+    for post in [1, 2, 3] {
+        assert_eq!(
+            db.scalar(timestamp, &[post.into()]).await.unwrap(),
+            OLD.into()
+        );
+    }
+    assert_eq!(db.scalar(author_timestamp, &[]).await.unwrap(), OLD.into());
+
+    let mut parent = SaveTouchAuthor::queryOn(db).findOrFail(1).await.unwrap();
+    parent.setAttribute("name", "touch committed");
+    parent.save().await.unwrap();
+    assert_ne!(db.scalar(timestamp, &[1.into()]).await.unwrap(), OLD.into());
+    assert_ne!(db.scalar(timestamp, &[2.into()]).await.unwrap(), OLD.into());
+    assert_ne!(db.scalar(author_timestamp, &[]).await.unwrap(), OLD.into());
 }
 
 async fn verify_custom_pivot(config: Json) {
@@ -2562,6 +2648,7 @@ async fn verify_custom_pivot(config: Json) {
     Box::pin(verify_toggle_and_touch(&db)).await;
     db.statement("INSERT INTO relation_posts VALUES (3,1,'deleted','2000-01-01 00:00:00','2000-01-01 00:00:00'),(4,1,'reject touch',NULL,'2000-01-01 00:00:00')", &[]).await.unwrap();
     Box::pin(verify_related_touch(&db)).await;
+    Box::pin(verify_save_touches_related(&db)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();

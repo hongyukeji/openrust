@@ -11,6 +11,7 @@ use crate::database::{
             has_timestamps::timestamp,
             queries_relationships::cast_existence,
         },
+        touches::TouchedOwners,
     },
     query,
 };
@@ -283,6 +284,74 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         if let Some(touch) = self.related_touch(self.owner(parent)?) {
             let query = touch.query::<R>(&connection)?;
             query.update(touch.attributes::<R>(&connection)?).await?;
+        }
+        Ok(())
+    }
+
+    pub(in crate::database::eloquent) async fn touch_owners(
+        &self,
+        parent: &P,
+        attributes: &Attributes,
+        visited: &mut TouchedOwners,
+        mut transaction: Option<&mut Transaction>,
+    ) -> DatabaseResult<()> {
+        let Some(owner) = attributes
+            .get(self.keys.parent)
+            .filter(|value| **value != Value::Null)
+        else {
+            return Ok(());
+        };
+        let connection = self.keys.connection(parent)?;
+        let linked = self
+            .pivot_constraints
+            .apply(
+                self.pivot
+                    .for_owner(connection.table(self.pivot.table), owner),
+            )
+            .select([self.pivot.related]);
+        if let Some(touch) = self.related_touch(owner) {
+            match transaction.as_deref_mut() {
+                Some(tx) => touch.run::<R>(&connection, tx).await?,
+                None => {
+                    touch
+                        .query::<R>(&connection)?
+                        .update(touch.attributes::<R>(&connection)?)
+                        .await?;
+                }
+            }
+        }
+
+        let touches = R::touches();
+        if touches.is_empty() {
+            return Ok(());
+        }
+        let relation = self.keys.configure(R::queryOn(&connection))?;
+        let casts = relation.casts.clone();
+        let query = relation
+            .scoped()?
+            .0
+            .whereInSub(self.keys.related, &linked)?
+            .useWritePdo();
+        let rows = match transaction.as_deref_mut() {
+            Some(tx) => query.in_transaction(tx)?.get().await?,
+            None => query.get().await?,
+        };
+        for row in rows {
+            let attributes: Attributes = row.into_columns().into_iter().collect();
+            let key = attributes
+                .get(R::metadata().primary_key)
+                .filter(|value| **value != Value::Null)
+                .ok_or(DatabaseError::InvalidQuery("touch owner primary key"))?;
+            if visited.visit::<R>(&connection, Some(key))? {
+                let model = R::from_state(ModelState::hydrated_attributes(
+                    attributes.clone(),
+                    connection.clone(),
+                    casts.clone(),
+                ));
+                touches
+                    .run(&model, &attributes, visited, transaction.as_deref_mut())
+                    .await?;
+            }
         }
         Ok(())
     }
