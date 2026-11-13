@@ -777,11 +777,16 @@ impl QueueManager {
                 Context::hooks()
                     .map_err(backend)?
                     .hydrate(&delivery.job.context, &repository);
-                Ok(target
-                    .queue
-                    .push(&delivery.job, delivery.queue.as_deref())
-                    .await
-                    .err())
+                let queue = delivery.queue.as_deref();
+                let result = match delivery.delay {
+                    Some(delay) => target.queue.later(delay, &delivery.job, queue).await,
+                    None => target.queue.push(&delivery.job, queue).await,
+                };
+                if target.synchronous {
+                    Ok(result.err())
+                } else {
+                    result.map(|_| None)
+                }
             }
         }
     }

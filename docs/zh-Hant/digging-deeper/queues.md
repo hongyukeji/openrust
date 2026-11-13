@@ -102,6 +102,8 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 確認和釋放由持有預約的 TCP 工作階段執行。工作鏈分兩次操作發佈下一項和確認目前工作，兩步之間當機可能重複發佈後繼工作。此驅動程式的批次發佈持續追蹤。固定 Laravel 的 Beanstalkd 驅動程式同樣未提供 `queue:clear`。
 
+工作鏈從資料庫或 Redis 佇列切換到 Beanstalkd 或 SQS 時，來源 Worker 依後繼工作的設定延遲轉送。目的端發佈失敗時，來源 Worker 釋放轉送工作供重試。標準 SQS 與 Beanstalkd 在發佈成功、來源確認中斷時仍可能重複發佈後繼工作。
+
 ### Amazon SQS {#amazon-sqs}
 
 設定 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 與 `AWS_DEFAULT_REGION`，也可直接提供完整佇列 URL。`SQS_SUFFIX` 只套用於佇列名稱，放在 `.fifo` 之前。憑證可由 AWS 憑證鏈提供，也可設定存取金鑰、祕密金鑰及選用的工作階段權杖。`SQS_ENDPOINT` 指定自訂服務端點。建立佇列後執行 `./artisan queue:work sqs`。

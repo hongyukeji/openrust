@@ -215,7 +215,9 @@ mod acceptance {
                     | "driver-worker-deferred"
                     | "beanstalk-probe"
                     | "sqs-probe"
-                    | "sqs-overflow" => {}
+                    | "sqs-overflow"
+                    | "external-chain-head"
+                    | "external-chain-tail" => {}
                     "driver-detached" | "unique-lifecycle" => {
                         wait_for_file(&self.0, &format!("{kind}.release")).await;
                         std::fs::write(self.0.join(format!("{kind}.done")), []).map_err(error)?;
@@ -724,11 +726,42 @@ mod acceptance {
         })
     }
 
+    fn external_chain(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let driver = request.route("driver").unwrap();
+            let queue = match driver {
+                "sqs" => std::env::var("OPENRUST_TEST_SQS_URL").unwrap(),
+                "sqs-recovery" => format!(
+                    "{}-recovery",
+                    std::env::var("OPENRUST_TEST_SQS_URL").unwrap()
+                ),
+                "beanstalkd" => format!("openrust-chain-{}", std::process::id()),
+                _ => unreachable!(),
+            };
+            let head = Payload::new("hard-timeout-probe", "external-chain-head")?;
+            let tail = Payload::new("hard-timeout-probe", "external-chain-tail")?
+                .onConnection(if driver == "sqs-recovery" {
+                    "sqs"
+                } else {
+                    driver
+                })
+                .onQueue(queue)
+                .delay(Delay::For(Duration::from_secs(4)));
+            Bus::chain([head, tail])
+                .onConnection("database")
+                .onQueue("external-chain")
+                .dispatch()
+                .await?;
+            Ok(Response::empty(axum::http::StatusCode::NO_CONTENT))
+        })
+    }
+
     fn routes(_: &Application) -> Result<Router, RoutingError> {
         let mut router = Router::new();
         router.get("/callback/{kind}", dispatch_probe)?;
         router.get("/runtime", runtime_probe)?;
         router.get("/bus", bus_probe)?;
+        router.get("/external-chain/{driver}", external_chain)?;
         router.get("/driver/{driver}/{kind}", driver_probe)?;
         Ok(router)
     }
@@ -1401,7 +1434,7 @@ mod acceptance {
         assert_eq!(lines.last().unwrap()["status"], "success");
     }
 
-    async fn verify_bus_dispatch(root: &Path) {
+    async fn request_probe(root: &Path, path: &str) {
         let mut kernel = Kernel::new(application(root.to_owned()).unwrap());
         kernel.bootstrap().await.unwrap();
         let kernel = Arc::new(kernel);
@@ -1414,7 +1447,7 @@ mod acceptance {
         let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
         stream
             .write_all(
-                format!("GET /bus HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
+                format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n")
                     .as_bytes(),
             )
             .await
@@ -1422,6 +1455,11 @@ mod acceptance {
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with("HTTP/1.1 204 "), "{response}");
+        server.abort();
+    }
+
+    async fn verify_bus_dispatch(root: &Path) {
+        request_probe(root, "/bus").await;
         for kind in ["bus-now", "bus-sync", "bus-after-response"] {
             wait_for_file(root, &format!("{kind}.pid")).await;
         }
@@ -1432,7 +1470,6 @@ mod acceptance {
         assert_eq!(lines.last().unwrap()["jobs_processed"], 2);
         assert!(root.join("bus-queued.pid").exists());
         assert!(root.join("bus-bulk.pid").exists());
-        server.abort();
     }
 
     async fn verify_unique_jobs(root: &Path, manager: &QueueManager) {
@@ -2688,6 +2725,77 @@ mod acceptance {
         println!("Shared and standalone Worker memory policy acceptance passed");
     }
 
+    async fn verify_external_chain(
+        root: &Path,
+        manager: &QueueManager,
+        driver: &str,
+        destination: &str,
+    ) {
+        request_probe(root, &format!("/external-chain/{driver}")).await;
+        let source = ["database", "--queue=external-chain", "--stop-when-empty"];
+        let (status, lines) = artisan(root, &source, false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert!(root.join("external-chain-head.pid").is_file());
+        assert!(!root.join("external-chain-tail.pid").exists());
+        let queue = manager.connection(Some(driver)).unwrap();
+        assert_eq!(queue.delayedSize(Some(destination)).await.unwrap(), Some(1));
+        assert!(queue.pop_now(Some(destination)).await.unwrap().is_none());
+        let queue_arg = format!("--queue={destination}");
+        tokio::time::sleep(Duration::from_secs(5)).await;
+        let (status, lines) = artisan(root, &[driver, &queue_arg, "--once"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert!(root.join("external-chain-tail.pid").is_file());
+        assert_eq!(queue.size(Some(destination)).await.unwrap(), 0);
+    }
+
+    async fn verify_sqs_chain_recovery(root: &Path, manager: &QueueManager) {
+        let destination = format!(
+            "{}-recovery",
+            std::env::var("OPENRUST_TEST_SQS_URL").unwrap()
+        );
+        let queue_name = destination.rsplit('/').next().unwrap();
+        let address = std::env::var("OPENRUST_TEST_SQS_ENDPOINT").unwrap();
+        let address = address.strip_prefix("http://").unwrap();
+        let tail = root.join("external-chain-tail.pid");
+        std::fs::remove_file(&tail).unwrap();
+        request_probe(root, "/external-chain/sqs-recovery").await;
+        let source = ["database", "--queue=external-chain", "--once"];
+        assert_eq!(artisan(root, &source, false).await.0, Some(0));
+        let (status, lines) = artisan(root, &source, false).await;
+        assert_eq!(status, Some(1), "{lines:?}");
+        let queue = manager.connection(Some("database")).unwrap();
+        assert_eq!(queue.size(Some("external-chain")).await.unwrap(), 1);
+
+        let body = json!({"QueueName": queue_name}).to_string();
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream.write_all(format!(
+            "POST / HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nContent-Type: application/x-amz-json-1.0\r\nX-Amz-Target: AmazonSQS.CreateQueue\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len(),
+        ).as_bytes()).await.unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).await.unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 "), "{response}");
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let (status, lines) = artisan(root, &source, false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert_eq!(queue.size(Some("external-chain")).await.unwrap(), 0);
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        let queue_arg = format!("--queue={destination}");
+        let (status, lines) = artisan(root, &["sqs", &queue_arg, "--once"], false).await;
+        assert_eq!(status, Some(0), "{lines:?}");
+        assert!(tail.is_file());
+        assert_eq!(
+            manager
+                .connection(Some("sqs"))
+                .unwrap()
+                .size(Some(&destination))
+                .await
+                .unwrap(),
+            0
+        );
+    }
+
     async fn verify_sqs(
         root: &Path,
         manager: &QueueManager,
@@ -2967,6 +3075,10 @@ mod acceptance {
                     .connection(None)
                     .unwrap();
                 verify_sqs(&root.0, &manager, &db, &redis).await;
+                let destination = std::env::var("OPENRUST_TEST_SQS_URL").unwrap();
+                verify_external_chain(&root.0, &manager, "sqs", &destination).await;
+                verify_sqs_chain_recovery(&root.0, &manager).await;
+                assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 1);
                 eprintln!("SQS process acceptance passed with MySQL failure storage");
             }
             return;
@@ -2974,6 +3086,8 @@ mod acceptance {
         if std::env::var_os("OPENRUST_TEST_BEANSTALKD_PORT").is_some() {
             if backend != "redis" {
                 verify_beanstalkd(&root.0, &manager, &db).await;
+                let destination = format!("openrust-chain-{}", std::process::id());
+                verify_external_chain(&root.0, &manager, "beanstalkd", &destination).await;
                 eprintln!("Beanstalkd process acceptance passed with {backend} failure storage");
             }
             return;

@@ -102,6 +102,8 @@ Set `QUEUE_CONNECTION=beanstalkd` and configure `BEANSTALKD_QUEUE_HOST`, `BEANST
 
 Reservation settlement uses the TCP session that owns the job. Chain handoff publishes the successor and acknowledges the current job in two operations. A crash between those operations can duplicate a successor. Batch publication remains tracked for this driver. The fixed Laravel Beanstalkd driver also leaves `queue:clear` unavailable.
 
+When a chain crosses from a database or Redis queue into Beanstalkd or SQS, the source worker forwards the successor with its configured delay. If the destination rejects publication, the source worker releases the forwarding job for retry. Standard SQS and Beanstalkd can still duplicate a successor if publication succeeds and the source acknowledgement is interrupted.
+
 ### Amazon SQS {#amazon-sqs}
 
 Set `QUEUE_CONNECTION=sqs`, `SQS_PREFIX`, `SQS_QUEUE` and `AWS_DEFAULT_REGION`. You may provide a complete queue URL. `SQS_SUFFIX` applies to names and precedes the `.fifo` extension. Use the AWS credential chain or configure the access key, secret and optional session token. `SQS_ENDPOINT` selects a custom service endpoint. Run `./artisan queue:work sqs` after provisioning the queue.

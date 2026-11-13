@@ -102,6 +102,8 @@ async fn dispatch_email(user_id: u64, connection: &str) -> QueueResult<DispatchR
 
 确认和释放由持有预约的 TCP 会话执行。任务链分两次操作发布下一项和确认当前任务，两步之间崩溃可能重复发布后继任务。该驱动的批次发布继续跟踪。固定 Laravel 的 Beanstalkd 驱动同样未提供 `queue:clear`。
 
+任务链从数据库或 Redis 队列切换到 Beanstalkd 或 SQS 时，来源 Worker 按后继任务的配置延迟转发。目标发布失败时，来源 Worker 释放转发任务以供重试。标准 SQS 与 Beanstalkd 在发布成功、来源确认中断时仍可能重复发布后继任务。
+
 ### Amazon SQS {#amazon-sqs}
 
 配置 `QUEUE_CONNECTION=sqs`、`SQS_PREFIX`、`SQS_QUEUE` 和 `AWS_DEFAULT_REGION`，也可以直接提供完整队列 URL。`SQS_SUFFIX` 只用于队列名，放在 `.fifo` 之前。凭据可由 AWS 凭据链提供，也可配置访问密钥、密钥和可选会话令牌。`SQS_ENDPOINT` 指定自定义服务端点。创建队列后运行 `./artisan queue:work sqs`。
