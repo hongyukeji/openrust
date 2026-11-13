@@ -69,6 +69,19 @@ pub trait NestedRelation: Relation {
 
     #[doc(hidden)]
     fn with_nested(self, nested: super::super::EagerLoads<Self::Related>) -> Self;
+
+    #[doc(hidden)]
+    fn with_path_constraint(
+        self,
+        _constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
+    ) -> DatabaseResult<Self>
+    where
+        Self: Sized,
+    {
+        Err(DatabaseError::InvalidQuery(
+            "relationship path does not support constraints",
+        ))
+    }
 }
 
 /// Builds a correlated subquery for filtering parent models by a relationship.

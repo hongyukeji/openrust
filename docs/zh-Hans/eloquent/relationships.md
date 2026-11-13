@@ -178,6 +178,20 @@ pub async fn authors_with_visible_posts<A: Model, P: Model>(
 }
 ```
 
+### 筛选命名关系路径 {#filtering-named-relationship-paths}
+
+用 `whereRelationPath` 和 `whereDoesntHaveRelationPath` 对已登记路径的最后一段施加条件。OR 变体将完整路径条件与父查询组合。`whereRelationPathWith` 的闭包接收一组条件和末级表限定名，自关联时该限定名可能是别名。用 `withWhereRelationPath` 或 `withWhereRelationPathWith` 将同一条件用于末级预加载。前面的关系照常加载。路径经过多态关系时，适用的已登记目标须支持剩余路径和相关列。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub fn matching_posts<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPath("posts.comments", "approved", "=", true)
+}
+```
+
 ### 查询所有多态目标类型
 
 使用异步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 对应 Laravel 的通配查询。它们先从模型表读取不同的多态别名，当前查询的筛选条件和作用域不参与这次读取。需要在关系上注册存储的别名。查询缺失目标时，`whereDoesntHaveMorphAll` 也匹配类型为空的记录。

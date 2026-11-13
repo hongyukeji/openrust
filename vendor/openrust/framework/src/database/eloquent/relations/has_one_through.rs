@@ -164,6 +164,22 @@ impl<P: Model, I: Model, R: Model> super::NestedRelation for HasOneThrough<P, I,
         self.0.keys.with_nested(nested);
         self
     }
+
+    fn with_path_constraint(
+        self,
+        constraint: impl Fn(
+            crate::database::query::Conditions,
+            &str,
+        ) -> crate::database::query::Conditions
+        + Send
+        + Sync
+        + 'static,
+    ) -> DatabaseResult<Self> {
+        Ok(super::ConstrainableRelation::constrain_query(
+            self,
+            move |query| query.with_path_constraint(&constraint),
+        ))
+    }
 }
 
 impl<P: Model, I: Model, R: Model> super::ConstrainableRelation for HasOneThrough<P, I, R> {

@@ -934,6 +934,103 @@ fn verify_morph_batches(
     })
 }
 
+async fn verify_path_constraints(db: &Connection) {
+    let path = "posts.comments.post";
+    let baseline = Author::queryOn(db)
+        .whereHasPath(path)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(!baseline.is_empty());
+    let column = Author::queryOn(db)
+        .whereRelationPath(path, "id", ">", 0)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(column.modelKeys(), baseline.modelKeys());
+    let closure = Author::queryOn(db)
+        .whereRelationPathWith(path, |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "<", 0).orWhere(
+                &format!("{table}.id"),
+                ">",
+                0,
+            )
+        })
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(closure.modelKeys(), baseline.modelKeys());
+    let mut either = Author::queryOn(db);
+    either.whereKey(0);
+    assert_eq!(
+        either
+            .orWhereRelationPath(path, "id", ">", 0)
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        baseline.modelKeys()
+    );
+    let all = Author::queryOn(db).get().await.unwrap();
+    let missing = Author::queryOn(db)
+        .whereDoesntHaveRelationPath(path, "id", "<", 0)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(missing.modelKeys(), all.modelKeys());
+    let mut either_missing = Author::queryOn(db);
+    either_missing.whereKey(0);
+    assert_eq!(
+        either_missing
+            .orWhereDoesntHaveRelationPath(path, "id", "<", 0)
+            .unwrap()
+            .get()
+            .await
+            .unwrap()
+            .modelKeys(),
+        all.modelKeys()
+    );
+
+    let selected_comment = Comment::queryOn(db)
+        .whereHasPath("post")
+        .unwrap()
+        .orderBy("id", "asc")
+        .firstOrFail()
+        .await
+        .unwrap();
+    let id = selected_comment.getKey().unwrap().clone();
+    let loaded = Author::queryOn(db)
+        .withWhereRelationPathWith("posts.comments", move |conditions, table| {
+            conditions.r#where(&format!("{table}.id"), "=", id.clone())
+        })
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(loaded.len(), 1);
+    let posts = loaded[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let comments: Vec<_> = posts
+        .iter()
+        .flat_map(|post| {
+            post.getRelation::<Vec<Arc<Comment>>>("comments")
+                .unwrap()
+                .iter()
+        })
+        .collect();
+    assert_eq!(comments.len(), 1);
+    assert_eq!(comments[0].getKey(), selected_comment.getKey());
+    assert!(
+        Author::queryOn(db)
+            .whereRelationPath("posts.bad", "id", "=", 1)
+            .is_err()
+    );
+}
+
 async fn verify_named_paths(db: &Connection, mysql: bool) {
     assert!(matches!(
         Author::queryOn(db).withPaths(&["posts..comments"]),
@@ -1128,6 +1225,14 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         ]))
         .await
         .unwrap();
+    let selected = Comment::queryOn(db)
+        .whereRelationPath("subject", "id", "=", author.getKey().unwrap().clone())
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert!(selected.find(&profile).unwrap().is_some());
+    assert!(selected.find(&no_target).unwrap().is_none());
     let baseline = if mysql { select_count(db).await } else { 0 };
     let comments = Comment::queryOn(db)
         .orderBy("id", "asc")
@@ -4470,6 +4575,7 @@ async fn verify(db: Connection, mysql: bool) {
     verify_relation_autoload(&db, mysql).await;
     verify_relation_chain(&db, mysql).await;
     Box::pin(verify_named_paths(&db, mysql)).await;
+    Box::pin(verify_path_constraints(&db)).await;
 
     verify_morph_batches(&db, mysql).await;
     verify_relation_identity(&db).await;

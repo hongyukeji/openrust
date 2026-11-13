@@ -69,14 +69,15 @@ impl<M: Model> Builder<'static, M> {
     /// Applies the count comparison at the final segment of the relation path.
     pub fn hasPathCount(mut self, path: &str, operator: &str, count: u64) -> DatabaseResult<Self> {
         Self::validate_path(path)?;
-        self.query = super::NamedRelations::<M>::filter(
+        let expression = super::NamedRelations::<M>::filter(
             &self.connection,
-            self.query,
+            &self.query,
             path,
-            operator,
-            count,
+            (operator, count),
+            None,
             None,
         )?;
+        self.predicates.raw(false, expression);
         Ok(self)
     }
 
@@ -100,15 +101,158 @@ impl<M: Model> Builder<'static, M> {
         Self::validate_path(path)?;
         let mut found = super::named_relations::DiscoveredMorphs::default();
         super::NamedRelations::<M>::discover(&self.connection, path, &mut found).await?;
-        self.query = super::NamedRelations::<M>::filter(
+        let expression = super::NamedRelations::<M>::filter(
             &self.connection,
-            self.query,
+            &self.query,
             path,
-            operator,
-            count,
+            (operator, count),
             Some(&found),
+            None,
         )?;
+        self.predicates.raw(false, expression);
         Ok(self)
+    }
+
+    pub fn whereRelationPath(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.filter_path_with(
+            path,
+            ">=",
+            false,
+            &Self::path_column(column, operator, value.into()),
+        )
+    }
+
+    pub fn orWhereRelationPath(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.filter_path_with(
+            path,
+            ">=",
+            true,
+            &Self::path_column(column, operator, value.into()),
+        )
+    }
+
+    pub fn whereDoesntHaveRelationPath(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.filter_path_with(
+            path,
+            "<",
+            false,
+            &Self::path_column(column, operator, value.into()),
+        )
+    }
+
+    pub fn orWhereDoesntHaveRelationPath(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.filter_path_with(
+            path,
+            "<",
+            true,
+            &Self::path_column(column, operator, value.into()),
+        )
+    }
+
+    /// Filters using a grouped predicate on the final relationship in the path.
+    pub fn whereRelationPathWith(
+        self,
+        path: &str,
+        constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
+    ) -> DatabaseResult<Self> {
+        let constraint: super::named_relations::PathConstraint = std::sync::Arc::new(constraint);
+        self.filter_path_with(path, ">=", false, &constraint)
+    }
+
+    pub fn withWhereRelationPath(
+        self,
+        path: &str,
+        column: &str,
+        operator: &str,
+        value: impl Into<Value>,
+    ) -> DatabaseResult<Self> {
+        self.with_where_path(path, Self::path_column(column, operator, value.into()))
+    }
+
+    /// Applies the same grouped predicate when filtering and loading the path.
+    pub fn withWhereRelationPathWith(
+        self,
+        path: &str,
+        constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,
+    ) -> DatabaseResult<Self> {
+        self.with_where_path(path, std::sync::Arc::new(constraint))
+    }
+
+    fn with_where_path(
+        self,
+        path: &str,
+        constraint: super::named_relations::PathConstraint,
+    ) -> DatabaseResult<Self> {
+        let query = self.filter_path_with(path, ">=", false, &constraint)?;
+        Ok(
+            query.with_eager_loads(super::NamedRelations::<M>::prepare_constrained(
+                &[path],
+                Some(&constraint),
+            )?),
+        )
+    }
+
+    fn filter_path_with(
+        mut self,
+        path: &str,
+        operator: &str,
+        or: bool,
+        constraint: &super::named_relations::PathConstraint,
+    ) -> DatabaseResult<Self> {
+        Self::validate_path(path)?;
+        let expression = super::NamedRelations::<M>::filter(
+            &self.connection,
+            &self.query,
+            path,
+            (operator, 1),
+            None,
+            Some(constraint),
+        )?;
+        self.predicates.raw(or, expression);
+        Ok(self)
+    }
+
+    fn path_column(
+        column: &str,
+        operator: &str,
+        value: Value,
+    ) -> super::named_relations::PathConstraint {
+        let column = column.to_owned();
+        let operator = operator.to_owned();
+        std::sync::Arc::new(move |conditions, qualifier| {
+            let qualified;
+            let column = if column.contains('.') {
+                &column
+            } else {
+                qualified = format!("{qualifier}.{column}");
+                &qualified
+            };
+            conditions.r#where(column, &operator, value.clone())
+        })
     }
 
     fn validate_path(path: &str) -> DatabaseResult<()> {
@@ -415,7 +559,10 @@ impl<M: Model> Builder<'static, M> {
         }
         let related = relation.getRelationExistenceQuery(&self.connection, self.table_name())?;
         let related = related.select_related_aggregate("count", "*")?;
-        self.query = self.query.where_related_count(&related, operator, count)?;
+        let expression = self
+            .query
+            .related_count_expression(&related, operator, count)?;
+        self.predicates.raw(false, expression);
         Ok(self)
     }
 
@@ -1013,6 +1160,18 @@ impl<M: Model> Builder<'static, M> {
     /// Adds eager loads by their registered names or dot-separated paths.
     pub fn withPaths(self, paths: &[&str]) -> DatabaseResult<Self> {
         Ok(self.with_eager_loads(super::NamedRelations::<M>::prepare(paths)?))
+    }
+
+    pub(super) fn with_path_constraint(
+        mut self,
+        constraint: &(impl Fn(query::Conditions, &str) -> query::Conditions + ?Sized),
+    ) -> Self {
+        let qualifier = self.table_name().to_owned();
+        let existing = mem::take(&mut self.predicates);
+        self.predicates = query::Conditions::default()
+            .whereNested(|_| existing)
+            .whereNested(|conditions| constraint(conditions, &qualifier));
+        self
     }
 
     pub(super) fn with_eager_loads(mut self, loads: EagerLoads<M>) -> Self {

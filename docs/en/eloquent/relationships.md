@@ -178,6 +178,20 @@ pub async fn authors_with_visible_posts<A: Model, P: Model>(
 }
 ```
 
+### Filtering a named relationship path {#filtering-named-relationship-paths}
+
+Use `whereRelationPath` and `whereDoesntHaveRelationPath` to apply a condition to the final relation of a registered path. Their OR variants combine the entire path with the parent query. `whereRelationPathWith` receives a grouped set of conditions and the final table qualifier, which may be an alias for a self-relation. Use `withWhereRelationPath` or `withWhereRelationPathWith` to apply the same filter to the loaded final relation. Earlier relations load normally. For a polymorphic segment, each applicable registered target must support the remaining path and its columns.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub fn matching_posts<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPath("posts.comments", "approved", "=", true)
+}
+```
+
 ### Querying All Related Models
 
 Use the asynchronous `whereHasMorphAll`, `whereDoesntHaveMorphAll`, and `hasMorphCountAll` methods for Laravel's wildcard behavior. They first read distinct morph aliases from the model table, independently of the current query's filters and scopes. Register the stored aliases on the relation. When looking for absent targets, `whereDoesntHaveMorphAll` also matches a null morph type.

@@ -420,3 +420,9 @@ SQLite 与独立 MySQL 8.4.13 验证有序主键、整数与数字字符串归�
 本批使用类型化关系描述符。Laravel 的字符串点分路径列筛选、列条件闭包重载仍需分别核对。现有命名路径存在与计数查询继续使用 `whereHasPath`、`whereDoesntHavePath` 和 `hasPathCount`。
 
 SQLite 和独立 MySQL 8.4.13 验证普通与多态列筛选、缺失、OR、自关联别名、软删除、未知多态别名和筛选后预加载。首轮全量触发关系集成测试的 Debug 栈溢出。将新增验收拆为独立堆分配的异步夹具后，双库专项和全量 620 项通过。Rust 1.94 格式、全目标严格 Clippy、Artisan、三语示例编译、VitePress 构建和 18 项浏览器检查通过。
+
+## 命名关系路径的末级条件
+
+按固定 Laravel `hasNested` 和 `EloquentWhereHasTest` 处理点分路径。列条件和闭包作用于末级关系。否定匹配没有任何完整路径满足条件的父模型，OR 在父查询中组合整条路径。预加载沿原路径执行，仅末级使用同一条件。Rust 用类型擦除的查询条件闭包接受末级表限定名，以便支持自关联别名和多态分支。核对旧版 v0.x 后沿用当前命名关系注册与 SQL 子查询机制，参考 Goravel 的连接级查询入口。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/QueriesRelationships.php#L79) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentWhereHasTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证三段路径、OR 组合、整条路径缺失、末级闭包、自关联表限定、多态末级和条件预加载。全量 620 项及双库专项通过，8 项测试夹具维持忽略。Rust 1.94 格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

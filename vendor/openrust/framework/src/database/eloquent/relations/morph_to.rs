@@ -8,7 +8,8 @@ use indexmap::IndexMap;
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
-        Attributes, Builder, Model, NamedRelations, named_relations::DiscoveredMorphs,
+        Attributes, Builder, Model, NamedRelations,
+        named_relations::{DiscoveredMorphs, PathConstraint},
         touches::TouchedOwners,
     },
     query,
@@ -164,13 +165,14 @@ impl<P: Model> MorphTo<P> {
         })
     }
 
-    pub(in crate::database::eloquent) fn with_paths(
+    pub(in crate::database::eloquent) fn with_constrained_paths(
         &mut self,
         children: &[&str],
+        constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<()> {
-        if !children.is_empty() {
+        if !children.is_empty() || constraint.is_some() {
             for target in self.targets.values_mut() {
-                target.with_paths(children)?;
+                target.with_paths(children, constraint)?;
             }
         }
         Ok(())
@@ -220,12 +222,12 @@ impl<P: Model> MorphTo<P> {
     pub(in crate::database::eloquent) fn filter_path(
         &self,
         connection: &Connection,
-        parent: query::Builder<'static>,
+        parent: &query::Builder<'static>,
         child: &str,
-        operator: &str,
-        count: u64,
+        (operator, count): (&str, u64),
         discovered: Option<(&DiscoveredMorphs, &str)>,
-    ) -> DatabaseResult<query::Builder<'static>> {
+        constraint: Option<&PathConstraint>,
+    ) -> DatabaseResult<query::Expression> {
         let qualifier = parent.relation_qualifier();
         let column = format!("{qualifier}.{}", self.type_column);
         let absent = (operator, count) == ("<", 1);
@@ -240,19 +242,19 @@ impl<P: Model> MorphTo<P> {
                     connection,
                     qualifier,
                     child,
-                    op,
-                    n,
+                    (op, n),
                     discovered.map(|(found, _)| found),
+                    constraint,
                 )?;
                 Ok((alias, query))
             })
             .collect::<DatabaseResult<Vec<_>>>()?;
         if absent {
-            parent.where_not_morph_path(&column, queries)
+            parent.morph_count_expression(&column, queries, ">=", 1, false, true)
         } else if child.is_empty() {
-            parent.where_morph_count(&column, queries, op, n, false)
+            parent.morph_count_expression(&column, queries, op, n, false, false)
         } else {
-            parent.where_morph_count(&column, queries, ">=", 1, false)
+            parent.morph_count_expression(&column, queries, ">=", 1, false, false)
         }
     }
 
@@ -489,15 +491,19 @@ trait Target<P: Model>: Send + Sync {
         targets: &'a mut [&mut ErasedModel],
         children: &'a [&'a str],
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
-    fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()>;
+    fn with_paths(
+        &mut self,
+        children: &[&str],
+        constraint: Option<&PathConstraint>,
+    ) -> DatabaseResult<()>;
     fn path_query(
         &self,
         connection: &Connection,
         parent: &str,
         child: &str,
-        operator: &str,
-        count: u64,
+        comparison: (&str, u64),
         discovered: Option<&DiscoveredMorphs>,
+        constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<query::Builder<'static>>;
     fn load<'a>(
         &'a self,
@@ -579,8 +585,23 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         })
     }
 
-    fn with_paths(&mut self, children: &[&str]) -> DatabaseResult<()> {
-        self.with_nested(NamedRelations::<R>::prepare(children)?);
+    fn with_paths(
+        &mut self,
+        children: &[&str],
+        constraint: Option<&PathConstraint>,
+    ) -> DatabaseResult<()> {
+        if children.is_empty() {
+            if let Some(constraint) = constraint {
+                let constraint = constraint.clone();
+                self.append_constraint(move |query| {
+                    query.with_path_constraint(constraint.as_ref())
+                });
+            }
+        } else {
+            self.with_nested(NamedRelations::<R>::prepare_constrained(
+                children, constraint,
+            )?);
+        }
         Ok(())
     }
 
@@ -589,15 +610,22 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         connection: &Connection,
         parent: &str,
         child: &str,
-        operator: &str,
-        count: u64,
+        comparison: (&str, u64),
         discovered: Option<&DiscoveredMorphs>,
+        constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<query::Builder<'static>> {
         let query = self.existence_query(connection, parent)?;
         if child.is_empty() {
-            Ok(query)
+            let Some(constraint) = constraint else {
+                return Ok(query);
+            };
+            let qualifier = query.relation_qualifier().to_owned();
+            Ok(query.whereNested(|conditions| constraint(conditions, &qualifier)))
         } else {
-            NamedRelations::<R>::filter(connection, query, child, operator, count, discovered)
+            let predicate = NamedRelations::<R>::filter(
+                connection, &query, child, comparison, discovered, constraint,
+            )?;
+            Ok(query.and_expression(predicate))
         }
     }
 

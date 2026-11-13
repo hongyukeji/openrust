@@ -178,6 +178,20 @@ pub async fn authors_with_visible_posts<A: Model, P: Model>(
 }
 ```
 
+### 篩選命名關聯路徑 {#filtering-named-relationship-paths}
+
+用 `whereRelationPath` 和 `whereDoesntHaveRelationPath` 對已登記路徑的最後一段套用條件。OR 變體將完整路徑條件與父查詢組合。`whereRelationPathWith` 的閉包接收一組條件和末級表限定名，自關聯時該限定名可能是別名。用 `withWhereRelationPath` 或 `withWhereRelationPathWith` 將相同條件用於末級預載入。前面的關聯照常載入。路徑經過多型關聯時，適用的已登記目標須支援剩餘路徑和相關欄位。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Builder, Model}};
+
+pub fn matching_posts<M: Model>(
+    query: Builder<'static, M>,
+) -> DatabaseResult<Builder<'static, M>> {
+    query.withWhereRelationPath("posts.comments", "approved", "=", true)
+}
+```
+
 ### 查詢所有多型目標型別
 
 使用非同步方法 `whereHasMorphAll`、`whereDoesntHaveMorphAll` 和 `hasMorphCountAll` 對應 Laravel 的萬用字元查詢。這些方法先從模型表讀取不同的多型別名，目前查詢的篩選條件和作用域不參與這次讀取。請在關聯上註冊已儲存的別名。查詢缺少目標的記錄時，`whereDoesntHaveMorphAll` 也會比對型別為空的記錄。

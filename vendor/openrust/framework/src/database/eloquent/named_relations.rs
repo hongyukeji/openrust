@@ -10,17 +10,22 @@ use super::{
     relations::{ExistenceRelation, NestedRelation, Relation},
 };
 
-type Prepare<M> =
-    dyn Fn(EagerLoads<M>, &str, &[&str]) -> DatabaseResult<EagerLoads<M>> + Send + Sync;
+pub(super) type PathConstraint =
+    Arc<dyn Fn(query::Conditions, &str) -> query::Conditions + Send + Sync>;
+
+type Prepare<M> = dyn Fn(EagerLoads<M>, &str, &[&str], Option<&PathConstraint>) -> DatabaseResult<EagerLoads<M>>
+    + Send
+    + Sync;
 
 type Existence = dyn Fn(
         &Connection,
-        query::Builder<'static>,
+        &query::Builder<'static>,
         &str,
         &str,
         u64,
         Option<&DiscoveredMorphs>,
-    ) -> DatabaseResult<query::Builder<'static>>
+        Option<&PathConstraint>,
+    ) -> DatabaseResult<query::Expression>
     + Send
     + Sync;
 
@@ -85,12 +90,22 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children| {
+                prepare: Box::new(move |loads, name, children, constraint| {
                     let relation = eager();
                     let relation = if children.is_empty() {
-                        relation
+                        match constraint {
+                            Some(constraint) => {
+                                let constraint = constraint.clone();
+                                relation.with_path_constraint(move |conditions, qualifier| {
+                                    constraint(conditions, qualifier)
+                                })?
+                            }
+                            None => relation,
+                        }
                     } else {
-                        relation.with_nested(NamedRelations::<R::Related>::prepare(children)?)
+                        relation.with_nested(NamedRelations::<R::Related>::prepare_constrained(
+                            children, constraint,
+                        )?)
                     };
                     Ok(loads.with(name, relation))
                 }),
@@ -105,7 +120,7 @@ impl<M: Model> NamedRelations<M> {
                     })
                 }),
                 existence: Some(Box::new(
-                    move |connection, parent, child, operator, count, discovered| {
+                    move |connection, parent, child, operator, count, discovered, constraint| {
                         let mut related = factory()
                             .getRelationExistenceQuery(connection, parent.relation_qualifier())?;
                         if !child.is_empty() {
@@ -115,21 +130,28 @@ impl<M: Model> NamedRelations<M> {
                             } else {
                                 (operator, count)
                             };
-                            related = NamedRelations::<R::Related>::filter(
-                                connection, related, child, op, n, discovered,
+                            let predicate = NamedRelations::<R::Related>::filter(
+                                connection,
+                                &related,
+                                child,
+                                (op, n),
+                                discovered,
+                                constraint,
                             )?;
-                            return if terminal {
-                                parent.whereNotExists(&related)
-                            } else {
-                                parent.whereExists(&related)
-                            };
+                            related = related.and_expression(predicate);
+                            return parent.exists_expression(&related, terminal);
+                        }
+                        if let Some(constraint) = constraint {
+                            let qualifier = related.relation_qualifier().to_owned();
+                            related = related
+                                .whereNested(|conditions| constraint(conditions, &qualifier));
                         }
                         match (operator, count) {
-                            (">=", 1) => parent.whereExists(&related),
-                            ("<", 1) => parent.whereNotExists(&related),
+                            (">=", 1) => parent.exists_expression(&related, false),
+                            ("<", 1) => parent.exists_expression(&related, true),
                             _ => {
                                 let related = related.select_related_aggregate("count", "*")?;
-                                parent.where_related_count(&related, operator, count)
+                                parent.related_count_expression(&related, operator, count)
                             }
                         }
                     },
@@ -154,7 +176,12 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children| {
+                prepare: Box::new(move |loads, name, children, constraint| {
+                    if constraint.is_some() {
+                        return Err(DatabaseError::InvalidQuery(
+                            "relationship path does not support constraints",
+                        ));
+                    }
                     if !children.is_empty() {
                         return Err(DatabaseError::InvalidQuery(
                             "relationship path cannot be nested",
@@ -195,9 +222,9 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children| {
+                prepare: Box::new(move |loads, name, children, constraint| {
                     let mut relation = eager();
-                    relation.with_paths(children)?;
+                    relation.with_constrained_paths(children, constraint)?;
                     Ok(loads.with(name, relation))
                 }),
                 load_missing: Box::new(move |models, name, children| {
@@ -208,14 +235,14 @@ impl<M: Model> NamedRelations<M> {
                     })
                 }),
                 existence: Some(Box::new(
-                    move |connection, parent, child, operator, count, discovered| {
+                    move |connection, parent, child, operator, count, discovered, constraint| {
                         factory().filter_path(
                             connection,
                             parent,
                             child,
-                            operator,
-                            count,
+                            (operator, count),
                             discovered.map(|found| (found, name)),
+                            constraint,
                         )
                     },
                 )),
@@ -232,12 +259,12 @@ impl<M: Model> NamedRelations<M> {
 
     pub(super) fn filter(
         connection: &Connection,
-        parent: query::Builder<'static>,
+        parent: &query::Builder<'static>,
         path: &str,
-        operator: &str,
-        count: u64,
+        (operator, count): (&str, u64),
         discovered: Option<&DiscoveredMorphs>,
-    ) -> DatabaseResult<query::Builder<'static>> {
+        constraint: Option<&PathConstraint>,
+    ) -> DatabaseResult<query::Expression> {
         let (name, child) = path.split_once('.').unwrap_or((path, ""));
         let registered = M::namedRelations();
         let relation = registered
@@ -250,7 +277,9 @@ impl<M: Model> NamedRelations<M> {
             .ok_or(DatabaseError::InvalidQuery(
                 "relationship path does not support existence queries",
             ))?;
-        existence(connection, parent, child, operator, count, discovered)
+        existence(
+            connection, parent, child, operator, count, discovered, constraint,
+        )
     }
 
     pub(super) fn discover<'a>(
@@ -297,6 +326,13 @@ impl<M: Model> NamedRelations<M> {
     }
 
     pub(super) fn prepare(paths: &[&str]) -> DatabaseResult<EagerLoads<M>> {
+        Self::prepare_constrained(paths, None)
+    }
+
+    pub(super) fn prepare_constrained(
+        paths: &[&str],
+        constraint: Option<&PathConstraint>,
+    ) -> DatabaseResult<EagerLoads<M>> {
         let grouped = group_paths(paths)?;
         let registered = M::namedRelations();
         let mut loads = EagerLoads::default();
@@ -305,7 +341,7 @@ impl<M: Model> NamedRelations<M> {
                 .0
                 .get(name)
                 .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-            loads = (prepare.prepare)(loads, name, &children)?;
+            loads = (prepare.prepare)(loads, name, &children, constraint)?;
         }
         Ok(loads)
     }

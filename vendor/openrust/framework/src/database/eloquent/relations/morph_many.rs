@@ -88,6 +88,22 @@ impl<P: Model, R: Model> super::NestedRelation for MorphMany<P, R> {
     fn with_nested(self, nested: super::super::EagerLoads<R>) -> Self {
         Self(super::NestedRelation::with_nested(self.0, nested))
     }
+
+    fn with_path_constraint(
+        self,
+        constraint: impl Fn(
+            crate::database::query::Conditions,
+            &str,
+        ) -> crate::database::query::Conditions
+        + Send
+        + Sync
+        + 'static,
+    ) -> DatabaseResult<Self> {
+        Ok(super::ConstrainableRelation::constrain_query(
+            self,
+            move |query| query.with_path_constraint(&constraint),
+        ))
+    }
 }
 
 impl<P: Model, R: Model> super::ConstrainableRelation for MorphMany<P, R> {

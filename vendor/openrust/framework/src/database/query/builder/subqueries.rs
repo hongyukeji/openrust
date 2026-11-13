@@ -272,45 +272,22 @@ impl Builder<'_> {
         self
     }
 
-    pub(in crate::database) fn where_related_count(
-        mut self,
+    pub(in crate::database) fn related_count_expression(
+        &self,
         query: &Builder<'_>,
         operator: &str,
         count: u64,
-    ) -> DatabaseResult<Self> {
+    ) -> DatabaseResult<Expression> {
         let (operator, count) = related_count_comparison(operator, count)?;
         let query = self.subquery_expression(query)?;
         let mut bindings = query.bindings;
         bindings.push(count.into());
-        self.predicates.raw(
-            false,
-            Expression::new(format!("({}) {operator} ?", query.sql)).with_bindings(bindings),
-        );
-        Ok(self)
+        Ok(Expression::new(format!("({}) {operator} ?", query.sql)).with_bindings(bindings))
     }
 
-    pub(in crate::database) fn where_morph_count(
-        mut self,
-        column: &str,
-        queries: Vec<(&str, Builder<'_>)>,
-        operator: &str,
-        count: u64,
-        include_null: bool,
-    ) -> DatabaseResult<Self> {
-        let expression =
-            self.morph_count_expression(column, queries, operator, count, include_null, false)?;
+    pub(in crate::database) fn and_expression(mut self, expression: Expression) -> Self {
         self.predicates.raw(false, expression);
-        Ok(self)
-    }
-
-    pub(in crate::database) fn where_not_morph_path(
-        mut self,
-        column: &str,
-        queries: Vec<(&str, Builder<'_>)>,
-    ) -> DatabaseResult<Self> {
-        let expression = self.morph_count_expression(column, queries, ">=", 1, false, true)?;
-        self.predicates.raw(false, expression);
-        Ok(self)
+        self
     }
 
     pub(in crate::database) fn morph_count_expression(
