@@ -627,6 +627,34 @@ impl<M: Model> Collection<M> {
         (0..self.len()).map(|index| self.key_at(index)).collect()
     }
 
+    pub fn countBy<K: Into<ArrayKey>>(
+        &self,
+        mut group: impl FnMut(&M, &ArrayKey) -> K,
+    ) -> BaseCollection<usize> {
+        let models = BaseCollection::fromEntries(
+            self.iter()
+                .enumerate()
+                .map(|(index, model)| (self.key_at(index), model)),
+        );
+        models.countBy(|model, key| group(model, key))
+    }
+
+    /// Splits models into matching and nonmatching groups, preserving collection keys.
+    pub fn partition(self, predicate: impl FnMut(&M, &ArrayKey) -> bool) -> (Self, Self) {
+        let autoload = self.autoload;
+        let (matches, rest) = self.into_base().partition(predicate);
+        (
+            Self {
+                autoload,
+                ..Self::fromEntries(matches)
+            },
+            Self {
+                autoload,
+                ..Self::fromEntries(rest)
+            },
+        )
+    }
+
     pub fn makeHidden(&mut self, attributes: &[&str]) -> &mut Self {
         for model in &mut self.models {
             model.makeHidden(attributes);
@@ -913,6 +941,62 @@ impl<M: Model> Collection<M> {
 
     pub fn unique(self) -> DatabaseResult<Self> {
         self.merge(std::iter::empty())
+    }
+
+    /// Retains the first model for each projected value, preserving collection keys.
+    pub fn uniqueBy<K: Eq + std::hash::Hash>(
+        self,
+        project: impl FnMut(&M, &ArrayKey) -> K,
+    ) -> Self {
+        let autoload = self.autoload;
+        Self {
+            autoload,
+            ..Self::fromEntries(self.into_base().uniqueBy(project))
+        }
+    }
+
+    /// Returns subsequent occurrences of each model identity with their original keys.
+    pub fn duplicates(self) -> Self {
+        let mut duplicates = HashSet::new();
+        for (index, model) in self.models.iter().enumerate() {
+            if self.models[..index]
+                .iter()
+                .any(|previous| previous.is(model))
+            {
+                duplicates.insert(self.key_at(index));
+            }
+        }
+        let autoload = self.autoload;
+        let entries = self
+            .into_base()
+            .into_iter()
+            .filter(|(key, _)| duplicates.contains(key));
+        Self {
+            autoload,
+            ..Self::fromEntries(entries)
+        }
+    }
+
+    pub fn duplicatesStrict(self) -> Self {
+        self.duplicates()
+    }
+
+    /// Returns repeated projected values with their original collection keys.
+    pub fn duplicatesBy<K: PartialEq>(
+        &self,
+        mut project: impl FnMut(&M) -> K,
+    ) -> BaseCollection<K> {
+        let mut seen = Vec::new();
+        let mut duplicates = BaseCollection::new();
+        for (index, model) in self.iter().enumerate() {
+            let value = project(model);
+            if seen.contains(&value) {
+                duplicates.put(self.key_at(index), value);
+            } else {
+                seen.push(value);
+            }
+        }
+        duplicates
     }
 
     pub fn diff(self, other: &Self) -> DatabaseResult<Self> {

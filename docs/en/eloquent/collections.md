@@ -130,3 +130,18 @@ pub fn label_models<M: Model>(models: Collection<M>) -> Collection<M> {
     models.mapModelsWithKeys(|model, key| [(format!("model-{key}"), model)])
 }
 ```
+
+### Grouping and Finding Duplicates
+
+Use `partition` to split the collection into matching and remaining Eloquent collections. Both retain the original collection keys. `countBy` returns counts in a Support collection. Its closure receives the model and its collection key.
+
+`duplicates` and `duplicatesStrict` use model identity and retain each repeated model’s original key. `duplicatesBy` returns repeated projected values in a Support collection using the projected type’s equality. `uniqueBy` retains the first model for each projected key.
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
+    let (persisted, _) = models.partition(|model, _| model.state().exists());
+    persisted
+}
+```

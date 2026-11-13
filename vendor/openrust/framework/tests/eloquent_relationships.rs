@@ -2236,7 +2236,27 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
             duplicate.findManyOrFail(&[1.into(), 20.into()]),
             Err(DatabaseError::ModelNotFound("relation_authors"))
         ));
-        let distinct = duplicate.unique().unwrap();
+        let projected = duplicate.duplicatesBy(|author| author.getKey().cloned());
+        assert_eq!(projected.get(3), Some(&Some(1.into())));
+        assert_eq!(projected.count(), 1);
+        let fresh = duplicate.fresh().await.unwrap();
+        let strict = fresh.duplicatesStrict();
+        assert_eq!(strict.keys().get(0), Some(&3.into()));
+        let unique_by = duplicate.fresh().await.unwrap().uniqueBy(|author, _| {
+            author.getKey().and_then(|key| match key {
+                Value::Integer(key) => Some(*key),
+                _ => None,
+            })
+        });
+        assert_eq!(unique_by.modelKeys(), [1.into(), 2.into(), 3.into()]);
+        let counts = duplicate.countBy(|author, _| author.getKey() == Some(&1.into()));
+        assert_eq!(counts.get(true), Some(&2));
+        assert_eq!(counts.get(false), Some(&2));
+        let (duplicates, rest) =
+            duplicate.partition(|author, _| author.getKey() == Some(&1.into()));
+        assert_eq!(duplicates.keys().get(1), Some(&3.into()));
+        assert_eq!(rest.keys().get(0), Some(&1.into()));
+        let distinct = duplicates.merge(rest).unwrap().unique().unwrap();
         assert_eq!(distinct.modelKeys(), vec![1.into(), 2.into(), 3.into()]);
         assert_eq!(
             distinct[0].getAttribute("name"),

@@ -130,3 +130,18 @@ pub fn label_models<M: Model>(models: Collection<M>) -> Collection<M> {
     models.mapModelsWithKeys(|model, key| [(format!("model-{key}"), model)])
 }
 ```
+
+### 分组与查找重复项
+
+用 `partition` 将集合分成匹配项和其余项，两组都保留原有集合键和 Eloquent 接口。`countBy` 返回 Support 集合中的各组计数，闭包接收模型及其集合键。
+
+`duplicates` 和 `duplicatesStrict` 按模型身份查找重复项，保留各重复模型的原有键。`duplicatesBy` 按投影类型的相等规则比较，并在 Support 集合中返回重复的投影值。`uniqueBy` 为每个投影键保留首个模型。
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
+    let (persisted, _) = models.partition(|model, _| model.state().exists());
+    persisted
+}
+```

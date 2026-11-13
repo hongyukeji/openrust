@@ -358,3 +358,9 @@ SQLite 和独立 MySQL 8.4.13 验证普通后代的失败重试及并发复用�
 对照固定 Laravel 集合自动加载测试中其他模型立即报告关系已加载的断言。OpenRust 的移出模型共享只追加的关系结果。首次查询完成后，同批模型的 `relationLoaded`、`getRelation` 和序列化可直接读取结果，嵌套序列化也可读取已发布的后代关系。已借用的返回值由不可变条目持有，写入新关系无需更换已有条目。显式卸载和本地覆盖优先于共享结果，模型属性或连接改变时使用当前模型状态。普通属性写入仍属于各模型的 Rust 值。复核 `v0.x` 未找到对应共享关系缓存，参考固定 Goravel 的连接级 ORM 装配。 [Laravel 集成测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentModelRelationAutoloadTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 实测首次加载后同批模型同步可见、后代序列化、空结果和本地卸载隔离，现有并发及失败重试回归通过。MySQL 仍为每层 1 次 SELECT。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 87%，项目卷可用 60 GiB。核心账本 25/66。
+
+## Eloquent 集合分区、计数和重复项
+
+对照固定 Laravel 的 `partition`、`countBy`、`duplicates`、`duplicatesStrict` 和 `unique`。分区保留两个子集合的键和自动加载设置，分组计数复用 Support 集合。无投影的两种重复项查询使用既有 `Model::is` 判断身份。Rust 使用 `duplicatesBy` 和 `uniqueBy` 表达投影重载，投影类型定义相等规则。分区用元组表达固定的两个结果，两个成员均保留 Eloquent 接口。复核 `v0.x` 的 Support 集合，未找到可提取的对应分区和重复项方法。参考固定 Goravel 的连接级 ORM 装配。 [Laravel 集合源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php#L711) · [Laravel 集合测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentCollectionTest.php#L409) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测分区保留键、分组计数、重复模型保留原位置、投影重复值和按投影去重。Rust 1.94 格式、全目标严格 Clippy、619 次默认特性工作区测试、实际 `artisan inspire`、三语示例编译、站点构建及 18 项浏览器检查通过。提交前周额度剩余 87%，项目卷可用 60 GiB。核心账本 25/66。
