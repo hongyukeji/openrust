@@ -637,3 +637,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `cb376ae9`。PHP 8.5 校验 30 个地区映射的语料 SHA-256 和 450 条样本。Rust 两项回归覆盖各地区名称、字符与字节边界、默认和无效参数、去重、捷克语和波斯语差异。MySQL 8.4.13 多态 Seeder 回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回查英文、简体回退、繁体、日语和波斯语共五条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
 
 隔离副本已恢复原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批核对 Biased 与生成器修饰器。
+
+## Faker 偏置取样与修饰器
+
+对照固定 FakerPHP v1.24.1 的 Biased、ChanceGenerator、ValidGenerator 与 UniqueGenerator。接通 `biasedNumberBetween` 的默认平方根和自定义接受曲线，使用整数运算映射到闭区间，覆盖完整 i64 范围。Rust 将随机分数约束在 [0, 1)，避免上游浮点端点可能越界，并为反向范围、非法概率和取样耗尽返回错误。 `optional` 保留百分制兼容与延迟调用，`valid` 和 `uniqueWithRetries` 保留原重试边界。Rust 用显式类型化闭包替代 PHP 的动态方法转发。每个 UniqueFaker 句柄可配置次数，历史继续由当前 Faker 共享。v0.x 未发现对应实现，Goravel 工厂装配沿用现有路径。 [FakerPHP Biased](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Biased.php) · [FakerPHP Generator](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php)
+
+隔离基线 `c675f09e`。PHP 8.5 验证 1,536 条偏置样本与三种修饰器边界。Rust 两项回归覆盖曲线方向、上下界、错误传播、默认值、重试耗尽和重置。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回查偏置整数、默认值和通过验证的样本，并在真实 Seeder 中验证唯一值耗尽。多态 Seeder、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与双挂载六项浏览器检查通过。
+
+恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。后续按 FakerPHP provider 面逐项对照地区 formatter，核对 05-04 的余项。

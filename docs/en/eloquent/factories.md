@@ -278,6 +278,27 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Biased Sampling and Modifiers {#faker-biased-and-modifiers}
+
+Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`.
+
+Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use FakerPHP percentage interpretation. Use `valid(predicate, maxRetries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `uniqueWithRetries(reset, maxRetries)` to set the attempt limit on a handle that shares the Faker formatter history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
+    let faker = fake(None)?;
+    let sample = faker.optional(Some(0.75), Some(0), |faker| {
+        faker.biasedNumberBetween(Some(1), Some(100), Some(&|x| x))
+    })?;
+    let even = faker.valid(|value| value % 2 == 0, None, |faker| {
+        Ok(faker.numberBetween(0, 100))
+    })?;
+    Ok((sample, even))
+}
+```
+
 ### Corpus-Based Text {#corpus-text-samples}
 
 Use `realText(maxNbChars, indexSize)?` or `realTextBetween(minNbChars, maxNbChars, indexSize)?` to generate text from the fixed FakerPHP corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `realTextBetween`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `realText` uses the upstream byte limit. Its `realTextBetween` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.

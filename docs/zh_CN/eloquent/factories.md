@@ -278,6 +278,27 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 偏置采样与生成器修饰器 {#faker-biased-and-modifiers}
+
+用 `biasedNumberBetween(min, max, function)?` 在包含端点的整数范围内采样。传入 `None` 分别使用默认下限 0、上限 100 和平方根曲线。自定义曲线接收 [0, 1) 内的数并返回 0 至 1 的概率。范围反向、概率无效或采样耗尽时返回错误。该方法支持 `unique`。
+
+用 `optional(weight, default, generate)?` 按概率调用类型化生成闭包，或返回可选默认值。默认权重为 0.5，大于 1 时按 FakerPHP 的百分数规则解释。用 `valid(predicate, maxRetries, generate)?` 重试直到满足谓词，默认重试上限为 10,000。两者都会传播生成错误。用 `uniqueWithRetries(reset, maxRetries)` 为共享去重历史的句柄设置尝试上限。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
+    let faker = fake(None)?;
+    let sample = faker.optional(Some(0.75), Some(0), |faker| {
+        faker.biasedNumberBetween(Some(1), Some(100), Some(&|x| x))
+    })?;
+    let even = faker.valid(|value| value % 2 == 0, None, |faker| {
+        Ok(faker.numberBetween(0, 100))
+    })?;
+    Ok((sample, even))
+}
+```
+
 ### 基于语料的文本 {#corpus-text-samples}
 
 用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 从固定 FakerPHP 语料按加权 Markov 链生成文本。分别传入 `None` 可使用默认最大长度 200、最小长度 160 或上下文长度 2。上下文长度支持 1 至 5。 `realTextBetween` 的 Unicode 字符数大于最小值，且不超过最大值。简体中文等未提供上游词库的语言回退至英语。繁体中文和日语按字符采样。波斯语 `realText` 使用上游的字节长度。该语料没有大写开头的词，`realTextBetween` 会返回重试耗尽错误。两个方法均支持 `unique`。

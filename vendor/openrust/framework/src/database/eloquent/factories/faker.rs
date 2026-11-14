@@ -42,6 +42,9 @@ mod color;
 #[path = "faker_html_lorem.rs"]
 mod html_lorem;
 
+#[path = "faker_modifiers.rs"]
+mod modifiers;
+
 #[path = "faker_text.rs"]
 mod text;
 
@@ -369,10 +372,15 @@ impl Faker {
 
     /// Generates values without repeating previously returned values for each formatter.
     pub fn unique(&self, reset: bool) -> UniqueFaker<'_> {
+        self.uniqueWithRetries(reset, 10_000)
+    }
+
+    /// Uses a custom attempt limit with the shared formatter history.
+    pub fn uniqueWithRetries(&self, reset: bool, maxRetries: usize) -> UniqueFaker<'_> {
         if reset {
             self.unique.lock().unwrap().clear();
         }
-        UniqueFaker(self)
+        UniqueFaker(self, maxRetries)
     }
 
     pub fn sentence(&self, words: Range<usize>) -> String {
@@ -2161,7 +2169,7 @@ fn round_decimal(value: f64, decimals: i32) -> DatabaseResult<f64> {
 }
 
 /// A uniqueness modifier that shares the generator's formatter history.
-pub struct UniqueFaker<'a>(&'a Faker);
+pub struct UniqueFaker<'a>(&'a Faker, usize);
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
@@ -2802,8 +2810,11 @@ impl UniqueFaker<'_> {
         mut value: impl FnMut() -> DatabaseResult<T>,
         key: impl Fn(&T) -> DatabaseResult<String>,
     ) -> DatabaseResult<T> {
-        for _ in 0..10_000 {
+        for attempt in 0..=self.1 {
             let value = value()?;
+            if attempt == self.1 {
+                break;
+            }
             let key = key(&value)?;
             if self
                 .0
