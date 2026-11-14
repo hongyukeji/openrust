@@ -3180,3 +3180,50 @@ fn missing_person_provider_uses_us_names_and_optional_formatters() {
         assert!(faker.suffix().is_err());
     }
 }
+
+#[test]
+fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
+    let faker = fake(Some("es-VE")).unwrap();
+    let unique = faker.unique(true);
+    let mut prefixes = std::collections::HashSet::new();
+    let mut samples = std::collections::HashSet::new();
+    for _ in 0..160 {
+        let compact = unique.taxpayerIdentificationNumber().unwrap();
+        assert_eq!(compact.len(), 10);
+        assert!(b"JGVEPC".contains(&compact.as_bytes()[0]));
+        assert!(compact[1..].bytes().all(|digit| digit.is_ascii_digit()));
+        prefixes.insert(compact.as_bytes()[0]);
+        assert!(samples.insert(compact));
+
+        let explicit = unique
+            .taxpayerIdentificationNumberWithSeparator(None)
+            .unwrap();
+        assert!(samples.insert(explicit));
+        let separated = unique
+            .taxpayerIdentificationNumberWithSeparator(Some("／-"))
+            .unwrap();
+        let fields: Vec<_> = separated.split("／-").collect();
+        assert_eq!(fields.len(), 3);
+        assert_eq!(fields[0].len(), 1);
+        assert!(b"JGVEPC".contains(&fields[0].as_bytes()[0]));
+        assert_eq!(fields[1].len(), 8);
+        assert_eq!(fields[2].len(), 1);
+        assert!(
+            fields[1..]
+                .iter()
+                .flat_map(|part| part.bytes())
+                .all(|digit| digit.is_ascii_digit())
+        );
+        assert!(samples.insert(separated));
+    }
+    assert_eq!(prefixes.len(), 6);
+    for (locale, length) in [("pl-PL", 10), ("pt-PT", 9)] {
+        let faker = fake(Some(locale)).unwrap();
+        assert_eq!(faker.taxpayerIdentificationNumber().unwrap().len(), length);
+        assert!(
+            faker
+                .taxpayerIdentificationNumberWithSeparator(Some("-"))
+                .is_err()
+        );
+    }
+}

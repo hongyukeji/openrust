@@ -1170,3 +1170,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `0bc168b0`。PHP 8.5 通过固定实现解析三个回退地区并核对 192 组上游结果。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 960 个值，覆盖 en-CA、cy-GB 和 en，验证姓名模板、词表、后缀及 SSN 并执行文档示例。验收同时覆盖 en-SG、en-GB 和 zh-CN 自有 Person 的不支持接口。66 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用约 80 GiB。下一批对账 Person 模板、词表及地区分派的剩余行为。
+
+## Faker Person 词表复核与委内瑞拉 RIF
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 69 个地区 Person 声明，复核姓名模板、名字、姓氏、称谓及特定词表，保留重复项与抽样权重。核对同名 formatter 时发现 [委内瑞拉 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_VE/Company.php#L38) 的 `taxpayerIdentificationNumber` 分派缺失。补上六种前缀、八位主体、随机尾数及可选分隔符。Rust 通过 `taxpayerIdentificationNumberWithSeparator` 表达带参数调用，和无参调用共用去重记录。v0.x 无对应 formatter，编译式工厂装配无需调整。
+
+隔离基线 `74c975e1`。PHP 8.5 核对 576 个固定上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 577 个值，覆盖全部前缀、无分隔符、自定义多字符分隔符和三语共用示例。67 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。格式检查仅在隔离副本处理基线 Sanctum 排版差异。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.3 GiB 和站点产物约 40 MiB。提交前周额度剩余 42%，项目卷可用约 80 GiB。后续核对 Company 的 `catchPhrase`、`bs` 及地区词组接口，05-04 保持未闭合。

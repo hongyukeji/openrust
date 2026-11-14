@@ -1151,8 +1151,11 @@ impl Faker {
         Ok(if remainder < 2 { 0 } else { 11 - remainder })
     }
 
-    /// Samples a Portuguese NIF or Polish NIP.
+    /// Samples a Portuguese NIF, Polish NIP, or Venezuelan RIF.
     pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+        if self.locale() == "es_VE" {
+            return self.taxpayerIdentificationNumberWithSeparator(None);
+        }
         if self.locale() == "pt_PT" {
             const MASKS: &[&str] = &[
                 "1#######", "2#######", "3#######", "45######", "5#######", "6#######", "70######",
@@ -1177,6 +1180,23 @@ impl Faker {
                 return Ok(format!("{prefix}{check}"));
             }
         }
+    }
+
+    /// Samples a Venezuelan RIF with a separator on either side of the eight-digit body.
+    pub fn taxpayerIdentificationNumberWithSeparator(
+        &self,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "es_VE" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker taxpayer identification separator locale",
+            ));
+        }
+        let separator = separator.unwrap_or_default();
+        let prefix = char::from(*self.randomElement(b"JGVEPC").unwrap());
+        let body = self.numerify(Some("########"));
+        let last_digit = self.randomDigit();
+        Ok(format!("{prefix}{separator}{body}{separator}{last_digit}"))
     }
 
     /// Samples the selected Person provider's personal identity number.
@@ -1518,6 +1538,15 @@ impl UniqueFaker<'_> {
     pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
         self.try_generate("taxpayerIdentificationNumber", || {
             self.0.taxpayerIdentificationNumber()
+        })
+    }
+
+    pub fn taxpayerIdentificationNumberWithSeparator(
+        &self,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("taxpayerIdentificationNumber", || {
+            self.0.taxpayerIdentificationNumberWithSeparator(separator)
         })
     }
 

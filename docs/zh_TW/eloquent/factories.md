@@ -970,6 +970,18 @@ fn kazakh_iin_sample() -> DatabaseResult<String> {
 }
 ```
 
+使用 `es-VE` 的 `taxpayerIdentificationNumber()` 產生委內瑞拉 RIF 樣本。格式由六種前綴之一（`J`、`G`、`V`、`E`、`P`、`C`）、八位主體數字和一位隨機尾數組成。用 `taxpayerIdentificationNumberWithSeparator(Some("-"))` 在主體兩側加入分隔符。兩個入口共用 `unique()` 的去重記錄。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn venezuelan_rif_sample() -> DatabaseResult<String> {
+    fake(Some("es-VE"))?
+        .unique(false)
+        .taxpayerIdentificationNumberWithSeparator(Some("-"))
+}
+```
+
 ### 葡萄牙 NIF 和臺灣華語名字詞表 {#portuguese-nif-and-taiwanese-name-pools}
 
 在 `pt-PT` 中用 `taxpayerIdentificationNumber()` 產生九位數 NIF 樣本。`Faker::dvCalcMod11(number)` 接收 ASCII 數字字串計算校驗位，可保留前導零。在 `zh-TW` 中，`randomName(pool, count)` 從字串切片獨立抽樣後拼接，可以重複抽到同一項。詞表為空或抽樣數為零時回傳空字串。兩個產生器皆支援 `unique()`。

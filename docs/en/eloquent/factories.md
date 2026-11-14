@@ -970,6 +970,18 @@ fn kazakh_iin_sample() -> DatabaseResult<String> {
 }
 ```
 
+For Venezuelan RIF samples, use `taxpayerIdentificationNumber()` with `es-VE`. The format has one of six prefixes (`J`, `G`, `V`, `E`, `P`, `C`), eight body digits and a final random digit. Use `taxpayerIdentificationNumberWithSeparator(Some("-"))` to insert a separator on both sides of the body. Both calls share the `unique()` formatter history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn venezuelan_rif_sample() -> DatabaseResult<String> {
+    fake(Some("es-VE"))?
+        .unique(false)
+        .taxpayerIdentificationNumberWithSeparator(Some("-"))
+}
+```
+
 ### Portuguese NIF and Taiwanese Name Pools {#portuguese-nif-and-taiwanese-name-pools}
 
 Use `taxpayerIdentificationNumber()` with `pt-PT` for a nine-digit NIF sample. `Faker::dvCalcMod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `randomName(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`.
