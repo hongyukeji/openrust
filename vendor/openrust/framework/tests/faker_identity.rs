@@ -2281,3 +2281,52 @@ fn greek_bulgarian_and_slovenian_names_use_their_person_providers() {
     assert!(titles.contains(slovenia.title(Some("female"))));
     assert!(["Mr.", "Dr.", "Prof."].contains(&slovenia.titleMale()));
 }
+
+#[test]
+fn west_asian_and_egyptian_person_names_use_the_pinned_catalogs() {
+    use std::collections::HashSet;
+
+    for (locale, count, marker, titles) in [
+        (
+            "ar-EG",
+            57,
+            "عبد الرحيم",
+            &["السيدة", "الآنسة", "الدكتورة", "المهندسة"][..],
+        ),
+        (
+            "ar-JO",
+            88,
+            "آلهامي",
+            &["السيدة", "الآنسة", "الدكتورة", "المهندسة"][..],
+        ),
+        ("he-IL", 101, "אויערבך", &["גב.", "ד\"ר", "פרופ"][..]),
+        ("hy-AM", 22, "Կարապետյան", &["տիկին", "օրիորդ"][..]),
+        ("ka-GE", 201, "აბაშიძე", &["ქნ.", "დოქ.", "პროფ."][..]),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let surnames: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        assert!(surnames.contains(marker));
+        assert!(unique.lastName().is_err());
+        let actual_titles: HashSet<_> = (0..titles.len())
+            .map(|_| unique.titleFemale().unwrap())
+            .collect();
+        assert_eq!(actual_titles, titles.iter().copied().collect());
+        let mut egyptian_prefix = false;
+        for _ in 0..128 {
+            for name in [faker.name(), faker.nameWithGender(Some("female"))] {
+                assert!(
+                    surnames.iter().any(|surname| name.ends_with(surname)),
+                    "{locale}: {name}"
+                );
+                egyptian_prefix |= ["أ.", "د.", "أ.د", "م."].iter().any(|prefix| {
+                    name.strip_prefix(prefix)
+                        .is_some_and(|rest| rest.starts_with(' '))
+                });
+            }
+        }
+        if locale == "ar-EG" {
+            assert!(egyptian_prefix);
+        }
+    }
+}

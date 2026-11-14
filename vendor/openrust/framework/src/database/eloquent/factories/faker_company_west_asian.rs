@@ -2386,7 +2386,7 @@ const FA_IR_CONTRACTS: &[&str] = &[
 
 const FA_IR_SUFFIXES: &[&str] = &["Ltd"];
 
-const HE_IL_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HE_IL_SURNAMES: &[&str] = &[
     "אויערבך",
     "אולמן",
     "אונגרישר",
@@ -2492,7 +2492,7 @@ const HE_IL_SURNAMES: &[&str] = &[
 
 const HE_IL_SUFFIXES: &[&str] = &["בע\"מ", "ובניו", "סוכנויות", "משווקים"];
 
-const HY_AM_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HY_AM_SURNAMES: &[&str] = &[
     "Կարապետյան",
     "Ասատրյան",
     "Հովսեփյան",

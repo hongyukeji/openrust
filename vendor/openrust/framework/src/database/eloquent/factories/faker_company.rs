@@ -55,7 +55,7 @@ pub(super) mod lt_sl_tr;
 mod cyrillic;
 
 #[path = "faker_company_west_asian.rs"]
-mod west_asian;
+pub(super) mod west_asian;
 
 #[path = "faker_company_south_southeast_asian.rs"]
 mod south_southeast_asian;
@@ -398,7 +398,7 @@ const EGYPTIAN_CITIES: &[&str] = &[
     "إمبابة",
 ];
 
-const EGYPTIAN_SURNAMES: &[&str] = &[
+pub(super) const EGYPTIAN_SURNAMES: &[&str] = &[
     "عبد الرحيم",
     "عبد الرحمن",
     "عبد الرؤوف",
@@ -458,7 +458,7 @@ const EGYPTIAN_SURNAMES: &[&str] = &[
     "الكفراوي",
 ];
 
-const JORDANIAN_SURNAMES: &[&str] = &[
+pub(super) const JORDANIAN_SURNAMES: &[&str] = &[
     "آلهامي",
     "أبو الرب",
     "ابو رحمة",

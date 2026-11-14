@@ -746,6 +746,18 @@ fn balkan_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Egyptian and West Asian Names {#egyptian-and-west-asian-names}
+
+The `ar-EG`, `ar-JO`, `he-IL`, `hy-AM`, and `ka-GE` Person providers use the pinned regional first names, surnames, and honorifics. Egyptian full-name templates can include an abbreviated prefix. Armenian and Georgian full names follow their given-name-and-surname templates.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn west_asian_name_sample() -> DatabaseResult<String> {
+    fake(Some("ka-GE"))?.unique(false).name()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

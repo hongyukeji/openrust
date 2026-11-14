@@ -746,6 +746,18 @@ fn balkan_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 埃及及西亚地区姓名 {#egyptian-and-west-asian-names}
+
+`ar-EG`、`ar-JO`、`he-IL`、`hy-AM` 和 `ka-GE` 使用固定 Person 的本地名字、姓氏和称谓。埃及全名模板可包含缩写前缀。亚美尼亚和格鲁吉亚按名字加姓氏的模板生成全名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn west_asian_name_sample() -> DatabaseResult<String> {
+    fake(Some("ka-GE"))?.unique(false).name()
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
