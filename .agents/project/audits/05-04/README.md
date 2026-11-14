@@ -763,3 +763,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `191390b2`。PHP 8.5 验证 2,048 个固定上游名称和同等数量的后缀。Rust 1.94.0 格式与全目标严格 Clippy、16 项 Faker 定向回归和 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回读四个地区的八条公司名称与前缀样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，站点保留既有分块提示。日常数据库验收只运行 MySQL。
 
 临时 Seeder 已恢复，清理本批 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对其他地区公司模板。
+
+## Faker 埃及、约旦与沙特公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。按固定 FakerPHP v1.24.1 的[埃及](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_EG/Company.php)、[约旦](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_JO/Company.php)和[沙特](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_SA/Company.php)模板生成公司名称。保留地区姓氏、埃及城市、公共前缀、地区后缀与原始空格。Rust 复用公司格式器与去重基础设施，约旦和沙特共享相同的模板和后缀。v0.x 未发现等价入口，Goravel 式装配沿用既有 Faker。
+
+隔离基线 `e2c571f8`。PHP 8.5 对照 1,536 组固定上游名称、后缀和前缀。Rust 1.94.0 格式、全目标严格 Clippy、17 项 Faker 定向回归和 MySQL 8.4.13 工厂回归通过。实际二进制 `main artisan db:seed --database=mysql --force` 写入并回读三地共九条公司名称、前缀和后缀。Artisan inspire、三语示例编译、VitePress 与根路径及 `/docs/` 下六项浏览器检查通过。本批数据库验收只运行 MySQL，站点保留既有分块大小提示。
+
+临时 Seeder 已恢复，清理本批 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对欧洲其余公司模板。

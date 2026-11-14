@@ -873,3 +873,59 @@ fn east_asian_company_names_follow_their_locale_templates() {
     assert!(japan.companyModifier().is_err());
     assert!(mainland.companyEnSuffix().is_err());
 }
+
+#[test]
+fn arabic_company_names_use_regional_templates_and_preserve_suffix_spacing() {
+    use std::collections::HashSet;
+    let starts = ["شركة", "مؤسسة", "مجموعة", "مكتب", "أكاديمية", "معرض"];
+    let egyptian_suffixes = [
+        " ش.م.م",
+        " للتجاره العامه",
+        "للأجهزة الطبيه",
+        "للتوريدات",
+        "للمقاولات",
+        "للتطوير العقاري",
+        "للدعايه و الاعلان",
+        "للحلول المتقدمه",
+        "للخدمات الدولية",
+        "الدولية",
+        "للانظمة المتكاملة",
+    ];
+    let jordanian_saudi_suffixes = [
+        "وأولاده",
+        "للمساهمة المحدودة",
+        " ذ.م.م",
+        "مساهمة عامة",
+        "وشركائه",
+    ];
+
+    for (locale, suffixes) in [
+        ("ar-EG", egyptian_suffixes.as_slice()),
+        ("ar-JO", jordanian_saudi_suffixes.as_slice()),
+        ("ar-SA", jordanian_saudi_suffixes.as_slice()),
+    ] {
+        let provider = fake(Some(locale)).unwrap();
+        let unique = provider.unique(true);
+        let prefixes: HashSet<_> = (0..starts.len())
+            .map(|_| unique.companyPrefix().unwrap())
+            .collect();
+        assert_eq!(prefixes, starts.into());
+        assert!(unique.companyPrefix().is_err());
+        let sampled: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(sampled, suffixes.iter().map(|s| (*s).to_owned()).collect());
+        assert!(unique.companySuffix().is_err());
+        for _ in 0..128 {
+            let name = provider.company();
+            assert!(
+                name.chars()
+                    .any(|ch| ('\u{0600}'..='\u{06ff}').contains(&ch))
+            );
+            assert!(
+                starts.iter().any(|s| name.starts_with(&format!("{s} ")))
+                    || suffixes.iter().any(|s| name.ends_with(&format!(" {s}")))
+            );
+        }
+    }
+}

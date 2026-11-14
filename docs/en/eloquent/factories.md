@@ -312,10 +312,12 @@ For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP nam
 
 For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding FakerPHP templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the existing Japanese surname generator. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
 
+With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `companyPrefix()` and `companySuffix()` with `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 44]> {
+fn identity_samples() -> DatabaseResult<[String; 46]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -327,6 +329,8 @@ fn identity_samples() -> DatabaseResult<[String; 44]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        egypt.company(),
+        fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),
         taiwan.companyModifier()?.to_owned(),
         taiwan.companyEnSuffix()?.to_owned(),

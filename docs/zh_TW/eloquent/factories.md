@@ -312,10 +312,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 FakerPHP 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱沿用現有日本姓氏產生器，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
 
+`ar-EG`、`ar-JO` 和 `ar-SA` 的公司名稱使用固定上游的阿拉伯語前綴、地區姓氏與後綴。埃及範本也會使用城市名稱。產生器保留後綴詞表中的空格。三個地區的 `companyPrefix()` 和 `companySuffix()` 都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 44]> {
+fn identity_samples() -> DatabaseResult<[String; 46]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -327,6 +329,8 @@ fn identity_samples() -> DatabaseResult<[String; 44]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        egypt.company(),
+        fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),
         taiwan.companyModifier()?.to_owned(),
         taiwan.companyEnSuffix()?.to_owned(),
