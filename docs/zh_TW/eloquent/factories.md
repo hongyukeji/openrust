@@ -308,12 +308,14 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hant` 的 `VAT()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
 
-`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區沿用現有本地化姓氏產生器。其他地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區沿用現有本地化姓氏產生器。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+
+`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 FakerPHP 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱沿用現有日本姓氏產生器，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 41]> {
+fn identity_samples() -> DatabaseResult<[String; 44]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -323,7 +325,11 @@ fn identity_samples() -> DatabaseResult<[String; 41]> {
     let danish = fake(Some("da-DK"))?;
     let egypt = fake(Some("ar-EG"))?;
     let greek = fake(Some("el-GR"))?;
+    let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("ko-KR"))?.company(),
+        taiwan.companyModifier()?.to_owned(),
+        taiwan.companyEnSuffix()?.to_owned(),
         polish.company(),
         fake(Some("fr-FR"))?.companySuffix(),
         fake(Some("zh-Hant"))?.VAT()?.to_string(),

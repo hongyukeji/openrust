@@ -821,3 +821,55 @@ fn company_suffixes_and_templates_use_the_selected_provider() {
     assert!(!fallback.company().is_empty());
     assert!(!fallback.companySuffix().is_empty());
 }
+
+#[test]
+fn east_asian_company_names_follow_their_locale_templates() {
+    let mainland = fake(Some("zh-Hans")).unwrap();
+    let taiwan = fake(Some("zh-Hant")).unwrap();
+    let japan = fake(Some("ja-JP")).unwrap();
+    let korea = fake(Some("ko-KR")).unwrap();
+    let hangul = Regex::new(r"^(\(주\)|\(유\))?\p{Hangul}+$").unwrap();
+
+    for _ in 0..128 {
+        let name = mainland.company();
+        assert!(
+            [
+                "科技有限公司",
+                "网络有限公司",
+                "信息有限公司",
+                "传媒有限公司"
+            ]
+            .iter()
+            .any(|suffix| name.ends_with(suffix))
+        );
+        assert!(taiwan.company().chars().all(|ch| !ch.is_ascii()));
+        let japanese_name = japan.company();
+        assert!(japanese_name.starts_with("株式会社 ") || japanese_name.starts_with("有限会社 "));
+        assert!(hangul.is_match(&korea.company()));
+    }
+
+    let unique_japan = japan.unique(true);
+    let prefixes = [
+        unique_japan.companyPrefix().unwrap(),
+        unique_japan.companyPrefix().unwrap(),
+    ];
+    assert!(prefixes.contains(&"株式会社") && prefixes.contains(&"有限会社"));
+    assert!(unique_japan.companyPrefix().is_err());
+    assert_eq!(japan.companySuffix(), "Ltd");
+    let unique_taiwan = taiwan.unique(true);
+    let modifiers: std::collections::HashSet<_> = (0..17)
+        .map(|_| unique_taiwan.companyModifier().unwrap())
+        .collect();
+    assert_eq!(modifiers.len(), 17);
+    assert!(unique_taiwan.companyModifier().is_err());
+    let suffixes: std::collections::HashSet<_> = (0..6)
+        .map(|_| unique_taiwan.companyEnSuffix().unwrap())
+        .collect();
+    assert_eq!(
+        suffixes,
+        ["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"].into()
+    );
+    assert!(unique_taiwan.companyEnSuffix().is_err());
+    assert!(japan.companyModifier().is_err());
+    assert!(mainland.companyEnSuffix().is_err());
+}

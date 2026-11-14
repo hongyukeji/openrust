@@ -308,12 +308,14 @@ With `kk-KZ`, `businessIdentificationNumber(date)` returns a twelve-digit BIN. P
 
 With `zh-Hant`, `VAT()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
 
-For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the existing localized surname generators. Other locales use the existing fake-rs company data and fallback. Both methods support `unique`.
+For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the existing localized surname generators. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
+
+For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding FakerPHP templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the existing Japanese surname generator. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 41]> {
+fn identity_samples() -> DatabaseResult<[String; 44]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -323,7 +325,11 @@ fn identity_samples() -> DatabaseResult<[String; 41]> {
     let danish = fake(Some("da-DK"))?;
     let egypt = fake(Some("ar-EG"))?;
     let greek = fake(Some("el-GR"))?;
+    let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("ko-KR"))?.company(),
+        taiwan.companyModifier()?.to_owned(),
+        taiwan.companyEnSuffix()?.to_owned(),
         polish.company(),
         fake(Some("fr-FR"))?.companySuffix(),
         fake(Some("zh-Hant"))?.VAT()?.to_string(),

@@ -755,3 +755,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照固定 [FakerPHP v1.24.1 Company](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider) 接入美国、法国、意大利和波兰四种名称模板与后缀。保留重复模板的抽样权重。美国、法国及意大利复用框架现有的姓氏生成器，姓名词库仍有差异。波兰此前会回退英语，现改用固定上游的波兰姓氏和机构前缀。其余地区延续 fake-rs 公司名称行为。新增 `companySuffix()`，与 `company()` 各自支持 `unique`。v0.x 未发现等价入口，Goravel 式装配继续使用现有 Faker。
 
 基线 `3d68ad4d`。PHP 8.5 从固定上游抽样 2,048 个名称和 2,048 个后缀，校验后缀覆盖、意大利必带后缀及波兰模板与姓氏。Rust 1.94.0 格式、全目标严格 Clippy、15 项 Faker 回归与 MySQL 8.4.13 工厂回归通过。用实际二进制运行 `main artisan db:seed --database=mysql --force`，写入并回查四种地区各一组名称和后缀。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，保留已有分块大小提示。按日常验收约定本批数据库只运行 MySQL。临时 Seeder 已恢复，清理 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对东亚公司前缀、后缀与组合规则。
+
+## Faker 东亚公司名称、前缀和后缀
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照固定 FakerPHP v1.24.1 的 [简体中文](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_CN/Company.php)、[繁体中文](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Company.php)、[日本](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ja_JP/Company.php)及[韩国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ko_KR/Company.php)模板。保留重复模板和重复词条的抽样权重、原始标点及名称连接方式。公司前缀、台湾名称修饰词和英文后缀借用静态数据并支持 `unique`，未经接入的地区返回错误。日本继续使用现有日文姓氏生成器，词表与上游仍有差异。台湾 `companyEn()` 实测在固定上游报 `Unknown format "lastNameEn"`，本批只接入可用的 `companyEnSuffix()`。v0.x 未找到等价实现，Goravel 式编译装配沿用既有 Faker。
+
+隔离基线 `191390b2`。PHP 8.5 验证 2,048 个固定上游名称和同等数量的后缀。Rust 1.94.0 格式与全目标严格 Clippy、16 项 Faker 定向回归和 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回读四个地区的八条公司名称与前缀样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，站点保留既有分块提示。日常数据库验收只运行 MySQL。
+
+临时 Seeder 已恢复，清理本批 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对其他地区公司模板。
