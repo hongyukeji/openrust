@@ -325,6 +325,23 @@ Use `forEachSequence(states)` to apply one attribute map per model and set the b
 
 Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. It writes storage attributes, including hidden columns, without adding appended values or applying output accessors.
 
+Use `makeWithParent(parent, attributes)` and `insertWithParent(parent, attributes)` to supply the parent to matching `stateWithParent` callbacks on a single or counted factory. The `On` variants accept an explicit connection. The parent is state context. Set the foreign key in the state or call attributes when the row should reference it.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::FactoryBatch},
+};
+
+async fn insert_for_parent<M: Model, P: Model>(
+    factory: &FactoryBatch<M>,
+    parent: &P,
+    attributes: Attributes,
+) -> DatabaseResult<()> {
+    factory.insertWithParent(parent, attributes).await
+}
+```
+
 Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run.
 
 Use `connection(Some("archive"))` to select a named connection on a factory or counted batch. `getConnectionName()` returns the configured override, and `connection(None)` clears it. Operations resolve the override first, then the model connection, then the current application or Seeder default. The `On` methods use the connection supplied for the target factory. Nested factories use their own override or model connection before inheriting the enclosing connection. Relationship connection checks still apply.

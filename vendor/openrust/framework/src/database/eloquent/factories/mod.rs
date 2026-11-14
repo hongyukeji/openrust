@@ -39,6 +39,15 @@ struct RelationContext<'a> {
     attributes: Option<&'a (Attributes, Attributes)>,
     parent: &'a FactoryParentModel,
 }
+
+impl<'a> RelationContext<'a> {
+    fn parent_only(parent: &'a FactoryParentModel) -> Self {
+        Self {
+            attributes: None,
+            parent,
+        }
+    }
+}
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type PivotResolver<M> = dyn Fn(&M) -> DatabaseResult<Attributes> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
@@ -1002,6 +1011,34 @@ impl<M: Model> Factory<M> {
             0,
             &self.recycled,
             &std::sync::OnceLock::new(),
+            None,
+            attributes,
+        )
+        .await
+    }
+
+    /// Constructs an unsaved model with a parent available to factory states.
+    pub async fn makeWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.makeWithParentOn(&self.resolve_connection()?, parent, attributes)
+            .await
+    }
+
+    pub async fn makeWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.make_one(
+            connection,
+            0,
+            &self.recycled,
+            &std::sync::OnceLock::new(),
+            Some(RelationContext::parent_only(parent)),
             attributes,
         )
         .await
@@ -1029,7 +1066,7 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for (index, attributes) in records.into_attributes(default_count).enumerate() {
             models.push(
-                self.make_one(connection, index, &self.recycled, &faker, attributes)
+                self.make_one(connection, index, &self.recycled, &faker, None, attributes)
                     .await?,
             );
         }
@@ -1059,9 +1096,35 @@ impl<M: Model> Factory<M> {
         attributes: Attributes,
     ) -> DatabaseResult<()> {
         let model = self.makeOneOn(connection, attributes).await?;
+        Self::insert_models(connection, vec![model]).await
+    }
+
+    /// Inserts a model constructed with a parent available to factory states.
+    pub async fn insertWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        self.insertWithParentOn(&self.resolve_connection()?, parent, attributes)
+            .await
+    }
+
+    pub async fn insertWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        let model = self
+            .makeWithParentOn(connection, parent, attributes)
+            .await?;
+        Self::insert_models(connection, vec![model]).await
+    }
+
+    async fn insert_models(connection: &Connection, models: Vec<M>) -> DatabaseResult<()> {
         M::queryOn(connection)
             .withoutGlobalScopes()
-            .insert_prepared_models(vec![model])
+            .insert_prepared_models(models)
             .await
     }
 
@@ -1211,10 +1274,7 @@ impl<M: Model> Factory<M> {
         parent: &P,
         state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        let context = RelationContext {
-            attributes: None,
-            parent,
-        };
+        let context = RelationContext::parent_only(parent);
         self.raw_attributes(
             connection,
             0,
@@ -1365,9 +1425,10 @@ impl<M: Model> Factory<M> {
         index: usize,
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
+        context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
-        let mut pending = self.prepare_attributes(connection, index, None, faker)?;
+        let mut pending = self.prepare_attributes(connection, index, context, faker)?;
         pending.values.extend(overrides);
         self.resolve_attributes(connection, pool, &mut pending)
             .await?;
@@ -1385,7 +1446,7 @@ impl<M: Model> Factory<M> {
         overrides: Attributes,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, index, pool, faker, overrides)
+            .make_one(connection, index, pool, faker, None, overrides)
             .await?;
         self.store(connection, &mut model, pool).await?;
         self.run_after_creating(std::slice::from_mut(&mut model), None)?;
@@ -1695,10 +1756,7 @@ impl<M: Model> FactoryBatch<M> {
         parent: &P,
         mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
-        let context = RelationContext {
-            attributes: None,
-            parent,
-        };
+        let context = RelationContext::parent_only(parent);
         self.raw_with_state(connection, Some(context), |attributes| {
             state(attributes, parent)
         })
@@ -1748,6 +1806,31 @@ impl<M: Model> FactoryBatch<M> {
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
         self.make_with_pool(connection, &self.factory.recycled, None)
             .await
+    }
+
+    /// Constructs unsaved models with a parent available to factory states.
+    pub async fn makeWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.makeWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
+            .await
+    }
+
+    pub async fn makeWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.make_with_overrides(
+            connection,
+            &self.factory.recycled,
+            Some(RelationContext::parent_only(parent)),
+            &attributes,
+        )
+        .await
     }
 
     async fn make_with_pool(
@@ -1805,10 +1888,29 @@ impl<M: Model> FactoryBatch<M> {
         let models = self
             .make_with_overrides(connection, &self.factory.recycled, None, &attributes)
             .await?;
-        M::queryOn(connection)
-            .withoutGlobalScopes()
-            .insert_prepared_models(models.into_iter().collect())
+        Factory::<M>::insert_models(connection, models.into_iter().collect()).await
+    }
+
+    /// Inserts a batch constructed with a parent available to factory states.
+    pub async fn insertWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        self.insertWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
             .await
+    }
+
+    pub async fn insertWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        let models = self
+            .makeWithParentOn(connection, parent, attributes)
+            .await?;
+        Factory::<M>::insert_models(connection, models.into_iter().collect()).await
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {

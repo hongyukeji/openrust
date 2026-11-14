@@ -325,6 +325,23 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
 在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入使用存储属性，包含隐藏列，跳过追加字段和输出访问器。
 
+单条和批量工厂都可以用 `makeWithParent(parent, attributes)` 和 `insertWithParent(parent, attributes)` 把父模型交给匹配的 `stateWithParent` 闭包。对应的 `On` 方法可指定连接。父模型作为状态上下文传入，需要建立关联时，由状态或调用属性赋予外键。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::FactoryBatch},
+};
+
+async fn insert_for_parent<M: Model, P: Model>(
+    factory: &FactoryBatch<M>,
+    parent: &P,
+    attributes: Attributes,
+) -> DatabaseResult<()> {
+    factory.insertWithParent(parent, attributes).await
+}
+```
+
 在单模型或批量工厂上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除该工厂已登记的对应回调。随后可以重新登记回调。另一阶段的回调及 Eloquent 模型事件照常执行。
 
 在单模型或批量工厂上使用 `connection(Some("archive"))` 指定命名连接。`getConnectionName()` 返回工厂配置的覆盖值，`connection(None)` 清除该值。执行时依次查找工厂覆盖、模型连接和当前应用或 Seeder 的默认连接。`On` 方法对目标工厂使用显式传入的连接。嵌套工厂优先使用自身覆盖或模型连接，再继承外层连接。关系连接校验照常执行。

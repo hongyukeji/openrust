@@ -3573,3 +3573,110 @@ async fn factory_raw_parent_is_state_context_without_automatic_association() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+            table.unsignedBigInteger("owner_id").nullable();
+            table.unsignedBigInteger("context_key");
+            table.string("label", 80);
+        })
+        .await?;
+    let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
+    let parent = owners().createOn(connection).await?;
+    let key = parent.getKey().unwrap().clone();
+    let factory = || {
+        Factory::<ExpansionChild>::new(Attributes::new)
+            .stateWithParent::<ExpansionOwner>(|_, parent| {
+                Attributes::from([(
+                    "context_key".into(),
+                    parent
+                        .and_then(Model::getKey)
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                )])
+            })
+            .r#for(
+                BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
+                owners(),
+            )
+            .afterMaking(|model| {
+                assert!(!model.state().exists());
+                model.setAttribute("label", "made");
+                Ok(())
+            })
+            .afterCreating(|_| panic!("insert ran afterCreating"))
+    };
+    let overrides = || Attributes::from([("owner_id".into(), Value::Null)]);
+    let single = factory();
+    let model = single
+        .makeWithParentOn(connection, &parent, overrides())
+        .await?;
+    assert_eq!(model.getAttribute("context_key"), Some(&key));
+    assert_eq!(model.getAttribute("owner_id"), Some(&Value::Null));
+    assert_eq!(model.getAttribute("label"), Some(&"made".into()));
+    let batch = factory().count(2);
+    let drafts = batch
+        .makeWithParentOn(connection, &parent, overrides())
+        .await?;
+    assert_eq!(drafts.len(), 2);
+    assert!(
+        drafts
+            .iter()
+            .all(|model| model.getAttribute("context_key") == Some(&key))
+    );
+    assert_eq!(connection.table("expansion_children").count("*").await?, 0);
+
+    Factory::<ExpansionChild>::new(|| panic!("empty batch evaluated definition"))
+        .count(0)
+        .insertWithParentOn(connection, &parent, overrides())
+        .await?;
+    assert_eq!(connection.table("expansion_children").count("*").await?, 0);
+    single
+        .insertWithParentOn(connection, &parent, overrides())
+        .await?;
+    batch
+        .insertWithParentOn(connection, &parent, overrides())
+        .await?;
+    let rows = connection.table("expansion_children");
+    assert_eq!(rows.count("*").await?, 3);
+    let rows = ExpansionChild::queryOn(connection).get().await?;
+    assert!(rows.iter().all(|model| {
+        matches!(
+            model.getAttribute("context_key"),
+            Some(Value::Integer(1) | Value::Unsigned(1))
+        ) && model.getAttribute("owner_id") == Some(&Value::Null)
+            && model.getAttribute("label") == Some(&"made".into())
+    }));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+    let without_parent = single.makeOneOn(connection, overrides()).await?;
+    assert_eq!(
+        without_parent.getAttribute("context_key"),
+        Some(&Value::Null)
+    );
+    schema.drop("expansion_children").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_make_and_insert_share_parent_state_without_associating_it() {
+    let root = Root::new();
+    verify_make_and_insert_parent(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_make_and_insert_parent(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
