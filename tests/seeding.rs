@@ -947,6 +947,29 @@ impl Seeder for PolymorphicFactories {
 
             let start = chrono::DateTime::from_timestamp(-1, 0).unwrap();
             let end = chrono::DateTime::from_timestamp(1, 0).unwrap();
+            let epoch = chrono::DateTime::UNIX_EPOCH;
+            assert_eq!(faker.unixTime(Some(epoch)), 0);
+            assert!((-1..=0).contains(&faker.unixTime(Some(start))));
+            assert!((0..=chrono::Utc::now().timestamp()).contains(&faker.unixTime(None)));
+            assert_eq!(faker.dateTime(Some(epoch)), epoch);
+            assert_eq!(faker.date(None, Some(epoch))?, "1970-01-01");
+            assert_eq!(faker.time(None, Some(epoch))?, "00:00:00");
+            assert_eq!(faker.date(Some("%d/%m/%Y"), Some(epoch))?, "01/01/1970");
+            assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T00:00:00+0000");
+            assert!(matches!(
+                faker.date(Some("%Q"), Some(epoch)),
+                Err(DatabaseError::InvalidQuery("invalid Faker date format"))
+            ));
+            let unique = faker.unique(false);
+            assert_eq!(unique.unixTime(Some(epoch))?, 0);
+            assert_eq!(unique.dateTime(Some(epoch))?, epoch);
+            assert_eq!(unique.date(None, Some(epoch))?, "1970-01-01");
+            assert_eq!(unique.time(None, Some(epoch))?, "00:00:00");
+            assert_eq!(unique.iso8601(Some(epoch))?, "1970-01-01T00:00:00+0000");
+            assert!(matches!(
+                unique.iso8601(Some(epoch)),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
             for _ in 0..20 {
                 assert!((-2..=3).contains(&faker.numberBetween(3, -2)));
                 assert!(faker.randomDigit() <= 9);

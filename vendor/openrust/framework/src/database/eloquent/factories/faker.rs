@@ -184,6 +184,38 @@ impl Faker {
         )
     }
 
+    /// Samples whole seconds between the Unix epoch and the supplied upper endpoint.
+    pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> i64 {
+        let end = max.map_or_else(|| Utc::now().timestamp(), |date| date.timestamp());
+        self.numberBetween(0, end)
+    }
+
+    /// Returns a sampled instant in UTC.
+    pub fn dateTime(&self, max: Option<DateTime<Utc>>) -> DateTime<Utc> {
+        DateTime::from_timestamp(self.unixTime(max), 0)
+            .expect("sample lies between valid timestamps")
+    }
+
+    pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.format_date(format.unwrap_or("%Y-%m-%d"), max)
+    }
+
+    pub fn time(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.format_date(format.unwrap_or("%H:%M:%S"), max)
+    }
+
+    pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%Y-%m-%dT%H:%M:%S%z").to_string()
+    }
+
+    fn format_date(&self, format: &str, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        use std::fmt::Write as _;
+        let mut output = String::new();
+        write!(output, "{}", self.dateTime(max).format(format))
+            .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
+        Ok(output)
+    }
+
     /// Samples between the supplied bounds, then rounds to the requested decimal place.
     pub fn randomFloat(
         &self,
@@ -301,6 +333,26 @@ impl UniqueFaker<'_> {
         end: DateTime<Utc>,
     ) -> DatabaseResult<DateTime<Utc>> {
         self.try_generate("dateTimeBetween", || self.0.dateTimeBetween(start, end))
+    }
+
+    pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<i64> {
+        self.generate("unixTime", || self.0.unixTime(max))
+    }
+
+    pub fn dateTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.generate("dateTime", || self.0.dateTime(max))
+    }
+
+    pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.try_generate("date", || self.0.date(format, max))
+    }
+
+    pub fn time(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.try_generate("time", || self.0.time(format, max))
+    }
+
+    pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("iso8601", || self.0.iso8601(max))
     }
 
     fn generate<T: ToString>(

@@ -36,6 +36,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 `randomFloat(decimals, min, max)` 先在区间取样，再按指定小数位舍入，中点远离零。传入 `None` 可随机选择零至九位精度或生成上界。上下界可逆序，舍入结果可能超出原区间。Rust 对非有限边界或舍入溢出返回错误。`unique` 将正零与负零视为同一个值。
 
+用 `unixTime(max)` 在 Unix 纪元与指定端点之间取样整秒，或用 `dateTime(max)` 返回 UTC 日期时间。传入 `None` 时使用当前时间。`date(format, max)` 和 `time(format, max)` 接收 Chrono 格式，默认分别为 `%Y-%m-%d` 和 `%H:%M:%S`，格式无效时返回错误。`iso8601(max)` 包含 UTC 偏移量 `+0000`。如需其他时区，可用 Chrono 转换返回的日期时间。五种方法均支持 `unique`。
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{

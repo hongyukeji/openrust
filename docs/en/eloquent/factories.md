@@ -36,6 +36,8 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 `randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Rust returns an error for non-finite bounds or a rounding overflow. `unique` treats positive and negative zero as the same result.
 
+Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the UTC offset `+0000`. Convert the returned date-time to another time zone with Chrono when needed. All five methods support `unique`.
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{
