@@ -521,6 +521,16 @@ fn deferred_factory<M: Model>() -> Factory<M> {
 }
 ```
 
+Use `modelAttribute("owner_id", &owner)` to capture an existing model’s primary key for a factory attribute. A model without a key yields null. Explicit attributes take precedence. During creation, after saving a model and before creating its children, the factory clears cached empty relation collections. Nonempty collections and single relations, including cached nulls, remain available.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
+    Factory::new(Attributes::new).modelAttribute("owner_id", owner)
+}
+```
+
 ## Factory Relationships
 
 ### Parent Context for States and Callbacks {#factory-parent-context}

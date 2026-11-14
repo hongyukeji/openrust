@@ -5049,3 +5049,98 @@ async fn factory_deferred_attributes_resolve_in_order_on_mysql() {
     let db = Root::new().connection(Some(&url), "");
     verify_deferred_factory_attributes(&db).await.unwrap();
 }
+
+#[tokio::test]
+async fn factory_model_keys_and_relation_cache_follow_lifecycle_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = Root::new().connection(Some(&url), "");
+    verify_factory_relation_cache(&db).await.unwrap();
+}
+async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResult<()> {
+    use openrust::database::eloquent::{
+        RelatedCollection,
+        relations::{BelongsTo, HasMany},
+    };
+
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("seed_factory_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("seed_factory_children", |table| {
+            table.id();
+            table.unsignedBigInteger("owner_id").nullable();
+        })
+        .await?;
+    let existing = Factory::<FactoryOwner>::new(Attributes::new)
+        .createOn(connection)
+        .await?;
+    let child = Factory::<FactoryChild>::new(Attributes::new)
+        .modelAttribute("owner_id", &existing)
+        .makeOn(connection)
+        .await?;
+    assert_eq!(child.getAttribute("owner_id"), existing.getKey());
+    let unsaved = FactoryOwner::from_state(Default::default());
+    let raw = Factory::<FactoryChild>::new(Attributes::new)
+        .modelAttribute("owner_id", &unsaved)
+        .rawOn(connection)
+        .await?;
+    assert_eq!(raw["owner_id"], Value::Null);
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 1);
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        0
+    );
+
+    type Children = HasMany<FactoryOwner, FactoryChild>;
+    type Single = BelongsTo<FactoryOwner, FactoryOwner>;
+    let known_child = std::sync::Arc::new(child);
+    let factory = Factory::<FactoryOwner>::new(Attributes::new)
+        .afterMaking(move |owner| {
+            owner.setRelation::<Children>("children", RelatedCollection::fromShared(Vec::new()));
+            owner.setRelation::<Children>(
+                "known",
+                RelatedCollection::fromShared(vec![known_child.clone()]),
+            );
+            owner.setRelation::<Single>("single", None);
+            Ok(())
+        })
+        .has(
+            Children::new("id", "owner_id"),
+            Factory::<FactoryChild>::new(Attributes::new)
+                .afterMaking(|child| {
+                    type Nested = HasMany<FactoryChild, FactoryChild>;
+                    child
+                        .setRelation::<Nested>("nested", RelatedCollection::fromShared(Vec::new()));
+                    Ok(())
+                })
+                .afterCreating(|child| {
+                    assert!(!child.relationLoaded("nested"));
+                    Ok(())
+                })
+                .count(2),
+        )
+        .afterCreating(|owner| {
+            assert!(!owner.relationLoaded("children"));
+            assert!(owner.relationLoaded("known"));
+            assert!(owner.relationLoaded("single"));
+            Ok(())
+        });
+    let preview = factory.makeOn(connection).await?;
+    assert!(preview.relationLoaded("children"));
+    let mut owner = factory.createOn(connection).await?;
+    let relation = Children::new("id", "owner_id");
+    let children = owner.getRelationOrLoad("children", &relation).await?;
+    assert_eq!(children.len(), 2);
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 2);
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        2
+    );
+    Ok(())
+}

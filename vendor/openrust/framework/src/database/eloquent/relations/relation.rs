@@ -22,6 +22,12 @@ pub trait Relation: Send + Sync + 'static {
     type Parent: Model;
     type Output: Send + Sync + 'static;
 
+    /// Identifies an empty collection output without projecting its models.
+    #[doc(hidden)]
+    fn isEmptyCollection(_output: &Self::Output) -> bool {
+        false
+    }
+
     /// Projects a loaded relationship into its JSON representation.
     fn serialize(_output: &Self::Output) -> DatabaseResult<Option<serde_json::Value>> {
         Ok(None)

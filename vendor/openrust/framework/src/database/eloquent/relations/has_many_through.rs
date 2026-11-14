@@ -465,6 +465,10 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
     type Parent = P;
     type Output = super::super::RelatedCollection<R>;
 
+    fn isEmptyCollection(output: &Self::Output) -> bool {
+        output.is_empty()
+    }
+
     fn attachAutoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }

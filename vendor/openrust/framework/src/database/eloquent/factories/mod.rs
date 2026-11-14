@@ -825,6 +825,13 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Projects an existing model attribute to its primary key.
+    #[must_use]
+    pub fn modelAttribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
+        let key = model.getKey().cloned().unwrap_or(Value::Null);
+        self.attribute(name, move |_| Ok(key.clone()))
+    }
+
     /// Declares a factory-valued foreign key in the model definition.
     #[must_use]
     pub fn parentAttribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
@@ -1651,6 +1658,7 @@ impl<M: Model> Factory<M> {
         model: &mut M,
         pool: &[RecycledModel],
     ) -> DatabaseResult<()> {
+        model.state_mut().relations.remove_empty_collections();
         for child in &self.children {
             child(connection, model, pool).await?;
         }

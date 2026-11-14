@@ -25,6 +25,7 @@ trait LoadedRelation: Send + Sync {
     fn project(&self) -> DatabaseResult<Option<Json>>;
     fn queueable_paths(&self) -> Option<Vec<String>>;
     fn reloadable(&self) -> bool;
+    fn is_empty_collection(&self) -> bool;
     fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a>;
 }
 
@@ -33,6 +34,7 @@ struct LoadedValue<T> {
     project: fn(&T) -> DatabaseResult<Option<Json>>,
     queueable_paths: Option<fn(&T) -> Vec<String>>,
     push: Option<PushOutput<T>>,
+    is_empty_collection: Option<fn(&T) -> bool>,
 }
 
 impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
@@ -50,6 +52,10 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
     fn reloadable(&self) -> bool {
         self.queueable_paths.is_some()
     }
+    fn is_empty_collection(&self) -> bool {
+        self.is_empty_collection
+            .is_some_and(|check| check(&self.value))
+    }
     fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a> {
         Box::pin(async move {
             let Some(push) = self.push else {
@@ -62,6 +68,7 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
                     project: self.project,
                     queueable_paths: self.queueable_paths,
                     push: self.push,
+                    is_empty_collection: self.is_empty_collection,
                 }) as Arc<dyn LoadedRelation>
             });
             (replacement, result)
@@ -94,6 +101,7 @@ impl LoadedRelations {
                 project,
                 queueable_paths: None,
                 push: None,
+                is_empty_collection: None,
             }),
         );
     }
@@ -110,6 +118,7 @@ impl LoadedRelations {
                 project: R::serialize,
                 queueable_paths: Some(R::queueableRelations),
                 push: Some(R::pushLoaded),
+                is_empty_collection: Some(R::isEmptyCollection),
             }),
         );
     }
@@ -125,6 +134,7 @@ impl LoadedRelations {
                 value: model,
                 project: super::super::serialization::one::<M>,
                 queueable_paths: None,
+                is_empty_collection: None,
                 push: Some(|model, context| Box::pin(context.push_one(model))),
             }),
         );
@@ -142,6 +152,7 @@ impl LoadedRelations {
                 value: model,
                 project,
                 queueable_paths: None,
+                is_empty_collection: None,
                 push: Some(|model, context| {
                     Box::pin(async move {
                         let mut model = M::from_state(model.state().clone());
@@ -222,6 +233,11 @@ impl LoadedRelations {
 
     pub(in crate::database::eloquent) fn remove(&mut self, name: &str) {
         self.values.shift_remove(name);
+    }
+
+    pub(in crate::database::eloquent) fn remove_empty_collections(&mut self) {
+        self.values
+            .retain(|_, relation| !relation.is_empty_collection());
     }
 
     pub(in crate::database::eloquent) fn clear(&mut self) {

@@ -167,6 +167,10 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
     type Parent = P;
     type Output = <BelongsToMany<P, R> as Relation>::Output;
 
+    fn isEmptyCollection(output: &Self::Output) -> bool {
+        output.is_empty()
+    }
+
     fn attachAutoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
     }

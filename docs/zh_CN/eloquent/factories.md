@@ -521,6 +521,16 @@ fn deferred_factory<M: Model>() -> Factory<M> {
 }
 ```
 
+用 `modelAttribute("owner_id", &owner)` 将现有模型的主键用作工厂属性。没有主键的模型产生 null，显式属性优先。创建时，工厂在保存模型之后、创建子关系之前清除已缓存的空关系集合。非空集合和单值关系继续保留，包括已缓存的 null。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
+    Factory::new(Attributes::new).modelAttribute("owner_id", owner)
+}
+```
+
 ## 工厂关系
 
 ### 状态与回调的父模型 {#factory-parent-context}

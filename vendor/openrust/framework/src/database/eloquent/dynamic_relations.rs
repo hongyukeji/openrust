@@ -144,6 +144,10 @@ impl<R: Relation> Relation for DynamicRelation<R> {
     type Parent = R::Parent;
     type Output = R::Output;
 
+    fn isEmptyCollection(output: &Self::Output) -> bool {
+        R::isEmptyCollection(output)
+    }
+
     fn pushLoaded<'a>(
         output: &'a Self::Output,
         context: &'a mut super::relations::PushContext,

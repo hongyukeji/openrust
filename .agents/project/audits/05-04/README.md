@@ -521,3 +521,13 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 下一批继续核对固定测试中模型值直接展开、关系触碰与关系缓存行为。PHP 的运行时宏与其余 Faker provider 差异继续跟踪。
 
 隔离 Cargo 目标目录与约 38 MiB 站点产物已清理，项目卷剩余 83 GiB。
+
+## 工厂模型主键与关系缓存生命周期
+
+固定 Laravel 的属性展开把模型值转成主键，工厂保存后会移除已缓存的空关系集合，再创建子关系。Rust 以 `modelAttribute(name, &model)` 捕获主键，也可表达未赋主键的 null，显式覆盖沿用现有规则。工厂顶层和嵌套构造共用类型化空集合检测，保留非空集合和单值关系，包括已缓存的 null。关系加载保持异步；多对多写入继续走现有 Pivot 触碰路径。v0.x 没有找到对应工厂入口，Goravel 式编译装配适用。 [Laravel 工厂保存](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L376) · [Laravel 属性展开](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L591)
+
+隔离基线 `40da2c1f`。MySQL 8.4.13 定向回归与实际 `artisan db:seed --database=mysql --force` 验证已有模型主键转换、未保存模型的 null、预构造保留空缓存、保存后的空缓存清理和重新查询两条子记录。多态 Seeder 回归、Rust 1.94.0 格式及严格 Clippy、Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。
+
+固定 Laravel 针对触碰后的多对多关系读取仍需专项验收，包括自定义 Pivot 和命名关系。该差异继续保留在 05-04。
+
+已清理本批隔离构建和站点产物，项目卷剩余 83 GiB。
