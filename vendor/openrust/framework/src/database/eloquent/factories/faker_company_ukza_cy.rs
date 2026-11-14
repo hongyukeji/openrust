@@ -28,7 +28,7 @@ use super::sample;
 
 const EN_GB_SUFFIXES: &[&str] = &["Ltd"];
 
-const EN_GB_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const EN_GB_SURNAMES: &[&str] = &[
     "Adams",
     "Allen",
     "Anderson",
@@ -132,7 +132,7 @@ const EN_GB_SURNAMES: &[&str] = &[
 
 const EN_ZA_SUFFIXES: &[&str] = &["Ltd"];
 
-const EN_ZA_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const EN_ZA_SURNAMES: &[&str] = &[
     "Naidoo",
     "Govender",
     "Pillay",
@@ -630,7 +630,7 @@ const EN_ZA_SURNAMES: &[&str] = &[
 
 const EL_CY_SUFFIXES: &[&str] = &["ΛΤΔ", "Δημόσια εταιρεία", "& Υιοι", "& ΣΙΑ"];
 
-const EL_CY_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const EL_CY_SURNAMES: &[&str] = &[
     "Άκη",
     "Αγαθοκλέους",
     "Αθανάσιου",

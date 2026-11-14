@@ -43,10 +43,10 @@ mod central;
 mod balkan;
 
 #[path = "faker_company_ukza_cy.rs"]
-mod ukza_cy;
+pub(super) mod ukza_cy;
 
 #[path = "faker_company_romance.rs"]
-mod romance;
+pub(super) mod romance;
 
 #[path = "faker_company_lt_sl_tr.rs"]
 mod lt_sl_tr;

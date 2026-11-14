@@ -698,6 +698,18 @@ fn gendered_surname_sample() -> DatabaseResult<String> {
 }
 ```
 
+### British, South African, Cypriot, and Regional French and Italian Names {#additional-regional-names}
+
+The Person catalogs for `en-GB`, `en-ZA`, `el-CY`, `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH` provide local first names, surnames, and effective full-name templates. Swiss French and Italian inherit their respective full-name templates and honorifics with Swiss name lists. Person and Company share the surname catalogs.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_person_sample() -> DatabaseResult<String> {
+    fake(Some("fr-CH"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

@@ -41,7 +41,7 @@ const FR_BE_SUFFIXES: &[&str] = &[
     "SCRL",
 ];
 
-const FR_BE_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const FR_BE_SURNAMES: &[&str] = &[
     "Adam",
     "Aerts",
     "Amrani",
@@ -262,7 +262,7 @@ const FR_BE_SURNAMES: &[&str] = &[
     "Yilmaz",
 ];
 
-const FR_CA_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const FR_CA_SURNAMES: &[&str] = &[
     "Allard",
     "Arsenault",
     "Audet",
@@ -397,7 +397,7 @@ const FR_CA_SURNAMES: &[&str] = &[
 
 const FR_CH_SUFFIXES: &[&str] = &["AG", "Sàrl", "SA", "GmbH"];
 
-const FR_CH_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const FR_CH_SURNAMES: &[&str] = &[
     "Aebischer",
     "Aeby",
     "Andrey",
@@ -602,7 +602,7 @@ const FR_CH_SURNAMES: &[&str] = &[
 
 const IT_CH_SUFFIXES: &[&str] = &["SA", "Sarl"];
 
-const IT_CH_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const IT_CH_SURNAMES: &[&str] = &[
     "Agustoni",
     "Alberti",
     "Albertini",

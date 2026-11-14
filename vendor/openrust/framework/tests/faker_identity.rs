@@ -2118,3 +2118,53 @@ fn polish_and_lithuanian_names_follow_gendered_surname_templates() {
         assert!((2..=4).contains(&name.split_whitespace().count()));
     }
 }
+
+#[test]
+fn seven_regional_person_providers_use_their_company_surname_catalogs() {
+    use std::collections::HashSet;
+
+    for (locale, count, marker) in [
+        ("en-GB", 99, "Adams"),
+        ("en-ZA", 493, "Naidoo"),
+        ("el-CY", 130, "Άκη"),
+        ("fr-BE", 218, "Adam"),
+        ("fr-CA", 130, "Allard"),
+        ("fr-CH", 200, "Aebischer"),
+        ("it-CH", 200, "Agustoni"),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        assert!(actual.contains(marker));
+        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
+
+        for _ in 0..32 {
+            for name in [
+                faker.name(),
+                faker.nameWithGender(Some("female")),
+                faker.company(),
+            ] {
+                assert!(
+                    actual.iter().any(|surname| name.contains(surname)),
+                    "{locale}: {name}"
+                );
+            }
+        }
+    }
+
+    for (locale, titles) in [
+        ("el-CY", &["δις.", "δνις.", "κα."][..]),
+        ("fr-BE", &["Mme.", "Mlle", "Dr.", "Pr.", "Me."][..]),
+        (
+            "en-ZA",
+            &["Mrs.", "Ms.", "Miss", "Dr.", "Prof.", "Rev.", "Hon."][..],
+        ),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..titles.len())
+            .map(|_| unique.titleFemale().unwrap())
+            .collect();
+        assert_eq!(actual, titles.iter().copied().collect());
+    }
+}

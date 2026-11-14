@@ -698,6 +698,18 @@ fn gendered_surname_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 英国、南非、塞浦路斯与法语及意大利语地区姓名 {#additional-regional-names}
+
+`en-GB`、`en-ZA`、`el-CY`、`fr-BE`、`fr-CA`、`fr-CH` 和 `it-CH` 使用地区 Person 的名字、姓氏和实际生效的全名模板。瑞士法语和意大利语沿用各自基类的模板和称谓，使用瑞士本地姓名词表。Person 与 Company 共用姓氏词表。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_person_sample() -> DatabaseResult<String> {
+    fake(Some("fr-CH"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

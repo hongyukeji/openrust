@@ -844,6 +844,11 @@ impl Faker {
 
     pub fn titleMale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "en_ZA" => &["Mr.", "Dr.", "Prof.", "Rev.", "Hon."],
+            "el_CY" => &["κος.", "κ."],
+            "fr_BE" => &["M.", "Dr.", "Pr.", "Me.", "Mgr"],
+            "fr_CH" => &["M.", "Dr.", "Pr.", "Me."],
+            "it_CH" => &["Sig.", "Dott.", "Dr.", "Ing."],
             "lt_LT" => &["p.", "ponas"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Hra.", "Tri."],
@@ -865,6 +870,11 @@ impl Faker {
 
     pub fn titleFemale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "en_ZA" => &["Mrs.", "Ms.", "Miss", "Dr.", "Prof.", "Rev.", "Hon."],
+            "el_CY" => &["δις.", "δνις.", "κα."],
+            "fr_BE" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
+            "fr_CH" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
+            "it_CH" => &["Sig.ra", "Dott.", "Dr.", "Ing."],
             "lt_LT" => &["p.", "ponia", "panelė"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Rva.", "Nti.", "Tri."],
