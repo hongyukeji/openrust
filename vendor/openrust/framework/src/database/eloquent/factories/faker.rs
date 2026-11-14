@@ -240,6 +240,38 @@ sample_formatters! {
     emoji => EMOJI,
 }
 
+#[allow(non_snake_case, reason = "Matches Faker formatter names")]
+impl Faker {
+    pub fn bloodType(&self) -> &'static str {
+        const TYPES: [&str; 4] = ["A", "AB", "B", "O"];
+        TYPES[fastrand::usize(..TYPES.len())]
+    }
+
+    pub fn bloodRh(&self) -> &'static str {
+        const FACTORS: [&str; 2] = ["+", "-"];
+        FACTORS[fastrand::usize(..FACTORS.len())]
+    }
+
+    pub fn bloodGroup(&self) -> String {
+        format!("{}{}", self.bloodType(), self.bloodRh())
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Faker formatter names")]
+impl UniqueFaker<'_> {
+    pub fn bloodType(&self) -> DatabaseResult<&'static str> {
+        self.generate("bloodType", || self.0.bloodType())
+    }
+
+    pub fn bloodRh(&self) -> DatabaseResult<&'static str> {
+        self.generate("bloodRh", || self.0.bloodRh())
+    }
+
+    pub fn bloodGroup(&self) -> DatabaseResult<String> {
+        self.generate("bloodGroup", || self.0.bloodGroup())
+    }
+}
+
 /// Resolves the application generator for the selected locale.
 /// Outside an application scope, creates a fresh generator.
 pub fn fake(locale: Option<&str>) -> DatabaseResult<Arc<Faker>> {

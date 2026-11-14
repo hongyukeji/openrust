@@ -613,3 +613,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `f59ee745`。PHP 8.5 执行固定 provider，逐项比对 22 组默认及地区词表和 2,560 条样本的格式与范围。两项 Rust 回归覆盖范围、简繁中文和法语等名称、回退及唯一值耗尽和重置。真实 MySQL 8.4.13 运行 `main artisan db:seed --database=mysql --force`，回查十种格式和繁体中文名称。49 项 Seeder、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式与工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
 
 已恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。05-04 下一批核对 Medical，再继续 HtmlLorem、Text、Biased、修饰器及其余地区 formatter。
+
+## Faker 血型样本
+
+对照固定 FakerPHP v1.24.1，Generator 的三个公开方法经 BloodExtension 使用 Core Blood，Medical provider 的对应方法拥有相同取值。OpenRust 接通 `bloodType`、`bloodRh` 和 `bloodGroup`，按上游独立采样 ABO 和 Rh 并直接拼接。单项返回静态字符串，组合返回 String，三个入口共用已有 `unique` 机制并分别记录历史。v0.x 未发现对应生成器，Goravel 工厂装配沿用现有路径。 [FakerPHP Blood](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/Blood.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `02b07d7d`。PHP 8.5 对固定上游三个入口各取样 512 次，覆盖全部四种 ABO、两种 Rh 和八种组合。Rust 回归核对英文、简体与繁体中文的取值、去重耗尽、独立历史及重置。运行实际 `main artisan db:seed --database=mysql --force` 后，在 MySQL 8.4.13 回查全部 14 条样本。49 项 Seeder 测试、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载六项浏览器检查通过。
+
+隔离副本已恢复原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批核对 HtmlLorem，复用现有 Lorem 和安全域名入口。

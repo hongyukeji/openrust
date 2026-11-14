@@ -278,6 +278,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Blood Group Samples {#blood-group-samples}
+
+Use `bloodType()` for A, AB, B or O, `bloodRh()` for the Rh sign, and `bloodGroup()` to sample both independently and join them without a separator. The same sample values are available in every locale. All three formatters support `unique` with separate histories.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
+    let faker = fake(None)?;
+    Ok((faker.bloodType(), faker.bloodRh(), faker.unique(false).bloodGroup()?))
+}
+```
+
 ### Color Samples {#color-samples}
 
 Use `hexColor()` for six-digit RGB hex, or `safeHexColor()` for the fixed FakerPHP range `#000000` through `#00ffff` with paired hex digits. `rgbColor()` and `hslColor()` return comma-separated values, and their `AsArray` variants return three integers. `rgbCssColor()` and `rgbaCssColor()` produce CSS strings. `safeColorName()` and `colorName()` use the FakerPHP catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.

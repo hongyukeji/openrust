@@ -278,6 +278,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 血型样本 {#blood-group-samples}
+
+用 `bloodType()` 生成 A、AB、B 或 O，`bloodRh()` 生成 Rh 正负号。 `bloodGroup()` 独立采样两部分并直接拼接。各语言使用相同的取值。三个方法均支持 `unique`，并分别记录去重历史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
+    let faker = fake(None)?;
+    Ok((faker.bloodType(), faker.bloodRh(), faker.unique(false).bloodGroup()?))
+}
+```
+
 ### 颜色样本 {#color-samples}
 
 用 `hexColor()` 生成六位 RGB 十六进制颜色。 `safeHexColor()` 沿用固定 FakerPHP 的范围 `#000000` 至 `#00ffff`，每一对十六进制数字相同。 `rgbColor()` 和 `hslColor()` 返回逗号分隔值，对应的 `AsArray` 方法返回三个整数。 `rgbCssColor()` 和 `rgbaCssColor()` 生成 CSS 字符串。 `safeColorName()` 和 `colorName()` 按解析后的语言选择 FakerPHP 词表，缺少对应词表时使用默认词表。十个方法均支持 `unique`。
