@@ -629,3 +629,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `aa718050`。PHP 8.5 的 DOM 对照验证七组深度与宽度参数共 448 份样本，覆盖表单、叶节点、表格、列表和 ID。Rust 回归验证文档可解析、表单、默认及边界参数、ID 唯一性和完整文档去重。MySQL 8.4.13 的多态工厂 Seeder 回归通过。实际 `main artisan db:seed --database=mysql --force` 写入精简及默认深度 HTML 并完整回查。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
 
 隔离副本已恢复原始 Seeder，并清理约 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批继续核对 Text 的 Markov 文本与地区语料。
+
+## Faker 地区语料与 Markov 文本
+
+对照固定 FakerPHP v1.24.1 Text provider，接通 `realText`、`realTextBetween` 及各自的 `unique` 历史。保留 30 个地区映射、26 份不同语料、英语回退、1 至 5 个词或字符的上下文、按出现次数加权的后继采样及约定的重试上限。繁体中文、日语、捷克语和波斯语保留各自的处理规则。Rust 按语料和上下文长度惰性共享不可变索引，使用 UTF-8 Unicode 字符数模拟启用 mbstring 的基线。波斯语 `realText` 沿用字节计数，继承的大写起点规则在 `realTextBetween` 无法找到候选时由 Rust 有界结束并返回错误。语料来源及许可随数据保留。v0.x 未发现等价入口，Goravel 式工厂装配沿用现有路径。 [固定 FakerPHP Text](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Text.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `cb376ae9`。PHP 8.5 校验 30 个地区映射的语料 SHA-256 和 450 条样本。Rust 两项回归覆盖各地区名称、字符与字节边界、默认和无效参数、去重、捷克语和波斯语差异。MySQL 8.4.13 多态 Seeder 回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回查英文、简体回退、繁体、日语和波斯语共五条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
+
+隔离副本已恢复原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批核对 Biased 与生成器修饰器。

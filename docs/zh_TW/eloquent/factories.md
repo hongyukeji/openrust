@@ -278,6 +278,18 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 語料文字 {#corpus-text-samples}
+
+用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 從固定 FakerPHP 語料以加權 Markov 鏈產生文字。各參數可傳入 `None`，採用預設最大長度 200、最小長度 160 或上下文長度 2。上下文長度支援 1 至 5。 `realTextBetween` 的 Unicode 字元數大於最小值，且不超過最大值。簡體中文等缺少上游語料的語言會回退至英語。繁體中文與日語以字元取樣。波斯語 `realText` 沿用上游的位元組長度。該語料沒有以大寫開頭的詞，`realTextBetween` 會回傳重試耗盡錯誤。兩個方法都支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn corpus_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant"))?.realTextBetween(Some(80), Some(120), Some(2))
+}
+```
+
 ### HTML 樣本 {#html-samples}
 
 用 `randomHtml(maxDepth, maxWidth)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。

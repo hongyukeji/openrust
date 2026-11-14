@@ -278,6 +278,18 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Corpus-Based Text {#corpus-text-samples}
+
+Use `realText(maxNbChars, indexSize)?` or `realTextBetween(minNbChars, maxNbChars, indexSize)?` to generate text from the fixed FakerPHP corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `realTextBetween`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `realText` uses the upstream byte limit. Its `realTextBetween` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn corpus_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant"))?.realTextBetween(Some(80), Some(120), Some(2))
+}
+```
+
 ### Sample HTML {#html-samples}
 
 Use `randomHtml(maxDepth, maxWidth)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
