@@ -2304,3 +2304,58 @@ fn faker_mail_and_password_follow_internet_formatter_contracts() -> DatabaseResu
     assert!(faker.unique(true).password(Some(0), Some(0)).is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_phone_numbers_and_imei_follow_pinned_formats() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let cn = Faker::new("zh-Hans-CN")?;
+    let tw = Faker::new("zh-Hant-TW")?;
+    for _ in 0..128 {
+        let number = cn.phoneNumber();
+        assert_eq!(number.len(), 11);
+        assert!(number.starts_with("1") && number.bytes().all(|byte| byte.is_ascii_digit()));
+        let number = tw.phoneNumber();
+        assert!(number.starts_with("0") || number.starts_with("(0") || number.starts_with("+886"));
+        assert!(
+            number
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || b"+()-".contains(&byte))
+        );
+        let imei = cn.imei();
+        assert_eq!(imei.len(), 15);
+        assert!(imei.bytes().all(|byte| byte.is_ascii_digit()));
+        let sum: u32 = imei
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(index, byte)| {
+                let digit = u32::from(byte - b'0') * (1 + (index % 2) as u32);
+                if digit > 9 { digit - 9 } else { digit }
+            })
+            .sum();
+        assert_eq!(sum % 10, 0);
+    }
+
+    for (locale, prefix, lengths) in [
+        ("en_US", "+1", 12..=12),
+        ("fr_FR", "+33", 12..=12),
+        ("de_DE", "+49", 12..=15),
+        ("en_GB", "+44", 13..=13),
+        ("tr_TR", "+90", 13..=13),
+    ] {
+        let faker = Faker::new(locale)?;
+        let unique = faker.unique(false);
+        let mut numbers = std::collections::HashSet::new();
+        for _ in 0..128 {
+            let number = unique.e164PhoneNumber()?;
+            assert!(number.starts_with(prefix));
+            assert!(lengths.contains(&number.len()), "{locale}: {number}");
+            assert!(number[1..].bytes().all(|byte| byte.is_ascii_digit()));
+            assert!(numbers.insert(number));
+        }
+    }
+    assert!(tw.unique(false).phoneNumber().is_ok());
+    assert!(tw.unique(true).imei().is_ok());
+    Ok(())
+}

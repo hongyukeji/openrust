@@ -96,6 +96,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_ip".into(), faker.localIpv4().into()),
             ("website".into(), faker.url()?.into()),
             ("contact".into(), faker.safeEmail().into()),
+            ("phone".into(), faker.e164PhoneNumber().into()),
         ]))
     })
 }
@@ -136,6 +137,10 @@ Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and
 ### Email and Password Samples {#email-and-password-samples}
 
 Use `email()?` for a general address or `companyEmail()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safeEmail()` uses reserved example domains and `freeEmail()` uses localized provider domains. Use `safeEmailDomain()` and `freeEmailDomain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
+
+### Phone and IMEI Samples {#phone-and-imei-samples}
+
+Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned FakerPHP templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
 ## Creating Models Using Factories
 

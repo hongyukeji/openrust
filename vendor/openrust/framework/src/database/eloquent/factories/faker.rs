@@ -1,4 +1,4 @@
-use super::{faker_miscellaneous, regex_pattern::RegexPattern};
+use super::{faker_miscellaneous, faker_phone, regex_pattern::RegexPattern};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
@@ -136,7 +136,6 @@ formatters! {
     city => faker::address::raw::CityName,
     streetName => faker::address::raw::StreetName,
     postcode => faker::address::raw::PostCode,
-    phoneNumber => faker::phone_number::raw::PhoneNumber,
     company => faker::company::raw::CompanyName,
     word => faker::lorem::raw::Word,
 }
@@ -496,6 +495,73 @@ impl Faker {
         })?;
         result.extend((0..length).map(|_| self.randomAscii()));
         Ok(result)
+    }
+
+    pub fn phoneNumber(&self) -> String {
+        match self.locale() {
+            "zh_CN" => {
+                let operators = faker_phone::CHINA_OPERATORS;
+                let prefix = operators[fastrand::usize(..operators.len())];
+                format!(
+                    "{prefix}{}",
+                    self.numerify(Some(&"###########"[prefix.len()..]))
+                )
+            }
+            "zh_TW" => {
+                let formats = faker_phone::TAIWAN;
+                self.numerify(Some(formats[fastrand::usize(..formats.len())]))
+            }
+            _ => generate!(self.locale.as_str(), faker::phone_number::raw::PhoneNumber,),
+        }
+    }
+
+    pub fn e164PhoneNumber(&self) -> String {
+        match self.locale() {
+            "en_US" => {
+                let area = phone_area_code(&US_AREA_CODES, faker_phone::AREA_EN_US);
+                let first = fastrand::u8(2..=9);
+                let middle = self.randomDigit();
+                let last = if middle == 1 {
+                    self.randomDigitNot(1)
+                } else {
+                    self.randomDigit()
+                };
+                let subscriber = self.numerify(Some("####"));
+                format!("+1{area}{first}{middle}{last}{subscriber}")
+            }
+            "de_DE" => {
+                let area = phone_area_code(&DE_AREA_CODES, faker_phone::AREA_DE_DE);
+                format!("+49{area}{}", self.numerify(Some("#######")))
+            }
+            locale => {
+                let formats = match locale {
+                    "de_AT" => faker_phone::INTERNATIONAL_DE_AT,
+                    "de_CH" => faker_phone::INTERNATIONAL_DE_CH,
+                    "en_GB" => faker_phone::INTERNATIONAL_EN_GB,
+                    "fr_FR" => faker_phone::INTERNATIONAL_FR_FR,
+                    "tr_TR" => faker_phone::INTERNATIONAL_TR_TR,
+                    "uk_UA" => faker_phone::INTERNATIONAL_UK_UA,
+                    _ => faker_phone::INTERNATIONAL,
+                };
+                self.numerify(Some(formats[fastrand::usize(..formats.len())]))
+            }
+        }
+    }
+
+    pub fn imei(&self) -> String {
+        let mut digits = self.numerify(Some("##############"));
+        let sum: u32 = digits
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(index, byte)| {
+                let digit = u32::from(byte - b'0');
+                let weighted = digit * (2 - (index % 2) as u32);
+                weighted / 10 + weighted % 10
+            })
+            .sum();
+        digits.push(char::from(b'0' + ((10 - sum % 10) % 10) as u8));
+        digits
     }
 
     pub fn domainWord(&self) -> DatabaseResult<String> {
@@ -1276,6 +1342,18 @@ impl UniqueFaker<'_> {
         self.try_generate("password", || self.0.password(minLength, maxLength))
     }
 
+    pub fn phoneNumber(&self) -> DatabaseResult<String> {
+        self.generate("phoneNumber", || self.0.phoneNumber())
+    }
+
+    pub fn e164PhoneNumber(&self) -> DatabaseResult<String> {
+        self.generate("e164PhoneNumber", || self.0.e164PhoneNumber())
+    }
+
+    pub fn imei(&self) -> DatabaseResult<String> {
+        self.generate("imei", || self.0.imei())
+    }
+
     pub fn domainWord(&self) -> DatabaseResult<String> {
         self.try_generate("domainWord", || self.0.domainWord())
     }
@@ -1613,4 +1691,18 @@ fn internet_ascii(value: &str) -> String {
     output.retain(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '.'));
     output.make_ascii_lowercase();
     output
+}
+
+static US_AREA_CODES: OnceLock<Vec<RegexPattern>> = OnceLock::new();
+static DE_AREA_CODES: OnceLock<Vec<RegexPattern>> = OnceLock::new();
+
+fn phone_area_code(cache: &OnceLock<Vec<RegexPattern>>, formats: &[&str]) -> String {
+    let patterns = cache.get_or_init(|| {
+        formats
+            .iter()
+            .map(|pattern| RegexPattern::parse(pattern).expect("fixed Faker area-code pattern"))
+            .collect()
+    });
+    let digit = fastrand::u8(2..=9);
+    format!("{digit}{}", patterns[usize::from(digit - 2)].sample())
 }

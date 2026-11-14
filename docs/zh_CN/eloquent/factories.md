@@ -96,6 +96,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_ip".into(), faker.localIpv4().into()),
             ("website".into(), faker.url()?.into()),
             ("contact".into(), faker.safeEmail().into()),
+            ("phone".into(), faker.e164PhoneNumber().into()),
         ]))
     })
 }
@@ -136,6 +137,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 邮件和密码样本 {#email-and-password-samples}
 
 用 `email()?` 生成普通邮件地址，或用 `companyEmail()?` 生成使用随机域名的地址。简体中文的普通邮件使用本地区免费邮箱列表。`safeEmail()` 使用保留的示例域名，`freeEmail()` 使用地区邮箱服务域名。只需域名时用 `safeEmailDomain()` 或 `freeEmailDomain()`。用户名使用地区姓名或词库并转写为 ASCII。若无可用字符，OpenRust 生成一个 ASCII 字母，保留已有用户名及邮件方法的直接返回类型。`password(min, max)?` 使用从 `!` 到 `~` 的可打印 ASCII 字符，长度包含两端，接受反向边界，默认值为 6 和 20。以上生成器均支持 `unique`。
+
+### 电话号码和 IMEI 样本 {#phone-and-imei-samples}
+
+用 `phoneNumber()` 生成地区显示号码。简体中文和繁体中文使用固定 FakerPHP 模板，其他地区沿用已有 fake-rs 格式。`e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
 
 ## 使用工厂创建模型
 

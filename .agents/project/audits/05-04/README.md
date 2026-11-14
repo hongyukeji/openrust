@@ -276,3 +276,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 Internet，接通 email、companyEmail、safeEmailDomain、freeEmailDomain、password，更新已有 userName、safeEmail、freeEmail。简体中文的通用邮件走免费邮箱名单，其他地区在随机域名及免费邮箱模板之间等概率取样。九个受支持地区的免费邮箱目录逐项沿用固定上游。用户名基于常用模板、fake-rs 词库及 v0.x 移植的 Str 转写。地区专有用户名数据仍有差异，转写无可用字符时生成一个 ASCII 字母，以保留既有无错误返回签名。密码以 Option 表达省略长度，包含两端且允许反向边界，从 ASCII 33–126 生成，分配失败返回错误。所有入口支持独立 unique 历史。旧版未发现对应 Faker 生成器，Goravel 启动装配未涉及。 [FakerPHP Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php#L47)
 
 隔离基线 `68eb269e`。实际 FakerPHP 与 PHP 8.5.12 运行 128 轮邮件域名、字符范围和密码边界对照。Rust 回归覆盖简体中文邮箱、反向与零长度、分配错误和去重，复验域名保持小写。MySQL 8.4.13 实际运行 `artisan db:seed --database=mysql --force` 写入并回查邮件和密码样本。Rust 1.94.0 格式、全目标严格 Clippy、15 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。
+
+## Faker 电话号码和 IMEI
+
+对照固定 FakerPHP 1.24.1 PhoneNumber。简体中文 phoneNumber 使用运营商前缀和 11 位号码，繁体中文使用固定移动及市话格式。其他语言的显示号码沿用 fake-rs。e164PhoneNumber 使用固定国际格式及八个地区的覆盖。美、德区号复用已接入的 Faker 正则生成，首次编译后缓存，保留美国交换码规则。imei 保留字符串及前导零，按 Luhn 计算第 15 位。三个入口支持各自的 unique 历史。目录附上游 MIT 声明。v0.x 未发现等价生成器，Goravel 启动装配未涉及。 [FakerPHP PhoneNumber](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/PhoneNumber.php)
+
+隔离基线 `53af1cbf`。PHP 8.5.12 与 Rust 回归验证五个地区的国际号码前缀、长度、数字格式，以及简繁中文显示号码和 IMEI 校验位。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并原样回查简繁电话、国际号码及 IMEI。Rust 1.94.0 格式、工作区全目标严格 Clippy、16 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。独立 Seeder 夹具有一处未使用变量警告。清理本批 2.2 GiB Cargo 及约 37 MiB 站点产物。
