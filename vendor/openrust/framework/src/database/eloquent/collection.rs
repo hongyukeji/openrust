@@ -17,6 +17,18 @@ use super::{
     relations::{ExistenceRelation, MorphTarget, MorphTo, Relation, relation::dictionary_key},
 };
 
+tokio::task_local! {
+    static AUTOLOAD_SUPPRESSED: ();
+}
+
+pub(super) async fn without_relationship_autoloading<F: std::future::Future>(work: F) -> F::Output {
+    AUTOLOAD_SUPPRESSED.scope((), work).await
+}
+
+fn relationship_autoloading<M: Model>() -> bool {
+    AUTOLOAD_SUPPRESSED.try_with(|()| ()).is_err() && M::automaticallyEagerLoadRelationships()
+}
+
 /// A collection of hydrated models, in query order.
 pub struct Collection<M: Model> {
     models: Vec<M>,
@@ -456,7 +468,7 @@ impl<M: Model> Collection<M> {
         Self {
             models,
             keys: None,
-            autoload: M::automaticallyEagerLoadRelationships(),
+            autoload: relationship_autoloading::<M>(),
         }
     }
 
@@ -471,7 +483,7 @@ impl<M: Model> Collection<M> {
         Self {
             models,
             keys: Some(keys),
-            autoload: M::automaticallyEagerLoadRelationships(),
+            autoload: relationship_autoloading::<M>(),
         }
     }
 
@@ -503,6 +515,11 @@ impl<M: Model> Collection<M> {
     #[must_use]
     pub fn withRelationshipAutoloading(mut self) -> Self {
         self.autoload = true;
+        self
+    }
+
+    pub(super) fn without_relationship_autoloading(mut self) -> Self {
+        self.autoload = false;
         self
     }
 
@@ -580,7 +597,7 @@ impl<M: Model> Collection<M> {
         Collection {
             models,
             keys: self.keys,
-            autoload: self.autoload || N::automaticallyEagerLoadRelationships(),
+            autoload: self.autoload || relationship_autoloading::<N>(),
         }
     }
 

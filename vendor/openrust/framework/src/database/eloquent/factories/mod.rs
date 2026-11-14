@@ -21,6 +21,7 @@ use crate::{
 
 use super::{
     Attributes, Collection, Model, casts,
+    collection::without_relationship_autoloading,
     relations::{BelongsToMany, Relation},
     soft_deletes,
 };
@@ -1174,7 +1175,7 @@ impl<M: Model> Factory<M> {
                     .await?,
             );
         }
-        Ok(Collection::new(models))
+        Ok(Collection::new(models).without_relationship_autoloading())
     }
 
     /// Returns a reusable callback that creates the model when awaited.
@@ -1373,7 +1374,7 @@ impl<M: Model> Factory<M> {
                     .await?,
             );
         }
-        Ok(Collection::new(models))
+        Ok(Collection::new(models).without_relationship_autoloading())
     }
 
     pub async fn createQuietly(&self) -> DatabaseResult<M> {
@@ -1604,13 +1605,17 @@ impl<M: Model> Factory<M> {
         context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
-        let mut pending = self.prepare_attributes(connection, context, faker)?;
-        pending.values.extend(overrides);
-        self.resolve_attributes(connection, pool, &mut pending)
-            .await?;
-        let mut model = Self::apply_attributes(connection, pending.model, pending.values).await?;
-        self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
-        Ok(model)
+        without_relationship_autoloading(async {
+            let mut pending = self.prepare_attributes(connection, context, faker)?;
+            pending.values.extend(overrides);
+            self.resolve_attributes(connection, pool, &mut pending)
+                .await?;
+            let mut model =
+                Self::apply_attributes(connection, pending.model, pending.values).await?;
+            self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
+            Ok(model)
+        })
+        .await
     }
 
     async fn create_one(
@@ -2046,25 +2051,29 @@ impl<M: Model> FactoryBatch<M> {
         relation: Option<RelationContext<'_>>,
         overrides: &Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        let count = self.count.load(Ordering::Relaxed);
-        let mut models = Vec::with_capacity(count);
-        let faker = std::sync::OnceLock::new();
-        for _ in 0..count {
-            let mut pending = self
-                .factory
-                .prepare_attributes(connection, relation, &faker)?;
-            pending.values.extend(overrides.clone());
+        without_relationship_autoloading(async {
+            let count = self.count.load(Ordering::Relaxed);
+            let mut models = Vec::with_capacity(count);
+            let faker = std::sync::OnceLock::new();
+            for _ in 0..count {
+                let mut pending = self
+                    .factory
+                    .prepare_attributes(connection, relation, &faker)?;
+                pending.values.extend(overrides.clone());
+                self.factory
+                    .resolve_attributes(connection, pool, &mut pending)
+                    .await?;
+                models.push(
+                    Factory::<M>::apply_attributes(connection, pending.model, pending.values)
+                        .await?,
+                );
+            }
+            let mut models = M::newCollection(models);
             self.factory
-                .resolve_attributes(connection, pool, &mut pending)
-                .await?;
-            models.push(
-                Factory::<M>::apply_attributes(connection, pending.model, pending.values).await?,
-            );
-        }
-        let mut models = M::newCollection(models);
-        self.factory
-            .run_callbacks(models.models_mut(), &self.factory.after_making)?;
-        Ok(models)
+                .run_callbacks(models.models_mut(), &self.factory.after_making)?;
+            Ok(models)
+        })
+        .await
     }
 
     /// Creates models with a parent available to states and afterCreating callbacks.

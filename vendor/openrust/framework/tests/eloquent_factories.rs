@@ -10,7 +10,7 @@ use openrust::{
         DatabaseManager, Value,
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState,
-            factories::Factory,
+            factories::{Factory, FactoryRecords},
             relations::{BelongsTo, BelongsToMany, HasMany, Pivot, Relation},
         },
     },
@@ -21,6 +21,10 @@ struct Author(ModelState);
 struct Entry(ModelState);
 
 impl Model for Author {
+    fn automaticallyEagerLoadRelationships() -> bool {
+        true
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
     fn newCollection(models: Vec<Self>) -> Collection<Self> {
         Collection::fromEntries(
@@ -288,6 +292,48 @@ async fn verify(config: Json, id: &str) {
             model.getKey()
         );
     }
+
+    let relation = HasMany::<Author, Entry>::new("id", "author_id");
+    let mut constructed = authors().count(2).createOn(&connection).await.unwrap();
+    constructed
+        .getRelationOrLoad(0, "entries", &relation)
+        .await
+        .unwrap();
+    assert!(!constructed[1].relationLoaded("entries"));
+
+    let mut created_many = authors()
+        .createManyOn(&connection, FactoryRecords::Count(2))
+        .await
+        .unwrap();
+    created_many
+        .getRelationOrLoad(0, "entries", &relation)
+        .await
+        .unwrap();
+    assert!(!created_many[1].relationLoaded("entries"));
+
+    let mut made_many = authors()
+        .makeManyOn(&connection, FactoryRecords::Count(2))
+        .await
+        .unwrap();
+    made_many
+        .getRelationOrLoad(0, "entries", &relation)
+        .await
+        .unwrap();
+    assert!(!made_many[1].relationLoaded("entries"));
+
+    let mut queried = Author::queryOn(&connection).get().await.unwrap();
+    queried
+        .getRelationOrLoad(0, "entries", &relation)
+        .await
+        .unwrap();
+    assert!(queried[1].relationLoaded("entries"));
+
+    let mut opted_in = constructed.withRelationshipAutoloading();
+    opted_in
+        .getRelationOrLoad(1, "all_entries", &relation)
+        .await
+        .unwrap();
+    assert!(opted_in[0].relationLoaded("all_entries"));
 
     for table in ["factory_links", "factory_entries", "factory_authors"] {
         connection

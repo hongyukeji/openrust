@@ -1235,6 +1235,16 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
+工廠在建構模型時暫停預設的關聯自動載入，批次結果維持關閉，包括 `makeMany` 和 `createMany`。帶計數的 `make` 和 `create` 仍使用模型定義的集合鍵。若要明確啟用該批次的自動載入，可呼叫 `withRelationshipAutoloading()`。後續查詢仍遵循模型設定的預設行為。
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+fn factory_relationship_loading_sample<M: Model>(models: Collection<M>) -> Collection<M> {
+    models.withRelationshipAutoloading()
+}
+```
+
 用 `forEachSequence(states)` 為每個模型套用一組屬性，並依屬性組數決定批次數量。`crossJoinSequence(sequences)` 依宣告順序組合各序列，最後一個序列變化最快，同名屬性以後面的序列為準。另行設定批次數量，超過組合數時從頭循環。傳入空序列會回傳錯誤。
 
 ```rust

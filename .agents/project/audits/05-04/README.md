@@ -1218,3 +1218,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `fea168a5`。固定 PHP 8.5 校验 1,504 个组成样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 逐条回读 1,506 个值，包含三语共用示例。72 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。回归覆盖前导零、去重耗尽和不支持的地区。既有 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复，清理本批独占 Cargo 和站点产物。下一批核对剩余 Faker formatter 及 05-04 整体验收边界。
+
+## 工厂构造暂停关系自动加载
+
+固定 Laravel 的 [Factory::make](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L400) 在构造和 afterMaking 期间暂停关系自动加载，并在返回或失败后恢复。计数批次继续通过模型集合钩子创建。Rust 以任务局部作用域表达暂停，避免影响并发操作，并保留自定义集合键。与固定 Laravel 的直接集合构造一致，`makeMany` 和 `createMany` 的外层集合默认关闭自动加载。返回集合可显式启用。v0.x 无等价实现，编译式工厂装配无需调整。
+
+隔离基线 `f19ffb8d`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，验证计数批次只加载当前模型的关系，`createMany` 和 `makeMany` 保持该行为，随后普通查询恢复按模型设置批量加载，显式启用后批次加载生效。49 项 Seeder、MySQL／SQLite 两项工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复，清理本批独占 Cargo 与站点产物。05-04 继续核对固定工厂测试中的公开扩展机制及剩余 Faker 行为。

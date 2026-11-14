@@ -1235,6 +1235,16 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
+Factories suspend default relationship autoloading during model construction. Factory batches, including `makeMany` and `createMany`, leave it disabled on the result. Counted `make` and `create` still use the model’s custom collection keys. To opt in for that batch, call `withRelationshipAutoloading()`. Later queries still use the model’s configured default.
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+fn factory_relationship_loading_sample<M: Model>(models: Collection<M>) -> Collection<M> {
+    models.withRelationshipAutoloading()
+}
+```
+
 Use `forEachSequence(states)` to apply one attribute map per model and set the batch count to the number of maps. `crossJoinSequence(sequences)` combines the maps from each input sequence in order, with the last sequence changing fastest. Later maps override earlier maps on matching keys. Set the count separately to select how many combinations to use. The sequence repeats if the count exceeds the number of combinations. An empty input sequence returns an error.
 
 ```rust
