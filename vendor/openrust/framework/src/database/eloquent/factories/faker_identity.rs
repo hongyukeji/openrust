@@ -86,6 +86,49 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a Polish PESEL, using a generated birth date when omitted.
+    pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "pl_PL" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker PESEL locale",
+            ));
+        }
+        let birthdate = match birthdate {
+            Some(date) => date,
+            None => self.identity_birthdate()?,
+        };
+        let year = birthdate.year();
+        if !(1800..=2299).contains(&year) {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker PESEL year must be between 1800 and 2299",
+            ));
+        }
+
+        let month = birthdate.month() + ((year as u32 / 100 - 14) % 5) * 20;
+        let day = birthdate.day();
+        let serial = fastrand::u16(0..=4999) * 2 + u16::from(sex != Some("F"));
+        let prefix = format!("{:02}{month:02}{day:02}{serial:04}", year % 100);
+        let sum = weighted_digits(&prefix, &[1, 3, 7, 9, 1, 3, 7, 9, 1, 3]);
+        let check = (10 - sum % 10) % 10;
+        Ok(format!("{prefix}{check}"))
+    }
+
+    /// Samples a Polish tax identification number (NIP).
+    pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "pl_PL" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker taxpayer identification locale",
+            ));
+        }
+        loop {
+            let prefix = self.numerify(Some("%%%######"));
+            let check = weighted_digits(&prefix, &[6, 5, 7, 2, 3, 4, 5, 6, 7]) % 11;
+            if check < 10 {
+                return Ok(format!("{prefix}{check}"));
+            }
+        }
+    }
+
     /// Samples the selected Person provider's personal identity number.
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
         match self.locale() {
@@ -170,6 +213,16 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("pesel", || self.0.pesel(birthdate, sex))
+    }
+
+    pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("taxpayerIdentificationNumber", || {
+            self.0.taxpayerIdentificationNumber()
+        })
     }
 
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {

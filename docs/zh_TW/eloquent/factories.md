@@ -286,12 +286,17 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `personalIdentityNumber(gender)` 也支援 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五種可透過 `personalIdentityNumberWithBirthdate(birthdate, gender)` 指定出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序號前綴。波蘭採用身分證格式。固定版挪威 provider 的末兩位隨機產生。
 
+使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `chrono::NaiveDate`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 FakerPHP 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 6]> {
+fn identity_samples() -> DatabaseResult<[String; 8]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let polish = fake(Some("pl-PL"))?;
     Ok([
+        polish.pesel(Some(birthdate), Some("F"))?,
+        polish.unique(false).taxpayerIdentificationNumber()?,
         fake(Some("en-US"))?.ssn()?,
         fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,

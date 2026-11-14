@@ -665,3 +665,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对照固定 FakerPHP v1.24.1 Person，补齐立陶宛、拉脱维亚、芬兰、挪威、瑞典和波兰的 `personalIdentityNumber`。保留地区日期顺序、世纪码、性别位、序号和校验规则。瑞典复用现有 Luhn，波兰使用身份证格式，挪威沿用上游随机末两位。Rust 用显式的 `WithBirthdate` 和 `WithSerial` 表达 PHP 的可选参数，保留无参生日采样和共享去重历史。立陶宛要求由三个数字组成的序号前缀和一位世纪码。v0.x 未发现相应实现，工厂接线沿用现有路径。 [固定 FakerPHP 地区 Provider](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)
 
 隔离基线 `8dee8ce2`。PHP 8.5 校验 768 条样本及固定闰日序号 `0079`。三项 Rust 地区回归覆盖日期、性别、校验位、错误和重试。MySQL 8.4.13 多态 Seeder 与实际 `main artisan db:seed --database=mysql --force` 通过，后者写入并回查七条编号。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。已恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。地区专用编号入口继续核对。
+
+## Faker 波兰 PESEL 与 NIP
+
+对照固定 FakerPHP v1.24.1 波兰 Person provider，接通 `pesel` 和 `taxpayerIdentificationNumber`。保留 PESEL 五组世纪月份编码、缺省奇数性别位、固定或采样生日及模 10 校验。NIP 保留三个非零前置数字与模 11 重试。Rust 用 `Option<NaiveDate>` 表达可选生日，对 1800–2299 年之外的日期返回错误，避免复用世纪码产生歧义。两者共用现有日期、数字掩码和 `unique` 基础设施。v0.x 未找到对应方法，工厂接线沿用现有路径。 [固定波兰 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/Person.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `c78431be`。PHP 8.5 校验 1,920 条固定上游样本。Rust 四项地区身份回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回查指定闰日和默认日期的 PESEL 以及 NIP。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 构建和六项浏览器检查通过。现有需单独设置清库 URL 的 MySQL fresh 用例未启用。隔离副本恢复原始 Seeder，清理 2.2 GiB 编译产物及 39 MiB 站点产物，磁盘剩余 82 GiB。其他地区的专用编号方法继续核对。

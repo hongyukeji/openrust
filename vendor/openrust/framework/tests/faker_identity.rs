@@ -224,3 +224,57 @@ fn european_identity_numbers_keep_dates_and_regional_checksums() {
         assert_eq!(total % 10, u16::from(bytes[3] - b'0'));
     }
 }
+
+#[test]
+fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
+    use chrono::NaiveDate;
+
+    let faker = fake(Some("pl-PL")).unwrap();
+    let unique = faker.unique(true);
+    let weighted = |value: &str, weights: &[u16]| {
+        value
+            .bytes()
+            .zip(weights)
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum::<u16>()
+    };
+
+    for (year, month) in [
+        (1804, "82"),
+        (1904, "02"),
+        (2004, "22"),
+        (2104, "42"),
+        (2204, "62"),
+    ] {
+        let date = NaiveDate::from_ymd_opt(year, 2, 29).unwrap();
+        for (sex, parity) in [(None, 1), (Some("F"), 0), (Some("M"), 1)] {
+            let sample = unique.pesel(Some(date), sex).unwrap();
+            assert_eq!(sample.len(), 11);
+            assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
+            assert_eq!(&sample[..6], format!("04{month}29"));
+            assert_eq!((sample.as_bytes()[9] - b'0') % 2, parity);
+            assert_eq!(
+                weighted(&sample, &[1, 3, 7, 9, 1, 3, 7, 9, 1, 3, 1]) % 10,
+                0
+            );
+        }
+    }
+    for year in [1799, 2300] {
+        let invalid = NaiveDate::from_ymd_opt(year, 1, 1).unwrap();
+        assert!(faker.pesel(Some(invalid), None).is_err());
+    }
+    assert_eq!(faker.pesel(None, None).unwrap().len(), 11);
+    for _ in 0..256 {
+        let sample = unique.taxpayerIdentificationNumber().unwrap();
+        assert_eq!(sample.len(), 10);
+        assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
+        assert!(!sample[..3].contains('0'));
+        assert_eq!(
+            weighted(&sample, &[6, 5, 7, 2, 3, 4, 5, 6, 7]) % 11,
+            u16::from(sample.as_bytes()[9] - b'0')
+        );
+    }
+    let other = fake(Some("en-US")).unwrap();
+    assert!(other.pesel(None, None).is_err());
+    assert!(other.taxpayerIdentificationNumber().is_err());
+}

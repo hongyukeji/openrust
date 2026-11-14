@@ -286,12 +286,17 @@ The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the
 
 `personalIdentityNumber(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personalIdentityNumberWithBirthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personalIdentityNumberWithSerial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
 
+For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::NaiveDate` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in FakerPHP. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 6]> {
+fn identity_samples() -> DatabaseResult<[String; 8]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let polish = fake(Some("pl-PL"))?;
     Ok([
+        polish.pesel(Some(birthdate), Some("F"))?,
+        polish.unique(false).taxpayerIdentificationNumber()?,
         fake(Some("en-US"))?.ssn()?,
         fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,
