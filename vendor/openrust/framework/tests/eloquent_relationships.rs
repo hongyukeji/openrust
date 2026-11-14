@@ -5310,6 +5310,123 @@ async fn verify_counter_events(
             .getAttribute("score"),
         Some(&12.into())
     );
+    let mut model = Post::queryOn(db).findOrFail(2).await.unwrap();
+    assert_eq!(
+        model
+            .incrementQuietly("score", 2, Attributes::new())
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(model.getAttribute("score"), Some(&14.into()));
+    assert_eq!(
+        model
+            .decrementQuietly("score", 1, Attributes::new())
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        model
+            .incrementEachQuietly(
+                Attributes::from([("score".into(), 3.into())]),
+                Attributes::new()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        model
+            .decrementEachQuietly(
+                Attributes::from([("score".into(), 2.into())]),
+                Attributes::new()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(model.getAttribute("score"), Some(&14.into()));
+    assert!(model.getDirty().unwrap().is_empty());
+    assert_eq!(
+        Post::queryOn(db)
+            .increment("score", 1, Attributes::new())
+            .await
+            .unwrap(),
+        3
+    );
+    assert_eq!(
+        db.table("relation_counter_events")
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+
+    db.table("relation_posts")
+        .r#where("id", "=", 2)
+        .update(Attributes::from([(
+            "updated_at".into(),
+            "2000-01-01 00:00:00".into(),
+        )]))
+        .await
+        .unwrap();
+    let mut query = TouchPost::queryOn(db);
+    query.whereKey(2);
+    assert_eq!(
+        query
+            .incrementEach(
+                Attributes::from([("score".into(), 2.into())]),
+                Attributes::new()
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    let updated = TouchPost::queryOn(db).findOrFail(2).await.unwrap();
+    assert_eq!(updated.getAttribute("score"), Some(&17.into()));
+    assert_ne!(
+        updated.getAttribute("updated_at"),
+        Some(&"2000-01-01 00:00:00".into())
+    );
+
+    let mut query = TouchPost::queryOn(db);
+    query.whereKey(2);
+    assert_eq!(
+        query
+            .decrementEach(
+                Attributes::from([("score".into(), 2.into())]),
+                Attributes::from([("updated_at".into(), "2001-01-01 00:00:00".into())])
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    let updated = TouchPost::queryOn(db).findOrFail(2).await.unwrap();
+    assert_eq!(updated.getAttribute("score"), Some(&15.into()));
+    assert_eq!(
+        updated.getAttribute("updated_at"),
+        Some(&"2001-01-01 00:00:00".into())
+    );
+
+    let mut query = TouchPost::queryOn(db);
+    query.whereKey(3);
+    assert_eq!(
+        query
+            .decrement("score", 1, Attributes::new())
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        TouchPost::queryOn(db)
+            .withTrashed()
+            .findOrFail(3)
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&10.into())
+    );
     db.statement("DROP TABLE relation_counter_events", &[])
         .await
         .unwrap();

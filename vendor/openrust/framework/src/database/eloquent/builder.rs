@@ -1471,6 +1471,49 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn update(self, mut attributes: Attributes) -> DatabaseResult<u64> {
+        self.add_updated_at(&mut attributes)?;
+        self.scoped()?.0.update(attributes).await
+    }
+
+    pub async fn increment(
+        self,
+        column: &str,
+        amount: impl Into<Value>,
+        extra: Attributes,
+    ) -> DatabaseResult<u64> {
+        self.incrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+            .await
+    }
+
+    pub async fn incrementEach(
+        self,
+        columns: Attributes,
+        mut extra: Attributes,
+    ) -> DatabaseResult<u64> {
+        self.add_updated_at(&mut extra)?;
+        self.scoped()?.0.incrementEach(columns, extra).await
+    }
+
+    pub async fn decrement(
+        self,
+        column: &str,
+        amount: impl Into<Value>,
+        extra: Attributes,
+    ) -> DatabaseResult<u64> {
+        self.decrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+            .await
+    }
+
+    pub async fn decrementEach(
+        self,
+        columns: Attributes,
+        mut extra: Attributes,
+    ) -> DatabaseResult<u64> {
+        self.add_updated_at(&mut extra)?;
+        self.scoped()?.0.decrementEach(columns, extra).await
+    }
+
+    fn add_updated_at(&self, attributes: &mut Attributes) -> DatabaseResult<()> {
         if let Some(column) = M::metadata().updated_at
             && !attributes.contains_key(column)
         {
@@ -1479,7 +1522,7 @@ impl<M: Model> Builder<'static, M> {
                 timestamp(&self.connection, M::metadata().date_format)?,
             );
         }
-        self.scoped()?.0.update(attributes).await
+        Ok(())
     }
 
     pub async fn delete(self) -> DatabaseResult<u64> {

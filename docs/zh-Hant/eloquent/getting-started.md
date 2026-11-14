@@ -110,6 +110,16 @@ pub async fn record_visit<M: Model>(model: &mut M) -> DatabaseResult<u64> {
 }
 ```
 
+更新實例時，可使用帶有 `Quietly` 後綴的方法抑制模型事件。Eloquent Builder 提供同名的四個運算方法，依查詢作用域批次更新。批次更新會寫入模型的更新時間，呼叫方可以明確提供時間戳記。批次更新不會派發個別模型事件。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model}};
+
+pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64> {
+    model.incrementQuietly("visits", 1_i64, Attributes::new()).await
+}
+```
+
 ## 刪除模型
 
 使用 `softDeletes("deleted_at")` 啟用軟刪除。模型查詢預設排除軟刪除記錄，可用 `withTrashed` 或 `onlyTrashed` 查詢這些記錄，用 `restore` 清除刪除時間，用 `forceDelete` 永久刪除。

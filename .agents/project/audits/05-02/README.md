@@ -540,3 +540,9 @@ SQLite 和独立 MySQL 8.4.13 验证逻辑值 3 和存储值 300 的创建、递
 对照固定 Laravel 的 `incrementOrDecrement`、`incrementOrDecrementEach` 及模型测试。已持久化模型按原始身份在同一 SQL 更新中写入所有计数列，触发一次 `Updating` 和一次 `Updated`，并回读已写字段。新实例把操作转交作用域查询。Rust 用 `Attributes` 显式传递步长并返回影响行数，取消时返回 0。关系递增复用同一事务路径，类转换可以分别定义 `increment` 和 `decrement`。旧版未找到对应模型入口，固定 Goravel 用作事务装配参考。 [Laravel 模型源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 与独立 MySQL 8.4.13 验证两列同时递增和递减、附加列写入、原始属性同步、非法步长整笔拒绝及自定义缩放递减。关系测试继续覆盖观察者报错回滚与 MySQL 并发递增。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 静默计数与 Eloquent 批量计数
+
+对照固定 Laravel 的模型静默计数和 Eloquent Builder 算术更新。模型的四个 `Quietly` 入口复用现有事件抑制作用域和实例事务。Builder 的四个入口复用带作用域的查询及原子 SQL，只写入查询匹配行。Rust 接收显式步长并返回受影响行数，更新时间沿用现有 Builder 更新规则。旧版没有对应模型入口，固定 Goravel 用作 ORM 查询职责参考。 [Laravel 模型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证四种静默计数写入、观察者抑制、模型状态同步，以及 Builder 的匹配行数、软删除排除、默认更新时间和显式时间戳。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。

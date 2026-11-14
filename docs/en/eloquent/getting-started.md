@@ -110,6 +110,16 @@ pub async fn record_visit<M: Model>(model: &mut M) -> DatabaseResult<u64> {
 }
 ```
 
+Use the `Quietly` variants to suppress model events for an instance update. Eloquent Builder exposes the same four arithmetic methods for scoped bulk updates. Bulk updates write the model’s update timestamp unless you supply one, and run without per-model events.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model}};
+
+pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64> {
+    model.incrementQuietly("visits", 1_i64, Attributes::new()).await
+}
+```
+
 ## Deleting Models
 
 Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `withTrashed` or `onlyTrashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.
