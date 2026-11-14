@@ -218,3 +218,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 `randomFloat` 和 PHP 8.5.0 `round`，按十进制边界判断半值，恢复缩放时丢失的整数，并在高精度时通过十进制重读避免二次舍入。超出可用正精度或舍入后超范围时保留取样值，负精度低于 −308 时取零。Rust 继续使用现有随机源，拒绝非有限边界，unique 合并正负零。v0.x 无对应生成器。Goravel 装配无需调整。 [FakerPHP 随机浮点](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L104) · [PHP 8.5 舍入](https://github.com/php/php-src/blob/php-8.5.0/ext/standard/math.c#L165)
 
 隔离基线 `2d29104f`。实际 FakerPHP 1.24.1／PHP 8.5.12 与 Rust 舍入探针对照 7,911 组固定上下界样本，包含半值、极小正负值、正负精度和溢出，全部一致。固定回归从大型异步 Seeder 夹具拆到独立测试，默认栈复验。实际应用二进制运行 `artisan db:seed --database=mysql --force`，在 MySQL 8.4.13 写入并回查高精度样本。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例、站点构建和六项浏览器检查通过。其他 Faker provider 继续跟踪。
+
+## Faker 文本生成
+
+对照 FakerPHP 1.24.1 Lorem 的固定数量、浮动数量、数组／拼接文本和 `text` 的 25、100 字节分段。Rust 使用 `AsText` 入口表达字符串返回值，保留已有按范围取样的 `sentence`，增加 `sentenceWithWordCount`。复用 fake-rs 词库与生成器，类型化列表支持独立去重，文本保持 UTF-8 边界。PHP 通过反复取样避开超长生成项，Rust 在重试耗尽后报错。v0.x 未发现对应生成器。Goravel 装配无需调整。 [FakerPHP Lorem](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Lorem.php#L51)
+
+隔离基线 `c01db420`。固定 FakerPHP 和 PHP 8.5.12 实测零数量、固定数量及 5、24、25、99、100、200 字节。Rust 回归验证数量、连接符、限制、空列表去重及重置和中文文本，MySQL 8.4.13 应用二进制使用 `APP_FAKER_LOCALE=zh_CN` 执行 `artisan db:seed --database=mysql --force` 写入并回查。MySQL／SQLite 工厂回归、Rust 1.94.0 格式及全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。

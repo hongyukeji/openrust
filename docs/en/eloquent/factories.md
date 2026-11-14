@@ -76,6 +76,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
+            ("description".into(), faker.text(200)?.into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
@@ -89,6 +90,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
     })
 }
 ```
+
+### Text Generation {#text-generation}
+
+Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as FakerPHP. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
 
 ## Creating Models Using Factories
 

@@ -1890,3 +1890,49 @@ fn faker_float_rounding_matches_php_decimal_boundaries() -> DatabaseResult<()> {
     }
     Ok(())
 }
+
+#[test]
+fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    assert!(faker.words(0).is_empty());
+    assert!(faker.sentenceWithWordCount(0, true).is_empty());
+    assert!(faker.paragraph(0, true).is_empty());
+    assert_eq!(faker.words(4).len(), 4);
+    assert_eq!(faker.wordsAsText(4).split_whitespace().count(), 4);
+    let sentence = faker.sentenceWithWordCount(4, false);
+    assert_eq!(sentence.split_whitespace().count(), 4);
+    assert!(sentence.starts_with(char::is_uppercase));
+    assert!(sentence.ends_with('.'));
+    assert_eq!(faker.paragraph(4, false).matches('.').count(), 4);
+    assert_eq!(faker.sentences(4).len(), 4);
+    assert_eq!(faker.sentencesAsText(4).matches('.').count(), 4);
+    assert_eq!(faker.paragraphs(4).len(), 4);
+    assert_eq!(faker.paragraphsAsText(4).split("\n\n").count(), 4);
+    for _ in 0..16 {
+        assert!(
+            (7..=15).contains(
+                &faker
+                    .sentenceWithWordCount(10, true)
+                    .split_whitespace()
+                    .count()
+            )
+        );
+        for max in [5, 24, 25, 99, 100, 200] {
+            let text = faker.text(max)?;
+            assert!(!text.is_empty() && text.len() <= max && text.ends_with('.'));
+        }
+    }
+    assert!(faker.text(4).is_err());
+    let unique = faker.unique(false);
+    assert!(unique.words(0)?.is_empty());
+    assert!(unique.words(0).is_err());
+    assert!(unique.wordsAsText(0)?.is_empty());
+    assert!(unique.wordsAsText(0).is_err());
+    assert!(unique.paragraphs(0)?.is_empty());
+    assert!(unique.paragraphs(0).is_err());
+    assert!(faker.unique(true).words(0)?.is_empty());
+    let localized = openrust::database::eloquent::factories::Faker::new("zh_CN")?;
+    let text = localized.text(200)?;
+    assert!(text.len() <= 200 && !text.is_ascii());
+    Ok(())
+}

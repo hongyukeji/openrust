@@ -213,6 +213,83 @@ impl Faker {
         generate!(self.locale.as_str(), faker::lorem::raw::Sentence, words)
     }
 
+    pub fn words(&self, count: usize) -> Vec<String> {
+        (0..count).map(|_| self.word()).collect()
+    }
+
+    pub fn wordsAsText(&self, count: usize) -> String {
+        self.words(count).join(" ")
+    }
+
+    /// Generates a sentence with a fixed or approximately specified word count.
+    pub fn sentenceWithWordCount(&self, count: usize, variable: bool) -> String {
+        if count == 0 {
+            return String::new();
+        }
+        let mut words = self.words(lorem_count(count, variable));
+        words[0] = capitalize_lorem_word(&words[0]);
+        words.join(" ") + "."
+    }
+
+    pub fn sentences(&self, count: usize) -> Vec<String> {
+        (0..count)
+            .map(|_| self.sentenceWithWordCount(6, true))
+            .collect()
+    }
+
+    pub fn sentencesAsText(&self, count: usize) -> String {
+        self.sentences(count).join(" ")
+    }
+
+    pub fn paragraph(&self, count: usize, variable: bool) -> String {
+        self.sentencesAsText(lorem_count(count, variable))
+    }
+
+    pub fn paragraphs(&self, count: usize) -> Vec<String> {
+        (0..count).map(|_| self.paragraph(3, true)).collect()
+    }
+
+    pub fn paragraphsAsText(&self, count: usize) -> String {
+        self.paragraphs(count).join("\n\n")
+    }
+
+    /// Generates text within the requested UTF-8 byte budget.
+    pub fn text(&self, max: usize) -> DatabaseResult<String> {
+        if max < 5 {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker text requires at least five bytes",
+            ));
+        }
+        for _ in 0..10_000 {
+            let mut text = String::new();
+            loop {
+                let unit = match max {
+                    0..25 => self.word(),
+                    25..100 => self.sentenceWithWordCount(6, true),
+                    _ => self.paragraph(3, true),
+                };
+                let separator = usize::from(!text.is_empty());
+                if unit.is_empty() || unit.len().saturating_add(separator) >= max - text.len() {
+                    break;
+                }
+                if separator != 0 {
+                    text.push(' ');
+                }
+                text.push_str(&unit);
+            }
+            if !text.is_empty() {
+                if max < 25 {
+                    text = capitalize_lorem_word(&text);
+                    text.push('.');
+                }
+                return Ok(text);
+            }
+        }
+        Err(DatabaseError::InvalidQuery(
+            "Faker text could not fit the byte budget",
+        ))
+    }
+
     /// Samples an inclusive integer interval, accepting endpoints in either order.
     pub fn numberBetween(&self, first: i64, second: i64) -> i64 {
         fastrand::i64(first.min(second)..=first.max(second))
@@ -579,6 +656,23 @@ impl Faker {
     }
 }
 
+fn lorem_count(count: usize, variable: bool) -> usize {
+    if !variable || count == 0 {
+        return count;
+    }
+    let percentage = fastrand::u128(60..=140);
+    usize::try_from(count as u128 * percentage / 100 + 1).unwrap_or(usize::MAX)
+}
+
+fn capitalize_lorem_word(word: &str) -> String {
+    // FakerPHP's ucwords capitalizes ASCII without changing UTF-8 byte length.
+    let mut output = word.to_owned();
+    if let Some(first) = output.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+    output
+}
+
 // Decimal scaling follows PHP 8.5's half-away-from-zero rounding order.
 fn round_decimal(value: f64, decimals: i32) -> DatabaseResult<f64> {
     if value == 0.0 || decimals > 308 {
@@ -631,6 +725,54 @@ pub struct UniqueFaker<'a>(&'a Faker);
 impl UniqueFaker<'_> {
     pub fn sentence(&self, words: Range<usize>) -> DatabaseResult<String> {
         self.generate("sentence", || self.0.sentence(words.clone()))
+    }
+
+    pub fn sentenceWithWordCount(&self, count: usize, variable: bool) -> DatabaseResult<String> {
+        self.generate("sentence", || self.0.sentenceWithWordCount(count, variable))
+    }
+
+    pub fn paragraph(&self, count: usize, variable: bool) -> DatabaseResult<String> {
+        self.generate("paragraph", || self.0.paragraph(count, variable))
+    }
+
+    pub fn text(&self, max: usize) -> DatabaseResult<String> {
+        self.try_generate("text", || self.0.text(max))
+    }
+
+    pub fn words(&self, count: usize) -> DatabaseResult<Vec<String>> {
+        self.generate_keyed(
+            "words",
+            || Ok(self.0.words(count)),
+            |items| format!("{items:?}"),
+        )
+    }
+
+    pub fn wordsAsText(&self, count: usize) -> DatabaseResult<String> {
+        self.generate("wordsAsText", || self.0.wordsAsText(count))
+    }
+
+    pub fn sentences(&self, count: usize) -> DatabaseResult<Vec<String>> {
+        self.generate_keyed(
+            "sentences",
+            || Ok(self.0.sentences(count)),
+            |items| format!("{items:?}"),
+        )
+    }
+
+    pub fn sentencesAsText(&self, count: usize) -> DatabaseResult<String> {
+        self.generate("sentencesAsText", || self.0.sentencesAsText(count))
+    }
+
+    pub fn paragraphs(&self, count: usize) -> DatabaseResult<Vec<String>> {
+        self.generate_keyed(
+            "paragraphs",
+            || Ok(self.0.paragraphs(count)),
+            |items| format!("{items:?}"),
+        )
+    }
+
+    pub fn paragraphsAsText(&self, count: usize) -> DatabaseResult<String> {
+        self.generate("paragraphsAsText", || self.0.paragraphsAsText(count))
     }
 
     pub fn numberBetween(&self, first: i64, second: i64) -> DatabaseResult<i64> {
@@ -809,7 +951,16 @@ impl UniqueFaker<'_> {
     fn try_generate<T: ToString>(
         &self,
         formatter: &'static str,
+        value: impl FnMut() -> DatabaseResult<T>,
+    ) -> DatabaseResult<T> {
+        self.generate_keyed(formatter, value, ToString::to_string)
+    }
+
+    fn generate_keyed<T>(
+        &self,
+        formatter: &'static str,
         mut value: impl FnMut() -> DatabaseResult<T>,
+        key: impl Fn(&T) -> String,
     ) -> DatabaseResult<T> {
         for _ in 0..10_000 {
             let value = value()?;
@@ -820,7 +971,7 @@ impl UniqueFaker<'_> {
                 .unwrap()
                 .entry(formatter)
                 .or_default()
-                .insert(value.to_string())
+                .insert(key(&value))
             {
                 return Ok(value);
             }
