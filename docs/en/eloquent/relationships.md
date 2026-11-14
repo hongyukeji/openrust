@@ -396,6 +396,25 @@ pub async fn authors_with_post_totals(connection: &Connection) -> DatabaseResult
 }
 ```
 
+### Deferred aggregate loading {#deferred-aggregate-loading}
+
+Use `loadCount`, `loadExists`, `loadSum`, `loadAvg`, `loadMin`, or `loadMax` on an existing model. Use `loadAggregates` to fetch several values in one query. Results are stored as original attributes and unrelated pending edits stay dirty.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, RelationAggregate, RelationAggregateQuery, relations::HasMany},
+};
+
+pub async fn load_post_totals<P: Model, R: Model>(author: &mut P) -> DatabaseResult<()> {
+    let posts = HasMany::<P, R>::new("id", "author_id");
+    author.loadAggregates(&[
+        RelationAggregateQuery::new("posts", &posts, RelationAggregate::Count),
+        RelationAggregateQuery::new("posts", &posts, RelationAggregate::Exists),
+    ]).await
+}
+```
+
 ### Default Relationship Counts
 
 Implement `Model::withDefaultCounts` to add count projections whenever the model is read. This corresponds to Laravel's `$withCount` property. The counts share the model's SELECT. An explicit `select` replaces the default projection.

@@ -7,11 +7,11 @@ use crate::{
 };
 
 use super::{
-    Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, Scope, Touches,
-    VisibilityCondition,
+    Attributes, Builder, Collection, EagerLoads, ModelMetadata, ModelState, RelationAggregate,
+    RelationAggregateQuery, Scope, Touches, VisibilityCondition,
     casts::{self, Attribute, AttributeCast, CastableEnum, CastableObject},
     concerns, persistence,
-    relations::Relation,
+    relations::{ExistenceRelation, Relation},
     route_binding, serialization, soft_deletes,
 };
 
@@ -1028,6 +1028,95 @@ pub trait Model: Sized + Send + Sync + 'static {
             morph,
             alias,
             paths,
+        )
+    }
+
+    /// Loads relation aggregates without replacing other model attributes.
+    fn loadAggregates<'a>(
+        &'a mut self,
+        aggregates: &'a [RelationAggregateQuery<'a, Self>],
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        super::collection::load_aggregates(std::slice::from_mut(self), aggregates)
+    }
+
+    fn loadAggregate<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+        aggregate: RelationAggregate<'a>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        async move {
+            self.loadAggregates(&[RelationAggregateQuery::new(name, relation, aggregate)])
+                .await
+        }
+    }
+
+    fn loadCount<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Count)
+    }
+
+    fn loadExists<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Exists)
+    }
+
+    fn loadSum<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Sum(column))
+    }
+
+    fn loadAvg<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Avg(column))
+    }
+
+    fn loadMin<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Min(column))
+    }
+
+    fn loadMax<'a>(
+        &'a mut self,
+        name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = Self>,
+        column: &'a str,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadAggregate(name, relation, RelationAggregate::Max(column))
+    }
+
+    /// Loads a count onto the cached polymorphic target of the selected type.
+    fn loadMorphCount<'a, T: Model>(
+        &'a mut self,
+        name: &'a str,
+        morph: &'a super::relations::MorphTo<Self>,
+        alias: &'a str,
+        related_name: &'a str,
+        relation: &'a impl ExistenceRelation<Parent = T>,
+    ) -> impl Future<Output = DatabaseResult<()>> + Send + 'a {
+        self.loadMorphAggregate(
+            name,
+            morph,
+            alias,
+            RelationAggregateQuery::new(related_name, relation, RelationAggregate::Count),
         )
     }
 

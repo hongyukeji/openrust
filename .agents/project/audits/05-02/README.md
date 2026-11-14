@@ -642,3 +642,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 SQLite 与独立 MySQL 8.4.13 验证不同应用使用不同别名、缺少强制映射时拒绝解析、空别名注册失败、映射查询、合并优先级、关系写入与反查、旧别名兼容以及新关联选择首选别名。
 
 Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 单模型延后加载关系聚合
+
+按固定 Laravel 的 Deferred Count Loading 与 Other Aggregate Functions 接入单模型的 `loadCount`、`loadExists`、`loadSum`、`loadAvg`、`loadMin`、`loadMax` 与多态 `loadMorphCount`。Rust 用类型化关系描述符传递聚合参数，单模型和集合复用同一查询与回填路径。多个普通聚合可通过 `loadAggregates` 一次查询。旧版未找到延后关系聚合入口。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#deferred-count-loading) · [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php)
+
+独立 MySQL 8.4.13 验证所有普通聚合入口、多个聚合共用一次 SELECT、脏值与原始属性同步、已删除行错误，以及多态计数写回。Rust 1.94.0 格式、严格 Clippy、MySQL 关系定向测试、实际 Artisan、三语示例编译、站点构建与 18 项浏览器检查通过。SQLite 与其他数据库按发布验收规则留待发布前复验。

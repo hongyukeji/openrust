@@ -1290,17 +1290,7 @@ impl<M: Model> Collection<M> {
         &mut self,
         aggregates: &[RelationAggregateQuery<'_, M>],
     ) -> DatabaseResult<()> {
-        if aggregates.is_empty() {
-            return Ok(());
-        }
-        let models: Vec<_> = self.models.iter().collect();
-        let values = aggregate_attributes(&models, aggregates).await?;
-        for (model, attributes) in self.models.iter_mut().zip(values) {
-            let state = model.state_mut();
-            state.apply_attributes(attributes.clone());
-            state.original.extend(attributes);
-        }
-        Ok(())
+        load_aggregates(&mut self.models, aggregates).await
     }
 
     pub async fn loadCount(
@@ -1493,6 +1483,23 @@ impl<T: Model> MorphSnapshots<T> {
                 .insert_relation::<MorphTo<M>>(name.to_owned(), Some(target));
         }
     }
+}
+
+pub(super) async fn load_aggregates<M: Model>(
+    models: &mut [M],
+    aggregates: &[RelationAggregateQuery<'_, M>],
+) -> DatabaseResult<()> {
+    if aggregates.is_empty() {
+        return Ok(());
+    }
+    let borrowed: Vec<_> = models.iter().collect();
+    let values = aggregate_attributes(&borrowed, aggregates).await?;
+    for (model, attributes) in models.iter_mut().zip(values) {
+        let state = model.state_mut();
+        state.apply_attributes(attributes.clone());
+        state.original.extend(attributes);
+    }
+    Ok(())
 }
 
 pub(super) async fn aggregate_attributes<M: Model>(

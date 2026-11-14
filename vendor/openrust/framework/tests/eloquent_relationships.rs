@@ -1347,15 +1347,12 @@ async fn verify_morph_aggregates(
     let row = &comments[post_index.unwrap()];
     let mut model = Comment::from_state(row.state().clone());
     model
-        .loadMorphAggregate(
+        .loadMorphCount(
             "subject",
             subjects,
             "post",
-            RelationAggregateQuery::new(
-                "comments as feedback_count",
-                &relation,
-                RelationAggregate::Count,
-            ),
+            "comments as feedback_count",
+            &relation,
         )
         .await
         .unwrap();
@@ -3794,6 +3791,60 @@ fn verify_collection_reload(
             modified[0].state().getDirty(),
             Attributes::from([("name".into(), "Pending".into())])
         );
+
+        let mut single = ordered().findOrFail(1).await.unwrap();
+        single.setAttribute("name", "Pending model edit");
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        single
+            .loadAggregates(&[
+                RelationAggregateQuery::new("posts", &POSTS, RelationAggregate::Count),
+                RelationAggregateQuery::new("posts", &POSTS, RelationAggregate::Exists),
+            ])
+            .await
+            .unwrap();
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 1);
+        }
+        assert_eq!(single.getAttribute("posts_exists"), Some(&true.into()));
+        assert_eq!(
+            single.getRawOriginal("posts_count"),
+            refreshed[2].getAttribute("posts_count")
+        );
+        assert_eq!(
+            single.state().getDirty(),
+            Attributes::from([("name".into(), "Pending model edit".into())])
+        );
+        single.loadCount("posts", &POSTS).await.unwrap();
+        single.loadExists("posts", &POSTS).await.unwrap();
+        single.loadSum("posts", &POSTS, "score").await.unwrap();
+        single.loadAvg("posts", &POSTS, "score").await.unwrap();
+        single.loadMin("posts", &POSTS, "score").await.unwrap();
+        single
+            .loadMax("posts as top_score", &POSTS, "score")
+            .await
+            .unwrap();
+        assert_eq!(
+            single.getAttribute("posts_sum_score"),
+            refreshed[2].getAttribute("posts_sum_score")
+        );
+        assert_eq!(
+            single.getAttribute("posts_avg_score"),
+            refreshed[2].getAttribute("posts_avg_score")
+        );
+        assert_eq!(
+            single.getAttribute("posts_min_score"),
+            refreshed[2].getAttribute("posts_min_score")
+        );
+        assert_eq!(
+            single.getAttribute("top_score"),
+            refreshed[2].getAttribute("top_score")
+        );
+        let mut stale_model = Author::from_state(stale[0].state().clone());
+        assert!(matches!(
+            stale_model.loadCount("posts", &POSTS).await,
+            Err(DatabaseError::ModelNotFound("relation_authors"))
+        ));
+        assert!(stale_model.getAttribute("posts_count").is_none());
 
         let mut empty = Collection::<Author>::new(Vec::new());
         assert!(empty.fresh().await.unwrap().is_empty());

@@ -396,6 +396,25 @@ pub async fn authors_with_post_totals(connection: &Connection) -> DatabaseResult
 }
 ```
 
+### 延后加载关系聚合 {#deferred-aggregate-loading}
+
+对已加载模型调用 `loadCount`、`loadExists`、`loadSum`、`loadAvg`、`loadMin` 或 `loadMax`。用 `loadAggregates` 可在一次查询中读取多个值。聚合结果写入原始属性，其他未保存的修改仍保留为脏值。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, RelationAggregate, RelationAggregateQuery, relations::HasMany},
+};
+
+pub async fn load_post_totals<P: Model, R: Model>(author: &mut P) -> DatabaseResult<()> {
+    let posts = HasMany::<P, R>::new("id", "author_id");
+    author.loadAggregates(&[
+        RelationAggregateQuery::new("posts", &posts, RelationAggregate::Count),
+        RelationAggregateQuery::new("posts", &posts, RelationAggregate::Exists),
+    ]).await
+}
+```
+
 ### 默认关系计数
 
 在模型中实现 `Model::withDefaultCounts`，让读取模型时默认带上关系计数。它对应 Laravel 的 `$withCount` 属性。计数和模型共用一次 SELECT。显式 `select` 会替换默认投影。
