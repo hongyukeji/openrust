@@ -1936,3 +1936,49 @@ fn faker_lorem_preserves_counts_byte_limits_and_unique_history() -> DatabaseResu
     assert!(text.len() <= 200 && !text.is_ascii());
     Ok(())
 }
+
+#[test]
+fn faker_placeholders_preserve_classes_literals_and_unique_history() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("zh_TW")?;
+    for _ in 0..64 {
+        let digits = faker.numerify(Some("##########%%%%-樣品?*"));
+        assert!(digits[..10].bytes().all(|byte| byte.is_ascii_digit()));
+        assert!(
+            digits[10..14]
+                .bytes()
+                .all(|byte| (b'1'..=b'9').contains(&byte))
+        );
+        assert_eq!(&digits[14..], "-樣品?*");
+        let letters = faker.lexify(Some("????-樣品#%*"));
+        assert!(letters[..4].bytes().all(|byte| byte.is_ascii_lowercase()));
+        assert_eq!(&letters[4..], "-樣品#%*");
+        let mixed = faker.bothify(Some("#%?****************-樣品"));
+        let bytes = mixed.as_bytes();
+        assert!(bytes[0].is_ascii_digit());
+        assert!((b'1'..=b'9').contains(&bytes[1]));
+        assert!(bytes[2].is_ascii_lowercase());
+        assert!(
+            bytes[3..19]
+                .iter()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        );
+        assert_eq!(&mixed[19..], "-樣品");
+        let ascii = faker.asciify(Some("****-樣品#%?"));
+        assert!(ascii[..4].bytes().all(|byte| byte.is_ascii_graphic()));
+        assert_eq!(&ascii[4..], "-樣品#%?");
+        assert!(faker.randomLetter().is_ascii_lowercase());
+        assert!(faker.randomAscii().is_ascii_graphic());
+    }
+    assert_eq!(faker.numerify(None).len(), 3);
+    assert_eq!(faker.lexify(None).len(), 4);
+    assert_eq!(faker.bothify(None).as_bytes()[2], b' ');
+    assert_eq!(faker.asciify(None).len(), 4);
+    assert_eq!(faker.bothify(Some("")), "");
+
+    let unique = faker.unique(false);
+    assert_eq!(unique.bothify(Some("樣品"))?, "樣品");
+    assert!(unique.bothify(Some("樣品")).is_err());
+    assert_eq!(unique.numerify(Some("樣品"))?, "樣品");
+    assert_eq!(faker.unique(true).bothify(Some("樣品"))?, "樣品");
+    Ok(())
+}

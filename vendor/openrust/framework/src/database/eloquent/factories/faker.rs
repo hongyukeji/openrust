@@ -308,6 +308,63 @@ impl Faker {
         digit + u8::from(i64::from(digit) >= except)
     }
 
+    pub fn randomLetter(&self) -> char {
+        char::from(fastrand::u8(b'a'..=b'z'))
+    }
+
+    pub fn randomAscii(&self) -> char {
+        char::from(fastrand::u8(b'!'..=b'~'))
+    }
+
+    pub fn numerify(&self, pattern: Option<&str>) -> String {
+        pattern
+            .unwrap_or("###")
+            .chars()
+            .map(|character| match character {
+                '#' => char::from(b'0' + self.randomDigit()),
+                '%' => char::from(b'0' + self.randomDigitNotNull()),
+                literal => literal,
+            })
+            .collect()
+    }
+
+    pub fn lexify(&self, pattern: Option<&str>) -> String {
+        pattern
+            .unwrap_or("????")
+            .chars()
+            .map(|character| match character {
+                '?' => self.randomLetter(),
+                literal => literal,
+            })
+            .collect()
+    }
+
+    pub fn bothify(&self, pattern: Option<&str>) -> String {
+        pattern
+            .unwrap_or("## ??")
+            .chars()
+            .map(|character| match character {
+                '#' => char::from(b'0' + self.randomDigit()),
+                '%' => char::from(b'0' + self.randomDigitNotNull()),
+                '?' => self.randomLetter(),
+                '*' if fastrand::bool() => self.randomLetter(),
+                '*' => char::from(b'0' + self.randomDigit()),
+                literal => literal,
+            })
+            .collect()
+    }
+
+    pub fn asciify(&self, pattern: Option<&str>) -> String {
+        pattern
+            .unwrap_or("****")
+            .chars()
+            .map(|character| match character {
+                '*' => self.randomAscii(),
+                literal => literal,
+            })
+            .collect()
+    }
+
     /// Generates an integer with at most the requested number of digits.
     pub fn randomNumber(&self, digits: Option<u32>, strict: bool) -> DatabaseResult<i64> {
         let digits = digits.unwrap_or_else(|| u32::from(self.randomDigitNotNull()));
@@ -789,6 +846,30 @@ impl UniqueFaker<'_> {
 
     pub fn randomDigitNot(&self, except: i64) -> DatabaseResult<u8> {
         self.generate("randomDigitNot", || self.0.randomDigitNot(except))
+    }
+
+    pub fn randomLetter(&self) -> DatabaseResult<char> {
+        self.generate("randomLetter", || self.0.randomLetter())
+    }
+
+    pub fn randomAscii(&self) -> DatabaseResult<char> {
+        self.generate("randomAscii", || self.0.randomAscii())
+    }
+
+    pub fn numerify(&self, pattern: Option<&str>) -> DatabaseResult<String> {
+        self.generate("numerify", || self.0.numerify(pattern))
+    }
+
+    pub fn lexify(&self, pattern: Option<&str>) -> DatabaseResult<String> {
+        self.generate("lexify", || self.0.lexify(pattern))
+    }
+
+    pub fn bothify(&self, pattern: Option<&str>) -> DatabaseResult<String> {
+        self.generate("bothify", || self.0.bothify(pattern))
+    }
+
+    pub fn asciify(&self, pattern: Option<&str>) -> DatabaseResult<String> {
+        self.generate("asciify", || self.0.asciify(pattern))
     }
 
     pub fn randomNumber(&self, digits: Option<u32>, strict: bool) -> DatabaseResult<i64> {

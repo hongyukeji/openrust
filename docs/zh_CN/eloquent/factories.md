@@ -77,6 +77,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
+            ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
@@ -94,6 +95,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 文本生成 {#text-generation}
 
 用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 生成指定数量的列表。对应的 `AsText` 方法用空格连接单词或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支持固定数量或按 FakerPHP 规则浮动。原有按范围取样的 `sentence(words)` 也可以继续使用。`text(max)` 以 UTF-8 字节为上限。上限不足五字节或无法容纳生成项时返回错误。这些方法均支持 `unique`。词库由 fake-rs 按语言提供。
+
+### 占位符格式化 {#pattern-formatters}
+
+用 `numerify(Some(pattern))` 将 `#` 替换为数字、将 `%` 替换为非零数字。`lexify` 将 `?` 替换为 ASCII 小写字母。`bothify` 处理这三种占位符，并以相同概率将每个 `*` 替换为数字或小写字母。`asciify` 将 `*` 替换为 `!` 至 `~` 的可打印 ASCII 字符。其余字符按原样保留。传入 `None` 使用 FakerPHP 默认模板。`randomLetter()` 和 `randomAscii()` 返回单个 Rust 字符。六个方法均支持 `unique`。
 
 ## 使用工厂创建模型
 
