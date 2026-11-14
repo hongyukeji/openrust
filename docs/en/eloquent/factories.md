@@ -850,6 +850,17 @@ fn singapore_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Indian English uses local city, state, and locality catalogs. A full address ends with a six-digit postcode starting with 1–5. The street line uses a building and locality, optionally with a housing society. `areaSuffix()` preserves leading spaces in the catalog, and the five locality and society formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn indian_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en-IN"))?;
+    Ok((faker.address(), faker.unique(false).societyName()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

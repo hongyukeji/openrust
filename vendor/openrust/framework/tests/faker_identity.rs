@@ -3906,3 +3906,40 @@ fn singapore_address_preserves_street_blocks_and_literal_unit_patterns() {
     assert_ne!(unique.floorNumber().unwrap(), unique.floorNumber().unwrap());
     assert!(unique.floorNumber().is_err());
 }
+
+#[test]
+fn indian_english_addresses_preserve_locality_and_society_templates() {
+    use std::collections::HashSet;
+
+    let faker = fake(Some("en-IN")).unwrap();
+    let standalone = Regex::new(r"^[1-9][0-9], [^,]+,$").unwrap();
+    let in_society =
+        Regex::new(r"^[1-9][0-9], [^,]+ (Society|Apartments|Heights|Villas), [^,]+$").unwrap();
+    let postcode = Regex::new(r"^[1-5][0-9]{5}$").unwrap();
+    let mut formats = [false; 2];
+    for _ in 0..256 {
+        let address = faker.address();
+        let (location, pin) = address.rsplit_once(" - ").unwrap();
+        assert!(postcode.is_match(pin), "{address}");
+        let street = faker.streetAddress();
+        if standalone.is_match(&street) {
+            formats[0] = true;
+        } else {
+            assert!(in_society.is_match(&street), "{street}");
+            formats[1] = true;
+        }
+        assert!(location.contains(", "));
+        assert!(faker.streetName().ends_with(" Street"));
+        assert_eq!(faker.stateAbbr().len(), 2);
+    }
+    assert_eq!(formats, [true; 2]);
+    assert!(fake(Some("en-US")).unwrap().locality().is_err());
+
+    let unique = faker.unique(true);
+    let suffixes: HashSet<_> = (0..5).map(|_| unique.areaSuffix().unwrap()).collect();
+    assert_eq!(
+        suffixes,
+        HashSet::from([" Nagar", "Pur", "Garh", "Gunj", " Chowk"])
+    );
+    assert!(unique.areaSuffix().is_err());
+}

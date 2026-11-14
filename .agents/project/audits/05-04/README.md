@@ -1356,3 +1356,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `5c585555`。PHP 反射核对五份词表及模板，执行固定 FakerPHP 抽验 128 个样本。实际 MySQL 8.4.13 使用 `main artisan db:seed --database=mysql --force` 插入并按序回读 129 行，包含三语共用示例，并逐行核对两种地址格式及词表。回归覆盖无效地区及唯一楼层模板耗尽。
 
 Rust 1.94.0 格式、全工作区全目标严格 Clippy、83 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 均通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及三个工厂页面示例检查均通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 待继续核对其他地区 Address provider。
+
+## 印度英语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，复核 FakerPHP v1.24.1 [印度 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_IN/Address.php) 与继承的基础 Address。地区地址覆盖城市、邦名与简称、街区、小区及 1–5 起首的六位邮编。保留两种街道模板的逗号、住宅小区布局和词表前导空格。地区专用方法返回 Result，并接入 unique。v0.x 无对应 Faker 地址生成器，Goravel 式编译装配不受影响。
+
+隔离基线 `ad4aae59`。PHP 反射逐项核对八份词表，印度与尼日利亚使用相同国家名词表，Rust 复用该常量。固定 FakerPHP 抽验 128 个样本。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入、顺序回读并核对 129 行，包括三语共用示例。回归覆盖两种街道结构、无效地区和唯一街区后缀耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、84 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查与六项工厂页面示例检查通过。既有 Sanctum 排版差异只在隔离副本处理。原始 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，项目卷可用 80 GiB。下一批核对菲律宾与香港英语 Address。
