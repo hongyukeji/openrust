@@ -86,6 +86,52 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a DNI for Spain or Peru.
+    pub fn dni(&self) -> DatabaseResult<String> {
+        match self.locale() {
+            "es_ES" => {
+                const LETTERS: &[u8; 23] = b"TRWAGMYFPDXBNJZSQVHLCKE";
+                let number = fastrand::usize(..100_000_000);
+                let check = char::from(LETTERS[number % LETTERS.len()]);
+                Ok(format!("{number:08}{check}"))
+            }
+            "es_PE" => Ok(self.numerify(Some("########"))),
+            _ => Err(DatabaseError::InvalidQuery("unsupported Faker DNI locale")),
+        }
+    }
+
+    /// Samples the pinned Peruvian RUC format.
+    pub fn ruc(&self, isNaturalPerson: Option<bool>) -> DatabaseResult<String> {
+        if self.locale() != "es_PE" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker RUC locale"));
+        }
+        let mask = if isNaturalPerson.unwrap_or(false) {
+            "10#########"
+        } else {
+            "20#########"
+        };
+        Ok(self.numerify(Some(mask)))
+    }
+
+    /// Samples a driving licence category for Spain or South Africa.
+    pub fn licenceCode(&self) -> DatabaseResult<&'static str> {
+        let codes: &[&str] = match self.locale() {
+            "es_ES" => &[
+                "AM", "A1", "A2", "A", "B", "B+E", "C1", "C1+E", "C", "C+E", "D1", "D1+E", "D",
+                "D+E",
+            ],
+            "en_ZA" => &[
+                "A", "A1", "B", "C", "C1", "C2", "EB", "EC", "EC1", "I", "L", "L1",
+            ],
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker licence code locale",
+                ));
+            }
+        };
+        Ok(codes[fastrand::usize(..codes.len())])
+    }
+
     /// Samples a Brazilian CPF, with punctuation by default.
     pub fn cpf(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         let number = self.brazilian_identifier("#########", 2)?;
@@ -272,6 +318,18 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn dni(&self) -> DatabaseResult<String> {
+        self.try_generate("dni", || self.0.dni())
+    }
+
+    pub fn ruc(&self, isNaturalPerson: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("ruc", || self.0.ruc(isNaturalPerson))
+    }
+
+    pub fn licenceCode(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("licenceCode", || self.0.licenceCode())
     }
 
     pub fn cpf(&self, formatted: Option<bool>) -> DatabaseResult<String> {

@@ -290,14 +290,20 @@ For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::
 
 For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass `None` for the default punctuation or `Some(false)` for digits only. RG follows the pinned São Paulo provider, with a numeric check digit. CNPJ uses branch `0001`. All three methods support `unique`.
 
+Use `dni()` with `es-ES` for eight digits and a modulo-23 check letter, or with `es-PE` for eight digits. The Peruvian `ruc(isNaturalPerson)` defaults to the `20` prefix and uses `10` for `Some(true)`. The pinned provider appends nine random digits. Use `licenceCode()` for a driving licence category from `es-ES` or `en-ZA`. These methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 11]> {
+fn identity_samples() -> DatabaseResult<[String; 15]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("es-ES"))?.dni()?,
+        fake(Some("es-PE"))?.dni()?,
+        fake(Some("es-PE"))?.ruc(Some(true))?,
+        fake(Some("en-ZA"))?.licenceCode()?.to_owned(),
         brazilian.cpf(None)?,
         brazilian.rg(Some(false))?,
         brazilian.unique(false).cnpj(None)?,

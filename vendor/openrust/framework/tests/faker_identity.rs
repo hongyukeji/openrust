@@ -351,3 +351,59 @@ fn brazilian_identifiers_preserve_masks_branches_and_checksums() {
     assert!(fallback.rg(None).is_err());
     assert!(fallback.cnpj(None).is_err());
 }
+
+#[test]
+fn dni_ruc_and_licence_categories_follow_their_regional_providers() {
+    use std::collections::HashSet;
+
+    let es = fake(Some("es-ES")).unwrap();
+    let pe = fake(Some("es-PE")).unwrap();
+    let za = fake(Some("en-ZA")).unwrap();
+    let es_unique = es.unique(true);
+    let pe_unique = pe.unique(true);
+    let za_unique = za.unique(true);
+
+    for _ in 0..128 {
+        let dni = es_unique.dni().unwrap();
+        let number: usize = dni[..8].parse().unwrap();
+        assert_eq!(dni.len(), 9);
+        assert_eq!(dni.as_bytes()[8], b"TRWAGMYFPDXBNJZSQVHLCKE"[number % 23]);
+
+        let dni = pe_unique.dni().unwrap();
+        assert_eq!(dni.len(), 8);
+        assert!(dni.bytes().all(|byte| byte.is_ascii_digit()));
+
+        for (natural, prefix) in [(None, "20"), (Some(false), "20"), (Some(true), "10")] {
+            let ruc = pe_unique.ruc(natural).unwrap();
+            assert_eq!(ruc.len(), 11);
+            assert!(ruc.starts_with(prefix));
+            assert!(ruc.bytes().all(|byte| byte.is_ascii_digit()));
+        }
+    }
+
+    let es_codes = (0..14)
+        .map(|_| es_unique.licenceCode().unwrap())
+        .collect::<HashSet<_>>();
+    let za_codes = (0..12)
+        .map(|_| za_unique.licenceCode().unwrap())
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        es_codes,
+        HashSet::from([
+            "AM", "A1", "A2", "A", "B", "B+E", "C1", "C1+E", "C", "C+E", "D1", "D1+E", "D", "D+E",
+        ])
+    );
+    assert_eq!(
+        za_codes,
+        HashSet::from([
+            "A", "A1", "B", "C", "C1", "C2", "EB", "EC", "EC1", "I", "L", "L1"
+        ])
+    );
+    assert!(es_unique.licenceCode().is_err());
+    assert!(za_unique.licenceCode().is_err());
+    assert!(es.unique(true).licenceCode().is_ok());
+
+    assert!(es.ruc(None).is_err());
+    assert!(pe.licenceCode().is_err());
+    assert!(za.dni().is_err());
+}

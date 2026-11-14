@@ -290,14 +290,20 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 使用 `pt-BR` 时，可用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。传入 `None` 使用默认标点，传入 `Some(false)` 只返回数字。RG 沿用固定的圣保罗 provider，校验位为数字。CNPJ 使用分支号 `0001`。三个方法均支持 `unique`。
 
+`dni()` 在 `es-ES` 生成八位数字和模 23 校验字母，在 `es-PE` 生成八位数字。秘鲁的 `ruc(isNaturalPerson)` 默认使用 `20` 前缀，传入 `Some(true)` 则使用 `10`，固定版生成器随后添加九位随机数字。`licenceCode()` 按 `es-ES` 或 `en-ZA` 采样驾驶证类别。上述方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 11]> {
+fn identity_samples() -> DatabaseResult<[String; 15]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("es-ES"))?.dni()?,
+        fake(Some("es-PE"))?.dni()?,
+        fake(Some("es-PE"))?.ruc(Some(true))?,
+        fake(Some("en-ZA"))?.licenceCode()?.to_owned(),
         brazilian.cpf(None)?,
         brazilian.rg(Some(false))?,
         brazilian.unique(false).cnpj(None)?,

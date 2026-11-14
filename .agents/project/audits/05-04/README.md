@@ -677,3 +677,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对照固定 FakerPHP v1.24.1 巴西 Person 与 Company，接通 `cpf`、`rg`、`cnpj`。沿用数字掩码、圣保罗 RG 数字校验位、CNPJ 默认分支 0001 与共用模 11 校验。Rust 用 `Option<bool>` 表达默认标点或纯数字格式，各方法支持 `unique`。v0.x 未找到等价入口，工厂接线沿用现有路径。 [固定巴西 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_BR/Person.php) · [固定巴西 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_BR/Company.php)
 
 隔离基线 `0bf9cc02`。PHP 8.5 校验 1,536 条固定上游样本。Rust 五项地区身份回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回查三个入口的带标点与纯数字共六条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。单独清库 URL 未启用。已恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。下一批继续核对西语地区的 DNI 与相关编号方法。
+
+## Faker 西班牙和秘鲁 DNI、秘鲁 RUC 与驾照类别
+
+对照固定 FakerPHP v1.24.1 Person 与 Company。西班牙 DNI 使用八位数字与模 23 校验字母。秘鲁 DNI 保留八位数字，RUC 的 `10` 和 `20` 前缀后保留九位随机数字。 `licenceCode` 接通西班牙和南非两个地区的固定类别。所有方法支持 `unique`，Rust 以 `Option<bool>` 表达 RUC 的默认参数。v0.x 未找到对应实现，编译式工厂接线沿用现有路径。 [西班牙 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_ES/Person.php) · [秘鲁 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_PE/Person.php) · [秘鲁 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_PE/Company.php) · [南非 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_ZA/Person.php)
+
+隔离基线 `f7a2b9c7`。PHP 8.5 校验 1,536 条固定上游样本，覆盖格式、校验字母、前缀和完整驾照类别。Rust 六项地区身份回归、49 项 Seeder 测试和两项 MySQL／SQLite 工厂回归通过。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回查六条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。单独清库 URL 未启用。恢复原 Seeder 后清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。地区 `idNumber` 和其他专用编号继续核对。
