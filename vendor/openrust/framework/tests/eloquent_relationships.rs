@@ -502,13 +502,16 @@ async fn verify_through_and_morph(
     ));
     Box::pin(verify_morph_with_constraint(db, visible.getKey().unwrap())).await;
 
-    assert!(subject.associate(&mut profile, "post", author).is_err());
-    subject.associate(&mut profile, "post", post).unwrap();
-    profile.save().await.unwrap();
-    assert_eq!(POST_COMMENTS.getResults(post).await.unwrap().len(), 2);
-    subject.dissociate(&mut profile);
-    profile.save().await.unwrap();
-    assert!(subject.getResults(&profile).await.unwrap().is_none());
+    Box::pin(verify_morph_association(
+        db,
+        mysql,
+        subject.named("subject"),
+        &mut profile,
+        author,
+        post,
+    ))
+    .await;
+    let subject = subjects();
     profile
         .setAttribute("subject_type", "missing")
         .setAttribute("subject_id", 1);
@@ -772,6 +775,83 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
         assert!(matched.modelKeys().contains(&3.into()));
         FEATURED_POSTS.detach(&other, None).await.unwrap();
     })
+}
+
+async fn verify_morph_association(
+    db: &Connection,
+    mysql: bool,
+    subject: MorphTo<Comment>,
+    profile: &mut Comment,
+    author: &Author,
+    post: &Post,
+) {
+    let ordinary = BelongsTo::<Comment, Post>::new("post_id", "id");
+    profile.load("post", &ordinary).await.unwrap();
+    profile.load("subject", &subject).await.unwrap();
+
+    let mut snapshot = Post::from_state(post.state().clone());
+    snapshot.setAttribute("title", "Unpersisted subject title");
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    assert!(subject.associate(profile, "post", author).is_err());
+    assert_eq!(
+        profile
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .alias(),
+        "author",
+    );
+    let other = connect(json!({"driver": "sqlite", "database": ":memory:"}));
+    let mut foreign = Post::newInstanceOn(&other, Attributes::new()).unwrap();
+    foreign.setAttribute("id", 1);
+    assert!(matches!(
+        subject.associate(profile, "post", &foreign),
+        Err(DatabaseError::InvalidQuery(
+            "mixed relationship connections"
+        ))
+    ));
+    subject.associate(profile, "post", &snapshot).unwrap();
+    assert!(profile.relationLoaded("post"));
+    let target = profile
+        .getRelationOrLoad("subject", &subject)
+        .await
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert_eq!(target.alias(), "post");
+    assert_eq!(
+        target.downcast_ref::<Post>().unwrap().getAttribute("title"),
+        Some(&"Unpersisted subject title".into())
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
+    assert_eq!(
+        profile.toArray().unwrap()["subject"]["title"],
+        "Unpersisted subject title"
+    );
+    let key = profile.getKey().unwrap().clone();
+    let stored = Comment::queryOn(db).findOrFail(key.clone()).await.unwrap();
+    assert_eq!(stored.getAttribute("subject_type"), Some(&"author".into()));
+
+    profile.save().await.unwrap();
+    assert_eq!(POST_COMMENTS.getResults(post).await.unwrap().len(), 2);
+    subject.dissociate(profile);
+    assert!(profile.relationLoaded("post"));
+    assert!(profile.relationLoaded("subject"));
+    assert!(
+        profile
+            .getRelationOrLoad("subject", &subject)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(profile.toArray().unwrap()["subject"].is_null());
+    profile.save().await.unwrap();
+    let stored = Comment::queryOn(db).findOrFail(key).await.unwrap();
+    assert_eq!(stored.getAttribute("subject_type"), Some(&Value::Null));
+    assert_eq!(stored.getAttribute("subject_id"), Some(&Value::Null));
 }
 
 async fn verify_morph_defaults(db: &Connection, visible: &Comment, hidden: &Comment) {

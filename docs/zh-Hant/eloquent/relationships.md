@@ -113,6 +113,23 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` 在中介資料表讀寫時使用類型欄位。反向查詢時交換中介資料表的兩個鍵參數，繼續使用同一類型別名。可透過 `MorphPivot` 讀取中介資料表欄位。
 
+### 設定多型關聯 {#associating-polymorphic-models}
+
+使用 `named("subject")` 為 `MorphTo` 指定關聯名稱，設定後即可讀取該關聯。`associate` 設定別名及擁有者鍵，並快取傳入模型的快照。`dissociate` 將兩欄設為空值，並快取已載入的空關聯。呼叫 `save().await?` 持久化父模型。其他已載入關聯仍可讀取。未命名的描述符沿用清除關聯快取的行為。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub async fn set_subject<P: Model, T: Model>(parent: &mut P, post: &T) -> DatabaseResult<()> {
+    let subject = MorphTo::new("subject_type", "subject_id")
+        .named("subject")
+        .target::<T>("post", "id");
+    subject.associate(parent, "post", post)?;
+    parent.save().await?;
+    Ok(())
+}
+```
+
 ### 動態關聯 {#dynamic-relationships}
 
 在服務提供者的 `boot` 方法中，透過 `Model::resolveRelationUsing` 登記具名解析器。閉包接收目前的模型，並回傳明確指定鍵的關聯描述符。登錄表依應用程式隔離。相同模型型別及名稱重新登記後，後續載入使用新的解析器。

@@ -25,6 +25,7 @@ use super::{
 pub struct MorphTo<P: Model> {
     type_column: &'static str,
     id_column: &'static str,
+    relation_name: Option<&'static str>,
     targets: IndexMap<&'static str, Box<dyn Target<P>>>,
     path_aliases: Option<Vec<&'static str>>,
     soft_deletes: SoftDeleteMacros,
@@ -149,12 +150,20 @@ impl<P: Model> MorphTo<P> {
         Self {
             type_column,
             id_column,
+            relation_name: None,
             targets: IndexMap::new(),
             path_aliases: None,
             soft_deletes: SoftDeleteMacros::default(),
             defaults: IndexMap::new(),
             untyped_default: None,
         }
+    }
+
+    /// Names the cache entry updated by association and dissociation.
+    #[must_use]
+    pub fn named(mut self, name: &'static str) -> Self {
+        self.relation_name = Some(name);
+        self
     }
 
     /// Supplies an unsaved model when this registered target has no matching row.
@@ -500,9 +509,9 @@ impl<P: Model> MorphTo<P> {
         alias: &str,
         related: &R,
     ) -> DatabaseResult<()> {
-        let target = self
+        let (&alias, target) = self
             .targets
-            .get(alias)
+            .get_key_value(alias)
             .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
         if target.model_type() != TypeId::of::<R>() {
             return Err(DatabaseError::InvalidQuery(
@@ -522,18 +531,38 @@ impl<P: Model> MorphTo<P> {
             .getAttribute(target.owner_key())
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship owner key"))?;
+        self.cache_association(model, || {
+            Some(MorphTarget {
+                alias,
+                model: Arc::new(R::from_state(related.state().clone())),
+            })
+        });
         model
             .setAttribute(self.type_column, alias)
             .setAttribute(self.id_column, key.clone());
-        model.state_mut().relations.clear();
         Ok(())
     }
 
     pub fn dissociate(&self, model: &mut P) {
+        self.cache_association(model, || None);
         model
             .setAttribute(self.type_column, Value::Null)
             .setAttribute(self.id_column, Value::Null);
-        model.state_mut().relations.clear();
+    }
+
+    fn cache_association(&self, model: &mut P, target: impl FnOnce() -> Option<MorphTarget>) {
+        if let Some(name) = self.relation_name {
+            // Retain unrelated values published by a detached autoload batch.
+            let state = model.state_mut();
+            if let Some(link) = state.detached_autoload.take() {
+                state.relations = link.visible_relations(state, |key| key != name);
+            }
+            state
+                .relations
+                .insert_relation::<Self>(name.to_owned(), target());
+        } else {
+            model.state_mut().relations.clear();
+        }
     }
 
     pub(in crate::database::eloquent) async fn touch_owner(

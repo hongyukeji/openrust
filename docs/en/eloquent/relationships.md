@@ -113,6 +113,23 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` adds a type discriminator to intermediate-table reads and writes. For the inverse direction, reverse the two pivot key arguments and use the same alias. The pivot value is available as `MorphPivot`.
 
+### Associating polymorphic models {#associating-polymorphic-models}
+
+Name the `MorphTo` descriptor with `named("subject")` to update that relationship immediately. `associate` sets the stored alias and owner key and caches a snapshot of the supplied model. `dissociate` clears both columns and caches an empty relationship. Call `save().await?` to persist the parent. Other loaded relationships remain available. Unnamed descriptors retain the existing cache-clearing behavior.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub async fn set_subject<P: Model, T: Model>(parent: &mut P, post: &T) -> DatabaseResult<()> {
+    let subject = MorphTo::new("subject_type", "subject_id")
+        .named("subject")
+        .target::<T>("post", "id");
+    subject.associate(parent, "post", post)?;
+    parent.save().await?;
+    Ok(())
+}
+```
+
 ### Dynamic relationships {#dynamic-relationships}
 
 Register a named resolver with `Model::resolveRelationUsing` in a service provider’s `boot` method. The closure receives the current model and returns a relationship descriptor with explicit keys. Each application has its own registry. Registering the same name and model type again replaces the resolver for future loads.

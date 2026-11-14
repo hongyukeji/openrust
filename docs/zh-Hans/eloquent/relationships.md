@@ -113,6 +113,23 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` 在中间表读写时使用类型字段。反向查询时交换中间表的两个键参数，继续使用同一类型别名。可通过 `MorphPivot` 读取中间表字段。
 
+### 设置多态关联 {#associating-polymorphic-models}
+
+使用 `named("subject")` 为 `MorphTo` 指定关系名，赋值后即可读取该关系。`associate` 设置别名和所有者键，并缓存传入模型的快照。`dissociate` 将两列置空，并缓存已加载的空关系。调用 `save().await?` 持久化父模型。其他已加载关系仍可读取。未命名描述符沿用清除关系缓存的行为。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub async fn set_subject<P: Model, T: Model>(parent: &mut P, post: &T) -> DatabaseResult<()> {
+    let subject = MorphTo::new("subject_type", "subject_id")
+        .named("subject")
+        .target::<T>("post", "id");
+    subject.associate(parent, "post", post)?;
+    parent.save().await?;
+    Ok(())
+}
+```
+
 ### 动态关系 {#dynamic-relationships}
 
 在服务提供者的 `boot` 方法中，通过 `Model::resolveRelationUsing` 登记命名解析器。闭包接收当前模型，并返回显式指定键的关系描述符。注册表按应用隔离。同一模型类型和名称再次登记时，新解析器用于后续加载。
