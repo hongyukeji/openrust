@@ -1396,7 +1396,7 @@ impl<M: Model> Builder<'static, M> {
                 transaction,
             )
             .await?;
-            Ok(Collection::new(models))
+            Ok(M::newCollection(models))
         })
     }
 

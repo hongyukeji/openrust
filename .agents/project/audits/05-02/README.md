@@ -648,3 +648,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 按固定 Laravel 的 Deferred Count Loading 与 Other Aggregate Functions 接入单模型的 `loadCount`、`loadExists`、`loadSum`、`loadAvg`、`loadMin`、`loadMax` 与多态 `loadMorphCount`。Rust 用类型化关系描述符传递聚合参数，单模型和集合复用同一查询与回填路径。多个普通聚合可通过 `loadAggregates` 一次查询。旧版未找到延后关系聚合入口。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#deferred-count-loading) · [Laravel Model](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php)
 
 独立 MySQL 8.4.13 验证所有普通聚合入口、多个聚合共用一次 SELECT、脏值与原始属性同步、已删除行错误，以及多态计数写回。Rust 1.94.0 格式、严格 Clippy、MySQL 关系定向测试、实际 Artisan、三语示例编译、站点构建与 18 项浏览器检查通过。SQLite 与其他数据库按发布验收规则留待发布前复验。
+
+## 模型集合工厂与未保存关联模型
+
+对照固定 Laravel 的 `HasCollection::newCollection` 与 `HasOneOrMany::make`、`makeMany`。模型查询在水合与预加载后调用集合工厂。普通和多态的一对一、一对多关系复用已有未保存模型构造逻辑，批量构造也调用关联模型的工厂。Rust 保留 `Collection<M>` 返回类型，可通过工厂设置集合键，通过扩展 trait 增加业务方法。PHP 的 `CollectedBy` 子类替换及多值关系缓存的返回类型仍有差异。旧版未找到对应工厂和批量未保存构造。 [Laravel 自定义集合](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-collections.md#custom-collections) · [Laravel 集合工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/HasCollection.php) · [Laravel 关系测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentInverseRelationHasManyTest.php)
+
+独立源码副本在 MySQL 8.4.13 通过关系定向验收，覆盖查询工厂、集合键、未保存批次顺序、作用域默认值、普通反向缓存与多态键，以及数据库未写入草稿。隔离副本 Rust 1.94.0 格式、严格 Clippy 和实际 Artisan 通过，三语示例编译、站点构建及 18 项浏览器检查通过。共享工作区的 Artisan 编译碰到同时修改的会话代码，隔离复验通过。SQLite 与其他数据库留到发布前。

@@ -88,6 +88,21 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.save(parent, model).await
     }
 
+    /// Constructs an unsaved child with the relationship attributes.
+    pub async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.make(parent, attributes).await
+    }
+
+    /// Constructs unsaved children in input order.
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn makeMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        self.0.makeMany(parent, records).await
+    }
+
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn firstOrNew<'a>(
         &self,

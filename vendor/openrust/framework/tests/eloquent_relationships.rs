@@ -6440,6 +6440,84 @@ async fn verify_custom_pivot(config: Json) {
     }
 }
 
+struct KeyedPost(ModelState);
+
+impl Model for KeyedPost {
+    fn metadata() -> &'static ModelMetadata {
+        Post::metadata()
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(
+            models
+                .into_iter()
+                .enumerate()
+                .map(|(index, model)| (format!("post-{index}"), model)),
+        )
+    }
+}
+
+async fn verify_collection_factory(db: &Connection, author: &Author) {
+    let selected = KeyedPost::queryOn(db)
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert!(!selected.is_empty());
+    assert!(selected.getByKey("post-0").is_some());
+
+    let relation = HasMany::<Author, KeyedPost>::new("id", "author_id")
+        .chaperone("author")
+        .constrain(|query| {
+            query.withAttributes(Attributes::from([("score".into(), 7.into())]), false)
+        });
+    let models = relation
+        .makeMany(
+            author,
+            [
+                Attributes::from([("title".into(), "first draft".into())]),
+                Attributes::from([("title".into(), "second draft".into())]),
+            ],
+        )
+        .await
+        .unwrap();
+    for (index, title) in ["first draft", "second draft"].into_iter().enumerate() {
+        let model = models.getByKey(format!("post-{index}")).unwrap();
+        assert_eq!(model.getAttribute("title"), Some(&title.into()));
+        assert_eq!(model.getAttribute("score"), Some(&7.into()));
+        assert_eq!(model.getAttribute("author_id"), author.getKey());
+        assert!(!model.state().exists());
+        assert!(model.relationLoaded("author"));
+    }
+    let morph = MorphOne::<Author, Comment>::new("id", "subject_id", "subject_type", "author");
+    let child = morph
+        .make(
+            author,
+            Attributes::from([("body".into(), "draft subject".into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(child.getAttribute("subject_id"), author.getKey());
+    assert_eq!(child.getAttribute("subject_type"), Some(&"author".into()));
+    assert!(!child.state().exists());
+    let mut query = KeyedPost::queryOn(db);
+    query.whereIn("title", vec!["first draft".into(), "second draft".into()]);
+    assert!(query.get().await.unwrap().is_empty());
+}
+
 async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &Post) {
     let baseline = if mysql { select_count(db).await } else { 0 };
     let mut query = Author::queryOn(db).with("posts", POSTS.chaperone("author"));
@@ -7238,6 +7316,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     verify_default_eager_loads(&db, mysql).await;
     verify_morph_wildcard(&db, mysql).await;
     Box::pin(verify_chaperone(&db, mysql, &first, &p1)).await;
+    Box::pin(verify_collection_factory(&db, &first)).await;
     db.statement("DROP TABLE relation_featured_posts", &[])
         .await
         .unwrap();

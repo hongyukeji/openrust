@@ -199,3 +199,19 @@ pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>
     Ok(models.getQueueableIds())
 }
 ```
+
+## Custom collections {#custom-collections}
+
+Override `Model::newCollection` to customize how query results are assembled. The hook receives hydrated models after eager loading and also runs when `makeMany` constructs unsaved related models. Keep the supplied models in order when assigning collection keys. Rust returns `Collection<Self>` and supports adding domain methods with extension traits.
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn keyed_models<M: Model>(models: Vec<M>) -> Collection<M> {
+    Collection::fromEntries(
+        models.into_iter().enumerate().map(|(index, model)| {
+            (format!("model-{index}"), model)
+        }),
+    )
+}
+```

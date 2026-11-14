@@ -199,3 +199,19 @@ pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>
     Ok(models.getQueueableIds())
 }
 ```
+
+## 自定义集合 {#custom-collections}
+
+覆写 `Model::newCollection` 可定制查询结果的集合构造。钩子在关系预加载后接收已水合模型，`makeMany` 构造未保存的关联模型时也会调用它。设置集合键时应保留输入模型的顺序。Rust 返回 `Collection<Self>`，可用扩展 trait 添加业务方法。
+
+```rust
+use openrust::database::eloquent::{Collection, Model};
+
+pub fn keyed_models<M: Model>(models: Vec<M>) -> Collection<M> {
+    Collection::fromEntries(
+        models.into_iter().enumerate().map(|(index, model)| {
+            (format!("model-{index}"), model)
+        }),
+    )
+}
+```

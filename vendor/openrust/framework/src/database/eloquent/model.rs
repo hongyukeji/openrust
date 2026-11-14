@@ -221,6 +221,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         super::relations::MorphMap::class_for::<Self>(self.state().connection.as_ref())
     }
 
+    /// Constructs the Eloquent collection returned by model queries.
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::new(models)
+    }
+
     /// Defines a through relationship by reusing an existing local relationship.
     fn through<L: super::relations::ThroughRelation<Parent = Self>>(local: L) -> L::Pending {
         local.pending()

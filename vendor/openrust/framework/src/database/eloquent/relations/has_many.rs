@@ -311,7 +311,8 @@ impl<P: Model, R: Model> HasMany<P, R> {
         model.save().await
     }
 
-    async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+    /// Constructs an unsaved child with the relationship attributes.
+    pub async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let connection = self.0.connection(parent)?;
         let query = self.0.configure(R::queryOn(&connection))?;
         let mut model = query.make_with_attributes_async(attributes).await?;
@@ -319,6 +320,20 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .await?;
         self.0.hydrate_inverse(parent, &mut model);
         Ok(model)
+    }
+
+    /// Constructs unsaved children in input order.
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn makeMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        let mut models = Vec::new();
+        for attributes in records {
+            models.push(self.make(parent, attributes).await?);
+        }
+        Ok(R::newCollection(models))
     }
 
     async fn apply_creation_attributes(

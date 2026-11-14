@@ -127,6 +127,20 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.save(parent, model).await
     }
 
+    /// Constructs an unsaved child with the relationship attributes.
+    pub async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.make(parent, attributes).await
+    }
+
+    /// Constructs unsaved children in input order.
+    pub async fn makeMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        self.0.makeMany(parent, records).await
+    }
+
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,
