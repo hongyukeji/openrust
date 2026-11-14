@@ -112,3 +112,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel Factory 的 connection 和 getConnectionName。工厂覆盖优先于模型连接及当前应用默认连接，单模型与批量入口共用解析，lazy 在执行时选取连接。Rust 保留显式 On 入口，并优先使用调用方传入的连接。嵌套工厂按自身覆盖、模型连接及外层连接解析，保留既有关系连接校验。可从外层连接所属应用解析命名连接。旧版未发现等价工厂入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L845)
 
 隔离基线 e6986332。MySQL 8.4.13 实际 db:seed 验证显式连接写 SQLite、On 写 MySQL、lazy 批量写入、清除覆盖回退至 Seeder 连接、嵌套上级连接和未知连接错误。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。
+
+## 工厂附加关系的中间表属性
+
+对照固定 Laravel Factory::hasAttached 和 BelongsToManyRelationship。单个属性映射继续共用。列表按关联模型顺序循环，父模型解析器对每条关联执行一次。Rust 用 FactoryPivot 表达这些输入，调用方通过 count 指定关联数量，解析器返回 Result。列表或解析器沿用单条附加行为，前一条写入可在后续错误时保留。旧版未发现对应工厂入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L685) · [固定 Laravel BelongsToManyRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/BelongsToManyRelationship.php#L47)
+
+隔离基线 31cc40e4。MySQL 8.4.13 实际 db:seed 验证多态中间表顺序、列表循环、解析器逐条运行及父模型已持久化。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。

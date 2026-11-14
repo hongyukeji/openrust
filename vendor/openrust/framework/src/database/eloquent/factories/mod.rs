@@ -20,6 +20,7 @@ type Definition =
     dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
 type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
+type PivotResolver<M> = dyn Fn(&M) -> DatabaseResult<Attributes> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
         &'a Connection,
         &'a mut M,
@@ -66,6 +67,33 @@ fn recycled_owner<R: Model>(
 /// Associates a model with the factory definition chosen by its application.
 pub trait HasFactory: Model {
     fn factory() -> Factory<Self>;
+}
+
+/// Supplies pivot attributes to each model created by an attached factory.
+pub enum FactoryPivot<M: Model> {
+    Shared(Attributes),
+    Sequence(Vec<Attributes>),
+    Resolve(Box<PivotResolver<M>>),
+}
+
+impl<M: Model> FactoryPivot<M> {
+    pub fn resolve(
+        callback: impl Fn(&M) -> DatabaseResult<Attributes> + Send + Sync + 'static,
+    ) -> Self {
+        Self::Resolve(Box::new(callback))
+    }
+}
+
+impl<M: Model> From<Attributes> for FactoryPivot<M> {
+    fn from(attributes: Attributes) -> Self {
+        Self::Shared(attributes)
+    }
+}
+
+impl<M: Model> From<Vec<Attributes>> for FactoryPivot<M> {
+    fn from(attributes: Vec<Attributes>) -> Self {
+        Self::Sequence(attributes)
+    }
 }
 
 /// Selects the records to create with an Eloquent factory.
@@ -447,10 +475,10 @@ impl<M: Model> Factory<M> {
         self,
         relation: impl Into<BelongsToMany<M, R>>,
         models: FactoryBatch<R>,
-        pivot: Attributes,
+        pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let relation = Arc::new(relation.into());
-        self.has_attached_resolved(move |_| Ok(relation.clone()), models, pivot)
+        self.has_attached_resolved(move |_| Ok(relation.clone()), models, pivot.into())
     }
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
@@ -459,7 +487,7 @@ impl<M: Model> Factory<M> {
         self,
         name: impl Into<String>,
         models: FactoryBatch<R>,
-        pivot: Attributes,
+        pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let name = name.into();
         self.has_attached_resolved(
@@ -467,7 +495,7 @@ impl<M: Model> Factory<M> {
                 named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation.into()))
             },
             models,
-            pivot,
+            pivot.into(),
         )
     }
 
@@ -475,7 +503,7 @@ impl<M: Model> Factory<M> {
         mut self,
         relation: impl Fn(&M) -> DatabaseResult<Arc<BelongsToMany<M, R>>> + Send + Sync + 'static,
         models: FactoryBatch<R>,
-        pivot: Attributes,
+        pivot: FactoryPivot<M>,
     ) -> Self {
         let relation = Arc::new((relation, models, pivot));
         self.children
@@ -499,7 +527,23 @@ impl<M: Model> Factory<M> {
                                 .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
                         })
                         .collect::<DatabaseResult<Vec<_>>>()?;
-                    relation.attachWith(parent, &keys, pivot.clone()).await
+                    if let FactoryPivot::Shared(attributes) = pivot {
+                        return relation.attachWith(parent, &keys, attributes.clone()).await;
+                    }
+                    for (index, key) in keys.iter().enumerate() {
+                        let attributes = match pivot {
+                            FactoryPivot::Shared(_) => unreachable!(),
+                            FactoryPivot::Sequence(states) => index
+                                .checked_rem(states.len())
+                                .map(|offset| states[offset].clone())
+                                .unwrap_or_default(),
+                            FactoryPivot::Resolve(resolve) => resolve(parent)?,
+                        };
+                        relation
+                            .attachWith(parent, std::slice::from_ref(key), attributes)
+                            .await?;
+                    }
+                    Ok(())
                 })
             }));
         self

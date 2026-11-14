@@ -140,3 +140,5 @@ pub async fn reuse_owner<C: Model, P: Model>(
         .createOn(context.connection()).await
 }
 ```
+
+Pass a vector of attribute maps to `hasAttached` or `hasAttachedNamed` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments.

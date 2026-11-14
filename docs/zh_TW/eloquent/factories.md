@@ -140,3 +140,5 @@ pub async fn reuse_owner<C: Model, P: Model>(
         .createOn(context.connection()).await
 }
 ```
+
+向 `hasAttached` 或 `hasAttachedNamed` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。

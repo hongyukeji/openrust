@@ -140,3 +140,5 @@ pub async fn reuse_owner<C: Model, P: Model>(
         .createOn(context.connection()).await
 }
 ```
+
+向 `hasAttached` 或 `hasAttachedNamed` 传入属性映射列表，即可按关联模型顺序设置中间表属性。关联工厂数量超过列表长度时会循环。用 `FactoryPivot::resolve` 根据已保存的父模型计算每次附加的属性。单个属性映射会应用于全部关联。

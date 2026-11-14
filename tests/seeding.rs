@@ -19,7 +19,7 @@ use openrust::{
             Attributes, Model, ModelMetadata, ModelState, NamedRelations, UniqueId,
             casts::{Attribute, AttributeCast},
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            factories::{Factory, FactoryRecords, fake},
+            factories::{Factory, FactoryPivot, FactoryRecords, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
@@ -861,6 +861,47 @@ impl Seeder for PolymorphicFactories {
                     0
                 );
             }
+            let owners = || Factory::<FactoryOwner>::new(Attributes::new);
+            let children = || Factory::<FactoryChild>::new(Attributes::new);
+            let pivot = |label: &str| Attributes::from([("label".into(), label.into())]);
+            let pivot_calls = Arc::new(AtomicUsize::new(0));
+            owners()
+                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                    "attached",
+                    children().count(3),
+                    vec![pivot("first"), pivot("second")],
+                )
+                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                    "attached",
+                    children().count(2),
+                    FactoryPivot::resolve({
+                        let pivot_calls = Arc::clone(&pivot_calls);
+                        move |owner: &FactoryOwner| {
+                            assert!(owner.state().exists());
+                            assert!(owner.getKey().is_some());
+                            let index = pivot_calls.fetch_add(1, Ordering::Relaxed);
+                            Ok(Attributes::from([(
+                                "label".into(),
+                                format!("resolved-{index}").into(),
+                            )]))
+                        }
+                    }),
+                )
+                .createOn(connection)
+                .await?;
+            let labels = connection
+                .table("seed_factory_links")
+                .orderBy("child_id", "asc")
+                .pluck("label")
+                .await?;
+            assert_eq!(
+                labels,
+                ["first", "second", "first", "resolved-0", "resolved-1"].map(Value::from)
+            );
+            assert_eq!(pivot_calls.load(Ordering::Relaxed), 2);
+            assert_eq!(connection.table("seed_factory_links").delete().await?, 5);
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
+            assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");
                 let name = faker.unique(false).firstName()?;
@@ -888,8 +929,6 @@ impl Seeder for PolymorphicFactories {
                 localized[0].getAttribute("generated_name"),
                 localized[1].getAttribute("generated_name")
             );
-            let owners = || Factory::<FactoryOwner>::new(Attributes::new);
-            let children = || Factory::<FactoryChild>::new(Attributes::new);
             let subject = || {
                 MorphTo::<FactoryChild>::new("owner_type", "owner_id")
                     .target::<FactoryOwner>("seed-owner", "id")
