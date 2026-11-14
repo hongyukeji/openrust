@@ -517,6 +517,24 @@ impl<M: Model> Factory<M> {
             .await
     }
 
+    /// Inserts the generated model without saving relations or firing model persistence events.
+    pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
+        self.insertOn(&DB::connection(M::metadata().connection)?, attributes)
+            .await
+    }
+
+    pub async fn insertOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        let model = self.makeOneOn(connection, attributes).await?;
+        M::queryOn(connection)
+            .withoutGlobalScopes()
+            .insert_prepared_models(vec![model])
+            .await
+    }
+
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {
         self.createOneOn(connection, Attributes::new()).await
     }
@@ -974,6 +992,26 @@ impl<M: Model> FactoryBatch<M> {
 
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
         self.createOn(&DB::connection(M::metadata().connection)?)
+            .await
+    }
+
+    /// Inserts the generated batch in one statement after running afterMaking callbacks.
+    pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
+        self.insertOn(&DB::connection(M::metadata().connection)?, attributes)
+            .await
+    }
+
+    pub async fn insertOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        let models = self
+            .make_with_overrides(connection, &self.factory.recycled, None, &attributes)
+            .await?;
+        M::queryOn(connection)
+            .withoutGlobalScopes()
+            .insert_prepared_models(models.into_iter().collect())
             .await
     }
 

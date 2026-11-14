@@ -1341,15 +1341,6 @@ impl<M: Model> Builder<'static, M> {
 
     /// Prepares insert rows with model defaults, casts, unique IDs and timestamps.
     pub async fn fillForInsert(&self, rows: Vec<Attributes>) -> DatabaseResult<Vec<Attributes>> {
-        if rows.is_empty() {
-            return Ok(rows);
-        }
-        let metadata = M::metadata();
-        let time = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
-            Some(timestamp(&self.connection, metadata.date_format)?)
-        } else {
-            None
-        };
         let mut prepared = Vec::with_capacity(rows.len());
         for row in rows {
             let mut model = M::newInstanceOn(&self.connection, Attributes::new())?;
@@ -1367,6 +1358,23 @@ impl<M: Model> Builder<'static, M> {
                 .await?;
             }
             model.state_mut().replace_attributes(attributes);
+            prepared.push(model);
+        }
+        self.prepare_insert_models(prepared).await
+    }
+
+    async fn prepare_insert_models(&self, models: Vec<M>) -> DatabaseResult<Vec<Attributes>> {
+        if models.is_empty() {
+            return Ok(Vec::new());
+        }
+        let metadata = M::metadata();
+        let time = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
+            Some(timestamp(&self.connection, metadata.date_format)?)
+        } else {
+            None
+        };
+        let mut prepared = Vec::with_capacity(models.len());
+        for mut model in models {
             model.setUniqueIds().await?;
             let mut attributes = mem::take(&mut model.state_mut().attributes);
             if let Some(time) = &time {
@@ -1382,6 +1390,12 @@ impl<M: Model> Builder<'static, M> {
             prepared.push(attributes);
         }
         Ok(prepared)
+    }
+
+    pub(super) async fn insert_prepared_models(self, models: Vec<M>) -> DatabaseResult<()> {
+        let rows = self.prepare_insert_models(models).await?;
+        self.scoped()?.0.insert(&rows).await?;
+        Ok(())
     }
 
     /// Inserts prepared rows without dispatching model persistence events.

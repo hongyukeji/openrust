@@ -189,6 +189,7 @@ impl Model for BulkSeed {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("seed_bulk")
             .guarded(&["*"])
+            .hidden(&["score"])
             .uniqueId(UniqueId::Uuid)
             .uniqueIds(&["external_id"]);
         &METADATA
@@ -324,6 +325,63 @@ impl Seeder for PolymorphicFactories {
                 .unwrap();
             assert_eq!(row.get("created_at"), Some(&"2001-01-01 00:00:00".into()));
             assert_eq!(connection.table("seed_bulk").count("*").await?, 4);
+            let bulk_factory = || {
+                Factory::<BulkSeed>::new(|| {
+                    Attributes::from([
+                        ("label".into(), "factory-single".into()),
+                        ("score".into(), 51_i64.into()),
+                    ])
+                })
+            };
+            bulk_factory()
+                .count(0)
+                .insertOn(connection, Attributes::new())
+                .await?;
+            bulk_factory().insert(Attributes::new()).await?;
+            bulk_factory()
+                .sequence(|index| {
+                    Attributes::from([("label".into(), format!("factory-{index}").into())])
+                })
+                .afterMaking(|model| {
+                    model.setAttribute("score", 52_i64);
+                    Ok(())
+                })
+                .has(
+                    openrust::database::eloquent::relations::HasMany::new("id", "owner_id"),
+                    Factory::<FactoryChild>::new(Attributes::new)
+                        .afterMaking(|_| Err(DatabaseError::InvalidQuery("bulk created a child")))
+                        .count(1),
+                )
+                .afterCreating(|_| Err(DatabaseError::InvalidQuery("bulk ran afterCreating")))
+                .count(2)
+                .insertOn(connection, Attributes::new())
+                .await?;
+            let rows = connection
+                .table("seed_bulk")
+                .r#where("label", "like", "factory-%")
+                .orderBy("label", "asc")
+                .get()
+                .await?;
+            assert_eq!(rows.len(), 3);
+            assert_eq!(rows[0].get("score"), Some(&52_i64.into()));
+            assert_eq!(rows[2].get("score"), Some(&51_i64.into()));
+            assert!(rows.iter().all(|row| matches!(row.get("external_id"),
+                Some(Value::Text(id)) if BulkSeed::isValidUniqueId(id))));
+            assert!(
+                rows.iter()
+                    .all(|row| row.get("created_at") == row.get("updated_at"))
+            );
+            assert!(
+                bulk_factory()
+                    .count(2)
+                    .insertOn(
+                        connection,
+                        Attributes::from([("label".into(), "factory-duplicate".into())])
+                    )
+                    .await
+                    .is_err()
+            );
+            assert_eq!(connection.table("seed_bulk").count("*").await?, 7);
             let quiet = || {
                 Factory::<FactoryChild>::new(|| {
                     Attributes::from([("generated_name".into(), "quiet-fixture".into())])
