@@ -325,7 +325,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-下面演示如何调用 `lazy` 返回的回调。创建回调时目标表没有写入，每次调用并等待都会写入一批新模型。
+预构造消耗数量后，用独立的批量工厂配置 `lazy` 的写入数量。创建或调用回调后，目标表在等待返回的 Future 前没有写入。下面每次调用并等待都会写入两个新模型。
 
 ```rust
 use openrust::database::{
@@ -337,15 +337,18 @@ use openrust::database::{
 };
 
 async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
-    let batch = Factory::<M>::new(|| {
+    let factory = || Factory::<M>::new(|| {
         Attributes::from([("name".into(), "Flight".into())])
-    })
-    .count(2);
+    });
+    let previews = factory().count(2);
 
-    let _one = batch.makeOne(Attributes::new()).await?;
-    let _previews = batch.makeMany(FactoryRecords::Default).await?;
+    let _one = previews.makeOne(Attributes::new()).await?;
+    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 2);
+    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
+
+    let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
-    let _created = seed().await?;
+    assert_eq!(seed().await?.len(), 2);
     Ok(())
 }
 ```

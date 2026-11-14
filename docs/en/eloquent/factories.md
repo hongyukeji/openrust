@@ -325,7 +325,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Use the callback returned by `lazy` as shown below. Creating the callback leaves the target table untouched. Each awaited invocation writes a new batch.
+Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models.
 
 ```rust
 use openrust::database::{
@@ -337,15 +337,18 @@ use openrust::database::{
 };
 
 async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
-    let batch = Factory::<M>::new(|| {
+    let factory = || Factory::<M>::new(|| {
         Attributes::from([("name".into(), "Flight".into())])
-    })
-    .count(2);
+    });
+    let previews = factory().count(2);
 
-    let _one = batch.makeOne(Attributes::new()).await?;
-    let _previews = batch.makeMany(FactoryRecords::Default).await?;
+    let _one = previews.makeOne(Attributes::new()).await?;
+    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 2);
+    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
+
+    let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
-    let _created = seed().await?;
+    assert_eq!(seed().await?.len(), 2);
     Ok(())
 }
 ```

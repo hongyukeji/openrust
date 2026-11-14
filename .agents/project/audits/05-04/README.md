@@ -85,6 +85,14 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 
 `./artisan inspire`、三语工厂示例编译、VitePress 构建，以及三语页面在站点根路径和 `/docs/` 下的六项浏览器检查通过。VitePress 报告大于 500 kB 的构建分块提示。验收后清理本次隔离副本 2.2 GiB Cargo 构建产物及约 37 MiB 站点产物，磁盘复查剩余 85 GiB。
 
+### 当前数量语义复验
+
+隔离基线 `dd8118ab`，复验 `1a233c5e` 的入口及 `ebfa2a31` 的计数重置。固定 Laravel 的 `makeMany` 取用已配置数量后清空计数。Rust 的 `FactoryBatch` 共用该行为，后续调用按一条处理，继续返回集合。三语示例使用独立的批量工厂演示 `lazy`，避免继承预构造已消耗的数量。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L469)
+
+Rust 1.94.0 通过 `cargo fmt --all --check`、`cargo clippy --workspace --all-targets --locked -- -D warnings`，以及锁定的 38 项 Seeder 测试和 MySQL 8.4.13／SQLite 两项工厂回归。独立 MySQL 8.4.13 用应用二进制运行 `artisan db:seed --database=mysql --force`。回查确认 `makeOne`、默认数量、逐条覆盖和零条 `makeMany` 都没有向目标表写入，批次数量取用后回到一条。创建并调用 `lazy` 在等待 Future 前仍为零行，两次批量和两次单条调用依次写入四条和两条。原始 Seeder 已在隔离副本恢复。
+
+`./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。站点构建仍报告分块超过 500 kB 的提示。 验收后清理本批独占的 2.2 GiB Cargo 产物和约 38 MiB 站点产物，项目卷剩余 83 GiB。
+
 ## 逐项序列与笛卡尔积序列
 
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)
