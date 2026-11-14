@@ -929,3 +929,72 @@ fn arabic_company_names_use_regional_templates_and_preserve_suffix_spacing() {
         }
     }
 }
+
+#[test]
+fn central_european_company_names_preserve_regional_suffixes_and_templates() {
+    use std::collections::HashSet;
+    let germany = [
+        "e.G.",
+        "e.V.",
+        "GbR",
+        "OHG mbH",
+        "GmbH & Co. OHG",
+        "AG & Co. OHG",
+        "GmbH",
+        "AG",
+        "KG",
+        "GmbH & Co. KG",
+        "AG & Co. KG",
+        "Stiftung & Co. KG",
+        "KGaA",
+        "GmbH & Co. KGaA",
+        "AG & Co. KGaA",
+        "Stiftung & Co. KGaA",
+    ];
+    let austria = [
+        "AG",
+        "EWIV",
+        "Ges.m.b.H.",
+        "GmbH",
+        "KEG",
+        "KG",
+        "OEG",
+        "OG",
+        "OHG",
+        "SE",
+    ];
+    let switzerland = ["AG", "GmbH"];
+    let czechia = ["s.r.o.", "a.s.", "o.p.s.", "o.s."];
+    for (locale, suffixes) in [
+        ("de-DE", germany.as_slice()),
+        ("de-AT", austria.as_slice()),
+        ("de-CH", switzerland.as_slice()),
+        ("cs-CZ", czechia.as_slice()),
+    ] {
+        let provider = fake(Some(locale)).unwrap();
+        let unique = provider.unique(true);
+        let sampled: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            sampled,
+            suffixes.iter().map(|item| (*item).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+        let mut qualified = 0;
+        for _ in 0..256 {
+            let name = provider.company();
+            assert!(!name.trim().is_empty());
+            qualified += usize::from(
+                suffixes
+                    .iter()
+                    .any(|suffix| name.ends_with(&format!(" {suffix}"))),
+            );
+        }
+        if locale == "cs-CZ" {
+            assert_eq!(qualified, 256);
+        } else {
+            assert!((0..256).contains(&qualified) && qualified > 0);
+        }
+    }
+}

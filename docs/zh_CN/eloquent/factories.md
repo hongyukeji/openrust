@@ -314,10 +314,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `ar-EG`、`ar-JO` 和 `ar-SA` 的公司名称使用固定上游的阿拉伯语前缀、地区姓氏与后缀。埃及模板还会使用城市名称。生成器保留后缀词表中的空格。三个地区的 `companyPrefix()` 和 `companySuffix()` 均支持 `unique`。
 
+`de-DE`、`de-AT`、`de-CH` 和 `cs-CZ` 的 `company()` 使用固定上游的地区姓氏、模板和后缀。捷克名称始终带后缀，可以用空格、连字符或 `a` 连接两个姓氏。三个德语地区也会生成仅含姓氏的公司名称。`companySuffix()` 支持 `unique`，保留后缀拼写及原有抽样权重。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 46]> {
+fn identity_samples() -> DatabaseResult<[String; 48]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -329,6 +331,8 @@ fn identity_samples() -> DatabaseResult<[String; 46]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("cs-CZ"))?.company(),
+        fake(Some("de-AT"))?.unique(false).companySuffix()?,
         egypt.company(),
         fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),

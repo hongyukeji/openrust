@@ -314,10 +314,12 @@ For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the correspo
 
 With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `companyPrefix()` and `companySuffix()` with `unique`.
 
+With `de-DE`, `de-AT`, `de-CH`, and `cs-CZ`, `company()` uses the pinned regional surnames, templates, and suffixes. Czech names always include a suffix and can join two surnames with a space, hyphen, or `a`. The three German-language providers also generate names consisting of a surname alone. `companySuffix()` supports `unique` and preserves the original suffix spellings and sampling weights.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 46]> {
+fn identity_samples() -> DatabaseResult<[String; 48]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -329,6 +331,8 @@ fn identity_samples() -> DatabaseResult<[String; 46]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("cs-CZ"))?.company(),
+        fake(Some("de-AT"))?.unique(false).companySuffix()?,
         egypt.company(),
         fake(Some("ar-JO"))?.companyPrefix()?.to_owned(),
         fake(Some("ko-KR"))?.company(),
