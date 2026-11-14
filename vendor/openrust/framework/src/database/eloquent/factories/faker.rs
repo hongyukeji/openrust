@@ -190,6 +190,9 @@ macro_rules! generate {
     }};
 }
 
+#[path = "faker_company.rs"]
+mod company;
+
 macro_rules! formatters {
     ($($name:ident => $generator:path),+ $(,)?) => {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -220,7 +223,6 @@ formatters! {
     country => faker::address::raw::CountryName,
     state => faker::address::raw::StateName,
     stateAbbr => faker::address::raw::StateAbbr,
-    company => faker::company::raw::CompanyName,
     word => faker::lorem::raw::Word,
 }
 

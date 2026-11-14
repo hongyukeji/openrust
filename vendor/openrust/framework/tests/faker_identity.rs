@@ -761,3 +761,63 @@ fn taiwanese_vat_and_greek_business_catalogs_follow_pinned_formats() {
     assert!(taiwan.doy().is_err());
     assert!(taiwan.object().is_err());
 }
+
+#[test]
+fn company_suffixes_and_templates_use_the_selected_provider() {
+    use std::collections::HashSet;
+
+    for (locale, suffixes) in [
+        (
+            "en-US",
+            &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"][..],
+        ),
+        (
+            "fr-FR",
+            &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"],
+        ),
+        ("it-IT", &["SPA", "e figli", "Group", "s.r.l."]),
+        (
+            "pl-PL",
+            &[
+                "S.A.",
+                "i syn",
+                "sp. z o.o.",
+                "sp. j.",
+                "sp. p.",
+                "sp. k.",
+                "S.K.A",
+                "s. c.",
+                "P.P.O.F",
+            ],
+        ),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+
+        let mut names = HashSet::new();
+        for _ in 0..64 {
+            let value = unique.company().unwrap();
+            assert!(!value.trim().is_empty());
+            if locale == "it-IT" {
+                assert!(
+                    suffixes
+                        .iter()
+                        .any(|suffix| value.ends_with(&format!(" {suffix}")))
+                );
+            }
+            assert!(names.insert(value));
+        }
+    }
+
+    let fallback = fake(Some("ja-JP")).unwrap();
+    assert!(!fallback.company().is_empty());
+    assert!(!fallback.companySuffix().is_empty());
+}

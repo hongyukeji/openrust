@@ -308,10 +308,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hant` 的 `VAT()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
 
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區沿用現有本地化姓氏產生器。其他地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 39]> {
+fn identity_samples() -> DatabaseResult<[String; 41]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -322,6 +324,8 @@ fn identity_samples() -> DatabaseResult<[String; 39]> {
     let egypt = fake(Some("ar-EG"))?;
     let greek = fake(Some("el-GR"))?;
     Ok([
+        polish.company(),
+        fake(Some("fr-FR"))?.companySuffix(),
         fake(Some("zh-Hant"))?.VAT()?.to_string(),
         greek.doy()?.to_owned(),
         greek.object()?.to_owned(),

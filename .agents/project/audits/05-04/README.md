@@ -749,3 +749,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `c9b18a9b`。PHP 8.5 核对 1,536 条上游样本，逐项比对希腊两份目录及完整采样覆盖。Rust 1.94.0 格式、全目标严格 Clippy、14 项身份编号测试和 MySQL 8.4.13 工厂回归通过。实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查台湾 VAT 与两条希腊文本。Artisan inspire、三语示例编译、VitePress 和根路径及 `/docs/` 下六项浏览器检查通过，站点保留既有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。
 
 已恢复临时 Seeder，清理 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘可用 82 GiB。下一批核对其余地区公司名称与后缀格式，对照现有 company() 的语言覆盖。
+
+## Faker 美国、法国、意大利与波兰公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照固定 [FakerPHP v1.24.1 Company](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider) 接入美国、法国、意大利和波兰四种名称模板与后缀。保留重复模板的抽样权重。美国、法国及意大利复用框架现有的姓氏生成器，姓名词库仍有差异。波兰此前会回退英语，现改用固定上游的波兰姓氏和机构前缀。其余地区延续 fake-rs 公司名称行为。新增 `companySuffix()`，与 `company()` 各自支持 `unique`。v0.x 未发现等价入口，Goravel 式装配继续使用现有 Faker。
+
+基线 `3d68ad4d`。PHP 8.5 从固定上游抽样 2,048 个名称和 2,048 个后缀，校验后缀覆盖、意大利必带后缀及波兰模板与姓氏。Rust 1.94.0 格式、全目标严格 Clippy、15 项 Faker 回归与 MySQL 8.4.13 工厂回归通过。用实际二进制运行 `main artisan db:seed --database=mysql --force`，写入并回查四种地区各一组名称和后缀。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，保留已有分块大小提示。按日常验收约定本批数据库只运行 MySQL。临时 Seeder 已恢复，清理 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对东亚公司前缀、后缀与组合规则。
