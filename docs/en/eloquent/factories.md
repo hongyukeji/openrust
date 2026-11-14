@@ -34,6 +34,8 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 `randomDigitNot(except)` excludes the supplied digit. `randomNumber(digits, strict)` uses a random width from one to nine when given `None`. Strict mode requires exactly the selected width. Non-strict mode also accepts zero digits and returns zero. Explicit widths above nine and strict zero digits return errors. Both methods support `unique`.
 
+`randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Rust returns an error for non-finite bounds or a rounding overflow. `unique` treats positive and negative zero as the same result.
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{

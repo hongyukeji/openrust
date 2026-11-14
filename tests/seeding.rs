@@ -975,6 +975,25 @@ impl Seeder for PolymorphicFactories {
             assert!(faker.unique(false).randomDigit()? <= 9);
             assert!((1..=9).contains(&faker.unique(false).randomDigitNotNull()?));
             assert_ne!(faker.unique(false).randomDigitNot(4)?, 4);
+            assert_eq!(faker.randomFloat(Some(2), 1.005, Some(1.005))?, 1.01);
+            assert_eq!(faker.randomFloat(Some(2), -1.005, Some(-1.005))?, -1.01);
+            assert_eq!(faker.randomFloat(Some(-1), -25.0, Some(-25.0))?, -30.0);
+            assert_eq!(
+                faker.randomFloat(Some(0), 1_000_000_000.0, None)?,
+                1_000_000_000.0
+            );
+            for _ in 0..20 {
+                assert!((-2.0..=2.0).contains(&faker.randomFloat(None, 2.0, Some(-2.0))?));
+            }
+            assert!(faker.randomFloat(Some(2), f64::NAN, None).is_err());
+            assert_eq!(
+                faker.unique(false).randomFloat(Some(0), -0.0, Some(-0.0))?,
+                0.0
+            );
+            assert!(matches!(
+                faker.unique(false).randomFloat(Some(0), 0.0, Some(0.0)),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
             assert!((100_000_000..=999_999_999).contains(&faker.randomNumber(Some(9), true)?));
             assert!((0..=999_999_999).contains(&faker.randomNumber(None, false)?));
             assert!(matches!(

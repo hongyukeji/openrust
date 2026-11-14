@@ -183,6 +183,74 @@ impl Faker {
             DatabaseError::InvalidQuery("Faker timestamp is out of range"),
         )
     }
+
+    /// Samples between the supplied bounds, then rounds to the requested decimal place.
+    pub fn randomFloat(
+        &self,
+        decimals: Option<i32>,
+        min: f64,
+        max: Option<f64>,
+    ) -> DatabaseResult<f64> {
+        let decimals = decimals.unwrap_or_else(|| i32::from(self.randomDigit()));
+        let max = match max {
+            Some(max) => max,
+            None => (self.randomNumber(None, false)? as f64).max(min),
+        };
+        if !min.is_finite() || !max.is_finite() {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker float bounds must be finite",
+            ));
+        }
+        let (min, max) = (min.min(max), min.max(max));
+        let ratio = f64::from(fastrand::i32(0..=i32::MAX)) / f64::from(i32::MAX);
+        let span = max - min;
+        let value = if span.is_finite() {
+            (min + ratio * span).clamp(min, max)
+        } else {
+            min * (1.0 - ratio) + max * ratio
+        };
+        round_decimal(value, decimals)
+    }
+}
+
+fn round_decimal(value: f64, decimals: i32) -> DatabaseResult<f64> {
+    if decimals < -308 {
+        return Ok(0.0_f64.copysign(value));
+    }
+    if decimals > 323 {
+        return Ok(value);
+    }
+    let place = 10_f64.powi(decimals.clamp(-308, 308).abs());
+    let extra = 10_f64.powi((decimals - 308).max(0));
+    let (scaled, step) = if decimals < 0 {
+        (value / place, place)
+    } else {
+        (value * place * extra, 1.0 / place / extra)
+    };
+    if !scaled.is_finite() || scaled.abs() >= 1e16 {
+        return Ok(value);
+    }
+    // Recover decimal midpoints that fall just below a half after scaling.
+    let midpoint = scaled.trunc() + 0.5_f64.copysign(scaled);
+    let unscale = |number: f64| {
+        if decimals < 0 {
+            number * step
+        } else {
+            number / extra / place
+        }
+    };
+    let rounded = if unscale(midpoint) == value {
+        midpoint.round()
+    } else {
+        scaled.round()
+    };
+    let value = unscale(rounded);
+    if !value.is_finite() {
+        return Err(DatabaseError::InvalidQuery(
+            "Faker rounded float is out of range",
+        ));
+    }
+    Ok(value)
 }
 
 /// A uniqueness modifier that shares the generator's formatter history.
@@ -212,6 +280,19 @@ impl UniqueFaker<'_> {
 
     pub fn randomNumber(&self, digits: Option<u32>, strict: bool) -> DatabaseResult<i64> {
         self.try_generate("randomNumber", || self.0.randomNumber(digits, strict))
+    }
+
+    pub fn randomFloat(
+        &self,
+        decimals: Option<i32>,
+        min: f64,
+        max: Option<f64>,
+    ) -> DatabaseResult<f64> {
+        self.try_generate("randomFloat", || {
+            self.0
+                .randomFloat(decimals, min, max)
+                .map(|value| value + 0.0)
+        })
     }
 
     pub fn dateTimeBetween(

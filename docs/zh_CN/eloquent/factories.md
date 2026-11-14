@@ -34,6 +34,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 `randomDigitNot(except)` 排除指定数字。`randomNumber(digits, strict)` 的位数传入 `None` 时随机选择一至九位。严格模式生成确切位数，非严格模式也接受零位并返回零。显式位数超过九位或严格模式指定零位时返回错误。两种方法均支持 `unique`。
 
+`randomFloat(decimals, min, max)` 先在区间取样，再按指定小数位舍入，中点远离零。传入 `None` 可随机选择零至九位精度或生成上界。上下界可逆序，舍入结果可能超出原区间。Rust 对非有限边界或舍入溢出返回错误。`unique` 将正零与负零视为同一个值。
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{
