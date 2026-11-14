@@ -316,10 +316,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `de-DE`、`de-AT`、`de-CH` 和 `cs-CZ` 的 `company()` 使用固定上游的地区姓氏、模板和后缀。捷克名称始终带后缀，可以用空格、连字符或 `a` 连接两个姓氏。三个德语地区也会生成仅含姓氏的公司名称。`companySuffix()` 支持 `unique`，保留后缀拼写及原有抽样权重。
 
+`da-DK`、`is-IS`、`fi-FI`、`sv-SE` 和 `nb-NO` 的 `company()` 使用固定上游的地区姓名与后缀词表，保留模板中的连接词、标点和抽样权重。可用 `companySuffix()` 单独抽样后缀。两个方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 48]> {
+fn identity_samples() -> DatabaseResult<[String; 50]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -331,6 +333,8 @@ fn identity_samples() -> DatabaseResult<[String; 48]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("is-IS"))?.company(),
+        fake(Some("nb-NO"))?.unique(false).companySuffix()?,
         fake(Some("cs-CZ"))?.company(),
         fake(Some("de-AT"))?.unique(false).companySuffix()?,
         egypt.company(),

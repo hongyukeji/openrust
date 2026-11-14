@@ -316,10 +316,12 @@ With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes
 
 With `de-DE`, `de-AT`, `de-CH`, and `cs-CZ`, `company()` uses the pinned regional surnames, templates, and suffixes. Czech names always include a suffix and can join two surnames with a space, hyphen, or `a`. The three German-language providers also generate names consisting of a surname alone. `companySuffix()` supports `unique` and preserves the original suffix spellings and sampling weights.
 
+With `da-DK`, `is-IS`, `fi-FI`, `sv-SE`, and `nb-NO`, `company()` uses the pinned regional name and suffix catalogs. The templates retain their original conjunctions, punctuation, and sampling weights. Use `companySuffix()` to sample just the suffix. Both methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 48]> {
+fn identity_samples() -> DatabaseResult<[String; 50]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -331,6 +333,8 @@ fn identity_samples() -> DatabaseResult<[String; 48]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("is-IS"))?.company(),
+        fake(Some("nb-NO"))?.unique(false).companySuffix()?,
         fake(Some("cs-CZ"))?.company(),
         fake(Some("de-AT"))?.unique(false).companySuffix()?,
         egypt.company(),

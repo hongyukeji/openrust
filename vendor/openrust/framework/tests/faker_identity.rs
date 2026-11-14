@@ -998,3 +998,45 @@ fn central_european_company_names_preserve_regional_suffixes_and_templates() {
         }
     }
 }
+
+#[test]
+fn nordic_company_names_use_regional_suffixes_and_connectors() {
+    use std::collections::HashSet;
+    for (locale, suffixes, connector) in [
+        ("da-DK", &["ApS", "A/S", "I/S", "K/S"][..], " og "),
+        ("is-IS", &["ehf.", "hf.", "sf."], " og "),
+        (
+            "fi-FI",
+            &["OY", "AB", "OY AB", "RY", "OYj", "Tmi.", "Inc.", "Ltd"],
+            " and ",
+        ),
+        ("sv-SE", &["AB", "HB"], " och "),
+        (
+            "nb-NO",
+            &[
+                "ANS", "AS", "ASA", "BA", "DA", "ENK", "GFS", "KTRF", "NUF", "PK", "SA", "SPA",
+                "STI", "VIFE",
+            ],
+            " og ",
+        ),
+    ] {
+        let provider = fake(Some(locale)).unwrap();
+        let unique = provider.unique(true);
+        let sampled: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            sampled,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+
+        let names: Vec<_> = (0..128).map(|_| provider.company()).collect();
+        assert!(names.iter().any(|name| name.contains(connector)));
+        assert!(names.iter().any(|name| {
+            suffixes
+                .iter()
+                .any(|suffix| name.ends_with(&format!(" {suffix}")))
+        }));
+    }
+}

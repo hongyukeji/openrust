@@ -27,6 +27,9 @@
 use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker, faker, locales};
 use ::fake::Fake as _;
 
+#[path = "faker_company_nordic.rs"]
+mod nordic;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4144,7 +4147,8 @@ impl Faker {
                     _ => format!("{name}{}", suffix()),
                 }
             }
-            locale => generate!(locale, faker::company::raw::CompanyName,),
+            locale => nordic::company(locale)
+                .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
 
@@ -4208,7 +4212,10 @@ impl Faker {
             "zh_TW" => TAIWANESE_SUFFIXES,
             "ja_JP" => &["Ltd"],
             "ko_KR" => KOREAN_SUFFIXES,
-            locale => return generate!(locale, faker::company::raw::CompanySuffix,),
+            locale => match nordic::suffixes(locale) {
+                Some(values) => values,
+                None => return generate!(locale, faker::company::raw::CompanySuffix,),
+            },
         };
         sample(suffixes).to_owned()
     }
