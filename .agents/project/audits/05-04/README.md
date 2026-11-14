@@ -803,3 +803,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `51c8fd39`。通过 PHP 8.5 反射逐项提取并核对上游词表，验证 1,024 组公司名称与后缀。Rust 1.94.0 格式、全目标严格 Clippy、21 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force`，写入并回查两地四条名称与后缀。Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过，站点保留既有分块大小提示。日常数据库验收只运行 MySQL。
 
 临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对其他欧洲公司模板。
+
+## Faker 克罗地亚、斯洛伐克与匈牙利公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[克罗地亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hr_HR/Company.php)、[斯洛伐克](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sk_SK/Company.php)和[匈牙利](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hu_HU/Company.php)模板。保留地区姓名、后缀、克罗地亚行业前缀、斯洛伐克模板原有的 `and` 和匈牙利纯姓氏模板。Rust 沿用现有公开生成器与 `unique`，将地区词表和生成逻辑放在独立模块。v0.x 未发现等价入口，Goravel 式编译装配沿用现有路径。
+
+隔离基线 `3b9c989d`。PHP 8.5 反射逐项核对姓名和公司词表，并验证 1,536 组固定上游名称和后缀。Rust 1.94.0 格式、全目标严格 Clippy、22 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查六条名称和后缀。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。站点仍有既有分块大小提示，本批数据库验收只运行 MySQL。
+
+临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 48%，磁盘 82 GiB。下一批核对希腊、黑山等地区剩余公司格式。

@@ -322,10 +322,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `nl-NL` 的 `company()` 组合商品和店铺类型，或在行业名称后接姓氏，并可附加荷兰公司后缀。`nl-BE` 使用比利时姓氏，可附加当地后缀。荷兰姓氏保留原有大小写，包括 `van` 等词。两个地区都支持 `companySuffix()` 和 `unique`。
 
+`hr-HR`、`sk-SK` 和 `hu-HU` 的 `company()` 使用固定上游的地区姓名与模板。克罗地亚名称可使用行业前缀或后缀，`companyPrefix()` 可单独抽样行业前缀。斯洛伐克模板保留连字符和原有的 `and`。匈牙利名称可以仅由姓氏组成。三地均支持 `companySuffix()` 和 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 54]> {
+fn identity_samples() -> DatabaseResult<[String; 56]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -337,6 +339,8 @@ fn identity_samples() -> DatabaseResult<[String; 54]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
+        fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
         fake(Some("nl-BE"))?.unique(false).companySuffix()?,
         fake(Some("es-VE"))?.companyPrefix()?.to_owned(),

@@ -1182,3 +1182,50 @@ fn dutch_company_names_use_store_patterns_and_belgian_suffixes() {
             .any(|prefix| name.starts_with(prefix))
     }));
 }
+
+#[test]
+fn croatian_slovak_and_hungarian_companies_use_local_formats() {
+    use std::collections::HashSet;
+    for (locale, suffixes) in [
+        ("hr-HR", &["d.o.o.", "j.d.o.o.", "Security"][..]),
+        ("sk-SK", &["s.r.o.", "a.s.", "v.o.s."][..]),
+        (
+            "hu-HU",
+            &["Kft.", "és Tsa", "Kht", "Zrt.", "Nyrt.", "Bt."][..],
+        ),
+    ] {
+        let provider = fake(Some(locale)).unwrap();
+        let unique = provider.unique(true);
+        let sampled: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            sampled,
+            suffixes.iter().map(|item| (*item).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+        let names: Vec<_> = (0..128).map(|_| provider.company()).collect();
+        let has_suffix = |name: &String| {
+            suffixes
+                .iter()
+                .any(|suffix| name.ends_with(&format!(" {suffix}")))
+        };
+        assert!(names.iter().any(has_suffix));
+        assert!(names.iter().any(|name| !has_suffix(name)));
+        if locale == "sk-SK" {
+            assert!(names.iter().any(|name| name.contains(" and ")));
+        }
+        if locale == "hr-HR" {
+            let prefixes: HashSet<_> = (0..11).map(|_| unique.companyPrefix().unwrap()).collect();
+            assert!(prefixes.contains("Cvjećarnica"));
+            assert!(unique.companyPrefix().is_err());
+            assert!(names.iter().any(|name| {
+                prefixes
+                    .iter()
+                    .any(|prefix| name.starts_with(&format!("{prefix} ")))
+            }));
+        } else {
+            assert!(provider.companyPrefix().is_err());
+        }
+    }
+}

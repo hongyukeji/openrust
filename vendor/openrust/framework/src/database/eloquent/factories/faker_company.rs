@@ -36,6 +36,9 @@ mod iberian;
 #[path = "faker_company_dutch.rs"]
 mod dutch;
 
+#[path = "faker_company_central.rs"]
+mod central;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4156,6 +4159,7 @@ impl Faker {
             locale => nordic::company(locale)
                 .or_else(|| iberian::company(locale))
                 .or_else(|| dutch::company(locale))
+                .or_else(|| central::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4169,9 +4173,11 @@ impl Faker {
             "ja_JP" => JAPANESE_PREFIXES,
             "ko_KR" => KOREAN_PREFIXES,
             "pl_PL" => POLISH_PREFIXES,
-            locale => iberian::prefixes(locale).ok_or(DatabaseError::InvalidQuery(
-                "unsupported Faker company prefix locale",
-            ))?,
+            locale => iberian::prefixes(locale)
+                .or_else(|| central::prefixes(locale))
+                .ok_or(DatabaseError::InvalidQuery(
+                    "unsupported Faker company prefix locale",
+                ))?,
         };
         Ok(sample(prefixes))
     }
@@ -4221,6 +4227,7 @@ impl Faker {
             locale => match nordic::suffixes(locale)
                 .or_else(|| iberian::suffixes(locale))
                 .or_else(|| dutch::suffixes(locale))
+                .or_else(|| central::suffixes(locale))
             {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),

@@ -322,10 +322,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `nl-NL` 的 `company()` 組合商品與店鋪類型，或在行業名稱後接姓氏，並可附加荷蘭公司後綴。`nl-BE` 使用比利時姓氏，可附加當地後綴。荷蘭姓氏保留原有大小寫，包括 `van` 等詞。兩個地區都支援 `companySuffix()` 和 `unique`。
 
+`hr-HR`、`sk-SK` 和 `hu-HU` 的 `company()` 使用固定上游的地區姓名與範本。克羅埃西亞名稱可使用行業前綴或後綴，`companyPrefix()` 可單獨抽樣行業前綴。斯洛伐克範本保留連字號和原有的 `and`。匈牙利名稱可以僅由姓氏組成。三地都支援 `companySuffix()` 和 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 54]> {
+fn identity_samples() -> DatabaseResult<[String; 56]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -337,6 +339,8 @@ fn identity_samples() -> DatabaseResult<[String; 54]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
+        fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
         fake(Some("nl-BE"))?.unique(false).companySuffix()?,
         fake(Some("es-VE"))?.companyPrefix()?.to_owned(),

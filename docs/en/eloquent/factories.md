@@ -322,10 +322,12 @@ For `es-AR`, `es-ES`, `es-PE`, `es-VE`, `pt-BR`, and `pt-PT`, `company()` uses t
 
 With `nl-NL`, `company()` combines product and shop terms or a trade followed by a surname. It can append a Dutch company suffix. With `nl-BE`, it uses a Belgian surname with an optional Belgian suffix. Dutch surnames retain their original capitalization, including particles such as `van`. Both locales support `companySuffix()` and `unique`.
 
+With `hr-HR`, `sk-SK`, and `hu-HU`, `company()` uses the pinned regional name lists and templates. Croatian names can use a trade prefix or a suffix, and `companyPrefix()` returns a Croatian trade prefix. Slovak templates retain the hyphen and the literal `and`. Hungarian names can consist of a surname alone. All three support `companySuffix()` and `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 54]> {
+fn identity_samples() -> DatabaseResult<[String; 56]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -337,6 +339,8 @@ fn identity_samples() -> DatabaseResult<[String; 54]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
+        fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
         fake(Some("nl-BE"))?.unique(false).companySuffix()?,
         fake(Some("es-VE"))?.companyPrefix()?.to_owned(),
