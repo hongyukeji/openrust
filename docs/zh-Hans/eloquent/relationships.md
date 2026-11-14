@@ -772,6 +772,22 @@ pub async fn create_posts<P: Model, R: Model>(
 }
 ```
 
+可信属性需要绕过模型批量赋值限制时，使用 `forceCreate` 或 `forceCreateMany`。属性转换和修改器仍会运行，关系会填入自己的外键及多态类型。使用 `forceCreateQuietly` 或 `forceCreateManyQuietly` 可抑制模型事件。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn import_post<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<R> {
+    posts.forceCreateQuietly(author, Attributes::from([
+        ("id".into(), 42.into()),
+        ("title".into(), "Imported post".into()),
+    ])).await
+}
+```
+
 多对多关联使用 `attach`、`detach`、`sync` 和 `syncWithoutDetaching`。同步在一个数据库事务内增删关联记录。可在中间表的两个外键上设置联合唯一键以防止重复。
 
 用 `withPivot(["label"])` 读取中间表的附加列，再从关联模型的 `getRelation::<Pivot>("pivot")` 获取。用 `r#as("membership")` 修改访问名称。`attachWith` 建立关联时写入附加字段，`updateExistingPivot` 更新已有的中间表记录并返回受影响行数。

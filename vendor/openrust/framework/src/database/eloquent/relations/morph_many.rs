@@ -90,6 +90,38 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.createManyQuietly(parent, records).await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.forceCreate(parent, attributes).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateQuietly(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.forceCreateQuietly(parent, attributes).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.forceCreateMany(parent, records).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.forceCreateManyQuietly(parent, records).await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.create(parent, attributes).await
     }

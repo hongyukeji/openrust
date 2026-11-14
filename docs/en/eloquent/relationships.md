@@ -772,6 +772,22 @@ pub async fn create_posts<P: Model, R: Model>(
 }
 ```
 
+Use `forceCreate` or `forceCreateMany` for trusted attributes that must bypass the model’s mass-assignment policy. Casts and mutators still run, and the relationship sets its own foreign key and morph type. Use `forceCreateQuietly` or `forceCreateManyQuietly` to suppress model events.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn import_post<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<R> {
+    posts.forceCreateQuietly(author, Attributes::from([
+        ("id".into(), 42.into()),
+        ("title".into(), "Imported post".into()),
+    ])).await
+}
+```
+
 For many-to-many links, use `attach`, `detach`, `sync`, or `syncWithoutDetaching`. Synchronization adds and removes links in one database transaction. Use a composite unique key over the two pivot foreign keys to prevent duplicate links.
 
 Use `withPivot(["label"])` to select extra columns from the intermediate table. Read them using `getRelation::<Pivot>("pivot")` on the related model. Use `r#as("membership")` to change the accessor. `attachWith` writes additional columns when creating links, and `updateExistingPivot` updates an existing link and returns its affected-row count.

@@ -152,6 +152,34 @@ impl<P: Model, R: Model> HasOne<P, R> {
         self.0.createManyQuietly(parent, records).await
     }
 
+    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.forceCreate(parent, attributes).await
+    }
+
+    pub async fn forceCreateQuietly(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.forceCreateQuietly(parent, attributes).await
+    }
+
+    pub async fn forceCreateMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.forceCreateMany(parent, records).await
+    }
+
+    pub async fn forceCreateManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.forceCreateManyQuietly(parent, records).await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.create(parent, attributes).await
     }

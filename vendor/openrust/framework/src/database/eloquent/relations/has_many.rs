@@ -201,6 +201,47 @@ impl<P: Model, R: Model> HasMany<P, R> {
         R::withoutEvents(self.createMany(parent, records)).await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        let mut model = R::newInstanceOn(&self.0.connection(parent)?, Attributes::new())?;
+        for (column, value) in attributes {
+            model.setAttributeValueAsync(&column, value).await?;
+        }
+        self.save(parent, &mut model).await?;
+        Ok(model)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateQuietly(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<R> {
+        R::withoutEvents(self.forceCreate(parent, attributes)).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        let mut models = Vec::new();
+        for attributes in records {
+            models.push(self.forceCreate(parent, attributes).await?);
+        }
+        Ok(models)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
+    pub async fn forceCreateManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        R::withoutEvents(self.forceCreateMany(parent, records)).await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let mut model = if attributes.keys().any(|name| {
             super::super::casts::needs_async::<R>(

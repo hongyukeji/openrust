@@ -552,3 +552,9 @@ SQLite 与独立 MySQL 8.4.13 验证四种静默计数写入、观察者抑制�
 对照固定 Laravel `HasOneOrMany` 的 `saveMany`、`createMany` 和静默变体。直接与多态的一对一、一对多共用既有保存与创建流程。Rust 的 `saveMany` 原位更新可变切片，`createMany` 返回按输入顺序排列的模型。批量操作逐行写入并传播首个数据库错误，静默入口复用既有事件抑制作用域。旧版未找到对应批量入口，固定 Goravel 用作 ORM 写入职责参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#the-save-method) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 与独立 MySQL 8.4.13 验证批量顺序、父键、多态鉴别值、静默观察者抑制和中途失败后保留此前写入。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、文档构建及 18 项浏览器检查通过。
+
+## 直接关系强制创建
+
+按固定 Laravel `HasOneOrMany` 与 `MorphOneOrMany` 接入 `forceCreate`、`forceCreateMany` 和两种静默变体。复用旧版强制赋值仍执行属性转换的语义，使用当前异步属性赋值与关系保存路径。Rust 显式传入父模型，批量入口返回有序模型。关系保存以父键和多态类型为准。固定 Goravel 用作 ORM 职责参考。 [Laravel 直接关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 多态关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphOneOrMany.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证保护列写入、类转换、关系键优先、批量顺序和静默事件抑制。首次编译发现测试夹具的类转换切片需要常量绑定，修正后工作区 622 项通过、8 项夹具忽略。格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

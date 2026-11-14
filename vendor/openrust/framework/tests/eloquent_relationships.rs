@@ -5314,7 +5314,60 @@ async fn verify_direct_write_variants(
     assert_eq!(model.getAttribute("author_id"), parent.getKey());
     assert_eq!(calls.load(Ordering::Relaxed), 4);
 
-    for id in 101..=108 {
+    let protected = |id: i64| {
+        Attributes::from([
+            ("id".into(), id.into()),
+            ("title".into(), "forced".into()),
+            ("score".into(), 37.into()),
+            ("author_id".into(), 999.into()),
+        ])
+    };
+    let direct = HasMany::<Author, DirectWritePost>::new("id", "author_id");
+    let forced = direct.forceCreate(parent, protected(109)).await.unwrap();
+    assert_eq!(forced.getAttribute("score"), Some(&3700.into()));
+    assert_eq!(forced.getAttribute("author_id"), parent.getKey());
+
+    let morph =
+        || MorphMany::<Author, DirectWritePost>::new("id", "author_id", "title", "forced morph");
+    let forced = morph()
+        .forceCreateMany(parent, [protected(110), protected(111)])
+        .await
+        .unwrap();
+    assert_eq!(
+        forced
+            .iter()
+            .map(|model| model.getKey().cloned().unwrap())
+            .collect::<Vec<_>>(),
+        vec![110.into(), 111.into()]
+    );
+    assert!(
+        forced
+            .iter()
+            .all(|model| model.getAttribute("title") == Some(&"forced morph".into()))
+    );
+    let quiet = morph()
+        .one()
+        .forceCreateQuietly(parent, protected(112))
+        .await
+        .unwrap();
+    assert_eq!(quiet.getAttribute("title"), Some(&"forced morph".into()));
+    let quiet = direct
+        .one()
+        .forceCreateManyQuietly(parent, [protected(113)])
+        .await
+        .unwrap();
+    assert_eq!(quiet[0].getAttribute("score"), Some(&3700.into()));
+    assert_eq!(calls.load(Ordering::Relaxed), 7);
+    assert_eq!(
+        DirectWritePost::queryOn(db)
+            .findOrFail(113)
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&3700.into())
+    );
+
+    for id in 101..=113 {
         db.table("relation_posts")
             .r#where("id", "=", id)
             .delete()
@@ -5333,6 +5386,14 @@ impl Model for DirectWritePost {
             .timestamps(None, None);
         &META
     }
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        const CASTS: &[(&str, AttributeCast)] = &[(
+            "score",
+            openrust::database::eloquent::casts::ClassCast::of::<CounterScale>(&100),
+        )];
+        CASTS
+    }
+
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }

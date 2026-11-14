@@ -772,6 +772,22 @@ pub async fn create_posts<P: Model, R: Model>(
 }
 ```
 
+可信屬性需要繞過模型批次賦值限制時，使用 `forceCreate` 或 `forceCreateMany`。屬性轉換和修改器仍會執行，關聯會填入自己的外鍵及多型類型。使用 `forceCreateQuietly` 或 `forceCreateManyQuietly` 可抑制模型事件。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn import_post<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<R> {
+    posts.forceCreateQuietly(author, Attributes::from([
+        ("id".into(), 42.into()),
+        ("title".into(), "Imported post".into()),
+    ])).await
+}
+```
+
 多對多關聯使用 `attach`、`detach`、`sync` 和 `syncWithoutDetaching`。同步在一個資料庫交易內新增及刪除關聯記錄。可在中介表的兩個外鍵上設定複合唯一鍵以避免重複。
 
 用 `withPivot(["label"])` 讀取中介資料表的附加欄位，再從關聯模型的 `getRelation::<Pivot>("pivot")` 取得。用 `r#as("membership")` 變更存取名稱。`attachWith` 建立關聯時寫入附加欄位，`updateExistingPivot` 更新既有中介記錄並回傳受影響列數。
