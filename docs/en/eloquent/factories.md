@@ -278,6 +278,20 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Color Samples {#color-samples}
+
+Use `hexColor()` for six-digit RGB hex, or `safeHexColor()` for the fixed FakerPHP range `#000000` through `#00ffff` with paired hex digits. `rgbColor()` and `hslColor()` return comma-separated values, and their `AsArray` variants return three integers. `rgbCssColor()` and `rgbaCssColor()` produce CSS strings. `safeColorName()` and `colorName()` use the FakerPHP catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
+    let faker = fake(Some("zh-Hant"))?;
+    let unique = faker.unique(false);
+    Ok((faker.rgbaCssColor(), unique.rgbColorAsArray()?, unique.colorName()?))
+}
+```
+
 ### Browser User Agents {#browser-user-agent-samples}
 
 Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed FakerPHP browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.

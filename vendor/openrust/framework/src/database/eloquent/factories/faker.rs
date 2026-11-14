@@ -36,6 +36,9 @@ use chrono::{
 use chrono_tz::{GapInfo, Tz, UTC};
 use md5::{Digest as _, Md5};
 
+#[path = "faker_color.rs"]
+mod color;
+
 #[path = "faker_user_agent.rs"]
 mod user_agent;
 

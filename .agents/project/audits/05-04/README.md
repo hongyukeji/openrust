@@ -605,3 +605,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `28a735a7`。PHP 8.5 运行固定 provider，按格式和范围对照 13 个入口的 3,328 条样本。两项 Rust 回归覆盖浏览器格式、版本日期、平台标识、唯一值耗尽与重置。真实 MySQL 8.4.13 运行 `main artisan db:seed --database=mysql --force`，逐项写入并回查 13 个 formatter 样本。49 项 Seeder 与 2 项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
 
 已恢复隔离副本的原始 Seeder，并清理 2.2 GiB Cargo 和 38 MiB 站点产物。磁盘剩余 82 GiB。05-04 继续核对 Color、Medical、HtmlLorem、Text、Biased、修饰器和地区 formatter。
+
+## Faker 颜色样本
+
+对照固定 FakerPHP v1.24.1 Color provider，接通十个 formatter。保留普通十六进制与 RGB 的非零范围、`safeHexColor` 的 256 个配对十六进制输出、RGBA 的一位小数舍入与 HSL 的整数范围。颜色名称按标准化语言选择上游词表，继承和默认回退保留原列表及重复项的抽样权重。Rust 用定长整数数组表达 RGB 和 HSL，通过整数拆分 RGB 通道，全部入口复用 `unique`。v0.x 未发现相应生成器，Goravel 工厂装配沿用现有路径。 [固定 FakerPHP Color](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Color.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `f59ee745`。PHP 8.5 执行固定 provider，逐项比对 22 组默认及地区词表和 2,560 条样本的格式与范围。两项 Rust 回归覆盖范围、简繁中文和法语等名称、回退及唯一值耗尽和重置。真实 MySQL 8.4.13 运行 `main artisan db:seed --database=mysql --force`，回查十种格式和繁体中文名称。49 项 Seeder、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式与工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
+
+已恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。05-04 下一批核对 Medical，再继续 HtmlLorem、Text、Biased、修饰器及其余地区 formatter。

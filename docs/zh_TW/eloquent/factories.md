@@ -278,6 +278,20 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 色彩樣本 {#color-samples}
+
+用 `hexColor()` 產生六位 RGB 十六進位色碼。 `safeHexColor()` 沿用固定 FakerPHP 的範圍 `#000000` 至 `#00ffff`，每一對十六進位數字相同。 `rgbColor()` 與 `hslColor()` 傳回逗號分隔值，對應的 `AsArray` 方法傳回三個整數。 `rgbCssColor()` 與 `rgbaCssColor()` 產生 CSS 字串。 `safeColorName()` 與 `colorName()` 依解析後的語言選用 FakerPHP 詞表，缺少對應詞表時使用預設詞表。十個方法都支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
+    let faker = fake(Some("zh-Hant"))?;
+    let unique = faker.unique(false);
+    Ok((faker.rgbaCssColor(), unique.rgbColorAsArray()?, unique.colorName()?))
+}
+```
+
 ### 瀏覽器 User-Agent {#browser-user-agent-samples}
 
 用 `userAgent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 FakerPHP 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
