@@ -95,6 +95,21 @@ pub async fn reload_locked<M: Model>(
 
 `create` 按批量赋值规则保存新模型。`setAttribute` 设置单个属性，`save` 用原主键写入已变更的属性。写入成功后同步模型快照。构造器的 `update` 和 `delete` 返回受影响行数。
 
+### 更新计数器 {#updating-counters}
+
+使用 `increment`、`decrement`、`incrementEach` 或 `decrementEach` 原子更新数值属性。多列方法接收列名与步长的映射，返回受影响的行数。已持久化的模型会触发 `Updating` 和 `Updated`，并回读写入的属性。未持久化的实例将操作应用于带作用域的查询。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model}};
+
+pub async fn record_visit<M: Model>(model: &mut M) -> DatabaseResult<u64> {
+    model.incrementEach(
+        Attributes::from([("visits".into(), 1.into()), ("views".into(), 2.into())]),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 删除模型
 
 使用 `softDeletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `withTrashed` 或 `onlyTrashed` 查询它们，用 `restore` 清除删除时间，用 `forceDelete` 永久删除。

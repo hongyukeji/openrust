@@ -95,6 +95,21 @@ pub async fn reload_locked<M: Model>(
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.
 
+### Updating counters {#updating-counters}
+
+Use `increment`, `decrement`, `incrementEach`, or `decrementEach` to update numeric attributes atomically. The multi-column methods take a map of columns to amounts. They return the affected-row count. On a persisted model, the operation fires `Updating` and `Updated`, and refreshes written attributes from the database. An unpersisted instance applies the update to its scoped query.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model}};
+
+pub async fn record_visit<M: Model>(model: &mut M) -> DatabaseResult<u64> {
+    model.incrementEach(
+        Attributes::from([("visits".into(), 1.into()), ("views".into(), 2.into())]),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## Deleting Models
 
 Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `withTrashed` or `onlyTrashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.

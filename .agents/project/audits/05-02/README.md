@@ -534,3 +534,9 @@ SQLite 和独立 MySQL 8.4.13 验证六个关系入口创建与递增、直接�
 按固定 Laravel 的模型递增与类转换机制，将逻辑新值和步长交给转换器，持久化仍使用数据库原子加法。Rust 通过可选的 `CastsInboundAttributes::increment` 显式启用，类型化类转换、直接自定义转换和仅写转换共用此接口。转换器读取事务中的当前存储值，`Updating` 看到转换后的模型属性，`Updated` 看到数据库回读值。额外存储列可随更新一起写入。此批范围是关系计数器递增。旧版未发现对应递增转换协议，固定 Goravel 用作事务装配参考。 [Laravel 模型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 自定义转换](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-mutators.md#custom-casts) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证逻辑值 3 和存储值 300 的创建、递增后 5 和 500、转换拒绝保持原值，以及 MySQL 并发调用分别返回 7 和 9。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。
+
+## 模型实例计数器
+
+对照固定 Laravel 的 `incrementOrDecrement`、`incrementOrDecrementEach` 及模型测试。已持久化模型按原始身份在同一 SQL 更新中写入所有计数列，触发一次 `Updating` 和一次 `Updated`，并回读已写字段。新实例把操作转交作用域查询。Rust 用 `Attributes` 显式传递步长并返回影响行数，取消时返回 0。关系递增复用同一事务路径，类转换可以分别定义 `increment` 和 `decrement`。旧版未找到对应模型入口，固定 Goravel 用作事务装配参考。 [Laravel 模型源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证两列同时递增和递减、附加列写入、原始属性同步、非法步长整笔拒绝及自定义缩放递减。关系测试继续覆盖观察者报错回滚与 MySQL 并发递增。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

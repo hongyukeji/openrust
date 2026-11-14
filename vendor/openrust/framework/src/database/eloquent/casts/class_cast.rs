@@ -38,6 +38,16 @@ pub trait CastsInboundAttributes: Send + Sync {
         Ok(None)
     }
 
+    /// Returns the next logical value for a decrement, if supported.
+    fn decrement(
+        &self,
+        _name: &str,
+        _amount: &Value,
+        _attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        Ok(None)
+    }
+
     /// Optionally defines equivalence for the current and original stored values.
     fn compare(
         &self,

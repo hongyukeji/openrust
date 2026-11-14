@@ -1122,6 +1122,40 @@ pub trait Model: Sized + Send + Sync + 'static {
         Self::withoutEvents(self.restore())
     }
 
+    fn increment(
+        &mut self,
+        column: &str,
+        amount: impl Into<Value>,
+        extra: Attributes,
+    ) -> impl Future<Output = DatabaseResult<u64>> + Send {
+        self.incrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+    }
+
+    fn incrementEach(
+        &mut self,
+        columns: Attributes,
+        extra: Attributes,
+    ) -> impl Future<Output = DatabaseResult<u64>> + Send {
+        persistence::change_counters(self, columns, extra, false)
+    }
+
+    fn decrement(
+        &mut self,
+        column: &str,
+        amount: impl Into<Value>,
+        extra: Attributes,
+    ) -> impl Future<Output = DatabaseResult<u64>> + Send {
+        self.decrementEach(Attributes::from([(column.into(), amount.into())]), extra)
+    }
+
+    fn decrementEach(
+        &mut self,
+        columns: Attributes,
+        extra: Attributes,
+    ) -> impl Future<Output = DatabaseResult<u64>> + Send {
+        persistence::change_counters(self, columns, extra, true)
+    }
+
     fn save(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         persistence::save(self, None)
     }

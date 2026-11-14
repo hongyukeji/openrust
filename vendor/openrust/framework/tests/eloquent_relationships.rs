@@ -4787,6 +4787,20 @@ impl openrust::database::eloquent::casts::CastsInboundAttributes for CounterScal
         }
         Ok(Some((current / self.0 + amount).into()))
     }
+
+    fn decrement(
+        &self,
+        name: &str,
+        amount: &Value,
+        attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        let (Some(Value::Integer(current)), Value::Integer(amount)) =
+            (attributes.get(name), amount)
+        else {
+            return Err(DatabaseError::InvalidQuery("scaled counter"));
+        };
+        Ok(Some((current / self.0 - amount).into()))
+    }
 }
 
 impl openrust::database::eloquent::casts::CastsAttributes for CounterScale {
@@ -4844,6 +4858,21 @@ async fn verify_cast_counter(db: &Connection, post: &Post, mysql: bool) {
         .await
         .unwrap();
     assert_eq!(current.getAttribute("count"), Some(&500.into()));
+    let mut current = current;
+    assert_eq!(
+        current
+            .decrement("count", 1_i64, Attributes::new())
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(current.getAttribute("count"), Some(&400.into()));
+    assert_eq!(current.getAttributeValue("count").unwrap(), Some(4.into()));
+    current
+        .increment("count", 1_i64, Attributes::new())
+        .await
+        .unwrap();
+
     if mysql {
         let (a, b) = tokio::join!(increment(2), increment(2));
         let values =
@@ -4858,7 +4887,7 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     } else {
         "INTEGER PRIMARY KEY AUTOINCREMENT"
     };
-    db.statement(&format!("CREATE TABLE relation_counters (id {id}, name VARCHAR(80), count BIGINT, post_id BIGINT, owner_type VARCHAR(80) DEFAULT 'post', UNIQUE (name, post_id, owner_type))"), &[]).await.unwrap();
+    db.statement(&format!("CREATE TABLE relation_counters (id {id}, name VARCHAR(80), count BIGINT, visits BIGINT DEFAULT 10, post_id BIGINT, owner_type VARCHAR(80) DEFAULT 'post', UNIQUE (name, post_id, owner_type))"), &[]).await.unwrap();
     let author = Author::queryOn(db).findOrFail(1).await.unwrap();
     let post = Post::queryOn(db).findOrFail(2).await.unwrap();
     let name = |name: &str| Attributes::from([("name".into(), name.into())]);
@@ -4959,6 +4988,51 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     assert_count(&model, 32);
+    let mut model = model;
+    assert_eq!(
+        model
+            .incrementEach(
+                Attributes::from([("count".into(), 3.into()), ("visits".into(), 4.into())]),
+                Attributes::from([("name".into(), "renamed".into())]),
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(model.getAttribute("count"), Some(&35.into()));
+    assert_eq!(model.getAttribute("visits"), Some(&14.into()));
+    assert_eq!(model.getAttribute("name"), Some(&"renamed".into()));
+    assert_eq!(
+        model
+            .decrementEach(
+                Attributes::from([("count".into(), 2.into()), ("visits".into(), 5.into())]),
+                Attributes::new(),
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(model.getAttribute("count"), Some(&33.into()));
+    assert_eq!(model.getAttribute("visits"), Some(&9.into()));
+    assert!(model.getDirty().unwrap().is_empty());
+    assert!(
+        model
+            .incrementEach(
+                Attributes::from([
+                    ("count".into(), 1.into()),
+                    ("visits".into(), "invalid".into())
+                ]),
+                Attributes::new(),
+            )
+            .await
+            .is_err()
+    );
+    let persisted = RelationCounter::queryOn(db)
+        .findOrFail(model.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    assert_eq!(persisted.getAttribute("count"), Some(&33.into()));
+    assert_eq!(persisted.getAttribute("visits"), Some(&9.into()));
     Box::pin(verify_cast_counter(db, &post, mysql)).await;
     db.statement("DROP TABLE relation_counters", &[])
         .await

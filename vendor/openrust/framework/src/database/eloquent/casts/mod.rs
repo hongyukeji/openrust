@@ -298,19 +298,26 @@ pub(super) fn has_increment_caster<M: Model>(model: &M, name: &str) -> bool {
     )
 }
 
-pub(super) fn increment_cast<M: Model>(
+pub(super) fn counter_cast<M: Model>(
     model: &M,
     name: &str,
     amount: &Value,
     attributes: &Attributes,
+    decrement: bool,
 ) -> DatabaseResult<Option<(CastWrite, Value)>> {
     fn convert(
         caster: &dyn CastsInboundAttributes,
         name: &str,
         amount: &Value,
         attributes: &Attributes,
+        decrement: bool,
     ) -> DatabaseResult<Option<(CastWrite, Value)>> {
-        let Some(next) = caster.increment(name, amount, attributes)? else {
+        let next = if decrement {
+            caster.decrement(name, amount, attributes)?
+        } else {
+            caster.increment(name, amount, attributes)?
+        };
+        let Some(next) = next else {
             return Ok(None);
         };
         let step = match caster.set(name, amount.clone(), attributes)? {
@@ -323,11 +330,17 @@ pub(super) fn increment_cast<M: Model>(
     }
 
     match cast_for::<M>(name, &model.state().casts) {
-        Some(AttributeCast::Class(cast)) => {
-            convert(cast.resolve()?.assignment(), name, amount, attributes)
+        Some(AttributeCast::Class(cast)) => convert(
+            cast.resolve()?.assignment(),
+            name,
+            amount,
+            attributes,
+            decrement,
+        ),
+        Some(AttributeCast::Custom(caster)) => convert(caster, name, amount, attributes, decrement),
+        Some(AttributeCast::Inbound(caster)) => {
+            convert(caster, name, amount, attributes, decrement)
         }
-        Some(AttributeCast::Custom(caster)) => convert(caster, name, amount, attributes),
-        Some(AttributeCast::Inbound(caster)) => convert(caster, name, amount, attributes),
         _ => Ok(None),
     }
 }

@@ -145,7 +145,7 @@ impl Builder<'_> {
     }
 
     pub async fn update(self, values: Record) -> DatabaseResult<u64> {
-        self.update_values(values, None).await
+        self.update_values(values, Record::new(), "+").await
     }
 
     pub async fn increment(
@@ -154,7 +154,7 @@ impl Builder<'_> {
         amount: impl Into<Value>,
         extra: Record,
     ) -> DatabaseResult<u64> {
-        self.update_values(extra, Some((column, "+", amount.into())))
+        self.incrementEach(Record::from([(column.into(), amount.into())]), extra)
             .await
     }
 
@@ -164,14 +164,23 @@ impl Builder<'_> {
         amount: impl Into<Value>,
         extra: Record,
     ) -> DatabaseResult<u64> {
-        self.update_values(extra, Some((column, "-", amount.into())))
+        self.decrementEach(Record::from([(column.into(), amount.into())]), extra)
             .await
+    }
+
+    pub async fn incrementEach(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
+        self.update_values(extra, columns, "+").await
+    }
+
+    pub async fn decrementEach(self, columns: Record, extra: Record) -> DatabaseResult<u64> {
+        self.update_values(extra, columns, "-").await
     }
 
     async fn update_values(
         mut self,
         mut values: Record,
-        arithmetic: Option<(&str, &str, Value)>,
+        arithmetic: Record,
+        operator: &str,
     ) -> DatabaseResult<u64> {
         self.validate_write_query()?;
         let table = self.source.table_name()?;
@@ -181,15 +190,15 @@ impl Builder<'_> {
             self.compile_joins(&mut sql, &mut bindings)?;
         }
         let mut assignments = Vec::new();
-        if let Some((column, operator, value)) = arithmetic {
+        for (column, value) in arithmetic {
             if !matches!(
                 &value,
                 Value::Integer(_) | Value::Unsigned(_) | Value::Real(_)
             ) {
                 return Err(DatabaseError::InvalidQuery("increment amount"));
             }
-            values.remove(column);
-            let column = self.grammar.column(column)?;
+            values.remove(&column);
+            let column = self.grammar.column(&column)?;
             assignments.push(format!("{column} = {column} {operator} ?"));
             bindings.push(value);
         }
