@@ -81,6 +81,17 @@ pub(super) trait ModelStore: Send + Sync {
         owner_id: AuthIdentifier,
         id: AuthIdentifier,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
+    fn related<'a>(
+        &'a self,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<PersonalAccessToken>>>;
+    fn delete_related<'a>(
+        &'a self,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+        id: Option<AuthIdentifier>,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
     fn prune(
         &self,
         column: &'static str,
@@ -104,6 +115,16 @@ impl<M: Model> EloquentTokenStore<M> {
             connection,
             model: std::marker::PhantomData,
         }
+    }
+
+    fn owner_query(&self, owner: &str, owner_id: AuthIdentifier) -> Builder<'static, M> {
+        let mut query = self.query();
+        query.r#where("tokenable_type", "=", owner).r#where(
+            "tokenable_id",
+            "=",
+            Value::from(owner_id),
+        );
+        query
     }
 
     fn query(&self) -> Builder<'static, M> {
@@ -193,6 +214,39 @@ impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
                 transaction.rollBack(None).await?;
             }
             Ok(deleted)
+        })
+    }
+
+    fn related<'a>(
+        &'a self,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+    ) -> DatabaseFuture<'a, DatabaseResult<Vec<PersonalAccessToken>>> {
+        Box::pin(async move {
+            self.owner_query(owner, owner_id)
+                .get()
+                .await?
+                .iter()
+                .map(snapshot::<M>)
+                .collect()
+        })
+    }
+
+    fn delete_related<'a>(
+        &'a self,
+        owner: &'a str,
+        owner_id: AuthIdentifier,
+        id: Option<AuthIdentifier>,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        Box::pin(async move {
+            let mut query = self.owner_query(owner, owner_id);
+            if let Some(id) = id {
+                let Some(key) = credential_key::<M>(&id.to_string(), &self.connection) else {
+                    return Ok(0);
+                };
+                query.whereKey(key);
+            }
+            query.delete().await
         })
     }
 

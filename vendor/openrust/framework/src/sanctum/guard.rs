@@ -85,9 +85,7 @@ impl Guard {
         let model = morphs
             .getMorphedModel(&token.tokenable_type)
             .unwrap_or(&token.tokenable_type);
-        let user = auth
-            .retrieve_sanctum_owner(model, &token.tokenable_id)
-            .await?;
+        let user = token.tokenable(&auth, &morphs).await?;
         let valid_provider = self.provider_model.as_ref().is_none_or(|configured| {
             user.is_some() && auth.same_registered_model(configured, model)
         });
@@ -125,7 +123,7 @@ impl Guard {
             token
         };
         RequestTokens::insert(request, &self.name, AccessToken::Personal(token));
-        Ok(Some(Arc::from(user)))
+        Ok(Some(user))
     }
 }
 

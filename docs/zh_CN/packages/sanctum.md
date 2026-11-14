@@ -38,6 +38,12 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 自定义模型须实现 `PersonalAccessTokenModel`。默认 `findToken` 校验 SHA-256 摘要。覆写方法收到请求凭据和已配置的 Eloquent 查询，可在追加条件或解码凭据后调用 `findTokenByDigest`。覆写方法负责验证其接受的凭据。
 
+应用服务通过 `personalAccessTokenModel()` 返回注册的模型类型名。用 `currentApplicationUrlWithPort()` 读取应用 URL 的主机与显式端口。返回值带前导逗号，可追加到有状态域名配置。
+
+## 模型令牌关系 {#model-token-relationship}
+
+在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.createToken(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`deleteToken` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `currentAccessToken`、`tokenCan` 和 `tokenCant` 检查当前请求的令牌及能力。
+
 ## 保护路由与检查能力 {#protecting-routes}
 
 在受保护的路由上加上 `auth:sanctum`，用 `Authorization: Bearer <token>` 传入凭据。凭据无效、过期或已撤销时返回 HTTP 401。`abilities:reports:read,reports:write` 要求具备两项能力，`ability:reports:read,reports:write` 要求具备任意一项。令牌已通过认证但缺少能力时返回 HTTP 403。
@@ -77,4 +83,6 @@ fn register() -> Result<(), RoutingError> {
 
 ## 测试 {#testing}
 
-在测试中将用户放入 `Arc`，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 为 `TestApp` 的后续请求设置身份和能力。默认选择 Sanctum 守卫。可传入 `Some("guard-name")` 指定守卫，或传入 `["*"]` 授予全部能力。测试夹具直接提供身份和能力，无需签发数据库令牌。
+在测试中传入拥有所有权的 Eloquent 用户，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 为 `TestApp` 的后续请求设置身份和能力。默认选择 Sanctum 守卫。可传入 `Some("guard-name")` 指定守卫，或传入 `["*"]` 授予全部能力。测试夹具直接提供身份和能力，无需签发数据库令牌。
+
+返回的共享用户已清除 `wasRecentlyCreated` 状态。

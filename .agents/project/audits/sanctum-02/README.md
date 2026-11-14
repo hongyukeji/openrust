@@ -64,7 +64,15 @@ Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 通
 | 签发、凭据格式、前缀、查找、归属、撤销和过期清理 | 默认及自定义模型已接线，本轮补足覆写查找及 ULID 实测。 |
 | 自定义模型事件、访问器、转换和作用域 | 走 Eloquent 实例，批量清理应用作用域且无逐实例事件。 |
 | Bearer、SPA、能力、回调和守卫 | 已有真实 HTTP 记录，测试身份覆盖按能力和守卫授权。 |
-| 上游辅助 API | Rust 以应用级服务、仓储与请求凭据承载功能。上游 `HasApiTokens` 的模型关系方法、`personalAccessTokenModel()` 类名查询和 `currentApplicationUrlWithPort()` 公开辅助方法仍有 API 形态差异，应用 URL 已参与默认 SPA 域名配置。 |
-| Eloquent 新建状态 | Laravel `actingAs` 会清除用户实例的 `wasRecentlyCreated`。Rust 夹具共享原用户，当前没有 Eloquent 状态重置接线。 |
+| 上游辅助 API | Rust 以应用级服务、模型关系与请求凭据承载功能，具体接线见下节。 |
+| Eloquent 新建状态 | `actingAs` 在共享用户前清除 `wasRecentlyCreated`。 |
+
+## 模型关系与辅助入口
+
+对照固定 `HasApiTokens` 的多态令牌关系和 `PersonalAccessToken::tokenable`。Rust 在注册模型上通过 `HasApiTokens` 从归属主键和应用 MorphMap 建立关系，提供签发、查询及指定／全部撤销，逆向解析复用 Guard 的归属链路。请求令牌仍属于当前请求和守卫。Rust 的关系持有运行时选定的令牌仓储，因此公开为 `TokenRelation`，提供同一组归属范围内的操作。旧版令牌服务使用用户 ID 约束，本批复用当前令牌安全校验与 Eloquent 持久化。 [固定 HasApiTokens](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/HasApiTokens.php)
+
+`actingAs` 接收拥有所有权的 Eloquent 用户，在将其放入测试夹具前清除 `wasRecentlyCreated`，保留持久化状态。模型查询返回当前应用注册的 Rust 类型名。URL 辅助入口和默认 SPA 域名共用主机与端口解析，保留显式端口并忽略路径。 [固定 Sanctum](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php)
+
+Rust 1.94.0 与专用 MySQL 8.4.13 执行 `cargo test --locked --offline --features sanctum -p openrust-framework --test sanctum_authentication -- --skip bearer_and_opt_in_spa_over_http_with_sqlite`，两项通过。覆盖真实保存后的标志重置、默认和自定义模型类型、归属限定的签发／查询／撤销、反向归属、请求能力和守卫隔离，以及 APP_URL 含显式端口时的默认 SPA 来源。MySQL 同轮回归整数、UUID、ULID 三类主键及 Artisan 过期清理。格式检查、启用 Sanctum 的工作区全目标严格 Clippy、三语构建及 12 项浏览器检查通过。
 
 Passport 和安装器的 Passport 选项单独跟踪。

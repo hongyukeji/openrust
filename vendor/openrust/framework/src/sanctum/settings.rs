@@ -1,11 +1,14 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    any::type_name,
+    sync::{Arc, RwLock},
+};
 
 use zeroize::Zeroizing;
 
 use crate::{
     auth::{AuthError, AuthResult},
     contracts::config::Repository,
-    database::DatabaseManager,
+    database::{DatabaseManager, eloquent::Model},
     http::Request,
 };
 
@@ -13,7 +16,37 @@ use super::{PersonalAccessToken, PersonalAccessTokenModel, PersonalAccessTokens}
 
 type Retrieval = dyn Fn(&Request) -> Option<String> + Send + Sync;
 type Authentication = dyn Fn(&PersonalAccessToken, bool) -> bool + Send + Sync;
-type TokenModel = fn(&DatabaseManager, String) -> AuthResult<PersonalAccessTokens>;
+#[derive(Clone, Copy)]
+struct TokenModel {
+    name: &'static str,
+    store: fn(&DatabaseManager, String) -> AuthResult<PersonalAccessTokens>,
+}
+
+pub(super) fn application_host(config: &dyn Repository) -> Option<String> {
+    let value = config.get("app.url")?;
+    let value = value.as_str()?;
+    let url = url::Url::parse(value).ok()?;
+    let authority = value
+        .split_once("://")?
+        .1
+        .split(['/', '?', '#'])
+        .next()?
+        .rsplit('@')
+        .next()?;
+    let authority = authority.parse::<::http::uri::Authority>().ok();
+    let host = authority
+        .as_ref()
+        .map(::http::uri::Authority::host)
+        .or_else(|| url.host_str())?;
+    let port = authority
+        .as_ref()
+        .and_then(::http::uri::Authority::port_u16)
+        .or_else(|| url.port());
+    Some(match port {
+        Some(port) => format!("{host}:{port}"),
+        None => host.to_owned(),
+    })
+}
 pub(super) const CURRENT_REQUEST_HOST: &str = "__SANCTUM_CURRENT_REQUEST_HOST__";
 
 /// Sanctum extensions owned by one application.
@@ -37,13 +70,15 @@ impl Sanctum {
     /// Authenticates subsequent requests made through this in-process test application.
     pub fn actingAs<U>(
         app: &mut crate::testing::TestApp,
-        user: Arc<U>,
+        mut user: U,
         abilities: &[&str],
         guard: Option<&str>,
     ) -> Arc<U>
     where
-        U: crate::contracts::auth::Authenticatable + 'static,
+        U: crate::contracts::auth::Authenticatable + Model,
     {
+        user.state_mut().clear_recently_created();
+        let user = Arc::new(user);
         app.sanctum_identity = Some(super::TestIdentity {
             guard: guard.unwrap_or("sanctum").to_owned(),
             user: user.clone(),
@@ -60,13 +95,33 @@ impl Sanctum {
         ",__SANCTUM_CURRENT_REQUEST_HOST__"
     }
 
+    /// Returns the host and explicit port as a comma-prefixed stateful-domain suffix.
+    pub fn currentApplicationUrlWithPort(&self) -> String {
+        self.config
+            .as_deref()
+            .and_then(application_host)
+            .map_or_else(String::new, |host| format!(",{host}"))
+    }
+
+    pub fn personalAccessTokenModel(&self) -> &'static str {
+        self.model
+            .read()
+            .expect("Sanctum token model lock")
+            .map_or(type_name::<super::PersonalAccessToken>(), |model| {
+                model.name
+            })
+    }
+
     pub fn usePersonalAccessTokenModel<M: PersonalAccessTokenModel>(&self) {
-        *self.model.write().expect("Sanctum token model lock") = Some(|database, prefix| {
-            let model = M::from_state(Default::default());
-            let connection = database
-                .connection(model.getConnectionName())
-                .map_err(AuthError::backend)?;
-            Ok(PersonalAccessTokens::for_model::<M>(connection, prefix))
+        *self.model.write().expect("Sanctum token model lock") = Some(TokenModel {
+            name: type_name::<M>(),
+            store: |database, prefix| {
+                let model = M::from_state(Default::default());
+                let connection = database
+                    .connection(model.getConnectionName())
+                    .map_err(AuthError::backend)?;
+                Ok(PersonalAccessTokens::for_model::<M>(connection, prefix))
+            },
         });
     }
 
@@ -90,7 +145,7 @@ impl Sanctum {
                 .to_owned();
         }
         match model {
-            Some(model) => model(database, prefix),
+            Some(model) => (model.store)(database, prefix),
             None => Ok(PersonalAccessTokens::new(
                 database.connection(None).map_err(AuthError::backend)?,
                 prefix,

@@ -111,6 +111,11 @@ impl ModelState {
         self.was_recently_created
     }
 
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn clear_recently_created(&mut self) {
+        self.was_recently_created = false;
+    }
+
     pub(in crate::database::eloquent) fn replica(&self, attributes: Attributes) -> Self {
         Self {
             attributes,

@@ -8,6 +8,7 @@ mod abilities;
 mod authenticate_session;
 mod ensure_frontend_requests_are_stateful;
 mod guard;
+mod has_api_tokens;
 pub(crate) mod prune_expired;
 mod settings;
 mod token_model;
@@ -17,6 +18,7 @@ pub(crate) use ensure_frontend_requests_are_stateful::{
     EnsureFrontendRequestsAreStateful, StatefulFrontend,
 };
 pub(crate) use guard::Guard;
+pub use has_api_tokens::{HasApiTokens, TokenRelation};
 pub use settings::Sanctum;
 pub use token_model::PersonalAccessTokenModel;
 

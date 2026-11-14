@@ -26,7 +26,10 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
-    sanctum::{AccessToken, PersonalAccessTokenModel, Sanctum, TokenAuthenticated},
+    sanctum::{
+        AccessToken, HasApiTokens, PersonalAccessToken, PersonalAccessTokenModel, Sanctum,
+        TokenAuthenticated,
+    },
     support::facades::{Auth, Route},
     testing::TestApp,
 };
@@ -191,7 +194,9 @@ impl Middleware for CustomCsrf {
 
 impl<const SERVICE: bool, const TEXT: u8> Model for User<SERVICE, TEXT> {
     fn metadata() -> &'static ModelMetadata {
-        static USERS: ModelMetadata = ModelMetadata::new("sanctum_users").timestamps(None, None);
+        static USERS: ModelMetadata = ModelMetadata::new("sanctum_users")
+            .timestamps(None, None)
+            .incrementing(false);
         static SERVICES: ModelMetadata =
             ModelMetadata::new("sanctum_services").timestamps(None, None);
         if SERVICE { &SERVICES } else { &USERS }
@@ -231,6 +236,8 @@ impl<const SERVICE: bool, const TEXT: u8> Authenticatable for User<SERVICE, TEXT
         "remember_token"
     }
 }
+
+impl<const SERVICE: bool, const KEY: u8> HasApiTokens for User<SERVICE, KEY> {}
 
 fn api() -> Result<(), RoutingError> {
     Route::group(
@@ -391,9 +398,34 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     let db = database.connection(None).unwrap();
     let sanctum = app.container().make::<Sanctum>().unwrap();
     let model_events = TokenEvents::default();
+    assert_eq!(
+        sanctum.personalAccessTokenModel(),
+        std::any::type_name::<PersonalAccessToken>()
+    );
+    assert_eq!(sanctum.currentApplicationUrlWithPort(), "");
+    for (url, suffix) in [
+        ("https://Example.test:443/api?x=1", ",Example.test:443"),
+        ("http://[::1]:8123/app", ",[::1]:8123"),
+        ("https://example.test/path", ",example.test"),
+    ] {
+        config.set("app.url", json!(url)).unwrap();
+        assert_eq!(sanctum.currentApplicationUrlWithPort(), suffix);
+    }
+    if KEY == 2 {
+        config
+            .set("app.url", json!("https://spa.example:8443/frontend"))
+            .unwrap();
+        config.set("sanctum", json!({
+            "expiration":5,"token_prefix":"fixture_","middleware":{"validate_csrf_token":"custom-csrf"}
+        })).unwrap();
+    }
     let token_table = if custom_csrf {
         model_events.register::<KEY>(&app);
         sanctum.usePersonalAccessTokenModel::<CustomToken<KEY>>();
+        assert_eq!(
+            sanctum.personalAccessTokenModel(),
+            std::any::type_name::<CustomToken<KEY>>()
+        );
         "custom_sanctum_tokens"
     } else {
         "personal_access_tokens"
@@ -571,6 +603,62 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .createToken("SanctumUser", owner(3), "missing", &["*"], None)
         .await
         .unwrap();
+
+    let mut fresh_user = User::<false, KEY>::newInstanceOn(&db, Attributes::new()).unwrap();
+    fresh_user.setAttribute("id", SqlValue::from(owner(4)));
+    fresh_user.setAttribute("password", "new-user-password");
+    assert!(fresh_user.save().await.unwrap());
+    assert!(fresh_user.state().wasRecentlyCreated());
+    let mut test_app = TestApp::create(|builder| builder).unwrap();
+    let fresh_user = Sanctum::actingAs(&mut test_app, fresh_user, &[], None);
+    assert!(!fresh_user.state().wasRecentlyCreated());
+    assert!(fresh_user.state().exists());
+
+    let relation = fresh_user.tokens(&sanctum, &database).unwrap();
+    let issued = fresh_user
+        .createToken(&sanctum, &database, "related", &["read"], None)
+        .await
+        .unwrap();
+    assert_eq!(issued.access_token.tokenable_type, "users_alias");
+    assert_eq!(issued.access_token.tokenable_id, owner(4));
+    let morphs = app.container().make::<MorphMap>().unwrap();
+    let related_owner = issued
+        .access_token
+        .tokenable(&auth, &morphs)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        json!(related_owner.get_auth_identifier()),
+        json!(fresh_user.get_auth_identifier())
+    );
+    assert_eq!(relation.get().await.unwrap().len(), 1);
+    assert_eq!(
+        relation
+            .deleteToken(read.access_token.id.clone())
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        relation.deleteToken(issued.access_token.id).await.unwrap(),
+        1
+    );
+    relation
+        .createToken("related-again", &[], None)
+        .await
+        .unwrap();
+    model_events.take();
+    assert_eq!(relation.delete().await.unwrap(), 1);
+    assert!(model_events.take().is_empty());
+    assert!(relation.get().await.unwrap().is_empty());
+    assert!(
+        tokens
+            .findToken(read.plain_text_token.as_str())
+            .await
+            .unwrap()
+            .is_some()
+    );
 
     let events = app
         .container()
@@ -889,7 +977,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                 .await
                 .unwrap()
                 .status(),
-            200
+            if KEY == 2 { 401 } else { 200 }
         );
         assert_eq!(
             get("/api/user")
@@ -1112,6 +1200,27 @@ async fn bearer_and_spa_over_http_with_mysql() {
 
 #[tokio::test]
 async fn acting_as_isolated_to_test_app_and_selected_guard() {
+    fn token_ability(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        Box::pin(async move {
+            let user = Auth::user(request)
+                .await?
+                .ok_or(HttpError::Unauthenticated)?;
+            let user = (user.as_ref() as &dyn std::any::Any)
+                .downcast_ref::<User>()
+                .ok_or(HttpError::Unauthenticated)?;
+            let mut other = User::<false, 0>(ModelState::default());
+            other.setAttribute("id", SqlValue::Unsigned(43));
+            Response::json(
+                StatusCode::OK,
+                json!({
+                    "read": user.tokenCan(request, "read"),
+                    "write_denied": user.tokenCant(request, "write"),
+                    "other_denied": other.tokenCant(request, "read"),
+                }),
+            )
+        })
+    }
+
     let configure = |builder: openrust::foundation::configuration::ApplicationBuilder| {
         builder
             .withConfig(|_, _| {
@@ -1126,6 +1235,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
             .withRouting(Routing::default().api(|| {
                 api()?;
                 Route::get("/default", whoami)?;
+                Route::get("/token-ability", token_ability)?;
                 Route::getWith("/alternate", whoami, |route| {
                     route.middleware_name("auth:alternate");
                     Ok(())
@@ -1134,11 +1244,13 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
     };
     let mut app = TestApp::create(configure).unwrap();
     let mut other = TestApp::create(configure).unwrap();
-    let mut user = User::<false, 0>(ModelState::default());
-    user.setAttribute("id", SqlValue::Unsigned(42));
-    let user = Arc::new(user);
-    let selected = Sanctum::actingAs(&mut app, user.clone(), &["read"], None);
-    assert!(Arc::ptr_eq(&selected, &user));
+    let user = || {
+        let mut user = User::<false, 0>(ModelState::default());
+        user.setAttribute("id", SqlValue::Unsigned(42));
+        user
+    };
+    let selected = Sanctum::actingAs(&mut app, user(), &["read"], None);
+    assert_eq!(selected.get_auth_identifier(), AuthIdentifier::from(42_u64));
     for path in ["/api/user", "/api/any", "/api/default"] {
         let response = app.get(path).await.unwrap();
         response.assertOk();
@@ -1147,6 +1259,14 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
             json!({"user":42,"token":"test"})
         );
     }
+    let abilities = app.get("/api/token-ability").await.unwrap();
+    abilities.assertOk();
+    assert_eq!(
+        abilities.json::<Value>().unwrap(),
+        json!({
+            "read":true,"write_denied":true,"other_denied":true
+        })
+    );
     app.get("/api/all")
         .await
         .unwrap()
@@ -1156,14 +1276,14 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         .await
         .unwrap()
         .assertStatus(StatusCode::UNAUTHORIZED);
-    Sanctum::actingAs(&mut app, user.clone(), &[], None);
+    Sanctum::actingAs(&mut app, user(), &[], None);
     app.get("/api/any")
         .await
         .unwrap()
         .assertStatus(StatusCode::FORBIDDEN);
-    Sanctum::actingAs(&mut app, user.clone(), &["*"], None);
+    Sanctum::actingAs(&mut app, user(), &["*"], None);
     app.get("/api/all").await.unwrap().assertOk();
-    Sanctum::actingAs(&mut app, user, &["*"], Some("alternate"));
+    Sanctum::actingAs(&mut app, user(), &["*"], Some("alternate"));
     app.get("/api/alternate").await.unwrap().assertOk();
     app.get("/api/default").await.unwrap().assertOk();
     app.get("/api/user")

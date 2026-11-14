@@ -47,12 +47,8 @@ impl EnsureFrontendRequestsAreStateful {
                 ]
                 .map(str::to_owned)
                 .to_vec();
-                if let Some(url) = config
-                    .get("app.url")
-                    .and_then(|value| value.as_str()?.parse::<http::Uri>().ok())
-                    && let Some(authority) = url.authority()
-                {
-                    defaults.push(authority.as_str().to_owned());
+                if let Some(host) = super::settings::application_host(config) {
+                    defaults.push(host);
                 }
                 defaults
             }

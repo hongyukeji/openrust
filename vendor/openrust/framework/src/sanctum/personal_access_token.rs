@@ -286,6 +286,62 @@ impl PersonalAccessTokens {
         Ok(true)
     }
 
+    pub(super) async fn related(
+        &self,
+        owner: &str,
+        owner_id: AuthIdentifier,
+    ) -> AuthResult<Vec<PersonalAccessToken>> {
+        if let Some(model) = &self.model {
+            return model
+                .related(owner, owner_id)
+                .await
+                .map_err(AuthError::backend);
+        }
+        let AuthIdentifier::UnsignedInteger(owner_id) = owner_id else {
+            return Err(AuthError::InvalidIdentity);
+        };
+        self.connection
+            .table(TABLE)
+            .useWritePdo()
+            .r#where("tokenable_type", "=", owner)
+            .r#where("tokenable_id", "=", Value::Unsigned(owner_id))
+            .get()
+            .await
+            .map_err(AuthError::backend)?
+            .iter()
+            .map(decode)
+            .collect()
+    }
+
+    pub(super) async fn delete_related(
+        &self,
+        owner: &str,
+        owner_id: AuthIdentifier,
+        id: Option<AuthIdentifier>,
+    ) -> AuthResult<u64> {
+        if let Some(model) = &self.model {
+            return model
+                .delete_related(owner, owner_id, id)
+                .await
+                .map_err(AuthError::backend);
+        }
+        let AuthIdentifier::UnsignedInteger(owner_id) = owner_id else {
+            return Err(AuthError::InvalidIdentity);
+        };
+        let mut query = self
+            .connection
+            .table(TABLE)
+            .r#where("tokenable_type", "=", owner)
+            .r#where("tokenable_id", "=", Value::Unsigned(owner_id));
+        if let Some(id) = id {
+            let Some(key) = integer_key(&id.to_string(), &self.connection) else {
+                return Ok(0);
+            };
+            query = query.r#where("id", "=", key);
+        }
+        query.delete().await.map_err(AuthError::backend)
+    }
+
     pub(super) async fn prune(
         &self,
         column: &'static str,

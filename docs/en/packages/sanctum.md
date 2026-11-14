@@ -38,6 +38,12 @@ Set `SANCTUM_TOKEN_PREFIX` to prepend an application-specific prefix to newly is
 
 Implement `PersonalAccessTokenModel` on the model. Its default `findToken` verifies the SHA-256 digest. An override receives the presented credential and the configured Eloquent query, and can call `findTokenByDigest` after adding constraints or decoding the credential. The override is responsible for validating the credential it accepts.
 
+The application service exposes its registered model type through `personalAccessTokenModel()`. Use `currentApplicationUrlWithPort()` to obtain the configured application host and explicit port, prefixed with a comma for use in stateful domain strings.
+
+## Model token relationship {#model-token-relationship}
+
+Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.createToken(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `deleteToken` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `currentAccessToken`, `tokenCan` and `tokenCant` on the owner.
+
 ## Protecting routes and checking abilities {#protecting-routes}
 
 Attach `auth:sanctum` to protected routes. Send the credential in `Authorization: Bearer <token>`. Invalid, expired and revoked credentials receive HTTP 401. Use `abilities:reports:read,reports:write` to require both abilities or `ability:reports:read,reports:write` to require either. An authenticated token that lacks a required ability receives HTTP 403.
@@ -77,4 +83,4 @@ Run the command with the Sanctum feature enabled. The default retention is 24 ho
 
 ## Testing {#testing}
 
-Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an `Arc` to the user. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.
+Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an owned Eloquent user. It returns a shared user whose `wasRecentlyCreated` flag has been cleared. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.
