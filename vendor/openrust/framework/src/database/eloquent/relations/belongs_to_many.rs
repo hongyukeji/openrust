@@ -38,6 +38,40 @@ pub struct BelongsToMany<P: Model, R: Model> {
     touch_related: bool,
 }
 
+/// Attributes supplied directly or computed when a relation needs to write a model.
+pub struct RelatedValues<'a>(RelatedValueSource<'a>);
+
+enum RelatedValueSource<'a> {
+    Attributes(Attributes),
+    Deferred(Box<dyn FnMut() -> Attributes + Send + 'a>),
+}
+
+impl<'a> RelatedValues<'a> {
+    pub fn deferred(resolve: impl FnMut() -> Attributes + Send + 'a) -> Self {
+        Self(RelatedValueSource::Deferred(Box::new(resolve)))
+    }
+
+    fn resolve(&mut self) -> Attributes {
+        match &mut self.0 {
+            RelatedValueSource::Attributes(attributes) => attributes.clone(),
+            RelatedValueSource::Deferred(resolve) => resolve(),
+        }
+    }
+}
+
+impl From<Attributes> for RelatedValues<'_> {
+    fn from(attributes: Attributes) -> Self {
+        Self(RelatedValueSource::Attributes(attributes))
+    }
+}
+
+#[derive(Clone, Copy)]
+struct RelatedLookup<'a> {
+    attributes: &'a Attributes,
+    use_writer: bool,
+    include_trashed: bool,
+}
+
 /// Keys attached, detached, or updated by a pivot synchronization.
 #[derive(Debug, PartialEq, Default)]
 pub struct SyncChanges {
@@ -441,73 +475,156 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     }
 
     /// Finds an attached model, attaches an existing match, or creates a new model.
-    pub async fn firstOrCreate(
+    pub async fn firstOrCreate<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
-        values: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
         joining: Attributes,
     ) -> DatabaseResult<Arc<R>> {
-        self.owner(parent)?;
-        if let Some(model) = self.find_attached(parent, &attributes, false).await? {
-            return Ok(model);
-        }
-        let connection = self.keys.connection(parent)?;
-        let query = self
-            .keys
-            .configure(R::queryOn(&connection))?
-            .unconstrained_relation_query()
-            .restrict_relation_attributes(&attributes);
-        if let Some(model) = query.first().await? {
-            self.attach_found(parent, model, &attributes, joining).await
-        } else {
-            self.createOrFirst(parent, attributes, values, joining)
-                .await
-        }
+        self.first_or_create(parent, attributes, &mut values.into(), joining, false)
+            .await
     }
 
     /// Fills and saves an existing related model, or creates and attaches a new one.
-    pub async fn updateOrCreate(
+    pub async fn updateOrCreate<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
-        values: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
         joining: Attributes,
     ) -> DatabaseResult<Arc<R>> {
+        let mut values = values.into();
         let model = self
-            .firstOrCreate(parent, attributes, values.clone(), joining)
+            .first_or_create(parent, attributes, &mut values, joining, false)
             .await?;
         if model.state().wasRecentlyCreated() {
             return Ok(model);
         }
 
-        let mut model =
-            Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()));
-        model.fillAsync(values).await?;
+        let mut model = owned_model(model);
+        model.fillAsync(values.resolve()).await?;
         super::super::persistence::save_with_touch(&mut model, None, false).await?;
         Ok(Arc::new(model))
+    }
+
+    /// Finds or creates a related model and restores it through the model lifecycle.
+    pub async fn restoreOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        self.require_soft_deletes()?;
+        let model = self
+            .first_or_create(parent, attributes, &mut values.into(), joining, true)
+            .await?;
+        restore_related(model).await
+    }
+
+    /// Attempts insertion first, recovering and restoring a matching soft-deleted model.
+    pub async fn createOrRestore<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        self.require_soft_deletes()?;
+        let model = self
+            .create_or_first(parent, attributes, &mut values.into(), joining, true)
+            .await?;
+        restore_related(model).await
+    }
+
+    fn require_soft_deletes(&self) -> DatabaseResult<()> {
+        R::metadata()
+            .deleted_at
+            .map(|_| ())
+            .ok_or_else(super::super::soft_deletes::unsupported)
+    }
+
+    async fn first_or_create(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: &mut RelatedValues<'_>,
+        joining: Attributes,
+        include_trashed: bool,
+    ) -> DatabaseResult<Arc<R>> {
+        self.owner(parent)?;
+        let lookup = RelatedLookup {
+            attributes: &attributes,
+            use_writer: false,
+            include_trashed,
+        };
+        if let Some(model) = self.find_attached(parent, lookup).await? {
+            return Ok(model);
+        }
+        let connection = self.keys.connection(parent)?;
+        if let Some(model) = self.find_candidate(&connection, lookup).await? {
+            self.attach_found(parent, model, lookup, joining).await
+        } else {
+            self.create_or_first(parent, attributes, values, joining, include_trashed)
+                .await
+        }
+    }
+
+    async fn find_candidate(
+        &self,
+        connection: &Connection,
+        lookup: RelatedLookup<'_>,
+    ) -> DatabaseResult<Option<R>> {
+        let query = self
+            .keys
+            .configure(R::queryOn(connection))?
+            .unconstrained_relation_query()
+            .restrict_relation_attributes(lookup.attributes);
+        let query = if lookup.include_trashed {
+            query.withTrashed()
+        } else {
+            query
+        };
+        let query = if lookup.use_writer {
+            query.useWritePdo()
+        } else {
+            query
+        };
+        query.first().await
     }
 
     async fn find_attached(
         &self,
         parent: &P,
-        attributes: &Attributes,
-        use_writer: bool,
+        lookup: RelatedLookup<'_>,
     ) -> DatabaseResult<Option<Arc<R>>> {
         Ok(self
-            .match_many(&[parent], None, Some((attributes, use_writer)))
+            .match_many(&[parent], None, Some(lookup))
             .await?
             .pop()
             .and_then(|models| models.into_iter().next()))
     }
 
     /// Creates and attaches a model, or attaches a matching model after a unique conflict.
-    pub async fn createOrFirst(
+    pub async fn createOrFirst<'a>(
         &self,
         parent: &P,
         attributes: Attributes,
-        values: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
         joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        self.create_or_first(parent, attributes, &mut values.into(), joining, false)
+            .await
+    }
+
+    async fn create_or_first(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: &mut RelatedValues<'_>,
+        joining: Attributes,
+        include_trashed: bool,
     ) -> DatabaseResult<Arc<R>> {
         self.validate_pivot_attributes(&joining)?;
         let owner = self.owner(parent)?;
@@ -521,7 +638,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let defaults = self.pivot_constraints.defaults.clone();
         let timestamps = self.pivot_write_timestamps(&connection)?;
         let mut insert = attributes.clone();
-        insert.extend(values);
+        insert.extend(values.resolve());
         let attempt = connection
             .transaction(
                 |transaction| {
@@ -576,23 +693,22 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             result => return result,
         };
 
-        let query = self
-            .keys
-            .configure(R::queryOn(&connection))?
-            .unconstrained_relation_query()
-            .restrict_relation_attributes(&attributes)
-            .useWritePdo();
-        let Some(model) = query.first().await? else {
+        let lookup = RelatedLookup {
+            attributes: &attributes,
+            use_writer: true,
+            include_trashed,
+        };
+        let Some(model) = self.find_candidate(&connection, lookup).await? else {
             return Err(conflict);
         };
-        self.attach_found(parent, model, &attributes, joining).await
+        self.attach_found(parent, model, lookup, joining).await
     }
 
     async fn attach_found(
         &self,
         parent: &P,
         model: R,
-        attributes: &Attributes,
+        lookup: RelatedLookup<'_>,
         joining: Attributes,
     ) -> DatabaseResult<Arc<R>> {
         let key = attachment_key(&model, self.keys.related)?;
@@ -607,7 +723,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         {
             Ok(()) => Ok(Arc::new(model)),
             Err(error) if is_unique_violation(&error) => self
-                .find_attached(parent, attributes, true)
+                .find_attached(
+                    parent,
+                    RelatedLookup {
+                        use_writer: true,
+                        ..lookup
+                    },
+                )
                 .await?
                 .ok_or(error),
             Err(error) => Err(error),
@@ -1184,7 +1306,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
-        lookup: Option<(&Attributes, bool)>,
+        lookup: Option<RelatedLookup<'_>>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -1237,9 +1359,14 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     )?
                     .apply_default_counts()?
                     .restrict_relation(&parent_column, batch);
-                if let Some((attributes, use_writer)) = lookup {
-                    query = query.restrict_relation_attributes(attributes).limit(1);
-                    if use_writer {
+                if let Some(lookup) = lookup {
+                    query = query
+                        .restrict_relation_attributes(lookup.attributes)
+                        .limit(1);
+                    if lookup.include_trashed {
+                        query = query.withTrashed();
+                    }
+                    if lookup.use_writer {
                         query = query.useWritePdo();
                     }
                 }
@@ -1432,6 +1559,16 @@ impl RelatedTouch {
             .await?;
         Ok(())
     }
+}
+
+fn owned_model<R: Model>(model: Arc<R>) -> R {
+    Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()))
+}
+
+async fn restore_related<R: Model>(model: Arc<R>) -> DatabaseResult<Arc<R>> {
+    let mut model = owned_model(model);
+    model.restore().await?;
+    Ok(Arc::new(model))
 }
 
 fn attachment_key<'a, R: Model>(model: &'a R, key: &str) -> DatabaseResult<&'a Value> {

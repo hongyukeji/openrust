@@ -20,7 +20,7 @@ pub(super) mod relation;
 
 pub use belongs_to::BelongsTo;
 pub(super) use belongs_to_many::PivotTouchIdentity;
-pub use belongs_to_many::{BelongsToMany, SyncChanges, ToggleChanges};
+pub use belongs_to_many::{BelongsToMany, RelatedValues, SyncChanges, ToggleChanges};
 pub use has_many::HasMany;
 pub use has_many_through::HasManyThrough;
 pub use has_one::HasOne;

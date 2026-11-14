@@ -11,7 +11,7 @@ use openrust::{
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
                 MorphMany, MorphOne, MorphPivot, MorphTarget, MorphTo, MorphToMany,
-                OneOfManyAggregate, Pivot, Relation,
+                OneOfManyAggregate, Pivot, RelatedValues, Relation,
             },
         },
     },
@@ -4527,6 +4527,123 @@ async fn verify_first_and_update_or_create(db: &Connection) {
     );
 }
 
+async fn verify_restore_and_deferred_values(db: &Connection) {
+    let parent = Author::queryOn(db).findOrFail(1).await.unwrap();
+    let relation = FEATURED_POSTS.withPivot(["label"]);
+    let title = |name: &str| Attributes::from([("title".into(), name.into())]);
+    let label = |name: &str| Attributes::from([("label".into(), name.into())]);
+    let never = || RelatedValues::deferred(|| panic!("values must remain deferred"));
+
+    db.statement("INSERT INTO relation_posts (title, score, deleted_at) VALUES ('trash-attached', 200, '2025-01-01 00:00:00'), ('trash-unlinked', 201, '2025-01-01 00:00:00')", &[])
+        .await.unwrap();
+    let mut deleted = Post::queryOn(db).onlyTrashed();
+    deleted.r#where("title", "=", "trash-attached");
+    let key = deleted
+        .firstOrFail()
+        .await
+        .unwrap()
+        .getKey()
+        .unwrap()
+        .clone();
+    relation
+        .attachWith(&parent, std::slice::from_ref(&key), label("original"))
+        .await
+        .unwrap();
+
+    let restored = relation
+        .restoreOrCreate(&parent, title("trash-attached"), never(), label("ignored"))
+        .await
+        .unwrap();
+    assert_eq!(restored.getKey(), Some(&key));
+    assert_eq!(
+        restored
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"original".into())
+    );
+    assert!(Post::queryOn(db).find(key).await.unwrap().is_some());
+
+    let mut calls = 0;
+    let restored = relation
+        .createOrRestore(
+            &parent,
+            title("trash-unlinked"),
+            RelatedValues::deferred(|| {
+                calls += 1;
+                Attributes::new()
+            }),
+            label("new-link"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(calls, 1);
+    assert!(!restored.state().wasRecentlyCreated());
+    assert!(matches!(
+        restored.getAttribute("deleted_at"),
+        Some(Value::Null)
+    ));
+
+    let linked = relation
+        .firstOrCreate(&parent, title("trash-unlinked"), never(), label("ignored"))
+        .await
+        .unwrap();
+    assert_eq!(linked.getKey(), restored.getKey());
+    assert_eq!(
+        linked
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"new-link".into())
+    );
+
+    let mut calls = 0;
+    let created = relation
+        .restoreOrCreate(
+            &parent,
+            title("restore-created"),
+            RelatedValues::deferred(|| {
+                calls += 1;
+                Attributes::from([("score".into(), 202.into())])
+            }),
+            label("created"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(calls, 1);
+    assert!(created.state().wasRecentlyCreated());
+    let mut calls = 0;
+    let updated = relation
+        .updateOrCreate(
+            &parent,
+            title("restore-created"),
+            RelatedValues::deferred(|| {
+                calls += 1;
+                Attributes::from([("score".into(), 203.into())])
+            }),
+            label("ignored"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(calls, 1);
+    assert_eq!(updated.getKey(), created.getKey());
+    assert_eq!(updated.getAttribute("score"), Some(&203.into()));
+
+    let unsupported = BelongsToMany::<Author, Author>::new(
+        "relation_featured_posts",
+        "author_id",
+        "post_id",
+        "id",
+        "id",
+    );
+    assert!(matches!(
+        unsupported
+            .restoreOrCreate(&parent, Attributes::new(), never(), Attributes::new())
+            .await,
+        Err(DatabaseError::InvalidQuery(_))
+    ));
+}
+
 async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     for sql in [
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
@@ -4596,6 +4713,7 @@ async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
         .await
         .unwrap();
         Box::pin(verify_first_and_update_or_create(db)).await;
+        Box::pin(verify_restore_and_deferred_values(db)).await;
     }
     for table in [
         "relation_featured_posts",

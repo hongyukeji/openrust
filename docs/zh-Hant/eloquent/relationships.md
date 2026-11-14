@@ -829,6 +829,30 @@ pub async fn update_role<P: Model, R: Model>(
 }
 ```
 
+### 還原關聯模型 {#restoring-related-models}
+
+`restoreOrCreate` 先查找關聯模型，查找範圍包含軟刪除記錄，未找到時才新增。`createOrRestore` 先嘗試新增，遇到唯一鍵衝突時查回符合的記錄。兩者都透過模型生命週期還原記錄。使用 `RelatedValues::deferred` 可將屬性計算延遲至新增或更新時。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::{BelongsToMany, RelatedValues}},
+};
+
+pub async fn restore_role<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Arc<R>> {
+    relation.restoreOrCreate(
+        user,
+        Attributes::from([("slug".into(), "editor".into())]),
+        RelatedValues::deferred(|| Attributes::from([("name".into(), "Editor".into())])),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

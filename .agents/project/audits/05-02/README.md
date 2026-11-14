@@ -510,3 +510,9 @@ SQLite 分离读写文件且关闭 sticky，读库无相关表，验证两条唯
 对照 Laravel 13.40.0 的 `BelongsToMany::firstOrCreate`、`updateOrCreate` 及上游测试。先查当前关系，再按原模型作用域查未挂载候选，均未命中时复用 `createOrFirst`。补挂碰到唯一冲突时，用写连接确认关联。更新已有模型时应用值和模型事件，并沿用 Laravel 禁用模型所属端触碰的行为。Pivot 属性只用于新增关联。Rust 使用显式的匹配、模型值和 Pivot 属性映射，模型返回 `Arc<R>`，此批提供属性映射形式。旧版未找到这两个入口，复用其模型写入与 Pivot 写入分工，固定 Goravel 作连接事务参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyCreateOrFirstTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证既有关联、补挂未关联模型、创建、更新持久化、更新唯一键冲突及既有 Pivot 值保留。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 多对多软删除恢复与延迟属性
+
+按 Laravel 13.40.0 的 `restoreOrCreate` 和 `createOrRestore` 接入两种查找顺序，两者在候选查询中包含软删除模型，并复用现有模型恢复生命周期。插入或挂载发生唯一冲突时沿用写连接回查。使用类型化 `RelatedValues::deferred` 传入 Rust 闭包，原有属性映射调用仍可使用。查找命中或仅挂载既有模型时，`firstOrCreate` 无需计算值。插入优先方法在尝试插入时计算，`updateOrCreate` 在已有模型需要更新时也计算。旧版未找到对应多对多入口，沿用既有模型和 Pivot 分工。固定 Goravel 用作连接事务装配参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) · [Laravel 延迟值测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyCreateOrFirstTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证已挂载软删除模型恢复、已有 Pivot 属性保留、插入冲突后补挂和恢复、未命中创建、更新以及延迟值调用次数。未启用软删除的模型会在写入前返回错误。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建与 18 项浏览器检查通过。

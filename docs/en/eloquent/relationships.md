@@ -829,6 +829,30 @@ pub async fn update_role<P: Model, R: Model>(
 }
 ```
 
+### Restoring related models {#restoring-related-models}
+
+Use `restoreOrCreate` to look up a related model, including soft-deleted rows, before inserting. `createOrRestore` attempts insertion first and recovers a matching row on a unique conflict. Both restore the model through its normal lifecycle. Pass `RelatedValues::deferred` to compute model values only when an insert or update needs them.
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::{BelongsToMany, RelatedValues}},
+};
+
+pub async fn restore_role<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Arc<R>> {
+    relation.restoreOrCreate(
+        user,
+        Attributes::from([("slug".into(), "editor".into())]),
+        RelatedValues::deferred(|| Attributes::from([("name".into(), "Editor".into())])),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.
