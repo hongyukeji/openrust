@@ -2701,3 +2701,58 @@ fn mongolian_person_keeps_initials_distinct_from_the_identity_alphabet() {
     assert_eq!(faker.lastName(), "Doe");
     assert!(fake(Some("en-US")).unwrap().namePrefix().is_err());
 }
+
+#[test]
+fn singapore_person_keeps_base_names_and_identity_boundaries() {
+    use chrono::NaiveDate;
+
+    let faker = fake(Some("en-SG")).unwrap();
+    assert_eq!(faker.nameWithGender(Some("male")), "John Doe");
+    assert_eq!(faker.nameWithGender(Some("female")), "Jane Doe");
+    assert_eq!(faker.lastName(), "Doe");
+    let unique = faker.unique(true);
+    let mut numbers = std::collections::HashSet::new();
+
+    for (year, month, day, foreigner, prefix, year_digits) in [
+        (1967, 12, 31, false, b'S', None),
+        (1968, 1, 1, false, b'S', Some("68")),
+        (1999, 12, 31, false, b'S', Some("99")),
+        (2000, 1, 1, false, b'T', Some("00")),
+        (1999, 12, 31, true, b'F', None),
+        (2000, 1, 1, true, b'G', None),
+    ] {
+        let date = NaiveDate::from_ymd_opt(year, month, day);
+        for _ in 0..16 {
+            let number = if foreigner {
+                unique.fin(date)
+            } else {
+                unique.nric(date)
+            }
+            .unwrap();
+            let bytes = number.as_bytes();
+            assert_eq!(bytes.len(), 9);
+            assert_eq!(bytes[0], prefix);
+            assert!(bytes[1..8].iter().all(u8::is_ascii_digit));
+            if let Some(year_digits) = year_digits {
+                assert_eq!(&number[1..3], year_digits);
+            } else if !foreigner {
+                assert!(["00", "01"].contains(&&number[1..3]));
+            }
+            let total: usize = bytes[1..8]
+                .iter()
+                .zip([2, 7, 6, 5, 4, 3, 2])
+                .map(|(digit, weight)| usize::from(digit - b'0') * weight)
+                .sum();
+            let offset = if matches!(prefix, b'T' | b'G') { 4 } else { 0 };
+            let table = if foreigner {
+                b"XWUTRQPNMLK"
+            } else {
+                b"JZIHGFEDCBA"
+            };
+            assert_eq!(bytes[8], table[(total + offset) % 11]);
+            assert!(numbers.insert(number));
+        }
+    }
+    assert_eq!(unique.singaporeId(None, false).unwrap().len(), 9);
+    assert!(fake(Some("en-US")).unwrap().nric(None).is_err());
+}

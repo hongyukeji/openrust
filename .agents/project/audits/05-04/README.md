@@ -1066,3 +1066,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `0a5d0286`。PHP 8.5 核对 512 组上游姓名和 128 组首字母、证件样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并按顺序逐条回读 768 个值，核对词表、模板、证件掩码和字母范围，实际执行文档示例。53 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，清理后项目卷可用 81 GiB。下一批核对新加坡英语 Person 与身份样本。
+
+## Faker 新加坡英语姓名及 NRIC／FIN
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)和 [FakerPHP v1.24.1 新加坡 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_SG/Person.php)。保留继承的基础姓名及 `nric`、`fin`、`singaporeId` 的 1968／2000 年边界、两套校验字母与去重。Rust 以可选公历日期表达参数，省略时沿用现有日期及应用时区配置，非 `en-SG` 返回不支持错误。v0.x 无对应接口，编译式工厂装配无需改动。
+
+隔离基线 `a9963589`。PHP 8.5 校验 512 组姓名及 128 组身份号码。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 640 个值，核对姓名、年份、证件前缀及校验字母，并运行文档示例。54 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对比利时荷兰语姓名与 RRN。

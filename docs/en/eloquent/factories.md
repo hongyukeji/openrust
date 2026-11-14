@@ -858,6 +858,19 @@ fn mongolian_initial() -> DatabaseResult<char> {
 }
 ```
 
+### Singapore English Names and Identity Samples {#singapore-english-names-and-identity-samples}
+
+The `en-SG` provider inherits the base names `John Doe` and `Jane Doe`. Use `nric(birthDate)` or `fin(issueDate)` to generate a sample identifier, or `singaporeId(issueDate, foreigner)` to select the type explicitly. Dates are optional civil dates. Omitting the date uses the same date range as `dateTimeThisCentury()`. The prefix changes at 2000. NRICs use the year’s last two digits from 1968 onward and sample `00` or `01` for earlier dates. Each formatter calculates the final checksum letter and supports `unique()`.
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn singapore_identity_sample() -> DatabaseResult<String> {
+    fake(Some("en-SG"))?.unique(false).nric(NaiveDate::from_ymd_opt(2000, 1, 1))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

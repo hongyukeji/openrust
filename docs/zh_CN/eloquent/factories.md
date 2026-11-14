@@ -858,6 +858,19 @@ fn mongolian_initial() -> DatabaseResult<char> {
 }
 ```
 
+### 新加坡英语姓名和证件样本 {#singapore-english-names-and-identity-samples}
+
+`en-SG` 沿用基础姓名 `John Doe` 和 `Jane Doe`。用 `nric(birthDate)` 或 `fin(issueDate)` 生成证件样本，也可用 `singaporeId(issueDate, foreigner)` 指定类型。日期接受可选的公历日期，省略时使用 `dateTimeThisCentury()` 的日期范围。前缀以 2000 年为分界。NRIC 从 1968 年起取年份后两位，更早的日期从 `00` 和 `01` 抽样。三个接口均计算末尾校验字母并支持 `unique()`。
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn singapore_identity_sample() -> DatabaseResult<String> {
+    fake(Some("en-SG"))?.unique(false).nric(NaiveDate::from_ymd_opt(2000, 1, 1))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

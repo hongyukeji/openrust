@@ -132,6 +132,55 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a Singapore citizen's NRIC.
+    pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
+        self.singaporeId(birthDate, false)
+    }
+
+    /// Samples a Singapore foreign identification number.
+    pub fn fin(&self, issueDate: Option<NaiveDate>) -> DatabaseResult<String> {
+        self.singaporeId(issueDate, true)
+    }
+
+    pub fn singaporeId(
+        &self,
+        issueDate: Option<NaiveDate>,
+        foreigner: bool,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "en_SG" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Singapore identity locale",
+            ));
+        }
+        let date = match issueDate {
+            Some(date) => date,
+            None => self.identity_birthdate()?,
+        };
+        let year = date.year();
+        let recent = year >= 2000;
+        let (prefix, checksum_letters) = match (foreigner, recent) {
+            (true, false) => ('F', b"XWUTRQPNMLK"),
+            (true, true) => ('G', b"XWUTRQPNMLK"),
+            (false, false) => ('S', b"JZIHGFEDCBA"),
+            (false, true) => ('T', b"JZIHGFEDCBA"),
+        };
+        let digits = if foreigner {
+            self.numerify(Some("#######"))
+        } else {
+            let year_digits = if year < 1968 {
+                fastrand::u8(0..=1).to_string()
+            } else {
+                date.format("%y").to_string()
+            };
+            format!("{year_digits:0>2}{}", self.numerify(Some("#####")))
+        };
+        let checksum = weighted_digits(&digits, &[2, 7, 6, 5, 4, 3, 2]) + 4 * u16::from(recent);
+        Ok(format!(
+            "{prefix}{digits}{}",
+            char::from(checksum_letters[(checksum % 11) as usize])
+        ))
+    }
+
     /// Samples an identification number for the selected locale.
     pub fn idNumber(&self) -> DatabaseResult<String> {
         match self.locale() {
@@ -858,6 +907,22 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
+        self.try_generate("nric", || self.0.nric(birthDate))
+    }
+
+    pub fn fin(&self, issueDate: Option<NaiveDate>) -> DatabaseResult<String> {
+        self.try_generate("fin", || self.0.fin(issueDate))
+    }
+
+    pub fn singaporeId(
+        &self,
+        issueDate: Option<NaiveDate>,
+        foreigner: bool,
+    ) -> DatabaseResult<String> {
+        self.try_generate("singaporeId", || self.0.singaporeId(issueDate, foreigner))
     }
 
     pub fn idNumber(&self) -> DatabaseResult<String> {

@@ -9503,6 +9503,7 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "en_NG" => &nigerian_ugandan::EN_NG,
         "en_UG" => &nigerian_ugandan::EN_UG,
         "mn_MN" => &MN_MN,
+        "en_SG" => &EN_SG,
         _ => &EN_US,
     }
 }
@@ -10597,6 +10598,7 @@ pub(super) fn surnames(locale: &str) -> Option<&'static [&'static str]> {
         "en_NG" => Some(nigerian_ugandan::EN_NG_SURNAMES),
         "en_UG" => Some(nigerian_ugandan::EN_UG_SURNAMES),
         "mn_MN" => Some(MN_MN_SURNAMES),
+        "en_SG" => Some(&["Doe"]),
         locale => iberian::surnames(locale),
     }
 }
@@ -29255,3 +29257,12 @@ const MN_MN: PersonNames = PersonNames {
 };
 
 const MN_MN_SURNAMES: &[&str] = &["Doe"];
+
+const EN_SG: PersonNames = PersonNames {
+    male: &["John"],
+    female: &["Jane"],
+    male_formats: &["{{firstNameMale}} {{lastName}}"],
+    female_formats: &["{{firstNameFemale}} {{lastName}}"],
+    prefixes: &[],
+    suffixes: &[],
+};
