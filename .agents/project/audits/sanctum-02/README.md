@@ -15,3 +15,11 @@ Rust 1.94.0 格式、启用 `sanctum` 的 618 项工作区测试、全目标严�
 `statefulApi()` 将来源识别放在 API 组的认证之前，匹配 Referer 或 Origin 后才运行 Cookie 加解密、Cookie 队列、Session 和 CSRF。会话 Cookie 使用 HttpOnly 和 SameSite=Lax，XSRF Cookie 保持可供前端读取。Laravel 的可替换中间件配置和 AuthenticateSession 密码变更失效机制仍有差异，后者依赖框架的 Session 中间件交付。Sanctum 的自定义令牌模型、取令牌／验证回调、定期清理命令和 Passport 继续单独跟踪。 [固定 SPA 中间件](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Http/Middleware/EnsureFrontendRequestsAreStateful.php) · [Laravel SPA Authentication](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/sanctum.md#spa-authentication)
 
 Rust 1.94.0 执行 `cargo test --locked --workspace --features sanctum`，报告 621 次通过、0 失败，含测试自行启动的进程夹具。SQLite 与隔离 MySQL 8.4.13 真实 HTTP 覆盖有效、错误、到期、最大年龄、撤销、缺失账户、错误归属、全部／任一能力、最后使用时间和认证事件。匹配来源且启用状态 API 时，实际登录后的会话优先于 Bearer，缺 CSRF 返回 419，带正确 XSRF 头返回 200。未匹配和关闭状态 API 时拒绝会话，第三方 Bearer 正常。实跑应用二进制的 `artisan migrate`、`artisan route:list` 和 `GET /sanctum/csrf-cookie`，路由返回 204 及 XSRF Cookie。Rust 格式、启用 Sanctum 的工作区全目标严格 Clippy、三语示例编译、文档构建与 18 项浏览器检查通过。提交前账户可用窗口剩余 94%，磁盘可用 60 GiB。下一单元为 Sanctum-03 API 安装。
+
+## SPA 密码变更与中间件替换
+
+固定 Sanctum 的 AuthenticateSession 在响应后保存会话守卫的 HMAC，并在后续请求核对。Rust 对当前设备清理登录及记住 Cookie、清空 Session 并返回 401。沿用项目的当前数据契约。前端管道的 Cookie 加密、CSRF 与会话校验可按上游配置键引用应用注册的中间件别名。 [上游会话校验](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Http/Middleware/AuthenticateSession.php) · [上游前端管道](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Http/Middleware/EnsureFrontendRequestsAreStateful.php)
+
+Rust 1.94.0 用专用 MySQL 8.4.13 执行 `sanctum_authentication` 的 `bearer_and_spa_over_http_with_mysql`。真实 HTTP 验证修改密码后旧会话 401、随后 Bearer 可独立认证、默认及替换 CSRF 的拒绝和通过路径。启用 Sanctum 的工作区全目标严格 Clippy 通过。
+
+三語 VitePress 構建及根路徑、`/docs/` 的 12 項瀏覽器檢查通過。

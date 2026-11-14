@@ -52,3 +52,5 @@ fn register() -> Result<(), RoutingError> {
 在 `bootstrap/app.rs` 現有的 `withMiddleware` 閉包呼叫 `middleware.statefulApi();`。以 `SANCTUM_STATEFUL_DOMAINS` 設定以逗號分隔的第一方前端主機，非預設連接埠須一併填寫。使用預設路由設定時，先請求 `GET /sanctum/csrf-cookie`，再經由應用程式的 Web 工作階段登入入口登入。後續 API 請求攜帶 Cookie。需要 CSRF 檢查時，將 URL 解碼後的 `XSRF-TOKEN` Cookie 值放入 `X-XSRF-TOKEN` 請求標頭。
 
 跨來源第一方前端須為指定來源啟用攜帶憑證的 CORS。符合設定的 Referer 或 Origin 會啟用 Session、Cookie 和 CSRF 中介軟體。Sanctum 優先檢查已驗證的工作階段，再檢查 Bearer 權杖。第一方工作階段會通過權杖能力檢查，使用者操作權限由應用程式授權策略決定。
+
+第一方請求成功記錄密碼指紋後，變更密碼會使該工作階段在下次請求時失效。若要替換前端中介軟體，先透過應用程式的 `alias` 方法註冊，再將別名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。

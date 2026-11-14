@@ -17,13 +17,13 @@ impl StatefulFrontend {
 
 pub(crate) struct EnsureFrontendRequestsAreStateful {
     patterns: Vec<String>,
-    stack: [Arc<dyn Middleware>; 4],
+    stack: Vec<Arc<dyn Middleware>>,
 }
 
 impl EnsureFrontendRequestsAreStateful {
     pub(crate) fn new(
         config: &dyn Repository,
-        stack: [Arc<dyn Middleware>; 4],
+        stack: Vec<Arc<dyn Middleware>>,
     ) -> Result<Self, ConfigError> {
         let domains = match config.get("sanctum.stateful") {
             Some(Value::Array(values)) => values

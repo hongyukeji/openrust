@@ -11,7 +11,7 @@ use openrust::{
         config::Repository,
         container::Container as _,
         foundation::Application as _,
-        http::Kernel as _,
+        http::{Kernel as _, Middleware},
     },
     database::{
         DatabaseManager,
@@ -19,7 +19,7 @@ use openrust::{
     },
     events::Dispatcher,
     foundation::{Application, configuration::Routing, http::Kernel},
-    http::{HttpError, HttpFuture, Method, Request, Response, StatusCode},
+    http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     sanctum::{AccessToken, PersonalAccessTokens, TokenAuthenticated},
     support::facades::{Auth, Route},
@@ -29,6 +29,24 @@ use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 struct User(ModelState);
+
+struct CustomCsrf;
+
+impl Middleware for CustomCsrf {
+    fn handle<'a>(
+        &'a self,
+        request: &'a mut Request,
+        next: Next<'a>,
+    ) -> HttpFuture<'a, Result<Response, HttpError>> {
+        Box::pin(async move {
+            if request.method() == Method::POST && !request.headers().contains_key("x-custom-csrf")
+            {
+                return Ok(Response::empty(StatusCode::IM_A_TEAPOT));
+            }
+            Ok(next.run(request).await)
+        })
+    }
+}
 
 impl Model for User {
     fn metadata() -> &'static ModelMetadata {
@@ -57,7 +75,10 @@ impl Authenticatable for User {
         "password"
     }
     fn get_auth_password(&self) -> Option<&str> {
-        None
+        match self.getAttribute("password") {
+            Some(openrust::database::Value::Text(password)) => Some(password),
+            _ => None,
+        }
     }
     fn get_remember_token(&self) -> Option<&str> {
         None
@@ -161,13 +182,19 @@ fn xsrf_header(cookie: &str) -> String {
         .into_owned()
 }
 
-async fn verify(database: Value, stateful: bool) {
+async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     let root = tempfile::tempdir().unwrap();
+    if custom_csrf {
+        std::fs::write(root.path().join("custom-csrf"), "").unwrap();
+    }
     let mut app = Application::configure(root.path().to_path_buf())
-        .withConfig(|_, _| Ok([
+        .withConfig(|root, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
             ("session".into(), json!({"driver":"array","cookie":"sanctum_test","lottery":[0,100],"same_site":"strict","http_only":false})),
-            ("sanctum".into(), json!({"stateful":["spa.example:8443"],"expiration":5})),
+            ("sanctum".into(), json!({"stateful":["spa.example:8443"],"expiration":5,
+                "middleware": if root.join("custom-csrf").is_file() {
+                    json!({"validate_csrf_token":"custom-csrf"})
+                } else { json!({}) }})),
             ("auth".into(), json!({
                 "guards":{"web":{"driver":"session","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"SanctumUser"}}
@@ -175,6 +202,7 @@ async fn verify(database: Value, stateful: bool) {
         ].into()))
         .withMiddleware(move |middleware| {
             if stateful { middleware.statefulApi(); }
+            middleware.alias("custom-csrf", Arc::new(CustomCsrf));
         })
         .withRouting(Routing::default().api(api).web(web))
         .create().unwrap();
@@ -197,12 +225,18 @@ async fn verify(database: Value, stateful: bool) {
     db.statement("DROP TABLE IF EXISTS sanctum_users", &[])
         .await
         .unwrap();
-    db.statement("CREATE TABLE sanctum_users (id BIGINT PRIMARY KEY)", &[])
-        .await
-        .unwrap();
-    db.statement("INSERT INTO sanctum_users VALUES (1), (2)", &[])
-        .await
-        .unwrap();
+    db.statement(
+        "CREATE TABLE sanctum_users (id BIGINT PRIMARY KEY, password VARCHAR(255) NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        "INSERT INTO sanctum_users VALUES (1, 'first-hash'), (2, 'old-hash')",
+        &[],
+    )
+    .await
+    .unwrap();
     let mut schema = db.getSchemaBuilder();
     schema.dropIfExists("personal_access_tokens").await.unwrap();
     schema
@@ -369,13 +403,18 @@ async fn verify(database: Value, stateful: bool) {
             response.json::<Value>().await.unwrap(),
             json!({"user":2,"token":"session"})
         );
+        let (missing_status, header_name, header_value) = if custom_csrf {
+            (418, "X-CUSTOM-CSRF", "yes".to_owned())
+        } else {
+            (419, "X-XSRF-TOKEN", xsrf_header(&login_xsrf))
+        };
         assert_eq!(
             send(reqwest::Method::POST).send().await.unwrap().status(),
-            419
+            missing_status
         );
         assert_eq!(
             send(reqwest::Method::POST)
-                .header("X-XSRF-TOKEN", xsrf_header(&login_xsrf))
+                .header(header_name, header_value)
                 .send()
                 .await
                 .unwrap()
@@ -391,6 +430,36 @@ async fn verify(database: Value, stateful: bool) {
                 .unwrap()
                 .status(),
             200
+        );
+        db.statement(
+            "UPDATE sanctum_users SET password = 'new-hash' WHERE id = 2",
+            &[],
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            send(reqwest::Method::GET)
+                .bearer_auth(read.plain_text_token.as_str())
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            401
+        );
+        assert_eq!(
+            send(reqwest::Method::GET).send().await.unwrap().status(),
+            401
+        );
+        assert_eq!(
+            send(reqwest::Method::GET)
+                .bearer_auth(read.plain_text_token.as_str())
+                .send()
+                .await
+                .unwrap()
+                .json::<Value>()
+                .await
+                .unwrap()["user"],
+            1
         );
     } else {
         assert_eq!(response.json::<Value>().await.unwrap()["user"], 1);
@@ -440,7 +509,12 @@ async fn verify(database: Value, stateful: bool) {
 #[tokio::test]
 async fn bearer_and_opt_in_spa_over_http_with_sqlite() {
     for stateful in [true, false] {
-        verify(json!({"driver":"sqlite","database":":memory:"}), stateful).await;
+        verify(
+            json!({"driver":"sqlite","database":":memory:"}),
+            stateful,
+            false,
+        )
+        .await;
     }
 }
 
@@ -450,5 +524,7 @@ async fn bearer_and_spa_over_http_with_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_SANCTUM_MYSQL").is_none());
         return;
     };
-    verify(json!({"url":url}), true).await;
+    for custom_csrf in [false, true] {
+        verify(json!({"url":url}), true, custom_csrf).await;
+    }
 }

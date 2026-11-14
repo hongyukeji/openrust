@@ -5,9 +5,11 @@ mod personal_access_token;
 pub use personal_access_token::{NewAccessToken, PersonalAccessToken, PersonalAccessTokens};
 
 mod abilities;
+mod authenticate_session;
 mod ensure_frontend_requests_are_stateful;
 mod guard;
 pub use abilities::{CheckAbilities, CheckForAnyAbility};
+pub use authenticate_session::AuthenticateSession;
 pub(crate) use ensure_frontend_requests_are_stateful::{
     EnsureFrontendRequestsAreStateful, StatefulFrontend,
 };

@@ -334,6 +334,10 @@ impl<'a> SessionGuard<'a> {
                 .update_remember_token(user.as_mut(), &random_token()?)
                 .await?;
         }
+        self.logoutCurrentDevice()
+    }
+
+    pub fn logoutCurrentDevice(&mut self) -> AuthResult<()> {
         let key = self.session_key.clone();
         self.session()?.forget(&[&key]);
         if self.request.cookie_is_protected(&self.recaller) {

@@ -153,6 +153,11 @@ impl AuthManager {
     }
 
     #[cfg(feature = "sanctum")]
+    pub(crate) fn resolved_user(request: &Request, name: &str) -> Option<Arc<dyn Authenticatable>> {
+        AuthContext::state(request, name)?.user.clone()
+    }
+
+    #[cfg(feature = "sanctum")]
     pub(crate) fn selected_guard(request: &Request) -> Option<&str> {
         AuthContext::get(request)?.selected.as_deref()
     }

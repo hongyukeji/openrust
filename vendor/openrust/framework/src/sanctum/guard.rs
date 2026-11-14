@@ -28,29 +28,7 @@ pub(crate) struct Guard {
 
 impl Guard {
     pub(crate) fn new(name: String, config: &dyn Repository, guard: &Value) -> AuthResult<Self> {
-        let session_guards = match config.get("sanctum.guard") {
-            None if config.get("auth.guards.web").is_some() => vec!["web".to_owned()],
-            None => Vec::new(),
-            Some(Value::String(name)) => vec![name],
-            Some(Value::Array(names)) => names
-                .into_iter()
-                .map(|name| match name {
-                    Value::String(name) => Ok(name),
-                    _ => Err(AuthError::Configuration("sanctum.guard")),
-                })
-                .collect::<AuthResult<_>>()?,
-            _ => return Err(AuthError::Configuration("sanctum.guard")),
-        };
-        for name in &session_guards {
-            if config
-                .get(&format!("auth.guards.{name}.driver"))
-                .as_ref()
-                .and_then(Value::as_str)
-                != Some("session")
-            {
-                return Err(AuthError::Configuration("sanctum session guard"));
-            }
-        }
+        let session_guards = session_guards(config)?;
         let provider = guard
             .get("provider")
             .and_then(Value::as_str)
@@ -168,4 +146,31 @@ impl Guard {
         RequestTokens::insert(request, &self.name, AccessToken::Personal(token));
         Ok(Some(Arc::from(user)))
     }
+}
+
+pub(super) fn session_guards(config: &dyn Repository) -> AuthResult<Vec<String>> {
+    let guards = match config.get("sanctum.guard") {
+        None if config.get("auth.guards.web").is_some() => vec!["web".to_owned()],
+        None => Vec::new(),
+        Some(Value::String(name)) => vec![name],
+        Some(Value::Array(names)) => names
+            .into_iter()
+            .map(|name| match name {
+                Value::String(name) => Ok(name),
+                _ => Err(AuthError::Configuration("sanctum.guard")),
+            })
+            .collect::<AuthResult<_>>()?,
+        _ => return Err(AuthError::Configuration("sanctum.guard")),
+    };
+    for name in &guards {
+        if config
+            .get(&format!("auth.guards.{name}.driver"))
+            .as_ref()
+            .and_then(Value::as_str)
+            != Some("session")
+        {
+            return Err(AuthError::Configuration("sanctum session guard"));
+        }
+    }
+    Ok(guards)
 }

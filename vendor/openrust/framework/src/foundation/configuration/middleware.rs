@@ -201,7 +201,7 @@ impl Middleware {
 
     #[cfg(feature = "sanctum")]
     fn configure_stateful_api(&mut self, config: &dyn Repository) -> Result<(), ConfigError> {
-        use crate::sanctum::EnsureFrontendRequestsAreStateful;
+        use crate::sanctum::{AuthenticateSession, EnsureFrontendRequestsAreStateful};
         if !self.stateful_api {
             return Ok(());
         }
@@ -219,17 +219,60 @@ impl Middleware {
                 expected: "a session driver and encrypted session and XSRF cookies for stateful API requests",
             });
         }
-        let middleware = EnsureFrontendRequestsAreStateful::new(
-            config,
-            [
-                Arc::new(EncryptCookies::for_application(
-                    self.cookie_exceptions.clone(),
-                )),
-                Arc::new(AddQueuedCookiesToResponse),
-                Arc::new(StartSession),
-                Arc::new(self.csrf.clone()),
-            ],
-        )?;
+        let replacement = |key: &str,
+                           value: Option<Value>|
+         -> Result<Option<Arc<dyn HttpMiddleware>>, ConfigError> {
+            match value {
+                None | Some(Value::Null | Value::Bool(false)) => Ok(None),
+                Some(Value::String(alias)) if self.registry.aliases.contains_key(&alias) => {
+                    Ok(self.registry.aliases.get(&alias).cloned())
+                }
+                _ => Err(ConfigError::InvalidType {
+                    key: key.into(),
+                    expected: "a registered middleware alias, null, or false",
+                }),
+            }
+        };
+        let encrypt = "sanctum.middleware.encrypt_cookies";
+        let csrf = "sanctum.middleware.validate_csrf_token";
+        let authenticate = "sanctum.middleware.authenticate_session";
+        let session = match config.get(authenticate) {
+            None => Some(Arc::new(AuthenticateSession::new(config).map_err(|_| {
+                ConfigError::InvalidType {
+                    key: "sanctum.guard".into(),
+                    expected: "configured session guard names",
+                }
+            })?) as Arc<dyn HttpMiddleware>),
+            value => replacement(authenticate, value)?,
+        };
+        let mut stack = Vec::new();
+        let encrypt_cookies = match config.get(encrypt) {
+            None => Some(Arc::new(EncryptCookies::for_application(
+                self.cookie_exceptions.clone(),
+            )) as Arc<dyn HttpMiddleware>),
+            value => replacement(encrypt, value)?,
+        };
+        let validate_csrf = match config
+            .get(csrf)
+            .or_else(|| config.get("sanctum.middleware.verify_csrf_token"))
+        {
+            None => Some(Arc::new(self.csrf.clone()) as Arc<dyn HttpMiddleware>),
+            value => replacement(csrf, value)?,
+        };
+        stack.extend(encrypt_cookies);
+        stack.push(Arc::new(AddQueuedCookiesToResponse));
+        stack.push(Arc::new(StartSession));
+        stack.extend(validate_csrf);
+        stack.extend(session);
+        let mut seen = Vec::new();
+        stack.retain(|item| {
+            if seen.iter().any(|previous| Arc::ptr_eq(previous, item)) {
+                return false;
+            }
+            seen.push(item.clone());
+            true
+        });
+        let middleware = EnsureFrontendRequestsAreStateful::new(config, stack)?;
         self.registry
             .groups
             .entry("api".into())
