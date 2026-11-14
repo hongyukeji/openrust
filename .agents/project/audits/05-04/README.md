@@ -356,3 +356,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `0dbdc71b`。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证初始属性和闭包先于配置、调用状态可覆盖、直接构造不执行工厂定义并遵守 fillable、零数量无写入以及两条批次落库回查。Rust 1.94.0 格式、工作区全目标严格 Clippy、27 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 及 6 项浏览器检查通过。
 
 清理本批隔离副本 2.2 GiB Cargo 产物与约 37 MiB 站点产物。下一批核对固定 Laravel 的模型反查工厂入口及 `raw` 操作的临时状态参数。
+
+## 从模型获取工厂与原始属性临时状态
+
+固定 Laravel 的 `factoryForModel` 通过类名查找并新建工厂，Rust 用 `Factory::<Model>::factoryForModel()` 复用 `HasFactory` 的编译期绑定。运行时工厂命名空间与类名推断由显式类型绑定表达。`rawWith` 与 `rawWithState` 对应 Laravel `raw` 的属性或闭包参数。状态仅在本次调用追加，对每行执行于关系展开前。已有无参调用与选定连接的入口均保留。固定 Laravel 另有可选的父模型参数，供状态回调读取。现有公开 `raw` 系列暂无该参数。旧版和固定 Goravel 未发现等价公开入口。 [Laravel raw](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L247) · [Laravel factoryForModel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L1026) · [Laravel 工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L230) · [固定 Goravel 工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `43ae01c1`。MySQL 8.4.13 应用二进制 `artisan db:seed --database=mysql --force` 验证工厂绑定、覆盖只影响当次调用、批次闭包读取先前状态、显式 null 跳过父工厂、需要解析时只生成一个父模型、空批次跳过状态和定义。Rust 1.94.0 格式、工作区全目标严格 Clippy、28 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+本批隔离副本清理 2.2 GiB Cargo 产物及约 38 MiB 站点产物。项目磁盘可用 87 GiB。

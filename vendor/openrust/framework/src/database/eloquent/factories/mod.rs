@@ -402,6 +402,14 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Builds the factory explicitly bound to this model by the application.
+    pub fn factoryForModel() -> Self
+    where
+        M: HasFactory,
+    {
+        M::factory()
+    }
+
     /// The Rust type name of the model bound to this factory.
     pub fn modelName(&self) -> &'static str {
         type_name::<M>()
@@ -1152,7 +1160,38 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Attributes> {
-        self.raw_attributes(connection, 0, &std::sync::OnceLock::new())
+        self.rawWithStateOn(connection, |_| Attributes::new()).await
+    }
+
+    /// Expands raw attributes with a one-time override after the configured states.
+    pub async fn rawWith(&self, attributes: Attributes) -> DatabaseResult<Attributes> {
+        self.rawWithOn(&self.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn rawWithOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<Attributes> {
+        self.rawWithStateOn(connection, |_| attributes).await
+    }
+
+    /// Computes the last state from the accumulated attributes before expansion.
+    pub async fn rawWithState(
+        &self,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Attributes> {
+        self.rawWithStateOn(&self.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn rawWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Attributes> {
+        self.raw_attributes(connection, 0, &std::sync::OnceLock::new(), state)
             .await
     }
 
@@ -1161,8 +1200,11 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         index: usize,
         faker: &std::sync::OnceLock<Faker>,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
         let mut pending = self.prepare_attributes(connection, index, None, faker)?;
+        let attributes = state(&pending.values);
+        pending.values.extend(attributes);
         self.resolve_attributes(connection, &self.recycled, &mut pending)
             .await?;
         let mut expanded = pending.model.state().attributes.clone();
@@ -1571,12 +1613,44 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
+        self.rawWithStateOn(connection, |_| Attributes::new()).await
+    }
+
+    /// Expands each row with a one-time override after the configured states.
+    pub async fn rawWith(&self, attributes: Attributes) -> DatabaseResult<Vec<Attributes>> {
+        self.rawWithOn(&self.factory.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn rawWithOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        self.rawWithStateOn(connection, |_| attributes.clone())
+            .await
+    }
+
+    /// Computes the last state separately for each row before expansion.
+    pub async fn rawWithState(
+        &self,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        self.rawWithStateOn(&self.factory.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn rawWithStateOn(
+        &self,
+        connection: &Connection,
+        mut state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Vec<Attributes>> {
         let faker = std::sync::OnceLock::new();
         let mut records = Vec::with_capacity(self.count);
         for index in 0..self.count {
             records.push(
                 self.factory
-                    .raw_attributes(connection, index, &faker)
+                    .raw_attributes(connection, index, &faker, &mut state)
                     .await?,
             );
         }

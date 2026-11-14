@@ -69,6 +69,7 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 ```
 
 Use `FlightFactory::new(attributes)` or `FlightFactory::newWithState(callback)` to register the initial state before `configure`. `FlightFactory::times(2)` starts a configured batch of two. On either builder, `modelName()` returns the bound Rust type name. `newModel(attributes)` constructs an unsaved model using its normal mass-assignment rules, without evaluating the factory definition or states.
+Use `Factory::<Flight>::factoryForModel()` to obtain the factory bound by the model’s `HasFactory` implementation. The binding is explicit and uses the compiled model type.
 
 ### Localized Fake Data {#localized-fake-data}
 
@@ -268,6 +269,18 @@ Use `prependState` to run a transformation before all currently registered state
 For a counted batch, all models are constructed before `afterMaking` runs. `create` then saves each model and its declared relations. The batch runs `afterCreating` after those writes finish. If `afterMaking` fails, the batch itself has yet to be saved. Owner factories resolved during construction may already have written records.
 
 Use `raw()` or `rawOn(connection)` to get expanded attributes before model setters and casts. A counted factory returns a vector of attribute maps. Raw expansion skips the target factory’s callbacks and child relationships. It can still persist a declared parent to resolve its key. Use `createQuietly()` or `createQuietlyOn(connection)` to persist models and relationships while suppressing Eloquent model events. Factory callbacks still run.
+
+Use `rawWith(attributes)` or `rawWithState(callback)` to append a state for one call. The callback receives the accumulated attributes for each row before relationship keys are resolved. A foreign-key override, including null, skips resolution for that key. Use the corresponding `On` methods to select a connection.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
+
+async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
+    Factory::<M>::factoryForModel()
+        .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+        .await
+}
+```
 
 Use `createOne(attributes)` to create one model even on a counted factory. Use `createMany(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `createOneQuietly` and `createManyQuietly` to suppress model events, or the corresponding `On` methods to select a connection.
 

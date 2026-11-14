@@ -69,6 +69,7 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 ```
 
 用 `FlightFactory::new(attributes)` 或 `FlightFactory::newWithState(callback)` 在 `configure` 之前登记初始状态。`FlightFactory::times(2)` 创建配置好的两条批次。单条和批量构建器的 `modelName()` 返回绑定的 Rust 类型名。`newModel(attributes)` 按模型的批量赋值规则构造未保存的模型，不执行工厂定义和状态。
+用 `Factory::<Flight>::factoryForModel()` 取得模型通过 `HasFactory` 绑定的工厂。绑定以编译期模型类型为准。
 
 ### 本地化测试数据 {#localized-fake-data}
 
@@ -268,6 +269,18 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 批量工厂先构造全部模型，再运行 `afterMaking`。`create` 逐个保存模型及其声明的关系，写入完成后才运行该批次的 `afterCreating`。`afterMaking` 失败时，该批模型尚未写入，构造期间解析的上级工厂可能已写入记录。
 
 使用 `raw()` 或 `rawOn(connection)` 获取应用模型修改器和转换前的展开属性。指定数量时返回属性映射列表。原始属性展开跳过目标工厂的回调和子关系，仍可能保存声明的上级以解析关联键。使用 `createQuietly()` 或 `createQuietlyOn(connection)` 可保存模型及关系，同时抑制 Eloquent 模型事件。工厂回调照常执行。
+
+用 `rawWith(attributes)` 或 `rawWithState(callback)` 追加仅本次生效的状态。闭包接收每条记录在解析关系键前的属性。覆盖外键时会跳过该键的解析，包括显式设为 null。对应的 `On` 方法可指定连接。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
+
+async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
+    Factory::<M>::factoryForModel()
+        .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+        .await
+}
+```
 
 用 `createOne(attributes)` 创建单个模型，即使工厂已指定批次数量。用 `createMany(records)` 逐条按顺序创建。传入 `FactoryRecords::Default` 使用工厂数量，未指定时创建一条。传入 `FactoryRecords::Count(n)` 指定数量，或用 `FactoryRecords::Attributes(vec![…])` 为每条记录指定覆盖属性。覆盖值在工厂状态之后应用。每条记录完成两个工厂回调后才开始下一条。后续记录失败时，先前写入可能保留。用 `createOneQuietly` 和 `createManyQuietly` 抑制模型事件，或用对应的 `On` 方法指定连接。
 

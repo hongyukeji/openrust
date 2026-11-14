@@ -3416,3 +3416,81 @@ async fn named_factory_shortcuts_preserve_configuration_and_model_construction()
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+async fn verify_factory_raw_overrides(connection: &Connection) -> DatabaseResult<()> {
+    let factory = Factory::<FactoryChild>::factoryForModel();
+    assert_eq!(
+        factory.rawOn(connection).await?["label"],
+        "configured".into()
+    );
+    let overrides = Attributes::from([("label".into(), "temporary".into())]);
+    assert_eq!(
+        factory.rawWithOn(connection, overrides.clone()).await?["label"],
+        "temporary".into()
+    );
+    let raw = factory
+        .rawWithStateOn(connection, |attributes| {
+            assert_eq!(attributes["label"], "configured".into());
+            overrides.clone()
+        })
+        .await?;
+    assert_eq!(raw["label"], "temporary".into());
+    assert_eq!(
+        factory.rawOn(connection).await?["label"],
+        "configured".into()
+    );
+
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    let batch = Factory::<ExpansionChild>::new(Attributes::new)
+        .r#for(
+            BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
+            Factory::<ExpansionOwner>::new(Attributes::new),
+        )
+        .afterMaking(|_| panic!("raw invoked afterMaking"))
+        .sequence(|index| Attributes::from([("position".into(), index.to_string().into())]))
+        .count(2);
+    let rows = batch
+        .rawWithStateOn(connection, |attributes| {
+            assert!(attributes.contains_key("position"));
+            Attributes::from([("owner_id".into(), Value::Null)])
+        })
+        .await?;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["position"], "0".into());
+    assert_eq!(rows[1]["position"], "1".into());
+    assert!(rows.iter().all(|row| row["owner_id"] == Value::Null));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 0);
+
+    let rows = batch.rawWithOn(connection, overrides).await?;
+    assert_eq!(rows[0]["owner_id"], rows[1]["owner_id"]);
+    assert!(rows.iter().all(|row| row["label"] == "temporary".into()));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+    assert_eq!(batch.rawOn(connection).await?[0].get("label"), None);
+    let empty = Factory::<ExpansionChild>::new(|| panic!("empty batch evaluated definition"))
+        .count(0)
+        .rawWithStateOn(connection, |_| panic!("empty batch evaluated state"))
+        .await?;
+    assert!(empty.is_empty());
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_raw_overrides_are_temporary_and_resolve_parents_after_state() {
+    let root = Root::new();
+    verify_factory_raw_overrides(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_factory_raw_overrides(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
