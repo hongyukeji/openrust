@@ -11,7 +11,7 @@ use openrust::{
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState, NamedRelations,
             factories::{Factory, FactoryRecords},
-            relations::{BelongsTo, BelongsToMany, HasMany, Pivot, Relation},
+            relations::{BelongsTo, BelongsToMany, HasMany, HasOne, Pivot, Relation},
         },
     },
 };
@@ -22,9 +22,11 @@ struct Entry(ModelState);
 
 impl Model for Author {
     fn namedRelations() -> NamedRelations<Self> {
-        NamedRelations::default().nested("entries", || {
-            HasMany::<Author, Entry>::new("id", "author_id")
-        })
+        NamedRelations::default()
+            .nested("entries", || {
+                HasMany::<Author, Entry>::new("id", "author_id")
+            })
+            .nested("entry", || HasOne::<Author, Entry>::new("id", "author_id"))
     }
 
     fn automaticallyEagerLoadRelationships() -> bool {
@@ -175,14 +177,14 @@ async fn verify(config: Json, id: &str) {
     let author_id = author.getKey().cloned();
     let entry = entries()
         .count(1)
-        .forExistingNamed::<_, BelongsTo<Entry, Author>>("author", author)
+        .forExistingInferred::<_, BelongsTo<Entry, Author>>(author)
         .createOneOn(&connection, Attributes::new())
         .await
         .unwrap();
     assert_eq!(entry.getAttribute("author_id"), author_id.as_ref());
     let entry = entries()
         .count(1)
-        .r#for(BelongsTo::new("author_id", "id"), authors())
+        .forInferred::<_, BelongsTo<Entry, Author>>(authors())
         .createOneOn(&connection, Attributes::new())
         .await
         .unwrap();
@@ -361,11 +363,22 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     let named = authors()
         .count(2)
-        .hasNamed::<_, HasMany<Author, Entry>>("entries", entries())
+        .hasInferred::<_, HasMany<Author, Entry>>(entries())
         .createOn(&connection)
         .await
         .unwrap();
     assert_eq!(named.len(), 2);
+    for owner in named.iter() {
+        assert_eq!(
+            connection
+                .table("factory_entries")
+                .r#where("author_id", "=", owner.getKey().unwrap().clone())
+                .count("*")
+                .await
+                .unwrap(),
+            1,
+        );
+    }
     let owner = authors()
         .hasNamed::<_, HasMany<Author, Entry>>("entries", entries().count(0))
         .createOn(&connection)

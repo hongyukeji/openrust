@@ -93,6 +93,10 @@ impl<M: Model> Default for NamedRelations<M> {
 }
 
 impl<M: Model> NamedRelations<M> {
+    pub(super) fn contains(&self, name: &str) -> bool {
+        self.0.contains_key(name)
+    }
+
     pub(super) fn factory_descriptor<R: Relation<Parent = M>>(
         &self,
         name: &str,

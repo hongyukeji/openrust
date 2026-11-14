@@ -1503,6 +1503,29 @@ Child factories apply relation query defaults after the definition and before ex
 
 Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors. Use `forExistingNamed` to associate an existing owner through a registered relationship.
 
+Use `hasInferred` when a relationship follows the related Rust model’s name. It tries the plural camel-case name first and falls back to the singular when the plural is absent from the model’s registered relationships. `hasAttachedInferred` uses the plural name. `forInferred` and `forExistingInferred` use the owner’s camel-case name. The descriptor type is explicit. For a custom relationship name, use the corresponding named method.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::HasMany},
+    seeder::SeederContext,
+};
+
+async fn seed_inferred_children<P: Model, C: Model>(
+    context: &SeederContext<'_>,
+    parents: Factory<P>,
+    children: Factory<C>,
+) -> DatabaseResult<()> {
+    parents
+        .count(2)
+        .hasInferred::<_, HasMany<P, C>>(children)
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
 ```rust
 use openrust::database::{
     DatabaseResult,

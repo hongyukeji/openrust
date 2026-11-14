@@ -16,7 +16,7 @@ use crate::{
     database::{
         Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
     },
-    support::calendar,
+    support::{Str, calendar},
 };
 
 use super::{
@@ -709,6 +709,21 @@ impl<M: Model> Factory<M> {
         )
     }
 
+    /// Infers a child relationship from the related model type.
+    #[must_use]
+    pub fn hasInferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+        self,
+        children: impl Into<FactoryChildren<R>>,
+    ) -> Self {
+        let plural = inferred_relation_name::<R>(2);
+        let name = if M::namedRelations().contains(&plural) {
+            plural
+        } else {
+            pluralizer::pluralize(&plural, 1, false)
+        };
+        self.hasNamed::<R, D>(name, children)
+    }
+
     fn has_resolved<R: Model, D: FactoryChild<M, R>>(
         mut self,
         relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
@@ -785,6 +800,15 @@ impl<M: Model> Factory<M> {
             move |model| named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation)),
             owner,
         )
+    }
+
+    /// Infers the owner relationship from the owner model type.
+    #[must_use]
+    pub fn forInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        owner: Factory<R>,
+    ) -> Self {
+        self.forNamed::<R, D>(inferred_relation_name::<R>(1), owner)
     }
 
     fn for_resolved<R: Model, D: FactoryParent<M, R>>(
@@ -994,6 +1018,15 @@ impl<M: Model> Factory<M> {
         )
     }
 
+    /// Infers the relationship to an existing owner from its model type.
+    #[must_use]
+    pub fn forExistingInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        owner: R,
+    ) -> Self {
+        self.forExistingNamed::<R, D>(inferred_relation_name::<R>(1), owner)
+    }
+
     fn for_existing_resolved<R: Model, D: FactoryParent<M, R>>(
         mut self,
         relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
@@ -1055,6 +1088,16 @@ impl<M: Model> Factory<M> {
             pivot.into(),
             Some(name),
         )
+    }
+
+    /// Infers the plural attachment relationship from the related model type.
+    #[must_use]
+    pub fn hasAttachedInferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+        self,
+        models: impl Into<FactoryAttachment<R>>,
+        pivot: impl Into<FactoryPivot<M>>,
+    ) -> Self {
+        self.hasAttachedNamed::<R, D>(inferred_relation_name::<R>(2), models, pivot)
     }
 
     fn has_attached_resolved<R: Model>(
@@ -1746,6 +1789,16 @@ impl<M: Model> Factory<M> {
     }
 }
 
+fn inferred_relation_name<R: Model>(count: isize) -> String {
+    let name = type_name::<R>().split('<').next().expect("model type name");
+    let basename = name.rsplit("::").next().expect("model type basename");
+    if count == 1 {
+        Str::camel(basename)
+    } else {
+        Str::camel(&pluralizer::pluralize(basename, count, false))
+    }
+}
+
 fn named_descriptor<M: Model, D: Relation<Parent = M>>(model: &M, name: &str) -> DatabaseResult<D> {
     match super::dynamic_relations::RelationResolvers::resolve(model, name)? {
         Some(descriptor) => Ok(descriptor),
@@ -1875,6 +1928,43 @@ impl<M: Model> FactoryBatch<M> {
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         self.map_factory(|factory| factory.hasAttachedNamed::<R, D>(name, models, pivot))
+    }
+
+    /// Infers a child relationship from the related model type.
+    #[must_use]
+    pub fn hasInferred<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+        self,
+        children: impl Into<FactoryChildren<R>>,
+    ) -> Self {
+        self.map_factory(|factory| factory.hasInferred::<R, D>(children))
+    }
+
+    /// Infers the owner relationship from the owner model type.
+    #[must_use]
+    pub fn forInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        owner: Factory<R>,
+    ) -> Self {
+        self.map_factory(|factory| factory.forInferred::<R, D>(owner))
+    }
+
+    /// Infers the relationship to an existing owner from its model type.
+    #[must_use]
+    pub fn forExistingInferred<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        owner: R,
+    ) -> Self {
+        self.map_factory(|factory| factory.forExistingInferred::<R, D>(owner))
+    }
+
+    /// Infers the plural attachment relationship from the related model type.
+    #[must_use]
+    pub fn hasAttachedInferred<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+        self,
+        models: impl Into<FactoryAttachment<R>>,
+        pivot: impl Into<FactoryPivot<M>>,
+    ) -> Self {
+        self.map_factory(|factory| factory.hasAttachedInferred::<R, D>(models, pivot))
     }
 
     #[must_use]

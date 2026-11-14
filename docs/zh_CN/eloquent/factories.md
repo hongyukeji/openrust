@@ -1503,6 +1503,29 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名称解析关系。工厂使用 `Model::namedRelations` 或应用 `resolveRelationUsing` 登记的描述符。显式传入 Rust 描述符类型，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名称不存在或类型不匹配时返回错误。 使用 `forExistingNamed` 通过已注册的关系名关联已有父模型。
 
+当关系遵循相关 Rust 模型的命名时，可用 `hasInferred`。它先查找小驼峰复数关系，模型未注册该复数名称时回退到单数。`hasAttachedInferred` 使用复数，`forInferred` 和 `forExistingInferred` 使用父模型的小驼峰名称。关系描述符仍显式指定。自定义关系名使用对应的命名方法。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::HasMany},
+    seeder::SeederContext,
+};
+
+async fn seed_inferred_children<P: Model, C: Model>(
+    context: &SeederContext<'_>,
+    parents: Factory<P>,
+    children: Factory<C>,
+) -> DatabaseResult<()> {
+    parents
+        .count(2)
+        .hasInferred::<_, HasMany<P, C>>(children)
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
 ```rust
 use openrust::database::{
     DatabaseResult,

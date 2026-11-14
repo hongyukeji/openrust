@@ -1292,3 +1292,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `dda7fb61`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，运行三语共用示例并核对最终四条父记录、五条子记录。覆盖父批次逐个生成单条子记录、显式零数量、按名称复用父键，以及无效关系名失败且无额外子记录。MySQL／SQLite 两项工厂回归验证单条路径跳过批量集合钩子，显式数量仍走批量路径。
 
 76 项 Faker、49 项 Seeder、两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、六段三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，MySQL 容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。工厂与 Seeder 整单元继续复核默认关系推断和未核定的 Faker formatter。
+
+## 工厂默认关系名推断
+
+对应固定 Laravel 的[工厂关系](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-relationships)和 [Factory::guessRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L714)。`hasInferred` 按相关模型名生成小驼峰复数名，模型注册该名称时优先选用，否则回退到单数。`hasAttachedInferred` 采用复数，`forInferred` 与 `forExistingInferred` 采用父模型的小驼峰名。Rust 复用当前英文复数器与关系注册表，保留显式描述符类型，并通过现有命名解析处理描述符不匹配和自定义关系。固定 Goravel 的类型化工厂装配无需改动，v0.x 无 Eloquent 关系名推断实现。
+
+隔离基线 `810e10e4`。MySQL 8.4.13 的真实应用二进制运行 `artisan db:seed --database=mysql --force`，回读九条父模型、十条子模型和一条 Pivot 记录。覆盖三语共用示例、复数子关系、单数回退、新建和复用父模型、推断多对多关系。MySQL／SQLite 工厂回归额外验证模型同时注册单数和复数时优先复数。真实 Seeder 复验按数据库外键查询比较键值，涵盖有符号和无符号字段返回类型。
+
+76 项 Faker、49 项 Seeder、两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原 Seeder 已恢复，容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 仍需对账剩余 Faker formatter，尤其是使用 fake-rs 词表的城市与街道等 Address 项。
