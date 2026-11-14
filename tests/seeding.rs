@@ -17,6 +17,7 @@ use openrust::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState, NamedRelations,
+            concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             factories::{Factory, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
@@ -180,6 +181,26 @@ factory_model!(
 );
 
 struct PolymorphicFactories;
+
+struct CancelFactoryChild;
+
+impl ModelEventListener<FactoryChild> for CancelFactoryChild {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        model: &'a mut FactoryChild,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            if model.getAttribute("generated_name") == Some(&"quiet-fixture".into()) {
+                Ok(ModelEventResponse::Cancel)
+            } else {
+                Ok(ModelEventResponse::Continue)
+            }
+        })
+    }
+}
+
 impl Seeder for PolymorphicFactories {
     fn run<'a>(
         &'a self,
@@ -188,6 +209,67 @@ impl Seeder for PolymorphicFactories {
         Box::pin(async {
             let connection = context.connection();
             assert_eq!(connection.getName(), "alternate");
+            let quiet = || {
+                Factory::<FactoryChild>::new(|| {
+                    Attributes::from([("generated_name".into(), "quiet-fixture".into())])
+                })
+                .afterMaking(|_| Err(DatabaseError::InvalidQuery("raw invoked callback")))
+            };
+            let records = quiet()
+                .sequence(|index| Attributes::from([("index".into(), index.to_string().into())]))
+                .count(2)
+                .rawOn(connection)
+                .await?;
+            assert_eq!(records[0]["generated_name"], "quiet-fixture".into());
+            assert_eq!(records[1]["index"], "1".into());
+            assert!(quiet().count(0).rawOn(connection).await?.is_empty());
+            let expanded = quiet()
+                .r#for(
+                    MorphTo::<FactoryChild>::new("owner_type", "owner_id")
+                        .target::<FactoryOwner>("seed-owner", "id"),
+                    Factory::<FactoryOwner>::new(Attributes::new),
+                )
+                .count(2)
+                .rawOn(connection)
+                .await?;
+            assert_eq!(expanded[0]["owner_type"], "seed-owner".into());
+            assert_eq!(expanded[0]["owner_id"], expanded[1]["owner_id"]);
+            assert_eq!(
+                connection.table("seed_factory_children").count("*").await?,
+                0
+            );
+            assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
+            let callbacks = AtomicUsize::new(0);
+            let callbacks = Arc::new(callbacks);
+            let factory = Factory::<FactoryChild>::new(|| {
+                Attributes::from([("generated_name".into(), "quiet-fixture".into())])
+            })
+            .afterCreating({
+                let callbacks = Arc::clone(&callbacks);
+                move |_| {
+                    callbacks.fetch_add(1, Ordering::Relaxed);
+                    Ok(())
+                }
+            });
+            assert!(matches!(
+                factory.create().await,
+                Err(DatabaseError::InvalidQuery(
+                    "factory model creation cancelled"
+                ))
+            ));
+            factory.createQuietly().await?;
+            let batch = factory.count(2);
+            assert_eq!(batch.createQuietlyOn(connection).await?.len(), 2);
+            assert_eq!(callbacks.load(Ordering::Relaxed), 3);
+            assert!(batch.createOn(connection).await.is_err());
+            assert_eq!(
+                connection
+                    .table("seed_factory_children")
+                    .r#where("generated_name", "=", "quiet-fixture")
+                    .delete()
+                    .await?,
+                3
+            );
             assert_eq!(fake(None)?.locale(), "zh_TW");
             assert_eq!(fake(Some("fr-fr"))?.locale(), "fr_FR");
             let invalid = fake(Some("../en"));
@@ -420,6 +502,7 @@ impl ServiceProvider for Provider {
                     "seed-owner",
                 )
             })?;
+            FactoryChild::registerModelEvent(app, ModelEvent::Creating, CancelFactoryChild)?;
             MorphMap::morphMap(
                 app,
                 [MorphMapEntry::model::<FactoryOwner>("seed-owner")],

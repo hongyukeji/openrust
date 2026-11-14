@@ -400,6 +400,44 @@ impl<M: Model> Factory<M> {
             .await
     }
 
+    pub async fn createQuietly(&self) -> DatabaseResult<M> {
+        M::withoutEvents(self.create()).await
+    }
+
+    pub async fn createQuietlyOn(&self, connection: &Connection) -> DatabaseResult<M> {
+        M::withoutEvents(self.createOn(connection)).await
+    }
+
+    /// Expands the factory definition and parent keys without applying model casts or callbacks.
+    pub async fn raw(&self) -> DatabaseResult<Attributes> {
+        self.rawOn(&DB::connection(M::metadata().connection)?).await
+    }
+
+    pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Attributes> {
+        self.raw_attributes(
+            connection,
+            0,
+            &self.parent_cache(),
+            &std::sync::OnceLock::new(),
+        )
+        .await
+    }
+
+    async fn raw_attributes(
+        &self,
+        connection: &Connection,
+        index: usize,
+        cache: &[ParentCache],
+        faker: &std::sync::OnceLock<Faker>,
+    ) -> DatabaseResult<Attributes> {
+        let (mut model, attributes) = self
+            .expand_attributes(connection, index, cache, &self.recycled, None, faker)
+            .await?;
+        let mut expanded = std::mem::take(&mut model.state_mut().attributes);
+        expanded.extend(attributes);
+        Ok(expanded)
+    }
+
     fn parent_cache(&self) -> Vec<ParentCache> {
         self.parents.iter().map(|_| OnceCell::new()).collect()
     }
@@ -413,6 +451,34 @@ impl<M: Model> Factory<M> {
         relation: Option<&(Attributes, Attributes)>,
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<M> {
+        let (mut model, attributes) = self
+            .expand_attributes(connection, index, cache, pool, relation, faker)
+            .await?;
+        // Parent keys provide defaults. Factory states and explicit overrides can replace them.
+        let mut raw = model.state().attributes.clone();
+        for (name, value) in attributes {
+            casts::write_async::<M>(
+                &mut raw,
+                name,
+                value,
+                Some(connection),
+                &model.state().casts,
+            )
+            .await?;
+        }
+        model.state_mut().replace_attributes(raw);
+        Ok(model)
+    }
+
+    async fn expand_attributes(
+        &self,
+        connection: &Connection,
+        index: usize,
+        cache: &[ParentCache],
+        pool: &[RecycledModel],
+        relation: Option<&(Attributes, Attributes)>,
+        faker: &std::sync::OnceLock<Faker>,
+    ) -> DatabaseResult<(M, Attributes)> {
         let mut attributes = (self.definition)(connection, faker)?;
         if let Some((defaults, _)) = relation {
             attributes.extend(defaults.clone());
@@ -429,20 +495,7 @@ impl<M: Model> Factory<M> {
         for (parent, cache) in self.parents.iter().zip(cache) {
             parent(connection, &mut model, cache, pool).await?;
         }
-        // Parent keys provide defaults. Factory states and explicit overrides can replace them.
-        let mut raw = model.state().attributes.clone();
-        for (name, value) in attributes {
-            casts::write_async::<M>(
-                &mut raw,
-                name,
-                value,
-                Some(connection),
-                &model.state().casts,
-            )
-            .await?;
-        }
-        model.state_mut().replace_attributes(raw);
-        Ok(model)
+        Ok((model, attributes))
     }
 
     async fn create_one(
@@ -530,6 +583,24 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    pub async fn raw(&self) -> DatabaseResult<Vec<Attributes>> {
+        self.rawOn(&DB::connection(M::metadata().connection)?).await
+    }
+
+    pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
+        let cache = self.factory.parent_cache();
+        let faker = std::sync::OnceLock::new();
+        let mut records = Vec::with_capacity(self.count);
+        for index in 0..self.count {
+            records.push(
+                self.factory
+                    .raw_attributes(connection, index, &cache, &faker)
+                    .await?,
+            );
+        }
+        Ok(records)
+    }
+
     #[must_use]
     pub fn recycle<R: Model>(self, model: R) -> Self {
         self.recycleMany([model])
@@ -582,6 +653,14 @@ impl<M: Model> FactoryBatch<M> {
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
         self.create_with_pool(connection, &[], None).await
+    }
+
+    pub async fn createQuietly(&self) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.create()).await
+    }
+
+    pub async fn createQuietlyOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createOn(connection)).await
     }
 
     async fn create_with_pool(
