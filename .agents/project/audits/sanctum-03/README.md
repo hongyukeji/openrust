@@ -22,3 +22,14 @@ Rust 1.94.0 的格式、启用 `sanctum` 的全工作区测试（621 次通过�
 | PowerShell `.\artisan.bat install:api` | 自动重建、迁移成功，退出码 0 | 自定义前缀 `/api/admin/user`，匿名和无效 Bearer 均为 401，有效 Bearer 为 200 |
 
 两项均确认回车前数据库为空，回车后在独立的临时 target 目录重建并执行迁移。令牌表写入第一批迁移账本，临时重建目录在命令退出时清除。生成的路由使用 `auth:sanctum`，有效令牌返回正确用户且隐藏密码，并更新 `last_used_at`。
+
+### Windows 重建复验
+
+源码快照 `a12a274f`。在 Parallels Windows 11 ARM64（构建 26200.9457）用 Rust 1.94.0 与 ARM64 MSVC 原生验收。四个用例均恢复至未默认启用 Sanctum、无 API 路由文件与注册项的骨架，从真实 Win32 控制台运行安装命令并发送回车。成功用例各使用空 MySQL 8.4.13 数据库，失败用例各指定不存在的数据库。
+
+| Windows 入口 | 迁移成功 | 迁移失败 |
+| --- | --- | --- |
+| CMD `artisan.bat install:api` | 自动重建，创建令牌表并写入第 1 批迁移账本，退出码 0 | 自动重建，显示 `database connect failed`，保留脚手架，退出码 0 |
+| PowerShell `.\artisan.bat install:api` | 自动重建，创建令牌表并写入第 1 批迁移账本，退出码 0 | 自动重建，显示 `database connect failed`，保留脚手架，退出码 0 |
+
+四个用例均确认回车后启动独立 target 重建，生成的 `routes/api.rs` 含 `auth:sanctum`，路由模块、bootstrap 注册和 Cargo 默认 feature 均保留，临时 target 随命令退出清理。失败用例的数据库保持不存在。
