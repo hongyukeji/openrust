@@ -324,10 +324,12 @@ With `nl-NL`, `company()` combines product and shop terms or a trade followed by
 
 With `hr-HR`, `sk-SK`, and `hu-HU`, `company()` uses the pinned regional name lists and templates. Croatian names can use a trade prefix or a suffix, and `companyPrefix()` returns a Croatian trade prefix. Slovak templates retain the hyphen and the literal `and`. Hungarian names can consist of a surname alone. All three support `companySuffix()` and `unique`.
 
+With `el-GR`, `company()` uses a Greek surname followed by a legal suffix. With `me-ME`, it combines names and legal types from the pinned Montenegrin catalogs. Use `companyName()` and `companyType()` to sample those components. Montenegrin `companySuffix()` returns the inherited `Ltd`. All four methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 56]> {
+fn identity_samples() -> DatabaseResult<[String; 59]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -338,7 +340,11 @@ fn identity_samples() -> DatabaseResult<[String; 56]> {
     let egypt = fake(Some("ar-EG"))?;
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
+    let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        greek.company(),
+        montenegrin.companyName()?.to_owned(),
+        montenegrin.companyType()?.to_owned(),
         fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
         fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),

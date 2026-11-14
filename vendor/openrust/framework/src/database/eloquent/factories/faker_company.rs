@@ -39,6 +39,9 @@ mod dutch;
 #[path = "faker_company_central.rs"]
 mod central;
 
+#[path = "faker_company_balkan.rs"]
+mod balkan;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4160,6 +4163,7 @@ impl Faker {
                 .or_else(|| iberian::company(locale))
                 .or_else(|| dutch::company(locale))
                 .or_else(|| central::company(locale))
+                .or_else(|| balkan::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4202,6 +4206,26 @@ impl Faker {
         Ok(sample(EN_US_SUFFIXES))
     }
 
+    /// Samples a Montenegrin company name.
+    pub fn companyName(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "me_ME" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker company name locale",
+            ));
+        }
+        Ok(balkan::company_name())
+    }
+
+    /// Samples a Montenegrin company type.
+    pub fn companyType(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "me_ME" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker company type locale",
+            ));
+        }
+        Ok(balkan::company_type())
+    }
+
     /// Samples the selected company provider's suffix.
     pub fn companySuffix(&self) -> String {
         let suffixes = match self.locale() {
@@ -4228,6 +4252,7 @@ impl Faker {
                 .or_else(|| iberian::suffixes(locale))
                 .or_else(|| dutch::suffixes(locale))
                 .or_else(|| central::suffixes(locale))
+                .or_else(|| balkan::suffixes(locale))
             {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),
@@ -4253,6 +4278,14 @@ impl UniqueFaker<'_> {
 
     pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
         self.try_generate("companyEnSuffix", || self.0.companyEnSuffix())
+    }
+
+    pub fn companyName(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyName", || self.0.companyName())
+    }
+
+    pub fn companyType(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyType", || self.0.companyType())
     }
 
     pub fn companySuffix(&self) -> DatabaseResult<String> {

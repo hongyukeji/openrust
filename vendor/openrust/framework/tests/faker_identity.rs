@@ -1229,3 +1229,37 @@ fn croatian_slovak_and_hungarian_companies_use_local_formats() {
         }
     }
 }
+
+#[test]
+fn greek_and_montenegrin_companies_follow_effective_upstream_templates() {
+    use std::collections::HashSet;
+    let greek = fake(Some("el-GR")).unwrap();
+    let montenegrin = fake(Some("me-ME")).unwrap();
+    let greek_suffixes = ["Ο.Ε", "Ε.Ε", "Α.Ε", "Ε.Π.Ε"];
+    let types = ["A.D.", "A.D PODGORICA"];
+    let unique = greek.unique(true);
+    let actual: HashSet<_> = (0..greek_suffixes.len())
+        .map(|_| unique.companySuffix().unwrap())
+        .collect();
+    assert_eq!(actual, greek_suffixes.map(str::to_owned).into());
+    assert!(unique.companySuffix().is_err());
+    let unique = montenegrin.unique(true);
+    let actual = [unique.companyType().unwrap(), unique.companyType().unwrap()];
+    assert_eq!(actual.into_iter().collect::<HashSet<_>>(), types.into());
+    assert!(unique.companyType().is_err());
+    let mut names = HashSet::new();
+    for _ in 0..64 {
+        let name = greek.company();
+        assert!(
+            greek_suffixes
+                .iter()
+                .any(|suffix| name.ends_with(&format!(" {suffix}")))
+        );
+        let name = montenegrin.company();
+        assert!(types.iter().any(|kind| name.ends_with(&format!(" {kind}"))));
+        assert!(names.insert(unique.companyName().unwrap()));
+    }
+    assert_eq!(montenegrin.companySuffix(), "Ltd");
+    assert!(greek.companyName().is_err());
+    assert!(greek.companyType().is_err());
+}

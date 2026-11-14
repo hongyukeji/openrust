@@ -324,10 +324,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `hr-HR`、`sk-SK` 和 `hu-HU` 的 `company()` 使用固定上游的地區姓名與範本。克羅埃西亞名稱可使用行業前綴或後綴，`companyPrefix()` 可單獨抽樣行業前綴。斯洛伐克範本保留連字號和原有的 `and`。匈牙利名稱可以僅由姓氏組成。三地都支援 `companySuffix()` 和 `unique`。
 
+`el-GR` 的 `company()` 將希臘姓氏與法定後綴組合。`me-ME` 從固定蒙特內哥羅詞表組合企業名稱和法定類別，可用 `companyName()` 與 `companyType()` 分別抽樣。當地 `companySuffix()` 傳回繼承的 `Ltd`。四個方法都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 56]> {
+fn identity_samples() -> DatabaseResult<[String; 59]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -338,7 +340,11 @@ fn identity_samples() -> DatabaseResult<[String; 56]> {
     let egypt = fake(Some("ar-EG"))?;
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
+    let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        greek.company(),
+        montenegrin.companyName()?.to_owned(),
+        montenegrin.companyType()?.to_owned(),
         fake(Some("hr-HR"))?.companyPrefix()?.to_owned(),
         fake(Some("hu-HU"))?.company(),
         fake(Some("nl-NL"))?.company(),
