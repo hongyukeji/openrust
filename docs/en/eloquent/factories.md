@@ -284,15 +284,18 @@ Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gen
 
 The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same FakerPHP format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `chrono::NaiveDate`, or `None` to sample a date. Both SSN methods share the `unique` history.
 
+`personalIdentityNumber(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personalIdentityNumberWithBirthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personalIdentityNumberWithSerial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 5]> {
+fn identity_samples() -> DatabaseResult<[String; 6]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     Ok([
         fake(Some("en-US"))?.ssn()?,
         fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,
+        fake(Some("fi-FI"))?.personalIdentityNumberWithBirthdate(Some(birthdate), None)?,
         fake(Some("en-GB"))?.nino()?,
         fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
     ])

@@ -1,6 +1,6 @@
-use chrono::NaiveDate;
+use chrono::{Datelike as _, NaiveDate};
 
-use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker};
+use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker, luhn_check_digit};
 
 const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
     ('A', 10),
@@ -34,7 +34,7 @@ impl Faker {
         match self.locale() {
             "en_US" | "th_TH" => Ok(us_ssn()),
             "de_AT" => self.ssnWithBirthdate(None),
-            "is_IS" => Ok(icelandic_ssn(self.ssn_birthdate()?)),
+            "is_IS" => Ok(icelandic_ssn(self.identity_birthdate()?)),
             _ => Err(DatabaseError::InvalidQuery("unsupported Faker SSN locale")),
         }
     }
@@ -48,12 +48,12 @@ impl Faker {
         }
         let birthdate = match birthdate {
             Some(date) => date,
-            None => self.ssn_birthdate()?,
+            None => self.identity_birthdate()?,
         };
         Ok(austrian_ssn(birthdate))
     }
 
-    fn ssn_birthdate(&self) -> DatabaseResult<NaiveDate> {
+    fn identity_birthdate(&self) -> DatabaseResult<NaiveDate> {
         let timezone = self
             .getDefaultTimezone()
             .unwrap_or(self.application_timezone);
@@ -86,13 +86,60 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
-    /// Samples a Taiwanese personal identity number with its check digit.
+    /// Samples the selected Person provider's personal identity number.
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
-        if self.locale() != "zh_TW" {
+        match self.locale() {
+            "zh_TW" => Ok(self.taiwanese_identity(gender)),
+            "pl_PL" => Ok(polish_identity()),
+            _ => self.personalIdentityNumberWithBirthdate(None, gender),
+        }
+    }
+
+    /// Samples a European personal identity number using a civil birth date.
+    pub fn personalIdentityNumberWithBirthdate(
+        &self,
+        birthdate: Option<NaiveDate>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        let locale = self.locale();
+        if !matches!(locale, "lt_LT" | "lv_LV" | "fi_FI" | "nb_NO" | "sv_SE") {
             return Err(DatabaseError::InvalidQuery(
-                "unsupported Faker personal identity locale",
+                "unsupported Faker dated personal identity locale",
             ));
         }
+        let birthdate = match birthdate {
+            Some(date) => date,
+            None => self.identity_birthdate()?,
+        };
+        match locale {
+            "lt_LT" => lithuanian_identity(birthdate, gender, None),
+            "lv_LV" => Ok(latvian_identity(birthdate)),
+            "fi_FI" => finnish_identity(birthdate, gender),
+            "nb_NO" => Ok(norwegian_identity(birthdate, gender)),
+            _ => Ok(swedish_identity(birthdate, gender)),
+        }
+    }
+
+    /// Supplies the optional Lithuanian serial while preserving leading zeroes.
+    pub fn personalIdentityNumberWithSerial(
+        &self,
+        birthdate: Option<NaiveDate>,
+        gender: Option<&str>,
+        serial: Option<&str>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "lt_LT" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker personal identity serial locale",
+            ));
+        }
+        let birthdate = match birthdate {
+            Some(date) => date,
+            None => self.identity_birthdate()?,
+        };
+        lithuanian_identity(birthdate, gender, serial)
+    }
+
+    fn taiwanese_identity(&self, gender: Option<&str>) -> String {
         let &(birthplace, code) = self.randomElement(TAIWAN_BIRTHPLACES).unwrap();
         let gender = match gender.filter(|value| !value.is_empty()) {
             Some("male") => 1,
@@ -107,7 +154,7 @@ impl Faker {
             remaining /= 10;
         }
         let check = (10 - total % 10) % 10;
-        Ok(format!("{birthplace}{gender}{serial}{check}"))
+        format!("{birthplace}{gender}{serial}{check}")
     }
 }
 
@@ -128,6 +175,28 @@ impl UniqueFaker<'_> {
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("personalIdentityNumber", || {
             self.0.personalIdentityNumber(gender)
+        })
+    }
+    pub fn personalIdentityNumberWithBirthdate(
+        &self,
+        birthdate: Option<NaiveDate>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("personalIdentityNumber", || {
+            self.0
+                .personalIdentityNumberWithBirthdate(birthdate, gender)
+        })
+    }
+
+    pub fn personalIdentityNumberWithSerial(
+        &self,
+        birthdate: Option<NaiveDate>,
+        gender: Option<&str>,
+        serial: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("personalIdentityNumber", || {
+            self.0
+                .personalIdentityNumberWithSerial(birthdate, gender, serial)
         })
     }
 }
@@ -176,4 +245,127 @@ fn weighted_digits(value: &str, weights: &[u16]) -> u16 {
         .zip(weights)
         .map(|(digit, weight)| u16::from(digit - b'0') * weight)
         .sum()
+}
+
+fn lithuanian_identity(
+    birthdate: NaiveDate,
+    gender: Option<&str>,
+    serial: Option<&str>,
+) -> DatabaseResult<String> {
+    let first =
+        birthdate.year().div_euclid(100) * 2 - 34 - i32::from(gender.unwrap_or("male") == "male");
+    if !(1..=9).contains(&first) {
+        return Err(DatabaseError::InvalidQuery(
+            "Faker Lithuanian personal identity century is out of range",
+        ));
+    }
+    let serial = match serial {
+        Some(serial) if serial.len() >= 3 => {
+            let digits = serial
+                .get(..3)
+                .filter(|value| value.bytes().all(|digit| digit.is_ascii_digit()))
+                .ok_or(DatabaseError::InvalidQuery(
+                    "Faker Lithuanian personal identity serial must start with three digits",
+                ))?;
+            digits.to_owned()
+        }
+        _ => format!("{:03}", fastrand::u16(0..=999)),
+    };
+    let prefix = format!("{first}{}{serial}", birthdate.format("%y%m%d"));
+    let mut check = weighted_digits(&prefix, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 1]) % 11;
+    if check == 10 {
+        check = (weighted_digits(&prefix, &[3, 4, 5, 6, 7, 8, 9, 1, 2, 3]) % 11) % 10;
+    }
+    Ok(format!("{prefix}{check}"))
+}
+
+fn latvian_identity(birthdate: NaiveDate) -> String {
+    let century = match birthdate.year() {
+        2000..=2099 => 2,
+        1900..=1999 => 1,
+        _ => 0,
+    };
+    let date = birthdate.format("%d%m%y").to_string();
+    let serial = format!("{century}{:03}", fastrand::u16(0..=999));
+    let total =
+        weighted_digits(&date, &[1, 6, 3, 7, 9, 10]) + weighted_digits(&serial, &[5, 8, 4, 2]);
+    let check = (1101 - total) % 11 % 10;
+    format!("{date}-{serial}{check}")
+}
+
+fn finnish_identity(birthdate: NaiveDate, gender: Option<&str>) -> DatabaseResult<String> {
+    let century = match birthdate.year() {
+        1800..=1899 => '+',
+        1900..=1999 => '-',
+        2000..=2099 => 'A',
+        _ => {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker Finnish personal identity year must be between 1800 and 2099",
+            ));
+        }
+    };
+    let date = birthdate.format("%d%m%y").to_string();
+    let base = fastrand::u16(0..=89) * 10;
+    let tail = if base == 0 {
+        loop {
+            let digit = gender_digit(gender);
+            if digit >= 2 {
+                break digit;
+            }
+        }
+    } else {
+        gender_digit(gender)
+    };
+    let serial = base + tail;
+    let checksum_chars = b"0123456789ABCDEFHJKLMNPRSTUVWXY";
+    let number = date.parse::<usize>().unwrap() * 1000 + usize::from(serial);
+    let check = char::from(checksum_chars[number % checksum_chars.len()]);
+    Ok(format!("{date}{century}{serial:03}{check}"))
+}
+
+fn norwegian_identity(birthdate: NaiveDate, gender: Option<&str>) -> String {
+    let date = birthdate.format("%d%m%y");
+    let serial = fastrand::u8(0..=99);
+    let gender = gender_digit(gender);
+    // The pinned provider uses two random digits here.
+    let trailing = fastrand::u8(0..=99);
+    format!("{date}{serial:02}{gender}{trailing:02}")
+}
+
+fn swedish_identity(birthdate: NaiveDate, gender: Option<&str>) -> String {
+    let serial = loop {
+        let candidate = fastrand::u16(0..=99) * 10 + gender_digit(gender);
+        if candidate != 0 {
+            break candidate;
+        }
+    };
+    let date = birthdate.format("%y%m%d");
+    let check = luhn_check_digit(&format!("{date}{serial:03}"));
+    format!("{date}-{serial:03}{check}")
+}
+
+fn polish_identity() -> String {
+    const LETTERS: &[u8] = b"ABCDEFGHIJKLMNPRSTUVWXYZ";
+    let letters = [
+        b'A',
+        LETTERS[fastrand::usize(..LETTERS.len())],
+        LETTERS[fastrand::usize(..LETTERS.len())],
+    ];
+    let serial = format!("{:05}", fastrand::u32(0..=99_999));
+    let total: u16 = letters
+        .into_iter()
+        .zip([7, 3, 1])
+        .map(|(letter, weight)| u16::from(letter - 55) * weight)
+        .sum();
+    let check = (total + weighted_digits(&serial, &[7, 3, 1, 7, 3])) % 10;
+    let [first, second, third] = letters.map(char::from);
+    format!("{first}{second}{third}{check}{serial}")
+}
+
+fn gender_digit(gender: Option<&str>) -> u16 {
+    match gender {
+        Some("male") => fastrand::u16(0..=4) * 2 + 1,
+        Some("female") => fastrand::u16(0..=4) * 2,
+        _ => fastrand::u16(0..=9),
+    }
 }

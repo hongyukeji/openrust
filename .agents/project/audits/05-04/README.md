@@ -659,3 +659,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对照固定 FakerPHP v1.24.1 Person provider，补齐泰国、奥地利、冰岛的 `ssn`。泰国沿用与美国相同的两段区号抽样。奥地利和冰岛保留最近 100 年生日采样、模 11 校验以及校验值为 10 时重抽序号的规则。奥地利的 PHP 可选生日参数由 Rust 的 `ssnWithBirthdate(Option<NaiveDate>)` 表达，并与 `ssn` 共用去重历史。复用既有日期生成与时区处理。旧版没有找到对应实现，编译式工厂接线沿用现有路径。 [泰国 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/th_TH/Person.php) · [奥地利 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/de_AT/Person.php) · [冰岛 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/is_IS/Person.php)
 
 隔离基线 `60a1af47`。PHP 8.5 校验 1,024 条样本，Rust 两项地区回归覆盖闰日、日期、校验位、范围与唯一值。MySQL 8.4.13 多态 Seeder 和实际 `main artisan db:seed --database=mysql --force` 通过，后者写入并回查四条 SSN。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项双挂载浏览器检查通过。已恢复隔离副本的原始 Seeder，清理 2.2 GiB 编译产物和 39 MiB 站点产物，磁盘剩余 82 GiB。其余地区 `personalIdentityNumber` 继续跟踪。
+
+## Faker 欧洲身份编号
+
+对照固定 FakerPHP v1.24.1 Person，补齐立陶宛、拉脱维亚、芬兰、挪威、瑞典和波兰的 `personalIdentityNumber`。保留地区日期顺序、世纪码、性别位、序号和校验规则。瑞典复用现有 Luhn，波兰使用身份证格式，挪威沿用上游随机末两位。Rust 用显式的 `WithBirthdate` 和 `WithSerial` 表达 PHP 的可选参数，保留无参生日采样和共享去重历史。立陶宛要求由三个数字组成的序号前缀和一位世纪码。v0.x 未发现相应实现，工厂接线沿用现有路径。 [固定 FakerPHP 地区 Provider](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)
+
+隔离基线 `8dee8ce2`。PHP 8.5 校验 768 条样本及固定闰日序号 `0079`。三项 Rust 地区回归覆盖日期、性别、校验位、错误和重试。MySQL 8.4.13 多态 Seeder 与实际 `main artisan db:seed --database=mysql --force` 通过，后者写入并回查七条编号。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。已恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。地区专用编号入口继续核对。

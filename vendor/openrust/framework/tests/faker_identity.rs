@@ -118,3 +118,109 @@ fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
     assert_eq!(generated.len(), 10);
     assert!(th.ssnWithBirthdate(Some(fixed)).is_err());
 }
+
+#[test]
+fn european_identity_numbers_keep_dates_and_regional_checksums() {
+    use chrono::NaiveDate;
+
+    let date = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    for (locale, pattern) in [
+        ("lt-LT", r"^[56]000229[0-9]{4}$"),
+        ("lv-LV", r"^290200-2[0-9]{4}$"),
+        ("fi-FI", r"^290200A[0-8][0-9]{2}[0-9A-Z]$"),
+        ("nb-NO", r"^290200[0-9]{5}$"),
+        ("sv-SE", r"^000229-[0-9]{4}$"),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let format = Regex::new(pattern).unwrap();
+        for _ in 0..32 {
+            for (gender, parity) in [("male", 1), ("female", 0)] {
+                let sample = faker
+                    .unique(false)
+                    .personalIdentityNumberWithBirthdate(Some(date), Some(gender))
+                    .unwrap();
+                assert!(format.is_match(&sample), "{locale}: {sample}");
+                let bytes = sample.as_bytes();
+                let weights = |part: &str, weights: &[u16]| {
+                    part.bytes()
+                        .zip(weights)
+                        .map(|(d, w)| u16::from(d - b'0') * w)
+                        .sum::<u16>()
+                };
+                match locale {
+                    "lt-LT" => assert_eq!(bytes[0], b'6' - parity),
+                    "lv-LV" => {
+                        let sum = weights(&sample[..6], &[1, 6, 3, 7, 9, 10])
+                            + weights(&sample[7..11], &[5, 8, 4, 2]);
+                        assert_eq!((1101 - sum) % 11 % 10, u16::from(bytes[11] - b'0'));
+                    }
+                    "fi-FI" => {
+                        let serial: usize = sample[7..10].parse().unwrap();
+                        assert!((2..=899).contains(&serial));
+                        assert_eq!(serial % 2, usize::from(parity));
+                        assert_eq!(
+                            bytes[10],
+                            b"0123456789ABCDEFHJKLMNPRSTUVWXY"[(290_200_000 + serial) % 31]
+                        );
+                    }
+                    "nb-NO" => assert_eq!((bytes[8] - b'0') % 2, parity),
+                    _ => {
+                        assert_eq!((bytes[9] - b'0') % 2, parity);
+                        let digits = sample.replace('-', "");
+                        let total = digits
+                            .bytes()
+                            .enumerate()
+                            .map(|(i, d)| {
+                                let n = (d - b'0') * if i % 2 == 0 { 2 } else { 1 };
+                                u16::from(n / 10 + n % 10)
+                            })
+                            .sum::<u16>();
+                        assert_eq!(total % 10, 0);
+                    }
+                }
+            }
+        }
+        assert!(faker.personalIdentityNumber(None).is_ok());
+    }
+
+    let lt = fake(Some("lt-LT")).unwrap();
+    let unique = lt.uniqueWithRetries(true, 1);
+    assert_eq!(
+        unique
+            .personalIdentityNumberWithSerial(Some(date), None, Some("0079"))
+            .unwrap(),
+        "50002290079"
+    );
+    assert!(
+        unique
+            .personalIdentityNumberWithSerial(Some(date), None, Some("007"))
+            .is_err()
+    );
+    assert!(
+        lt.personalIdentityNumberWithSerial(Some(date), None, Some("é12"))
+            .is_err()
+    );
+    let fi = fake(Some("fi-FI")).unwrap();
+    let outside = NaiveDate::from_ymd_opt(2100, 1, 1).unwrap();
+    assert!(
+        fi.personalIdentityNumberWithBirthdate(Some(outside), None)
+            .is_err()
+    );
+
+    let pl = fake(Some("pl-PL")).unwrap();
+    let format = Regex::new(r"^A[ABCDEFGHIJKLMNPRSTUVWXYZ]{2}[0-9]{6}$").unwrap();
+    for _ in 0..64 {
+        let sample = pl.unique(false).personalIdentityNumber(None).unwrap();
+        assert!(format.is_match(&sample));
+        let bytes = sample.as_bytes();
+        let values = bytes[..3]
+            .iter()
+            .map(|&b| b - 55)
+            .chain(bytes[4..].iter().map(|&b| b - b'0'));
+        let total = values
+            .zip([7, 3, 1, 7, 3, 1, 7, 3])
+            .map(|(digit, weight)| u16::from(digit) * weight)
+            .sum::<u16>();
+        assert_eq!(total % 10, u16::from(bytes[3] - b'0'));
+    }
+}

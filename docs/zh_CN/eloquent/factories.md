@@ -284,15 +284,18 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `ssn()` 也支持 `th-TH`、`de-AT` 与 `is-IS`。泰语使用和美国英语相同的 FakerPHP 格式。奥地利和冰岛格式从最近 100 年内采样日期并计算校验位。使用 `de-AT` 时，可调用 `ssnWithBirthdate(Some(date))` 传入 `chrono::NaiveDate`，或用 `None` 采样日期。两个 SSN 方法共用 `unique` 历史。
 
+`personalIdentityNumber(gender)` 也支持 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五种可通过 `personalIdentityNumberWithBirthdate(birthdate, gender)` 传入出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序号前缀。波兰采用身份证格式。固定版挪威 provider 的最后两位随机生成。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 5]> {
+fn identity_samples() -> DatabaseResult<[String; 6]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     Ok([
         fake(Some("en-US"))?.ssn()?,
         fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
         fake(Some("is-IS"))?.ssn()?,
+        fake(Some("fi-FI"))?.personalIdentityNumberWithBirthdate(Some(birthdate), None)?,
         fake(Some("en-GB"))?.nino()?,
         fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
     ])
