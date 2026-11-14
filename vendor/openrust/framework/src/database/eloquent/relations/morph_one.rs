@@ -21,6 +21,21 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         Self(self.0.withDefault(configure))
     }
 
+    /// Builds the descriptor using the parent's application morph map.
+    pub fn mapped(
+        parent: &P,
+        local_key: &'static str,
+        id_column: &'static str,
+        type_column: &'static str,
+    ) -> DatabaseResult<Self> {
+        Ok(Self::new(
+            local_key,
+            id_column,
+            type_column,
+            parent.getMorphClass()?,
+        ))
+    }
+
     pub const fn new(
         local_key: &'static str,
         id_column: &'static str,

@@ -272,6 +272,18 @@ impl<P: Model> MorphTo<P> {
         self.withTrashed()
     }
 
+    /// Registers a compiled target under the alias selected by this connection's morph map.
+    pub fn targetMapped<R: Model>(
+        mut self,
+        connection: &Connection,
+        owner_key: &'static str,
+    ) -> DatabaseResult<Self> {
+        for alias in super::MorphMap::aliases_for::<R>(connection)? {
+            self = self.target::<R>(alias, owner_key);
+        }
+        Ok(self)
+    }
+
     #[must_use]
     pub fn target<R: Model>(mut self, alias: &'static str, owner_key: &'static str) -> Self {
         self.clear_default(alias);
@@ -558,6 +570,11 @@ impl<P: Model> MorphTo<P> {
 
     pub(in crate::database::eloquent) fn type_column(&self) -> &str {
         self.type_column
+    }
+
+    /// Associates a model using its mapped alias.
+    pub fn associateMapped<R: Model>(&self, parent: &mut P, related: &R) -> DatabaseResult<()> {
+        self.associate(parent, related.getMorphClass()?, related)
     }
 
     pub fn associate<R: Model>(

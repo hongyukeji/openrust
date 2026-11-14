@@ -216,6 +216,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
+    /// Resolves the discriminator from the model's application morph map.
+    fn getMorphClass(&self) -> DatabaseResult<&'static str> {
+        super::relations::MorphMap::class_for::<Self>(self.state().connection.as_ref())
+    }
+
     /// Defines a through relationship by reusing an existing local relationship.
     fn through<L: super::relations::ThroughRelation<Parent = Self>>(local: L) -> L::Pending {
         local.pending()

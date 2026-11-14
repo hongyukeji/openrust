@@ -7242,6 +7242,85 @@ async fn verify_dynamic_relations(config: Json) {
         }
     }
 
+    use openrust::database::eloquent::relations::{MorphMap, MorphMapEntry};
+
+    MorphMap::enforceMorphMap(&first, [MorphMapEntry::model::<Author>("writer")], false).unwrap();
+    MorphMap::morphMap(&second, [MorphMapEntry::model::<Author>("member")], false).unwrap();
+    let owner = Author::queryOn(&db).findOrFail(1).await.unwrap();
+    let other_owner = Author::queryOn(&other).findOrFail(1).await.unwrap();
+    assert_eq!(owner.getMorphClass().unwrap(), "writer");
+    assert_eq!(other_owner.getMorphClass().unwrap(), "member");
+    assert!(matches!(
+        Post::queryOn(&db)
+            .findOrFail(1)
+            .await
+            .unwrap()
+            .getMorphClass(),
+        Err(DatabaseError::InvalidQuery(
+            "model requires a morph map entry"
+        ))
+    ));
+    let registry = first.container().make::<MorphMap>().unwrap();
+    assert_eq!(
+        registry.getMorphedModel("writer"),
+        Some(std::any::type_name::<Author>())
+    );
+    assert_eq!(registry.getMorphedModel("member"), None);
+    assert!(MorphMap::morphMap(&first, [MorphMapEntry::model::<Post>("")], false).is_err());
+    assert_eq!(owner.getMorphClass().unwrap(), "writer");
+
+    db.statement("DROP TABLE IF EXISTS relation_comments", &[])
+        .await
+        .unwrap();
+    let id = if config.get("url").is_some() {
+        "BIGINT AUTO_INCREMENT PRIMARY KEY"
+    } else {
+        "INTEGER PRIMARY KEY"
+    };
+    db.statement(&format!("CREATE TABLE relation_comments (id {id}, subject_id BIGINT, subject_type VARCHAR(80), body VARCHAR(80), deleted_at DATETIME)"), &[]).await.unwrap();
+    let mapped =
+        MorphMany::<Author, Comment>::mapped(&owner, "id", "subject_id", "subject_type").unwrap();
+    let mut comment = mapped
+        .create(&owner, Attributes::from([("body".into(), "mapped".into())]))
+        .await
+        .unwrap();
+    assert_eq!(comment.getAttribute("subject_type"), Some(&"writer".into()));
+    let inverse = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .targetMapped::<Author>(&db, "id")
+        .unwrap();
+    assert_eq!(
+        inverse
+            .getResults(&comment)
+            .await
+            .unwrap()
+            .unwrap()
+            .downcast_ref::<Author>()
+            .unwrap()
+            .getKey(),
+        owner.getKey()
+    );
+    inverse.associateMapped(&mut comment, &owner).unwrap();
+    assert_eq!(comment.getAttribute("subject_type"), Some(&"writer".into()));
+    MorphMap::morphMap(&first, [MorphMapEntry::model::<Author>("author_v2")], true).unwrap();
+    assert_eq!(owner.getMorphClass().unwrap(), "author_v2");
+    assert_eq!(registry.getMorphAlias::<Author>(), "author_v2");
+    let inverse = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .targetMapped::<Author>(&db, "id")
+        .unwrap();
+    assert_eq!(
+        inverse.getResults(&comment).await.unwrap().unwrap().alias(),
+        "writer"
+    );
+    inverse.associateMapped(&mut comment, &owner).unwrap();
+    assert_eq!(
+        comment.getAttribute("subject_type"),
+        Some(&"author_v2".into())
+    );
+    assert!(registry.getMorphedModel("writer").is_some());
+    db.statement("DROP TABLE relation_comments", &[])
+        .await
+        .unwrap();
+
     type Posts = HasMany<Author, Post>;
     let named = DynamicRelation::<Posts>::new("selectedPosts");
     let register = |app: &Application, title| {

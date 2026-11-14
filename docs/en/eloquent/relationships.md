@@ -182,6 +182,27 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` adds a type discriminator to intermediate-table reads and writes. For the inverse direction, reverse the two pivot key arguments and use the same alias. The pivot value is available as `MorphPivot`.
 
+### Custom polymorphic types {#custom-polymorphic-types}
+
+Register application aliases with `MorphMap::morphMap` or use `enforceMorphMap` to require registration when resolving model aliases. `getMorphClass` returns the first alias for the model. With a permissive map, an unmapped model uses its Rust type name. `targetMapped` adds all registered aliases for a compiled target, including aliases retained when merging a map. `MorphOne::mapped`, `MorphMany::mapped` and `MorphToMany::mapped` use the model’s application alias for reads and writes. Explicit-alias descriptors remain available.
+
+```rust
+use openrust::{
+    database::{Connection, DatabaseResult, eloquent::{
+        Model, relations::{MorphMap, MorphMapEntry, MorphTo},
+    }},
+    foundation::Application,
+};
+
+pub fn subjects<P: Model, R: Model>(
+    app: &Application,
+    connection: &Connection,
+) -> DatabaseResult<MorphTo<P>> {
+    MorphMap::enforceMorphMap(app, [MorphMapEntry::model::<R>("post")], true)?;
+    MorphTo::new("subject_type", "subject_id").targetMapped::<R>(connection, "id")
+}
+```
+
 ### Associating polymorphic models {#associating-polymorphic-models}
 
 Name the `MorphTo` descriptor with `named("subject")` to update that relationship immediately. `associate` sets the stored alias and owner key and caches a snapshot of the supplied model. `dissociate` clears both columns and caches an empty relationship. Call `save().await?` to persist the parent. Other loaded relationships remain available. Unnamed descriptors retain the existing cache-clearing behavior.

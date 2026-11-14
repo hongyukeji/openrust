@@ -34,6 +34,27 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         )
     }
 
+    /// Builds the descriptor using the morph owner's application alias.
+    pub fn mapped(
+        table: &'static str,
+        foreign_pivot_key: &'static str,
+        related_pivot_key: &'static str,
+        parent_key: &'static str,
+        related_key: &'static str,
+        type_column: &'static str,
+        owner: &impl Model,
+    ) -> DatabaseResult<Self> {
+        Ok(Self::new(
+            table,
+            foreign_pivot_key,
+            related_pivot_key,
+            parent_key,
+            related_key,
+            type_column,
+            owner.getMorphClass()?,
+        ))
+    }
+
     #[must_use]
     pub fn constrain(
         self,

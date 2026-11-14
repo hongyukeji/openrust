@@ -182,6 +182,27 @@ pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<C
 
 `MorphToMany` 在中间表读写时使用类型字段。反向查询时交换中间表的两个键参数，继续使用同一类型别名。可通过 `MorphPivot` 读取中间表字段。
 
+### 自定义多态类型 {#custom-polymorphic-types}
+
+使用 `MorphMap::morphMap` 注册应用别名，或使用 `enforceMorphMap` 要求模型解析别名前先注册。`getMorphClass` 返回模型的首个别名。未强制映射时，未注册模型使用 Rust 类型名。`targetMapped` 为已编译的目标模型接入全部已注册别名，包括合并映射时保留的旧别名。`MorphOne::mapped`、`MorphMany::mapped` 和 `MorphToMany::mapped` 在读写中使用模型所属应用的别名。仍可使用显式别名描述符。
+
+```rust
+use openrust::{
+    database::{Connection, DatabaseResult, eloquent::{
+        Model, relations::{MorphMap, MorphMapEntry, MorphTo},
+    }},
+    foundation::Application,
+};
+
+pub fn subjects<P: Model, R: Model>(
+    app: &Application,
+    connection: &Connection,
+) -> DatabaseResult<MorphTo<P>> {
+    MorphMap::enforceMorphMap(app, [MorphMapEntry::model::<R>("post")], true)?;
+    MorphTo::new("subject_type", "subject_id").targetMapped::<R>(connection, "id")
+}
+```
+
 ### 设置多态关联 {#associating-polymorphic-models}
 
 使用 `named("subject")` 为 `MorphTo` 指定关系名，赋值后即可读取该关系。`associate` 设置别名和所有者键，并缓存传入模型的快照。`dissociate` 将两列置空，并缓存已加载的空关系。调用 `save().await?` 持久化父模型。其他已加载关系仍可读取。未命名描述符沿用清除关系缓存的行为。

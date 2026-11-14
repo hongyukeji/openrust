@@ -634,3 +634,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 SQLite 与独立 MySQL 8.4.13 专项覆盖嵌套列投影、主外键匹配、已加载值保留、多态目标、Pivot 和穿透内部匹配、无效列清单。MySQL 嵌套预加载连同根查询共 3 次 SELECT。
 
 Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 自定义多态类型映射
+
+对照固定 Laravel 的 morphMap、enforceMorphMap、getMorphedModel、getMorphAlias 与 getMorphClass。Rust 映射位于应用容器，以编译类型登记，按模型连接查找。合并时新条目优先，原有别名继续用于读取。显式描述符继续可用，映射版描述符在构造时绑定当时的别名。Rust 通过 targetMapped 显式登记每个可水合的模型类型，并保留类型化的所有者键。旧版保留原始模型键与判别值，未找到应用级映射，现有 Rust 多态关系使用字符串别名。参考固定 Goravel 的应用级 ORM 连接职责。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#custom-polymorphic-types) · [Laravel Relation](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证不同应用使用不同别名、缺少强制映射时拒绝解析、空别名注册失败、映射查询、合并优先级、关系写入与反查、旧别名兼容以及新关联选择首选别名。
+
+Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
