@@ -72,6 +72,8 @@ Use `insert(attributes)` on a single or counted factory to bulk-insert the gener
 
 Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run.
 
+Use `connection(Some("archive"))` to select a named connection on a factory or counted batch. `getConnectionName()` returns the configured override, and `connection(None)` clears it. Operations resolve the override first, then the model connection, then the current application or Seeder default. The `On` methods use the connection supplied for the target factory. Nested factories use their own override or model connection before inheriting the enclosing connection. Relationship connection checks still apply.
+
 ```rust
 use openrust::database::{
     DatabaseResult,

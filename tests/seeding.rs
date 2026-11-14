@@ -266,6 +266,64 @@ impl Seeder for PolymorphicFactories {
         Box::pin(async {
             let connection = context.connection();
             assert_eq!(connection.getName(), "alternate");
+            let sqlite = DB::connection(Some("sqlite"))?;
+            sqlite
+                .statement(
+                    "CREATE TABLE seed_factory_owners (id INTEGER PRIMARY KEY)",
+                    &[],
+                )
+                .await?;
+            let factory = Factory::<FactoryOwner>::new(Attributes::new).connection(Some("sqlite"));
+            assert_eq!(factory.getConnectionName(), Some("sqlite"));
+            assert_eq!(factory.create().await?.getConnectionName(), Some("sqlite"));
+            assert_eq!(
+                factory.createOn(connection).await?.getConnectionName(),
+                Some("alternate")
+            );
+            let counted = factory.count(2);
+            assert_eq!(counted.getConnectionName(), Some("sqlite"));
+            let deferred = counted.lazy(Attributes::new());
+            assert!(
+                deferred()
+                    .await?
+                    .iter()
+                    .all(|model| model.getConnectionName() == Some("sqlite"))
+            );
+            drop(deferred);
+            assert_eq!(sqlite.table("seed_factory_owners").count("*").await?, 3);
+            assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
+            let counted = counted.connection(None);
+            assert_eq!(counted.getConnectionName(), None);
+            assert!(
+                counted
+                    .make()
+                    .await?
+                    .iter()
+                    .all(|model| model.getConnectionName() == Some("alternate"))
+            );
+            let missing = Factory::<FactoryOwner>::new(Attributes::new).connection(Some("missing"));
+            assert!(
+                matches!(missing.make().await, Err(DatabaseError::UnknownConnection(name)) if name == "missing")
+            );
+            let owner_relation = || {
+                MorphTo::<FactoryChild>::new("owner_type", "owner_id")
+                    .target::<FactoryOwner>("seed-owner", "id")
+            };
+            let nested =
+                Factory::<FactoryChild>::new(Attributes::new).r#for(owner_relation(), missing);
+            assert!(matches!(
+                nested.rawOn(connection).await,
+                Err(DatabaseError::UnknownConnection(name)) if name == "missing"
+            ));
+            let nested = Factory::<FactoryChild>::new(Attributes::new).r#for(
+                owner_relation(),
+                Factory::<FactoryOwner>::new(Attributes::new).connection(Some("alternate")),
+            );
+            assert!(matches!(
+                nested.rawOn(connection).await?.get("owner_id"),
+                Some(Value::Integer(_) | Value::Unsigned(_))
+            ));
+            assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
             let query = || {
                 BulkSeed::queryOn(connection).withAttributes(
                     Attributes::from([("label".into(), "query-default".into())]),

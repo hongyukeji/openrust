@@ -4,7 +4,12 @@ use std::{any::Any, sync::Arc};
 
 use tokio::sync::OnceCell;
 
-use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
+use crate::{
+    contracts::container::Container as _,
+    database::{
+        Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+    },
+};
 
 use super::{
     Attributes, Collection, Model, casts,
@@ -88,6 +93,7 @@ impl FactoryRecords {
 /// A model definition with ordered attribute states and relationship callbacks.
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
+    connection: Option<String>,
     states: Vec<Box<State>>,
     recycled: Vec<RecycledModel>,
     parents: Vec<Box<Parent<M>>>,
@@ -127,12 +133,42 @@ impl<M: Model> Factory<M> {
     ) -> Self {
         Self {
             definition: Box::new(definition),
+            connection: None,
             states: Vec::new(),
             recycled: Vec::new(),
             parents: Vec::new(),
             children: Vec::new(),
             after_making: Vec::new(),
             after_creating: Vec::new(),
+        }
+    }
+
+    /// Selects the connection used by operations without an explicit connection argument.
+    #[must_use]
+    pub fn connection(mut self, name: Option<&str>) -> Self {
+        self.connection = name.map(str::to_owned);
+        self
+    }
+
+    pub fn getConnectionName(&self) -> Option<&str> {
+        self.connection.as_deref()
+    }
+
+    fn resolve_connection(&self) -> DatabaseResult<Connection> {
+        DB::connection(self.getConnectionName().or(M::metadata().connection))
+    }
+
+    fn resolve_related_connection(&self, inherited: &Connection) -> DatabaseResult<Connection> {
+        let name = self.getConnectionName().or(M::metadata().connection);
+        let Some(name) = name.filter(|name| *name != inherited.getName()) else {
+            return Ok(inherited.clone());
+        };
+        match Connection::model_container(Some(inherited)) {
+            Some(container) => container
+                .get::<DatabaseManager>("db")
+                .map_err(DatabaseError::Unavailable)?
+                .connection(Some(name)),
+            None => DB::connection(Some(name)),
         }
     }
 
@@ -311,7 +347,7 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, children) = &*relation;
                     let relation = relation(parent)?;
-                    let connection = related_connection::<R>(connection)?;
+                    let connection = children.factory.resolve_related_connection(connection)?;
                     let pool = children.factory.recycle_pool(inherited);
                     let attributes = relation.attributes(parent)?;
                     let mut models = children
@@ -371,7 +407,7 @@ impl<M: Model> Factory<M> {
                     let relation = relation(model)?;
                     let owner = cache
                         .get_or_try_init(|| async {
-                            let connection = related_connection::<R>(connection)?;
+                            let connection = owner.resolve_related_connection(connection)?;
                             let pool = owner.recycle_pool(inherited);
                             if let Some(model) = recycled_owner::<R>(&pool, &connection) {
                                 return Ok(model);
@@ -448,7 +484,7 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, models, pivot) = &*relation;
                     let relation = relation(parent)?;
-                    let connection = related_connection::<R>(connection)?;
+                    let connection = models.factory.resolve_related_connection(connection)?;
                     let attributes = (relation.factory_defaults(&connection)?, Attributes::new());
                     let models = models
                         .create_with_pool(&connection, inherited, Some(&attributes))
@@ -470,8 +506,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn make(&self) -> DatabaseResult<M> {
-        self.makeOn(&DB::connection(M::metadata().connection)?)
-            .await
+        self.makeOn(&self.resolve_connection()?).await
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
@@ -479,7 +514,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn makeOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.makeOneOn(&DB::connection(M::metadata().connection)?, attributes)
+        self.makeOneOn(&self.resolve_connection()?, attributes)
             .await
     }
 
@@ -500,8 +535,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn makeMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.makeManyOn(&DB::connection(M::metadata().connection)?, records)
-            .await
+        self.makeManyOn(&self.resolve_connection()?, records).await
     }
 
     pub async fn makeManyOn(
@@ -546,14 +580,12 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn create(&self) -> DatabaseResult<M> {
-        self.createOn(&DB::connection(M::metadata().connection)?)
-            .await
+        self.createOn(&self.resolve_connection()?).await
     }
 
     /// Inserts the generated model without saving relations or firing model persistence events.
     pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
-        self.insertOn(&DB::connection(M::metadata().connection)?, attributes)
-            .await
+        self.insertOn(&self.resolve_connection()?, attributes).await
     }
 
     pub async fn insertOn(
@@ -573,7 +605,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
-        self.createOneOn(&DB::connection(M::metadata().connection)?, attributes)
+        self.createOneOn(&self.resolve_connection()?, attributes)
             .await
     }
 
@@ -606,7 +638,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.createManyOn(&DB::connection(M::metadata().connection)?, records)
+        self.createManyOn(&self.resolve_connection()?, records)
             .await
     }
 
@@ -668,7 +700,7 @@ impl<M: Model> Factory<M> {
 
     /// Expands the factory definition and parent keys without applying model casts or callbacks.
     pub async fn raw(&self) -> DatabaseResult<Attributes> {
-        self.rawOn(&DB::connection(M::metadata().connection)?).await
+        self.rawOn(&self.resolve_connection()?).await
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Attributes> {
@@ -831,13 +863,6 @@ fn named_descriptor<M: Model, D: Relation<Parent = M>>(model: &M, name: &str) ->
     }
 }
 
-fn related_connection<M: Model>(connection: &Connection) -> DatabaseResult<Connection> {
-    match M::metadata().connection {
-        Some(name) if name != connection.getName() => DB::connection(Some(name)),
-        _ => Ok(connection.clone()),
-    }
-}
-
 /// A factory that produces the requested number of models.
 pub struct FactoryBatch<M: Model> {
     factory: Factory<M>,
@@ -846,6 +871,15 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    #[must_use]
+    pub fn connection(self, name: Option<&str>) -> Self {
+        self.factory.connection(name).count(self.count)
+    }
+
+    pub fn getConnectionName(&self) -> Option<&str> {
+        self.factory.getConnectionName()
+    }
+
     #[must_use]
     pub fn state(self, state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static) -> Self {
         self.factory.state(state).count(self.count)
@@ -887,7 +921,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn makeMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.makeManyOn(&DB::connection(M::metadata().connection)?, records)
+        self.makeManyOn(&self.factory.resolve_connection()?, records)
             .await
     }
 
@@ -909,7 +943,7 @@ impl<M: Model> FactoryBatch<M> {
         move || {
             let attributes = attributes.clone();
             Box::pin(async move {
-                let connection = DB::connection(M::metadata().connection)?;
+                let connection = self.factory.resolve_connection()?;
                 let pool = self.factory.recycle_pool(&[]);
                 let mut models = self
                     .make_with_overrides(&connection, &pool, None, &attributes)
@@ -947,7 +981,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
-        self.createManyOn(&DB::connection(M::metadata().connection)?, records)
+        self.createManyOn(&self.factory.resolve_connection()?, records)
             .await
     }
 
@@ -977,7 +1011,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn raw(&self) -> DatabaseResult<Vec<Attributes>> {
-        self.rawOn(&DB::connection(M::metadata().connection)?).await
+        self.rawOn(&self.factory.resolve_connection()?).await
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
@@ -1008,8 +1042,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn make(&self) -> DatabaseResult<Collection<M>> {
-        self.makeOn(&DB::connection(M::metadata().connection)?)
-            .await
+        self.makeOn(&self.factory.resolve_connection()?).await
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
@@ -1052,13 +1085,12 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
-        self.createOn(&DB::connection(M::metadata().connection)?)
-            .await
+        self.createOn(&self.factory.resolve_connection()?).await
     }
 
     /// Inserts the generated batch in one statement after running afterMaking callbacks.
     pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
-        self.insertOn(&DB::connection(M::metadata().connection)?, attributes)
+        self.insertOn(&self.factory.resolve_connection()?, attributes)
             .await
     }
 

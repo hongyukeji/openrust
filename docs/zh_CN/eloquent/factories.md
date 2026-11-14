@@ -72,6 +72,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 在单模型或批量工厂上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除该工厂已登记的对应回调。随后可以重新登记回调。另一阶段的回调及 Eloquent 模型事件照常执行。
 
+在单模型或批量工厂上使用 `connection(Some("archive"))` 指定命名连接。`getConnectionName()` 返回工厂配置的覆盖值，`connection(None)` 清除该值。执行时依次查找工厂覆盖、模型连接和当前应用或 Seeder 的默认连接。`On` 方法对目标工厂使用显式传入的连接。嵌套工厂优先使用自身覆盖或模型连接，再继承外层连接。关系连接校验照常执行。
+
 ```rust
 use openrust::database::{
     DatabaseResult,
