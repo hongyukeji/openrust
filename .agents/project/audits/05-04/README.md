@@ -499,3 +499,13 @@ PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN�
 下一批核对固定 Payment provider 的地区 VAT formatter。
 
 已清理本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB，项目卷剩余 81 GiB。
+
+## Faker 地区 VAT 样本
+
+对照固定 Laravel 模型工厂的 `fake()`，补齐 FakerPHP v1.24.1 所有九个 `vat` 地区，包括 Payment 的保加利亚、奥地利、西班牙、比利时法语及荷语、法国，以及 Company 的英国、意大利和荷兰。保留不同地区的默认分组、校验计算和抽样规则。法国复用 `siren`，意大利和荷兰保留 `vatId` 和 `btw`。Rust 以 `vat(Option<bool>)` 表达默认空格选项，以 `vatWithType` 表达英国分支、政府和医疗类型，公开校验助手返回数字，并对非法输入返回错误。生成入口具有各自的 `unique` 历史，英国类型入口与普通 VAT 共用历史。v0.x 未发现对应 formatter，固定 Goravel 的编译式工厂装配沿用现有路径。 [Laravel 工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [FakerPHP 法国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_FR/Payment.php) · [FakerPHP 英国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_GB/Company.php)
+
+隔离基线 `ce744b02`。PHP 8.5 对照九个上游 provider，每地区至少 64 条。Rust 回归覆盖空格与紧凑格式、英国类型、法国和意大利的 Luhn、法国和比利时的模 97、别名、unique 与错误路径。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 原样回查法国、比利时、英国分支和意大利样本。Rust 1.94.0 格式、全目标严格 Clippy、MySQL 定向工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+Payment provider 的公开生成器已验收。下一批回到 05-04 交付清单，核对模型工厂、Seeder 和文档覆盖，继续记录其他 Faker provider 的差异。
+
+验收期间主分支合入 `f6cfc23e`，其差异仅为 Sanctum 验收文档。本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB 已清理，项目卷剩余 83 GiB。

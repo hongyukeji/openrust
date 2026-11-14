@@ -267,6 +267,20 @@ fn institution_samples() -> DatabaseResult<(&'static str, String)> {
 }
 ```
 
+### VAT 範例 {#vat-samples}
+
+用 `vat(None)` 採用地區預設格式。對支援空格選項的地區，可用 `vat(Some(false))` 產生緊湊格式。支援 `bg_BG`、`de_AT`、`es_ES`、`fr_BE`、`nl_BE`、`fr_FR`、`en_GB`、`it_IT` 和 `nl_NL`。英國的 `vatWithType` 接受 `branch`、`gov` 和 `health`，其他值採用標準格式。法國 VAT 共用 `siren`，義大利 `vatId` 與荷蘭 `btw` 沿用各自的產生規則。各產生器均支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vat_samples() -> DatabaseResult<(String, String)> {
+    let french = fake(Some("fr-FR"))?;
+    let uk = fake(Some("en-GB"))?;
+    Ok((french.unique(false).vat(None)?, uk.vatWithType(Some("branch"))?))
+}
+```
+
 ### 信用卡範例 {#credit-card-samples}
 
 信用卡產生器提供品牌、帶 Luhn 檢查碼的卡號、到期日及完整範例。卡號格式化時預設以連字號分組。`pt-BR` 使用巴西品牌格式。到期日傳入 `true` 時從目前到未來 36 個月取樣，傳入 `false` 時從過去 36 個月到未來 36 個月取樣。`creditCardExpirationDateString` 接受 Chrono 格式指令，預設 `%m/%y`。五個方法都支援 `unique`。

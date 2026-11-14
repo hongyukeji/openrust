@@ -267,6 +267,20 @@ fn institution_samples() -> DatabaseResult<(&'static str, String)> {
 }
 ```
 
+### VAT Samples {#vat-samples}
+
+Use `vat(None)` for the locale default and `vat(Some(false))` for compact output where the upstream provider accepts spacing. Supported locales are `bg_BG`, `de_AT`, `es_ES`, `fr_BE`, `nl_BE`, `fr_FR`, `en_GB`, `it_IT`, and `nl_NL`. For the UK, `vatWithType` accepts `branch`, `gov`, and `health`; other values use the standard format. French VAT uses `siren`, and the Italian `vatId` and Dutch `btw` aliases follow their own providers. The generators support `unique` and preserve their upstream sample rules.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vat_samples() -> DatabaseResult<(String, String)> {
+    let french = fake(Some("fr-FR"))?;
+    let uk = fake(Some("en-GB"))?;
+    Ok((french.unique(false).vat(None)?, uk.vatWithType(Some("branch"))?))
+}
+```
+
 ### Credit Card Samples {#credit-card-samples}
 
 The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Chrono directives and defaults to `%m/%y`. All five formatters support `unique`.

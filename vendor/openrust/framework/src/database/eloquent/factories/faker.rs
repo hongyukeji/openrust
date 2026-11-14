@@ -951,21 +951,7 @@ impl Faker {
             "unknown Faker credit card type",
         ))?;
         let mut number = self.numerify(Some(masks[fastrand::usize(..masks.len())]));
-        let sum: u32 = number
-            .bytes()
-            .rev()
-            .enumerate()
-            .map(|(index, digit)| {
-                let value = u32::from(digit - b'0');
-                if index % 2 == 0 {
-                    let doubled = value * 2;
-                    doubled / 10 + doubled % 10
-                } else {
-                    value
-                }
-            })
-            .sum();
-        number.push(char::from(b'0' + ((10 - sum % 10) % 10) as u8));
+        number.push(luhn_check_digit(&number));
         if formatted {
             let separator = separator.unwrap_or("-");
             Ok([&number[..4], &number[4..8], &number[8..12], &number[12..]].join(separator))
@@ -1051,6 +1037,133 @@ impl Faker {
                 "unsupported Faker SWIFT locale",
             )),
         }
+    }
+
+    /// Generates a VAT sample using the configured locale's provider.
+    pub fn vat(&self, spacedNationalPrefix: Option<bool>) -> DatabaseResult<String> {
+        let separator = if spacedNationalPrefix.unwrap_or(true) {
+            " "
+        } else {
+            ""
+        };
+        let digits = |count| self.randomNumber(Some(count), true);
+        match self.locale() {
+            "bg_BG" => Ok(format!(
+                "BG{separator}{}{}",
+                digits(5)?,
+                digits(fastrand::u32(4..=5))?
+            )),
+            "de_AT" => Ok(format!("AT{separator}U{}", digits(8)?)),
+            "es_ES" => {
+                const PREFIXES: &[u8] = b"ABCDEFGHJNPQRSUVW";
+                let prefix = char::from(PREFIXES[fastrand::usize(..PREFIXES.len())]);
+                Ok(format!("{prefix}{}", self.numerify(Some("########"))))
+            }
+            "fr_BE" => Ok(format!("BE{separator}0{}", digits(9)?)),
+            "nl_BE" => {
+                let body = digits(7)?;
+                Ok(format!("BE{separator}0{body}{:02}", 97 - body % 97))
+            }
+            "fr_FR" => {
+                let siren = self.siren(false)?;
+                let number = siren.parse::<u32>().expect("SIREN contains nine digits");
+                let key = (12 + 3 * (number % 97)) % 97;
+                Ok(format!(
+                    "FR{separator}{key:02}{separator}{}{separator}{}{separator}{}",
+                    &siren[..3],
+                    &siren[3..6],
+                    &siren[6..]
+                ))
+            }
+            "en_GB" => self.vatWithType(None),
+            "it_IT" => {
+                let mut number = format!(
+                    "{}{:03}",
+                    self.numerify(Some("#######")),
+                    self.numberBetween(1, 121)
+                );
+                number.push(luhn_check_digit(&number));
+                Ok(format!("IT{number}"))
+            }
+            "nl_NL" => Ok(format!("NL{}B{}", digits(9)?, digits(2)?)),
+            _ => Err(DatabaseError::InvalidQuery("unsupported Faker VAT locale")),
+        }
+    }
+
+    /// Selects the UK provider's standard, branch, government or health VAT sample.
+    pub fn vatWithType(&self, vatType: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "en_GB" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker VAT type locale",
+            ));
+        }
+        match vatType {
+            Some("gov") => Ok(format!("GBGD{:03}", self.numberBetween(0, 499))),
+            Some("health") => Ok(format!("GBHA{}", self.numberBetween(500, 999))),
+            _ => {
+                let first = self.numberBetween(100, 999);
+                let second = self.randomNumber(Some(4), true)?;
+                let key = Self::calculateModulus97(&format!("{first}{second}"), true)?;
+                let mut vat = format!("GB{first} {second} {key}");
+                if vatType == Some("branch") {
+                    write!(vat, " {}", self.randomNumber(Some(3), true)?)
+                        .expect("writing to String cannot fail");
+                }
+                Ok(vat)
+            }
+        }
+    }
+
+    /// Computes the UK provider's modulus 97 or 9755 check digits.
+    pub fn calculateModulus97(input: &str, use9755: bool) -> DatabaseResult<u8> {
+        if input.len() != 7 || !input.bytes().all(|digit| digit.is_ascii_digit()) {
+            return Err(DatabaseError::InvalidQuery(
+                "invalid Faker VAT modulus input",
+            ));
+        }
+        let weighted: u16 = input
+            .bytes()
+            .zip((2..=8).rev())
+            .map(|(digit, factor)| u16::from(digit - b'0') * factor)
+            .sum();
+        let total = weighted + if use9755 { 55 } else { 0 };
+        Ok(((97 - total % 97) % 97) as u8)
+    }
+
+    pub fn siren(&self, formatted: bool) -> DatabaseResult<String> {
+        if self.locale() != "fr_FR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker SIREN locale",
+            ));
+        }
+        let mut number = self.numerify(Some("%#######"));
+        number.push(luhn_check_digit(&number));
+        if formatted {
+            Ok(format!(
+                "{} {} {}",
+                &number[..3],
+                &number[3..6],
+                &number[6..]
+            ))
+        } else {
+            Ok(number)
+        }
+    }
+
+    pub fn vatId(&self) -> DatabaseResult<String> {
+        if self.locale() != "it_IT" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker vatId locale",
+            ));
+        }
+        self.vat(None)
+    }
+
+    pub fn btw(&self) -> DatabaseResult<String> {
+        if self.locale() != "nl_NL" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker btw locale"));
+        }
+        self.vat(None)
     }
 
     /// Generates the bank account format provided by this locale.
@@ -2164,6 +2277,26 @@ impl UniqueFaker<'_> {
         self.try_generate("swiftCode", || self.0.swiftCode())
     }
 
+    pub fn vat(&self, spacedNationalPrefix: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("vat", || self.0.vat(spacedNationalPrefix))
+    }
+
+    pub fn vatWithType(&self, vatType: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("vat", || self.0.vatWithType(vatType))
+    }
+
+    pub fn siren(&self, formatted: bool) -> DatabaseResult<String> {
+        self.try_generate("siren", || self.0.siren(formatted))
+    }
+
+    pub fn vatId(&self) -> DatabaseResult<String> {
+        self.try_generate("vatId", || self.0.vatId())
+    }
+
+    pub fn btw(&self) -> DatabaseResult<String> {
+        self.try_generate("btw", || self.0.btw())
+    }
+
     pub fn bankAccountNumber(
         &self,
         prefix: &str,
@@ -2512,6 +2645,24 @@ impl UniqueFaker<'_> {
         }
         Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
     }
+}
+
+fn luhn_check_digit(number: &str) -> char {
+    let sum: u32 = number
+        .bytes()
+        .rev()
+        .enumerate()
+        .map(|(index, digit)| {
+            let value = u32::from(digit - b'0');
+            if index % 2 == 0 {
+                let doubled = value * 2;
+                doubled / 10 + doubled % 10
+            } else {
+                value
+            }
+        })
+        .sum();
+    char::from(b'0' + ((10 - sum % 10) % 10) as u8)
 }
 
 fn faker_json_key<T: serde::Serialize>(value: &T) -> DatabaseResult<String> {

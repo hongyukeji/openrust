@@ -4787,3 +4787,148 @@ fn faker_institutions_and_local_swift_follow_provider_contract() -> DatabaseResu
     assert!(traditional.swiftCode().is_err());
     Ok(())
 }
+
+#[test]
+fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::{Faker, fake};
+
+    let french = fake(Some("fr-FR"))?;
+    let belgian = fake(Some("nl-BE"))?;
+    let uk = fake(Some("en-GB"))?;
+    let italian = fake(Some("it-IT"))?;
+    for locale in [
+        "bg-BG", "de-AT", "fr-BE", "nl-BE", "fr-FR", "es-ES", "it-IT", "nl-NL", "en-GB",
+    ] {
+        let faker = fake(Some(locale))?;
+        for spaced in [None, Some(false)] {
+            for _ in 0..32 {
+                let vat = faker.vat(spaced)?;
+                let groups: Vec<_> = vat.split(' ').map(str::len).collect();
+                let compact = vat.replace(' ', "");
+                let spaced = spaced.unwrap_or(true);
+                let number = match locale {
+                    "bg-BG" => {
+                        assert!(compact.starts_with("BG"));
+                        assert!(matches!(compact.len(), 11 | 12));
+                        assert_ne!(compact.as_bytes()[7], b'0');
+                        assert_eq!(groups.len(), if spaced { 2 } else { 1 });
+                        &compact[2..]
+                    }
+                    "de-AT" => {
+                        assert!(vat.starts_with(if spaced { "AT U" } else { "ATU" }));
+                        assert_eq!(compact.len(), 11);
+                        &compact[3..]
+                    }
+                    "fr-BE" | "nl-BE" => {
+                        assert!(vat.starts_with(if spaced { "BE 0" } else { "BE0" }));
+                        assert_eq!(compact.len(), 12);
+                        &compact[3..]
+                    }
+                    "fr-FR" => {
+                        assert!(compact.starts_with("FR"));
+                        assert_eq!(compact.len(), 13);
+                        assert_eq!(
+                            groups,
+                            if spaced {
+                                vec![2, 2, 3, 3, 3]
+                            } else {
+                                vec![13]
+                            }
+                        );
+                        &compact[2..]
+                    }
+                    "es-ES" => {
+                        assert_eq!(vat.len(), 9);
+                        assert!(b"ABCDEFGHJNPQRSUVW".contains(&vat.as_bytes()[0]));
+                        &vat[1..]
+                    }
+                    "it-IT" => {
+                        assert!(vat.starts_with("IT"));
+                        assert_eq!(vat.len(), 13);
+                        &vat[2..]
+                    }
+                    "nl-NL" => {
+                        assert!(vat.starts_with("NL"));
+                        assert_eq!(vat.len(), 14);
+                        assert_eq!(&vat[11..12], "B");
+                        assert!(vat[12..].bytes().all(|byte| byte.is_ascii_digit()));
+                        &vat[2..11]
+                    }
+                    "en-GB" => {
+                        assert!(compact.starts_with("GB"));
+                        assert!(matches!(groups.as_slice(), [5, 4, 1 | 2]));
+                        &compact[2..]
+                    }
+                    _ => unreachable!(),
+                };
+                assert!(
+                    number.bytes().all(|byte| byte.is_ascii_digit()),
+                    "{locale}: {vat}"
+                );
+            }
+        }
+    }
+    let verify_luhn = |digits: &str| {
+        let sum: u32 = digits
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(index, byte)| {
+                let digit = u32::from(byte - b'0');
+                if index % 2 == 0 {
+                    digit
+                } else {
+                    digit * 2 - u32::from(digit > 4) * 9
+                }
+            })
+            .sum();
+        assert_eq!(sum % 10, 0);
+    };
+    for _ in 0..64 {
+        let fr = french.vat(Some(false))?;
+        verify_luhn(&fr[4..]);
+        let siren: u32 = fr[4..].parse().unwrap();
+        assert_eq!(
+            fr[2..4].parse::<u32>().unwrap(),
+            (12 + 3 * (siren % 97)) % 97
+        );
+        assert_eq!(french.siren(true)?.split(' ').count(), 3);
+        verify_luhn(&italian.unique(false).vatId()?[2..]);
+        let be = belgian.vat(Some(false))?;
+        assert_eq!(
+            be[10..].parse::<u32>().unwrap(),
+            97 - be[2..10].parse::<u32>().unwrap() % 97
+        );
+        let branch = uk.vatWithType(Some("branch"))?;
+        let blocks: Vec<_> = branch[2..].split(' ').collect();
+        assert_eq!(blocks.len(), 4);
+        let body = [blocks[0], blocks[1]].concat();
+        let weighted: u16 = body
+            .bytes()
+            .zip((2..=8).rev())
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum();
+        assert_eq!((weighted + 55 + blocks[2].parse::<u16>().unwrap()) % 97, 0);
+        assert_eq!(blocks[3].len(), 3);
+        let government = uk.vatWithType(Some("gov"))?;
+        assert!(government.starts_with("GBGD"));
+        assert_eq!(government.len(), 7);
+        assert!(government[4..].parse::<u16>().unwrap() < 500);
+        let health = uk.vatWithType(Some("health"))?;
+        assert!(health.starts_with("GBHA"));
+        assert!((500..=999).contains(&health[4..].parse::<u16>().unwrap()));
+    }
+    assert_eq!(Faker::calculateModulus97("0000000", false)?, 0);
+    assert_eq!(Faker::calculateModulus97("0000000", true)?, 42);
+    assert!(Faker::calculateModulus97("123456x", true).is_err());
+    assert!(Faker::calculateModulus97("123", true).is_err());
+    assert!(
+        uk.unique(true)
+            .vatWithType(Some("branch"))?
+            .starts_with("GB")
+    );
+    assert!(fake(Some("nl-NL"))?.unique(true).btw()?.starts_with("NL"));
+    assert!(fake(Some("zh-Hant"))?.vat(None).is_err());
+    assert!(french.vatWithType(Some("gov")).is_err());
+    Ok(())
+}
