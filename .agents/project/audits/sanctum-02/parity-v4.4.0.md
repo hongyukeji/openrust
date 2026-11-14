@@ -26,7 +26,7 @@
 
 - PHP 运行时类可直接决定关系返回值。Rust 通过应用注册选定模型，使用时显式指定类型。用 `tokensQuery::<T>` 构造 Eloquent 查询，用 `tokensRelation::<T>` 构造 `MorphMany` 预加载描述。MySQL 验证四种模型以及关系条件在用户添加 OR 时仍有效。
 - PHP 的全局测试状态以隔离的 Rust 夹具表示。与令牌关联的身份绑定到请求和守卫。能力切换和跨用户隔离由 HTTP 测试验证。
-- 第三方包通过 `ServiceProvider::publishes` 或 `publishesMigrations` 提供编译期资源及相对目标路径，替代 PHP 运行时源文件发现。交互菜单可按文本过滤，再按编号选择 Provider、标签或全部。新迁移发布时按时间重命名，应用先在迁移注册表接入再重新编译。已有迁移源文件及其名称保留，以匹配 Rust 的编译注册和迁移账本。同名重复发布使用已有文件名。文件与目录可通过 `publishesPaths` 注册。目录递归复制文件并保留相对路径。Rust 端使用逐行输入搜索词的终端菜单。为匹配本地文件适配器的安全边界，拒绝源树内和应用目标路径上的符号链接。
+- 第三方包通过 `ServiceProvider::publishes` 或 `publishesMigrations` 提供编译期资源及相对目标路径，替代 PHP 运行时源文件发现。交互菜单逐键过滤 Provider、标签和全部选项，用方向键选择、回车确认。新迁移发布时按时间重命名，应用先在迁移注册表接入再重新编译。已有迁移源文件及其名称保留，以匹配 Rust 的编译注册和迁移账本。同名重复发布使用已有文件名。文件与目录可通过 `publishesPaths` 注册。目录递归复制文件并保留相对路径。Rust 端使用终端按键输入和有限高度的结果列表。为匹配本地文件适配器的安全边界，拒绝源树内和应用目标路径上的符号链接。
 - Passport 安装选项属于 Laravel 的 API 安装器和 Passport 集成，继续单独跟踪。
 
 ## 本轮实际验收
@@ -43,3 +43,8 @@
 - 实际应用二进制在隔离根目录通过伪终端验收。使用大小写不同的搜索词定位 Provider，再分别搜索配置标签、迁移标签和全部，核对每次生成的文件。
 - 独立应用注册第三方目录和具名事件监听器，经实际 Artisan 验证相对路径复制、首次发布及再次跳过的事件载荷，并验证未知标签无事件。Rust 1.94 的 `test_app` 五项通过，覆盖二进制资源、隐藏文件、默认保留、`--force`、`--existing`、多个标签和缺失源。
 - Rust 1.94 格式检查、默认与 Sanctum 功能的工作区全目标严格 Clippy、三语 VitePress 构建与 12 项浏览器检查通过。
+
+## `vendor:publish` 逐键交互
+
+- 对照固定 Laravel 13.40.0 的 Provider、标签、全部选项和不区分大小写的包含匹配。Rust 用 `console` 读取终端按键，逐键筛选并用最多 15 行展示结果。方向键移动，回车确认，Esc 或 Ctrl+C 取消。Laravel 在 Windows 使用选择菜单，OpenRust 使用同一套 Rust 终端接口提供筛选。 [固定上游命令](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Foundation/Console/VendorPublishCommand.php#L122-L157)
+- 在 macOS 伪终端启动实际应用二进制，发送无换行的搜索文本并检查即时刷新。验证不区分大小写的 Provider 搜索、退格和方向键选配置标签、方向键选迁移标签，以及方向键选全部。逐次核对发布文件。另验证无匹配时回车不发布、Esc 和 Ctrl+C 无副作用、终端恢复正常输入模式，以及没有终端和 `--no-interaction` 时跳过菜单。Windows 未做实机验证。

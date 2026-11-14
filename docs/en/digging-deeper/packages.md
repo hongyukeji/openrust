@@ -24,4 +24,4 @@ OpenRust uses explicit Cargo installation and provider registration.
 
 ## Publishing assets
 
-Use `publishes` for embedded files and `publishesPaths` for file or directory mappings with application-relative destinations. Run `./artisan vendor:publish` to search for a provider, tag, or all assets. Choose directly with `--provider`, `--tag`, or `--all`. Directory publishing preserves relative file paths. Existing files are preserved by default. Use `--force` to overwrite them or `--existing` to update only files already present.
+Use `publishes` for embedded files and `publishesPaths` for file or directory mappings with application-relative destinations. Run `./artisan vendor:publish` and start typing to filter providers, tags, or all assets. Move with ↑ and ↓, confirm with Enter, or cancel with Esc. Choose directly with `--provider`, `--tag`, or `--all`. Directory publishing preserves relative file paths. Existing files are preserved by default. Use `--force` to overwrite them or `--existing` to update only files already present.

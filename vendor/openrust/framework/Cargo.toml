@@ -29,6 +29,7 @@ cap-std = "4.0.3"
 crc32fast = { version = "1.5.5", optional = true }
 chrono = { version = "0.4.45", default-features = false, features = ["std", "serde"] }
 clap = "4.6.1"
+console = "0.16.6"
 deunicode = "1.6.2"
 dotenvy = "0.15.7"
 fastrand = "2.4.1"

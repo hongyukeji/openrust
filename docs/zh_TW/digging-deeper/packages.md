@@ -24,4 +24,4 @@ OpenRust 使用 Cargo 明確安裝擴充套件並註冊 Provider。
 
 ## 發佈資源
 
-嵌入檔案使用 `publishes`，本機檔案或目錄使用 `publishesPaths`，目標路徑相對於應用程式根目錄。執行 `./artisan vendor:publish` 可搜尋 Provider、標籤或全部資源，也可用 `--provider`、`--tag` 或 `--all` 直接選取。發佈目錄時保留檔案的相對路徑。預設保留既有檔案，`--force` 覆寫既有檔案，`--existing` 只更新已存在的檔案。
+嵌入檔案使用 `publishes`，本機檔案或目錄使用 `publishesPaths`，目標路徑相對於應用程式根目錄。執行 `./artisan vendor:publish` 後，輸入文字即可篩選 Provider、標籤或全部資源。用 ↑ 和 ↓ 移動，Enter 確認，Esc 取消。也可用 `--provider`、`--tag` 或 `--all` 直接選取。發佈目錄時保留檔案的相對路徑。預設保留既有檔案，`--force` 覆寫既有檔案，`--existing` 只更新已存在的檔案。

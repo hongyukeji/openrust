@@ -24,4 +24,4 @@ OpenRust 使用 Cargo 显式安装扩展包并注册 Provider。
 
 ## 发布资源
 
-嵌入文件使用 `publishes`，本地文件或目录使用 `publishesPaths`，目标路径相对于应用根目录。运行 `./artisan vendor:publish` 可搜索 Provider、标签或全部资源，也可用 `--provider`、`--tag` 或 `--all` 直接选择。发布目录时保留文件的相对路径。默认保留已有文件，`--force` 覆盖已有文件，`--existing` 只更新已存在的文件。
+嵌入文件使用 `publishes`，本地文件或目录使用 `publishesPaths`，目标路径相对于应用根目录。运行 `./artisan vendor:publish` 后，键入文字即可筛选 Provider、标签或全部资源。用 ↑ 和 ↓ 移动，回车确认，Esc 取消。也可用 `--provider`、`--tag` 或 `--all` 直接选择。发布目录时保留文件的相对路径。默认保留已有文件，`--force` 覆盖已有文件，`--existing` 只更新已存在的文件。

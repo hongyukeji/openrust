@@ -1,12 +1,13 @@
 use std::{
     collections::BTreeSet,
     fs,
-    io::{self, IsTerminal as _, Write as _},
+    io::{self, IsTerminal as _},
     path::{Path, PathBuf},
 };
 
 use chrono::{NaiveDateTime, TimeDelta, Utc};
 use clap::{Arg, ArgAction, Command as Syntax};
+use console::{Key, Term, truncate_str};
 
 use crate::{
     console::{
@@ -173,42 +174,90 @@ fn select(resources: &[PublishableResource]) -> io::Result<Option<Selection>> {
                     .map(|name| (format!("Tag: {name}"), (None, vec![name.to_owned()]))),
             )
             .collect();
-    let mut stderr = io::stderr().lock();
-    writeln!(
-        stderr,
-        "Which provider or tag's files would you like to publish?"
-    )?;
-    let mut search = String::new();
-    loop {
-        let matches: Vec<_> = choices
-            .iter()
-            .filter(|(label, _)| label.to_lowercase().contains(&search))
-            .collect();
-        if matches.is_empty() {
-            writeln!(stderr, "No matches.")?;
-        }
-        for (index, (label, _)) in matches.iter().enumerate() {
-            writeln!(stderr, "{index}) {label}")?;
-        }
-        write!(
-            stderr,
-            "Search or select a number (blank to cancel, / to reset): "
-        )?;
-        stderr.flush()?;
-        let mut line = String::new();
-        if io::stdin().read_line(&mut line)? == 0 || line.trim().is_empty() {
-            return Ok(None);
-        }
-        let line = line.trim();
-        if let Ok(index) = line.parse::<usize>() {
-            if let Some((_, choice)) = matches.get(index) {
-                return Ok(Some(choice.clone()));
-            }
-            writeln!(stderr, "Choose a number from the filtered list.")?;
-        } else {
-            search = line.trim_start_matches('/').to_lowercase();
-        }
+    let terminal = Term::stderr();
+    if !terminal.is_term() {
+        return Ok(None);
     }
+    let labels: Vec<_> = choices
+        .iter()
+        .map(|(label, _)| label.to_lowercase())
+        .collect();
+    let mut query = String::new();
+    let mut selected = 0_usize;
+    let mut previous_lines = 0;
+    let result = loop {
+        let (rows, columns) = terminal.size();
+        let visible = usize::from(rows.saturating_sub(3)).clamp(1, 15);
+        let width = usize::from(columns.saturating_sub(1)).max(1);
+        let search = query.to_lowercase();
+        let matches: Vec<_> = labels
+            .iter()
+            .enumerate()
+            .filter_map(|(index, label)| label.contains(&search).then_some(index))
+            .collect();
+        let start = selected.saturating_sub(visible - 1);
+        terminal.clear_last_lines(previous_lines)?;
+        terminal.write_line(&truncate_str(
+            "Which provider or tag's files would you like to publish?",
+            width,
+            "",
+        ))?;
+        let prompt = if query.is_empty() {
+            "Search...".to_owned()
+        } else {
+            format!("Search: {query}")
+        };
+        terminal.write_line(&truncate_str(&prompt, width, ""))?;
+        previous_lines = 2;
+        if matches.is_empty() {
+            terminal.write_line(&truncate_str("No matches.", width, ""))?;
+            previous_lines += 1;
+        }
+        for (offset, &index) in matches.iter().enumerate().skip(start).take(visible) {
+            let marker = if offset == selected { "> " } else { "  " };
+            let label = format!("{marker}{}", choices[index].0);
+            terminal.write_line(&truncate_str(&label, width, ""))?;
+            previous_lines += 1;
+        }
+        terminal.flush()?;
+        match terminal.read_key_raw() {
+            Ok(Key::Enter) => {
+                if let Some(&index) = matches.get(selected) {
+                    break Ok(Some(choices[index].1.clone()));
+                }
+            }
+            Ok(Key::ArrowUp) if !matches.is_empty() => {
+                selected = if selected == 0 {
+                    matches.len() - 1
+                } else {
+                    selected - 1
+                };
+            }
+            Ok(Key::ArrowDown) if !matches.is_empty() => {
+                selected = (selected + 1) % matches.len();
+            }
+            Ok(Key::Char(character)) if !character.is_control() => {
+                query.push(character);
+                selected = 0;
+            }
+            Ok(Key::Backspace) => {
+                query.pop();
+                selected = 0;
+            }
+            Ok(Key::Escape | Key::CtrlC) => break Ok(None),
+            Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => break Ok(None),
+            Err(error) => break Err(error),
+            _ => {}
+        }
+    };
+    terminal.clear_last_lines(previous_lines)?;
+    if let Ok(Some(ref selection)) = result
+        && let Some((label, _)) = choices.iter().find(|(_, choice)| choice == selection)
+    {
+        terminal.write_line(label)?;
+    }
+    terminal.flush()?;
+    result
 }
 
 #[derive(Default)]
