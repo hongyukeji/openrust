@@ -592,7 +592,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models.
+`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models.
 
 ```rust
 use openrust::database::{

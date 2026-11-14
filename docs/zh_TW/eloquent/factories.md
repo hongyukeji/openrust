@@ -592,7 +592,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。
+`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。
 
 ```rust
 use openrust::database::{

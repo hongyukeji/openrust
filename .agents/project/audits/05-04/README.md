@@ -101,6 +101,14 @@ Rust 1.94.0 通过 `cargo fmt --all --check`、`cargo clippy --workspace --all-t
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy 和 `./artisan inspire` 通过。三语示例展示创建 Future 后再等待及重复调用，均编译通过。VitePress 构建和双挂载六项浏览器检查通过，保留已有分块大小提示。已恢复隔离副本的原始 Seeder，清理 2.2 GiB Cargo 产物和 38 MiB 站点产物，项目卷剩余 82 GiB。05-04 的 Faker provider 差异继续跟踪。
 
+### 2026-11-15 工厂预构造与延迟创建复验
+
+隔离基线 `3e1d2fc5`。对照固定 Laravel，`makeOne` 保留原工厂的批量计数，`makeMany` 取用并重置计数。Rust 的 `lazy` 返回异步回调，调用后开始等待 Future 时才执行创建。三语文档明确这三个入口组合使用时的数量与写入时机。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L342)
+
+实际应用二进制在独立 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`。单条预构造、默认批量、逐条属性覆盖和零条预构造均保持目标表零写入，两次默认批量依次返回两条和一条。调用 `lazy` 取得 Future 后仍为零行。两次批量及两次单条回调执行后按主键回查到四条批量和两条单条记录。锁定的 Seeder 测试及 MySQL／SQLite 两项工厂回归通过。其中 `mysql_fresh_seeds_the_selected_database` 使用单独的临时数据库和显式 `OPENRUST_TEST_MYSQL_WIPE_URL` 执行，共 49 项 Seeder 均有执行结果。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译和 VitePress 构建通过，根路径和 `/docs/` 共六项浏览器检查通过。VitePress 仍有既有的分块大小提示。已恢复临时 Seeder 并清理本批 2.7 GiB Cargo 产物和 39 MiB 站点产物。提交前周额度剩余 50%，项目磁盘可用 82 GiB。
+
 ## 逐项序列与笛卡尔积序列
 
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)
