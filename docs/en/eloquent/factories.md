@@ -254,6 +254,19 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Financial Institutions {#institution-samples}
+
+`bank()` uses the fixed locale catalog for `de_DE`, `el_CY`, `ka_GE`, `kk_KZ`, `ms_MY`, `pl_PL`, `pt_BR`, `ru_RU`, `th_TH`, `uk_UA`, and `zh_CN`. Malaysian Malay also provides `localBank`, `foreignBank`, `governmentBank`, `insurance`, and `currencySymbol`. Nepali provides `commercialBank`, `developmentBank`, `financeCompany`, `microFinance`, and `digitalWallet`. Both provide `swiftCode()` from their respective catalogs. These formatters support `unique` and return errors for unsupported locales.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn institution_samples() -> DatabaseResult<(&'static str, String)> {
+    let faker = fake(Some("ms-MY"))?;
+    Ok((faker.foreignBank()?, faker.unique(false).swiftCode()?))
+}
+```
+
 ### Credit Card Samples {#credit-card-samples}
 
 The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Chrono directives and defaults to `%m/%y`. All five formatters support `unique`.

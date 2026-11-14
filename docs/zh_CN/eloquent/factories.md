@@ -254,6 +254,19 @@ fn regional_bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 金融机构 {#institution-samples}
+
+`bank()` 在 `de_DE`、`el_CY`、`ka_GE`、`kk_KZ`、`ms_MY`、`pl_PL`、`pt_BR`、`ru_RU`、`th_TH`、`uk_UA` 和 `zh_CN` 使用固定地区目录。马来西亚马来语还提供 `localBank`、`foreignBank`、`governmentBank`、`insurance` 和 `currencySymbol`。尼泊尔语提供 `commercialBank`、`developmentBank`、`financeCompany`、`microFinance` 和 `digitalWallet`。两个地区的 `swiftCode()` 使用各自的目录。这些生成器支持 `unique`，不支持的地区返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn institution_samples() -> DatabaseResult<(&'static str, String)> {
+    let faker = fake(Some("ms-MY"))?;
+    Ok((faker.foreignBank()?, faker.unique(false).swiftCode()?))
+}
+```
+
 ### 信用卡样本 {#credit-card-samples}
 
 信用卡生成器提供品牌、带 Luhn 校验位的卡号、到期日和完整样本。卡号格式化时默认用连字符分组。`pt-BR` 使用巴西品牌格式。到期日期传入 `true` 时从现在到未来 36 个月取样，传入 `false` 时从过去 36 个月到未来 36 个月取样。`creditCardExpirationDateString` 接受 Chrono 格式指令，默认 `%m/%y`。五个方法均支持 `unique`。

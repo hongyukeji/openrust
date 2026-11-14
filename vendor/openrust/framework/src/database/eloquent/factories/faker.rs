@@ -1,6 +1,6 @@
 use super::{
     faker_address::DISTRICTS_ZH_CN,
-    faker_miscellaneous,
+    faker_institutions, faker_miscellaneous,
     faker_payment::{
         CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
         card_masks_pt_br,
@@ -47,6 +47,37 @@ pub struct CreditCardDetails {
     pub number: String,
     pub name: String,
     pub expiration_date: String,
+}
+
+// These catalog-only formatters share the same locale and uniqueness contracts.
+macro_rules! institution_formatters {
+    ($($method:ident => $locale:literal, $catalog:ident;)*) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(pub fn $method(&self) -> DatabaseResult<&'static str> {
+                self.institution_sample($locale, faker_institutions::$catalog)
+            })*
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(pub fn $method(&self) -> DatabaseResult<&'static str> {
+                self.try_generate(stringify!($method), || self.0.$method())
+            })*
+        }
+    };
+}
+
+institution_formatters! {
+    localBank => "ms_MY", MS_MY_LOCAL_BANKS;
+    foreignBank => "ms_MY", MS_MY_FOREIGN_BANKS;
+    governmentBank => "ms_MY", MS_MY_GOVERNMENT_BANKS;
+    insurance => "ms_MY", MS_MY_INSURANCE_COMPANIES;
+    currencySymbol => "ms_MY", MS_MY_CURRENCY_SYMBOL;
+    commercialBank => "ne_NP", NE_NP_COMMERCIAL_BANKS;
+    developmentBank => "ne_NP", NE_NP_DEVELOPMENT_BANKS;
+    financeCompany => "ne_NP", NE_NP_FINANCE_COMPANIES;
+    digitalWallet => "ne_NP", NE_NP_DIGITAL_WALLETS;
 }
 
 /// Generates localized sample data for tests and seeders.
@@ -974,6 +1005,52 @@ impl Faker {
             name: self.name(),
             expiration_date: self.creditCardExpirationDateString(valid, None)?,
         })
+    }
+
+    fn institution_sample(
+        &self,
+        locale: &str,
+        catalog: &'static [&'static str],
+    ) -> DatabaseResult<&'static str> {
+        if self.locale() != locale {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker institution locale",
+            ));
+        }
+        Ok(catalog[fastrand::usize(..catalog.len())])
+    }
+
+    /// Selects a bank from the locale's catalog.
+    pub fn bank(&self) -> DatabaseResult<&'static str> {
+        if self.locale() == "ms_MY" {
+            return [Self::localBank, Self::foreignBank, Self::governmentBank]
+                [fastrand::usize(..3)](self);
+        }
+        let catalog = faker_institutions::banks(self.locale())
+            .ok_or(DatabaseError::InvalidQuery("unsupported Faker bank locale"))?;
+        Ok(catalog[fastrand::usize(..catalog.len())])
+    }
+
+    pub fn microFinance(&self) -> DatabaseResult<String> {
+        let name = self.institution_sample("ne_NP", faker_institutions::NE_NP_MICRO_FINANCES)?;
+        Ok(format!("{name} Laghubitta Bittiya Sanstha"))
+    }
+
+    /// Generates a SWIFT code using the Malaysian or Nepali provider.
+    pub fn swiftCode(&self) -> DatabaseResult<String> {
+        match self.locale() {
+            "ms_MY" => {
+                let pattern =
+                    self.institution_sample("ms_MY", faker_institutions::MS_MY_SWIFT_CODES)?;
+                Ok(self.lexify(Some(pattern)).to_ascii_uppercase())
+            }
+            "ne_NP" => self
+                .institution_sample("ne_NP", faker_institutions::NE_NP_SWIFT_CODES)
+                .map(str::to_owned),
+            _ => Err(DatabaseError::InvalidQuery(
+                "unsupported Faker SWIFT locale",
+            )),
+        }
     }
 
     /// Generates the bank account format provided by this locale.
@@ -2073,6 +2150,18 @@ impl UniqueFaker<'_> {
             || self.0.creditCardDetails(valid),
             faker_json_key,
         )
+    }
+
+    pub fn bank(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("bank", || self.0.bank())
+    }
+
+    pub fn microFinance(&self) -> DatabaseResult<String> {
+        self.try_generate("microFinance", || self.0.microFinance())
+    }
+
+    pub fn swiftCode(&self) -> DatabaseResult<String> {
+        self.try_generate("swiftCode", || self.0.swiftCode())
     }
 
     pub fn bankAccountNumber(

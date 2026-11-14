@@ -60,6 +60,7 @@ type Relationship<M> = dyn for<'a> Fn(
 
 mod faker;
 mod faker_address;
+mod faker_institutions;
 mod faker_miscellaneous;
 mod faker_payment;
 mod faker_person;

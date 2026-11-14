@@ -4722,3 +4722,68 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
     );
     Ok(())
 }
+
+#[test]
+fn faker_institutions_and_local_swift_follow_provider_contract() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::fake;
+
+    for (locale, distinct, representative) in [
+        ("de_DE", 60, "Bank 1 Saar"),
+        ("el_CY", 12, "Τράπεζα Κύπρου"),
+        ("ka_GE", 19, "ბანკი რესპუბლიკა"),
+        ("kk_KZ", 2, "Қазкоммерцбанк"),
+        ("pl_PL", 68, "Narodowy Bank Polski"),
+        (
+            "pt_BR",
+            59,
+            "BADESUL Desenvolvimento S.A. – Agência de Fomento/RS",
+        ),
+        ("ru_RU", 788, "Новый Промышленный Банк"),
+        ("th_TH", 22, "ธนาคารแห่งประเทศไทย"),
+        ("uk_UA", 89, "А-Банк"),
+        ("zh_CN", 19, "渤海银行"),
+    ] {
+        let faker = fake(Some(locale))?;
+        let unique = faker.unique(true);
+        let names = (0..distinct)
+            .map(|_| unique.bank())
+            .collect::<DatabaseResult<std::collections::HashSet<_>>>()?;
+        assert_eq!(names.len(), distinct);
+        assert!(names.contains(representative));
+        assert!(unique.bank().is_err());
+    }
+    let malaysia = fake(Some("ms-MY"))?;
+    let unique = malaysia.unique(true);
+    assert_eq!(unique.currencySymbol()?, "RM");
+    assert!(unique.currencySymbol().is_err());
+    assert!(!unique.insurance()?.is_empty());
+    let nepali = fake(Some("ne-NP"))?;
+    for _ in 0..64 {
+        assert!(!malaysia.bank()?.is_empty());
+        assert!(!malaysia.localBank()?.is_empty());
+        assert!(!malaysia.foreignBank()?.is_empty());
+        assert!(!malaysia.governmentBank()?.is_empty());
+        let swift = malaysia.swiftCode()?;
+        assert_eq!(swift.len(), 11);
+        assert_eq!(&swift[4..6], "MY");
+        let swift = nepali.swiftCode()?;
+        assert!(matches!(swift.len(), 8 | 11));
+        assert_eq!(&swift[4..6], "NP");
+        assert!(
+            nepali
+                .microFinance()?
+                .ends_with(" Laghubitta Bittiya Sanstha")
+        );
+        assert!(!nepali.commercialBank()?.is_empty());
+        assert!(!nepali.developmentBank()?.is_empty());
+        assert!(!nepali.financeCompany()?.is_empty());
+        assert!(!nepali.digitalWallet()?.is_empty());
+    }
+    assert_ne!(unique.swiftCode()?, unique.swiftCode()?);
+    assert!(malaysia.commercialBank().is_err());
+    assert!(nepali.localBank().is_err());
+    let traditional = fake(Some("zh-Hant"))?;
+    assert!(traditional.bank().is_err());
+    assert!(traditional.swiftCode().is_err());
+    Ok(())
+}

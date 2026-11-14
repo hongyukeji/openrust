@@ -489,3 +489,13 @@ PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN�
 下一批核对地区银行名称、分类及本地 SWIFT 接口。地区税号另行按其 formatter 契约验收。
 
 已清理本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB，项目卷剩余 81 GiB。
+
+## Faker 地区金融机构与 SWIFT
+
+对应固定 Laravel 模型工厂的 `fake()`。迁移 FakerPHP v1.24.1 的 11 个地区银行名称、马来西亚的银行分类、保险和 `currencySymbol`，以及尼泊尔的商业银行、开发银行、金融公司、小额信贷和数字钱包。马来西亚与尼泊尔的 `swiftCode` 使用各自的固定目录，马来西亚 `bank` 保留先随机选分类的机制。Rust 对缺少 formatter 的地区返回错误，各方法沿用独立的 `unique` 历史。v0.x 未发现对应方法，现有 Goravel 式编译装配保持适用。 [Laravel 工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [马来西亚 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Payment.php) · [尼泊尔 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ne_NP/Payment.php)
+
+隔离基线 `5633e19e`。PHP 8.5 对照 12 个地区的上游 formatter，每个方法抽样 32 次。1,487 条目录项按顺序逐项比对一致。Rust 定向回归覆盖目录和唯一值耗尽、地区别名、地区互斥、小额信贷后缀及 SWIFT 格式。实际 MySQL 8.4.13 用 `artisan db:seed --database=mysql --force` 回查简中银行、马来西亚外资银行、尼泊尔小额信贷与两个地区 SWIFT。Rust 1.94.0 格式、全目标严格 Clippy、MySQL 工厂回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。VitePress 仍报告分块大小提示。
+
+下一批核对固定 Payment provider 的地区 VAT formatter。
+
+已清理本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB，项目卷剩余 81 GiB。
