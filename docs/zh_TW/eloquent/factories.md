@@ -178,6 +178,25 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### 條件狀態 {#conditional-states}
+
+用 `when(condition, transform)` 在布林條件為真時轉換工廠，或用 `unless(condition, transform)` 在條件為假時轉換。`whenElse` 和 `unlessElse` 的第三個參數是備用轉換。選中的閉包在設定工廠時執行一次，並回傳工廠以繼續鏈式呼叫。這些方法可在 `count` 前後使用。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn conditional_factory<M: Model>(featured: bool, draft: bool) {
+    let _batch = Factory::<M>::new(Attributes::new)
+        .when(featured, |factory| factory.set("featured", true))
+        .count(2)
+        .unlessElse(
+            draft,
+            |batch| batch.set("status", "published"),
+            |batch| batch.set("status", "draft"),
+        );
+}
+```
+
 ## 使用工廠建立模型
 
 `state` 按宣告順序疊加。`sequence` 接收批次內從零開始的索引。`make` 建立記憶體模型並執行 `afterMaking`。`create` 儲存模型、建立已宣告的子關聯，再執行 `afterCreating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。

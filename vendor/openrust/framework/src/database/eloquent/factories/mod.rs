@@ -184,6 +184,49 @@ impl FactoryRecords {
     }
 }
 
+// Both factory variants use the same builder transformations.
+macro_rules! conditional_states {
+    () => {
+        /// Transforms this factory when the condition is true.
+        #[must_use]
+        pub fn when(self, condition: bool, transform: impl FnOnce(Self) -> Self) -> Self {
+            self.whenElse(condition, transform, core::convert::identity)
+        }
+
+        /// Transforms this factory when the condition is false.
+        #[must_use]
+        pub fn unless(self, condition: bool, transform: impl FnOnce(Self) -> Self) -> Self {
+            self.when(!condition, transform)
+        }
+
+        /// Applies either the transformation or the fallback.
+        #[must_use]
+        pub fn whenElse(
+            self,
+            condition: bool,
+            transform: impl FnOnce(Self) -> Self,
+            fallback: impl FnOnce(Self) -> Self,
+        ) -> Self {
+            if condition {
+                transform(self)
+            } else {
+                fallback(self)
+            }
+        }
+
+        /// Applies the transformation on false and the fallback on true.
+        #[must_use]
+        pub fn unlessElse(
+            self,
+            condition: bool,
+            transform: impl FnOnce(Self) -> Self,
+            fallback: impl FnOnce(Self) -> Self,
+        ) -> Self {
+            self.whenElse(!condition, transform, fallback)
+        }
+    };
+}
+
 /// A model definition with ordered attribute states and relationship callbacks.
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
@@ -200,6 +243,8 @@ pub struct Factory<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> Factory<M> {
+    conditional_states!();
+
     pub fn new(definition: impl Fn() -> Attributes + Send + Sync + 'static) -> Self {
         Self::from_definition(move |_, _| Ok(definition()))
     }
@@ -1102,6 +1147,8 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    conditional_states!();
+
     #[must_use]
     pub fn withoutParents(self, parents: Vec<FactoryParentSelector>) -> Self {
         self.factory.withoutParents(parents).count(self.count)

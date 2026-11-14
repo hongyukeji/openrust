@@ -178,6 +178,25 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### Conditional States {#conditional-states}
+
+Use `when(condition, transform)` to transform a factory when a boolean is true, or `unless(condition, transform)` when it is false. `whenElse` and `unlessElse` take a fallback transformation as the third argument. The selected closure runs once when configuring the factory and returns it for chaining. These methods work before or after `count`.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn conditional_factory<M: Model>(featured: bool, draft: bool) {
+    let _batch = Factory::<M>::new(Attributes::new)
+        .when(featured, |factory| factory.set("featured", true))
+        .count(2)
+        .unlessElse(
+            draft,
+            |batch| batch.set("status", "published"),
+            |batch| batch.set("status", "draft"),
+        );
+}
+```
+
 ## Creating Models Using Factories
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.

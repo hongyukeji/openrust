@@ -306,3 +306,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 固定 Laravel Factory 的动态 trashed 检查模型是否支持软删除，把模型自定义删除列追加到状态链，接受显式日期，省略日期时使用 Carbon 的前一日。Rust 以 trashed(Option<Value>) 表达可选日期，对不支持的模型返回 DatabaseError。默认状态在注册时捕获参考时刻，生成时以所选连接的应用时区计算前一日并沿用模型日期格式。复用旧版已移植的日历运算、模型元数据和日期转换。原有状态和序列的公开签名保留，之后追加的状态与显式属性可覆盖该值。Goravel 启动装配未涉及。 [Laravel Trashed State](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#trashed-state) · [Laravel 工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L760)
 
 隔离基线 `91fe3dd9`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证自定义删除列、批量默认日期、显式日期、后续清空和查询作用域。SQLite 与 MySQL 回归补验未保存模型不落库及不支持软删除的错误。Rust 1.94.0 格式、全目标严格 Clippy、20 项 Seeder 测试、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。
+
+## 工厂条件链
+
+对照固定 Laravel Factory 的 Conditionable 和条件回调测试，单模型与批量工厂提供 when、unless、whenElse、unlessElse。布尔条件在配置时决定分支，选中的闭包接收并返回工厂，之后继续按声明顺序合并状态。Rust 使用显式布尔值和第三个参数的 Else 方法表达默认分支，动态真值、可变回调返回类型及 HigherOrderWhenProxy 由显式 Rust 表达式替代。起步 API 与现有图片构建器的 when、unless 一致。v0.x 未发现模型工厂的对应实现，Goravel 装配未涉及。 [Laravel Conditionable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Conditionable/Traits/Conditionable.php) · [Laravel 工厂条件测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L744)
+
+隔离基线 `5d81ba91`。PHP 8.5.12 执行固定 Conditionable 验证分支及备用回调。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证状态覆盖顺序和两条批量记录，双库回归覆盖 raw、make、create 及跳过分支。Rust 1.94.0 格式、全目标严格 Clippy、21 项 Seeder、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。

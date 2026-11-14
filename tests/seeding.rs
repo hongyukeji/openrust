@@ -2621,3 +2621,100 @@ async fn factory_trashed_state_respects_scopes_on_sqlite_and_mysql() {
         ))
     ));
 }
+
+struct ConditionalProbe(ModelState);
+
+impl Model for ConditionalProbe {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata =
+            ModelMetadata::new("conditional_factory_probe").timestamps(None, None);
+        &METADATA
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_conditional_factory(db: &Connection) -> DatabaseResult<()> {
+    db.getSchemaBuilder()
+        .create("conditional_factory_probe", |table| {
+            table.id();
+            table.string("name", 60);
+        })
+        .await?;
+    let definition = || Attributes::from([("name".into(), "default".into())]);
+    let single = Factory::<ConditionalProbe>::new(definition)
+        .when(false, |_| panic!("false when callback"))
+        .unless(true, |_| panic!("true unless callback"))
+        .when(true, |factory| factory.set("name", "when"))
+        .unlessElse(
+            true,
+            |_| panic!("true unless callback"),
+            |factory| {
+                factory.state(|attributes| {
+                    assert_eq!(attributes.get("name"), Some(&"when".into()));
+                    Attributes::from([("name".into(), "unless fallback".into())])
+                })
+            },
+        );
+    assert_eq!(
+        single.rawOn(db).await?.get("name"),
+        Some(&"unless fallback".into())
+    );
+    single.createOn(db).await?;
+
+    let batch = Factory::<ConditionalProbe>::new(definition)
+        .count(2)
+        .whenElse(
+            false,
+            |_| panic!("false when callback"),
+            |batch| batch.set("name", "when fallback"),
+        )
+        .unless(false, |batch| {
+            batch.state(|attributes| {
+                assert_eq!(attributes.get("name"), Some(&"when fallback".into()));
+                Attributes::from([("name".into(), "unless".into())])
+            })
+        })
+        .when(true, |batch| batch.set("name", "batch"));
+    assert!(
+        batch
+            .makeOn(db)
+            .await?
+            .iter()
+            .all(|model| model.getAttribute("name") == Some(&"batch".into()))
+    );
+    assert_eq!(batch.createOn(db).await?.len(), 2);
+    assert_eq!(
+        db.table("conditional_factory_probe")
+            .orderBy("id", "asc")
+            .pluck("name")
+            .await?,
+        ["unless fallback".into(), "batch".into(), "batch".into()]
+    );
+    db.getSchemaBuilder()
+        .drop("conditional_factory_probe")
+        .await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_conditionals_select_only_one_branch_and_keep_batch_count() {
+    let root = Root::new();
+    verify_conditional_factory(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_conditional_factory(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}

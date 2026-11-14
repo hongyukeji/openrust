@@ -178,6 +178,25 @@ async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### 条件状态 {#conditional-states}
+
+用 `when(condition, transform)` 在布尔条件为真时转换工厂，或用 `unless(condition, transform)` 在条件为假时转换。`whenElse` 和 `unlessElse` 的第三个参数是备用转换。选中的闭包在配置工厂时运行一次，并返回工厂以继续链式调用。这些方法可在 `count` 前后使用。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn conditional_factory<M: Model>(featured: bool, draft: bool) {
+    let _batch = Factory::<M>::new(Attributes::new)
+        .when(featured, |factory| factory.set("featured", true))
+        .count(2)
+        .unlessElse(
+            draft,
+            |batch| batch.set("status", "published"),
+            |batch| batch.set("status", "draft"),
+        );
+}
+```
+
 ## 使用工厂创建模型
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
