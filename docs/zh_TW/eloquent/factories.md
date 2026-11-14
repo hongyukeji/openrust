@@ -1410,6 +1410,36 @@ fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
 
 ## 工廠關聯
 
+設定數量後仍可繼續設定狀態、序列、回呼和關聯。`count(n)` 取代待處理數量，`forEachSequence(states)` 將數量設為序列長度。其他設定方法保留待處理數量。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory, relations::HasMany},
+    seeder::SeederContext,
+};
+
+async fn seed_counted_relationships<P: Model, C: Model>(
+    context: &SeederContext<'_>,
+    parents: Factory<P>,
+    children: Factory<C>,
+    relation: HasMany<P, C>,
+) -> DatabaseResult<()> {
+    parents
+        .count(2)
+        .has(relation, children.count(1))
+        .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
+        .afterCreating(|parent| {
+            assert!(parent.state().exists());
+            Ok(())
+        })
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
+
 ### 狀態與回呼的父模型 {#factory-parent-context}
 
 當子工廠需要讀取透過 `has` 或 `hasAttached` 建立它的模型時，使用 `stateWithParent::<Parent>` 和 `afterCreatingWithParent::<Parent>`。型別相符時回呼接收 `Some(&Parent)`，獨立建立或父模型型別不同時接收 `None`。`afterMaking` 建構回呼仍只接收子模型。

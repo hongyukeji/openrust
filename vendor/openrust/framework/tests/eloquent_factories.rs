@@ -151,14 +151,16 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(related[1].getAttribute("name"), Some(&"entry 1".into()));
 
     let entry = entries()
+        .count(1)
         .forExisting(BelongsTo::new("author_id", "id"), author)
-        .createOn(&connection)
+        .createOneOn(&connection, Attributes::new())
         .await
         .unwrap();
     assert!(entry.getAttribute("author_id").is_some());
     let entry = entries()
+        .count(1)
         .r#for(BelongsTo::new("author_id", "id"), authors())
-        .createOn(&connection)
+        .createOneOn(&connection, Attributes::new())
         .await
         .unwrap();
     assert!(entry.getAttribute("author_id").is_some());
@@ -167,6 +169,7 @@ async fn verify(config: Json, id: &str) {
         BelongsToMany::<Author, Entry>::new("factory_links", "author_id", "entry_id", "id", "id")
     };
     let linked = authors()
+        .count(1)
         .hasAttached(
             links().constrain(|query| {
                 query.withAttributes(
@@ -188,7 +191,7 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     let attached = links()
         .withPivot(["label"])
-        .getResults(&linked)
+        .getResults(&linked[0])
         .await
         .unwrap();
     assert_eq!(attached.len(), 1);
@@ -242,6 +245,7 @@ async fn verify(config: Json, id: &str) {
         });
 
     let batch = authors()
+        .count(5)
         .afterMaking(observe("make"))
         .afterCreating(observe("created"))
         .has(
@@ -294,6 +298,39 @@ async fn verify(config: Json, id: &str) {
     }
 
     let relation = HasMany::<Author, Entry>::new("id", "author_id");
+    let sequence = authors()
+        .count(7)
+        .forEachSequence(vec![
+            Attributes::from([("name".into(), "one".into())]),
+            Attributes::from([("name".into(), "two".into())]),
+        ])
+        .makeOn(&connection)
+        .await
+        .unwrap();
+    assert_eq!(sequence.len(), 2);
+    assert_eq!(sequence[0].getAttribute("name"), Some(&"one".into()));
+    assert_eq!(sequence[1].getAttribute("name"), Some(&"two".into()));
+    let crossed = authors()
+        .count(3)
+        .crossJoinSequence(vec![
+            vec![Attributes::new(), Attributes::new()],
+            vec![Attributes::from([("name".into(), "crossed".into())])],
+        ])
+        .unwrap()
+        .attribute("derived_name", |attributes| {
+            assert_eq!(attributes.get("name"), Some(&"crossed".into()));
+            Ok("derived".into())
+        })
+        .makeOn(&connection)
+        .await
+        .unwrap();
+    assert_eq!(crossed.len(), 3);
+    assert!(
+        crossed
+            .iter()
+            .all(|author| author.getAttribute("derived_name") == Some(&"derived".into()))
+    );
+
     let mut constructed = authors().count(2).createOn(&connection).await.unwrap();
     constructed
         .getRelationOrLoad(0, "entries", &relation)

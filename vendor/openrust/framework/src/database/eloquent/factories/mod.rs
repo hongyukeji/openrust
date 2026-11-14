@@ -1708,6 +1708,138 @@ pub struct FactoryBatch<M: Model> {
 impl<M: Model> FactoryBatch<M> {
     conditional_states!();
 
+    fn map_factory(self, transform: impl FnOnce(Factory<M>) -> Factory<M>) -> Self {
+        Self {
+            factory: transform(self.factory),
+            count: self.count,
+        }
+    }
+
+    /// Replaces the pending batch size.
+    #[must_use]
+    pub fn count(self, count: usize) -> Self {
+        self.factory.count(count)
+    }
+
+    #[must_use]
+    pub fn sequence(self, sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static) -> Self {
+        self.map_factory(|factory| factory.sequence(sequence))
+    }
+
+    /// Sets the pending batch size to the sequence length.
+    #[must_use]
+    pub fn forEachSequence(self, states: Vec<Attributes>) -> Self {
+        self.factory.forEachSequence(states)
+    }
+
+    pub fn crossJoinSequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
+        Ok(Self {
+            factory: self.factory.crossJoinSequence(sequences)?,
+            count: self.count,
+        })
+    }
+
+    #[must_use]
+    pub fn afterMaking(
+        self,
+        callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.afterMaking(callback))
+    }
+
+    #[must_use]
+    pub fn afterCreating(
+        self,
+        callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.afterCreating(callback))
+    }
+
+    #[must_use]
+    pub fn has<R: Model>(
+        self,
+        relation: impl FactoryChild<M, R>,
+        children: FactoryBatch<R>,
+    ) -> Self {
+        self.map_factory(|factory| factory.has(relation, children))
+    }
+
+    #[must_use]
+    pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+        self,
+        name: impl Into<String>,
+        children: FactoryBatch<R>,
+    ) -> Self {
+        self.map_factory(|factory| factory.hasNamed::<R, D>(name, children))
+    }
+
+    #[must_use]
+    pub fn r#for<R: Model>(self, relation: impl FactoryParent<M, R>, owner: Factory<R>) -> Self {
+        self.map_factory(|factory| factory.r#for(relation, owner))
+    }
+
+    #[must_use]
+    pub fn forNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        name: impl Into<String>,
+        owner: Factory<R>,
+    ) -> Self {
+        self.map_factory(|factory| factory.forNamed::<R, D>(name, owner))
+    }
+
+    #[must_use]
+    pub fn forExisting<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
+        self.map_factory(|factory| factory.forExisting(relation, owner))
+    }
+
+    #[must_use]
+    pub fn hasAttached<R: Model>(
+        self,
+        relation: impl Into<BelongsToMany<M, R>>,
+        models: impl Into<FactoryAttachment<R>>,
+        pivot: impl Into<FactoryPivot<M>>,
+    ) -> Self {
+        self.map_factory(|factory| factory.hasAttached(relation, models, pivot))
+    }
+
+    #[must_use]
+    pub fn hasAttachedNamed<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+        self,
+        name: impl Into<String>,
+        models: impl Into<FactoryAttachment<R>>,
+        pivot: impl Into<FactoryPivot<M>>,
+    ) -> Self {
+        self.map_factory(|factory| factory.hasAttachedNamed::<R, D>(name, models, pivot))
+    }
+
+    #[must_use]
+    pub fn attribute(
+        self,
+        name: impl Into<String>,
+        resolve: impl Fn(&Attributes) -> DatabaseResult<Value> + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.attribute(name, resolve))
+    }
+
+    #[must_use]
+    pub fn modelAttribute<R: Model>(self, name: impl Into<String>, model: &R) -> Self {
+        self.map_factory(|factory| factory.modelAttribute(name, model))
+    }
+
+    #[must_use]
+    pub fn parentAttribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
+        self.map_factory(|factory| factory.parentAttribute(name, owner))
+    }
+
+    #[must_use]
+    pub fn parentAttributeWith<R: Model>(
+        self,
+        name: impl Into<String>,
+        owner: impl Fn(&Attributes) -> Factory<R> + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.parentAttributeWith(name, owner))
+    }
+
     #[must_use]
     pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
         self.factory

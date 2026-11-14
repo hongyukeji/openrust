@@ -1410,6 +1410,36 @@ fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
 
 ## Factory Relationships
 
+Counted factories can still configure states, sequences, callbacks, and relationships. `count(n)` replaces the pending size, and `forEachSequence(states)` sets it to the sequence length. Other configuration methods preserve the pending size.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory, relations::HasMany},
+    seeder::SeederContext,
+};
+
+async fn seed_counted_relationships<P: Model, C: Model>(
+    context: &SeederContext<'_>,
+    parents: Factory<P>,
+    children: Factory<C>,
+    relation: HasMany<P, C>,
+) -> DatabaseResult<()> {
+    parents
+        .count(2)
+        .has(relation, children.count(1))
+        .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
+        .afterCreating(|parent| {
+            assert!(parent.state().exists());
+            Ok(())
+        })
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
+
 ### Parent Context for States and Callbacks {#factory-parent-context}
 
 Use `stateWithParent::<Parent>` and `afterCreatingWithParent::<Parent>` when a child factory needs to read the model that creates it through `has` or `hasAttached`. The callback receives `Some(&Parent)` for the matching type and `None` for standalone creation or a different parent type. Construction callbacks registered with `afterMaking` still receive the child only.

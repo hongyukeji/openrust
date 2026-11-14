@@ -1276,3 +1276,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `a99f1ddd`。PHP 8.5.12 对照 2,340 组日期和区间，以及固定时区数据库 598 个名称的原拼写、全小写和全大写变体（1,794 组），4,134 组全部一致。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并按顺序回读 21 行，包含三语共用示例。每行对照 `strtotime`、FakerPHP 区间端点及其相对区间的结果，覆盖成功、严格错误和 Unix 纪元回退。
 
 76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、三项日历回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，MySQL 容器已移除。清理独占 Cargo 产物 2.3 GiB 和约 106 MiB 差分程序产物，以及约 40 MiB 站点产物。提交前周额度剩余 40%，项目卷可用 80 GiB。日期语法的样本外覆盖和其余 formatter 继续跟踪。
+
+## 设置工厂数量后的链式配置
+
+对应固定 Laravel 的[序列与工厂关系](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#sequences)及 [Factory 构建器](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L669)。Laravel 在设置数量后继续提供关系、序列、回调和状态配置。Rust 的 `FactoryBatch` 委托同一个 `Factory` 实现，保留类型化集合结果及显式关系描述符。再次调用 `count` 可替换数量，`forEachSequence` 按序列长度设置数量，普通序列、交叉序列、回调、关系和延迟属性保留数量。固定 Goravel 的[工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)同样保留链式配置。v0.x 的 factory 为查询工厂，无对应 Eloquent 批量功能。
+
+隔离基线 `632c6d0e`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，三语共用示例写入两个父模型及每个父模型的一条子记录。第二组使用 `forEachSequence` 把六条改为两条，并验证两条记录共用生成的上级、创建前修改名称、创建后状态和读回顺序。构造回调失败后父表仍为三行。MySQL／SQLite 工厂回归同时覆盖回调顺序、替换数量、交叉序列、延迟属性和 Pivot 关联。交叉序列回归使用独立的派生字段，保留显式属性优先的既有契约。
+
+76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。原 Seeder 已恢复，MySQL 容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。整单元继续核对关系参数，例如无显式计数的子工厂与按名称关联既有父模型，并对账其余 Faker formatter。
