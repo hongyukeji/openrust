@@ -156,6 +156,51 @@ impl<P: Model, R: Model> HasMany<P, R> {
         model.save().await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        R::withoutEvents(self.save(parent, model)).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        for model in models {
+            self.save(parent, model).await?;
+        }
+        Ok(())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        R::withoutEvents(self.saveMany(parent, models)).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        R::withoutEvents(self.create(parent, attributes)).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        let mut models = Vec::new();
+        for attributes in records {
+            models.push(self.create(parent, attributes).await?);
+        }
+        Ok(models)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        R::withoutEvents(self.createMany(parent, records)).await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         let mut model = if attributes.keys().any(|name| {
             super::super::casts::needs_async::<R>(

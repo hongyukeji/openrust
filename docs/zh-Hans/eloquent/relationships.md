@@ -754,6 +754,24 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。
 
+### 批量保存关联模型 {#saving-related-models-in-batches}
+
+直接和多态的一对一、一对多关系支持 `saveMany`，按顺序保存可变切片中的模型。`createMany` 接收属性映射，按输入顺序返回新模型。带 `Quietly` 后缀的方法会抑制操作期间的模型事件。每个模型单独写入，后续写入报错时，先前已提交的写入仍保留。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn create_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<Vec<R>> {
+    posts.createManyQuietly(author, [
+        Attributes::from([("title".into(), "First post".into())]),
+        Attributes::from([("title".into(), "Second post".into())]),
+    ]).await
+}
+```
+
 多对多关联使用 `attach`、`detach`、`sync` 和 `syncWithoutDetaching`。同步在一个数据库事务内增删关联记录。可在中间表的两个外键上设置联合唯一键以防止重复。
 
 用 `withPivot(["label"])` 读取中间表的附加列，再从关联模型的 `getRelation::<Pivot>("pivot")` 获取。用 `r#as("membership")` 修改访问名称。`attachWith` 建立关联时写入附加字段，`updateExistingPivot` 更新已有的中间表记录并返回受影响行数。

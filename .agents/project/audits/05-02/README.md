@@ -546,3 +546,9 @@ SQLite 与独立 MySQL 8.4.13 验证两列同时递增和递减、附加列写�
 对照固定 Laravel 的模型静默计数和 Eloquent Builder 算术更新。模型的四个 `Quietly` 入口复用现有事件抑制作用域和实例事务。Builder 的四个入口复用带作用域的查询及原子 SQL，只写入查询匹配行。Rust 接收显式步长并返回受影响行数，更新时间沿用现有 Builder 更新规则。旧版没有对应模型入口，固定 Goravel 用作 ORM 查询职责参考。 [Laravel 模型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 与独立 MySQL 8.4.13 验证四种静默计数写入、观察者抑制、模型状态同步，以及 Builder 的匹配行数、软删除排除、默认更新时间和显式时间戳。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。
+
+## 直接关系批量保存与静默创建
+
+对照固定 Laravel `HasOneOrMany` 的 `saveMany`、`createMany` 和静默变体。直接与多态的一对一、一对多共用既有保存与创建流程。Rust 的 `saveMany` 原位更新可变切片，`createMany` 返回按输入顺序排列的模型。批量操作逐行写入并传播首个数据库错误，静默入口复用既有事件抑制作用域。旧版未找到对应批量入口，固定 Goravel 用作 ORM 写入职责参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#the-save-method) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证批量顺序、父键、多态鉴别值、静默观察者抑制和中途失败后保留此前写入。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、文档构建及 18 项浏览器检查通过。

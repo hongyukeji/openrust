@@ -754,6 +754,24 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.
 
+### Saving related models in batches {#saving-related-models-in-batches}
+
+For direct and polymorphic one-to-one or one-to-many relations, `saveMany` saves a mutable slice in order. `createMany` accepts attribute maps and returns the new models in input order. The `Quietly` variants suppress model events for the entire operation. Each model is written separately. If a later write returns an error, earlier writes remain committed.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn create_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<Vec<R>> {
+    posts.createManyQuietly(author, [
+        Attributes::from([("title".into(), "First post".into())]),
+        Attributes::from([("title".into(), "Second post".into())]),
+    ]).await
+}
+```
+
 For many-to-many links, use `attach`, `detach`, `sync`, or `syncWithoutDetaching`. Synchronization adds and removes links in one database transaction. Use a composite unique key over the two pivot foreign keys to prevent duplicate links.
 
 Use `withPivot(["label"])` to select extra columns from the intermediate table. Read them using `getRelation::<Pivot>("pivot")` on the related model. Use `r#as("membership")` to change the accessor. `attachWith` writes additional columns when creating links, and `updateExistingPivot` updates an existing link and returns its affected-row count.

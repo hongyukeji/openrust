@@ -52,6 +52,44 @@ impl<P: Model, R: Model> MorphMany<P, R> {
             .await
     }
 
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveQuietly(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        self.0.saveQuietly(parent, model).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveMany(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.saveMany(parent, models).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn saveManyQuietly(&self, parent: &P, models: &mut [R]) -> DatabaseResult<()> {
+        self.0.saveManyQuietly(parent, models).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createQuietly(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        self.0.createQuietly(parent, attributes).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.createMany(parent, records).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]
+    pub async fn createManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+    ) -> DatabaseResult<Vec<R>> {
+        self.0.createManyQuietly(parent, records).await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.create(parent, attributes).await
     }

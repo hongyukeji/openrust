@@ -754,6 +754,24 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 `HasMany::create` 和 `save` 在儲存前填入關聯模型外鍵。`BelongsTo::associate` 和 `dissociate` 修改子模型的記憶體狀態。呼叫子模型的 `save` 持久化修改。
 
+### 批次儲存關聯模型 {#saving-related-models-in-batches}
+
+直接和多型的一對一、一對多關聯支援 `saveMany`，依序儲存可變切片中的模型。`createMany` 接收屬性映射，依輸入順序回傳新模型。帶有 `Quietly` 後綴的方法會抑制操作期間的模型事件。各模型分別寫入，後續寫入發生錯誤時，先前已提交的寫入仍會保留。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn create_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<Vec<R>> {
+    posts.createManyQuietly(author, [
+        Attributes::from([("title".into(), "First post".into())]),
+        Attributes::from([("title".into(), "Second post".into())]),
+    ]).await
+}
+```
+
 多對多關聯使用 `attach`、`detach`、`sync` 和 `syncWithoutDetaching`。同步在一個資料庫交易內新增及刪除關聯記錄。可在中介表的兩個外鍵上設定複合唯一鍵以避免重複。
 
 用 `withPivot(["label"])` 讀取中介資料表的附加欄位，再從關聯模型的 `getRelation::<Pivot>("pivot")` 取得。用 `r#as("membership")` 變更存取名稱。`attachWith` 建立關聯時寫入附加欄位，`updateExistingPivot` 更新既有中介記錄並回傳受影響列數。

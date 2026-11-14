@@ -5209,6 +5209,141 @@ async fn verify_pivot_or_fail(db: &Connection, owner: &Author) {
     assert_eq!(changes.detached, keys[..1]);
 }
 
+struct DirectWriteEvents(Arc<std::sync::atomic::AtomicUsize>);
+
+impl openrust::database::eloquent::concerns::ModelEventListener<DirectWritePost>
+    for DirectWriteEvents
+{
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut DirectWritePost,
+        _: &'a Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+    > {
+        use openrust::database::eloquent::concerns::ModelEventResponse::Continue;
+        Box::pin(async move {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if model.getAttribute("title") == Some(&"reject batch row".into()) {
+                return Err(DatabaseError::InvalidQuery("rejected related row"));
+            }
+            Ok(Continue)
+        })
+    }
+}
+
+async fn verify_direct_write_variants(
+    app: &openrust::foundation::Application,
+    db: &Connection,
+    parent: &Author,
+) {
+    use openrust::database::eloquent::concerns::ModelEvent::Creating;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    DirectWritePost::registerModelEvent(app, Creating, DirectWriteEvents(calls.clone())).unwrap();
+
+    // This fixture has explicit, non-generated IDs.
+    let make = |id: i64, title: &str| {
+        let mut model =
+            DirectWritePost::newInstance(Attributes::from([("title".into(), title.into())]))
+                .unwrap();
+        model.setAttribute("id", id);
+        model
+    };
+    let attributes = |id: i64, title: &str| {
+        Attributes::from([("id".into(), id.into()), ("title".into(), title.into())])
+    };
+    let relation = HasMany::<Author, DirectWritePost>::new("id", "author_id");
+    let created = relation
+        .createMany(
+            parent,
+            [
+                attributes(101, "first batch row"),
+                attributes(102, "second batch row"),
+            ],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        created
+            .iter()
+            .map(|model| model.getKey().cloned().unwrap())
+            .collect::<Vec<_>>(),
+        vec![101.into(), 102.into()]
+    );
+    let quiet = relation
+        .one()
+        .createManyQuietly(parent, [attributes(103, "quiet batch row")])
+        .await
+        .unwrap();
+    assert_eq!(quiet[0].getAttribute("author_id"), parent.getKey());
+
+    let mut rows = [
+        make(104, "first saved row"),
+        make(105, "reject batch row"),
+        make(106, "unvisited row"),
+    ];
+    assert!(
+        HasMany::<Author, DirectWritePost>::new("id", "author_id")
+            .saveMany(parent, &mut rows)
+            .await
+            .is_err()
+    );
+    assert!(rows[0].state().exists());
+    assert!(!rows[1].state().exists());
+    assert!(rows[2].getAttribute("author_id").is_none());
+    HasOne::<Author, DirectWritePost>::new("id", "author_id")
+        .saveManyQuietly(parent, &mut rows[1..])
+        .await
+        .unwrap();
+    assert!(
+        rows.iter()
+            .all(|row| row.state().exists() && row.getAttribute("author_id") == parent.getKey())
+    );
+    let morph = MorphMany::<Author, DirectWritePost>::new("id", "author_id", "title", "morph");
+    let created = morph
+        .createQuietly(parent, attributes(107, "overwritten"))
+        .await
+        .unwrap();
+    assert_eq!(created.getAttribute("title"), Some(&"morph".into()));
+    let mut model = make(108, "overwritten");
+    assert!(morph.one().saveQuietly(parent, &mut model).await.unwrap());
+    assert_eq!(model.getAttribute("title"), Some(&"morph".into()));
+    assert_eq!(model.getAttribute("author_id"), parent.getKey());
+    assert_eq!(calls.load(Ordering::Relaxed), 4);
+
+    for id in 101..=108 {
+        db.table("relation_posts")
+            .r#where("id", "=", id)
+            .delete()
+            .await
+            .unwrap();
+    }
+}
+
+struct DirectWritePost(ModelState);
+
+impl Model for DirectWritePost {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("relation_posts")
+            .incrementing(false)
+            .fillable(&["id", "title"])
+            .timestamps(None, None);
+        &META
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
 struct CounterEvents;
 
 impl openrust::database::eloquent::concerns::ModelEventListener<Post> for CounterEvents {
@@ -5732,6 +5867,7 @@ async fn verify_custom_pivot(config: Json) {
     Box::pin(verify_save_touches_related(&db)).await;
     Box::pin(verify_inferred_pivot_touch(&db)).await;
     Box::pin(verify_pivot_or_fail(&db, &owner)).await;
+    Box::pin(verify_direct_write_variants(&app, &db, &owner)).await;
     Box::pin(verify_counter_events(&app, &db, &owner)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
