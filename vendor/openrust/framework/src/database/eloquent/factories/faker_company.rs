@@ -31,7 +31,7 @@ use ::fake::Fake as _;
 pub(super) mod nordic;
 
 #[path = "faker_company_iberian.rs"]
-mod iberian;
+pub(super) mod iberian;
 
 #[path = "faker_company_dutch.rs"]
 pub(super) mod dutch;

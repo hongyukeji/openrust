@@ -710,6 +710,18 @@ fn regional_person_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 西语地区姓名 {#spanish-language-names}
+
+`es-AR`、`es-ES`、`es-PE` 和 `es-VE` 使用固定 Person 的名字、姓氏和称谓。全名保留各地区的可选姓名后缀和模板权重。委内瑞拉模板可以组合多个名字或姓氏。Company 共用姓氏词表。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn spanish_name_sample() -> DatabaseResult<String> {
+    fake(Some("es-VE"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

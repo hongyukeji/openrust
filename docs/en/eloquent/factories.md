@@ -710,6 +710,18 @@ fn regional_person_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Spanish-Language Names {#spanish-language-names}
+
+The Person catalogs for `es-AR`, `es-ES`, `es-PE`, and `es-VE` use the pinned given names, surnames, and honorifics. Full names preserve each locale’s optional name suffixes and template weights. Venezuelan templates can combine multiple given names or surnames. Company names share the surname catalogs.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn spanish_name_sample() -> DatabaseResult<String> {
+    fake(Some("es-VE"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

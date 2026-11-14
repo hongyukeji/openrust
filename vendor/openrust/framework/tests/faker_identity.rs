@@ -2168,3 +2168,39 @@ fn seven_regional_person_providers_use_their_company_surname_catalogs() {
         assert_eq!(actual, titles.iter().copied().collect());
     }
 }
+
+#[test]
+fn spanish_person_providers_share_surnames_and_keep_local_templates() {
+    use std::collections::HashSet;
+
+    let venezuelan = fake(Some("es-VE")).unwrap();
+    let mut lengths = HashSet::new();
+    for _ in 0..256 {
+        lengths.insert(
+            venezuelan
+                .nameWithGender(Some("male"))
+                .split_whitespace()
+                .count(),
+        );
+    }
+    assert!(lengths.contains(&2) && lengths.contains(&4));
+    for (locale, male, female) in [
+        ("es-AR", "Dn.", "Srita."),
+        ("es-ES", "D.", "Dña"),
+        ("es-PE", "Dn.", "Dra."),
+        ("es-VE", "Lcdo.", "Lcda."),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let male_titles: HashSet<_> = (0..5).map(|_| unique.titleMale().unwrap()).collect();
+        let female_titles: HashSet<_> = (0..if locale == "es-ES" { 6 } else { 5 })
+            .map(|_| unique.titleFemale().unwrap())
+            .collect();
+        assert!(male_titles.contains(male));
+        assert!(female_titles.contains(female));
+        let surname = unique.lastName().unwrap();
+        assert!(!surname.is_empty());
+        assert_ne!(surname, unique.lastName().unwrap());
+        assert!(!faker.firstName().is_empty());
+    }
+}

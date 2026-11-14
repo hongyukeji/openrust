@@ -3220,3 +3220,9 @@ pub(super) fn prefixes(locale: &str) -> Option<&'static [&'static str]> {
 pub(super) fn suffixes(locale: &str) -> Option<&'static [&'static str]> {
     Some(provider(locale)?.suffixes)
 }
+
+pub(in crate::database::eloquent::factories::faker) fn surnames(
+    locale: &str,
+) -> Option<&'static [&'static str]> {
+    provider(locale).map(|provider| provider.names)
+}
