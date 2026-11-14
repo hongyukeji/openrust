@@ -795,3 +795,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `537aa9d6`。PHP 8.5 核对 3,072 组上游名称及后缀，逐项比较六地模板、姓氏、前缀和后缀。Rust 1.94.0 格式、全目标严格 Clippy、20 项 Faker 回归和 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查六地共十二条名称和后缀。Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。站点保留既有分块大小提示，本批数据库验收只运行 MySQL。
 
 临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对荷兰语地区公司模板与名称规则。
+
+## Faker 荷兰与比利时荷兰语公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。接入 FakerPHP v1.24.1 的[荷兰 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_NL/Company.php)和[比利时荷兰语 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_BE/Company.php)规则。荷兰保留三种店名组合、后缀概率、姓氏分组权重及词表大小写。比利时模板保留仅姓氏及姓氏加当地后缀。Rust 复用现有公开生成器与去重机制，保留重复项权重。v0.x 未发现等价实现，Goravel 式装配保持现有编译入口。
+
+隔离基线 `51c8fd39`。通过 PHP 8.5 反射逐项提取并核对上游词表，验证 1,024 组公司名称与后缀。Rust 1.94.0 格式、全目标严格 Clippy、21 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force`，写入并回查两地四条名称与后缀。Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过，站点保留既有分块大小提示。日常数据库验收只运行 MySQL。
+
+临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对其他欧洲公司模板。

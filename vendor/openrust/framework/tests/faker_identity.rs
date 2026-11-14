@@ -1132,3 +1132,53 @@ fn spanish_and_portuguese_companies_use_regional_suffixes_and_prefixes() {
         }
     }
 }
+
+#[test]
+fn dutch_company_names_use_store_patterns_and_belgian_suffixes() {
+    use std::collections::HashSet;
+    let dutch = fake(Some("nl-NL")).unwrap();
+    let belgian = fake(Some("nl-BE")).unwrap();
+    let dutch_suffixes = [
+        "VOF",
+        "CV",
+        "LLP",
+        "BV",
+        "NV",
+        "IBC",
+        "CSL",
+        "EESV",
+        "SE",
+        "Stichting",
+        "& Zonen",
+        "& Zn",
+    ];
+    let belgian_suffixes = [
+        "VZW", "Comm.V", "VOF", "BVBA", "EBVBA", "ESV", "NV", "Comm.VA", "CVOA", "CVBA", "& Zonen",
+        "& Zn",
+    ];
+    for (faker, suffixes) in [(&dutch, dutch_suffixes), (&belgian, belgian_suffixes)] {
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(actual, suffixes.into_iter().map(str::to_owned).collect());
+        assert!(unique.companySuffix().is_err());
+        assert!(faker.companyPrefix().is_err());
+    }
+    let names: Vec<_> = (0..256)
+        .map(|_| {
+            let name = dutch.company();
+            let stem = dutch_suffixes
+                .iter()
+                .find_map(|suffix| name.strip_suffix(&format!(" {suffix}")));
+            stem.unwrap_or(&name).to_owned()
+        })
+        .collect();
+    assert!(names.iter().any(|name| !name.contains(' ')));
+    assert!(names.iter().any(|name| name.contains(' ')));
+    assert!(names.iter().any(|name| {
+        ["Boekhandel ", "Fietsenmaker ", "Café ", "Garage "]
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    }));
+}

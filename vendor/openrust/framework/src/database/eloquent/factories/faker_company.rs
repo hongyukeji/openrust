@@ -33,6 +33,9 @@ mod nordic;
 #[path = "faker_company_iberian.rs"]
 mod iberian;
 
+#[path = "faker_company_dutch.rs"]
+mod dutch;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4152,6 +4155,7 @@ impl Faker {
             }
             locale => nordic::company(locale)
                 .or_else(|| iberian::company(locale))
+                .or_else(|| dutch::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4214,7 +4218,10 @@ impl Faker {
             "zh_TW" => TAIWANESE_SUFFIXES,
             "ja_JP" => &["Ltd"],
             "ko_KR" => KOREAN_SUFFIXES,
-            locale => match nordic::suffixes(locale).or_else(|| iberian::suffixes(locale)) {
+            locale => match nordic::suffixes(locale)
+                .or_else(|| iberian::suffixes(locale))
+                .or_else(|| dutch::suffixes(locale))
+            {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),
             },
