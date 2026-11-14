@@ -663,7 +663,7 @@ impl Faker {
     }
 
     pub fn name(&self) -> String {
-        if matches!(self.locale(), "nl_NL" | "is_IS")
+        if matches!(self.locale(), "nl_NL" | "is_IS" | "lt_LT" | "pl_PL")
             || faker_person::surnames(self.locale()).is_some()
         {
             return self.nameWithGender(None);
@@ -672,7 +672,7 @@ impl Faker {
     }
 
     pub fn firstName(&self) -> String {
-        if matches!(self.locale(), "nl_NL" | "is_IS")
+        if matches!(self.locale(), "nl_NL" | "is_IS" | "lt_LT" | "pl_PL")
             || faker_person::surnames(self.locale()).is_some()
         {
             return self.firstNameWithGender(None);
@@ -684,8 +684,16 @@ impl Faker {
         if self.locale() == "nl_NL" {
             return company::dutch::dutch_surname().to_owned();
         }
-        if self.locale() == "is_IS" {
-            return company::nordic::icelandic_surname();
+        match self.locale() {
+            "is_IS" => return company::nordic::icelandic_surname(),
+            // The pinned Lithuanian no-argument surname template samples given names.
+            "lt_LT" => return self.firstNameWithGender(None),
+            "pl_PL" => {
+                return self
+                    .gendered_surname(fastrand::bool())
+                    .expect("fixed Polish surname locale");
+            }
+            _ => {}
         }
         if let Some(surnames) = faker_person::surnames(self.locale()) {
             return surnames[fastrand::usize(..surnames.len())].to_owned();
@@ -706,21 +714,44 @@ impl Faker {
         Ok(names[fastrand::usize(..names.len())])
     }
 
+    pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
+        if matches!(self.locale(), "lt_LT" | "pl_PL") {
+            match gender {
+                Some("male") => return self.lastNameMale().expect("fixed male surname locale"),
+                Some("female") => {
+                    return self.lastNameFemale().expect("fixed female surname locale");
+                }
+                _ => {}
+            }
+        }
+        self.lastName()
+    }
+
     pub fn lastNameMale(&self) -> DatabaseResult<String> {
-        self.icelandic_last_name("son")
+        self.gendered_surname(true)
     }
 
     pub fn lastNameFemale(&self) -> DatabaseResult<String> {
-        self.icelandic_last_name("dóttir")
+        self.gendered_surname(false)
     }
 
-    fn icelandic_last_name(&self, ending: &str) -> DatabaseResult<String> {
-        if self.locale() != "is_IS" {
-            return Err(DatabaseError::InvalidQuery(
-                "unsupported Faker gendered surname locale",
-            ));
-        }
-        Ok(format!("{}{ending}", self.lastName()))
+    fn gendered_surname(&self, male: bool) -> DatabaseResult<String> {
+        let names = match (self.locale(), male) {
+            ("lt_LT", true) => faker_person::LT_LT_LAST_MALE,
+            ("lt_LT", false) => faker_person::LT_LT_LAST_FEMALE,
+            ("pl_PL", true) => faker_person::PL_PL_LAST_MALE,
+            ("pl_PL", false) => faker_person::PL_PL_LAST_FEMALE,
+            ("is_IS", _) => {
+                let ending = if male { "son" } else { "dóttir" };
+                return Ok(format!("{}{ending}", self.lastName()));
+            }
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker gendered surname locale",
+                ));
+            }
+        };
+        Ok(names[fastrand::usize(..names.len())].to_owned())
     }
 
     pub fn firstNameMale(&self) -> String {
@@ -813,6 +844,8 @@ impl Faker {
 
     pub fn titleMale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "lt_LT" => &["p.", "ponas"],
+            "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Hra.", "Tri."],
             "nl_NL" => faker_person::NL_NL_TITLES,
             "tr_TR" => faker_person::TR_TR_TITLES,
@@ -832,6 +865,8 @@ impl Faker {
 
     pub fn titleFemale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "lt_LT" => &["p.", "ponia", "panelė"],
+            "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Rva.", "Nti.", "Tri."],
             "nl_NL" => faker_person::NL_NL_TITLES,
             "tr_TR" => faker_person::TR_TR_TITLES,
@@ -2308,6 +2343,10 @@ impl UniqueFaker<'_> {
 
     pub fn middleName(&self) -> DatabaseResult<&'static str> {
         self.try_generate("middleName", || self.0.middleName())
+    }
+
+    pub fn lastNameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.generate("lastName", || self.0.lastNameWithGender(gender))
     }
 
     pub fn lastNameMale(&self) -> DatabaseResult<String> {

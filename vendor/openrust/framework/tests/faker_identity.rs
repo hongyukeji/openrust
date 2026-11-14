@@ -2091,3 +2091,30 @@ fn nordic_names_follow_effective_person_templates() {
     assert!(finland.middleName().is_err());
     assert!(finland.lastNameMale().is_err());
 }
+
+#[test]
+fn polish_and_lithuanian_names_follow_gendered_surname_templates() {
+    let lithuania = fake(Some("lt-LT")).unwrap();
+    let names = lithuania.unique(true);
+    let male: std::collections::HashSet<_> =
+        (0..14).map(|_| names.lastNameMale().unwrap()).collect();
+    let female: std::collections::HashSet<_> =
+        (0..20).map(|_| names.lastNameFemale().unwrap()).collect();
+    assert!(male.contains("Kazlauskas"));
+    assert!(female.contains("Kazlauskienė"));
+    for _ in 0..64 {
+        assert!(male.contains(&lithuania.lastNameWithGender(Some("male"))));
+        assert!(female.contains(&lithuania.lastNameWithGender(Some("female"))));
+        let default = lithuania.lastName();
+        assert!(!male.contains(&default) || default == "Urbonas");
+        let name = lithuania.nameWithGender(Some("female"));
+        assert!(female.contains(name.rsplit_once(' ').unwrap().1));
+    }
+    assert!(["p.", "ponas"].contains(&lithuania.titleMale()));
+    let poland = fake(Some("pl-PL")).unwrap();
+    assert!(["mgr", "inż.", "dr", "doc."].contains(&poland.titleFemale()));
+    for _ in 0..64 {
+        let name = poland.nameWithGender(Some("male"));
+        assert!((2..=4).contains(&name.split_whitespace().count()));
+    }
+}

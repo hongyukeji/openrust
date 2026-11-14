@@ -24,26 +24,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+use super::super::faker_person::LT_LT_LAST_MALE;
 use super::sample;
 
 const LT_LT_SUFFIXES: &[&str] = &["UAB", "AB", "IĮ", "MB", "VŠĮ"];
-
-const LT_LT_SURNAMES: &[&str] = &[
-    "Kazlauskas",
-    "Jankauskas",
-    "Petrauskas",
-    "Stankevičius",
-    "Vasiliauskas",
-    "Žukauskas",
-    "Butkus",
-    "Kateiva",
-    "Paulauskas",
-    "Urbonas",
-    "Kavaliauskas",
-    "Baranauskas",
-    "Pocius",
-    "Sakalauskas",
-];
 
 const SL_SI_SUFFIXES: &[&str] = &["d.o.o.", "d.d.", "k.d.", "k.d.d.", "d.n.o.", "so.p."];
 
@@ -990,11 +974,11 @@ pub(super) fn company(locale: &str) -> Option<String> {
     Some(match locale {
         "lt_LT" => {
             let suffix = sample(LT_LT_SUFFIXES);
-            let name = sample(LT_LT_SURNAMES);
+            let name = sample(LT_LT_LAST_MALE);
             match fastrand::u8(0..4) {
                 0 => format!("{suffix} {name}"),
-                1 => format!("{suffix} {name} ir {}", sample(LT_LT_SURNAMES)),
-                2 => format!("{suffix} \"{name} ir {}\"", sample(LT_LT_SURNAMES)),
+                1 => format!("{suffix} {name} ir {}", sample(LT_LT_LAST_MALE)),
+                2 => format!("{suffix} \"{name} ir {}\"", sample(LT_LT_LAST_MALE)),
                 _ => format!("{suffix} \"{name}\""),
             }
         }

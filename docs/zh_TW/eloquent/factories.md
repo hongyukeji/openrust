@@ -686,6 +686,18 @@ fn nordic_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 波蘭和立陶宛姓名 {#polish-and-lithuanian-names}
+
+`pl-PL` 和 `lt-LT` 可透過 `lastNameWithGender(Some("male"))` 或 `lastNameWithGender(Some("female"))` 選擇姓氏詞表。`lastNameMale()` 和 `lastNameFemale()` 使用相同詞表。固定版立陶宛的無參數 `lastName()` 從名字取樣，全名則使用對應性別的姓氏。`lastNameWithGender` 和 `lastName` 共用去重歷史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn gendered_surname_sample() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).lastNameWithGender(Some("female"))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

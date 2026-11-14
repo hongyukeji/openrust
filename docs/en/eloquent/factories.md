@@ -686,6 +686,18 @@ fn nordic_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Polish and Lithuanian Names {#polish-and-lithuanian-names}
+
+Use `lastNameWithGender(Some("male"))` or `lastNameWithGender(Some("female"))` with `pl-PL` and `lt-LT` to select a surname catalog. `lastNameMale()` and `lastNameFemale()` sample the same catalogs. In the pinned Lithuanian provider, the no-argument `lastName()` samples given names, while full names use gendered surnames. `lastNameWithGender` and `lastName` share uniqueness history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn gendered_surname_sample() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).lastNameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

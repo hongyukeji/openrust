@@ -946,3 +946,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `f2969fc1`。PHP 8.5 验证 2,560 组姓名、名字、姓氏和称谓样本。Rust 1.94.0 格式、全目标严格 Clippy、37 项 Faker、49 项 Seeder、MySQL 8.4.13／SQLite 两项工厂回归通过。实际应用 `main artisan db:seed --database=mysql --force` 写入并回读五地 25 条姓名和公司名称。实际 `./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。
 
 丹麦回归最初只按空白统计姓名成分，现按空白与连字符判断，重跑通过。隔离副本原始 Seeder 已恢复，清理本批独占 Cargo 产物 2.2 GiB 与站点产物 39 MiB。提交前额度剩余 46%、项目卷剩余 81 GiB。下一批核对波兰与立陶宛的性别姓氏规则及其余 Person 地区。
+
+## Faker 波兰和立陶宛姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。比对 FakerPHP v1.24.1 [波兰 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/Person.php)和[立陶宛 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lt_LT/Person.php)。保留姓名模板、称谓和重复权重，复用 Company 的姓氏词表。立陶宛无参 lastName 沿用固定上游从名字抽样的模板，显式性别和全名使用对应姓氏。Rust 通过 lastNameWithGender 表达可选性别并与 lastName 共用去重历史。v0.x 未发现等价实现，沿用现有编译式工厂装配。
+
+隔离基线 `0c46e28a`。使用 PHP 8.5 核对 1,024 组姓名、姓氏和称谓样本。Rust 1.94.0 格式、全目标严格 Clippy、38 项 Faker、49 项 Seeder 与 MySQL 8.4.13／SQLite 工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读 14 条样本。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。
+
+隔离副本修正 UniqueFaker 方法所属实现及 Urbonas 同时属于立陶宛名字和姓氏词表的测试边界，重跑通过。原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 46%，项目卷剩余 81 GiB。其余 Person 姓名仍待核对。
