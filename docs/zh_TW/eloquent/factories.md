@@ -309,7 +309,21 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 
 用 `createOne(attributes)` 建立單一模型，即使工廠已指定批次數量。用 `createMany(records)` 逐筆依序建立。傳入 `FactoryRecords::Default` 使用工廠數量，未指定時建立一筆。傳入 `FactoryRecords::Count(n)` 指定數量，或用 `FactoryRecords::Attributes(vec![…])` 為每筆記錄指定覆寫屬性。覆寫值在工廠狀態之後套用。每筆記錄完成兩個工廠回呼後才開始下一筆。後續記錄失敗時，先前寫入可能保留。用 `createOneQuietly` 和 `createManyQuietly` 抑制模型事件，或用對應的 `On` 方法指定連線。
 
-用 `makeOne(attributes)` 建構一個未儲存的模型，或用 `makeMany(records)` 依序建構多個未儲存的模型。兩者皆接受明確屬性並執行 `afterMaking`。`makeMany` 使用相同的 `FactoryRecords` 選項，呼叫後保留已設定數量，數量為零時回傳空集合。兩種方法皆不儲存回傳的模型，解析已宣告的上層關聯時仍可能寫入上層模型。對應的 `On` 方法可指定連線。`lazy(attributes)` 回傳非同步回呼，呼叫並等待後才解析連線並建立單一模型或指定數量的批次。重複呼叫會重新建立。
+用 `makeOne(attributes)` 建構一個未儲存的模型，或用 `makeMany(records)` 依序建構多個未儲存的模型。兩者皆接受明確屬性並執行 `afterMaking`。`makeMany` 使用相同的 `FactoryRecords` 選項，數量為零時回傳空集合。`makeMany` 和 `createMany` 都會消耗已設定的預設數量。明確指定記錄、零筆及模型產生失敗時同樣生效。後續呼叫預設處理一筆記錄，Rust 批次介面仍回傳集合形式。兩種方法皆不儲存回傳的模型，解析已宣告的上層關聯時仍可能寫入上層模型。對應的 `On` 方法可指定連線。`lazy(attributes)` 回傳非同步回呼，呼叫並等待後才解析連線並建立單一模型或指定數量的批次。重複呼叫會重新建立。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::{Factory, FactoryRecords}},
+};
+
+async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(Attributes::new).count(3);
+    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 3);
+    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 1);
+    Ok(())
+}
+```
 
 以下示範如何呼叫 `lazy` 回傳的回呼。建立回呼時目標資料表沒有寫入，每次呼叫並等待都會寫入一批新模型。
 

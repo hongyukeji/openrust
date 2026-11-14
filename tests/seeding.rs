@@ -793,13 +793,13 @@ impl Seeder for PolymorphicFactories {
                 0
             );
             let created = deferred().await?;
-            assert_eq!(created.len(), 3);
+            assert_eq!(created.len(), 1);
             assert!(created.iter().all(
                 |model| model.getAttribute("generated_name") == Some(&"deferred-batch".into())
             ));
             assert!(deferred_one().await?.state().exists());
             assert!(deferred_one().await?.state().exists());
-            assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 3);
             let each = Factory::<FactoryChild>::new(Attributes::new)
                 .forEachSequence(vec![overrides("sequence-one"), overrides("sequence-two")])
                 .createOn(connection)
@@ -858,16 +858,11 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(one.getAttribute("generated_name"), Some(&"many-one".into()));
             phases.lock().unwrap().clear();
             let defaults = batch.createMany(FactoryRecords::Default).await?;
-            assert_eq!(defaults.len(), 3);
+            assert_eq!(defaults.len(), 1);
+            assert_eq!(*phases.lock().unwrap(), ["making", "created"]);
             assert_eq!(
-                *phases.lock().unwrap(),
-                [
-                    "making", "created", "making", "created", "making", "created"
-                ]
-            );
-            assert_eq!(
-                defaults[2].getAttribute("generated_name"),
-                Some(&"many-11".into())
+                defaults[0].getAttribute("generated_name"),
+                Some(&"many-7".into())
             );
             let counted = batch
                 .createManyOn(connection, FactoryRecords::Count(1))
@@ -925,7 +920,7 @@ impl Seeder for PolymorphicFactories {
                 quiet[1].getAttribute("generated_name"),
                 Some(&"many-quiet".into())
             );
-            assert_eq!(connection.table("seed_factory_children").delete().await?, 9);
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 7);
             assert_eq!(fake(None)?.locale(), "zh_TW");
             assert_eq!(fake(Some("fr-fr"))?.locale(), "fr_FR");
             let invalid = fake(Some("../en"));
@@ -4141,6 +4136,82 @@ async fn factory_sequences_continue_across_operations_and_attachments() {
         .unwrap();
     if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
         verify_sequence_lifecycle(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
+
+async fn verify_factory_many_count(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+        })
+        .await?;
+    let factory = || Factory::<ExpansionChild>::new(Attributes::new).count(3);
+    let batch = factory();
+    assert_eq!(batch.rawOn(connection).await?.len(), 3);
+    assert_eq!(
+        batch
+            .makeManyOn(connection, FactoryRecords::Default)
+            .await?
+            .len(),
+        3
+    );
+    assert_eq!(
+        batch
+            .makeManyOn(connection, FactoryRecords::Default)
+            .await?
+            .len(),
+        1
+    );
+    assert_eq!(batch.makeOn(connection).await?.len(), 1);
+    assert_eq!(batch.rawOn(connection).await?.len(), 1);
+    assert_eq!(connection.table("expansion_children").count("*").await?, 0);
+
+    let explicit = factory();
+    assert!(
+        explicit
+            .makeManyOn(connection, FactoryRecords::Count(0))
+            .await?
+            .is_empty()
+    );
+    assert_eq!(explicit.rawOn(connection).await?.len(), 1);
+
+    let create = factory();
+    assert_eq!(
+        create
+            .createManyQuietlyOn(connection, FactoryRecords::Default)
+            .await?
+            .len(),
+        3
+    );
+    assert_eq!(create.createOn(connection).await?.len(), 1);
+    let failed = Factory::<ExpansionChild>::new(Attributes::new)
+        .afterMaking(|_| Err(DatabaseError::InvalidQuery("factory count fixture error")))
+        .count(3);
+    assert!(
+        failed
+            .makeManyOn(connection, FactoryRecords::Default)
+            .await
+            .is_err()
+    );
+    assert_eq!(failed.rawOn(connection).await?.len(), 1);
+    assert_eq!(connection.table("expansion_children").count("*").await?, 4);
+    schema.drop("expansion_children").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_many_operations_consume_the_configured_count() {
+    let root = Root::new();
+    verify_factory_many_count(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_factory_many_count(&root.connection(Some(&url), ""))
             .await
             .unwrap();
     } else {

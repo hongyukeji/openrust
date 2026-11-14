@@ -427,3 +427,11 @@ PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rus
 隔离基线 `41f22255`。PHP 8.5 执行固定 Sequence 确认索引跨调用接续与新实例归零。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证 raw、make、insert、create 接续及两个父模型的附加顺序，回查六条关联模型记录。35 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 及 6 项浏览器检查通过。
 
 已清理本批隔离构建与站点产物。下一批核对 `makeMany` 消耗默认数量后的状态生命周期。
+
+## 多条操作消耗工厂默认数量
+
+固定 Laravel 的 `makeMany` 与 `createMany` 先取默认数量，再清除构建器的数量设置。显式记录参数也会清除该设置，静默创建沿用同一流程。Rust 批量构建器使用原子操作领取并重置默认数量，保留共享借用与固定的集合返回类型。后续操作默认处理一条。显式零条或模型生成失败均消耗默认数量。v0.x 未发现对应入口。固定 Goravel 通过 Count 设定批量数量，编译装配沿用现有路径。 [Laravel makeMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L469) · [Laravel createMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L290) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `aff5761a`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证默认三条被领取后降为一条、显式零条及失败后的重置、make 不落库、静默创建三条与后续单条创建。通过 36 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
+
+已清理本批隔离构建及站点产物。下一批核对 `create`、`createQuietly` 和 `lazy` 的公开父模型上下文。

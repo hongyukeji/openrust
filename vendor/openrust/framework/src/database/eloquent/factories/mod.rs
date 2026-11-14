@@ -609,7 +609,7 @@ impl<M: Model> Factory<M> {
     pub fn count(self, count: usize) -> FactoryBatch<M> {
         FactoryBatch {
             factory: self,
-            count,
+            count: AtomicUsize::new(count),
         }
     }
 
@@ -1526,7 +1526,7 @@ fn named_descriptor<M: Model, D: Relation<Parent = M>>(model: &M, name: &str) ->
 /// A factory that produces the requested number of models.
 pub struct FactoryBatch<M: Model> {
     factory: Factory<M>,
-    count: usize,
+    count: AtomicUsize,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
@@ -1534,13 +1534,15 @@ impl<M: Model> FactoryBatch<M> {
     conditional_states!();
 
     #[must_use]
-    pub fn withoutParents(self, parents: Vec<FactoryParentSelector>) -> Self {
-        self.factory.withoutParents(parents).count(self.count)
+    pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
+        self.factory
+            .withoutParents(parents)
+            .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn connection(self, name: Option<&str>) -> Self {
-        self.factory.connection(name).count(self.count)
+    pub fn connection(mut self, name: Option<&str>) -> Self {
+        self.factory.connection(name).count(*self.count.get_mut())
     }
 
     /// The Rust type name of the model bound to this factory.
@@ -1557,54 +1559,68 @@ impl<M: Model> FactoryBatch<M> {
         self.factory.getConnectionName()
     }
 
-    pub fn trashed(self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
-        Ok(self.factory.trashed(deletedAt)?.count(self.count))
+    pub fn trashed(mut self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
+        Ok(self
+            .factory
+            .trashed(deletedAt)?
+            .count(*self.count.get_mut()))
     }
 
     #[must_use]
-    pub fn state(self, state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static) -> Self {
-        self.factory.state(state).count(self.count)
+    pub fn state(
+        mut self,
+        state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.factory.state(state).count(*self.count.get_mut())
     }
 
     #[must_use]
     pub fn stateWithParent<P: Model>(
-        self,
+        mut self,
         state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.factory.stateWithParent(state).count(self.count)
+        self.factory
+            .stateWithParent(state)
+            .count(*self.count.get_mut())
     }
 
     #[must_use]
     pub fn afterCreatingWithParent<P: Model>(
-        self,
+        mut self,
         callback: impl Fn(&mut M, Option<&P>) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
         self.factory
             .afterCreatingWithParent(callback)
-            .count(self.count)
+            .count(*self.count.get_mut())
     }
 
     #[must_use]
     pub fn prependState(
-        self,
+        mut self,
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.factory.prependState(state).count(self.count)
+        self.factory
+            .prependState(state)
+            .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn set(self, name: impl Into<String>, value: impl Into<Value>) -> Self {
-        self.factory.set(name, value).count(self.count)
+    pub fn set(mut self, name: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.factory.set(name, value).count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn withoutAfterMaking(self) -> Self {
-        self.factory.withoutAfterMaking().count(self.count)
+    pub fn withoutAfterMaking(mut self) -> Self {
+        self.factory
+            .withoutAfterMaking()
+            .count(*self.count.get_mut())
     }
 
     #[must_use]
-    pub fn withoutAfterCreating(self) -> Self {
-        self.factory.withoutAfterCreating().count(self.count)
+    pub fn withoutAfterCreating(mut self) -> Self {
+        self.factory
+            .withoutAfterCreating()
+            .count(*self.count.get_mut())
     }
 
     pub async fn makeOne(&self, attributes: Attributes) -> DatabaseResult<M> {
@@ -1630,7 +1646,7 @@ impl<M: Model> FactoryBatch<M> {
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
         self.factory
-            .make_many(connection, records, self.count)
+            .make_many(connection, records, self.count.swap(1, Ordering::Relaxed))
             .await
     }
 
@@ -1691,7 +1707,7 @@ impl<M: Model> FactoryBatch<M> {
         records: FactoryRecords,
     ) -> DatabaseResult<Collection<M>> {
         self.factory
-            .create_many(connection, records, self.count)
+            .create_many(connection, records, self.count.swap(1, Ordering::Relaxed))
             .await
     }
 
@@ -1780,8 +1796,9 @@ impl<M: Model> FactoryBatch<M> {
         mut state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
         let faker = std::sync::OnceLock::new();
-        let mut records = Vec::with_capacity(self.count);
-        for _ in 0..self.count {
+        let count = self.count.load(Ordering::Relaxed);
+        let mut records = Vec::with_capacity(count);
+        for _ in 0..count {
             records.push(
                 self.factory
                     .raw_attributes(connection, &faker, context, &mut state)
@@ -1860,9 +1877,10 @@ impl<M: Model> FactoryBatch<M> {
         relation: Option<RelationContext<'_>>,
         overrides: &Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        let mut models = Vec::with_capacity(self.count);
+        let count = self.count.load(Ordering::Relaxed);
+        let mut models = Vec::with_capacity(count);
         let faker = std::sync::OnceLock::new();
-        for _ in 0..self.count {
+        for _ in 0..count {
             let mut pending = self
                 .factory
                 .prepare_attributes(connection, relation, &faker)?;

@@ -309,7 +309,21 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 
 Use `createOne(attributes)` to create one model even on a counted factory. Use `createMany(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `createOneQuietly` and `createManyQuietly` to suppress model events, or the corresponding `On` methods to select a connection.
 
-Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. Use the same `FactoryRecords` variants with `makeMany`. It retains the configured count for later calls, and a zero count yields an empty collection. Neither method saves the returned models. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
+Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. Use the same `FactoryRecords` variants with `makeMany`. A zero count yields an empty collection. Both `makeMany` and `createMany` consume the configured default count. This also applies to explicit input, zero records, and errors during model generation. Subsequent calls default to one model, and Rust batch methods continue to return collection-shaped results. The make methods leave the returned models unsaved. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::{Factory, FactoryRecords}},
+};
+
+async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(Attributes::new).count(3);
+    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 3);
+    assert_eq!(batch.makeMany(FactoryRecords::Default).await?.len(), 1);
+    Ok(())
+}
+```
 
 Use the callback returned by `lazy` as shown below. Creating the callback leaves the target table untouched. Each awaited invocation writes a new batch.
 
