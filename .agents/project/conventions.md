@@ -35,10 +35,44 @@
 
 ## 验收清单
 
-- **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check`、`cargo +1.94.0 test --workspace --locked`、`cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
-- **数据库行为。** 日常开发涉及数据库时使用 MySQL 8.4 验收。发布前按 Laravel 兼容基线验证多数据库及最低支持版本。
+- **Rust 代码。** 在仓库根目录使用最低支持工具链 Rust 1.94.0 运行 `cargo +1.94.0 fmt --all --check` 和 `cargo +1.94.0 clippy --workspace --all-targets --locked -- -D warnings`。按改动验证实际入口、默认行为和关键失败路径。骨架改动验证公开导入和签名编译，分别记录骨架、实现与行为验收状态。
+- **测试范围。** 日常执行与改动相关的定向测试。数据库用例只运行 MySQL 8.4，筛选和连接验证见下文。SQLite、其他数据库及最低支持版本统一在发布前按 Laravel 兼容基线验收。
 - **文档。** 纯指引改动检查引用、路径和锚点。文档站改动按[文档 CI](../../.github/workflows/docs.yml)构建三语站点，并运行浏览器检查，覆盖 `/` 与 `/docs/`。
 - **记录。** 记录实际执行的命令、环境和结果，说明跳过项或外部服务限制。检查本批差异及空白错误，暂存、提交和推送遵循当次授权。
+
+### 日常 MySQL 8.4 验收
+
+从仓库根目录执行。使用独立测试库，测试会建表、删表和写入数据。先用测试账号连接与测试 URL 相同的主机、端口及库名，执行 `SELECT VERSION()`，确认实际连接的是 MySQL 8.4.x，再运行测试。
+
+```sh
+mysql --protocol=TCP -h 127.0.0.1 -P 3306 -u acceptance -p openrust_acceptance \
+  --batch --skip-column-names -e 'SELECT VERSION()'
+
+export OPENRUST_TEST_MYSQL_URL='mysql://acceptance:REPLACE_ME@127.0.0.1:3306/openrust_acceptance'
+export OPENRUST_REQUIRE_MYSQL=1
+cargo +1.94.0 test --locked -p openrust-framework --test database_query \
+  query_builder_runs_on_mysql_8_4 -- --exact
+```
+
+若使用 Docker 中的独立 MySQL 测试实例且宿主机没有 `mysql` 客户端，可用容器内的客户端验证版本。下面以 `openrust-mysql` 为容器名，先用 `docker port openrust-mysql 3306/tcp` 确认宿主机测试 URL 使用的是该容器的映射端口。
+
+```sh
+docker exec -it openrust-mysql mysql --protocol=TCP -h 127.0.0.1 -P 3306 \
+  -u acceptance -p openrust_acceptance --batch --skip-column-names -e 'SELECT VERSION()'
+```
+
+替换示例账号、密码和库名，URL 中的特殊字符按 URL 规则编码。不同测试读取各自的环境变量。按测试源码中的 `std::env::var` 和 `OPENRUST_REQUIRE_*` 设置。对于读取 URL 失败会跳过的测试，同时设置对应的 `OPENRUST_REQUIRE_*=1`。例如关系批量写入测试使用同一测试库时执行：
+
+```sh
+OPENRUST_TEST_RELATION_MYSQL_URL="$OPENRUST_TEST_MYSQL_URL" \
+OPENRUST_REQUIRE_RELATION_MYSQL=1 \
+cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships \
+  related_upsert_on_mysql -- --exact
+```
+
+可先执行 `cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships -- --list` 核对完整测试名。用 `-p`、`--test` 和 `--exact` 定位到指定测试，并确认输出实际执行且通过了预期用例。日常验收避开无筛选的 `cargo test --workspace --locked`，该命令会运行工作区的 SQLite 等数据库测试。
+
+`--exact` 只筛选测试函数。执行前核对函数及其辅助夹具实际使用的驱动。`relationship_keys_and_query_counts_on_mysql` 的连接隔离夹具也使用独立的 MySQL 连接。遇到其他在单个函数内混跑多数据库的用例，先拆出独立的 MySQL 用例，或让夹具随本用例选择驱动，再精确执行。仍混用多数据库的用例统一留到发布前验收。
 
 ## 持续开发交接
 

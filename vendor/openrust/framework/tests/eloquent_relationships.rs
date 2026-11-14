@@ -232,6 +232,7 @@ async fn select_count(db: &Connection) -> u64 {
 
 async fn verify_singular_identity(
     db: &Connection,
+    other: &Connection,
     mysql: bool,
     author: &Author,
     post: &Post,
@@ -253,8 +254,7 @@ async fn verify_singular_identity(
     child.setAttribute("owner_code", "0");
     owner.setAttribute("code", 0_i64);
     assert!(by_code.isNot(&child, Some(&owner)));
-    let other = connect(json!({"driver": "sqlite", "database": ":memory:"}));
-    let mut same_name_owner = Author::newInstanceOn(&other, Attributes::new()).unwrap();
+    let mut same_name_owner = Author::newInstanceOn(other, Attributes::new()).unwrap();
     same_name_owner.setAttribute("id", author.getKey().unwrap().clone());
     assert!(AUTHOR.isNot(post, Some(&same_name_owner)));
 
@@ -290,6 +290,7 @@ async fn verify_singular_identity(
 
 async fn verify_through_and_morph(
     db: &Connection,
+    other: &Connection,
     mysql: bool,
     author: &Author,
     post: &Post,
@@ -602,6 +603,7 @@ async fn verify_through_and_morph(
 
     Box::pin(verify_morph_association(
         db,
+        other,
         mysql,
         subject.named("subject"),
         &mut profile,
@@ -951,6 +953,7 @@ async fn verify_belongs_to_cache(
 
 async fn verify_morph_association(
     db: &Connection,
+    other: &Connection,
     mysql: bool,
     subject: MorphTo<Comment>,
     profile: &mut Comment,
@@ -974,8 +977,7 @@ async fn verify_morph_association(
             .alias(),
         "author",
     );
-    let other = connect(json!({"driver": "sqlite", "database": ":memory:"}));
-    let mut foreign = Post::newInstanceOn(&other, Attributes::new()).unwrap();
+    let mut foreign = Post::newInstanceOn(other, Attributes::new()).unwrap();
     foreign.setAttribute("id", 1);
     assert!(matches!(
         subject.associate(profile, "post", &foreign),
@@ -3346,7 +3348,10 @@ fn verify_one_through<'a>(
     })
 }
 
-fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture<'_, ()> {
+fn verify_collection_keys<'a>(
+    db: &'a Connection,
+    other: &'a Connection,
+) -> openrust::database::DatabaseFuture<'a, ()> {
     Box::pin(async move {
         let ordered = || Author::queryOn(db).orderBy("id", "asc");
         let authors = ordered().get().await.unwrap();
@@ -3644,8 +3649,7 @@ fn verify_collection_keys(db: &Connection) -> openrust::database::DatabaseFuture
             vec![2.into(), 3.into()]
         );
         assert!(Collection::<Author>::new(Vec::new()).toQuery().is_err());
-        let other = connect(json!({"driver":"sqlite","database":":memory:"}));
-        let mut outside = Author::queryOn(&other).make(Attributes::new()).unwrap();
+        let mut outside = Author::queryOn(other).make(Attributes::new()).unwrap();
         outside.setAttribute("id", 2);
         assert!(
             Collection::new(vec![ordered().findOrFail(1).await.unwrap(), outside])
@@ -6569,7 +6573,7 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
     );
 }
 
-async fn verify(db: Connection, mysql: bool) {
+async fn verify(db: Connection, other: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
         "BIGINT AUTO_INCREMENT PRIMARY KEY"
@@ -6985,7 +6989,7 @@ async fn verify(db: Connection, mysql: bool) {
         vec![2.into()]
     );
 
-    verify_collection_keys(&db).await;
+    verify_collection_keys(&db, &other).await;
 
     Box::pin(verify_belongs_to_cache(&db, mysql, &p1, &first, &second)).await;
 
@@ -7213,8 +7217,11 @@ async fn verify(db: Connection, mysql: bool) {
     .await;
     AUTHOR.associate(&mut p1, &first).unwrap();
     p1.save().await.unwrap();
-    Box::pin(verify_singular_identity(&db, mysql, &first, &p1, &hidden)).await;
-    verify_through_and_morph(&db, mysql, &first, &p1, &hidden).await;
+    Box::pin(verify_singular_identity(
+        &db, &other, mysql, &first, &p1, &hidden,
+    ))
+    .await;
+    verify_through_and_morph(&db, &other, mysql, &first, &p1, &hidden).await;
     Box::pin(verify_morph_paths(&db, mysql)).await;
     verify_one_through(&db, mysql, &first).await;
     verify_collection_reload(&db, mysql).await;
@@ -7629,6 +7636,7 @@ async fn relationship_keys_and_eager_loading_on_sqlite() {
     .await;
     Box::pin(verify(
         connect(json!({"driver":"sqlite","database":":memory:","max_connections":1,"foreign_key_constraints":true})),
+        connect(json!({"driver":"sqlite","database":":memory:","max_connections":1})),
         false,
     ))
     .await;
@@ -7647,7 +7655,8 @@ async fn relationship_keys_and_query_counts_on_mysql() {
         Box::pin(verify_create_or_first(&create_db, true, false)).await;
         let db = connect(json!({"url":url,"max_connections":1}));
         // Keep the large integration fixture off the default debug test stack.
-        Box::pin(verify(db, true)).await;
+        let other = connect(json!({"url":url,"max_connections":1}));
+        Box::pin(verify(db, other, true)).await;
         Box::pin(verify_dynamic_relations(
             json!({"url":url,"max_connections":1}),
         ))
