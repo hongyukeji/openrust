@@ -899,6 +899,31 @@ pub async fn ensure_post<P: Model, R: Model>(
 }
 ```
 
+### Bulk upserting related models {#upserting-related-models}
+
+Direct and polymorphic one-to-one and one-to-many relations provide `upsert`. Each input row receives the parent key and, for a polymorphic relation, the morph type. The write runs as one database statement and skips per-model events and casts. Eloquent supplies missing IDs and timestamps where configured.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn upsert_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<u64> {
+    posts.upsert(
+        author,
+        vec![Attributes::from([
+            ("slug".into(), "welcome".into()),
+            ("title".into(), "Welcome".into()),
+        ])],
+        &["author_id", "slug"],
+        Some(&["title"]),
+    ).await
+}
+```
+
+Use a unique index that includes the parent key and, for polymorphic relations, the morph type to keep conflicts separate. SQLite uses the supplied conflict columns. MySQL detects conflicts using the table’s primary and unique indexes. An ordinary relationship query filter does not scope an upsert conflict.
+
 ### Restoring related models {#restoring-related-models}
 
 Use `restoreOrCreate` to look up a related model, including soft-deleted rows, before inserting. `createOrRestore` attempts insertion first and recovers a matching row on a unique conflict. Both restore the model through its normal lifecycle. Pass `RelatedValues::deferred` to compute model values only when an insert or update needs them.

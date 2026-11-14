@@ -570,3 +570,11 @@ SQLite 与独立 MySQL 8.4.13 验证创建和挂载、重复 Pivot 回滚模型�
 对照固定 Laravel 的 `HasOneOrMany` 与 `HasOneOrManyThrough`，补齐 `firstOrNew`、`firstOrCreate`、`createOrFirst`、`updateOrCreate`、`restoreOrCreate`、`createOrRestore`。直接与多态关系沿用写连接回查和延迟值。穿透关系接受属性映射，创建时由调用方提供中间模型外键，冲突回查沿用固定版本的查询路由。恢复使用模型生命周期，中间模型的软删除过滤独立生效。已有关系计数复用本次查找与创建流程。旧版未找到对应入口，固定 Goravel 用作 ORM 连接职责参考。 [Laravel 直接关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 穿透关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentHasManyTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 与独立 MySQL 8.4.13 验证未保存结果、命中不求值、创建、模型更新、关系范围内唯一冲突回查、多态隔离和软删除恢复。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、文档构建及 18 项浏览器检查通过。
+
+## 直接与多态关系批量写入
+
+对照固定 Laravel 的 `HasOneOrMany::upsert`、`MorphOneOrMany::upsert` 和 Eloquent Builder。直接与多态的一对一、一对多在每行覆盖关系键，再复用 Query Builder 的方言 SQL。模型配置的 ID 和时间戳只补缺失列，冲突更新包含更新时间，未列入更新列的创建时间会保留。Rust 使用 `Vec<Attributes>` 表示批次，非空批次要求已有父键，保持现有关系写入契约。旧版有 Query Builder 批量写入，当前复用其在主分支上的对应入口。固定 Goravel 继续作为 ORM 连接职责参考。 [Laravel 关系源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphOneOrMany.php) · [Laravel Builder 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php) · [Laravel Upserts](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#upserts) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证空批次、批量插入、覆盖关系键、冲突更新、不同父键与多态类型隔离、自动 ULID 及更新时间。冲突范围由数据库唯一索引决定。穿透和 Pivot 的批量转发契约继续核对。
+
+Rust 1.94 全工作区回归 624 项通过、8 项夹具忽略。格式、严格 Clippy、实际 Artisan、三语示例编译、文档构建及 18 项浏览器检查通过。

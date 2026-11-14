@@ -1475,6 +1475,63 @@ impl<M: Model> Builder<'static, M> {
         self.scoped()?.0.update(attributes).await
     }
 
+    /// Writes multiple rows without hydrating or saving individual models.
+    pub async fn upsert(
+        self,
+        mut rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        let Some(first) = rows.first() else {
+            return Ok(0);
+        };
+        let mut columns: Vec<String> = update.map_or_else(
+            || first.keys().cloned().collect(),
+            |columns| columns.iter().map(|column| (*column).into()).collect(),
+        );
+        let metadata = M::metadata();
+        let timestamp = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
+            Some(timestamp(&self.connection, metadata.date_format)?)
+        } else {
+            None
+        };
+        if let Some(column) = metadata.updated_at
+            && !columns.iter().any(|candidate| candidate == column)
+        {
+            columns.push(column.into());
+        }
+        let ids = M::uniqueIds();
+        let needs_ids = ids
+            .iter()
+            .any(|&column| rows.iter().any(|row| !row.contains_key(column)));
+        let model = needs_ids
+            .then(|| M::newInstanceOn(&self.connection, Attributes::new()))
+            .transpose()?;
+        for row in &mut rows {
+            if let Some(model) = &model {
+                for &column in ids {
+                    if !row.contains_key(column) {
+                        let id = model.newUniqueId()?;
+                        row.insert(column.into(), id.map_or(Value::Null, Value::Text));
+                    }
+                }
+            }
+            if let Some(time) = &timestamp {
+                for column in [metadata.created_at, metadata.updated_at]
+                    .into_iter()
+                    .flatten()
+                {
+                    row.entry(column.into()).or_insert_with(|| time.clone());
+                }
+            }
+        }
+        let columns: Vec<&str> = columns.iter().map(String::as_str).collect();
+        self.scoped()?
+            .0
+            .upsert(&rows, unique_by, Some(&columns))
+            .await
+    }
+
     pub async fn increment(
         self,
         column: &str,

@@ -76,6 +76,17 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         Ok(Self(self.0.whereCandidates(filter)?))
     }
 
+    /// Writes related rows, assigning the parent key and any morph discriminator.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        self.0.upsert(parent, rows, unique_by, update).await
+    }
+
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.save(parent, model).await
     }

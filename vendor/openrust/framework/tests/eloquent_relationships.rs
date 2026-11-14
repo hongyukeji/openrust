@@ -7168,3 +7168,141 @@ async fn relationship_keys_and_query_counts_on_mysql() {
         Box::pin(verify_custom_pivot(json!({"url":url,"max_connections":1}))).await;
     }
 }
+
+struct UpsertChild(ModelState);
+
+impl Model for UpsertChild {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("relation_upsert_children")
+            .uniqueId(openrust::database::eloquent::UniqueId::Ulid);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_related_upsert(db: &Connection) {
+    db.statement("drop table if exists relation_upsert_children", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table relation_upsert_children (
+            id varchar(26) primary key, owner_id integer not null, owner_type varchar(30) not null,
+            code varchar(30) not null, body varchar(30) not null,
+            created_at varchar(30) not null, updated_at varchar(30) not null,
+            unique (owner_type, owner_id, code)
+        )",
+        &[],
+    )
+    .await
+    .unwrap();
+    let parent = |id| {
+        let mut parent = Author::newInstanceOn(db, Attributes::new()).unwrap();
+        parent.setAttribute("id", Value::Integer(id));
+        parent
+    };
+    let first = parent(1);
+    let second = parent(2);
+    let make = |code: &str, body: &str| {
+        Attributes::from([
+            ("code".into(), code.into()),
+            ("body".into(), body.into()),
+            ("owner_id".into(), 99.into()),
+            ("owner_type".into(), "direct".into()),
+        ])
+    };
+    let unique = &["owner_type", "owner_id", "code"];
+    let many = HasMany::<Author, UpsertChild>::new("id", "owner_id");
+    let one = HasOne::<Author, UpsertChild>::new("id", "owner_id");
+    let morph_many = MorphMany::<Author, UpsertChild>::new("id", "owner_id", "owner_type", "morph");
+    let morph_one = MorphOne::<Author, UpsertChild>::new("id", "owner_id", "owner_type", "morph");
+
+    assert_eq!(many.upsert(&first, vec![], &[], None).await.unwrap(), 0);
+    assert_eq!(
+        many.upsert(
+            &first,
+            vec![make("a", "first"), make("b", "other")],
+            unique,
+            None
+        )
+        .await
+        .unwrap(),
+        2
+    );
+    many.upsert(&second, vec![make("a", "second parent")], unique, None)
+        .await
+        .unwrap();
+    morph_many
+        .upsert(&first, vec![make("a", "first morph")], unique, None)
+        .await
+        .unwrap();
+    let lookup = |owner_type: &'static str, id: i64| {
+        let mut query = UpsertChild::queryOn(db);
+        query
+            .r#where("owner_type", "=", owner_type)
+            .r#where("owner_id", "=", id)
+            .r#where("code", "=", "a");
+        query.firstOrFail()
+    };
+    let original = lookup("direct", 1).await.unwrap();
+    let mut update = make("a", "updated");
+    update.insert("created_at".into(), "ignored on update".into());
+    update.insert("updated_at".into(), "explicit timestamp".into());
+    one.upsert(&first, vec![update], unique, Some(&["body"]))
+        .await
+        .unwrap();
+    morph_one
+        .upsert(&first, vec![make("a", "updated morph")], unique, None)
+        .await
+        .unwrap();
+    let changed = lookup("direct", 1).await.unwrap();
+    assert_eq!(original.getAttribute("id"), changed.getAttribute("id"));
+    assert!(matches!(changed.getAttribute("id"), Some(Value::Text(id)) if id.len() == 26));
+    assert_eq!(
+        original.getAttribute("created_at"),
+        changed.getAttribute("created_at")
+    );
+    assert_eq!(
+        changed.getAttribute("updated_at"),
+        Some(&"explicit timestamp".into())
+    );
+    assert_eq!(changed.getAttribute("body"), Some(&"updated".into()));
+    assert_eq!(
+        lookup("direct", 2).await.unwrap().getAttribute("body"),
+        Some(&"second parent".into())
+    );
+    assert_eq!(
+        lookup("morph", 1).await.unwrap().getAttribute("body"),
+        Some(&"updated morph".into())
+    );
+    db.statement("drop table relation_upsert_children", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn related_upsert_on_sqlite() {
+    verify_related_upsert(&connect(json!({
+        "driver": "sqlite", "database": ":memory:", "max_connections": 1,
+    })))
+    .await;
+}
+
+#[tokio::test]
+async fn related_upsert_on_mysql() {
+    let url = std::env::var("OPENRUST_TEST_RELATION_MYSQL_URL").ok();
+    assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_RELATION_MYSQL").is_none());
+    if let Some(url) = url {
+        verify_related_upsert(&connect(json!({"url": url, "max_connections": 1}))).await;
+    }
+}

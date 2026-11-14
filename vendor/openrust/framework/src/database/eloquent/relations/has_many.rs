@@ -260,6 +260,34 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .restrict_relation_attributes(attributes))
     }
 
+    /// Writes related rows, assigning the parent key and any morph discriminator.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        mut rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let key = parent
+            .getAttribute(self.0.parent)
+            .filter(|value| !matches!(value, Value::Null))
+            .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
+        for row in &mut rows {
+            if let Some((column, alias)) = self.0.discriminator {
+                row.insert(column.into(), alias.into());
+            }
+            row.insert(self.0.related.into(), key.clone());
+        }
+        let connection = self.0.connection(parent)?;
+        self.0
+            .configure(R::queryOn(&connection))?
+            .upsert(rows, unique_by, update)
+            .await
+    }
+
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.set_parent_attributes(parent, model)?;
         model.save().await

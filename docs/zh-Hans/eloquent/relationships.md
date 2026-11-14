@@ -899,6 +899,31 @@ pub async fn ensure_post<P: Model, R: Model>(
 }
 ```
 
+### 批量写入关联模型 {#upserting-related-models}
+
+直接和多态的一对一、一对多关系支持 `upsert`。每行都会填入父键，多态关系还会填入类型。整个批次由一条 SQL 写入，跳过单个模型的事件和转换。Eloquent 按模型配置补齐缺少的 ID 和时间戳。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn upsert_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<u64> {
+    posts.upsert(
+        author,
+        vec![Attributes::from([
+            ("slug".into(), "welcome".into()),
+            ("title".into(), "Welcome".into()),
+        ])],
+        &["author_id", "slug"],
+        Some(&["title"]),
+    ).await
+}
+```
+
+若要隔离冲突，唯一索引应包含父键，多态关系还应包含类型。SQLite 使用传入的冲突列。MySQL 使用表的主键和唯一索引判定冲突。关系上的普通查询条件不会限制冲突范围。
+
 ### 恢复关联模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找关联模型，查找范围包含软删除记录，未命中时才插入。`createOrRestore` 先尝试插入，遇到唯一键冲突时回查匹配记录。两者都通过模型生命周期恢复记录。用 `RelatedValues::deferred` 可将属性计算延迟到插入或更新时。

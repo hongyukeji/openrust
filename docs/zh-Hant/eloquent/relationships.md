@@ -899,6 +899,31 @@ pub async fn ensure_post<P: Model, R: Model>(
 }
 ```
 
+### 批次寫入關聯模型 {#upserting-related-models}
+
+直接和多型的一對一、一對多關聯支援 `upsert`。每列都會填入父鍵，多型關聯也會填入類型。整批資料透過一條 SQL 寫入，跳過個別模型的事件和轉換。Eloquent 依模型設定補齊缺少的 ID 和時間戳記。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn upsert_posts<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<u64> {
+    posts.upsert(
+        author,
+        vec![Attributes::from([
+            ("slug".into(), "welcome".into()),
+            ("title".into(), "Welcome".into()),
+        ])],
+        &["author_id", "slug"],
+        Some(&["title"]),
+    ).await
+}
+```
+
+若要隔離衝突，唯一索引應包含父鍵，多型關聯也應包含類型。SQLite 使用傳入的衝突欄位。MySQL 使用資料表的主鍵和唯一索引判定衝突。關聯上的一般查詢條件不會限制衝突範圍。
+
 ### 還原關聯模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找關聯模型，查找範圍包含軟刪除記錄，未找到時才新增。`createOrRestore` 先嘗試新增，遇到唯一鍵衝突時查回符合的記錄。兩者都透過模型生命週期還原記錄。使用 `RelatedValues::deferred` 可將屬性計算延遲至新增或更新時。
