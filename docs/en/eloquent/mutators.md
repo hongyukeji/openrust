@@ -135,6 +135,42 @@ pub const CASTS: &[(&str, AttributeCast)] = &[
 ];
 ```
 
+### Incrementing custom casts {#incrementing-custom-casts}
+
+Implement the optional `CastsInboundAttributes::increment` hook for a counter with custom storage units. Return the next logical value as `Some`, or `None` to use SQL arithmetic on the raw column. The framework passes the logical value and step through `set`. The stored step must be numeric and the counter column must support SQL addition.
+
+```rust
+use openrust::database::{
+    DatabaseError, DatabaseResult, Value,
+    eloquent::{Attributes, casts::{CastWrite, CastsInboundAttributes}},
+};
+
+pub struct Hundredths;
+
+impl CastsInboundAttributes for Hundredths {
+    fn set(&self, _: &str, value: Value, _: &Attributes) -> DatabaseResult<CastWrite> {
+        let Value::Integer(value) = value else {
+            return Err(DatabaseError::InvalidQuery("integer counter"));
+        };
+        let stored = value.checked_mul(100)
+            .ok_or(DatabaseError::InvalidQuery("counter overflow"))?;
+        Ok(CastWrite::Value(stored.into()))
+    }
+
+    fn increment(
+        &self, name: &str, step: &Value, attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        let (Some(Value::Integer(stored)), Value::Integer(step)) =
+            (attributes.get(name), step) else {
+                return Err(DatabaseError::InvalidQuery("integer counter"));
+            };
+        let next = (stored / 100).checked_add(*step)
+            .ok_or(DatabaseError::InvalidQuery("counter overflow"))?;
+        Ok(Some(next.into()))
+    }
+}
+```
+
 ### Encrypted Casting
 
 Return `CASTS` from `Model::casts`. The cast uses the encrypter from the model connection's application. Use a `TEXT` column for the ciphertext. Read and write plaintext through `getAttributeValue` and `setAttributeValue`. An SQL null stays null.

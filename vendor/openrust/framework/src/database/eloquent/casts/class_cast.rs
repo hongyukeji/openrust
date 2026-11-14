@@ -25,6 +25,19 @@ impl CastWrite {
 pub trait CastsInboundAttributes: Send + Sync {
     fn set(&self, name: &str, value: Value, attributes: &Attributes) -> DatabaseResult<CastWrite>;
 
+    /// Returns the next logical attribute value for an increment, if supported.
+    ///
+    /// The framework passes both this value and the step through `set`.
+    /// The stored column must support SQL addition.
+    fn increment(
+        &self,
+        _name: &str,
+        _amount: &Value,
+        _attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        Ok(None)
+    }
+
     /// Optionally defines equivalence for the current and original stored values.
     fn compare(
         &self,

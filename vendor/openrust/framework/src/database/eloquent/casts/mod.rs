@@ -291,6 +291,47 @@ pub(super) fn check_object<M: Model, T: CastableObject>(
     }
 }
 
+pub(super) fn has_increment_caster<M: Model>(model: &M, name: &str) -> bool {
+    matches!(
+        cast_for::<M>(name, &model.state().casts),
+        Some(AttributeCast::Class(_) | AttributeCast::Custom(_) | AttributeCast::Inbound(_))
+    )
+}
+
+pub(super) fn increment_cast<M: Model>(
+    model: &M,
+    name: &str,
+    amount: &Value,
+    attributes: &Attributes,
+) -> DatabaseResult<Option<(CastWrite, Value)>> {
+    fn convert(
+        caster: &dyn CastsInboundAttributes,
+        name: &str,
+        amount: &Value,
+        attributes: &Attributes,
+    ) -> DatabaseResult<Option<(CastWrite, Value)>> {
+        let Some(next) = caster.increment(name, amount, attributes)? else {
+            return Ok(None);
+        };
+        let step = match caster.set(name, amount.clone(), attributes)? {
+            CastWrite::Value(value) => value,
+            CastWrite::Patch(mut patch) => patch.remove(name).ok_or(
+                DatabaseError::InvalidQuery("counter cast must store its column"),
+            )?,
+        };
+        Ok(Some((caster.set(name, next, attributes)?, step)))
+    }
+
+    match cast_for::<M>(name, &model.state().casts) {
+        Some(AttributeCast::Class(cast)) => {
+            convert(cast.resolve()?.assignment(), name, amount, attributes)
+        }
+        Some(AttributeCast::Custom(caster)) => convert(caster, name, amount, attributes),
+        Some(AttributeCast::Inbound(caster)) => convert(caster, name, amount, attributes),
+        _ => Ok(None),
+    }
+}
+
 pub(super) fn equivalent<M: Model>(
     name: &str,
     current: &Value,

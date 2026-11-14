@@ -528,3 +528,9 @@ SQLite 和独立 MySQL 8.4.13 验证初始值、额外属性、Pivot 保留、�
 按固定 Laravel `HasOneOrMany` 与 `HasOneOrManyThrough` 补齐六种关系的 `incrementOrCreate`。直接和多态关系复用外键写入，并从写库按关系条件回查唯一冲突。穿透关系按连接条件查找，创建时由调用方给出中间模型外键，唯一冲突按固定上游用合并后的插入属性回查。各关系共用数据库原子递增和模型更新事件。旧版未找到对应入口，固定 Goravel 用作连接事务参考。 [Laravel 直接关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 穿透关系](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
 
 SQLite 和独立 MySQL 8.4.13 验证六个关系入口创建与递增、直接外键覆盖、多态鉴别值隔离、穿透查找及显式中间键。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。
+
+## 自定义计数器转换
+
+按固定 Laravel 的模型递增与类转换机制，将逻辑新值和步长交给转换器，持久化仍使用数据库原子加法。Rust 通过可选的 `CastsInboundAttributes::increment` 显式启用，类型化类转换、直接自定义转换和仅写转换共用此接口。转换器读取事务中的当前存储值，`Updating` 看到转换后的模型属性，`Updated` 看到数据库回读值。额外存储列可随更新一起写入。此批范围是关系计数器递增。旧版未发现对应递增转换协议，固定 Goravel 用作事务装配参考。 [Laravel 模型](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Model.php) · [Laravel 自定义转换](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-mutators.md#custom-casts) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证逻辑值 3 和存储值 300 的创建、递增后 5 和 500、转换拒绝保持原值，以及 MySQL 并发调用分别返回 7 和 9。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。

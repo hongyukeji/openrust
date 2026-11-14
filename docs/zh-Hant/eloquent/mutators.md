@@ -135,6 +135,42 @@ pub const CASTS: &[(&str, AttributeCast)] = &[
 ];
 ```
 
+### 自訂轉換的遞增 {#incrementing-custom-casts}
+
+計數器使用自訂儲存單位時，可實作 `CastsInboundAttributes::increment`。回傳 `Some` 提供下一個邏輯值，回傳 `None` 時直接用 SQL 遞增原始欄位。框架透過 `set` 轉換邏輯值和步長。儲存步長必須是數值，計數欄位必須支援 SQL 加法。
+
+```rust
+use openrust::database::{
+    DatabaseError, DatabaseResult, Value,
+    eloquent::{Attributes, casts::{CastWrite, CastsInboundAttributes}},
+};
+
+pub struct Hundredths;
+
+impl CastsInboundAttributes for Hundredths {
+    fn set(&self, _: &str, value: Value, _: &Attributes) -> DatabaseResult<CastWrite> {
+        let Value::Integer(value) = value else {
+            return Err(DatabaseError::InvalidQuery("integer counter"));
+        };
+        let stored = value.checked_mul(100)
+            .ok_or(DatabaseError::InvalidQuery("counter overflow"))?;
+        Ok(CastWrite::Value(stored.into()))
+    }
+
+    fn increment(
+        &self, name: &str, step: &Value, attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        let (Some(Value::Integer(stored)), Value::Integer(step)) =
+            (attributes.get(name), step) else {
+                return Err(DatabaseError::InvalidQuery("integer counter"));
+            };
+        let next = (stored / 100).checked_add(*step)
+            .ok_or(DatabaseError::InvalidQuery("counter overflow"))?;
+        Ok(Some(next.into()))
+    }
+}
+```
+
 ### 加密轉換
 
 在 `Model::casts` 回傳 `CASTS`。轉換使用模型連線所屬應用程式的加密器。資料庫用 `TEXT` 欄儲存密文，透過 `getAttributeValue` 和 `setAttributeValue` 讀寫明文。SQL 空值保持為空。

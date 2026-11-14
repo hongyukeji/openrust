@@ -313,24 +313,27 @@ pub(super) fn is_unique_violation(error: &DatabaseError) -> bool {
     matches!(error, DatabaseError::Driver { source, .. } if source.as_database_error().is_some_and(|error| error.is_unique_violation()))
 }
 
+fn numeric_counter(value: &Value) -> bool {
+    match value {
+        Value::Integer(_) | Value::Unsigned(_) => true,
+        Value::Real(value) => value.is_finite(),
+        _ => false,
+    }
+}
+
 pub(super) fn validate_counter<M: Model>(
     column: &str,
     default: &Value,
     step: &Value,
     extra: &super::Attributes,
 ) -> DatabaseResult<()> {
-    let numeric = |value: &Value| match value {
-        Value::Integer(_) | Value::Unsigned(_) => true,
-        Value::Real(value) => value.is_finite(),
-        _ => false,
-    };
     let key = M::metadata().primary_key;
     if column.is_empty()
         || column.contains(['.', '*'])
         || column.eq_ignore_ascii_case(key)
         || extra.keys().any(|name| name.eq_ignore_ascii_case(key))
-        || !numeric(default)
-        || !numeric(step)
+        || !numeric_counter(default)
+        || !numeric_counter(step)
     {
         return Err(DatabaseError::InvalidQuery("related model counter"));
     }
@@ -358,19 +361,43 @@ pub(super) async fn increment_related<M: Model>(
                 let extra = extra.clone();
                 Box::pin(async move {
                     let table = persistence_table(&model);
-                    // Project the next value using the database's arithmetic so the
-                    // event sees the same numeric representation as the write.
-                    let value = scoped_model(&model, transaction.table(table))?
-                        .selectRaw(&expression, vec![step.clone()])
-                        .lockForUpdate()
-                        .first()
-                        .await?
-                        .ok_or(DatabaseError::ModelNotFound(table))?;
-                    let next = value
-                        .get(&column)
-                        .cloned()
-                        .ok_or(DatabaseError::InvalidScalar)?;
-                    model.setAttribute(&column, next);
+                    let mut step = step;
+                    let mut cast_assignments = super::Attributes::new();
+                    let mut cast_applied = false;
+                    if super::casts::has_increment_caster(&model, &column) {
+                        let attributes = scoped_model(&model, transaction.table(table))?
+                            .lockForUpdate()
+                            .first().await?
+                            .ok_or(DatabaseError::ModelNotFound(table))?
+                            .into_columns().into_iter().collect();
+                        if let Some((write, encoded_step)) =
+                            super::casts::increment_cast(&model, &column, &step, &attributes)?
+                        {
+                            if !numeric_counter(&encoded_step) {
+                                return Err(DatabaseError::InvalidQuery("related model counter"));
+                            }
+                            write.apply(&mut cast_assignments, column.clone());
+                            if !cast_assignments.contains_key(&column)
+                                || cast_assignments.keys().any(|name| name.eq_ignore_ascii_case(M::metadata().primary_key))
+                            {
+                                return Err(DatabaseError::InvalidQuery("counter cast must store its column without changing model identity"));
+                            }
+                            model.state_mut().apply_attributes(cast_assignments.clone());
+                            cast_assignments.remove(&column);
+                            step = encoded_step;
+                            cast_applied = true;
+                        }
+                    }
+
+                    if !cast_applied {
+                        let value = scoped_model(&model, transaction.table(table))?
+                            .selectRaw(&expression, vec![step.clone()])
+                            .lockForUpdate()
+                            .first().await?
+                            .ok_or(DatabaseError::ModelNotFound(table))?;
+                        let next = value.get(&column).cloned().ok_or(DatabaseError::InvalidScalar)?;
+                        model.setAttribute(&column, next);
+                    }
 
                     let before_extra = model.state().attributes.clone();
                     for (name, value) in extra {
@@ -383,6 +410,8 @@ pub(super) async fn increment_related<M: Model>(
                         .filter(|(name, value)| before_extra.get(*name) != Some(*value))
                         .map(|(name, value)| (name.clone(), value.clone()))
                         .collect();
+                    cast_assignments.append(&mut assignments);
+                    let mut assignments = cast_assignments;
                     if !fire_with_transaction(
                         &mut model,
                         &connection,

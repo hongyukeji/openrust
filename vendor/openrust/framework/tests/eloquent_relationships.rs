@@ -4740,6 +4740,118 @@ impl Model for RelationCounter {
     }
 }
 
+struct ScaledCounter(ModelState);
+
+struct CounterScale(i64);
+
+impl openrust::database::eloquent::casts::Castable for CounterScale {
+    type Arguments = i64;
+    type Caster = Self;
+
+    fn castUsing(scale: &i64) -> DatabaseResult<Self> {
+        Ok(Self(*scale))
+    }
+}
+
+impl openrust::database::eloquent::casts::CastsInboundAttributes for CounterScale {
+    fn set(
+        &self,
+        _: &str,
+        value: Value,
+        _: &Attributes,
+    ) -> DatabaseResult<openrust::database::eloquent::casts::CastWrite> {
+        let Value::Integer(value) = value else {
+            return Err(DatabaseError::InvalidQuery("scaled counter"));
+        };
+        let stored = value
+            .checked_mul(self.0)
+            .ok_or(DatabaseError::InvalidQuery("scaled counter"))?;
+        Ok(openrust::database::eloquent::casts::CastWrite::Value(
+            stored.into(),
+        ))
+    }
+
+    fn increment(
+        &self,
+        name: &str,
+        amount: &Value,
+        attributes: &Attributes,
+    ) -> DatabaseResult<Option<Value>> {
+        let (Some(Value::Integer(current)), Value::Integer(amount)) =
+            (attributes.get(name), amount)
+        else {
+            return Err(DatabaseError::InvalidQuery("scaled counter"));
+        };
+        if *amount == 9 {
+            return Err(DatabaseError::InvalidQuery("rejected logical increment"));
+        }
+        Ok(Some((current / self.0 + amount).into()))
+    }
+}
+
+impl openrust::database::eloquent::casts::CastsAttributes for CounterScale {
+    fn get(&self, _: &str, value: Option<&Value>, _: &Attributes) -> DatabaseResult<Value> {
+        let Some(Value::Integer(value)) = value else {
+            return Err(DatabaseError::InvalidQuery("scaled counter"));
+        };
+        Ok((value / self.0).into())
+    }
+}
+
+impl Model for ScaledCounter {
+    fn metadata() -> &'static ModelMetadata {
+        RelationCounter::metadata()
+    }
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        use openrust::database::eloquent::casts::ClassCast;
+        const CASTS: &[(&str, AttributeCast)] = &[("count", ClassCast::of::<CounterScale>(&100))];
+        CASTS
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_cast_counter(db: &Connection, post: &Post, mysql: bool) {
+    let relation = HasMany::<Post, ScaledCounter>::new("id", "post_id");
+    let increment = |step: i64| {
+        relation.incrementOrCreate(
+            post,
+            Attributes::from([("name".into(), "scaled".into())]),
+            "count",
+            3_i64,
+            step,
+            Attributes::new(),
+        )
+    };
+    let created = increment(2).await.unwrap();
+    assert_eq!(created.getAttribute("count"), Some(&300.into()));
+    let updated = increment(2).await.unwrap();
+    assert_eq!(updated.getAttribute("count"), Some(&500.into()));
+    assert_eq!(updated.getAttributeValue("count").unwrap(), Some(5.into()));
+    assert!(matches!(
+        increment(9).await,
+        Err(DatabaseError::InvalidQuery("rejected logical increment"))
+    ));
+    let current = ScaledCounter::queryOn(db)
+        .findOrFail(created.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    assert_eq!(current.getAttribute("count"), Some(&500.into()));
+    if mysql {
+        let (a, b) = tokio::join!(increment(2), increment(2));
+        let values =
+            [a.unwrap(), b.unwrap()].map(|model| model.getAttributeValue("count").unwrap());
+        assert!(values.contains(&Some(7.into())) && values.contains(&Some(9.into())));
+    }
+}
+
 async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     let id = if mysql {
         "BIGINT AUTO_INCREMENT PRIMARY KEY"
@@ -4847,6 +4959,7 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
         .await
         .unwrap();
     assert_count(&model, 32);
+    Box::pin(verify_cast_counter(db, &post, mysql)).await;
     db.statement("DROP TABLE relation_counters", &[])
         .await
         .unwrap();
