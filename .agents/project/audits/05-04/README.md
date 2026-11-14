@@ -1380,3 +1380,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、86 项 Faker、49 项 See
 隔离基线 `6b84495d`。PHP 反射对照国家、都道府县、区和后缀，另用固定 Person 姓氏词表和范围验证两种完整地址及所有中间字段。160 个固定 PHP 样本通过。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并回读 161 行，包括三语共用示例，按同一规则核对。Rust 回归覆盖两种地址、数值范围、无效地区与五个区唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、87 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 80 GiB。05-04 下一批核对韩语和其他亚洲地址。
+
+## 韩语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [韩语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ko_KR/Address.php) 和基础 Address。完整地址保留特别市或广域市加区、道加市两种组合，门牌号在街道后。继承的 streetAddress 把门牌号放在前面，postcode 独立生成五位。Rust 地区方法使用 Result 并支持 unique。v0.x 无对应地址生成器，固定 Goravel 的编译式应用装配沿用现有路径。
+
+隔离基线 `6fdea23c`。PHP 反射逐项核对八份词表和模板，保留区名重复项。160 个固定 PHP 样本通过。实际 MySQL 8.4.13 使用 `main artisan db:seed --database=mysql --force` 写入、顺序回读并核对 161 行，包括三语共同示例。Rust 回归覆盖两种行政组合、街道地址顺序、门牌号与邮编格式、无效地区及七个城市唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、88 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 80 GiB。05-04 下一批核对越南语及其他亚洲 Address。

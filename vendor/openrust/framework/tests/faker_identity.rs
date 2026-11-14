@@ -4026,3 +4026,38 @@ fn japanese_address_preserves_postcode_components_and_building_boundaries() {
     assert!(unique.ward().is_err());
     assert!(fake(Some("en-US")).unwrap().prefecture().is_err());
 }
+
+#[test]
+fn korean_address_preserves_administrative_order_and_inherited_street_address() {
+    let faker = fake(Some("ko-KR")).unwrap();
+    let building = Regex::new(r"^[1-9][0-9]{2,3}$").unwrap();
+    let postcode = Regex::new(r"^[0-9]{5}$").unwrap();
+    let mut formats = [false; 2];
+    for _ in 0..128 {
+        let address = faker.address();
+        let (location, number) = address.rsplit_once(' ').unwrap();
+        assert!(building.is_match(number), "{address}");
+        let (region, street) = location.rsplit_once(' ').unwrap();
+        assert!(street.ends_with('로'));
+        let (administration, locality) = region.split_once(' ').unwrap();
+        let metropolitan = administration.ends_with('시');
+        formats[usize::from(metropolitan)] = true;
+        if metropolitan {
+            assert!(locality.ends_with('구'));
+        } else {
+            assert!(administration.ends_with('도'));
+        }
+
+        let street_address = faker.streetAddress();
+        let (number, street) = street_address.split_once(' ').unwrap();
+        assert!(building.is_match(number) && street.ends_with('로'));
+        assert!(postcode.is_match(&faker.postcode()));
+    }
+    assert_eq!(formats, [true; 2]);
+    let unique = faker.unique(true);
+    for _ in 0..7 {
+        assert!(unique.metropolitanCity().unwrap().ends_with('시'));
+    }
+    assert!(unique.metropolitanCity().is_err());
+    assert!(fake(Some("ja-JP")).unwrap().borough().is_err());
+}

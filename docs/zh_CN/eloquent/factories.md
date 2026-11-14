@@ -884,6 +884,17 @@ fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+韩语完整地址先写特别市或广域市及其区，或写道及市，随后是街道名和门牌号。基础 `streetAddress()` 则把门牌号排在前面。`postcode()` 单独生成五位邮编。`metropolitanCity()`、`province()` 和 `borough()` 支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("ko-KR"))?;
+    Ok((faker.address(), faker.unique(false).metropolitanCity()?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

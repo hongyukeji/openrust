@@ -884,6 +884,17 @@ fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+Korean full addresses use a metropolitan city and borough, or a province and city, followed by the street name and building number. The inherited `streetAddress()` formatter puts the building number first. `postcode()` samples five digits separately. The regional `metropolitanCity()`, `province()`, and `borough()` formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("ko-KR"))?;
+    Ok((faker.address(), faker.unique(false).metropolitanCity()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
