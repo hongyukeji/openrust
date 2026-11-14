@@ -230,6 +230,18 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `email()?` 生成普通邮件地址，或用 `companyEmail()?` 生成使用随机域名的地址。简体中文的普通邮件使用本地区免费邮箱列表。`safeEmail()` 使用保留的示例域名，`freeEmail()` 使用地区邮箱服务域名。只需域名时用 `safeEmailDomain()` 或 `freeEmailDomain()`。用户名使用地区姓名或词库并转写为 ASCII。若无可用字符，OpenRust 生成一个 ASCII 字母，保留已有用户名及邮件方法的直接返回类型。`password(min, max)?` 使用从 `!` 到 `~` 的可打印 ASCII 字符，长度包含两端，接受反向边界，默认值为 6 和 20。以上生成器均支持 `unique`。
 
+### 地区用户名 {#regional-usernames}
+
+`userName()` 在沙特、约旦、埃及、伊朗、韩国和日本使用固定 FakerPHP 罗马字姓名词表。立陶宛模板从同一性别分组取名字和姓氏。简体中文使用固定 Lorem 词表和含下划线的模板。`safeEmail()` 和 `freeEmail()` 共用此生成器作为邮箱本地部分。通用路径使用 Rust 音译，音译后只剩分隔符时生成一个字母，保留用户名和邮箱的无错误签名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn username_sample() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).userName()
+}
+```
+
 ### 电话号码和 IMEI 样本 {#phone-and-imei-samples}
 
 用 `phoneNumber()` 生成地区显示号码。简体中文和繁体中文使用固定上游 Faker 模板，其他地区沿用已有 fake-rs 格式。`e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。

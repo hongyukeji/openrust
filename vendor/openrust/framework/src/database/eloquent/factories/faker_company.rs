@@ -61,7 +61,7 @@ mod west_asian;
 mod south_southeast_asian;
 
 #[path = "faker_job_title.rs"]
-mod job_title;
+pub(super) mod job_title;
 
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 

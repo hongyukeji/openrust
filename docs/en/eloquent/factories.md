@@ -230,6 +230,18 @@ Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and
 
 Use `email()?` for a general address or `companyEmail()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safeEmail()` uses reserved example domains and `freeEmail()` uses localized provider domains. Use `safeEmailDomain()` and `freeEmailDomain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
 
+### Regional Usernames {#regional-usernames}
+
+`userName()` uses FakerPHP’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safeEmail()` and `freeEmail()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn username_sample() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).userName()
+}
+```
+
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
 Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned upstream Faker templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.

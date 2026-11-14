@@ -4971,7 +4971,7 @@ const UK_UA: &[&str] = &[
     "Юрист",
 ];
 
-const LOREM_WORDS: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const LOREM_WORDS: &[&str] = &[
     "alias",
     "consequatur",
     "aut",

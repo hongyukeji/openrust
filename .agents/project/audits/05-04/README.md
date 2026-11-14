@@ -914,3 +914,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `e4b549b2`。PHP 8.5 比对 3,432 条姓氏及现有姓名模板，验证 4,608 组上游样本。Rust 1.94.0 格式、全目标严格 Clippy、33 项 Faker、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读九地 45 条姓名及公司名称。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。站点保留已有分块大小提示。
 
 隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%，项目卷剩余 81 GiB。现有十三个地区 Person 词表已接入公开姓名入口。后续核对 Internet 用户名，以及尚未接入公开姓名入口的其他 Person 地区。
+
+## Faker Internet 地区用户名与邮箱本地部分
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php) 与地区 provider。沙特、约旦、埃及、伊朗、韩国和日本使用固定罗马字姓名词表，沙特和约旦共用相同词表。立陶宛保留六个等权模板以及同一性别分组的姓名组合。简体中文复用固定 Lorem 词表并保留下划线模板。保留邮件入口共享的用户名生成器和各 formatter 的去重历史。对照 PHP 无 intl 的繁体中文回退时，复现空音译抛错。Rust 沿用现有音译与字母回退，以保持 `userName()`、`safeEmail()` 和 `freeEmail()` 的无错误签名。其他通用地区仍使用现有 Person 入口及 Rust 音译。v0.x 未发现等价实现，工厂装配沿用现有编译路径。
+
+隔离基线 `36bf953d`。PHP 8.5 核对 5,120 次调用，其中 4,867 次成功及 253 次繁体中文无 intl 错误，逐项比对地区词表。Rust 1.94.0 格式、全目标严格 Clippy、34 项 Faker 回归、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。应用二进制 `main artisan db:seed --database=mysql --force` 写入并回读九地共 36 条用户名和邮箱。实际 `./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。站点保留已有分块大小提示。
+
+隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%、项目卷剩余 81 GiB。后续核对其余地区 Person、Internet 域名和邮件 provider 差异。

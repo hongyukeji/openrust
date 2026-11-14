@@ -1763,3 +1763,90 @@ fn localized_person_surname_catalogs_are_used_by_public_formatters() {
         }
     }
 }
+
+#[test]
+fn usernames_use_regional_internet_templates_and_keep_email_local_parts() {
+    let japan = fake(Some("ja-JP")).unwrap();
+    let china = fake(Some("zh-Hans")).unwrap();
+    let lithuania = fake(Some("lt-LT")).unwrap();
+    let mut chinese_underscore = false;
+    let mut lithuanian_pair = false;
+    let mut japanese_pair = false;
+    for _ in 0..256 {
+        let username = japan.userName();
+        japanese_pair |= username.contains('.');
+        assert!(
+            username
+                .bytes()
+                .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.'))
+        );
+
+        let username = china.userName();
+        chinese_underscore |= username.contains('_');
+
+        let username = lithuania.userName();
+        if let Some((last, _)) = username.split_once('.') {
+            lithuanian_pair = true;
+            assert!(
+                [
+                    "balciunaite",
+                    "baranauskas",
+                    "butkus",
+                    "butkute",
+                    "jankauskaite",
+                    "jankauskas",
+                    "jankauskiene",
+                    "kateiva",
+                    "kavaliauskaite",
+                    "kavaliauskas",
+                    "kavaliauskiene",
+                    "kazlauskaite",
+                    "kazlauskas",
+                    "kazlauskiene",
+                    "lukoseviciute",
+                    "navickiene",
+                    "paulauskas",
+                    "paulauskiene",
+                    "petrauskaite",
+                    "petrauskas",
+                    "petrauskiene",
+                    "pocius",
+                    "pociute",
+                    "sakalauskas",
+                    "stankeviciene",
+                    "stankevicius",
+                    "stankeviciute",
+                    "urbonas",
+                    "urboniene",
+                    "vasiliauskaite",
+                    "vasiliauskas",
+                    "vasiliauskiene",
+                    "zukauskas",
+                    "zukauskiene"
+                ]
+                .contains(&last)
+            );
+        }
+    }
+    assert!(chinese_underscore && lithuanian_pair && japanese_pair);
+
+    for locale in [
+        "ar-SA", "ar-JO", "ar-EG", "fa-IR", "ko-KR", "ja-JP", "lt-LT", "zh-Hans", "zh-Hant",
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let samples: std::collections::HashSet<_> =
+            (0..32).map(|_| unique.userName().unwrap()).collect();
+        assert_eq!(samples.len(), 32);
+        for value in [faker.safeEmail(), faker.freeEmail()] {
+            let (local, domain) = value.split_once('@').unwrap();
+            assert!(!domain.is_empty());
+            assert!(!local.is_empty());
+            assert!(
+                local
+                    .bytes()
+                    .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_'))
+            );
+        }
+    }
+}

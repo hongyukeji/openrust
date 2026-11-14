@@ -193,6 +193,9 @@ macro_rules! generate {
 #[path = "faker_company.rs"]
 mod company;
 
+#[path = "faker_username.rs"]
+mod username;
+
 macro_rules! formatters {
     ($($name:ident => $generator:path),+ $(,)?) => {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -797,27 +800,7 @@ impl Faker {
     }
 
     pub fn userName(&self) -> String {
-        let first = || {
-            if self.locale() == "zh_CN" {
-                self.word()
-            } else {
-                self.firstName()
-            }
-        };
-        let last = || {
-            if self.locale() == "zh_CN" {
-                self.word()
-            } else {
-                self.lastName()
-            }
-        };
-        let candidate = match fastrand::u8(0..4) {
-            0 => format!("{}.{}", last(), first()),
-            1 if self.locale() == "zh_CN" => format!("{}_{}", first(), last()),
-            1 => format!("{}.{}", first(), last()),
-            2 => format!("{}{:02}", first(), fastrand::u8(0..100)),
-            _ => format!("{}{}", self.randomLetter(), last()),
-        };
+        let candidate = username::candidate(self);
         let candidate = internet_ascii(&candidate).replace("..", ".");
         if candidate.trim_matches(['.', '_']).is_empty() {
             return self.randomLetter().to_string();
