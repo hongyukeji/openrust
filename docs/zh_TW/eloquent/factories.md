@@ -326,10 +326,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `el-GR` 的 `company()` 將希臘姓氏與法定後綴組合。`me-ME` 從固定蒙特內哥羅詞表組合企業名稱和法定類別，可用 `companyName()` 與 `companyType()` 分別抽樣。當地 `companySuffix()` 傳回繼承的 `Ltd`。四個方法都支援 `unique`。
 
+`en-GB` 和 `en-ZA` 的 `company()` 組合地區姓氏與繼承的 `Ltd` 後綴。`el-CY` 使用姓氏加賽普勒斯法定後綴，或用連字號連接兩個姓氏。三地都支援 `companySuffix()` 和 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 59]> {
+fn identity_samples() -> DatabaseResult<[String; 61]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -342,6 +344,8 @@ fn identity_samples() -> DatabaseResult<[String; 59]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("en-GB"))?.company(),
+        fake(Some("el-CY"))?.companySuffix(),
         greek.company(),
         montenegrin.companyName()?.to_owned(),
         montenegrin.companyType()?.to_owned(),

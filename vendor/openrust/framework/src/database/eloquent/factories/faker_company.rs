@@ -42,6 +42,9 @@ mod central;
 #[path = "faker_company_balkan.rs"]
 mod balkan;
 
+#[path = "faker_company_ukza_cy.rs"]
+mod ukza_cy;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4164,6 +4167,7 @@ impl Faker {
                 .or_else(|| dutch::company(locale))
                 .or_else(|| central::company(locale))
                 .or_else(|| balkan::company(locale))
+                .or_else(|| ukza_cy::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4253,6 +4257,7 @@ impl Faker {
                 .or_else(|| dutch::suffixes(locale))
                 .or_else(|| central::suffixes(locale))
                 .or_else(|| balkan::suffixes(locale))
+                .or_else(|| ukza_cy::suffixes(locale))
             {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),

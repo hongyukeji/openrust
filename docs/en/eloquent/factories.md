@@ -326,10 +326,12 @@ With `hr-HR`, `sk-SK`, and `hu-HU`, `company()` uses the pinned regional name li
 
 With `el-GR`, `company()` uses a Greek surname followed by a legal suffix. With `me-ME`, it combines names and legal types from the pinned Montenegrin catalogs. Use `companyName()` and `companyType()` to sample those components. Montenegrin `companySuffix()` returns the inherited `Ltd`. All four methods support `unique`.
 
+With `en-GB` or `en-ZA`, `company()` combines a regional surname with the inherited `Ltd` suffix. With `el-CY`, it combines a surname with a Cypriot legal suffix or joins two surnames with a hyphen. `companySuffix()` and `unique` are available in all three locales.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 59]> {
+fn identity_samples() -> DatabaseResult<[String; 61]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -342,6 +344,8 @@ fn identity_samples() -> DatabaseResult<[String; 59]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("en-GB"))?.company(),
+        fake(Some("el-CY"))?.companySuffix(),
         greek.company(),
         montenegrin.companyName()?.to_owned(),
         montenegrin.companyType()?.to_owned(),

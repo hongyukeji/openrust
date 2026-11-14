@@ -1263,3 +1263,45 @@ fn greek_and_montenegrin_companies_follow_effective_upstream_templates() {
     assert!(greek.companyName().is_err());
     assert!(greek.companyType().is_err());
 }
+
+#[test]
+fn british_south_african_and_cypriot_company_names_follow_local_templates() {
+    use std::collections::HashSet;
+
+    for locale in ["en-GB", "en-ZA"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        assert_eq!(unique.companySuffix().unwrap(), "Ltd");
+        assert!(unique.companySuffix().is_err());
+        let mut names = HashSet::new();
+        for _ in 0..64 {
+            let company = unique.company().unwrap();
+            assert!(
+                company
+                    .strip_suffix(" Ltd")
+                    .is_some_and(|name| !name.is_empty())
+            );
+            assert!(names.insert(company));
+        }
+    }
+
+    let faker = fake(Some("el-CY")).unwrap();
+    let unique = faker.unique(true);
+    let suffixes = ["ΛΤΔ", "Δημόσια εταιρεία", "& Υιοι", "& ΣΙΑ"];
+    let actual: HashSet<_> = (0..4).map(|_| unique.companySuffix().unwrap()).collect();
+    assert_eq!(actual, suffixes.map(str::to_owned).into());
+    assert!(unique.companySuffix().is_err());
+    let samples: Vec<_> = (0..128).map(|_| faker.company()).collect();
+    let suffix_name = |name: &String| {
+        suffixes
+            .iter()
+            .any(|suffix| name.ends_with(&format!(" {suffix}")))
+    };
+    assert!(samples.iter().any(suffix_name));
+    assert!(
+        samples
+            .iter()
+            .any(|name| name.contains('-') && !suffix_name(name))
+    );
+    assert!(faker.companyPrefix().is_err());
+}

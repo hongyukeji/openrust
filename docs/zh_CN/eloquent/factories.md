@@ -326,10 +326,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `el-GR` 的 `company()` 将希腊姓氏与法定后缀组合。`me-ME` 从固定黑山词表组合企业名称和法定类别，可用 `companyName()` 与 `companyType()` 分别抽样。黑山 `companySuffix()` 返回继承的 `Ltd`。四个方法都支持 `unique`。
 
+`en-GB` 和 `en-ZA` 的 `company()` 组合地区姓氏与继承的 `Ltd` 后缀。`el-CY` 使用姓氏加塞浦路斯法定后缀，或用连字符连接两个姓氏。三地均支持 `companySuffix()` 和 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 59]> {
+fn identity_samples() -> DatabaseResult<[String; 61]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -342,6 +344,8 @@ fn identity_samples() -> DatabaseResult<[String; 59]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("en-GB"))?.company(),
+        fake(Some("el-CY"))?.companySuffix(),
         greek.company(),
         montenegrin.companyName()?.to_owned(),
         montenegrin.companyType()?.to_owned(),

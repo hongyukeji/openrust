@@ -822,6 +822,14 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 
 ### 公司格式后续验收
 
-- 尚未逐项对照的 Company 地区有 `bn_BD`、`el_CY`、`en_GB`、`en_ZA`、`fa_IR`、`fr_BE`、`fr_CA`、`fr_CH`、`he_IL`、`hy_AM`、`id_ID`、`it_CH`、`ka_GE`、`kk_KZ`、`lt_LT`、`ms_MY`、`ru_RU`、`sl_SI`、`th_TH`、`tr_TR`、`uk_UA`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
+- 尚未逐项对照的 Company 地区有 `bn_BD`、`fa_IR`、`fr_BE`、`fr_CA`、`fr_CH`、`he_IL`、`hy_AM`、`id_ID`、`it_CH`、`ka_GE`、`kk_KZ`、`lt_LT`、`ms_MY`、`ru_RU`、`sl_SI`、`th_TH`、`tr_TR`、`uk_UA`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
 - 美国、法国、意大利及日本的公司模板仍复用现有姓氏生成器。Person 姓名词表和 Internet 用户名模板的地区行为需要分别核对。
 - 台湾 `companyEn()` 的上游失败已复现。继续核对固定版本的默认 provider 和可扩展 formatter 行为，再以实际运行用例确认等价入口。
+
+## Faker 英国、南非与塞浦路斯公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。按 FakerPHP v1.24.1 [英国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_GB/Company.php)、[南非](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_ZA/Company.php)和[塞浦路斯](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/el_CY/Company.php)实现。英国与南非沿用有效的基类模板和 `Ltd` 后缀，分别取当地姓氏。塞浦路斯等权抽样法定后缀模板和双姓连字符模板。Rust 沿用现有公开接口和 `unique` 历史。v0.x 未发现等价入口，编译式工厂装配沿用现有路径。
+
+隔离基线 `cad92153`。PHP 8.5 反射逐项核对词表，并验证 1,536 组固定上游名称和后缀。Rust 1.94.0 格式、全目标严格 Clippy、24 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查六条名称与后缀。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。站点保留既有分块大小提示，本批数据库验收使用 MySQL。
+
+临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 与 39 MiB 站点产物。周额度剩余 48%，磁盘 82 GiB。下一批核对法语地区与意大利语瑞士模板。
