@@ -115,7 +115,7 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 ```
 
 
-Use `faker.unique(false)` to avoid duplicates per formatter. `unique(true)` clears that generator’s history. With `Factory::tryWithFaker`, a batch shares one generator, and an exhausted formatter returns an error before the batch is saved. Separate factory calls start with fresh history. For example, use `faker.unique(false).safeEmail()?` inside the definition.
+Within an application, `fake()` returns an `Arc<Faker>` shared by calls with the same normalized locale. Its `unique(false)` history and timezone override carry across those calls. `unique(true)` clears the shared history. Factories use a separate generator owned by the selected connection’s application, and batches and subsequent factory calls on that application share its history. If a formatter exhausts its values while constructing a batch, the batch returns an error before saving those models. Outside an application, `fake()` creates a fresh generator. Use `Faker::new` for an independent generator.
 
 Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
 

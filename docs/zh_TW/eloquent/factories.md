@@ -115,7 +115,7 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 ```
 
 
-用 `faker.unique(false)` 讓同一個產生器按方法去重，用 `unique(true)` 清空歷史。`Factory::tryWithFaker` 的同一批次共用產生器，重試耗盡會在該批模型寫入前回傳錯誤。各次獨立呼叫擁有自己的歷史。例如，可在工廠定義中使用 `faker.unique(false).safeEmail()?`。
+在應用程式內，`fake()` 回傳 `Arc<Faker>`，相同規範化語言的呼叫共用產生器。`unique(false)` 的歷史和時區覆寫會跨呼叫保留，`unique(true)` 會清空共用歷史。工廠使用由選定連線所屬應用程式持有的獨立產生器，同一應用程式內的批次與後續工廠呼叫共用其歷史。產生器在建構批次時耗盡，會在寫入該批模型前回傳錯誤。應用程式外的 `fake()` 每次建立新產生器。可用 `Faker::new` 單獨建立產生器。
 
 內建產生方法還包括 `firstName`、`lastName`、`freeEmail`、`userName`、`streetName`、`postcode`、`phoneNumber`、`company` 和 `word`。這些方法也可透過 `unique` 呼叫。樣本取自 fake-rs 中對應語言的資料集。
 

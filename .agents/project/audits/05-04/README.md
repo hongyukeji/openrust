@@ -563,3 +563,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 05-04 继续开放。下一批优先核对 Faker 按应用和规范化语言复用的生命周期及跨调用唯一值，分别验证同作用域复用、不同语言和不同应用隔离。目录差异继续跟踪 File、Image、UserAgent、Uuid、Color、Medical、HtmlLorem、Text、Biased、修饰器和其余地区 formatter。05-05 已有独立闭合记录，本次不重复计入。
 
 本批独占 Cargo 产物 2.2 GiB 与文档构建产物已清理，项目卷剩余 82 GiB。
+
+## 按应用与语言复用 Faker
+
+固定 Laravel 的 `fake()` 以语言为容器单例键，工厂通过独立的数据库服务绑定取得生成器。OpenRust 用容器单例保留这两个入口，按规范化语言复用，语言别名共用同一历史。工厂以数据库连接所属应用为准。使用 `Arc<Faker>` 保持共享生成器的所有权，时区覆盖可以通过共享句柄读写。应用之外仍可创建无共享历史的生成器。与 PHP 数据库 Provider 的进程静态缓存相比，Rust 把工厂生成器限定在应用容器，支持同一进程的多应用隔离。v0.x 未发现 Faker 生命周期实现，Goravel 的工厂装配方式无需调整。 [Laravel fake 助手](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/helpers.php#L475) · [Laravel 数据库 Provider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/DatabaseServiceProvider.php)
+
+隔离基线 `b96b9a07`。MySQL 8.4.13 定向回归在同一进程运行两个独立应用的 Artisan Seeder，验证别名共用、不同语言隔离、助手与工厂绑定隔离、工厂跨调用耗尽及落库行数。多态 Seeder 和应用默认 Seeder 回归验证地区选择、共享时区覆盖、历史重置和默认用户。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器导航检查通过。
+
+实际应用二进制的 MySQL Seeder 再验收一次，确认语言别名共享去重，第二次构建失败后仍只写入一条记录。已清理本批独占编译和站点产物。05-04 继续跟踪其余 Faker provider。

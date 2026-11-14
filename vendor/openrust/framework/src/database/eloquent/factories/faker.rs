@@ -13,7 +13,7 @@ use std::{
     fmt::Write as _,
     net::Ipv4Addr,
     ops::Range,
-    sync::{Mutex, OnceLock},
+    sync::{Arc, Mutex, OnceLock, RwLock},
 };
 
 use crate::{
@@ -84,7 +84,7 @@ institution_formatters! {
 pub struct Faker {
     locale: String,
     application_timezone: Tz,
-    default_timezone: Option<Tz>,
+    default_timezone: RwLock<Option<Tz>>,
     unique: Mutex<HashMap<&'static str, HashSet<String>>>,
 }
 
@@ -230,9 +230,14 @@ sample_formatters! {
     emoji => EMOJI,
 }
 
-/// Creates a generator using an explicit locale or the scoped application configuration.
-pub fn fake(locale: Option<&str>) -> DatabaseResult<Faker> {
-    Faker::configured(Connection::model_container(None).as_deref(), locale)
+/// Resolves the application generator for the selected locale.
+/// Outside an application scope, creates a fresh generator.
+pub fn fake(locale: Option<&str>) -> DatabaseResult<Arc<Faker>> {
+    Faker::configured(
+        Connection::model_container(None).as_deref(),
+        locale,
+        "faker",
+    )
 }
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -243,21 +248,26 @@ impl Faker {
         Ok(Self {
             locale,
             application_timezone: UTC,
-            default_timezone: None,
+            default_timezone: RwLock::default(),
             unique: Mutex::default(),
         })
     }
 
-    pub(super) fn for_connection(connection: &Connection) -> DatabaseResult<Self> {
+    pub(super) fn for_connection(connection: &Connection) -> DatabaseResult<Arc<Self>> {
         Self::configured(
             Connection::model_container(Some(connection)).as_deref(),
             None,
+            "factory.faker",
         )
     }
 
-    fn configured(container: Option<&Container>, locale: Option<&str>) -> DatabaseResult<Self> {
+    fn configured(
+        container: Option<&Container>,
+        locale: Option<&str>,
+        binding: &str,
+    ) -> DatabaseResult<Arc<Self>> {
         let Some(container) = container else {
-            return Self::new(locale.unwrap_or("en_US"));
+            return Self::new(locale.unwrap_or("en_US")).map(Arc::new);
         };
         let config = container
             .get::<dyn Repository>("config")
@@ -268,24 +278,41 @@ impl Faker {
             (None, None) => "en_US".to_owned(),
             _ => return Err(DatabaseError::InvalidConfiguration("app.faker_locale")),
         };
-        let mut faker = Self::new(&locale)?;
-        faker.application_timezone = match config.get("app.timezone") {
+        let locale = canonical_locale(&locale)
+            .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
+        let key = format!("{binding}:{locale}");
+        if let Ok(faker) = container.get::<Self>(key.as_str()) {
+            return Ok(faker);
+        }
+        let application_timezone = match config.get("app.timezone") {
             None => UTC,
             Some(serde_json::Value::String(zone)) => zone
                 .parse()
                 .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
             _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
         };
-        Ok(faker)
+        container
+            .singletonIfNamed(&key, move |_| {
+                Ok(Arc::new(Self {
+                    locale: locale.clone(),
+                    application_timezone,
+                    default_timezone: RwLock::default(),
+                    unique: Mutex::default(),
+                }))
+            })
+            .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
+        container
+            .get::<Self>(key)
+            .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))
     }
 
     /// Overrides the time zone for this generator. Pass None to restore the application default.
-    pub fn setDefaultTimezone(&mut self, timezone: Option<Tz>) {
-        self.default_timezone = timezone;
+    pub fn setDefaultTimezone(&self, timezone: Option<Tz>) {
+        *self.default_timezone.write().unwrap() = timezone;
     }
 
     pub fn getDefaultTimezone(&self) -> Option<Tz> {
-        self.default_timezone
+        *self.default_timezone.read().unwrap()
     }
 
     pub fn locale(&self) -> &str {
@@ -962,7 +989,9 @@ impl Faker {
 
     pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<DateTime<Tz>> {
         let start = if valid { "now" } else { "-36 months" };
-        let zone = self.default_timezone.unwrap_or(self.application_timezone);
+        let zone = self
+            .getDefaultTimezone()
+            .unwrap_or(self.application_timezone);
         self.dateTimeBetweenExpressions(start, "+36 months")
             .map(|date| date.with_timezone(&zone))
     }
@@ -1794,7 +1823,7 @@ impl Faker {
         timezone: Option<Tz>,
     ) -> DateTime<Tz> {
         let timezone = timezone
-            .or(self.default_timezone)
+            .or(self.getDefaultTimezone())
             .unwrap_or(self.application_timezone);
         self.dateTime(max).with_timezone(&timezone)
     }

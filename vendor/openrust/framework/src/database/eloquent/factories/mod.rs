@@ -25,8 +25,9 @@ use super::{
     soft_deletes,
 };
 
-type Definition =
-    dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
+type Definition = dyn Fn(&Connection, &std::sync::OnceLock<Arc<Faker>>) -> DatabaseResult<Attributes>
+    + Send
+    + Sync;
 type FactoryParentModel = dyn Any + Send + Sync;
 type State = dyn Fn(&Attributes, &Connection, Option<&FactoryParentModel>) -> DatabaseResult<Attributes>
     + Send
@@ -397,7 +398,7 @@ impl<M: Model> Factory<M> {
     }
 
     fn from_definition(
-        definition: impl Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes>
+        definition: impl Fn(&Connection, &std::sync::OnceLock<Arc<Faker>>) -> DatabaseResult<Attributes>
         + Send
         + Sync
         + 'static,
@@ -1452,7 +1453,7 @@ impl<M: Model> Factory<M> {
     async fn raw_attributes(
         &self,
         connection: &Connection,
-        faker: &std::sync::OnceLock<Faker>,
+        faker: &std::sync::OnceLock<Arc<Faker>>,
         context: Option<RelationContext<'_>>,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
@@ -1491,7 +1492,7 @@ impl<M: Model> Factory<M> {
         &self,
         connection: &Connection,
         relation: Option<RelationContext<'_>>,
-        faker: &std::sync::OnceLock<Faker>,
+        faker: &std::sync::OnceLock<Arc<Faker>>,
     ) -> DatabaseResult<FactoryAttributes<M>> {
         let mut attributes = (self.definition)(connection, faker)?;
         let mut model = M::from_state(Default::default());
@@ -1598,7 +1599,7 @@ impl<M: Model> Factory<M> {
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
-        faker: &std::sync::OnceLock<Faker>,
+        faker: &std::sync::OnceLock<Arc<Faker>>,
         context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
@@ -1615,7 +1616,7 @@ impl<M: Model> Factory<M> {
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
-        faker: &std::sync::OnceLock<Faker>,
+        faker: &std::sync::OnceLock<Arc<Faker>>,
         context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {

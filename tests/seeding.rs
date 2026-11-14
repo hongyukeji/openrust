@@ -932,8 +932,8 @@ impl Seeder for PolymorphicFactories {
             let taipei = "Asia/Taipei".parse().unwrap();
             let new_york = "America/New_York".parse().unwrap();
             let utc = "UTC".parse().unwrap();
-            let mut faker = fake(None)?;
-            let mut other = fake(Some("fr-fr"))?;
+            let faker = fake(None)?;
+            let other = fake(Some("fr-fr"))?;
             assert_eq!(faker.getDefaultTimezone(), None);
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T08:00:00+0800");
             assert_eq!(
@@ -968,6 +968,7 @@ impl Seeder for PolymorphicFactories {
                 utc
             );
             faker.setDefaultTimezone(Some(utc));
+            assert_eq!(fake(Some("zh_TW"))?.getDefaultTimezone(), Some(utc));
             for value in [
                 faker.firstName(),
                 faker.lastName(),
@@ -1331,6 +1332,16 @@ impl Seeder for PolymorphicFactories {
                     0
                 );
             }
+            let same_locale = fake(Some("zh-Hant-TW"))?;
+            assert!(Arc::ptr_eq(&faker, &same_locale));
+            assert!(!Arc::ptr_eq(&faker, &other));
+            assert!(matches!(
+                same_locale.unique(false).sentence(0..1),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            assert_eq!(other.unique(true).sentence(0..1)?, ".");
+            faker.unique(true);
+            faker.setDefaultTimezone(None);
             let owners = || Factory::<FactoryOwner>::new(Attributes::new);
             let children = || Factory::<FactoryChild>::new(Attributes::new);
             let pivot = |label: &str| Attributes::from([("label".into(), label.into())]);
@@ -1696,6 +1707,7 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("FailedSeederEventFlow", &FailedSeederEventFlow),
                 SeederEntry::new("ParentCreationSeeder", &ParentCreationSeeder),
                 SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
+                SeederEntry::new("FakerApplicationScope", &FakerApplicationScope),
             ];
             FactoryOwner::resolveRelationUsing(app, "children", |_| {
                 MorphMany::<FactoryOwner, FactoryChild>::new(
@@ -5294,4 +5306,94 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
     assert_ne!(members[0].getAttribute("updated_at"), Some(&OLD.into()));
     assert_eq!(db.table("factory_touch_pivot").count("*").await?, 3);
     Ok(())
+}
+
+struct FakerApplicationScope;
+
+impl Seeder for FakerApplicationScope {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async move {
+            let default = fake(None)?;
+            let alias = fake(Some("zh-Hant-TW"))?;
+            assert!(Arc::ptr_eq(&default, &alias));
+            let value = |generator: &openrust::database::eloquent::factories::Faker| {
+                generator.unique(false).numberBetween(760, 760)
+            };
+            assert_eq!(value(&default)?, 760);
+            assert!(value(&alias).is_err());
+            assert_eq!(value(fake(Some("en-US"))?.as_ref())?, 760);
+            let factory = || {
+                Factory::<FactoryChild>::tryWithFaker(move |generator| {
+                    Ok(Attributes::from([(
+                        "generated_score".into(),
+                        value(generator)?.into(),
+                    )]))
+                })
+            };
+            let connection = context.connection();
+            connection
+                .getSchemaBuilder()
+                .create("seed_factory_children", |table| {
+                    table.id();
+                    table.integer("generated_score");
+                })
+                .await?;
+            assert!(factory().createOn(connection).await?.state().exists());
+            assert!(matches!(
+                factory().createOn(connection).await,
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            assert_eq!(
+                connection
+                    .table("seed_factory_children")
+                    .pluck("generated_score")
+                    .await?,
+                [760.into()]
+            );
+            connection
+                .getSchemaBuilder()
+                .drop("seed_factory_children")
+                .await?;
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let args = [
+        "db:seed",
+        "--database=alternate",
+        "--class=FakerApplicationScope",
+        "--force",
+    ]
+    .map(OsString::from);
+    // Run in one process so a process-wide Faker cache cannot pass this test.
+    for _ in 0..2 {
+        let root = Root::new();
+        let mut app = Application::configure(root.0.clone())
+            .withConfig(load)
+            .withProviders(vec![Box::new(Provider)])
+            .create()
+            .unwrap();
+        app.boot().await.unwrap();
+        // The fixture defaults to SQLite unless the test explicitly installs its MySQL connection.
+        let config = app
+            .container()
+            .get::<dyn openrust::contracts::config::Repository>("config")
+            .unwrap();
+        config
+            .set("database.connections.faker_test", json!({"url":url}))
+            .unwrap();
+        let mut arguments = args.clone();
+        arguments[1] = "--database=faker_test".into();
+        assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
+    }
 }
