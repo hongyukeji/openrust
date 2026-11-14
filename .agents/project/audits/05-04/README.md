@@ -689,3 +689,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对照固定 FakerPHP v1.24.1 Person 和埃及 Address。接通南非、荷兰、沙特、蒙古的 `idNumber`，以及沙特和埃及的 `nationalIdNumber`、沙特的 `foreignerIdNumber`、蒙古字母与埃及省份编号。南非保留出生日期、公民位、性别区间、双侧序号补零与 Luhn。荷兰保留模 11 及余数为 10 时的修正，沙特保留前缀与 Luhn。埃及保留日期范围、登记奇偶和随机末位。Rust 使用显式有参方法表达 PHP 可选参数，与无参方法共用去重历史。v0.x 未找到等价入口，Goravel 式编译装配沿用现有路径。 [固定 FakerPHP 地区实现](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)
 
 隔离基线 `d48d9892`。PHP 8.5 校验 1,792 条上游样本。Rust 七项地区回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回查七条样本，含蒙古西里尔字母。Rust 1.94.0 格式与全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。需要独立清库 URL 的 MySQL fresh 用例未启用。已恢复原 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。其余地区专用编号继续对照。
+
+## Faker 土耳其身份编号与立陶宛、拉脱维亚护照
+
+对照固定 FakerPHP v1.24.1 Person。立陶宛护照为八位数字，拉脱维亚为两个小写字母加七位数字。土耳其 `tcNo` 保留上游九位随机前缀和带符号的余数，包括前导零以及可能产生负号的后缀。 `tcNoChecksum` 对非九位 ASCII 数字回报错误，`tcNoIsValid` 沿用上游对两字符后缀的比较行为。两个生成方法支持 `unique`。v0.x 未找到等价入口，工厂接线沿用现有路径。 [土耳其 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/tr_TR/Person.php) · [立陶宛 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lt_LT/Person.php) · [拉脱维亚 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lv_LV/Person.php)
+
+隔离基线 `c8b60fb8`。PHP 8.5 对照 1,536 条样本及正、负余数固定输入。Rust 八项地区身份回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回查三条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。需独立清库 URL 的 MySQL fresh 用例未启用。恢复隔离副本原 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。其余地区公司与税务编号继续核对。

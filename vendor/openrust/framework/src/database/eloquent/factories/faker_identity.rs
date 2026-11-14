@@ -217,6 +217,56 @@ impl Faker {
         Ok(CODES[fastrand::usize(..CODES.len())])
     }
 
+    /// Samples a passport number using the Lithuanian or Latvian provider.
+    pub fn passportNumber(&self) -> DatabaseResult<String> {
+        match self.locale() {
+            "lt_LT" => Ok(self.numerify(Some("########"))),
+            "lv_LV" => Ok(self.bothify(Some("??#######"))),
+            _ => Err(DatabaseError::InvalidQuery(
+                "unsupported Faker passport locale",
+            )),
+        }
+    }
+
+    /// Samples a Turkish identity number using the fixed FakerPHP checksum.
+    pub fn tcNo(&self) -> DatabaseResult<String> {
+        if self.locale() != "tr_TR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Turkish identity locale",
+            ));
+        }
+        let mut number = self.numerify(Some("#########"));
+        number.push_str(&Self::tcNoChecksum(&number)?);
+        Ok(number)
+    }
+
+    pub fn tcNoChecksum(identityPrefix: &str) -> DatabaseResult<String> {
+        if identityPrefix.len() != 9 || !identityPrefix.bytes().all(|digit| digit.is_ascii_digit())
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker Turkish identity prefix must contain nine ASCII digits",
+            ));
+        }
+
+        let odd = weighted_digits(identityPrefix, &[1, 0, 1, 0, 1, 0, 1, 0, 1]);
+        let even = weighted_digits(identityPrefix, &[0, 1, 0, 1, 0, 1, 0, 1, 0]);
+        // PHP preserves the sign of a negative remainder.
+        let tenth = (7 * odd as i16 - even as i16) % 10;
+        let eleventh = (odd as i16 + even as i16 + tenth) % 10;
+        Ok(format!("{tenth}{eleventh}"))
+    }
+
+    pub fn tcNoIsValid(tcNo: &str) -> DatabaseResult<bool> {
+        let split = tcNo
+            .len()
+            .checked_sub(2)
+            .and_then(|offset| tcNo.split_at_checked(offset))
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker Turkish identity number has an invalid length",
+            ))?;
+        Ok(Self::tcNoChecksum(split.0)? == split.1)
+    }
+
     /// Samples a DNI for Spain or Peru.
     pub fn dni(&self) -> DatabaseResult<String> {
         match self.locale() {
@@ -486,6 +536,14 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn passportNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("passportNumber", || self.0.passportNumber())
+    }
+
+    pub fn tcNo(&self) -> DatabaseResult<String> {
+        self.try_generate("tcNo", || self.0.tcNo())
     }
 
     pub fn dni(&self) -> DatabaseResult<String> {

@@ -294,14 +294,19 @@ Use `dni()` with `es-ES` for eight digits and a modulo-23 check letter, or with 
 
 Use `idNumber()` with `nl-NL`, `en-ZA`, `ar-SA`, or `mn-MN`. South Africa also accepts a civil date, citizenship flag and gender through `idNumberWithBirthdate(birthdate, citizen, gender)`. With `ar-SA`, `nationalIdNumber()` fixes prefix `1` and `foreignerIdNumber()` fixes prefix `2`. With `ar-EG`, use `nationalIdNumberWithGender(gender)` to control the registration parity, or `nationalIdNumber()` for the default. The Egyptian provider generates its last digit randomly. The Mongolian `alphabet()` returns one Cyrillic character. The Egyptian `governorateId()` returns a two-character code. These methods support `unique`.
 
+Use `passportNumber()` with `lt-LT` for eight digits or `lv-LV` for two lowercase letters followed by seven digits. `tcNo()` samples the pinned Turkish formatter. The generator permits a leading zero and preserves the upstream signed remainder, which can produce a minus sign in the suffix. `Faker::tcNoChecksum(prefix)` requires nine ASCII digits. `Faker::tcNoIsValid(number)` compares a two-character suffix and returns an error for malformed prefixes. Both generators support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 18]> {
+fn identity_samples() -> DatabaseResult<[String; 21]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("tr-TR"))?.tcNo()?,
+        fake(Some("lt-LT"))?.passportNumber()?,
+        fake(Some("lv-LV"))?.passportNumber()?,
         fake(Some("mn-MN"))?.idNumber()?,
         fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
         fake(Some("ar-SA"))?.foreignerIdNumber()?,

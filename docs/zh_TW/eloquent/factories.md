@@ -294,14 +294,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `idNumber()` 支援 `nl-NL`、`en-ZA`、`ar-SA` 和 `mn-MN`。南非可用 `idNumberWithBirthdate(birthdate, citizen, gender)` 指定出生日期、公民身分及性別。沙烏地阿拉伯的 `nationalIdNumber()` 固定使用前綴 `1`，`foreignerIdNumber()` 固定使用前綴 `2`。埃及可用 `nationalIdNumberWithGender(gender)` 控制登記序號奇偶，或用 `nationalIdNumber()` 採用預設規則。埃及產生器的末位隨機產生。蒙古語的 `alphabet()` 傳回一個西里爾字母，埃及的 `governorateId()` 傳回兩位省份代碼。以上方法都支援 `unique`。
 
+`passportNumber()` 在 `lt-LT` 傳回八位數字，在 `lv-LV` 傳回兩個小寫字母和七位數字。`tcNo()` 沿用固定土耳其產生器，允許前導零，並保留可能在後綴產生負號的上游帶符號餘數。`Faker::tcNoChecksum(prefix)` 接收九位 ASCII 數字，`Faker::tcNoIsValid(number)` 比對兩字元後綴，前綴無效時回傳錯誤。兩個產生方法都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 18]> {
+fn identity_samples() -> DatabaseResult<[String; 21]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("tr-TR"))?.tcNo()?,
+        fake(Some("lt-LT"))?.passportNumber()?,
+        fake(Some("lv-LV"))?.passportNumber()?,
         fake(Some("mn-MN"))?.idNumber()?,
         fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
         fake(Some("ar-SA"))?.foreignerIdNumber()?,

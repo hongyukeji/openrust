@@ -501,3 +501,36 @@ fn regional_id_numbers_match_their_pinned_providers() {
     assert!(nl.idNumberWithBirthdate(None, None, None).is_err());
     assert!(eg.foreignerIdNumber().is_err());
 }
+
+#[test]
+fn turkish_identity_and_baltic_passports_follow_pinned_formats() {
+    use openrust::database::eloquent::factories::Faker;
+
+    let turkey = fake(Some("tr-TR")).unwrap();
+    let lithuania = fake(Some("lt-LT")).unwrap();
+    let latvia = fake(Some("lv-LV")).unwrap();
+    let format = Regex::new(r"^[a-z]{2}[0-9]{7}$").unwrap();
+
+    assert_eq!(Faker::tcNoChecksum("100000001").unwrap(), "46");
+    assert_eq!(Faker::tcNoChecksum("090909090").unwrap(), "-60");
+    assert!(Faker::tcNoIsValid("10000000146").unwrap());
+    assert!(!Faker::tcNoIsValid("10000000147").unwrap());
+    assert!(Faker::tcNoIsValid("090909090-60").is_err());
+    assert!(Faker::tcNoChecksum("12345678a").is_err());
+    assert!(Faker::tcNoIsValid("你").is_err());
+
+    for _ in 0..128 {
+        let turkish = turkey.unique(false).tcNo().unwrap();
+        let (prefix, suffix) = turkish.split_at(9);
+        assert_eq!(Faker::tcNoChecksum(prefix).unwrap(), suffix);
+        if suffix.len() == 2 {
+            assert!(Faker::tcNoIsValid(&turkish).unwrap());
+        }
+        let lt = lithuania.unique(false).passportNumber().unwrap();
+        assert_eq!(lt.len(), 8);
+        assert!(lt.bytes().all(|byte| byte.is_ascii_digit()));
+        assert!(format.is_match(&latvia.unique(false).passportNumber().unwrap()));
+    }
+    assert!(latvia.tcNo().is_err());
+    assert!(turkey.passportNumber().is_err());
+}
