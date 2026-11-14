@@ -288,13 +288,19 @@ The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the
 
 For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::NaiveDate` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in FakerPHP. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
 
+For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass `None` for the default punctuation or `Some(false)` for digits only. RG follows the pinned São Paulo provider, with a numeric check digit. CNPJ uses branch `0001`. All three methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 8]> {
+fn identity_samples() -> DatabaseResult<[String; 11]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
+    let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        brazilian.cpf(None)?,
+        brazilian.rg(Some(false))?,
+        brazilian.unique(false).cnpj(None)?,
         polish.pesel(Some(birthdate), Some("F"))?,
         polish.unique(false).taxpayerIdentificationNumber()?,
         fake(Some("en-US"))?.ssn()?,

@@ -288,13 +288,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 使用 `pl-PL` 时，`pesel(birthdate, sex)` 生成 11 位 PESEL。可传入 1800 至 2299 年的 `chrono::NaiveDate`，或传入 `None` 采样出生日期。`Some("F")` 使用偶数性别位，`Some("M")` 和 `None` 沿用 FakerPHP 的奇数性别位。`taxpayerIdentificationNumber()` 生成 10 位 NIP。两个方法均计算校验位并支持 `unique`。
 
+使用 `pt-BR` 时，可用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。传入 `None` 使用默认标点，传入 `Some(false)` 只返回数字。RG 沿用固定的圣保罗 provider，校验位为数字。CNPJ 使用分支号 `0001`。三个方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 8]> {
+fn identity_samples() -> DatabaseResult<[String; 11]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
+    let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        brazilian.cpf(None)?,
+        brazilian.rg(Some(false))?,
+        brazilian.unique(false).cnpj(None)?,
         polish.pesel(Some(birthdate), Some("F"))?,
         polish.unique(false).taxpayerIdentificationNumber()?,
         fake(Some("en-US"))?.ssn()?,

@@ -278,3 +278,76 @@ fn polish_pesel_and_nip_preserve_centuries_sex_and_checksums() {
     assert!(other.pesel(None, None).is_err());
     assert!(other.taxpayerIdentificationNumber().is_err());
 }
+
+#[test]
+fn brazilian_identifiers_preserve_masks_branches_and_checksums() {
+    let faker = fake(Some("pt-BR")).unwrap();
+    let unique = faker.unique(true);
+    let cpf = Regex::new(r"^[0-9]{3}\.[0-9]{3}\.[0-9]{3}-[0-9]{2}$").unwrap();
+    let rg = Regex::new(r"^[0-9]{2}\.[0-9]{3}\.[0-9]{3}-[0-9]$").unwrap();
+    let cnpj = Regex::new(r"^[0-9]{2}\.[0-9]{3}\.[0-9]{3}/0001-[0-9]{2}$").unwrap();
+    let check = |digits: &str, weights: &[u16]| {
+        let sum = digits
+            .bytes()
+            .zip(weights)
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum::<u16>();
+        let digit = 11 - sum % 11;
+        if digit < 10 { digit as u8 + b'0' } else { b'0' }
+    };
+    for _ in 0..128 {
+        for (formatted, pattern, width, raw) in [
+            (
+                unique.cpf(None).unwrap(),
+                &cpf,
+                11,
+                unique.cpf(Some(false)).unwrap(),
+            ),
+            (
+                unique.rg(Some(true)).unwrap(),
+                &rg,
+                9,
+                unique.rg(Some(false)).unwrap(),
+            ),
+            (
+                unique.cnpj(None).unwrap(),
+                &cnpj,
+                14,
+                unique.cnpj(Some(false)).unwrap(),
+            ),
+        ] {
+            assert!(pattern.is_match(&formatted));
+            assert_eq!(raw.len(), width);
+            assert!(raw.bytes().all(|byte| byte.is_ascii_digit()));
+            let compact = formatted.replace(['.', '/', '-'], "");
+            for digits in [&compact, &raw] {
+                let bytes = digits.as_bytes();
+                match width {
+                    11 => {
+                        assert_eq!(bytes[9], check(&digits[..9], &[10, 9, 8, 7, 6, 5, 4, 3, 2]));
+                        assert_eq!(
+                            bytes[10],
+                            check(&digits[..10], &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2])
+                        );
+                    }
+                    9 => assert_eq!(bytes[8], check(&digits[..8], &[9, 8, 7, 6, 5, 4, 3, 2])),
+                    _ => {
+                        assert_eq!(&digits[8..12], "0001");
+                        assert_eq!(
+                            bytes[12],
+                            check(&digits[..12], &[5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+                        );
+                        assert_eq!(
+                            bytes[13],
+                            check(&digits[..13], &[6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+                        );
+                    }
+                }
+            }
+        }
+    }
+    let fallback = fake(Some("pt-PT")).unwrap();
+    assert!(fallback.cpf(None).is_err());
+    assert!(fallback.rg(None).is_err());
+    assert!(fallback.cnpj(None).is_err());
+}

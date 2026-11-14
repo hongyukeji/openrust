@@ -86,6 +86,65 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a Brazilian CPF, with punctuation by default.
+    pub fn cpf(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        let number = self.brazilian_identifier("#########", 2)?;
+        if formatted.unwrap_or(true) {
+            return Ok(format!(
+                "{}.{}.{}-{}",
+                &number[..3],
+                &number[3..6],
+                &number[6..9],
+                &number[9..]
+            ));
+        }
+        Ok(number)
+    }
+
+    /// Samples an RG using the pinned São Paulo provider.
+    pub fn rg(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        let number = self.brazilian_identifier("########", 1)?;
+        if formatted.unwrap_or(true) {
+            return Ok(format!(
+                "{}.{}.{}-{}",
+                &number[..2],
+                &number[2..5],
+                &number[5..8],
+                &number[8..]
+            ));
+        }
+        Ok(number)
+    }
+
+    /// Samples a Brazilian CNPJ for the default branch (0001).
+    pub fn cnpj(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        let number = self.brazilian_identifier("########0001", 2)?;
+        if formatted.unwrap_or(true) {
+            return Ok(format!(
+                "{}.{}.{}/{}-{}",
+                &number[..2],
+                &number[2..5],
+                &number[5..8],
+                &number[8..12],
+                &number[12..]
+            ));
+        }
+        Ok(number)
+    }
+
+    fn brazilian_identifier(&self, mask: &str, check_digits: usize) -> DatabaseResult<String> {
+        if self.locale() != "pt_BR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Brazilian identity locale",
+            ));
+        }
+        let mut number = self.numerify(Some(mask));
+        for _ in 0..check_digits {
+            number.push(brazilian_check_digit(&number));
+        }
+        Ok(number)
+    }
+
     /// Samples a Polish PESEL, using a generated birth date when omitted.
     pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
         if self.locale() != "pl_PL" {
@@ -213,6 +272,18 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn cpf(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("cpf", || self.0.cpf(formatted))
+    }
+
+    pub fn rg(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("rg", || self.0.rg(formatted))
+    }
+
+    pub fn cnpj(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("cnpj", || self.0.cnpj(formatted))
     }
 
     pub fn pesel(&self, birthdate: Option<NaiveDate>, sex: Option<&str>) -> DatabaseResult<String> {
@@ -421,4 +492,22 @@ fn gender_digit(gender: Option<&str>) -> u16 {
         Some("female") => fastrand::u16(0..=4) * 2,
         _ => fastrand::u16(0..=9),
     }
+}
+
+fn brazilian_check_digit(number: &str) -> char {
+    let sum: u16 = number
+        .bytes()
+        .rev()
+        .zip(2_u16..)
+        .map(|(digit, weight)| {
+            let weight = if number.len() >= 12 && weight >= 10 {
+                weight - 8
+            } else {
+                weight
+            };
+            u16::from(digit - b'0') * weight
+        })
+        .sum();
+    let check = 11 - sum % 11;
+    char::from(b'0' + if check < 10 { check as u8 } else { 0 })
 }
