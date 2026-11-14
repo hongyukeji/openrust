@@ -8,9 +8,63 @@ use crate::database::{
 };
 
 use super::PersonalAccessToken;
-use super::personal_access_token::{integer_key, invalid_row, parse_timestamp};
+use super::personal_access_token::{integer_key, invalid_row, parse_timestamp, token_hash};
 
 type FoundModelToken = Option<(PersonalAccessToken, Box<dyn ModelToken>)>;
+
+/// An Eloquent token model with an overridable Sanctum credential lookup.
+#[allow(non_snake_case, reason = "Matches Sanctum's token model API")]
+pub trait PersonalAccessTokenModel: Model {
+    fn findToken<'a>(
+        query: Builder<'static, Self>,
+        connection: &'a Connection,
+        credential: &'a str,
+    ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
+        Self::findTokenByDigest(query, connection, credential)
+    }
+
+    /// Standard lookup for overrides that retain Sanctum's SHA-256 credential verification.
+    fn findTokenByDigest<'a>(
+        mut query: Builder<'static, Self>,
+        connection: &'a Connection,
+        credential: &'a str,
+    ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
+        async move {
+            let digest = if let Some((id, secret)) = credential.split_once('|') {
+                if id.is_empty() || secret.is_empty() {
+                    return Ok(None);
+                }
+                let Some(key) = credential_key::<Self>(id, connection) else {
+                    return Ok(None);
+                };
+                query.whereKey(key);
+                token_hash(secret)
+            } else if credential.is_empty() {
+                return Ok(None);
+            } else {
+                let digest = token_hash(credential);
+                query.r#where("token", "=", digest.as_str());
+                digest
+            };
+            let Some(model) = query.first().await? else {
+                return Ok(None);
+            };
+            if !bool::from(text(&model, "token")?.as_bytes().ct_eq(digest.as_bytes())) {
+                return Ok(None);
+            }
+            Ok(Some(model))
+        }
+    }
+}
+
+fn credential_key<M: Model>(id: &str, connection: &Connection) -> Option<Value> {
+    if M::getIncrementing() {
+        integer_key(id, connection)
+    } else {
+        let key = M::from_state(Default::default()).getKeyName();
+        M::routeBindingValue(key, id)
+    }
+}
 
 pub(super) trait ModelStore: Send + Sync {
     fn create(
@@ -19,8 +73,7 @@ pub(super) trait ModelStore: Send + Sync {
     ) -> DatabaseFuture<'_, DatabaseResult<PersonalAccessToken>>;
     fn find<'a>(
         &'a self,
-        id: Option<&'a str>,
-        hash: &'a str,
+        credential: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<FoundModelToken>>;
     fn revoke<'a>(
         &'a self,
@@ -53,15 +106,6 @@ impl<M: Model> EloquentTokenStore<M> {
         }
     }
 
-    fn credential_key(&self, id: &str) -> Option<Value> {
-        if M::getIncrementing() {
-            integer_key(id, &self.connection)
-        } else {
-            let key = M::from_state(Default::default()).getKeyName();
-            M::routeBindingValue(key, id)
-        }
-    }
-
     fn query(&self) -> Builder<'static, M> {
         M::queryOn(&self.connection).useWritePdo().withCasts(
             [
@@ -75,7 +119,7 @@ impl<M: Model> EloquentTokenStore<M> {
     }
 }
 
-impl<M: Model> ModelStore for EloquentTokenStore<M> {
+impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
     fn create(
         &self,
         attributes: Attributes,
@@ -96,25 +140,13 @@ impl<M: Model> ModelStore for EloquentTokenStore<M> {
 
     fn find<'a>(
         &'a self,
-        id: Option<&'a str>,
-        hash: &'a str,
+        credential: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<FoundModelToken>> {
         Box::pin(async move {
-            let mut query = self.query();
-            if let Some(id) = id {
-                let Some(key) = self.credential_key(id) else {
-                    return Ok(None);
-                };
-                query.whereKey(key);
-            } else {
-                query.r#where("token", "=", hash);
-            }
-            let Some(model) = query.first().await? else {
+            let Some(model) = M::findToken(self.query(), &self.connection, credential).await?
+            else {
                 return Ok(None);
             };
-            if !bool::from(text(&model, "token")?.as_bytes().ct_eq(hash.as_bytes())) {
-                return Ok(None);
-            }
             let token = snapshot(&model)?;
             Ok(Some((
                 token,
@@ -134,7 +166,7 @@ impl<M: Model> ModelStore for EloquentTokenStore<M> {
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
         Box::pin(async move {
             let mut query = self.query();
-            let Some(key) = self.credential_key(&id.to_string()) else {
+            let Some(key) = credential_key::<M>(&id.to_string(), &self.connection) else {
                 return Ok(false);
             };
             query

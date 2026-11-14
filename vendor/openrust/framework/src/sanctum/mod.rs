@@ -18,6 +18,7 @@ pub(crate) use ensure_frontend_requests_are_stateful::{
 };
 pub(crate) use guard::Guard;
 pub use settings::Sanctum;
+pub use token_model::PersonalAccessTokenModel;
 
 use crate::{contracts::events::Event, http::Request};
 use std::{collections::HashMap, sync::Arc};
@@ -36,9 +37,17 @@ impl RequestTokens {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct TestIdentity {
+    pub(crate) guard: String,
+    pub(crate) user: Arc<dyn crate::contracts::auth::Authenticatable>,
+    pub(crate) abilities: Arc<[String]>,
+}
+
 /// The credential associated with the current Sanctum identity.
 #[derive(Clone)]
 pub enum AccessToken {
+    Test(Arc<[String]>),
     Personal(Arc<PersonalAccessToken>),
     Transient,
 }
@@ -59,6 +68,9 @@ impl AccessToken {
         match self {
             Self::Personal(token) => token.can(ability),
             Self::Transient => true,
+            Self::Test(abilities) => abilities
+                .iter()
+                .any(|value| value == "*" || value == ability),
         }
     }
 

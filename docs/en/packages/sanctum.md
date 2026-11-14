@@ -36,6 +36,8 @@ For UUID or ULID keys, declare the corresponding column in the migration and use
 
 Set `SANCTUM_TOKEN_PREFIX` to prepend an application-specific prefix to newly issued secrets.
 
+Implement `PersonalAccessTokenModel` on the model. Its default `findToken` verifies the SHA-256 digest. An override receives the presented credential and the configured Eloquent query, and can call `findTokenByDigest` after adding constraints or decoding the credential. The override is responsible for validating the credential it accepts.
+
 ## Protecting routes and checking abilities {#protecting-routes}
 
 Attach `auth:sanctum` to protected routes. Send the credential in `Authorization: Bearer <token>`. Invalid, expired and revoked credentials receive HTTP 401. Use `abilities:reports:read,reports:write` to require both abilities or `ability:reports:read,reports:write` to require either. An authenticated token that lacks a required ability receives HTTP 403.
@@ -72,3 +74,7 @@ Run the command with the Sanctum feature enabled. The default retention is 24 ho
 ```sh
 ./artisan sanctum:prune-expired --hours=24
 ```
+
+## Testing {#testing}
+
+Use `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` with a `TestApp` and an `Arc` to the user. It selects the Sanctum guard for subsequent requests from that fixture. Pass `Some("guard-name")` to select another guard and `["*"]` for all abilities. The fixture supplies the identity and abilities directly, without issuing a database token.

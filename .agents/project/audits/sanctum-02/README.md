@@ -48,6 +48,23 @@ Rust 1.94.0 对隔离的 MySQL 8.4.13 执行 `cargo test --locked --offline --fe
 
 MySQL 8.4.13 实测默认整数模型、自定义整数模型以及 UUID 自定义列 `token_id`。验证 UUID 签发、纯密钥查找、错误格式和错误摘要 401、字符串归属和显式 Provider 限制、归属隔离撤销、撤销后 401，以及真实 Artisan 按到期时间和全局寿命清理。清理保留有效令牌与作用域排除的记录。另运行真实 Artisan 的 `artisan_migrations_use_a_real_mysql_ledger`，默认表迁移、整数令牌签发和撤销及默认清理均通过。对照上游配置同步 `SANCTUM_TOKEN_PREFIX`，签发测试验证配置前缀和 UUID 可组合使用。Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 和三语站点 12 项浏览器检查通过。ULID 沿用同一模型唯一标识机制，本轮未单列真实数据库用例。
 
-本轮闭合自定义主键和归属相关的运行链路。固定上游的 `Sanctum::actingAs` 测试辅助入口以及自定义模型覆写 `findToken` 的行为扩展仍待专项对齐。应用的令牌持久化接口保留标准 Sanctum 属性及摘要校验。 [上游扩展接口](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php)
+## 测试认证、模型查找与 ULID
+
+固定 Sanctum v4.4.0 的 `actingAs` 选择守卫并提供指定能力，`Guard` 通过配置模型的 `findToken` 查找请求凭据。Rust 使用显式 `TestApp` 夹具，测试身份存放在该实例并在每个请求开始时恢复。生产 HTTP 入口无法通过请求头注入测试身份。自定义模型通过 `PersonalAccessTokenModel` 覆写 `findToken`，可用 `findTokenByDigest` 保留标准摘要校验。 [固定 Sanctum](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php) · [固定 Guard](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php)
+
+MySQL 8.4.13 定向测试覆盖默认整数、自定义整数、UUID、ULID 四种模型，真实 HTTP 验证覆写查找条件、生效的能力、错误凭据和撤销后 401。实际 Artisan 验证 ULID 按显式期限和全局寿命清理，以及有效和作用域排除的记录保留。独立测试覆盖 `actingAs` 的默认和命名守卫、零能力、任一／全部能力、通配符、返回同一用户引用和夹具隔离。
+
+Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 通过。三语 VitePress 构建及 `/`、`/docs/` 的 12 项浏览器检查通过。独立 MySQL 测试容器已移除。
+
+### 固定版本逐项复核
+
+| 范围 | 核对结果 |
+|---|---|
+| 安装、迁移、受保护用户路由 | 已有安装验收记录，Passport 安装选项随 Passport 单独跟踪。 |
+| 签发、凭据格式、前缀、查找、归属、撤销和过期清理 | 默认及自定义模型已接线，本轮补足覆写查找及 ULID 实测。 |
+| 自定义模型事件、访问器、转换和作用域 | 走 Eloquent 实例，批量清理应用作用域且无逐实例事件。 |
+| Bearer、SPA、能力、回调和守卫 | 已有真实 HTTP 记录，测试身份覆盖按能力和守卫授权。 |
+| 上游辅助 API | Rust 以应用级服务、仓储与请求凭据承载功能。上游 `HasApiTokens` 的模型关系方法、`personalAccessTokenModel()` 类名查询和 `currentApplicationUrlWithPort()` 公开辅助方法仍有 API 形态差异，应用 URL 已参与默认 SPA 域名配置。 |
+| Eloquent 新建状态 | Laravel `actingAs` 会清除用户实例的 `wasRecentlyCreated`。Rust 夹具共享原用户，当前没有 Eloquent 状态重置接线。 |
 
 Passport 和安装器的 Passport 选项单独跟踪。

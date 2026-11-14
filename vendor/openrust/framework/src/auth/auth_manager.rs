@@ -189,6 +189,21 @@ impl AuthManager {
     }
 
     #[cfg(feature = "sanctum")]
+    pub(crate) fn apply_test_identity(request: &mut Request) {
+        use crate::sanctum::{AccessToken, RequestTokens, TestIdentity};
+        let Some(identity) = request.parts_mut().extensions.remove::<TestIdentity>() else {
+            return;
+        };
+        AuthContext::set_shared(request, &identity.guard, Some(identity.user), false);
+        AuthContext::mutable(request).selected = Some(identity.guard.clone());
+        RequestTokens::insert(
+            request,
+            &identity.guard,
+            AccessToken::Test(identity.abilities),
+        );
+    }
+
+    #[cfg(feature = "sanctum")]
     pub(crate) fn resolved_user(request: &Request, name: &str) -> Option<Arc<dyn Authenticatable>> {
         AuthContext::state(request, name)?.user.clone()
     }

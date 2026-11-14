@@ -5,11 +5,11 @@ use zeroize::Zeroizing;
 use crate::{
     auth::{AuthError, AuthResult},
     contracts::config::Repository,
-    database::{DatabaseManager, eloquent::Model},
+    database::DatabaseManager,
     http::Request,
 };
 
-use super::{PersonalAccessToken, PersonalAccessTokens};
+use super::{PersonalAccessToken, PersonalAccessTokenModel, PersonalAccessTokens};
 
 type Retrieval = dyn Fn(&Request) -> Option<String> + Send + Sync;
 type Authentication = dyn Fn(&PersonalAccessToken, bool) -> bool + Send + Sync;
@@ -34,12 +34,33 @@ impl Sanctum {
         }
     }
 
+    /// Authenticates subsequent requests made through this in-process test application.
+    pub fn actingAs<U>(
+        app: &mut crate::testing::TestApp,
+        user: Arc<U>,
+        abilities: &[&str],
+        guard: Option<&str>,
+    ) -> Arc<U>
+    where
+        U: crate::contracts::auth::Authenticatable + 'static,
+    {
+        app.sanctum_identity = Some(super::TestIdentity {
+            guard: guard.unwrap_or("sanctum").to_owned(),
+            user: user.clone(),
+            abilities: abilities
+                .iter()
+                .map(|ability| (*ability).to_owned())
+                .collect(),
+        });
+        user
+    }
+
     /// Returns the suffix to append to a comma-separated list of stateful domains.
     pub fn currentRequestHost() -> &'static str {
         ",__SANCTUM_CURRENT_REQUEST_HOST__"
     }
 
-    pub fn usePersonalAccessTokenModel<M: Model>(&self) {
+    pub fn usePersonalAccessTokenModel<M: PersonalAccessTokenModel>(&self) {
         *self.model.write().expect("Sanctum token model lock") = Some(|database, prefix| {
             let model = M::from_state(Default::default());
             let connection = database

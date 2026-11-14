@@ -146,6 +146,8 @@ impl http::Kernel for Kernel {
                 );
                 let head = request.method() == Method::HEAD;
                 crate::auth::reset_request(request);
+                #[cfg(feature = "sanctum")]
+                crate::auth::AuthManager::apply_test_identity(request);
                 request.set_route_parameters(Vec::new());
                 request.route_terminators.clear();
                 request.matched_route = false;

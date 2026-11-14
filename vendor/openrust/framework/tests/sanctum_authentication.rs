@@ -26,17 +26,18 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
-    sanctum::{AccessToken, Sanctum, TokenAuthenticated},
+    sanctum::{AccessToken, PersonalAccessTokenModel, Sanctum, TokenAuthenticated},
     support::facades::{Auth, Route},
+    testing::TestApp,
 };
 use reqwest::{Client, header};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-struct User<const SERVICE: bool = false, const TEXT: bool = false>(ModelState);
+struct User<const SERVICE: bool = false, const TEXT: u8 = 0>(ModelState);
 
-struct CustomToken<const UUID: bool = false>(ModelState);
-impl<const UUID: bool> Model for CustomToken<UUID> {
+struct CustomToken<const KEY: u8 = 0>(ModelState);
+impl<const KEY: u8> Model for CustomToken<KEY> {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata =
             ModelMetadata::new("custom_sanctum_tokens").connection("token_fixture");
@@ -44,7 +45,15 @@ impl<const UUID: bool> Model for CustomToken<UUID> {
             .connection("token_fixture")
             .primaryKey("token_id")
             .uniqueId(UniqueId::Uuid);
-        if UUID { &UUID_META } else { &META }
+        static ULID_META: ModelMetadata = ModelMetadata::new("custom_sanctum_tokens")
+            .connection("token_fixture")
+            .primaryKey("token_id")
+            .uniqueId(UniqueId::Ulid);
+        match KEY {
+            1 => &UUID_META,
+            2 => &ULID_META,
+            _ => &META,
+        }
     }
     fn casts() -> &'static [(&'static str, AttributeCast)] {
         &[("last_used_at", AttributeCast::Timestamp)]
@@ -99,10 +108,26 @@ impl<const UUID: bool> Model for CustomToken<UUID> {
     }
 }
 
+impl<const KEY: u8> PersonalAccessTokenModel for CustomToken<KEY> {
+    #[allow(non_snake_case, reason = "Implements the Sanctum model lookup hook")]
+    fn findToken<'a>(
+        mut query: Builder<'static, Self>,
+        connection: &'a Connection,
+        credential: &'a str,
+    ) -> impl Future<Output = DatabaseResult<Option<Self>>> + Send + 'a {
+        if let Some(credential) = credential.strip_prefix("lookup:") {
+            query.r#where("name", "=", "stored:read");
+            Self::findTokenByDigest(query, connection, credential)
+        } else {
+            Self::findTokenByDigest(query, connection, credential)
+        }
+    }
+}
+
 struct VisibleToken;
 
-impl<const UUID: bool> Scope<CustomToken<UUID>> for VisibleToken {
-    fn apply(&self, query: &mut Builder<'_, CustomToken<UUID>>) -> DatabaseResult<()> {
+impl<const KEY: u8> Scope<CustomToken<KEY>> for VisibleToken {
+    fn apply(&self, query: &mut Builder<'_, CustomToken<KEY>>) -> DatabaseResult<()> {
         query.r#where("name", "!=", "stored:hidden");
         Ok(())
     }
@@ -112,12 +137,12 @@ impl<const UUID: bool> Scope<CustomToken<UUID>> for VisibleToken {
 struct TokenEvents(Arc<Mutex<Vec<ModelEvent>>>);
 
 impl TokenEvents {
-    fn register<const UUID: bool>(&self, app: &Application) {
+    fn register<const KEY: u8>(&self, app: &Application) {
         use ModelEvent::*;
         for event in [
             Saving, Creating, Created, Saved, Retrieved, Updating, Updated, Deleting, Deleted,
         ] {
-            CustomToken::<UUID>::registerModelEvent(app, event, self.clone()).unwrap();
+            CustomToken::<KEY>::registerModelEvent(app, event, self.clone()).unwrap();
         }
     }
 
@@ -126,11 +151,11 @@ impl TokenEvents {
     }
 }
 
-impl<const UUID: bool> ModelEventListener<CustomToken<UUID>> for TokenEvents {
+impl<const KEY: u8> ModelEventListener<CustomToken<KEY>> for TokenEvents {
     fn handle<'a>(
         &'a self,
         event: ModelEvent,
-        token: &'a mut CustomToken<UUID>,
+        token: &'a mut CustomToken<KEY>,
         _: &'a Connection,
     ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
         Box::pin(async move {
@@ -164,7 +189,7 @@ impl Middleware for CustomCsrf {
     }
 }
 
-impl<const SERVICE: bool, const TEXT: bool> Model for User<SERVICE, TEXT> {
+impl<const SERVICE: bool, const TEXT: u8> Model for User<SERVICE, TEXT> {
     fn metadata() -> &'static ModelMetadata {
         static USERS: ModelMetadata = ModelMetadata::new("sanctum_users").timestamps(None, None);
         static SERVICES: ModelMetadata =
@@ -182,7 +207,7 @@ impl<const SERVICE: bool, const TEXT: bool> Model for User<SERVICE, TEXT> {
     }
 }
 
-impl<const SERVICE: bool, const TEXT: bool> Authenticatable for User<SERVICE, TEXT> {
+impl<const SERVICE: bool, const TEXT: u8> Authenticatable for User<SERVICE, TEXT> {
     fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
@@ -231,14 +256,14 @@ fn api() -> Result<(), RoutingError> {
     )
 }
 
-fn web<const UUID: bool>() -> Result<(), RoutingError> {
-    Route::r#match(&[Method::POST], "/login", login::<UUID>)
+fn web<const KEY: u8>() -> Result<(), RoutingError> {
+    Route::r#match(&[Method::POST], "/login", login::<KEY>)
 }
 
-fn login<const UUID: bool>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+fn login<const KEY: u8>(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mut guard = Auth::sessionGuard(request, Some("web"))?;
-        let id = if UUID {
+        let id = if KEY != 0 {
             AuthIdentifier::from("2")
         } else {
             AuthIdentifier::from(2_u64)
@@ -256,6 +281,7 @@ fn whoami(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         let token = match AccessToken::currentAccessToken(request) {
             Some(AccessToken::Personal(token)) => json!(token.id),
             Some(AccessToken::Transient) => json!("session"),
+            Some(AccessToken::Test(_)) => json!("test"),
             None => Value::Null,
         };
         Response::json(
@@ -310,7 +336,7 @@ fn xsrf_header(cookie: &str) -> String {
         .into_owned()
 }
 
-async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: bool) {
+async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: bool) {
     let root = tempfile::tempdir().unwrap();
     if custom_csrf {
         std::fs::write(root.path().join("custom-csrf"), "").unwrap();
@@ -332,7 +358,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
             if stateful { middleware.statefulApi(); }
             middleware.alias("custom-csrf", Arc::new(CustomCsrf));
         })
-        .withRouting(Routing::default().api(api).web(web::<UUID>))
+        .withRouting(Routing::default().api(api).web(web::<KEY>))
         .create().unwrap();
     app.boot().await.unwrap();
     let config = app.container().get::<dyn Repository>("config").unwrap();
@@ -341,12 +367,12 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
         .set("database.connections.fixture", database.clone())
         .unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.registerModel::<User<false, UUID>>("SanctumUser");
+    auth.registerModel::<User<false, KEY>>("SanctumUser");
     auth.registerModel::<User<true>>("ServiceAccount");
     MorphMap::morphMap(
         &app,
         [
-            MorphMapEntry::model::<User<false, UUID>>("users_alias"),
+            MorphMapEntry::model::<User<false, KEY>>("users_alias"),
             MorphMapEntry::model::<User<true>>("services_alias"),
         ],
         true,
@@ -366,8 +392,8 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     let sanctum = app.container().make::<Sanctum>().unwrap();
     let model_events = TokenEvents::default();
     let token_table = if custom_csrf {
-        model_events.register::<UUID>(&app);
-        sanctum.usePersonalAccessTokenModel::<CustomToken<UUID>>();
+        model_events.register::<KEY>(&app);
+        sanctum.usePersonalAccessTokenModel::<CustomToken<KEY>>();
         "custom_sanctum_tokens"
     } else {
         "personal_access_tokens"
@@ -375,7 +401,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     db.statement("DROP TABLE IF EXISTS sanctum_users", &[])
         .await
         .unwrap();
-    let user_key_type = if UUID { "VARCHAR(36)" } else { "BIGINT" };
+    let user_key_type = if KEY != 0 { "VARCHAR(36)" } else { "BIGINT" };
     db.statement(
         &format!("CREATE TABLE sanctum_users (id {user_key_type} PRIMARY KEY, password VARCHAR(255) NOT NULL)"),
         &[],
@@ -388,8 +414,8 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     )
     .await
     .unwrap();
-    let token_key = if UUID { "token_id" } else { "id" };
-    let service_owner = if UUID {
+    let token_key = if KEY != 0 { "token_id" } else { "id" };
+    let service_owner = if KEY != 0 {
         AuthIdentifier::from("d9428888-122b-4c26-9713-89ee9a1623d6")
     } else {
         AuthIdentifier::from(2_u64)
@@ -397,7 +423,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     db.statement("DROP TABLE IF EXISTS sanctum_services", &[])
         .await
         .unwrap();
-    let service_key_type = if UUID { "VARCHAR(36)" } else { "BIGINT" };
+    let service_key_type = if KEY != 0 { "VARCHAR(36)" } else { "BIGINT" };
     db.statement(
         &format!("CREATE TABLE sanctum_services (id {service_key_type} PRIMARY KEY, password VARCHAR(255) NOT NULL)"),
         &[],
@@ -412,14 +438,18 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     schema.dropIfExists(token_table).await.unwrap();
     schema
         .create(token_table, |table| {
-            if UUID {
-                table.uuid(token_key);
+            if KEY != 0 {
+                if KEY == 2 {
+                    table.ulid(token_key);
+                } else {
+                    table.uuid(token_key);
+                }
                 table.primary(&[token_key], None);
             } else {
                 table.id();
             }
             table.string("tokenable_type", 255);
-            if UUID {
+            if KEY != 0 {
                 table.string("tokenable_id", 36);
             } else {
                 table.unsignedBigInteger("tokenable_id");
@@ -434,7 +464,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
         .await
         .unwrap();
     let owner = |id: u64| {
-        if UUID {
+        if KEY != 0 {
             AuthIdentifier::from(id.to_string())
         } else {
             AuthIdentifier::from(id)
@@ -473,9 +503,13 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
         assert_eq!(model_events.take(), [Saving, Creating]);
         assert_eq!(db.table(token_table).count("*").await.unwrap(), 1);
     }
-    if UUID {
+    if KEY != 0 {
         let (key, secret) = read.plain_text_token.split_once('|').unwrap();
-        assert!(uuid::Uuid::parse_str(key).is_ok());
+        if KEY == 2 {
+            assert!(ulid::Ulid::from_string(key).is_ok());
+        } else {
+            assert!(uuid::Uuid::parse_str(key).is_ok());
+        }
         assert_eq!(read.access_token.id, AuthIdentifier::String(key.into()));
         assert_eq!(
             tokens.findToken(secret).await.unwrap().unwrap().id,
@@ -672,6 +706,25 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
     assert_eq!(first.access_token.id, read.access_token.id.clone());
     assert!(first.access_token.last_used_at.is_none());
 
+    if custom_csrf {
+        for (credential, expected) in [(&read, 200), (&service, 401)] {
+            let alternate = format!("lookup:{}", credential.plain_text_token.as_str());
+            assert_eq!(
+                tokens.findToken(&alternate).await.unwrap().is_some(),
+                expected == 200
+            );
+            assert_eq!(
+                get("/api/user")
+                    .bearer_auth(alternate)
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                expected
+            );
+        }
+    }
+
     sanctum.getAccessTokenFromRequestUsing(Some(Arc::new(|request| {
         request
             .headers()
@@ -727,7 +780,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
         }
     }
 
-    if UUID {
+    if KEY != 0 {
         let (id, _) = read.plain_text_token.split_once('|').unwrap();
         for credential in [format!("{id}|wrong"), "invalid|secret".to_owned()] {
             assert_eq!(
@@ -741,7 +794,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
             );
         }
     }
-    if UUID {
+    if KEY != 0 {
         assert!(
             !tokens
                 .revokeToken("services_alias", 0, service.access_token.id.clone())
@@ -976,7 +1029,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
             .create()
             .unwrap();
         console.boot().await.unwrap();
-        prune_events.register::<UUID>(&console);
+        prune_events.register::<KEY>(&console);
         let config = console.container().get::<dyn Repository>("config").unwrap();
         config.set("database.default", json!("unused")).unwrap();
         config.set("sanctum.expiration", json!(5)).unwrap();
@@ -988,7 +1041,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
             .container()
             .make::<Sanctum>()
             .unwrap()
-            .usePersonalAccessTokenModel::<CustomToken<UUID>>();
+            .usePersonalAccessTokenModel::<CustomToken<KEY>>();
         assert_eq!(
             console
                 .handleCommand(&["sanctum:prune-expired".into(), "--hours=0".into()])
@@ -1035,7 +1088,7 @@ async fn verify<const UUID: bool>(database: Value, stateful: bool, custom_csrf: 
 #[tokio::test]
 async fn bearer_and_opt_in_spa_over_http_with_sqlite() {
     for stateful in [true, false] {
-        verify::<false>(
+        verify::<0>(
             json!({"driver":"sqlite","database":":memory:"}),
             stateful,
             false,
@@ -1051,7 +1104,70 @@ async fn bearer_and_spa_over_http_with_mysql() {
         return;
     };
     for custom_csrf in [false, true] {
-        verify::<false>(json!({"url":url}), true, custom_csrf).await;
+        verify::<0>(json!({"url":url}), true, custom_csrf).await;
     }
-    verify::<true>(json!({"url":url}), true, true).await;
+    verify::<1>(json!({"url":url}), true, true).await;
+    verify::<2>(json!({"url":url}), true, true).await;
+}
+
+#[tokio::test]
+async fn acting_as_isolated_to_test_app_and_selected_guard() {
+    let configure = |builder: openrust::foundation::configuration::ApplicationBuilder| {
+        builder
+            .withConfig(|_, _| {
+                Ok([(
+                    "auth".into(),
+                    json!({
+                        "guards":{"alternate":{"driver":"sanctum"}}
+                    }),
+                )]
+                .into())
+            })
+            .withRouting(Routing::default().api(|| {
+                api()?;
+                Route::get("/default", whoami)?;
+                Route::getWith("/alternate", whoami, |route| {
+                    route.middleware_name("auth:alternate");
+                    Ok(())
+                })
+            }))
+    };
+    let mut app = TestApp::create(configure).unwrap();
+    let mut other = TestApp::create(configure).unwrap();
+    let mut user = User::<false, 0>(ModelState::default());
+    user.setAttribute("id", SqlValue::Unsigned(42));
+    let user = Arc::new(user);
+    let selected = Sanctum::actingAs(&mut app, user.clone(), &["read"], None);
+    assert!(Arc::ptr_eq(&selected, &user));
+    for path in ["/api/user", "/api/any", "/api/default"] {
+        let response = app.get(path).await.unwrap();
+        response.assertOk();
+        assert_eq!(
+            response.json::<Value>().unwrap(),
+            json!({"user":42,"token":"test"})
+        );
+    }
+    app.get("/api/all")
+        .await
+        .unwrap()
+        .assertStatus(StatusCode::FORBIDDEN);
+    other
+        .get("/api/user")
+        .await
+        .unwrap()
+        .assertStatus(StatusCode::UNAUTHORIZED);
+    Sanctum::actingAs(&mut app, user.clone(), &[], None);
+    app.get("/api/any")
+        .await
+        .unwrap()
+        .assertStatus(StatusCode::FORBIDDEN);
+    Sanctum::actingAs(&mut app, user.clone(), &["*"], None);
+    app.get("/api/all").await.unwrap().assertOk();
+    Sanctum::actingAs(&mut app, user, &["*"], Some("alternate"));
+    app.get("/api/alternate").await.unwrap().assertOk();
+    app.get("/api/default").await.unwrap().assertOk();
+    app.get("/api/user")
+        .await
+        .unwrap()
+        .assertStatus(StatusCode::UNAUTHORIZED);
 }

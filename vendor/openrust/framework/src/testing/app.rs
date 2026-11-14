@@ -19,6 +19,8 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(5);
 pub struct TestApp {
     app: Application,
     http: Option<Kernel>,
+    #[cfg(feature = "sanctum")]
+    pub(crate) sanctum_identity: Option<crate::sanctum::TestIdentity>,
     // Release the application's services before deleting their local files.
     _directory: TempDir,
 }
@@ -41,6 +43,8 @@ impl TestApp {
         Ok(Self {
             app,
             http: None,
+            #[cfg(feature = "sanctum")]
+            sanctum_identity: None,
             _directory: directory,
         })
     }
@@ -61,6 +65,10 @@ impl TestApp {
         kernel.bootstrap().await?;
         let (parts, body) = request.into_parts();
         let mut request = Request::from_parts(parts, body);
+        #[cfg(feature = "sanctum")]
+        if let Some(identity) = &self.sanctum_identity {
+            request.parts_mut().extensions.insert(identity.clone());
+        }
         let (parts, body) = kernel.handle(&mut request).await.into_parts();
         let body =
             tokio::time::timeout(RESPONSE_TIMEOUT, axum::body::to_bytes(body, RESPONSE_LIMIT))

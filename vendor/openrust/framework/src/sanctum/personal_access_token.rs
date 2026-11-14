@@ -7,12 +7,10 @@ use zeroize::Zeroizing;
 
 use crate::{
     auth::{AuthError, AuthIdentifier, AuthResult},
-    database::{
-        Connection, DatabaseError, DatabaseResult, Row, Value, eloquent::Model, query::Record,
-    },
+    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query::Record},
 };
 
-use super::token_model::{EloquentTokenStore, ModelStore, ModelToken};
+use super::token_model::{EloquentTokenStore, ModelStore, ModelToken, PersonalAccessTokenModel};
 
 const TABLE: &str = "personal_access_tokens";
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
@@ -74,7 +72,10 @@ impl PersonalAccessTokens {
         }
     }
 
-    pub(super) fn for_model<M: Model>(connection: Connection, prefix: String) -> Self {
+    pub(super) fn for_model<M: PersonalAccessTokenModel>(
+        connection: Connection,
+        prefix: String,
+    ) -> Self {
         let model = Box::new(EloquentTokenStore::<M>::new(connection.clone()));
         Self {
             connection,
@@ -179,6 +180,13 @@ impl PersonalAccessTokens {
         &self,
         credential: &str,
     ) -> AuthResult<Option<(PersonalAccessToken, Option<Box<dyn ModelToken>>)>> {
+        if let Some(model) = &self.model {
+            return model
+                .find(credential)
+                .await
+                .map(|found| found.map(|(token, model)| (token, Some(model))))
+                .map_err(AuthError::backend);
+        }
         let (id, secret) = if let Some((id, secret)) = credential.split_once('|') {
             if id.is_empty() || secret.is_empty() {
                 return Ok(None);
@@ -190,13 +198,6 @@ impl PersonalAccessTokens {
             (None, credential)
         };
         let hash = token_hash(secret);
-        if let Some(model) = &self.model {
-            return model
-                .find(id, &hash)
-                .await
-                .map(|found| found.map(|(token, model)| (token, Some(model))))
-                .map_err(AuthError::backend);
-        }
         let query = self.connection.table(TABLE).useWritePdo();
         let query = match id {
             Some(id) => {
@@ -328,7 +329,7 @@ impl PersonalAccessTokens {
     }
 }
 
-fn token_hash(token: &str) -> String {
+pub(super) fn token_hash(token: &str) -> String {
     let hash = digest::digest(&digest::SHA256, token.as_bytes());
     let mut output = String::with_capacity(64);
     const HEX: &[u8] = b"0123456789abcdef";

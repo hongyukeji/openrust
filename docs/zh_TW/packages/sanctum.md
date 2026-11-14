@@ -36,6 +36,8 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 
 可用 `SANCTUM_TOKEN_PREFIX` 為新簽發的權杖密鑰設定應用程式專用前綴。
 
+自訂模型須實作 `PersonalAccessTokenModel`。預設 `findToken` 會驗證 SHA-256 摘要。覆寫方法會收到請求憑證和已設定的 Eloquent 查詢，可在附加條件或解碼憑證後呼叫 `findTokenByDigest`。覆寫方法須驗證其接受的憑證。
+
 ## 保護路由與檢查能力 {#protecting-routes}
 
 在受保護的路由加上 `auth:sanctum`，以 `Authorization: Bearer <token>` 傳送憑證。憑證無效、到期或已撤銷時回傳 HTTP 401。`abilities:reports:read,reports:write` 要求具備兩項能力，`ability:reports:read,reports:write` 要求具備任一項。權杖已通過驗證但缺少能力時回傳 HTTP 403。
@@ -72,3 +74,7 @@ fn register() -> Result<(), RoutingError> {
 ```sh
 ./artisan sanctum:prune-expired --hours=24
 ```
+
+## 測試 {#testing}
+
+在測試中將使用者放入 `Arc`，用 `Sanctum::actingAs(&mut app, user, &["reports:read"], None)` 為 `TestApp` 後續請求設定身分和能力。預設選擇 Sanctum 守衛。可傳入 `Some("guard-name")` 指定守衛，或傳入 `["*"]` 授予全部能力。測試夾具直接提供身分和能力，無須簽發資料庫權杖。
