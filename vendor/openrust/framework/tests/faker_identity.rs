@@ -4061,3 +4061,44 @@ fn korean_address_preserves_administrative_order_and_inherited_street_address() 
     assert!(unique.metropolitanCity().is_err());
     assert!(fake(Some("ja-JP")).unwrap().borough().is_err());
 }
+
+#[test]
+fn vietnamese_address_preserves_urban_rural_and_inherited_prefix_formats() {
+    let faker = fake(Some("vi-VN")).unwrap();
+    let cities = ["Cần Thơ", "Đà Nẵng", "Hải Phòng", "Hà Nội", "Hồ Chí Minh"];
+    let postcodes = Regex::new(r"^(?:[0-9]{5,6}|[0-9]{5}-[0-9]{4})$").unwrap();
+    let mut formats = [false; 3];
+    let mut ward_with_hamlet_prefix = false;
+    for _ in 0..256 {
+        let address = faker.address();
+        let (locality, region) = address.split_once('\n').unwrap();
+        let parts: Vec<_> = locality.split(", ").collect();
+        let city = cities.contains(&region);
+        match parts.as_slice() {
+            [street, ward, district] => {
+                assert!(street.contains(" Phố "));
+                assert!(!ward.contains('#') && !district.contains('#'));
+                formats[usize::from(!city)] = true;
+            }
+            [building, hamlet, _, _] => {
+                assert!(building.parse::<u16>().is_ok() && !city);
+                assert!(hamlet.starts_with("Thôn ") || hamlet.starts_with("Ấp "));
+                formats[2] = true;
+            }
+            _ => panic!("unexpected address {address:?}"),
+        }
+        let ward = faker.wardName().unwrap();
+        ward_with_hamlet_prefix |= ward.starts_with("Thôn ") || ward.starts_with("Ấp ");
+        assert!(!ward.contains('#'));
+        assert!(postcodes.is_match(&faker.postcode()));
+    }
+    assert_eq!(formats, [true; 3]);
+    assert!(ward_with_hamlet_prefix);
+    let unique = faker.unique(true);
+    assert_ne!(
+        unique.districtPrefix().unwrap(),
+        unique.districtPrefix().unwrap()
+    );
+    assert!(unique.districtPrefix().is_err());
+    assert!(fake(Some("ko-KR")).unwrap().hamletName().is_err());
+}

@@ -7333,3 +7333,121 @@ pub(super) const STREET_NAME_KO_KR: &[&str] = &[
 pub(super) const BUILDING_NUMBER_KO_KR: &[&str] = &["%###", "%##"];
 
 pub(super) const POSTCODE_KO_KR: &[&str] = &["#####"];
+
+pub(super) const PROVINCE_VI_VN: &[&str] = &[
+    "An Giang",
+    "Bà Rịa - Vũng Tàu",
+    "Bắc Giang",
+    "Bắc Kạn",
+    "Bạc Liêu",
+    "Bắc Ninh",
+    "Bến Tre",
+    "Bình Định",
+    "Bình Dương",
+    "Bình Phước",
+    "Bình Thuận",
+    "Cà Mau",
+    "Cao Bằng",
+    "Đắk Lắk",
+    "Đắk Nông",
+    "Điện Biên",
+    "Đồng Nai",
+    "Đồng Tháp",
+    "Gia Lai",
+    "Hà Giang",
+    "Hà Nam",
+    "Hà Tĩnh",
+    "Hải Dương",
+    "Hậu Giang",
+    "Hòa Bình",
+    "Hưng Yên",
+    "Khánh Hòa",
+    "Kiên Giang",
+    "Kon Tum",
+    "Lai Châu",
+    "Lâm Đồng",
+    "Lạng Sơn",
+    "Lào Cai",
+    "Long An",
+    "Nam Định",
+    "Nghệ An",
+    "Ninh Bình",
+    "Ninh Thuận",
+    "Phú Thọ",
+    "Quảng Bình",
+    "Quảng Nam",
+    "Quảng Ngãi",
+    "Quảng Ninh",
+    "Quảng Trị",
+    "Sóc Trăng",
+    "Sơn La",
+    "Tây Ninh",
+    "Thái Bình",
+    "Thái Nguyên",
+    "Thanh Hóa",
+    "Thừa Thiên Huế",
+    "Tiền Giang",
+    "Trà Vinh",
+    "Tuyên Quang",
+    "Vĩnh Long",
+    "Vĩnh Phúc",
+    "Yên Bái",
+    "Phú Yên",
+];
+
+pub(super) const CITY_VI_VN: &[&str] =
+    &["Cần Thơ", "Đà Nẵng", "Hải Phòng", "Hà Nội", "Hồ Chí Minh"];
+
+pub(super) const STREET_NAME_FORMATS_VI_VN: &[&str] = &[
+    "Phố {{lastName}} {{middleName}} {{firstName}}",
+    "Phố {{lastName}} {{middleName}} {{firstName}}",
+    "Phố {{lastName}} {{middleName}} {{firstName}}",
+    "Phố {{firstName}}",
+    "Phố {{lastName}}",
+];
+
+pub(super) const HAMLET_NAME_FORMATS_VI_VN: &[&str] = &[
+    "{{hamletPrefix}} {{middleName}} {{firstName}}",
+    "{{hamletPrefix}} {{lastName}} {{firstName}}",
+    "{{hamletPrefix}} {{firstName}} {{lastName}}",
+    "{{hamletPrefix}} {{middleName}} {{firstName}}",
+    "{{hamletPrefix}} {{lastName}} {{middleName}} {{firstName}}",
+    "{{hamletPrefix}} {{firstName}}",
+    "{{hamletPrefix}} {{lastName}}",
+    "{{hamletPrefix}} ##",
+    "{{hamletPrefix}} #",
+];
+
+pub(super) const WARD_NAME_FORMATS_VI_VN: &[&str] = &[
+    "{{hamletPrefix}} {{middleName}} {{firstName}}",
+    "{{hamletPrefix}} {{lastName}} {{firstName}}",
+    "{{wardPrefix}} {{firstName}} {{lastName}}",
+    "{{wardPrefix}} {{middleName}} {{firstName}}",
+    "{{wardPrefix}} {{lastName}} {{middleName}} {{firstName}}",
+    "{{wardPrefix}} {{firstName}}",
+    "{{wardPrefix}} {{lastName}}",
+    "{{wardPrefix}} ##",
+    "{{wardPrefix}} #",
+];
+
+pub(super) const DISTRICT_NAME_FORMATS_VI_VN: &[&str] = &[
+    "{{districtPrefix}} {{middleName}} {{firstName}}",
+    "{{districtPrefix}} {{lastName}} {{firstName}}",
+    "{{districtPrefix}} {{firstName}} {{lastName}}",
+    "{{districtPrefix}} {{middleName}} {{firstName}}",
+    "{{districtPrefix}} {{lastName}} {{middleName}} {{firstName}}",
+    "{{districtPrefix}} {{firstName}}",
+    "{{districtPrefix}} {{lastName}}",
+    "{{districtPrefix}} ##",
+    "{{districtPrefix}} #",
+];
+
+pub(super) const HAMLET_PREFIX_VI_VN: &[&str] = &["Thôn", "Ấp"];
+
+pub(super) const WARD_PREFIX_VI_VN: &[&str] = &["Phường", "Xã"];
+
+pub(super) const DISTRICT_PREFIX_VI_VN: &[&str] = &["Quận", "Huyện"];
+
+pub(super) const BUILDING_NUMBER_VI_VN: &[&str] = &["%###", "%##", "%#", "%"];
+
+pub(super) const POSTCODE_VI_VN: &[&str] = &["#####", "######", "#####-####"];

@@ -895,6 +895,17 @@ fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+Vietnamese addresses use either a street, ward, and district within a city or province, or a building number and hamlet within a province. The second line names the city or province. The pinned ward templates can start with a hamlet prefix. The hamlet, ward, and district names and prefixes support `unique()`. `postcode()` generates the separate five-digit, six-digit, or 5–4 digit form.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vietnamese_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("vi-VN"))?;
+    Ok((faker.address(), faker.unique(false).districtName()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

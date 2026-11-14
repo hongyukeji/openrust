@@ -895,6 +895,17 @@ fn korean_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+越南语地址可列出街道、坊和县，也可在门牌号后加入村组。第二行是城市或省。固定版坊名模板也可使用村组前缀。村组、坊和县的名称及前缀支持 `unique()`。`postcode()` 单独生成五位、六位或五位加连字符和四位的邮编。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vietnamese_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("vi-VN"))?;
+    Ok((faker.address(), faker.unique(false).districtName()?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。
