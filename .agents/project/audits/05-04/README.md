@@ -1252,3 +1252,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离运行以 `caea64ea` 的源码和文档为基线。固定 PHP 8.5 的 24 组成对时区与地区结果逐值匹配，另对照 PHP 词表及 256 条捷克语显示日期样本。MySQL 8.4.13 上用实际应用二进制运行 `artisan db:seed --database=mysql --force`，顺序回读 473 行，包含 24 条纪元时区样本、384 条地区随机样本及 65 条捷克语显示日期，其中一条来自三语共用示例。验证了中文 Seeder 的时段、星期和月份，也覆盖英语回退、捷克语时区跨月和唯一值耗尽。
 
 74 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，容器已移除，清理本批独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。后续继续逐项对账 DateTime 和其他尚未覆盖的 formatter。
+
+## Faker DateTime 的 PHP 输出格式
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) 与 [FakerPHP v1.24.1 的 date、time](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L100)。复用 v0.x `44632383` 的日期输出格式化器，按 [PHP 8.5.0 的日期输出实现](https://github.com/php/php-src/blob/php-8.5.0/ext/date/php_date.c#L653) 校准转义、负年份、复合格式、UTC 标识及数值时区缩写。现有 `date` 和 `time` 接受 Chrono 格式，迁移 PHP 格式时使用显式的 `dateWithPhpFormat` 和 `timeWithPhpFormat`。两个入口沿用类型化日期上界和有效时区，各自与对应的 Chrono 方法共享 `unique` 历史。Goravel 式应用装配无需调整。
+
+隔离基线 `5bda15eb`。MySQL 8.4.13 实际运行 `main artisan db:seed --database=mysql --force`，顺序回读 477 行，并与 PHP 8.5.12 逐值比较。涵盖七个时区、29 个固定纪元结果和 448 个携带采样时间戳的结果。固定值按 FakerPHP 入口对照，随机值按 PHP DateTime 对照。包含空格式、尾部反斜线、Unicode 字面量、三语示例、半小时与 45 分钟偏移。日历回归另覆盖巴黎历史秒级偏移和扩展年份。
+
+75 项 Faker、49 项 Seeder、两项日历回归、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。原 Seeder 已恢复，MySQL 容器已移除，清理本批独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。05-04 继续对账 DateTime 的显式时区返回形式、PHP 表达式及其他 formatter。

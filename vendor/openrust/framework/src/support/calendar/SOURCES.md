@@ -1,6 +1,6 @@
-# Calendar parser sources
+# Calendar sources
 
-The expression scanner, civil arithmetic and time-zone resolver were extracted
+The expression scanner, civil arithmetic, and time-zone resolver were extracted
 from OpenRust v0.x commit `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`, under
 `vendor/openrust/framework/src/support/calendar/date`.
 
@@ -8,7 +8,9 @@ from OpenRust v0.x commit `6d1a81924451e15f595f68c8dfb520ad6d6c44cf`, under
   See `LICENSE.timelib` and `LICENSE.php`.
 - The legacy parser was developed against Carbon 3.8.4. See `LICENSE.carbon`.
   The Faker adapter uses its date-expression scanner and omits Carbon input
-  coercion, custom date factories and PHP format parsing.
+  coercion, custom date factories, and PHP format-string parsing.
+- PHP date output reuses the OpenRust v0.x renderer from commit `44632383`.
+  The token behavior is checked against PHP 8.5.0's `ext/date/php_date.c`.
 - The checked-in zone data comes from PHP 8.5.0's IANA 2025b snapshot.
   `generate_tzdata.py` verifies the source checksums before regeneration.
 

@@ -2434,6 +2434,28 @@ impl Faker {
         self.format_date(format.unwrap_or("%H:%M:%S"), max)
     }
 
+    /// Renders a sampled date with PHP DateTime format tokens.
+    pub fn dateWithPhpFormat(
+        &self,
+        format: &str,
+        max: Option<DateTime<Utc>>,
+    ) -> DatabaseResult<String> {
+        let timezone = self
+            .getDefaultTimezone()
+            .unwrap_or(self.application_timezone);
+        calendar::format_php_date(self.dateTime(max), timezone, format)
+            .map_err(|_| DatabaseError::InvalidQuery("Faker PHP date format could not be rendered"))
+    }
+
+    /// Renders a sampled time with PHP DateTime format tokens.
+    pub fn timeWithPhpFormat(
+        &self,
+        format: &str,
+        max: Option<DateTime<Utc>>,
+    ) -> DatabaseResult<String> {
+        self.dateWithPhpFormat(format, max)
+    }
+
     pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> String {
         self.dateTimeInTimezone(max, None)
             .format("%Y-%m-%dT%H:%M:%S%z")
@@ -3445,6 +3467,22 @@ impl UniqueFaker<'_> {
 
     pub fn time(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         self.try_generate("time", || self.0.time(format, max))
+    }
+
+    pub fn dateWithPhpFormat(
+        &self,
+        format: &str,
+        max: Option<DateTime<Utc>>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("date", || self.0.dateWithPhpFormat(format, max))
+    }
+
+    pub fn timeWithPhpFormat(
+        &self,
+        format: &str,
+        max: Option<DateTime<Utc>>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("time", || self.0.timeWithPhpFormat(format, max))
     }
 
     pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {

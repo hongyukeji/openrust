@@ -13,6 +13,7 @@ mod zone;
 
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
+pub(crate) use format::display as format_php_date;
 use zone::ResolvedTimezone;
 
 const MAX_CALENDAR_BYTES: usize = 20 * 1024 * 1024;

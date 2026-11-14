@@ -79,3 +79,31 @@ fn php_relative_intervals_preserve_the_start_calendar() {
         );
     }
 }
+
+#[test]
+fn php_date_display_preserves_extended_years_and_historical_offsets() {
+    use super::format_php_date;
+    let timezone = chrono_tz::Europe::Paris;
+    for (year, offset, expected) in [
+        (
+            -1,
+            561,
+            "-0001 -1 -0001 -0001 -2 53 -001-01-01T00:00:00+00:09 Fri, 01 Jan -001 00:00:00 +0009 +00:09 +0009 +00:09 561 LMT",
+        ),
+        (
+            10000,
+            3600,
+            "10000 00 +10000 +10000 9999 52 10000-01-01T00:00:00+01:00 Sat, 01 Jan 10000 00:00:00 +0100 +01:00 +0100 +01:00 3600 CET",
+        ),
+    ] {
+        let local = chrono::NaiveDate::from_ymd_opt(year, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        let utc = local.and_utc() - chrono::TimeDelta::seconds(offset);
+        assert_eq!(
+            format_php_date(utc, timezone, "Y y X x o W c r P O p Z T").unwrap(),
+            expected,
+        );
+    }
+}

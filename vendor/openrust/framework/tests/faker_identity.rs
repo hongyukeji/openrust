@@ -3531,3 +3531,39 @@ fn regional_date_names_and_czech_display_dates_follow_the_provider() {
         assert!(year.parse::<u32>().unwrap() >= 1970);
     }
 }
+
+#[test]
+fn php_date_formats_preserve_native_formats_and_share_unique_history() {
+    let faker = fake(Some("zh-Hant")).unwrap();
+    let epoch = Some(chrono::DateTime::UNIX_EPOCH);
+
+    faker.setDefaultTimezone(Some(chrono_tz::America::New_York));
+    assert_eq!(
+        faker
+            .dateWithPhpFormat(r"Y-m-d\TH:i:sP e T W o z B", epoch)
+            .unwrap(),
+        "1969-12-31T19:00:00-05:00 America/New_York EST 01 1970 364 041"
+    );
+    assert_eq!(faker.timeWithPhpFormat("g:i A", epoch).unwrap(), "7:00 PM");
+    assert_eq!(
+        faker.dateWithPhpFormat(r"l F \年 Q %", epoch).unwrap(),
+        "Wednesday December 年 Q %"
+    );
+    assert_eq!(faker.dateWithPhpFormat("\\", epoch).unwrap(), "\0");
+    assert_eq!(faker.dateWithPhpFormat("", epoch).unwrap(), "");
+
+    let unique = faker.uniqueWithRetries(true, 2);
+    assert_eq!(unique.date(Some("%Y-%m-%d"), epoch).unwrap(), "1969-12-31");
+    assert!(unique.dateWithPhpFormat("Y-m-d", epoch).is_err());
+    assert_eq!(
+        unique.timeWithPhpFormat("Y-m-d", epoch).unwrap(),
+        "1969-12-31"
+    );
+    assert!(unique.time(Some("%Y-%m-%d"), epoch).is_err());
+
+    faker.setDefaultTimezone(Some(chrono_tz::Asia::Kathmandu));
+    assert_eq!(
+        faker.dateWithPhpFormat("e T P", epoch).unwrap(),
+        "Asia/Kathmandu +0530 +05:30"
+    );
+}

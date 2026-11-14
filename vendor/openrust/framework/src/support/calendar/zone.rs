@@ -100,6 +100,42 @@ impl ResolvedTimezone {
             }
         }
     }
+    pub(super) fn abbreviation(&self, instant: CalendarInstant) -> Result<String> {
+        use chrono_tz::OffsetName;
+        match &self.kind {
+            ZoneKind::Fixed(offset) => {
+                if self.name.starts_with(['+', '-']) {
+                    let absolute = i64::from(*offset).abs();
+                    Ok(format!(
+                        "GMT{}{:02}{:02}",
+                        if *offset < 0 { '-' } else { '+' },
+                        absolute / 3600,
+                        absolute / 60 % 60
+                    ))
+                } else {
+                    Ok(self.name.clone())
+                }
+            }
+            ZoneKind::Named { zone, record, tail } => {
+                if instant.epoch_seconds >= record.from_epoch {
+                    return Ok(tail.state(instant)?.abbreviation.into());
+                }
+                if record
+                    .first_epoch
+                    .is_some_and(|first| instant.epoch_seconds < first)
+                {
+                    return Ok(record.first_abbreviation.into());
+                }
+                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let utc = instant.try_chrono()?;
+                let offset = zone.offset_from_utc_datetime(&utc.naive_utc());
+                Ok(offset.abbreviation().map_or_else(
+                    || display_offset(offset.fix().local_minus_utc()).replace(':', ""),
+                    str::to_owned,
+                ))
+            }
+        }
+    }
     pub(super) fn is_dst(&self, instant: CalendarInstant) -> Result<bool> {
         match &self.kind {
             ZoneKind::Fixed(_) => Ok(false),
@@ -241,10 +277,17 @@ fn parse_offset(name: &str) -> Option<i32> {
     offset.checked_mul(sign)
 }
 
+pub(super) fn display_offset(offset: i32) -> String {
+    let abs = i64::from(offset).abs();
+    format!(
+        "{}{:02}:{:02}",
+        if offset < 0 { '-' } else { '+' },
+        abs / 3600,
+        abs / 60 % 60
+    )
+}
 pub(super) fn offset_name(offset: i32) -> String {
-    let magnitude = i64::from(offset).abs();
-    let sign = if offset < 0 { '-' } else { '+' };
-    let displayed = format!("{sign}{:02}:{:02}", magnitude / 3600, magnitude / 60 % 60);
+    let displayed = display_offset(offset);
     let seconds = i64::from(offset).abs() % 60;
     if seconds == 0 {
         displayed

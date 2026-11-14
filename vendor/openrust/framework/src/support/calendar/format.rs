@@ -1,7 +1,11 @@
 //! PHP createFromFormat 的顺序扫描与日期输出格式。
 //! 固定上游与版权许可见同目录 SOURCES.md / LICENSE.timelib / LICENSE.carbon。
 
-use super::{Result, calendar_error};
+use super::civil::{days_from_civil, days_in_month, iso_week};
+use super::zone::{ResolvedTimezone, display_offset};
+use super::{CalendarInstant, Result, calendar_error, limit_error, range_error};
+use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 
 pub(super) const YEAR: u16 = 1;
 pub(super) const MONTH: u16 = 2;
@@ -105,4 +109,212 @@ pub(super) fn weekday_number(text: &str) -> Option<i64> {
         "saturday" | "sat" | "saturdays" => Some(6),
         _ => None,
     }
+}
+
+/// Renders the PHP date format tokens against the pinned time-zone rules.
+#[allow(
+    clippy::too_many_lines,
+    reason = "Keeps the PHP date tokens in a single table"
+)]
+pub(crate) fn display(datetime: DateTime<Utc>, timezone: Tz, pattern: &str) -> Result<String> {
+    if pattern.len() > super::MAX_CALENDAR_BYTES {
+        return Err(limit_error());
+    }
+    let instant = CalendarInstant::new(datetime.timestamp(), datetime.timestamp_subsec_micros())?;
+    let zone = ResolvedTimezone::parse(timezone.name())?;
+    let civil = zone.civil(instant)?;
+    let weekday = usize::try_from(civil.weekday()?).map_err(|_| range_error())?;
+    let offset = zone.offset_seconds(instant)?;
+    let days = days_from_civil(civil.year, civil.month, civil.day);
+    let day_of_year = days - days_from_civil(civil.year, 1, 1);
+    let day_names = [
+        "Sunday",
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+    ];
+    let month_names = [
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ];
+    let month = usize::try_from(civil.month - 1).map_err(|_| range_error())?;
+    let mut out = String::with_capacity(pattern.len());
+    let mut tokens = pattern.chars();
+    while let Some(token) = tokens.next() {
+        let rendered = match token {
+            '\\' => tokens.next().unwrap_or('\0').to_string(),
+            'Y' => {
+                if civil.year < 0 {
+                    format!("-{:04}", i128::from(civil.year).abs())
+                } else {
+                    format!("{:04}", civil.year)
+                }
+            }
+            'y' => format!("{:02}", civil.year % 100),
+            'X' => format!(
+                "{}{year:04}",
+                if civil.year >= 0 { '+' } else { '-' },
+                year = i128::from(civil.year).abs()
+            ),
+            'x' => {
+                if civil.year < 0 {
+                    format!("-{:04}", i128::from(civil.year).abs())
+                } else if civil.year > 9999 {
+                    format!("{:+}", civil.year)
+                } else {
+                    format!("{:04}", civil.year)
+                }
+            }
+            'm' => format!("{:02}", civil.month),
+            'n' => civil.month.to_string(),
+            'd' => format!("{:02}", civil.day),
+            'j' => civil.day.to_string(),
+            'H' => format!("{:02}", civil.hour),
+            'G' => civil.hour.to_string(),
+            'h' => format!(
+                "{:02}",
+                if civil.hour % 12 == 0 {
+                    12
+                } else {
+                    civil.hour % 12
+                }
+            ),
+            'g' => {
+                if civil.hour % 12 == 0 {
+                    "12".into()
+                } else {
+                    (civil.hour % 12).to_string()
+                }
+            }
+            'i' => format!("{:02}", civil.minute),
+            's' => format!("{:02}", civil.second),
+            'u' => format!("{:06}", civil.microsecond),
+            'v' => format!("{:03}", civil.microsecond / 1000),
+            'a' => {
+                if civil.hour < 12 {
+                    "am".into()
+                } else {
+                    "pm".into()
+                }
+            }
+            'A' => {
+                if civil.hour < 12 {
+                    "AM".into()
+                } else {
+                    "PM".into()
+                }
+            }
+            'w' => weekday.to_string(),
+            'N' => {
+                if weekday == 0 {
+                    "7".into()
+                } else {
+                    weekday.to_string()
+                }
+            }
+            'D' => day_names[weekday].get(..3).ok_or_else(range_error)?.into(),
+            'l' => day_names[weekday].into(),
+            'M' => month_names
+                .get(month)
+                .and_then(|name| name.get(..3))
+                .ok_or_else(range_error)?
+                .into(),
+            'F' => month_names.get(month).ok_or_else(range_error)?.to_string(),
+            'z' => day_of_year.to_string(),
+            't' => days_in_month(civil.year, civil.month)?.to_string(),
+            'L' => {
+                if civil.year % 4 == 0 && (civil.year % 100 != 0 || civil.year % 400 == 0) {
+                    "1".into()
+                } else {
+                    "0".into()
+                }
+            }
+            'S' => {
+                if (11..=13).contains(&civil.day) {
+                    "th".into()
+                } else {
+                    match civil.day % 10 {
+                        1 => "st",
+                        2 => "nd",
+                        3 => "rd",
+                        _ => "th",
+                    }
+                    .into()
+                }
+            }
+            'e' => timezone.name().into(),
+            'P' => display_offset(offset),
+            'O' => display_offset(offset).replace(':', ""),
+            'p' => {
+                if matches!(
+                    zone.abbreviation(instant)?.as_str(),
+                    "UTC" | "Z" | "GMT+0000"
+                ) {
+                    "Z".into()
+                } else {
+                    display_offset(offset)
+                }
+            }
+            'Z' => offset.to_string(),
+            'U' => datetime.timestamp().to_string(),
+            'T' => zone.abbreviation(instant)?,
+            'I' => u8::from(zone.is_dst(instant)?).to_string(),
+            'B' => format!(
+                "{:03}",
+                (i128::from(datetime.timestamp()) + 3600).rem_euclid(86400) * 1000 / 86400
+            ),
+            'c' => format!(
+                "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}{}",
+                civil.year,
+                civil.month,
+                civil.day,
+                civil.hour,
+                civil.minute,
+                civil.second,
+                display_offset(offset)
+            ),
+            'r' => format!(
+                "{}, {:02} {} {:04} {:02}:{:02}:{:02} {}",
+                &day_names[weekday][..3],
+                civil.day,
+                &month_names[month][..3],
+                civil.year,
+                civil.hour,
+                civil.minute,
+                civil.second,
+                display_offset(offset).replace(':', "")
+            ),
+            'o' | 'W' => {
+                let (year, week) = iso_week(civil.year, civil.month, civil.day)?;
+                if token == 'o' {
+                    year.to_string()
+                } else {
+                    format!("{week:02}")
+                }
+            }
+            other => other.to_string(),
+        };
+        if out
+            .len()
+            .checked_add(rendered.len())
+            .is_none_or(|len| len > super::MAX_CALENDAR_BYTES)
+        {
+            return Err(limit_error());
+        }
+        out.push_str(&rendered);
+    }
+    Ok(out)
 }

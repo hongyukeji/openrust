@@ -116,3 +116,15 @@ pub(super) fn days_in_month(year: i64, month: i64) -> Result<i64> {
     let next = days_from_civil(year, month.checked_add(1).ok_or_else(range_error)?, 1);
     i64::try_from(next - start).map_err(|_| range_error())
 }
+
+pub(super) fn iso_week(year: i64, month: i64, day: i64) -> Result<(i64, i64)> {
+    let days = days_from_civil(year, month, day);
+    let thursday = days + 3 - (days + 3).rem_euclid(7);
+    let (year, _, _) = civil_from_days(thursday)?;
+    let first = days_from_civil(year, 1, 4);
+    let monday = first - (first + 3).rem_euclid(7);
+    Ok((
+        year,
+        i64::try_from((days - monday).div_euclid(7) + 1).map_err(|_| range_error())?,
+    ))
+}
