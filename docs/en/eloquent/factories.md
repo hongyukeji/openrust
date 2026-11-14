@@ -873,6 +873,17 @@ fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)
 }
 ```
 
+Japanese addresses start with a seven-digit postcode, followed by two spaces, then the prefecture, city, ward, and street. A building name and number may follow. `postcode1()` and `postcode2()` return the three- and four-digit components. `prefecture()`, `ward()`, and `areaNumber()` are also available separately. These regional formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("ja-JP"))?;
+    Ok((faker.address(), faker.unique(false).prefecture()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

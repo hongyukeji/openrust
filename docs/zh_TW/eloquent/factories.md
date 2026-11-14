@@ -873,6 +873,17 @@ fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)
 }
 ```
 
+日語地址以七位郵遞區號開頭，空兩格後依序接上都道府縣、市、區與街道，也可包含大樓名稱和編號。`postcode1()` 與 `postcode2()` 傳回三位和四位的郵遞區號組件。`prefecture()`、`ward()` 與 `areaNumber()` 也可單獨呼叫。這些地區方法支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn japanese_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("ja-JP"))?;
+    Ok((faker.address(), faker.unique(false).prefecture()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

@@ -3996,3 +3996,33 @@ fn hong_kong_address_preserves_three_lines_and_local_name_templates() {
     assert!(unique.estateSuffix().is_err());
     assert!(fake(Some("en-PH")).unwrap().town().is_err());
 }
+
+#[test]
+fn japanese_address_preserves_postcode_components_and_building_boundaries() {
+    use std::collections::HashSet;
+
+    let faker = fake(Some("ja-JP")).unwrap();
+    let address = Regex::new(
+        r"^[1-9][0-9]{2}[1-9][0-9]{3}  \S+市(?:中央|北|東|南|西)区\S+町\S+(?:10|[1-9])-(?:10|[1-9])-(?:10|[1-9])(?: (?:ハイツ|コーポ)\S+(?:10[1-9]|110)号)?$",
+    )
+    .unwrap();
+    let mut formats = [false; 2];
+    for _ in 0..128 {
+        let sample = faker.address();
+        assert!(address.is_match(&sample), "{sample}");
+        formats[usize::from(sample.ends_with('号'))] = true;
+        assert!((100..=999).contains(&faker.postcode1().unwrap()));
+        assert!((1000..=9999).contains(&faker.postcode2().unwrap()));
+        assert!((1..=10).contains(&faker.areaNumber().unwrap()));
+        assert!((101..=110).contains(&faker.buildingNumber().parse::<u16>().unwrap()));
+    }
+    assert_eq!(formats, [true; 2]);
+    let unique = faker.unique(true);
+    let wards: HashSet<_> = (0..5).map(|_| unique.ward().unwrap()).collect();
+    assert_eq!(
+        wards,
+        HashSet::from(["中央区", "北区", "東区", "南区", "西区"])
+    );
+    assert!(unique.ward().is_err());
+    assert!(fake(Some("en-US")).unwrap().prefecture().is_err());
+}

@@ -1372,3 +1372,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、84 项 Faker、49 项 See
 隔离基线 `c0f216f3`。PHP 反射核对 16 份词表和保留重复项的模板，固定 FakerPHP 实测两地共 320 个样本。实际 MySQL 8.4.13 使用 `main artisan db:seed --database=mysql --force` 写入、顺序回读并验证 322 行，包含三语共用示例，覆盖菲律宾两种与香港三种地址结构。Rust 回归覆盖不适用地区与唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、86 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查与六项工厂页面示例检查通过。既有 Sanctum 排版差异只在隔离副本处理。原始 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，项目卷可用 80 GiB。05-04 继续核对日语及其他地区 Address。
+
+## 日语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [日语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ja_JP/Address.php) 与 Person 姓氏。地址保留三位加四位邮编、两格间距、47 个都道府县、五种区、由姓氏组成的市町、三个独立番地及可选楼栋。楼栋号为 101–110。Rust 地区专用方法使用 Result，数字组件使用 i64，支持 unique。v0.x 无对应 Faker 地址实现，Goravel 式编译装配继续沿用。
+
+隔离基线 `6b84495d`。PHP 反射对照国家、都道府县、区和后缀，另用固定 Person 姓氏词表和范围验证两种完整地址及所有中间字段。160 个固定 PHP 样本通过。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并回读 161 行，包括三语共用示例，按同一规则核对。Rust 回归覆盖两种地址、数值范围、无效地区与五个区唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、87 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 80 GiB。05-04 下一批核对韩语和其他亚洲地址。
