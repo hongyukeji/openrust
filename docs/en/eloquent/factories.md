@@ -982,6 +982,18 @@ fn taiwanese_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Baltic Driving Licence and Passport Samples {#baltic-driving-licence-and-passport-samples}
+
+Use `driverLicence()` and `passportNumber()` with `lt-LT` or `lv-LV`. Lithuanian samples for both methods contain eight ASCII digits and can start with zero. Latvian samples start with two lower-case ASCII letters followed by six digits for a driving licence or seven digits for a passport. Both methods support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn baltic_driver_licence() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).driverLicence()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

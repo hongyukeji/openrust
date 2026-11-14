@@ -1146,3 +1146,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `c5b91b19`。PHP 8.5 核对 192 对上游值和跨权重周期的校验值。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 384 个值，覆盖两元素词表、单元素重复抽样、零抽样及空词表，验证 NIF 前缀和校验位并执行文档示例。64 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用 80 GiB。下一批复核 Person 继承接口与同名地区分派，再对账 Person 的剩余差异。
+
+## Faker Person 同名驾照与护照地区分派
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 [立陶宛](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lt_LT/Person.php)和[拉脱维亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lv_LV/Person.php) Person，补齐立陶宛 `driverLicence()` 八位数字的分派，复用现有掩码与同名去重入口。核对两个地区的护照及驾照格式。v0.x 未找到对应 formatter，编译式工厂装配无需调整。
+
+隔离基线 `2c05cf39`。PHP 8.5 核对 512 个上游样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 512 个值，覆盖两个地区和两种证件，并执行文档示例。65 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用 80 GiB。下一批继续复核 Person 同名方法和显式地区回退。

@@ -982,6 +982,18 @@ fn taiwanese_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 波罗的海驾驶执照和护照样本 {#baltic-driving-licence-and-passport-samples}
+
+`lt-LT` 和 `lv-LV` 均支持 `driverLicence()` 与 `passportNumber()`。立陶宛两种样本都是八位 ASCII 数字，可保留前导零。拉脱维亚样本以两个小写 ASCII 字母开头，驾驶执照后接六位数字，护照后接七位数字。两个接口均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn baltic_driver_licence() -> DatabaseResult<String> {
+    fake(Some("lt-LT"))?.unique(false).driverLicence()
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

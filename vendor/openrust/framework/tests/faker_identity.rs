@@ -3138,3 +3138,16 @@ fn portuguese_nif_and_taiwanese_random_names_follow_the_pinned_helpers() {
     assert!(unique.randomName(&["明"], 1).is_err());
     assert!(portugal.randomName(&["明"], 1).is_err());
 }
+
+#[test]
+fn lithuanian_driver_licence_is_numeric_and_supports_unique() {
+    let faker = fake(Some("lt-LT")).unwrap();
+    let unique = faker.unique(true);
+    let mut values = std::collections::HashSet::new();
+    for _ in 0..64 {
+        let value = unique.driverLicence().unwrap();
+        assert_eq!(value.len(), 8);
+        assert!(value.bytes().all(|byte| byte.is_ascii_digit()));
+        assert!(values.insert(value));
+    }
+}
