@@ -2662,3 +2662,7 @@ fn ascii_names(locale: &str) -> Option<(&'static [&'static str], &'static [&'sta
 pub(super) fn ascii_surname(locale: &str) -> Option<&'static str> {
     ascii_names(locale).map(|(_, names)| sample(names))
 }
+
+pub(super) fn ascii_given_name(locale: &str) -> Option<&'static str> {
+    ascii_names(locale).map(|(names, _)| sample(names))
+}

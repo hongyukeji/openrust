@@ -1226,3 +1226,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `f19ffb8d`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，验证计数批次只加载当前模型的关系，`createMany` 和 `makeMany` 保持该行为，随后普通查询恢复按模型设置批量加载，显式启用后批次加载生效。49 项 Seeder、MySQL／SQLite 两项工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复，清理本批独占 Cargo 与站点产物。05-04 继续核对固定工厂测试中的公开扩展机制及剩余 Faker 行为。
+
+## Faker Internet 罗马字姓名入口
+
+工厂公开扩展复核沿用已验收的[编译期扩展 trait](#嵌套工厂模型发现与扩展)。固定 Laravel 对应[模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [Internet Provider](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)，公开六个地区的 `firstNameAscii` 和 `lastNameAscii`。直接复用用户名及域名所用词表，逐项核对顺序、原始拼写和重复值。Rust 使用借用字符串和 Result 表达静态词表及地区可用性，两个名称各有去重历史。v0.x 无对应入口，编译式工厂装配无需调整。
+
+隔离基线 `c2e61b7a`。固定 PHP 8.5 校验 768 个样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读 770 个值，包含三语共用示例。73 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。回归核对埃及名字词表的 14 个唯一值及不可用地区错误。既有 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复，清理本批独占 Cargo 与站点产物。05-04 继续核对固定 DateTime 地区入口和其余未对账 Provider。

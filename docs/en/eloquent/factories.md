@@ -266,6 +266,17 @@ fn username_sample() -> DatabaseResult<String> {
 }
 ```
 
+The same six regional Internet providers expose `firstNameAscii()` and `lastNameAscii()` for direct sampling from their name catalogs. They preserve the stored spellings and share those catalogs with usernames and domains. These formatters support `unique()` and return an error for other locales.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
+    let faker = fake(Some("ar-EG"))?;
+    Ok((faker.unique(false).firstNameAscii()?, faker.lastNameAscii()?))
+}
+```
+
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
 Use `phoneNumber()` for display numbers from the pinned FakerPHP regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phoneNumberCleared()` for digits-only numbers and supports `unique()`. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.

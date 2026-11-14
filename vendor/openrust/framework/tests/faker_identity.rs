@@ -3465,3 +3465,24 @@ fn phone_components_preserve_prefixes_and_placeholder_masks() {
     );
     assert!(finland.exchangeCode().is_err());
 }
+
+#[test]
+fn internet_ascii_names_are_locale_specific_and_support_unique() {
+    let egypt = fake(Some("ar-EG")).unwrap();
+    let names: std::collections::HashSet<_> = {
+        let unique = egypt.unique(true);
+        (0..14).map(|_| unique.firstNameAscii().unwrap()).collect()
+    };
+    assert_eq!(names.len(), 14);
+    assert!(egypt.uniqueWithRetries(false, 2).firstNameAscii().is_err());
+    assert!(egypt.lastNameAscii().is_ok());
+
+    for locale in ["ar-SA", "ar-JO", "fa-IR", "ja-JP", "ko-KR"] {
+        let faker = fake(Some(locale)).unwrap();
+        assert!(!faker.firstNameAscii().unwrap().is_empty());
+        assert!(!faker.lastNameAscii().unwrap().is_empty());
+    }
+    let us = fake(Some("en-US")).unwrap();
+    assert!(us.firstNameAscii().is_err());
+    assert!(us.unique(false).lastNameAscii().is_err());
+}

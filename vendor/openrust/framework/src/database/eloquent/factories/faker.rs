@@ -1322,6 +1322,18 @@ impl Faker {
         titles[fastrand::usize(..titles.len())]
     }
 
+    pub fn firstNameAscii(&self) -> DatabaseResult<&'static str> {
+        username::ascii_given_name(self.locale()).ok_or(DatabaseError::InvalidQuery(
+            "unsupported Faker ASCII name locale",
+        ))
+    }
+
+    pub fn lastNameAscii(&self) -> DatabaseResult<&'static str> {
+        username::ascii_surname(self.locale()).ok_or(DatabaseError::InvalidQuery(
+            "unsupported Faker ASCII name locale",
+        ))
+    }
+
     pub fn userName(&self) -> String {
         let candidate = username::candidate(self);
         let candidate = internet_ascii(&candidate).replace("..", ".");
@@ -2881,6 +2893,14 @@ impl UniqueFaker<'_> {
 
     pub fn title(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {
         self.generate("title", || self.0.title(gender))
+    }
+
+    pub fn firstNameAscii(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("firstNameAscii", || self.0.firstNameAscii())
+    }
+
+    pub fn lastNameAscii(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("lastNameAscii", || self.0.lastNameAscii())
     }
 
     pub fn userName(&self) -> DatabaseResult<String> {

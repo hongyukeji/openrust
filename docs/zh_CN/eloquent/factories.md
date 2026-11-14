@@ -266,6 +266,17 @@ fn username_sample() -> DatabaseResult<String> {
 }
 ```
 
+上述六个地区的 Internet Provider 提供 `firstNameAscii()` 和 `lastNameAscii()`，可直接从用户名和域名使用的词表中抽取，保留词表原有拼写。这两个方法支持 `unique()`，其他地区调用时返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
+    let faker = fake(Some("ar-EG"))?;
+    Ok((faker.unique(false).firstNameAscii()?, faker.lastNameAscii()?))
+}
+```
+
 ### 电话号码和 IMEI 样本 {#phone-and-imei-samples}
 
 用 `phoneNumber()` 生成固定 FakerPHP 地区 Provider 的展示号码。地区没有 PhoneNumber Provider 时使用美国展示模板。孟加拉国使用孟加拉数字，越南按所选区号决定用户号码长度。巴西另提供仅含数字的 `phoneNumberCleared()`，支持 `unique()`。 `e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
