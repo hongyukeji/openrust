@@ -364,7 +364,15 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入使用存储属性，包含隐藏列，跳过追加字段和输出访问器。
+在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入前，工厂通过读取访问器和序列化转换投影属性，仍按可见白名单筛选，包含符合条件的隐藏列并跳过追加字段。插入构建器随后重新应用修改器与写入转换。Rust 投影保留数据库值类型，包括二进制数据。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn insert_projected<M: Model>(factory: Factory<M>) -> DatabaseResult<()> {
+    factory.count(2).insert(Attributes::new()).await
+}
+```
 
 单条和批量工厂都可以用 `makeWithParent(parent, attributes)` 和 `insertWithParent(parent, attributes)` 把父模型交给匹配的 `stateWithParent` 闭包。对应的 `On` 方法可指定连接。父模型作为状态上下文传入，需要建立关联时，由状态或调用属性赋予外键。
 

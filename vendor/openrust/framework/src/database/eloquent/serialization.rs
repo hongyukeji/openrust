@@ -78,15 +78,8 @@ pub(super) fn attributes<M: Model>(model: &M) -> DatabaseResult<Map<String, Json
     let metadata = M::metadata();
     let options = state.serialization();
     let mut output = Map::new();
-    for name in state
-        .attributes
-        .keys()
-        .filter(|name| options.includes(metadata, name))
-    {
-        if let Some(value) = model.getAttributeValue(name)? {
-            let value = casts::serialize_attribute(model, name, value)?;
-            output.insert(name.clone(), json_value(value)?);
-        }
+    for (name, value) in projected_attributes(model) {
+        output.insert(name.clone(), json_value(value?)?);
     }
     for name in names(options.appends.as_deref(), metadata.appends)
         .filter(|name| options.includes(metadata, name))
@@ -97,6 +90,25 @@ pub(super) fn attributes<M: Model>(model: &M) -> DatabaseResult<Map<String, Json
         output.insert(name.into(), json_value(getter(None, &state.attributes)?)?);
     }
     Ok(output)
+}
+
+/// Projects stored attribute names through their accessor and serialization casts.
+pub(super) fn projected_attributes<M: Model>(
+    model: &M,
+) -> impl Iterator<Item = (&String, DatabaseResult<Value>)> {
+    let state = model.state();
+    state
+        .attributes
+        .keys()
+        .filter(|name| state.serialization().includes(M::metadata(), name))
+        .filter_map(|name| {
+            model.getAttributeValue(name).transpose().map(|value| {
+                (
+                    name,
+                    value.and_then(|value| casts::serialize_attribute(model, name, value)),
+                )
+            })
+        })
 }
 
 pub(super) fn json_value(value: Value) -> DatabaseResult<Json> {

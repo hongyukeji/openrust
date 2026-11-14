@@ -443,3 +443,11 @@ PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rus
 隔离基线 `ebfa2a31`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 注册能够取消写入的模型监听器，验收状态和回调读取父模型、静默与恢复、延迟等待前零写入、重复延迟创建及九条未关联外键的子记录。37 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 已清理本批隔离构建与站点产物。后续核对 `insert` 的属性转换和批量写入行为。
+
+## 工厂批量插入的属性投影
+
+固定 Laravel Factory::insert 在 make 阶段后清空隐藏列表和 appends，通过 attributesToArray 投影，然后用无全局作用域的 fillAndInsert 重新应用写入转换。Rust 复用模型输出属性的访问器及序列化转换，保留可见白名单，跳过追加字段，然后走同一 fillAndInsert。投影在 JSON 编码之前输出数据库类型，保留二进制参数等 Rust 存储值。原有批量语句、ID、时间戳与静默职责沿用插入构建器。v0.x 没有等价的 Factory insert 或 fillAndInsert，固定 Goravel 的工厂契约主要提供 Make 与 Create。 [Laravel Factory::insert](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L493) · [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) · [固定 Goravel](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 与独立 MySQL 定向回归确认访问器与修改器顺序、隐藏列落库、追加字段跳过、JSON 和日期回查，以及重复唯一键导致整批零写入。Rust 1.94.0 格式与全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。测试按项目约定使用独立 MySQL 实例。
+
+合入同时提交的 Sanctum 基线 `b4d23daf` 后复验格式、严格 Clippy、MySQL 定向测试和实际 Seeder。清理本批独立构建与站点产物。后续继续核对其余 Faker 生成器和地区行为。

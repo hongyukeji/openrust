@@ -364,7 +364,15 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. It writes storage attributes, including hidden columns, without adding appended values or applying output accessors.
+Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. Before writing, the factory projects attributes through read accessors and serialization casts, includes hidden attributes subject to the visible allowlist, and skips appended attributes. The insert builder then reapplies setters and write casts. Rust keeps typed database values during this projection, including binary data.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn insert_projected<M: Model>(factory: Factory<M>) -> DatabaseResult<()> {
+    factory.count(2).insert(Attributes::new()).await
+}
+```
 
 Use `makeWithParent(parent, attributes)` and `insertWithParent(parent, attributes)` to supply the parent to matching `stateWithParent` callbacks on a single or counted factory. The `On` variants accept an explicit connection. The parent is state context. Set the foreign key in the state or call attributes when the row should reference it.
 

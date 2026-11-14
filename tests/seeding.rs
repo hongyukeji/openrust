@@ -4331,3 +4331,120 @@ fn factory_parent_creation_runs_through_artisan_on_sqlite_and_mysql() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+struct InsertProjection(ModelState);
+
+impl Model for InsertProjection {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("factory_insert_projection")
+            .timestamps(None, None)
+            .hidden(&["secret"])
+            .appends(&["computed"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn attribute(name: &str) -> Option<Attribute> {
+        match name {
+            "label" => Some(Attribute::make(
+                Some(|value, _| match value {
+                    Some(Value::Text(value)) => Ok(format!("read-{value}").into()),
+                    _ => Err(DatabaseError::InvalidQuery("projection label")),
+                }),
+                Some(|value, _| match value {
+                    Value::Text(value) => Ok(Attributes::from([(
+                        "label".into(),
+                        format!("write-{value}").into(),
+                    )])),
+                    _ => Err(DatabaseError::InvalidQuery("projection input")),
+                }),
+            )),
+            "computed" => Some(Attribute::get(|_, _| panic!("insert evaluated an append"))),
+            _ => None,
+        }
+    }
+
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[
+            ("options", AttributeCast::Json),
+            ("published_at", AttributeCast::DateTime),
+        ]
+    }
+}
+
+async fn verify_factory_insert_projection(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("factory_insert_projection", |table| {
+            table.id();
+            table.string("label", 80).unique();
+            table.string("secret", 80);
+            table.json("options");
+            table.timestamp("published_at", 0);
+        })
+        .await?;
+    let factory = || {
+        Factory::<InsertProjection>::new(|| {
+            Attributes::from([
+                ("label".into(), "sample".into()),
+                ("secret".into(), "retained".into()),
+                ("options".into(), Value::Json(json!({"ok":true}))),
+                ("published_at".into(), "2020-01-02T03:04:05Z".into()),
+            ])
+        })
+    };
+    let batch = factory().count(2);
+    assert!(batch.insertOn(connection, Attributes::new()).await.is_err());
+    assert_eq!(
+        connection
+            .table("factory_insert_projection")
+            .count("*")
+            .await?,
+        0
+    );
+    factory().insertOn(connection, Attributes::new()).await?;
+    let row = connection
+        .table("factory_insert_projection")
+        .first()
+        .await?
+        .unwrap();
+    assert_eq!(row.get("label"), Some(&"write-read-write-sample".into()));
+    assert_eq!(row.get("secret"), Some(&"retained".into()));
+    let model = InsertProjection::queryOn(connection)
+        .get()
+        .await?
+        .into_iter()
+        .next()
+        .unwrap();
+    assert_eq!(
+        model.getAttributeValue("options")?,
+        Some(Value::Json(json!({"ok":true})))
+    );
+    assert!(
+        matches!(model.getAttributeValue("published_at")?, Some(Value::Text(date)) if date.starts_with("2020-01-02T03:04:05"))
+    );
+    schema.drop("factory_insert_projection").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_insert_projects_attributes_before_writing_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_factory_insert_projection(&Root::new().connection(Some(&url), ""))
+        .await
+        .unwrap();
+}

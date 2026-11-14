@@ -1194,10 +1194,20 @@ impl<M: Model> Factory<M> {
     }
 
     async fn insert_models(connection: &Connection, models: Vec<M>) -> DatabaseResult<()> {
+        let rows = models
+            .into_iter()
+            .map(|mut model| {
+                model.setHidden(&[]);
+                super::serialization::projected_attributes(&model)
+                    .map(|(name, value)| Ok((name.clone(), value?)))
+                    .collect::<DatabaseResult<Attributes>>()
+            })
+            .collect::<DatabaseResult<Vec<_>>>()?;
         M::queryOn(connection)
             .withoutGlobalScopes()
-            .insert_prepared_models(models)
-            .await
+            .fillAndInsert(rows)
+            .await?;
+        Ok(())
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {

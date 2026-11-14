@@ -1411,12 +1411,6 @@ impl<M: Model> Builder<'static, M> {
         Ok(prepared)
     }
 
-    pub(super) async fn insert_prepared_models(self, models: Vec<M>) -> DatabaseResult<()> {
-        let rows = self.prepare_insert_models(models).await?;
-        self.scoped()?.0.insert(&rows).await?;
-        Ok(())
-    }
-
     /// Inserts prepared rows without dispatching model persistence events.
     pub async fn fillAndInsert(self, rows: Vec<Attributes>) -> DatabaseResult<bool> {
         let rows = self.fillForInsert(rows).await?;
