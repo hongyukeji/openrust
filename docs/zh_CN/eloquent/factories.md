@@ -50,3 +50,26 @@ pub async fn seed_comments<C: Model, P: Model>(
     Ok(())
 }
 ```
+
+### 复用已有模型 {#recycling-existing-models}
+
+用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。同一批次复用已选中的上级。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, factories::Factory, relations::BelongsTo},
+    seeder::SeederContext,
+};
+
+pub async fn reuse_owner<C: Model, P: Model>(
+    context: &SeederContext<'_>,
+    children: Factory<C>,
+    owner: P,
+    relation: BelongsTo<C, P>,
+    owners: Factory<P>,
+) -> DatabaseResult<Collection<C>> {
+    children.r#for(relation, owners).count(3).recycle(owner)
+        .createOn(context.connection()).await
+}
+```

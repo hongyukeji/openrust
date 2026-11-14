@@ -50,3 +50,26 @@ pub async fn seed_comments<C: Model, P: Model>(
     Ok(())
 }
 ```
+
+### Recycling Existing Models {#recycling-existing-models}
+
+Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match. A batch reuses its selected owner.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Collection, Model, factories::Factory, relations::BelongsTo},
+    seeder::SeederContext,
+};
+
+pub async fn reuse_owner<C: Model, P: Model>(
+    context: &SeederContext<'_>,
+    children: Factory<C>,
+    owner: P,
+    relation: BelongsTo<C, P>,
+    owners: Factory<P>,
+) -> DatabaseResult<Collection<C>> {
+    children.r#for(relation, owners).count(3).recycle(owner)
+        .createOn(context.connection()).await
+}
+```

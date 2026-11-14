@@ -189,7 +189,43 @@ impl Seeder for PolymorphicFactories {
                 Some(&"seed-owner".into())
             );
 
+            let foreign = Root::new();
+            let url = std::env::var("SEED_FIXTURE_MYSQL").unwrap();
+            let foreign_connection = foreign.connection(Some(&url), "");
+            let foreign_owner = FactoryOwner::queryOn(&foreign_connection)
+                .findOrFail(first[0].getAttribute("owner_id").unwrap().clone())
+                .await?;
+            let independent = children()
+                .r#for(subject(), owners())
+                .recycle(foreign_owner)
+                .makeOn(connection)
+                .await?;
+            assert_ne!(
+                independent.getAttribute("owner_id"),
+                first[0].getAttribute("owner_id")
+            );
+
+            let owner_pool = FactoryOwner::queryOn(connection).get().await?;
+            let reusable_ids = owner_pool.modelKeys();
+            let drafts = children()
+                .r#for(subject(), owners())
+                .count(3)
+                .recycleMany(owner_pool)
+                .makeOn(connection)
+                .await?;
+            let reused = drafts[0].getAttribute("owner_id").unwrap();
+            assert!(reusable_ids.contains(reused));
+            assert!(
+                drafts.iter().all(|draft| !draft.state().exists()
+                    && draft.getAttribute("owner_id") == Some(reused))
+            );
+
+            let recycled = FactoryOwner::queryOn(connection)
+                .findOrFail(reusable_ids[0].clone())
+                .await?;
+            let recycled_id = recycled.getKey().unwrap().clone();
             let owner = owners()
+                .recycle(recycled)
                 .has(
                     MorphMany::new("id", "owner_id", "owner_type", "seed-owner"),
                     children().count(2),
@@ -204,11 +240,19 @@ impl Seeder for PolymorphicFactories {
                         "owner_type",
                         "seed-owner",
                     ),
-                    children().count(1),
+                    children().r#for(subject(), owners()).count(1),
                     Attributes::from([("label".into(), "attached".into())]),
                 )
                 .createOn(connection)
                 .await?;
+            let attached = connection
+                .table("seed_factory_links")
+                .pluck("child_id")
+                .await?;
+            let linked = FactoryChild::queryOn(connection)
+                .findOrFail(attached[0].clone())
+                .await?;
+            assert_eq!(linked.getAttribute("owner_id"), Some(&recycled_id));
             let draft = children()
                 .forExisting(subject(), owner)
                 .makeOn(connection)
@@ -478,7 +522,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
             "--force",
         ],
     ));
-    assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 3);
+    assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 4);
     assert_eq!(
         db.table("seed_factory_children").count("*").await.unwrap(),
         7
@@ -489,7 +533,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
             .count("*")
             .await
             .unwrap(),
-        6
+        7
     );
     assert_eq!(
         db.table("seed_factory_links")

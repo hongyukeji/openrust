@@ -11,7 +11,11 @@ use super::{Attributes, Collection, Model, casts, relations::BelongsToMany};
 type Definition = dyn Fn() -> Attributes + Send + Sync;
 type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
-type Relationship<M> = dyn for<'a> Fn(&'a Connection, &'a mut M) -> DatabaseFuture<'a, DatabaseResult<()>>
+type Relationship<M> = dyn for<'a> Fn(
+        &'a Connection,
+        &'a mut M,
+        &'a [RecycledModel],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
     + Sync;
 
@@ -19,10 +23,33 @@ mod relationships;
 
 pub use relationships::{FactoryChild, FactoryParent};
 
-type Parent<M> = dyn for<'a> Fn(&'a Connection, &'a mut M, &'a ParentCache) -> DatabaseFuture<'a, DatabaseResult<()>>
+type Parent<M> = dyn for<'a> Fn(
+        &'a Connection,
+        &'a mut M,
+        &'a ParentCache,
+        &'a [RecycledModel],
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
     + Sync;
-type ParentCache = OnceCell<Box<dyn Any + Send + Sync>>;
+type SharedModel = Arc<dyn Any + Send + Sync>;
+type ParentCache = OnceCell<SharedModel>;
+
+#[derive(Clone)]
+struct RecycledModel {
+    connection: Connection,
+    model: SharedModel,
+}
+
+fn recycled_owner<R: Model>(
+    pool: &[RecycledModel],
+    connection: &Connection,
+) -> Option<SharedModel> {
+    let candidates: Vec<_> = pool
+        .iter()
+        .filter(|entry| entry.model.is::<R>() && entry.connection.same_query_source(connection))
+        .collect();
+    fastrand::choice(candidates).map(|entry| entry.model.clone())
+}
 
 /// Associates a model with the factory definition chosen by its application.
 pub trait HasFactory: Model {
@@ -33,6 +60,7 @@ pub trait HasFactory: Model {
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
     states: Vec<Box<State>>,
+    recycled: Vec<RecycledModel>,
     parents: Vec<Box<Parent<M>>>,
     children: Vec<Box<Relationship<M>>>,
     after_making: Vec<Box<Callback<M>>>,
@@ -45,11 +73,37 @@ impl<M: Model> Factory<M> {
         Self {
             definition: Box::new(definition),
             states: Vec::new(),
+            recycled: Vec::new(),
             parents: Vec::new(),
             children: Vec::new(),
             after_making: Vec::new(),
             after_creating: Vec::new(),
         }
+    }
+
+    /// Adds a persisted model to the pool used when resolving factory owners.
+    #[must_use]
+    pub fn recycle<R: Model>(self, model: R) -> Self {
+        self.recycleMany([model])
+    }
+
+    /// Adds several persisted models of one type to the recycle pool.
+    #[must_use]
+    pub fn recycleMany<R: Model>(mut self, models: impl IntoIterator<Item = R>) -> Self {
+        self.recycled.extend(models.into_iter().filter_map(|model| {
+            if !model.state().exists() {
+                return None;
+            }
+            Some(RecycledModel {
+                connection: model.state().connection.clone()?,
+                model: Arc::new(model),
+            })
+        }));
+        self
+    }
+
+    fn recycle_pool(&self, inherited: &[RecycledModel]) -> Vec<RecycledModel> {
+        inherited.iter().chain(&self.recycled).cloned().collect()
     }
 
     #[must_use]
@@ -103,27 +157,32 @@ impl<M: Model> Factory<M> {
         children: FactoryBatch<R>,
     ) -> Self {
         let relation = Arc::new((relation, children));
-        self.children.push(Box::new(move |connection, parent| {
-            let relation = Arc::clone(&relation);
-            Box::pin(async move {
-                let (relation, children) = &*relation;
-                let connection = related_connection::<R>(connection)?;
-                let cache = children.factory.parent_cache();
-                for index in 0..children.count {
-                    let mut child = children
-                        .factory
-                        .make_one(&connection, index, &cache)
-                        .await?;
-                    if !relation.save(parent, &mut child).await? {
-                        return Err(DatabaseError::InvalidQuery(
-                            "factory child creation cancelled",
-                        ));
+        self.children
+            .push(Box::new(move |connection, parent, inherited| {
+                let relation = Arc::clone(&relation);
+                Box::pin(async move {
+                    let (relation, children) = &*relation;
+                    let connection = related_connection::<R>(connection)?;
+                    let cache = children.factory.parent_cache();
+                    let pool = children.factory.recycle_pool(inherited);
+                    for index in 0..children.count {
+                        let mut child = children
+                            .factory
+                            .make_one(&connection, index, &cache, &pool)
+                            .await?;
+                        if !relation.save(parent, &mut child).await? {
+                            return Err(DatabaseError::InvalidQuery(
+                                "factory child creation cancelled",
+                            ));
+                        }
+                        children
+                            .factory
+                            .complete(&connection, &mut child, &pool)
+                            .await?;
                     }
-                    children.factory.complete(&connection, &mut child).await?;
-                }
-                Ok(())
-            })
-        }));
+                    Ok(())
+                })
+            }));
         self
     }
 
@@ -134,28 +193,35 @@ impl<M: Model> Factory<M> {
         owner: Factory<R>,
     ) -> Self {
         let relation = Arc::new((relation, owner));
-        self.parents.push(Box::new(move |connection, model, cache| {
-            let relation = Arc::clone(&relation);
-            Box::pin(async move {
-                let (relation, owner) = &*relation;
-                let owner = cache
-                    .get_or_try_init(|| async {
-                        let connection = related_connection::<R>(connection)?;
-                        let model = owner.createOn(&connection).await?;
-                        Ok::<Box<dyn Any + Send + Sync>, DatabaseError>(Box::new(model))
-                    })
-                    .await?;
-                let owner = owner.downcast_ref::<R>().expect("factory owner cache type");
-                relation.associate(model, owner)
-            })
-        }));
+        self.parents
+            .push(Box::new(move |connection, model, cache, inherited| {
+                let relation = Arc::clone(&relation);
+                Box::pin(async move {
+                    let (relation, owner) = &*relation;
+                    let owner = cache
+                        .get_or_try_init(|| async {
+                            let connection = related_connection::<R>(connection)?;
+                            let pool = owner.recycle_pool(inherited);
+                            if let Some(model) = recycled_owner::<R>(&pool, &connection) {
+                                return Ok(model);
+                            }
+                            let model = owner
+                                .create_one(&connection, 0, &owner.parent_cache(), &pool)
+                                .await?;
+                            Ok::<SharedModel, DatabaseError>(Arc::new(model))
+                        })
+                        .await?;
+                    let owner = owner.downcast_ref::<R>().expect("factory owner cache type");
+                    relation.associate(model, owner)
+                })
+            }));
         self
     }
 
     #[must_use]
     pub fn forExisting<R: Model>(mut self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
         let relation = Arc::new((relation, owner));
-        self.parents.push(Box::new(move |_, model, _| {
+        self.parents.push(Box::new(move |_, model, _, _| {
             let relation = Arc::clone(&relation);
             Box::pin(async move { relation.0.associate(model, &relation.1) })
         }));
@@ -170,25 +236,26 @@ impl<M: Model> Factory<M> {
         pivot: Attributes,
     ) -> Self {
         let relation = Arc::new((relation.into(), models, pivot));
-        self.children.push(Box::new(move |connection, parent| {
-            let relation = Arc::clone(&relation);
-            Box::pin(async move {
-                let (relation, models, pivot) = &*relation;
-                let connection = related_connection::<R>(connection)?;
-                let models = models.createOn(&connection).await?;
-                let keys = models
-                    .iter()
-                    .map(|model| {
-                        model
-                            .getAttribute(relation.related_key())
-                            .filter(|key| !matches!(key, Value::Null))
-                            .cloned()
-                            .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
-                    })
-                    .collect::<DatabaseResult<Vec<_>>>()?;
-                relation.attachWith(parent, &keys, pivot.clone()).await
-            })
-        }));
+        self.children
+            .push(Box::new(move |connection, parent, inherited| {
+                let relation = Arc::clone(&relation);
+                Box::pin(async move {
+                    let (relation, models, pivot) = &*relation;
+                    let connection = related_connection::<R>(connection)?;
+                    let models = models.create_with_pool(&connection, inherited).await?;
+                    let keys = models
+                        .iter()
+                        .map(|model| {
+                            model
+                                .getAttribute(relation.related_key())
+                                .filter(|key| !matches!(key, Value::Null))
+                                .cloned()
+                                .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
+                        })
+                        .collect::<DatabaseResult<Vec<_>>>()?;
+                    relation.attachWith(parent, &keys, pivot.clone()).await
+                })
+            }));
         self
     }
 
@@ -198,7 +265,8 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.make_one(connection, 0, &self.parent_cache()).await
+        self.make_one(connection, 0, &self.parent_cache(), &self.recycled)
+            .await
     }
 
     pub async fn create(&self) -> DatabaseResult<M> {
@@ -207,7 +275,8 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.create_one(connection, 0, &self.parent_cache()).await
+        self.create_one(connection, 0, &self.parent_cache(), &self.recycled)
+            .await
     }
 
     fn parent_cache(&self) -> Vec<ParentCache> {
@@ -219,6 +288,7 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         index: usize,
         cache: &[ParentCache],
+        pool: &[RecycledModel],
     ) -> DatabaseResult<M> {
         let mut attributes = (self.definition)();
         for state in &self.states {
@@ -228,7 +298,7 @@ impl<M: Model> Factory<M> {
         let mut model = M::from_state(Default::default());
         model.state_mut().connection = Some(connection.clone());
         for (parent, cache) in self.parents.iter().zip(cache) {
-            parent(connection, &mut model, cache).await?;
+            parent(connection, &mut model, cache, pool).await?;
         }
         // Parent keys provide defaults. Factory states and explicit overrides can replace them.
         let mut raw = model.state().attributes.clone();
@@ -254,20 +324,26 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         index: usize,
         cache: &[ParentCache],
+        pool: &[RecycledModel],
     ) -> DatabaseResult<M> {
-        let mut model = self.make_one(connection, index, cache).await?;
+        let mut model = self.make_one(connection, index, cache, pool).await?;
         if !model.save().await? {
             return Err(DatabaseError::InvalidQuery(
                 "factory model creation cancelled",
             ));
         }
-        self.complete(connection, &mut model).await?;
+        self.complete(connection, &mut model, pool).await?;
         Ok(model)
     }
 
-    async fn complete(&self, connection: &Connection, model: &mut M) -> DatabaseResult<()> {
+    async fn complete(
+        &self,
+        connection: &Connection,
+        model: &mut M,
+        pool: &[RecycledModel],
+    ) -> DatabaseResult<()> {
         for child in &self.children {
-            child(connection, model).await?;
+            child(connection, model, pool).await?;
         }
         for callback in &self.after_creating {
             callback(model)?;
@@ -291,6 +367,19 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    #[must_use]
+    pub fn recycle<R: Model>(self, model: R) -> Self {
+        self.recycleMany([model])
+    }
+
+    #[must_use]
+    pub fn recycleMany<R: Model>(self, models: impl IntoIterator<Item = R>) -> Self {
+        Self {
+            factory: self.factory.recycleMany(models),
+            count: self.count,
+        }
+    }
+
     pub async fn make(&self) -> DatabaseResult<Collection<M>> {
         self.makeOn(&DB::connection(M::metadata().connection)?)
             .await
@@ -300,7 +389,11 @@ impl<M: Model> FactoryBatch<M> {
         let mut models = Vec::with_capacity(self.count);
         let cache = self.factory.parent_cache();
         for index in 0..self.count {
-            models.push(self.factory.make_one(connection, index, &cache).await?);
+            models.push(
+                self.factory
+                    .make_one(connection, index, &cache, &self.factory.recycled)
+                    .await?,
+            );
         }
         Ok(M::newCollection(models))
     }
@@ -311,10 +404,23 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
+        self.create_with_pool(connection, &[]).await
+    }
+
+    async fn create_with_pool(
+        &self,
+        connection: &Connection,
+        inherited: &[RecycledModel],
+    ) -> DatabaseResult<Collection<M>> {
+        let pool = self.factory.recycle_pool(inherited);
         let mut models = Vec::with_capacity(self.count);
         let cache = self.factory.parent_cache();
         for index in 0..self.count {
-            models.push(self.factory.create_one(connection, index, &cache).await?);
+            models.push(
+                self.factory
+                    .create_one(connection, index, &cache, &pool)
+                    .await?,
+            );
         }
         Ok(M::newCollection(models))
     }
