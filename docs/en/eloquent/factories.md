@@ -478,6 +478,8 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
+    let pending = seed();
+    assert_eq!(pending.await?.len(), 2);
     assert_eq!(seed().await?.len(), 2);
     Ok(())
 }

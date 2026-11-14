@@ -93,6 +93,14 @@ Rust 1.94.0 通过 `cargo fmt --all --check`、`cargo clippy --workspace --all-t
 
 `./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。站点构建仍报告分块超过 500 kB 的提示。 验收后清理本批独占的 2.2 GiB Cargo 产物和约 38 MiB 站点产物，项目卷剩余 83 GiB。
 
+### 当前主线恢复复验
+
+隔离基线 `46630b49`。全量 Seeder 首轮复验发现延迟属性与模型主键／关系缓存用例遗留 `seed_factory_children` 和 `seed_factory_owners`，导致三个后续用例建表失败。给两项回归补齐测试表清理后，在全新的 MySQL 8.4.13 容器重跑 `cargo test --workspace --locked --test seeding --test eloquent_factories -- --test-threads=1`，49 项 Seeder 和 2 项 MySQL／SQLite 工厂回归通过。另用独立 MySQL 实例实际执行 `mysql_fresh_seeds_the_selected_database`。
+
+使用实际应用二进制运行 `main artisan db:seed --database=mysql --force`。单条预构造、默认批量、逐条覆盖和零条批量均未写入目标表，默认批量消耗计数后回到一条。调用 `lazy` 并取得 Future 时仍为零行。两次批量、两次单条执行后按顺序回查到六条记录。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy 和 `./artisan inspire` 通过。三语示例展示创建 Future 后再等待及重复调用，均编译通过。VitePress 构建和双挂载六项浏览器检查通过，保留已有分块大小提示。已恢复隔离副本的原始 Seeder，清理 2.2 GiB Cargo 产物和 38 MiB 站点产物，项目卷剩余 82 GiB。05-04 的 Faker provider 差异继续跟踪。
+
 ## 逐项序列与笛卡尔积序列
 
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)

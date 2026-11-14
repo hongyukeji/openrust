@@ -5055,6 +5055,8 @@ async fn verify_deferred_factory_attributes(connection: &Connection) -> Database
         3
     );
     assert_eq!(connection.table("seed_factory_owners").count("*").await?, 1);
+    schema.drop("seed_factory_children").await?;
+    schema.drop("seed_factory_owners").await?;
     Ok(())
 }
 
@@ -5160,6 +5162,8 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
         connection.table("seed_factory_children").count("*").await?,
         2
     );
+    schema.drop("seed_factory_children").await?;
+    schema.drop("seed_factory_owners").await?;
     Ok(())
 }
 
