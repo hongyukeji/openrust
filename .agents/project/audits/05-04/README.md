@@ -288,3 +288,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 FakerPHP 1.24.1 Address、Person 及地区 provider。接通 streetAddress、address、buildingNumber、secondaryAddress、cityPrefix、citySuffix、streetSuffix、country、state、stateAbbr 和三种称谓入口。组合器覆盖美国、法国、简体及繁体中文的地址排列。邮编对齐美国五位或九位与简体中文的六位格式。复用 OpenRust 的 fake-rs 城市、街道和部分组件目录，地址样本可含独立抽取的城市和区。Rust 用 Option 表达省略称谓组，不同 formatter 保持独立 unique 历史。上游数据附 MIT 声明。v0.x 未发现对应 Faker 入口，Goravel 启动装配未涉及。 [FakerPHP Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Address.php#L84) · [FakerPHP Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Person.php#L113)
 
 隔离基线 `6acdb796`。PHP 8.5.12 和 Rust 各验证四种地区的 64 组地址契约及简繁称谓。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查三种地址和称谓，保留中文及美式换行。Rust 1.94.0 格式、全目标严格 Clippy、17 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。地区性别名字、新地区地址规则及坐标生成器继续跟踪。
+
+## Faker 按性别生成名字
+
+对照固定 FakerPHP 1.24.1 Person。接通 firstNameMale、firstNameFemale、firstNameWithGender 和 nameWithGender，使用 13 个地区的固定名字词库和加权全名模板。未识别分组按上游随机取样。繁体中文名字按上游有放回取一个或两个字符。Rust 保留已有无参方法并共享对应 unique 历史，姓氏继续使用 fake-rs 数据，未覆盖地区使用英语名字词库和模板。荷兰语及土耳其语全名复用对应称谓组。目录保留上游 MIT 声明。v0.x 未发现等价 Faker 入口，Goravel 装配未涉及。 [FakerPHP Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Person.php#L48)
+
+隔离基线 `fcb6d868`。PHP 8.5.12 执行固定生成器，并逐项比对 13 个地区的 9,185 条名字数据及全名模板、前后缀。Rust 回归覆盖 13 个地区、英文回退、简繁中文字符、显式分组和 unique。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查简体、繁体和英文全名。Rust 1.94.0 格式、工作区全目标严格 Clippy、18 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。Address 的坐标及其余地区规则继续跟踪。

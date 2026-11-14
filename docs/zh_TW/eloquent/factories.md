@@ -98,6 +98,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("contact".into(), faker.safeEmail().into()),
             ("phone".into(), faker.e164PhoneNumber().into()),
             ("address".into(), faker.address().into()),
+            ("display_name".into(), faker.nameWithGender(Some("female")).into()),
         ]))
     })
 }
@@ -146,6 +147,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
 用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的 FakerPHP 排列規則。城市、街道和部分地址元件仍使用 fake-rs 資料。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+
+### 依性別產生名字 {#given-names-by-gender}
+
+用 `firstNameMale()` 或 `firstNameFemale()` 從對應的 FakerPHP 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。既有無參數 `name()` 和 `firstName()` 沿用原本的資料來源，並與具分組的方式共用各自的 `unique` 歷史。
 
 ## 使用工廠建立模型
 

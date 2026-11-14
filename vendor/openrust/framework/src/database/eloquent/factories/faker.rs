@@ -1,5 +1,6 @@
 use super::{
-    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_phone, regex_pattern::RegexPattern,
+    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_person, faker_phone,
+    regex_pattern::RegexPattern,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -468,6 +469,78 @@ impl Faker {
         }
     }
 
+    pub fn firstNameMale(&self) -> String {
+        self.sample_given_name(faker_person::catalog(self.locale()).male)
+    }
+
+    pub fn firstNameFemale(&self) -> String {
+        self.sample_given_name(faker_person::catalog(self.locale()).female)
+    }
+
+    pub fn firstNameWithGender(&self, gender: Option<&str>) -> String {
+        match gender {
+            Some("male") => self.firstNameMale(),
+            Some("female") => self.firstNameFemale(),
+            _ if self.boolean(None) => self.firstNameMale(),
+            _ => self.firstNameFemale(),
+        }
+    }
+
+    pub fn nameWithGender(&self, gender: Option<&str>) -> String {
+        let catalog = faker_person::catalog(self.locale());
+        let formats = match gender {
+            Some("male") => catalog.male_formats,
+            Some("female") => catalog.female_formats,
+            _ => {
+                let index =
+                    fastrand::usize(..catalog.male_formats.len() + catalog.female_formats.len());
+                if let Some(format) = catalog.male_formats.get(index) {
+                    return self.render_person_name(format, catalog);
+                }
+                return self.render_person_name(
+                    catalog.female_formats[index - catalog.male_formats.len()],
+                    catalog,
+                );
+            }
+        };
+        let format = formats[fastrand::usize(..formats.len())];
+        self.render_person_name(format, catalog)
+    }
+
+    fn sample_given_name(&self, names: &[&str]) -> String {
+        let first = names[fastrand::usize(..names.len())];
+        if self.locale() == "zh_TW" && self.boolean(None) {
+            return format!("{first}{}", names[fastrand::usize(..names.len())]);
+        }
+        first.to_owned()
+    }
+
+    fn render_person_name(&self, mut format: &str, catalog: &faker_person::PersonNames) -> String {
+        let mut name = String::new();
+        while let Some((literal, token)) = format.split_once("{{") {
+            let (token, remaining) = token.split_once("}}").expect("fixed Faker name template");
+            name.push_str(literal);
+            match token {
+                "firstNameMale" => name.push_str(&self.firstNameMale()),
+                "firstNameFemale" => name.push_str(&self.firstNameFemale()),
+                "lastName" => name.push_str(&self.lastName()),
+                "titleMale" => name.push_str(self.titleMale()),
+                "titleFemale" => name.push_str(self.titleFemale()),
+                "title" => name.push_str(self.title(None)),
+                "prefix" => {
+                    name.push_str(catalog.prefixes[fastrand::usize(..catalog.prefixes.len())])
+                }
+                "suffix" => {
+                    name.push_str(catalog.suffixes[fastrand::usize(..catalog.suffixes.len())])
+                }
+                _ => unreachable!("fixed Faker name template token"),
+            }
+            format = remaining;
+        }
+        name.push_str(format);
+        name
+    }
+
     pub fn title(&self, gender: Option<&str>) -> &'static str {
         match gender {
             Some("male") => self.titleMale(),
@@ -479,6 +552,8 @@ impl Faker {
 
     pub fn titleMale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "nl_NL" => faker_person::NL_NL_TITLES,
+            "tr_TR" => faker_person::TR_TR_TITLES,
             "ar_SA" => &["السيد", "الأستاذ", "الدكتور", "المهندس"],
             "de_DE" => &["Herr", "Herr Dr.", "Herr Prof.", "Herr Prof. Dr."],
             "fa_IR" => &["آقای", "استاد", "دکتر", "مهندس"],
@@ -495,6 +570,8 @@ impl Faker {
 
     pub fn titleFemale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
+            "nl_NL" => faker_person::NL_NL_TITLES,
+            "tr_TR" => faker_person::TR_TR_TITLES,
             "ar_SA" => &["السيدة", "الآنسة", "الدكتورة", "المهندسة"],
             "de_DE" => &["Frau", "Frau Dr.", "Frau Prof.", "Frau Prof. Dr."],
             "fa_IR" => &["خانم", "استاد", "دکتر", "مهندس"],
@@ -1502,6 +1579,22 @@ impl UniqueFaker<'_> {
 
     pub fn titleFemale(&self) -> DatabaseResult<&'static str> {
         self.generate("titleFemale", || self.0.titleFemale())
+    }
+
+    pub fn firstNameMale(&self) -> DatabaseResult<String> {
+        self.generate("firstNameMale", || self.0.firstNameMale())
+    }
+
+    pub fn firstNameFemale(&self) -> DatabaseResult<String> {
+        self.generate("firstNameFemale", || self.0.firstNameFemale())
+    }
+
+    pub fn firstNameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.generate("firstName", || self.0.firstNameWithGender(gender))
+    }
+
+    pub fn nameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.generate("name", || self.0.nameWithGender(gender))
     }
 
     pub fn title(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {

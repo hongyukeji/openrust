@@ -98,6 +98,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("contact".into(), faker.safeEmail().into()),
             ("phone".into(), faker.e164PhoneNumber().into()),
             ("address".into(), faker.address().into()),
+            ("display_name".into(), faker.nameWithGender(Some("female")).into()),
         ]))
     })
 }
@@ -146,6 +147,10 @@ Use `phoneNumber()` for localized display numbers. Simplified and traditional Ch
 ### Postal Addresses and Titles {#address-and-title-samples}
 
 Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective FakerPHP layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+
+### Given Names by Gender {#given-names-by-gender}
+
+Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding FakerPHP catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates. The existing no-argument `name()` and `firstName()` keep their data sources. Their gender-selecting variants share the corresponding `unique` history.
 
 ## Creating Models Using Factories
 

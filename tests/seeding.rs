@@ -2429,3 +2429,44 @@ fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<(
     assert!(tw.unique(true).titleMale().is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    for locale in [
+        "ar_SA", "de_DE", "fa_IR", "fr_FR", "it_IT", "ja_JP", "nl_NL", "pt_BR", "pt_PT", "tr_TR",
+        "zh_CN", "zh_TW", "en_US", "cy_GB",
+    ] {
+        let faker = Faker::new(locale)?;
+        for _ in 0..64 {
+            assert!(!faker.firstNameMale().is_empty());
+            assert!(!faker.firstNameFemale().is_empty());
+            for gender in [Some("male"), Some("female"), None, Some("other")] {
+                let name = faker.nameWithGender(gender);
+                assert!(!name.trim().is_empty());
+                if matches!(locale, "zh_CN" | "zh_TW") {
+                    assert!(name.chars().all(|character| !character.is_ascii()));
+                }
+            }
+        }
+    }
+
+    let faker = Faker::new("zh-Hant-TW")?;
+    let unique = faker.unique(false);
+    let names = (0..64)
+        .map(|_| unique.firstNameWithGender(Some("female")))
+        .collect::<DatabaseResult<std::collections::HashSet<_>>>()?;
+    assert_eq!(names.len(), 64);
+    assert!(
+        names
+            .iter()
+            .all(|name| (1..=2).contains(&name.chars().count()))
+    );
+    assert!(unique.firstNameMale().is_ok());
+    assert!(unique.firstNameFemale().is_ok());
+    assert!(unique.nameWithGender(Some("male")).is_ok());
+    assert!(unique.name().is_ok());
+    assert!(faker.unique(true).firstNameWithGender(None).is_ok());
+    Ok(())
+}

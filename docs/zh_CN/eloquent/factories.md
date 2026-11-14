@@ -98,6 +98,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("contact".into(), faker.safeEmail().into()),
             ("phone".into(), faker.e164PhoneNumber().into()),
             ("address".into(), faker.address().into()),
+            ("display_name".into(), faker.nameWithGender(Some("female")).into()),
         ]))
     })
 }
@@ -146,6 +147,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 邮寄地址和称谓 {#address-and-title-samples}
 
 用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的 FakerPHP 排列规则。城市、街道和部分地址组件仍使用 fake-rs 数据。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。
+
+### 按性别生成名字 {#given-names-by-gender}
+
+用 `firstNameMale()` 或 `firstNameFemale()` 从对应的 FakerPHP 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。现有无参 `name()` 和 `firstName()` 沿用原有数据来源，并与带分组的方法共享各自的 `unique` 历史。
 
 ## 使用工厂创建模型
 

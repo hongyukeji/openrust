@@ -35,6 +35,7 @@ type Relationship<M> = dyn for<'a> Fn(
 mod faker;
 mod faker_address;
 mod faker_miscellaneous;
+mod faker_person;
 mod faker_phone;
 mod regex_pattern;
 mod relationships;
