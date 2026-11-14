@@ -883,6 +883,18 @@ fn belgian_rrn_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Person Name Prefixes and Suffixes {#person-name-prefixes-and-suffixes}
+
+Use `prefix()` and `suffix()` with a locale that provides those formatters. The default `en-US` provider supports `suffix()` and uses the same suffix catalog in full names. Italian `it-IT` and `it-CH` return `None` for the upstream null. Armenian and Taiwanese Mandarin return `Some("")`. Unsupported locales return an error. Both methods support `unique()`, including the null or empty result once per uniqueness history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
+    Ok((fake(Some("fr-FR"))?.prefix()?, fake(None)?.suffix()?))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

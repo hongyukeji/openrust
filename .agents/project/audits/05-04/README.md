@@ -1082,3 +1082,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `654b5415`。PHP 8.5 校验 512 组姓名、128 组 RRN。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 512 个值，核对姓名、出生日期范围、两个世纪的校验位、序号和文档示例。55 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批对账固定 Person provider 的地区专用接口及默认英语边界。
+
+## Faker Person 姓名前缀、后缀及默认英语复核
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)和 [FakerPHP v1.24.1 Person](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)。核对 24 个地区／formatter 组合，包括瑞士德语、法语和意大利语继承。公开 `prefix()`、`suffix()` 复用现有全名词表。意大利语后缀的 null 表达为 None，亚美尼亚语、台湾华语的空字符串表达为 Some，去重按不同值编码。默认 en-US 的名字、姓氏及全名模板已有实现，实际验证配置作用域。v0.x 无对应 formatter，编译式装配无需调整。
+
+隔离基线 `d4bf0405`。PHP 8.5 校验 512 组默认英语姓名和 768 个前后缀样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 1,152 个值，其中包含 768 个前后缀值与 384 个默认姓名值，核对模板、目录及文档示例。56 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。后续补齐日语 Kana 姓名及仍缺的地区证件 formatter。

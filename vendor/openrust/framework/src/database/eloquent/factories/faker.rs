@@ -1060,6 +1060,39 @@ impl Faker {
         name
     }
 
+    /// Samples a name prefix from the selected Person provider.
+    pub fn prefix(&self) -> DatabaseResult<&'static str> {
+        let catalog = match self.locale() {
+            "ar_EG" | "ar_JO" | "ar_SA" | "fr_CH" | "fr_FR" | "nl_NL" => {
+                faker_person::catalog(self.locale()).prefixes
+            }
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker name prefix locale",
+                ));
+            }
+        };
+        Ok(catalog[fastrand::usize(..catalog.len())])
+    }
+
+    /// Samples a name suffix, including the upstream null and empty-string values.
+    pub fn suffix(&self) -> DatabaseResult<Option<&'static str>> {
+        let catalog = match self.locale() {
+            "it_CH" | "it_IT" => return Ok(None),
+            "hy_AM" | "zh_TW" => return Ok(Some("")),
+            "de_AT" | "de_CH" | "de_DE" | "en_US" | "es_AR" | "es_ES" | "es_PE" | "es_VE"
+            | "hu_HU" | "id_ID" | "nl_NL" | "pt_BR" | "sk_SK" | "th_TH" => {
+                faker_person::catalog(self.locale()).suffixes
+            }
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker name suffix locale",
+                ));
+            }
+        };
+        Ok(Some(catalog[fastrand::usize(..catalog.len())]))
+    }
+
     pub fn title(&self, gender: Option<&str>) -> &'static str {
         if self.locale() == "sl_SI" {
             let titles = faker_person::SLOVENIAN_TITLES;
@@ -2786,6 +2819,14 @@ impl UniqueFaker<'_> {
 
     pub fn nameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.generate("name", || self.0.nameWithGender(gender))
+    }
+
+    pub fn prefix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("prefix", || self.0.prefix())
+    }
+
+    pub fn suffix(&self) -> DatabaseResult<Option<&'static str>> {
+        self.generate_keyed("suffix", || self.0.suffix(), faker_json_key)
     }
 
     pub fn title(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {

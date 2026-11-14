@@ -2786,3 +2786,39 @@ fn belgian_dutch_person_uses_pinned_names_and_rrn_rules() {
     }
     assert!(fake(Some("nl-NL")).unwrap().rrn(None).is_err());
 }
+
+#[test]
+fn person_affixes_support_inherited_values_null_and_empty_strings() {
+    let english = fake(None).unwrap();
+    let unique = english.unique(true);
+    let expected = [
+        "Jr.", "Sr.", "I", "II", "III", "IV", "V", "MD", "DDS", "PhD", "DVM",
+    ];
+    let mut suffixes = std::collections::HashSet::new();
+    for _ in expected {
+        let suffix = unique.suffix().unwrap().unwrap();
+        assert!(expected.contains(&suffix));
+        assert!(suffixes.insert(suffix));
+    }
+    assert!(unique.suffix().is_err());
+    assert!(english.prefix().is_err());
+
+    for locale in ["fr-FR", "fr-CH"] {
+        let faker = fake(Some(locale)).unwrap();
+        assert!(["de", "de la", "Le", "du"].contains(&faker.prefix().unwrap()));
+    }
+    assert!(fake(Some("fr-BE")).unwrap().prefix().is_err());
+
+    for (locale, value) in [
+        ("it-IT", None),
+        ("it-CH", None),
+        ("hy-AM", Some("")),
+        ("zh-TW", Some("")),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        assert_eq!(unique.suffix().unwrap(), value);
+        assert!(unique.suffix().is_err());
+    }
+    assert!(fake(Some("en-SG")).unwrap().suffix().is_err());
+}

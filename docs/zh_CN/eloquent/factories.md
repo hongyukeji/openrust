@@ -883,6 +883,18 @@ fn belgian_rrn_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 姓名前缀和后缀 {#person-name-prefixes-and-suffixes}
+
+在提供对应格式化器的地区使用 `prefix()` 和 `suffix()`。默认 `en-US` 提供 `suffix()`，与全名模板共用后缀词表。意大利语 `it-IT` 和 `it-CH` 的上游空值以 `None` 返回，亚美尼亚语和台湾华语返回 `Some("")`。不支持该接口的地区返回错误。两个方法均支持 `unique()`，每次去重历史中空值或空字符串各只能返回一次。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
+    Ok((fake(Some("fr-FR"))?.prefix()?, fake(None)?.suffix()?))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
