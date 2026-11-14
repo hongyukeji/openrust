@@ -1234,3 +1234,13 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `c2e61b7a`。固定 PHP 8.5 校验 768 个样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读 770 个值，包含三语共用示例。73 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。回归核对埃及名字词表的 14 个唯一值及不可用地区错误。既有 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复，清理本批独占 Cargo 与站点产物。05-04 继续核对固定 DateTime 地区入口和其余未对账 Provider。
+
+## 恢复后复验 makeOne、makeMany 与 lazy
+
+隔离基线 `fd1e9623`。复核固定 Laravel 的 [Factory::lazy、makeOne 与 makeMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L357)。v0.x 未提供对应的同名接口。本批沿用现有实现，Rust 的批量接口返回集合，`lazy` 返回可重复调用的异步回调，写入从等待 Future 时开始。
+
+实际 MySQL 8.4.13 使用 `main artisan db:seed --database=mysql --force`。`makeOne` 返回未保存的模型并保留工厂数量，随后两次默认 `makeMany` 依次返回两条和一条。显式属性按输入顺序生效，零条返回空集合，预构造后目标表为零行。调用单条与批量 `lazy` 取得 Future 后目标表仍为零行，等待两种回调各两次后依序回读四条批量记录与两条单条记录。
+
+Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／SQLite 两项工厂回归及 `./artisan inspire` 通过。MySQL 的清库回归使用独立测试库。原基线的 Sanctum 测试排版差异仅在隔离副本处理，随后格式检查通过。三语示例增加批量属性覆盖后的未保存断言和单条回调重复调用，均通过编译。VitePress 构建及根路径与 `/docs/` 下六项浏览器验收通过。
+
+临时 Seeder 已恢复，MySQL 验收容器已移除。清理本批独占 Cargo 产物 2.3 GiB 和站点产物约 40 MiB。提交前周额度剩余 41%，项目卷可用 78 GiB。05-04 其余 Faker 地区和 formatter 继续跟踪。

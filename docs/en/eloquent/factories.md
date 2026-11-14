@@ -1230,6 +1230,8 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
         Attributes::from([("name".into(), "Evening flight".into())]),
     ]);
     let custom = previews.makeMany(names).await?;
+    assert_eq!(custom.len(), 2);
+    assert!(custom.iter().all(|model| !model.state().exists()));
     assert_eq!(custom[0].getAttribute("name"), Some(&"Morning flight".into()));
     assert_eq!(custom[1].getAttribute("name"), Some(&"Evening flight".into()));
 
@@ -1241,6 +1243,8 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
     let single = factory();
     let seed_one = single.lazy(Attributes::new());
+    let pending_one = seed_one();
+    assert!(pending_one.await?.state().exists());
     assert!(seed_one().await?.state().exists());
     Ok(())
 }
