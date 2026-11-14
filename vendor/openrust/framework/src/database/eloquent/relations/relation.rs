@@ -495,7 +495,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                     .select_one(self.configure(prepare(R::queryOn(&connection)))?)?
                     .restrict_relation(self.related, batch);
                 for model in query
-                    .get_with_transaction(transaction.as_deref_mut())
+                    .get_models_with_transaction(transaction.as_deref_mut())
                     .await?
                 {
                     if let Some(key) = dictionary_key(model.getAttribute(self.related))? {

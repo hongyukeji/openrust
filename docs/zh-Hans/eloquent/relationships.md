@@ -524,7 +524,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 }
 ```
 
-使用 `getRelation::<Vec<Arc<Post>>>("posts")` 读取已加载文章。单条关系使用 `Option<Arc<T>>`。关系名不存在表示尚未加载。多个父模型引用同一个关联模型时，通过 `Arc` 共享。使用模型或集合的 `load` 延后加载，使用集合的 `loadMissing` 保留已加载结果。
+使用 `getRelation::<RelatedCollection<Post>>("posts")` 读取已加载文章。多值关系对每个父模型调用关联模型的 `newCollection`，用 `keys` 和 `getByKey` 访问集合键。非列表键在 JSON 中保留为对象键。集合持有 `Arc<T>` 快照，调用方可以保留已加载的模型。单条关系使用 `Option<Arc<T>>`。关系名不存在表示尚未加载。查询后用 `load` 加载，用 `loadMissing` 保留已加载的结果。
 
 通过 `into_iter` 或 `toBase` 消费已启用自动预加载的集合后，移出的模型共享同批模型快照。首次访问缺失关系时批量查询。查询完成后，其他模型可通过 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的结果，无需另行加载。显式取消关系加载，或修改模型属性、连接后，下次访问会直接查询该模型。
 
@@ -858,15 +858,14 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 调用 `push` 保存模型及其缓存中已加载的关联模型。可用 `setRelation` 把编辑后的快照放入缓存。保存按关系缓存顺序执行，遇到模型取消保存或返回错误时停止，前序写入已经提交。`pushQuietly` 抑制整次遍历的模型事件。从根模型重新读取关系即可取得已保存的快照，先前持有的 `Arc` 仍指向原快照。
 
 ```rust
-use std::sync::Arc;
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Model, relations::HasMany},
+    eloquent::{Model, RelatedCollection, relations::HasMany},
 };
 
 pub async fn save_posts<P: Model, R: Model>(
     author: &mut P,
-    posts: Vec<Arc<R>>,
+    posts: RelatedCollection<R>,
 ) -> DatabaseResult<bool> {
     author.setRelation::<HasMany<P, R>>("posts", posts);
     author.push().await

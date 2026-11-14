@@ -524,7 +524,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 }
 ```
 
-Use `getRelation::<Vec<Arc<Post>>>("posts")` to read loaded posts. Singular relations use `Option<Arc<T>>`. A missing relation name means it has not been loaded. Related models are shared through `Arc` when several parents reference them. Use `load` on a model or collection to load after retrieval, and `loadMissing` on a collection to preserve previously loaded values.
+To read loaded posts, use `getRelation::<RelatedCollection<Post>>("posts")`. Multi-model relations invoke the related model’s `newCollection` for each parent. The resulting keys are available via `keys` and `getByKey`, and non-list keys are preserved in JSON objects. The collection holds `Arc<T>` snapshots so callers can retain a loaded model. Singular relations use `Option<Arc<T>>`. An absent relation name indicates the relation has yet to be loaded. Use `load` to load it after retrieval and `loadMissing` to preserve values already loaded.
 
 Consuming an autoload-enabled collection with `into_iter` or `toBase` lets the moved models share a batch of peer snapshots. The first missing access loads the peers together. Once it completes, the other models can read their results through `relationLoaded`, `getRelation`, and JSON serialization without another access or query. Explicitly unsetting the relationship or changing the model’s attributes or connection makes the next access query that model directly.
 
@@ -858,15 +858,14 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 Call `push` to save a model and the related models already in its cache. `setRelation` can place an edited snapshot in that cache. The save visits relations in their cache order and stops if a model cancels or returns an error. Earlier writes remain committed. `pushQuietly` suppresses model events across the traversal. Re-read the relation from the root for saved snapshots. Previously retained `Arc` references still point to the original snapshots.
 
 ```rust
-use std::sync::Arc;
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Model, relations::HasMany},
+    eloquent::{Model, RelatedCollection, relations::HasMany},
 };
 
 pub async fn save_posts<P: Model, R: Model>(
     author: &mut P,
-    posts: Vec<Arc<R>>,
+    posts: RelatedCollection<R>,
 ) -> DatabaseResult<bool> {
     author.setRelation::<HasMany<P, R>>("posts", posts);
     author.push().await

@@ -460,6 +460,11 @@ impl<M: Model> Collection<M> {
         }
     }
 
+    pub(super) fn into_shared_parts(mut self) -> (Vec<Arc<M>>, Option<Vec<ArrayKey>>) {
+        let keys = self.keys.take();
+        (self.into_iter().map(Arc::new).collect(), keys)
+    }
+
     /// Builds an Eloquent collection with explicit collection keys.
     pub fn fromEntries<K: Into<ArrayKey>>(entries: impl IntoIterator<Item = (K, M)>) -> Self {
         let (keys, models) = BaseCollection::fromEntries(entries).into_iter().unzip();

@@ -524,7 +524,7 @@ pub async fn authors_with_posts(connection: &Connection) -> DatabaseResult<Colle
 }
 ```
 
-使用 `getRelation::<Vec<Arc<Post>>>("posts")` 讀取已載入文章。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。多個父模型參照同一個關聯模型時，透過 `Arc` 共用。用模型或集合的 `load` 延後載入，使用集合的 `loadMissing` 保留已載入結果。
+使用 `getRelation::<RelatedCollection<Post>>("posts")` 讀取已載入文章。多值關聯對每個父模型呼叫關聯模型的 `newCollection`，用 `keys` 和 `getByKey` 存取集合鍵。非清單鍵在 JSON 中保留為物件鍵。集合持有 `Arc<T>` 快照，呼叫端可保留已載入的模型。單筆關聯使用 `Option<Arc<T>>`。關聯名稱不存在表示尚未載入。查詢後用 `load` 載入，用 `loadMissing` 保留已載入的結果。
 
 透過 `into_iter` 或 `toBase` 消費已啟用自動預載入的集合後，移出的模型共享同批模型快照。首次存取缺少的關聯時批次查詢。查詢完成後，其他模型可透過 `relationLoaded`、`getRelation` 和 JSON 序列化直接看到各自的結果，無需另行載入。明確取消關聯載入，或修改模型屬性、連線後，下次存取會直接查詢該模型。
 
@@ -858,15 +858,14 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 呼叫 `push` 儲存模型及其快取中已載入的關聯模型。可用 `setRelation` 將編輯後的快照放入快取。儲存依關聯快取順序執行，遇到模型取消儲存或回傳錯誤時停止，先前的寫入已提交。`pushQuietly` 抑制整次遍歷的模型事件。從根模型重新讀取關聯即可取得已儲存的快照，先前持有的 `Arc` 仍指向原快照。
 
 ```rust
-use std::sync::Arc;
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Model, relations::HasMany},
+    eloquent::{Model, RelatedCollection, relations::HasMany},
 };
 
 pub async fn save_posts<P: Model, R: Model>(
     author: &mut P,
-    posts: Vec<Arc<R>>,
+    posts: RelatedCollection<R>,
 ) -> DatabaseResult<bool> {
     author.setRelation::<HasMany<P, R>>("posts", posts);
     author.push().await

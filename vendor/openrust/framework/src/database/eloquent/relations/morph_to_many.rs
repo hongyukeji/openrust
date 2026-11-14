@@ -169,7 +169,10 @@ impl<P: Model, R: Model> Relation for MorphToMany<P, R> {
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
-        Box::pin(context.push_many(output))
+        Box::pin(async move {
+            let (models, result) = context.push_many(output).await;
+            (models.map(|models| output.with_models(models)), result)
+        })
     }
 
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {

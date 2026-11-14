@@ -1,6 +1,8 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, ops::Deref, sync::Arc};
 
 use crate::database::{DatabaseError, DatabaseResult, Value};
+
+use crate::support::{ArrayKey, Collection as BaseCollection};
 
 use super::{
     Attributes, Model, RelationAggregate, RelationAggregateQuery,
@@ -26,6 +28,107 @@ pub trait RelatedModels {
         Err(DatabaseError::InvalidQuery(
             "relationship output does not support nested loading",
         ))
+    }
+}
+
+/// A keyed Eloquent relationship result backed by shared model snapshots.
+pub struct RelatedCollection<M: Model> {
+    models: Vec<Arc<M>>,
+    pub(super) keys: Option<Vec<ArrayKey>>,
+}
+
+#[allow(non_snake_case, reason = "Matches Eloquent collection access")]
+impl<M: Model> RelatedCollection<M> {
+    /// Wraps shared model snapshots for explicit relation cache assignment.
+    pub fn fromShared(models: Vec<Arc<M>>) -> Self {
+        Self { models, keys: None }
+    }
+
+    pub(super) fn from_models(models: Vec<Arc<M>>) -> Self {
+        let models = models
+            .into_iter()
+            .map(|model| {
+                Arc::try_unwrap(model)
+                    .unwrap_or_else(|shared| M::from_state(shared.state().clone()))
+            })
+            .collect();
+        let (models, keys) = M::newCollection(models).into_shared_parts();
+        Self { models, keys }
+    }
+
+    pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&M> {
+        let key = key.into().normalized();
+        match (&self.keys, key) {
+            (Some(keys), key) => keys
+                .iter()
+                .position(|candidate| *candidate == key)
+                .map(|index| self.models[index].as_ref()),
+            (None, ArrayKey::Integer(index)) => self
+                .models
+                .get(usize::try_from(index).ok()?)
+                .map(Arc::as_ref),
+            (None, ArrayKey::String(_)) => None,
+        }
+    }
+
+    pub fn keys(&self) -> BaseCollection<ArrayKey> {
+        match &self.keys {
+            Some(keys) => BaseCollection::make(keys.iter().cloned()),
+            None => BaseCollection::make((0..self.len()).map(|index| {
+                ArrayKey::Integer(i64::try_from(index).expect("collection index fits i64"))
+            })),
+        }
+    }
+
+    pub(super) fn with_models(&self, models: Vec<Arc<M>>) -> Self {
+        Self {
+            models,
+            keys: self.keys.clone(),
+        }
+    }
+}
+
+impl<M: Model> Clone for RelatedCollection<M> {
+    fn clone(&self) -> Self {
+        self.with_models(self.models.clone())
+    }
+}
+
+impl<M: Model> Deref for RelatedCollection<M> {
+    type Target = [Arc<M>];
+
+    fn deref(&self) -> &Self::Target {
+        &self.models
+    }
+}
+
+impl<M: Model> IntoIterator for RelatedCollection<M> {
+    type Item = Arc<M>;
+    type IntoIter = std::vec::IntoIter<Arc<M>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.models.into_iter()
+    }
+}
+
+impl<'a, M: Model> IntoIterator for &'a RelatedCollection<M> {
+    type Item = &'a Arc<M>;
+    type IntoIter = std::slice::Iter<'a, Arc<M>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.models.iter()
+    }
+}
+
+impl<M: Model> RelatedModels for RelatedCollection<M> {
+    type Model = M;
+
+    fn models(&self) -> &[Arc<M>] {
+        self
+    }
+
+    fn replace_models(&self, replace: impl FnMut(&Arc<M>) -> Arc<M>) -> DatabaseResult<Self> {
+        Ok(self.with_models(self.iter().map(replace).collect()))
     }
 }
 

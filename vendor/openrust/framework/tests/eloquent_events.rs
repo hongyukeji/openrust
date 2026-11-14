@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     contracts::{
         container::Container as _,
@@ -1242,18 +1243,20 @@ async fn verify_push(config: Json, id: &str) {
     let first = Arc::new(first);
     root.setRelation::<HasMany<Article, Article>>(
         "children",
-        vec![
+        RelatedCollection::fromShared(vec![
             first.clone(),
             Arc::new(new("blocked")),
             Arc::new(new("after")),
-        ],
+        ]),
     );
     root.setRelation::<BelongsTo<Article, Article>>("alias", Some(first.clone()));
     root.setRelation::<BelongsTo<Article, Article>>("empty", None);
 
     assert!(!root.push().await.unwrap());
     assert!(root.state().exists());
-    let children = root.getRelation::<Vec<Arc<Article>>>("children").unwrap();
+    let children = root
+        .getRelation::<RelatedCollection<Article>>("children")
+        .unwrap();
     assert!(children[0].state().exists());
     assert!(!children[1].state().exists());
     assert!(!children[2].state().exists());
@@ -1270,7 +1273,9 @@ async fn verify_push(config: Json, id: &str) {
         before
     );
     assert_eq!(Article::queryOn(&db).get().await.unwrap().len(), 5);
-    let children = root.getRelation::<Vec<Arc<Article>>>("children").unwrap();
+    let children = root
+        .getRelation::<RelatedCollection<Article>>("children")
+        .unwrap();
     let alias = root.getRelation::<Option<Arc<Article>>>("alias").unwrap();
     assert!(Arc::ptr_eq(&children[0], alias.as_ref().unwrap()));
     assert!(children.iter().all(|child| child.state().exists()));
@@ -1305,7 +1310,7 @@ async fn verify_push(config: Json, id: &str) {
     let mut duplicate = new("duplicate root");
     duplicate.setRelation::<HasMany<Article, Article>>(
         "children",
-        vec![Arc::new(new("first")), Arc::new(new("skipped"))],
+        RelatedCollection::fromShared(vec![Arc::new(new("first")), Arc::new(new("skipped"))]),
     );
     assert!(matches!(
         duplicate.push().await,

@@ -46,7 +46,7 @@ pub use model::Model;
 pub use named_relations::NamedRelations;
 pub use observer::Observer;
 pub use queueable::{ModelCollectionIdentifier, ModelIdentifier, QueueablePivot};
-pub use related_batch::{RelatedBatch, RelatedModels};
+pub use related_batch::{RelatedBatch, RelatedCollection, RelatedModels};
 pub use scope::Scope;
 pub use serialization::VisibilityCondition;
 pub use touches::Touches;

@@ -139,12 +139,25 @@ pub(super) fn one<M: Model>(related: &Option<Arc<M>>) -> DatabaseResult<Option<J
         .map(Some)
 }
 
-pub(super) fn many<M: Model>(related: &[Arc<M>]) -> DatabaseResult<Option<Json>> {
-    related
+pub(super) fn many<M: Model>(
+    related: &super::RelatedCollection<M>,
+) -> DatabaseResult<Option<Json>> {
+    use crate::support::ArrayKey;
+
+    let models = related
         .iter()
         .map(|model| model.toArray().map(Json::Object))
-        .collect::<DatabaseResult<Vec<_>>>()
-        .map(|models| Some(Json::Array(models)))
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    if let Some(keys) = &related.keys
+        && keys.iter().enumerate().any(|(index, key)| {
+            !matches!(key, ArrayKey::Integer(value) if usize::try_from(*value) == Ok(index))
+        })
+    {
+        return Ok(Some(Json::Object(
+            keys.iter().map(ToString::to_string).zip(models).collect(),
+        )));
+    }
+    Ok(Some(Json::Array(models)))
 }
 
 pub(super) fn snake_relation(name: &str) -> String {

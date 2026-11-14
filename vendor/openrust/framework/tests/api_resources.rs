@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
+use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     contracts::{
         config::Repository, container::Container as _, foundation::Application as _,
@@ -65,7 +66,7 @@ impl JsonResource for AccountResource {
         Conditional::insert(
             &mut fields,
             "reports",
-            Conditional::whenLoaded::<Vec<Arc<Account>>>(&self.0, "directReports")
+            Conditional::whenLoaded::<RelatedCollection<Account>>(&self.0, "directReports")
                 .map(|accounts| json!(accounts.len())),
         );
         Conditional::insert(

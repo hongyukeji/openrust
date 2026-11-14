@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     config::Repository,
     database::{
@@ -134,7 +135,7 @@ async fn verify(config: Json, id: &str) {
         .await
         .unwrap();
     assert_eq!(author.getAttribute("name"), Some(&Value::from("made")));
-    let related: Vec<Arc<Entry>> = HasMany::new("id", "author_id")
+    let related: RelatedCollection<Entry> = HasMany::new("id", "author_id")
         .constrain(|query| query.orderBy("id", "asc"))
         .getResults(&author)
         .await

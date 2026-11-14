@@ -463,7 +463,7 @@ impl ThroughJoin {
 #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
 impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
     type Parent = P;
-    type Output = Vec<Arc<R>>;
+    type Output = super::super::RelatedCollection<R>;
 
     fn attachAutoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
@@ -473,7 +473,10 @@ impl<P: Model, I: Model, R: Model> Relation for HasManyThrough<P, I, R> {
         output: &'a Self::Output,
         context: &'a mut super::PushContext,
     ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
-        Box::pin(context.push_many(output))
+        Box::pin(async move {
+            let (models, result) = context.push_many(output).await;
+            (models.map(|models| output.with_models(models)), result)
+        })
     }
 
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
@@ -510,7 +513,13 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         parents: &'a [&'a P],
         transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
-        Box::pin(self.match_many(parents, transaction, None))
+        Box::pin(async move {
+            let results = self.match_many(parents, transaction, None).await?;
+            Ok(results
+                .into_iter()
+                .map(super::super::RelatedCollection::from_models)
+                .collect())
+        })
     }
 }
 

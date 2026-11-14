@@ -11,6 +11,7 @@ use std::{
 };
 
 use axum::{extract::State, handler::Handler as _};
+use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     cache::{Ttl, rate_limiting::Limit},
     contracts::{
@@ -163,7 +164,7 @@ impl JobHandler for RestoreModels {
             assert_eq!(restored.getAttribute("label"), Some(&"updated".into()));
             assert_eq!(
                 restored
-                    .getRelation::<Vec<Arc<QueuedModel>>>("children")
+                    .getRelation::<RelatedCollection<QueuedModel>>("children")
                     .unwrap()
                     .len(),
                 2

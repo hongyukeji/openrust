@@ -660,3 +660,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 对照 Laravel 13.40.0 的批量工厂和队列标识恢复。模型工厂的 `count(...).make()` 与 `count(...).create()` 使用 `Model::newCollection` 构造结果，保留既有状态、持久化和回调顺序。队列从写连接读取模型，先按载荷重组普通模型、保留重复 ID 并省略缺失行，再构造集合并补载关联。自定义 Pivot 保留既有去重规则。Rust 由已注册模型选择构造方式，队列 JSON 契约保持原样。旧版没有同契约的集合工厂或队列模型恢复实现。 [Laravel 工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php) · [Laravel 队列恢复](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SerializesAndRestoresModelIdentifiers.php)
 
 独立 MySQL 8.4.13 定向验收覆盖批量草稿与持久化结果的自定义键，以及真实 `queue:work` 恢复的顺序、重复 ID、缺失模型、关联和自定义 Pivot 集合键。Rust 1.94.0 格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。默认 Rust 1.99 的严格 Clippy 仍报告分页和 Redis 限流两处基线以外的告警。其他数据库留待发布前验收。
+
+## 多值关系的自定义集合键
+
+对照固定 Laravel 的 HasMany、HasOneOrMany 及关联测试。直接读取、延迟加载和预加载为每个父模型构造多值结果。HasMany、MorphMany、BelongsToMany、MorphToMany 与 HasManyThrough 调用关联模型的 `newCollection`。Rust 用 `RelatedCollection<M>` 保留键和 `Arc<M>` 快照。显式赋值可用 `fromShared`，递归保存和嵌套加载替换快照时保留键。列表键序列化为数组，自定义非列表键序列化为对象。工厂可为不同父模型生成独立快照，PHP 对象引用身份仍有差异。旧版多值缓存使用 `Vec<Arc<M>>`，沿用共享快照契约。Goravel 仅用于核对编译型装配，本批无启动变更。 [Laravel 多值匹配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentHasManyTest.php)
+
+隔离 MySQL 8.4.13 验证直接读取、延迟加载、预加载、自定义键、JSON、空结果、反向缓存和查询计数。模型事件、递归保存、模型工厂、实际 TCP Resource 和真实队列 Worker 的 MySQL 定向验收通过。Rust 1.94.0 格式、全目标严格 Clippy、实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。

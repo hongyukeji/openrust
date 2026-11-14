@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     config::Repository,
     database::{
@@ -413,7 +414,7 @@ async fn verify_through_and_morph(
     }
     assert!(matches!(
         authors.all()[0]
-            .getRelation::<Vec<Arc<Comment>>>("recentComments")
+            .getRelation::<RelatedCollection<Comment>>("recentComments")
             .unwrap()[0]
             .getAttributeValue("id")
             .unwrap(),
@@ -423,7 +424,7 @@ async fn verify_through_and_morph(
         authors
             .iter()
             .map(|model| model
-                .getRelation::<Vec<Arc<Comment>>>("recentComments")
+                .getRelation::<RelatedCollection<Comment>>("recentComments")
                 .unwrap()
                 .len())
             .collect::<Vec<_>>(),
@@ -1207,7 +1208,7 @@ async fn verify_morph_relation_writeback(
         !before
             .downcast_ref::<Post>()
             .unwrap()
-            .getRelation::<Vec<Arc<Comment>>>("comments")
+            .getRelation::<RelatedCollection<Comment>>("comments")
             .unwrap()
             .is_empty()
     );
@@ -1243,7 +1244,7 @@ async fn verify_morph_relation_writeback(
         !before
             .downcast_ref::<Post>()
             .unwrap()
-            .getRelation::<Vec<Arc<Comment>>>("comments")
+            .getRelation::<RelatedCollection<Comment>>("comments")
             .unwrap()
             .is_empty()
     );
@@ -1271,7 +1272,7 @@ async fn verify_morph_relation_writeback(
     let children = nested
         .downcast_ref::<Post>()
         .unwrap()
-        .getRelation::<Vec<Arc<Comment>>>("comments")
+        .getRelation::<RelatedCollection<Comment>>("comments")
         .unwrap();
     assert!(!children.is_empty());
     assert!(
@@ -1675,11 +1676,13 @@ async fn verify_path_constraints(db: &Connection) {
         .await
         .unwrap();
     assert_eq!(loaded.len(), 1);
-    let posts = loaded[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = loaded[0]
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     let comments: Vec<_> = posts
         .iter()
         .flat_map(|post| {
-            post.getRelation::<Vec<Arc<Comment>>>("comments")
+            post.getRelation::<RelatedCollection<Comment>>("comments")
                 .unwrap()
                 .iter()
         })
@@ -1707,10 +1710,14 @@ async fn verify_model_reload_relations(db: &Connection, model: &Author) {
         .findOrFail(model.getKey().unwrap().clone())
         .await
         .unwrap();
-    let before = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let before = author
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     let cached = before[0].clone();
     author.refresh().await.unwrap();
-    let after = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let after = author
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     assert!(!Arc::ptr_eq(&cached, &after[0]));
 
     let mut tx = db.beginTransaction().await.unwrap();
@@ -1724,7 +1731,9 @@ async fn verify_model_reload_relations(db: &Connection, model: &Author) {
         .await
         .unwrap();
     author.refreshForUpdate(&mut tx).await.unwrap();
-    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = author
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     assert_eq!(
         posts
             .iter()
@@ -1774,14 +1783,19 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
         .findOrFail(1)
         .await
         .unwrap();
-    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = author
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     assert!(!posts.is_empty());
     let mut comments_count = 0;
     for post in posts {
         assert!(post.getAttribute("title").is_some());
         assert!(post.getAttribute("score").is_none());
         assert_eq!(post.getAttribute("author_id"), author.getKey());
-        for comment in post.getRelation::<Vec<Arc<Comment>>>("comments").unwrap() {
+        for comment in post
+            .getRelation::<RelatedCollection<Comment>>("comments")
+            .unwrap()
+        {
             assert_eq!(comment.getAttribute("subject_id"), post.getKey());
             assert!(comment.getAttribute("body").is_some());
             assert!(comment.getAttribute("subject_type").is_none());
@@ -1802,7 +1816,9 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
         .loadMissingPaths(&["posts:id,author_id,title"])
         .await
         .unwrap();
-    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = author
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     assert!(
         posts
             .iter()
@@ -1820,7 +1836,9 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
         .findOrFail(1)
         .await
         .unwrap();
-    let featured = joined.getRelation::<Vec<Arc<Post>>>("featured").unwrap();
+    let featured = joined
+        .getRelation::<RelatedCollection<Post>>("featured")
+        .unwrap();
     let post = featured
         .iter()
         .find(|post| post.getKey() == Some(&post_id))
@@ -1828,7 +1846,7 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
     assert!(post.getAttribute("author_id").is_none());
     assert!(post.getRelation::<Pivot>("pivot").is_some());
     let through = joined
-        .getRelation::<Vec<Arc<Comment>>>("commentsThrough")
+        .getRelation::<RelatedCollection<Comment>>("commentsThrough")
         .unwrap();
     assert!(!through.is_empty());
     assert!(
@@ -1926,7 +1944,7 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
         .iter()
         .find(|author| {
             !author
-                .getRelation::<Vec<Arc<Post>>>("posts")
+                .getRelation::<RelatedCollection<Post>>("posts")
                 .unwrap()
                 .is_empty()
         })
@@ -1953,10 +1971,13 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     }
     let mut found_comments = false;
     for author in authors.iter() {
-        for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
+        for post in author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+        {
             assert!(post.relationLoaded("author"));
             found_comments |= !post
-                .getRelation::<Vec<Arc<Comment>>>("comments")
+                .getRelation::<RelatedCollection<Comment>>("comments")
                 .unwrap()
                 .is_empty();
         }
@@ -1976,8 +1997,14 @@ async fn verify_named_paths(db: &Connection, mysql: bool) {
     }
     let mut found = false;
     for author in authors.iter() {
-        for post in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
-            for comment in post.getRelation::<Vec<Arc<Comment>>>("comments").unwrap() {
+        for post in author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+        {
+            for comment in post
+                .getRelation::<RelatedCollection<Comment>>("comments")
+                .unwrap()
+            {
                 assert!(comment.relationLoaded("post"));
                 found = true;
             }
@@ -2100,14 +2127,14 @@ async fn verify_morph_paths(db: &Connection, mysql: bool) {
         aliases.insert(target.alias());
         let len = if let Some(author) = target.downcast_ref::<Author>() {
             author
-                .getRelation::<Vec<Arc<Post>>>("details")
+                .getRelation::<RelatedCollection<Post>>("details")
                 .unwrap()
                 .len()
         } else {
             target
                 .downcast_ref::<Post>()
                 .unwrap()
-                .getRelation::<Vec<Arc<Comment>>>("details")
+                .getRelation::<RelatedCollection<Comment>>("details")
                 .unwrap()
                 .len()
         };
@@ -2517,7 +2544,9 @@ fn verify_relation_autoload(
         assert!(second.relationLoaded("posts"));
         assert!(second.getQueueableRelations().contains(&"posts".into()));
         assert!(second.toArray().unwrap()["posts"].is_array());
-        let second_posts = second.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        let second_posts = second
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap();
         let mut second_post = Post::from_state(second_posts[0].state().clone());
         assert!(empty.relationLoaded("posts"));
         assert!(
@@ -2781,13 +2810,13 @@ fn verify_default_eager_loads(
         );
         assert!(
             !models[0]
-                .getRelation::<Vec<Arc<Post>>>("posts")
+                .getRelation::<RelatedCollection<Post>>("posts")
                 .unwrap()
                 .is_empty()
         );
         assert!(
             models[2]
-                .getRelation::<Vec<Arc<Post>>>("posts")
+                .getRelation::<RelatedCollection<Post>>("posts")
                 .unwrap()
                 .is_empty()
         );
@@ -2830,7 +2859,7 @@ fn verify_default_eager_loads(
             .unwrap();
         assert!(
             explicit
-                .getRelation::<Vec<Arc<Post>>>("posts")
+                .getRelation::<RelatedCollection<Post>>("posts")
                 .unwrap()
                 .is_empty()
         );
@@ -2861,7 +2890,7 @@ fn verify_default_eager_loads(
         assert!(fresh.iter().all(|model| {
             model.relationLoaded("mentees")
                 && model
-                    .getRelation::<Vec<Arc<Post>>>("posts")
+                    .getRelation::<RelatedCollection<Post>>("posts")
                     .unwrap()
                     .is_empty()
         }));
@@ -2877,7 +2906,9 @@ fn verify_default_eager_loads(
         }
         for model in named.iter() {
             assert!(model.relationLoaded("mentees"));
-            let posts = model.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+            let posts = model
+                .getRelation::<RelatedCollection<Post>>("posts")
+                .unwrap();
             assert!(!posts.is_empty());
             assert!(
                 posts
@@ -2945,7 +2976,9 @@ fn verify_related_column_queries(db: &Connection) -> openrust::database::Databas
             .await
             .unwrap();
         assert_eq!(filtered.modelKeys(), [2.into()]);
-        let loaded = filtered[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        let loaded = filtered[0]
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap();
         assert_eq!(loaded.len(), 1);
         assert_eq!(loaded[0].getAttribute("title"), Some(&"Second post".into()));
         let mut either = Author::queryOn(db);
@@ -3884,7 +3917,7 @@ async fn verify_pivot_constraints(
     first_key: &Value,
     second_key: &Value,
 ) {
-    let ids = |posts: Vec<Arc<Post>>| {
+    let ids = |posts: RelatedCollection<Post>| {
         posts
             .iter()
             .map(|post| post.getKey().unwrap().clone())
@@ -3957,14 +3990,14 @@ async fn verify_pivot_constraints(
         .unwrap();
     assert_eq!(
         ids(owners[0]
-            .getRelation::<Vec<Arc<Post>>>("filtered")
+            .getRelation::<RelatedCollection<Post>>("filtered")
             .unwrap()
             .clone()),
         vec![second_key.clone()]
     );
     assert!(
         owners[1]
-            .getRelation::<Vec<Arc<Post>>>("filtered")
+            .getRelation::<RelatedCollection<Post>>("filtered")
             .unwrap()
             .is_empty()
     );
@@ -4022,7 +4055,9 @@ async fn verify_pivot_timestamps(db: &Connection, owner: &Author, first: &Value,
         .findOrFail(owner.getKey().unwrap().clone())
         .await
         .unwrap();
-    let posts = eager.getRelation::<Vec<Arc<Post>>>("ordered").unwrap();
+    let posts = eager
+        .getRelation::<RelatedCollection<Post>>("ordered")
+        .unwrap();
     assert_eq!(posts[0].getKey(), Some(first));
     assert_eq!(
         relation
@@ -6220,7 +6255,9 @@ async fn verify_custom_pivot(config: Json) {
         .await
         .unwrap();
     for author in eager.iter() {
-        let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        let posts = author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap();
         for post in posts {
             let pivot = post.getRelation::<Membership>("membership").unwrap();
             assert_eq!(
@@ -6279,7 +6316,9 @@ async fn verify_custom_pivot(config: Json) {
             .getRelation::<Pivot>("pivot")
             .is_some()
     );
-    let posts = eager[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = eager[0]
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     let pivot = posts
         .iter()
         .find(|post| post.getKey() == Some(&1.into()))
@@ -6479,11 +6518,48 @@ async fn verify_collection_factory(db: &Connection, author: &Author) {
     assert!(!selected.is_empty());
     assert!(selected.getByKey("post-0").is_some());
 
-    let relation = HasMany::<Author, KeyedPost>::new("id", "author_id")
-        .chaperone("author")
-        .constrain(|query| {
-            query.withAttributes(Attributes::from([("score".into(), 7.into())]), false)
-        });
+    let keyed_posts = || {
+        HasMany::<Author, KeyedPost>::new("id", "author_id")
+            .chaperone("author")
+            .constrain(|query| {
+                query.withAttributes(Attributes::from([("score".into(), 7.into())]), false)
+            })
+    };
+    let relation = keyed_posts();
+    let loaded = relation.getResults(author).await.unwrap();
+    assert!(!loaded.is_empty());
+    assert_eq!(
+        loaded.getByKey("post-0").unwrap().getKey(),
+        loaded[0].getKey()
+    );
+    let mut lazy = Author::from_state(author.state().clone());
+    assert!(
+        lazy.getRelationOrLoad("keyedLazy", &relation)
+            .await
+            .unwrap()
+            .getByKey("post-0")
+            .is_some()
+    );
+
+    let mut query = Author::queryOn(db).with("keyedEager", keyed_posts());
+    query.whereKey(author.getKey().unwrap().clone());
+    let eager = query.firstOrFail().await.unwrap();
+    let cached = eager
+        .getRelation::<RelatedCollection<KeyedPost>>("keyedEager")
+        .unwrap();
+    assert_eq!(
+        cached.getByKey("post-0").unwrap().getKey(),
+        cached[0].getKey()
+    );
+    assert!(cached[0].relationLoaded("author"));
+    assert!(
+        eager.toArray().unwrap()["keyed_eager"]
+            .get("post-0")
+            .is_some()
+    );
+    let unsaved = Author::from_state(Default::default());
+    assert!(relation.getResults(&unsaved).await.unwrap().is_empty());
+
     let models = relation
         .makeMany(
             author,
@@ -6526,7 +6602,10 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
     let author_relation = AUTHOR;
     let mut count = 0;
     for author in authors {
-        for loaded in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
+        for loaded in author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+        {
             let mut post = Post::from_state(loaded.state().clone());
             let inverse = post
                 .getRelationOrLoad("author", &author_relation)
@@ -6736,7 +6815,9 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         assert_eq!(select_count(&db).await - baseline, 3);
     }
     assert_eq!(nested.modelKeys(), vec![1.into()]);
-    let posts = nested[0].getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    let posts = nested[0]
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
     assert_eq!(posts.len(), 1);
     let parent = posts[0]
         .getRelation::<Option<Arc<Author>>>("author")
@@ -6771,7 +6852,10 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     assert_eq!(
         filtered
             .iter()
-            .map(|model| model.getRelation::<Vec<Arc<Post>>>("posts").unwrap().len())
+            .map(|model| model
+                .getRelation::<RelatedCollection<Post>>("posts")
+                .unwrap()
+                .len())
             .collect::<Vec<_>>(),
         vec![1, 1, 0],
     );
@@ -6810,7 +6894,9 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         assert_eq!(select_count(&db).await - baseline, 2);
     }
     for (author, key) in latest.iter().zip([p1.getKey(), p2.getKey()]) {
-        let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+        let posts = author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap();
         assert_eq!(posts.len(), 1);
         assert_eq!(posts[0].getKey(), key);
         assert!(posts[0].getAttribute("laravel_row").is_none());
@@ -7037,7 +7123,12 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     if mysql {
         assert_eq!(select_count(&db).await - baseline, 2);
     }
-    let related = |author: &Author| author.getRelation::<Vec<Arc<Post>>>("posts").unwrap().len();
+    let related = |author: &Author| {
+        author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+            .len()
+    };
     assert_eq!(
         authors_with_posts.iter().map(related).collect::<Vec<_>>(),
         vec![1, 1, 0]
@@ -7132,7 +7223,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     }
     assert!(matches!(
         featured.all()[0]
-            .getRelation::<Vec<Arc<Post>>>("featured")
+            .getRelation::<RelatedCollection<Post>>("featured")
             .unwrap()[0]
             .getAttributeValue("id")
             .unwrap(),
@@ -7142,7 +7233,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         featured
             .iter()
             .map(|author| author
-                .getRelation::<Vec<Arc<Post>>>("featured")
+                .getRelation::<RelatedCollection<Post>>("featured")
                 .unwrap()
                 .len())
             .collect::<Vec<_>>(),
@@ -7193,7 +7284,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         .unwrap();
     assert_eq!(nested_pivot.modelKeys(), vec![2.into()]);
     let posts = nested_pivot[0]
-        .getRelation::<Vec<Arc<Post>>>("featured")
+        .getRelation::<RelatedCollection<Post>>("featured")
         .unwrap();
     assert_eq!(posts.len(), 1);
     assert!(posts[0].relationLoaded("author"));
@@ -7252,7 +7343,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         .await
         .unwrap();
     let links = limited_pivots[0]
-        .getRelation::<Vec<Arc<Post>>>("featured")
+        .getRelation::<RelatedCollection<Post>>("featured")
         .unwrap();
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].getKey(), Some(&first_key));
@@ -7595,7 +7686,7 @@ async fn verify_dynamic_relations(config: Json) {
         .unwrap();
     for (author, id) in authors.iter().zip([1, 3]) {
         let posts = author
-            .getRelation::<Vec<Arc<Post>>>("selectedPosts")
+            .getRelation::<RelatedCollection<Post>>("selectedPosts")
             .unwrap();
         assert_eq!(posts[0].getKey(), Some(&id.into()));
     }
@@ -7647,7 +7738,10 @@ async fn verify_dynamic_fallback(
     assert_eq!(authors.len(), 1);
     assert_eq!(authors[0].getKey(), Some(&2.into()));
     assert_eq!(
-        authors[0].getRelation::<Vec<Arc<Post>>>(name).unwrap()[0].getKey(),
+        authors[0]
+            .getRelation::<RelatedCollection<Post>>(name)
+            .unwrap()[0]
+            .getKey(),
         Some(&3.into())
     );
     let outside = StrictAuthor::queryOn(other).findOrFail(2).await.unwrap();
