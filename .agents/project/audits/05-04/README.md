@@ -1002,3 +1002,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `bb4b856b`。PHP 8.5 按各 provider 的性别常量核对 1,536 组姓名、姓氏及称谓样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读三地 22 条样本。Rust 1.94.0 格式、全目标严格 Clippy、44 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译及六项浏览器检查通过。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物约 39 MiB。下一批继续核对孟加拉国、印度尼西亚、马来西亚、韩国、泰国和越南的姓名规则。
+
+## makeOne、makeMany 与 lazy 停点复验
+
+隔离基线 `e3797639`。对照固定 Laravel Factory 的 `lazy`、`makeOne` 和 `makeMany`。实际应用二进制在独立 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`。`makeOne` 和 `makeMany` 返回未保存模型，默认批量依次返回两条和一条，逐条属性覆盖按顺序生效，零条返回空集合。预构造结束后目标表零行。单条与批量 `lazy` 取得 Future 后仍为零行，两种回调分别执行两次，按主键顺序回查四条批量和两条单条记录。Rust 批量接口继续返回集合，异步写入从等待 Future 时开始。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L357)
+
+Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all --check` 发现一处既有 Sanctum 测试排版差异，仅在隔离副本格式化后复验通过。Seeder 49 项、MySQL／SQLite 工厂回归两项、`./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。三语示例补充未保存状态、批次数量和零条结果的断言。
+
+临时 Seeder 已恢复并核对基线内容。清理隔离副本独占 Cargo 产物 2.2 GiB、站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。其余 Faker 地区和 formatter 差异仍由 05-04 跟踪。

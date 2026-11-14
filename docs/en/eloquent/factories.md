@@ -881,9 +881,13 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
     });
     let previews = factory().count(2);
 
-    let _one = previews.makeOne(Attributes::new()).await?;
-    assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 2);
+    let one = previews.makeOne(Attributes::new()).await?;
+    assert!(!one.state().exists());
+    let many = previews.makeMany(FactoryRecords::Default).await?;
+    assert_eq!(many.len(), 2);
+    assert!(many.iter().all(|model| !model.state().exists()));
     assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
+    assert!(previews.makeMany(FactoryRecords::Count(0)).await?.is_empty());
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
