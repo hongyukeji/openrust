@@ -1494,3 +1494,67 @@ fn west_asian_companies_keep_regional_templates_and_components() {
         assert!(!georgia.companyNameSuffix().unwrap().is_empty());
     }
 }
+
+#[test]
+fn south_and_southeast_asian_companies_keep_pinned_formats() {
+    let bangladesh = fake(Some("bn-BD")).unwrap();
+    let indonesia = fake(Some("id-ID")).unwrap();
+    let malaysia = fake(Some("ms-MY")).unwrap();
+    let thailand = fake(Some("th-TH")).unwrap();
+    let mut names = std::collections::HashSet::new();
+
+    let company = bangladesh.unique(true);
+    for _ in 0..9 {
+        let value = company.company().unwrap();
+        let (name, kind) = value.split_once(' ').unwrap();
+        assert!(["রহিম", "করিম", "বাবলু"].contains(&name));
+        assert!(["সিমেন্ট", "সার", "ঢেউটিন"].contains(&kind));
+        assert!(names.insert(value));
+    }
+    assert!(company.company().is_err());
+    assert_eq!(bangladesh.companySuffix(), "Ltd");
+    assert!(["রহিম", "করিম", "বাবলু"].contains(&bangladesh.companyName().unwrap()));
+    assert!(["সিমেন্ট", "সার", "ঢেউটিন"].contains(&bangladesh.companyType().unwrap()));
+
+    let id_prefixes = ["PT", "Fa", "CV", "UD", "PJ", "PD", "Perum", "Yayasan"];
+    let my_suffixes = [
+        "Berhad",
+        "Bhd",
+        "Bhd.",
+        "Enterprise",
+        "Sdn Bhd",
+        "Sdn. Bhd.",
+    ];
+    let thai = Regex::new(r"^[\p{Thai} ]+ Ltd$").unwrap();
+    let slogan =
+        Regex::new(r"^(เชื่อมต่อ|สรรสร้าง|เชื่อมโยง|ส่งเสริม|เปลี่ยน|ประสาน|พัฒนา)[\p{Thai}0-9 ]+$").unwrap();
+
+    for _ in 0..128 {
+        let value = indonesia.company();
+        let (prefix, body) = value.split_once(' ').unwrap();
+        assert!(id_prefixes.contains(&prefix));
+        assert!(!body.is_empty());
+        assert!(id_prefixes.contains(&indonesia.companyPrefix().unwrap()));
+        assert!(["Tbk", "(Persero) Tbk"].contains(&indonesia.companySuffix().as_str()));
+
+        let value = malaysia.company();
+        assert!(
+            my_suffixes
+                .iter()
+                .any(|suffix| value.ends_with(&format!(" {suffix}")))
+        );
+        assert!(my_suffixes.contains(&malaysia.companySuffix().as_str()));
+        assert!(thai.is_match(&thailand.company()));
+        assert!(slogan.is_match(&thailand.slogan().unwrap()));
+    }
+
+    let unique = malaysia.unique(true);
+    assert_ne!(unique.companyName().unwrap(), unique.companyName().unwrap());
+    assert_ne!(unique.industry().unwrap(), unique.industry().unwrap());
+    let unique = thailand.unique(true);
+    assert_ne!(unique.slogan().unwrap(), unique.slogan().unwrap());
+    assert_eq!(thailand.companySuffix(), "Ltd");
+    assert!(indonesia.industry().is_err());
+    assert!(malaysia.companyType().is_err());
+    assert!(bangladesh.slogan().is_err());
+}

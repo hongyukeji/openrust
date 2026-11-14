@@ -336,10 +336,12 @@ With `ru-RU` and `kk-KZ`, company names combine a legal prefix with name element
 
 With `fa-IR`, `he-IL`, `hy-AM`, and `ka-GE`, `company()` uses the pinned regional templates and catalogs. Iranian companies can include a prefix and a business field. In this locale, `contract()` samples an employment contract type. Georgian company names use a prefix, name elements, and a name ending, which can also be sampled individually. These methods support `unique`.
 
+With `bn-BD`, `company()` combines a catalog name and type, also available from `companyName()` and `companyType()`. Indonesian companies (`id-ID`) use a legal prefix and one or two surnames, with an optional suffix. Malaysian companies (`ms-MY`) use a catalog name or an industry and a regional name. The suffix sampler preserves the upstream weights. Use `companyName()` and `industry()` independently. Thai companies (`th-TH`) use a local surname and the inherited `Ltd` suffix. Use `slogan()` for a three-part Thai slogan. These formatters support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 71]> {
+fn identity_samples() -> DatabaseResult<[String; 73]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -360,6 +362,8 @@ fn identity_samples() -> DatabaseResult<[String; 71]> {
         fake(Some("uk-UA"))?.companyName()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
         fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
+        fake(Some("ms-MY"))?.unique(false).industry()?.to_owned(),
+        fake(Some("th-TH"))?.unique(false).slogan()?,
         fake(Some("fr-CA"))?.company(),
         fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),

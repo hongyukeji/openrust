@@ -57,6 +57,9 @@ mod cyrillic;
 #[path = "faker_company_west_asian.rs"]
 mod west_asian;
 
+#[path = "faker_company_south_southeast_asian.rs"]
+mod south_southeast_asian;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4184,6 +4187,7 @@ impl Faker {
                 .or_else(|| lt_sl_tr::company(locale))
                 .or_else(|| cyrillic::company(locale))
                 .or_else(|| west_asian::company(locale))
+                .or_else(|| south_southeast_asian::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4201,6 +4205,7 @@ impl Faker {
                 .or_else(|| central::prefixes(locale))
                 .or_else(|| cyrillic::prefixes(locale))
                 .or_else(|| west_asian::prefixes(locale))
+                .or_else(|| south_southeast_asian::prefixes(locale))
                 .ok_or(DatabaseError::InvalidQuery(
                     "unsupported Faker company prefix locale",
                 ))?,
@@ -4228,25 +4233,48 @@ impl Faker {
         Ok(sample(EN_US_SUFFIXES))
     }
 
-    /// Samples a Montenegrin company name.
+    /// Samples a company name from the locale’s company catalog.
     pub fn companyName(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
             "me_ME" => Ok(balkan::company_name()),
             "uk_UA" => Ok(cyrillic::ukrainian_name()),
+            locale => south_southeast_asian::company_names(locale)
+                .map(sample)
+                .ok_or(DatabaseError::InvalidQuery(
+                    "unsupported Faker company name locale",
+                )),
+        }
+    }
+
+    /// Samples a company type from the locale’s company catalog.
+    pub fn companyType(&self) -> DatabaseResult<&'static str> {
+        match self.locale() {
+            "me_ME" => Ok(balkan::company_type()),
+            "bn_BD" => Ok(south_southeast_asian::bangladeshi_company_type()),
             _ => Err(DatabaseError::InvalidQuery(
-                "unsupported Faker company name locale",
+                "unsupported Faker company type locale",
             )),
         }
     }
 
-    /// Samples a Montenegrin company type.
-    pub fn companyType(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "me_ME" {
+    /// Samples a Malaysian industry.
+    pub fn industry(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "ms_MY" {
             return Err(DatabaseError::InvalidQuery(
-                "unsupported Faker company type locale",
+                "unsupported Faker industry locale",
             ));
         }
-        Ok(balkan::company_type())
+        Ok(south_southeast_asian::industry())
+    }
+
+    /// Generates a Thai slogan.
+    pub fn slogan(&self) -> DatabaseResult<String> {
+        if self.locale() != "th_TH" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker slogan locale",
+            ));
+        }
+        Ok(south_southeast_asian::slogan())
     }
 
     /// Samples a Turkish or Iranian company field.
@@ -4320,6 +4348,7 @@ impl Faker {
                 .or_else(|| lt_sl_tr::suffixes(locale))
                 .or_else(|| cyrillic::suffixes(locale))
                 .or_else(|| west_asian::suffixes(locale))
+                .or_else(|| south_southeast_asian::suffixes(locale))
             {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),
@@ -4353,6 +4382,14 @@ impl UniqueFaker<'_> {
 
     pub fn companyType(&self) -> DatabaseResult<&'static str> {
         self.try_generate("companyType", || self.0.companyType())
+    }
+
+    pub fn industry(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("industry", || self.0.industry())
+    }
+
+    pub fn slogan(&self) -> DatabaseResult<String> {
+        self.try_generate("slogan", || self.0.slogan())
     }
 
     pub fn companyField(&self) -> DatabaseResult<&'static str> {

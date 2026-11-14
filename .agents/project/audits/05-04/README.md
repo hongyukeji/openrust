@@ -822,7 +822,7 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 
 ### 公司格式后续验收
 
-- 尚未逐项对照的 Company 地区有 `bn_BD`、`id_ID`、`ms_MY`、`th_TH`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
+- 已核对本清单各地区的公司名称与后缀模板。通用 `jobTitle()` 及地区覆盖（含印度尼西亚职业目录）仍待接入，与 Person 和 Internet 的后续地区格式一起逐项验收。
 - 美国、法国、意大利及日本的公司模板仍复用现有姓氏生成器。Person 姓名词表和 Internet 用户名模板的地区行为需要分别核对。
 - 台湾 `companyEn()` 的上游失败已复现。继续核对固定版本的默认 provider 和可扩展 formatter 行为，再以实际运行用例确认等价入口。
 
@@ -872,3 +872,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `b815020d`。PHP 8.5 反射提取固定词表，核对 2,048 组上游公司名称和后缀。Rust 1.94.0 格式、全目标严格 Clippy、28 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查十一条样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，保留已有分块大小提示。本批公司样本写入验收使用 MySQL。
 
 隔离副本的原始 Seeder 已恢复。已清理本批独占的 2.2 GiB Cargo 构建产物及 39 MiB 站点产物。提交前可用额度窗口剩余 48%，项目卷剩余 81 GiB。后续逐项核对孟加拉国、印度尼西亚、马来西亚和泰国公司模板，Person、Internet 和台湾 companyEn 仍在验收清单跟踪。
+
+## Faker 孟加拉国、印度尼西亚、马来西亚和泰国公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 [孟加拉国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/bn_BD/Company.php)、[印度尼西亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/id_ID/Company.php)、[马来西亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Company.php)与[泰国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/th_TH/Company.php)。接入四地模板、名称词表和继承的后缀。扩展 `companyName()` 和 `companyType()` 的地区覆盖，接通 `companyPrefix()`、马来西亚 `industry()` 和泰国 `slogan()`，沿用 `unique`。Rust 静态词表保留原顺序和重复项，模板用等权分支，保持马来西亚后缀权重和姓名拼接。v0.x 未发现等价入口，现有编译式工厂装配保持原有接线。
+
+隔离基线 `9d5dccd6`。PHP 8.5 反射对照 3,429 条词表数据及继承后缀，2,048 组上游名称和后缀通过模板验证。Rust 1.94.0 格式、全目标严格 Clippy、29 项 Faker 回归、49 项 Seeder 与 MySQL 8.4.13／SQLite 两项工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查十四条公司样本。另通过 `./artisan inspire`、三语示例编译、VitePress 构建和六项浏览器检查。站点保留既有分块大小提示。
+
+隔离副本原始 Seeder 已恢复。已清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 47%，项目卷剩余 81 GiB。

@@ -336,10 +336,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `fa-IR`、`he-IL`、`hy-AM` 和 `ka-GE` 的 `company()` 使用固定上游的地区模板和词表。伊朗公司名称可包含前缀和经营领域，该地区的 `contract()` 抽样劳动合同类型。格鲁吉亚公司名称由前缀、词素和名称尾部组成，也可分别抽样。这些方法支持 `unique`。
 
+`bn-BD` 的 `company()` 组合名称和类别，也可通过 `companyName()` 和 `companyType()` 分别抽样。印度尼西亚（`id-ID`）公司名称由法定前缀和一到两个姓氏组成，部分模板附带后缀。马来西亚（`ms-MY`）使用公司名称词表，或组合行业与地区姓名，并保留上游后缀权重。可单独调用 `companyName()` 和 `industry()`。泰国（`th-TH`）使用本地姓氏和继承的 `Ltd` 后缀，`slogan()` 组合三段泰语词组。这些方法支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 71]> {
+fn identity_samples() -> DatabaseResult<[String; 73]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -360,6 +362,8 @@ fn identity_samples() -> DatabaseResult<[String; 71]> {
         fake(Some("uk-UA"))?.companyName()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
         fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
+        fake(Some("ms-MY"))?.unique(false).industry()?.to_owned(),
+        fake(Some("th-TH"))?.unique(false).slogan()?,
         fake(Some("fr-CA"))?.company(),
         fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),
