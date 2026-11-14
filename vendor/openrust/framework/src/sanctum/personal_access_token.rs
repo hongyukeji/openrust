@@ -10,8 +10,8 @@ use crate::{
     database::{Connection, DatabaseError, Row, Value, query::Record},
 };
 
-const TABLE: &str = "personal_access_tokens";
-const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
+pub(super) const TABLE: &str = "personal_access_tokens";
+pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
 /// A persisted token. Its digest is kept in storage and its secret is only returned at issuance.
 #[derive(Clone)]

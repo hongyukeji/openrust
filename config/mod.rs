@@ -19,6 +19,8 @@ mod logging;
 mod mail;
 mod queue;
 mod reverb;
+#[cfg(feature = "sanctum")]
+mod sanctum;
 mod services;
 mod session;
 mod view;
@@ -51,13 +53,7 @@ pub(crate) fn load(
         ("reverb".to_owned(), reverb::load(env)?),
         ("services".to_owned(), services::load(env)?),
         #[cfg(feature = "sanctum")]
-        (
-            "sanctum".to_owned(),
-            env.get_utf8("SANCTUM_STATEFUL_DOMAINS")?.map_or_else(
-                || serde_json::json!({}),
-                |domains| serde_json::json!({"stateful": domains}),
-            ),
-        ),
+        ("sanctum".to_owned(), sanctum::load(env)?),
         (
             "session".to_owned(),
             session::load(base_path, env, app.name)?,

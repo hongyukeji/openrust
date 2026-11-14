@@ -54,3 +54,11 @@ fn register() -> Result<(), RoutingError> {
 跨來源第一方前端須為指定來源啟用攜帶憑證的 CORS。符合設定的 Referer 或 Origin 會啟用 Session、Cookie 和 CSRF 中介軟體。Sanctum 優先檢查已驗證的工作階段，再檢查 Bearer 權杖。第一方工作階段會通過權杖能力檢查，使用者操作權限由應用程式授權策略決定。
 
 第一方請求成功記錄密碼指紋後，變更密碼會使該工作階段在下次請求時失效。若要替換前端中介軟體，先透過應用程式的 `alias` 方法註冊，再將別名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。
+
+## 清理過期權杖 {#pruning-expired-tokens}
+
+啟用 Sanctum 功能後執行以下命令。預設保留已過期權杖 24 小時。清理會檢查權杖的明確到期時間，也會檢查設定 `sanctum.expiration` 時依建立時間計算的到期時間。應用程式支援透過 `SANCTUM_EXPIRATION` 設定有效期限，單位為分鐘。
+
+```sh
+./artisan sanctum:prune-expired --hours=24
+```

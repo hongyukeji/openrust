@@ -168,6 +168,45 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
     assert!(schema.hasTable("users").await.unwrap());
     assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
     verify_token_storage(db).await;
+    db.table("personal_access_tokens").delete().await.unwrap();
+    let now = chrono::Utc::now();
+    for (name, age, expired) in [
+        ("explicit", 60, Some(30)),
+        ("young-expiry", 60, Some(2)),
+        ("old-created", 30 * 60, None),
+        ("active", 1, None),
+    ] {
+        let timestamp = |minutes| {
+            (now - chrono::TimeDelta::minutes(minutes))
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        };
+        db.insert(
+            "INSERT INTO personal_access_tokens (tokenable_type, tokenable_id, name, token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
+            &[
+                "users".into(), 42.into(), name.into(), format!("{name:0<64}").into(),
+                timestamp(age).into(),
+                expired.map_or(openrust::database::Value::Null, |minutes| timestamp(minutes).into()),
+            ],
+        ).await.unwrap();
+    }
+    assert!(run(&["sanctum:prune-expired"]).contains("[24 hours]"));
+    assert_eq!(
+        db.table("personal_access_tokens").count("*").await.unwrap(),
+        4
+    );
+    std::fs::write(root.0.join(".env"), "SANCTUM_EXPIRATION=60\n").unwrap();
+    assert!(run(&["sanctum:prune-expired"]).contains("[24 hours]"));
+    assert_eq!(
+        db.table("personal_access_tokens").count("*").await.unwrap(),
+        3
+    );
+    assert!(run(&["sanctum:prune-expired", "--hours=0"]).contains("[0 hours]"));
+    assert_eq!(
+        db.table("personal_access_tokens").count("*").await.unwrap(),
+        1
+    );
+    std::fs::remove_file(root.0.join(".env")).unwrap();
     assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
 }
 

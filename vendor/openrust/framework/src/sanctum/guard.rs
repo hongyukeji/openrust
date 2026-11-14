@@ -47,17 +47,7 @@ impl Guard {
                 Ok::<_, AuthError>((name, model))
             })
             .transpose()?;
-        let expiration = match config.get("sanctum.expiration") {
-            None | Some(Value::Null) => None,
-            Some(value) => match value.as_i64() {
-                Some(0) => None,
-                Some(minutes) if minutes > 0 => Some(
-                    TimeDelta::try_minutes(minutes)
-                        .ok_or(AuthError::Configuration("sanctum.expiration"))?,
-                ),
-                _ => return Err(AuthError::Configuration("sanctum.expiration")),
-            },
-        };
+        let expiration = expiration(config)?;
         Ok(Self {
             name,
             session_guards,
@@ -146,6 +136,20 @@ impl Guard {
         RequestTokens::insert(request, &self.name, AccessToken::Personal(token));
         Ok(Some(Arc::from(user)))
     }
+}
+
+pub(super) fn expiration(config: &dyn Repository) -> AuthResult<Option<TimeDelta>> {
+    Ok(match config.get("sanctum.expiration") {
+        None | Some(Value::Null) => None,
+        Some(value) => match value.as_i64() {
+            Some(0) => None,
+            Some(minutes) if minutes > 0 => Some(
+                TimeDelta::try_minutes(minutes)
+                    .ok_or(AuthError::Configuration("sanctum.expiration"))?,
+            ),
+            _ => return Err(AuthError::Configuration("sanctum.expiration")),
+        },
+    })
 }
 
 pub(super) fn session_guards(config: &dyn Repository) -> AuthResult<Vec<String>> {

@@ -23,3 +23,15 @@ Rust 1.94.0 执行 `cargo test --locked --workspace --features sanctum`，报告
 Rust 1.94.0 用专用 MySQL 8.4.13 执行 `sanctum_authentication` 的 `bearer_and_spa_over_http_with_mysql`。真实 HTTP 验证修改密码后旧会话 401、随后 Bearer 可独立认证、默认及替换 CSRF 的拒绝和通过路径。启用 Sanctum 的工作区全目标严格 Clippy 通过。
 
 三語 VitePress 構建及根路徑、`/docs/` 的 12 項瀏覽器檢查通過。
+
+## 过期令牌清理
+
+按固定 `PruneExpired` 注册 `sanctum:prune-expired`，默认保留 24 小时。按显式过期时间和可选的全局期限分别删除，沿用实际令牌数据库连接和时间格式。Rust 拒绝负数及超出可计算范围的保留期限。复核 v0.x 的令牌过期逻辑，本批复用当前 Query Builder 与令牌期限解析。 [固定清理命令](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Console/Commands/PruneExpired.php)
+
+Rust 1.94.0 用独立 MySQL 8.4.13 运行带 Sanctum 的 `migrations` 测试目标，精确筛选 `artisan_migrations_use_a_real_mysql_ledger`。实际 Artisan 验证默认 24 小时、全局期限、`--hours=0` 和保留有效令牌。启用 Sanctum 的工作区全目标严格 Clippy 通过。
+
+## 后续对齐项
+
+待补齐自定义令牌模型、取令牌和验证回调、默认 Provider 的通用多态归属解析，以及当前请求主机占位等配置便利入口。Passport 和安装器的 Passport 选项单独跟踪。
+
+三語 VitePress 構建及根路徑、`/docs/` 的 12 項瀏覽器檢查通過。

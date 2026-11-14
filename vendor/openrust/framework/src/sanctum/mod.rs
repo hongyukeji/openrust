@@ -8,6 +8,7 @@ mod abilities;
 mod authenticate_session;
 mod ensure_frontend_requests_are_stateful;
 mod guard;
+pub(crate) mod prune_expired;
 pub use abilities::{CheckAbilities, CheckForAnyAbility};
 pub use authenticate_session::AuthenticateSession;
 pub(crate) use ensure_frontend_requests_are_stateful::{

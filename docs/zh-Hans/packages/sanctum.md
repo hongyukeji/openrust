@@ -54,3 +54,11 @@ fn register() -> Result<(), RoutingError> {
 跨源第一方前端需要为具体来源开启带凭据的 CORS。匹配的 Referer 或 Origin 会启用 Session、Cookie 和 CSRF 中间件。Sanctum 优先检查已认证的会话，再检查 Bearer 令牌。第一方会话会通过令牌能力检查，用户操作权限由应用授权策略决定。
 
 第一方请求成功记录密码指纹后，修改密码会使该会话在下次请求时失效。要替换前端中间件，先通过应用的 `alias` 方法注册，再把别名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。
+
+## 清理过期令牌 {#pruning-expired-tokens}
+
+启用 Sanctum 功能后运行以下命令。默认保留已过期令牌 24 小时。清理检查令牌的显式过期时间，也检查配置了 `sanctum.expiration` 时按创建时间计算的过期时间。应用支持通过 `SANCTUM_EXPIRATION` 设置有效期，单位为分钟。
+
+```sh
+./artisan sanctum:prune-expired --hours=24
+```
