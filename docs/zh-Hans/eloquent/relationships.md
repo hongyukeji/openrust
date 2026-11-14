@@ -879,6 +879,26 @@ pub async fn count_tag<P: Model, R: Model>(
 }
 ```
 
+`HasOne`、`HasMany`、`MorphOne`、`MorphMany`、`HasOneThrough` 和 `HasManyThrough` 也提供同名方法。直接关系在创建时填入父模型外键，多态关系还会填入类型。穿透关系通过连接查询模型。创建时需要传入指向现有中间模型的外键。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn count_view<P: Model, R: Model>(
+    views: &HasMany<P, R>,
+    article: &P,
+) -> DatabaseResult<R> {
+    views.incrementOrCreate(
+        article,
+        Attributes::from([("source".into(), "web".into())]),
+        "count",
+        1_i64,
+        1_i64,
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

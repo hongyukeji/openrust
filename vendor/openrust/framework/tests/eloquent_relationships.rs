@@ -4719,17 +4719,150 @@ async fn verify_increment_or_create(db: &Connection, concurrent: bool) {
     ));
 }
 
+struct RelationCounter(ModelState);
+
+impl Model for RelationCounter {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("relation_counters")
+            .fillable(&["name", "count", "post_id", "owner_type"])
+            .timestamps(None, None);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
+    let id = if mysql {
+        "BIGINT AUTO_INCREMENT PRIMARY KEY"
+    } else {
+        "INTEGER PRIMARY KEY AUTOINCREMENT"
+    };
+    db.statement(&format!("CREATE TABLE relation_counters (id {id}, name VARCHAR(80), count BIGINT, post_id BIGINT, owner_type VARCHAR(80) DEFAULT 'post', UNIQUE (name, post_id, owner_type))"), &[]).await.unwrap();
+    let author = Author::queryOn(db).findOrFail(1).await.unwrap();
+    let post = Post::queryOn(db).findOrFail(2).await.unwrap();
+    let name = |name: &str| Attributes::from([("name".into(), name.into())]);
+    let assert_count = |model: &RelationCounter, count: i64| {
+        assert_eq!(model.getAttribute("count"), Some(&count.into()))
+    };
+
+    let direct = HasMany::<Post, RelationCounter>::new("id", "post_id");
+    let model = direct
+        .incrementOrCreate(
+            &post,
+            name("direct"),
+            "count",
+            10_i64,
+            2_i64,
+            Attributes::from([("post_id".into(), 999.into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(model.getAttribute("post_id"), post.getKey());
+    assert_count(&model, 10);
+    let model = direct
+        .one()
+        .incrementOrCreate(
+            &post,
+            name("direct"),
+            "count",
+            10_i64,
+            2_i64,
+            Attributes::new(),
+        )
+        .await
+        .unwrap();
+    assert_count(&model, 12);
+
+    let morph = || MorphMany::<Post, RelationCounter>::new("id", "post_id", "owner_type", "video");
+    let model = morph()
+        .incrementOrCreate(
+            &post,
+            name("direct"),
+            "count",
+            20_i64,
+            2_i64,
+            Attributes::from([("owner_type".into(), "wrong".into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(model.getAttribute("owner_type"), Some(&"video".into()));
+    assert_count(&model, 20);
+    let model = morph()
+        .one()
+        .incrementOrCreate(
+            &post,
+            name("direct"),
+            "count",
+            20_i64,
+            2_i64,
+            Attributes::new(),
+        )
+        .await
+        .unwrap();
+    assert_count(&model, 22);
+
+    db.table("relation_posts")
+        .update(Attributes::from([("author_id".into(), 1.into())]))
+        .await
+        .unwrap();
+    let through = || {
+        HasManyThrough::<Author, Post, RelationCounter>::new("author_id", "post_id", "id", "id")
+            .constrain(|mut query| {
+                query.r#where("owner_type", "=", "post");
+                query
+            })
+    };
+    let model = through()
+        .incrementOrCreate(
+            &author,
+            name("through"),
+            "count",
+            30_i64,
+            2_i64,
+            Attributes::from([("post_id".into(), 2.into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(model.getAttribute("post_id"), post.getKey());
+    assert_count(&model, 30);
+    let model = through()
+        .one()
+        .incrementOrCreate(
+            &author,
+            name("through"),
+            "count",
+            30_i64,
+            2_i64,
+            Attributes::new(),
+        )
+        .await
+        .unwrap();
+    assert_count(&model, 32);
+    db.statement("DROP TABLE relation_counters", &[])
+        .await
+        .unwrap();
+}
+
 async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     for sql in [
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
         if mysql {
-            "CREATE TABLE relation_posts (id BIGINT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME)"
+            "CREATE TABLE relation_posts (id BIGINT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME, author_id BIGINT)"
         } else {
-            "CREATE TABLE relation_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME)"
+            "CREATE TABLE relation_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME, author_id BIGINT)"
         },
         "CREATE TABLE relation_featured_posts (author_id BIGINT, post_id BIGINT, label VARCHAR(80) NOT NULL, PRIMARY KEY (author_id, post_id))",
         "INSERT INTO relation_authors VALUES (1, 'owner')",
-        "INSERT INTO relation_posts VALUES (2, 'existing', 20, NULL)",
+        "INSERT INTO relation_posts (id, title, score, deleted_at) VALUES (2, 'existing', 20, NULL)",
     ] {
         db.statement(sql, &[]).await.unwrap();
     }
@@ -4782,7 +4915,7 @@ async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     }
     if !split {
         db.statement(
-            "INSERT INTO relation_posts VALUES (100, 'unlinked', 90, NULL)",
+            "INSERT INTO relation_posts (id, title, score, deleted_at) VALUES (100, 'unlinked', 90, NULL)",
             &[],
         )
         .await
@@ -4790,6 +4923,7 @@ async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
         Box::pin(verify_first_and_update_or_create(db)).await;
         Box::pin(verify_restore_and_deferred_values(db)).await;
         Box::pin(verify_increment_or_create(db, mysql)).await;
+        Box::pin(verify_non_pivot_counters(db, mysql)).await;
     }
     for table in [
         "relation_featured_posts",

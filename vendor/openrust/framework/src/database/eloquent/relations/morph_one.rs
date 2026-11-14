@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseFuture, DatabaseResult, Transaction,
+    Connection, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -76,6 +76,20 @@ impl<P: Model, R: Model> MorphOne<P, R> {
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.save(parent, model).await
+    }
+
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        extra: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0
+            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .await
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {

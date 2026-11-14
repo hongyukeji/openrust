@@ -74,6 +74,67 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .map_err(http_error)
     }
 
+    /// Creates a child with an initial counter or increments a matching child.
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        mut extra: Attributes,
+    ) -> DatabaseResult<R> {
+        use super::super::persistence::{increment_related, is_unique_violation, validate_counter};
+
+        let default = default.into();
+        let step = step.into();
+        validate_counter::<R>(column, &default, &step, &extra)?;
+        let key = parent
+            .getAttribute(self.0.parent)
+            .filter(|key| !matches!(key, Value::Null))
+            .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
+        let connection = self.0.connection(parent)?;
+        let lookup = || {
+            let query = self.0.configure(R::queryOn(&connection))?;
+            let foreign = query.qualifyColumn(self.0.related);
+            Ok::<_, DatabaseError>(
+                self.0
+                    .select_one(query)?
+                    .require_relation_value(&foreign, key.clone())
+                    .restrict_relation_attributes(&attributes),
+            )
+        };
+
+        let model = match lookup()?.first().await? {
+            Some(model) => model,
+            None => {
+                let mut values = attributes.clone();
+                values.extend(extra.clone());
+                values.insert(column.into(), default);
+                let mut model = self
+                    .0
+                    .configure(R::queryOn(&connection))?
+                    .makeAsync(values)
+                    .await?;
+                match self.save(parent, &mut model).await {
+                    Ok(true) => return Ok(model),
+                    Ok(false) => {
+                        return Err(DatabaseError::InvalidQuery(
+                            "related model creation cancelled",
+                        ));
+                    }
+                    Err(error) if is_unique_violation(&error) => {
+                        lookup()?.useWritePdo().first().await?.ok_or(error)?
+                    }
+                    Err(error) => return Err(error),
+                }
+            }
+        };
+        extra.remove(column);
+        increment_related(model, column, step, extra).await
+    }
+
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         let key = parent
             .getAttribute(self.0.parent)

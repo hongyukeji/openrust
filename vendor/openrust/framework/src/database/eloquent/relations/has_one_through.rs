@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -69,6 +69,20 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
 
     pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
         Ok(!self.is(parent, related).await?)
+    }
+
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        extra: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0
+            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .await
     }
 
     #[must_use]

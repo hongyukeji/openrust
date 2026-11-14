@@ -414,7 +414,10 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         Ok(connection)
     }
 
-    fn select_one(&self, query: Builder<'static, R>) -> DatabaseResult<Builder<'static, R>> {
+    pub(super) fn select_one(
+        &self,
+        query: Builder<'static, R>,
+    ) -> DatabaseResult<Builder<'static, R>> {
         match &self.selection {
             Some(selection) => selection.apply(query, self.related, self.discriminator),
             None => Ok(query),

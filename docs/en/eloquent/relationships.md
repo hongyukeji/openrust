@@ -879,6 +879,26 @@ pub async fn count_tag<P: Model, R: Model>(
 }
 ```
 
+The same method is available on `HasOne`, `HasMany`, `MorphOne`, `MorphMany`, `HasOneThrough`, and `HasManyThrough`. Direct relations set the parent foreign key on creation. Polymorphic relations also set the discriminator. Through relations use the join for lookup. When creating through a relation, supply the related row’s foreign key to an existing intermediate model.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn count_view<P: Model, R: Model>(
+    views: &HasMany<P, R>,
+    article: &P,
+) -> DatabaseResult<R> {
+    views.incrementOrCreate(
+        article,
+        Attributes::from([("source".into(), "web".into())]),
+        "count",
+        1_i64,
+        1_i64,
+        Attributes::new(),
+    ).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

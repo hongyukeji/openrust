@@ -309,6 +309,10 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
     result
 }
 
+pub(super) fn is_unique_violation(error: &DatabaseError) -> bool {
+    matches!(error, DatabaseError::Driver { source, .. } if source.as_database_error().is_some_and(|error| error.is_unique_violation()))
+}
+
 pub(super) fn validate_counter<M: Model>(
     column: &str,
     default: &Value,

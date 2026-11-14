@@ -16,6 +16,8 @@ use crate::database::{
     query,
 };
 
+use super::super::persistence::is_unique_violation;
+
 use super::{
     ExistenceRelation, Pivot, Relation,
     custom_pivot::{CustomPivot, PivotIdentity},
@@ -1603,10 +1605,6 @@ fn attachment_key<'a, R: Model>(model: &'a R, key: &str) -> DatabaseResult<&'a V
         .getAttribute(key)
         .filter(|value| !matches!(value, Value::Null))
         .ok_or(DatabaseError::InvalidQuery("relationship related key"))
-}
-
-fn is_unique_violation(error: &DatabaseError) -> bool {
-    matches!(error, DatabaseError::Driver { source, .. } if source.as_database_error().is_some_and(|error| error.is_unique_violation()))
 }
 
 async fn insert_pivot_rows(

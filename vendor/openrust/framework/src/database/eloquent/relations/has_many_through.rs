@@ -1,9 +1,9 @@
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction,
+    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
-        Builder, Model, ModelState,
+        Attributes, Builder, Model, ModelState,
         concerns::{
             has_relationships::load_eager_with_transaction, queries_relationships::cast_existence,
         },
@@ -135,8 +135,6 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 
     pub(super) async fn contains_model(&self, parent: &P, related: &R) -> DatabaseResult<bool> {
-        use crate::database::Value;
-
         if !self.keys.shares_related_source(parent, related) {
             return Ok(false);
         }
@@ -159,10 +157,79 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         join.apply(query.scoped()?.0).exists().await
     }
 
+    /// Increments through the join, or creates a related row using the supplied attributes.
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        mut extra: Attributes,
+    ) -> DatabaseResult<R> {
+        use super::super::persistence::{increment_related, is_unique_violation, validate_counter};
+
+        let default = default.into();
+        let step = step.into();
+        validate_counter::<R>(column, &default, &step, &extra)?;
+        if parent
+            .getAttribute(self.keys.parent)
+            .is_none_or(|key| matches!(key, Value::Null))
+        {
+            return Err(DatabaseError::InvalidQuery("relationship parent key"));
+        }
+
+        let model = match self.first_counter_match(parent, &attributes).await? {
+            Some(model) => model,
+            None => {
+                let connection = self.keys.connection(parent)?;
+                let mut values = attributes.clone();
+                values.extend(extra.clone());
+                values.insert(column.into(), default);
+                let mut model = self
+                    .keys
+                    .configure(R::queryOn(&connection))?
+                    .makeAsync(values.clone())
+                    .await?;
+                match model.save().await {
+                    Ok(true) => return Ok(model),
+                    Ok(false) => {
+                        return Err(DatabaseError::InvalidQuery(
+                            "related model creation cancelled",
+                        ));
+                    }
+                    Err(error) if is_unique_violation(&error) => self
+                        .first_counter_match(parent, &values)
+                        .await?
+                        .ok_or(error)?,
+                    Err(error) => return Err(error),
+                }
+            }
+        };
+        extra.remove(column);
+        increment_related(model, column, step, extra).await
+    }
+
+    async fn first_counter_match(
+        &self,
+        parent: &P,
+        attributes: &Attributes,
+    ) -> DatabaseResult<Option<R>> {
+        Ok(self
+            .match_many(&[parent], None, Some(attributes))
+            .await?
+            .pop()
+            .and_then(|matches| matches.into_iter().next())
+            .map(|model| {
+                Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()))
+            }))
+    }
+
     async fn match_many(
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
+        lookup: Option<&Attributes>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -179,6 +246,9 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let join = self.join(&query, None, &connection)?;
                 let query = self.select_one(query, &join, &connection)?;
                 let mut query = query.restrict_relation(&join.match_key, batch);
+                if let Some(attributes) = lookup {
+                    query = query.restrict_relation_attributes(attributes).limit(1);
+                }
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();
                 let casts = query.casts.clone();
@@ -291,7 +361,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         parents: &'a [&'a P],
         transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
-        Box::pin(self.match_many(parents, transaction))
+        Box::pin(self.match_many(parents, transaction, None))
     }
 }
 

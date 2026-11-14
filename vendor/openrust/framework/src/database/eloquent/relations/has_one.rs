@@ -106,6 +106,20 @@ impl<P: Model, R: Model> HasOne<P, R> {
         self.0.save(parent, model).await
     }
 
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        extra: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0
+            .incrementOrCreate(parent, attributes, column, default, step, extra)
+            .await
+    }
+
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
         self.0.create(parent, attributes).await
     }
