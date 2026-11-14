@@ -17,4 +17,4 @@
 - 原先触发栈溢出的 SQLite、MySQL 链式批次用例已复跑通过，包含真实 Redis 队列。Rust 1.94.0 格式、锁定离线严格 Clippy 和串行工作区测试通过，日志合计 575 项通过、6 项忽略，含独立进程夹具。
 - 从三语正文提取 Rust 示例并编译运行。文档构建和 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#notifying-a-running-job) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#notifying-a-running-job) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#notifying-a-running-job)
+[English](../../../../docs/en/digging-deeper/queues.md#notifying-a-running-job) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#notifying-a-running-job) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#notifying-a-running-job)

@@ -15,4 +15,4 @@
 - 真实 HTTP 派发、独立 Artisan 和实际进程终止，覆盖 SQLite、MySQL 8.4.13 和 Redis 8.10.3。验证两次崩溃后的第三次预约终态失败、未启用时正常重试、普通释放及超时后正常重试、旧 Worker 迟到无法清除新标记。
 - Rust 1.94.0 格式、锁定离线严格 Clippy、工作区串行测试、三语 Rust 示例提取运行、文档构建与 18 项 Chrome 检查通过。全量运行确认生产实现与三个持久后端场景通过。夹具随后明确断言旧 Worker 退出码 1 和 Unix SIGKILL 状态，定向复跑三后端。
 
-[English](../../../../docs/en/digging-deeper/queues.md#counting-worker-crashes) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#counting-worker-crashes) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#counting-worker-crashes)
+[English](../../../../docs/en/digging-deeper/queues.md#counting-worker-crashes) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#counting-worker-crashes) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#counting-worker-crashes)

@@ -17,4 +17,4 @@
 - 从三语文档提取并运行六条 `./artisan` 示例。另以 1 MiB 阈值实测 shell 退出码 12，JSON 原因为 `memory`。文档构建和 18 项 Chrome 检查通过。
 - Linux 容器的独立 RSS 探针测得分配前后 1,720,320 与 18,497,536 字节。Linux 完整 Worker、Windows 实机和 Laravel 的自定义内存退出码接口仍待单独验收。
 
-[English](../../../../docs/en/digging-deeper/queues.md#worker-memory-limit) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#worker-memory-limit) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#worker-memory-limit)
+[English](../../../../docs/en/digging-deeper/queues.md#worker-memory-limit) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#worker-memory-limit) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#worker-memory-limit)

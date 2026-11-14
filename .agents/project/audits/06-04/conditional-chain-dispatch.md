@@ -14,4 +14,4 @@
 - TCP HTTP 覆盖四种条件组合、布尔和闭包、闭包只执行一次、非法连接和空链的跳过及真实错误。独立 Artisan Worker 在 SQLite、MySQL 8.4.13、Redis 8.10.3 只执行符合条件的首尾任务，sync 在请求中执行。检查实际队列大小和任务副作用。
 - Rust 1.94.0 格式检查、严格 Clippy、锁定离线工作区测试。三语示例接入 HTTP 和 Artisan 夹具执行，站点构建及 18 项浏览器检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#conditional-chain-dispatch) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#conditional-chain-dispatch) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#conditional-chain-dispatch)
+[English](../../../../docs/en/digging-deeper/queues.md#conditional-chain-dispatch) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#conditional-chain-dispatch) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#conditional-chain-dispatch)

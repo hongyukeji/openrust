@@ -15,4 +15,4 @@
 - SQLite、MySQL 文件状态与 Redis 缓存状态的实际 Worker 和监听器验证等待、强制运行及解除后恢复。独立进程确认共享状态。工作区用例覆盖文件原子写、错误数据和数组隔离。
 - 三语示例包含应用状态激活与 Artisan 强制取件。三语示例均已编译并运行实际 Artisan。格式、严格 Clippy、文档构建与 18 项浏览器检查通过。工作区全量测试（含真实 SQLite、MySQL 8.4、Redis 8 及 Artisan 子进程）579 项通过、7 项忽略、0 项失败。
 
-[English](../../../../docs/en/getting-started/configuration.md#maintenance-mode) · [简体中文](../../../../docs/zh-Hans/getting-started/configuration.md#maintenance-mode) · [繁體中文](../../../../docs/zh-Hant/getting-started/configuration.md#maintenance-mode)
+[English](../../../../docs/en/getting-started/configuration.md#maintenance-mode) · [简体中文](../../../../docs/zh_CN/getting-started/configuration.md#maintenance-mode) · [繁體中文](../../../../docs/zh_TW/getting-started/configuration.md#maintenance-mode)

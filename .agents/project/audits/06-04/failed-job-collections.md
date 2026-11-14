@@ -15,4 +15,4 @@
 - 独立 Artisan 与自定义失败存储接入真实 SQLite、MySQL 队列，检查按键删除、按需读取、混合选择、未知 ID、空组和入队失败时的停止行为。最终复验还覆盖读流失败、`all` 和按队列选择。
 - 三语示例提取编译并执行，文档构建与浏览器检查验收根路径和子路径。Rust 1.94.0 格式、严格 Clippy 及锁定离线串行工作区通过，含子进程 576 项通过、7 项忽略。首轮全量发现读流测试未注入故障，修正夹具后定向与全量复验通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#retrying-a-group-of-stored-failures) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#retrying-a-group-of-stored-failures) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#retrying-a-group-of-stored-failures)
+[English](../../../../docs/en/digging-deeper/queues.md#retrying-a-group-of-stored-failures) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#retrying-a-group-of-stored-failures) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#retrying-a-group-of-stored-failures)

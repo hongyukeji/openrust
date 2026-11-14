@@ -15,4 +15,4 @@
 - 复用 SQLite、MySQL、Redis 的实际 HTTP 和独立 Artisan Worker 夹具，使用门面入口验证生命周期、轮询否决、失败和长任务。补无耗时、小于、等于、大于阈值以及双应用隔离。
 - 三语示例通过应用 Provider 实际注册并触发失败回调。Rust 1.94.0 格式、严格 Clippy 和锁定离线串行工作区通过，含子进程 577 项通过、7 项忽略。文档构建及 18 项浏览器检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#registering-worker-callbacks) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#registering-worker-callbacks) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#registering-worker-callbacks)
+[English](../../../../docs/en/digging-deeper/queues.md#registering-worker-callbacks) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#registering-worker-callbacks) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#registering-worker-callbacks)

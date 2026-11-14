@@ -3,9 +3,9 @@
 //! 复数规则来自 Zend Framework（2010-09-25），采用 New BSD License。
 //! Copyright (c) 2005–2010 Zend Technologies USA Inc.
 
-use std::{borrow::Cow, cmp::Ordering};
+use std::cmp::Ordering;
 
-use super::{TranslationError, TranslationResult};
+use super::{TranslationError, TranslationResult, locale::language_tag};
 
 /// Selects the appropriate plural form for a locale and count.
 pub struct MessageSelector;
@@ -71,11 +71,7 @@ impl MessageSelector {
         {
             return Err(TranslationError::InvalidCount);
         }
-        let locale = if locale.contains('_') {
-            Cow::Owned(locale.replace('_', "-"))
-        } else {
-            Cow::Borrowed(locale)
-        };
+        let locale = language_tag(locale)?;
         select(line, count, &locale)
     }
 }

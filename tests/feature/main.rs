@@ -199,8 +199,8 @@ fn artisan_invalid_option_uses_the_console_error_status() {
 #[test]
 fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
     for (locale, options, invalid) in [
-        ("zh_Hans", "选项：", "无法识别的参数"),
-        ("zh_Hant", "選項：", "無法辨識的引數"),
+        ("zh_CN", "选项：", "无法识别的参数"),
+        ("zh_TW", "選項：", "無法辨識的引數"),
     ] {
         let help = artisan_in(&["help", "list"], locale, None);
         let flag = artisan_in(&["list", "--help"], locale, None);
@@ -240,8 +240,8 @@ fn artisan_localizes_help_and_errors_without_changing_command_identifiers() {
 fn artisan_localizes_production_cancellation_without_a_terminal() {
     for (locale, cancellation) in [
         ("en", "Command cancelled."),
-        ("zh_Hans", "命令已取消。"),
-        ("zh_Hant", "命令已取消。"),
+        ("zh_CN", "命令已取消。"),
+        ("zh_TW", "命令已取消。"),
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_main"))
             .args(["artisan", "migrate", "--no-interaction"])

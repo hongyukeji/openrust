@@ -20,7 +20,7 @@ Laravel 13.11.0 应用骨架把 HTTP 入口交给 `handleRequest`，Artisan 入�
 - 独立 Artisan 和统一入口使用同一夹具、SQLite 配置和隔离队列，分别运行等价任务。两边的硬超时都返回 124，验证执行器及后代回收、`failOnTimeout` 回调和按 UUID 查到的失败记录，以及可重试任务在租约后完成。受管 Worker 超时退出时，HTTP 监听也关闭。
 - 三语部署页面构建通过，在根路径和 `/docs/` 分别完成三语桌面和移动端浏览器导航检查。验收覆盖 macOS arm64 与 Windows x64 MSVC；本批统一启动进程夹具使用 SQLite。
 
-[English](../../../../docs/en/getting-started/deployment.md#run-services-together) · [简体中文](../../../../docs/zh-Hans/getting-started/deployment.md#一起运行服务) · [繁體中文](../../../../docs/zh-Hant/getting-started/deployment.md#一起執行服務)
+[English](../../../../docs/en/getting-started/deployment.md#run-services-together) · [简体中文](../../../../docs/zh_CN/getting-started/deployment.md#一起运行服务) · [繁體中文](../../../../docs/zh_TW/getting-started/deployment.md#一起執行服務)
 
 ## 默认同进程统一启动
 

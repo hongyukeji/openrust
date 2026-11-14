@@ -15,4 +15,4 @@
 - 定向实测 SQLite、MySQL、Redis 的队列筛选、范围顺序、重复项、缺失项和入队前事件。最终串行验收含旧载荷回归及同库并发认领。
 - 三语示例以真实 Artisan 执行，验证队列、失败记录移除和尝试次数。文档构建与 18 项 Chrome 检查通过。Rust 1.94.0 格式、锁定离线严格 Clippy 及最终串行工作区验收通过，含子进程 575 项通过、6 项忽略。
 
-[English](../../../../docs/en/digging-deeper/queues.md#retrying-failed-jobs) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#retrying-failed-jobs) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#retrying-failed-jobs)
+[English](../../../../docs/en/digging-deeper/queues.md#retrying-failed-jobs) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#retrying-failed-jobs) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#retrying-failed-jobs)

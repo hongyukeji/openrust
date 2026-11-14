@@ -17,4 +17,4 @@
 - Rust 1.94.0 下运行 `cargo fmt --all -- --check`、`cargo clippy --workspace --all-targets --locked --offline -- -D warnings`、`cargo test --workspace --locked --offline -- --test-threads=1`。日志合计 575 项通过、6 项忽略，含独立进程夹具。
 - 三语示例从实际 `./artisan` 入口在已迁移的 SQLite 空队列运行。有任务时的相同参数由独立 Artisan 集成用例验证。文档构建和 18 项 Chrome 检查通过，覆盖站点根路径和 `/docs/`。
 
-[English](../../../../docs/en/digging-deeper/queues.md#job-attempt-events) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#job-attempt-events) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#job-attempt-events)
+[English](../../../../docs/en/digging-deeper/queues.md#job-attempt-events) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#job-attempt-events) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#job-attempt-events)

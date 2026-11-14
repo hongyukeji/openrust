@@ -11,7 +11,7 @@ use crate::contracts::translation::Translator as Contract;
 
 use super::{
     FileLoader, Line, Lines, MessageSelector, PluralCount, TranslationError, TranslationResult,
-    file_loader::valid_segment,
+    file_loader::valid_segment, locale::canonical_locale,
 };
 
 type Replacements = BTreeMap<String, String>;
@@ -46,13 +46,10 @@ impl Translator {
         locale: String,
         fallback: String,
     ) -> TranslationResult<Self> {
-        if !valid_segment(&locale) || !valid_segment(&fallback) {
-            return Err(TranslationError::InvalidLocale);
-        }
         Ok(Self {
             loader,
-            locale,
-            fallback,
+            locale: canonical_locale(&locale)?,
+            fallback: canonical_locale(&fallback)?,
             loaded: Mutex::default(),
             identity: Arc::new(()),
         })
@@ -85,11 +82,9 @@ impl Translator {
         locale: &str,
         operation: impl Future<Output = T>,
     ) -> TranslationResult<T> {
-        if !valid_segment(locale) {
-            return Err(TranslationError::InvalidLocale);
-        }
+        let locale = canonical_locale(locale)?;
         let mut locales = ACTIVE_LOCALES.try_with(Clone::clone).unwrap_or_default();
-        locales.insert(self.identity(), locale.to_owned());
+        locales.insert(self.identity(), locale);
         Ok(ACTIVE_LOCALES.scope(locales, operation).await)
     }
 
@@ -164,11 +159,10 @@ impl Translator {
     }
 
     fn resolve_locale(&self, locale: Option<&str>) -> TranslationResult<String> {
-        let locale = locale.map(str::to_owned).unwrap_or_else(|| self.locale());
-        if !valid_segment(&locale) {
-            return Err(TranslationError::InvalidLocale);
+        match locale {
+            Some(locale) => canonical_locale(locale),
+            None => Ok(self.locale()),
         }
-        Ok(locale)
     }
 
     fn lookup(
@@ -275,8 +269,8 @@ impl Contract for Translator {
     }
 
     fn set_locale(&mut self, locale: &str) {
-        if valid_segment(locale) {
-            self.locale = locale.to_owned();
+        if let Ok(locale) = canonical_locale(locale) {
+            self.locale = locale;
         }
     }
 }

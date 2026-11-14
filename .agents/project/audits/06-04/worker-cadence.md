@@ -15,4 +15,4 @@
 - 三语 `./artisan` 示例实跑返回 `empty_for`，冷构建后重跑的计时为 2.28–2.29 秒。Rust 1.94.0 格式、严格 Clippy 与锁定离线串行工作区测试通过，日志合计 575 项通过、6 项忽略，含独立进程夹具。
 - 三语状态章节及示例在 VitePress 构建和 18 项 Chrome 检查中通过，覆盖 `/` 与 `/docs/`。
 
-[English](../../../../docs/en/digging-deeper/queues.md#worker-rest-and-idle-timeout) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#worker-rest-and-idle-timeout) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#worker-rest-and-idle-timeout)
+[English](../../../../docs/en/digging-deeper/queues.md#worker-rest-and-idle-timeout) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#worker-rest-and-idle-timeout) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#worker-rest-and-idle-timeout)

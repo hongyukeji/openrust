@@ -14,4 +14,4 @@
 - 独立 Artisan 在 SQLite 与 MySQL 8.4.13 上验证默认和自定义期限、1,001 条跨批、重复清理、无存储能力时拒绝、两个进程并发计数和新记录保留。直接驱动调用验证严格截止时间边界。
 - Rust 1.94.0 格式、锁定离线严格 Clippy、串行工作区测试、三语命令实际 SQLite 验证、文档构建与 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#pruning-failed-jobs) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#pruning-failed-jobs) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#pruning-failed-jobs)
+[English](../../../../docs/en/digging-deeper/queues.md#pruning-failed-jobs) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#pruning-failed-jobs) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#pruning-failed-jobs)

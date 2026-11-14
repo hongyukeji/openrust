@@ -17,4 +17,4 @@
 - 旧的并行进程夹具复跑出现过退出及输出收集超时。长运行子进程改用独立临时文件捕获输出，退出检查与内容读取分开。最终调度夹具 5 项通过、1 项忽略，连续 5 轮并行通过。
 - Rust 1.94.0 格式与全工作区严格 Clippy 通过。锁定离线全工作区串行运行使用实际 SQLite、MySQL 8.4 和 Redis 8，共 587 项通过、7 项忽略。使用同一工作区依赖特性复跑最终调度夹具。三语站点构建和 12 项导航检查通过，其中 6 项覆盖维护章节及跨页链接。
 
-[English](../../../../docs/en/digging-deeper/scheduling.md#maintenance-mode) · [简体中文](../../../../docs/zh-Hans/digging-deeper/scheduling.md#maintenance-mode) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/scheduling.md#maintenance-mode)
+[English](../../../../docs/en/digging-deeper/scheduling.md#maintenance-mode) · [简体中文](../../../../docs/zh_CN/digging-deeper/scheduling.md#maintenance-mode) · [繁體中文](../../../../docs/zh_TW/digging-deeper/scheduling.md#maintenance-mode)

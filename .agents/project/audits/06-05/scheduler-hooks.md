@@ -15,4 +15,4 @@
 - 独立 Artisan 验证成功和非零退出分支、回调错误、前置和后置钩子错误、嵌套继承、生命周期事件顺序以及错误后继续运行后续任务。
 - Rust 1.94.0 格式、严格 Clippy 和锁定离线全工作区测试通过。SQLite、MySQL 8.4 和 Redis 8 的主测试进程 591 项通过、7 项忽略，独立队列硬超时夹具通过。调度测试 12 项通过、1 项忽略。三语示例随 Artisan 夹具编译和运行，站点构建与 12 项浏览器检查通过。
 
-[English](../../../../docs/en/digging-deeper/scheduling.md#task-hooks) · [简体中文](../../../../docs/zh-Hans/digging-deeper/scheduling.md#task-hooks) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/scheduling.md#task-hooks)
+[English](../../../../docs/en/digging-deeper/scheduling.md#task-hooks) · [简体中文](../../../../docs/zh_CN/digging-deeper/scheduling.md#task-hooks) · [繁體中文](../../../../docs/zh_TW/digging-deeper/scheduling.md#task-hooks)

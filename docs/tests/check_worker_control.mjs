@@ -12,7 +12,7 @@ try {
     for (const mount of ["/", "/docs/"]) {
         const { server } = await serve({ root, base: mount, port: 0 });
         try {
-            for (const locale of ["en", "zh-hans", "zh-hant"]) {
+            for (const locale of ["en", "zh_CN", "zh_TW"]) {
                 const page = await browser.newPage();
                 try {
                     const url = `http://127.0.0.1:${server.address().port}${mount}${locale}/digging-deeper/queues.html`;

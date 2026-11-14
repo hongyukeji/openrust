@@ -15,4 +15,4 @@
 - 独立 Artisan 定向验证同一队列连续两项使用不同 Worker PID、子进程输出、终止后回收，以及整轮超时和预约保留。SQLite、MySQL 与 Redis 的最终定向复验确认超时后回收 Worker 和外部后代。
 - 三语命令通过实际 Artisan 启停，文档构建和 18 项浏览器检查通过。Rust 1.94.0 格式、严格 Clippy 和锁定离线串行工作区验收通过，含子进程 577 项通过、7 项忽略。
 
-[English](../../../../docs/en/digging-deeper/queues.md#listening-with-a-fresh-worker-process) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#listening-with-a-fresh-worker-process) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#listening-with-a-fresh-worker-process)
+[English](../../../../docs/en/digging-deeper/queues.md#listening-with-a-fresh-worker-process) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#listening-with-a-fresh-worker-process) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#listening-with-a-fresh-worker-process)

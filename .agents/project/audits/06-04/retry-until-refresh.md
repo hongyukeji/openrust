@@ -15,4 +15,4 @@
 - 独立 Artisan 与 Worker 在 SQLite、MySQL 和 Redis 验证已过期截止时间可刷新、清除、保持或返回错误。错误路径保留失败记录。普通和批次任务由真实 Artisan 生成，编译执行验证初次和手工截止时间的计算。
 - 三语示例提取编译并执行，文档构建与 18 项浏览器检查通过。Rust 1.94.0 格式、锁定离线严格 Clippy 及最终串行工作区验收通过，含子进程 575 项通过、6 项忽略。
 
-[English](../../../../docs/en/digging-deeper/queues.md#refreshing-a-retry-deadline) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#refreshing-a-retry-deadline) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#refreshing-a-retry-deadline)
+[English](../../../../docs/en/digging-deeper/queues.md#refreshing-a-retry-deadline) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#refreshing-a-retry-deadline) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#refreshing-a-retry-deadline)

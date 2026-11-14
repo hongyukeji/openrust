@@ -10,8 +10,8 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 
 const languages = [
     ["en", "en-US", "en", "English", "Routing"],
-    ["zh-hans", "zh-CN", "zh-Hans", "简体中文", "路由"],
-    ["zh-hant", "zh-TW", "zh-Hant", "繁體中文", "路由"],
+    ["zh_CN", "zh-CN", "zh-CN", "简体中文", "路由"],
+    ["zh_TW", "zh-TW", "zh-TW", "繁體中文", "路由"],
 ];
 
 const browser = await chromium.launch({ executablePath: process.env.DOCS_BROWSER_PATH });
@@ -22,8 +22,19 @@ try {
             const base = `http://127.0.0.1:${server.address().port}${mount}`;
             const fallback = await browser.newPage({ locale: "fr-FR" });
             await fallback.goto(base);
-            await fallback.waitForURL(base + "zh-hans/");
+            await fallback.waitForURL(base + "zh_CN/");
             await fallback.close();
+            const simplified = await browser.newPage({ locale: "zh-Hans" });
+            await simplified.goto(base);
+            await simplified.waitForURL(base + "zh_CN/");
+            await simplified.close();
+
+            for (const [locale, path] of [["zh-Hant", "zh_TW"], ["zh-HK", "zh_TW"], ["en-GB", "en"]]) {
+                const page = await browser.newPage({ locale });
+                await page.goto(base);
+                await page.waitForURL(base + path + "/");
+                await page.close();
+            }
 
             for (const [index, [language, locale, htmlLang, , query]] of languages.entries()) {
                 const [next, , , nextLabel] = languages[(index + 1) % languages.length];
@@ -49,12 +60,12 @@ try {
                     const version = nav.getByRole("button", { name: "master", exact: true });
                     if (mobile) await version.click();
                     else await version.hover();
-                    const branch = nav.locator('a[href*="/blob/v1.x/"]');
+                    const branch = nav.locator('a[href*="/blob/v0.x/"]');
                     await branch.waitFor({ state: "visible" });
-                    assert.equal(await branch.textContent(), "v1.x");
+                    assert.equal(await branch.textContent(), "v0.x");
                     assert.equal(
                         await branch.getAttribute("href"),
-                        `https://github.com/hongyukeji/openrust/blob/v1.x/docs/${htmlLang}/README.md`,
+                        "https://github.com/hongyukeji/openrust/blob/v0.x/README.md",
                     );
 
                     if (mobile) await nav.locator(".VPNavScreenTranslations button").click();

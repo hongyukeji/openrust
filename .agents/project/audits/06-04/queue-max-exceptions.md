@@ -15,4 +15,4 @@
 - 三后端验证普通超时和独立进程强制超时触发任务异常上限。验证旧载荷反序列化。
 - Rust 1.94.0 格式、锁定离线严格 Clippy、工作区串行测试、三语 Rust 示例提取运行、文档构建与 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#max-exceptions) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#max-exceptions) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#max-exceptions)
+[English](../../../../docs/en/digging-deeper/queues.md#max-exceptions) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#max-exceptions) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#max-exceptions)

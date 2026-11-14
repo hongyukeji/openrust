@@ -16,4 +16,4 @@
 - 三语示例的函数主体逐项与 HTTP 夹具核对并执行。VitePress 构建及 18 项 Chrome 检查通过，覆盖 `/` 与 `/docs/`。
 - Rust 1.94.0 格式检查及锁定离线全目标严格 Clippy 通过。串行工作区测试日志合计 582 项通过、6 项忽略，含独立 Artisan 子进程的夹具报告。
 
-[English](../../../../docs/en/digging-deeper/queues.md#pausing-queues-in-code) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#pausing-queues-in-code) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#pausing-queues-in-code)
+[English](../../../../docs/en/digging-deeper/queues.md#pausing-queues-in-code) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#pausing-queues-in-code) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#pausing-queues-in-code)

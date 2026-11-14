@@ -15,6 +15,6 @@
 - 实际 TCP HTTP 请求验证 403 的 HTML 转义和 JSON 原文、HEAD 空正文、503 JSON 的显式消息、Retry-After 及默认报告过滤。
 - 三语示例与实际 503 路由的函数主体逐项核对。VitePress 构建及 18 项 Chrome 检查通过，覆盖 `/` 和 `/docs/`。
 
-[English](../../../../docs/en/the-basics/errors.md#http-exceptions) · [简体中文](../../../../docs/zh-Hans/the-basics/errors.md#http-exceptions) · [繁體中文](../../../../docs/zh-Hant/the-basics/errors.md#http-exceptions)
+[English](../../../../docs/en/the-basics/errors.md#http-exceptions) · [简体中文](../../../../docs/zh_CN/the-basics/errors.md#http-exceptions) · [繁體中文](../../../../docs/zh_TW/the-basics/errors.md#http-exceptions)
 
 Rust 1.94.0 格式、全目标严格 Clippy 和串行工作区测试通过。测试日志合计 579 项通过、6 项忽略，含独立进程夹具。启用 Redis 8.10.3 回归，MySQL 可选测试本批未开启。

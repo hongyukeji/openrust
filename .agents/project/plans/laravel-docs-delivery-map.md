@@ -2,7 +2,7 @@
 
 上游以[固定文档导航](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/documentation.md)为准。下表按上游导航排列，开发顺序和验收单元见[分批交付计划](../plan.md)。需确认表示生态移植范围需要独立确认。编号表示计划。
 
-对应路径在[英文](../../../docs/en/README.md)、[简体中文](../../../docs/zh-Hans/README.md)和[繁體中文](../../../docs/zh-Hant/README.md)导航中相同。固定导航共 103 个章节入口，对应 102 个上游正文路径。Browser Tests 与 Dusk 共用一个路径。API Documentation 是外部参考入口。
+对应路径在[英文](../../../docs/en/README.md)、[简体中文](../../../docs/zh_CN/README.md)和[繁體中文](../../../docs/zh_TW/README.md)导航中相同。固定导航共 103 个章节入口，对应 102 个上游正文路径。Browser Tests 与 Dusk 共用一个路径。API Documentation 是外部参考入口。
 
 ## Prologue
 

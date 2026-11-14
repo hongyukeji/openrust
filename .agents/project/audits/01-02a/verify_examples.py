@@ -11,7 +11,7 @@ library = max(deps.glob('libopenrust-*.rlib'), key=lambda item: item.stat().st_m
 report = []
 with TemporaryDirectory(prefix='openrust-01-02a-doc-') as directory:
     root = Path(directory)
-    for language in ['en', 'zh-Hans', 'zh-Hant']:
+    for language in ['en', 'zh_CN', 'zh_TW']:
         page = source / f'docs/{language}/architecture-concepts/container.md'
         blocks = re.findall(r'```rust\n(.*?)```', page.read_text(), re.S)
         assert len(blocks) == 2

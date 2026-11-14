@@ -18,4 +18,4 @@
 - Rust 1.94.0 的格式、全工作区严格 Clippy 和锁定离线全量测试通过。实际 SQLite、MySQL 8.4 和 Redis 8 共 590 项通过、7 项忽略。最终调度夹具 8 项通过、1 项忽略，连续 3 轮并行通过。
 - 三语站点构建和 12 项浏览器导航检查通过，其中 6 项检查暂停小节及注册示例。
 
-[English](../../../../docs/en/digging-deeper/scheduling.md#pausing-scheduled-tasks) · [简体中文](../../../../docs/zh-Hans/digging-deeper/scheduling.md#pausing-scheduled-tasks) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/scheduling.md#pausing-scheduled-tasks)
+[English](../../../../docs/en/digging-deeper/scheduling.md#pausing-scheduled-tasks) · [简体中文](../../../../docs/zh_CN/digging-deeper/scheduling.md#pausing-scheduled-tasks) · [繁體中文](../../../../docs/zh_TW/digging-deeper/scheduling.md#pausing-scheduled-tasks)

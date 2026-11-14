@@ -102,11 +102,11 @@ impl Loader for FileLoader {
     ) -> TranslationFuture<'a, TranslationResult<Lines>> {
         Box::pin(async move {
             let loader = self.clone();
-            let locale = locale.to_owned();
+            let locale = super::locale::canonical_locale(locale);
             let group = group.to_owned();
             let namespace = namespace.map(str::to_owned);
             tokio::task::spawn_blocking(move || {
-                loader.load_lines(&locale, &group, namespace.as_deref())
+                loader.load_lines(&locale?, &group, namespace.as_deref())
             })
             .await
             .map_err(|source| TranslationError::Source(Box::new(source)))?

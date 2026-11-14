@@ -15,4 +15,4 @@
 - 独立 Artisan 在 SQLite、MySQL 8.4.13、Redis 8.10.3 验证多队列和默认连接、三类状态计数、阈值相等时的事件、低于阈值无事件、文本和 JSON、空队列、同步连接及旧 Redis 载荷。
 - Rust 1.94.0 格式、锁定离线严格 Clippy、串行工作区测试、三语命令实际 SQLite 验证、文档构建与 18 项 Chrome 检查通过。验证无效连接、阈值与队列列表返回失败且队列无修改。首轮 MySQL 复验发现 delayed 是保留字，修正内部查询别名后复跑。
 
-[English](../../../../docs/en/digging-deeper/queues.md#monitoring-your-queues) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#monitoring-your-queues) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#monitoring-your-queues)
+[English](../../../../docs/en/digging-deeper/queues.md#monitoring-your-queues) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#monitoring-your-queues) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#monitoring-your-queues)

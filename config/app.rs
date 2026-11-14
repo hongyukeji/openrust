@@ -1,4 +1,7 @@
-use openrust::config::{ConfigError, Environment, Value};
+use openrust::{
+    config::{ConfigError, Environment, Value},
+    translation::canonical_locale,
+};
 use serde_json::json;
 
 use super::env::{get, list};
@@ -31,9 +34,9 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         "frontend_url": get(env, "FRONTEND_URL", "http://localhost:3000")?,
         "asset_url": get(env, "ASSET_URL", Value::Null)?,
         "timezone": get(env, "APP_TIMEZONE", "UTC")?,
-        "locale": get(env, "APP_LOCALE", "en")?,
-        "fallback_locale": get(env, "APP_FALLBACK_LOCALE", "en")?,
-        "faker_locale": get(env, "APP_FAKER_LOCALE", "en_US")?,
+        "locale": locale(env, "APP_LOCALE", "en")?,
+        "fallback_locale": locale(env, "APP_FALLBACK_LOCALE", "en")?,
+        "faker_locale": locale(env, "APP_FAKER_LOCALE", "en_US")?,
         "cipher": get(env, "APP_CIPHER", "AES-256-CBC")?,
         "key": get(env, "APP_KEY", Value::Null)?,
         "previous_keys": list(env.get_utf8("APP_PREVIOUS_KEYS")?.unwrap_or_default()),
@@ -50,5 +53,12 @@ pub(super) fn load(env: &Environment) -> Result<Loaded<'_>, ConfigError> {
         name,
         public_path,
         url,
+    })
+}
+
+fn locale(env: &Environment, key: &str, default: &str) -> Result<String, ConfigError> {
+    canonical_locale(env.get_utf8(key)?.unwrap_or(default)).map_err(|_| ConfigError::InvalidType {
+        key: key.into(),
+        expected: "a language identifier such as en, en_GB or zh_TW",
     })
 }

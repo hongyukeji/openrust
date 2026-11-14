@@ -16,4 +16,4 @@
 - 三语示例从文档提取编译并执行。真实 Artisan 生成普通和批次任务，两类输出均编译执行并验证原始载荷反序列化。文档构建、根路径与子路径的 18 项浏览器检查通过。
 - Rust 1.94.0 格式、锁定离线严格 Clippy 和串行工作区测试通过，含子进程共 575 项通过、6 项忽略。首次开启可选 MySQL 会话配置时，两项 Web 表单测试因会话表缺失失败。专属 MySQL 会话库经 Artisan 迁移后两项均通过，完整工作区以默认会话配置复跑通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#cleaning-up-after-failed-jobs) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#cleaning-up-after-failed-jobs) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#cleaning-up-after-failed-jobs)
+[English](../../../../docs/en/digging-deeper/queues.md#cleaning-up-after-failed-jobs) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#cleaning-up-after-failed-jobs) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#cleaning-up-after-failed-jobs)

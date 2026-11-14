@@ -34,11 +34,11 @@ impl Root {
                 r#"{"welcome":"Hi :Name / :NAME","items":"one item|:count items","fallback":"English fallback","nested":{"values":[":name","second"]}}"#,
             ),
             (
-                "zh_Hans",
+                "zh_CN",
                 r#"{"welcome":"你好，:name","items":"{0} 没有项目|[1,*] :count 个项目"}"#,
             ),
             (
-                "zh_Hant",
+                "zh_TW",
                 r#"{"welcome":"您好，:name","items":"{0} 沒有項目|[1,*] :count 個項目"}"#,
             ),
         ] {
@@ -46,7 +46,7 @@ impl Root {
             fs::create_dir_all(&directory).unwrap();
             fs::write(directory.join("messages.json"), source).unwrap();
         }
-        fs::write(path.join("lang/zh_Hans.json"), r#"{"Hello":"你好"}"#).unwrap();
+        fs::write(path.join("lang/zh_CN.json"), r#"{"Hello":"你好"}"#).unwrap();
         fs::write(
             path.join("lang/en.json"),
             r#"{"English only":"Only in English"}"#,
@@ -122,7 +122,10 @@ async fn start(root: &Root) -> (SocketAddr, tokio::task::JoinHandle<()>) {
             Ok(config)
         })
         .withRouting(Routing::default().web(|| {
-            for route in ["/en", "/zh_Hans", "/zh_Hant"] {
+            for route in [
+                "/en", "/zh_CN", "/zh-CN", "/zh-Hans", "/zh_Hans", "/zh_TW", "/zh-Hant",
+                "/zh_Hant", "/zh-TW",
+            ] {
                 Route::get(route, translate)?;
             }
             Route::get("/default", default_locale)
@@ -158,12 +161,12 @@ async fn send(address: SocketAddr, path: &str) -> String {
 #[tokio::test]
 async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
     let english = Root::new("en");
-    let traditional = Root::new("zh_Hant");
+    let traditional = Root::new("zh_TW");
     let ((first, one), (second, two)) = tokio::join!(start(&english), start(&traditional));
     let (en, hans, hant) = tokio::join!(
         send(first, "/en"),
-        send(first, "/zh_Hans"),
-        send(second, "/zh_Hant")
+        send(first, "/zh_CN"),
+        send(second, "/zh_TW")
     );
     let parse = |value: &str| serde_json::from_str::<Value>(value).unwrap();
     let (en, hans, hant) = (parse(&en), parse(&hans), parse(&hant));
@@ -173,6 +176,12 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
     assert_eq!(hans["choice"], "2 个项目");
     assert_eq!(hans["literal"], "你好");
     assert_eq!(hans["literal_miss"], "English only");
+    for alias in ["/zh-CN", "/zh-Hans", "/zh_Hans"] {
+        assert_eq!(parse(&send(first, alias).await), hans);
+    }
+    for alias in ["/zh-Hant", "/zh_Hant", "/zh-TW"] {
+        assert_eq!(parse(&send(second, alias).await), hant);
+    }
     assert_eq!(hant["greeting"], "您好，ada");
     assert_eq!(hant["choice"], "2 個項目");
     for output in [en, hans, hant] {
@@ -181,9 +190,86 @@ async fn localizes_http_requests_with_isolated_defaults_and_fallback() {
         assert_eq!(output["nested"], "ada");
     }
     assert_eq!(send(first, "/default").await, "en");
-    assert_eq!(send(second, "/default").await, "zh_Hant");
+    assert_eq!(send(second, "/default").await, "zh_TW");
     one.abort();
     two.abort();
+}
+
+#[test]
+fn normalizes_simplified_chinese_at_each_translator_entry() {
+    use openrust::{
+        contracts::translation::Translator as _,
+        translation::{FileLoader, Translator},
+    };
+
+    let root = Root::new("locale-aliases");
+    let lang = root.0.join("lang");
+    let mut translator =
+        Translator::new(FileLoader::new(lang.clone()), "zh-Hans".into(), "en".into()).unwrap();
+    let args = BTreeMap::new();
+    assert_eq!(translator.locale(), "zh_CN");
+    assert_eq!(translator.string("Hello", &args, None).unwrap(), "你好");
+    assert_eq!(
+        translator.string("messages.fallback", &args, None).unwrap(),
+        "English fallback"
+    );
+    for alias in ["zh-Hans", "zh_Hans", "zh-CN"] {
+        assert_eq!(
+            translator.string("Hello", &args, Some(alias)).unwrap(),
+            "你好"
+        );
+    }
+    translator.set_locale("zh-CN");
+    assert_eq!(translator.get_locale(), "zh_CN");
+    translator.set_locale("zh-SG");
+    assert_eq!(translator.get_locale(), "zh_SG");
+    translator.set_locale("../zh-CN");
+    assert_eq!(translator.get_locale(), "zh_SG");
+
+    for (input, canonical) in [
+        ("EN-gb", "en_GB"),
+        ("en-us", "en_US"),
+        ("pt-PT", "pt_PT"),
+        ("de-de", "de_DE"),
+        ("ko-KR", "ko_KR"),
+        ("FR-ca", "fr_CA"),
+        ("pt-br", "pt_BR"),
+        ("es-419", "es_419"),
+        ("ja-JP", "ja_JP"),
+        ("sr-latn-rs", "sr_Latn_RS"),
+        ("zh-HK", "zh_HK"),
+        ("zh-Hant-HK", "zh_Hant_HK"),
+        ("zh-hant", "zh_TW"),
+    ] {
+        let directory = lang.join(canonical);
+        fs::create_dir_all(&directory).unwrap();
+        fs::write(
+            directory.join("identity.json"),
+            format!(r#"{{"locale":"{canonical}"}}"#),
+        )
+        .unwrap();
+        translator.set_locale(input);
+        assert_eq!(translator.get_locale(), canonical);
+        assert_eq!(
+            translator
+                .string("identity.locale", &args, Some(input))
+                .unwrap(),
+            canonical
+        );
+    }
+    assert!(translator.string("Hello", &args, Some("en--GB")).is_err());
+
+    let translator = Translator::new(FileLoader::new(lang), "en".into(), "zh_Hans".into()).unwrap();
+    assert_eq!(
+        translator
+            .string("messages.welcome", &args, Some("fr"))
+            .unwrap(),
+        "你好，:name"
+    );
+    assert_eq!(
+        translator.string("Hello", &args, Some("fr")).unwrap(),
+        "Hello"
+    );
 }
 
 #[tokio::test]

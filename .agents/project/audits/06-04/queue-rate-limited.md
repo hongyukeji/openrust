@@ -16,4 +16,4 @@
 - Redis 的两个独立 Worker 同时消费同一策略的两条任务，多键限额下仅一条进入处理器，另一条按策略确认。
 - Rust 1.94.0 格式、锁定离线严格 Clippy 和串行工作区测试通过，日志合计 575 项通过、6 项忽略，含独立进程夹具。提取三语 Rust 示例编译并通过实际 sync 队列执行。文档构建与 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#rate-limiting) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#rate-limiting) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#rate-limiting)
+[English](../../../../docs/en/digging-deeper/queues.md#rate-limiting) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#rate-limiting) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#rate-limiting)

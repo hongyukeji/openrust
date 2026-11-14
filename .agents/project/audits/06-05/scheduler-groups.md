@@ -17,4 +17,4 @@
 - 三语站点构建和 12 项浏览器检查通过，其中 6 项覆盖调度组小节和示例。
 - 锁定离线全工作区测试使用 SQLite、MySQL 8.4 和 Redis 8，主测试进程 589 项通过、7 项忽略。独立队列硬超时夹具也通过。全工作区严格 Clippy 通过。
 
-[English](../../../../docs/en/digging-deeper/scheduling.md#schedule-groups) · [简体中文](../../../../docs/zh-Hans/digging-deeper/scheduling.md#schedule-groups) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/scheduling.md#schedule-groups)
+[English](../../../../docs/en/digging-deeper/scheduling.md#schedule-groups) · [简体中文](../../../../docs/zh_CN/digging-deeper/scheduling.md#schedule-groups) · [繁體中文](../../../../docs/zh_TW/digging-deeper/scheduling.md#schedule-groups)

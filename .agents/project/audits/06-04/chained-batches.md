@@ -18,4 +18,4 @@
 - 在数据库和 Redis 注入后继发布失败，两个 `queue:publish-batches` 进程并发恢复，核对只发布和执行一次。验证新迁移、回滚、旧 Redis 待发布记录保留及数据库重建。
 - Rust 1.94.0 的格式、锁定离线工作区测试和严格 Clippy，三语示例接入实际 HTTP／Artisan 夹具。站点构建和 18 项浏览器检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#batches-within-chains) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#batches-within-chains) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#batches-within-chains)
+[English](../../../../docs/en/digging-deeper/queues.md#batches-within-chains) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#batches-within-chains) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#batches-within-chains)

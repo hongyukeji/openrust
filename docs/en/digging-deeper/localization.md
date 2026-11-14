@@ -47,13 +47,15 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 }
 ```
 
+Use lowercase language codes and underscores in application configuration, catalog names, and documentation paths. Use uppercase region codes and title-case script codes. Examples include `en`, `en_GB`, `fr_CA`, `es_419`, `sr_Latn_RS`, `zh_CN`, and `zh_TW`. Locale input accepts hyphens, underscores, and mixed case. `zh-Hans` resolves to `zh_CN` and `zh-Hant` resolves to `zh_TW`. Explicit locales such as `zh_HK` and `zh_Hant_HK` keep their own catalogs. HTML uses language tags such as `zh-CN` and `zh-TW`. Rename any existing catalogs to match the normalized identifiers.
+
 ## Artisan translations {#artisan-translations}
 
 Artisan uses `APP_LOCALE` for list headings, help and argument errors. Built-in text is available in English, Simplified Chinese and Traditional Chinese. An application can override text in `lang/<locale>/console.json`. Lookup uses the active locale and then `APP_FALLBACK_LOCALE` before built-in text. A command without a translated description uses its registered description.
 
 ```sh
 APP_LOCALE=en ./artisan help list
-APP_LOCALE=zh_Hans ./artisan list make
+APP_LOCALE=zh_CN ./artisan list make
 APP_LOCALE=zh_Hant ./artisan help list
 ```
 

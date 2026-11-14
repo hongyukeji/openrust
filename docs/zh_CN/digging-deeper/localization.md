@@ -47,13 +47,15 @@ pub async fn summary(locale: &str) -> TranslationResult<(String, String)> {
 }
 ```
 
+应用配置、语言文件和文档路径统一使用下划线标识。语言小写，地区大写，文字代码首字母大写。例如 `en`、`en_GB`、`fr_CA`、`es_419`、`sr_Latn_RS`、`zh_CN`、`zh_TW`。输入接受连字符、下划线和不同大小写。`zh-Hans` 解析为 `zh_CN`，`zh-Hant` 解析为 `zh_TW`。显式指定的 `zh_HK`、`zh_Hant_HK` 等继续读取各自的语言文件。HTML 使用 `zh-CN`、`zh-TW` 等语言标签。已有语言文件需改为归一后的名称。
+
 ## Artisan 翻译 {#artisan-translations}
 
 Artisan 使用 `APP_LOCALE` 显示命令列表标题、帮助和参数错误。内置英文、简体中文和繁体中文。应用可在 `lang/<locale>/console.json` 覆盖文本。翻译先查当前语言，再查 `APP_FALLBACK_LOCALE`，最后使用内置文本。没有翻译的命令描述沿用注册时的文字。
 
 ```sh
 APP_LOCALE=en ./artisan help list
-APP_LOCALE=zh_Hans ./artisan list make
+APP_LOCALE=zh_CN ./artisan list make
 APP_LOCALE=zh_Hant ./artisan help list
 ```
 

@@ -10,4 +10,4 @@
 - macOS 伪终端启动实际 `key:generate`，确认三语提示和取消消息。空输入保留临时应用密钥，输入 `yes` 写入新密钥。使用应用语言文件验证回退覆盖，验证无终端取消及 `--force` 跳过提示。
 - Rust 1.94.0 格式、严格 Clippy 和锁定离线全工作区测试通过。主测试进程 592 项通过、7 项忽略，SQLite、MySQL 8.4 和 Redis 8 的独立队列硬超时夹具通过。三语站点构建与 12 项浏览器检查通过，其中 6 项核对 Artisan 到生产确认说明的导航。
 
-[English](../../../../docs/en/digging-deeper/localization.md#artisan-translations) · [简体中文](../../../../docs/zh-Hans/digging-deeper/localization.md#artisan-translations) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/localization.md#artisan-translations)
+[English](../../../../docs/en/digging-deeper/localization.md#artisan-translations) · [简体中文](../../../../docs/zh_CN/digging-deeper/localization.md#artisan-translations) · [繁體中文](../../../../docs/zh_TW/digging-deeper/localization.md#artisan-translations)

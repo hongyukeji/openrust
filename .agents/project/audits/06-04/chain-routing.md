@@ -16,4 +16,4 @@
 - 实际 HTTP 和独立 Artisan 验证首项覆盖、同连接换队列和延迟、后继恢复默认值、SQLite／MySQL 8.4.13 与 Redis 8.10.3 双向交接。分别注入 Redis 键类型故障与数据库入队故障，验证重试及重放后目标只入队一次。验证持久队列转 sync 的明确拒绝。
 - Rust 1.94.0 格式检查、严格 Clippy、锁定离线工作区测试。三语示例接入实际 HTTP 和 Artisan 夹具，站点构建及 18 项浏览器检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#chain-connection-queue) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#chain-connection-queue) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#chain-connection-queue)
+[English](../../../../docs/en/digging-deeper/queues.md#chain-connection-queue) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#chain-connection-queue) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#chain-connection-queue)

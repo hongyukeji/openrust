@@ -15,4 +15,4 @@
 - SQLite、MySQL 8.4.13、Redis 8.10.3 通过真实 HTTP 派发和独立 Artisan，验证类型优先、谓词匹配、失败只执行一次、报告继续运行、未命中时释放后执行，以及独立应用实例关闭规则后同一类型可重试。
 - 三后端独立执行器验证原始错误类型匹配后由父 Worker 结算。Rust 1.94.0 格式、锁定离线严格 Clippy、工作区串行测试、三语示例编译执行、文档构建与 18 项浏览器检查，另验证错误文档链接跳转及同进程两个应用的处理器隔离。
 
-[English](../../../../docs/en/digging-deeper/queues.md#stopping-retries-by-exception) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#stopping-retries-by-exception) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#stopping-retries-by-exception)
+[English](../../../../docs/en/digging-deeper/queues.md#stopping-retries-by-exception) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#stopping-retries-by-exception) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#stopping-retries-by-exception)

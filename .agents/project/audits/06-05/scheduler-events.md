@@ -17,4 +17,4 @@
 - 三语示例与实际注册夹具一致。三语站点构建和 12 项浏览器检查通过，其中 6 项覆盖事件小节及注册示例。
 - Rust 1.94.0 格式、严格 Clippy 和锁定离线全工作区测试通过。使用 SQLite、MySQL 8.4 和 Redis 8，主测试进程 590 项通过、7 项忽略，独立队列硬超时夹具通过。最终调度测试 11 项通过、1 项忽略。
 
-[English](../../../../docs/en/digging-deeper/scheduling.md#events) · [简体中文](../../../../docs/zh-Hans/digging-deeper/scheduling.md#events) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/scheduling.md#events)
+[English](../../../../docs/en/digging-deeper/scheduling.md#events) · [简体中文](../../../../docs/zh_CN/digging-deeper/scheduling.md#events) · [繁體中文](../../../../docs/zh_TW/digging-deeper/scheduling.md#events)

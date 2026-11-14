@@ -18,4 +18,4 @@ Rust 在 `JobContext` 上提供 `prependToChain` 和 `appendToChain`。每次接
 - SQLite 和 MySQL 注入记账后的后继入队故障。重领预约后只执行后继，原任务体不重跑。批次计数只增加一次，完成时进度为 100%。验证迁移升级与回滚。
 - Rust 1.94.0 格式检查、严格 Clippy、锁定离线工作区测试。三语示例分别接入实际 HTTP 和 Artisan 夹具，站点构建及 18 项浏览器检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#adding-jobs-to-the-chain) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#adding-jobs-to-the-chain) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#adding-jobs-to-the-chain)
+[English](../../../../docs/en/digging-deeper/queues.md#adding-jobs-to-the-chain) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#adding-jobs-to-the-chain) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#adding-jobs-to-the-chain)

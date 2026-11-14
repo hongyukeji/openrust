@@ -15,6 +15,6 @@
 - 实际 TCP HTTP 验证两个应用共用模板并发渲染时，Composer 和共享数据各自隔离，模板输出保持转义。文件、命名空间替换、重复渲染、合并数据优先级、未知扩展、路径及符号链接越界均由定向用例覆盖。
 - 三语示例与实际 HTTP 路由的渲染函数逐项核对。VitePress 构建与 18 项 Chrome 检查覆盖 `/` 和 `/docs/`。
 
-[English](../../../../docs/en/the-basics/views.md#view-contracts) · [简体中文](../../../../docs/zh-Hans/the-basics/views.md#view-contracts) · [繁體中文](../../../../docs/zh-Hant/the-basics/views.md#view-contracts)
+[English](../../../../docs/en/the-basics/views.md#view-contracts) · [简体中文](../../../../docs/zh_CN/the-basics/views.md#view-contracts) · [繁體中文](../../../../docs/zh_TW/the-basics/views.md#view-contracts)
 
 Rust 1.94.0 格式、全目标严格 Clippy 和锁定离线串行工作区测试通过。测试日志合计 580 项通过、6 项忽略，含独立进程夹具。本批启用 Redis 回归，MySQL 可选用例未开启。

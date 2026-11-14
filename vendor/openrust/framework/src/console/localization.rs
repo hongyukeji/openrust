@@ -10,11 +10,13 @@ pub(super) fn text(key: &str, english: &str, simplified: &str, traditional: &str
         return translated;
     }
     let locale = Lang::getLocale().unwrap_or_default();
-    let normalized = locale.replace('_', "-").to_ascii_lowercase();
-    match normalized.as_str() {
-        "zh" | "zh-cn" | "zh-sg" | "zh-hans" => simplified.into(),
-        "zh-tw" | "zh-hk" | "zh-mo" | "zh-hant" => traditional.into(),
-        _ => english.into(),
+    let mut parts = locale.split('_');
+    if parts.next() != Some("zh") {
+        return english.into();
+    }
+    match parts.next() {
+        Some("Hant" | "TW" | "HK" | "MO") => traditional.into(),
+        _ => simplified.into(),
     }
 }
 

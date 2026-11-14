@@ -23,4 +23,4 @@
 - 设置 `OPENRUST_TEST_WORKER_CTRL_C_ONLY=1`，运行 `cargo test --locked --offline --target x86_64-pc-windows-msvc -p openrust-framework --test queue_worker artisan_worker_database_retries_failures_and_hydrates_context -- --exact --nocapture`。以真实 HTTP 派发两条 SQLite 队列任务，运行独立 Artisan Worker。发送端只连接 Worker 新建的控制台，调用 [GenerateConsoleCtrlEvent](https://learn.microsoft.com/en-us/windows/console/generateconsolectrlevent) 发出 Ctrl+C。验证记录到 `WorkerInterrupted`、当前任务继续直至完成、Worker 以 0 退出、下一任务由新进程消费。
 - Windows 定向测试 1 项通过。macOS SQLite Worker 完整进程夹具及 Unix 信号回归通过，Rust 1.94.0 格式和受影响目标严格 Clippy 通过。三语文档构建及 18 项浏览器检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#reacting-to-worker-signals) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#reacting-to-worker-signals) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#reacting-to-worker-signals)
+[English](../../../../docs/en/digging-deeper/queues.md#reacting-to-worker-signals) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#reacting-to-worker-signals) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#reacting-to-worker-signals)

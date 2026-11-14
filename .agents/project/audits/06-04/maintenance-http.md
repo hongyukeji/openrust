@@ -18,4 +18,4 @@
 - Rust 1.94.0 格式、全工作区严格 Clippy 和锁定依赖全量测试通过。全量 582 项通过、7 项忽略，包含 SQLite、MySQL 8.4 与 Redis 8 进程验收。首次运行时会话测试共用 MySQL 表，后续表单测试缺少表。为其单独建库和准备会话表后，两项真实 MySQL 表单验收均通过，另按基线配置重跑全量。
 - 三语示例的 Artisan wrapper、状态与恢复均实测通过。文档构建、三语双部署路径导航及维护小节浏览器检查共 18 项通过。
 
-[English](../../../../docs/en/getting-started/configuration.md#maintenance-mode) · [简体中文](../../../../docs/zh-Hans/getting-started/configuration.md#maintenance-mode) · [繁體中文](../../../../docs/zh-Hant/getting-started/configuration.md#maintenance-mode)
+[English](../../../../docs/en/getting-started/configuration.md#maintenance-mode) · [简体中文](../../../../docs/zh_CN/getting-started/configuration.md#maintenance-mode) · [繁體中文](../../../../docs/zh_TW/getting-started/configuration.md#maintenance-mode)

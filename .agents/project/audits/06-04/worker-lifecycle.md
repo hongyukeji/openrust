@@ -16,4 +16,4 @@
 - 三语 `./artisan` 示例实跑返回 `empty`，另验证 `--silent`。Rust 1.94.0 格式、严格 Clippy 与锁定离线串行工作区测试通过，最终日志合计 575 项通过、6 项忽略，含独立进程夹具。
 - VitePress 构建与 18 项 Chrome 检查覆盖 `/` 和 `/docs/` 的三语生命周期章节。
 
-[English](../../../../docs/en/digging-deeper/queues.md#worker-lifecycle-events) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#worker-lifecycle-events) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#worker-lifecycle-events)
+[English](../../../../docs/en/digging-deeper/queues.md#worker-lifecycle-events) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#worker-lifecycle-events) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#worker-lifecycle-events)

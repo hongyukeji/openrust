@@ -19,4 +19,4 @@
 - `cargo +1.94.0 fmt --all --check`，`cargo +1.94.0 clippy --locked --offline --workspace --all-targets -- -D warnings`，`cargo +1.94.0 test --locked --offline --workspace -- --test-threads=1`。工作区通过计数见进度记录。
 - 三语队列示例分别接入 HTTP 和 Artisan 夹具执行。VitePress 构建、12 项通用和 6 项任务链浏览器检查通过。
 
-正文入口：[English](../../../../docs/en/digging-deeper/queues.md#job-chaining) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#job-chaining) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#job-chaining)。
+正文入口：[English](../../../../docs/en/digging-deeper/queues.md#job-chaining) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#job-chaining) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#job-chaining)。

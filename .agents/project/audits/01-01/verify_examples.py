@@ -32,7 +32,7 @@ fn main() {
 '''
 with TemporaryDirectory(prefix='openrust-01-01-examples-') as directory:
     root = Path(directory)
-    for language in ['en', 'zh-Hans', 'zh-Hant']:
+    for language in ['en', 'zh_CN', 'zh_TW']:
         for topic in ['container', 'facades']:
             page = source / f'docs/{language}/architecture-concepts/{topic}.md'
             blocks = re.findall(r'```rust\n(.*?)```', page.read_text(), re.S)

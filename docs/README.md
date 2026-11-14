@@ -1,6 +1,6 @@
 # 文档
 
-[English](en/README.md) · [简体中文](zh-Hans/README.md) · [繁體中文](zh-Hant/README.md)
+[English](en/README.md) · [简体中文](zh_CN/README.md) · [繁體中文](zh_TW/README.md)
 
 三语 Markdown 可直接在 GitHub 阅读，各语言的目录页同时用于生成 VitePress 侧栏。
 

@@ -16,4 +16,4 @@
 - Redis 8.10.3 通过 TCP 代理仅切断独立 Worker 的一次阻塞预约连接。验证默认退出 0、报告异常、关闭自动退出后重新预约并完成真实 HTTP 派发的任务。SQLite 验证自定义检测器仅在绑定它的应用中生效。
 - Rust 1.94.0 格式、锁定离线严格 Clippy 和串行工作区测试通过，日志合计 575 项通过、6 项忽略，含独立进程夹具。三语 Artisan 命令实跑，文档构建和 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#worker-lost-connection) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#worker-lost-connection) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#worker-lost-connection)
+[English](../../../../docs/en/digging-deeper/queues.md#worker-lost-connection) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#worker-lost-connection) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#worker-lost-connection)

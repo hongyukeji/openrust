@@ -14,4 +14,4 @@
 - 实际 HTTP 派发及独立 `queue:work` 在 SQLite、MySQL 8.4.13 和 Redis 8.10.3 上验收确认、条件未命中时执行、闭包每次构造只求值一次、零延迟立即预约、延迟期间不可预约和到期后第二次尝试成功。
 - Rust 1.94.0 格式、锁定离线严格 Clippy 和工作区串行测试通过。三语示例提取后使用实际 sync 队列执行，文档构建和 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#releasing-jobs) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#releasing-jobs) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#releasing-jobs)
+[English](../../../../docs/en/digging-deeper/queues.md#releasing-jobs) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#releasing-jobs) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#releasing-jobs)

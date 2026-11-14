@@ -19,4 +19,4 @@ Rust 用 `PendingBatch::addChain` 和 `Batch::addChain` 表达 PHP 嵌套数组�
 - Rust 1.94.0 运行 `cargo fmt --all --check`、`cargo clippy --locked --offline --workspace --all-targets -- -D warnings`、`cargo test --locked --offline --workspace -- --test-threads=1`。
 - 三语示例分别接入 HTTP 和 Artisan 测试夹具。VitePress 构建、12 项通用和 6 项批次任务链浏览器检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#chains-and-batches) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#chains-and-batches) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#chains-and-batches)
+[English](../../../../docs/en/digging-deeper/queues.md#chains-and-batches) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#chains-and-batches) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#chains-and-batches)

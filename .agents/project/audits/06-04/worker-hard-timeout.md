@@ -57,4 +57,4 @@
 - SQLite、MySQL 8.4.13 与 Redis 8.10.3 三组真实 `queue:work` 均通过。MySQL 队列和失败记录使用专用 MySQL 库，Redis 队列使用专用 Redis 容器，失败记录使用虚拟机内的 SQLite。
 - 每组验证强制超时回收 CPU 死循环、同步阻塞及外部进程树，无晚到副作用。验证超时退出码 124、租约后重试、按任务 UUID 写入失败记录，以及关闭超时退出后继续消费。每组还验证非隔离失败回调及其异常报告，同一 Worker 成功消费后续任务并以 0 退出。
 
-[English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#hard-job-timeouts)
+[English](../../../../docs/en/digging-deeper/queues.md#hard-job-timeouts) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#hard-job-timeouts) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#hard-job-timeouts)

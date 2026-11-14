@@ -17,4 +17,4 @@
 - 模拟 SQL 源预约确认失败，Redis 已投递凭据保持无到期时间。解除故障后再次处理，目标任务只入队一次，源确认后才出现 24 小时 TTL。SQL 测试确认实际凭据写入时间，并用三语正文中的 Artisan 命令验证已确认过期凭据清理、近期及待确认凭据保留。验证迁移回滚及旧凭据保留。
 - Rust 1.94.0 格式、严格 Clippy、锁定离线工作区测试。VitePress 构建和 18 项浏览器检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#chain-connection-queue) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#chain-connection-queue) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#chain-connection-queue)
+[English](../../../../docs/en/digging-deeper/queues.md#chain-connection-queue) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#chain-connection-queue) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#chain-connection-queue)

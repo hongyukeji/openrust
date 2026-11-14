@@ -15,4 +15,4 @@
 - 实际 HTTP 派发和独立 Artisan Worker 验证跨任务共享、前缀和任务名隔离、绝对延迟后二次执行、`dontRelease`、绝对租约到期以及异常时释放。覆盖 SQLite、MySQL 8.4.13 与 Redis 8.10.3，使用文件或 Redis 缓存锁。
 - Rust 1.94.0 格式、锁定离线严格 Clippy 和工作区串行测试通过。三语示例提取后通过实际 sync 队列执行，文档构建及 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#preventing-job-overlaps) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#preventing-job-overlaps) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#preventing-job-overlaps)
+[English](../../../../docs/en/digging-deeper/queues.md#preventing-job-overlaps) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#preventing-job-overlaps) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#preventing-job-overlaps)

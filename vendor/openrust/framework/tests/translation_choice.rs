@@ -9,6 +9,8 @@ fn choice_applies_ranges_then_locale_rules_and_preserves_exact_integers() {
         ("[*,-1] negative|[0,*] positive", -5, "en", "negative"),
         ("first|second", 2, "en_US", "second"),
         ("first|second", 2, "zh_TW", "first"),
+        ("first|second", 2, "EN-gb", "second"),
+        ("first|second", 2, "zh_hant", "first"),
         ("one|few|many", 22, "ru_RU", "few"),
         ("one|few|many", 11, "ru_RU", "many"),
         (

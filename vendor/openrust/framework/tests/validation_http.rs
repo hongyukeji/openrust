@@ -144,14 +144,14 @@ async fn send(address: SocketAddr, path: &str, body: Value, denied: bool, status
 #[tokio::test]
 async fn form_requests_validate_and_translate_concurrent_real_http_requests() {
     let root = std::env::temp_dir().join(format!("openrust-validation-{:016x}", fastrand::u64(..)));
-    std::fs::create_dir_all(root.join("lang/zh_Hans")).unwrap();
+    std::fs::create_dir_all(root.join("lang/zh_CN")).unwrap();
     std::fs::write(
-        root.join("lang/zh_Hans/validation.json"),
+        root.join("lang/zh_CN/validation.json"),
         r#"{"required":"请填写 :attribute。","attributes":{"name":"名称"}}"#,
     )
     .unwrap();
     std::fs::write(
-        root.join("lang/zh_Hans.json"),
+        root.join("lang/zh_CN.json"),
         r#"{"(and :count more error)":"（另有 :count 条错误）"}"#,
     )
     .unwrap();
@@ -167,7 +167,7 @@ async fn form_requests_validate_and_translate_concurrent_real_http_requests() {
         ),
         send(
             address,
-            "/api/submit/zh_Hans",
+            "/api/submit/zh_CN",
             json!({"users":[{"score":null}]}),
             false,
             422

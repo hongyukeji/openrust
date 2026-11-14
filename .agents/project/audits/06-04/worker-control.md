@@ -16,4 +16,4 @@
 - Rust 1.94.0 格式检查及锁定离线全目标严格 Clippy 通过。工作区串行锁定离线测试报告 579 项通过、6 项标记忽略。定向用例通过环境变量强制运行三个队列驱动。
 - 三语正文提取的 15 条 Artisan 命令通过实际编译产物执行。VitePress 构建通过，Chrome 在 `/` 和 `/docs/` 共通过 12 项通用及 6 项 Worker 页面检查。
 
-[English](../../../../docs/en/digging-deeper/queues.md#pausing-and-resuming-queue-workers) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#pausing-and-resuming-queue-workers) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#pausing-and-resuming-queue-workers)
+[English](../../../../docs/en/digging-deeper/queues.md#pausing-and-resuming-queue-workers) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#pausing-and-resuming-queue-workers) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#pausing-and-resuming-queue-workers)

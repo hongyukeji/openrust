@@ -14,4 +14,4 @@
 - 独立 Artisan 与真实 HTTP 夹具在 SQLite、MySQL、Redis 环境中验证同步成功、任务失败、失败回调错误、处理前与处理后监听错误。覆盖事件顺序、原始错误、同步任务快照及耗时。处理前拒绝时实际处理器未执行。
 - 三语示例实际启动应用并运行同步任务，验证注册的处理后回调。文档构建及 18 项浏览器检查通过。Rust 1.94.0 格式和严格 Clippy 通过。锁定离线最终串行工作区验收通过，含子进程 577 项通过、7 项忽略。
 
-[English](../../../../docs/en/digging-deeper/queues.md#synchronous-job-events) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#synchronous-job-events) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#synchronous-job-events)
+[English](../../../../docs/en/digging-deeper/queues.md#synchronous-job-events) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#synchronous-job-events) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#synchronous-job-events)

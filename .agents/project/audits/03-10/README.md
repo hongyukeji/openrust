@@ -23,3 +23,9 @@
 对照固定 Laravel `LangPublishCommand` 及四份英文语言资源。将 PHP 数组转为运行时可读取的 JSON，保留上游 MIT 许可证，命令运行无需 PHP。发布与加载共享路径解析，已有 `resources/lang` 时写入该目录，其他应用写入根 `lang/en`。旧版 `v0.x` 有语言文件及加载器，未找到发布命令。 [固定 Laravel 命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/LangPublishCommand.php)
 
 macOS ARM64 使用 Rust 1.94.0 构建真实二进制，在临时应用运行默认发布、重复发布、`--existing`、`--force` 及两个选项同时使用。核对四个 JSON 文件、既有自定义值和缺失文件的处理，验证旧目录可发布。三语文档构建及 12 项浏览器检查通过。
+
+## 语言标识归一
+
+应用配置、翻译资源和文档路径统一使用 `en`、`en_GB`、`zh_CN`、`zh_TW` 等标识。ICU4X 的语言标识解析统一大小写、分隔符、文字和地区，保留明确指定的地区目录。简繁中文文字别名归到默认目录。HTML 使用 BCP 47 语言标签。既有资源需采用归一后的文件名。 [固定 Laravel 本地化文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/localization.md#defining-translation-strings) · [Unicode UTS #35](https://www.unicode.org/reports/tr35/)
+
+隔离运行 `cargo +1.94.0 test --locked --offline --test localization --test feature` 及框架 `translation_choice`、`validation_http`，共 16 项通过。实际 Artisan 验证中英文变体和非法环境配置拒绝。格式和全目标严格 Clippy 通过。文档构建覆盖根路径和子路径，核对语言切换、搜索、404 和站点正文。

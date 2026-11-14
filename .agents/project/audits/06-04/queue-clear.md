@@ -15,4 +15,4 @@
 - SQLite、MySQL 8.4.13、Redis 8.10.3 使用独立 Artisan 验证默认连接与队列、多队列去重、生产拒绝及强制、应用级禁止、同步驱动拒绝、三种任务状态和其他队列保留。清理后已撤销的预约无法确认。Redis 验证目标队列通知键删除、其他队列通知保留。通过伪终端实测生产确认，输入 n 保留任务，输入 y 删除任务。
 - Rust 1.94.0 格式、锁定离线严格 Clippy、串行工作区测试、三语命令在隔离 SQLite 上实跑、文档构建和 18 项 Chrome 检查通过。
 
-[English](../../../../docs/en/digging-deeper/queues.md#clearing-jobs-from-queues) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#clearing-jobs-from-queues) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#clearing-jobs-from-queues)
+[English](../../../../docs/en/digging-deeper/queues.md#clearing-jobs-from-queues) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#clearing-jobs-from-queues) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#clearing-jobs-from-queues)

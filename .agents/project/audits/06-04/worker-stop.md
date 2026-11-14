@@ -16,4 +16,4 @@
 - 三语章节的 `./artisan` 示例分别实跑，另验收 `--silent`。Rust 1.94.0 格式、全目标严格 Clippy 与锁定离线串行工作区测试通过。测试日志合计 575 项通过、6 项忽略，含独立进程夹具。
 - VitePress 构建与 18 项 Chrome 检查覆盖 `/`、`/docs/` 及三语状态章节。
 
-[English](../../../../docs/en/digging-deeper/queues.md#worker-status-and-exit-reasons) · [简体中文](../../../../docs/zh-Hans/digging-deeper/queues.md#worker-status-and-exit-reasons) · [繁體中文](../../../../docs/zh-Hant/digging-deeper/queues.md#worker-status-and-exit-reasons)
+[English](../../../../docs/en/digging-deeper/queues.md#worker-status-and-exit-reasons) · [简体中文](../../../../docs/zh_CN/digging-deeper/queues.md#worker-status-and-exit-reasons) · [繁體中文](../../../../docs/zh_TW/digging-deeper/queues.md#worker-status-and-exit-reasons)

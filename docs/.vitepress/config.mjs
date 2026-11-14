@@ -1,11 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vitepress";
-import { landing, languageNames, siteMarker } from "./landing.mjs";
+import { landing, languages, siteMarker } from "./landing.mjs";
 
 const publication = {
     current: "master",
-    versions: ["v1.x"],
+    versions: [{ name: "v0.x", file: "README.md" }],
     rustdoc: null,
 };
 
@@ -19,7 +19,7 @@ const labels = {
         next: "Next page",
         api: "API Documentation",
     },
-    "zh-Hans": {
+    "zh_CN": {
         title: "OpenRust 文档",
         outline: "本页目录",
         menu: "菜单",
@@ -29,7 +29,7 @@ const labels = {
         api: "API 文档",
         search: ["搜索文档", "关闭搜索", "清除搜索", "搜索结果详情", "选择", "切换", "关闭"],
     },
-    "zh-Hant": {
+    "zh_TW": {
         title: "OpenRust 文件",
         outline: "本頁目錄",
         menu: "選單",
@@ -46,7 +46,7 @@ const chapterTitles = new Map();
 
 function localeConfig(language) {
     const text = labels[language];
-    const prefix = language.toLowerCase();
+    const { label, lang, path: prefix } = languages[language];
     const sidebar = [];
     let items = sidebar;
     for (const line of readFileSync(new URL(`../${language}/README.md`, import.meta.url), "utf8").split("\n")) {
@@ -69,8 +69,8 @@ function localeConfig(language) {
     if (publication.rustdoc) sidebar.push({ text: text.api, link: publication.rustdoc });
 
     return {
-        label: languageNames[language],
-        lang: language,
+        label,
+        lang,
         link: `/${prefix}/`,
         title: text.title,
         themeConfig: {
@@ -79,9 +79,9 @@ function localeConfig(language) {
                 text: publication.current,
                 items: [
                     { text: publication.current, link: `/${prefix}/` },
-                    ...publication.versions.map((name) => ({
+                    ...publication.versions.map(({ name, file }) => ({
                         text: name,
-                        link: `https://github.com/hongyukeji/openrust/blob/${encodeURIComponent(name)}/docs/${language}/README.md`,
+                        link: `https://github.com/hongyukeji/openrust/blob/${encodeURIComponent(name)}/${file}`,
                     })),
                 ],
             }],
@@ -94,12 +94,12 @@ function localeConfig(language) {
 }
 
 const locales = {
-    root: localeConfig("zh-Hans"),
+    root: localeConfig("zh_CN"),
     en: localeConfig("en"),
-    "zh-hant": localeConfig("zh-Hant"),
+    "zh_TW": localeConfig("zh_TW"),
 };
 const searchLocales = {};
-for (const [key, language] of [["root", "zh-Hans"], ["zh-hant", "zh-Hant"]]) {
+for (const [key, language] of [["root", "zh_CN"], ["zh_TW", "zh_TW"]]) {
     const [search, close, reset, details, select, navigate, footerClose] = labels[language].search;
     searchLocales[key] = {
         translations: {
@@ -108,7 +108,7 @@ for (const [key, language] of [["root", "zh-Hans"], ["zh-hant", "zh-Hant"]]) {
                 displayDetails: details,
                 resetButtonTitle: reset,
                 backButtonTitle: close,
-                noResultsText: language === "zh-Hans" ? "没有找到相关结果" : "找不到相關結果",
+                noResultsText: language === "zh_CN" ? "没有找到相关结果" : "找不到相關結果",
                 footer: { selectText: select, navigateText: navigate, closeText: footerClose },
             },
         },
@@ -116,7 +116,7 @@ for (const [key, language] of [["root", "zh-Hans"], ["zh-hant", "zh-Hant"]]) {
 }
 
 export default defineConfig(({ command }) => ({
-    title: labels["zh-Hans"].title,
+    title: labels["zh_CN"].title,
     base: command === "build" ? "./" : "/",
     srcExclude: ["README.md", "*/README.md"],
     rewrites,
