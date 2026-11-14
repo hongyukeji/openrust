@@ -1300,3 +1300,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `810e10e4`。MySQL 8.4.13 的真实应用二进制运行 `artisan db:seed --database=mysql --force`，回读九条父模型、十条子模型和一条 Pivot 记录。覆盖三语共用示例、复数子关系、单数回退、新建和复用父模型、推断多对多关系。MySQL／SQLite 工厂回归额外验证模型同时注册单数和复数时优先复数。真实 Seeder 复验按数据库外键查询比较键值，涵盖有符号和无符号字段返回类型。
 
 76 项 Faker、49 项 Seeder、两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原 Seeder 已恢复，容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 仍需对账剩余 Faker formatter，尤其是使用 fake-rs 词表的城市与街道等 Address 项。
+
+## 美国英语与简繁中文地址词表
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [美国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Address.php)、[简体中文](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_CN/Address.php)与[繁体中文](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Address.php) Address。美国城市和街道按上游等权模板组合已移植的 Person 名字及地址词表。简中接通城市、省级名称、简称、国家和 `area()`，并采用基础 Address 的街道和楼号模板。台湾县市与区乡镇分级取样，接通街道词干 `street()`、路街、可选段、邮编和固定省名及简称。词表保留原顺序和重复项。Rust 以静态切片表达词表，以 `Result` 表达两个地区专用入口，并沿用各 formatter 的去重历史。v0.x 未发现对应地址生成器，Goravel 式装配无需改动。
+
+隔离基线 `6081682f`。PHP 反射提取的 15 个词表逐项一致，并用 PHP 8.5.12 核对三地共 384 个地址样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，包含三语共用示例，覆盖词表成员资格、美国换行及邮编、简中城市和区拼接、台湾县市归属和街道段巷弄楼格式。Rust 回归验证错误地区及两项路街唯一值耗尽。
+
+77 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版问题仅在隔离副本处理。恢复原 Seeder 并移除容器，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。后续继续核对台湾数值辅助入口、法语 Address 和其他地区剩余 fake-rs 回退。

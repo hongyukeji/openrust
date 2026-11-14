@@ -773,7 +773,17 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### Postal Addresses and Titles {#address-and-title-samples}
 
-Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned FakerPHP city and street templates and address catalogs. Other locales may still use fake-rs components. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+
+Use `area()` with Simplified Chinese to sample a district, and `street()` with Traditional Chinese to sample the street stem. Taiwanese city samples combine a county or municipality with one of its own districts. Both direct formatters support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwan_address_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant-TW"))?.unique(false).address()
+}
+```
 
 ### Given Names by Gender {#given-names-by-gender}
 

@@ -773,7 +773,17 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
-用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。城市、街道和部分地址元件仍使用 fake-rs 資料。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。美國英語、簡體中文和繁體中文使用固定 FakerPHP 的城市、街道範本和地址詞表。其他地區仍可能使用 fake-rs 元件。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+
+簡體中文可用 `area()` 抽取區名，繁體中文可用 `street()` 抽取街道詞幹。臺灣城市樣本先抽取縣市，再從該縣市的區鄉鎮詞表取樣。兩個入口皆支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwan_address_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant-TW"))?.unique(false).address()
+}
+```
 
 ### 依性別產生名字 {#given-names-by-gender}
 

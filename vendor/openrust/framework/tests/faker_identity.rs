@@ -3690,3 +3690,39 @@ fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
         ad.timestamp()
     );
 }
+
+#[test]
+fn address_catalogs_follow_the_selected_provider() {
+    let us = fake(Some("en-US")).unwrap();
+    let cn = fake(Some("zh-Hans")).unwrap();
+    let tw = fake(Some("zh-Hant")).unwrap();
+    let taiwan_postcode = Regex::new(r"^\d{3}(-\d{2})?$").unwrap();
+
+    for _ in 0..64 {
+        assert!(
+            ["North", "East", "West", "South", "New", "Lake", "Port"]
+                .contains(&us.cityPrefix().as_str())
+        );
+        assert!(us.streetName().contains(' '));
+        assert!(cn.streetName().ends_with(" Street"));
+        assert!(cn.area().unwrap().ends_with('区'));
+        assert_eq!(cn.buildingNumber().len(), 2);
+        assert_eq!(tw.state(), "臺灣省");
+        assert_eq!(tw.stateAbbr(), "臺");
+        assert_eq!(tw.cityPrefix(), "");
+        assert_eq!(tw.citySuffix(), "");
+        assert!(!tw.street().unwrap().is_empty());
+        assert!(taiwan_postcode.is_match(&tw.postcode()));
+    }
+
+    let unique = tw.uniqueWithRetries(true, 128);
+    let mut suffixes = [
+        unique.streetSuffix().unwrap(),
+        unique.streetSuffix().unwrap(),
+    ];
+    suffixes.sort();
+    assert_eq!(suffixes, ["街", "路"]);
+    assert!(unique.streetSuffix().is_err());
+    assert!(us.area().is_err());
+    assert!(cn.street().is_err());
+}
