@@ -69,6 +69,36 @@ pub trait HasFactory: Model {
     fn factory() -> Factory<Self>;
 }
 
+/// Selects generated or already persisted models for a factory attachment.
+pub enum FactoryAttachment<R: Model> {
+    Generated(Box<FactoryBatch<R>>),
+    Existing(Vec<R>),
+}
+
+impl<R: Model> From<FactoryBatch<R>> for FactoryAttachment<R> {
+    fn from(factory: FactoryBatch<R>) -> Self {
+        Self::Generated(Box::new(factory))
+    }
+}
+
+impl<R: Model> From<R> for FactoryAttachment<R> {
+    fn from(model: R) -> Self {
+        Self::Existing(vec![model])
+    }
+}
+
+impl<R: Model> From<Vec<R>> for FactoryAttachment<R> {
+    fn from(models: Vec<R>) -> Self {
+        Self::Existing(models)
+    }
+}
+
+impl<R: Model> From<Collection<R>> for FactoryAttachment<R> {
+    fn from(models: Collection<R>) -> Self {
+        Self::Existing(models.into_iter().collect())
+    }
+}
+
 /// Supplies pivot attributes to each model created by an attached factory.
 pub enum FactoryPivot<M: Model> {
     Shared(Attributes),
@@ -474,11 +504,11 @@ impl<M: Model> Factory<M> {
     pub fn hasAttached<R: Model>(
         self,
         relation: impl Into<BelongsToMany<M, R>>,
-        models: FactoryBatch<R>,
+        models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let relation = Arc::new(relation.into());
-        self.has_attached_resolved(move |_| Ok(relation.clone()), models, pivot.into())
+        self.has_attached_resolved(move |_| Ok(relation.clone()), models.into(), pivot.into())
     }
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
@@ -486,7 +516,7 @@ impl<M: Model> Factory<M> {
     pub fn hasAttachedNamed<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
         self,
         name: impl Into<String>,
-        models: FactoryBatch<R>,
+        models: impl Into<FactoryAttachment<R>>,
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let name = name.into();
@@ -494,7 +524,7 @@ impl<M: Model> Factory<M> {
             move |model| {
                 named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation.into()))
             },
-            models,
+            models.into(),
             pivot.into(),
         )
     }
@@ -502,7 +532,7 @@ impl<M: Model> Factory<M> {
     fn has_attached_resolved<R: Model>(
         mut self,
         relation: impl Fn(&M) -> DatabaseResult<Arc<BelongsToMany<M, R>>> + Send + Sync + 'static,
-        models: FactoryBatch<R>,
+        models: FactoryAttachment<R>,
         pivot: FactoryPivot<M>,
     ) -> Self {
         let relation = Arc::new((relation, models, pivot));
@@ -512,11 +542,23 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, models, pivot) = &*relation;
                     let relation = relation(parent)?;
-                    let connection = models.factory.resolve_related_connection(connection)?;
-                    let attributes = (relation.factory_defaults(&connection)?, Attributes::new());
-                    let models = models
-                        .create_with_pool(&connection, inherited, Some(&attributes))
-                        .await?;
+                    let generated;
+                    let models: &[R] = match models {
+                        FactoryAttachment::Generated(factory) => {
+                            let connection =
+                                factory.factory.resolve_related_connection(connection)?;
+                            let attributes =
+                                (relation.factory_defaults(&connection)?, Attributes::new());
+                            generated = factory
+                                .create_with_pool(&connection, inherited, Some(&attributes))
+                                .await?;
+                            &generated
+                        }
+                        FactoryAttachment::Existing(models) => {
+                            relation.validate_factory_attachments(parent, models)?;
+                            models
+                        }
+                    };
                     let keys = models
                         .iter()
                         .map(|model| {

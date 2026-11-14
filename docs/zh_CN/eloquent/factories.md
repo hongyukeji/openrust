@@ -142,3 +142,5 @@ pub async fn reuse_owner<C: Model, P: Model>(
 ```
 
 向 `hasAttached` 或 `hasAttachedNamed` 传入属性映射列表，即可按关联模型顺序设置中间表属性。关联工厂数量超过列表长度时会循环。用 `FactoryPivot::resolve` 根据已保存的父模型计算每次附加的属性。单个属性映射会应用于全部关联。
+
+可以传入已有模型、模型列表或 Eloquent 集合，直接附加这些模型。模型必须已持久化、具有关系所需的键，并属于该关系使用的连接。目标无效时，在写入本次附加的中间表记录前返回错误。

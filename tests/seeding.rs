@@ -258,6 +258,86 @@ impl ModelEventListener<FactoryChild> for CancelFactoryChild {
     }
 }
 
+async fn verify_existing_attachments(
+    connection: &Connection,
+    sqlite: &Connection,
+) -> DatabaseResult<()> {
+    let owners = || Factory::<FactoryOwner>::new(Attributes::new);
+    let children = || Factory::<FactoryChild>::new(Attributes::new);
+    let pivot = |label: &str| Attributes::from([("label".into(), label.into())]);
+    let existing = children()
+        .set("generated_name", "existing")
+        .count(2)
+        .createOn(connection)
+        .await?;
+    let existing_keys = existing.modelKeys();
+    let single = children().createOn(connection).await?;
+    let single_key = single.getKey().unwrap().clone();
+    owners()
+        .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+            "attached",
+            existing,
+            vec![pivot("existing-first"), pivot("existing-second")],
+        )
+        .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+            "attached",
+            single,
+            pivot("existing-single"),
+        )
+        .createOn(connection)
+        .await?;
+    let links = connection
+        .table("seed_factory_links")
+        .orderBy("child_id", "asc")
+        .get()
+        .await?;
+    assert_eq!(links.len(), 3);
+    for (link, key) in links
+        .iter()
+        .zip(existing_keys.iter().chain(std::iter::once(&single_key)))
+    {
+        assert_eq!(link.get("child_id"), Some(key));
+    }
+    assert_eq!(links[1].get("label"), Some(&"existing-second".into()));
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        3
+    );
+    let invalid = owners().hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+        "attached",
+        children().makeOn(connection).await?,
+        pivot("invalid"),
+    );
+    assert!(matches!(
+        invalid.createOn(connection).await,
+        Err(DatabaseError::InvalidQuery(
+            "factory attachment requires a persisted model"
+        ))
+    ));
+    sqlite
+        .statement(
+            "CREATE TABLE seed_factory_children (id INTEGER PRIMARY KEY)",
+            &[],
+        )
+        .await?;
+    let remote = children().createOn(sqlite).await?;
+    let invalid = owners().hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+        "attached",
+        remote,
+        pivot("invalid"),
+    );
+    assert!(matches!(
+        invalid.createOn(connection).await,
+        Err(DatabaseError::InvalidQuery(
+            "mixed relationship connections"
+        ))
+    ));
+    assert_eq!(connection.table("seed_factory_links").delete().await?, 3);
+    assert_eq!(connection.table("seed_factory_children").delete().await?, 3);
+    assert_eq!(connection.table("seed_factory_owners").delete().await?, 3);
+    Ok(())
+}
+
 impl Seeder for PolymorphicFactories {
     fn run<'a>(
         &'a self,
@@ -902,6 +982,7 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(connection.table("seed_factory_links").delete().await?, 5);
             assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
+            Box::pin(verify_existing_attachments(connection, &sqlite)).await?;
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");
                 let name = faker.unique(false).firstName()?;

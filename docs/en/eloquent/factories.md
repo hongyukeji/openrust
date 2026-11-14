@@ -142,3 +142,5 @@ pub async fn reuse_owner<C: Model, P: Model>(
 ```
 
 Pass a vector of attribute maps to `hasAttached` or `hasAttachedNamed` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments.
+
+Pass an existing model, a vector of models, or an Eloquent collection to attach them without creating new related rows. The models must be persisted, have the related key, and belong to the connection used by the relationship. Invalid targets fail before any pivot row for that attachment is written.

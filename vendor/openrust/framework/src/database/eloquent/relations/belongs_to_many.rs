@@ -987,6 +987,35 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.keys.related
     }
 
+    pub(in crate::database::eloquent) fn validate_factory_attachments(
+        &self,
+        parent: &P,
+        models: &[R],
+    ) -> DatabaseResult<()> {
+        if models.is_empty() {
+            return Ok(());
+        }
+        let connection = self.keys.connection(parent)?;
+        for model in models {
+            if !model.state().exists() {
+                return Err(DatabaseError::InvalidQuery(
+                    "factory attachment requires a persisted model",
+                ));
+            }
+            if !model
+                .state()
+                .connection
+                .as_ref()
+                .is_some_and(|source| connection.same_query_source(source))
+            {
+                return Err(DatabaseError::InvalidQuery(
+                    "mixed relationship connections",
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
         self.attachWith(parent, keys, Attributes::new()).await
     }
