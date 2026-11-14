@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### Localized Fake Data {#localized-fake-data}
 
-The catalog below lists the supported formatters. Some FakerPHP providers, including files, image generation and user agents, are pending.
+The catalog below lists the supported formatters. Some FakerPHP providers, including image generation and user agents, are pending.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
@@ -244,6 +244,19 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn catalog_codes() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en"))?;
     Ok((faker.ean13(), faker.unique(false).isbn13()?))
+}
+```
+
+### File Samples {#file-samples}
+
+`mimeType()` samples a MIME type from the fixed FakerPHP catalog. `fileExtension()` samples a MIME group and returns one of its extensions without a dot. Both support `unique`, as does the version 3 `uuid()` formatter. `file(sourceDirectory, targetDirectory, fullPath)` copies a readable file from the top level of an existing directory to another existing directory. Its generated name retains the source extension. Rust uses explicit paths and returns an I/O error if copying fails.
+
+```rust
+use std::{io, path::{Path, PathBuf}};
+use openrust::database::eloquent::factories::Faker;
+
+fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBuf> {
+    faker.file(source, target, false)
 }
 ```
 

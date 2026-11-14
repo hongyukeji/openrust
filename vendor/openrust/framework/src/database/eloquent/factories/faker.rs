@@ -1,5 +1,6 @@
 use super::{
     faker_address::DISTRICTS_ZH_CN,
+    faker_file::MIME_TYPES,
     faker_institutions, faker_miscellaneous,
     faker_payment::{
         CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
@@ -11,8 +12,11 @@ use super::{
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
+    fs::{self, File, OpenOptions},
+    io,
     net::Ipv4Addr,
     ops::Range,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock, RwLock},
 };
 
@@ -1466,6 +1470,87 @@ impl Faker {
         address
     }
 
+    /// Samples a MIME type from the fixed FakerPHP file catalog.
+    pub fn mimeType(&self) -> &'static str {
+        MIME_TYPES[fastrand::usize(..MIME_TYPES.len())].0
+    }
+
+    /// Samples a MIME group, then one of its extensions without the dot.
+    pub fn fileExtension(&self) -> &'static str {
+        let extensions = MIME_TYPES[fastrand::usize(..MIME_TYPES.len())].1;
+        extensions[fastrand::usize(..extensions.len())]
+    }
+
+    /// Generates the version 3 sample UUID used by the FakerPHP file provider.
+    pub fn uuid(&self) -> uuid::Uuid {
+        let seed = format!(
+            "{}#{}",
+            self.numberBetween(0, i32::MAX.into()),
+            self.numberBetween(0, i32::MAX.into())
+        );
+        let mut bytes: [u8; 16] = Md5::digest(seed).into();
+        bytes[6] = (bytes[6] & 0x0f) | 0x30;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        uuid::Uuid::from_bytes(bytes)
+    }
+
+    /// Copies one readable file from a directory without recursing into subdirectories.
+    pub fn file(
+        &self,
+        sourceDirectory: &Path,
+        targetDirectory: &Path,
+        fullPath: bool,
+    ) -> io::Result<PathBuf> {
+        let source = fs::canonicalize(sourceDirectory)?;
+        let target = fs::canonicalize(targetDirectory)?;
+        if !source.is_dir() || !target.is_dir() || source == target {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Faker file requires two different directories",
+            ));
+        }
+        let mut candidates = fs::read_dir(&source)?.collect::<io::Result<Vec<_>>>()?;
+        fastrand::shuffle(&mut candidates);
+        let (source_path, mut source_file) = candidates
+            .into_iter()
+            .find_map(|entry| {
+                let path = entry.path();
+                if !path.is_file() {
+                    return None;
+                }
+                File::open(&path).ok().map(|file| (path, file))
+            })
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    "Faker source directory has no readable files",
+                )
+            })?;
+        loop {
+            let mut name = std::ffi::OsString::from(format!("{}.", self.uuid()));
+            if let Some(extension) = source_path.extension() {
+                name.push(extension);
+            } else if let Some(extension) = source_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .and_then(|name| name.strip_prefix('.'))
+            {
+                name.push(extension);
+            }
+            let path = targetDirectory.join(&name);
+            let mut output = match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                result => result?,
+            };
+            if let Err(error) = io::copy(&mut source_file, &mut output) {
+                drop(output);
+                let _ = fs::remove_file(&path);
+                return Err(error);
+            }
+            return Ok(if fullPath { path } else { PathBuf::from(name) });
+        }
+    }
+
     pub fn md5(&self) -> String {
         let value = self.numberBetween(0, i64::from(i32::MAX)).to_string();
         digest_hex(&Md5::digest(value.as_bytes()))
@@ -2396,6 +2481,18 @@ impl UniqueFaker<'_> {
 
     pub fn macAddress(&self) -> DatabaseResult<String> {
         self.generate("macAddress", || self.0.macAddress())
+    }
+
+    pub fn mimeType(&self) -> DatabaseResult<&'static str> {
+        self.generate("mimeType", || self.0.mimeType())
+    }
+
+    pub fn fileExtension(&self) -> DatabaseResult<&'static str> {
+        self.generate("fileExtension", || self.0.fileExtension())
+    }
+
+    pub fn uuid(&self) -> DatabaseResult<uuid::Uuid> {
+        self.generate("uuid", || self.0.uuid())
     }
 
     pub fn md5(&self) -> DatabaseResult<String> {

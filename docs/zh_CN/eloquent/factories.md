@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### 本地化测试数据 {#localized-fake-data}
 
-下文列出已支持的生成器。FakerPHP 的文件、图片生成和 User-Agent 等生成器仍待接入。
+下文列出已支持的生成器。FakerPHP 的图片生成和 User-Agent 等生成器仍待接入。
 
 下文涉及的上游格式以[上游 Faker 词库与生成器](https://github.com/FakerPHP/Faker/tree/v1.24.1)为准。
 
@@ -244,6 +244,19 @@ use openrust::database::{DatabaseResult, eloquent::factories::fake};
 fn catalog_codes() -> DatabaseResult<(String, String)> {
     let faker = fake(Some("en"))?;
     Ok((faker.ean13(), faker.unique(false).isbn13()?))
+}
+```
+
+### 文件样本 {#file-samples}
+
+`mimeType()` 从固定 FakerPHP 目录选择 MIME 类型。`fileExtension()` 先选 MIME 分组，再返回不带点的扩展名。两种方法及版本 3 的 `uuid()` 均支持 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 从现有目录的顶层选取可读文件，复制到另一个现有目录，生成的文件名保留源扩展名。Rust 使用显式路径，失败时返回 I/O 错误。
+
+```rust
+use std::{io, path::{Path, PathBuf}};
+use openrust::database::eloquent::factories::Faker;
+
+fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBuf> {
+    faker.file(source, target, false)
 }
 ```
 

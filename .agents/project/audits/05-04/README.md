@@ -571,3 +571,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `b96b9a07`。MySQL 8.4.13 定向回归在同一进程运行两个独立应用的 Artisan Seeder，验证别名共用、不同语言隔离、助手与工厂绑定隔离、工厂跨调用耗尽及落库行数。多态 Seeder 和应用默认 Seeder 回归验证地区选择、共享时区覆盖、历史重置和默认用户。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器导航检查通过。
 
 实际应用二进制的 MySQL Seeder 再验收一次，确认语言别名共享去重，第二次构建失败后仍只写入一条记录。已清理本批独占编译和站点产物。05-04 继续跟踪其余 Faker provider。
+
+## Faker 文件样本与 UUID
+
+固定 Laravel 工厂通过 `fake()` 使用 FakerPHP provider。本批迁移 File 的 461 个 MIME 分组与全部扩展名，保留先选分组再选扩展名的抽样权重。新增 FakerPHP 兼容的版本 3 UUID，复用现有 MD5、UUID 类型及随机数。文件入口对两个目录显式取路径，复制顶层可读文件、保留扩展名并按选项返回目标路径或文件名。Rust 使用 `PathBuf` 和 I/O 错误，检测路径别名并以独占创建避免覆盖。v0.x 未发现对应 Faker 入口，Goravel 的工厂装配无需变动。 [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [FakerPHP File](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/File.php) · [FakerPHP UUID](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Uuid.php)
+
+隔离基线 `ee0b9250`。PHP 8.5 运行固定 provider 校验抽样、复制和 UUID，再逐项比对 461 个分组。Rust 回归验证 MIME 唯一值耗尽、非递归、二进制内容、完整路径或文件名、扩展名及无效目录。真实 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 复制 JSON 后回查文件名、MIME 与扩展名。默认 Seeder 回归、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载的六项浏览器检查通过。
+
+已清理本批独占编译与文档构建产物。后续按 05-04 记录继续核对 Image 与 UserAgent。

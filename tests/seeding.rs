@@ -5397,3 +5397,55 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
         assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
     }
 }
+
+#[test]
+fn faker_file_copies_bytes_and_preserves_upstream_catalog() {
+    verify_faker_file(&Root::new().0).unwrap();
+}
+fn verify_faker_file(root: &std::path::Path) -> std::io::Result<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("en").unwrap();
+    let source = root.join("source");
+    let target = root.join("target");
+    fs::create_dir_all(source.join("nested"))?;
+    fs::create_dir_all(&target)?;
+    fs::write(source.join("nested/ignored.txt"), b"ignored")?;
+    let result = faker.file(&source, &target, true);
+    assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    fs::write(source.join("sample.tar.gz"), b"\x00\xffsample")?;
+    let copied = faker.file(&source, &target, true)?;
+    assert_eq!(copied.parent(), Some(target.as_path()));
+    assert_eq!(copied.extension().unwrap(), "gz");
+    let id = copied.file_stem().unwrap().to_str().unwrap();
+    assert_eq!(id.len(), 36);
+    assert_eq!(id.as_bytes()[14], b'3');
+    assert!(matches!(id.as_bytes()[19], b'8' | b'9' | b'a' | b'b'));
+    assert_eq!(faker.uuid().get_version_num(), 3);
+    assert_eq!(fs::read(&copied)?, b"\x00\xffsample");
+    let basename = faker.file(&source, &target, false)?;
+    assert_eq!(basename.components().count(), 1);
+    assert_ne!(copied, target.join(&basename));
+    assert_eq!(fs::read(target.join(basename))?, b"\x00\xffsample");
+    assert!(faker.file(&source, &root.join("missing"), false).is_err());
+    assert!(
+        faker
+            .file(&source, &source.join("nested/.."), false)
+            .is_err()
+    );
+    assert!(
+        faker
+            .file(&source.join("sample.tar.gz"), &target, true)
+            .is_err()
+    );
+    let unique = faker.unique(true);
+    let types = (0..461)
+        .map(|_| unique.mimeType().unwrap())
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(types.len(), 461);
+    assert!(types.contains("application/json"));
+    assert!(unique.mimeType().is_err());
+    let extension = unique.fileExtension().unwrap();
+    assert!(!extension.is_empty() && !extension.starts_with('.'));
+    let id = unique.uuid().unwrap();
+    assert_ne!(unique.uuid().unwrap(), id);
+    Ok(())
+}
