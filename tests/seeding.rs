@@ -1578,6 +1578,101 @@ impl Seeder for FailedSeederEventFlow {
     }
 }
 
+struct ParentCreationSeeder;
+
+impl Seeder for ParentCreationSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(verify_parent_creation(context.connection()))
+    }
+}
+
+async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("seed_factory_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("seed_factory_children", |table| {
+            table.id();
+            table.unsignedBigInteger("owner_id").nullable();
+            table.string("generated_name", 80);
+        })
+        .await?;
+    let parent = Factory::<FactoryOwner>::new(Attributes::new)
+        .createOn(connection)
+        .await?;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let factory = || {
+        let calls = Arc::clone(&calls);
+        Factory::<FactoryChild>::new(Attributes::new)
+            .stateWithParent::<FactoryOwner>(|_, parent| {
+                let key = parent.and_then(Model::getKey).unwrap();
+                Attributes::from([("generated_name".into(), format!("parent-{key:?}").into())])
+            })
+            .afterCreatingWithParent::<FactoryOwner>(move |model, parent| {
+                assert!(model.state().exists());
+                assert!(parent.and_then(Model::getKey).is_some());
+                calls.fetch_add(1, Ordering::Relaxed);
+                Ok(())
+            })
+    };
+    let child = factory()
+        .createWithParentOn(connection, &parent, Attributes::new())
+        .await?;
+    assert!(child.getAttribute("owner_id").is_none());
+    assert!(
+        matches!(child.getAttribute("generated_name"), Some(Value::Text(name)) if name.starts_with("parent-"))
+    );
+    let cancelled = || Attributes::from([("generated_name".into(), "quiet-fixture".into())]);
+    assert!(
+        factory()
+            .createWithParentOn(connection, &parent, cancelled())
+            .await
+            .is_err()
+    );
+    factory()
+        .createQuietlyWithParentOn(connection, &parent, cancelled())
+        .await?;
+    let batch = factory().count(2);
+    batch
+        .createQuietlyWithParentOn(connection, &parent, cancelled())
+        .await?;
+    assert!(
+        batch
+            .createWithParentOn(connection, &parent, cancelled())
+            .await
+            .is_err()
+    );
+    let single = factory();
+    let lazy_one = single.lazyWithParent(&parent, Attributes::new());
+    let lazy_batch = batch.lazyWithParent(&parent, Attributes::new());
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        4
+    );
+    assert_eq!(calls.load(Ordering::Relaxed), 4);
+    assert!(lazy_one().await?.state().exists());
+    assert_eq!(lazy_batch().await?.len(), 2);
+    assert_eq!(lazy_batch().await?.len(), 2);
+    assert_eq!(calls.load(Ordering::Relaxed), 9);
+    assert_eq!(
+        connection
+            .table("seed_factory_children")
+            .whereNull("owner_id")
+            .count("*")
+            .await?,
+        9
+    );
+    schema.drop("seed_factory_children").await?;
+    schema.drop("seed_factory_owners").await?;
+    Ok(())
+}
+
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -1599,6 +1694,7 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("EventModelSeeder", &EventModelSeeder),
                 SeederEntry::new("FailingEventSeeder", &FailingEventSeeder).withoutModelEvents(),
                 SeederEntry::new("FailedSeederEventFlow", &FailedSeederEventFlow),
+                SeederEntry::new("ParentCreationSeeder", &ParentCreationSeeder),
                 SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
             ];
             FactoryOwner::resolveRelationUsing(app, "children", |_| {
@@ -4214,6 +4310,23 @@ async fn factory_many_operations_consume_the_configured_count() {
         verify_factory_many_count(&root.connection(Some(&url), ""))
             .await
             .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
+
+#[test]
+fn factory_parent_creation_runs_through_artisan_on_sqlite_and_mysql() {
+    let root = Root::new();
+    let args = [
+        "db:seed",
+        "--class=ParentCreationSeeder",
+        "--database=alternate",
+        "--force",
+    ];
+    success(root.fixture("local", None, &args));
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        success(root.fixture("local", Some(&url), &args));
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }

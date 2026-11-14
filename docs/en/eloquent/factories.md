@@ -368,6 +368,21 @@ Use `insert(attributes)` on a single or counted factory to bulk-insert the gener
 
 Use `makeWithParent(parent, attributes)` and `insertWithParent(parent, attributes)` to supply the parent to matching `stateWithParent` callbacks on a single or counted factory. The `On` variants accept an explicit connection. The parent is state context. Set the foreign key in the state or call attributes when the row should reference it.
 
+Use `createWithParent(parent, attributes)`, `createQuietlyWithParent(parent, attributes)`, or `lazyWithParent(parent, attributes)` on a single or counted factory. The borrowed parent is available to matching `stateWithParent` and `afterCreatingWithParent` callbacks. Use the `On` variants for immediate creation on a particular connection. The lazy callback uses the connection resolved when awaited. The parent alone adds no foreign key.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn create_for_parent<M: Model, P: Model>(
+    factory: &Factory<M>,
+    parent: &P,
+    attributes: Attributes,
+) -> DatabaseResult<M> {
+    let create = factory.lazyWithParent(parent, attributes);
+    create().await
+}
+```
+
 ```rust
 use openrust::database::{
     DatabaseResult,

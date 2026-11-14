@@ -789,6 +789,7 @@ impl<M: Model> Factory<M> {
                                         &owner_connection,
                                         &pool,
                                         &std::sync::OnceLock::new(),
+                                        None,
                                         Attributes::new(),
                                     )
                                     .await?;
@@ -831,6 +832,7 @@ impl<M: Model> Factory<M> {
                                 &connection,
                                 &pool,
                                 &std::sync::OnceLock::new(),
+                                None,
                                 Attributes::new(),
                             )
                             .await?;
@@ -1098,6 +1100,59 @@ impl<M: Model> Factory<M> {
         move || Box::pin(self.createOne(attributes.clone()))
     }
 
+    /// Creates models with a parent available to states and afterCreating callbacks.
+    pub async fn createWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.createWithParentOn(&self.resolve_connection()?, parent, attributes)
+            .await
+    }
+
+    pub async fn createWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.create_one(
+            connection,
+            &self.recycled,
+            &std::sync::OnceLock::new(),
+            Some(RelationContext::parent_only(parent)),
+            attributes,
+        )
+        .await
+    }
+
+    /// Creates models with parent context while suppressing Eloquent events.
+    pub async fn createQuietlyWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createWithParent(parent, attributes)).await
+    }
+
+    pub async fn createQuietlyWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+    }
+
+    /// Returns a reusable callback borrowing the parent until invocation.
+    pub fn lazyWithParent<'a, P: Model>(
+        &'a self,
+        parent: &'a P,
+        attributes: Attributes,
+    ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<M>> + 'a {
+        move || Box::pin(self.createWithParent(parent, attributes.clone()))
+    }
+
     pub async fn create(&self) -> DatabaseResult<M> {
         self.createOn(&self.resolve_connection()?).await
     }
@@ -1163,6 +1218,7 @@ impl<M: Model> Factory<M> {
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
+            None,
             attributes,
         )
         .await
@@ -1218,7 +1274,7 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for attributes in records.into_attributes(default_count) {
             models.push(
-                self.create_one(connection, &self.recycled, &faker, attributes)
+                self.create_one(connection, &self.recycled, &faker, None, attributes)
                     .await?,
             );
         }
@@ -1453,13 +1509,17 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
+        context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, pool, faker, None, overrides)
+            .make_one(connection, pool, faker, context, overrides)
             .await?;
         self.store(connection, &mut model, pool).await?;
-        self.run_after_creating(std::slice::from_mut(&mut model), None)?;
+        self.run_after_creating(
+            std::slice::from_mut(&mut model),
+            context.map(|context| context.parent),
+        )?;
         Ok(model)
     }
 
@@ -1658,14 +1718,13 @@ impl<M: Model> FactoryBatch<M> {
         move || {
             let attributes = attributes.clone();
             Box::pin(async move {
-                let connection = self.factory.resolve_connection()?;
-                let pool = self.factory.recycle_pool(&[]);
-                let mut models = self
-                    .make_with_overrides(&connection, &pool, None, &attributes)
-                    .await?;
-                self.store_models(&connection, &pool, &mut models, None)
-                    .await?;
-                Ok(models)
+                self.create_with_overrides(
+                    &self.factory.resolve_connection()?,
+                    &[],
+                    None,
+                    &attributes,
+                )
+                .await
             })
         }
     }
@@ -1898,6 +1957,58 @@ impl<M: Model> FactoryBatch<M> {
         Ok(models)
     }
 
+    /// Creates models with a parent available to states and afterCreating callbacks.
+    pub async fn createWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createWithParentOn(&self.factory.resolve_connection()?, parent, attributes)
+            .await
+    }
+
+    pub async fn createWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        Box::pin(self.create_with_overrides(
+            connection,
+            &[],
+            Some(RelationContext::parent_only(parent)),
+            &attributes,
+        ))
+        .await
+    }
+
+    /// Creates models with parent context while suppressing Eloquent events.
+    pub async fn createQuietlyWithParent<P: Model>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createWithParent(parent, attributes)).await
+    }
+
+    pub async fn createQuietlyWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+    }
+
+    /// Returns a reusable callback borrowing the parent until invocation.
+    pub fn lazyWithParent<'a, P: Model>(
+        &'a self,
+        parent: &'a P,
+        attributes: Attributes,
+    ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<Collection<M>>> + 'a {
+        move || Box::pin(self.createWithParent(parent, attributes.clone()))
+    }
+
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
         self.createOn(&self.factory.resolve_connection()?).await
     }
@@ -1959,8 +2070,21 @@ impl<M: Model> FactoryBatch<M> {
         inherited: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
+        self.create_with_overrides(connection, inherited, relation, &Attributes::new())
+            .await
+    }
+
+    async fn create_with_overrides(
+        &self,
+        connection: &Connection,
+        inherited: &[RecycledModel],
+        relation: Option<RelationContext<'_>>,
+        attributes: &Attributes,
+    ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
-        let mut models = self.make_with_pool(connection, &pool, relation).await?;
+        let mut models = self
+            .make_with_overrides(connection, &pool, relation, attributes)
+            .await?;
         self.store_models(
             connection,
             &pool,

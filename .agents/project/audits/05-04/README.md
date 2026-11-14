@@ -435,3 +435,11 @@ PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rus
 隔离基线 `aff5761a`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证默认三条被领取后降为一条、显式零条及失败后的重置、make 不落库、静默创建三条与后续单条创建。通过 36 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
 
 已清理本批隔离构建及站点产物。下一批核对 `create`、`createQuietly` 和 `lazy` 的公开父模型上下文。
+
+## 创建、静默创建和延迟创建的父模型上下文
+
+固定 Laravel 的 create、createQuietly 和 lazy 将可选父模型交给状态与 afterCreating。Rust 单条与批量构建器用 `createWithParent`、`createQuietlyWithParent` 和 `lazyWithParent` 传递类型化借用。即时创建可显式指定连接，延迟回调在执行时解析连接，并沿用已有静默事件和回调阶段。传入父模型本身不填外键。固定 Goravel 的工厂提供 Make、Create、CreateQuietly 和 Count，v0.x 未发现等价父模型入口。 [Laravel create 与 lazy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L325) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `ebfa2a31`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 注册能够取消写入的模型监听器，验收状态和回调读取父模型、静默与恢复、延迟等待前零写入、重复延迟创建及九条未关联外键的子记录。37 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+已清理本批隔离构建与站点产物。后续核对 `insert` 的属性转换和批量写入行为。

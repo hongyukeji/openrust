@@ -368,6 +368,21 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 
 單筆和批次工廠皆可用 `makeWithParent(parent, attributes)` 和 `insertWithParent(parent, attributes)` 將父模型交給型別相符的 `stateWithParent` 閉包。對應的 `On` 方法可指定連線。父模型作為狀態上下文傳入，需要建立關聯時，由狀態或呼叫屬性指定外鍵。
 
+單筆或批次工廠可以呼叫 `createWithParent(parent, attributes)`、`createQuietlyWithParent(parent, attributes)` 或 `lazyWithParent(parent, attributes)`。型別相符的 `stateWithParent` 和 `afterCreatingWithParent` 可以讀取借用的父模型。立即建立的 `On` 變體可指定連線，延遲回呼在等待時解析連線。父模型本身不會新增外鍵。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn create_for_parent<M: Model, P: Model>(
+    factory: &Factory<M>,
+    parent: &P,
+    attributes: Attributes,
+) -> DatabaseResult<M> {
+    let create = factory.lazyWithParent(parent, attributes);
+    create().await
+}
+```
+
 ```rust
 use openrust::database::{
     DatabaseResult,
