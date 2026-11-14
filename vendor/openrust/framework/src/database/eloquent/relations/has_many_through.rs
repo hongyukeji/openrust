@@ -158,6 +158,88 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     }
 
     /// Increments through the join, or creates a related row using the supplied attributes.
+    pub async fn firstOrNew(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        if let Some(model) = self.first_match(parent, &attributes, false).await? {
+            return Ok(model);
+        }
+        let mut attributes = attributes;
+        attributes.extend(values);
+        let connection = self.keys.connection(parent)?;
+        self.keys
+            .configure(R::queryOn(&connection))?
+            .makeAsync(attributes)
+            .await
+    }
+
+    pub async fn firstOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.find_or_create(parent, attributes, values, false, false)
+            .await
+    }
+
+    pub async fn createOrFirst(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.find_or_create(parent, attributes, values, false, true)
+            .await
+    }
+
+    pub async fn updateOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        let mut model = self
+            .firstOrCreate(parent, attributes, values.clone())
+            .await?;
+        if !model.state().wasRecentlyCreated() {
+            model.fillAsync(values).await?;
+            model.save().await?;
+        }
+        Ok(model)
+    }
+
+    pub async fn restoreOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        super::require_soft_deletes::<R>()?;
+        let mut model = self
+            .find_or_create(parent, attributes, values, true, false)
+            .await?;
+        model.restore().await?;
+        Ok(model)
+    }
+
+    pub async fn createOrRestore(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        super::require_soft_deletes::<R>()?;
+        let mut model = self
+            .find_or_create(parent, attributes, values, true, true)
+            .await?;
+        model.restore().await?;
+        Ok(model)
+    }
+
     pub async fn incrementOrCreate(
         &self,
         parent: &P,
@@ -167,56 +249,76 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         step: impl Into<Value>,
         mut extra: Attributes,
     ) -> DatabaseResult<R> {
-        use super::super::persistence::{increment_related, is_unique_violation, validate_counter};
+        use super::super::persistence::{increment_related, validate_counter};
 
         let default = default.into();
         let step = step.into();
         validate_counter::<R>(column, &default, &step, &extra)?;
+        extra.remove(column);
+        let mut values = extra.clone();
+        values.insert(column.into(), default);
+        let model = self
+            .find_or_create(parent, attributes, values, false, false)
+            .await?;
+        if model.state().wasRecentlyCreated() {
+            return Ok(model);
+        }
+        increment_related(model, column, step, extra).await
+    }
+
+    async fn find_or_create(
+        &self,
+        parent: &P,
+        mut attributes: Attributes,
+        values: Attributes,
+        include_trashed: bool,
+        insert_first: bool,
+    ) -> DatabaseResult<R> {
         if parent
             .getAttribute(self.keys.parent)
             .is_none_or(|key| matches!(key, Value::Null))
         {
             return Err(DatabaseError::InvalidQuery("relationship parent key"));
         }
-
-        let model = match self.first_counter_match(parent, &attributes).await? {
-            Some(model) => model,
-            None => {
-                let connection = self.keys.connection(parent)?;
-                let mut values = attributes.clone();
-                values.extend(extra.clone());
-                values.insert(column.into(), default);
-                let mut model = self
-                    .keys
-                    .configure(R::queryOn(&connection))?
-                    .makeAsync(values.clone())
-                    .await?;
-                match model.save().await {
-                    Ok(true) => return Ok(model),
-                    Ok(false) => {
-                        return Err(DatabaseError::InvalidQuery(
-                            "related model creation cancelled",
-                        ));
-                    }
-                    Err(error) if is_unique_violation(&error) => self
-                        .first_counter_match(parent, &values)
-                        .await?
-                        .ok_or(error)?,
-                    Err(error) => return Err(error),
-                }
+        if !insert_first {
+            if let Some(model) = self
+                .first_match(parent, &attributes, include_trashed)
+                .await?
+            {
+                return Ok(model);
             }
-        };
-        extra.remove(column);
-        increment_related(model, column, step, extra).await
+            // Laravel's through firstOrCreate passes the merged attributes to createOrFirst.
+            attributes.extend(values.clone());
+        }
+        let connection = self.keys.connection(parent)?;
+        let mut insert = attributes.clone();
+        insert.extend(values);
+        let mut model = self
+            .keys
+            .configure(R::queryOn(&connection))?
+            .makeAsync(insert)
+            .await?;
+        match model.save().await {
+            Ok(true) => Ok(model),
+            Ok(false) => Err(DatabaseError::InvalidQuery(
+                "related model creation cancelled",
+            )),
+            Err(error) if super::super::persistence::is_unique_violation(&error) => self
+                .first_match(parent, &attributes, include_trashed)
+                .await?
+                .ok_or(error),
+            Err(error) => Err(error),
+        }
     }
 
-    async fn first_counter_match(
+    async fn first_match(
         &self,
         parent: &P,
         attributes: &Attributes,
+        include_trashed: bool,
     ) -> DatabaseResult<Option<R>> {
         Ok(self
-            .match_many(&[parent], None, Some(attributes))
+            .match_many(&[parent], None, Some((attributes, include_trashed)))
             .await?
             .pop()
             .and_then(|matches| matches.into_iter().next())
@@ -229,7 +331,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
-        lookup: Option<&Attributes>,
+        lookup: Option<(&Attributes, bool)>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -243,10 +345,15 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                         R::queryOn(&connection).select_relation_columns([projection.as_str()]),
                     )?
                     .apply_default_counts()?;
+                let query = if lookup.is_some_and(|(_, include_trashed)| include_trashed) {
+                    query.withTrashed()
+                } else {
+                    query
+                };
                 let join = self.join(&query, None, &connection)?;
                 let query = self.select_one(query, &join, &connection)?;
                 let mut query = query.restrict_relation(&join.match_key, batch);
-                if let Some(attributes) = lookup {
+                if let Some((attributes, _)) = lookup {
                     query = query.restrict_relation_attributes(attributes).limit(1);
                 }
                 let eager_load = query.take_eager_load();

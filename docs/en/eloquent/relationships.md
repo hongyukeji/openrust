@@ -882,6 +882,23 @@ pub async fn update_role<P: Model, R: Model>(
 }
 ```
 
+Direct, polymorphic, and through relations also provide `firstOrNew`, `firstOrCreate`, `createOrFirst`, and `updateOrCreate`. `firstOrNew` returns an unsaved model on a miss. Direct and polymorphic relations accept deferred values and populate their own relation keys. Through relations take attribute maps and use a supplied foreign key when creating a related row. `restoreOrCreate` and `createOrRestore` include soft-deleted related rows and restore them through the model lifecycle. Deleted intermediate rows remain subject to `withTrashedParents`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn ensure_post<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<R> {
+    posts.firstOrCreate(
+        author,
+        Attributes::from([("slug".into(), "welcome".into())]),
+        Attributes::from([("title".into(), "Welcome".into())]),
+    ).await
+}
+```
+
 ### Restoring related models {#restoring-related-models}
 
 Use `restoreOrCreate` to look up a related model, including soft-deleted rows, before inserting. `createOrRestore` attempts insertion first and recovers a matching row on a unique conflict. Both restore the model through its normal lifecycle. Pass `RelatedValues::deferred` to compute model values only when an insert or update needs them.

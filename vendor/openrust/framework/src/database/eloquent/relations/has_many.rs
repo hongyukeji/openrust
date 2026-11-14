@@ -8,6 +8,8 @@ use crate::database::{
 
 use crate::{http::HttpError, routing::BindingContext};
 
+use super::RelatedValues;
+
 use super::{ExistenceRelation, HasOne, Relation, relation::RelationKeys};
 
 /// Links a parent key to a foreign key on many related models.
@@ -76,6 +78,98 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     /// Creates a child with an initial counter or increments a matching child.
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn firstOrNew<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        if let Some(model) = self.lookup(parent, &attributes, false)?.first().await? {
+            return Ok(model);
+        }
+        let mut attributes = attributes;
+        attributes.extend(values.into().resolve());
+        let connection = self.0.connection(parent)?;
+        let mut model = self
+            .0
+            .configure(R::queryOn(&connection))?
+            .makeAsync(attributes)
+            .await?;
+        self.set_parent_attributes(parent, &mut model)?;
+        Ok(model)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn firstOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.find_or_create(parent, attributes, &mut values.into(), false, false)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn createOrFirst<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.find_or_create(parent, attributes, &mut values.into(), false, true)
+            .await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn updateOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        let mut values = values.into();
+        let mut model = self
+            .find_or_create(parent, attributes, &mut values, false, false)
+            .await?;
+        if !model.state().wasRecentlyCreated() {
+            model.fillAsync(values.resolve()).await?;
+            model.save().await?;
+        }
+        Ok(model)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn restoreOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        super::require_soft_deletes::<R>()?;
+        let mut model = self
+            .find_or_create(parent, attributes, &mut values.into(), true, false)
+            .await?;
+        model.restore().await?;
+        Ok(model)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn createOrRestore<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        super::require_soft_deletes::<R>()?;
+        let mut model = self
+            .find_or_create(parent, attributes, &mut values.into(), true, true)
+            .await?;
+        model.restore().await?;
+        Ok(model)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn incrementOrCreate(
         &self,
         parent: &P,
@@ -85,57 +179,93 @@ impl<P: Model, R: Model> HasMany<P, R> {
         step: impl Into<Value>,
         mut extra: Attributes,
     ) -> DatabaseResult<R> {
-        use super::super::persistence::{increment_related, is_unique_violation, validate_counter};
+        use super::super::persistence::{increment_related, validate_counter};
 
         let default = default.into();
         let step = step.into();
         validate_counter::<R>(column, &default, &step, &extra)?;
+        extra.remove(column);
+        let mut values = extra.clone();
+        values.insert(column.into(), default);
+        let model = self
+            .find_or_create(parent, attributes, &mut values.into(), false, false)
+            .await?;
+        if model.state().wasRecentlyCreated() {
+            return Ok(model);
+        }
+        increment_related(model, column, step, extra).await
+    }
+
+    async fn find_or_create(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: &mut RelatedValues<'_>,
+        include_trashed: bool,
+        insert_first: bool,
+    ) -> DatabaseResult<R> {
+        if !insert_first
+            && let Some(model) = self
+                .lookup(parent, &attributes, include_trashed)?
+                .first()
+                .await?
+        {
+            return Ok(model);
+        }
+        let connection = self.0.connection(parent)?;
+        let mut insert = attributes.clone();
+        insert.extend(values.resolve());
+        let mut model = self
+            .0
+            .configure(R::queryOn(&connection))?
+            .makeAsync(insert)
+            .await?;
+        match self.save(parent, &mut model).await {
+            Ok(true) => Ok(model),
+            Ok(false) => Err(DatabaseError::InvalidQuery(
+                "related model creation cancelled",
+            )),
+            Err(error) if super::super::persistence::is_unique_violation(&error) => self
+                .lookup(parent, &attributes, include_trashed)?
+                .useWritePdo()
+                .first()
+                .await?
+                .ok_or(error),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn lookup(
+        &self,
+        parent: &P,
+        attributes: &Attributes,
+        include_trashed: bool,
+    ) -> DatabaseResult<Builder<'static, R>> {
         let key = parent
             .getAttribute(self.0.parent)
             .filter(|key| !matches!(key, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))?;
         let connection = self.0.connection(parent)?;
-        let lookup = || {
-            let query = self.0.configure(R::queryOn(&connection))?;
-            let foreign = query.qualifyColumn(self.0.related);
-            Ok::<_, DatabaseError>(
-                self.0
-                    .select_one(query)?
-                    .require_relation_value(&foreign, key.clone())
-                    .restrict_relation_attributes(&attributes),
-            )
+        let query = self.0.configure(R::queryOn(&connection))?;
+        let query = if include_trashed {
+            query.withTrashed()
+        } else {
+            query
         };
-
-        let model = match lookup()?.first().await? {
-            Some(model) => model,
-            None => {
-                let mut values = attributes.clone();
-                values.extend(extra.clone());
-                values.insert(column.into(), default);
-                let mut model = self
-                    .0
-                    .configure(R::queryOn(&connection))?
-                    .makeAsync(values)
-                    .await?;
-                match self.save(parent, &mut model).await {
-                    Ok(true) => return Ok(model),
-                    Ok(false) => {
-                        return Err(DatabaseError::InvalidQuery(
-                            "related model creation cancelled",
-                        ));
-                    }
-                    Err(error) if is_unique_violation(&error) => {
-                        lookup()?.useWritePdo().first().await?.ok_or(error)?
-                    }
-                    Err(error) => return Err(error),
-                }
-            }
-        };
-        extra.remove(column);
-        increment_related(model, column, step, extra).await
+        let foreign = query.qualifyColumn(self.0.related);
+        Ok(self
+            .0
+            .select_one(query)?
+            .require_relation_value(&foreign, key.clone())
+            .restrict_relation_attributes(attributes))
     }
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
+        self.set_parent_attributes(parent, model)?;
+        model.save().await
+    }
+
+    fn set_parent_attributes(&self, parent: &P, model: &mut R) -> DatabaseResult<()> {
         let key = parent
             .getAttribute(self.0.parent)
             .filter(|value| !matches!(value, Value::Null))
@@ -153,7 +283,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         if let Some((column, alias)) = self.0.discriminator {
             model.setAttribute(column, alias);
         }
-        model.save().await
+        Ok(())
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel’s relationship write API")]

@@ -71,6 +71,60 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         Ok(!self.is(parent, related).await?)
     }
 
+    pub async fn firstOrNew(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.firstOrNew(parent, attributes, values).await
+    }
+
+    pub async fn firstOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.firstOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn createOrFirst(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.createOrFirst(parent, attributes, values).await
+    }
+
+    pub async fn updateOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.updateOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn restoreOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.restoreOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn createOrRestore(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+    ) -> DatabaseResult<R> {
+        self.0.createOrRestore(parent, attributes, values).await
+    }
+
     pub async fn incrementOrCreate(
         &self,
         parent: &P,

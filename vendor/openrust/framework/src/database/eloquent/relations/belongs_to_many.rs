@@ -53,7 +53,7 @@ impl<'a> RelatedValues<'a> {
         Self(RelatedValueSource::Deferred(Box::new(resolve)))
     }
 
-    fn resolve(&mut self) -> Attributes {
+    pub(super) fn resolve(&mut self) -> Attributes {
         match &mut self.0 {
             RelatedValueSource::Attributes(attributes) => attributes.clone(),
             RelatedValueSource::Deferred(resolve) => resolve(),

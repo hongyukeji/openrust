@@ -882,6 +882,23 @@ pub async fn update_role<P: Model, R: Model>(
 }
 ```
 
+直接、多态和穿透关系也提供 `firstOrNew`、`firstOrCreate`、`createOrFirst` 和 `updateOrCreate`。`firstOrNew` 未命中时返回未保存的模型。直接和多态关系接受延迟值，并填入关系键。穿透关系接受属性映射，创建时使用调用方提供的外键。`restoreOrCreate` 和 `createOrRestore` 会查找软删除的关联模型，并通过模型生命周期恢复。软删除的中间模型仍由 `withTrashedParents` 控制。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::HasMany}};
+
+pub async fn ensure_post<P: Model, R: Model>(
+    posts: &HasMany<P, R>,
+    author: &P,
+) -> DatabaseResult<R> {
+    posts.firstOrCreate(
+        author,
+        Attributes::from([("slug".into(), "welcome".into())]),
+        Attributes::from([("title".into(), "Welcome".into())]),
+    ).await
+}
+```
+
 ### 恢复关联模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找关联模型，查找范围包含软删除记录，未命中时才插入。`createOrRestore` 先尝试插入，遇到唯一键冲突时回查匹配记录。两者都通过模型生命周期恢复记录。用 `RelatedValues::deferred` 可将属性计算延迟到插入或更新时。

@@ -4725,7 +4725,8 @@ impl Model for RelationCounter {
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("relation_counters")
             .fillable(&["name", "count", "post_id", "owner_type"])
-            .timestamps(None, None);
+            .timestamps(None, None)
+            .softDeletes("deleted_at");
         &METADATA
     }
 
@@ -4881,13 +4882,115 @@ async fn verify_cast_counter(db: &Connection, post: &Post, mysql: bool) {
     }
 }
 
+async fn verify_non_pivot_lookup(author: &Author, post: &Post) {
+    let attrs = |name: &str| Attributes::from([("name".into(), name.into())]);
+    let count = |value: i64| Attributes::from([("count".into(), value.into())]);
+    let direct = || HasMany::<Post, RelationCounter>::new("id", "post_id");
+    let pending = direct()
+        .firstOrNew(post, attrs("lookup"), count(1))
+        .await
+        .unwrap();
+    assert!(!pending.state().exists());
+    assert_eq!(pending.getAttribute("post_id"), post.getKey());
+    let first = direct()
+        .firstOrCreate(post, attrs("lookup"), count(2))
+        .await
+        .unwrap();
+    let matched = direct()
+        .one()
+        .firstOrCreate(
+            post,
+            attrs("lookup"),
+            RelatedValues::deferred(|| panic!("lookup hit")),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.getKey(), matched.getKey());
+    let updated = direct()
+        .updateOrCreate(post, attrs("lookup"), RelatedValues::deferred(|| count(3)))
+        .await
+        .unwrap();
+    assert_eq!(updated.getAttribute("count"), Some(&3.into()));
+    let mut conflicting = count(8);
+    conflicting.insert("owner_type".into(), "post".into());
+    let existing = direct()
+        .createOrFirst(post, attrs("lookup"), conflicting)
+        .await
+        .unwrap();
+    assert_eq!(existing.getKey(), first.getKey());
+    assert_eq!(existing.getAttribute("count"), Some(&3.into()));
+
+    let morph =
+        || MorphMany::<Post, RelationCounter>::new("id", "post_id", "owner_type", "lookup-morph");
+    let mut created = morph()
+        .one()
+        .firstOrCreate(post, attrs("lookup"), count(4))
+        .await
+        .unwrap();
+    assert_ne!(created.getKey(), first.getKey());
+    assert_eq!(
+        created.getAttribute("owner_type"),
+        Some(&"lookup-morph".into())
+    );
+    created.delete().await.unwrap();
+    let restored = morph()
+        .restoreOrCreate(
+            post,
+            attrs("lookup"),
+            RelatedValues::deferred(|| panic!("trashed hit")),
+        )
+        .await
+        .unwrap();
+    assert_eq!(restored.getKey(), created.getKey());
+    assert_eq!(restored.getAttribute("deleted_at"), Some(&Value::Null));
+
+    let through = || {
+        HasManyThrough::<Author, Post, RelationCounter>::new("author_id", "post_id", "id", "id")
+            .constrain(|mut query| {
+                query.r#where("owner_type", "=", "post");
+                query
+            })
+    };
+    let pending = through()
+        .firstOrNew(author, attrs("through-lookup"), count(5))
+        .await
+        .unwrap();
+    assert!(!pending.state().exists());
+    assert!(pending.getAttribute("post_id").is_none());
+    let mut create = count(6);
+    create.insert("post_id".into(), post.getKey().unwrap().clone());
+    create.insert("owner_type".into(), "post".into());
+    let mut model = through()
+        .firstOrCreate(author, attrs("through-lookup"), create.clone())
+        .await
+        .unwrap();
+    let matched = through()
+        .one()
+        .createOrFirst(author, attrs("through-lookup"), create.clone())
+        .await
+        .unwrap();
+    assert_eq!(matched.getKey(), model.getKey());
+    model.delete().await.unwrap();
+    let restored = through()
+        .one()
+        .createOrRestore(author, attrs("through-lookup"), create)
+        .await
+        .unwrap();
+    assert_eq!(restored.getKey(), model.getKey());
+    let updated = through()
+        .updateOrCreate(author, attrs("through-lookup"), count(7))
+        .await
+        .unwrap();
+    assert_eq!(updated.getAttribute("count"), Some(&7.into()));
+}
+
 async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     let id = if mysql {
         "BIGINT AUTO_INCREMENT PRIMARY KEY"
     } else {
         "INTEGER PRIMARY KEY AUTOINCREMENT"
     };
-    db.statement(&format!("CREATE TABLE relation_counters (id {id}, name VARCHAR(80), count BIGINT, visits BIGINT DEFAULT 10, post_id BIGINT, owner_type VARCHAR(80) DEFAULT 'post', UNIQUE (name, post_id, owner_type))"), &[]).await.unwrap();
+    db.statement(&format!("CREATE TABLE relation_counters (id {id}, name VARCHAR(80), count BIGINT, visits BIGINT DEFAULT 10, post_id BIGINT, owner_type VARCHAR(80) DEFAULT 'post', deleted_at DATETIME, UNIQUE (name, post_id, owner_type))"), &[]).await.unwrap();
     let author = Author::queryOn(db).findOrFail(1).await.unwrap();
     let post = Post::queryOn(db).findOrFail(2).await.unwrap();
     let name = |name: &str| Attributes::from([("name".into(), name.into())]);
@@ -5034,6 +5137,7 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     assert_eq!(persisted.getAttribute("count"), Some(&33.into()));
     assert_eq!(persisted.getAttribute("visits"), Some(&9.into()));
     Box::pin(verify_cast_counter(db, &post, mysql)).await;
+    Box::pin(verify_non_pivot_lookup(&author, &post)).await;
     db.statement("DROP TABLE relation_counters", &[])
         .await
         .unwrap();

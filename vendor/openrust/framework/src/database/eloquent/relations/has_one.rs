@@ -6,6 +6,8 @@ use crate::database::{
     query,
 };
 
+use super::RelatedValues;
+
 use super::{
     ExistenceRelation, HasMany, OneOfManyAggregate, Relation,
     default_model::{ConfigureDefault, match_defaults},
@@ -104,6 +106,60 @@ impl<P: Model, R: Model> HasOne<P, R> {
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.save(parent, model).await
+    }
+
+    pub async fn firstOrNew<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.firstOrNew(parent, attributes, values).await
+    }
+
+    pub async fn firstOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.firstOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn createOrFirst<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.createOrFirst(parent, attributes, values).await
+    }
+
+    pub async fn updateOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.updateOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn restoreOrCreate<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.restoreOrCreate(parent, attributes, values).await
+    }
+
+    pub async fn createOrRestore<'a>(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: impl Into<RelatedValues<'a>> + Send,
+    ) -> DatabaseResult<R> {
+        self.0.createOrRestore(parent, attributes, values).await
     }
 
     pub async fn incrementOrCreate(

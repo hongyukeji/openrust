@@ -33,3 +33,10 @@ pub use morph_to_many::MorphToMany;
 pub use one_of_many::OneOfManyAggregate;
 pub use pivot::Pivot;
 pub use relation::{ConstrainableRelation, ExistenceRelation, NestedRelation, Relation};
+
+fn require_soft_deletes<R: super::Model>() -> crate::database::DatabaseResult<()> {
+    R::metadata()
+        .deleted_at
+        .map(|_| ())
+        .ok_or_else(super::soft_deletes::unsupported)
+}
