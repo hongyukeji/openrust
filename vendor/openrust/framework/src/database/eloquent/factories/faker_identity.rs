@@ -86,6 +86,137 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples an identification number for the selected locale.
+    pub fn idNumber(&self) -> DatabaseResult<String> {
+        match self.locale() {
+            "en_ZA" => self.idNumberWithBirthdate(None, None, None),
+            "nl_NL" => Ok(dutch_identity()),
+            "ar_SA" => Ok(self.saudi_identity(if fastrand::bool() { "1" } else { "2" })),
+            "mn_MN" => Ok(format!(
+                "{}{}{}",
+                self.alphabet()?,
+                self.alphabet()?,
+                self.numerify(Some("########"))
+            )),
+            _ => Err(DatabaseError::InvalidQuery(
+                "unsupported Faker identity number locale",
+            )),
+        }
+    }
+
+    /// Samples a South African ID with optional birth date, citizenship and gender.
+    pub fn idNumberWithBirthdate(
+        &self,
+        birthdate: Option<NaiveDate>,
+        citizen: Option<bool>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "en_ZA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker dated identity number locale",
+            ));
+        }
+        let birthdate = match birthdate {
+            Some(date) => date,
+            None => self.identity_birthdate()?,
+        };
+        let sex = match gender {
+            Some(value) if value.eq_ignore_ascii_case("female") => fastrand::u16(0..=4),
+            Some(value) if value.eq_ignore_ascii_case("male") => fastrand::u16(5..=9),
+            _ => fastrand::u16(0..=9),
+        };
+        let sequence = fastrand::u16(0..=999);
+        // PHP pads on both sides, with the extra zero on the right.
+        let sequence = match sequence {
+            0..=9 => format!("0{sequence}0"),
+            10..=99 => format!("{sequence}0"),
+            _ => sequence.to_string(),
+        };
+        let citizenship = u8::from(!citizen.unwrap_or(true));
+        let race = fastrand::u8(8..=9);
+        let mut number = format!(
+            "{}{sex}{sequence}{citizenship}{race}",
+            birthdate.format("%y%m%d")
+        );
+        number.push(luhn_check_digit(&number));
+        Ok(number)
+    }
+
+    pub fn nationalIdNumber(&self) -> DatabaseResult<String> {
+        if self.locale() == "ar_SA" {
+            return Ok(self.saudi_identity("1"));
+        }
+        self.nationalIdNumberWithGender(None)
+    }
+
+    /// Samples an Egyptian national ID with the requested registration sequence parity.
+    pub fn nationalIdNumberWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "ar_EG" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker gendered national ID locale",
+            ));
+        }
+        let date = self
+            .dateTimeBetweenExpressions("1950-01-10", "2005-12-25")?
+            .with_timezone(&self.application_timezone);
+        let century = if date.year() >= 2000 { 3 } else { 2 };
+        let sequence = fastrand::u16(1..=500);
+        let sequence = match gender {
+            Some("male") => sequence | 1,
+            Some("female") => sequence & !1,
+            _ => sequence,
+        };
+        let check = fastrand::u8(1..=9);
+        Ok(format!(
+            "{century}{}{governorate}{sequence:04}{check}",
+            date.format("%y%m%d"),
+            governorate = self.governorateId()?
+        ))
+    }
+
+    pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "ar_SA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker foreigner ID locale",
+            ));
+        }
+        Ok(self.saudi_identity("2"))
+    }
+
+    fn saudi_identity(&self, prefix: &str) -> String {
+        let mut number = self.numerify(Some("########"));
+        number.insert_str(0, prefix);
+        number.push(luhn_check_digit(&number));
+        number
+    }
+
+    pub fn alphabet(&self) -> DatabaseResult<char> {
+        if self.locale() != "mn_MN" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker alphabet locale",
+            ));
+        }
+        const ALPHABET: [char; 35] = [
+            'А', 'Л', 'Х', 'Б', 'М', 'Ц', 'В', 'Н', 'Ч', 'Г', 'О', 'Ш', 'Д', 'Ө', 'Щ', 'Е', 'П',
+            'Ъ', 'Ё', 'Р', 'Ы', 'Ж', 'С', 'Ь', 'З', 'Т', 'Э', 'И', 'У', 'Ю', 'Й', 'Ү', 'Я', 'К',
+            'Ф',
+        ];
+        Ok(ALPHABET[fastrand::usize(..ALPHABET.len())])
+    }
+
+    pub fn governorateId(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "ar_EG" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker governorate locale",
+            ));
+        }
+        const CODES: [&str; 26] = [
+            "02", "19", "28", "25", "29", "31", "18", "22", "03", "35", "01", "12", "11", "26",
+            "04", "13", "34", "16", "23", "14", "27", "15", "33", "17", "24", "32",
+        ];
+        Ok(CODES[fastrand::usize(..CODES.len())])
+    }
+
     /// Samples a DNI for Spain or Peru.
     pub fn dni(&self) -> DatabaseResult<String> {
         match self.locale() {
@@ -318,6 +449,43 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn idNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("idNumber", || self.0.idNumber())
+    }
+
+    pub fn idNumberWithBirthdate(
+        &self,
+        birthdate: Option<NaiveDate>,
+        citizen: Option<bool>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("idNumber", || {
+            self.0.idNumberWithBirthdate(birthdate, citizen, gender)
+        })
+    }
+
+    pub fn nationalIdNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("nationalIdNumber", || self.0.nationalIdNumber())
+    }
+
+    pub fn nationalIdNumberWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("nationalIdNumber", || {
+            self.0.nationalIdNumberWithGender(gender)
+        })
+    }
+
+    pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("foreignerIdNumber", || self.0.foreignerIdNumber())
+    }
+
+    pub fn alphabet(&self) -> DatabaseResult<char> {
+        self.try_generate("alphabet", || self.0.alphabet())
+    }
+
+    pub fn governorateId(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("governorateId", || self.0.governorateId())
     }
 
     pub fn dni(&self) -> DatabaseResult<String> {
@@ -568,4 +736,28 @@ fn brazilian_check_digit(number: &str) -> char {
         .sum();
     let check = 11 - sum % 11;
     char::from(b'0' + if check < 10 { check as u8 } else { 0 })
+}
+
+fn dutch_identity() -> String {
+    let mut digits = std::array::from_fn::<_, 9, _>(|_| fastrand::u8(0..=9));
+    digits[0] = fastrand::u8(0..=6);
+    let total: u16 = digits[..8]
+        .iter()
+        .zip((2..=9).rev())
+        .map(|(&digit, weight)| u16::from(digit) * weight)
+        .sum();
+    digits[8] = (total % 11) as u8;
+    if digits[8] == 10 {
+        if digits[7] > 0 {
+            digits[7] -= 1;
+            digits[8] = 8;
+        } else {
+            digits[7] += 1;
+            digits[8] = 1;
+        }
+    }
+    digits
+        .into_iter()
+        .map(|digit| char::from(b'0' + digit))
+        .collect()
 }

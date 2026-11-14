@@ -292,14 +292,19 @@ For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass 
 
 Use `dni()` with `es-ES` for eight digits and a modulo-23 check letter, or with `es-PE` for eight digits. The Peruvian `ruc(isNaturalPerson)` defaults to the `20` prefix and uses `10` for `Some(true)`. The pinned provider appends nine random digits. Use `licenceCode()` for a driving licence category from `es-ES` or `en-ZA`. These methods support `unique`.
 
+Use `idNumber()` with `nl-NL`, `en-ZA`, `ar-SA`, or `mn-MN`. South Africa also accepts a civil date, citizenship flag and gender through `idNumberWithBirthdate(birthdate, citizen, gender)`. With `ar-SA`, `nationalIdNumber()` fixes prefix `1` and `foreignerIdNumber()` fixes prefix `2`. With `ar-EG`, use `nationalIdNumberWithGender(gender)` to control the registration parity, or `nationalIdNumber()` for the default. The Egyptian provider generates its last digit randomly. The Mongolian `alphabet()` returns one Cyrillic character. The Egyptian `governorateId()` returns a two-character code. These methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 15]> {
+fn identity_samples() -> DatabaseResult<[String; 18]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("mn-MN"))?.idNumber()?,
+        fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
+        fake(Some("ar-SA"))?.foreignerIdNumber()?,
         fake(Some("es-ES"))?.dni()?,
         fake(Some("es-PE"))?.dni()?,
         fake(Some("es-PE"))?.ruc(Some(true))?,

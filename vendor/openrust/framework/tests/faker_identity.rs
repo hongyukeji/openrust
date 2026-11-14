@@ -407,3 +407,97 @@ fn dni_ruc_and_licence_categories_follow_their_regional_providers() {
     assert!(pe.licenceCode().is_err());
     assert!(za.dni().is_err());
 }
+
+#[test]
+fn regional_id_numbers_match_their_pinned_providers() {
+    use chrono::NaiveDate;
+
+    let nl = fake(Some("nl-NL")).unwrap();
+    let za = fake(Some("en-ZA")).unwrap();
+    let sa = fake(Some("ar-SA")).unwrap();
+    let mn = fake(Some("mn-MN")).unwrap();
+    let eg = fake(Some("ar-EG")).unwrap();
+    let date = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let luhn = |sample: &str| {
+        let sum: u32 = sample
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(i, digit)| {
+                let digit = u32::from(digit - b'0') * if i % 2 == 0 { 1 } else { 2 };
+                digit / 10 + digit % 10
+            })
+            .sum();
+        assert_eq!(sum % 10, 0);
+    };
+    let alphabet = "АЛХБМЦВНЧГОШДӨЩЕПЪЁРЫЖСЬЗТЭИУЮЙҮЯКФ";
+    let governorates = [
+        "02", "19", "28", "25", "29", "31", "18", "22", "03", "35", "01", "12", "11", "26", "04",
+        "13", "34", "16", "23", "14", "27", "15", "33", "17", "24", "32",
+    ];
+    for _ in 0..128 {
+        let dutch = nl.unique(false).idNumber().unwrap();
+        assert_eq!(dutch.len(), 9);
+        assert!(dutch.as_bytes()[0] <= b'6');
+        let weighted: u16 = dutch[..8]
+            .bytes()
+            .zip((2..=9).rev())
+            .map(|(digit, factor)| u16::from(digit - b'0') * factor)
+            .sum();
+        assert_eq!(weighted % 11, u16::from(dutch.as_bytes()[8] - b'0'));
+
+        let za_sample = za
+            .unique(false)
+            .idNumberWithBirthdate(Some(date), Some(false), Some("FEMALE"))
+            .unwrap();
+        assert_eq!(za_sample.len(), 13);
+        assert_eq!(&za_sample[..6], "000229");
+        assert!(matches!(za_sample.as_bytes()[6], b'0'..=b'4'));
+        assert!(za_sample[10..].starts_with('1'));
+        assert!(matches!(za_sample.as_bytes()[11], b'8' | b'9'));
+        luhn(&za_sample);
+
+        for (sample, prefixes) in [
+            (sa.idNumber().unwrap(), "12"),
+            (sa.nationalIdNumber().unwrap(), "1"),
+            (sa.foreignerIdNumber().unwrap(), "2"),
+        ] {
+            assert_eq!(sample.len(), 10);
+            assert!(prefixes.contains(sample.chars().next().unwrap()));
+            luhn(&sample);
+        }
+
+        let mongolian = mn.idNumber().unwrap();
+        let mut chars = mongolian.chars();
+        assert!(
+            alphabet.contains(chars.next().unwrap()) && alphabet.contains(chars.next().unwrap())
+        );
+        assert_eq!(chars.as_str().len(), 8);
+        assert!(chars.as_str().bytes().all(|byte| byte.is_ascii_digit()));
+
+        let egyptian = eg.nationalIdNumberWithGender(Some("male")).unwrap();
+        assert_eq!(egyptian.len(), 14);
+        let century = match egyptian.as_bytes()[0] {
+            b'2' => "19",
+            b'3' => "20",
+            other => panic!("{other}"),
+        };
+        let birth =
+            NaiveDate::parse_from_str(&format!("{century}{}", &egyptian[1..7]), "%Y%m%d").unwrap();
+        assert!(
+            (NaiveDate::from_ymd_opt(1950, 1, 10).unwrap()
+                ..=NaiveDate::from_ymd_opt(2005, 12, 25).unwrap())
+                .contains(&birth)
+        );
+        assert!(governorates.contains(&&egyptian[7..9]));
+        assert_eq!((egyptian.as_bytes()[12] - b'0') % 2, 1);
+        assert!(matches!(egyptian.as_bytes()[13], b'1'..=b'9'));
+    }
+    let symbols = mn.unique(true);
+    let actual: std::collections::HashSet<_> =
+        (0..35).map(|_| symbols.alphabet().unwrap()).collect();
+    assert_eq!(actual, alphabet.chars().collect());
+    assert!(symbols.alphabet().is_err());
+    assert!(nl.idNumberWithBirthdate(None, None, None).is_err());
+    assert!(eg.foreignerIdNumber().is_err());
+}

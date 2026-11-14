@@ -292,14 +292,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `dni()` 在 `es-ES` 生成八位数字和模 23 校验字母，在 `es-PE` 生成八位数字。秘鲁的 `ruc(isNaturalPerson)` 默认使用 `20` 前缀，传入 `Some(true)` 则使用 `10`，固定版生成器随后添加九位随机数字。`licenceCode()` 按 `es-ES` 或 `en-ZA` 采样驾驶证类别。上述方法均支持 `unique`。
 
+`idNumber()` 支持 `nl-NL`、`en-ZA`、`ar-SA` 和 `mn-MN`。南非可用 `idNumberWithBirthdate(birthdate, citizen, gender)` 指定出生日期、公民身份和性别。沙特的 `nationalIdNumber()` 固定使用前缀 `1`，`foreignerIdNumber()` 固定使用前缀 `2`。埃及可用 `nationalIdNumberWithGender(gender)` 控制登记序号奇偶，或用 `nationalIdNumber()` 采用默认规则。埃及生成器的末位随机生成。蒙古语的 `alphabet()` 返回一个西里尔字母，埃及的 `governorateId()` 返回两位省份代码。上述方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 15]> {
+fn identity_samples() -> DatabaseResult<[String; 18]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     Ok([
+        fake(Some("mn-MN"))?.idNumber()?,
+        fake(Some("en-ZA"))?.idNumberWithBirthdate(Some(birthdate), Some(false), None)?,
+        fake(Some("ar-SA"))?.foreignerIdNumber()?,
         fake(Some("es-ES"))?.dni()?,
         fake(Some("es-PE"))?.dni()?,
         fake(Some("es-PE"))?.ruc(Some(true))?,
