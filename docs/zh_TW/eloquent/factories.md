@@ -308,9 +308,9 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hant` 的 `VAT()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
 
-`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區沿用現有本地化姓氏產生器。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區使用固定 Person 姓氏詞表。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
 
-`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 FakerPHP 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱沿用現有日本姓氏產生器，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
+`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 FakerPHP 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱使用固定日本姓氏詞表，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
 
 `ar-EG`、`ar-JO` 和 `ar-SA` 的公司名稱使用固定上游的阿拉伯語前綴、地區姓氏與後綴。埃及範本也會使用城市名稱。產生器保留後綴詞表中的空格。三個地區的 `companyPrefix()` 和 `companySuffix()` 都支援 `unique`。
 
@@ -624,7 +624,17 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### 依性別產生名字 {#given-names-by-gender}
 
-用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。既有無參數 `name()` 和 `firstName()` 沿用原本的資料來源，並與具分組的方式共用各自的 `unique` 歷史。
+用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
+
+`en-US`、`fr-FR`、`it-IT` 和 `ja-JP` 的 `name()`、`firstName()` 與 `lastName()` 使用固定 Person 範本和詞表。公司範本共用同一套姓氏。`firstNameWithGender` 和 `nameWithGender` 與對應的無參數方法共用 `unique` 歷史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_name_sample() -> DatabaseResult<String> {
+    fake(Some("ja-JP"))?.unique(false).name()
+}
+```
 
 ### 座標 {#coordinate-samples}
 

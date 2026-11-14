@@ -823,7 +823,7 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 ### 公司格式后续验收
 
 - 已核对本清单各地区的公司名称与后缀模板，以及 `jobTitle()` 的地区词表与默认回退。
-- 美国、法国、意大利及日本的公司模板仍复用现有姓氏生成器。Person 姓名词表和 Internet 用户名模板的地区行为需要分别核对。
+- 美国、法国、意大利及日本的公司模板已通过 Person 入口复用固定版姓氏。其余地区 Person 姓名与 Internet 用户名仍逐项核对。
 - 台湾 `companyEn()` 的默认错误及三种自定义姓氏模板均已通过实际 Seeder 验证。
 
 ## Faker 英国、南非与塞浦路斯公司名称
@@ -898,3 +898,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `c492aece`。Rust 1.94.0 格式、全目标严格 Clippy、31 项 Faker 回归、49 项 Seeder 与 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 MySQL `main artisan db:seed --database=mysql --force` 验证默认调用报缺少 formatter 并以 1 退出，提供姓氏后写入并回读固定姓氏可生成的全部八种结果。实际 `./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。站点保留已有分块大小提示。
 
 隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%，项目卷剩余 81 GiB。下一批先核对地区 Person 姓名生成，随后验证依赖姓名的 Internet 用户名模板。
+
+## Faker 美国、法国、意大利和日本姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [美国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Person.php)、[法国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_FR/Person.php)、[意大利](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/it_IT/Person.php)与[日本](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ja_JP/Person.php) Person。接入 1,025 条固定姓氏，保留原顺序、重复项和拼写。复用已核对的名字、称谓与全名模板，将这四地无参 `name()`、`firstName()` 接到与显式性别入口相同的采样路径。公司名称继续通过 `lastName()` 取样。Rust 保留无参方法和显式性别方法为两个签名，并共用对应的去重历史。v0.x 未找到等价实现，沿用原有编译式工厂接线。
+
+隔离基线 `86452513`。PHP 8.5 比对 1,025 条姓氏及已有全名模板，并运行 2,048 组上游姓名、名字、姓氏及称谓样本。Rust 1.94.0 格式、全目标严格 Clippy、32 项 Faker 测试、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读四地共二十条 Person 和 Company 样本。实际 `./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。站点保留已有分块大小提示。
+
+隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%，项目卷剩余 81 GiB。下一批核对其余已接入 Person 地区，含荷兰姓氏分类权重，然后核对 Internet 用户名。

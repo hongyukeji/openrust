@@ -212,9 +212,6 @@ macro_rules! formatters {
 }
 
 formatters! {
-    name => faker::name::raw::Name,
-    firstName => faker::name::raw::FirstName,
-    lastName => faker::name::raw::LastName,
     city => faker::address::raw::CityName,
     streetName => faker::address::raw::StreetName,
     cityPrefix => faker::address::raw::CityPrefix,
@@ -654,6 +651,27 @@ impl Faker {
                 self.city()
             ),
         }
+    }
+
+    pub fn name(&self) -> String {
+        if faker_person::surnames(self.locale()).is_some() {
+            return self.nameWithGender(None);
+        }
+        generate!(self.locale(), faker::name::raw::Name,)
+    }
+
+    pub fn firstName(&self) -> String {
+        if faker_person::surnames(self.locale()).is_some() {
+            return self.firstNameWithGender(None);
+        }
+        generate!(self.locale(), faker::name::raw::FirstName,)
+    }
+
+    pub fn lastName(&self) -> String {
+        if let Some(surnames) = faker_person::surnames(self.locale()) {
+            return surnames[fastrand::usize(..surnames.len())].to_owned();
+        }
+        generate!(self.locale(), faker::name::raw::LastName,)
     }
 
     pub fn firstNameMale(&self) -> String {
@@ -2315,6 +2333,18 @@ impl UniqueFaker<'_> {
 
     pub fn titleFemale(&self) -> DatabaseResult<&'static str> {
         self.generate("titleFemale", || self.0.titleFemale())
+    }
+
+    pub fn name(&self) -> DatabaseResult<String> {
+        self.generate("name", || self.0.name())
+    }
+
+    pub fn firstName(&self) -> DatabaseResult<String> {
+        self.generate("firstName", || self.0.firstName())
+    }
+
+    pub fn lastName(&self) -> DatabaseResult<String> {
+        self.generate("lastName", || self.0.lastName())
     }
 
     pub fn firstNameMale(&self) -> DatabaseResult<String> {

@@ -308,9 +308,9 @@ With `kk-KZ`, `businessIdentificationNumber(date)` returns a twelve-digit BIN. P
 
 With `zh-Hant`, `VAT()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
 
-For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the existing localized surname generators. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
+For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the pinned Person surname catalogs. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
 
-For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding FakerPHP templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the existing Japanese surname generator. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
+For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding FakerPHP templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the pinned Japanese surname catalog. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
 
 With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `companyPrefix()` and `companySuffix()` with `unique`.
 
@@ -624,7 +624,17 @@ Use `streetAddress()` for a street line and `address()` for a complete address s
 
 ### Given Names by Gender {#given-names-by-gender}
 
-Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates. The existing no-argument `name()` and `firstName()` keep their data sources. Their gender-selecting variants share the corresponding `unique` history.
+Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
+
+With `en-US`, `fr-FR`, `it-IT`, and `ja-JP`, `name()`, `firstName()`, and `lastName()` use the pinned Person templates and catalogs. The Company templates use the same surnames. `firstNameWithGender` and `nameWithGender` share their corresponding `unique` history with the no-argument methods.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_name_sample() -> DatabaseResult<String> {
+    fake(Some("ja-JP"))?.unique(false).name()
+}
+```
 
 ### Coordinates {#coordinate-samples}
 

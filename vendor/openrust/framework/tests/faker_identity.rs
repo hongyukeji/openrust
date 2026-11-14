@@ -1675,3 +1675,49 @@ fn taiwanese_english_company_names_require_a_surname_formatter() {
         ))
     ));
 }
+
+#[test]
+fn person_and_company_share_the_pinned_surnames() {
+    let cases = [
+        ("en-US", 473, "Abbott", "Zulauf"),
+        ("fr-FR", 400, "Martin", "Valette"),
+        ("it-IT", 101, "Rossi", "Verdi"),
+        ("ja-JP", 51, "青田", "渡辺"),
+    ];
+    for (locale, count, first, last) in cases {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let catalog: std::collections::HashSet<_> =
+            (0..count).map(|_| unique.lastName().unwrap()).collect();
+        assert_eq!(catalog.len(), count);
+        assert!(catalog.contains(first));
+        assert!(catalog.contains(last));
+        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
+        for _ in 0..32 {
+            assert!(catalog.contains(&faker.lastName()));
+            for name in [
+                faker.name(),
+                faker.nameWithGender(Some("male")),
+                faker.company(),
+            ] {
+                assert!(
+                    catalog
+                        .iter()
+                        .any(
+                            |surname| name.match_indices(surname).any(|(start, matched)| {
+                                let end = start + matched.len();
+                                name[..start]
+                                    .chars()
+                                    .next_back()
+                                    .is_none_or(|c| matches!(c, ' ' | '-' | ','))
+                                    && name[end..]
+                                        .chars()
+                                        .next()
+                                        .is_none_or(|c| matches!(c, ' ' | '-' | ','))
+                            })
+                        )
+                );
+            }
+        }
+    }
+}
