@@ -64,6 +64,24 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         !self.is(parent, related)
     }
 
+    /// Writes the owner table using the supplied rows and conflict columns.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let connection = self.0.connection(parent)?;
+        self.0
+            .configure(R::queryOn(&connection))?
+            .upsert(rows, unique_by, update)
+            .await
+    }
+
     pub fn associate(&self, model: &mut P, related: &R) -> DatabaseResult<()> {
         let value = related
             .getAttribute(self.0.related)

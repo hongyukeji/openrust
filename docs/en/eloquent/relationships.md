@@ -950,6 +950,23 @@ pub async fn upsert_comments<P: Model, I: Model, R: Model>(
 }
 ```
 
+`BelongsTo` forwards `upsert` to the owner table. `MorphTo` selects the owner table from the declaring model’s registered morph alias. A nonempty batch requires a valid alias in OpenRust. Each call uses the supplied conflict columns and leaves the declaring model’s association as it was.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::MorphTo},
+};
+
+pub async fn upsert_owners<P: Model>(
+    owner: &MorphTo<P>,
+    comment: &P,
+    rows: Vec<Attributes>,
+) -> DatabaseResult<u64> {
+    owner.upsert(comment, rows, &["id"], None).await
+}
+```
+
 ### Restoring related models {#restoring-related-models}
 
 Use `restoreOrCreate` to look up a related model, including soft-deleted rows, before inserting. `createOrRestore` attempts insertion first and recovers a matching row on a unique conflict. Both restore the model through its normal lifecycle. Pass `RelatedValues::deferred` to compute model values only when an insert or update needs them.

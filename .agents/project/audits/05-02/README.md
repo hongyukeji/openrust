@@ -586,3 +586,11 @@ Rust 1.94 全工作区回归 624 项通过、8 项夹具忽略。格式、严格
 SQLite 和独立 MySQL 8.4.13 实测两种穿透关系以及普通和多态多对多关系的插入与冲突更新，确认中间外键按输入保存、缺少必要外键时写入失败、模型生成 ULID，且 Pivot 表保持空表。
 
 Rust 1.94.0 格式与全目标严格 Clippy 通过。工作区锁定测试 624 项通过、8 项夹具忽略。实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。
+
+## 反向关系批量写入
+
+固定 Laravel 的 `BelongsTo` 和 `MorphTo` 通过关系的转发机制调用 Eloquent Builder。声明模型的多态类型决定所属模型的表。OpenRust 复用关系连接与已注册目标，使用调用方提供的批次属性，写入后不改声明模型的关联。Laravel 在类型为 null 或空串时为预加载建立声明模型上的查询。OpenRust 的非空写入要求明确目标类型，缺失、未知或非法类型返回错误，空批次直接返回 0。旧版只有 Query Builder 批量写入，本批沿用其对应的方言入口。固定 Goravel 用作 ORM 连接职责参考。 [Laravel 关系构造](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php) · [Laravel 转发源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/MorphTo.php) · [Laravel Builder 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php) · [Laravel Upserts](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#upserts) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 专项验证普通所属关系写入、多态选择两个目标表、冲突更新、目标模型自动 ULID、缺失和非法别名、空批次及声明模型关联不变。
+
+Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区测试 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

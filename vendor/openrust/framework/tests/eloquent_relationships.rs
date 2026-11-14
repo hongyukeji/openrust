@@ -7286,6 +7286,7 @@ async fn verify_related_upsert(db: &Connection) {
         Some(&"updated morph".into())
     );
     verify_forwarded_upsert(db, &first, &lookup).await;
+    verify_inverse_upsert(db, &lookup).await;
     db.statement("drop table relation_upsert_children", &[])
         .await
         .unwrap();
@@ -7389,6 +7390,108 @@ async fn verify_forwarded_upsert<F>(
         Some(&"updated".into())
     );
     db.statement("drop table relation_upsert_links", &[])
+        .await
+        .unwrap();
+}
+
+struct UpsertOwner(ModelState);
+
+impl Model for UpsertOwner {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata =
+            ModelMetadata::new("relation_upsert_owners").timestamps(None, None);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_inverse_upsert<F>(db: &Connection, lookup: &impl Fn(&'static str, i64) -> F)
+where
+    F: std::future::Future<Output = DatabaseResult<UpsertChild>>,
+{
+    db.statement("drop table if exists relation_upsert_owners", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table relation_upsert_owners (id integer primary key, body varchar(30) not null)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let mut child = Comment::newInstanceOn(db, Attributes::new()).unwrap();
+    child.setAttribute("subject_id", 999);
+    let belongs_to = BelongsTo::<Comment, UpsertOwner>::new("subject_id", "id");
+    let morph = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .target::<UpsertOwner>("owner", "id")
+        .target::<UpsertChild>("other", "id");
+    let owner =
+        |body: &str| Attributes::from([("id".into(), 42.into()), ("body".into(), body.into())]);
+    assert_eq!(morph.upsert(&child, vec![], &[], None).await.unwrap(), 0);
+    for (alias, message) in [
+        (Value::Null, "missing morph type"),
+        ("".into(), "missing morph type"),
+        ("unregistered".into(), "unknown morph type"),
+        (1.into(), "morph type column"),
+    ] {
+        child.setAttribute("subject_type", alias);
+        assert!(matches!(
+            morph.upsert(&child, vec![owner("invalid")], &["id"], None).await,
+            Err(DatabaseError::InvalidQuery(error)) if error == message
+        ));
+    }
+    assert!(
+        db.table("relation_upsert_owners")
+            .get()
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    belongs_to
+        .upsert(&child, vec![owner("created")], &["id"], None)
+        .await
+        .unwrap();
+    child.setAttribute("subject_type", "owner");
+    morph
+        .upsert(&child, vec![owner("updated")], &["id"], Some(&["body"]))
+        .await
+        .unwrap();
+    let updated = UpsertOwner::queryOn(db).findOrFail(42).await.unwrap();
+    assert_eq!(updated.getAttribute("body"), Some(&"updated".into()));
+
+    child.setAttribute("subject_type", "other");
+    let attributes = Attributes::from([
+        ("owner_type".into(), "inverse".into()),
+        ("owner_id".into(), 42.into()),
+        ("code".into(), "a".into()),
+        ("body".into(), "other target".into()),
+    ]);
+    morph
+        .upsert(
+            &child,
+            vec![attributes],
+            &["owner_type", "owner_id", "code"],
+            None,
+        )
+        .await
+        .unwrap();
+    let other = lookup("inverse", 42).await.unwrap();
+    assert!(matches!(other.getAttribute("id"), Some(Value::Text(id)) if id.len() == 26));
+    assert_eq!(other.getAttribute("body"), Some(&"other target".into()));
+    assert_eq!(child.getAttribute("subject_id"), Some(&999.into()));
+    assert_eq!(child.getAttribute("subject_type"), Some(&"other".into()));
+    db.statement("drop table relation_upsert_owners", &[])
         .await
         .unwrap();
 }

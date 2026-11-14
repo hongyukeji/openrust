@@ -950,6 +950,23 @@ pub async fn upsert_comments<P: Model, I: Model, R: Model>(
 }
 ```
 
+`BelongsTo` 将 `upsert` 转发到所属模型表。`MorphTo` 按声明模型上已注册的多态别名选择目标表。OpenRust 要求非空批次具有有效别名。每次调用都使用传入的冲突列，声明模型的关联保持原样。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::MorphTo},
+};
+
+pub async fn upsert_owners<P: Model>(
+    owner: &MorphTo<P>,
+    comment: &P,
+    rows: Vec<Attributes>,
+) -> DatabaseResult<u64> {
+    owner.upsert(comment, rows, &["id"], None).await
+}
+```
+
 ### 恢复关联模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找关联模型，查找范围包含软删除记录，未命中时才插入。`createOrRestore` 先尝试插入，遇到唯一键冲突时回查匹配记录。两者都通过模型生命周期恢复记录。用 `RelatedValues::deferred` 可将属性计算延迟到插入或更新时。

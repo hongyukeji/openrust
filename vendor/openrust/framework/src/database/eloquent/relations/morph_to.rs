@@ -108,6 +108,31 @@ impl<P: Model> MorphTo<P> {
         !self.is(parent, related)
     }
 
+    /// Writes to the owner table selected by the declaring model's stored morph alias.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let alias = match parent.getAttribute(self.type_column) {
+            Some(Value::Text(alias)) if !alias.is_empty() => alias,
+            None | Some(Value::Null | Value::Text(_)) => {
+                return Err(DatabaseError::InvalidQuery("missing morph type"));
+            }
+            _ => return Err(DatabaseError::InvalidQuery("morph type column")),
+        };
+        self.targets
+            .get(alias.as_str())
+            .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?
+            .upsert(parent, rows, unique_by, update, self.soft_deletes)
+            .await
+    }
+
     pub fn identity<R: Model>(&self, alias: &str, model: &R) -> DatabaseResult<MorphIdentity> {
         self.validate_target::<R>(alias)?;
         let (&alias, target) = self
@@ -747,6 +772,14 @@ trait Target<P: Model>: Send + Sync {
         transaction: Option<&'a mut Transaction>,
         soft_deletes: SoftDeleteMacros,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<Option<ErasedModel>>>>;
+    fn upsert<'a>(
+        &'a self,
+        parent: &'a P,
+        rows: Vec<Attributes>,
+        unique_by: &'a [&'a str],
+        update: Option<&'a [&'a str]>,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>>;
     fn touch<'a>(
         &'a self,
         model: &'a P,
@@ -759,6 +792,24 @@ trait Target<P: Model>: Send + Sync {
 impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn upsert<'a>(
+        &'a self,
+        parent: &'a P,
+        rows: Vec<Attributes>,
+        unique_by: &'a [&'a str],
+        update: Option<&'a [&'a str]>,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        Box::pin(async move {
+            let connection = self.connection(parent)?;
+            let query = self.configure(R::queryOn(&connection))?;
+            soft_deletes
+                .apply(query)
+                .upsert(rows, unique_by, update)
+                .await
+        })
     }
 
     fn touch<'a>(
