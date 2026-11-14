@@ -92,6 +92,22 @@ impl MorphTarget {
 
 #[allow(non_snake_case, reason = "Matches Laravel's polymorphic query API")]
 impl<P: Model> MorphTo<P> {
+    /// Resolves the stored morph alias before comparing the owner key.
+    pub fn is<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
+        let Some(Value::Text(alias)) = parent.getAttribute(self.type_column) else {
+            return false;
+        };
+        let Some(target) = self.targets.get(alias.as_str()) else {
+            return false;
+        };
+        target.model_type() == TypeId::of::<R>()
+            && super::BelongsTo::<P, R>::new(self.id_column, target.owner_key()).is(parent, related)
+    }
+
+    pub fn isNot<R: Model>(&self, parent: &P, related: Option<&R>) -> bool {
+        !self.is(parent, related)
+    }
+
     pub fn identity<R: Model>(&self, alias: &str, model: &R) -> DatabaseResult<MorphIdentity> {
         self.validate_target::<R>(alias)?;
         let (&alias, target) = self

@@ -36,6 +36,17 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         Self(self.0.constrain(configure))
     }
 
+    pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        match related {
+            Some(related) => self.0.is(parent, Some(related)).await,
+            None => Ok(false),
+        }
+    }
+
+    pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        Ok(!self.is(parent, related).await?)
+    }
+
     #[must_use]
     pub fn latestOfMany(self, column: Option<&'static str>) -> Self {
         Self(self.0.latestOfMany(column))

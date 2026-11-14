@@ -228,6 +228,64 @@ async fn select_count(db: &Connection) -> u64 {
     count.parse().unwrap()
 }
 
+async fn verify_singular_identity(
+    db: &Connection,
+    mysql: bool,
+    author: &Author,
+    post: &Post,
+    hidden: &Post,
+) {
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    assert!(AUTHOR.is(post, Some(author)));
+    assert!(AUTHOR.isNot(post, None));
+    assert!(FIRST_POST.is(author, Some(post)).await.unwrap());
+
+    let mut child = Post::newInstance(Attributes::new()).unwrap();
+    let mut owner = Author::newInstance(Attributes::new()).unwrap();
+    child.setAttribute("owner_code", "+00042");
+    owner.setAttribute("code", 42_i64);
+    let by_code = BelongsTo::new("owner_code", "code");
+    assert!(by_code.is(&child, Some(&owner)));
+    child.setAttribute("owner_code", "42other");
+    assert!(by_code.isNot(&child, Some(&owner)));
+    child.setAttribute("owner_code", "0");
+    owner.setAttribute("code", 0_i64);
+    assert!(by_code.isNot(&child, Some(&owner)));
+    let other = connect(json!({"driver": "sqlite", "database": ":memory:"}));
+    let mut same_name_owner = Author::newInstanceOn(&other, Attributes::new()).unwrap();
+    same_name_owner.setAttribute("id", author.getKey().unwrap().clone());
+    assert!(AUTHOR.isNot(post, Some(&same_name_owner)));
+
+    let mut comment = Comment::newInstance(Attributes::new()).unwrap();
+    comment.setAttribute("subject_id", author.getKey().unwrap().clone());
+    comment.setAttribute("subject_type", "author");
+    let subject = MorphTo::new("subject_type", "subject_id")
+        .target::<Author>("author", "id")
+        .target::<Post>("post", "id");
+    let mut detached = Author::newInstance(Attributes::new()).unwrap();
+    detached.setAttribute("id", author.getKey().unwrap().clone());
+    assert!(subject.is(&comment, Some(&detached)));
+    assert!(subject.isNot(&comment, Some(post)));
+    comment.setAttribute("subject_type", "unknown");
+    assert!(subject.isNot(&comment, Some(&detached)));
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
+
+    let mut newest = POSTS
+        .create(
+            author,
+            Attributes::from([("title".into(), "Newest identity".into())]),
+        )
+        .await
+        .unwrap();
+    let latest = POSTS.one().latestOfMany(None);
+    assert!(latest.is(author, Some(&newest)).await.unwrap());
+    assert!(latest.isNot(author, Some(post)).await.unwrap());
+    assert!(latest.isNot(author, Some(hidden)).await.unwrap());
+    newest.forceDelete().await.unwrap();
+}
+
 async fn verify_through_and_morph(
     db: &Connection,
     mysql: bool,
@@ -267,6 +325,14 @@ async fn verify_through_and_morph(
     assert_eq!(
         profile.getAttribute("subject_id"),
         visible.getAttribute("subject_id")
+    );
+    assert!(AUTHOR_COMMENT.is(author, Some(&profile)).await.unwrap());
+    assert!(
+        AUTHOR_COMMENT
+            .latestOfMany(None)
+            .isNot(author, Some(&visible))
+            .await
+            .unwrap()
     );
     assert_eq!(POST_COMMENTS.getResults(post).await.unwrap().len(), 1);
     assert_eq!(
@@ -3011,6 +3077,30 @@ fn verify_one_through<'a>(
         tied.setAttribute("post_id", second_post.getKey().unwrap().clone());
         tied.save().await.unwrap();
 
+        assert!(
+            FIRST_COMMENT_THROUGH
+                .is(author, Some(&first))
+                .await
+                .unwrap()
+        );
+        assert!(FIRST_COMMENT_THROUGH.is(author, Some(&tied)).await.unwrap());
+        assert!(FIRST_COMMENT_THROUGH.isNot(author, None).await.unwrap());
+        assert!(
+            COMMENTS_THROUGH
+                .one()
+                .latestOfMany(None)
+                .is(author, Some(&tied))
+                .await
+                .unwrap()
+        );
+        assert!(
+            COMMENTS_THROUGH
+                .one()
+                .latestOfMany(None)
+                .isNot(author, Some(&first))
+                .await
+                .unwrap()
+        );
         let latest = || COMMENTS_THROUGH.one().latestOfMany(Some("body"));
         let baseline = if mysql { select_count(db).await } else { 0 };
         let authors = Author::queryOn(db)
@@ -5312,6 +5402,7 @@ async fn verify(db: Connection, mysql: bool) {
     .await;
     AUTHOR.associate(&mut p1, &first).unwrap();
     p1.save().await.unwrap();
+    Box::pin(verify_singular_identity(&db, mysql, &first, &p1, &hidden)).await;
     verify_through_and_morph(&db, mysql, &first, &p1, &hidden).await;
     Box::pin(verify_morph_paths(&db, mysql)).await;
     verify_one_through(&db, mysql, &first).await;

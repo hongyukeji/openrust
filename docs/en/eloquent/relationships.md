@@ -21,6 +21,18 @@ pub async fn set_author<P: Model, A: Model>(post: &mut P, author: &A) -> Databas
 }
 ```
 
+### Comparing related models {#comparing-related-models}
+
+Use `is` and `isNot` to compare a candidate with a singular relationship. Pass the declaring model and `Some(candidate)`, or `None` for a missing candidate. `BelongsTo`, `MorphTo`, and ordinary `HasOne` or `MorphOne` compare relationship keys, table, and connection without loading rows. `MorphTo` resolves the stored alias first. `HasOne`, `MorphOne`, and `HasOneThrough` use `.await?`. A through relation or one-of-many selection checks the candidate with a SQL existence query.
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsTo};
+
+pub fn is_author<P: Model, A: Model>(post: &P, author: &A) -> bool {
+    BelongsTo::new("author_id", "id").is(post, Some(author))
+}
+```
+
 ### Default Models
 
 Use `withDefault` on `BelongsTo`, `HasOne`, `HasOneThrough`, or `MorphOne` to supply an unsaved model when the related row is absent. The closure receives the new model and the parent. Use `|_, _| {}` for a default with no extra attributes. `HasOne` initializes the foreign key, and `MorphOne` also initializes the type alias. A fallback is available through the loaded relationship. Relationship existence and count queries still reflect stored rows.

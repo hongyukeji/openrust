@@ -60,6 +60,17 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self
     }
 
+    pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        match related {
+            Some(related) => self.0.contains_model(parent, related).await,
+            None => Ok(false),
+        }
+    }
+
+    pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        Ok(!self.is(parent, related).await?)
+    }
+
     #[must_use]
     pub fn latestOfMany(self, column: Option<&'static str>) -> Self {
         self.ofMany(&[(

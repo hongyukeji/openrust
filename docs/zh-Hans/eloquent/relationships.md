@@ -21,6 +21,18 @@ pub async fn set_author<P: Model, A: Model>(post: &mut P, author: &A) -> Databas
 }
 ```
 
+### 比较关联模型 {#comparing-related-models}
+
+使用 `is` 和 `isNot` 判断候选模型是否匹配单值关系。传入声明端模型和 `Some(candidate)`，候选为空时传 `None`。`BelongsTo`、`MorphTo` 及普通 `HasOne`、`MorphOne` 在内存中比较关联键、表和连接。`MorphTo` 先解析存储的别名。`HasOne`、`MorphOne` 和 `HasOneThrough` 调用时使用 `.await?`。穿透关系和多选一使用 SQL 存在查询确认候选。
+
+```rust
+use openrust::database::eloquent::{Model, relations::BelongsTo};
+
+pub fn is_author<P: Model, A: Model>(post: &P, author: &A) -> bool {
+    BelongsTo::new("author_id", "id").is(post, Some(author))
+}
+```
+
 ### 默认关联模型
 
 可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上调用 `withDefault`，在缺少关联记录时提供一个未保存的模型。闭包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的属性。`HasOne` 会预填外键，`MorphOne` 还会预填类型别名。可从已加载关系读取默认实例。关系存在和计数查询仍以数据库记录为准。

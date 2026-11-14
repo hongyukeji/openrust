@@ -55,6 +55,15 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         self
     }
 
+    /// Compares the configured foreign and owner keys without loading the relation.
+    pub fn is(&self, parent: &P, related: Option<&R>) -> bool {
+        related.is_some_and(|related| self.0.matches_identity(parent, related))
+    }
+
+    pub fn isNot(&self, parent: &P, related: Option<&R>) -> bool {
+        !self.is(parent, related)
+    }
+
     pub fn associate(&self, model: &mut P, related: &R) -> DatabaseResult<()> {
         let value = related
             .getAttribute(self.0.related)

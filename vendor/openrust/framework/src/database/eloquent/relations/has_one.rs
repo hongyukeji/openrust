@@ -45,6 +45,17 @@ impl<P: Model, R: Model> HasOne<P, R> {
         self
     }
 
+    pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        match related {
+            Some(related) => self.0.0.matches_selected(parent, related).await,
+            None => Ok(false),
+        }
+    }
+
+    pub async fn isNot(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {
+        Ok(!self.is(parent, related).await?)
+    }
+
     #[must_use]
     pub fn latestOfMany(self, column: Option<&'static str>) -> Self {
         self.ofMany(&[(

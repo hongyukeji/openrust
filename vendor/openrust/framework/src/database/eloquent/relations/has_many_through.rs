@@ -134,6 +134,31 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         })
     }
 
+    pub(super) async fn contains_model(&self, parent: &P, related: &R) -> DatabaseResult<bool> {
+        use crate::database::Value;
+
+        if !self.keys.shares_related_source(parent, related) {
+            return Ok(false);
+        }
+        let (Some(parent_key), Some(related_key)) = (
+            parent
+                .getAttribute(self.keys.parent)
+                .filter(|key| !matches!(key, Value::Null)),
+            related.getKey().filter(|key| !matches!(key, Value::Null)),
+        ) else {
+            return Ok(false);
+        };
+        let connection = self.keys.connection(parent)?;
+        let query = self.keys.configure(R::queryOn(&connection))?;
+        let join = self.join(&query, None, &connection)?;
+        let query = self.select_one(query, &join, &connection)?;
+        let primary = query.qualifyColumn(R::metadata().primary_key);
+        let query = query
+            .restrict_relation(&join.match_key, std::slice::from_ref(parent_key))
+            .restrict_relation(&primary, std::slice::from_ref(related_key));
+        join.apply(query.scoped()?.0).exists().await
+    }
+
     async fn match_many(
         &self,
         parents: &[&P],

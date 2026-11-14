@@ -236,6 +236,56 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         }
     }
 
+    pub(super) fn shares_related_source(&self, parent: &P, related: &R) -> bool {
+        let name = R::metadata()
+            .connection
+            .or_else(|| parent.getConnectionName());
+        related.getTable() == R::metadata().table
+            && related.getConnectionName() == name
+            && (name != parent.getConnectionName()
+                || parent
+                    .state()
+                    .connection
+                    .as_ref()
+                    .zip(related.state().connection.as_ref())
+                    .is_none_or(|(parent, related)| parent.same_query_source(related)))
+    }
+
+    pub(super) fn matches_identity(&self, parent: &P, related: &R) -> bool {
+        self.shares_related_source(parent, related)
+            && compare_relation_keys(
+                parent.getAttribute(self.parent),
+                related.getAttribute(self.related),
+            )
+    }
+
+    pub(super) async fn matches_selected(&self, parent: &P, related: &R) -> DatabaseResult<bool> {
+        if !self.matches_identity(parent, related) {
+            return Ok(false);
+        }
+        if self.selection.is_none() {
+            return Ok(true);
+        }
+
+        let (Some(parent_key), Some(related_key)) = (
+            parent.getAttribute(self.parent),
+            related.getKey().filter(|key| !matches!(key, Value::Null)),
+        ) else {
+            return Ok(false);
+        };
+        let connection = self.connection(parent)?;
+        let query = self.select_one(self.configure(R::queryOn(&connection))?)?;
+        let foreign = query.qualifyColumn(self.related);
+        let primary = query.qualifyColumn(R::metadata().primary_key);
+        query
+            .restrict_relation(&foreign, std::slice::from_ref(parent_key))
+            .restrict_relation(&primary, std::slice::from_ref(related_key))
+            .scoped()?
+            .0
+            .exists()
+            .await
+    }
+
     pub(super) async fn touch_owner(
         &self,
         model: &P,
@@ -446,6 +496,43 @@ impl ParentKeys {
             })
             .collect()
     }
+}
+
+fn compare_relation_keys(parent: Option<&Value>, related: Option<&Value>) -> bool {
+    fn nonempty(key: &Value) -> bool {
+        match key {
+            Value::Null | Value::Bool(false) | Value::Integer(0) | Value::Unsigned(0) => false,
+            Value::Real(value) => value.is_finite() && *value != 0.0,
+            Value::Text(value) => !value.is_empty() && value != "0",
+            Value::Bytes(value) => !value.is_empty() && value != b"0",
+            _ => true,
+        }
+    }
+
+    fn integer(key: &Value) -> Option<i128> {
+        match key {
+            Value::Integer(value) => Some((*value).into()),
+            Value::Unsigned(value) => Some((*value).into()),
+            Value::Text(value) => value.trim().parse().ok(),
+            Value::Bytes(value) => std::str::from_utf8(value).ok()?.trim().parse().ok(),
+            _ => None,
+        }
+    }
+
+    let (Some(parent), Some(related)) = (
+        parent.filter(|key| nonempty(key)),
+        related.filter(|key| nonempty(key)),
+    ) else {
+        return false;
+    };
+    if matches!(parent, Value::Integer(_) | Value::Unsigned(_))
+        || matches!(related, Value::Integer(_) | Value::Unsigned(_))
+    {
+        return integer(parent)
+            .zip(integer(related))
+            .is_some_and(|(parent, related)| parent == related);
+    }
+    parent == related
 }
 
 pub(in crate::database::eloquent) fn dictionary_key(
