@@ -10,4 +10,15 @@ Rust 1.94.0 的格式、启用 `sanctum` 的全工作区测试（621 次通过�
 
 `install:api` 将既有的 `sanctum` feature 加入应用 `Cargo.toml` 的 `features.default`，保留原有功能和注释。源码编辑共用独立文件锁，保证原子替换 Cargo 清单之后仍可串行处理安装。首次通过交互提示确认迁移时，安装器先重新构建，再通过同一 Artisan 执行 `migrate`。原有 `config/api.rs` 和 `API_PREFIX` 继续控制挂载位置。
 
-在 macOS 隔离副本中使用未启用 Sanctum 的骨架运行 `./artisan install:api`。在交互提示发送回车前，MySQL 8.4.13 中没有 `personal_access_tokens` 表。确认后自动重建，创建令牌表并写入迁移账本，命令退出码为 0。启动生成后的应用，设置 `API_PREFIX=api/admin`，确认匿名访问 `/api/admin/user` 返回 401，`/api/user` 返回 404。定向启动测试验证不可自动接线时保留原 Cargo 清单，以及重复安装、覆盖和保留已有默认 feature。Windows 首次确认后重新构建的分支使用单独的临时 target 目录，尚无实机证据。
+在 macOS 隔离副本中使用未启用 Sanctum 的骨架运行 `./artisan install:api`。在交互提示发送回车前，MySQL 8.4.13 中没有 `personal_access_tokens` 表。确认后自动重建，创建令牌表并写入迁移账本，命令退出码为 0。启动生成后的应用，设置 `API_PREFIX=api/admin`，确认匿名访问 `/api/admin/user` 返回 401，`/api/user` 返回 404。定向启动测试验证不可自动接线时保留原 Cargo 清单，以及重复安装、覆盖和保留已有默认 feature。
+
+### Windows 首次安装
+
+在 Parallels Windows 11 ARM64（构建 26200.9457）中，用 Rust 1.94.0 和 ARM64 MSVC 原生构建 `1d712dfe`。每项都从无 API 路由、未默认启用 Sanctum 的骨架开始，并使用独立的空 MySQL 8.4.13 数据库。在 Win32 控制台中通过原生回车事件确认迁移。
+
+| Windows 入口 | 回车后的实际结果 | 生成路由的 HTTP 验证 |
+| --- | --- | --- |
+| CMD `artisan.bat install:api` | 自动重建、迁移成功，退出码 0 | 默认前缀 `/api/user`，匿名和无效 Bearer 均为 401，有效 Bearer 为 200 |
+| PowerShell `.\artisan.bat install:api` | 自动重建、迁移成功，退出码 0 | 自定义前缀 `/api/admin/user`，匿名和无效 Bearer 均为 401，有效 Bearer 为 200 |
+
+两项均确认回车前数据库为空，回车后在独立的临时 target 目录重建并执行迁移。令牌表写入第一批迁移账本，临时重建目录在命令退出时清除。生成的路由使用 `auth:sanctum`，有效令牌返回正确用户且隐藏密码，并更新 `last_used_at`。
