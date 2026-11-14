@@ -930,3 +930,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `e5aba484`。PHP 8.5 逐项核对 52 对词表，运行 6,656 组上游样本。无 intl 环境下记录到 384 次域名与 185 次邮箱调用错误，Rust 通用路径使用现有音译。Rust 1.94.0 格式、全目标严格 Clippy、35 项 Faker、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读九地 45 条域名及邮箱。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。站点保留已有分块大小提示。
 
 隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%、项目卷剩余 81 GiB。后续核对尼泊尔 URL 模板、乌克兰 companyUrl 与其余地区 Person。
+
+## Faker 尼泊尔 URL 与乌克兰公司标签
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。比对 FakerPHP v1.24.1 的[尼泊尔 Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ne_NP/Internet.php)和[乌克兰 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/uk_UA/Company.php)。尼泊尔 `url()` 保留 11 个模板位和重复权重，按模板组合 HTTP、www、.np、路径和 .html。Rust 复用现有域名和 slug 入口。乌克兰 `companyUrl()` 原样返回西里尔字母公司名或附加连字符与后缀的标签。两个入口支持 `unique`，其他地区调用 `companyUrl()` 返回不支持地区的错误。v0.x 未发现等价实现，工厂装配沿用编译式入口。
+
+隔离基线 `8c2c1d63`。PHP 8.5 核对 1,024 组样本，覆盖尼泊尔八种输出形态和乌克兰两种标签模板。Rust 1.94.0 格式、全目标严格 Clippy、36 项 Faker 测试、49 项 Seeder 与 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读 24 条 URL 和公司标签。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。站点保留既有分块大小提示。
+
+隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 与站点产物 39 MiB，提交前额度剩余 47%、项目卷剩余 81 GiB。后续核对其余地区 Person 姓名及工厂单元的剩余差异。

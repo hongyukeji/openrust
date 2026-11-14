@@ -1999,3 +1999,62 @@ fn internet_domains_use_pinned_catalogs_and_nepalese_email_templates() {
     assert_eq!(categories, HashSet::from(["nepal", "free", "company"]));
     assert!(!nepal.companyEmail().unwrap().ends_with(".np"));
 }
+
+#[test]
+fn nepalese_urls_and_ukrainian_company_labels_follow_the_pinned_templates() {
+    use openrust::database::DatabaseError;
+    use std::collections::HashSet;
+
+    let nepal = fake(Some("ne-NP")).unwrap();
+    let unique = nepal.unique(true);
+    let samples: HashSet<_> = (0..512).map(|_| unique.url().unwrap()).collect();
+    assert_eq!(samples.len(), 512);
+    let shapes: HashSet<_> = samples
+        .iter()
+        .map(|url| {
+            let (host, path) = url
+                .strip_prefix("http://")
+                .unwrap()
+                .split_once('/')
+                .unwrap();
+            (
+                host.starts_with("www."),
+                host.ends_with(".np"),
+                !path.is_empty(),
+                path.ends_with(".html"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        shapes,
+        HashSet::from([
+            (true, true, false, false),
+            (false, true, false, false),
+            (true, true, true, false),
+            (true, true, true, true),
+            (false, true, true, false),
+            (false, false, true, true),
+            (true, false, false, false),
+            (false, false, false, false),
+        ])
+    );
+
+    let ukraine = fake(Some("uk-UA")).unwrap();
+    let unique = ukraine.unique(true);
+    let mut shapes = HashSet::new();
+    for _ in 0..64 {
+        let label = unique.companyUrl().unwrap();
+        assert!(label.chars().all(|ch| ch == '-' || ch.is_alphabetic()));
+        if let Some((_, suffix)) = label.rsplit_once('-') {
+            assert!(["Сервіс", "Плюс", "Груп", "Стиль", "Дизайн"].contains(&suffix));
+        }
+        shapes.insert(label.contains('-'));
+    }
+    assert_eq!(shapes, HashSet::from([true, false]));
+    assert!(matches!(
+        nepal.companyUrl(),
+        Err(DatabaseError::InvalidQuery(
+            "unsupported Faker company URL locale"
+        ))
+    ));
+}

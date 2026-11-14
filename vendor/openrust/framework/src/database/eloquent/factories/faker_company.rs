@@ -4283,6 +4283,21 @@ impl Faker {
         }
     }
 
+    /// Generates the Ukrainian company label used by the upstream URL formatter.
+    pub fn companyUrl(&self) -> DatabaseResult<String> {
+        if self.locale() != "uk_UA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker company URL locale",
+            ));
+        }
+
+        let name = cyrillic::ukrainian_name();
+        if fastrand::bool() {
+            return Ok(format!("{name}-{}", self.companySuffix()));
+        }
+        Ok(name.to_owned())
+    }
+
     /// Samples a company type from the locale’s company catalog.
     pub fn companyType(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
@@ -4430,6 +4445,10 @@ impl UniqueFaker<'_> {
 
     pub fn companyName(&self) -> DatabaseResult<&'static str> {
         self.try_generate("companyName", || self.0.companyName())
+    }
+
+    pub fn companyUrl(&self) -> DatabaseResult<String> {
+        self.try_generate("companyUrl", || self.0.companyUrl())
     }
 
     pub fn companyType(&self) -> DatabaseResult<&'static str> {

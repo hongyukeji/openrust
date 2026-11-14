@@ -1377,17 +1377,38 @@ impl Faker {
     }
 
     pub fn url(&self) -> DatabaseResult<String> {
-        let (prefix, path, extension) = match fastrand::u8(0..10) {
-            0 => ("http://www.", false, ""),
-            1 => ("http://", false, ""),
-            2 | 3 => ("http://www.", true, ""),
-            4 => ("https://www.", true, ""),
-            5 => ("http://www.", true, ".html"),
-            6 | 7 => ("http://", true, ""),
-            8 => ("http://", true, ".html"),
-            _ => ("https://", true, ".html"),
+        if self.locale() == "ne_NP" {
+            let format = match fastrand::u8(0..11) {
+                0 | 1 => ("http://www.", ".np", false, ""),
+                2 | 3 => ("http://", ".np", false, ""),
+                4 => ("http://www.", ".np", true, ""),
+                5 => ("http://www.", ".np", true, ".html"),
+                6 | 7 => ("http://", ".np", true, ""),
+                8 => ("http://", "", true, ".html"),
+                9 => ("http://www.", "", false, ""),
+                _ => ("http://", "", false, ""),
+            };
+            return self.render_url(format);
+        }
+
+        let format = match fastrand::u8(0..10) {
+            0 => ("http://www.", "", false, ""),
+            1 => ("http://", "", false, ""),
+            2 | 3 => ("http://www.", "", true, ""),
+            4 => ("https://www.", "", true, ""),
+            5 => ("http://www.", "", true, ".html"),
+            6 | 7 => ("http://", "", true, ""),
+            8 => ("http://", "", true, ".html"),
+            _ => ("https://", "", true, ".html"),
         };
-        let mut url = format!("{prefix}{}/", self.domainName()?);
+        self.render_url(format)
+    }
+
+    fn render_url(
+        &self,
+        (prefix, domain_suffix, path, extension): (&str, &str, bool, &str),
+    ) -> DatabaseResult<String> {
+        let mut url = format!("{prefix}{}{domain_suffix}/", self.domainName()?);
         if path {
             url.push_str(&self.slug(None, true));
             url.push_str(extension);

@@ -230,6 +230,18 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `email()?` 產生一般電子郵件地址，或用 `companyEmail()?` 產生使用隨機網域的地址。簡體中文的一般電子郵件使用該地區的免費信箱清單。`safeEmail()` 使用保留的範例網域，`freeEmail()` 使用地區信箱服務網域。只需網域時用 `safeEmailDomain()` 或 `freeEmailDomain()`。使用者名稱使用地區姓名或詞庫並轉寫為 ASCII。若無可用字元，OpenRust 產生一個 ASCII 字母，保留既有使用者名稱及電子郵件方法的直接回傳型別。`password(min, max)?` 使用從 `!` 到 `~` 的可列印 ASCII 字元，長度含兩端，接受反向邊界，預設值為 6 和 20。以上產生器均支援 `unique`。
 
+### 地區 URL 範本 {#regional-url-templates}
+
+`ne-NP` 的 `url()` 使用固定 HTTP 範本，依範本加上 `www`、`.np` 或路徑。`uk-UA` 的 `companyUrl()` 回傳原始西里爾字母公司標籤，可附加連字號與公司後綴。標籤沒有協定和網域後綴。兩個產生器均支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_url_sample() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("ne-NP"))?.url()?, fake(Some("uk-UA"))?.companyUrl()?))
+}
+```
+
 ### 地區網域與信箱 {#regional-domains-and-email}
 
 `tld()` 和 `freeEmailDomain()` 從固定 Internet 詞表取樣，重複項目保留原權重。沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本的 `domainName()` 使用羅馬字姓氏詞表。其他地區組合 `domainWord()` 和網域後綴。尼泊爾的一般信箱範本包含兩個公司網域、一個免費網域、三個附加 `.np` 的公司網域。直接呼叫 `companyEmail()` 使用一般網域。
