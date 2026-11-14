@@ -2330,3 +2330,45 @@ fn west_asian_and_egyptian_person_names_use_the_pinned_catalogs() {
         }
     }
 }
+
+#[test]
+fn russian_ukrainian_and_kazakh_person_names_keep_local_templates() {
+    use std::collections::HashSet;
+
+    for (locale, count) in [("ru-RU", 13), ("uk-UA", 20)] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let males: HashSet<_> = (0..count)
+            .map(|_| unique.middleNameMale().unwrap())
+            .collect();
+        let females: HashSet<_> = (0..count)
+            .map(|_| unique.middleNameFemale().unwrap())
+            .collect();
+        assert!(unique.middleNameMale().is_err());
+        assert!(unique.middleNameFemale().is_err());
+        assert!(females.contains(faker.middleNameWithGender(Some("female")).unwrap()));
+        let default = faker.middleName().unwrap();
+        assert!(males.contains(default) || females.contains(default));
+        let grouped: HashSet<_> = (0..count)
+            .map(|_| unique.middleNameWithGender(Some("female")).unwrap())
+            .collect();
+        assert_eq!(grouped, females);
+        assert!(unique.middleNameWithGender(Some("female")).is_err());
+        let mut patronymic_seen = false;
+        for _ in 0..128 {
+            let name = faker.nameWithGender(Some("female"));
+            patronymic_seen |= females
+                .iter()
+                .any(|middle| name.split_whitespace().any(|part| part == *middle));
+        }
+        assert!(patronymic_seen);
+    }
+
+    let russian = fake(Some("ru-RU")).unwrap();
+    for _ in 0..64 {
+        assert!(russian.lastNameWithGender(Some("female")).ends_with('а'));
+    }
+    let kazakh = fake(Some("kk-KZ")).unwrap();
+    assert!(kazakh.middleNameMale().is_err());
+    assert_eq!(kazakh.name().split_whitespace().count(), 2);
+}

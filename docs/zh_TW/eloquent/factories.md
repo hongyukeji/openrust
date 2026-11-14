@@ -758,6 +758,18 @@ fn west_asian_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 俄語、烏克蘭語和哈薩克語姓名 {#russian-ukrainian-and-kazakh-names}
+
+`ru-RU`、`uk-UA` 和 `kk-KZ` 使用固定 Person 的地區詞表和全名範本。俄語和烏克蘭語的 `middleName()` 從兩組父名取樣，`middleNameWithGender`、`middleNameMale()` 與 `middleNameFemale()` 可選擇分組。俄語姓氏支援性別選擇並保留固定的女性後綴。哈薩克語 PHP provider 使用數字性別常數。Rust 沿用統一的 `"male"` 和 `"female"` 選擇對應範本。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn patronymic_sample() -> DatabaseResult<&'static str> {
+    fake(Some("uk-UA"))?.unique(false).middleNameWithGender(Some("female"))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

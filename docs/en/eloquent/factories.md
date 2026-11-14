@@ -758,6 +758,18 @@ fn west_asian_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Russian, Ukrainian, and Kazakh Names {#russian-ukrainian-and-kazakh-names}
+
+The `ru-RU`, `uk-UA`, and `kk-KZ` Person providers use pinned regional name catalogs and full-name templates. With Russian and Ukrainian, `middleName()` samples both patronymic groups, while `middleNameWithGender`, `middleNameMale()`, and `middleNameFemale()` select a group. Russian surnames also support gender selection and keep the fixed feminine ending. Kazakh PHP uses numeric gender constants. Rust uses the shared `"male"` and `"female"` selectors to select the corresponding templates.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn patronymic_sample() -> DatabaseResult<&'static str> {
+    fake(Some("uk-UA"))?.unique(false).middleNameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

@@ -994,3 +994,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `95afa490`。PHP 8.5 核对 2,560 组姓名、姓氏与称谓样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读五地 30 条。Rust 1.94.0 格式、全目标严格 Clippy、43 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译及六项浏览器检查通过。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物约 39 MiB，项目卷剩余 81 GiB。下一批核对俄语、乌克兰语及哈萨克语姓名和父名。
+
+## Faker 俄语、乌克兰语和哈萨克语姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[俄语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ru_RU/Person.php)、[乌克兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/uk_UA/Person.php)与[哈萨克语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/kk_KZ/Person.php) Person。保留俄语、乌克兰语父名与全名模板，俄语姓氏保留固定女性词尾和无参等权抽样。Rust 通过 middleNameWithGender 表达可选性别，与 middleName 共用去重历史。哈萨克语使用 Rust 统一字符串选择器映射上游的数字性别常量。v0.x 未发现等价实现，工厂装配沿用当前编译路径。
+
+隔离基线 `bb4b856b`。PHP 8.5 按各 provider 的性别常量核对 1,536 组姓名、姓氏及称谓样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读三地 22 条样本。Rust 1.94.0 格式、全目标严格 Clippy、44 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译及六项浏览器检查通过。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物约 39 MiB。下一批继续核对孟加拉国、印度尼西亚、马来西亚、韩国、泰国和越南的姓名规则。
