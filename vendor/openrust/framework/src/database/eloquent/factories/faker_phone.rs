@@ -803,6 +803,8 @@ const MY_011: &[&str] = &[
     "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "22", "23", "32",
 ];
 const MY_014: &[&str] = &["2", "3", "4", "5", "6", "7", "8", "9"];
+const BR_CELL: &[&str] = &["9####-####"];
+const BR_LAND: &[&str] = &["2###-####", "3###-####", "4###-####"];
 const AREA_CODES_BR: &[&str] = &[
     "11", "12", "13", "14", "15", "16", "17", "18", "19", "21", "22", "24", "27", "28", "31", "32",
     "33", "34", "35", "37", "38", "41", "42", "43", "44", "45", "46", "47", "48", "49", "51", "53",
@@ -983,11 +985,7 @@ impl Faker {
     }
 
     fn brazilian_display_number(&self, formatting: bool) -> String {
-        let formats: &[&str] = if fastrand::bool() {
-            &["9####-####"]
-        } else {
-            &["2###-####", "3###-####", "4###-####"]
-        };
+        let formats: &[&str] = if fastrand::bool() { BR_CELL } else { BR_LAND };
         self.brazilian_phone_number(formats, formatting)
     }
 
@@ -1057,7 +1055,7 @@ impl Faker {
     /// The Brazilian formatter and its case-insensitive PHP alias in Korean.
     pub fn cellphoneNumber(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         match self.locale() {
-            "pt_BR" => Ok(self.brazilian_phone_number(&["9####-####"], formatted.unwrap_or(true))),
+            "pt_BR" => Ok(self.brazilian_phone_number(BR_CELL, formatted.unwrap_or(true))),
             "ko_KR" => Ok(self.numerify(Some("010-####-####"))),
             _ => Err(DatabaseError::InvalidQuery(
                 "unsupported Faker cellphone number locale",
@@ -1071,10 +1069,7 @@ impl Faker {
 
     pub fn landlineNumber(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         match self.locale() {
-            "pt_BR" => Ok(self.brazilian_phone_number(
-                &["2###-####", "3###-####", "4###-####"],
-                formatted.unwrap_or(true),
-            )),
+            "pt_BR" => Ok(self.brazilian_phone_number(BR_LAND, formatted.unwrap_or(true))),
             "en_HK" => Ok(self.sample_phone_template(LANDLINE_HK, false)),
             _ => Err(DatabaseError::InvalidQuery(
                 "unsupported Faker landline number locale",
@@ -1129,6 +1124,105 @@ impl Faker {
         Ok(self.sample_phone_template(formats, false))
     }
 
+    /// Samples a regional area code while preserving any leading zeros.
+    pub fn areaCode(&self) -> DatabaseResult<String> {
+        let locale = self.locale();
+        if !matches!(
+            locale,
+            "de_DE" | "el_GR" | "en_AU" | "en_NZ" | "en_ZA" | "pt_BR"
+        ) && !uses_us_phone_provider(locale)
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker area code locale",
+            ));
+        }
+        Ok(self.sample_phone_template(&["{{areaCode}}"], false))
+    }
+
+    pub fn exchangeCode(&self) -> DatabaseResult<String> {
+        if !uses_us_phone_provider(self.locale()) {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker exchange code locale",
+            ));
+        }
+        Ok(self.us_phone_exchange_code())
+    }
+
+    pub fn tollFreeAreaCode(&self) -> DatabaseResult<String> {
+        if self.locale() != "de_DE" && !uses_us_phone_provider(self.locale()) {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker toll-free area code locale",
+            ));
+        }
+        Ok(self.sample_phone_template(&["{{tollFreeAreaCode}}"], false))
+    }
+
+    pub fn countryCodePrefix(&self, formatting: bool) -> DatabaseResult<&'static str> {
+        if self.locale() != "ms_MY" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker country code prefix locale",
+            ));
+        }
+        Ok(if formatting { "+6" } else { "6" })
+    }
+
+    /// Samples a subscriber mask. Number templates fill the placeholders when rendered.
+    pub fn numberFormat(&self) -> DatabaseResult<&'static str> {
+        let formats = match self.locale() {
+            "hy_AM" => AM_FORMAT,
+            "fi_FI" => FI_FORMAT,
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker phone number mask locale",
+                ));
+            }
+        };
+        Ok(sample(formats))
+    }
+
+    pub fn separator(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "fi_FI" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker phone separator locale",
+            ));
+        }
+        Ok(sample(&[" ", "-"]))
+    }
+
+    pub fn cellphone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.brazilian_subscriber(BR_CELL, formatted.unwrap_or(true))
+    }
+
+    pub fn landline(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.brazilian_subscriber(BR_LAND, formatted.unwrap_or(true))
+    }
+
+    pub fn phone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        // Two of the three upstream choices select the cellphone group.
+        self.brazilian_subscriber(
+            if fastrand::u8(0..3) == 0 {
+                BR_LAND
+            } else {
+                BR_CELL
+            },
+            formatted.unwrap_or(true),
+        )
+    }
+
+    fn brazilian_subscriber(&self, formats: &[&str], formatted: bool) -> DatabaseResult<String> {
+        if self.locale() != "pt_BR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Brazilian subscriber number locale",
+            ));
+        }
+        let number = self.sample_phone_template(formats, false);
+        Ok(if formatted {
+            number
+        } else {
+            number.replace('-', "")
+        })
+    }
+
     fn brazilian_phone_number(&self, formats: &[&str], formatted: bool) -> String {
         let area = sample(AREA_CODES_BR);
         let number = self.sample_phone_template(formats, false);
@@ -1145,16 +1239,8 @@ impl Faker {
         country_code_prefix: bool,
         formatting: bool,
     ) -> DatabaseResult<String> {
-        if self.locale() != "ms_MY" {
-            return Err(DatabaseError::InvalidQuery(
-                "unsupported Faker Malaysian phone number locale",
-            ));
-        }
-        let prefix = match (country_code_prefix, formatting) {
-            (true, true) => "+6",
-            (true, false) => "6",
-            (false, _) => "",
-        };
+        let prefix = self.countryCodePrefix(formatting)?;
+        let prefix = if country_code_prefix { prefix } else { "" };
         Ok(format!(
             "{prefix}{}",
             self.sample_phone_template(formats, false)
@@ -1259,6 +1345,7 @@ impl Faker {
                 }
             }
             ("de_DE", "areaCode") => return rendered.push_str(&self.de_phone_area_code()),
+            ("pt_BR", "areaCode") => sample(AREA_CODES_BR),
             ("en_AU", "areaCode") => sample(AU_AREA),
             ("en_NZ", "areaCode") => sample(NZ_AREA),
             ("en_NZ", "beginningNumber") => sample(NZ_BEGINNING),
@@ -1273,13 +1360,12 @@ impl Faker {
                 return rendered.push(char::from(b'0' + second));
             }
             ("hy_AM", "code") => sample(AM_CODE),
-            ("hy_AM", "numberFormat") => sample(AM_FORMAT),
+            (_, "numberFormat") => self.numberFormat().expect("fixed phone mask locale"),
             ("fi_FI", "landLineAreaCode") => sample(FI_LAND_CODE),
             ("fi_FI", "e164landLineAreaCode") => &sample(FI_LAND_CODE)[1..],
             ("fi_FI", "mobileNetworkAreaCode") => sample(FI_MOBILE_CODE),
             ("fi_FI", "e164MobileNetworkAreaCode") => &sample(FI_MOBILE_CODE)[1..],
-            ("fi_FI", "numberFormat") => sample(FI_FORMAT),
-            ("fi_FI", "separator") => sample(&[" ", "-"]),
+            ("fi_FI", "separator") => self.separator().expect("fixed phone separator locale"),
             (_, "fixedLineNumber") => {
                 return rendered.push_str(
                     &self
@@ -1337,6 +1423,42 @@ fn sample<'a>(values: &[&'a str]) -> &'a str {
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
+    pub fn areaCode(&self) -> DatabaseResult<String> {
+        self.try_generate("areaCode", || self.0.areaCode())
+    }
+
+    pub fn exchangeCode(&self) -> DatabaseResult<String> {
+        self.try_generate("exchangeCode", || self.0.exchangeCode())
+    }
+
+    pub fn tollFreeAreaCode(&self) -> DatabaseResult<String> {
+        self.try_generate("tollFreeAreaCode", || self.0.tollFreeAreaCode())
+    }
+
+    pub fn numberFormat(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("numberFormat", || self.0.numberFormat())
+    }
+
+    pub fn separator(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("separator", || self.0.separator())
+    }
+
+    pub fn countryCodePrefix(&self, formatting: bool) -> DatabaseResult<&'static str> {
+        self.try_generate("countryCodePrefix", || self.0.countryCodePrefix(formatting))
+    }
+
+    pub fn cellphone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("cellphone", || self.0.cellphone(formatted))
+    }
+
+    pub fn landline(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("landline", || self.0.landline(formatted))
+    }
+
+    pub fn phone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("phone", || self.0.phone(formatted))
+    }
+
     pub fn phoneNumberCleared(&self) -> DatabaseResult<String> {
         self.try_generate("phoneNumberCleared", || self.0.phoneNumberCleared())
     }
@@ -1419,12 +1541,12 @@ impl UniqueFaker<'_> {
 
 // These formatters differ only in their provider's masks and whitespace handling.
 macro_rules! phone_formatters {
-    ($($name:ident => { $($locale:literal => ($formats:ident, $trim:literal)),+ }),+ $(,)?) => {
+    ($($name:ident => { $($locale:pat => ($formats:expr, $trim:literal)),+ }),+ $(,)?) => {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
         impl Faker {
             $(
                 pub fn $name(&self) -> DatabaseResult<String> {
-                    let (formats, trim) = match self.locale() {
+                    let (formats, trim): (&[&str], bool) = match self.locale() {
                         $($locale => ($formats, $trim),)+
                         _ => return Err(DatabaseError::InvalidQuery(
                             concat!("unsupported Faker ", stringify!($name), " locale"),
@@ -1447,6 +1569,31 @@ macro_rules! phone_formatters {
 }
 
 phone_formatters! {
+    mobileCode => { "de_DE" | "el_GR" => (&["{{mobileCode}}"], false) },
+    internationalCodePrefix => { "el_GR" | "en_SG" => (&["{{internationalCodePrefix}}"], false) },
+    sharedCostCode => { "el_GR" => (&["{{sharedCostCode}}"], false) },
+    premiumRateCode => { "el_GR" => (&["{{premiumRateCode}}"], false) },
+    cellphoneCode => { "en_ZA" => (&["{{cellphoneCode}}"], false) },
+    specialCode => { "en_ZA" => (&["{{specialCode}}"], false) },
+    beginningNumber => { "en_NZ" => (&["{{beginningNumber}}"], false) },
+    code => { "hy_AM" => (&["{{code}}"], false) },
+    landLineAreaCode => { "fi_FI" => (&["{{landLineAreaCode}}"], false) },
+    e164landLineAreaCode => { "fi_FI" => (&["{{e164landLineAreaCode}}"], false) },
+    mobileNetworkAreaCode => { "fi_FI" => (&["{{mobileNetworkAreaCode}}"], false) },
+    e164MobileNetworkAreaCode => { "fi_FI" => (&["{{e164MobileNetworkAreaCode}}"], false) },
+    zeroOneOnePrefix => { "ms_MY" => (&["{{zeroOneOnePrefix}}"], false) },
+    zeroOneFourPrefix => { "ms_MY" => (&["{{zeroOneFourPrefix}}"], false) },
+    zeroOneFivePrefix => { "ms_MY" => (&["{{zeroOneFivePrefix}}"], false) },
+    oneToEight => { "en_SG" => (&["{{oneToEight}}"], false) },
+    zeroToEight => { "en_SG" => (&["{{zeroToEight}}"], false) },
+    phoneNumber06 => { "fr_FR" => (&["{{phoneNumber06}}"], false) },
+    phoneNumber06WithSeparator => { "fr_FR" => (&["{{phoneNumber06WithSeparator}}"], false) },
+    phoneNumber07 => { "fr_FR" => (&["{{phoneNumber07}}"], false) },
+    phoneNumber07WithSeparator => { "fr_FR" => (&["{{phoneNumber07WithSeparator}}"], false) },
+    phoneNumber08 => { "fr_FR" => (&["{{phoneNumber08}}"], false) },
+    phoneNumber08WithSeparator => { "fr_FR" => (&["{{phoneNumber08WithSeparator}}"], false) },
+    faxNumber => { "en_HK" => (&["7#######"], false) },
+    localAreaPhoneNumber => { "ko_KR" => (&DISPLAY_KO_KR[..6], false) },
     tollFreeNumber => {
         "el_GR" => (GR_TOLL, true),
         "en_NZ" => (TOLL_NZ, false),

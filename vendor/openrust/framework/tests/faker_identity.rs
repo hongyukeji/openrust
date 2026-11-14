@@ -3435,3 +3435,33 @@ fn display_phone_numbers_use_pinned_provider_templates() {
     }
     assert!(bangladesh.phoneNumberCleared().is_err());
 }
+
+#[test]
+fn phone_components_preserve_prefixes_and_placeholder_masks() {
+    let finland = fake(Some("fi-FI")).unwrap();
+    assert!(finland.landLineAreaCode().unwrap().starts_with('0'));
+    assert!(!finland.e164landLineAreaCode().unwrap().starts_with('0'));
+    assert!(["### ####", "#######"].contains(&finland.numberFormat().unwrap()));
+    assert!([" ", "-"].contains(&finland.separator().unwrap()));
+
+    let malaysia = fake(Some("ms-MY")).unwrap();
+    assert_eq!(malaysia.countryCodePrefix(true).unwrap(), "+6");
+    assert_eq!(malaysia.countryCodePrefix(false).unwrap(), "6");
+    let brazil = fake(Some("pt-BR")).unwrap();
+    assert_eq!(brazil.areaCode().unwrap().len(), 2);
+    assert_eq!(brazil.cellphone(Some(false)).unwrap().len(), 9);
+    assert_eq!(brazil.landline(Some(false)).unwrap().len(), 8);
+
+    let canada = fake(Some("en-CA")).unwrap();
+    let unique = canada.unique(true);
+    let codes: std::collections::HashSet<_> =
+        (0..6).map(|_| unique.tollFreeAreaCode().unwrap()).collect();
+    assert_eq!(codes.len(), 6);
+    assert!(
+        canada
+            .uniqueWithRetries(false, 2)
+            .tollFreeAreaCode()
+            .is_err()
+    );
+    assert!(finland.exchangeCode().is_err());
+}

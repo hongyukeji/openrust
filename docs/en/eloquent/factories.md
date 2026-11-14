@@ -316,6 +316,21 @@ fn phone_service_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Regional phone components {#regional-phone-components}
+
+Use `areaCode()`, `exchangeCode()`, and `tollFreeAreaCode()` to sample supported phone components. The values are strings, so leading zeros are preserved. Finland provides local and international area code variants. Its `numberFormat()` returns a mask with placeholders. Brazil provides `cellphone(formatted)`, `landline(formatted)`, and `phone(formatted)` for subscriber numbers without an area code. These formatters also support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn phone_component_sample() -> DatabaseResult<(String, String)> {
+    Ok((
+        fake(Some("en-CA"))?.unique(false).tollFreeAreaCode()?,
+        fake(Some("pt-BR"))?.cellphone(Some(false))?,
+    ))
+}
+```
+
 ### Barcodes and ISBNs {#barcode-samples}
 
 Use `ean8()`, `ean13()`, `isbn10()`, and `isbn13()` for checksum-valid sample codes. The returned strings preserve leading zeros. ISBN-10 can end in `X`; ISBN-13 starts with `978` or `979`. Each formatter has its own `unique` history.

@@ -316,6 +316,21 @@ fn phone_service_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 地區號碼組成 {#regional-phone-components}
+
+使用 `areaCode()`、`exchangeCode()` 和 `tollFreeAreaCode()` 產生支援的號碼組成。回傳字串以保留前導零。芬蘭提供本地區碼和國際區碼變體，`numberFormat()` 回傳含預留位置的範本。巴西的 `cellphone(formatted)`、`landline(formatted)` 和 `phone(formatted)` 產生不含區碼的用戶號碼。這些介面也支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn phone_component_sample() -> DatabaseResult<(String, String)> {
+    Ok((
+        fake(Some("en-CA"))?.unique(false).tollFreeAreaCode()?,
+        fake(Some("pt-BR"))?.cellphone(Some(false))?,
+    ))
+}
+```
+
 ### 條碼與 ISBN {#barcode-samples}
 
 使用 `ean8()`、`ean13()`、`isbn10()` 和 `isbn13()` 產生帶有檢查碼的樣本。回傳字串保留前導零。ISBN-10 的末位可以是 `X`，ISBN-13 以 `978` 或 `979` 開頭。各產生器獨立維護 `unique` 歷史。
