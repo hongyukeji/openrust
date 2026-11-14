@@ -431,6 +431,20 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
 }
 ```
 
+### 台湾英文公司名称 {#taiwanese-english-company-names}
+
+使用 `zh-TW` 或 `zh-Hant` 时，`companyEn()` 沿用固定上游默认装配缺少 `lastNameEn` 的错误。通过 `companyEnWithLastName` 传入可返回错误的 Rust 闭包，模板每需要一个姓氏就调用一次。两个方法的 `unique` 版本共用 `companyEn` 历史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwanese_company_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant"))?
+        .unique(false)
+        .companyEnWithLastName(|| Ok("Lin".into()))
+}
+```
+
 ### 职业名称 {#job-titles}
 
 调用 `jobTitle()` 从当前地区的 Company provider 生成职业名称。`de-DE`、`en-US`、`fr-FR`、`id-ID`、`nb-NO`、`nl-NL`、`ru-RU`、`sv-SE`、`tr-TR` 和 `uk-UA` 有独立词表。比利时、加拿大和瑞士的法语地区继承法国词表。Company provider 继承基础职业模板时返回单个 Lorem 词，缺少 Company provider 时使用美国词表。可通过 `unique(false).jobTitle()` 去重。

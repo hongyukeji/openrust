@@ -431,6 +431,20 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
 }
 ```
 
+### Taiwanese English Company Names {#taiwanese-english-company-names}
+
+With `zh-TW` or `zh-Hant`, `companyEn()` returns the missing `lastNameEn` formatter error from the pinned provider’s default setup. Use `companyEnWithLastName` to supply a fallible Rust closure for the surname formatter. The closure runs once per surname in the selected template. The `unique` variants share the `companyEn` history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwanese_company_sample() -> DatabaseResult<String> {
+    fake(Some("zh-Hant"))?
+        .unique(false)
+        .companyEnWithLastName(|| Ok("Lin".into()))
+}
+```
+
 ### Job Titles {#job-titles}
 
 Use `jobTitle()` for a profession from the locale’s Company provider. Dedicated lists are available for `de-DE`, `en-US`, `fr-FR`, `id-ID`, `nb-NO`, `nl-NL`, `ru-RU`, `sv-SE`, `tr-TR`, and `uk-UA`. Belgium, Canada, and Switzerland use the French catalog for their French locales. A locale whose Company provider inherits the base job format yields a single Lorem word. A locale without a Company provider uses the US catalog. Use `unique(false).jobTitle()` to avoid repeats.

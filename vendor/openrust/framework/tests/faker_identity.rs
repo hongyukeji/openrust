@@ -1605,3 +1605,73 @@ fn job_titles_use_the_company_provider_and_share_unique_history() {
             .any(|byte| byte.is_ascii_uppercase())
     }));
 }
+
+#[test]
+fn taiwanese_english_company_names_require_a_surname_formatter() {
+    use openrust::database::DatabaseError;
+
+    let taiwan = fake(Some("zh-Hant")).unwrap();
+    assert!(matches!(
+        taiwan.companyEn(),
+        Err(DatabaseError::InvalidQuery(
+            "unknown Faker formatter lastNameEn"
+        ))
+    ));
+    let unique = taiwan.unique(true);
+    assert!(unique.companyEn().is_err());
+    let titles: std::collections::HashSet<_> = (0..8)
+        .map(|_| {
+            unique
+                .companyEnWithLastName(|| Ok("Lin".to_owned()))
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            "Lin Inc",
+            "Lin and Sons",
+            "Lin LLC",
+            "Lin Group",
+            "Lin PLC",
+            "Lin Ltd",
+            "Lin-Lin",
+            "Lin, Lin and Lin"
+        ]
+        .into_iter()
+        .map(str::to_owned)
+        .collect()
+    );
+    assert!(
+        taiwan
+            .uniqueWithRetries(false, 1)
+            .companyEnWithLastName(|| Ok("Lin".to_owned()))
+            .is_err()
+    );
+
+    let mut calls = 0;
+    let name = taiwan
+        .companyEnWithLastName(|| {
+            calls += 1;
+            Ok(format!("Surname{calls}"))
+        })
+        .unwrap();
+    assert!(match calls {
+        1 => name.starts_with("Surname1 "),
+        2 => name == "Surname1-Surname2",
+        3 => name == "Surname1, Surname2 and Surname3",
+        _ => false,
+    });
+
+    assert!(matches!(
+        taiwan.companyEnWithLastName(|| Err(DatabaseError::InvalidQuery("surname source failed"))),
+        Err(DatabaseError::InvalidQuery("surname source failed"))
+    ));
+    let other = fake(Some("en-US")).unwrap();
+    assert!(matches!(
+        other.companyEnWithLastName(|| panic!("unsupported locale must skip the formatter")),
+        Err(DatabaseError::InvalidQuery(
+            "unsupported Faker English company name locale"
+        ))
+    ));
+}

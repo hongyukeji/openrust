@@ -4231,6 +4231,35 @@ impl Faker {
         Ok(sample(TAIWANESE_MODIFIERS))
     }
 
+    /// Generates an English company name with the default Taiwanese provider.
+    pub fn companyEn(&self) -> DatabaseResult<String> {
+        self.companyEnWithLastName(|| {
+            Err(DatabaseError::InvalidQuery(
+                "unknown Faker formatter lastNameEn",
+            ))
+        })
+    }
+
+    /// Generates a Taiwanese English company name using a supplied surname formatter.
+    pub fn companyEnWithLastName(
+        &self,
+        mut last_name: impl FnMut() -> DatabaseResult<String>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "zh_TW" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker English company name locale",
+            ));
+        }
+
+        let template = fastrand::u8(0..3);
+        let first = last_name()?;
+        Ok(match template {
+            0 => format!("{first} {}", self.companyEnSuffix()?),
+            1 => format!("{first}-{}", last_name()?),
+            _ => format!("{first}, {} and {}", last_name()?, last_name()?),
+        })
+    }
+
     /// Samples a Taiwanese English company-name suffix.
     pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
         if self.locale() != "zh_TW" {
@@ -4382,6 +4411,17 @@ impl UniqueFaker<'_> {
 
     pub fn companyModifier(&self) -> DatabaseResult<&'static str> {
         self.try_generate("companyModifier", || self.0.companyModifier())
+    }
+
+    pub fn companyEn(&self) -> DatabaseResult<String> {
+        self.try_generate("companyEn", || self.0.companyEn())
+    }
+
+    pub fn companyEnWithLastName(
+        &self,
+        mut last_name: impl FnMut() -> DatabaseResult<String>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("companyEn", || self.0.companyEnWithLastName(&mut last_name))
     }
 
     pub fn companyEnSuffix(&self) -> DatabaseResult<&'static str> {
