@@ -785,6 +785,16 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
+`fr-FR` 使用固定的城市和街道模板及国家词表。`streetPrefix()` 和 `region()` 从法国词表取样。`department()` 返回行政区编号与名称的字符串对，保留前导零和 `2A` 等编号。`departmentNumber()` 和 `departmentName()` 分别独立抽样。对 `zh-Hant-TW`，`randomChineseNumber()` 返回一至九的汉字，`randomNumber2()` 和 `randomNumber3()` 分别返回 1 到 100、1 到 1000 的整数，含端点。以上入口均支持 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
+    fake(Some("fr-FR"))?.unique(false).department()
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

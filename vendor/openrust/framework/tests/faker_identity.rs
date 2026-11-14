@@ -3726,3 +3726,38 @@ fn address_catalogs_follow_the_selected_provider() {
     assert!(us.area().is_err());
     assert!(cn.street().is_err());
 }
+
+#[test]
+fn french_departments_and_taiwanese_address_numbers_preserve_values() {
+    let french = fake(Some("fr-FR")).unwrap();
+    let taiwan = fake(Some("zh-Hant")).unwrap();
+    let unique = french.uniqueWithRetries(true, 10_000);
+    let mut departments = std::collections::BTreeMap::new();
+    for _ in 0..101 {
+        let (number, name) = unique.department().unwrap();
+        assert!(departments.insert(number, name).is_none());
+    }
+    assert_eq!(departments.get("01"), Some(&"Ain"));
+    assert_eq!(departments.get("2A"), Some(&"Corse-du-Sud"));
+    assert_eq!(departments.get("2B"), Some(&"Haute-Corse"));
+    assert_eq!(departments.get("976"), Some(&"Mayotte"));
+    assert!(unique.department().is_err());
+    assert_eq!(french.streetSuffix(), "Street");
+    assert!(french.postcode().chars().all(|ch| ch.is_ascii_digit()));
+
+    let unique = taiwan.uniqueWithRetries(true, 128);
+    let chinese: std::collections::HashSet<_> = (0..9)
+        .map(|_| unique.randomChineseNumber().unwrap())
+        .collect();
+    assert_eq!(
+        chinese,
+        ["一", "二", "三", "四", "五", "六", "七", "八", "九"].into()
+    );
+    assert!(unique.randomChineseNumber().is_err());
+    for _ in 0..64 {
+        assert!((1..=100).contains(&taiwan.randomNumber2().unwrap()));
+        assert!((1..=1000).contains(&taiwan.randomNumber3().unwrap()));
+    }
+    assert!(taiwan.departmentNumber().is_err());
+    assert!(french.randomNumber2().is_err());
+}

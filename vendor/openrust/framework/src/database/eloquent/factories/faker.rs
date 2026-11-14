@@ -640,6 +640,11 @@ impl Faker {
                 2 => format!("{}{}", self.firstName(), self.citySuffix()),
                 _ => format!("{}{}", self.lastName(), self.citySuffix()),
             },
+            "fr_FR" => match fastrand::u8(0..8) {
+                0..=3 => self.lastName(),
+                4..=6 => format!("{}{}", self.lastName(), self.citySuffix()),
+                _ => format!("{}-sur-{}", self.lastName(), self.lastName()),
+            },
             "zh_CN" => address_sample(faker_address::CITY_ZH_CN).into(),
             "zh_TW" => {
                 let (county, districts) = address_sample(faker_address::CITY_ZH_TW);
@@ -658,6 +663,14 @@ impl Faker {
                     self.lastName()
                 };
                 format!("{name} {}", self.streetSuffix())
+            }
+            "fr_FR" => {
+                let prefix = address_sample(faker_address::STREET_PREFIX_FR_FR);
+                match fastrand::u8(0..3) {
+                    0 => format!("{prefix} {}", self.lastName()),
+                    1 => format!("{prefix} {} {}", self.firstName(), self.lastName()),
+                    _ => format!("{prefix} de {}", self.lastName()),
+                }
             }
             "zh_CN" => format!("{} {}", self.lastName(), self.streetSuffix()),
             "zh_TW" => {
@@ -687,6 +700,7 @@ impl Faker {
     pub fn citySuffix(&self) -> String {
         match self.locale() {
             "en_US" => address_sample(faker_address::CITY_SUFFIX_EN_US).into(),
+            "fr_FR" => address_sample(faker_address::CITY_SUFFIX_FR_FR).into(),
             "zh_CN" => "Ville".into(),
             "zh_TW" => String::new(),
             _ => generate!(self.locale.as_str(), faker::address::raw::CitySuffix,),
@@ -696,7 +710,7 @@ impl Faker {
     pub fn streetSuffix(&self) -> String {
         match self.locale() {
             "en_US" => address_sample(faker_address::STREET_SUFFIX_EN_US).into(),
-            "zh_CN" => "Street".into(),
+            "fr_FR" | "zh_CN" => "Street".into(),
             "zh_TW" => address_sample(faker_address::STREET_SUFFIX_ZH_TW).into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::StreetSuffix,),
         }
@@ -705,6 +719,7 @@ impl Faker {
     pub fn country(&self) -> String {
         match self.locale() {
             "en_US" => address_sample(faker_address::COUNTRY_EN_US).into(),
+            "fr_FR" => address_sample(faker_address::COUNTRY_FR_FR).into(),
             "zh_CN" => address_sample(faker_address::COUNTRY_ZH_CN).into(),
             "zh_TW" => address_sample(faker_address::COUNTRY_ZH_TW).into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::CountryName,),
@@ -749,6 +764,66 @@ impl Faker {
         }
     }
 
+    pub fn streetPrefix(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "fr_FR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker street prefix locale",
+            ));
+        }
+        Ok(address_sample(faker_address::STREET_PREFIX_FR_FR))
+    }
+
+    pub fn region(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "fr_FR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker region locale",
+            ));
+        }
+        Ok(address_sample(faker_address::REGIONS_FR_FR))
+    }
+
+    /// Returns the French department code and name from the same catalog entry.
+    pub fn department(&self) -> DatabaseResult<(&'static str, &'static str)> {
+        if self.locale() != "fr_FR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker department locale",
+            ));
+        }
+        Ok(address_sample(faker_address::DEPARTMENTS_FR_FR))
+    }
+
+    pub fn departmentName(&self) -> DatabaseResult<&'static str> {
+        self.department().map(|(_, name)| name)
+    }
+
+    pub fn departmentNumber(&self) -> DatabaseResult<&'static str> {
+        self.department().map(|(number, _)| number)
+    }
+
+    pub fn randomChineseNumber(&self) -> DatabaseResult<&'static str> {
+        self.ensure_taiwan_address_locale()?;
+        Ok(self.taiwan_chinese_digit())
+    }
+
+    pub fn randomNumber2(&self) -> DatabaseResult<u8> {
+        self.ensure_taiwan_address_locale()?;
+        Ok(fastrand::u8(1..=100))
+    }
+
+    pub fn randomNumber3(&self) -> DatabaseResult<u16> {
+        self.ensure_taiwan_address_locale()?;
+        Ok(fastrand::u16(1..=1000))
+    }
+
+    fn ensure_taiwan_address_locale(&self) -> DatabaseResult<()> {
+        if self.locale() != "zh_TW" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Taiwanese number locale",
+            ));
+        }
+        Ok(())
+    }
+
     fn taiwan_chinese_digit(&self) -> &'static str {
         address_sample(&["一", "二", "三", "四", "五", "六", "七", "八", "九"])
     }
@@ -765,6 +840,7 @@ impl Faker {
             }
             "zh_CN" => format!("{:02}{}00", fastrand::u8(1..=85), fastrand::u8(10..=88)),
             "zh_TW" => self.numerify(Some(address_sample(&["###-##", "###"]))),
+            "fr_FR" => self.numerify(Some("#####")),
             _ => generate!(self.locale.as_str(), faker::address::raw::PostCode,),
         }
     }
@@ -3126,6 +3202,42 @@ impl UniqueFaker<'_> {
 
     pub fn street(&self) -> DatabaseResult<&'static str> {
         self.try_generate("street", || self.0.street())
+    }
+
+    pub fn streetPrefix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("streetPrefix", || self.0.streetPrefix())
+    }
+
+    pub fn region(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("region", || self.0.region())
+    }
+
+    pub fn departmentName(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("departmentName", || self.0.departmentName())
+    }
+
+    pub fn departmentNumber(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("departmentNumber", || self.0.departmentNumber())
+    }
+
+    pub fn randomChineseNumber(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("randomChineseNumber", || self.0.randomChineseNumber())
+    }
+
+    pub fn randomNumber2(&self) -> DatabaseResult<u8> {
+        self.try_generate("randomNumber2", || self.0.randomNumber2())
+    }
+
+    pub fn randomNumber3(&self) -> DatabaseResult<u16> {
+        self.try_generate("randomNumber3", || self.0.randomNumber3())
+    }
+
+    pub fn department(&self) -> DatabaseResult<(&'static str, &'static str)> {
+        self.generate_keyed(
+            "department",
+            || self.0.department(),
+            |(number, _)| Ok((*number).into()),
+        )
     }
 
     pub fn postcode(&self) -> DatabaseResult<String> {

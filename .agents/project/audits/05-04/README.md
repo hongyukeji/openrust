@@ -1308,3 +1308,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `6081682f`。PHP 反射提取的 15 个词表逐项一致，并用 PHP 8.5.12 核对三地共 384 个地址样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，包含三语共用示例，覆盖词表成员资格、美国换行及邮编、简中城市和区拼接、台湾县市归属和街道段巷弄楼格式。Rust 回归验证错误地区及两项路街唯一值耗尽。
 
 77 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版问题仅在隔离副本处理。恢复原 Seeder 并移除容器，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。后续继续核对台湾数值辅助入口、法语 Address 和其他地区剩余 fake-rs 回退。
+
+## 法国地址与台湾地址数字
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [法国 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_FR/Address.php) 与 [台湾 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Address.php)。法国城市保留姓氏、后缀及双姓三种模板的权重，街道采用三个等权模板，邮编回到上游的五位数字。接通街道前缀、法国大区及行政区格式化器。Rust 用字符串对表示编号及名称，统一保留 `01`、`2A` 等编号。台湾补齐一至九汉字、1–100 和 1–1000 三个地区数值入口。地区专用入口都支持 `unique`，并对范围之外的地区返回错误。v0.x 未发现等价地址生成器，编译式工厂装配无需调整。
+
+隔离基线 `a30c0b0b`。PHP 反射核对五个法国词表，包含 101 条编号与名称的对应关系。PHP 8.5.12 抽验 256 组地址与数字结果。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 257 行并按上游词表和模板核对，包含三语共用行政区示例。Rust 回归遍历行政区和汉字数字的唯一值并核对耗尽、编号及错误地区。
+
+78 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。其他法语地区的继承数据和覆盖模板以及其他地址 provider 继续对账。

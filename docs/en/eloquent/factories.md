@@ -785,6 +785,16 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
+The `fr-FR` formatter uses the pinned city and street templates and country vocabulary. `streetPrefix()` and `region()` sample the French catalogs. `department()` returns a pair of strings for the code and name, preserving leading zeroes and codes such as `2A`. `departmentNumber()` and `departmentName()` sample the corresponding field independently. For `zh-Hant-TW`, `randomChineseNumber()` returns a digit from 一 to 九, and `randomNumber2()` and `randomNumber3()` return integers in the inclusive ranges 1–100 and 1–1000. All these methods support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
+    fake(Some("fr-FR"))?.unique(false).department()
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
