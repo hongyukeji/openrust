@@ -1410,7 +1410,7 @@ fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
 
 ## 工厂关系
 
-设置数量后仍可继续配置状态、序列、回调和关系。`count(n)` 替换待处理数量，`forEachSequence(states)` 将数量设为序列长度。其他配置方法保留待处理数量。
+设置数量后仍可继续配置状态、序列、回调和关系。`count(n)` 替换待处理数量，`forEachSequence(states)` 将数量设为序列长度。其他配置方法保留待处理数量。 直接向 `has` 或 `hasNamed` 传入工厂时，每个父模型创建一条子记录。若子工厂设了数量，则使用该数量，零条也有效。 单条子记录会执行模型构造回调，跳过批量集合钩子。
 
 ```rust
 use openrust::database::{
@@ -1427,7 +1427,7 @@ async fn seed_counted_relationships<P: Model, C: Model>(
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .has(relation, children.count(1))
+        .has(relation, children)
         .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
         .afterCreating(|parent| {
             assert!(parent.state().exists());
@@ -1501,7 +1501,27 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 子工厂先读取工厂定义，再应用关系查询的默认属性和显式状态。直接及多态子关系随后补入外键和类型字段，再执行 `afterMaking`。附加模型工厂也会在应用显式状态前读取关系查询的默认属性。
 
-用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名称解析关系。工厂使用 `Model::namedRelations` 或应用 `resolveRelationUsing` 登记的描述符。显式传入 Rust 描述符类型，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名称不存在或类型不匹配时返回错误。
+用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名称解析关系。工厂使用 `Model::namedRelations` 或应用 `resolveRelationUsing` 登记的描述符。显式传入 Rust 描述符类型，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名称不存在或类型不匹配时返回错误。 使用 `forExistingNamed` 通过已注册的关系名关联已有父模型。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::BelongsTo},
+    seeder::SeederContext,
+};
+
+async fn seed_existing_owner<M: Model, R: Model>(
+    context: &SeederContext<'_>,
+    factory: Factory<M>,
+    relation: &str,
+    owner: R,
+) -> DatabaseResult<M> {
+    factory
+        .forExistingNamed::<_, BelongsTo<M, R>>(relation, owner)
+        .createOn(context.connection())
+        .await
+}
+```
 
 用 `parentAttribute("owner_id", owners)` 声明由另一工厂生成的外键属性。它展开为已保存模型的键，也可复用匹配的模型。定义、状态或调用传入的显式值优先。`withoutParents(vec![])` 禁用所有工厂外键属性。传入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可按属性名或模型类型禁用。禁用的属性展开为 null，显式 `for` 和 `forExisting` 关系仍会解析。
 

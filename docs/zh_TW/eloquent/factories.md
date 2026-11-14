@@ -1410,7 +1410,7 @@ fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
 
 ## 工廠關聯
 
-設定數量後仍可繼續設定狀態、序列、回呼和關聯。`count(n)` 取代待處理數量，`forEachSequence(states)` 將數量設為序列長度。其他設定方法保留待處理數量。
+設定數量後仍可繼續設定狀態、序列、回呼和關聯。`count(n)` 取代待處理數量，`forEachSequence(states)` 將數量設為序列長度。其他設定方法保留待處理數量。 直接向 `has` 或 `hasNamed` 傳入工廠時，每個父模型建立一筆子記錄。若子工廠已設定數量，會採用該數量，零筆也有效。 單筆子記錄會執行模型建構回呼，跳過批次集合鉤子。
 
 ```rust
 use openrust::database::{
@@ -1427,7 +1427,7 @@ async fn seed_counted_relationships<P: Model, C: Model>(
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .has(relation, children.count(1))
+        .has(relation, children)
         .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
         .afterCreating(|parent| {
             assert!(parent.state().exists());
@@ -1501,7 +1501,27 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 子工廠先讀取工廠定義，再套用關聯查詢的預設屬性和明確狀態。直接及多型子關聯隨後補入外鍵和類型欄位，再執行 `afterMaking`。附加模型工廠也會在套用明確狀態前讀取關聯查詢的預設屬性。
 
-用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名稱解析關聯。工廠使用 `Model::namedRelations` 或應用程式 `resolveRelationUsing` 登錄的描述元。明確傳入 Rust 描述元型別，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名稱不存在或型別不符時回傳錯誤。
+用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名稱解析關聯。工廠使用 `Model::namedRelations` 或應用程式 `resolveRelationUsing` 登錄的描述元。明確傳入 Rust 描述元型別，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名稱不存在或型別不符時回傳錯誤。 使用 `forExistingNamed` 透過已註冊的關聯名稱關聯既有父模型。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::BelongsTo},
+    seeder::SeederContext,
+};
+
+async fn seed_existing_owner<M: Model, R: Model>(
+    context: &SeederContext<'_>,
+    factory: Factory<M>,
+    relation: &str,
+    owner: R,
+) -> DatabaseResult<M> {
+    factory
+        .forExistingNamed::<_, BelongsTo<M, R>>(relation, owner)
+        .createOn(context.connection())
+        .await
+}
+```
 
 用 `parentAttribute("owner_id", owners)` 宣告由另一工廠產生的外鍵屬性。它會展開為已儲存模型的鍵，也可重用相符的模型。定義、狀態或呼叫傳入的明確值優先。`withoutParents(vec![])` 停用所有工廠外鍵屬性。傳入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可依屬性名稱或模型型別停用。停用的屬性展開為 null，明確的 `for` 和 `forExisting` 關聯仍會解析。
 

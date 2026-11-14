@@ -9,7 +9,7 @@ use openrust::{
     database::{
         DatabaseManager, Value,
         eloquent::{
-            Attributes, Collection, Model, ModelMetadata, ModelState,
+            Attributes, Collection, Model, ModelMetadata, ModelState, NamedRelations,
             factories::{Factory, FactoryRecords},
             relations::{BelongsTo, BelongsToMany, HasMany, Pivot, Relation},
         },
@@ -21,6 +21,12 @@ struct Author(ModelState);
 struct Entry(ModelState);
 
 impl Model for Author {
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("entries", || {
+            HasMany::<Author, Entry>::new("id", "author_id")
+        })
+    }
+
     fn automaticallyEagerLoadRelationships() -> bool {
         true
     }
@@ -55,6 +61,22 @@ impl Model for Author {
 }
 
 impl Model for Entry {
+    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    fn newCollection(mut models: Vec<Self>) -> Collection<Self> {
+        for model in &mut models {
+            if model.getAttribute("name") == Some(&"explicit child".into()) {
+                model.setAttribute("name", "collection hook ran");
+            }
+        }
+        Collection::new(models)
+    }
+
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("author", || {
+            BelongsTo::<Entry, Author>::new("author_id", "id")
+        })
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata =
             ModelMetadata::new("factory_entries").timestamps(None, None);
@@ -150,13 +172,14 @@ async fn verify(config: Json, id: &str) {
     assert_eq!(related.len(), 2);
     assert_eq!(related[1].getAttribute("name"), Some(&"entry 1".into()));
 
+    let author_id = author.getKey().cloned();
     let entry = entries()
         .count(1)
-        .forExisting(BelongsTo::new("author_id", "id"), author)
+        .forExistingNamed::<_, BelongsTo<Entry, Author>>("author", author)
         .createOneOn(&connection, Attributes::new())
         .await
         .unwrap();
-    assert!(entry.getAttribute("author_id").is_some());
+    assert_eq!(entry.getAttribute("author_id"), author_id.as_ref());
     let entry = entries()
         .count(1)
         .r#for(BelongsTo::new("author_id", "id"), authors())
@@ -255,7 +278,7 @@ async fn verify(config: Json, id: &str) {
                     false,
                 )
             }),
-            child_factory.count(1),
+            child_factory,
         )
         .sequence(|index| Attributes::from([("name".into(), format!("batch {index}").into())]))
         .count(2)
@@ -329,6 +352,37 @@ async fn verify(config: Json, id: &str) {
         crossed
             .iter()
             .all(|author| author.getAttribute("derived_name") == Some(&"derived".into()))
+    );
+
+    let entries_before = connection
+        .table("factory_entries")
+        .count("*")
+        .await
+        .unwrap();
+    let named = authors()
+        .count(2)
+        .hasNamed::<_, HasMany<Author, Entry>>("entries", entries())
+        .createOn(&connection)
+        .await
+        .unwrap();
+    assert_eq!(named.len(), 2);
+    let owner = authors()
+        .hasNamed::<_, HasMany<Author, Entry>>("entries", entries().count(0))
+        .createOn(&connection)
+        .await
+        .unwrap();
+    let invalid = entries()
+        .forExistingNamed::<_, BelongsTo<Entry, Author>>("missing", owner)
+        .createOn(&connection)
+        .await;
+    assert!(invalid.is_err());
+    assert_eq!(
+        connection
+            .table("factory_entries")
+            .count("*")
+            .await
+            .unwrap(),
+        entries_before + 2,
     );
 
     let mut constructed = authors().count(2).createOn(&connection).await.unwrap();

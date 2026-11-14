@@ -1410,7 +1410,7 @@ fn from_owner<M: Model, R: Model>(owner: &R) -> Factory<M> {
 
 ## Factory Relationships
 
-Counted factories can still configure states, sequences, callbacks, and relationships. `count(n)` replaces the pending size, and `forEachSequence(states)` sets it to the sequence length. Other configuration methods preserve the pending size.
+Counted factories can still configure states, sequences, callbacks, and relationships. `count(n)` replaces the pending size, and `forEachSequence(states)` sets it to the sequence length. Other configuration methods preserve the pending size. Pass a factory directly to `has` or `hasNamed` to create one child per parent. A counted child factory uses its explicit count, including zero. The single-child path uses the model’s construction callbacks and skips the batch collection hook.
 
 ```rust
 use openrust::database::{
@@ -1427,7 +1427,7 @@ async fn seed_counted_relationships<P: Model, C: Model>(
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .has(relation, children.count(1))
+        .has(relation, children)
         .sequence(|index| Attributes::from([("name".into(), format!("Batch {index}").into())]))
         .afterCreating(|parent| {
             assert!(parent.state().exists());
@@ -1501,7 +1501,27 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 Child factories apply relation query defaults after the definition and before explicit states. Direct and polymorphic child relations then supply the foreign key and discriminator before `afterMaking`. Attached model factories also see the relation query defaults before their explicit states.
 
-Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors.
+Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors. Use `forExistingNamed` to associate an existing owner through a registered relationship.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::BelongsTo},
+    seeder::SeederContext,
+};
+
+async fn seed_existing_owner<M: Model, R: Model>(
+    context: &SeederContext<'_>,
+    factory: Factory<M>,
+    relation: &str,
+    owner: R,
+) -> DatabaseResult<M> {
+    factory
+        .forExistingNamed::<_, BelongsTo<M, R>>(relation, owner)
+        .createOn(context.connection())
+        .await
+}
+```
 
 Use `parentAttribute("owner_id", owners)` to declare a foreign-key attribute backed by another factory. It expands to a saved model key and can reuse a matching recycled model. An explicit value from the definition, a state, or the operation takes precedence. `withoutParents(vec![])` disables all factory-valued attributes. Pass `FactoryParentSelector::attribute("owner_id")` or `FactoryParentSelector::model::<Owner>()` to disable specific ones. Disabled attributes expand to null. Explicit `for` and `forExisting` relationships still resolve.
 

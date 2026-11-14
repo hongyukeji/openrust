@@ -1284,3 +1284,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `632c6d0e`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，三语共用示例写入两个父模型及每个父模型的一条子记录。第二组使用 `forEachSequence` 把六条改为两条，并验证两条记录共用生成的上级、创建前修改名称、创建后状态和读回顺序。构造回调失败后父表仍为三行。MySQL／SQLite 工厂回归同时覆盖回调顺序、替换数量、交叉序列、延迟属性和 Pivot 关联。交叉序列回归使用独立的派生字段，保留显式属性优先的既有契约。
 
 76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。原 Seeder 已恢复，MySQL 容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。整单元继续核对关系参数，例如无显式计数的子工厂与按名称关联既有父模型，并对账其余 Faker formatter。
+
+## 无显式数量的子工厂与按名称关联既有父模型
+
+对应固定 Laravel 的[工厂关系](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-relationships)，对照 [Relationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Relationship.php)、[BelongsToRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/BelongsToRelationship.php) 和固定框架测试。直接向 `has` 或 `hasNamed` 传入工厂时，每个父模型执行单条子模型路径，保留构造、保存、嵌套关系和创建回调。显式批次继续使用模型集合钩子及自己的数量，支持零条。Rust 的 `FactoryChildren` 保留这两种类型的语义。新增 `forExistingNamed`，在构造时用已注册的名称和 Rust 关系描述符解析已有父模型，沿用 `forExisting` 的外键和多态目标验证。固定 Goravel 的类型化工厂约定无需改动，v0.x 的查询工厂无对应模型关系实现。
+
+隔离基线 `dda7fb61`。实际 MySQL 8.4.13 应用二进制执行 `artisan db:seed --database=mysql --force`，运行三语共用示例并核对最终四条父记录、五条子记录。覆盖父批次逐个生成单条子记录、显式零数量、按名称复用父键，以及无效关系名失败且无额外子记录。MySQL／SQLite 两项工厂回归验证单条路径跳过批量集合钩子，显式数量仍走批量路径。
+
+76 项 Faker、49 项 Seeder、两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、六段三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，MySQL 容器已移除，清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。工厂与 Seeder 整单元继续复核默认关系推断和未核定的 Faker formatter。

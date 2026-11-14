@@ -228,6 +228,24 @@ pub trait HasFactory: Model {
     fn factory() -> Factory<Self>;
 }
 
+/// A child factory with either a single result or an explicit batch size.
+pub enum FactoryChildren<R: Model> {
+    Uncounted(Factory<R>),
+    Counted(FactoryBatch<R>),
+}
+
+impl<R: Model> From<Factory<R>> for FactoryChildren<R> {
+    fn from(factory: Factory<R>) -> Self {
+        Self::Uncounted(factory)
+    }
+}
+
+impl<R: Model> From<FactoryBatch<R>> for FactoryChildren<R> {
+    fn from(factory: FactoryBatch<R>) -> Self {
+        Self::Counted(factory)
+    }
+}
+
 /// Selects generated or already persisted models for a factory attachment.
 pub enum FactoryAttachment<R: Model> {
     Generated(Box<FactoryBatch<R>>),
@@ -671,10 +689,10 @@ impl<M: Model> Factory<M> {
     pub fn has<R: Model>(
         self,
         relation: impl FactoryChild<M, R>,
-        children: FactoryBatch<R>,
+        children: impl Into<FactoryChildren<R>>,
     ) -> Self {
         let relation = Arc::new(relation);
-        self.has_resolved(move |_| Ok(relation.clone()), children)
+        self.has_resolved(move |_| Ok(relation.clone()), children.into())
     }
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
@@ -682,19 +700,19 @@ impl<M: Model> Factory<M> {
     pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         name: impl Into<String>,
-        children: FactoryBatch<R>,
+        children: impl Into<FactoryChildren<R>>,
     ) -> Self {
         let name = name.into();
         self.has_resolved(
             move |model| named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation)),
-            children,
+            children.into(),
         )
     }
 
     fn has_resolved<R: Model, D: FactoryChild<M, R>>(
         mut self,
         relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
-        children: FactoryBatch<R>,
+        children: FactoryChildren<R>,
     ) -> Self {
         let relation = Arc::new((relation, children));
         self.children
@@ -703,33 +721,46 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, children) = &*relation;
                     let relation = relation(parent)?;
-                    let connection = children.factory.resolve_related_connection(connection)?;
-                    let pool = children.factory.recycle_pool(inherited);
+                    let factory = match children {
+                        FactoryChildren::Uncounted(factory) => factory,
+                        FactoryChildren::Counted(batch) => &batch.factory,
+                    };
+                    let connection = factory.resolve_related_connection(connection)?;
+                    let pool = factory.recycle_pool(inherited);
                     let attributes = relation.attributes(parent)?;
-                    let mut models = children
-                        .make_with_pool(
-                            &connection,
-                            &pool,
-                            Some(RelationContext {
-                                attributes: Some(&attributes),
-                                parent,
-                            }),
-                        )
-                        .await?;
-                    for child in models.models_mut() {
+                    let context = Some(RelationContext {
+                        attributes: Some(&attributes),
+                        parent,
+                    });
+                    let mut single;
+                    let mut batch;
+                    let models = match children {
+                        FactoryChildren::Uncounted(factory) => {
+                            single = factory
+                                .make_one(
+                                    &connection,
+                                    &pool,
+                                    &std::sync::OnceLock::new(),
+                                    context,
+                                    Attributes::new(),
+                                )
+                                .await?;
+                            std::slice::from_mut(&mut single)
+                        }
+                        FactoryChildren::Counted(children) => {
+                            batch = children.make_with_pool(&connection, &pool, context).await?;
+                            batch.models_mut()
+                        }
+                    };
+                    for child in &mut *models {
                         if !relation.save(parent, child).await? {
                             return Err(DatabaseError::InvalidQuery(
                                 "factory child creation cancelled",
                             ));
                         }
-                        children
-                            .factory
-                            .create_children(&connection, child, &pool)
-                            .await?;
+                        factory.create_children(&connection, child, &pool).await?;
                     }
-                    children
-                        .factory
-                        .run_after_creating(models.models_mut(), Some(parent))?;
+                    factory.run_after_creating(models, Some(parent))?;
                     Ok(())
                 })
             }));
@@ -944,21 +975,45 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn forExisting<R: Model>(mut self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
-        let relation = Arc::new((relation, owner));
-        self.parents.push(Box::new(move |_| {
-            let foreign_key = relation.0.factory_foreign_key().map(str::to_owned);
+    pub fn forExisting<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
+        let relation = Arc::new(relation);
+        self.for_existing_resolved(move |_| Ok(Arc::clone(&relation)), owner)
+    }
+
+    /// Associates an existing model using a registered relationship name and descriptor type.
+    #[must_use]
+    pub fn forExistingNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        name: impl Into<String>,
+        owner: R,
+    ) -> Self {
+        let name = name.into();
+        self.for_existing_resolved(
+            move |model| named_descriptor::<M, D>(model, &name).map(Arc::new),
+            owner,
+        )
+    }
+
+    fn for_existing_resolved<R: Model, D: FactoryParent<M, R>>(
+        mut self,
+        relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
+        owner: R,
+    ) -> Self {
+        let owner = Arc::new(owner);
+        self.parents.push(Box::new(move |model| {
+            let relation = relation(model)?;
+            let foreign_key = relation.factory_foreign_key().map(str::to_owned);
             let morph_type = relation
-                .0
-                .factory_morph_type(&relation.1)?
+                .factory_morph_type(&owner)?
                 .map(|(name, alias)| (name.to_owned(), alias.into()));
-            let relation = Arc::clone(&relation);
+            let owner = Arc::clone(&owner);
             Ok(PreparedParent {
                 foreign_key,
                 morph_type,
                 resolve: Box::new(move |_, model, _| {
                     let relation = Arc::clone(&relation);
-                    Box::pin(async move { relation.0.associate(model, &relation.1) })
+                    let owner = Arc::clone(&owner);
+                    Box::pin(async move { relation.associate(model, &owner) })
                 }),
             })
         }));
@@ -1759,7 +1814,7 @@ impl<M: Model> FactoryBatch<M> {
     pub fn has<R: Model>(
         self,
         relation: impl FactoryChild<M, R>,
-        children: FactoryBatch<R>,
+        children: impl Into<FactoryChildren<R>>,
     ) -> Self {
         self.map_factory(|factory| factory.has(relation, children))
     }
@@ -1768,7 +1823,7 @@ impl<M: Model> FactoryBatch<M> {
     pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
         self,
         name: impl Into<String>,
-        children: FactoryBatch<R>,
+        children: impl Into<FactoryChildren<R>>,
     ) -> Self {
         self.map_factory(|factory| factory.hasNamed::<R, D>(name, children))
     }
@@ -1790,6 +1845,16 @@ impl<M: Model> FactoryBatch<M> {
     #[must_use]
     pub fn forExisting<R: Model>(self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
         self.map_factory(|factory| factory.forExisting(relation, owner))
+    }
+
+    /// Associates an existing model using a registered relationship name and descriptor type.
+    #[must_use]
+    pub fn forExistingNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        name: impl Into<String>,
+        owner: R,
+    ) -> Self {
+        self.map_factory(|factory| factory.forExistingNamed::<R, D>(name, owner))
     }
 
     #[must_use]
