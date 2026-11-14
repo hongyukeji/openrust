@@ -222,7 +222,14 @@ pub trait HasFactory: Model {
 /// Selects generated or already persisted models for a factory attachment.
 pub enum FactoryAttachment<R: Model> {
     Generated(Box<FactoryBatch<R>>),
+    Uncounted(Box<Factory<R>>),
     Existing(Vec<R>),
+}
+
+impl<R: Model> From<Factory<R>> for FactoryAttachment<R> {
+    fn from(factory: Factory<R>) -> Self {
+        Self::Uncounted(Box::new(factory))
+    }
 }
 
 impl<R: Model> From<FactoryBatch<R>> for FactoryAttachment<R> {
@@ -925,6 +932,16 @@ impl<M: Model> Factory<M> {
         models: FactoryAttachment<R>,
         pivot: FactoryPivot<M>,
     ) -> Self {
+        let models = match models {
+            FactoryAttachment::Uncounted(factory) => {
+                let count = match &pivot {
+                    FactoryPivot::Sequence(states) if !states.is_empty() => states.len(),
+                    _ => 1,
+                };
+                FactoryAttachment::from(factory.count(count))
+            }
+            models => models,
+        };
         let relation = Arc::new((relation, models, pivot));
         self.children
             .push(Box::new(move |connection, parent, inherited| {
@@ -950,6 +967,9 @@ impl<M: Model> Factory<M> {
                                 )
                                 .await?;
                             &generated
+                        }
+                        FactoryAttachment::Uncounted(_) => {
+                            unreachable!("attachment count resolved during registration")
                         }
                         FactoryAttachment::Existing(models) => {
                             relation.validate_factory_attachments(parent, models)?;

@@ -3680,3 +3680,99 @@ async fn factory_make_and_insert_share_parent_state_without_associating_it() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+async fn verify_attachment_pivot_count(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_links", |table| {
+            table.unsignedBigInteger("owner_id");
+            table.unsignedBigInteger("child_id");
+            table.string("label", 40).nullable();
+        })
+        .await?;
+
+    let relation = || {
+        openrust::database::eloquent::relations::BelongsToMany::<ExpansionOwner, ExpansionChild>::new(
+        "expansion_links", "owner_id", "child_id", "id", "id",
+    )
+    };
+    let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
+    let children = || Factory::<ExpansionChild>::new(Attributes::new);
+    let pivots = || {
+        vec![
+            Attributes::from([("label".into(), "first".into())]),
+            Attributes::from([("label".into(), "second".into())]),
+        ]
+    };
+    let inferred = owners()
+        .hasAttached(relation(), children(), pivots())
+        .createOn(connection)
+        .await?;
+    let explicit = owners()
+        .hasAttached(relation(), children().count(3), pivots())
+        .createOn(connection)
+        .await?;
+    let empty = owners()
+        .hasAttached(relation(), children().count(0), pivots())
+        .createOn(connection)
+        .await?;
+    let default = owners()
+        .hasAttached(relation(), children(), Vec::<Attributes>::new())
+        .createOn(connection)
+        .await?;
+    let shared = owners()
+        .hasAttached(
+            relation(),
+            children(),
+            Attributes::from([("label".into(), "shared".into())]),
+        )
+        .createOn(connection)
+        .await?;
+    let labels = |owner: &ExpansionOwner| {
+        connection
+            .table("expansion_links")
+            .r#where("owner_id", "=", owner.getKey().unwrap().clone())
+            .orderBy("child_id", "asc")
+    };
+    assert_eq!(
+        labels(&inferred).pluck("label").await?,
+        ["first".into(), "second".into()]
+    );
+    assert_eq!(
+        labels(&explicit).pluck("label").await?,
+        ["first".into(), "second".into(), "first".into()]
+    );
+    assert!(labels(&empty).pluck("label").await?.is_empty());
+    assert_eq!(labels(&default).pluck("label").await?, [Value::Null]);
+    assert_eq!(labels(&shared).pluck("label").await?, ["shared".into()]);
+    assert_eq!(connection.table("expansion_children").count("*").await?, 7);
+    schema.drop("expansion_links").await?;
+    schema.drop("expansion_children").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_attachment_infers_count_only_for_uncounted_factories() {
+    let root = Root::new();
+    verify_attachment_pivot_count(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_attachment_pivot_count(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}

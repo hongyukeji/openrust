@@ -478,4 +478,21 @@ pub async fn reuse_owner<C: Model, P: Model>(
 
 向 `hasAttached` 或 `hasAttachedNamed` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。
 
+傳入非空中介資料表屬性序列時，未指定數量的關聯工廠依序列長度產生模型。明確的 `count(n)` 優先，包括零。共用屬性和空序列預設產生一個關聯模型。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory, relations::BelongsToMany};
+
+fn attach_with_pivot_count<P: Model, R: Model>(
+    parents: Factory<P>,
+    relation: BelongsToMany<P, R>,
+    related: Factory<R>,
+) -> Factory<P> {
+    parents.hasAttached(relation, related, vec![
+        Attributes::from([("active".into(), true.into())]),
+        Attributes::from([("active".into(), false.into())]),
+    ])
+}
+```
+
 可傳入既有模型、模型清單或 Eloquent 集合，直接附加這些模型。模型必須已持久化、具有關聯所需的鍵，並屬於該關聯使用的連線。目標無效時，會在寫入這次附加的中介資料表記錄前回傳錯誤。

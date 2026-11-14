@@ -380,3 +380,18 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `c72f95bd`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证单条与批量预览零写入、零条插入、三条正常插入回查、afterMaking 属性和显式外键覆盖。回归覆盖后续无父模型调用以及插入跳过 afterCreating。Rust 1.94.0 格式、全目标严格 Clippy、30 项 Seeder、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 清理本批隔离副本 2.2 GiB Cargo 产物与约 38 MiB 站点产物。后续按工厂文档和验收清单复核整个 05-04，记录尚未覆盖的行为。
+
+## 05-04 文档覆盖复核与附加数量推断
+
+| 固定 Laravel 章节 | OpenRust 实现与验收记录 | 后续边界 |
+| --- | --- | --- |
+| 定义工厂、状态、回调 | 编译期模型绑定、Artisan 生成、状态合并及回调阶段，已实测配置顺序与实例隔离 | PHP 类名推断由显式绑定表达。FakerPHP 的其余 formatter 和地区行为仍需逐项核对 |
+| 构造、持久化、序列 | make、raw、lazy、create、insert、静默创建以及序列有双库与实际 Seeder 证据 | Rust 以单条和批量构建器表达结果形状 |
+| 工厂关系 | 一对多、反向、多对多、多态、外键展开和回收池已经有数据库证据。本批补验中间表序列的数量推断 | PHP 动态关系方法由 Rust 描述符和命名入口表达 |
+| Seeder 中使用工厂 | 三语 Seeder 示例传递选定连接。既有实际命令覆盖子 Seeder、选定数据库、生产确认和失败退出 | 固定 Seeder 文档中的整棵调用链静默事件入口单独复核，工厂 createQuietly 已验收 |
+
+固定 Laravel 在 `hasAttached` 收到非空中间表属性列表和未计数工厂时使用列表长度。Rust 直接接收 `Factory<R>` 表达未计数状态，显式 `FactoryBatch<R>` 保留其数量。空列表或共享映射默认生成一条。命名关系和类型化关系共用注册规则。v0.x 未发现对应工厂实现，Goravel 的 Factory 契约无附加关系入口。 [Laravel 中间表属性](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#pivot-table-attributes) · [Laravel hasAttached](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L685) · [Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L578) · [Laravel Seeder](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/seeding.md#using-model-factories) · [固定 Goravel](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `0bf1b7a2`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 回查未计数序列、显式三条、显式零条、空序列及共享属性，在五种场景中合计七条关联记录。Rust 1.94.0 格式、全目标严格 Clippy、31 项 Seeder、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+清理本批隔离副本 2.2 GiB Cargo 产物与约 38 MiB 站点产物。05-04 保留未闭合状态，下一批核对 Seeder 的整棵调用链静默模型事件。
