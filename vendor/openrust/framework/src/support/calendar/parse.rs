@@ -29,8 +29,9 @@ pub(super) fn add_interval(
 
 fn scan(text: &str, now: CalendarInstant, zone: &ResolvedTimezone) -> Result<ParseState> {
     // 只规范化一次；后续生产匹配均使用游标切片，避免深前缀的平方次复制。
-    let clean = text.to_ascii_lowercase();
-    let mut cursor = Cursor::new(source_trim(&clean));
+    let source = source_trim(text);
+    let clean = source.to_ascii_lowercase();
+    let mut cursor = Cursor::new(&clean);
     let current = zone.civil(now)?;
     let mut state = ParseState::new(current, zone.clone());
     state.reference(now);
@@ -48,7 +49,7 @@ fn scan(text: &str, now: CalendarInstant, zone: &ResolvedTimezone) -> Result<Par
             continue;
         }
         let absolute = lexer::scan(cursor.rest(), current);
-        let timezone = lexer::timezone(cursor.rest());
+        let timezone = lexer::timezone(cursor.rest(), &source[cursor.position..]);
         if let Some((length, timezone)) = timezone
             && absolute
                 .as_ref()

@@ -107,3 +107,31 @@ fn php_date_display_preserves_extended_years_and_historical_offsets() {
         );
     }
 }
+
+#[test]
+fn php_timestamp_expressions_follow_named_timezone_token_boundaries() {
+    use super::parse_timestamp_expression;
+
+    let reference = DateTime::UNIX_EPOCH;
+    for (suffix, expected) in [
+        ("America/New_York", Some(1_704_130_496)),
+        ("America/NEW_YORK", Some(1_704_130_496)),
+        ("Us/Eastern", Some(1_704_130_496)),
+        ("america/New_York", None),
+        ("AMERICA/New_York", None),
+        ("US/Eastern", None),
+        ("America/New_York-5", Some(1_704_130_496)),
+        ("America/New_York- 5", None),
+        ("Etc/GMT-5", Some(1_704_112_496)),
+        ("Etc/GMT+5", Some(1_704_112_496)),
+        ("Etc/GMT-", None),
+        ("Asia/Ho_Chi_Minh", Some(1_704_087_296)),
+    ] {
+        let expression = format!("2024-01-01 12:34:56 {suffix}");
+        assert_eq!(
+            parse_timestamp_expression(&expression, reference, UTC).ok(),
+            expected,
+            "{expression}"
+        );
+    }
+}

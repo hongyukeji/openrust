@@ -171,6 +171,17 @@ fn zoned_date_sample() -> DatabaseResult<String> {
 
 Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching upstream Faker’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `dateTimeBetween`.
 
+For named zones in date expressions, use PHP’s spelling rules. For example, `America/New_York` and `Us/Eastern` are accepted. An uppercase first segment such as `US/Eastern` fails parsing. To select a fixed numeric offset in an expression, write it directly, such as `-05:00`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn date_expression_sample() -> DatabaseResult<i64> {
+    let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
+    Ok(date.timestamp())
+}
+```
+
 Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `dateTimeInInterval`.
 
 Use `resolveDateMax(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.

@@ -171,6 +171,17 @@ fn zoned_date_sample() -> DatabaseResult<String> {
 
 用 `dateTimeBetweenExpressions(start, end)` 傳入 PHP 風格的日期表達式，例如 `"-30 years"` 和 `"now"`。兩個端點共用同一參考時刻，並依應用程式時區解析。表達式中的明確時區優先。數字終點字串依 Unix 時間戳解析，`"@-1"` 則是明確的時間戳表達式。端點解析失敗時依上游 Faker 的數值轉換規則使用 Unix 零秒。起點晚於終點仍回傳錯誤。此方法與 `dateTimeBetween` 共用 `unique` 歷史。
 
+日期運算式中的命名時區遵循 PHP 拼寫規則。例如，`America/New_York` 和 `Us/Eastern` 可以解析，首段全大寫的 `US/Eastern` 解析失敗。要使用固定偏移，直接寫 `-05:00` 這類數值偏移。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn date_expression_sample() -> DatabaseResult<i64> {
+    let date = fake(None)?.resolveDateMax("2024-01-01 12:34:56 America/New_York")?;
+    Ok(date.timestamp())
+}
+```
+
 用 `dateTimeInIntervalExpressions(date, interval)` 傳入 PHP 風格的相對區間，例如 `Some("+1 month")` 或 `Some("5 days ago")`。終點依起始日期所在時區的本地時間計算，跨越日光節約時間時也遵循此規則。取樣結果回傳 UTC。省略日期時從 30 年前開始，省略區間時使用五個日曆日。區間字串接受相對表達式，拒絕絕對日期、時間和時區識別碼。此方法與 `dateTimeInInterval` 共用 `unique` 歷史。
 
 用 `resolveDateMax(expression)` 解析 PHP 風格的日期上界，再以 `Some(max)` 傳給任何接受 `max` 的日期產生方法。解析一次即可在多個呼叫中共用同一上界。小數和科學記號的數字字串向零截斷為 Unix 秒。空字串使用目前時間。日期文字預設依應用程式時區解讀，文字中的明確時區優先。無效或超出範圍的值回傳錯誤。

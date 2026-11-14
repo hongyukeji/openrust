@@ -1268,3 +1268,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `385a6a61`。MySQL 8.4.13 实际运行 `main artisan db:seed --database=mysql --force`，顺序回读 51 行。用 PHP 8.5.12 和固定 FakerPHP 对照五个输出时区的纪元、公元下界、固定区间、四种日历范围上下界及三语共用示例。另对照默认的 419 个时区和全部 676 个大写两字母筛选值，247 组非空列表共 418 项与内置列表一致。回归覆盖显式覆盖、默认值、错误区间、同偏移别名、跨表达式去重及夏令时回拨。
 
 76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。后续继续对照 DateTime 的 PHP 表达式语义及其余 formatter。
+
+## Faker 日期表达式的时区词法
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)、[FakerPHP DateTime](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php) 和 [PHP 8.5.0 timelib 的时区词法](https://github.com/php/php-src/blob/php-8.5.0/ext/date/lib/parse_date.re#L978)。复用从 v0.x 迁入的扫描器。保留输入的原始大小写以校验命名时区首段，并继续使用现有时区查找。修复扫描器遇到没有字母的分隔符时吞掉后一个标记的问题。例如 `Etc/GMT-5` 在表达式中按时区名和数值标记处理，行为与直接构造该 IANA 时区不同。通过 Rust 的错误类型保留严格解析接口，Faker 的区间端点按上游将失败解析回退为 Unix 纪元。Goravel 式初始化无需修改。
+
+隔离基线 `a99f1ddd`。PHP 8.5.12 对照 2,340 组日期和区间，以及固定时区数据库 598 个名称的原拼写、全小写和全大写变体（1,794 组），4,134 组全部一致。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并按顺序回读 21 行，包含三语共用示例。每行对照 `strtotime`、FakerPHP 区间端点及其相对区间的结果，覆盖成功、严格错误和 Unix 纪元回退。
+
+76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、三项日历回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，MySQL 容器已移除。清理独占 Cargo 产物 2.3 GiB 和约 106 MiB 差分程序产物，以及约 40 MiB 站点产物。提交前周额度剩余 40%，项目卷可用 80 GiB。日期语法的样本外覆盖和其余 formatter 继续跟踪。

@@ -786,7 +786,7 @@ pub(super) fn is_numeric(text: &str) -> bool {
 }
 
 /// 默认 tz/tzcorrection 的 source prefix；显式 timezone 参数仍用完整构造合同。
-pub(super) fn timezone(text: &str) -> Option<(usize, ResolvedTimezone)> {
+pub(super) fn timezone(text: &str, source: &str) -> Option<(usize, ResolvedTimezone)> {
     let mut best = None;
     let numeric_start = usize::from(text.starts_with("gmt")) * 3;
     if let Some(rest) = text.get(numeric_start..)
@@ -831,17 +831,25 @@ pub(super) fn timezone(text: &str) -> Option<(usize, ResolvedTimezone)> {
     let first = cursor.position;
     let mut segments = 0;
     while matches!(cursor.peek(), Some('_' | '/' | '-')) {
+        let separator = cursor.position;
         cursor.pop();
         let start = cursor.position;
         while cursor.peek().is_some_and(|c| c.is_ascii_alphabetic()) {
             cursor.pop();
         }
         if cursor.position == start {
+            cursor.position = separator;
             break;
         }
         segments += 1;
     }
+    // timelib's slash-separated production requires a title-cased first segment.
+    // Zone database lookup itself is case-insensitive.
     if first >= 2
+        && source.as_bytes()[0].is_ascii_uppercase()
+        && source.as_bytes()[1..first]
+            .iter()
+            .all(u8::is_ascii_lowercase)
         && segments > 0
         && let Ok(zone) = ResolvedTimezone::parse(cursor.text.get(..cursor.position)?)
         && best
