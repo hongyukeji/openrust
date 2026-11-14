@@ -20,4 +20,8 @@
 
 透過啟動時載入的 Provider 註冊套件 HTTP 路由，確保路由組裝時能夠讀取。部署時隨應用程式散佈檢視和翻譯檔，並將發佈後的目錄傳給 Provider。可執行的宿主與 Provider 請見[獨立 crate 驗收範例](https://github.com/hongyukeji/openrust/tree/master/vendor/openrust/framework/tests/fixtures/package)。
 
-OpenRust 使用 Cargo 明確安裝擴充套件並註冊 Provider。自動探索和 Artisan 資源發佈尚待接入。
+OpenRust 使用 Cargo 明確安裝擴充套件並註冊 Provider。
+
+## 發佈資源
+
+嵌入檔案使用 `publishes`，本機檔案或目錄使用 `publishesPaths`，目標路徑相對於應用程式根目錄。執行 `./artisan vendor:publish` 可搜尋 Provider、標籤或全部資源，也可用 `--provider`、`--tag` 或 `--all` 直接選取。發佈目錄時保留檔案的相對路徑。預設保留既有檔案，`--force` 覆寫既有檔案，`--existing` 只更新已存在的檔案。

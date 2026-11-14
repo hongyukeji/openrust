@@ -202,3 +202,135 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     assert!(!other.root().join("config/fixture.rs").exists());
     Ok(())
 }
+
+#[tokio::test]
+async fn artisan_publishes_directories_and_dispatches_registered_paths()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use std::path::Path;
+
+    use openrust::{
+        contracts::events::Event as _,
+        foundation::{Application, events::VendorTagPublished},
+        http::HttpFuture,
+        support::{ProviderResult, ServiceProvider},
+    };
+
+    struct Assets;
+
+    impl ServiceProvider for Assets {
+        fn name(&self) -> &'static str {
+            "ThirdPartyAssets"
+        }
+
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                let directory = (Path::new("package/assets"), Path::new("public/package"));
+                self.publishesPaths(app, &[directory], "package-assets")?;
+                self.publishesPaths(app, &[directory], "package-alias")?;
+                self.publishesPaths(
+                    app,
+                    &[(Path::new("package/missing"), Path::new("public/missing"))],
+                    "package-missing",
+                )?;
+                Ok(())
+            })
+        }
+    }
+
+    let mut app = TestApp::create(|builder| builder.withProviders(vec![Box::new(Assets)]))?;
+    let source = app.root().join("package/assets");
+    let target = app.root().join("public/package");
+    fs::create_dir_all(source.join("nested/empty"))?;
+    fs::write(source.join("nested/site.css"), "package version")?;
+    fs::write(source.join("asset.bin"), [0, 255, 42])?;
+    fs::write(source.join(".hidden"), "hidden asset")?;
+    fs::create_dir_all(target.join("nested"))?;
+    fs::write(target.join("nested/site.css"), "local edit")?;
+    let name = "OpenRust\\Foundation\\Events\\VendorTagPublished";
+    let events = app.fakeEvents(&[name]).await?;
+
+    app.artisan(["vendor:publish", "--tag=unknown"])
+        .await
+        .assertSuccessful();
+    app.artisan(["vendor:publish", "--no-interaction"])
+        .await
+        .assertSuccessful();
+    events.assertDispatchedTimes(name, 0);
+
+    app.artisan([
+        "vendor:publish",
+        "--tag=package-assets",
+        "--existing",
+        "--force",
+    ])
+    .await
+    .assertSuccessful();
+    assert_eq!(
+        fs::read(target.join("nested/site.css"))?,
+        b"package version"
+    );
+    assert!(!target.join("asset.bin").exists());
+
+    fs::write(target.join("nested/site.css"), "local edit")?;
+    app.artisan(["vendor:publish", "--tag=package-assets"])
+        .await
+        .assertSuccessful();
+    assert_eq!(fs::read(target.join("nested/site.css"))?, b"local edit");
+    assert_eq!(fs::read(target.join("asset.bin"))?, [0, 255, 42]);
+    assert_eq!(fs::read(target.join(".hidden"))?, b"hidden asset");
+    assert!(!target.join("nested/empty").exists());
+
+    app.artisan(["vendor:publish", "--tag=package-assets"])
+        .await
+        .assertSuccessful();
+    app.artisan([
+        "vendor:publish",
+        "--tag=package-assets",
+        "--tag=package-alias",
+        "--tag=unknown",
+        "--force",
+    ])
+    .await
+    .assertSuccessful();
+    assert_eq!(
+        fs::read(target.join("nested/site.css"))?,
+        b"package version"
+    );
+
+    let missing = app
+        .artisan(["vendor:publish", "--tag=package-missing"])
+        .await;
+    missing.assertSuccessful();
+    assert!(missing.stderr.contains("Can't locate path"));
+    app.artisan(["vendor:publish", "--all", "--tag=unknown"])
+        .await
+        .assertSuccessful();
+
+    events.assertDispatchedTimes(name, 7);
+    let published = events.dispatched(name);
+    for (event, expected) in published.iter().zip([
+        Some("package-assets"),
+        Some("package-assets"),
+        Some("package-assets"),
+        Some("package-assets"),
+        Some("package-alias"),
+        Some("package-missing"),
+        None,
+    ]) {
+        let event = event.downcast_ref::<VendorTagPublished>().unwrap();
+        assert_eq!(event.name(), name);
+        assert_eq!(event.tag.as_deref(), expected);
+        if expected != Some("package-missing") {
+            assert_eq!(event.paths.get(&source), Some(&target));
+        }
+        if expected.is_none() || expected == Some("package-missing") {
+            assert_eq!(
+                event.paths.get(&app.root().join("package/missing")),
+                Some(&app.root().join("public/missing")),
+            );
+        } else {
+            assert_eq!(event.paths.len(), 1);
+        }
+    }
+    Ok(())
+}

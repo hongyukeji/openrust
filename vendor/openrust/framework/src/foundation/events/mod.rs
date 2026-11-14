@@ -13,3 +13,6 @@ pub use maintenance::{MaintenanceModeDisabled, MaintenanceModeEnabled};
 
 mod publishing_stubs;
 pub use publishing_stubs::PublishingStubs;
+
+mod vendor_tag_published;
+pub use vendor_tag_published::VendorTagPublished;

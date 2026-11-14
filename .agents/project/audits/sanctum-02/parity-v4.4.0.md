@@ -26,7 +26,7 @@
 
 - PHP 运行时类可直接决定关系返回值。Rust 通过应用注册选定模型，使用时显式指定类型。用 `tokensQuery::<T>` 构造 Eloquent 查询，用 `tokensRelation::<T>` 构造 `MorphMany` 预加载描述。MySQL 验证四种模型以及关系条件在用户添加 OR 时仍有效。
 - PHP 的全局测试状态以隔离的 Rust 夹具表示。与令牌关联的身份绑定到请求和守卫。能力切换和跨用户隔离由 HTTP 测试验证。
-- 第三方包通过 `ServiceProvider::publishes` 或 `publishesMigrations` 提供编译期资源及相对目标路径，替代 PHP 运行时源文件发现。交互菜单用编号选择 Provider、标签或全部。新迁移发布时按时间重命名，应用先在迁移注册表接入再重新编译。已有迁移源文件及其名称保留，以匹配 Rust 的编译注册和迁移账本。同名重复发布使用已有文件名。`vendor:publish` 的目录递归复制、Laravel 搜索式提示界面及 `VendorTagPublished` 事件不在这批验收范围。
+- 第三方包通过 `ServiceProvider::publishes` 或 `publishesMigrations` 提供编译期资源及相对目标路径，替代 PHP 运行时源文件发现。交互菜单可按文本过滤，再按编号选择 Provider、标签或全部。新迁移发布时按时间重命名，应用先在迁移注册表接入再重新编译。已有迁移源文件及其名称保留，以匹配 Rust 的编译注册和迁移账本。同名重复发布使用已有文件名。文件与目录可通过 `publishesPaths` 注册。目录递归复制文件并保留相对路径。Rust 端使用逐行输入搜索词的终端菜单。为匹配本地文件适配器的安全边界，拒绝源树内和应用目标路径上的符号链接。
 - Passport 安装选项属于 Laravel 的 API 安装器和 Passport 集成，继续单独跟踪。
 
 ## 本轮实际验收
@@ -35,3 +35,11 @@
 - `cargo +1.94.0 test --locked --offline -p openrust-framework --test test_app` 通过 4 项，覆盖第三方 Provider 注册、Provider/标签交集、重新发布和应用间隔离。
 - 启动实际应用二进制执行 `artisan vendor:publish`，用伪终端选择 `sanctum-migrations`，确认只写入迁移；随后直接执行标签发布、`--force` 和 `--existing`，确认只有一个文件。先把首次发布生成的带时间戳文件编译到独立应用，再用实际 Artisan 在 MySQL 8.4.13 验证首次迁移、重复执行无变更、回滚和重建。默认迁移账本和 `install:api` 的现有回归也各通过 1 项。
 - Rust 1.94 格式检查通过，工作区全目标严格 Clippy 在默认功能和 `sanctum` 功能下均通过。VitePress 构建通过，三语在 `/` 和 `/docs/` 的桌面、手机浏览器验收共 12 项通过。
+
+
+## `vendor:publish` 补充验收
+
+- 对照固定 Laravel 13.40.0，逐标签处理注册映射。有注册项即在处理完成后派发 `VendorTagPublished`，包括所有文件均跳过或源路径缺失的情况。无匹配注册项时不派发。事件携带可空标签和原始源到目标映射，目录按注册根路径报告，嵌入文件用 `embedded/<Provider>/<路径>` 标识。 [固定命令](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Foundation/Console/VendorPublishCommand.php) · [固定事件](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Foundation/Events/VendorTagPublished.php)
+- 实际应用二进制在隔离根目录通过伪终端验收。使用大小写不同的搜索词定位 Provider，再分别搜索配置标签、迁移标签和全部，核对每次生成的文件。
+- 独立应用注册第三方目录和具名事件监听器，经实际 Artisan 验证相对路径复制、首次发布及再次跳过的事件载荷，并验证未知标签无事件。Rust 1.94 的 `test_app` 五项通过，覆盖二进制资源、隐藏文件、默认保留、`--force`、`--existing`、多个标签和缺失源。
+- Rust 1.94 格式检查、默认与 Sanctum 功能的工作区全目标严格 Clippy、三语 VitePress 构建与 12 项浏览器检查通过。

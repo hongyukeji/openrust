@@ -20,4 +20,8 @@ In the provider's `boot` hook, register resources with the application.
 
 Register package HTTP routes from an eager provider so they are available during route assembly. Ship the view and translation files with the application and pass their deployed directories to the provider. For a runnable host and provider, see the [independent crate fixture](https://github.com/hongyukeji/openrust/tree/master/vendor/openrust/framework/tests/fixtures/package).
 
-OpenRust uses explicit Cargo installation and provider registration. Automatic discovery and Artisan asset publishing are pending.
+OpenRust uses explicit Cargo installation and provider registration.
+
+## Publishing assets
+
+Use `publishes` for embedded files and `publishesPaths` for file or directory mappings with application-relative destinations. Run `./artisan vendor:publish` to search for a provider, tag, or all assets. Choose directly with `--provider`, `--tag`, or `--all`. Directory publishing preserves relative file paths. Existing files are preserved by default. Use `--force` to overwrite them or `--existing` to update only files already present.
