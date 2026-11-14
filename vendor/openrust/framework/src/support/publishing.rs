@@ -57,6 +57,7 @@ pub(crate) fn register_paths(
     provider: &'static str,
     paths: &[(&Path, &Path)],
     tag: &str,
+    migration: bool,
 ) -> ProviderResult {
     register_sources(
         app,
@@ -65,7 +66,7 @@ pub(crate) fn register_paths(
             .iter()
             .map(|(source, target)| (*target, PublishSource::Path(app.base_path().join(source)))),
         tag,
-        false,
+        migration,
     )
 }
 

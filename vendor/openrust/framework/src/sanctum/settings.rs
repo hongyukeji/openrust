@@ -181,7 +181,7 @@ impl Sanctum {
             .expect("Sanctum authentication lock") = Some(Arc::new(callback));
     }
 
-    pub(super) fn credential(&self, request: &Request) -> Option<Zeroizing<String>> {
+    pub(super) fn credential(&self, request: &Request) -> Option<(Zeroizing<String>, bool)> {
         let callback = self
             .retrieval
             .read()
@@ -190,7 +190,8 @@ impl Sanctum {
         if let Some(callback) = callback {
             return callback(request)
                 .map(Zeroizing::new)
-                .filter(|token| !token.is_empty());
+                .filter(|token| !token.is_empty())
+                .map(|token| (token, false));
         }
         request
             .headers()
@@ -203,7 +204,7 @@ impl Sanctum {
                     && token.len() <= 4096
                     && !token.bytes().any(|byte| byte.is_ascii_whitespace())
             })
-            .map(|(_, token)| Zeroizing::new(token.to_owned()))
+            .map(|(_, token)| (Zeroizing::new(token.to_owned()), true))
     }
 
     pub(super) fn valid(&self, token: &PersonalAccessToken, valid: bool) -> bool {

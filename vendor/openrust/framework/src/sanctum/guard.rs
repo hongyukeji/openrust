@@ -60,28 +60,29 @@ impl Guard {
         let auth = container
             .make::<AuthManager>()
             .map_err(AuthError::backend)?;
-        if request.hasSession() {
-            for name in &self.session_guards {
-                // Delegating to another Sanctum guard can recursively enter this same chain.
-                if auth.guard_uses_driver(request, name, "sanctum")? {
-                    continue;
+        for name in &self.session_guards {
+            // Delegating to another Sanctum guard can recursively enter this same chain.
+            if auth.guard_uses_driver(request, name, "sanctum")? {
+                continue;
+            }
+            if let Some(user) = auth.userForGuard(request, Some(name)).await? {
+                if auth.supports_sanctum_tokens(user.as_ref()) {
+                    RequestTokens::insert(request, &self.name, AccessToken::Transient);
                 }
-                if let Some(user) = auth.userForGuard(request, Some(name)).await? {
-                    if auth.supports_sanctum_tokens(user.as_ref()) {
-                        RequestTokens::insert(request, &self.name, AccessToken::Transient);
-                    }
-                    return Ok(Some(user));
-                }
+                return Ok(Some(user));
             }
         }
         let sanctum = container.make::<Sanctum>().map_err(AuthError::backend)?;
-        let Some(credential) = sanctum.credential(request) else {
+        let Some((credential, is_bearer)) = sanctum.credential(request) else {
             return Ok(None);
         };
         let database = container
             .make::<DatabaseManager>()
             .map_err(AuthError::backend)?;
         let tokens = sanctum.personalAccessTokens(&database, "")?;
+        if is_bearer && !tokens.accepts_bearer(&credential) {
+            return Ok(None);
+        }
         let Some((token, token_model)) = tokens.find_for_authentication(&credential).await? else {
             return Ok(None);
         };

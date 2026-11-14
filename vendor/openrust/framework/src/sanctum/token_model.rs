@@ -99,6 +99,7 @@ fn credential_key<M: Model>(id: &str, connection: &Connection) -> Option<Value> 
 }
 
 pub(super) trait ModelStore: Send + Sync {
+    fn integer_key(&self) -> bool;
     fn create(
         &self,
         attributes: Attributes,
@@ -182,6 +183,10 @@ impl<M: Model> EloquentTokenStore<M> {
 }
 
 impl<M: PersonalAccessTokenModel> ModelStore for EloquentTokenStore<M> {
+    fn integer_key(&self) -> bool {
+        M::getIncrementing()
+    }
+
     fn create(
         &self,
         attributes: Attributes,

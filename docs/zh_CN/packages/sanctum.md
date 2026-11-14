@@ -2,11 +2,11 @@
 
 ## 安装 API 路由 {#installation}
 
-运行 `./artisan install:api` 创建并注册 `routes/api.rs`。使用 `cargo build --features sanctum` 构建后启用生成的 `GET /api/user` 和编译注册的迁移。启用了 Sanctum 的二进制会在交互终端询问是否执行待运行的迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `artisan migrate`。使用 `--force` 将已有 API 路由文件替换为生成模板。
+运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，首次安装确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
 
-在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。迁移首次发布会生成新时间戳，重复发布沿用已有文件名，保持迁移账本稳定。新发布的迁移需要在 `database/migrations/mod.rs` 注册并重新编译后执行。
+在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。新发布的迁移需要在 `database/migrations/mod.rs` 注册并重新编译后执行。
 
 ## 令牌表迁移 {#token-table-migration}
 

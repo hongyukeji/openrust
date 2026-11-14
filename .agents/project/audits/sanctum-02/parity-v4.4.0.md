@@ -59,3 +59,15 @@
 | Sanctum Provider | 通过 | 通过 | 配置和令牌表迁移 |
 | `sanctum-config` 标签 | 通过 | 通过 | 仅配置 |
 | 全部 Provider 和标签 | 通过 | 通过 | 配置和令牌表迁移 |
+
+## 固定基线再次复核
+
+| 范围 | 本批对齐与验收 |
+| --- | --- |
+| [Sanctum Guard](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php) | 按 `sanctum.guard` 顺序解析身份，即使 HTTP 请求没有 Session。配置的自定义守卫通过真实 HTTP 优先于 Bearer，缺失身份返回 401。整数模型的默认 Bearer 在进入自定义 `findToken` 前先验证 ID 格式，显式提取回调仍可处理自定义凭据。MySQL 8.4.13 的真实 HTTP 定向用例验证非法整数 Bearer、回调和 UUID／ULID。显式令牌到期采用严格早于当前时间的判断。 |
+| [VendorPublishCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/VendorPublishCommand.php) 与 [ServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/ServiceProvider.php) | Provider 和标签按源路径取交集，使用 Provider 的目标映射。迁移目录发布读取 `database.migrations.update_date_on_publish`，应用可调用 `VendorPublishCommand::dontUpdateMigrationDates(app)` 保留源日期。定向 Artisan 测试覆盖开关、应用内覆盖、目录源和重复发布。 |
+| `install:api` | 一次安装同时接线路由和默认 Cargo feature。见[首次安装补充验收](../sanctum-03/README.md#首次安装补充验收)。 |
+
+旧版 `openrust-v0.x`（`6d1a8192`）的 CLI 通过源模板生成 API 路由。当前已采用等价的编译注册装配，本批沿用源码编辑机制。旧版 Passport 留在独立扩展，当前主线的 `install:api --passport` 仍随 Passport 集成跟踪。Composer 路径参数是 PHP 安装器专用选项。
+
+Rust 1.94.0 上完成工作区全目标严格 Clippy（启用 Sanctum）、格式检查及三语 VitePress 构建。Chrome 在 `/` 和 `/docs/` 完成三语桌面及手机共 12 项。沿用上节 Windows 筛选交互验收，当前批次未复跑 Windows。

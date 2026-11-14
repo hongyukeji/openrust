@@ -24,6 +24,7 @@ mod test_command;
 mod test_make_command;
 mod type_make_command;
 mod vendor_publish_command;
+pub use vendor_publish_command::VendorPublishCommand;
 
 use std::{ffi::OsString, io::Write as _, sync::Arc};
 

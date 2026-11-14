@@ -141,7 +141,17 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     }
 
     let mut test = TestApp::create(|builder| {
-        builder.withProviders(vec![Box::new(Package::<1>), Box::new(Package::<2>)])
+        builder
+            .withConfig(|_, _| {
+                Ok([(
+                    "database".into(),
+                    serde_json::json!({
+                        "migrations": {"update_date_on_publish": true}
+                    }),
+                )]
+                .into())
+            })
+            .withProviders(vec![Box::new(Package::<1>), Box::new(Package::<2>)])
     })?;
     let root = test.root().to_owned();
     let config = root.join("config/fixture.rs");
@@ -198,8 +208,111 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     let mut other = TestApp::create(|builder| builder)?;
     let result = other.artisan(["vendor:publish", "--tag=fixture"]).await;
     result.assertSuccessful();
-    assert!(result.stdout.contains("No resources published."));
+    assert!(
+        result
+            .stdout
+            .contains("No publishable resources for tag [fixture].")
+    );
     assert!(!other.root().join("config/fixture.rs").exists());
+    Ok(())
+}
+
+#[tokio::test]
+async fn artisan_honors_migration_publish_settings_and_intersects_source_paths()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    use std::path::Path;
+
+    use openrust::{
+        foundation::{Application, console::VendorPublishCommand},
+        http::HttpFuture,
+        support::{ProviderResult, ServiceProvider},
+    };
+
+    struct Package<const ID: u8>;
+    impl<const ID: u8> ServiceProvider for Package<ID> {
+        fn name(&self) -> &'static str {
+            match ID {
+                1 => "FirstPackage",
+                2 => "SecondPackage",
+                _ => "FixtureWithoutDateUpdates",
+            }
+        }
+
+        fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+            Box::pin(async move {
+                if ID == 3 {
+                    VendorPublishCommand::dontUpdateMigrationDates(app);
+                    return Ok(());
+                }
+                self.publishesMigrationPaths(
+                    app,
+                    &[(
+                        Path::new("package/migrations"),
+                        Path::new("database/migrations"),
+                    )],
+                    "migrations",
+                )?;
+                let (target, tag) = if ID == 1 {
+                    ("public/first.txt", "first")
+                } else {
+                    ("public/second.txt", "shared")
+                };
+                self.publishesPaths(
+                    app,
+                    &[(Path::new("package/source.txt"), Path::new(target))],
+                    tag,
+                )
+            })
+        }
+    }
+
+    let source_name = "2000_01_01_000000_create_sample.rs";
+    for (enabled, opt_out) in [(false, false), (true, true), (true, false)] {
+        let mut app = TestApp::create(|builder| {
+            let mut providers: Vec<Box<dyn ServiceProvider>> =
+                vec![Box::new(Package::<1>), Box::new(Package::<2>)];
+            if opt_out {
+                providers.push(Box::new(Package::<3>));
+            }
+            builder
+                .withConfig(|root, _| {
+                    Ok([(
+                        "database".into(),
+                        json!({"migrations":{"update_date_on_publish":root.join("update-dates").is_file()}}),
+                    )]
+                    .into())
+                })
+                .withProviders(providers)
+        })?;
+        let root = app.root().to_owned();
+        if enabled {
+            fs::write(root.join("update-dates"), "")?;
+        }
+        fs::create_dir_all(root.join("package/migrations"))?;
+        fs::write(
+            root.join("package/migrations").join(source_name),
+            "migration",
+        )?;
+        fs::write(root.join("package/source.txt"), "asset")?;
+
+        app.artisan(["vendor:publish", "--provider=FirstPackage", "--tag=shared"])
+            .await
+            .assertSuccessful();
+        assert_eq!(fs::read_to_string(root.join("public/first.txt"))?, "asset");
+        assert!(!root.join("public/second.txt").exists());
+
+        app.artisan(["vendor:publish", "--tag=migrations"])
+            .await
+            .assertSuccessful();
+        let directory = root.join("database/migrations");
+        let name = fs::read_dir(&directory)?.next().unwrap()?.file_name();
+        assert_eq!(name == source_name, !enabled || opt_out);
+        assert_eq!(fs::read_to_string(directory.join(&name))?, "migration");
+        app.artisan(["vendor:publish", "--tag=migrations", "--force"])
+            .await
+            .assertSuccessful();
+        assert_eq!(fs::read_dir(&directory)?.count(), 1);
+    }
     Ok(())
 }
 

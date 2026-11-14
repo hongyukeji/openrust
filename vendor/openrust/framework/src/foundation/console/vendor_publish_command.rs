@@ -3,6 +3,7 @@ use std::{
     fs,
     io::{self, IsTerminal as _},
     path::{Path, PathBuf},
+    sync::atomic::Ordering,
 };
 
 use chrono::{NaiveDateTime, TimeDelta, Utc};
@@ -20,24 +21,54 @@ use crate::{
 };
 
 pub(super) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
-    artisan.add_command(Box::new(Publish(CommandDefinition::new(
+    artisan.add_command(Box::new(VendorPublishCommand(CommandDefinition::new(
         Syntax::new("vendor:publish")
             .about("Publish files supplied by installed packages")
-            .arg(Arg::new("provider").long("provider"))
-            .arg(Arg::new("tag").long("tag").action(ArgAction::Append))
-            .arg(Arg::new("all").long("all").action(ArgAction::SetTrue))
-            .arg(Arg::new("force").long("force").action(ArgAction::SetTrue))
+            .arg(
+                Arg::new("provider")
+                    .long("provider")
+                    .help("The service provider that has assets you want to publish"),
+            )
+            .arg(
+                Arg::new("tag")
+                    .long("tag")
+                    .action(ArgAction::Append)
+                    .help("One or many tags that have assets you want to publish"),
+            )
+            .arg(
+                Arg::new("all")
+                    .long("all")
+                    .action(ArgAction::SetTrue)
+                    .help("Publish assets for all service providers without prompt"),
+            )
+            .arg(
+                Arg::new("force")
+                    .long("force")
+                    .action(ArgAction::SetTrue)
+                    .help("Overwrite any existing files"),
+            )
             .arg(
                 Arg::new("existing")
                     .long("existing")
-                    .action(ArgAction::SetTrue),
+                    .action(ArgAction::SetTrue)
+                    .help("Publish and overwrite only the files that have already been published"),
             ),
     ))))
 }
 
-struct Publish(CommandDefinition);
+pub struct VendorPublishCommand(CommandDefinition);
 
-impl Command for Publish {
+impl VendorPublishCommand {
+    /// Preserve package migration timestamps for this application.
+    #[allow(non_snake_case, reason = "Matches the Artisan publishing API")]
+    pub fn dontUpdateMigrationDates(app: &Application) {
+        app.shared
+            .keep_published_migration_dates
+            .store(true, Ordering::Relaxed);
+    }
+}
+
+impl Command for VendorPublishCommand {
     fn definition(&self) -> &CommandDefinition {
         &self.0
     }
@@ -92,20 +123,26 @@ impl Command for Publish {
             } else {
                 tags.into_iter().map(Some).collect()
             };
-            let mut timestamp = Utc::now().naive_utc();
-            let mut any_written = false;
+            let mut timestamp = app
+                .config()
+                .map_err(console_error)?
+                .get("database.migrations.update_date_on_publish")
+                .and_then(|value| value.as_bool())
+                .filter(|enabled| {
+                    *enabled
+                        && !app
+                            .shared
+                            .keep_published_migration_dates
+                            .load(Ordering::Relaxed)
+                })
+                .map(|_| Utc::now().naive_utc());
             for tag in tags {
-                let selected: indexmap::IndexMap<_, _> = resources
-                    .iter()
-                    .filter(|asset| {
-                        provider
-                            .as_deref()
-                            .is_none_or(|name| name == asset.provider)
-                            && tag.as_ref().is_none_or(|name| name == &asset.tag)
-                    })
-                    .map(|asset| (asset.source_path(), asset.clone()))
-                    .collect();
+                let selected = paths_to_publish(&resources, provider.as_deref(), tag.as_deref());
                 if selected.is_empty() {
+                    output.info(&format!(
+                        "No publishable resources for tag [{}].",
+                        tag.as_deref().unwrap_or_default()
+                    ));
                     continue;
                 }
                 let paths = selected
@@ -134,19 +171,45 @@ impl Command for Publish {
                         .push_str(&format!("Can't locate path: <{}>\n", missing.display()));
                 }
                 for path in publication.written {
-                    any_written = true;
                     output.info(&format!("Published {}.", path.display()));
                 }
                 Event::dispatch(VendorTagPublished { tag, paths })
                     .await
                     .map_err(console_error)?;
             }
-            if !any_written {
-                output.info("No resources published.");
-            }
             Ok(0)
         })
     }
+}
+
+fn paths_to_publish(
+    resources: &[PublishableResource],
+    provider: Option<&str>,
+    tag: Option<&str>,
+) -> indexmap::IndexMap<PathBuf, PublishableResource> {
+    let group: indexmap::IndexMap<_, _> = resources
+        .iter()
+        .filter(|asset| tag.is_some_and(|name| name == asset.tag))
+        .map(|asset| (asset.source_path(), asset.clone()))
+        .collect();
+    if provider.is_none() && tag.is_some() {
+        return group;
+    }
+    let mut providers = indexmap::IndexMap::<_, indexmap::IndexMap<_, _>>::new();
+    for asset in resources
+        .iter()
+        .filter(|asset| provider.is_none_or(|name| name == asset.provider))
+    {
+        providers
+            .entry(asset.provider)
+            .or_default()
+            .insert(asset.source_path(), asset.clone());
+    }
+    providers
+        .into_values()
+        .flatten()
+        .filter(|(source, _)| tag.is_none() || group.contains_key(source))
+        .collect()
 }
 
 type Selection = (Option<String>, Vec<String>);
@@ -271,15 +334,12 @@ fn publish(
     resources: impl IntoIterator<Item = PublishableResource>,
     existing: bool,
     force: bool,
-    timestamp: &mut NaiveDateTime,
+    timestamp: &mut Option<NaiveDateTime>,
 ) -> io::Result<Publication> {
-    let _manifest = match fs::File::open(root.join("Cargo.toml")) {
-        Ok(file) => {
-            file.lock()?;
-            Some(file)
-        }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-        Err(error) => return Err(error),
+    let _source_lock = if root.join("Cargo.toml").try_exists()? {
+        Some(super::source_edit::lock_manifest(root).map_err(io::Error::other)?)
+    } else {
+        None
     };
     let mut publication = Publication::default();
     for resource in resources {
@@ -320,9 +380,13 @@ fn publish(
                     let mut files = Vec::new();
                     directory_files(&source, Path::new(""), &mut files)?;
                     for path in files {
+                        let mut destination = target.join(&path);
+                        if resource.migration {
+                            destination = migration_destination(destination, timestamp)?;
+                        }
                         publish_file(
                             root,
-                            &target.join(&path),
+                            &destination,
                             existing,
                             force,
                             || fs::read(source.join(&path)),
@@ -400,7 +464,10 @@ fn invalid_path(path: &Path) -> io::Error {
     )
 }
 
-fn migration_destination(original: PathBuf, timestamp: &mut NaiveDateTime) -> io::Result<PathBuf> {
+fn migration_destination(
+    original: PathBuf,
+    timestamp: &mut Option<NaiveDateTime>,
+) -> io::Result<PathBuf> {
     let Some((_, suffix)) = original
         .file_name()
         .and_then(|name| name.to_str())
@@ -439,6 +506,9 @@ fn migration_destination(original: PathBuf, timestamp: &mut NaiveDateTime) -> io
     if let Some(path) = existing.pop_first() {
         return Ok(path);
     }
+    let Some(timestamp) = timestamp else {
+        return Ok(original);
+    };
     *timestamp += TimeDelta::seconds(1);
     let path = parent.join(format!("{}_{suffix}", timestamp.format("%Y_%m_%d_%H%M%S")));
     Ok(path)

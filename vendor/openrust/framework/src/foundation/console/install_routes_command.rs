@@ -39,7 +39,7 @@ const INSTALLERS: &[InstallSpec] = &[
         equivalent: None,
         bootstrap_anchor: ".commands(",
         stub: include_bytes!("stubs/api-routes.stub"),
-        next_steps: "Rebuild with `cargo build --features sanctum`.",
+        next_steps: "Sanctum is enabled for the next Cargo build.",
     },
     InstallSpec {
         command: "install:broadcasting",
@@ -120,26 +120,56 @@ impl Command for InstallRoutesCommand {
             if api && existing && !force {
                 output.stderr.push_str("API routes file already exists.\n");
             }
-            output.stdout.push_str(&format!(
+            output.info(&format!(
                 "routes/{}.rs is installed. {}\n",
                 spec.module, spec.next_steps
             ));
-            if api && !input.matches().get_flag("without-migration-prompt") {
-                if !cfg!(feature = "sanctum") {
-                    output
-                        .stdout
-                        .push_str("Run `artisan migrate` after rebuilding with Sanctum.\n");
-                } else if !input.matches().get_flag("no-interaction")
-                    && tokio::task::spawn_blocking(confirm_migrations)
-                        .await
-                        .map_err(|error| ConsoleError::new(error.to_string()))??
-                {
+            if api
+                && !input.matches().get_flag("without-migration-prompt")
+                && !input.matches().get_flag("no-interaction")
+                && output.streams_to_terminal()
+                && tokio::task::spawn_blocking(confirm_migrations)
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))??
+            {
+                if cfg!(feature = "sanctum") {
                     return Ok(app.share().run_console(&["migrate".into()], output).await);
                 }
+                let root = app.base_path().to_owned();
+                return tokio::task::spawn_blocking(move || migrate_after_rebuild(&root))
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))?;
             }
             Ok(0)
         })
     }
+}
+
+fn migrate_after_rebuild(root: &Path) -> Result<i32, ConsoleError> {
+    let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+    let mut command = std::process::Command::new(cargo);
+    command
+        .current_dir(root)
+        .args(["run", "--quiet", "--locked"]);
+    // Windows locks the installer executable until this command returns.
+    #[cfg(windows)]
+    let target = tempfile::Builder::new()
+        .prefix("openrust-install-api-")
+        .tempdir()
+        .map_err(|error| {
+            ConsoleError::new(format!("Could not prepare the migration build: {error}"))
+        })?;
+    #[cfg(windows)]
+    command.arg("--target-dir").arg(target.path());
+    let status = command
+        .args(["--", "artisan", "migrate"])
+        .status()
+        .map_err(|error| {
+            ConsoleError::new(format!(
+                "Could not rebuild and run pending migrations: {error}"
+            ))
+        })?;
+    Ok(status.code().unwrap_or(1))
 }
 
 fn confirm_migrations() -> Result<bool, ConsoleError> {
@@ -165,13 +195,19 @@ fn confirm_migrations() -> Result<bool, ConsoleError> {
 }
 
 fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, ConsoleError> {
-    // The manifest stays in place while installers replace the route and bootstrap files.
     let _manifest = lock_manifest(root)?;
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
     let routes = root.join("routes").join(format!("{}.rs", spec.module));
     let modules = read(&routes_module)?;
     let startup = read(&bootstrap)?;
+    let manifest_path = root.join("Cargo.toml");
+    let manifest_update = if spec.command == "install:api" {
+        let manifest = read(&manifest_path)?;
+        enable_sanctum(&manifest)?.map(|updated| (manifest, updated))
+    } else {
+        None
+    };
     let module = format!("mod {};", spec.module);
     let module_statement = format!("pub(crate) {module}");
     let anchor = format!("pub(crate) mod {};", spec.module_anchor);
@@ -226,7 +262,48 @@ fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, Console
     if let Some(updated) = startup_update {
         replace(&bootstrap, &startup, &updated)?;
     }
+    if let Some((previous, updated)) = manifest_update {
+        replace(&manifest_path, &previous, &updated)?;
+    }
     Ok(existing)
+}
+
+fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {
+    use toml_edit::{Array, DocumentMut, Item};
+
+    let invalid = || {
+        ConsoleError::new(
+            "Cargo.toml must declare the application feature `sanctum` and an array for `features.default`.",
+        )
+    };
+    let mut manifest = source
+        .parse::<DocumentMut>()
+        .map_err(|error| ConsoleError::new(format!("Invalid Cargo.toml: {error}")))?;
+    let features = manifest
+        .get_mut("features")
+        .and_then(Item::as_table_like_mut)
+        .ok_or_else(invalid)?;
+    if !features.contains_key("sanctum") {
+        return Err(invalid());
+    }
+    let defaults = features
+        .entry("default")
+        .or_insert(toml_edit::value(Array::new()))
+        .as_array_mut()
+        .ok_or_else(invalid)?;
+    if defaults
+        .iter()
+        .any(|feature| feature.as_str() == Some("sanctum"))
+    {
+        return Ok(None);
+    }
+    defaults.push("sanctum");
+    let updated = manifest.to_string();
+    Ok(Some(if source.contains("\r\n") {
+        updated.replace("\r\n", "\n").replace('\n', "\r\n")
+    } else {
+        updated
+    }))
 }
 
 fn create_routes(path: &Path, stub: &[u8]) -> Result<bool, ConsoleError> {

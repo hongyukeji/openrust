@@ -2,11 +2,11 @@
 
 ## 安裝 API 路由 {#installation}
 
-執行 `./artisan install:api` 建立並註冊 `routes/api.rs`。以 `cargo build --features sanctum` 建置後啟用產生的 `GET /api/user` 與編譯註冊的遷移。啟用 Sanctum 的執行檔會在互動終端詢問是否執行待處理的遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `artisan migrate`。使用 `--force` 將既有 API 路由檔案替換為產生的範本。
+執行 `./artisan install:api`，建立並註冊 `routes/api.rs`，同時把 Sanctum 加入應用程式的 Cargo 預設功能。互動終端會詢問是否執行待處理的遷移，首次安裝確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 發佈 Rust 資源。預設應用程式原始碼已包含這些檔案。
 
-在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。遷移首次發佈會產生新時間戳記，重複發佈沿用既有檔名，維持遷移帳本穩定。新發佈的遷移需要在 `database/migrations/mod.rs` 註冊並重新編譯後執行。
+在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。啟用 `database.migrations.update_date_on_publish` 時，新遷移會使用新的時間戳記。關閉設定，或在服務提供者中呼叫 `VendorPublishCommand::dontUpdateMigrationDates`，可保留來源檔案日期。重複發佈沿用既有檔名，維持遷移帳本穩定。新發佈的遷移需要在 `database/migrations/mod.rs` 註冊並重新編譯後執行。
 
 ## 權杖資料表遷移 {#token-table-migration}
 

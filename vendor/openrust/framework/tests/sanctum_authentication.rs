@@ -895,6 +895,26 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     assert!(first.token.last_used_at.is_none());
 
     if custom_csrf {
+        if KEY == 0 {
+            let alternate = format!("lookup:{}", read.plain_text_token.as_str());
+            assert_eq!(
+                get("/api/user")
+                    .bearer_auth(alternate)
+                    .send()
+                    .await
+                    .unwrap()
+                    .status(),
+                401
+            );
+        }
+        sanctum.getAccessTokenFromRequestUsing(Some(Arc::new(|request| {
+            request
+                .headers()
+                .get("x-lookup-token")?
+                .to_str()
+                .ok()
+                .map(str::to_owned)
+        })));
         for (credential, expected) in [(&read, 200), (&service, 401)] {
             let alternate = format!("lookup:{}", credential.plain_text_token.as_str());
             assert_eq!(
@@ -903,7 +923,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             );
             assert_eq!(
                 get("/api/user")
-                    .bearer_auth(alternate)
+                    .header("x-lookup-token", alternate)
                     .send()
                     .await
                     .unwrap()
@@ -1299,6 +1319,60 @@ async fn bearer_and_spa_over_http_with_mysql() {
 }
 
 #[tokio::test]
+async fn sanctum_checks_configured_request_guard_without_a_session() {
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Application::configure(root.path().canonicalize().unwrap())
+        .withConfig(|_, _| {
+            Ok([
+                (
+                    "auth".into(),
+                    json!({"guards":{"frontend":{"driver":"trusted-header"}}}),
+                ),
+                ("sanctum".into(), json!({"guard":["sanctum","frontend"]})),
+            ]
+            .into())
+        })
+        .withRouting(Routing::default().api(api))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let auth = app.container().make::<AuthManager>().unwrap();
+    auth.registerSanctumModel::<User>("users");
+    auth.viaRequest("trusted-header", |request| {
+        let trusted = request
+            .headers()
+            .get("x-fixture")
+            .is_some_and(|header| header == "yes");
+        assert!(!request.hasSession());
+        Box::pin(async move {
+            if !trusted {
+                return Ok(None);
+            }
+            let mut user = User::<false, 0>(ModelState::default());
+            user.setAttribute("id", SqlValue::Unsigned(42));
+            Ok(Some(Box::new(user) as Box<dyn Authenticatable>))
+        })
+    });
+    let (base, server) = start(app).await;
+    let client = reqwest::Client::new();
+    let url = format!("{base}/api/user");
+    assert_eq!(client.get(&url).send().await.unwrap().status(), 401);
+    let response = client
+        .get(&url)
+        .header("x-fixture", "yes")
+        .bearer_auth("unrecognized")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.json::<Value>().await.unwrap(),
+        json!({"user":42,"token":"session"})
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn acting_as_isolated_to_test_app_and_selected_guard() {
     fn token_ability(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
         Box::pin(async move {
@@ -1418,7 +1492,18 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
 
 #[tokio::test]
 async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations() {
-    let mut app = TestApp::create(|builder| builder).unwrap();
+    let mut app = TestApp::create(|builder| {
+        builder.withConfig(|_, _| {
+            Ok([(
+                "database".into(),
+                json!({
+                    "migrations": {"update_date_on_publish": true}
+                }),
+            )]
+            .into())
+        })
+    })
+    .unwrap();
     let config = app.root().join("config/sanctum.rs");
     let migrations = app.root().join("database/migrations");
     assert_eq!(

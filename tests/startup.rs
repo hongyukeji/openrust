@@ -30,7 +30,9 @@ struct TestRoot(PathBuf);
 #[test]
 fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     let root = TestRoot::new("install-routes");
-    fs::write(root.0.join("Cargo.toml"), "").unwrap();
+    let manifest = root.0.join("Cargo.toml");
+    let original = "[features]\ndefault = [\"other\"] # keep\nother = []\nsanctum = []\n";
+    fs::write(&manifest, original).unwrap();
     fs::create_dir(root.0.join("routes")).unwrap();
     fs::create_dir(root.0.join("bootstrap")).unwrap();
     let modules = root.0.join("routes/mod.rs");
@@ -50,6 +52,7 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
     assert!(!root.0.join("routes/api.rs").exists());
     assert!(!fs::read_to_string(&modules).unwrap().contains("mod api;"));
+    assert_eq!(fs::read_to_string(&manifest).unwrap(), original);
 
     let default_bootstrap = include_str!("../bootstrap/app.rs");
     let default_modules = include_str!("../routes/mod.rs");
@@ -102,6 +105,10 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(forced.status.success());
     assert!(fs::read_to_string(&api).unwrap().contains("auth:sanctum"));
     assert!(!String::from_utf8_lossy(&forced.stdout).contains("pending database migrations"));
+    assert_eq!(
+        fs::read_to_string(manifest).unwrap(),
+        original.replace("[\"other\"]", "[\"other\", \"sanctum\"]")
+    );
 }
 
 #[tokio::test]

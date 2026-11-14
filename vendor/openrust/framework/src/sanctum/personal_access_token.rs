@@ -60,7 +60,7 @@ impl PersonalAccessToken {
     }
 
     pub fn isExpired(&self, now: DateTime<Utc>, expiration: Option<TimeDelta>) -> bool {
-        self.expires_at.is_some_and(|expires_at| expires_at <= now)
+        self.expires_at.is_some_and(|expires_at| expires_at < now)
             || expiration.is_some_and(|lifetime| {
                 self.created_at
                     .is_none_or(|created_at| now - created_at >= lifetime)
@@ -245,6 +245,25 @@ impl PersonalAccessTokens {
             .find_for_authentication(credential)
             .await?
             .map(|(token, _)| token))
+    }
+
+    pub(super) fn accepts_bearer(&self, credential: &str) -> bool {
+        if credential == "0" {
+            return false;
+        }
+        if self
+            .model
+            .as_ref()
+            .is_some_and(|model| !model.integer_key())
+        {
+            return true;
+        }
+        credential.split_once('|').is_none_or(|(id, secret)| {
+            !id.is_empty()
+                && id.bytes().all(|byte| byte.is_ascii_digit())
+                && !secret.is_empty()
+                && secret != "0"
+        })
     }
 
     pub(super) async fn find_for_authentication(

@@ -153,7 +153,17 @@ pub trait ServiceProvider: Any + Send + Sync {
         paths: &[(&Path, &Path)],
         tag: &str,
     ) -> ProviderResult {
-        crate::support::publishing::register_paths(app, self.name(), paths, tag)
+        crate::support::publishing::register_paths(app, self.name(), paths, tag, false)
+    }
+
+    /// Register migration files or directories supplied by a package.
+    fn publishesMigrationPaths(
+        &self,
+        app: &Application,
+        paths: &[(&Path, &Path)],
+        tag: &str,
+    ) -> ProviderResult {
+        crate::support::publishing::register_paths(app, self.name(), paths, tag, true)
     }
 
     /// Publish package migration sources with fresh timestamps on first copy.

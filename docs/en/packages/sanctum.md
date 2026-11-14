@@ -2,11 +2,11 @@
 
 ## Installing API routes {#installation}
 
-Run `./artisan install:api` to create `routes/api.rs` and register it in the application. Build with `cargo build --features sanctum` to enable the generated `GET /api/user` endpoint and the compiled migration. In a Sanctum-enabled binary, the interactive installer offers to run pending migrations. For CI, use `--without-migration-prompt` and run `artisan migrate` separately. Use `--force` to replace an existing API routes file with the generated template.
+Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept on the first installation, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file.
 
 Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
 
-Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp. Republishing reuses the existing filename, so the migration ledger stays stable. Add a newly published migration to `database/migrations/mod.rs` and rebuild before running it.
+Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dontUpdateMigrationDates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Add a newly published migration to `database/migrations/mod.rs` and rebuild before running it.
 
 ## Token table migration {#token-table-migration}
 
