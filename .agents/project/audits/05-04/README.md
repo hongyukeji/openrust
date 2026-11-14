@@ -1324,3 +1324,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `2e5df3c5`。逐项比对 11 份地区词表，保留原有顺序和重复项，并用 PHP 8.5.12 核对 384 个运行样本。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，覆盖三地模板和继承词表，包含三语共用的瑞士地址示例。Rust 回归另外遍历 26 条州记录，验证去重耗尽和地区错误。
 
 79 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续对账其他地区 Address 的继承、词表和格式。
+
+## 加拿大、澳大利亚和新西兰英语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [加拿大](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_CA/Address.php)、[澳大利亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_AU/Address.php)和[新西兰](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_NZ/Address.php)。三地复用上游继承的美国词表和姓名组合模板。加拿大保留省份、受限邮编字母、三种分隔形式和地址行的双空格。澳大利亚保留州、市名覆盖、州邮编范围和三种楼号排列。新西兰保留本地地区、城市后缀和四位邮编。Rust 以 `Result` 表达地区专用入口，对应唯一值历史独立。v0.x 无对应生成器，编译式工厂装配无需调整。
+
+隔离基线 `971b5cad`。按 PHP 8.5.12 反射核对 13 份地区词表的顺序和重复项，执行固定 FakerPHP 抽验 384 个样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，核对地址格式、继承词表和三语共用样例。Rust 回归验证地区错误和四个澳大利亚楼号字母的唯一值耗尽。
+
+80 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续核对英国等其他英语地区的独立 Address provider。

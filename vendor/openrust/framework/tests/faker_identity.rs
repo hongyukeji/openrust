@@ -3787,3 +3787,33 @@ fn french_address_locales_preserve_regional_overrides() {
     assert!(swiss.province().is_err());
     assert!(canada.cityName().is_err());
 }
+
+#[test]
+fn english_address_locales_use_local_postcodes_and_inherited_vocabularies() {
+    let canada = fake(Some("en-CA")).unwrap();
+    let australia = fake(Some("en-AU")).unwrap();
+    let new_zealand = fake(Some("en-NZ")).unwrap();
+    let canadian_postcode = Regex::new(
+        r"^[ABCEGHJKLMNPRSTVXY][0-9][ABCEGHJKLMNPRSTVXY][ -]?[0-9][ABCEGHJKLMNPRSTVXY][0-9]$",
+    )
+    .unwrap();
+    for _ in 0..64 {
+        assert!(canadian_postcode.is_match(&canada.postcode()));
+        assert!(canada.address().split_once('\n').unwrap().1.contains("  "));
+        assert!((1..=3).contains(&australia.buildingNumber().len()));
+        assert_eq!(australia.postcode().len(), 4);
+        assert_eq!(new_zealand.postcode().len(), 4);
+        let city = new_zealand.city();
+        assert!(city.ends_with("ville") || city.ends_with("ston"));
+        let address = new_zealand.address();
+        assert_eq!(address.split(", ").count(), 4);
+        assert!(new_zealand.region().is_ok());
+    }
+    let unique = australia.uniqueWithRetries(true, 128);
+    let mut letters: Vec<_> = (0..4).map(|_| unique.buildingLetter().unwrap()).collect();
+    letters.sort_unstable();
+    assert_eq!(letters, ["A", "B", "C", "D"]);
+    assert!(unique.buildingLetter().is_err());
+    assert!(australia.randomPostcodeLetter().is_err());
+    assert!(new_zealand.provinceAbbr().is_err());
+}

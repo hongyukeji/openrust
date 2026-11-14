@@ -806,6 +806,17 @@ fn swiss_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+加拿大、澳洲和紐西蘭英語地址依上游規則沿用美國詞表，並套用各地格式。加拿大提供 `province()`、`provinceAbbr()` 和郵遞區號專用字母 `randomPostcodeLetter()`。澳洲使用自己的州與郵遞區號詞表，並提供 `buildingLetter()`。紐西蘭使用 `region()` 和四位郵遞區號。地區方法皆支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn canadian_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("en-CA"))?;
+    Ok((faker.address(), faker.unique(false).provinceAbbr()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

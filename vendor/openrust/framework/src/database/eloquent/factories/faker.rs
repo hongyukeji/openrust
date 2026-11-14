@@ -629,7 +629,8 @@ impl Faker {
 
     pub fn city(&self) -> String {
         match self.locale() {
-            "en_US" => match fastrand::u8(0..4) {
+            "en_NZ" => format!("{}{}", self.firstName(), self.citySuffix()),
+            "en_US" | "en_CA" | "en_AU" => match fastrand::u8(0..4) {
                 0 => format!(
                     "{} {}{}",
                     self.cityPrefix(),
@@ -665,7 +666,7 @@ impl Faker {
 
     pub fn streetName(&self) -> String {
         match self.locale() {
-            "en_US" => {
+            "en_US" | "en_CA" | "en_AU" | "en_NZ" => {
                 let name = if self.boolean(None) {
                     self.firstName()
                 } else {
@@ -718,7 +719,8 @@ impl Faker {
     pub fn cityPrefix(&self) -> String {
         match self.locale() {
             "fr_CA" => address_sample(faker_address::CITY_PREFIX_FR_CA).into(),
-            "en_US" => address_sample(faker_address::CITY_PREFIX_EN_US).into(),
+            "en_AU" => address_sample(faker_address::CITY_PREFIX_EN_AU).into(),
+            "en_US" | "en_CA" | "en_NZ" => address_sample(faker_address::CITY_PREFIX_EN_US).into(),
             "zh_TW" => String::new(),
             _ => generate!(self.locale.as_str(), faker::address::raw::CityPrefix,),
         }
@@ -726,7 +728,8 @@ impl Faker {
 
     pub fn citySuffix(&self) -> String {
         match self.locale() {
-            "en_US" => address_sample(faker_address::CITY_SUFFIX_EN_US).into(),
+            "en_NZ" => address_sample(faker_address::CITY_SUFFIX_EN_NZ).into(),
+            "en_US" | "en_CA" | "en_AU" => address_sample(faker_address::CITY_SUFFIX_EN_US).into(),
             "fr_CA" => address_sample(faker_address::CITY_SUFFIX_FR_CA).into(),
             "fr_FR" | "fr_BE" | "fr_CH" => address_sample(faker_address::CITY_SUFFIX_FR_FR).into(),
             "zh_CN" => "Ville".into(),
@@ -737,7 +740,9 @@ impl Faker {
 
     pub fn streetSuffix(&self) -> String {
         match self.locale() {
-            "en_US" => address_sample(faker_address::STREET_SUFFIX_EN_US).into(),
+            "en_AU" => address_sample(faker_address::STREET_SUFFIX_EN_AU).into(),
+            "en_NZ" => address_sample(faker_address::STREET_SUFFIX_EN_NZ).into(),
+            "en_US" | "en_CA" => address_sample(faker_address::STREET_SUFFIX_EN_US).into(),
             "fr_BE" => address_sample(faker_address::STREET_SUFFIX_FR_BE).into(),
             "fr_CA" => address_sample(faker_address::STREET_SUFFIX_FR_CA).into(),
             "fr_FR" | "fr_CH" | "zh_CN" => "Street".into(),
@@ -748,7 +753,9 @@ impl Faker {
 
     pub fn country(&self) -> String {
         match self.locale() {
-            "en_US" => address_sample(faker_address::COUNTRY_EN_US).into(),
+            "en_US" | "en_CA" | "en_AU" | "en_NZ" => {
+                address_sample(faker_address::COUNTRY_EN_US).into()
+            }
             "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA" => {
                 address_sample(faker_address::COUNTRY_FR_FR).into()
             }
@@ -761,7 +768,8 @@ impl Faker {
     pub fn state(&self) -> String {
         match self.locale() {
             "fr_CA" => address_sample(faker_address::STATE_FR_CA).into(),
-            "en_US" => address_sample(faker_address::STATE_EN_US).into(),
+            "en_AU" => address_sample(faker_address::STATE_EN_AU).into(),
+            "en_US" | "en_CA" | "en_NZ" => address_sample(faker_address::STATE_EN_US).into(),
             "zh_CN" => address_sample(faker_address::STATE_ZH_CN).into(),
             "zh_TW" => "臺灣省".into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::StateName,),
@@ -771,7 +779,8 @@ impl Faker {
     pub fn stateAbbr(&self) -> String {
         match self.locale() {
             "fr_CA" => address_sample(faker_address::STATE_ABBR_FR_CA).into(),
-            "en_US" => address_sample(faker_address::STATE_ABBR_EN_US).into(),
+            "en_AU" => address_sample(faker_address::STATE_ABBR_EN_AU).into(),
+            "en_US" | "en_CA" | "en_NZ" => address_sample(faker_address::STATE_ABBR_EN_US).into(),
             "zh_CN" => address_sample(faker_address::STATE_ABBR_ZH_CN).into(),
             "zh_TW" => "臺".into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::StateAbbr,),
@@ -825,12 +834,43 @@ impl Faker {
     }
 
     pub fn province(&self) -> DatabaseResult<&'static str> {
-        if self.locale() != "fr_BE" {
+        let provinces = match self.locale() {
+            "fr_BE" => faker_address::PROVINCE_FR_BE,
+            "en_CA" => faker_address::PROVINCE_EN_CA,
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker province locale",
+                ));
+            }
+        };
+        Ok(address_sample(provinces))
+    }
+
+    pub fn provinceAbbr(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "en_CA" {
             return Err(DatabaseError::InvalidQuery(
-                "unsupported Faker province locale",
+                "unsupported Faker province abbreviation locale",
             ));
         }
-        Ok(address_sample(faker_address::PROVINCE_FR_BE))
+        Ok(address_sample(faker_address::PROVINCE_ABBR_EN_CA))
+    }
+
+    pub fn randomPostcodeLetter(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "en_CA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker postcode letter locale",
+            ));
+        }
+        Ok(address_sample(faker_address::POSTCODE_LETTERS_EN_CA))
+    }
+
+    pub fn buildingLetter(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "en_AU" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker building letter locale",
+            ));
+        }
+        Ok(address_sample(faker_address::BUILDING_LETTERS_EN_AU))
     }
 
     pub fn canton(&self) -> DatabaseResult<(&'static str, &'static str)> {
@@ -851,6 +891,9 @@ impl Faker {
     }
 
     pub fn region(&self) -> DatabaseResult<&'static str> {
+        if self.locale() == "en_NZ" {
+            return Ok(address_sample(faker_address::REGION_EN_NZ));
+        }
         if !matches!(self.locale(), "fr_FR" | "fr_BE" | "fr_CH" | "fr_CA") {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker region locale",
@@ -907,6 +950,22 @@ impl Faker {
 
     pub fn postcode(&self) -> String {
         match self.locale() {
+            "en_CA" => {
+                let pattern = address_sample(&["?#? #?#", "?#?-#?#", "?#?#?#"]);
+                let mut postcode = String::with_capacity(pattern.len());
+                for character in pattern.chars() {
+                    match character {
+                        '?' => {
+                            postcode.push_str(address_sample(faker_address::POSTCODE_LETTERS_EN_CA))
+                        }
+                        '#' => postcode.push(char::from(b'0' + self.randomDigit())),
+                        literal => postcode.push(literal),
+                    }
+                }
+                postcode
+            }
+            "en_AU" => self.numerify(Some(address_sample(faker_address::POSTCODE_EN_AU))),
+            "en_NZ" => self.numerify(Some("####")),
             "en_US" => {
                 let format = if self.boolean(None) {
                     "#####"
@@ -928,7 +987,8 @@ impl Faker {
 
     pub fn buildingNumber(&self) -> String {
         let formats: &[&str] = match self.locale() {
-            "en_US" => &["%####", "%###", "%##"],
+            "en_AU" | "en_NZ" => &["%##", "%#", "%"],
+            "en_US" | "en_CA" => &["%####", "%###", "%##"],
             "fr_FR" | "fr_BE" => &["%", "%#", "%#", "%#", "%##"],
             "fr_CA" => &["%####", "%###", "%##", "%#", "%"],
             "fr_CH" => &["%##", "%#", "%", "#a", "#b", "#c"],
@@ -940,7 +1000,8 @@ impl Faker {
 
     pub fn secondaryAddress(&self) -> String {
         let formats: &[&str] = match self.locale() {
-            "en_US" => &["Apt. ###", "Suite ###"],
+            "en_AU" => faker_address::SECONDARY_ADDRESS_FORMATS_EN_AU,
+            "en_US" | "en_CA" | "en_NZ" => &["Apt. ###", "Suite ###"],
             "fr_CA" => &["Apt. ###", "Suite ###", "Bureau ###"],
             "fr_FR" | "fr_BE" | "fr_CH" => &[
                 "Apt. ###",
@@ -964,7 +1025,19 @@ impl Faker {
     pub fn streetAddress(&self) -> String {
         let street = self.streetName();
         match self.locale() {
-            "en_US" | "fr_CA" => {
+            "en_NZ" => format!("{} {street}", self.buildingNumber()),
+            "en_AU" => {
+                let number = self.buildingNumber();
+                match fastrand::u8(0..3) {
+                    0 => format!("{number} {street}"),
+                    1 => format!(
+                        "{number}{} {street}",
+                        address_sample(faker_address::BUILDING_LETTERS_EN_AU)
+                    ),
+                    _ => format!("{} {number} {street}", self.secondaryAddress()),
+                }
+            }
+            "en_US" | "en_CA" | "fr_CA" => {
                 let mut address = format!("{} {street}", self.buildingNumber());
                 if self.boolean(None) {
                     write!(address, " {}", self.secondaryAddress())
@@ -1000,7 +1073,21 @@ impl Faker {
 
     pub fn address(&self) -> String {
         match self.locale() {
-            "en_US" => format!(
+            "en_CA" => format!(
+                "{}\n{}, {}  {}",
+                self.streetAddress(),
+                self.city(),
+                address_sample(faker_address::PROVINCE_ABBR_EN_CA),
+                self.postcode()
+            ),
+            "en_NZ" => format!(
+                "{}, {}, {}, {}",
+                self.streetAddress(),
+                self.city(),
+                address_sample(faker_address::REGION_EN_NZ),
+                self.postcode()
+            ),
+            "en_US" | "en_AU" => format!(
                 "{}\n{}, {} {}",
                 self.streetAddress(),
                 self.city(),
@@ -3308,6 +3395,18 @@ impl UniqueFaker<'_> {
 
     pub fn cityName(&self) -> DatabaseResult<&'static str> {
         self.try_generate("cityName", || self.0.cityName())
+    }
+
+    pub fn provinceAbbr(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("provinceAbbr", || self.0.provinceAbbr())
+    }
+
+    pub fn randomPostcodeLetter(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("randomPostcodeLetter", || self.0.randomPostcodeLetter())
+    }
+
+    pub fn buildingLetter(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("buildingLetter", || self.0.buildingLetter())
     }
 
     pub fn province(&self) -> DatabaseResult<&'static str> {
