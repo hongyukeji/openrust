@@ -2645,3 +2645,33 @@ fn indian_and_nepali_names_use_regional_middle_name_catalogs() {
         assert!(unique.middleNameWithGender(Some(gender)).is_err());
     }
 }
+
+#[test]
+fn ugandan_surnames_select_the_general_or_explicit_gender_catalog() {
+    let faker = fake(Some("en-UG")).unwrap();
+    let unique = faker.unique(true);
+    let general: std::collections::HashSet<_> =
+        (0..123).map(|_| unique.lastName().unwrap()).collect();
+    assert_eq!(general.len(), 123);
+    assert!(general.contains("Abayisenga"));
+    assert!(!general.contains("Mubiru"));
+    assert!(!general.contains("Abol"));
+    assert!(unique.lastName().is_err());
+
+    let male: std::collections::HashSet<_> =
+        (0..41).map(|_| unique.lastNameMale().unwrap()).collect();
+    assert_eq!(male.len(), 41);
+    assert!(male.contains("Mubiru"));
+    assert!(unique.lastNameMale().is_err());
+
+    let female: std::collections::HashSet<_> =
+        (0..106).map(|_| unique.lastNameFemale().unwrap()).collect();
+    assert_eq!(female.len(), 106);
+    assert!(female.contains("Abol"));
+    assert!(unique.lastNameFemale().is_err());
+
+    assert!(male.contains(&faker.lastNameWithGender(Some("male"))));
+    assert!(female.contains(&faker.lastNameWithGender(Some("female"))));
+    assert!(general.contains(&faker.lastNameWithGender(None)));
+    assert!(fake(Some("en-NG")).unwrap().lastNameFemale().is_err());
+}

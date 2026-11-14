@@ -834,6 +834,18 @@ fn nepali_middle_name() -> DatabaseResult<&'static str> {
 }
 ```
 
+### Nigerian and Ugandan English Names {#nigerian-and-ugandan-english-names}
+
+The `en-NG` and `en-UG` providers use regional names and templates. Nigerian full names can include one or two given names, followed by a surname. Ugandan templates can put either the given name or the surname first. Ugandan `lastName()` samples the general surname catalog. Use `lastNameMale()`, `lastNameFemale()`, or `lastNameWithGender` with an explicit gender for the corresponding catalog. The formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ugandan_surname() -> DatabaseResult<String> {
+    fake(Some("en-UG"))?.unique(false).lastNameFemale()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

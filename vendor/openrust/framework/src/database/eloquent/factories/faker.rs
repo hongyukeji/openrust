@@ -224,6 +224,9 @@ mod company;
 #[path = "faker_person.rs"]
 mod faker_person;
 
+#[path = "faker_person_nigerian_ugandan.rs"]
+mod nigerian_ugandan;
+
 #[path = "faker_person_indian_nepali.rs"]
 mod indian_nepali;
 
@@ -830,7 +833,7 @@ impl Faker {
     pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
         if matches!(
             self.locale(),
-            "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU" | "id_ID"
+            "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU" | "id_ID" | "en_UG"
         ) {
             match gender {
                 Some("male") => return self.lastNameMale().expect("fixed male surname locale"),
@@ -869,6 +872,8 @@ impl Faker {
             ("pl_PL", false) => faker_person::PL_PL_LAST_FEMALE,
             ("id_ID", true) => company::south_southeast_asian::ID_MALE_SURNAMES,
             ("id_ID", false) => company::south_southeast_asian::ID_FEMALE_SURNAMES,
+            ("en_UG", true) => nigerian_ugandan::EN_UG_SURNAMES_MALE,
+            ("en_UG", false) => nigerian_ugandan::EN_UG_SURNAMES_FEMALE,
             ("is_IS", _) => {
                 let ending = if male { "son" } else { "dóttir" };
                 return Ok(format!("{}{ending}", self.lastName()));
