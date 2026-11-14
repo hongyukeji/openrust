@@ -242,6 +242,20 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Removes the current construction callbacks from this factory.
+    #[must_use]
+    pub fn withoutAfterMaking(mut self) -> Self {
+        self.after_making.clear();
+        self
+    }
+
+    /// Removes the current post-creation callbacks from this factory.
+    #[must_use]
+    pub fn withoutAfterCreating(mut self) -> Self {
+        self.after_creating.clear();
+        self
+    }
+
     #[must_use]
     pub fn has<R: Model>(
         self,
@@ -813,6 +827,16 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    #[must_use]
+    pub fn withoutAfterMaking(self) -> Self {
+        self.factory.withoutAfterMaking().count(self.count)
+    }
+
+    #[must_use]
+    pub fn withoutAfterCreating(self) -> Self {
+        self.factory.withoutAfterCreating().count(self.count)
+    }
+
     pub async fn makeOne(&self, attributes: Attributes) -> DatabaseResult<M> {
         self.factory.makeOne(attributes).await
     }

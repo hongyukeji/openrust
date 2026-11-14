@@ -68,6 +68,8 @@ Use `forEachSequence(states)` to apply one attribute map per model and set the b
 
 Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. It writes storage attributes, including hidden columns, without adding appended values or applying output accessors.
 
+Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run.
+
 ```rust
 use openrust::database::{
     DatabaseResult,

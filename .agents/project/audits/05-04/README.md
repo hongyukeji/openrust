@@ -94,3 +94,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel Factory::insert。单模型和批量工厂复用构造阶段并执行 afterMaking，目标行通过同一条插入语句写入。目标模型的持久化事件、子关系创建和 afterCreating 跳过，构造阶段仍可解析并写入上级。Rust 使用已完成转换的存储属性，保留隐藏列，省去序列化和第二次写入转换，共用 fillForInsert 的标识与时间戳准备逻辑。旧版未发现对应入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L460)
 
 隔离基线 c57eff7a。MySQL 8.4.13 实际 db:seed 覆盖单条、批量、空批次、隐藏列、afterMaking、UUID、时间戳、模型事件和子关系跳过，以及重复键导致该批次整条语句失败。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。
+
+## 工厂回调控制
+
+对照固定 Laravel 的 withoutAfterMaking 和 withoutAfterCreating。单模型及批量工厂可独立清除对应阶段的已登记回调，再登记新回调。Rust 消费构造器并返回更新后的实例，保留批次数量。另一阶段的回调和 Eloquent 模型事件照常执行。旧版未发现等价入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L772)
+
+隔离基线 46826a87。MySQL 8.4.13 实际 db:seed 覆盖回调清除、重新登记、另一阶段回调、批量写入和模型事件仍能取消写入。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。

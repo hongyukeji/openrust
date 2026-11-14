@@ -459,6 +459,54 @@ impl Seeder for PolymorphicFactories {
                 })
                 .count(3);
             let overrides = |name: &str| Attributes::from([("generated_name".into(), name.into())]);
+            let created = Factory::<FactoryChild>::new(move || overrides("before-callback"))
+                .afterMaking(|_| Err(DatabaseError::InvalidQuery("removed making callback")))
+                .withoutAfterMaking()
+                .afterMaking(|model| {
+                    model.setAttribute("generated_name", "callback-readded");
+                    Ok(())
+                })
+                .afterCreating(|model| {
+                    assert!(model.state().exists());
+                    assert_eq!(
+                        model.getAttribute("generated_name"),
+                        Some(&"callback-readded".into())
+                    );
+                    model.setAttribute("generated_name", "callback-created");
+                    Ok(())
+                })
+                .createOn(connection)
+                .await?;
+            assert_eq!(
+                created.getAttribute("generated_name"),
+                Some(&"callback-created".into())
+            );
+            let created = Factory::<FactoryChild>::new(Attributes::new)
+                .afterMaking(|model| {
+                    model.setAttribute("generated_name", "callback-batch");
+                    Ok(())
+                })
+                .afterCreating(|_| Err(DatabaseError::InvalidQuery("removed creating callback")))
+                .count(2)
+                .withoutAfterCreating()
+                .createOn(connection)
+                .await?;
+            assert_eq!(created.len(), 2);
+            assert!(created.iter().all(
+                |model| model.getAttribute("generated_name") == Some(&"callback-batch".into())
+            ));
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 3);
+            assert!(matches!(
+                Factory::<FactoryChild>::new(move || overrides("quiet-fixture"))
+                    .count(1)
+                    .withoutAfterMaking()
+                    .withoutAfterCreating()
+                    .createOn(connection)
+                    .await,
+                Err(DatabaseError::InvalidQuery(
+                    "factory model creation cancelled"
+                ))
+            ));
             let preview = batch
                 .makeOneOn(connection, overrides("preview-one"))
                 .await?;

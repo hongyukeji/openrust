@@ -68,6 +68,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insertOn(connection, attributes)` 指定連線。工廠會執行 `afterMaking` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `afterCreating`。寫入使用儲存屬性，包含隱藏欄位，略過追加欄位和輸出存取器。
 
+在單一模型或批次工廠上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除該工廠已登記的對應回呼。之後可以重新登記回呼。另一階段的回呼及 Eloquent 模型事件照常執行。
+
 ```rust
 use openrust::database::{
     DatabaseResult,

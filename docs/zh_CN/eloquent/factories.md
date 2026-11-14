@@ -68,6 +68,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入使用存储属性，包含隐藏列，跳过追加字段和输出访问器。
 
+在单模型或批量工厂上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除该工厂已登记的对应回调。随后可以重新登记回调。另一阶段的回调及 Eloquent 模型事件照常执行。
+
 ```rust
 use openrust::database::{
     DatabaseResult,
