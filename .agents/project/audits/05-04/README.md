@@ -621,3 +621,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `02b07d7d`。PHP 8.5 对固定上游三个入口各取样 512 次，覆盖全部四种 ABO、两种 Rh 和八种组合。Rust 回归核对英文、简体与繁体中文的取值、去重耗尽、独立历史及重置。运行实际 `main artisan db:seed --database=mysql --force` 后，在 MySQL 8.4.13 回查全部 14 条样本。49 项 Seeder 测试、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载六项浏览器检查通过。
 
 隔离副本已恢复原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批核对 HtmlLorem，复用现有 Lorem 和安全域名入口。
+
+## Faker HTML 样本
+
+对照固定 FakerPHP v1.24.1 HtmlLorem。接通 `randomHtml`，保留默认深度和宽度、标题、登录表单、子树选择规则、叶节点类型、表格尺寸以及单文档内数字 ID 去重。Rust 通过 `Option<i32>` 表达默认参数，复用 Lorem 和安全域名，用现有转义工具写入 HTML。数字 ID 采样的重试耗尽通过 `DatabaseResult` 返回，`unique` 单独记录完整文档。输出结构和范围跟随上游，文本来自现有 Rust Lorem。v0.x 未发现对应入口，Goravel 的工厂装配沿用现有路径。 [固定 FakerPHP HtmlLorem](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/HtmlLorem.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `aa718050`。PHP 8.5 的 DOM 对照验证七组深度与宽度参数共 448 份样本，覆盖表单、叶节点、表格、列表和 ID。Rust 回归验证文档可解析、表单、默认及边界参数、ID 唯一性和完整文档去重。MySQL 8.4.13 的多态工厂 Seeder 回归通过。实际 `main artisan db:seed --database=mysql --force` 写入精简及默认深度 HTML 并完整回查。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
+
+隔离副本已恢复原始 Seeder，并清理约 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。下一批继续核对 Text 的 Markov 文本与地区语料。

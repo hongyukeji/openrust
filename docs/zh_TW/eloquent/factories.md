@@ -278,6 +278,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### HTML 樣本 {#html-samples}
+
+用 `randomHtml(maxDepth, maxWidth)?` 產生 HTML 文件，其中包含標題、範例登入表單和隨機內文子樹。兩個參數各自傳入 `None` 時預設為四。深度小於或等於一時只產生標題和表單。寬度限制每次隨機產生的同層節點數。表單與連結使用保留的範例網域。數字 ID 在單份文件內唯一，`unique` 單獨記錄完整文件。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn html_sample() -> DatabaseResult<String> {
+    let faker = fake(None)?;
+    faker.randomHtml(Some(3), None)
+}
+```
+
 ### 血型樣本 {#blood-group-samples}
 
 用 `bloodType()` 產生 A、AB、B 或 O，`bloodRh()` 產生 Rh 正負號。 `bloodGroup()` 獨立取樣兩部分並直接串接。各語言使用相同的取值。三個方法都支援 `unique`，並分別記錄去重歷史。

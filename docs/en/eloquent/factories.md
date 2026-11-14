@@ -278,6 +278,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Sample HTML {#html-samples}
+
+Use `randomHtml(maxDepth, maxWidth)?` to generate an HTML document with a title, a sample login form and a random body subtree. Pass `None` for either limit to use four. A depth of one or less produces only the title and form. Width bounds each random sibling draw. The generated form and links use reserved example domains. Numeric IDs are unique within each document, and `unique` tracks entire documents separately.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn html_sample() -> DatabaseResult<String> {
+    let faker = fake(None)?;
+    faker.randomHtml(Some(3), None)
+}
+```
+
 ### Blood Group Samples {#blood-group-samples}
 
 Use `bloodType()` for A, AB, B or O, `bloodRh()` for the Rh sign, and `bloodGroup()` to sample both independently and join them without a separator. The same sample values are available in every locale. All three formatters support `unique` with separate histories.

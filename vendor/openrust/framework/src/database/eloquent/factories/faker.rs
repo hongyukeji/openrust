@@ -39,6 +39,9 @@ use md5::{Digest as _, Md5};
 #[path = "faker_color.rs"]
 mod color;
 
+#[path = "faker_html_lorem.rs"]
+mod html_lorem;
+
 #[path = "faker_user_agent.rs"]
 mod user_agent;
 
