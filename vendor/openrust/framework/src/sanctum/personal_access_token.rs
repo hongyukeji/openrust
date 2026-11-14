@@ -10,7 +10,7 @@ use crate::{
     database::{Connection, DatabaseError, Row, Value, query::Record},
 };
 
-pub(super) const TABLE: &str = "personal_access_tokens";
+const TABLE: &str = "personal_access_tokens";
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
 /// A persisted token. Its digest is kept in storage and its secret is only returned at issuance.
@@ -55,16 +55,26 @@ pub struct NewAccessToken {
 
 /// Persists and retrieves personal access tokens on the selected application connection.
 pub struct PersonalAccessTokens {
-    connection: Connection,
+    pub(super) connection: Connection,
     prefix: String,
+    pub(super) table: &'static str,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
 impl PersonalAccessTokens {
     pub fn new(connection: Connection, prefix: impl Into<String>) -> Self {
+        Self::for_table(connection, prefix, TABLE)
+    }
+
+    pub(super) fn for_table(
+        connection: Connection,
+        prefix: impl Into<String>,
+        table: &'static str,
+    ) -> Self {
         Self {
             connection,
             prefix: prefix.into(),
+            table,
         }
     }
 
@@ -102,7 +112,7 @@ impl PersonalAccessTokens {
         ]);
         let id = self
             .connection
-            .table(TABLE)
+            .table(self.table)
             .insertGetId(row)
             .await
             .map_err(AuthError::backend)?;
@@ -123,7 +133,7 @@ impl PersonalAccessTokens {
     }
 
     pub async fn findToken(&self, credential: &str) -> AuthResult<Option<PersonalAccessToken>> {
-        let query = self.connection.table(TABLE).useWritePdo();
+        let query = self.connection.table(self.table).useWritePdo();
         let (query, hash) = if let Some((id, secret)) = credential.split_once('|') {
             if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) || secret.is_empty() {
                 return Ok(None);
@@ -162,7 +172,7 @@ impl PersonalAccessTokens {
         id: u64,
     ) -> AuthResult<bool> {
         self.connection
-            .table(TABLE)
+            .table(self.table)
             .r#where("id", "=", Value::Unsigned(id))
             .r#where("tokenable_type", "=", tokenable_type)
             .r#where("tokenable_id", "=", Value::Unsigned(tokenable_id))
@@ -185,7 +195,7 @@ impl PersonalAccessTokens {
         let modified = self.connection.hasModifiedRecords();
         let result = self
             .connection
-            .table(TABLE)
+            .table(self.table)
             .r#where("id", "=", Value::Unsigned(token.id))
             .r#where("token", "=", token_hash(secret))
             .update(Record::from([

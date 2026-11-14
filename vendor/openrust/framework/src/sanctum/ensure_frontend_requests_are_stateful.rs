@@ -92,9 +92,25 @@ impl EnsureFrontendRequestsAreStateful {
         } else {
             std::borrow::Cow::Owned(format!("{origin}/"))
         };
-        self.patterns
-            .iter()
-            .any(|pattern| matches_pattern(&origin, pattern))
+        self.patterns.iter().any(|pattern| {
+            if pattern.strip_suffix("/*") == Some(super::settings::CURRENT_REQUEST_HOST) {
+                let authority = request.uri().authority().cloned().or_else(|| {
+                    request
+                        .headers()
+                        .get(http::header::HOST)?
+                        .to_str()
+                        .ok()?
+                        .parse::<http::uri::Authority>()
+                        .ok()
+                });
+                return authority.is_some_and(|host| {
+                    origin
+                        .strip_prefix(host.as_str())
+                        .is_some_and(|path| path.starts_with('/'))
+                });
+            }
+            matches_pattern(&origin, pattern)
+        })
     }
 }
 

@@ -15,13 +15,13 @@ use crate::{
     http::Request,
 };
 
-use super::{AccessToken, PersonalAccessTokens, RequestTokens, TokenAuthenticated};
+use super::{AccessToken, RequestTokens, Sanctum, TokenAuthenticated};
 
 #[derive(Clone)]
 pub(crate) struct Guard {
     name: String,
     session_guards: Vec<String>,
-    provider: Option<(String, String)>,
+    provider_model: Option<String>,
     expiration: Option<TimeDelta>,
     track_last_used_at: bool,
 }
@@ -29,29 +29,21 @@ pub(crate) struct Guard {
 impl Guard {
     pub(crate) fn new(name: String, config: &dyn Repository, guard: &Value) -> AuthResult<Self> {
         let session_guards = session_guards(config)?;
-        let provider = guard
+        let provider_model = guard
             .get("provider")
             .and_then(Value::as_str)
-            .map(str::to_owned)
-            .or_else(|| {
-                config
-                    .get("auth.guards.web.provider")
-                    .and_then(|value| value.as_str().map(str::to_owned))
-            });
-        let provider = provider
             .map(|name| {
-                let model = config
+                config
                     .get(&format!("auth.providers.{name}.model"))
                     .and_then(|value| value.as_str().map(str::to_owned))
-                    .ok_or(AuthError::Configuration("sanctum token provider model"))?;
-                Ok::<_, AuthError>((name, model))
+                    .ok_or(AuthError::Configuration("sanctum token provider model"))
             })
             .transpose()?;
         let expiration = expiration(config)?;
         Ok(Self {
             name,
             session_guards,
-            provider,
+            provider_model,
             expiration,
             track_last_used_at: config
                 .get("sanctum.last_used_at")
@@ -76,39 +68,34 @@ impl Guard {
                 }
             }
         }
-        let Some(credential) = request
-            .headers()
-            .get(::http::header::AUTHORIZATION)
-            .and_then(|value| value.to_str().ok())
-            .and_then(|header| header.split_once(' '))
-            .filter(|(scheme, token)| {
-                scheme.eq_ignore_ascii_case("bearer")
-                    && !token.is_empty()
-                    && token.len() <= 4096
-                    && !token.bytes().any(|byte| byte.is_ascii_whitespace())
-            })
-            .map(|(_, token)| token)
-        else {
+        let sanctum = container.make::<Sanctum>().map_err(AuthError::backend)?;
+        let Some(credential) = sanctum.credential(request) else {
             return Ok(None);
-        };
-        let Some((provider, model)) = &self.provider else {
-            return Err(AuthError::Configuration("sanctum token provider"));
         };
         let database = container
             .make::<DatabaseManager>()
             .map_err(AuthError::backend)?;
-        let tokens =
-            PersonalAccessTokens::new(database.connection(None).map_err(AuthError::backend)?, "");
-        let Some(token) = tokens.findToken(credential).await? else {
+        let tokens = sanctum.personalAccessTokens(&database, "")?;
+        let Some(token) = tokens.findToken(&credential).await? else {
             return Ok(None);
         };
-        if token.tokenable_type != *model || token.isExpired(Utc::now(), self.expiration) {
+        let id = AuthIdentifier::UnsignedInteger(token.tokenable_id);
+        let morphs = container
+            .make::<crate::database::eloquent::relations::MorphMap>()
+            .map_err(AuthError::backend)?;
+        let model = morphs
+            .getMorphedModel(&token.tokenable_type)
+            .unwrap_or(&token.tokenable_type);
+        let user = auth.retrieve_sanctum_owner(model, &id).await?;
+        let valid_provider = self.provider_model.as_ref().is_none_or(|configured| {
+            user.is_some() && auth.same_registered_model(configured, model)
+        });
+        if !sanctum.valid(
+            &token,
+            valid_provider && !token.isExpired(Utc::now(), self.expiration),
+        ) {
             return Ok(None);
         }
-        let user = auth
-            .createUserProvider(provider)?
-            .retrieve_by_id(&AuthIdentifier::UnsignedInteger(token.tokenable_id))
-            .await?;
         let Some(user) = user else {
             return Ok(None);
         };
@@ -126,7 +113,7 @@ impl Guard {
             .map_err(AuthError::backend)?;
         let token = if self.track_last_used_at {
             let mut token = Arc::unwrap_or_clone(token);
-            if !tokens.record_use(&mut token, credential).await? {
+            if !tokens.record_use(&mut token, &credential).await? {
                 return Ok(None);
             }
             Arc::new(token)

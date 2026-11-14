@@ -15,20 +15,41 @@ use openrust::{
     },
     database::{
         DatabaseManager,
-        eloquent::{Model, ModelMetadata, ModelState},
+        eloquent::{
+            Model, ModelMetadata, ModelState,
+            relations::{MorphMap, MorphMapEntry},
+        },
     },
     events::Dispatcher,
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
-    sanctum::{AccessToken, PersonalAccessTokens, TokenAuthenticated},
+    sanctum::{AccessToken, Sanctum, TokenAuthenticated},
     support::facades::{Auth, Route},
 };
 use reqwest::{Client, header};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-struct User(ModelState);
+struct User<const SERVICE: bool = false>(ModelState);
+
+struct CustomToken(ModelState);
+impl Model for CustomToken {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata =
+            ModelMetadata::new("custom_sanctum_tokens").connection("token_fixture");
+        &META
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
 
 struct CustomCsrf;
 
@@ -48,7 +69,7 @@ impl Middleware for CustomCsrf {
     }
 }
 
-impl Model for User {
+impl<const SERVICE: bool> Model for User<SERVICE> {
     fn metadata() -> &'static ModelMetadata {
         static META: ModelMetadata = ModelMetadata::new("sanctum_users").timestamps(None, None);
         &META
@@ -64,7 +85,7 @@ impl Model for User {
     }
 }
 
-impl Authenticatable for User {
+impl<const SERVICE: bool> Authenticatable for User<SERVICE> {
     fn get_auth_identifier_name(&self) -> &str {
         "id"
     }
@@ -90,6 +111,13 @@ impl Authenticatable for User {
 }
 
 fn api() -> Result<(), RoutingError> {
+    Route::group(
+        RouteGroup::new().middleware_name("auth:restricted"),
+        |router| {
+            router.get("/restricted", whoami)?;
+            Ok(())
+        },
+    )?;
     Route::group(
         RouteGroup::new().middleware_name("auth:sanctum"),
         |router| {
@@ -191,12 +219,12 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         .withConfig(|root, _| Ok([
             ("app".into(), json!({"key":"a".repeat(32)})),
             ("session".into(), json!({"driver":"array","cookie":"sanctum_test","lottery":[0,100],"same_site":"strict","http_only":false})),
-            ("sanctum".into(), json!({"stateful":["spa.example:8443"],"expiration":5,
+            ("sanctum".into(), json!({"stateful":format!("spa.example:8443{}", Sanctum::currentRequestHost()),"expiration":5,
                 "middleware": if root.join("custom-csrf").is_file() {
                     json!({"validate_csrf_token":"custom-csrf"})
                 } else { json!({}) }})),
             ("auth".into(), json!({
-                "guards":{"web":{"driver":"session","provider":"users"}},
+                "guards":{"web":{"driver":"session","provider":"users"},"restricted":{"driver":"sanctum","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"SanctumUser"}}
             })),
         ].into()))
@@ -210,18 +238,35 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     let config = app.container().get::<dyn Repository>("config").unwrap();
     config.set("database.default", json!("fixture")).unwrap();
     config
-        .set("database.connections.fixture", database)
+        .set("database.connections.fixture", database.clone())
         .unwrap();
-    app.container()
-        .make::<AuthManager>()
-        .unwrap()
-        .registerModel::<User>("SanctumUser");
-    let db = app
-        .container()
-        .make::<DatabaseManager>()
-        .unwrap()
-        .connection(None)
-        .unwrap();
+    let auth = app.container().make::<AuthManager>().unwrap();
+    auth.registerModel::<User>("SanctumUser");
+    auth.registerModel::<User<true>>("ServiceAccount");
+    MorphMap::morphMap(
+        &app,
+        [
+            MorphMapEntry::model::<User>("users_alias"),
+            MorphMapEntry::model::<User<true>>("services_alias"),
+        ],
+        true,
+    )
+    .unwrap();
+    if custom_csrf {
+        config
+            .set("database.connections.token_fixture", database.clone())
+            .unwrap();
+    }
+    let fixture_config = database;
+    let database = app.container().make::<DatabaseManager>().unwrap();
+    let db = database.connection(None).unwrap();
+    let sanctum = app.container().make::<Sanctum>().unwrap();
+    let token_table = if custom_csrf {
+        sanctum.usePersonalAccessTokenModel::<CustomToken>();
+        "custom_sanctum_tokens"
+    } else {
+        "personal_access_tokens"
+    };
     db.statement("DROP TABLE IF EXISTS sanctum_users", &[])
         .await
         .unwrap();
@@ -238,9 +283,9 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     .await
     .unwrap();
     let mut schema = db.getSchemaBuilder();
-    schema.dropIfExists("personal_access_tokens").await.unwrap();
+    schema.dropIfExists(token_table).await.unwrap();
     schema
-        .create("personal_access_tokens", |table| {
+        .create(token_table, |table| {
             table.id();
             table.string("tokenable_type", 255);
             table.unsignedBigInteger("tokenable_id");
@@ -253,9 +298,9 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         })
         .await
         .unwrap();
-    let tokens = PersonalAccessTokens::new(db.clone(), "");
+    let tokens = sanctum.personalAccessTokens(&database, "").unwrap();
     let read = tokens
-        .createToken("SanctumUser", 1, "read", &["read"], None)
+        .createToken("users_alias", 1, "read", &["read"], None)
         .await
         .unwrap();
     let full = tokens
@@ -277,13 +322,17 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         .await
         .unwrap();
     db.statement(
-        "UPDATE personal_access_tokens SET created_at = '2020-01-01 00:00:00' WHERE id = ?",
+        &format!("UPDATE {token_table} SET created_at = '2020-01-01 00:00:00' WHERE id = ?"),
         &[openrust::database::Value::Unsigned(aged.access_token.id)],
     )
     .await
     .unwrap();
     let wrong_type = tokens
         .createToken("AnotherUser", 1, "wrong", &["*"], None)
+        .await
+        .unwrap();
+    let service = tokens
+        .createToken("services_alias", 2, "service", &["*"], None)
         .await
         .unwrap();
     let missing = tokens
@@ -365,6 +414,69 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     assert_eq!(first.access_token.id, read.access_token.id);
     assert!(first.access_token.last_used_at.is_none());
 
+    sanctum.getAccessTokenFromRequestUsing(Some(Arc::new(|request| {
+        request
+            .headers()
+            .get("x-access-token")?
+            .to_str()
+            .ok()
+            .map(str::to_owned)
+    })));
+    sanctum.authenticateAccessTokensUsing(|token, valid| valid && token.name != "service");
+    for (token, expected) in [(&read, 200), (&service, 401), (&expired, 401)] {
+        assert_eq!(
+            get("/api/user")
+                .header("x-access-token", token.plain_text_token.as_str())
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            expected
+        );
+    }
+    assert_eq!(
+        get("/api/user")
+            .bearer_auth(read.plain_text_token.as_str())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
+    sanctum.getAccessTokenFromRequestUsing(None);
+    sanctum.authenticateAccessTokensUsing(|_, valid| valid);
+
+    for (path, credential, expected) in [
+        ("/api/user", &service, 200),
+        ("/api/restricted", &service, 401),
+        ("/api/restricted", &read, 200),
+    ] {
+        let response = get(path)
+            .bearer_auth(credential.plain_text_token.as_str())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), expected);
+        if expected == 200 {
+            assert_eq!(
+                response.json::<Value>().await.unwrap()["user"],
+                credential.access_token.tokenable_id
+            );
+        }
+    }
+
+    sanctum.authenticateAccessTokensUsing(|token, valid| valid || token.name == "expired");
+    assert_eq!(
+        get("/api/user")
+            .bearer_auth(expired.plain_text_token.as_str())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        200
+    );
+    sanctum.authenticateAccessTokensUsing(|_, valid| valid);
+
     let csrf = get("/sanctum/csrf-cookie").send().await.unwrap();
     assert_eq!(csrf.status(), 204);
     let xsrf = cookie(&csrf, "XSRF-TOKEN");
@@ -402,6 +514,26 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         assert_eq!(
             response.json::<Value>().await.unwrap(),
             json!({"user":2,"token":"session"})
+        );
+        assert_eq!(
+            get("/api/user")
+                .header(header::ORIGIN, &base)
+                .header(header::COOKIE, &session)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+        assert_eq!(
+            get("/api/user")
+                .header(header::ORIGIN, format!("{base}1"))
+                .header(header::COOKIE, &session)
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            401
         );
         let (missing_status, header_name, header_value) = if custom_csrf {
             (418, "X-CUSTOM-CSRF", "yes".to_owned())
@@ -504,6 +636,44 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     );
     server.abort();
     assert!(server.await.unwrap_err().is_cancelled());
+
+    if custom_csrf {
+        let mut console = Application::configure(root.path().to_path_buf())
+            .create()
+            .unwrap();
+        console.boot().await.unwrap();
+        let config = console.container().get::<dyn Repository>("config").unwrap();
+        config.set("database.default", json!("unused")).unwrap();
+        config
+            .set("database.connections.token_fixture", fixture_config)
+            .unwrap();
+        console
+            .container()
+            .make::<Sanctum>()
+            .unwrap()
+            .usePersonalAccessTokenModel::<CustomToken>();
+        assert_eq!(
+            console
+                .handleCommand(&["sanctum:prune-expired".into(), "--hours=0".into()])
+                .await
+                .unwrap(),
+            0
+        );
+        assert!(
+            tokens
+                .findToken(expired.plain_text_token.as_str())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            tokens
+                .findToken(read.plain_text_token.as_str())
+                .await
+                .unwrap()
+                .is_some()
+        );
+    }
 }
 
 #[tokio::test]

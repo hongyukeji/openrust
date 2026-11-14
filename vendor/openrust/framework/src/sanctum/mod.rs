@@ -9,12 +9,14 @@ mod authenticate_session;
 mod ensure_frontend_requests_are_stateful;
 mod guard;
 pub(crate) mod prune_expired;
+mod settings;
 pub use abilities::{CheckAbilities, CheckForAnyAbility};
 pub use authenticate_session::AuthenticateSession;
 pub(crate) use ensure_frontend_requests_are_stateful::{
     EnsureFrontendRequestsAreStateful, StatefulFrontend,
 };
 pub(crate) use guard::Guard;
+pub use settings::Sanctum;
 
 use crate::{contracts::events::Event, http::Request};
 use std::{collections::HashMap, sync::Arc};

@@ -5,7 +5,7 @@ use crate::{
         Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
         Output,
     },
-    contracts::foundation::Application as _,
+    contracts::{container::Container as _, foundation::Application as _},
     database::DatabaseManager,
     foundation::Application,
 };
@@ -58,10 +58,12 @@ impl Command for PruneExpired {
                 })
                 .transpose()?;
             let database = app.make::<DatabaseManager>().await.map_err(error)?;
-            let connection = database.connection(None).map_err(error)?;
+            let sanctum = app.container().make::<super::Sanctum>().map_err(error)?;
+            let tokens = sanctum.personalAccessTokens(&database, "").map_err(error)?;
+            let connection = tokens.connection;
             output.comment("Pruning tokens with expired expires_at timestamps");
             connection
-                .table(super::personal_access_token::TABLE)
+                .table(tokens.table)
                 .r#where(
                     "expires_at",
                     "<",
@@ -77,7 +79,7 @@ impl Command for PruneExpired {
                     "Pruning tokens with expired expiration value based on configuration file",
                 );
                 connection
-                    .table(super::personal_access_token::TABLE)
+                    .table(tokens.table)
                     .r#where(
                         "created_at",
                         "<",

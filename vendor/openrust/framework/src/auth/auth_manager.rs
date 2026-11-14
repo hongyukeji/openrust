@@ -28,7 +28,7 @@ type ProviderFactory =
 #[derive(Default)]
 struct Extensions {
     providers: HashMap<String, Arc<ProviderFactory>>,
-    models: HashMap<String, Arc<ProviderFactory>>,
+    models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
     requests: HashMap<String, Arc<Resolver>>,
 }
 
@@ -71,20 +71,56 @@ impl AuthManager {
             .models
             .insert(
                 name.into(),
-                Arc::new(|container, config| {
-                    let manager = container
-                        .make::<DatabaseManager>()
-                        .map_err(AuthError::backend)?;
-                    let prototype = M::from_state(Default::default());
-                    let name = config
-                        .get("connection")
-                        .and_then(Value::as_str)
-                        .or_else(|| prototype.getConnectionName());
-                    let connection = manager.connection(name).map_err(AuthError::backend)?;
-                    let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
-                    Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))
-                }),
+                (
+                    std::any::type_name::<M>(),
+                    Arc::new(|container, config| {
+                        let manager = container
+                            .make::<DatabaseManager>()
+                            .map_err(AuthError::backend)?;
+                        let prototype = M::from_state(Default::default());
+                        let name = config
+                            .get("connection")
+                            .and_then(Value::as_str)
+                            .or_else(|| prototype.getConnectionName());
+                        let connection = manager.connection(name).map_err(AuthError::backend)?;
+                        let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
+                        Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))
+                    }),
+                ),
             );
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn same_registered_model(&self, configured: &str, actual: &str) -> bool {
+        let extensions = self.extensions.read().expect("auth extensions lock");
+        let models = &extensions.models;
+        let configured_type = models.get(configured).map_or(configured, |(name, _)| *name);
+        let actual_type = models.get(actual).map_or(actual, |(name, _)| *name);
+        configured_type == actual_type
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) async fn retrieve_sanctum_owner(
+        &self,
+        model: &str,
+        id: &super::AuthIdentifier,
+    ) -> AuthResult<Option<Box<dyn Authenticatable>>> {
+        let factory = {
+            let extensions = self.extensions.read().expect("auth extensions lock");
+            extensions
+                .models
+                .get(model)
+                .or_else(|| extensions.models.values().find(|(name, _)| *name == model))
+                .map(|(_, factory)| factory.clone())
+        };
+        let Some(factory) = factory else {
+            return Ok(None);
+        };
+        let container = self
+            .container
+            .upgrade()
+            .ok_or(AuthError::Configuration("application scope"))?;
+        factory(&container, &Value::Null)?.retrieve_by_id(id).await
     }
 
     pub fn viaRequest(
@@ -233,7 +269,7 @@ impl AuthManager {
                     .expect("auth extensions lock")
                     .models
                     .get(model)
-                    .cloned()
+                    .map(|(_, factory)| factory.clone())
                     .ok_or(AuthError::Configuration("compiled Eloquent model"))?;
                 factory(&container, &config)
             }
