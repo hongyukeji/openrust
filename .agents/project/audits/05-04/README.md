@@ -579,3 +579,13 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `ee0b9250`。PHP 8.5 运行固定 provider 校验抽样、复制和 UUID，再逐项比对 461 个分组。Rust 回归验证 MIME 唯一值耗尽、非递归、二进制内容、完整路径或文件名、扩展名及无效目录。真实 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 复制 JSON 后回查文件名、MIME 与扩展名。默认 Seeder 回归、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载的六项浏览器检查通过。
 
 已清理本批独占编译与文档构建产物。后续按 05-04 记录继续核对 Image 与 UserAgent。
+
+## Faker 占位图片
+
+对照固定 FakerPHP v1.24.1 Image provider，保留域名、默认尺寸、格式常量、背景和表单文字编码，以及 HTTP 失败返回无结果的行为。Rust 用 `ImageOptions` 表达默认参数，`imageUrl` 支持 `unique`，异步下载返回 `io::Result<Option<PathBuf>>`。远端响应完整后才发布本地文件。本地错误和非法格式保留错误信息。随机词复用现有 Rust Faker 词表。v0.x 未发现对应 provider，编译式工厂装配沿用当前路径。 [固定 FakerPHP Image](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Image.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md)
+
+隔离基线 `0daefc6e`。PHP 8.5 对照 URL、格式列表及错误输入。Rust 两项回归验证 URL 编码、去重、完整响应、404 和截断响应后的文件清理。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 下载远端 PNG，读取并验证 16×12 尺寸，落库回查 URL 与字节数。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与双挂载的六项浏览器检查通过。
+
+后续继续核对 UserAgent。
+
+隔离 Cargo 产物和文档构建产物已清理，项目卷剩余 82 GiB。

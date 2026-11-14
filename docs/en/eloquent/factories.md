@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### Localized Fake Data {#localized-fake-data}
 
-The catalog below lists the supported formatters. Some FakerPHP providers, including image generation and user agents, are pending.
+The catalog below lists the supported formatters. Some FakerPHP providers, including user agents, are pending.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
@@ -257,6 +257,24 @@ use openrust::database::eloquent::factories::Faker;
 
 fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBuf> {
     faker.file(source, target, false)
+}
+```
+
+### Placeholder Images {#placeholder-images}
+
+Use `imageUrl(&ImageOptions)` to build a FakerPHP placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, fullPath, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
+
+fn placeholder_sample() -> DatabaseResult<String> {
+    fake(None)?.imageUrl(&ImageOptions {
+        width: 320,
+        height: 200,
+        gray: true,
+        randomize: false,
+        ..ImageOptions::default()
+    })
 }
 ```
 

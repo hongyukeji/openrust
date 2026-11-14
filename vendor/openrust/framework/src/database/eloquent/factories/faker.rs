@@ -2483,6 +2483,10 @@ impl UniqueFaker<'_> {
         self.generate("macAddress", || self.0.macAddress())
     }
 
+    pub fn imageUrl(&self, options: &super::ImageOptions<'_>) -> DatabaseResult<String> {
+        self.try_generate("imageUrl", || self.0.imageUrl(options))
+    }
+
     pub fn mimeType(&self) -> DatabaseResult<&'static str> {
         self.generate("mimeType", || self.0.mimeType())
     }

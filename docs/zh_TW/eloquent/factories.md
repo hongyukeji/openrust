@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### 本地化測試資料 {#localized-fake-data}
 
-下文列出已支援的產生器。FakerPHP 的圖片產生和 User-Agent 等產生器仍待接入。
+下文列出已支援的產生器。FakerPHP 的 User-Agent 等產生器仍待接入。
 
 下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。
 
@@ -257,6 +257,24 @@ use openrust::database::eloquent::factories::Faker;
 
 fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBuf> {
     faker.file(source, target, false)
+}
+```
+
+### 預留圖片 {#placeholder-images}
+
+用 `imageUrl(&ImageOptions)` 產生 FakerPHP 預留圖片 URL。預設是 640 × 480 的 PNG，隨機產生文字和背景，也支援 JPG 和 JPEG。`image(directory, fullPath, options).await` 下載圖片，省略目錄時使用系統暫存目錄。HTTP 請求失敗或回應中斷時回傳空路徑，無效選項與本機寫入失敗會回傳 I/O 錯誤。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
+
+fn placeholder_sample() -> DatabaseResult<String> {
+    fake(None)?.imageUrl(&ImageOptions {
+        width: 320,
+        height: 200,
+        gray: true,
+        randomize: false,
+        ..ImageOptions::default()
+    })
 }
 ```
 

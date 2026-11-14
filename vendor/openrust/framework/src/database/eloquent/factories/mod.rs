@@ -62,6 +62,7 @@ type Relationship<M> = dyn for<'a> Fn(
 mod faker;
 mod faker_address;
 mod faker_file;
+mod faker_image;
 mod faker_institutions;
 mod faker_miscellaneous;
 mod faker_payment;
@@ -71,6 +72,7 @@ mod regex_pattern;
 mod relationships;
 
 pub use faker::{Coordinates, CreditCardDetails, Faker, UniqueFaker, fake};
+pub use faker_image::ImageOptions;
 
 pub use relationships::{FactoryChild, FactoryParent};
 
