@@ -23,7 +23,7 @@ use openrust::{
                 Factory, FactoryDefinition, FactoryParentSelector, FactoryPivot, FactoryRecords,
                 HasFactory, fake,
             },
-            relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
+            relations::{BelongsTo, MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
@@ -2902,6 +2902,133 @@ async fn relation_factories_supply_parent_to_states_and_create_callbacks() {
         .unwrap();
     if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
         verify_relation_parent(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
+
+struct ExpansionOwner(ModelState);
+struct ExpansionChild(ModelState);
+
+factory_model!(
+    ExpansionOwner,
+    "expansion_owners",
+    NamedRelations::default()
+);
+factory_model!(
+    ExpansionChild,
+    "expansion_children",
+    NamedRelations::default()
+);
+
+async fn verify_expansion(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+            table.unsignedBigInteger("owner_id").nullable();
+        })
+        .await?;
+
+    let factory = || {
+        Factory::<ExpansionChild>::new(Attributes::new)
+            .parentAttribute("owner_id", Factory::<ExpansionOwner>::new(Attributes::new))
+    };
+    let before = factory();
+    Factory::<ExpansionOwner>::dontExpandRelationshipsByDefault();
+    let disabled = factory()
+        .count(2)
+        .withoutParents(vec![FactoryParentSelector::attribute("other")]);
+    let enabled = {
+        Factory::<ExpansionChild>::expandRelationshipsByDefault();
+        factory()
+    };
+    let owner = Factory::<ExpansionOwner>::new(Attributes::new)
+        .createOn(connection)
+        .await?;
+    let key = owner.getKey().unwrap().clone();
+    assert!(
+        disabled
+            .recycle(owner)
+            .rawOn(connection)
+            .await?
+            .iter()
+            .all(|row| row["owner_id"] == Value::Null)
+    );
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+
+    Factory::<ExpansionOwner>::dontExpandRelationshipsByDefault();
+    let overridden = factory()
+        .set("owner_id", key.clone())
+        .createOn(connection)
+        .await?;
+    assert_eq!(overridden.getAttribute("owner_id"), Some(&key));
+    let relation = BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id");
+    let owner = ExpansionOwner::queryOn(connection)
+        .get()
+        .await?
+        .into_iter()
+        .next()
+        .unwrap();
+    let stored_key = owner.getKey().unwrap().clone();
+    let explicit = Factory::<ExpansionChild>::new(Attributes::new)
+        .forExisting(relation, owner)
+        .createOn(connection)
+        .await?;
+    assert_eq!(explicit.getAttribute("owner_id"), Some(&stored_key));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+
+    let suppressed = enabled
+        .withoutParents(vec![])
+        .withoutParents(vec![FactoryParentSelector::attribute("other")]);
+    assert_eq!(suppressed.rawOn(connection).await?["owner_id"], Value::Null);
+    assert_ne!(
+        before.createOn(connection).await?.getAttribute("owner_id"),
+        Some(&Value::Null)
+    );
+    Factory::<ExpansionChild>::flushState();
+    assert_ne!(
+        factory()
+            .createOn(connection)
+            .await?
+            .getAttribute("owner_id"),
+        Some(&Value::Null)
+    );
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 3);
+    assert_eq!(connection.table("expansion_children").count("*").await?, 4);
+    schema.drop("expansion_children").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_relationship_expansion_defaults_are_snapshotted() {
+    if std::env::var_os("EXPANSION_TEST_CHILD").is_none() {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "factory_relationship_expansion_defaults_are_snapshotted",
+                "--nocapture",
+            ])
+            .env("EXPANSION_TEST_CHILD", "1")
+            .output()
+            .unwrap();
+        success(output);
+        return;
+    }
+    let root = Root::new();
+    verify_expansion(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_expansion(&root.connection(Some(&url), ""))
             .await
             .unwrap();
     } else {

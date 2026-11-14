@@ -2,7 +2,10 @@
 
 use std::{
     any::{Any, TypeId},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use tokio::sync::OnceCell;
@@ -254,6 +257,8 @@ macro_rules! conditional_states {
     };
 }
 
+static EXPAND_RELATIONSHIPS_BY_DEFAULT: AtomicBool = AtomicBool::new(true);
+
 /// A model definition with ordered attribute states and relationship callbacks.
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
@@ -262,7 +267,8 @@ pub struct Factory<M: Model> {
     recycled: Vec<RecycledModel>,
     parents: Vec<Box<Parent<M>>>,
     parent_attributes: Vec<ParentAttribute>,
-    excluded_parents: Option<Vec<FactoryParentSelector>>,
+    expand_relationships: bool,
+    excluded_parents: Vec<FactoryParentSelector>,
     children: Vec<Box<Relationship<M>>>,
     after_making: Vec<Box<Callback<M>>>,
     after_creating: Vec<Box<CreateCallback<M>>>,
@@ -306,7 +312,8 @@ impl<M: Model> Factory<M> {
             recycled: Vec::new(),
             parents: Vec::new(),
             parent_attributes: Vec::new(),
-            excluded_parents: None,
+            expand_relationships: EXPAND_RELATIONSHIPS_BY_DEFAULT.load(Ordering::Relaxed),
+            excluded_parents: Vec::new(),
             children: Vec::new(),
             after_making: Vec::new(),
             after_creating: Vec::new(),
@@ -706,10 +713,29 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Enables factory-valued parent expansion on newly constructed factories.
+    pub fn expandRelationshipsByDefault() {
+        EXPAND_RELATIONSHIPS_BY_DEFAULT.store(true, Ordering::Relaxed);
+    }
+
+    /// Disables factory-valued parent expansion on newly constructed factories.
+    pub fn dontExpandRelationshipsByDefault() {
+        EXPAND_RELATIONSHIPS_BY_DEFAULT.store(false, Ordering::Relaxed);
+    }
+
+    /// Restores the process-wide factory defaults.
+    pub fn flushState() {
+        Self::expandRelationshipsByDefault();
+    }
+
     /// Excludes the selected factory-valued attributes, or all when the list is empty.
     #[must_use]
     pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
-        self.excluded_parents = Some(parents);
+        if parents.is_empty() {
+            self.expand_relationships = false;
+        } else {
+            self.excluded_parents = parents;
+        }
         self
     }
 
@@ -1114,13 +1140,11 @@ impl<M: Model> Factory<M> {
             if attributes.contains_key(&attribute.name) {
                 continue;
             }
-            let excluded = self.excluded_parents.as_ref().is_some_and(|selectors| {
-                selectors.is_empty()
-                    || selectors.iter().any(|selector| match selector {
-                        FactoryParentSelector::Attribute(name) => *name == attribute.name,
-                        FactoryParentSelector::Model(model) => *model == attribute.model,
-                    })
-            });
+            let excluded = !self.expand_relationships
+                || self.excluded_parents.iter().any(|selector| match selector {
+                    FactoryParentSelector::Attribute(name) => *name == attribute.name,
+                    FactoryParentSelector::Model(model) => *model == attribute.model,
+                });
             let value = if excluded {
                 Value::Null
             } else {

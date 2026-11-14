@@ -365,6 +365,19 @@ Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by n
 
 Use `parentAttribute("owner_id", owners)` to declare a foreign-key attribute backed by another factory. It expands to a saved model key and can reuse a matching recycled model. An explicit value from the definition, a state, or the operation takes precedence. `withoutParents(vec![])` disables all factory-valued attributes. Pass `FactoryParentSelector::attribute("owner_id")` or `FactoryParentSelector::model::<Owner>()` to disable specific ones. Disabled attributes expand to null. Explicit `for` and `forExisting` relationships still resolve.
 
+The process-wide default starts enabled. `Factory::<Owner>::dontExpandRelationshipsByDefault()` disables expansion for factories built afterward, across model types. `expandRelationshipsByDefault()` or `flushState()` restores the default. Existing factories retain the setting they were built with. A later selective `withoutParents` call keeps full suppression in effect.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
+    Factory::<Owner>::dontExpandRelationshipsByDefault();
+    let factory = Factory::<Owner>::new(Attributes::new);
+    Factory::<Owner>::expandRelationshipsByDefault();
+    factory
+}
+```
+
 ### Recycling Existing Models {#recycling-existing-models}
 
 Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match. A batch reuses its selected owner.

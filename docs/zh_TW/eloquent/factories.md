@@ -365,6 +365,19 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 用 `parentAttribute("owner_id", owners)` 宣告由另一工廠產生的外鍵屬性。它會展開為已儲存模型的鍵，也可重用相符的模型。定義、狀態或呼叫傳入的明確值優先。`withoutParents(vec![])` 停用所有工廠外鍵屬性。傳入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可依屬性名稱或模型型別停用。停用的屬性展開為 null，明確的 `for` 和 `forExisting` 關聯仍會解析。
 
+程序預設開啟展開。`Factory::<Owner>::dontExpandRelationshipsByDefault()` 會停用之後建構的工廠的展開，適用於所有模型型別。`expandRelationshipsByDefault()` 或 `flushState()` 可恢復預設值。既有工廠保留建構時的設定。完全停用後，再呼叫帶選擇器的 `withoutParents` 仍維持完全停用。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
+    Factory::<Owner>::dontExpandRelationshipsByDefault();
+    let factory = Factory::<Owner>::new(Attributes::new);
+    Factory::<Owner>::expandRelationshipsByDefault();
+    factory
+}
+```
+
 ### 重用既有模型 {#recycling-existing-models}
 
 用 `recycle` 傳入一個已儲存的模型，或用 `recycleMany` 傳入同類型模型的迭代器。這兩個方法可在 `count` 前後呼叫。模型池會傳給巢狀關聯工廠。解析上層模型時，工廠在同一連線和類型的候選模型中隨機選取一個，缺少符合項目時建立新上層模型。同一批次重用已選中的上層模型。
