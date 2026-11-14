@@ -176,3 +176,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 固定 Laravel 装配从 `app.timezone` 设置应用时区，FakerPHP 的日期格式化采用显式时区、Faker 覆盖值和应用默认值。Rust 从应用或工厂连接的容器读取 `app.timezone`，无作用域时使用 UTC。覆盖值由当前生成器持有，支持设置、查询和清除。日期字符串使用有效时区，`dateTimeInTimezone` 支持单次显式时区。已公开的 `DateTime<Utc>` 方法和 UTC 区间保持兼容。旧版日期解析有独立时区上下文，没有对应的 Faker 配置。Goravel 装配无需调整。PHP 相对日期输入和按本地日历计算的区间边界继续跟踪。 [Laravel 配置加载](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/LoadConfiguration.php#L59) · [FakerPHP 时区解析](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L330)
 
 隔离基线 `fdcd57f0`。PHP 8.5.12 对照 UTC、台北与纽约的纪元日期和偏移。MySQL 8.4.13 的 Seeder 回归验证应用配置、显式语言继承时区、生成器覆盖和清除、单次覆盖、生成器间隔离及工厂连接配置。应用二进制使用 `APP_TIMEZONE=Asia/Taipei` 执行 `artisan db:seed --database=mysql --force`，写入并回查 `1970-01-01T08:00:00+0800`。MySQL／SQLite 工厂回归、Rust 1.94.0 格式及工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 本地日历区间
+
+对照 FakerPHP 1.24.1 中由 PHP 默认时区解释的日历相对量。世纪、十年、月回溯和元旦零点按应用时区计算，省略区间起点时也按应用时区回溯三十年，两个参数都省略时默认终点增加五个本地日历日。显式 UTC 起点及 `TimeDelta` 沿用原有契约。复用 v0.x `support/calendar/date/zone.rs` 的 timelib 回拨选择和跳时前偏移规则。生成器覆盖只影响输出，取样继续返回 UTC。任意 PHP 日期表达式和旧版扩展年份的完整时区规则仍待移植。 [FakerPHP 日期区间](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L167)
+
+隔离基线 `62db8916`。PHP 8.5.12 对照纽约与巴黎的回拨、纽约和 Lord Howe 的跳时及月底溢出，Rust 隔离探针逐项通过。实际应用二进制使用 `APP_TIMEZONE=Asia/Taipei` 运行 `artisan db:seed --database=mysql --force`，验证台北元旦零点并写入回查。MySQL 8.4.13／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。

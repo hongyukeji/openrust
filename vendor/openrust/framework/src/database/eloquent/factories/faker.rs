@@ -11,8 +11,11 @@ use crate::{
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
-use chrono::{DateTime, Datelike, Days, Months, TimeDelta, TimeZone, Utc};
-use chrono_tz::{Tz, UTC};
+use chrono::{
+    DateTime, Datelike, Days, LocalResult, Months, NaiveDate, NaiveDateTime, Offset, TimeDelta,
+    TimeZone, Utc,
+};
+use chrono_tz::{GapInfo, Tz, UTC};
 
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
@@ -22,14 +25,43 @@ pub struct Faker {
     unique: Mutex<HashMap<&'static str, HashSet<String>>>,
 }
 
-fn months_ago(date: DateTime<Utc>, months: u32) -> DatabaseResult<DateTime<Utc>> {
+const DATE_RANGE_ERROR: DatabaseError =
+    DatabaseError::InvalidQuery("Faker timestamp is out of range");
+
+fn months_ago(date: NaiveDateTime, months: u32) -> DatabaseResult<NaiveDateTime> {
     // PHP normalizes an overflowing day into the following month.
     date.with_day(1)
         .and_then(|first| first.checked_sub_months(Months::new(months)))
         .and_then(|first| first.checked_add_days(Days::new(u64::from(date.day0()))))
-        .ok_or(DatabaseError::InvalidQuery(
-            "Faker timestamp is out of range",
-        ))
+        .ok_or(DATE_RANGE_ERROR)
+}
+
+fn resolve_local(zone: Tz, local: NaiveDateTime) -> DatabaseResult<DateTime<Utc>> {
+    match zone.from_local_datetime(&local) {
+        LocalResult::Single(date) => Ok(date.to_utc()),
+        LocalResult::Ambiguous(first, second) => {
+            // As in timelib, look up the offset by treating the civil time as UTC.
+            let guess = zone.offset_from_utc_datetime(&local).fix();
+            Ok(if first.offset().fix() == guess {
+                first
+            } else {
+                second
+            }
+            .to_utc())
+        }
+        LocalResult::None => {
+            // Apply the pre-transition offset to move forward by the length of the gap.
+            let (_, offset) = GapInfo::new(&local, &zone)
+                .and_then(|gap| gap.begin)
+                .ok_or(DATE_RANGE_ERROR)?;
+            local
+                .checked_sub_signed(TimeDelta::seconds(i64::from(
+                    offset.fix().local_minus_utc(),
+                )))
+                .map(|date| date.and_utc())
+                .ok_or(DATE_RANGE_ERROR)
+        }
+    }
 }
 
 macro_rules! generate {
@@ -224,15 +256,29 @@ impl Faker {
         date: Option<DateTime<Utc>>,
         interval: Option<TimeDelta>,
     ) -> DatabaseResult<DateTime<Utc>> {
+        let zone = self.application_timezone;
+        let uses_local_calendar = date.is_none();
         let date = match date {
             Some(date) => date,
-            None => months_ago(Utc::now(), 30 * 12)?,
+            None => {
+                let now = Utc::now().with_timezone(&zone).naive_local();
+                resolve_local(zone, months_ago(now, 30 * 12)?)?
+            }
         };
-        let other = date
-            .checked_add_signed(interval.unwrap_or_else(|| TimeDelta::days(5)))
-            .ok_or(DatabaseError::InvalidQuery(
-                "Faker timestamp is out of range",
-            ))?;
+        let other = match interval {
+            Some(interval) => date.checked_add_signed(interval).ok_or(DATE_RANGE_ERROR)?,
+            None if uses_local_calendar => {
+                let local = date
+                    .with_timezone(&zone)
+                    .naive_local()
+                    .checked_add_days(Days::new(5))
+                    .ok_or(DATE_RANGE_ERROR)?;
+                resolve_local(zone, local)?
+            }
+            None => date
+                .checked_add_days(Days::new(5))
+                .ok_or(DATE_RANGE_ERROR)?,
+        };
         self.dateTimeBetween(date.min(other), date.max(other))
     }
 
@@ -246,12 +292,12 @@ impl Faker {
 
     pub fn dateTimeThisYear(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
         let now = Utc::now();
-        let start = Utc
-            .with_ymd_and_hms(now.year(), 1, 1, 0, 0, 0)
-            .single()
-            .ok_or(DatabaseError::InvalidQuery(
-                "Faker timestamp is out of range",
-            ))?;
+        let zone = self.application_timezone;
+        let year = now.with_timezone(&zone).year();
+        let start = NaiveDate::from_ymd_opt(year, 1, 1)
+            .and_then(|date| date.and_hms_opt(0, 0, 0))
+            .ok_or(DATE_RANGE_ERROR)?;
+        let start = resolve_local(zone, start)?;
         self.dateTimeBetween(start, max.unwrap_or(now))
     }
 
@@ -265,7 +311,9 @@ impl Faker {
         max: Option<DateTime<Utc>>,
     ) -> DatabaseResult<DateTime<Utc>> {
         let now = Utc::now();
-        self.dateTimeBetween(months_ago(now, months)?, max.unwrap_or(now))
+        let zone = self.application_timezone;
+        let start = months_ago(now.with_timezone(&zone).naive_local(), months)?;
+        self.dateTimeBetween(resolve_local(zone, start)?, max.unwrap_or(now))
     }
 
     /// Samples whole seconds between the Unix epoch and the supplied upper endpoint.

@@ -1104,12 +1104,15 @@ impl Seeder for PolymorphicFactories {
                 assert!(date <= chrono::Utc::now());
                 assert_eq!(date.timestamp_subsec_nanos(), 0);
             }
-            let year_start =
-                chrono::NaiveDate::from_yo_opt(chrono::Datelike::year(&chrono::Utc::now()), 1)
-                    .unwrap()
-                    .and_hms_opt(0, 0, 0)
-                    .unwrap()
-                    .and_utc();
+            let year_start = chrono::NaiveDate::from_yo_opt(
+                chrono::Datelike::year(&chrono::Utc::now().with_timezone(&taipei)),
+                1,
+            )
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap()
+            .and_utc()
+                - chrono::TimeDelta::hours(8);
             assert_eq!(faker.dateTimeThisYear(Some(year_start))?, year_start);
             for date in [
                 faker.dateTimeThisCentury(Some(chrono::DateTime::<chrono::Utc>::MIN_UTC)),
