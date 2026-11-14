@@ -27,6 +27,29 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         MorphOne(self.0.one())
     }
 
+    /// Hydrates the named inverse relation from the parent already in memory.
+    #[must_use]
+    pub fn chaperone(self, relation: &'static str) -> Self {
+        Self(self.0.chaperone(relation))
+    }
+
+    #[must_use]
+    pub fn inverse(self, relation: &'static str) -> Self {
+        self.chaperone(relation)
+    }
+
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    pub fn withoutChaperone(self) -> Self {
+        Self(self.0.withoutChaperone())
+    }
+
+    #[must_use]
+    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    pub fn withoutInverse(self) -> Self {
+        self.withoutChaperone()
+    }
+
     #[must_use]
     pub fn constrain(
         self,

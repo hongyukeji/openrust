@@ -6,6 +6,18 @@
 
 `BelongsToMany` 接收中介資料表、父模型與關聯模型在中介表的外鍵，以及兩個模型鍵。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
+### 在子模型上自動載入父模型 {#automatically-hydrating-parent-models-on-children}
+
+在 `HasMany` 或 `HasOne` 使用 `chaperone("author")`，將父模型快取到各子模型。`MorphMany` 和 `MorphOne` 快取帶有關聯別名的 `MorphTarget`。Rust 明確指定反向關聯名稱。子模型共用省略已載入關聯的父模型快照，讀取反向關聯無須查詢，關聯圖也不會形成參照循環。`inverse` 是同一入口的別名，可用 `withoutChaperone` 或 `withoutInverse` 關閉。
+
+```rust
+use openrust::database::eloquent::{Model, relations::HasMany};
+
+pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
+    HasMany::new("id", "author_id").chaperone("author")
+}
+```
+
 ### 帶作用域的關聯 {#scoped-relationships}
 
 在關聯的 `constrain` 閉包中呼叫 `withAttributes`，為建立的模型提供預設屬性。傳入 `true` 同時加入等值查詢條件，傳入 `false` 僅提供預設屬性。模型明確設定的屬性優先。直接和多型關聯仍會設定各自的父鍵和類型。

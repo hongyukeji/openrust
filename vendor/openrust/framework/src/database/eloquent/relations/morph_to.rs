@@ -77,6 +77,10 @@ pub struct MorphIdentity {
 }
 
 impl MorphTarget {
+    pub(super) fn from_model<M: Model>(alias: &'static str, model: Arc<M>) -> Self {
+        Self { alias, model }
+    }
+
     pub fn alias(&self) -> &'static str {
         self.alias
     }

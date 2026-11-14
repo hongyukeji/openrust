@@ -40,6 +40,31 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Self(RelationKeys::new(local_key, foreign_key).with_discriminator(type_column, alias))
     }
 
+    /// Hydrates the named inverse relation from the parent already in memory.
+    #[must_use]
+    pub fn chaperone(mut self, relation: &'static str) -> Self {
+        self.0.inverse = Some(relation);
+        self
+    }
+
+    #[must_use]
+    pub fn inverse(self, relation: &'static str) -> Self {
+        self.chaperone(relation)
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[must_use]
+    pub fn withoutChaperone(mut self) -> Self {
+        self.0.inverse = None;
+        self
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's inverse relationship API")]
+    #[must_use]
+    pub fn withoutInverse(self) -> Self {
+        self.withoutChaperone()
+    }
+
     /// Applies constraints and nested eager loads to the related query.
     #[must_use]
     pub fn constrain(
@@ -282,6 +307,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let query = self.0.configure(R::queryOn(&connection))?;
         self.apply_creation_attributes(parent, model, query.pending_attributes)
             .await?;
+        self.0.hydrate_inverse(parent, model);
         model.save().await
     }
 
@@ -291,6 +317,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         let mut model = query.make_with_attributes_async(attributes).await?;
         self.apply_creation_attributes(parent, &mut model, query.pending_attributes)
             .await?;
+        self.0.hydrate_inverse(parent, &mut model);
         Ok(model)
     }
 
@@ -384,6 +411,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
             model.setAttributeValueAsync(&column, value).await?;
         }
         self.set_parent_attributes(parent, &mut model)?;
+        self.0.hydrate_inverse(parent, &mut model);
         model.save().await?;
         Ok(model)
     }

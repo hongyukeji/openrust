@@ -138,6 +138,7 @@ pub(super) struct RelationKeys<P, R: Model> {
     configure: Option<Box<Configure<R>>>,
     pub(super) morph_constraint: Option<Box<Configure<R>>>,
     pub selection: Option<OneOfMany>,
+    pub(super) inverse: Option<&'static str>,
     pub discriminator: Option<(&'static str, &'static str)>,
     models: PhantomData<fn() -> (P, R)>,
 }
@@ -150,6 +151,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             configure: None,
             morph_constraint: None,
             discriminator: None,
+            inverse: None,
             selection: None,
             models: PhantomData,
         }
@@ -163,6 +165,7 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
             morph_constraint: self.morph_constraint,
             selection: self.selection,
             discriminator: self.discriminator,
+            inverse: self.inverse,
             models: PhantomData,
         }
     }
@@ -433,6 +436,30 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         }
     }
 
+    fn inverse_parent(parent: &P) -> Arc<P> {
+        let mut state = parent.state().clone();
+        state.relations.clear();
+        state.detached_autoload = None;
+        Arc::new(P::from_state(state))
+    }
+
+    pub(super) fn hydrate_inverse(&self, parent: &P, model: &mut R) {
+        if let Some(name) = self.inverse {
+            self.set_inverse(name, Self::inverse_parent(parent), model);
+        }
+    }
+
+    fn set_inverse(&self, name: &str, parent: Arc<P>, model: &mut R) {
+        if let Some((_, alias)) = self.discriminator {
+            model.setRelation::<super::MorphTo<R>>(
+                name,
+                Some(super::MorphTarget::from_model(alias, parent)),
+            );
+        } else {
+            model.setRelation::<super::BelongsTo<R, P>>(name, Some(parent));
+        }
+    }
+
     pub async fn match_many(
         &self,
         parents: &[&P],
@@ -467,7 +494,20 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
                 }
             }
         }
-        Ok(keys.match_models(&dictionary))
+        let mut matches = keys.match_models(&dictionary);
+        if let Some(name) = self.inverse {
+            for (parent, children) in parents.iter().zip(&mut matches) {
+                if !children.is_empty() {
+                    let parent = Self::inverse_parent(parent);
+                    for child in children {
+                        let mut model = R::from_state(child.state().clone());
+                        self.set_inverse(name, parent.clone(), &mut model);
+                        *child = Arc::new(model);
+                    }
+                }
+            }
+        }
+        Ok(matches)
     }
 }
 

@@ -6,6 +6,18 @@
 
 `BelongsToMany` 接收中间表、父模型与关联模型在中间表的外键，以及两个模型键。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
+### 在子模型上自动加载父模型 {#automatically-hydrating-parent-models-on-children}
+
+在 `HasMany` 或 `HasOne` 上使用 `chaperone("author")`，把父模型缓存到每个子模型上。`MorphMany` 和 `MorphOne` 缓存带关系别名的 `MorphTarget`。Rust 显式指定反向关系名。子模型共享省略已加载关系的父模型快照，反向读取无需查询，关系图也不会形成引用环。`inverse` 是同一入口的别名，可用 `withoutChaperone` 或 `withoutInverse` 关闭。
+
+```rust
+use openrust::database::eloquent::{Model, relations::HasMany};
+
+pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
+    HasMany::new("id", "author_id").chaperone("author")
+}
+```
+
 ### 带作用域的关系 {#scoped-relationships}
 
 在关系的 `constrain` 闭包中调用 `withAttributes`，为创建的模型提供默认属性。传入 `true` 同时添加等值查询条件，传入 `false` 仅提供默认属性。模型显式设置的属性优先。直接和多态关系仍会设置各自的父键和类型。

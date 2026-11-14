@@ -37,6 +37,27 @@ impl<P: Model, R: Model> HasOne<P, R> {
         self
     }
 
+    /// Hydrates the named inverse relation from the parent already in memory.
+    #[must_use]
+    pub fn chaperone(self, relation: &'static str) -> Self {
+        Self(self.0.chaperone(relation), self.1)
+    }
+
+    #[must_use]
+    pub fn inverse(self, relation: &'static str) -> Self {
+        self.chaperone(relation)
+    }
+
+    #[must_use]
+    pub fn withoutChaperone(self) -> Self {
+        Self(self.0.withoutChaperone(), self.1)
+    }
+
+    #[must_use]
+    pub fn withoutInverse(self) -> Self {
+        self.withoutChaperone()
+    }
+
     /// Applies constraints and nested eager loads to the related query.
     #[must_use]
     pub fn constrain(
@@ -311,7 +332,7 @@ impl<P: Model, R: Model> HasOne<P, R> {
             }
             .await?;
             let keys = &self.0.0;
-            match_defaults(
+            let mut results = match_defaults(
                 parents,
                 matches.into_iter().map(|rows| rows.into_iter().next()),
                 self.1.as_deref(),
@@ -327,7 +348,17 @@ impl<P: Model, R: Model> HasOne<P, R> {
                     }
                     attributes
                 },
-            )
+            )?;
+            if keys.inverse.is_some() {
+                for (parent, child) in parents.iter().zip(&mut results) {
+                    if let Some(child) = child.as_mut().and_then(Arc::get_mut)
+                        && !child.state().exists()
+                    {
+                        keys.hydrate_inverse(parent, child);
+                    }
+                }
+            }
+            Ok(results)
         })
     }
 }

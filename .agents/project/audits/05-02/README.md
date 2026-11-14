@@ -610,3 +610,11 @@ Rust 1.94.0 格式、严格 Clippy 和锁定工作区回归通过，624 项通�
 SQLite 与独立 MySQL 8.4.13 验证多层及多态已加载关系、共享子模型快照、保存取消与数据库冲突后的前序写入、后续节点跳过、静默重试和缓存写回。框架的普通 Pivot 是只读属性投影，通过关系的 Pivot 写入接口管理。
 
 Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 在子模型上自动加载父模型
+
+对照固定 Laravel 的 `SupportsInverseRelations` 和四类反向关系测试。`HasMany`、`HasOne`、`MorphMany`、`MorphOne` 支持 `chaperone` 与 `inverse`，也可显式关闭。Rust 使用明确的反向名称和类型化缓存，保留多态别名。一次匹配中同一父模型下的子记录共享父快照。快照省略父模型的已加载关系，避免强引用环，和 PHP 共享原对象的方式有差异。普通创建、保存和缺省模型同样填入反向缓存。旧版没有对应入口，沿用当前关系批量匹配和模型快照，参考 Goravel 的连接级 ORM。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#automatically-hydrating-parent-models-on-children) · [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/SupportsInverseRelations.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentInverseRelationHasManyTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 专项验证批量预加载、直接读取、关闭反向缓存、创建、未保存模型和缺省模型。MySQL 普通预加载及反向读取共两次 SELECT，多态单值读取及反向读取共一次 SELECT。首次测试夹具的集合借用和临时描述符生命周期问题已修正并复验。
+
+Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

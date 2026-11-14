@@ -6,6 +6,18 @@ Declare `HasOne`, `HasMany`, or `BelongsTo` with explicit keys. For example, `Ha
 
 `BelongsToMany` takes the intermediate table, its parent and related foreign keys, and the two model keys. For an `author_post` table, use `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`.
 
+### Automatically Hydrating Parent Models on Children {#automatically-hydrating-parent-models-on-children}
+
+Use `chaperone("author")` on `HasMany` or `HasOne` to cache the parent on each child. `MorphMany` and `MorphOne` cache a `MorphTarget` with the relation’s alias. The inverse name is explicit in Rust. Children share a parent snapshot without its loaded relations, so reading the inverse avoids a query and the relationship graph stays acyclic. `inverse` is an alias. Call `withoutChaperone` or `withoutInverse` to turn it off.
+
+```rust
+use openrust::database::eloquent::{Model, relations::HasMany};
+
+pub fn posts<P: Model, R: Model>() -> HasMany<P, R> {
+    HasMany::new("id", "author_id").chaperone("author")
+}
+```
+
 ### Scoped Relationships {#scoped-relationships}
 
 Use `withAttributes` inside the relation’s `constrain` callback to add defaults to newly created models. Pass `true` to also add equality conditions to relation queries, or `false` to supply defaults only. Explicit model values take precedence. Direct and polymorphic relations assign their own parent keys and morph type.

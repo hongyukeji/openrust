@@ -6254,6 +6254,139 @@ async fn verify_custom_pivot(config: Json) {
     }
 }
 
+async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &Post) {
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let mut query = Author::queryOn(db).with("posts", POSTS.chaperone("author"));
+    query.whereIn("id", vec![1.into(), 2.into()]);
+    let authors = query.get().await.unwrap();
+    let author_relation = AUTHOR;
+    let mut count = 0;
+    for author in authors {
+        for loaded in author.getRelation::<Vec<Arc<Post>>>("posts").unwrap() {
+            let mut post = Post::from_state(loaded.state().clone());
+            let inverse = post
+                .getRelationOrLoad("author", &author_relation)
+                .await
+                .unwrap();
+            let inverse = inverse.as_ref().unwrap();
+            assert_eq!(inverse.getKey(), author.getKey());
+            assert!(!inverse.relationLoaded("posts"));
+            count += 1;
+        }
+    }
+    assert!(count >= 2);
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+
+    let plain = POSTS
+        .inverse("author")
+        .withoutInverse()
+        .getResults(parent)
+        .await
+        .unwrap();
+    assert!(!plain[0].relationLoaded("author"));
+    let saved = POSTS
+        .chaperone("author")
+        .create(
+            parent,
+            Attributes::from([("title".into(), "inverse snapshot".into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        saved
+            .getRelation::<Option<Arc<Author>>>("author")
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        parent.getKey(),
+    );
+    db.table("relation_posts")
+        .r#where("id", "=", saved.getKey().unwrap().clone())
+        .delete()
+        .await
+        .unwrap();
+
+    let relation = POST_COMMENTS.chaperone("subject");
+    let made = relation
+        .firstOrNew(
+            post,
+            Attributes::from([("body".into(), "unsaved inverse".into())]),
+            Attributes::new(),
+        )
+        .await
+        .unwrap();
+    let owner = made
+        .getRelation::<Option<openrust::database::eloquent::relations::MorphTarget>>("subject")
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert_eq!(owner.alias(), "post");
+    assert_eq!(
+        owner.downcast_ref::<Post>().unwrap().getKey(),
+        post.getKey()
+    );
+
+    let saved = relation
+        .create(
+            post,
+            Attributes::from([("body".into(), "saved inverse".into())]),
+        )
+        .await
+        .unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let loaded = POST_COMMENTS
+        .one()
+        .inverse("subject")
+        .getResults(post)
+        .await
+        .unwrap()
+        .unwrap();
+    let mut loaded = Comment::from_state(loaded.state().clone());
+    let subject =
+        MorphTo::<Comment>::new("subject_type", "subject_id").target::<Post>("post", "id");
+    let loaded_owner = loaded
+        .getRelationOrLoad("subject", &subject)
+        .await
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        loaded_owner.downcast_ref::<Post>().unwrap().getKey(),
+        post.getKey()
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    db.table("relation_comments")
+        .r#where("id", "=", saved.getKey().unwrap().clone())
+        .delete()
+        .await
+        .unwrap();
+
+    let mut absent = Author::newInstanceOn(db, Attributes::new()).unwrap();
+    absent.setAttribute("id", 999);
+    let default = FIRST_POST
+        .chaperone("author")
+        .withDefault(|_, _| {})
+        .getResults(&absent)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(!default.state().exists());
+    assert_eq!(
+        default
+            .getRelation::<Option<Arc<Author>>>("author")
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        absent.getKey()
+    );
+}
+
 async fn verify(db: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
@@ -6914,6 +7047,7 @@ async fn verify(db: Connection, mysql: bool) {
     verify_default_models(&db, mysql).await;
     verify_default_eager_loads(&db, mysql).await;
     verify_morph_wildcard(&db, mysql).await;
+    Box::pin(verify_chaperone(&db, mysql, &first, &p1)).await;
     db.statement("DROP TABLE relation_featured_posts", &[])
         .await
         .unwrap();
