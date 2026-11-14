@@ -956,6 +956,20 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Kazakh IIN and Venezuelan National ID Samples {#kazakh-iin-and-venezuelan-national-id-samples}
+
+Use `individualIdentificationNumber(birthDate, gender)` with `kk-KZ`. Birth dates are optional civil dates in 1800–2099. The default is a date from the past 30 years and male gender. `Faker::checkSum(prefix)` takes eleven ASCII digits and returns the control value. When both checksum passes yield 10, the generator retries with another serial. Use `nationalId(separator)` with `es-VE` to select the separator after the `V` or `E` prefix. Both generators support `unique()`.
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn kazakh_iin_sample() -> DatabaseResult<String> {
+    fake(Some("kk-KZ"))?.unique(false)
+        .individualIdentificationNumber(NaiveDate::from_ymd_opt(2000, 2, 29), Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

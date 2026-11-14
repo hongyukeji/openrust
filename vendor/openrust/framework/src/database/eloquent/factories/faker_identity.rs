@@ -237,6 +237,83 @@ impl Faker {
         Ok([&digits[..3], &digits[3..7], &digits[7..11], &digits[11..]].join("."))
     }
 
+    /// Samples a Kazakh individual identification number.
+    pub fn individualIdentificationNumber(
+        &self,
+        birthDate: Option<NaiveDate>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "kk_KZ" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker IIN locale"));
+        }
+        let female = match gender {
+            None | Some("male") => false,
+            Some("female") => true,
+            _ => return Err(DatabaseError::InvalidQuery("invalid Faker IIN gender")),
+        };
+        let date = match birthDate {
+            Some(date) => date,
+            None => self
+                .dateTimeBetweenExpressions("-30 years", "now")?
+                .with_timezone(
+                    &self
+                        .getDefaultTimezone()
+                        .unwrap_or(self.application_timezone),
+                )
+                .date_naive(),
+        };
+        let century = match date.year() {
+            1800..=1899 => 1,
+            1900..=1999 => 3,
+            2000..=2099 => 5,
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker IIN birth year",
+                ));
+            }
+        };
+        let marker = century + u8::from(female);
+        let birth = date.format("%y%m%d");
+        loop {
+            let serial = self.numberBetween(1000, 2000);
+            let prefix = format!("{birth}{marker}{serial}");
+            let check = Self::checkSum(&prefix)?;
+            if check != 10 {
+                return Ok(format!("{prefix}{check}"));
+            }
+        }
+    }
+
+    /// Calculates the Kazakh IIN control digit for an eleven-digit prefix.
+    pub fn checkSum(iinValue: &str) -> DatabaseResult<u8> {
+        if iinValue.len() != 11 || !iinValue.bytes().all(|digit| digit.is_ascii_digit()) {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker IIN prefix must have eleven digits",
+            ));
+        }
+        let first = weighted_digits(iinValue, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) % 11;
+        if first != 10 {
+            return Ok(first as u8);
+        }
+        Ok((weighted_digits(iinValue, &[3, 4, 5, 6, 7, 8, 9, 10, 11, 1, 2]) % 11) as u8)
+    }
+
+    /// Samples a Venezuelan national ID with an optional separator.
+    pub fn nationalId(&self, separator: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "es_VE" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Venezuelan national ID locale",
+            ));
+        }
+        let (prefix, lower) = if fastrand::bool() {
+            ('V', 10_000)
+        } else {
+            ('E', 80_000_000)
+        };
+        let serial = self.numberBetween(lower, 100_000_000);
+        Ok(format!("{prefix}{}{serial}", separator.unwrap_or_default()))
+    }
+
     /// Samples an Iranian national code with its modulo-11 check digit.
     pub fn nationalCode(&self) -> DatabaseResult<String> {
         if self.locale() != "fa_IR" {
@@ -1191,6 +1268,20 @@ impl UniqueFaker<'_> {
 
     pub fn avs13(&self) -> DatabaseResult<String> {
         self.try_generate("avs13", || self.0.avs13())
+    }
+
+    pub fn individualIdentificationNumber(
+        &self,
+        birthDate: Option<NaiveDate>,
+        gender: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("individualIdentificationNumber", || {
+            self.0.individualIdentificationNumber(birthDate, gender)
+        })
+    }
+
+    pub fn nationalId(&self, separator: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("nationalId", || self.0.nationalId(separator))
     }
 
     pub fn nationalCode(&self) -> DatabaseResult<String> {

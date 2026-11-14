@@ -3034,3 +3034,72 @@ fn iranian_national_code_and_indonesian_nik_keep_their_pinned_parts() {
     assert!(iran.nik(None, None).is_err());
     assert!(indonesia.nationalCode().is_err());
 }
+
+#[test]
+fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
+    use openrust::database::eloquent::factories::Faker;
+
+    assert_eq!(Faker::checkSum("00022961021").unwrap(), 1);
+    assert_eq!(Faker::checkSum("00022961020").unwrap(), 10);
+    assert!(Faker::checkSum("000229610212").is_err());
+    assert!(Faker::checkSum("0002296102x").is_err());
+
+    let kazakh = fake(Some("kk-KZ")).unwrap();
+    let unique = kazakh.unique(true);
+    let venezuelan = fake(Some("es-VE")).unwrap();
+    let venezuela_unique = venezuelan.unique(true);
+    let mut identifiers = std::collections::HashSet::new();
+    for (year, gender, marker) in [
+        (1800, Some("male"), "1"),
+        (1899, Some("female"), "2"),
+        (1900, None, "3"),
+        (1999, Some("female"), "4"),
+        (2000, Some("male"), "5"),
+        (2099, Some("female"), "6"),
+    ] {
+        let date = chrono::NaiveDate::from_ymd_opt(year, 1, 1);
+        for _ in 0..16 {
+            let number = unique.individualIdentificationNumber(date, gender).unwrap();
+            assert_eq!(number.len(), 12);
+            assert_eq!(&number[..7], format!("{:02}0101{marker}", year % 100));
+            assert!((1000..=2000).contains(&number[7..11].parse::<u16>().unwrap()));
+            assert_eq!(
+                Faker::checkSum(&number[..11]).unwrap(),
+                number.as_bytes()[11] - b'0'
+            );
+            assert!(identifiers.insert(number));
+            let number = venezuela_unique.nationalId(Some("／")).unwrap();
+            let (prefix, serial) = number.split_once('／').unwrap();
+            let lower = match prefix {
+                "V" => 10_000,
+                "E" => 80_000_000,
+                _ => panic!("unknown prefix"),
+            };
+            assert!((lower..=100_000_000).contains(&serial.parse::<u32>().unwrap()));
+            assert!(identifiers.insert(number));
+        }
+    }
+    assert_eq!(
+        kazakh
+            .individualIdentificationNumber(None, None)
+            .unwrap()
+            .len(),
+        12
+    );
+    assert!(
+        kazakh
+            .individualIdentificationNumber(chrono::NaiveDate::from_ymd_opt(2100, 1, 1), None)
+            .is_err()
+    );
+    assert!(
+        kazakh
+            .individualIdentificationNumber(None, Some("invalid"))
+            .is_err()
+    );
+    assert!(
+        venezuelan
+            .individualIdentificationNumber(None, None)
+            .is_err()
+    );
+    assert!(kazakh.nationalId(None).is_err());
+}

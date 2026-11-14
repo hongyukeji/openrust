@@ -956,6 +956,20 @@ fn indonesian_nik_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 哈萨克斯坦 IIN 和委内瑞拉身份证号样本 {#kazakh-iin-and-venezuelan-national-id-samples}
+
+在 `kk-KZ` 中使用 `individualIdentificationNumber(birthDate, gender)`。生日接受 1800–2099 年的可选公历日期，默认从过去 30 年抽样，性别默认男性。`Faker::checkSum(prefix)` 接收 11 位 ASCII 数字并返回校验值，两轮均得到 10 时，生成器会重新抽取序号。在 `es-VE` 中用 `nationalId(separator)` 设置 `V` 或 `E` 后的分隔符。两个生成器均支持 `unique()`。
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn kazakh_iin_sample() -> DatabaseResult<String> {
+    fake(Some("kk-KZ"))?.unique(false)
+        .individualIdentificationNumber(NaiveDate::from_ymd_opt(2000, 2, 29), Some("female"))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
