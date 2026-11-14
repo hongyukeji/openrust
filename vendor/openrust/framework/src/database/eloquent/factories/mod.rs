@@ -8,7 +8,7 @@ use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseRes
 
 use super::{Attributes, Collection, Model, casts, relations::BelongsToMany};
 
-type Definition = dyn Fn() -> Attributes + Send + Sync;
+type Definition = dyn Fn(&Connection) -> DatabaseResult<Attributes> + Send + Sync;
 type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
@@ -19,7 +19,10 @@ type Relationship<M> = dyn for<'a> Fn(
     + Send
     + Sync;
 
+mod faker;
 mod relationships;
+
+pub use faker::{Faker, fake};
 
 pub use relationships::{FactoryChild, FactoryParent};
 
@@ -70,6 +73,17 @@ pub struct Factory<M: Model> {
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> Factory<M> {
     pub fn new(definition: impl Fn() -> Attributes + Send + Sync + 'static) -> Self {
+        Self::from_definition(move |_| Ok(definition()))
+    }
+
+    /// Defines model attributes using the application's configured Faker locale.
+    pub fn withFaker(definition: impl Fn(&Faker) -> Attributes + Send + Sync + 'static) -> Self {
+        Self::from_definition(move |connection| Ok(definition(&Faker::for_connection(connection)?)))
+    }
+
+    fn from_definition(
+        definition: impl Fn(&Connection) -> DatabaseResult<Attributes> + Send + Sync + 'static,
+    ) -> Self {
         Self {
             definition: Box::new(definition),
             states: Vec::new(),
@@ -299,7 +313,7 @@ impl<M: Model> Factory<M> {
         pool: &[RecycledModel],
         relation: Option<&(Attributes, Attributes)>,
     ) -> DatabaseResult<M> {
-        let mut attributes = (self.definition)();
+        let mut attributes = (self.definition)(connection)?;
         if let Some((defaults, _)) = relation {
             attributes.extend(defaults.clone());
         }

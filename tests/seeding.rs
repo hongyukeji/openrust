@@ -17,7 +17,7 @@ use openrust::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState,
-            factories::Factory,
+            factories::{Factory, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
@@ -163,6 +163,26 @@ impl Seeder for PolymorphicFactories {
         Box::pin(async {
             let connection = context.connection();
             assert_eq!(connection.getName(), "alternate");
+            assert_eq!(fake(None)?.locale(), "zh_TW");
+            assert_eq!(fake(Some("fr-fr"))?.locale(), "fr_FR");
+            let invalid = fake(Some("../en"));
+            assert!(matches!(
+                invalid,
+                Err(DatabaseError::InvalidConfiguration(_))
+            ));
+            let localized = Factory::<FactoryChild>::withFaker(|faker| {
+                assert_eq!(faker.locale(), "zh_TW");
+                let name = faker.name();
+                assert!(
+                    name.chars()
+                        .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
+                );
+                Attributes::from([("generated_name".into(), name.into())])
+            })
+            .count(2)
+            .createOn(connection)
+            .await?;
+            assert!(localized.iter().all(|model| model.state().exists()));
             let owners = || Factory::<FactoryOwner>::new(Attributes::new);
             let children = || Factory::<FactoryChild>::new(Attributes::new);
             let subject = || {
@@ -303,7 +323,10 @@ fn load(_: &Path, _: &Environment) -> Result<BTreeMap<String, Json>, ConfigError
     );
     let environment = std::env::var("SEED_FIXTURE_ENV").unwrap_or_else(|_| "local".into());
     Ok(BTreeMap::from([
-        ("app".into(), json!({"env":environment})),
+        (
+            "app".into(),
+            json!({"env":environment,"faker_locale":"zh-hant"}),
+        ),
         (
             "database".into(),
             json!({"default":"sqlite","migrations":{"table":"seed_migrations"},"connections":{
@@ -507,7 +530,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     }
     for sql in [
         "CREATE TABLE seed_factory_owners (id BIGINT AUTO_INCREMENT PRIMARY KEY)",
-        "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40))",
+        "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40), generated_name VARCHAR(120))",
         "CREATE TABLE seed_factory_links (owner_id BIGINT NOT NULL, child_id BIGINT NOT NULL, owner_type VARCHAR(40) NOT NULL, label VARCHAR(40) NOT NULL)",
     ] {
         db.statement(sql, &[]).await.unwrap();
@@ -525,7 +548,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 4);
     assert_eq!(
         db.table("seed_factory_children").count("*").await.unwrap(),
-        7
+        9
     );
     assert_eq!(
         db.table("seed_factory_children")
@@ -542,6 +565,18 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
             .await
             .unwrap(),
         ["attached".into()]
+    );
+    let names = db
+        .table("seed_factory_children")
+        .pluck("generated_name")
+        .await
+        .unwrap();
+    assert_eq!(
+        names
+            .iter()
+            .filter(|name| matches!(name, Value::Text(value) if !value.is_empty()))
+            .count(),
+        2
     );
     for table in [
         "seed_factory_links",

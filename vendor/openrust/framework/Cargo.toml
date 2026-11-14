@@ -32,6 +32,7 @@ clap = "4.6.1"
 deunicode = "1.6.2"
 dotenvy = "0.15.7"
 fastrand = "2.4.1"
+fake = { version = "=5.1.0", default-features = false }
 futures-util = { version = "0.3", default-features = false }
 http = "1.0"
 http-body = "1.0"

@@ -8,6 +8,24 @@
 ./artisan make:factory FlightFactory --model=Flight
 ```
 
+### 本地化测试数据 {#localized-fake-data}
+
+使用 `Factory::withFaker` 定义生成的模型属性。它读取所选连接所属应用的 `app.faker_locale`。使用 `fake(Some("fr_FR"))` 显式指定语言，或用 `fake(None)` 读取当前应用配置。Rust 生成器使用 fake-rs 的数据，提供 `name`、`safeEmail`、`city` 和 `sentence`。未支持的语言使用英文数据。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+pub fn profile_factory<M: Model>() -> Factory<M> {
+    Factory::withFaker(|faker| {
+        Attributes::from([
+            ("name".into(), faker.name().into()),
+            ("email".into(), faker.safeEmail().into()),
+        ])
+    })
+}
+```
+
+
 ## 使用工厂创建模型
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。

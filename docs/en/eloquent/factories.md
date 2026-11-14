@@ -8,6 +8,24 @@ Use `Factory::new` to define the model’s default attributes. Implement `HasFac
 ./artisan make:factory FlightFactory --model=Flight
 ```
 
+### Localized Fake Data {#localized-fake-data}
+
+Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr_FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+pub fn profile_factory<M: Model>() -> Factory<M> {
+    Factory::withFaker(|faker| {
+        Attributes::from([
+            ("name".into(), faker.name().into()),
+            ("email".into(), faker.safeEmail().into()),
+        ])
+    })
+}
+```
+
+
 ## Creating Models Using Factories
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.

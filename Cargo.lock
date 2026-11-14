@@ -1459,6 +1459,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fake"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea6be833b323a56361118a747470a45a1bcd5c52a2ec9b1e40c83dafe687e453"
+dependencies = [
+ "deunicode",
+ "rand 0.10.3",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2622,6 +2632,7 @@ dependencies = [
  "croner",
  "deunicode",
  "dotenvy",
+ "fake",
  "fastrand",
  "futures-util",
  "http 1.5.0",
