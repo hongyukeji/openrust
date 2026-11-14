@@ -611,6 +611,23 @@ fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
 }
 ```
 
+`hasAttachedNamed` 成功写入后，如果该命名关系已加载，或者中间表变更会触碰关联模型，工厂会重新加载该关系。`afterCreating` 可以读取更新后的集合。配置自定义 Pivot 时，集合中的关联模型带有对应的 Pivot 模型。
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model,
+    factories::Factory,
+    relations::BelongsToMany,
+};
+
+fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
+    Factory::new(Attributes::new)
+        .hasAttachedNamed::<R, BelongsToMany<M, R>>(
+            "members", vec![related], Attributes::new(),
+        )
+}
+```
+
 ### 复用已有模型 {#recycling-existing-models}
 
 用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。

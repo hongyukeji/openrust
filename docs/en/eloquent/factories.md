@@ -611,6 +611,23 @@ fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
 }
 ```
 
+After a successful `hasAttachedNamed` write, the factory reloads the named relationship if it was already loaded or if the pivot change touches the related models. The refreshed collection is available to `afterCreating` and includes custom Pivot models when configured.
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model,
+    factories::Factory,
+    relations::BelongsToMany,
+};
+
+fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
+    Factory::new(Attributes::new)
+        .hasAttachedNamed::<R, BelongsToMany<M, R>>(
+            "members", vec![related], Attributes::new(),
+        )
+}
+```
+
 ### Recycling Existing Models {#recycling-existing-models}
 
 Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match.

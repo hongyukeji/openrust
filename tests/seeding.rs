@@ -5144,3 +5144,148 @@ async fn verify_factory_relation_cache(connection: &Connection) -> DatabaseResul
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn factory_named_custom_pivot_reloads_touched_members_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_factory_pivot_touch(&Root::new().connection(Some(&url), ""))
+        .await
+        .unwrap();
+}
+type PivotMembers = openrust::database::eloquent::relations::BelongsToMany<PivotOwner, PivotMember>;
+struct PivotOwner(ModelState);
+struct PivotMember(ModelState);
+struct CustomFactoryPivot(ModelState);
+
+macro_rules! pivot_model {
+    ($model:ident, $metadata:expr, $($extra:item),*) => {
+        impl Model for $model {
+            fn metadata() -> &'static ModelMetadata {
+                static METADATA: ModelMetadata = $metadata;
+                &METADATA
+            }
+            fn from_state(state: ModelState) -> Self { Self(state) }
+            fn state(&self) -> &ModelState { &self.0 }
+            fn state_mut(&mut self) -> &mut ModelState { &mut self.0 }
+            $($extra)*
+        }
+    };
+}
+
+fn pivot_members() -> PivotMembers {
+    PivotMembers::new("factory_touch_pivot", "owner_id", "member_id", "id", "id")
+        .using::<CustomFactoryPivot>()
+        .withPivot(["label"])
+}
+
+pivot_model!(
+    PivotOwner,
+    ModelMetadata::new("factory_touch_owners").timestamps(None, None),
+    fn namedRelations() -> NamedRelations<Self> {
+        NamedRelations::default().nested("members", pivot_members)
+    },
+    fn touches() -> openrust::database::eloquent::Touches<Self> {
+        openrust::database::eloquent::Touches::default().belongsToMany(pivot_members())
+    }
+);
+pivot_model!(
+    PivotMember,
+    ModelMetadata::new("factory_touch_members").timestamps(None, Some("updated_at")),
+);
+pivot_model!(
+    CustomFactoryPivot,
+    ModelMetadata::new("unused_factory_pivot")
+        .incrementing(false)
+        .timestamps(None, None),
+);
+
+async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
+    use openrust::database::eloquent::RelatedCollection;
+
+    const OLD: &str = "2000-01-01 00:00:00";
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("factory_touch_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("factory_touch_members", |table| {
+            table.id();
+            table.timestamp("updated_at", 0);
+        })
+        .await?;
+    schema
+        .create("factory_touch_pivot", |table| {
+            table.unsignedBigInteger("owner_id");
+            table.unsignedBigInteger("member_id");
+            table.string("label", 32);
+        })
+        .await?;
+    let member = || Factory::<PivotMember>::new(Attributes::new).set("updated_at", OLD);
+    let first = member().createOn(db).await?;
+    let second = member().createOn(db).await?;
+    let third = member().createOn(db).await?;
+    let untouched = third.getKey().cloned().unwrap();
+    let prior = RelatedCollection::fromShared(vec![std::sync::Arc::new(PivotMember::from_state(
+        first.state().clone(),
+    ))]);
+    let owner = Factory::<PivotOwner>::new(Attributes::new)
+        .afterMaking(move |owner| {
+            owner.setRelation::<PivotMembers>("members", prior.clone());
+            Ok(())
+        })
+        .hasAttachedNamed::<PivotMember, PivotMembers>(
+            "members",
+            vec![first, second],
+            vec![
+                Attributes::from([("label".into(), "first".into())]),
+                Attributes::from([("label".into(), "second".into())]),
+            ],
+        )
+        .afterCreating(|owner| {
+            let members = owner
+                .getRelation::<RelatedCollection<PivotMember>>("members")
+                .unwrap();
+            assert_eq!(members.len(), 2);
+            let mut labels = Vec::new();
+            for member in members.iter() {
+                assert_ne!(member.getAttribute("updated_at"), Some(&OLD.into()));
+                let pivot = member.getRelation::<CustomFactoryPivot>("pivot").unwrap();
+                labels.push(pivot.getAttribute("label").cloned().unwrap());
+            }
+            assert!(labels.contains(&"first".into()));
+            assert!(labels.contains(&"second".into()));
+            Ok(())
+        })
+        .createOn(db)
+        .await?;
+    assert!(owner.relationLoaded("members"));
+    assert_eq!(db.table("factory_touch_pivot").count("*").await?, 2);
+    assert_eq!(
+        db.scalar(
+            "SELECT updated_at FROM factory_touch_members WHERE id = ?",
+            &[untouched]
+        )
+        .await?,
+        OLD.into()
+    );
+    let appended = Factory::<PivotOwner>::new(Attributes::new)
+        .hasAttachedNamed::<PivotMember, PivotMembers>(
+            "members",
+            member(),
+            Attributes::from([("label".into(), "new".into())]),
+        )
+        .createOn(db)
+        .await?;
+    let members = appended
+        .getRelation::<RelatedCollection<PivotMember>>("members")
+        .unwrap();
+    assert_eq!(members.len(), 1);
+    assert_ne!(members[0].getAttribute("updated_at"), Some(&OLD.into()));
+    assert_eq!(db.table("factory_touch_pivot").count("*").await?, 3);
+    Ok(())
+}

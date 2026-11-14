@@ -414,6 +414,19 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         }
     }
 
+    pub(in crate::database::eloquent) fn touches_related(
+        &self,
+        parent: &P,
+    ) -> DatabaseResult<bool> {
+        self.touches_related_on(&self.keys.connection(parent)?)
+    }
+
+    fn touches_related_on(&self, connection: &Connection) -> DatabaseResult<bool> {
+        Ok(R::metadata().updated_at.is_some()
+            && (self.touch_related
+                || P::touches().contains_pivot(&self.touch_identity(), connection)?))
+    }
+
     fn pivot_touches(
         &self,
         parent: &P,
@@ -429,9 +442,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         } else {
             None
         };
-        let related_touch = if R::metadata().updated_at.is_some()
-            && (self.touch_related || P::touches().contains_pivot(&identity, connection)?)
-        {
+        let related_touch = if self.touches_related_on(connection)? {
             self.related_touch(owner)
         } else {
             None

@@ -970,7 +970,12 @@ impl<M: Model> Factory<M> {
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let relation = Arc::new(relation.into());
-        self.has_attached_resolved(move |_| Ok(relation.clone()), models.into(), pivot.into())
+        self.has_attached_resolved(
+            move |_| Ok(relation.clone()),
+            models.into(),
+            pivot.into(),
+            None,
+        )
     }
 
     /// Resolves a registered model relationship by name and Rust descriptor type.
@@ -982,12 +987,15 @@ impl<M: Model> Factory<M> {
         pivot: impl Into<FactoryPivot<M>>,
     ) -> Self {
         let name = name.into();
+        let resolve_name = name.clone();
         self.has_attached_resolved(
             move |model| {
-                named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation.into()))
+                named_descriptor::<M, D>(model, &resolve_name)
+                    .map(|relation| Arc::new(relation.into()))
             },
             models.into(),
             pivot.into(),
+            Some(name),
         )
     }
 
@@ -996,6 +1004,7 @@ impl<M: Model> Factory<M> {
         relation: impl Fn(&M) -> DatabaseResult<Arc<BelongsToMany<M, R>>> + Send + Sync + 'static,
         models: FactoryAttachment<R>,
         pivot: FactoryPivot<M>,
+        name: Option<String>,
     ) -> Self {
         let models = match models {
             FactoryAttachment::Uncounted(factory) => {
@@ -1007,12 +1016,12 @@ impl<M: Model> Factory<M> {
             }
             models => models,
         };
-        let relation = Arc::new((relation, models, pivot, AtomicUsize::new(0)));
+        let relation = Arc::new((relation, models, pivot, AtomicUsize::new(0), name));
         self.children
             .push(Box::new(move |connection, parent, inherited| {
                 let relation = Arc::clone(&relation);
                 Box::pin(async move {
-                    let (relation, models, pivot, pivot_index) = &*relation;
+                    let (relation, models, pivot, pivot_index, name) = &*relation;
                     let relation = relation(parent)?;
                     let generated;
                     let models: &[R] = match models {
@@ -1052,21 +1061,30 @@ impl<M: Model> Factory<M> {
                         })
                         .collect::<DatabaseResult<Vec<_>>>()?;
                     if let FactoryPivot::Shared(attributes) = pivot {
-                        return relation.attachWith(parent, &keys, attributes.clone()).await;
-                    }
-                    for key in &keys {
-                        let attributes = match pivot {
-                            FactoryPivot::Shared(_) => unreachable!(),
-                            FactoryPivot::Sequence(states) => pivot_index
-                                .fetch_add(1, Ordering::Relaxed)
-                                .checked_rem(states.len())
-                                .map(|offset| states[offset].clone())
-                                .unwrap_or_default(),
-                            FactoryPivot::Resolve(resolve) => resolve(parent)?,
-                        };
                         relation
-                            .attachWith(parent, std::slice::from_ref(key), attributes)
+                            .attachWith(parent, &keys, attributes.clone())
                             .await?;
+                    } else {
+                        for key in &keys {
+                            let attributes = match pivot {
+                                FactoryPivot::Shared(_) => unreachable!(),
+                                FactoryPivot::Sequence(states) => pivot_index
+                                    .fetch_add(1, Ordering::Relaxed)
+                                    .checked_rem(states.len())
+                                    .map(|offset| states[offset].clone())
+                                    .unwrap_or_default(),
+                                FactoryPivot::Resolve(resolve) => resolve(parent)?,
+                            };
+                            relation
+                                .attachWith(parent, std::slice::from_ref(key), attributes)
+                                .await?;
+                        }
+                    }
+                    if let Some(name) = name
+                        && !keys.is_empty()
+                        && (parent.relationLoaded(name) || relation.touches_related(parent)?)
+                    {
+                        parent.load(name, relation.as_ref()).await?;
                     }
                     Ok(())
                 })
