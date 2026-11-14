@@ -300,17 +300,24 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `fr-FR` 的 `siret(None)` 依 3–3–3–5 分組產生法國機構編號，傳入 `Some(false)` 可取得無空格形式。九位 SIREN 前綴和十四位完整編號分別通過 Luhn 檢查。`pl-PL` 的 `regon()` 產生九位企業登記號，`regonLocal()` 以有效的 REGON 為前綴產生十四位本地登記號。兩者採用加權模 11 檢查，餘數為 10 時檢查碼為零。三個產生方法都支援 `unique`。
 
+`cs-CZ` 的 `ico()` 產生帶有檢查碼的八位捷克企業編號。`da-DK` 的 `cvr()` 傳回八位數字，`p()` 傳回十位數字。`is-IS` 的 `vsk()` 傳回五位數字。丹麥和冰島的格式沿用上游樣本規則，首位為非零數字。四個方法都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 27]> {
+fn identity_samples() -> DatabaseResult<[String; 31]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     let russian = fake(Some("ru-RU"))?;
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
+    let danish = fake(Some("da-DK"))?;
     Ok([
+        fake(Some("cs-CZ"))?.ico()?,
+        danish.cvr()?,
+        danish.p()?,
+        fake(Some("is-IS"))?.vsk()?,
         fake(Some("fr-FR"))?.siret(None)?,
         polish.regon()?,
         polish.unique(false).regonLocal()?,

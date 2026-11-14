@@ -631,3 +631,42 @@ fn french_siret_and_polish_regon_follow_pinned_formats() {
     assert!(french.regon().is_err());
     assert!(french.regonLocal().is_err());
 }
+
+#[test]
+fn czech_danish_and_icelandic_business_identifiers_match_pinned_formats() {
+    let czech = fake(Some("cs-CZ")).unwrap();
+    let danish = fake(Some("da-DK")).unwrap();
+    let icelandic = fake(Some("is-IS")).unwrap();
+
+    let czech_unique = czech.unique(true);
+    let danish_unique = danish.unique(true);
+    let icelandic_unique = icelandic.unique(true);
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..128 {
+        let ico = czech_unique.ico().unwrap();
+        assert_eq!(ico.len(), 8);
+        assert!(ico.bytes().all(|digit| digit.is_ascii_digit()));
+        let sum: u16 = ico
+            .bytes()
+            .zip((2_u16..=8).rev())
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum();
+        let expected = [1, 0, 9, 8, 7, 6, 5, 4, 3, 2, 1][usize::from(sum % 11)];
+        assert_eq!(ico.as_bytes()[7] - b'0', expected);
+        assert!(seen.insert(("ico", ico)));
+        for (formatter, value, len) in [
+            ("cvr", danish_unique.cvr().unwrap(), 8),
+            ("p", danish_unique.p().unwrap(), 10),
+            ("vsk", icelandic_unique.vsk().unwrap(), 5),
+        ] {
+            assert_eq!(value.len(), len);
+            assert!(value.bytes().all(|digit| digit.is_ascii_digit()));
+            assert_ne!(value.as_bytes()[0], b'0');
+            assert!(seen.insert((formatter, value)));
+        }
+    }
+    assert!(danish.ico().is_err());
+    assert!(czech.cvr().is_err());
+    assert!(icelandic.p().is_err());
+    assert!(danish.vsk().is_err());
+}

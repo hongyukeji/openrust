@@ -717,3 +717,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `53f8edc7`。PHP 8.5 生成并核对 2,048 条固定上游样本。Rust 1.94.0 格式、工作区全目标严格 Clippy、10 项地区回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过，MySQL fresh 已在独立临时数据库另行执行。MySQL 8.4.13 通过实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查四条样本，覆盖 SIRET 两种输出和 REGON 两种长度。Artisan inspire、三语示例编译、VitePress 和根路径及 `/docs/` 下六项浏览器检查通过，保留已有分块大小提示。下一批核对捷克 IČO、丹麦 CVR 与 P 编号及冰岛 VSK。
 
 已恢复临时 Seeder，清理本批 2.2 GiB Cargo 产物及 39 MiB 站点产物。提交前周额度剩余 50%，项目卷可用 81 GiB。
+
+## Faker 捷克 IČO、丹麦 CVR 与 P 编号、冰岛 VSK
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [捷克 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/cs_CZ/Company.php)、[丹麦 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/da_DK/Company.php) 与[冰岛 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/is_IS/Company.php)。IČO 复用数字掩码与加权求和，保留余数为 0、1、10 的特殊映射。丹麦 CVR 与 P 编号及冰岛 VSK 分别保留 8、10、5 位非零开头的数字掩码。Rust 接口保留上游命名，按地区拒绝不适用的 formatter，四个方法均支持独立的 `unique` 历史。v0.x 未找到等价实现，Goravel 式装配继续调用既有 Faker。
+
+隔离基线 `5ddb1d38`。PHP 8.5 核对 2,048 条固定上游样本，覆盖 IČO 全部 11 种余数。Rust 1.94.0 格式、工作区全目标严格 Clippy、11 项地区测试、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过，独立临时 MySQL 实例实际执行 fresh 用例。MySQL 8.4.13 通过实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查四条样本。Artisan inspire、三语示例编译、VitePress 和双挂载六项浏览器检查通过，保留已有分块大小提示。
+
+已恢复临时 Seeder，清理本批 2.2 GiB Cargo 产物与 39 MiB 站点产物。提交前周额度剩余 50%，磁盘 81 GiB。下一批核对沙特与埃及企业编号。

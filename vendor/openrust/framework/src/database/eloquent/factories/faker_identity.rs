@@ -267,6 +267,47 @@ impl Faker {
         Ok(Self::tcNoChecksum(split.0)? == split.1)
     }
 
+    /// Samples a Czech business identification number (IČO).
+    pub fn ico(&self) -> DatabaseResult<String> {
+        if self.locale() != "cs_CZ" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker IČO locale"));
+        }
+        let mut number = self.numerify(Some("#######"));
+        let check = match weighted_digits(&number, &[8, 7, 6, 5, 4, 3, 2]) % 11 {
+            0 | 10 => 1,
+            1 => 0,
+            remainder => 11 - remainder,
+        };
+        number.push(char::from(b'0' + check as u8));
+        Ok(number)
+    }
+
+    /// Samples a Danish business registration number (CVR).
+    pub fn cvr(&self) -> DatabaseResult<String> {
+        if self.locale() != "da_DK" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker CVR locale"));
+        }
+        Ok(self.numerify(Some("%#######")))
+    }
+
+    /// Samples a Danish production unit number.
+    pub fn p(&self) -> DatabaseResult<String> {
+        if self.locale() != "da_DK" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker P number locale",
+            ));
+        }
+        Ok(self.numerify(Some("%#########")))
+    }
+
+    /// Samples an Icelandic VAT registration number (VSK).
+    pub fn vsk(&self) -> DatabaseResult<String> {
+        if self.locale() != "is_IS" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker VSK locale"));
+        }
+        Ok(self.numerify(Some("%####")))
+    }
+
     /// Samples a French establishment identifier with a valid SIREN prefix.
     pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         const NIC_FORMATS: [&str; 3] = ["####", "0###", "00#%"];
@@ -667,6 +708,22 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn ico(&self) -> DatabaseResult<String> {
+        self.try_generate("ico", || self.0.ico())
+    }
+
+    pub fn cvr(&self) -> DatabaseResult<String> {
+        self.try_generate("cvr", || self.0.cvr())
+    }
+
+    pub fn p(&self) -> DatabaseResult<String> {
+        self.try_generate("p", || self.0.p())
+    }
+
+    pub fn vsk(&self) -> DatabaseResult<String> {
+        self.try_generate("vsk", || self.0.vsk())
     }
 
     pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {

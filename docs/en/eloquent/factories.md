@@ -300,17 +300,24 @@ Use `ein()` with `en-US` for a two-digit provider prefix and a seven-digit suffi
 
 Use `siret(None)` with `fr-FR` for a French establishment identifier formatted as 3–3–3–5 digits. Pass `Some(false)` for the compact form. The nine-digit SIREN prefix and the full fourteen-digit identifier each have a Luhn check digit. With `pl-PL`, `regon()` generates a nine-digit business register number and `regonLocal()` extends a valid REGON prefix to fourteen digits. Both use a weighted modulo-11 check digit, mapping a remainder of 10 to zero. All three generators support `unique`.
 
+Use `ico()` with `cs-CZ` for an eight-digit Czech business number with a check digit. With `da-DK`, `cvr()` returns eight digits and `p()` returns ten. With `is-IS`, `vsk()` returns five digits. The Danish and Icelandic formats start with a nonzero digit and follow the upstream sample masks. All four generators support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 27]> {
+fn identity_samples() -> DatabaseResult<[String; 31]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
     let russian = fake(Some("ru-RU"))?;
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
+    let danish = fake(Some("da-DK"))?;
     Ok([
+        fake(Some("cs-CZ"))?.ico()?,
+        danish.cvr()?,
+        danish.p()?,
+        fake(Some("is-IS"))?.vsk()?,
         fake(Some("fr-FR"))?.siret(None)?,
         polish.regon()?,
         polish.unique(false).regonLocal()?,
