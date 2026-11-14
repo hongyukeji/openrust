@@ -1431,7 +1431,7 @@ impl Seeder for PolymorphicFactories {
                 first[0].getAttribute("owner_id"),
                 first[1].getAttribute("owner_id")
             );
-            assert_ne!(
+            assert_eq!(
                 first[0].getAttribute("owner_id"),
                 second[0].getAttribute("owner_id")
             );
@@ -1784,7 +1784,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
             "--force",
         ],
     ));
-    assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 4);
+    assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 3);
     assert_eq!(
         db.table("seed_factory_children").count("*").await.unwrap(),
         9
@@ -3138,6 +3138,142 @@ async fn factory_owner_resolution_skips_overwritten_keys() {
         verify_deferred_factory_owner(&root.connection(Some(&url), ""))
             .await
             .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
+
+async fn verify_factory_parent_cache(
+    connection: &Connection,
+    independent: &Connection,
+) -> DatabaseResult<()> {
+    let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
+    let factory = || {
+        Factory::<ExpansionChild>::new(Attributes::new).r#for(
+            BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
+            owners(),
+        )
+    };
+
+    // A failed asynchronous resolution must be retryable on the same builder.
+    let factory = factory();
+    assert!(factory.rawOn(connection).await.is_err());
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    let (raw, model) = tokio::join!(factory.rawOn(connection), factory.makeOn(connection));
+    let raw = raw?;
+    let model = model?;
+    assert_eq!(Some(&raw["owner_id"]), model.getAttribute("owner_id"));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+
+    let batch = factory.count(2);
+    assert!(
+        batch
+            .rawOn(connection)
+            .await?
+            .iter()
+            .all(|row| row["owner_id"] == raw["owner_id"])
+    );
+    assert!(batch.rawOn(independent).await.is_err());
+    let mut independent_schema = independent.getSchemaBuilder();
+    independent_schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    independent
+        .table("expansion_owners")
+        .insert(&[Attributes::from([("id".into(), 100_i64.into())])])
+        .await?;
+    let independent_result = batch.rawOn(independent).await?;
+    assert_ne!(independent_result[0]["owner_id"], raw["owner_id"]);
+    assert_eq!(
+        independent_result[0]["owner_id"],
+        independent_result[1]["owner_id"]
+    );
+    assert_eq!(independent.table("expansion_owners").count("*").await?, 2);
+    assert_eq!(
+        batch.rawOn(connection).await?[0]["owner_id"],
+        raw["owner_id"]
+    );
+
+    let local_owner = ExpansionOwner::queryOn(connection)
+        .findOrFail(raw["owner_id"].clone())
+        .await?;
+    let local_key = local_owner.getKey().unwrap().clone();
+    let remote_owner = ExpansionOwner::queryOn(independent)
+        .findOrFail(independent_result[0]["owner_id"].clone())
+        .await?;
+    let remote_key = remote_owner.getKey().unwrap().clone();
+    let recycled = Factory::<ExpansionChild>::new(Attributes::new);
+    assert!(
+        recycled
+            .getRandomRecycledModel::<ExpansionOwner>()
+            .is_none()
+    );
+    let recycled = recycled.recycle(ExpansionOwner::from_state(ModelState::default()));
+    assert!(
+        recycled
+            .getRandomRecycledModel::<ExpansionOwner>()
+            .is_none()
+    );
+    let recycled = recycled
+        .recycle(local_owner)
+        .recycle(remote_owner)
+        .r#for(
+            BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
+            owners(),
+        )
+        .count(2);
+    assert!(
+        recycled
+            .getRandomRecycledModel::<ExpansionChild>()
+            .is_none()
+    );
+    let keys = [&local_key, &remote_key];
+    assert!(
+        keys.contains(
+            &recycled
+                .getRandomRecycledModel::<ExpansionOwner>()
+                .unwrap()
+                .getKey()
+                .unwrap()
+        )
+    );
+    assert!(
+        recycled
+            .rawOn(connection)
+            .await?
+            .iter()
+            .all(|row| row["owner_id"] == local_key)
+    );
+    assert!(
+        recycled
+            .rawOn(independent)
+            .await?
+            .iter()
+            .all(|row| row["owner_id"] == remote_key)
+    );
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+    assert_eq!(independent.table("expansion_owners").count("*").await?, 2);
+    independent_schema.drop("expansion_owners").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_parent_cache_survives_calls_and_respects_connections() {
+    let root = Root::new();
+    let sqlite = root.connection(None, "database/database.sqlite");
+    let other = root.connection(None, "database/alternate.sqlite");
+    verify_factory_parent_cache(&sqlite, &other).await.unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        let mysql = root.connection(Some(&url), "");
+        verify_factory_parent_cache(&mysql, &other).await.unwrap();
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }

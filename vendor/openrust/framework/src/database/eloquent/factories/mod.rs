@@ -4,7 +4,7 @@ use std::{
     any::{Any, TypeId},
     collections::BTreeMap,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -65,7 +65,6 @@ type Parent<M> = dyn Fn(&M) -> DatabaseResult<PreparedParent<M>> + Send + Sync;
 type ParentResolver<M> = dyn for<'a> Fn(
         &'a Connection,
         &'a mut M,
-        &'a ParentCache,
         &'a [RecycledModel],
     ) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
@@ -83,7 +82,40 @@ struct FactoryAttributes<M> {
 }
 
 type SharedModel = Arc<dyn Any + Send + Sync>;
-type ParentCache = OnceCell<SharedModel>;
+struct ResolvedParents<R> {
+    owners: Mutex<Vec<ResolvedParent<R>>>,
+}
+
+struct ResolvedParent<R> {
+    child_source: Connection,
+    owner_source: Connection,
+    model: Arc<OnceCell<Arc<R>>>,
+}
+
+impl<R> ResolvedParents<R> {
+    fn new() -> Self {
+        Self {
+            owners: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn for_connection(&self, child: &Connection, owner: &Connection) -> Arc<OnceCell<Arc<R>>> {
+        let mut owners = self.owners.lock().unwrap();
+        if let Some(cached) = owners.iter().find(|cached| {
+            cached.child_source.same_query_source(child)
+                && cached.owner_source.same_query_source(owner)
+        }) {
+            return Arc::clone(&cached.model);
+        }
+        let model = Arc::new(OnceCell::new());
+        owners.push(ResolvedParent {
+            child_source: child.clone(),
+            owner_source: owner.clone(),
+            model: Arc::clone(&model),
+        });
+        model
+    }
+}
 
 type ParentAttributeResolver = dyn for<'a> Fn(&'a Connection, &'a [RecycledModel]) -> DatabaseFuture<'a, DatabaseResult<Value>>
     + Send
@@ -117,15 +149,18 @@ struct RecycledModel {
     model: SharedModel,
 }
 
-fn recycled_owner<R: Model>(
-    pool: &[RecycledModel],
-    connection: &Connection,
-) -> Option<SharedModel> {
+fn recycled_owner<'a, R: Model>(
+    pool: &'a [RecycledModel],
+    connection: Option<&Connection>,
+) -> Option<&'a RecycledModel> {
     let candidates: Vec<_> = pool
         .iter()
-        .filter(|entry| entry.model.is::<R>() && entry.connection.same_query_source(connection))
+        .filter(|entry| {
+            entry.model.is::<R>()
+                && connection.is_none_or(|source| entry.connection.same_query_source(source))
+        })
         .collect();
-    fastrand::choice(candidates).map(|entry| entry.model.clone())
+    fastrand::choice(candidates)
 }
 
 /// A named factory definition with a compile-time model binding.
@@ -382,6 +417,13 @@ impl<M: Model> Factory<M> {
             })
         }));
         self
+    }
+
+    /// Selects a recycled model of the requested type without accessing the database.
+    pub fn getRandomRecycledModel<R: Model>(&self) -> Option<&R> {
+        recycled_owner::<R>(&self.recycled, None)?
+            .model
+            .downcast_ref()
     }
 
     fn recycle_pool(&self, inherited: &[RecycledModel]) -> Vec<RecycledModel> {
@@ -651,6 +693,7 @@ impl<M: Model> Factory<M> {
         owner: Factory<R>,
     ) -> Self {
         let owner = Arc::new(owner);
+        let resolved = Arc::new(ResolvedParents::<R>::new());
         self.parents.push(Box::new(move |model| {
             let relation = relation(model)?;
             let mut prototype = R::from_state(Default::default());
@@ -660,34 +703,39 @@ impl<M: Model> Factory<M> {
                 .factory_morph_type(&prototype)?
                 .map(|(name, alias)| (name.to_owned(), alias.into()));
             let owner = Arc::clone(&owner);
+            let resolved = Arc::clone(&resolved);
             Ok(PreparedParent {
                 foreign_key,
                 morph_type,
-                resolve: Box::new(move |connection, model, cache, inherited| {
+                resolve: Box::new(move |connection, model, inherited| {
                     let relation = Arc::clone(&relation);
                     let owner = Arc::clone(&owner);
+                    let resolved = Arc::clone(&resolved);
                     Box::pin(async move {
+                        let owner_connection = owner.resolve_related_connection(connection)?;
+                        let cache = resolved.for_connection(connection, &owner_connection);
                         let owner = cache
                             .get_or_try_init(|| async {
-                                let connection = owner.resolve_related_connection(connection)?;
                                 let pool = owner.recycle_pool(inherited);
-                                if let Some(model) = recycled_owner::<R>(&pool, &connection) {
-                                    return Ok(model);
+                                if let Some(entry) =
+                                    recycled_owner::<R>(&pool, Some(&owner_connection))
+                                {
+                                    return Ok(Arc::clone(&entry.model)
+                                        .downcast::<R>()
+                                        .expect("factory owner type"));
                                 }
                                 let model = owner
                                     .create_one(
-                                        &connection,
+                                        &owner_connection,
                                         0,
-                                        &owner.parent_cache(),
                                         &pool,
                                         &std::sync::OnceLock::new(),
                                         Attributes::new(),
                                     )
                                     .await?;
-                                Ok::<SharedModel, DatabaseError>(Arc::new(model))
+                                Ok::<_, DatabaseError>(Arc::new(model))
                             })
                             .await?;
-                        let owner = owner.downcast_ref::<R>().expect("factory owner cache type");
                         relation.associate(model, owner)
                     })
                 }),
@@ -711,16 +759,18 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let connection = owner.resolve_related_connection(connection)?;
                     let pool = owner.recycle_pool(inherited);
-                    let existing = recycled_owner::<R>(&pool, &connection);
+                    let existing = recycled_owner::<R>(&pool, Some(&connection));
                     let generated;
                     let related = if let Some(existing) = &existing {
-                        existing.downcast_ref::<R>().expect("factory owner type")
+                        existing
+                            .model
+                            .downcast_ref::<R>()
+                            .expect("factory owner type")
                     } else {
                         generated = owner
                             .create_one(
                                 &connection,
                                 0,
-                                &owner.parent_cache(),
                                 &pool,
                                 &std::sync::OnceLock::new(),
                                 Attributes::new(),
@@ -778,7 +828,7 @@ impl<M: Model> Factory<M> {
             Ok(PreparedParent {
                 foreign_key,
                 morph_type,
-                resolve: Box::new(move |_, model, _, _| {
+                resolve: Box::new(move |_, model, _| {
                     let relation = Arc::clone(&relation);
                     Box::pin(async move { relation.0.associate(model, &relation.1) })
                 }),
@@ -906,7 +956,6 @@ impl<M: Model> Factory<M> {
         self.make_one(
             connection,
             0,
-            &self.parent_cache(),
             &self.recycled,
             &std::sync::OnceLock::new(),
             attributes,
@@ -932,20 +981,12 @@ impl<M: Model> Factory<M> {
         records: FactoryRecords,
         default_count: usize,
     ) -> DatabaseResult<Collection<M>> {
-        let cache = self.parent_cache();
         let faker = std::sync::OnceLock::new();
         let mut models = Vec::new();
         for (index, attributes) in records.into_attributes(default_count).enumerate() {
             models.push(
-                self.make_one(
-                    connection,
-                    index,
-                    &cache,
-                    &self.recycled,
-                    &faker,
-                    attributes,
-                )
-                .await?,
+                self.make_one(connection, index, &self.recycled, &faker, attributes)
+                    .await?,
             );
         }
         Ok(Collection::new(models))
@@ -997,7 +1038,6 @@ impl<M: Model> Factory<M> {
         self.create_one(
             connection,
             0,
-            &self.parent_cache(),
             &self.recycled,
             &std::sync::OnceLock::new(),
             attributes,
@@ -1051,20 +1091,12 @@ impl<M: Model> Factory<M> {
         records: FactoryRecords,
         default_count: usize,
     ) -> DatabaseResult<Collection<M>> {
-        let cache = self.parent_cache();
         let faker = std::sync::OnceLock::new();
         let mut models = Vec::new();
         for (index, attributes) in records.into_attributes(default_count).enumerate() {
             models.push(
-                self.create_one(
-                    connection,
-                    index,
-                    &cache,
-                    &self.recycled,
-                    &faker,
-                    attributes,
-                )
-                .await?,
+                self.create_one(connection, index, &self.recycled, &faker, attributes)
+                    .await?,
             );
         }
         Ok(Collection::new(models))
@@ -1084,32 +1116,22 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Attributes> {
-        self.raw_attributes(
-            connection,
-            0,
-            &self.parent_cache(),
-            &std::sync::OnceLock::new(),
-        )
-        .await
+        self.raw_attributes(connection, 0, &std::sync::OnceLock::new())
+            .await
     }
 
     async fn raw_attributes(
         &self,
         connection: &Connection,
         index: usize,
-        cache: &[ParentCache],
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<Attributes> {
         let mut pending = self.prepare_attributes(connection, index, None, faker)?;
-        self.resolve_attributes(connection, cache, &self.recycled, &mut pending)
+        self.resolve_attributes(connection, &self.recycled, &mut pending)
             .await?;
         let mut expanded = pending.model.state().attributes.clone();
         expanded.extend(pending.values);
         Ok(expanded)
-    }
-
-    fn parent_cache(&self) -> Vec<ParentCache> {
-        self.parents.iter().map(|_| OnceCell::new()).collect()
     }
 
     async fn apply_attributes(
@@ -1179,7 +1201,6 @@ impl<M: Model> Factory<M> {
     async fn resolve_attributes(
         &self,
         connection: &Connection,
-        cache: &[ParentCache],
         pool: &[RecycledModel],
         pending: &mut FactoryAttributes<M>,
     ) -> DatabaseResult<()> {
@@ -1189,13 +1210,13 @@ impl<M: Model> Factory<M> {
                 last_parent.insert(key, index);
             }
         }
-        for (index, (parent, cache)) in pending.parents.iter().zip(cache).enumerate() {
+        for (index, parent) in pending.parents.iter().enumerate() {
             if let Some(key) = &parent.foreign_key
                 && (pending.values.contains_key(key) || last_parent[key] != index)
             {
                 continue;
             }
-            (parent.resolve)(connection, &mut pending.model, cache, pool).await?;
+            (parent.resolve)(connection, &mut pending.model, pool).await?;
         }
         self.expand_parent_attributes(connection, &mut pending.values, pool, &last_parent)
             .await
@@ -1233,14 +1254,13 @@ impl<M: Model> Factory<M> {
         &self,
         connection: &Connection,
         index: usize,
-        cache: &[ParentCache],
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
         let mut pending = self.prepare_attributes(connection, index, None, faker)?;
         pending.values.extend(overrides);
-        self.resolve_attributes(connection, cache, pool, &mut pending)
+        self.resolve_attributes(connection, pool, &mut pending)
             .await?;
         let mut model = Self::apply_attributes(connection, pending.model, pending.values).await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
@@ -1251,13 +1271,12 @@ impl<M: Model> Factory<M> {
         &self,
         connection: &Connection,
         index: usize,
-        cache: &[ParentCache],
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, index, cache, pool, faker, overrides)
+            .make_one(connection, index, pool, faker, overrides)
             .await?;
         self.store(connection, &mut model, pool).await?;
         self.run_after_creating(std::slice::from_mut(&mut model), None)?;
@@ -1506,17 +1525,21 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn rawOn(&self, connection: &Connection) -> DatabaseResult<Vec<Attributes>> {
-        let cache = self.factory.parent_cache();
         let faker = std::sync::OnceLock::new();
         let mut records = Vec::with_capacity(self.count);
         for index in 0..self.count {
             records.push(
                 self.factory
-                    .raw_attributes(connection, index, &cache, &faker)
+                    .raw_attributes(connection, index, &faker)
                     .await?,
             );
         }
         Ok(records)
+    }
+
+    /// Selects a recycled model of the requested type without accessing the database.
+    pub fn getRandomRecycledModel<R: Model>(&self) -> Option<&R> {
+        self.factory.getRandomRecycledModel()
     }
 
     #[must_use]
@@ -1559,7 +1582,6 @@ impl<M: Model> FactoryBatch<M> {
         overrides: &Attributes,
     ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
-        let cache = self.factory.parent_cache();
         let faker = std::sync::OnceLock::new();
         for index in 0..self.count {
             let mut pending = self
@@ -1567,7 +1589,7 @@ impl<M: Model> FactoryBatch<M> {
                 .prepare_attributes(connection, index, relation, &faker)?;
             pending.values.extend(overrides.clone());
             self.factory
-                .resolve_attributes(connection, &cache, pool, &mut pending)
+                .resolve_attributes(connection, pool, &mut pending)
                 .await?;
             models.push(
                 Factory::<M>::apply_attributes(connection, pending.model, pending.values).await?,

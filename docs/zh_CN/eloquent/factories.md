@@ -338,7 +338,7 @@ fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
 }
 ```
 
-`has` 接收 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 创建 `BelongsTo` 或 `MorphTo` 的上级模型，用 `forExisting` 关联已有模型。每次批量调用最多解析一次所需的上级模型，`make` 也遵循这条规则。再次调用会生成新的上级。使用 `MorphTo` 时，描述符需要登记目标模型和映射别名。`hasAttached` 接收 `BelongsToMany` 或 `MorphToMany`，并写入中间表属性。写入按顺序执行。后续关联失败时，之前的写入可能保留。
+`has` 接收 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 创建 `BelongsTo` 或 `MorphTo` 的上级模型，用 `forExisting` 关联已有模型。每个 `for` 声明按子模型与上级模型的数据库连接对解析一次所需的上级。同一构建器重复执行时复用该上级，新构建器独立解析。使用 `MorphTo` 时，描述符需要登记目标模型和映射别名。`hasAttached` 接收 `BelongsToMany` 或 `MorphToMany`，并写入中间表属性。写入按顺序执行。后续关联失败时，之前的写入可能保留。
 
 对 `BelongsTo` 和 `MorphTo`，同一外键以最后一次 `r#for` 或 `forExisting` 声明覆盖工厂定义。随后可以用状态或操作参数覆盖外键，包括传入 `Value::Null`。此时不会创建或关联上级模型。`MorphTo` 仍单独提供类型默认值，状态也可以覆盖类型。
 
@@ -395,7 +395,17 @@ fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
 
 ### 复用已有模型 {#recycling-existing-models}
 
-用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。同一批次复用已选中的上级。
+用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。
+
+单条或批量构建器都可用 `getRandomRecycledModel::<Owner>()` 按模型类型查询复用池，无需访问数据库。返回模型借用或 `None`。关系解析仍按上级模型的连接筛选候选。
+
+```rust
+use openrust::database::eloquent::{Model, factories::Factory};
+
+fn recycled_model<Child: Model, Owner: Model>(factory: &Factory<Child>) -> Option<&Owner> {
+    factory.getRandomRecycledModel::<Owner>()
+}
+```
 
 ```rust
 use openrust::database::{

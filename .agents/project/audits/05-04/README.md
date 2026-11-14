@@ -340,3 +340,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `d4f34329`。实际应用二进制在 MySQL 8.4.13 执行 `artisan db:seed --database=mysql --force`。实测状态及调用属性覆盖、重复父关系登记、保留多态类型默认值、批量只写一条上级记录并保存四条子记录。MySQL 与 SQLite 回归还断言覆盖后没有错误的关系缓存。Rust 1.94.0 格式、全目标严格 Clippy、25 项 Seeder、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和根路径与 `/docs/` 下 6 项浏览器检查通过。
 
 清理本批隔离副本 2.2 GiB Cargo 产物与约 37 MiB 站点产物，磁盘可用 87 GiB。后续仍需核对固定 Laravel 的公开回收模型查询入口，以及构建器多次调用间的父关系缓存生命周期。
+
+## 回收模型查询与父关系缓存
+
+固定 Laravel 的 `getRandomRecycledModel` 按模型类随机选取，`BelongsToRelationship` 在关系对象上保存首次成功解析的父键。Rust 的单条和批量构建器使用 `getRandomRecycledModel::<Owner>() -> Option<&Owner>`，按编译期模型类型从已有持久化模型池借用。公开查询按类型选取。实际关联保留连接筛选，并将成功解析的模型按子连接和上级连接的查询源组合缓存到关系声明。这样可沿用类型化关联校验、支持多数据库以及合并并发初始化。失败保留重试能力。显式覆盖和隐式 `parentAttribute` 的独立解析行为保留。固定 Goravel 的 Factory 契约提供 Count、Make、Create 和 CreateQuietly，v0.x 未发现等价回收模型接口。 [Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L800) · [Laravel BelongsToRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/BelongsToRelationship.php#L68) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `2f1a0a51`。实际应用二进制 `artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 和隔离 SQLite 连接验证首次失败后重试、raw 与 make 并发只建一条上级记录、构建器转换为批次后沿用父键、连接切换及类型化回收查询。已有的多态 Seeder 验证两次 create 使用同一父键。Rust 1.94.0 格式、工作区全目标严格 Clippy、26 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+清理本批隔离副本 2.2 GiB Cargo 产物及约 37 MiB 站点产物，磁盘可用 87 GiB。05-04 后续核对模型元数据入口和固定 Laravel 工厂创建快捷方法。

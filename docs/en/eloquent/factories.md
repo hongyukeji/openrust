@@ -338,7 +338,7 @@ fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
 }
 ```
 
-Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. A batch resolves each required generated owner at most once, including when using `make`. A new invocation resolves a new owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
+Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. Each `for` declaration resolves its required owner once per pair of child and owner database connections. Repeated calls on the same builder reuse that owner. A fresh builder resolves its own owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
 
 For `BelongsTo` and `MorphTo`, the last `r#for` or `forExisting` targeting a foreign key replaces the definition of that key. A state or explicit operation attribute can then replace it, including with `Value::Null`. In that case the owner is neither created nor associated. A `MorphTo` declaration still supplies its type as a separate default, which a state can also replace.
 
@@ -395,7 +395,17 @@ fn factory_without_parent_expansion<Owner: Model>() -> Factory<Owner> {
 
 ### Recycling Existing Models {#recycling-existing-models}
 
-Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match. A batch reuses its selected owner.
+Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match.
+
+Use `getRandomRecycledModel::<Owner>()` on a single or batch builder to inspect its pool by model type. It returns a borrowed model or `None` without querying the database. Relation resolution still filters candidates by the owner connection.
+
+```rust
+use openrust::database::eloquent::{Model, factories::Factory};
+
+fn recycled_model<Child: Model, Owner: Model>(factory: &Factory<Child>) -> Option<&Owner> {
+    factory.getRandomRecycledModel::<Owner>()
+}
+```
 
 ```rust
 use openrust::database::{
