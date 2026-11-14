@@ -39,6 +39,39 @@ macro_rules! generate {
     }};
 }
 
+macro_rules! formatters {
+    ($($name:ident => $generator:path),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(pub fn $name(&self) -> String {
+                generate!(self.locale.as_str(), $generator,)
+            })+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(pub fn $name(&self) -> DatabaseResult<String> {
+                self.generate(stringify!($name), || self.0.$name())
+            })+
+        }
+    };
+}
+
+formatters! {
+    name => faker::name::raw::Name,
+    firstName => faker::name::raw::FirstName,
+    lastName => faker::name::raw::LastName,
+    safeEmail => faker::internet::raw::SafeEmail,
+    freeEmail => faker::internet::raw::FreeEmail,
+    userName => faker::internet::raw::Username,
+    city => faker::address::raw::CityName,
+    streetName => faker::address::raw::StreetName,
+    postcode => faker::address::raw::PostCode,
+    phoneNumber => faker::phone_number::raw::PhoneNumber,
+    company => faker::company::raw::CompanyName,
+    word => faker::lorem::raw::Word,
+}
+
 /// Creates a generator using an explicit locale or the scoped application configuration.
 pub fn fake(locale: Option<&str>) -> DatabaseResult<Faker> {
     match locale {
@@ -88,18 +121,6 @@ impl Faker {
         UniqueFaker(self)
     }
 
-    pub fn name(&self) -> String {
-        generate!(self.locale.as_str(), faker::name::raw::Name,)
-    }
-
-    pub fn safeEmail(&self) -> String {
-        generate!(self.locale.as_str(), faker::internet::raw::SafeEmail,)
-    }
-
-    pub fn city(&self) -> String {
-        generate!(self.locale.as_str(), faker::address::raw::CityName,)
-    }
-
     pub fn sentence(&self, words: Range<usize>) -> String {
         generate!(self.locale.as_str(), faker::lorem::raw::Sentence, words)
     }
@@ -110,18 +131,6 @@ pub struct UniqueFaker<'a>(&'a Faker);
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
-    pub fn name(&self) -> DatabaseResult<String> {
-        self.generate("name", || self.0.name())
-    }
-
-    pub fn safeEmail(&self) -> DatabaseResult<String> {
-        self.generate("safeEmail", || self.0.safeEmail())
-    }
-
-    pub fn city(&self) -> DatabaseResult<String> {
-        self.generate("city", || self.0.city())
-    }
-
     pub fn sentence(&self, words: Range<usize>) -> DatabaseResult<String> {
         self.generate("sentence", || self.0.sentence(words.clone()))
     }

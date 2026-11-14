@@ -196,6 +196,20 @@ impl Seeder for PolymorphicFactories {
                 Err(DatabaseError::InvalidConfiguration(_))
             ));
             let faker = fake(None)?;
+            for value in [
+                faker.firstName(),
+                faker.lastName(),
+                faker.userName(),
+                faker.streetName(),
+                faker.postcode(),
+                faker.phoneNumber(),
+                faker.company(),
+                faker.word(),
+            ] {
+                assert!(!value.trim().is_empty());
+            }
+            assert!(faker.freeEmail().contains('@'));
+
             assert_eq!(faker.unique(false).sentence(0..1)?, ".");
             assert!(matches!(
                 faker.unique(false).sentence(0..1),
@@ -222,7 +236,7 @@ impl Seeder for PolymorphicFactories {
             }
             let localized = Factory::<FactoryChild>::tryWithFaker(|faker| {
                 assert_eq!(faker.locale(), "zh_TW");
-                let name = faker.unique(false).name()?;
+                let name = faker.unique(false).firstName()?;
                 assert!(
                     name.chars()
                         .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))

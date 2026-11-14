@@ -28,6 +28,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 Use `faker.unique(false)` to avoid duplicates per formatter. `unique(true)` clears that generator’s history. With `Factory::tryWithFaker`, a batch shares one generator, and an exhausted formatter returns an error before the batch is saved. Separate factory calls start with fresh history. For example, use `faker.unique(false).safeEmail()?` inside the definition.
 
+Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
+
 ## Creating Models Using Factories
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
