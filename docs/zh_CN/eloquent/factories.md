@@ -277,7 +277,7 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 ## 使用工厂创建模型
 
-`state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
+`state` 按声明顺序叠加。`sequence` 从零开始，同一构建器上的各次调用接续其索引。新构建器重新从零开始。并发调用获得不同索引，按实际执行顺序分配。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
 
 用 `prependState` 将转换放到当前所有已登记状态之前。每个转换都能读取前面生成的属性。用 `set(name, value)` 在末尾追加一个属性覆盖。两种方法都能在 `count` 前后使用。直接传给创建方法的属性在已登记状态之后应用。
 
@@ -337,6 +337,18 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 ```
 
 用 `forEachSequence(states)` 为每个模型应用一组属性，并按属性组数确定批次数量。`crossJoinSequence(sequences)` 按声明顺序组合各序列，最后一个序列变化最快，同名属性以后面的序列为准。单独设置批次数量，超过组合数时从头循环。传入空序列会返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
+    let factory = Factory::<M>::new(Attributes::new)
+        .sequence(|index| Attributes::from([("label".into(), index.to_string().into())]));
+    assert_eq!(factory.raw().await?["label"], "0".into());
+    assert_eq!(factory.raw().await?["label"], "1".into());
+    Ok(())
+}
+```
 
 在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入使用存储属性，包含隐藏列，跳过追加字段和输出访问器。
 
@@ -491,7 +503,7 @@ pub async fn reuse_owner<C: Model, P: Model>(
 }
 ```
 
-向 `hasAttached` 或 `hasAttachedNamed` 传入属性映射列表，即可按关联模型顺序设置中间表属性。关联工厂数量超过列表长度时会循环。用 `FactoryPivot::resolve` 根据已保存的父模型计算每次附加的属性。单个属性映射会应用于全部关联。
+向 `hasAttached` 或 `hasAttachedNamed` 传入属性映射列表，即可按关联模型顺序设置中间表属性。关联工厂数量超过列表长度时会循环。用 `FactoryPivot::resolve` 根据已保存的父模型计算每次附加的属性。单个属性映射会应用于全部关联。 中间表序列也会在同一构建器的不同父模型和重复调用之间接续。
 
 传入非空中间表属性序列时，未指定数量的关联工厂按序列长度生成模型。显式 `count(n)` 优先，包括零。共享属性和空序列默认生成一个关联模型。
 

@@ -277,7 +277,7 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 ## 使用工廠建立模型
 
-`state` 按宣告順序疊加。`sequence` 接收批次內從零開始的索引。`make` 建立記憶體模型並執行 `afterMaking`。`create` 儲存模型、建立已宣告的子關聯，再執行 `afterCreating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。
+`state` 按宣告順序疊加。`sequence` 從零開始，同一建構器上的各次呼叫接續其索引。新建構器重新從零開始。並行呼叫取得不同索引，依實際執行順序分配。`make` 建立記憶體模型並執行 `afterMaking`。`create` 儲存模型、建立已宣告的子關聯，再執行 `afterCreating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。
 
 用 `prependState` 將轉換放到目前所有已登記狀態之前。每個轉換都能讀取先前產生的屬性。用 `set(name, value)` 在末尾附加單一屬性覆寫。兩種方法皆可在 `count` 前後使用。直接傳入建立方法的屬性會在已登記狀態之後套用。
 
@@ -337,6 +337,18 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 ```
 
 用 `forEachSequence(states)` 為每個模型套用一組屬性，並依屬性組數決定批次數量。`crossJoinSequence(sequences)` 依宣告順序組合各序列，最後一個序列變化最快，同名屬性以後面的序列為準。另行設定批次數量，超過組合數時從頭循環。傳入空序列會回傳錯誤。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
+    let factory = Factory::<M>::new(Attributes::new)
+        .sequence(|index| Attributes::from([("label".into(), index.to_string().into())]));
+    assert_eq!(factory.raw().await?["label"], "0".into());
+    assert_eq!(factory.raw().await?["label"], "1".into());
+    Ok(())
+}
+```
 
 在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insertOn(connection, attributes)` 指定連線。工廠會執行 `afterMaking` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `afterCreating`。寫入使用儲存屬性，包含隱藏欄位，略過追加欄位和輸出存取器。
 
@@ -491,7 +503,7 @@ pub async fn reuse_owner<C: Model, P: Model>(
 }
 ```
 
-向 `hasAttached` 或 `hasAttachedNamed` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。
+向 `hasAttached` 或 `hasAttachedNamed` 傳入屬性映射清單，即可依關聯模型順序設定中介資料表屬性。關聯工廠數量超過清單長度時會循環。用 `FactoryPivot::resolve` 根據已儲存的父模型計算每次附加的屬性。單一屬性映射會套用到所有關聯。 中介資料表序列也會在同一建構器的不同父模型和重複呼叫之間接續。
 
 傳入非空中介資料表屬性序列時，未指定數量的關聯工廠依序列長度產生模型。明確的 `count(n)` 優先，包括零。共用屬性和空序列預設產生一個關聯模型。
 

@@ -766,7 +766,7 @@ impl Seeder for PolymorphicFactories {
             assert!(previews.iter().all(|model| !model.state().exists()));
             assert_eq!(
                 previews[2].getAttribute("generated_name"),
-                Some(&"many-2".into())
+                Some(&"many-3".into())
             );
             let previews = batch
                 .makeManyOn(
@@ -867,7 +867,7 @@ impl Seeder for PolymorphicFactories {
             );
             assert_eq!(
                 defaults[2].getAttribute("generated_name"),
-                Some(&"many-2".into())
+                Some(&"many-11".into())
             );
             let counted = batch
                 .createManyOn(connection, FactoryRecords::Count(1))
@@ -4038,5 +4038,112 @@ async fn application_default_seeder_creates_the_verified_example_user() {
     verify_default_application_seeder(&Root::new(), None).await;
     if let Ok(url) = std::env::var("OPENRUST_TEST_DEFAULT_SEEDER_MYSQL_URL") {
         verify_default_application_seeder(&Root::new(), Some(&url)).await;
+    }
+}
+
+async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+            table.string("label", 40).nullable();
+        })
+        .await?;
+    schema
+        .create("expansion_links", |table| {
+            table.unsignedBigInteger("owner_id");
+            table.unsignedBigInteger("child_id");
+            table.string("label", 40);
+        })
+        .await?;
+    let label = |value: &str| Attributes::from([("label".into(), value.into())]);
+    let factory = || {
+        Factory::<ExpansionChild>::new(Attributes::new)
+            .sequence(|index| Attributes::from([("label".into(), index.to_string().into())]))
+    };
+    let builder = factory();
+    assert_eq!(builder.rawOn(connection).await?["label"], "0".into());
+    let batch = builder.count(2);
+    assert_eq!(
+        batch.makeOn(connection).await?[1].getAttribute("label"),
+        Some(&"2".into())
+    );
+    batch.insertOn(connection, Attributes::new()).await?;
+    assert_eq!(
+        batch.createOn(connection).await?[0].getAttribute("label"),
+        Some(&"5".into())
+    );
+    assert_eq!(factory().rawOn(connection).await?["label"], "0".into());
+    let each = Factory::<ExpansionChild>::new(Attributes::new)
+        .forEachSequence(vec![label("first"), label("second")]);
+    assert_eq!(
+        each.makeOneOn(connection, Attributes::new())
+            .await?
+            .getAttribute("label"),
+        Some(&"first".into())
+    );
+    assert_eq!(each.rawOn(connection).await?[0]["label"], "second".into());
+    let product = Factory::<ExpansionChild>::new(Attributes::new)
+        .crossJoinSequence(vec![vec![label("x"), label("y")]])?;
+    assert_eq!(product.rawOn(connection).await?["label"], "x".into());
+    assert_eq!(product.rawOn(connection).await?["label"], "y".into());
+
+    let relation = openrust::database::eloquent::relations::BelongsToMany::<
+        ExpansionOwner,
+        ExpansionChild,
+    >::new("expansion_links", "owner_id", "child_id", "id", "id");
+    let parents = Factory::<ExpansionOwner>::new(Attributes::new).hasAttached(
+        relation,
+        Factory::<ExpansionChild>::new(Attributes::new).count(1),
+        vec![label("first"), label("second")],
+    );
+    parents.createOn(connection).await?;
+    parents.createOn(connection).await?;
+    assert_eq!(
+        connection
+            .table("expansion_links")
+            .orderBy("owner_id", "asc")
+            .pluck("label")
+            .await?,
+        ["first".into(), "second".into()]
+    );
+    assert_eq!(
+        connection
+            .table("expansion_children")
+            .orderBy("id", "asc")
+            .pluck("label")
+            .await?,
+        [
+            "3".into(),
+            "4".into(),
+            "5".into(),
+            "6".into(),
+            Value::Null,
+            Value::Null
+        ]
+    );
+    schema.drop("expansion_links").await?;
+    schema.drop("expansion_children").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_sequences_continue_across_operations_and_attachments() {
+    let root = Root::new();
+    verify_sequence_lifecycle(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_sequence_lifecycle(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }

@@ -419,3 +419,11 @@ PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rus
 隔离基线 `9092a042`。实际应用二进制在空 SQLite 和 MySQL 8.4.13 执行 `artisan migrate --force` 与 `artisan db:seed --database … --force`，回查示例用户、验证时间和令牌，验证 bcrypt 可校验密码。两库重复填充退出码为 1，用户记录仍为一条。另通过 `migrate --seed`、34 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
 
 本批隔离构建与站点产物已清理。后续继续核对公开工厂创建入口、跨次状态和其余生成器的差异。
+
+## 工厂与中间表序列的跨次索引
+
+对照固定 Laravel `Sequence`、`CrossJoinSequence` 和 `BelongsToManyRelationship`。索引属于序列实例，在同一构建器的不同操作和父模型之间接续。Rust 使用独立原子计数，保留共享借用调用方式，并发时按实际状态执行顺序分配。新构建器从零开始。笛卡尔积仍按索引计算组合。旧版未发现对应工厂序列，Goravel 的工厂契约提供批次 Count，沿用现有编译装配。 [固定 Laravel Sequence](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Sequence.php#L55) · [固定 Laravel CrossJoinSequence](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/CrossJoinSequence.php) · [固定 Laravel 工厂序列文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#sequences) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `41f22255`。PHP 8.5 执行固定 Sequence 确认索引跨调用接续与新实例归零。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证 raw、make、insert、create 接续及两个父模型的附加顺序，回查六条关联模型记录。35 项 Seeder、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 及 6 项浏览器检查通过。
+
+已清理本批隔离构建与站点产物。下一批核对 `makeMany` 消耗默认数量后的状态生命周期。

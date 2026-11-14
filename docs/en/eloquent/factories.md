@@ -277,7 +277,7 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 ## Creating Models Using Factories
 
-Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
+Apply `state` in declaration order. Each `sequence` starts at zero and retains its index across operations on the same builder. A fresh builder starts again at zero. Concurrent operations receive distinct indices, with assignment following execution order. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
 
 Use `prependState` to run a transformation before all currently registered states. Each transformation sees the attributes produced so far. Use `set(name, value)` to append a single attribute override. Both work before or after `count`. Attributes passed directly to a creation method are applied after the registered states.
 
@@ -337,6 +337,18 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 ```
 
 Use `forEachSequence(states)` to apply one attribute map per model and set the batch count to the number of maps. `crossJoinSequence(sequences)` combines the maps from each input sequence in order, with the last sequence changing fastest. Later maps override earlier maps on matching keys. Set the count separately to select how many combinations to use. The sequence repeats if the count exceeds the number of combinations. An empty input sequence returns an error.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
+    let factory = Factory::<M>::new(Attributes::new)
+        .sequence(|index| Attributes::from([("label".into(), index.to_string().into())]));
+    assert_eq!(factory.raw().await?["label"], "0".into());
+    assert_eq!(factory.raw().await?["label"], "1".into());
+    Ok(())
+}
+```
 
 Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. It writes storage attributes, including hidden columns, without adding appended values or applying output accessors.
 
@@ -491,7 +503,7 @@ pub async fn reuse_owner<C: Model, P: Model>(
 }
 ```
 
-Pass a vector of attribute maps to `hasAttached` or `hasAttachedNamed` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments.
+Pass a vector of attribute maps to `hasAttached` or `hasAttachedNamed` to apply pivot attributes in related-model order. The sequence cycles when the related factory count exceeds its length. Use `FactoryPivot::resolve` to compute attributes for each attachment from the saved parent model. An attribute map applies the same values to all attachments. The pivot sequence also continues across parents and repeated calls on the same builder.
 
 With a nonempty pivot sequence and an uncounted related factory, the sequence length determines the number of related models. An explicit `count(n)` takes precedence, including zero. Shared attributes and empty sequences default to one generated related model.
 

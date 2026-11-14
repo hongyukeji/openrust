@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -28,7 +28,7 @@ use super::{
 type Definition =
     dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
 type FactoryParentModel = dyn Any + Send + Sync;
-type State = dyn Fn(&Attributes, usize, &Connection, Option<&FactoryParentModel>) -> DatabaseResult<Attributes>
+type State = dyn Fn(&Attributes, &Connection, Option<&FactoryParentModel>) -> DatabaseResult<Attributes>
     + Send
     + Sync;
 type CreateCallback<M> =
@@ -496,7 +496,7 @@ impl<M: Model> Factory<M> {
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.states
-            .push(Box::new(move |attributes, _, _, _| Ok(state(attributes))));
+            .push(Box::new(move |attributes, _, _| Ok(state(attributes))));
         self
     }
 
@@ -506,7 +506,7 @@ impl<M: Model> Factory<M> {
         mut self,
         state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.states.push(Box::new(move |attributes, _, _, parent| {
+        self.states.push(Box::new(move |attributes, _, parent| {
             Ok(state(
                 attributes,
                 parent.and_then(|model| model.downcast_ref::<P>()),
@@ -521,10 +521,8 @@ impl<M: Model> Factory<M> {
         mut self,
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.states.insert(
-            0,
-            Box::new(move |attributes, _, _, _| Ok(state(attributes))),
-        );
+        self.states
+            .insert(0, Box::new(move |attributes, _, _| Ok(state(attributes))));
         self
     }
 
@@ -546,7 +544,7 @@ impl<M: Model> Factory<M> {
         }
 
         let now = chrono::Utc::now();
-        self.states.push(Box::new(move |_, _, connection, _| {
+        self.states.push(Box::new(move |_, connection, _| {
             let zone = connection.model_timezone;
             let (_, yesterday) = calendar::date_interval("now", "-1 day", now, zone)
                 .map_err(|_| DatabaseError::InvalidQuery("invalid factory deletion timestamp"))?;
@@ -564,8 +562,10 @@ impl<M: Model> Factory<M> {
         mut self,
         sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.states
-            .push(Box::new(move |_, index, _, _| Ok(sequence(index))));
+        let index = AtomicUsize::new(0);
+        self.states.push(Box::new(move |_, _, _| {
+            Ok(sequence(index.fetch_add(1, Ordering::Relaxed)))
+        }));
         self
     }
 
@@ -787,7 +787,6 @@ impl<M: Model> Factory<M> {
                                 let model = owner
                                     .create_one(
                                         &owner_connection,
-                                        0,
                                         &pool,
                                         &std::sync::OnceLock::new(),
                                         Attributes::new(),
@@ -830,7 +829,6 @@ impl<M: Model> Factory<M> {
                         generated = owner
                             .create_one(
                                 &connection,
-                                0,
                                 &pool,
                                 &std::sync::OnceLock::new(),
                                 Attributes::new(),
@@ -942,12 +940,12 @@ impl<M: Model> Factory<M> {
             }
             models => models,
         };
-        let relation = Arc::new((relation, models, pivot));
+        let relation = Arc::new((relation, models, pivot, AtomicUsize::new(0)));
         self.children
             .push(Box::new(move |connection, parent, inherited| {
                 let relation = Arc::clone(&relation);
                 Box::pin(async move {
-                    let (relation, models, pivot) = &*relation;
+                    let (relation, models, pivot, pivot_index) = &*relation;
                     let relation = relation(parent)?;
                     let generated;
                     let models: &[R] = match models {
@@ -989,10 +987,11 @@ impl<M: Model> Factory<M> {
                     if let FactoryPivot::Shared(attributes) = pivot {
                         return relation.attachWith(parent, &keys, attributes.clone()).await;
                     }
-                    for (index, key) in keys.iter().enumerate() {
+                    for key in &keys {
                         let attributes = match pivot {
                             FactoryPivot::Shared(_) => unreachable!(),
-                            FactoryPivot::Sequence(states) => index
+                            FactoryPivot::Sequence(states) => pivot_index
+                                .fetch_add(1, Ordering::Relaxed)
                                 .checked_rem(states.len())
                                 .map(|offset| states[offset].clone())
                                 .unwrap_or_default(),
@@ -1028,7 +1027,6 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<M> {
         self.make_one(
             connection,
-            0,
             &self.recycled,
             &std::sync::OnceLock::new(),
             None,
@@ -1055,7 +1053,6 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<M> {
         self.make_one(
             connection,
-            0,
             &self.recycled,
             &std::sync::OnceLock::new(),
             Some(RelationContext::parent_only(parent)),
@@ -1084,9 +1081,9 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<Collection<M>> {
         let faker = std::sync::OnceLock::new();
         let mut models = Vec::new();
-        for (index, attributes) in records.into_attributes(default_count).enumerate() {
+        for attributes in records.into_attributes(default_count) {
             models.push(
-                self.make_one(connection, index, &self.recycled, &faker, None, attributes)
+                self.make_one(connection, &self.recycled, &faker, None, attributes)
                     .await?,
             );
         }
@@ -1164,7 +1161,6 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<M> {
         self.create_one(
             connection,
-            0,
             &self.recycled,
             &std::sync::OnceLock::new(),
             attributes,
@@ -1220,9 +1216,9 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<Collection<M>> {
         let faker = std::sync::OnceLock::new();
         let mut models = Vec::new();
-        for (index, attributes) in records.into_attributes(default_count).enumerate() {
+        for attributes in records.into_attributes(default_count) {
             models.push(
-                self.create_one(connection, index, &self.recycled, &faker, attributes)
+                self.create_one(connection, &self.recycled, &faker, attributes)
                     .await?,
             );
         }
@@ -1274,7 +1270,7 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        self.raw_attributes(connection, 0, &std::sync::OnceLock::new(), None, state)
+        self.raw_attributes(connection, &std::sync::OnceLock::new(), None, state)
             .await
     }
 
@@ -1297,7 +1293,6 @@ impl<M: Model> Factory<M> {
         let context = RelationContext::parent_only(parent);
         self.raw_attributes(
             connection,
-            0,
             &std::sync::OnceLock::new(),
             Some(context),
             |attributes| state(attributes, parent),
@@ -1308,12 +1303,11 @@ impl<M: Model> Factory<M> {
     async fn raw_attributes(
         &self,
         connection: &Connection,
-        index: usize,
         faker: &std::sync::OnceLock<Faker>,
         context: Option<RelationContext<'_>>,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        let mut pending = self.prepare_attributes(connection, index, context, faker)?;
+        let mut pending = self.prepare_attributes(connection, context, faker)?;
         let attributes = state(&pending.values);
         pending.values.extend(attributes);
         self.resolve_attributes(connection, &self.recycled, &mut pending)
@@ -1347,7 +1341,6 @@ impl<M: Model> Factory<M> {
     fn prepare_attributes(
         &self,
         connection: &Connection,
-        index: usize,
         relation: Option<RelationContext<'_>>,
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<FactoryAttributes<M>> {
@@ -1371,7 +1364,6 @@ impl<M: Model> Factory<M> {
         for state in &self.states {
             let changes = state(
                 &attributes,
-                index,
                 connection,
                 relation.map(|context| context.parent),
             )?;
@@ -1442,13 +1434,12 @@ impl<M: Model> Factory<M> {
     async fn make_one(
         &self,
         connection: &Connection,
-        index: usize,
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
         context: Option<RelationContext<'_>>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
-        let mut pending = self.prepare_attributes(connection, index, context, faker)?;
+        let mut pending = self.prepare_attributes(connection, context, faker)?;
         pending.values.extend(overrides);
         self.resolve_attributes(connection, pool, &mut pending)
             .await?;
@@ -1460,13 +1451,12 @@ impl<M: Model> Factory<M> {
     async fn create_one(
         &self,
         connection: &Connection,
-        index: usize,
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Faker>,
         overrides: Attributes,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, index, pool, faker, None, overrides)
+            .make_one(connection, pool, faker, None, overrides)
             .await?;
         self.store(connection, &mut model, pool).await?;
         self.run_after_creating(std::slice::from_mut(&mut model), None)?;
@@ -1791,10 +1781,10 @@ impl<M: Model> FactoryBatch<M> {
     ) -> DatabaseResult<Vec<Attributes>> {
         let faker = std::sync::OnceLock::new();
         let mut records = Vec::with_capacity(self.count);
-        for index in 0..self.count {
+        for _ in 0..self.count {
             records.push(
                 self.factory
-                    .raw_attributes(connection, index, &faker, context, &mut state)
+                    .raw_attributes(connection, &faker, context, &mut state)
                     .await?,
             );
         }
@@ -1872,10 +1862,10 @@ impl<M: Model> FactoryBatch<M> {
     ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
         let faker = std::sync::OnceLock::new();
-        for index in 0..self.count {
+        for _ in 0..self.count {
             let mut pending = self
                 .factory
-                .prepare_attributes(connection, index, relation, &faker)?;
+                .prepare_attributes(connection, relation, &faker)?;
             pending.values.extend(overrides.clone());
             self.factory
                 .resolve_attributes(connection, pool, &mut pending)
