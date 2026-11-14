@@ -1122,3 +1122,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `0df87b34`。PHP 8.5 核对 1,024 个上游样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 1,024 个值。双方都覆盖 2A、2B 及全部五个三位海外省代码，验证性别首位、月份、分组、校验位、税号掩码及文档示例。61 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对伊朗国民号码和印度尼西亚 NIK。
+
+## Faker 伊朗国民号码与印度尼西亚 NIK
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 的[伊朗](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fa_IR/Person.php)和[印度尼西亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/id_ID/Person.php) Person。伊朗保留非零地区码、前导零及模 11 校验，地区码直接在 1–999 均匀抽样。印度尼西亚保留 510 个出生地代码、女性日期偏移和默认近 30 年的日期范围。Rust 使用可选公历日期及现有 Faker 时区逻辑。两地接口均接入去重并检查地区。v0.x 无对应 formatter，编译式工厂装配无需调整。
+
+隔离基线 `0b16846d`。PHP 8.5 校验 256 对上游号码。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 512 个值，覆盖地区词表、默认日期、显式闰日、性别位移、校验位和文档示例。62 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用约 80 GiB。下一批核对哈萨克斯坦及委内瑞拉证件接口。

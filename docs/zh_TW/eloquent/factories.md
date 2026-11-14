@@ -943,6 +943,19 @@ fn french_nir_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 伊朗國民號碼和印尼 NIK 樣本 {#iranian-national-codes-and-indonesian-nik-samples}
+
+在 `fa-IR` 用 `nationalCode()` 產生十位數樣本，包含非零地區代碼和模 11 校驗位。在 `id-ID` 用 `nik(gender, birthDate)` 產生 16 位數樣本，開頭取自固定出生地代碼詞表，號碼內包含出生日期。女性樣本的出生日期日數加 40。日期傳入 `None` 時從過去 30 年抽樣，也可傳入 `NaiveDate` 指定公曆日期。兩個介面皆支援 `unique()`。
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn indonesian_nik_sample() -> DatabaseResult<String> {
+    fake(Some("id-ID"))?.unique(false).nik(Some("female"), NaiveDate::from_ymd_opt(2000, 2, 29))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

@@ -237,6 +237,64 @@ impl Faker {
         Ok([&digits[..3], &digits[3..7], &digits[7..11], &digits[11..]].join("."))
     }
 
+    /// Samples an Iranian national code with its modulo-11 check digit.
+    pub fn nationalCode(&self) -> DatabaseResult<String> {
+        if self.locale() != "fa_IR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Iranian national code locale",
+            ));
+        }
+        let area = self.numberBetween(1, 999);
+        let core = self.numberBetween(0, 999_999);
+        let mut number = format!("{area:03}{core:06}");
+        let remainder = weighted_digits(&number, &[10, 9, 8, 7, 6, 5, 4, 3, 2]) % 11;
+        let check = if remainder < 2 {
+            remainder
+        } else {
+            11 - remainder
+        };
+        number.push(char::from(b'0' + check as u8));
+        Ok(number)
+    }
+
+    /// Samples an Indonesian NIK using an optional civil birth date.
+    pub fn nik(
+        &self,
+        gender: Option<&str>,
+        birthDate: Option<NaiveDate>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "id_ID" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Indonesian NIK locale",
+            ));
+        }
+        let date = match birthDate {
+            Some(date) => date,
+            None => self
+                .dateTimeBetweenExpressions("-30 years", "now")?
+                .with_timezone(
+                    &self
+                        .getDefaultTimezone()
+                        .unwrap_or(self.application_timezone),
+                )
+                .date_naive(),
+        };
+        let female = match gender {
+            None | Some("" | "0") => fastrand::bool(),
+            Some(value) => value == "female",
+        };
+        let places = super::south_southeast_asian::ID_BIRTH_PLACE_CODES;
+        let place = places[fastrand::usize(..places.len())];
+        let district = self.numberBetween(0, 99);
+        let day = date.day() + 40 * u32::from(female);
+        let month = date.month();
+        let year = date.year().rem_euclid(100);
+        let serial = self.numberBetween(0, 9999);
+        Ok(format!(
+            "{place}{district:02}{day:02}{month:02}{year:02}{serial:04}"
+        ))
+    }
+
     /// Samples a French NIR with optional spacing.
     pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {
         if !matches!(self.locale(), "fr_FR" | "fr_CH") {
@@ -1133,6 +1191,18 @@ impl UniqueFaker<'_> {
 
     pub fn avs13(&self) -> DatabaseResult<String> {
         self.try_generate("avs13", || self.0.avs13())
+    }
+
+    pub fn nationalCode(&self) -> DatabaseResult<String> {
+        self.try_generate("nationalCode", || self.0.nationalCode())
+    }
+
+    pub fn nik(
+        &self,
+        gender: Option<&str>,
+        birthDate: Option<NaiveDate>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("nik", || self.0.nik(gender, birthDate))
     }
 
     pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {

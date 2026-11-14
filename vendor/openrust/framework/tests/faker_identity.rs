@@ -2993,3 +2993,44 @@ fn french_nir_and_italian_tax_id_preserve_the_pinned_patterns() {
         assert!(faker.taxId().is_err());
     }
 }
+
+#[test]
+fn iranian_national_code_and_indonesian_nik_keep_their_pinned_parts() {
+    let iran = fake(Some("fa-IR")).unwrap();
+    let indonesia = fake(Some("id-ID")).unwrap();
+    let iran_unique = iran.unique(true);
+    let indonesia_unique = indonesia.unique(true);
+    let date = chrono::NaiveDate::from_ymd_opt(2000, 2, 29);
+    let mut codes = std::collections::HashSet::new();
+    let mut nik_values = std::collections::HashSet::new();
+    for _ in 0..64 {
+        let code = iran_unique.nationalCode().unwrap();
+        assert_eq!(code.len(), 10);
+        assert!(code.bytes().all(|digit| digit.is_ascii_digit()));
+        assert_ne!(&code[..3], "000");
+        let sum: u32 = code
+            .bytes()
+            .zip((2..=10).rev())
+            .map(|(digit, weight)| u32::from(digit - b'0') * weight)
+            .sum();
+        let remainder = sum % 11;
+        let check = if remainder < 2 {
+            remainder
+        } else {
+            11 - remainder
+        };
+        assert_eq!(u32::from(code.as_bytes()[9] - b'0'), check);
+        assert!(codes.insert(code));
+
+        for (gender, digits) in [("male", "290200"), ("female", "690200")] {
+            let nik = indonesia_unique.nik(Some(gender), date).unwrap();
+            assert_eq!(nik.len(), 16);
+            assert!(nik.bytes().all(|digit| digit.is_ascii_digit()));
+            assert_eq!(&nik[6..12], digits);
+            assert!(nik_values.insert(nik));
+        }
+    }
+    assert_eq!(indonesia.nik(None, None).unwrap().len(), 16);
+    assert!(iran.nik(None, None).is_err());
+    assert!(indonesia.nationalCode().is_err());
+}

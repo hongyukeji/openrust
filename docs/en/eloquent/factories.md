@@ -943,6 +943,19 @@ fn french_nir_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Iranian National Codes and Indonesian NIK Samples {#iranian-national-codes-and-indonesian-nik-samples}
+
+Use `nationalCode()` with `fa-IR` to generate a ten-digit sample with a nonzero area code and a modulo-11 check digit. Use `nik(gender, birthDate)` with `id-ID` to generate a 16-digit sample. It starts with a code from the pinned birthplace catalog and includes the birth date. For female samples the day is increased by 40. Pass `None` for the date to sample from the past 30 years, or pass a `NaiveDate` to choose a civil date. Both formatters support `unique()`.
+
+```rust
+use chrono::NaiveDate;
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn indonesian_nik_sample() -> DatabaseResult<String> {
+    fake(Some("id-ID"))?.unique(false).nik(Some("female"), NaiveDate::from_ymd_opt(2000, 2, 29))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.
