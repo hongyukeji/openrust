@@ -4946,7 +4946,10 @@ fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
             .starts_with("GB")
     );
     assert!(fake(Some("nl-NL"))?.unique(true).btw()?.starts_with("NL"));
-    assert!(fake(Some("zh-Hant"))?.vat(None).is_err());
+    let taiwanese = fake(Some("zh-Hant"))?.vat(None)?;
+    assert_eq!(taiwanese.len(), 8);
+    assert!(taiwanese.bytes().all(|digit| digit.is_ascii_digit()));
+    assert!(fake(Some("en-US"))?.vat(None).is_err());
     assert!(french.vatWithType(Some("gov")).is_err());
     Ok(())
 }

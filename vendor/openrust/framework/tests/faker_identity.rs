@@ -1437,3 +1437,60 @@ fn russian_ukrainian_and_kazakh_companies_use_local_components() {
     assert!((0..128).any(|_| faker.company().contains('"')));
     assert!((0..128).any(|_| faker.company().contains('-')));
 }
+
+#[test]
+fn west_asian_companies_keep_regional_templates_and_components() {
+    let iran = fake(Some("fa-IR")).unwrap();
+    let israel = fake(Some("he-IL")).unwrap();
+    let armenia = fake(Some("hy-AM")).unwrap();
+    let georgia = fake(Some("ka-GE")).unwrap();
+
+    for (provider, suffixes) in [
+        (&iran, &["Ltd"][..]),
+        (&israel, &["בע\"מ", "ובניו", "סוכנויות", "משווקים"][..]),
+        (&armenia, &["ՍՊԸ", "և որդիներ", "ՓԲԸ", "ԲԲԸ"][..]),
+        (&georgia, &["Ltd"][..]),
+    ] {
+        let unique = provider.unique(true);
+        let actual: std::collections::HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+    }
+
+    let unique = iran.unique(true);
+    for _ in 0..6 {
+        unique.contract().unwrap();
+    }
+    assert!(unique.contract().is_err());
+    for _ in 0..10 {
+        unique.companyField().unwrap();
+    }
+    assert!(unique.companyField().is_err());
+    assert!(israel.contract().is_err());
+    assert!((0..128).any(|_| israel.company().contains(" את ")));
+    assert!((0..128).any(|_| armenia.company().ends_with(" եղբայրներ")));
+    let prefixes = [
+        "შპს",
+        "სს",
+        "კს",
+        "სს კორპორაცია",
+        "იმ",
+        "სპს",
+        "კოოპერატივი",
+    ];
+    for _ in 0..64 {
+        let name = georgia.company();
+        assert!(
+            prefixes
+                .iter()
+                .any(|prefix| name.starts_with(&format!("{prefix} ")))
+        );
+        assert!(!georgia.companyNameElement().unwrap().is_empty());
+        assert!(!georgia.companyNameSuffix().unwrap().is_empty());
+    }
+}

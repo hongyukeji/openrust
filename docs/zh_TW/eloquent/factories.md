@@ -334,10 +334,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `ru-RU` 和 `kk-KZ` 的公司名稱組合了法定前綴、名稱詞素與可選的名稱尾部。可用 `companyNameElement()` 與 `companyNameSuffix()` 單獨抽樣，`companySuffix()` 仍傳回繼承的 `Ltd`。`uk-UA` 的 `companyName()` 抽樣基礎名稱，`company()` 可加入前綴、引號或連字號後綴。這些地區方法支援 `unique`。
 
+`fa-IR`、`he-IL`、`hy-AM` 和 `ka-GE` 的 `company()` 使用固定上游的地區範本與詞表。伊朗公司名稱可包含前綴與營業領域，該地區的 `contract()` 抽樣勞動契約類型。喬治亞公司名稱由前綴、詞素與名稱尾部組成，也可分別抽樣。這些方法支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 68]> {
+fn identity_samples() -> DatabaseResult<[String; 71]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -350,6 +352,9 @@ fn identity_samples() -> DatabaseResult<[String; 68]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("fa-IR"))?.contract()?.to_owned(),
+        fake(Some("ka-GE"))?.companyNameElement()?.to_owned(),
+        fake(Some("he-IL"))?.company(),
         fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
         fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
         fake(Some("uk-UA"))?.companyName()?.to_owned(),
@@ -685,7 +690,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。
+`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。未設定批次數量的工廠回傳的 `lazy` 回呼，每次成功執行會建立並回傳一個模型。回呼不會快取上次的結果。
 
 ```rust
 use openrust::database::{

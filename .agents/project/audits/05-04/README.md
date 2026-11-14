@@ -822,7 +822,7 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 
 ### 公司格式后续验收
 
-- 尚未逐项对照的 Company 地区有 `bn_BD`、`fa_IR`、`he_IL`、`hy_AM`、`id_ID`、`ka_GE`、`ms_MY`、`th_TH`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
+- 尚未逐项对照的 Company 地区有 `bn_BD`、`id_ID`、`ms_MY`、`th_TH`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
 - 美国、法国、意大利及日本的公司模板仍复用现有姓氏生成器。Person 姓名词表和 Internet 用户名模板的地区行为需要分别核对。
 - 台湾 `companyEn()` 的上游失败已复现。继续核对固定版本的默认 provider 和可扩展 formatter 行为，再以实际运行用例确认等价入口。
 
@@ -857,3 +857,18 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `7082d269`。PHP 8.5 反射提取固定词表并核对 1,536 组上游名称与后缀。Rust 1.94.0 格式、全目标严格 Clippy、27 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查九条样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。站点保留已有分块大小提示，本批数据库验收使用 MySQL。
 
 临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 48%，磁盘 82 GiB。下一批核对西亚公司模板。
+
+
+## makeOne、makeMany 与 lazy 恢复复验
+
+隔离基线 `b815020d`。严格 Clippy、Rust 格式、完整 Seeder 49 项和 MySQL 8.4.13／SQLite 工厂回归两项通过。使用实际应用二进制执行 MySQL `artisan migrate --database=mysql --force` 和 `artisan db:seed --database=mysql --force`。单条预构造、默认批量、逐条覆盖及零条批量不写入目标表。默认批量消耗计数后回到一条。取得 `lazy` 的 Future 仍保持零行，两次批量和两次单条调用结束后回查六行。核对 Laravel 的 [Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L342) 后，三语文档补充单条回调和重复执行的行为。
+
+整套 Seeder 首轮发现早期 VAT 用例仍将 `zh-Hant` 视为不支持，与已提交的台湾 VAT 实现 `3d68ad4d` 冲突。将该断言更新为八位数字格式，使用 `en-US` 检查不支持的分支，随后完整重跑通过。实际 `./artisan inspire`、三语工厂示例编译、VitePress 构建和六项浏览器检查通过。
+
+## Faker 伊朗、以色列、亚美尼亚和格鲁吉亚公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照固定 FakerPHP v1.24.1 的[伊朗](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fa_IR/Company.php)、[以色列](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/he_IL/Company.php)、[亚美尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hy_AM/Company.php)及[格鲁吉亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ka_GE/Company.php)模板。保留当地姓名、原始标点、词素拼接与模板权重。扩展伊朗 `companyField()`、新增 `contract()`，接通格鲁吉亚的前缀、名称词素和名称尾部。各入口沿用 `unique`，伊朗与格鲁吉亚的独立 `companySuffix()` 保留继承的 `Ltd`。v0.x 未发现等价实现，Goravel 式编译装配沿用现有入口。
+
+隔离基线 `b815020d`。PHP 8.5 反射提取固定词表，核对 2,048 组上游公司名称和后缀。Rust 1.94.0 格式、全目标严格 Clippy、28 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查十一条样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过，保留已有分块大小提示。本批公司样本写入验收使用 MySQL。
+
+隔离副本的原始 Seeder 已恢复。已清理本批独占的 2.2 GiB Cargo 构建产物及 39 MiB 站点产物。提交前可用额度窗口剩余 48%，项目卷剩余 81 GiB。后续逐项核对孟加拉国、印度尼西亚、马来西亚和泰国公司模板，Person、Internet 和台湾 companyEn 仍在验收清单跟踪。

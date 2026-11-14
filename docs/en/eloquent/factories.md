@@ -334,10 +334,12 @@ For `lt-LT`, `sl-SI`, and `tr-TR`, `company()` uses the pinned regional template
 
 With `ru-RU` and `kk-KZ`, company names combine a legal prefix with name elements and an optional name ending. Use `companyNameElement()` and `companyNameSuffix()` to sample those parts. `companySuffix()` still returns the inherited `Ltd`. With `uk-UA`, `companyName()` samples the base name, and `company()` can add a prefix, quoted name, or hyphenated suffix. The regional formatters support `unique`.
 
+With `fa-IR`, `he-IL`, `hy-AM`, and `ka-GE`, `company()` uses the pinned regional templates and catalogs. Iranian companies can include a prefix and a business field. In this locale, `contract()` samples an employment contract type. Georgian company names use a prefix, name elements, and a name ending, which can also be sampled individually. These methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 68]> {
+fn identity_samples() -> DatabaseResult<[String; 71]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -350,6 +352,9 @@ fn identity_samples() -> DatabaseResult<[String; 68]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("fa-IR"))?.contract()?.to_owned(),
+        fake(Some("ka-GE"))?.companyNameElement()?.to_owned(),
+        fake(Some("he-IL"))?.company(),
         fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
         fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
         fake(Some("uk-UA"))?.companyName()?.to_owned(),
@@ -685,7 +690,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models.
+`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The callback does not cache a previous result.
 
 ```rust
 use openrust::database::{
