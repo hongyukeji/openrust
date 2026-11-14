@@ -534,3 +534,47 @@ fn turkish_identity_and_baltic_passports_follow_pinned_formats() {
     assert!(latvia.tcNo().is_err());
     assert!(turkey.passportNumber().is_err());
 }
+
+#[test]
+fn us_and_russian_tax_identifiers_follow_pinned_formats() {
+    use openrust::database::eloquent::factories::Faker;
+
+    let us = fake(Some("en-US")).unwrap();
+    let ru = fake(Some("ru-RU")).unwrap();
+    let ein_format = Regex::new(
+        r"^(0[1-6]|1[0-6]|2[0-7]|3[0-9]|4[0-8]|5[0-9]|6[0-8]|7[1-7]|8[0-8]|9[0-589])-[0-9]{7}$",
+    )
+    .unwrap();
+    let us_unique = us.unique(true);
+    let ru_unique = ru.unique(true);
+    let mut eins = std::collections::HashSet::new();
+    let mut inns = std::collections::HashSet::new();
+    for _ in 0..128 {
+        let ein = us_unique.ein().unwrap();
+        assert!(ein_format.is_match(&ein));
+        assert_eq!(&ein[2..3], "-");
+        assert!(ein[3..].bytes().all(|digit| digit.is_ascii_digit()));
+        assert!(eins.insert(ein));
+        let inn = ru_unique.inn10(Some("7")).unwrap();
+        assert_eq!(&inn[..2], "07");
+        assert!(Faker::inn10IsValid(&inn));
+        assert_eq!(ru.kpp(Some(&inn)).unwrap(), format!("{}01001", &inn[..4]));
+        assert!(inns.insert(inn));
+        let area = ru.inn(Some("00")).unwrap()[..2].parse::<u8>().unwrap();
+        assert!((1..=91).contains(&area));
+    }
+    assert_eq!(Faker::inn10Checksum("770708389").unwrap(), "3");
+    assert!(Faker::inn10IsValid("7707083893"));
+    assert!(!Faker::inn10IsValid("7707083894"));
+    assert!(!Faker::inn10IsValid("你0708389"));
+    assert!(Faker::inn10Checksum("12345678").is_err());
+    assert!(ru.inn10(Some("100")).is_err());
+    assert!(ru.inn10(Some("x7")).is_err());
+    assert!(ru.kpp(Some("12é4")).is_err());
+    assert_eq!(ru_unique.kpp(Some("7707")).unwrap(), "770701001");
+    assert!(ru_unique.kpp(Some("7707")).is_err());
+    assert!(ru.kpp(Some("77")).unwrap().ends_with("01001"));
+    assert!(ru.ein().is_err());
+    assert!(us.inn10(None).is_err());
+    assert!(us.kpp(None).is_err());
+}

@@ -267,6 +267,94 @@ impl Faker {
         Ok(Self::tcNoChecksum(split.0)? == split.1)
     }
 
+    /// Samples a US Employer Identification Number.
+    pub fn ein(&self) -> DatabaseResult<String> {
+        const PREFIXES: &[u8] = &[
+            1, 2, 3, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 23, 24, 25, 26, 27, 30, 31,
+            32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 50, 51, 52, 53, 54,
+            55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 71, 72, 73, 74, 75, 76, 77, 80,
+            81, 82, 83, 84, 85, 86, 87, 88, 90, 91, 92, 93, 94, 95, 98, 99,
+        ];
+        if self.locale() != "en_US" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker EIN locale"));
+        }
+
+        let prefix = PREFIXES[fastrand::usize(..PREFIXES.len())];
+        let suffix = fastrand::u32(..10_000_000);
+        Ok(format!("{prefix:02}-{suffix:07}"))
+    }
+
+    /// Legacy name for the Russian ten-digit INN formatter.
+    pub fn inn(&self, area_code: Option<&str>) -> DatabaseResult<String> {
+        self.inn10(area_code)
+    }
+
+    /// Samples a Russian ten-digit taxpayer identification number.
+    pub fn inn10(&self, area_code: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "ru_RU" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker INN locale"));
+        }
+
+        let area = match area_code {
+            None | Some("") => 0,
+            Some(code) => code
+                .parse::<u8>()
+                .ok()
+                .filter(|area| *area <= 99 && code.bytes().all(|digit| digit.is_ascii_digit()))
+                .ok_or(DatabaseError::InvalidQuery(
+                    "Faker INN area must be between 0 and 99",
+                ))?,
+        };
+        let area = if area == 0 {
+            fastrand::u8(1..=91)
+        } else {
+            area
+        };
+        let mut number = format!("{area:02}{:07}", fastrand::u32(..10_000_000));
+        number.push_str(&Self::inn10Checksum(&number)?);
+        Ok(number)
+    }
+
+    /// Samples a Russian tax registration reason code from the first four INN digits.
+    pub fn kpp(&self, inn: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "ru_RU" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker KPP locale"));
+        }
+
+        let generated;
+        let inn = match inn {
+            Some(value) if value.len() >= 4 => value,
+            _ => {
+                generated = self.inn10(None)?;
+                &generated
+            }
+        };
+        let prefix = inn
+            .get(..4)
+            .filter(|value| value.bytes().all(|digit| digit.is_ascii_digit()))
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker KPP prefix must contain four ASCII digits",
+            ))?;
+        Ok(format!("{prefix}01001"))
+    }
+
+    /// Calculates the check digit from the first nine digits.
+    pub fn inn10Checksum(inn: &str) -> DatabaseResult<String> {
+        let prefix = inn
+            .get(..9)
+            .filter(|value| value.bytes().all(|digit| digit.is_ascii_digit()))
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker INN prefix must contain nine ASCII digits",
+            ))?;
+        Ok(((weighted_digits(prefix, &[2, 4, 10, 3, 5, 9, 4, 6, 8]) % 11) % 10).to_string())
+    }
+
+    /// Checks a ten-digit INN against its checksum.
+    pub fn inn10IsValid(inn: &str) -> bool {
+        inn.len() == 10
+            && Self::inn10Checksum(inn).is_ok_and(|check| inn.as_bytes()[9..] == *check.as_bytes())
+    }
+
     /// Samples a DNI for Spain or Peru.
     pub fn dni(&self) -> DatabaseResult<String> {
         match self.locale() {
@@ -536,6 +624,22 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn ein(&self) -> DatabaseResult<String> {
+        self.try_generate("ein", || self.0.ein())
+    }
+
+    pub fn inn(&self, area_code: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("inn", || self.0.inn(area_code))
+    }
+
+    pub fn inn10(&self, area_code: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("inn10", || self.0.inn10(area_code))
+    }
+
+    pub fn kpp(&self, inn: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("kpp", || self.0.kpp(inn))
     }
 
     pub fn passportNumber(&self) -> DatabaseResult<String> {

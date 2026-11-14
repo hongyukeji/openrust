@@ -703,3 +703,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对照固定 FakerPHP v1.24.1 Person。立陶宛护照为八位数字，拉脱维亚为两个小写字母加七位数字。土耳其 `tcNo` 保留上游九位随机前缀和带符号的余数，包括前导零以及可能产生负号的后缀。 `tcNoChecksum` 对非九位 ASCII 数字回报错误，`tcNoIsValid` 沿用上游对两字符后缀的比较行为。两个生成方法支持 `unique`。v0.x 未找到等价入口，工厂接线沿用现有路径。 [土耳其 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/tr_TR/Person.php) · [立陶宛 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lt_LT/Person.php) · [拉脱维亚 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lv_LV/Person.php)
 
 隔离基线 `c8b60fb8`。PHP 8.5 对照 1,536 条样本及正、负余数固定输入。Rust 八项地区身份回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回查三条样本。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。需独立清库 URL 的 MySQL fresh 用例未启用。恢复隔离副本原 Seeder，清理 2.2 GiB Cargo 和 39 MiB 站点产物，磁盘剩余 82 GiB。其余地区公司与税务编号继续核对。
+
+## Faker 美国 EIN 与俄罗斯 INN、KPP
+
+对应固定 Laravel [Eloquent Factories — Defining Model Factories](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，按 FakerPHP v1.24.1 的 [美国 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Company.php) 和[俄罗斯 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ru_RU/Company.php) 实现。EIN 保留 83 个前缀及七位数字后缀，INN 保留地区范围、模 11 再模 10 校验和旧名 `inn`，KPP 保留四位前缀和 `01001`。四个格式支持 `unique`。Rust 通过可选参数表达缺省值，要求显式地区编号和校验前缀采用 ASCII 数字，验证接口对格式无效的号码返回 false。公开格式各自保留去重历史。v0.x 未找到等价入口，Goravel 式编译装配沿用原入口。
+
+隔离基线 `3e1d2fc5`。PHP 8.5 生成并核对 2,048 条上游样本，逐项比对全部 83 个 EIN 前缀。Rust 九项地区回归、49 项 Seeder、两项 MySQL／SQLite 工厂回归通过，MySQL fresh 单独提供清库 URL 实际执行。MySQL 8.4.13 通过实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查 EIN、INN、旧名 INN 和 KPP 四条记录。Rust 1.94.0 格式及全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载六项浏览器检查通过。站点保留既有分块大小提示。恢复原 Seeder，Cargo 清理输出为 2.2 GiB，另清理 39 MiB 站点产物。提交前周额度剩余 50%，项目卷可用 81 GiB。后续核对法国 SIRET 和波兰 REGON。

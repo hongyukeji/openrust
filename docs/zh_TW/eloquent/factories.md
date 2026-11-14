@@ -296,14 +296,22 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `passportNumber()` 在 `lt-LT` 傳回八位數字，在 `lv-LV` 傳回兩個小寫字母和七位數字。`tcNo()` 沿用固定土耳其產生器，允許前導零，並保留可能在後綴產生負號的上游帶符號餘數。`Faker::tcNoChecksum(prefix)` 接收九位 ASCII 數字，`Faker::tcNoIsValid(number)` 比對兩字元後綴，前綴無效時回傳錯誤。兩個產生方法都支援 `unique`。
 
+`en-US` 的 `ein()` 傳回兩位前綴、連字號和七位後綴。`ru-RU` 的 `inn10(area)` 和舊名 `inn(area)` 產生十位 INN。傳入 `None`、空字串或零時，從 01 至 91 抽樣地區編號。明確指定的地區編號須用 ASCII 數字表示 1 至 99。`kpp(inn)` 取 INN 前四位並附加 `01001`，省略或不足四個位元組時產生新 INN。`Faker::inn10Checksum` 根據九位前綴計算檢查碼，`Faker::inn10IsValid` 驗證完整號碼。四個產生方法都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 21]> {
+fn identity_samples() -> DatabaseResult<[String; 24]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
+    let russian = fake(Some("ru-RU"))?;
+    let inn = russian.inn10(Some("77"))?;
+    let kpp = russian.kpp(Some(&inn))?;
     Ok([
+        fake(Some("en-US"))?.ein()?,
+        inn,
+        kpp,
         fake(Some("tr-TR"))?.tcNo()?,
         fake(Some("lt-LT"))?.passportNumber()?,
         fake(Some("lv-LV"))?.passportNumber()?,

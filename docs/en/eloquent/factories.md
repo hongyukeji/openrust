@@ -296,14 +296,22 @@ Use `idNumber()` with `nl-NL`, `en-ZA`, `ar-SA`, or `mn-MN`. South Africa also a
 
 Use `passportNumber()` with `lt-LT` for eight digits or `lv-LV` for two lowercase letters followed by seven digits. `tcNo()` samples the pinned Turkish formatter. The generator permits a leading zero and preserves the upstream signed remainder, which can produce a minus sign in the suffix. `Faker::tcNoChecksum(prefix)` requires nine ASCII digits. `Faker::tcNoIsValid(number)` compares a two-character suffix and returns an error for malformed prefixes. Both generators support `unique`.
 
+Use `ein()` with `en-US` for a two-digit provider prefix and a seven-digit suffix. With `ru-RU`, `inn10(area)` and its legacy name `inn(area)` generate a ten-digit INN. Pass `None`, an empty string, or zero to sample an area from 01 to 91. An explicit area must represent a number from 1 to 99 using ASCII digits. `kpp(inn)` uses the first four digits of an INN and appends `01001`. A missing or short input samples a fresh INN. Use `Faker::inn10Checksum` on a nine-digit prefix and `Faker::inn10IsValid` on a complete number. All four generators support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 21]> {
+fn identity_samples() -> DatabaseResult<[String; 24]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
+    let russian = fake(Some("ru-RU"))?;
+    let inn = russian.inn10(Some("77"))?;
+    let kpp = russian.kpp(Some(&inn))?;
     Ok([
+        fake(Some("en-US"))?.ein()?,
+        inn,
+        kpp,
         fake(Some("tr-TR"))?.tcNo()?,
         fake(Some("lt-LT"))?.passportNumber()?,
         fake(Some("lv-LV"))?.passportNumber()?,
