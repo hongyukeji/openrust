@@ -2675,3 +2675,29 @@ fn ugandan_surnames_select_the_general_or_explicit_gender_catalog() {
     assert!(general.contains(&faker.lastNameWithGender(None)));
     assert!(fake(Some("en-NG")).unwrap().lastNameFemale().is_err());
 }
+
+#[test]
+fn mongolian_person_keeps_initials_distinct_from_the_identity_alphabet() {
+    let faker = fake(Some("mn-MN")).unwrap();
+    let unique = faker.unique(true);
+    let initials: std::collections::HashSet<_> =
+        (0..30).map(|_| unique.namePrefix().unwrap()).collect();
+    assert_eq!(initials.len(), 30);
+    assert!(unique.namePrefix().is_err());
+    let alphabet: std::collections::HashSet<_> =
+        (0..35).map(|_| unique.alphabet().unwrap()).collect();
+    assert_eq!(alphabet.len(), 35);
+    assert!(initials.is_subset(&alphabet));
+
+    for gender in [None, Some("male"), Some("female")] {
+        for _ in 0..32 {
+            let name = faker.nameWithGender(gender);
+            let (prefix, given) = name.split_once('.').unwrap();
+            assert_eq!(prefix.chars().count(), 1);
+            assert!(initials.contains(&prefix.chars().next().unwrap()));
+            assert!(!given.is_empty());
+        }
+    }
+    assert_eq!(faker.lastName(), "Doe");
+    assert!(fake(Some("en-US")).unwrap().namePrefix().is_err());
+}

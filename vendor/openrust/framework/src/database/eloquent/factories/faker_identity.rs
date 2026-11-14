@@ -236,6 +236,20 @@ impl Faker {
         number
     }
 
+    /// Samples the initial used in Mongolian full names.
+    pub fn namePrefix(&self) -> DatabaseResult<char> {
+        if self.locale() != "mn_MN" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker name prefix locale",
+            ));
+        }
+        const PREFIXES: &[char] = &[
+            'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'Ө', 'П',
+            'Р', 'С', 'Т', 'У', 'Ү', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Э', 'Ю', 'Я',
+        ];
+        Ok(PREFIXES[fastrand::usize(..PREFIXES.len())])
+    }
+
     pub fn alphabet(&self) -> DatabaseResult<char> {
         if self.locale() != "mn_MN" {
             return Err(DatabaseError::InvalidQuery(
@@ -873,6 +887,10 @@ impl UniqueFaker<'_> {
 
     pub fn foreignerIdNumber(&self) -> DatabaseResult<String> {
         self.try_generate("foreignerIdNumber", || self.0.foreignerIdNumber())
+    }
+
+    pub fn namePrefix(&self) -> DatabaseResult<char> {
+        self.try_generate("namePrefix", || self.0.namePrefix())
     }
 
     pub fn alphabet(&self) -> DatabaseResult<char> {

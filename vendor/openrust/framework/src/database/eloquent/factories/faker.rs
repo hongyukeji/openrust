@@ -1042,6 +1042,7 @@ impl Faker {
                 "titleMale" => name.push_str(self.titleMale()),
                 "titleFemale" => name.push_str(self.titleFemale()),
                 "title" => name.push_str(self.title(None)),
+                "namePrefix" => name.push(self.namePrefix().expect("fixed name-prefix locale")),
                 "prefix" => {
                     name.push_str(catalog.prefixes[fastrand::usize(..catalog.prefixes.len())])
                 }

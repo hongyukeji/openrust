@@ -846,6 +846,18 @@ fn ugandan_surname() -> DatabaseResult<String> {
 }
 ```
 
+### Mongolian Names {#mongolian-names}
+
+For `mn-MN`, full names use one Cyrillic initial, a period, and a given name without an intervening space. `namePrefix()` samples the set of 30 initials. `alphabet()` samples the separate set of 35 letters used by `idNumber()`. Both return a Rust `char` and support `unique()`. The standalone surname formatter inherits `Doe` from the base provider.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn mongolian_initial() -> DatabaseResult<char> {
+    fake(Some("mn-MN"))?.unique(false).namePrefix()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

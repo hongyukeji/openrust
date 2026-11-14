@@ -1058,3 +1058,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `05eaba56`。PHP 8.5 核对 1,024 组固定上游姓名，MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回查 768 个全名、名字和姓氏值，同步核对称谓与姓名词表及模板。52 项 Faker 包含乌干达三套词表的去重耗尽，49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译和实际运行、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复，清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 45%，清理后项目卷可用 81 GiB。下一批核对蒙古语姓名和专用接口。
+
+## Faker 蒙古语姓名、首字母和证件样本
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 [FakerPHP 蒙古语 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/mn_MN/Person.php)。接通两个名字词表与句点连接模板。独立姓氏延续基础 provider 的 Doe。新增 `namePrefix()`，与证件样本的 `alphabet()` 分别使用各自词表。Rust 以 char 表达单个字符，两者各自支持去重。v0.x 未找到对应逻辑，沿用现有编译式工厂装配。
+
+隔离基线 `0a5d0286`。PHP 8.5 核对 512 组上游姓名和 128 组首字母、证件样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并按顺序逐条回读 768 个值，核对词表、模板、证件掩码和字母范围，实际执行文档示例。53 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，清理后项目卷可用 81 GiB。下一批核对新加坡英语 Person 与身份样本。

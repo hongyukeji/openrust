@@ -846,6 +846,18 @@ fn ugandan_surname() -> DatabaseResult<String> {
 }
 ```
 
+### 蒙古语姓名 {#mongolian-names}
+
+`mn-MN` 全名使用一个西里尔首字母、句点和名字，句点后没有空格。`namePrefix()` 从 30 个姓名首字母中抽样。`alphabet()` 使用 `idNumber()` 的独立 35 字母词表。两个接口均返回 Rust `char`，并支持 `unique()`。单独调用姓氏生成接口会返回基础 provider 的 `Doe`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn mongolian_initial() -> DatabaseResult<char> {
+    fake(Some("mn-MN"))?.unique(false).namePrefix()
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
