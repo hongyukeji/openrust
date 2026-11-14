@@ -237,6 +237,23 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Credit Card Samples {#credit-card-samples}
+
+The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Chrono directives and defaults to `%m/%y`. All five formatters support `unique`.
+
+`creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{CreditCardDetails, fake}};
+
+fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
+    let faker = fake(Some("pt-BR"))?;
+    let details = faker.unique(false).creditCardDetails(true)?;
+    let number = faker.creditCardNumber(Some("Elo"), true, None)?;
+    Ok((details, number))
+}
+```
+
 ### Postal Addresses and Titles {#address-and-title-samples}
 
 Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.

@@ -237,6 +237,23 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 信用卡样本 {#credit-card-samples}
+
+信用卡生成器提供品牌、带 Luhn 校验位的卡号、到期日和完整样本。卡号格式化时默认用连字符分组。`pt-BR` 使用巴西品牌格式。到期日期传入 `true` 时从现在到未来 36 个月取样，传入 `false` 时从过去 36 个月到未来 36 个月取样。`creditCardExpirationDateString` 接受 Chrono 格式指令，默认 `%m/%y`。五个方法均支持 `unique`。
+
+`creditCardType()` · `creditCardNumber(type, formatted, separator)` · `creditCardExpirationDate(valid)` · `creditCardExpirationDateString(valid, format)` · `creditCardDetails(valid)`
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{CreditCardDetails, fake}};
+
+fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
+    let faker = fake(Some("pt-BR"))?;
+    let details = faker.unique(false).creditCardDetails(true)?;
+    let number = faker.creditCardNumber(Some("Elo"), true, None)?;
+    Ok((details, number))
+}
+```
+
 ### 邮寄地址和称谓 {#address-and-title-samples}
 
 用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的上游 Faker 排列规则。城市、街道和部分地址组件仍使用 fake-rs 数据。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。

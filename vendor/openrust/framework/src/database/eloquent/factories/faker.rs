@@ -1,6 +1,9 @@
 use super::{
-    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_payment::IBAN_FORMATS, faker_person,
-    faker_phone, regex_pattern::RegexPattern,
+    faker_address::DISTRICTS_ZH_CN,
+    faker_miscellaneous,
+    faker_payment::{CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, card_masks, card_masks_pt_br},
+    faker_person, faker_phone,
+    regex_pattern::RegexPattern,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -31,6 +34,16 @@ use md5::{Digest as _, Md5};
 pub struct Coordinates {
     pub latitude: f64,
     pub longitude: f64,
+}
+
+/// The fields returned by the sample credit-card formatter.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreditCardDetails {
+    pub r#type: &'static str,
+    pub number: String,
+    pub name: String,
+    pub expiration_date: String,
 }
 
 /// Generates localized sample data for tests and seeders.
@@ -877,6 +890,87 @@ impl Faker {
         code.push_str(prefix);
         code.push_str(&self.numerify(Some("#########")));
         ean_with_checksum(code)
+    }
+
+    pub fn creditCardType(&self) -> &'static str {
+        let vendors = if self.locale() == "pt_BR" {
+            CARD_VENDORS_PT_BR
+        } else {
+            CARD_VENDORS
+        };
+        vendors[fastrand::usize(..vendors.len())]
+    }
+
+    pub fn creditCardNumber(
+        &self,
+        cardType: Option<&str>,
+        formatted: bool,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        let vendor = cardType.unwrap_or_else(|| self.creditCardType());
+        let masks = if self.locale() == "pt_BR" {
+            card_masks_pt_br(vendor)
+        } else {
+            card_masks(vendor)
+        }
+        .ok_or(DatabaseError::InvalidQuery(
+            "unknown Faker credit card type",
+        ))?;
+        let mut number = self.numerify(Some(masks[fastrand::usize(..masks.len())]));
+        let sum: u32 = number
+            .bytes()
+            .rev()
+            .enumerate()
+            .map(|(index, digit)| {
+                let value = u32::from(digit - b'0');
+                if index % 2 == 0 {
+                    let doubled = value * 2;
+                    doubled / 10 + doubled % 10
+                } else {
+                    value
+                }
+            })
+            .sum();
+        number.push(char::from(b'0' + ((10 - sum % 10) % 10) as u8));
+        if formatted {
+            let separator = separator.unwrap_or("-");
+            Ok([&number[..4], &number[4..8], &number[8..12], &number[12..]].join(separator))
+        } else {
+            Ok(number)
+        }
+    }
+
+    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<DateTime<Tz>> {
+        let start = if valid { "now" } else { "-36 months" };
+        let zone = self.default_timezone.unwrap_or(self.application_timezone);
+        self.dateTimeBetweenExpressions(start, "+36 months")
+            .map(|date| date.with_timezone(&zone))
+    }
+
+    pub fn creditCardExpirationDateString(
+        &self,
+        valid: bool,
+        expirationDateFormat: Option<&str>,
+    ) -> DatabaseResult<String> {
+        let date = self.creditCardExpirationDate(valid)?;
+        let mut output = String::new();
+        write!(
+            output,
+            "{}",
+            date.format(expirationDateFormat.unwrap_or("%m/%y"))
+        )
+        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
+        Ok(output)
+    }
+
+    pub fn creditCardDetails(&self, valid: bool) -> DatabaseResult<CreditCardDetails> {
+        let card_type = self.creditCardType();
+        Ok(CreditCardDetails {
+            r#type: card_type,
+            number: self.creditCardNumber(Some(card_type), false, None)?,
+            name: self.name(),
+            expiration_date: self.creditCardExpirationDateString(valid, None)?,
+        })
     }
 
     /// Generates a sample IBAN using the selected country's account layout.
@@ -1863,6 +1957,46 @@ impl UniqueFaker<'_> {
 
     pub fn isbn13(&self) -> DatabaseResult<String> {
         self.generate("isbn13", || self.0.isbn13())
+    }
+
+    pub fn creditCardType(&self) -> DatabaseResult<&'static str> {
+        self.generate("creditCardType", || self.0.creditCardType())
+    }
+
+    pub fn creditCardNumber(
+        &self,
+        cardType: Option<&str>,
+        formatted: bool,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("creditCardNumber", || {
+            self.0.creditCardNumber(cardType, formatted, separator)
+        })
+    }
+
+    pub fn creditCardExpirationDate(&self, valid: bool) -> DatabaseResult<DateTime<Tz>> {
+        self.try_generate("creditCardExpirationDate", || {
+            self.0.creditCardExpirationDate(valid)
+        })
+    }
+
+    pub fn creditCardExpirationDateString(
+        &self,
+        valid: bool,
+        expirationDateFormat: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("creditCardExpirationDateString", || {
+            self.0
+                .creditCardExpirationDateString(valid, expirationDateFormat)
+        })
+    }
+
+    pub fn creditCardDetails(&self, valid: bool) -> DatabaseResult<CreditCardDetails> {
+        self.generate_keyed(
+            "creditCardDetails",
+            || self.0.creditCardDetails(valid),
+            faker_json_key,
+        )
     }
 
     pub fn iban(

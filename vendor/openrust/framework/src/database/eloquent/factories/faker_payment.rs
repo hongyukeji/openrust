@@ -1,4 +1,4 @@
-// IBAN layouts from FakerPHP 1.24.1, src/Faker/Provider/Payment.php.
+// IBAN layouts and card masks from FakerPHP 1.24.1, src/Faker/Provider/Payment.php.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
 // Portions Copyright (c) 2008 Adam Royle
@@ -87,3 +87,119 @@ pub(super) const IBAN_FORMATS: &[(&str, &[u8])] = &[
     ("TR", b"nnnnnncccccccccccccccc"),
     ("VG", b"aaaannnnnnnnnnnnnnnn"),
 ];
+
+pub(super) const CARD_VENDORS: &[&str] = &[
+    "Visa",
+    "Visa",
+    "Visa",
+    "Visa",
+    "Visa",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "American Express",
+    "Discover Card",
+    "Visa Retired",
+    "JCB",
+];
+
+pub(super) fn card_masks(vendor: &str) -> Option<&'static [&'static str]> {
+    Some(match vendor {
+        "Visa" => &[
+            "4539###########",
+            "4556###########",
+            "4916###########",
+            "4532###########",
+            "4929###########",
+            "40240071#######",
+            "4485###########",
+            "4716###########",
+            "4##############",
+        ],
+        "Visa Retired" => &[
+            "4539########",
+            "4556########",
+            "4916########",
+            "4532########",
+            "4929########",
+            "40240071####",
+            "4485########",
+            "4716########",
+            "4###########",
+        ],
+        "MasterCard" => &[
+            "2221###########",
+            "23#############",
+            "24#############",
+            "25#############",
+            "26#############",
+            "2720###########",
+            "51#############",
+            "52#############",
+            "53#############",
+            "54#############",
+            "55#############",
+        ],
+        "American Express" => &["34############", "37############"],
+        "Discover Card" => &["6011###########"],
+        "JCB" => &["3528###########", "3589###########"],
+        _ => return None,
+    })
+}
+
+pub(super) const CARD_VENDORS_PT_BR: &[&str] = &[
+    "Visa",
+    "Visa",
+    "Visa",
+    "Visa",
+    "Visa",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "MasterCard",
+    "American Express",
+    "Discover Card",
+    "Diners",
+    "Elo",
+    "Hipercard",
+];
+
+pub(super) fn card_masks_pt_br(vendor: &str) -> Option<&'static [&'static str]> {
+    Some(match vendor {
+        "Visa" => &["4##############"],
+        "MasterCard" => &["5##############"],
+        "American Express" => &["34############", "37############"],
+        "Discover Card" => &[
+            "6011###########",
+            "622############",
+            "64#############",
+            "65#############",
+        ],
+        "Diners" => &[
+            "301############",
+            "301##########",
+            "305############",
+            "305##########",
+            "36#############",
+            "36###########",
+            "38#############",
+            "38###########",
+        ],
+        "Elo" => &[
+            "636368#########",
+            "438935#########",
+            "504175#########",
+            "451416#########",
+            "636297#########",
+            "5067###########",
+            "4576###########",
+            "4011###########",
+        ],
+        "Hipercard" => &["38#############", "60#############"],
+        "Aura" => &["50#############"],
+        _ => return None,
+    })
+}

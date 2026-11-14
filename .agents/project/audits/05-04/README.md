@@ -469,3 +469,13 @@ PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN�
 下一批核对 Payment provider 的信用卡 formatter，其他地区特有的银行方法单独跟踪。
 
 已清理本批隔离副本的 2.2 GiB Cargo 产物与约 38 MiB 文档站产物，复查项目卷剩余 84 GiB。
+
+## Faker 信用卡样本
+
+对应固定 Laravel 工厂的 `fake()`。移植 FakerPHP v1.24.1 Payment provider 的 `creditCardType`、`creditCardNumber`、`creditCardExpirationDate`、`creditCardExpirationDateString` 和 `creditCardDetails`，包括通用与巴西葡语的品牌权重、卡号格式和 Luhn 校验、默认分隔符、到期日窗口及每个 formatter 的 unique 历史。繁中沿用通用 Payment provider，与上游委托一致。Rust 用结构体表达详情，JSON 字段保留 `type`、`number`、`name`、`expirationDate`。未知品牌返回类型化错误，自定义日期格式复用现有 Chrono 指令和时区规则。v0.x 未找到对应方法，固定 Goravel 的工厂装配沿用现有路径。 [Laravel 工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [FakerPHP Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Payment.php#L147) · [巴西葡语 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_BR/Payment.php)
+
+隔离基线 `1d712dfe`。PHP 8.5 执行固定通用、巴西葡语及繁中 provider，验证号码格式、Luhn、日期和详情。两套品牌权重与 61 条卡号格式逐项比对一致。Rust 定向回归验证分组、品牌范围、两种日期窗口、错误参数和唯一品牌耗尽。真实 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查完整卡片样本、到期字符串和巴西 Elo 格式化卡号。Rust 1.94.0 格式、全目标严格 Clippy、MySQL 定向工厂回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。日常数据库验收按项目约定限定 MySQL。
+
+下一批按地区核对 `bankAccountNumber`、`bankRoutingNumber` 及其他 Payment provider 特有接口。
+
+清理本批独立 Cargo 产物 2.2 GiB 和站点产物约 38 MiB，复查项目卷剩余 83 GiB。

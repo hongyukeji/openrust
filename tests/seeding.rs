@@ -4517,3 +4517,89 @@ fn faker_bank_identifiers_follow_fixed_layouts_and_checksums() -> DatabaseResult
     }
     Ok(())
 }
+
+#[test]
+fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::fake;
+
+    let faker = fake(Some("en"))?;
+    let brazil = fake(Some("pt-BR"))?;
+    for (generator, vendor, lengths, prefixes) in [
+        (&faker, "Visa", &[16][..], &["4"][..]),
+        (&faker, "Visa Retired", &[13][..], &["4"][..]),
+        (&faker, "MasterCard", &[16][..], &["2", "5"][..]),
+        (&faker, "American Express", &[15][..], &["34", "37"][..]),
+        (&faker, "Discover Card", &[16][..], &["6011"][..]),
+        (&faker, "JCB", &[16][..], &["3528", "3589"][..]),
+        (&brazil, "Diners", &[14, 16][..], &["30", "36", "38"][..]),
+        (&brazil, "Elo", &[16][..], &["4", "5", "6"][..]),
+        (&brazil, "Hipercard", &[16][..], &["38", "60"][..]),
+        (&brazil, "Aura", &[16][..], &["50"][..]),
+    ] {
+        for _ in 0..16 {
+            let formatted = generator.creditCardNumber(Some(vendor), true, Some("::"))?;
+            let groups: Vec<_> = formatted.split("::").collect();
+            assert_eq!(groups.len(), 4);
+            assert!(groups[..3].iter().all(|group| group.len() == 4));
+            let number = groups.concat();
+            assert!(lengths.contains(&number.len()));
+            assert!(prefixes.iter().any(|prefix| number.starts_with(prefix)));
+            assert!(number.bytes().all(|byte| byte.is_ascii_digit()));
+            let sum: u32 = number
+                .bytes()
+                .rev()
+                .enumerate()
+                .map(|(index, byte)| {
+                    let value = u32::from(byte - b'0');
+                    if index % 2 == 0 {
+                        value
+                    } else {
+                        value * 2 - u32::from(value > 4) * 9
+                    }
+                })
+                .sum();
+            assert_eq!(sum % 10, 0);
+        }
+    }
+    assert!(faker.creditCardNumber(Some("Elo"), false, None).is_err());
+    assert!(brazil.creditCardNumber(Some("JCB"), false, None).is_err());
+    assert!(faker.creditCardNumber(Some("bogus"), false, None).is_err());
+    let start = chrono::Utc::now().timestamp();
+    let upper = faker.resolveDateMax("+36 months")?.timestamp() + 1;
+    let lower = faker.resolveDateMax("-36 months")?.timestamp() - 1;
+    for _ in 0..16 {
+        assert!((start..=upper).contains(&faker.creditCardExpirationDate(true)?.timestamp()));
+        assert!((lower..=upper).contains(&faker.creditCardExpirationDate(false)?.timestamp()));
+    }
+    let default_date = faker.creditCardExpirationDateString(true, None)?;
+    assert!(chrono::NaiveDate::parse_from_str(&format!("01/{default_date}"), "%d/%m/%y").is_ok());
+    assert!(
+        faker
+            .creditCardExpirationDateString(true, Some("%Q"))
+            .is_err()
+    );
+    let unique = faker.unique(true);
+    let mut vendors = std::collections::HashSet::new();
+    for _ in 0..6 {
+        assert!(vendors.insert(unique.creditCardType()?));
+    }
+    assert!(unique.creditCardType().is_err());
+    let details = unique.creditCardDetails(true)?;
+    assert!(vendors.contains(details.r#type));
+    assert!(!details.name.is_empty());
+    assert!(!details.number.contains('-'));
+    assert_eq!(
+        serde_json::to_value(&details).unwrap()["expirationDate"],
+        details.expiration_date
+    );
+    assert!(unique.creditCardExpirationDate(true)?.timestamp() >= start);
+    assert_eq!(
+        unique
+            .creditCardExpirationDateString(true, Some("%Y-%m"))?
+            .len(),
+        7
+    );
+    let first = unique.creditCardNumber(None, false, None)?;
+    assert_ne!(unique.creditCardNumber(None, false, None)?, first);
+    Ok(())
+}
