@@ -40,6 +40,8 @@ Use `unixTime(max)` to sample Unix seconds between the epoch and the specified e
 
 Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight UTC on January 1. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as FakerPHP does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
 
+Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled UTC date. The day and month numbers are zero-padded strings. Weekday and month names are English, matching FakerPHP’s date format. `dateTimeAD(max)` samples from FakerPHP’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -57,6 +59,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
+            ("weekday".into(), faker.dayOfWeek(Some(DateTime::UNIX_EPOCH)).into()),
         ]))
     })
 }

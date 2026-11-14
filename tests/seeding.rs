@@ -956,6 +956,39 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(faker.time(None, Some(epoch))?, "00:00:00");
             assert_eq!(faker.date(Some("%d/%m/%Y"), Some(epoch))?, "01/01/1970");
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T00:00:00+0000");
+            let first_ad = chrono::DateTime::from_timestamp(-62_135_597_361, 0).unwrap();
+            assert_eq!(faker.dateTimeAD(Some(first_ad)), first_ad);
+            assert_eq!(faker.amPm(Some(epoch)), "am");
+            assert_eq!(faker.dayOfMonth(Some(epoch)), "01");
+            assert_eq!(faker.dayOfWeek(Some(epoch)), "Thursday");
+            assert_eq!(faker.month(Some(epoch)), "01");
+            assert_eq!(faker.monthName(Some(epoch)), "January");
+            assert_eq!(faker.year(Some(epoch)), "1970");
+            let calendar_unique = faker.unique(false);
+            assert_eq!(calendar_unique.dateTimeAD(Some(first_ad))?, first_ad);
+            assert_eq!(calendar_unique.amPm(Some(epoch))?, "am");
+            assert_eq!(calendar_unique.dayOfMonth(Some(epoch))?, "01");
+            assert_eq!(calendar_unique.dayOfWeek(Some(epoch))?, "Thursday");
+            assert_eq!(calendar_unique.month(Some(epoch))?, "01");
+            assert_eq!(calendar_unique.monthName(Some(epoch))?, "January");
+            assert_eq!(calendar_unique.year(Some(epoch))?, "1970");
+            assert!(calendar_unique.amPm(Some(epoch)).is_err());
+            let mut centuries = (0..21)
+                .map(|_| calendar_unique.century())
+                .collect::<DatabaseResult<Vec<_>>>()?;
+            centuries.sort_unstable();
+            assert_eq!(
+                centuries,
+                [
+                    "I", "II", "III", "IV", "IX", "V", "VI", "VII", "VIII", "X", "XI", "XII",
+                    "XIII", "XIV", "XIX", "XV", "XVI", "XVII", "XVIII", "XX", "XXI",
+                ]
+            );
+            assert!(matches!(
+                calendar_unique.century(),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+
             assert!(matches!(
                 faker.date(Some("%Q"), Some(epoch)),
                 Err(DatabaseError::InvalidQuery("invalid Faker date format"))

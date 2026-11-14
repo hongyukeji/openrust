@@ -268,6 +268,48 @@ impl Faker {
         self.dateTime(max).format("%Y-%m-%dT%H:%M:%S%z").to_string()
     }
 
+    /// Samples between the FakerPHP AD lower bound and the supplied endpoint.
+    pub fn dateTimeAD(&self, max: Option<DateTime<Utc>>) -> DateTime<Utc> {
+        const FIRST_AD_TIMESTAMP: i64 = -62_135_597_361;
+        let end = max.unwrap_or_else(Utc::now).timestamp();
+        DateTime::from_timestamp(self.numberBetween(FIRST_AD_TIMESTAMP, end), 0)
+            .expect("sample lies between valid timestamps")
+    }
+
+    pub fn amPm(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%P").to_string()
+    }
+
+    pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%d").to_string()
+    }
+
+    pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%A").to_string()
+    }
+
+    pub fn month(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%m").to_string()
+    }
+
+    pub fn monthName(&self, max: Option<DateTime<Utc>>) -> String {
+        self.dateTime(max).format("%B").to_string()
+    }
+
+    pub fn year(&self, max: Option<DateTime<Utc>>) -> String {
+        let year = self.dateTime(max).year();
+        let sign = if year < 0 { "-" } else { "" };
+        format!("{sign}{:04}", year.unsigned_abs())
+    }
+
+    pub fn century(&self) -> &'static str {
+        const CENTURIES: [&str; 21] = [
+            "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII",
+            "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI",
+        ];
+        CENTURIES[(0..CENTURIES.len()).fake::<usize>()]
+    }
+
     fn format_date(&self, format: &str, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         use std::fmt::Write as _;
         let mut output = String::new();
@@ -439,6 +481,38 @@ impl UniqueFaker<'_> {
 
     pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         self.generate("iso8601", || self.0.iso8601(max))
+    }
+
+    pub fn dateTimeAD(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.generate("dateTimeAD", || self.0.dateTimeAD(max))
+    }
+
+    pub fn amPm(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("amPm", || self.0.amPm(max))
+    }
+
+    pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("dayOfMonth", || self.0.dayOfMonth(max))
+    }
+
+    pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("dayOfWeek", || self.0.dayOfWeek(max))
+    }
+
+    pub fn month(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("month", || self.0.month(max))
+    }
+
+    pub fn monthName(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("monthName", || self.0.monthName(max))
+    }
+
+    pub fn year(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
+        self.generate("year", || self.0.year(max))
+    }
+
+    pub fn century(&self) -> DatabaseResult<&'static str> {
+        self.generate("century", || self.0.century())
     }
 
     fn generate<T: ToString>(

@@ -158,3 +158,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 的 `dateTimeInInterval`、`dateTimeThisCentury`、`dateTimeThisDecade`、`dateTimeThisYear` 和 `dateTimeThisMonth`。Rust 用 UTC 日期与带符号的 Chrono `TimeDelta` 表达区间，沿用整秒闭区间取样、端点检查和 `unique`。负时长交换端点。月和年回溯保留日历溢出归一化，当年起点为元旦 UTC 零点。旧版有 PHP 日期解析器及溢出归一化，可参考其规则，当前有类型的接口只需按原日序归一化。Goravel 装配无需调整。任意 PHP 相对时间表达式及其余日期格式化入口继续跟踪。 [FakerPHP 日期区间](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L167)
 
 隔离基线 `9baa878f`。PHP 8.5.12 验证月底减月、闰日减年和元旦零点。Rust 1.94.0 格式及工作区全目标严格 Clippy 通过。MySQL 8.4.13 的 Seeder 回归覆盖正负时长、零时长、溢出、无效上界、默认区间和唯一值耗尽。应用二进制实际运行 `artisan db:seed --database=mysql --force` 并回查纪元记录。MySQL／SQLite 工厂回归、`./artisan inspire`、三语日期与 Seeder 示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 日期组成格式
+
+对照 FakerPHP 1.24.1 的 `dateTimeAD`、`amPm`、`dayOfMonth`、`dayOfWeek`、`month`、`monthName`、`year` 和 `century`。Rust 保留 UTC 和有类型的时间上界，沿用 64 位公元日期下界、补零字符串、英文日期名称及 I 至 XXI 的候选集。全部接入 `unique`。旧版有日期格式解析，未发现同类 Faker 生成入口。Goravel 装配无需调整。时区标识生成、默认时区和任意 PHP 相对时间表达式继续跟踪。 [FakerPHP 日期实现](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L72)
+
+隔离基线 `265f9646`。PHP 8.5.12 验证 64 位日期下界、纪元输出和有符号年份格式。MySQL 8.4.13 的 Seeder 集成用例验证八个入口、去重和罗马数字耗尽。应用二进制运行 `artisan db:seed --database=mysql --force`，写入并回查日期组成值。MySQL／SQLite 工厂回归、Rust 1.94.0 格式及工作区全目标严格 Clippy、`./artisan inspire`、三语日期示例编译、VitePress 和六项浏览器检查通过。

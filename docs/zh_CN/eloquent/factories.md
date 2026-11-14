@@ -40,6 +40,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `dateTimeInInterval(date, interval)` 在 UTC 起点和该时间加上带符号的 Chrono `TimeDelta` 之间按整秒取样。负时长向过去取样。起点和时长传入 `None` 时，分别默认取 30 年前和向后五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分别从当前时间往前 100 年、10 年和一个月开始。`dateTimeThisYear(max)` 从当年 1 月 1 日 UTC 零点开始。这四个方法在 `max` 为 `None` 时以上述当前时间为终点，拒绝早于起点的终点，日历溢出按 FakerPHP 规则归一化。五个方法均支持 `unique`。Rust 使用有类型的日期和时长。需要自定义日历区间时，可计算终点后调用 `dateTimeBetween`。
 
+用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 格式化随机 UTC 日期的各个部分。日和月的数字以补零字符串返回，星期和月份名称沿用 FakerPHP 的英文日期格式。`dateTimeAD(max)` 从 FakerPHP 的 64 位公元日期下界开始取样。这些方法在 `max` 为 `None` 时使用当前时间。`century()` 随机返回 I 至 XXI 的罗马数字。所有方法均支持 `unique`。
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -57,6 +59,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
+            ("weekday".into(), faker.dayOfWeek(Some(DateTime::UNIX_EPOCH)).into()),
         ]))
     })
 }
