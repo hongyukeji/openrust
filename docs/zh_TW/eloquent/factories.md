@@ -38,8 +38,10 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Chrono 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含 UTC 偏移量 `+0000`。如需其他時區，可用 Chrono 轉換回傳的日期時間。五種方法皆支援 `unique`。
 
+用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Chrono `TimeDelta` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從當年 1 月 1 日 UTC 零點開始。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依 FakerPHP 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
+
 ```rust
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta};
 use openrust::database::{
     DatabaseResult,
     eloquent::{Attributes, Model, factories::Factory},
@@ -50,9 +52,11 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let start = DateTime::UNIX_EPOCH;
         let end = DateTime::from_timestamp(86_400, 0).unwrap();
         let happened_at = faker.dateTimeBetween(start, end)?;
+        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
+            ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
         ]))
     })
 }

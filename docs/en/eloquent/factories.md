@@ -38,8 +38,10 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the UTC offset `+0000`. Convert the returned date-time to another time zone with Chrono when needed. All five methods support `unique`.
 
+Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight UTC on January 1. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as FakerPHP does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
+
 ```rust
-use chrono::DateTime;
+use chrono::{DateTime, TimeDelta};
 use openrust::database::{
     DatabaseResult,
     eloquent::{Attributes, Model, factories::Factory},
@@ -50,9 +52,11 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let start = DateTime::UNIX_EPOCH;
         let end = DateTime::from_timestamp(86_400, 0).unwrap();
         let happened_at = faker.dateTimeBetween(start, end)?;
+        let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
+            ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
         ]))
     })
 }

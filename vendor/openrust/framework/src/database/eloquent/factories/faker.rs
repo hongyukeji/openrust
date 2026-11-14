@@ -11,12 +11,22 @@ use crate::{
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Days, Months, TimeDelta, TimeZone, Utc};
 
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
     unique: Mutex<HashMap<&'static str, HashSet<String>>>,
+}
+
+fn months_ago(date: DateTime<Utc>, months: u32) -> DatabaseResult<DateTime<Utc>> {
+    // PHP normalizes an overflowing day into the following month.
+    date.with_day(1)
+        .and_then(|first| first.checked_sub_months(Months::new(months)))
+        .and_then(|first| first.checked_add_days(Days::new(u64::from(date.day0()))))
+        .ok_or(DatabaseError::InvalidQuery(
+            "Faker timestamp is out of range",
+        ))
 }
 
 macro_rules! generate {
@@ -184,6 +194,56 @@ impl Faker {
         )
     }
 
+    /// Samples between the supplied UTC instant and that instant plus a signed interval.
+    pub fn dateTimeInInterval(
+        &self,
+        date: Option<DateTime<Utc>>,
+        interval: Option<TimeDelta>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let date = match date {
+            Some(date) => date,
+            None => months_ago(Utc::now(), 30 * 12)?,
+        };
+        let other = date
+            .checked_add_signed(interval.unwrap_or_else(|| TimeDelta::days(5)))
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker timestamp is out of range",
+            ))?;
+        self.dateTimeBetween(date.min(other), date.max(other))
+    }
+
+    pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.date_time_since_months_ago(100 * 12, max)
+    }
+
+    pub fn dateTimeThisDecade(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.date_time_since_months_ago(10 * 12, max)
+    }
+
+    pub fn dateTimeThisYear(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        let now = Utc::now();
+        let start = Utc
+            .with_ymd_and_hms(now.year(), 1, 1, 0, 0, 0)
+            .single()
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker timestamp is out of range",
+            ))?;
+        self.dateTimeBetween(start, max.unwrap_or(now))
+    }
+
+    pub fn dateTimeThisMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.date_time_since_months_ago(1, max)
+    }
+
+    fn date_time_since_months_ago(
+        &self,
+        months: u32,
+        max: Option<DateTime<Utc>>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let now = Utc::now();
+        self.dateTimeBetween(months_ago(now, months)?, max.unwrap_or(now))
+    }
+
     /// Samples whole seconds between the Unix epoch and the supplied upper endpoint.
     pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> i64 {
         let end = max.map_or_else(|| Utc::now().timestamp(), |date| date.timestamp());
@@ -333,6 +393,32 @@ impl UniqueFaker<'_> {
         end: DateTime<Utc>,
     ) -> DatabaseResult<DateTime<Utc>> {
         self.try_generate("dateTimeBetween", || self.0.dateTimeBetween(start, end))
+    }
+
+    pub fn dateTimeInInterval(
+        &self,
+        date: Option<DateTime<Utc>>,
+        interval: Option<TimeDelta>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeInInterval", || {
+            self.0.dateTimeInInterval(date, interval)
+        })
+    }
+
+    pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeThisCentury", || self.0.dateTimeThisCentury(max))
+    }
+
+    pub fn dateTimeThisDecade(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeThisDecade", || self.0.dateTimeThisDecade(max))
+    }
+
+    pub fn dateTimeThisYear(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeThisYear", || self.0.dateTimeThisYear(max))
+    }
+
+    pub fn dateTimeThisMonth(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeThisMonth", || self.0.dateTimeThisMonth(max))
     }
 
     pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<i64> {

@@ -983,6 +983,59 @@ impl Seeder for PolymorphicFactories {
                 ))
             ));
             assert_eq!(faker.unique(false).dateTimeBetween(start, start)?, start);
+            let second = chrono::TimeDelta::seconds(1);
+            for interval in [second, -second] {
+                let other = epoch + interval;
+                let sampled = faker.dateTimeInInterval(Some(epoch), Some(interval))?;
+                assert!((epoch.min(other)..=epoch.max(other)).contains(&sampled));
+            }
+            assert!(matches!(
+                faker.dateTimeInInterval(
+                    Some(chrono::DateTime::<chrono::Utc>::MAX_UTC),
+                    Some(second)
+                ),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker timestamp is out of range"
+                ))
+            ));
+            assert_eq!(
+                unique.dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero()))?,
+                epoch
+            );
+            assert!(matches!(
+                unique.dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero())),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            for date in [
+                unique.dateTimeThisCentury(Some(epoch))?,
+                unique.dateTimeThisDecade(None)?,
+                unique.dateTimeThisYear(None)?,
+                unique.dateTimeThisMonth(None)?,
+                faker.dateTimeInInterval(None, None)?,
+            ] {
+                assert!(date <= chrono::Utc::now());
+                assert_eq!(date.timestamp_subsec_nanos(), 0);
+            }
+            let year_start =
+                chrono::NaiveDate::from_yo_opt(chrono::Datelike::year(&chrono::Utc::now()), 1)
+                    .unwrap()
+                    .and_hms_opt(0, 0, 0)
+                    .unwrap()
+                    .and_utc();
+            assert_eq!(faker.dateTimeThisYear(Some(year_start))?, year_start);
+            for date in [
+                faker.dateTimeThisCentury(Some(chrono::DateTime::<chrono::Utc>::MIN_UTC)),
+                faker.dateTimeThisDecade(Some(epoch)),
+                faker.dateTimeThisYear(Some(epoch)),
+                faker.dateTimeThisMonth(Some(epoch)),
+            ] {
+                assert!(matches!(
+                    date,
+                    Err(DatabaseError::InvalidQuery(
+                        "Faker start date exceeds end date"
+                    ))
+                ));
+            }
             assert_eq!(
                 faker.unique(false).numberBetween(i64::MIN, i64::MIN)?,
                 i64::MIN
