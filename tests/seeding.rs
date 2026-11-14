@@ -286,6 +286,53 @@ impl Seeder for PolymorphicFactories {
                 })
                 .count(3);
             let overrides = |name: &str| Attributes::from([("generated_name".into(), name.into())]);
+            let preview = batch
+                .makeOneOn(connection, overrides("preview-one"))
+                .await?;
+            assert!(!preview.state().exists());
+            assert_eq!(
+                preview.getAttribute("generated_name"),
+                Some(&"preview-one".into())
+            );
+            let previews = batch.makeMany(FactoryRecords::Default).await?;
+            assert_eq!(previews.len(), 3);
+            assert!(previews.iter().all(|model| !model.state().exists()));
+            assert_eq!(
+                previews[2].getAttribute("generated_name"),
+                Some(&"many-2".into())
+            );
+            let previews = batch
+                .makeManyOn(
+                    connection,
+                    FactoryRecords::Attributes(vec![overrides("preview-many")]),
+                )
+                .await?;
+            assert_eq!(previews.len(), 1);
+            assert_eq!(
+                previews[0].getAttribute("generated_name"),
+                Some(&"preview-many".into())
+            );
+            assert!(
+                batch
+                    .makeManyOn(connection, FactoryRecords::Count(0))
+                    .await?
+                    .is_empty()
+            );
+            let deferred = batch.lazy(overrides("deferred-batch"));
+            let single_factory = Factory::<FactoryChild>::new(Attributes::new);
+            let deferred_one = single_factory.lazy(overrides("deferred-one"));
+            assert_eq!(
+                connection.table("seed_factory_children").count("*").await?,
+                0
+            );
+            let created = deferred().await?;
+            assert_eq!(created.len(), 3);
+            assert!(created.iter().all(
+                |model| model.getAttribute("generated_name") == Some(&"deferred-batch".into())
+            ));
+            assert!(deferred_one().await?.state().exists());
+            assert!(deferred_one().await?.state().exists());
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
             let one = batch.createOneOn(connection, overrides("many-one")).await?;
             assert_eq!(one.getAttribute("generated_name"), Some(&"many-one".into()));
             phases.lock().unwrap().clear();

@@ -62,6 +62,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `createOne(attributes)` 创建单个模型，即使工厂已指定批次数量。用 `createMany(records)` 逐条按顺序创建。传入 `FactoryRecords::Default` 使用工厂数量，未指定时创建一条。传入 `FactoryRecords::Count(n)` 指定数量，或用 `FactoryRecords::Attributes(vec![…])` 为每条记录指定覆盖属性。覆盖值在工厂状态之后应用。每条记录完成两个工厂回调后才开始下一条。后续记录失败时，先前写入可能保留。用 `createOneQuietly` 和 `createManyQuietly` 抑制模型事件，或用对应的 `On` 方法指定连接。
 
+用 `makeOne(attributes)` 构造一个未保存的模型，或用 `makeMany(records)` 按顺序构造多个未保存的模型。两者都接受显式属性并执行 `afterMaking`。对应的 `On` 方法可指定连接。`lazy(attributes)` 返回异步回调，调用并等待后才解析连接并创建单个模型或指定数量的批次。重复调用会重新创建。
+
 ```rust
 use openrust::database::{
     DatabaseResult,

@@ -62,6 +62,8 @@ Use `raw()` or `rawOn(connection)` to get expanded attributes before model sette
 
 Use `createOne(attributes)` to create one model even on a counted factory. Use `createMany(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `createOneQuietly` and `createManyQuietly` to suppress model events, or the corresponding `On` methods to select a connection.
 
+Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
+
 ```rust
 use openrust::database::{
     DatabaseResult,
