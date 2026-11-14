@@ -734,6 +734,18 @@ fn central_european_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Greek, Bulgarian, and Slovenian Names {#balkan-names}
+
+The `el-GR` and `bg-BG` providers use gender-specific surname catalogs and full-name templates. Use `lastNameWithGender`, `lastNameMale`, or `lastNameFemale` to select the catalog. In `sl-SI`, both surname methods use the common catalog. Slovenian `title(gender)` uses the same local catalog for any gender, while `titleMale()` and `titleFemale()` use the inherited title lists.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn balkan_name_sample() -> DatabaseResult<String> {
+    fake(Some("bg-BG"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

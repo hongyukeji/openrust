@@ -2243,3 +2243,41 @@ fn central_european_person_names_keep_local_surnames_and_married_forms() {
     );
     assert!(fake(Some("de-AT")).unwrap().firstNameMaleNe().is_err());
 }
+
+#[test]
+fn greek_bulgarian_and_slovenian_names_use_their_person_providers() {
+    use std::collections::HashSet;
+
+    for (locale, male_count, female_count) in [("el-GR", 137, 70), ("bg-BG", 121, 44)] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let males: HashSet<_> = (0..male_count)
+            .map(|_| unique.lastNameMale().unwrap())
+            .collect();
+        let females: HashSet<_> = (0..female_count)
+            .map(|_| unique.lastNameFemale().unwrap())
+            .collect();
+        assert!(unique.lastNameMale().is_err());
+        assert!(unique.lastNameFemale().is_err());
+        for _ in 0..32 {
+            let surname = faker.lastName();
+            assert!(males.contains(&surname) || females.contains(&surname));
+            assert!(females.contains(&faker.lastNameWithGender(Some("female"))));
+            let name = faker.nameWithGender(Some("male"));
+            assert!(males.iter().any(|surname| name.contains(surname)));
+        }
+    }
+
+    let slovenia = fake(Some("sl-SI")).unwrap();
+    let unique = slovenia.unique(true);
+    let surnames: HashSet<_> = (0..200).map(|_| unique.lastName().unwrap()).collect();
+    assert!(surnames.contains("Novak"));
+    assert!(surnames.contains(&slovenia.lastNameMale().unwrap()));
+    assert!(surnames.contains(&slovenia.lastNameFemale().unwrap()));
+    let titles: HashSet<_> = (0..11)
+        .map(|_| unique.title(Some("male")).unwrap())
+        .collect();
+    assert!(titles.contains("univ. dipl. inž."));
+    assert!(titles.contains(slovenia.title(Some("female"))));
+    assert!(["Mr.", "Dr.", "Prof."].contains(&slovenia.titleMale()));
+}

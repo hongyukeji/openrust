@@ -734,6 +734,18 @@ fn central_european_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 希腊、保加利亚和斯洛文尼亚姓名 {#balkan-names}
+
+`el-GR` 和 `bg-BG` 使用对应性别的姓氏词表和全名模板。可用 `lastNameWithGender`、`lastNameMale` 或 `lastNameFemale` 选择姓氏。斯洛文尼亚两种姓氏方法使用同一词表。`title(gender)` 使用统一的本地称谓，`titleMale()` 与 `titleFemale()` 沿用基类称谓。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn balkan_name_sample() -> DatabaseResult<String> {
+    fake(Some("bg-BG"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

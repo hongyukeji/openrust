@@ -665,7 +665,7 @@ impl Faker {
     pub fn name(&self) -> String {
         if matches!(
             self.locale(),
-            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK"
+            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG"
         ) || faker_person::surnames(self.locale()).is_some()
         {
             return self.nameWithGender(None);
@@ -676,7 +676,7 @@ impl Faker {
     pub fn firstName(&self) -> String {
         if matches!(
             self.locale(),
-            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK"
+            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG"
         ) || faker_person::surnames(self.locale()).is_some()
         {
             return self.firstNameWithGender(None);
@@ -692,7 +692,7 @@ impl Faker {
             "is_IS" => return company::nordic::icelandic_surname(),
             // The pinned Lithuanian no-argument surname template samples given names.
             "lt_LT" => return self.firstNameWithGender(None),
-            "pl_PL" | "cs_CZ" | "sk_SK" => {
+            "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" => {
                 return self
                     .gendered_surname(fastrand::bool())
                     .expect("fixed gendered surname locale");
@@ -719,7 +719,10 @@ impl Faker {
     }
 
     pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
-        if matches!(self.locale(), "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK") {
+        if matches!(
+            self.locale(),
+            "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG"
+        ) {
             match gender {
                 Some("male") => return self.lastNameMale().expect("fixed male surname locale"),
                 Some("female") => {
@@ -747,6 +750,11 @@ impl Faker {
             ("cs_CZ", false) => company::CS_CZ_FEMALE_SURNAMES,
             ("sk_SK", true) => company::central::SK_SK_MALE_SURNAMES,
             ("sk_SK", false) => company::central::SK_SK_FEMALE_SURNAMES,
+            ("el_GR", true) => company::balkan::GREEK_MALE_NAMES,
+            ("el_GR", false) => company::balkan::GREEK_FEMALE_NAMES,
+            ("bg_BG", true) => faker_person::BG_MALE_SURNAMES,
+            ("bg_BG", false) => faker_person::BG_FEMALE_SURNAMES,
+            ("sl_SI", _) => company::lt_sl_tr::SL_SI_SURNAMES,
             ("pl_PL", true) => faker_person::PL_PL_LAST_MALE,
             ("pl_PL", false) => faker_person::PL_PL_LAST_FEMALE,
             ("is_IS", _) => {
@@ -869,6 +877,10 @@ impl Faker {
     }
 
     pub fn title(&self, gender: Option<&str>) -> &'static str {
+        if self.locale() == "sl_SI" {
+            let titles = faker_person::SLOVENIAN_TITLES;
+            return titles[fastrand::usize(..titles.len())];
+        }
         match gender {
             Some("male") => self.titleMale(),
             Some("female") => self.titleFemale(),
@@ -880,7 +892,6 @@ impl Faker {
     pub fn titleMale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
             "en_ZA" => &["Mr.", "Dr.", "Prof.", "Rev.", "Hon."],
-            "el_CY" => &["κος.", "κ."],
             "fr_BE" => &["M.", "Dr.", "Pr.", "Me.", "Mgr"],
             "fr_CH" => &["M.", "Dr.", "Pr.", "Me."],
             "it_CH" => &["Sig.", "Dott.", "Dr.", "Ing."],
@@ -930,6 +941,8 @@ impl Faker {
                 "Dr. h. c.",
             ],
             "hu_HU" => &["Dr.", "Prof.", "Id.", "Ifj.", "Báró", "Gróf"],
+            "el_CY" | "el_GR" => &["κος.", "κ."],
+            "bg_BG" => &["Г-н", "Др."],
             "lt_LT" => &["p.", "ponas"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Hra.", "Tri."],
@@ -952,7 +965,6 @@ impl Faker {
     pub fn titleFemale(&self) -> &'static str {
         let titles: &[&str] = match self.locale() {
             "en_ZA" => &["Mrs.", "Ms.", "Miss", "Dr.", "Prof.", "Rev.", "Hon."],
-            "el_CY" => &["δις.", "δνις.", "κα."],
             "fr_BE" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
             "fr_CH" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
             "it_CH" => &["Sig.ra", "Dott.", "Dr.", "Ing."],
@@ -1003,6 +1015,8 @@ impl Faker {
                 "Dr. h. c.",
             ],
             "hu_HU" => &["Özv.", "Dr.", "Prof."],
+            "el_CY" | "el_GR" => &["δις.", "δνις.", "κα."],
+            "bg_BG" => &["Г-жа", "Г-ца", "Др."],
             "lt_LT" => &["p.", "ponia", "panelė"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Rva.", "Nti.", "Tri."],

@@ -40,7 +40,7 @@ pub(super) mod dutch;
 pub(super) mod central;
 
 #[path = "faker_company_balkan.rs"]
-mod balkan;
+pub(super) mod balkan;
 
 #[path = "faker_company_ukza_cy.rs"]
 pub(super) mod ukza_cy;
@@ -49,7 +49,7 @@ pub(super) mod ukza_cy;
 pub(super) mod romance;
 
 #[path = "faker_company_lt_sl_tr.rs"]
-mod lt_sl_tr;
+pub(super) mod lt_sl_tr;
 
 #[path = "faker_company_cyrillic.rs"]
 mod cyrillic;

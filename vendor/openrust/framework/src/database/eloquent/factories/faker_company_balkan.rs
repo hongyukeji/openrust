@@ -28,7 +28,7 @@ use super::sample;
 
 const GREEK_SUFFIXES: &[&str] = &["Ο.Ε", "Ε.Ε", "Α.Ε", "Ε.Π.Ε"];
 
-const GREEK_MALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const GREEK_MALE_NAMES: &[&str] = &[
     "Αγγελίδης",
     "Αγγελόπουλος",
     "Αθανασιάδης",
@@ -168,7 +168,7 @@ const GREEK_MALE_NAMES: &[&str] = &[
     "Χριστόπουλος",
 ];
 
-const GREEK_FEMALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const GREEK_FEMALE_NAMES: &[&str] = &[
     "Αγγελίδου",
     "Αγγελοπούλου",
     "Αλεξάνδρου",

@@ -978,3 +978,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `a33b1f84`。PHP 8.5 核对 3,072 组姓名、姓氏及称谓样本，并逐项核对复用词表。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读六地 38 条数据，覆盖两个匈牙利婚后姓名入口。Rust 1.94.0 格式、全目标严格 Clippy、41 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译与六项浏览器检查通过。旧丹麦测试将词表内连字符解析为额外姓名成分，按上游模板的空格分组修正后复验通过。
 
 原始 Seeder 已恢复。清理独占 Cargo 构建文件约 2.2 GiB 和站点产物约 39 MiB。提交前可用额度 46%，项目卷剩余 81 GiB。下一批继续核对希腊、保加利亚和斯洛文尼亚 Person 的性别姓氏模板。
+
+## Faker 希腊、保加利亚与斯洛文尼亚姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[希腊](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/el_GR/Person.php)、[保加利亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/bg_BG/Person.php)及[斯洛文尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sl_SI/Person.php) Person。希腊和保加利亚保留性别姓氏及全名模板，斯洛文尼亚共用姓氏词表，且总称谓入口与继承的两个专用称谓入口保持原有差异。希腊与斯洛文尼亚复用 Company 姓氏表。Rust 沿用显式性别方法和去重历史。v0.x 未发现等价实现，沿用现有编译式工厂装配。
+
+隔离基线 `d209766c`。PHP 8.5 核对 1,536 组姓名、姓氏与称谓样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读三地 27 条样本。Rust 1.94.0 格式、全目标严格 Clippy、42 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译及六项浏览器检查通过。
+
+原始 Seeder 已恢复，已清理本批独占 Cargo 产物约 2.2 GiB 和站点产物约 39 MiB。项目卷剩余 81 GiB。下一批核对埃及、约旦、以色列、亚美尼亚和格鲁吉亚的姓名模板。

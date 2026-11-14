@@ -31,7 +31,7 @@ const LT_LT_SUFFIXES: &[&str] = &["UAB", "AB", "IĮ", "MB", "VŠĮ"];
 
 const SL_SI_SUFFIXES: &[&str] = &["d.o.o.", "d.d.", "k.d.", "k.d.d.", "d.n.o.", "so.p."];
 
-const SL_SI_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SL_SI_SURNAMES: &[&str] = &[
     "Ambrožič",
     "Babič",
     "Bajc",
