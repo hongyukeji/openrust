@@ -924,6 +924,32 @@ pub async fn upsert_posts<P: Model, R: Model>(
 
 Use a unique index that includes the parent key and, for polymorphic relations, the morph type to keep conflicts separate. SQLite uses the supplied conflict columns. MySQL detects conflicts using the table’s primary and unique indexes. An ordinary relationship query filter does not scope an upsert conflict.
 
+Through and many-to-many relations forward `upsert` to the related model’s table. For through relations, include the intermediate foreign key in each row. For ordinary and polymorphic many-to-many relations, use `attach` or `sync` separately when you need to write links to the pivot table.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::HasManyThrough},
+};
+
+pub async fn upsert_comments<P: Model, I: Model, R: Model>(
+    comments: &HasManyThrough<P, I, R>,
+    author: &P,
+    post_id: i64,
+) -> DatabaseResult<u64> {
+    comments.upsert(
+        author,
+        vec![Attributes::from([
+            ("post_id".into(), post_id.into()),
+            ("slug".into(), "welcome".into()),
+            ("body".into(), "Welcome".into()),
+        ])],
+        &["post_id", "slug"],
+        Some(&["body"]),
+    ).await
+}
+```
+
 ### Restoring related models {#restoring-related-models}
 
 Use `restoreOrCreate` to look up a related model, including soft-deleted rows, before inserting. `createOrRestore` attempts insertion first and recovers a matching row on a unique conflict. Both restore the model through its normal lifecycle. Pass `RelatedValues::deferred` to compute model values only when an insert or update needs them.

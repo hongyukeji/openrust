@@ -924,6 +924,32 @@ pub async fn upsert_posts<P: Model, R: Model>(
 
 若要隔离冲突，唯一索引应包含父键，多态关系还应包含类型。SQLite 使用传入的冲突列。MySQL 使用表的主键和唯一索引判定冲突。关系上的普通查询条件不会限制冲突范围。
 
+穿透关系和多对多关系将 `upsert` 转发到关联模型的数据表。穿透关系的每行需提供指向中间模型的外键。普通和多态多对多关系若需写入中间表关联，可单独调用 `attach` 或 `sync`。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::HasManyThrough},
+};
+
+pub async fn upsert_comments<P: Model, I: Model, R: Model>(
+    comments: &HasManyThrough<P, I, R>,
+    author: &P,
+    post_id: i64,
+) -> DatabaseResult<u64> {
+    comments.upsert(
+        author,
+        vec![Attributes::from([
+            ("post_id".into(), post_id.into()),
+            ("slug".into(), "welcome".into()),
+            ("body".into(), "Welcome".into()),
+        ])],
+        &["post_id", "slug"],
+        Some(&["body"]),
+    ).await
+}
+```
+
 ### 恢复关联模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找关联模型，查找范围包含软删除记录，未命中时才插入。`createOrRestore` 先尝试插入，遇到唯一键冲突时回查匹配记录。两者都通过模型生命周期恢复记录。用 `RelatedValues::deferred` 可将属性计算延迟到插入或更新时。

@@ -476,6 +476,24 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(self.wherePivot(column, "=", value))
     }
 
+    /// Writes the related table without attaching or updating pivot rows.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let connection = self.keys.connection(parent)?;
+        self.keys
+            .configure(R::queryOn(&connection))?
+            .upsert(rows, unique_by, update)
+            .await
+    }
+
     /// Finds an attached model, attaches an existing match, or creates a new model.
     pub async fn firstOrCreate<'a>(
         &self,

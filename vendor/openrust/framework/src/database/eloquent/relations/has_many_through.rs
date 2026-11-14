@@ -157,7 +157,25 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         join.apply(query.scoped()?.0).exists().await
     }
 
-    /// Increments through the join, or creates a related row using the supplied attributes.
+    /// Writes the related table using the supplied intermediate foreign keys.
+    pub async fn upsert(
+        &self,
+        parent: &P,
+        rows: Vec<Attributes>,
+        unique_by: &[&str],
+        update: Option<&[&str]>,
+    ) -> DatabaseResult<u64> {
+        if rows.is_empty() {
+            return Ok(0);
+        }
+        let connection = self.keys.connection(parent)?;
+        self.keys
+            .configure(R::queryOn(&connection))?
+            .upsert(rows, unique_by, update)
+            .await
+    }
+
+    /// Finds a related row or makes an unsaved model using the supplied attributes.
     pub async fn firstOrNew(
         &self,
         parent: &P,

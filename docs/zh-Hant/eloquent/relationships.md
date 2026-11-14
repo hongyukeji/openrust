@@ -924,6 +924,32 @@ pub async fn upsert_posts<P: Model, R: Model>(
 
 若要隔離衝突，唯一索引應包含父鍵，多型關聯也應包含類型。SQLite 使用傳入的衝突欄位。MySQL 使用資料表的主鍵和唯一索引判定衝突。關聯上的一般查詢條件不會限制衝突範圍。
 
+穿透關聯和多對多關聯會將 `upsert` 轉發至關聯模型的資料表。穿透關聯的每列須提供指向中介模型的外鍵。普通和多型多對多關聯若需寫入中介表連結，可另外呼叫 `attach` 或 `sync`。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::HasManyThrough},
+};
+
+pub async fn upsert_comments<P: Model, I: Model, R: Model>(
+    comments: &HasManyThrough<P, I, R>,
+    author: &P,
+    post_id: i64,
+) -> DatabaseResult<u64> {
+    comments.upsert(
+        author,
+        vec![Attributes::from([
+            ("post_id".into(), post_id.into()),
+            ("slug".into(), "welcome".into()),
+            ("body".into(), "Welcome".into()),
+        ])],
+        &["post_id", "slug"],
+        Some(&["body"]),
+    ).await
+}
+```
+
 ### 還原關聯模型 {#restoring-related-models}
 
 `restoreOrCreate` 先查找關聯模型，查找範圍包含軟刪除記錄，未找到時才新增。`createOrRestore` 先嘗試新增，遇到唯一鍵衝突時查回符合的記錄。兩者都透過模型生命週期還原記錄。使用 `RelatedValues::deferred` 可將屬性計算延遲至新增或更新時。

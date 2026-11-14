@@ -7285,7 +7285,110 @@ async fn verify_related_upsert(db: &Connection) {
         lookup("morph", 1).await.unwrap().getAttribute("body"),
         Some(&"updated morph".into())
     );
+    verify_forwarded_upsert(db, &first, &lookup).await;
     db.statement("drop table relation_upsert_children", &[])
+        .await
+        .unwrap();
+}
+
+async fn verify_forwarded_upsert<F>(
+    db: &Connection,
+    parent: &Author,
+    lookup: &impl Fn(&'static str, i64) -> F,
+) where
+    F: std::future::Future<Output = DatabaseResult<UpsertChild>>,
+{
+    let through =
+        HasManyThrough::<Author, Post, UpsertChild>::new("author_id", "owner_id", "id", "id");
+    let through_one =
+        HasOneThrough::<Author, Post, UpsertChild>::new("author_id", "owner_id", "id", "id");
+    let pivot = BelongsToMany::<Author, UpsertChild>::new(
+        "relation_upsert_links",
+        "author_id",
+        "child_id",
+        "id",
+        "id",
+    );
+    let morph = MorphToMany::<Author, UpsertChild>::new(
+        "relation_upsert_links",
+        "author_id",
+        "child_id",
+        "id",
+        "id",
+        "owner_type",
+        "author",
+    );
+    db.statement("drop table if exists relation_upsert_links", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "create table relation_upsert_links (
+            author_id integer not null, child_id varchar(26) not null, owner_type varchar(30)
+        )",
+        &[],
+    )
+    .await
+    .unwrap();
+    let columns = &["owner_type", "owner_id", "code"];
+    let row = |kind: &str, body: &str| {
+        Attributes::from([
+            ("owner_type".into(), kind.into()),
+            ("owner_id".into(), 77.into()),
+            ("code".into(), "a".into()),
+            ("body".into(), body.into()),
+        ])
+    };
+    through
+        .upsert(parent, vec![row("through", "inserted")], columns, None)
+        .await
+        .unwrap();
+    through_one
+        .upsert(
+            parent,
+            vec![row("through", "updated")],
+            columns,
+            Some(&["body"]),
+        )
+        .await
+        .unwrap();
+    pivot
+        .upsert(parent, vec![row("pivot", "inserted")], columns, None)
+        .await
+        .unwrap();
+    morph
+        .upsert(
+            parent,
+            vec![row("pivot", "updated")],
+            columns,
+            Some(&["body"]),
+        )
+        .await
+        .unwrap();
+    for kind in ["through", "pivot"] {
+        let saved = lookup(kind, 77).await.unwrap();
+        assert_eq!(saved.getAttribute("body"), Some(&"updated".into()));
+        assert!(matches!(saved.getAttribute("id"), Some(Value::Text(id)) if id.len() == 26));
+    }
+    assert!(
+        db.table("relation_upsert_links")
+            .get()
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let mut invalid = row("through", "missing key");
+    invalid.remove("owner_id");
+    assert!(
+        through
+            .upsert(parent, vec![invalid], columns, None)
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        lookup("through", 77).await.unwrap().getAttribute("body"),
+        Some(&"updated".into())
+    );
+    db.statement("drop table relation_upsert_links", &[])
         .await
         .unwrap();
 }

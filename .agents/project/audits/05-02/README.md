@@ -578,3 +578,11 @@ SQLite 与独立 MySQL 8.4.13 验证未保存结果、命中不求值、创建�
 SQLite 与独立 MySQL 8.4.13 验证空批次、批量插入、覆盖关系键、冲突更新、不同父键与多态类型隔离、自动 ULID 及更新时间。冲突范围由数据库唯一索引决定。穿透和 Pivot 的批量转发契约继续核对。
 
 Rust 1.94 全工作区回归 624 项通过、8 项夹具忽略。格式、严格 Clippy、实际 Artisan、三语示例编译、文档构建及 18 项浏览器检查通过。
+
+## 穿透与多对多关系批量写入
+
+固定 Laravel 的穿透、普通与多态多对多关系经 `Relation::__call` 将 `upsert` 转发到 Eloquent Builder。Rust 在类型化关系上公开同名入口，复用关联连接、模型配置和现有批量写入。穿透关系使用每行显式提供的中间外键，多对多关系的 Pivot 由独立的关联写入接口管理。`MorphToMany` 沿用已有的 `BelongsToMany` 委托。旧版只找到 Query Builder 的 upsert 与回调测试，继续复用其对应的方言写入路径。固定 Goravel 用作连接职责参考。 [Laravel 转发源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php) · [Laravel Builder 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBuilderTest.php) · [Laravel Upserts](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent.md#upserts) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 实测两种穿透关系以及普通和多态多对多关系的插入与冲突更新，确认中间外键按输入保存、缺少必要外键时写入失败、模型生成 ULID，且 Pivot 表保持空表。
+
+Rust 1.94.0 格式与全目标严格 Clippy 通过。工作区锁定测试 624 项通过、8 项夹具忽略。实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。
