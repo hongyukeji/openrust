@@ -2105,3 +2105,34 @@ fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> Datab
     assert!(faker.unique(true).emoji().is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_digest_samples_are_lowercase_hex_and_support_unique() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    fn check_samples(
+        next: impl Fn() -> DatabaseResult<String>,
+        length: usize,
+    ) -> DatabaseResult<()> {
+        let mut samples = std::collections::HashSet::new();
+        for _ in 0..32 {
+            let sample = next()?;
+            assert_eq!(sample.len(), length);
+            assert!(
+                sample
+                    .bytes()
+                    .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+            );
+            assert!(samples.insert(sample));
+        }
+        Ok(())
+    }
+
+    let faker = Faker::new("en_US")?;
+    let unique = faker.unique(false);
+    check_samples(|| unique.md5(), 32)?;
+    check_samples(|| unique.sha1(), 40)?;
+    check_samples(|| unique.sha256(), 64)?;
+    assert_eq!(faker.unique(true).sha256()?.len(), 64);
+    Ok(())
+}

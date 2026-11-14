@@ -1,6 +1,7 @@
 use super::{faker_miscellaneous, regex_pattern::RegexPattern};
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Write as _,
     ops::Range,
     sync::{Mutex, OnceLock},
 };
@@ -13,11 +14,13 @@ use crate::{
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
+use aws_lc_rs::digest;
 use chrono::{
     DateTime, Datelike, Days, LocalResult, Months, NaiveDate, NaiveDateTime, Offset, TimeDelta,
     TimeZone, Utc,
 };
 use chrono_tz::{GapInfo, Tz, UTC};
+use md5::{Digest as _, Md5};
 
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
@@ -339,6 +342,24 @@ impl Faker {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn md5(&self) -> String {
+        let value = self.numberBetween(0, i64::from(i32::MAX)).to_string();
+        digest_hex(&Md5::digest(value.as_bytes()))
+    }
+
+    pub fn sha1(&self) -> String {
+        self.digest_sample(&digest::SHA1_FOR_LEGACY_USE_ONLY)
+    }
+
+    pub fn sha256(&self) -> String {
+        self.digest_sample(&digest::SHA256)
+    }
+
+    fn digest_sample(&self, algorithm: &'static digest::Algorithm) -> String {
+        let value = self.numberBetween(0, i64::from(i32::MAX)).to_string();
+        digest_hex(digest::digest(algorithm, value.as_bytes()).as_ref())
     }
 
     pub fn randomElement<'a, T>(&self, values: &'a [T]) -> Option<&'a T> {
@@ -954,6 +975,18 @@ impl UniqueFaker<'_> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
     }
 
+    pub fn md5(&self) -> DatabaseResult<String> {
+        self.generate("md5", || self.0.md5())
+    }
+
+    pub fn sha1(&self) -> DatabaseResult<String> {
+        self.generate("sha1", || self.0.sha1())
+    }
+
+    pub fn sha256(&self) -> DatabaseResult<String> {
+        self.generate("sha256", || self.0.sha256())
+    }
+
     pub fn randomElement<'a, T: serde::Serialize>(
         &self,
         values: &'a [T],
@@ -1224,4 +1257,12 @@ fn faker_json_key<T: serde::Serialize>(value: &T) -> DatabaseResult<String> {
     serde_json::to_string(value).map_err(|_| {
         DatabaseError::InvalidQuery("Faker sample could not be serialized for uniqueness")
     })
+}
+
+fn digest_hex(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(output, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    output
 }

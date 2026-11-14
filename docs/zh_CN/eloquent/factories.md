@@ -92,6 +92,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("active".into(), faker.boolean(Some(75)).into()),
             ("sample_locale".into(), faker.randomLocale().into()),
             ("currency".into(), faker.currencyCode().into()),
+            ("sample_digest".into(), faker.sha256().into()),
         ]))
     })
 }
@@ -116,6 +117,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 语言、国家和货币样本 {#locale-and-code-samples}
 
 用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定 FakerPHP 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应 FakerPHP 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。
+
+### 摘要样本 {#digest-samples}
+
+用 `md5()`、`sha1()` 和 `sha256()` 生成 32、40 和 64 个字符的小写十六进制样本。每个生成器遵循 FakerPHP 的做法，从 0 到 2,147,483,647 抽取整数，再对其十进制文本计算摘要。三个方法均支持 `unique`，用于测试和填充数据。
 
 ## 使用工厂创建模型
 

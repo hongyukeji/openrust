@@ -92,6 +92,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("active".into(), faker.boolean(Some(75)).into()),
             ("sample_locale".into(), faker.randomLocale().into()),
             ("currency".into(), faker.currencyCode().into()),
+            ("sample_digest".into(), faker.sha256().into()),
         ]))
     })
 }
@@ -116,6 +117,10 @@ Use `shuffleArray(values)` to return a shuffled clone and `shuffleString(value)`
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
 Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned FakerPHP catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to FakerPHP’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.
+
+### Digest Samples {#digest-samples}
+
+Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture values of 32, 40, and 64 characters. Like FakerPHP, each formatter hashes the decimal text of a random integer from 0 through 2,147,483,647. All three support `unique` and are intended for test and seed data.
 
 ## Creating Models Using Factories
 
