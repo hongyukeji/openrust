@@ -16,7 +16,7 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Attributes, Model, ModelMetadata, ModelState,
+            Attributes, Model, ModelMetadata, ModelState, NamedRelations,
             factories::{Factory, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
@@ -131,11 +131,15 @@ struct FactoryOwner(ModelState);
 struct FactoryChild(ModelState);
 
 macro_rules! factory_model {
-    ($model:ident, $table:literal) => {
+    ($model:ident, $table:literal, $relations:expr) => {
         impl Model for $model {
             fn metadata() -> &'static ModelMetadata {
                 static METADATA: ModelMetadata = ModelMetadata::new($table).timestamps(None, None);
                 &METADATA
+            }
+
+            fn namedRelations() -> NamedRelations<Self> {
+                $relations
             }
 
             fn from_state(state: ModelState) -> Self {
@@ -151,8 +155,29 @@ macro_rules! factory_model {
     };
 }
 
-factory_model!(FactoryOwner, "seed_factory_owners");
-factory_model!(FactoryChild, "seed_factory_children");
+factory_model!(
+    FactoryOwner,
+    "seed_factory_owners",
+    NamedRelations::default().nested("attached", || {
+        MorphToMany::<FactoryOwner, FactoryChild>::new(
+            "seed_factory_links",
+            "owner_id",
+            "child_id",
+            "id",
+            "id",
+            "owner_type",
+            "seed-owner",
+        )
+    })
+);
+factory_model!(
+    FactoryChild,
+    "seed_factory_children",
+    NamedRelations::default().morphTo("owner", || {
+        MorphTo::<FactoryChild>::new("owner_type", "owner_id")
+            .target::<FactoryOwner>("seed-owner", "id")
+    })
+);
 
 struct PolymorphicFactories;
 impl Seeder for PolymorphicFactories {
@@ -218,7 +243,17 @@ impl Seeder for PolymorphicFactories {
                 MorphTo::<FactoryChild>::new("owner_type", "owner_id")
                     .target::<FactoryOwner>("seed-owner", "id")
             };
-            let parented = children().r#for(subject(), owners()).count(2);
+            for name in ["missing", "owner"] {
+                let invalid = children().forNamed::<FactoryOwner, openrust::database::eloquent::relations::BelongsTo<FactoryChild, FactoryOwner>>(name, owners());
+                assert!(matches!(
+                    invalid.makeOn(connection).await,
+                    Err(DatabaseError::InvalidQuery(_))
+                ));
+            }
+            assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
+            let parented = children()
+                .forNamed::<_, MorphTo<FactoryChild>>("owner", owners())
+                .count(2);
             let first = parented.createOn(connection).await?;
             let second = parented.createOn(connection).await?;
             assert_eq!(
@@ -275,20 +310,12 @@ impl Seeder for PolymorphicFactories {
             let recycled_id = recycled.getKey().unwrap().clone();
             let owner = owners()
                 .recycle(recycled)
-                .has(
-                    MorphMany::new("id", "owner_id", "owner_type", "seed-owner"),
+                .hasNamed::<_, MorphMany<FactoryOwner, FactoryChild>>(
+                    "children",
                     children().count(2),
                 )
-                .hasAttached(
-                    MorphToMany::new(
-                        "seed_factory_links",
-                        "owner_id",
-                        "child_id",
-                        "id",
-                        "id",
-                        "owner_type",
-                        "seed-owner",
-                    ),
+                .hasAttachedNamed::<_, MorphToMany<FactoryOwner, FactoryChild>>(
+                    "attached",
                     children().r#for(subject(), owners()).count(1),
                     Attributes::from([("label".into(), "attached".into())]),
                 )
@@ -331,6 +358,14 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("RecursiveSeeder", &Recursive),
                 SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
             ];
+            FactoryOwner::resolveRelationUsing(app, "children", |_| {
+                MorphMany::<FactoryOwner, FactoryChild>::new(
+                    "id",
+                    "owner_id",
+                    "owner_type",
+                    "seed-owner",
+                )
+            })?;
             MorphMap::morphMap(
                 app,
                 [MorphMapEntry::model::<FactoryOwner>("seed-owner")],

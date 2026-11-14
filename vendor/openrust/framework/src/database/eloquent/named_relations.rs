@@ -1,4 +1,8 @@
-use std::{any::TypeId, collections::HashMap, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    collections::HashMap,
+    sync::Arc,
+};
 
 use indexmap::IndexMap;
 
@@ -69,7 +73,10 @@ type LoadMissing<M> = dyn for<'a> Fn(
     + Send
     + Sync;
 
+type Descriptor = dyn Fn() -> Box<dyn Any + Send + Sync> + Send + Sync;
+
 struct NamedRelation<M: Model> {
+    descriptor: Box<Descriptor>,
     prepare: Box<Prepare<M>>,
     load_missing: Box<LoadMissing<M>>,
     existence: Option<Box<Existence>>,
@@ -86,6 +93,20 @@ impl<M: Model> Default for NamedRelations<M> {
 }
 
 impl<M: Model> NamedRelations<M> {
+    pub(super) fn factory_descriptor<R: Relation<Parent = M>>(
+        &self,
+        name: &str,
+    ) -> DatabaseResult<R> {
+        let entry = self
+            .0
+            .get(name)
+            .ok_or(DatabaseError::InvalidQuery("unknown factory relationship"))?;
+        (entry.descriptor)()
+            .downcast::<R>()
+            .map(|relation| *relation)
+            .map_err(|_| DatabaseError::InvalidQuery("factory relationship type mismatch"))
+    }
+
     /// Registers a relation with a single related model type for nested paths.
     #[must_use]
     pub fn nested<R: NestedRelation<Parent = M> + ExistenceRelation>(
@@ -99,9 +120,11 @@ impl<M: Model> NamedRelations<M> {
         let factory = std::sync::Arc::new(factory);
         let eager = factory.clone();
         let missing = factory.clone();
+        let descriptor = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
+                descriptor: Box::new(move || Box::new(descriptor())),
                 prepare: Box::new(
                     move |loads, name, children, columns, constraint, discovered| {
                         let relation = select_columns(eager(), columns)?;
@@ -190,9 +213,11 @@ impl<M: Model> NamedRelations<M> {
     ) -> Self {
         let factory = Arc::new(factory);
         let eager = factory.clone();
+        let descriptor = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
+                descriptor: Box::new(move || Box::new(descriptor())),
                 prepare: Box::new(move |loads, name, children, columns, constraint, _| {
                     if constraint.is_some() || columns.is_some() {
                         return Err(DatabaseError::InvalidQuery(
@@ -241,9 +266,11 @@ impl<M: Model> NamedRelations<M> {
         let eager = factory.clone();
         let missing = factory.clone();
         let discover = factory.clone();
+        let descriptor = factory.clone();
         self.0.insert(
             name,
             NamedRelation {
+                descriptor: Box::new(move || Box::new(descriptor())),
                 prepare: Box::new(
                     move |loads, name, children, columns, constraint, discovered| {
                         let mut relation = eager();

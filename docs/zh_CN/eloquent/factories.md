@@ -66,14 +66,17 @@ pub async fn seed_comments<C: Model, P: Model>(
     context: &SeederContext<'_>,
     comments: Factory<C>,
     posts: Factory<P>,
-    subject: MorphTo<C>,
+    subject: &str,
 ) -> DatabaseResult<()> {
-    comments.r#for(subject, posts).count(3).createOn(context.connection()).await?;
+    comments.forNamed::<_, MorphTo<C>>(subject, posts).count(3)
+        .createOn(context.connection()).await?;
     Ok(())
 }
 ```
 
 子工厂先读取工厂定义，再应用关系查询的默认属性和显式状态。直接及多态子关系随后补入外键和类型字段，再执行 `afterMaking`。附加模型工厂也会在应用显式状态前读取关系查询的默认属性。
+
+用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名称解析关系。工厂使用 `Model::namedRelations` 或应用 `resolveRelationUsing` 登记的描述符。显式传入 Rust 描述符类型，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名称不存在或类型不匹配时返回错误。
 
 ### 复用已有模型 {#recycling-existing-models}
 

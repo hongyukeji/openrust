@@ -66,14 +66,17 @@ pub async fn seed_comments<C: Model, P: Model>(
     context: &SeederContext<'_>,
     comments: Factory<C>,
     posts: Factory<P>,
-    subject: MorphTo<C>,
+    subject: &str,
 ) -> DatabaseResult<()> {
-    comments.r#for(subject, posts).count(3).createOn(context.connection()).await?;
+    comments.forNamed::<_, MorphTo<C>>(subject, posts).count(3)
+        .createOn(context.connection()).await?;
     Ok(())
 }
 ```
 
 子工廠先讀取工廠定義，再套用關聯查詢的預設屬性和明確狀態。直接及多型子關聯隨後補入外鍵和類型欄位，再執行 `afterMaking`。附加模型工廠也會在套用明確狀態前讀取關聯查詢的預設屬性。
+
+用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名稱解析關聯。工廠使用 `Model::namedRelations` 或應用程式 `resolveRelationUsing` 登錄的描述元。明確傳入 Rust 描述元型別，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名稱不存在或型別不符時回傳錯誤。
 
 ### 重用既有模型 {#recycling-existing-models}
 

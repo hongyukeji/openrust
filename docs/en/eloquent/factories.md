@@ -66,14 +66,17 @@ pub async fn seed_comments<C: Model, P: Model>(
     context: &SeederContext<'_>,
     comments: Factory<C>,
     posts: Factory<P>,
-    subject: MorphTo<C>,
+    subject: &str,
 ) -> DatabaseResult<()> {
-    comments.r#for(subject, posts).count(3).createOn(context.connection()).await?;
+    comments.forNamed::<_, MorphTo<C>>(subject, posts).count(3)
+        .createOn(context.connection()).await?;
     Ok(())
 }
 ```
 
 Child factories apply relation query defaults after the definition and before explicit states. Direct and polymorphic child relations then supply the foreign key and discriminator before `afterMaking`. Attached model factories also see the relation query defaults before their explicit states.
+
+Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors.
 
 ### Recycling Existing Models {#recycling-existing-models}
 

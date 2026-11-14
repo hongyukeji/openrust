@@ -6,7 +6,10 @@ use tokio::sync::OnceCell;
 
 use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
 
-use super::{Attributes, Collection, Model, casts, relations::BelongsToMany};
+use super::{
+    Attributes, Collection, Model, casts,
+    relations::{BelongsToMany, Relation},
+};
 
 type Definition =
     dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
@@ -182,8 +185,31 @@ impl<M: Model> Factory<M> {
 
     #[must_use]
     pub fn has<R: Model>(
-        mut self,
+        self,
         relation: impl FactoryChild<M, R>,
+        children: FactoryBatch<R>,
+    ) -> Self {
+        let relation = Arc::new(relation);
+        self.has_resolved(move |_| Ok(relation.clone()), children)
+    }
+
+    /// Resolves a registered model relationship by name and Rust descriptor type.
+    #[must_use]
+    pub fn hasNamed<R: Model, D: Relation<Parent = M> + FactoryChild<M, R>>(
+        self,
+        name: impl Into<String>,
+        children: FactoryBatch<R>,
+    ) -> Self {
+        let name = name.into();
+        self.has_resolved(
+            move |model| named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation)),
+            children,
+        )
+    }
+
+    fn has_resolved<R: Model, D: FactoryChild<M, R>>(
+        mut self,
+        relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
         children: FactoryBatch<R>,
     ) -> Self {
         let relation = Arc::new((relation, children));
@@ -192,6 +218,7 @@ impl<M: Model> Factory<M> {
                 let relation = Arc::clone(&relation);
                 Box::pin(async move {
                     let (relation, children) = &*relation;
+                    let relation = relation(parent)?;
                     let connection = related_connection::<R>(connection)?;
                     let pool = children.factory.recycle_pool(inherited);
                     let attributes = relation.attributes(parent)?;
@@ -219,9 +246,28 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn r#for<R: Model>(
+    pub fn r#for<R: Model>(self, relation: impl FactoryParent<M, R>, owner: Factory<R>) -> Self {
+        let relation = Arc::new(relation);
+        self.for_resolved(move |_| Ok(relation.clone()), owner)
+    }
+
+    /// Resolves a registered model relationship by name and Rust descriptor type.
+    #[must_use]
+    pub fn forNamed<R: Model, D: Relation<Parent = M> + FactoryParent<M, R>>(
+        self,
+        name: impl Into<String>,
+        owner: Factory<R>,
+    ) -> Self {
+        let name = name.into();
+        self.for_resolved(
+            move |model| named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation)),
+            owner,
+        )
+    }
+
+    fn for_resolved<R: Model, D: FactoryParent<M, R>>(
         mut self,
-        relation: impl FactoryParent<M, R>,
+        relation: impl Fn(&M) -> DatabaseResult<Arc<D>> + Send + Sync + 'static,
         owner: Factory<R>,
     ) -> Self {
         let relation = Arc::new((relation, owner));
@@ -230,6 +276,7 @@ impl<M: Model> Factory<M> {
                 let relation = Arc::clone(&relation);
                 Box::pin(async move {
                     let (relation, owner) = &*relation;
+                    let relation = relation(model)?;
                     let owner = cache
                         .get_or_try_init(|| async {
                             let connection = related_connection::<R>(connection)?;
@@ -262,17 +309,46 @@ impl<M: Model> Factory<M> {
 
     #[must_use]
     pub fn hasAttached<R: Model>(
-        mut self,
+        self,
         relation: impl Into<BelongsToMany<M, R>>,
         models: FactoryBatch<R>,
         pivot: Attributes,
     ) -> Self {
-        let relation = Arc::new((relation.into(), models, pivot));
+        let relation = Arc::new(relation.into());
+        self.has_attached_resolved(move |_| Ok(relation.clone()), models, pivot)
+    }
+
+    /// Resolves a registered model relationship by name and Rust descriptor type.
+    #[must_use]
+    pub fn hasAttachedNamed<R: Model, D: Relation<Parent = M> + Into<BelongsToMany<M, R>>>(
+        self,
+        name: impl Into<String>,
+        models: FactoryBatch<R>,
+        pivot: Attributes,
+    ) -> Self {
+        let name = name.into();
+        self.has_attached_resolved(
+            move |model| {
+                named_descriptor::<M, D>(model, &name).map(|relation| Arc::new(relation.into()))
+            },
+            models,
+            pivot,
+        )
+    }
+
+    fn has_attached_resolved<R: Model>(
+        mut self,
+        relation: impl Fn(&M) -> DatabaseResult<Arc<BelongsToMany<M, R>>> + Send + Sync + 'static,
+        models: FactoryBatch<R>,
+        pivot: Attributes,
+    ) -> Self {
+        let relation = Arc::new((relation, models, pivot));
         self.children
             .push(Box::new(move |connection, parent, inherited| {
                 let relation = Arc::clone(&relation);
                 Box::pin(async move {
                     let (relation, models, pivot) = &*relation;
+                    let relation = relation(parent)?;
                     let connection = related_connection::<R>(connection)?;
                     let attributes = (relation.factory_defaults(&connection)?, Attributes::new());
                     let models = models
@@ -429,6 +505,13 @@ impl<M: Model> Factory<M> {
             child(connection, model, pool).await?;
         }
         Ok(())
+    }
+}
+
+fn named_descriptor<M: Model, D: Relation<Parent = M>>(model: &M, name: &str) -> DatabaseResult<D> {
+    match super::dynamic_relations::RelationResolvers::resolve(model, name)? {
+        Some(descriptor) => Ok(descriptor),
+        None => M::namedRelations().factory_descriptor(name),
     }
 }
 
