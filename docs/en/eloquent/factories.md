@@ -328,10 +328,12 @@ With `el-GR`, `company()` uses a Greek surname followed by a legal suffix. With 
 
 With `en-GB` or `en-ZA`, `company()` combines a regional surname with the inherited `Ltd` suffix. With `el-CY`, it combines a surname with a Cypriot legal suffix or joins two surnames with a hyphen. `companySuffix()` and `unique` are available in all three locales.
 
+With `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH`, `company()` uses the pinned regional surnames and templates. French Canada inherits the French company suffixes. The two Swiss providers use their own suffixes, including `Sàrl` in French and `Sarl` in Italian. Both `company()` and `companySuffix()` support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 61]> {
+fn identity_samples() -> DatabaseResult<[String; 63]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -344,6 +346,8 @@ fn identity_samples() -> DatabaseResult<[String; 61]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("fr-CA"))?.company(),
+        fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),
         fake(Some("el-CY"))?.companySuffix(),
         greek.company(),

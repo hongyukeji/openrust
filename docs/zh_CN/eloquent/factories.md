@@ -328,10 +328,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `en-GB` 和 `en-ZA` 的 `company()` 组合地区姓氏与继承的 `Ltd` 后缀。`el-CY` 使用姓氏加塞浦路斯法定后缀，或用连字符连接两个姓氏。三地均支持 `companySuffix()` 和 `unique`。
 
+`fr-BE`、`fr-CA`、`fr-CH` 和 `it-CH` 的 `company()` 使用固定上游的地区姓氏和模板。加拿大法语继承法国公司后缀，瑞士法语和意大利语分别使用自己的后缀，例如 `Sàrl` 和 `Sarl`。`company()` 和 `companySuffix()` 均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 61]> {
+fn identity_samples() -> DatabaseResult<[String; 63]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -344,6 +346,8 @@ fn identity_samples() -> DatabaseResult<[String; 61]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("fr-CA"))?.company(),
+        fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),
         fake(Some("el-CY"))?.companySuffix(),
         greek.company(),

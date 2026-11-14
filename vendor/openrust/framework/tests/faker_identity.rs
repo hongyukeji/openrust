@@ -1305,3 +1305,53 @@ fn british_south_african_and_cypriot_company_names_follow_local_templates() {
     );
     assert!(faker.companyPrefix().is_err());
 }
+
+#[test]
+fn french_and_italian_regional_companies_follow_inherited_templates() {
+    use std::collections::HashSet;
+    for (locale, suffixes) in [
+        (
+            "fr-BE",
+            &[
+                "ASBL",
+                "SCS",
+                "SNC",
+                "SPRL",
+                "Associations",
+                "Entreprise individuelle",
+                "GEIE",
+                "GIE",
+                "SA",
+                "SCA",
+                "SCRI",
+                "SCRL",
+            ][..],
+        ),
+        (
+            "fr-CA",
+            &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"][..],
+        ),
+        ("fr-CH", &["AG", "Sàrl", "SA", "GmbH"][..]),
+        ("it-CH", &["SA", "Sarl"][..]),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+        let names: Vec<_> = (0..256).map(|_| faker.company()).collect();
+        let has_suffix = |name: &String| {
+            suffixes
+                .iter()
+                .any(|suffix| name.ends_with(&format!(" {suffix}")))
+        };
+        assert!(names.iter().any(has_suffix));
+        assert!(names.iter().any(|name| !has_suffix(name)));
+        assert!(faker.companyPrefix().is_err());
+    }
+}
