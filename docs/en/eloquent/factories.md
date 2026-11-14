@@ -97,6 +97,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("website".into(), faker.url()?.into()),
             ("contact".into(), faker.safeEmail().into()),
             ("phone".into(), faker.e164PhoneNumber().into()),
+            ("address".into(), faker.address().into()),
         ]))
     })
 }
@@ -141,6 +142,10 @@ Use `email()?` for a general address or `companyEmail()?` for an address on a ge
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
 Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned FakerPHP templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+
+### Postal Addresses and Titles {#address-and-title-samples}
+
+Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective FakerPHP layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
 
 ## Creating Models Using Factories
 

@@ -1,4 +1,6 @@
-use super::{faker_miscellaneous, faker_phone, regex_pattern::RegexPattern};
+use super::{
+    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_phone, regex_pattern::RegexPattern,
+};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
@@ -135,7 +137,12 @@ formatters! {
     lastName => faker::name::raw::LastName,
     city => faker::address::raw::CityName,
     streetName => faker::address::raw::StreetName,
-    postcode => faker::address::raw::PostCode,
+    cityPrefix => faker::address::raw::CityPrefix,
+    citySuffix => faker::address::raw::CitySuffix,
+    streetSuffix => faker::address::raw::StreetSuffix,
+    country => faker::address::raw::CountryName,
+    state => faker::address::raw::StateName,
+    stateAbbr => faker::address::raw::StateAbbr,
     company => faker::company::raw::CompanyName,
     word => faker::lorem::raw::Word,
 }
@@ -339,6 +346,169 @@ impl Faker {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn postcode(&self) -> String {
+        match self.locale() {
+            "en_US" => {
+                let format = if self.boolean(None) {
+                    "#####"
+                } else {
+                    "#####-####"
+                };
+                self.numerify(Some(format))
+            }
+            "zh_CN" => format!("{:02}{}00", fastrand::u8(1..=85), fastrand::u8(10..=88)),
+            _ => generate!(self.locale.as_str(), faker::address::raw::PostCode,),
+        }
+    }
+
+    pub fn buildingNumber(&self) -> String {
+        let formats: &[&str] = match self.locale() {
+            "en_US" => &["%####", "%###", "%##"],
+            "fr_FR" => &["%", "%#", "%#", "%#", "%##"],
+            _ => return generate!(self.locale.as_str(), faker::address::raw::BuildingNumber,),
+        };
+        self.numerify(Some(formats[fastrand::usize(..formats.len())]))
+    }
+
+    pub fn secondaryAddress(&self) -> String {
+        let formats: &[&str] = match self.locale() {
+            "en_US" => &["Apt. ###", "Suite ###"],
+            "fr_FR" => &[
+                "Apt. ###",
+                "Suite ###",
+                "Étage ###",
+                "Bât. ###",
+                "Chambre ###",
+            ],
+            "zh_TW" => {
+                return format!(
+                    "{}{}",
+                    fastrand::u8(1..=100),
+                    if self.boolean(None) { "室" } else { "房" }
+                );
+            }
+            _ => return generate!(self.locale.as_str(), faker::address::raw::SecondaryAddress,),
+        };
+        self.numerify(Some(formats[fastrand::usize(..formats.len())]))
+    }
+
+    pub fn streetAddress(&self) -> String {
+        let street = self.streetName();
+        match self.locale() {
+            "en_US" => {
+                let mut address = format!("{} {street}", self.buildingNumber());
+                if self.boolean(None) {
+                    write!(address, " {}", self.secondaryAddress())
+                        .expect("writing to String cannot fail");
+                }
+                address
+            }
+            "fr_FR" if fastrand::u8(0..6) == 0 => street,
+            "fr_FR" => format!("{}, {street}", self.buildingNumber()),
+            "zh_TW" => {
+                let mut address = street;
+                let format = fastrand::u8(0..6);
+                if format >= 2 {
+                    write!(address, "{}巷", fastrand::u16(1..=1000))
+                        .expect("writing to String cannot fail");
+                }
+                if format >= 4 {
+                    write!(address, "{}弄", fastrand::u16(1..=1000))
+                        .expect("writing to String cannot fail");
+                }
+                write!(address, "{}號", fastrand::u16(1..=1000))
+                    .expect("writing to String cannot fail");
+                if format % 2 == 1 {
+                    write!(address, "{}樓", fastrand::u8(1..=100))
+                        .expect("writing to String cannot fail");
+                }
+                address
+            }
+            _ => format!("{} {street}", self.buildingNumber()),
+        }
+    }
+
+    pub fn address(&self) -> String {
+        match self.locale() {
+            "en_US" => format!(
+                "{}\n{}, {} {}",
+                self.streetAddress(),
+                self.city(),
+                self.stateAbbr(),
+                self.postcode()
+            ),
+            "zh_CN" => {
+                let districts = DISTRICTS_ZH_CN;
+                format!(
+                    "{}{}",
+                    self.city(),
+                    districts[fastrand::usize(..districts.len())]
+                )
+            }
+            "zh_TW" => format!(
+                "{} {}{}",
+                self.postcode(),
+                self.city(),
+                self.streetAddress()
+            ),
+            "fr_FR" => format!(
+                "{}\n{} {}",
+                self.streetAddress(),
+                self.postcode(),
+                self.city()
+            ),
+            _ => format!(
+                "{} {} {}",
+                self.streetAddress(),
+                self.postcode(),
+                self.city()
+            ),
+        }
+    }
+
+    pub fn title(&self, gender: Option<&str>) -> &'static str {
+        match gender {
+            Some("male") => self.titleMale(),
+            Some("female") => self.titleFemale(),
+            _ if self.boolean(None) => self.titleMale(),
+            _ => self.titleFemale(),
+        }
+    }
+
+    pub fn titleMale(&self) -> &'static str {
+        let titles: &[&str] = match self.locale() {
+            "ar_SA" => &["السيد", "الأستاذ", "الدكتور", "المهندس"],
+            "de_DE" => &["Herr", "Herr Dr.", "Herr Prof.", "Herr Prof. Dr."],
+            "fa_IR" => &["آقای", "استاد", "دکتر", "مهندس"],
+            "fr_FR" => &["M.", "Dr.", "Pr.", "Me."],
+            "it_IT" => &["Sig.", "Dott.", "Dr.", "Ing."],
+            "pt_BR" => &["Sr.", "Dr."],
+            "pt_PT" => &["Sr.", "Dr.", "Exmo.", "Eng.", "Eng.º", "Ex.", "Exº"],
+            "zh_CN" => &["先生", "医生", "老师", "教授", "律师", "经理"],
+            "zh_TW" => &["先生", "博士", "教授"],
+            _ => &["Mr.", "Dr.", "Prof."],
+        };
+        titles[fastrand::usize(..titles.len())]
+    }
+
+    pub fn titleFemale(&self) -> &'static str {
+        let titles: &[&str] = match self.locale() {
+            "ar_SA" => &["السيدة", "الآنسة", "الدكتورة", "المهندسة"],
+            "de_DE" => &["Frau", "Frau Dr.", "Frau Prof.", "Frau Prof. Dr."],
+            "fa_IR" => &["خانم", "استاد", "دکتر", "مهندس"],
+            "fr_FR" => &["Mme.", "Mlle", "Dr.", "Pr.", "Me."],
+            "it_IT" => &["Sig.ra", "Dott.", "Dr.", "Ing."],
+            "pt_BR" => &["Sra.", "Srta.", "Dr."],
+            "pt_PT" => &["Sra.", "Dra.", "Exma", "Eng.ª", "Exª"],
+            "zh_CN" => &[
+                "女士", "小姐", "夫人", "太太", "医生", "老师", "教授", "律师", "经理",
+            ],
+            "zh_TW" => &["小姐", "太太", "博士", "教授"],
+            _ => &["Mrs.", "Ms.", "Miss", "Dr.", "Prof."],
+        };
+        titles[fastrand::usize(..titles.len())]
     }
 
     pub fn userName(&self) -> String {
@@ -1304,6 +1474,38 @@ impl UniqueFaker<'_> {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> DatabaseResult<bool> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
+    }
+
+    pub fn postcode(&self) -> DatabaseResult<String> {
+        self.generate("postcode", || self.0.postcode())
+    }
+
+    pub fn buildingNumber(&self) -> DatabaseResult<String> {
+        self.generate("buildingNumber", || self.0.buildingNumber())
+    }
+
+    pub fn secondaryAddress(&self) -> DatabaseResult<String> {
+        self.generate("secondaryAddress", || self.0.secondaryAddress())
+    }
+
+    pub fn streetAddress(&self) -> DatabaseResult<String> {
+        self.generate("streetAddress", || self.0.streetAddress())
+    }
+
+    pub fn address(&self) -> DatabaseResult<String> {
+        self.generate("address", || self.0.address())
+    }
+
+    pub fn titleMale(&self) -> DatabaseResult<&'static str> {
+        self.generate("titleMale", || self.0.titleMale())
+    }
+
+    pub fn titleFemale(&self) -> DatabaseResult<&'static str> {
+        self.generate("titleFemale", || self.0.titleFemale())
+    }
+
+    pub fn title(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {
+        self.generate("title", || self.0.title(gender))
     }
 
     pub fn userName(&self) -> DatabaseResult<String> {

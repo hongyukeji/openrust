@@ -97,6 +97,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("website".into(), faker.url()?.into()),
             ("contact".into(), faker.safeEmail().into()),
             ("phone".into(), faker.e164PhoneNumber().into()),
+            ("address".into(), faker.address().into()),
         ]))
     })
 }
@@ -141,6 +142,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 电话号码和 IMEI 样本 {#phone-and-imei-samples}
 
 用 `phoneNumber()` 生成地区显示号码。简体中文和繁体中文使用固定 FakerPHP 模板，其他地区沿用已有 fake-rs 格式。`e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
+
+### 邮寄地址和称谓 {#address-and-title-samples}
+
+用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的 FakerPHP 排列规则。城市、街道和部分地址组件仍使用 fake-rs 数据。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。
 
 ## 使用工厂创建模型
 

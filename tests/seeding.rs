@@ -2359,3 +2359,73 @@ fn faker_phone_numbers_and_imei_follow_pinned_formats() -> DatabaseResult<()> {
     assert!(tw.unique(true).imei().is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_address_and_title_formats_follow_locale_contracts() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let us = Faker::new("en-US")?;
+    let cn = Faker::new("zh-Hans-CN")?;
+    let tw = Faker::new("zh-Hant-TW")?;
+    let fr = Faker::new("fr-FR")?;
+    for _ in 0..64 {
+        let address = us.address();
+        let (street, locality) = address.split_once('\n').unwrap();
+        assert!(street.starts_with(|character: char| character.is_ascii_digit()));
+        let (_, state_zip) = locality.rsplit_once(", ").unwrap();
+        let (state, zip) = state_zip.split_once(' ').unwrap();
+        assert_eq!(state.len(), 2);
+        assert!(matches!(zip.len(), 5 | 10));
+        assert!(
+            zip.bytes()
+                .all(|byte| byte.is_ascii_digit() || byte == b'-')
+        );
+        assert!(matches!(us.buildingNumber().len(), 3..=5));
+        assert!(us.secondaryAddress().starts_with(['A', 'S']));
+
+        let address = cn.address();
+        assert!(address.ends_with('区') && !address.contains('\n'));
+        let postcode = cn.postcode();
+        assert_eq!(postcode.len(), 6);
+        assert!(postcode.ends_with("00"));
+        assert!((1..=85).contains(&postcode[..2].parse::<u8>().unwrap()));
+        assert!((10..=88).contains(&postcode[2..4].parse::<u8>().unwrap()));
+
+        let street = tw.streetAddress();
+        assert!(street.contains('號'));
+        assert!(street.ends_with(['號', '樓']));
+        assert!(tw.address().contains('號'));
+        assert!(tw.secondaryAddress().ends_with(['室', '房']));
+
+        let address = fr.address();
+        let (_, locality) = address.split_once('\n').unwrap();
+        let (postcode, _) = locality.split_once(' ').unwrap();
+        assert_eq!(postcode.len(), 5);
+        assert!(postcode.bytes().all(|byte| byte.is_ascii_digit()));
+
+        assert!(["先生", "博士", "教授"].contains(&tw.title(Some("male"))));
+        assert!(["小姐", "太太", "博士", "教授"].contains(&tw.titleFemale()));
+        assert!(
+            [
+                "女士", "小姐", "夫人", "太太", "医生", "老师", "教授", "律师", "经理"
+            ]
+            .contains(&cn.title(Some("female")))
+        );
+        assert!(!us.country().is_empty());
+        assert!(!us.cityPrefix().is_empty());
+        assert!(!us.citySuffix().is_empty());
+        assert!(!us.streetSuffix().is_empty());
+        assert!(!us.state().is_empty());
+    }
+    let unique = tw.unique(false);
+    let mut titles = (0..3)
+        .map(|_| unique.titleMale())
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    titles.sort_unstable();
+    assert_eq!(titles, ["先生", "博士", "教授"]);
+    assert!(unique.titleMale().is_err());
+    assert!(unique.title(None).is_ok());
+    assert!(unique.address().is_ok());
+    assert!(tw.unique(true).titleMale().is_ok());
+    Ok(())
+}
