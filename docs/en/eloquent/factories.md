@@ -861,6 +861,18 @@ fn indian_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Philippine English uses local provinces, cities and municipalities, with a four-digit postcode and optional apartment or suite. Use `municipality()` and `barangay()` for local fields. The independent `state()` and `stateAbbr()` retain their inherited U.S. catalogs. Hong Kong English uses a street, village or estate on the first line, then the town and city. The inherited five-digit `postcode()` formatter is available separately. The regional formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)> {
+    let philippines = fake(Some("en-PH"))?;
+    let hong_kong = fake(Some("en-HK"))?;
+    Ok((philippines.address(), hong_kong.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

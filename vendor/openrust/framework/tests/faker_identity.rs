@@ -3943,3 +3943,56 @@ fn indian_english_addresses_preserve_locality_and_society_templates() {
     );
     assert!(unique.areaSuffix().is_err());
 }
+
+#[test]
+fn philippine_address_uses_local_routes_and_inherited_us_fields() {
+    let faker = fake(Some("en-PH")).unwrap();
+    let number = Regex::new(r"^(?:[0-9]{2}A(?:/[0-9]{2})?|[1-9][0-9](?:/[1-9][0-9])?)$").unwrap();
+    let address = Regex::new(r"^.+, (?:Poblacion, )?.+ [0-9]{4} .+$").unwrap();
+    let secondary = Regex::new(r"^(?:Apt\.|Suite) [0-9]{3}$").unwrap();
+    let mut formats = [false; 2];
+    for _ in 0..256 {
+        let sample = faker.address();
+        assert!(address.is_match(&sample), "{sample}");
+        formats[usize::from(sample.contains(", Poblacion, "))] = true;
+        assert!(number.is_match(&faker.buildingNumber()));
+        assert!(secondary.is_match(&faker.secondaryAddress()));
+        assert_eq!(faker.stateAbbr().len(), 2);
+        assert!(!faker.province().unwrap().is_empty());
+    }
+    assert_eq!(formats, [true; 2]);
+    let unique = faker.unique(true);
+    assert_eq!(unique.barangay().unwrap(), "Poblacion");
+    assert!(unique.barangay().is_err());
+    assert!(fake(Some("en-US")).unwrap().municipality().is_err());
+}
+
+#[test]
+fn hong_kong_address_preserves_three_lines_and_local_name_templates() {
+    let faker = fake(Some("en-HK")).unwrap();
+    let city = ["Hong Kong", "Kowloon", "New Territories"];
+    let number = Regex::new(r"^(?:Block )?[1-9][0-9][ ,]").unwrap();
+    let mut block = false;
+    for _ in 0..256 {
+        let address = faker.address();
+        let lines: Vec<_> = address.lines().collect();
+        assert_eq!(lines.len(), 3, "{address}");
+        assert!(number.is_match(lines[0]));
+        block |= lines[0].starts_with("Block ");
+        assert!(!lines[1].is_empty());
+        assert!(city.contains(&lines[2]));
+        assert!(!address.contains("{{"));
+        let estate = faker.estate().unwrap();
+        assert!(estate.ends_with(" Estate") || estate.ends_with(" Court"));
+        assert_eq!(faker.postcode().len(), 5);
+        assert_eq!(faker.country(), "Hong Kong");
+    }
+    assert!(block);
+    let unique = faker.unique(true);
+    assert_ne!(
+        unique.estateSuffix().unwrap(),
+        unique.estateSuffix().unwrap()
+    );
+    assert!(unique.estateSuffix().is_err());
+    assert!(fake(Some("en-PH")).unwrap().town().is_err());
+}

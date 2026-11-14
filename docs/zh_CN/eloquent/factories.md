@@ -861,6 +861,18 @@ fn indian_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+菲律宾英语地址使用当地省份、城市和市镇，邮编为四位，也可包含公寓或套房编号。`municipality()` 和 `barangay()` 提供当地字段，独立的 `state()` 和 `stateAbbr()` 沿用美国词表。香港英语地址首行为街道、村落或屋苑，其后依次为地区和城市。继承的五位 `postcode()` 可单独调用。地区方法支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn philippine_and_hong_kong_address_samples() -> DatabaseResult<(String, String)> {
+    let philippines = fake(Some("en-PH"))?;
+    let hong_kong = fake(Some("en-HK"))?;
+    Ok((philippines.address(), hong_kong.address()))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

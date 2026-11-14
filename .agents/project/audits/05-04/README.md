@@ -1364,3 +1364,11 @@ Rust 1.94.0 格式、全工作区全目标严格 Clippy、83 项 Faker、49 项 
 隔离基线 `ad4aae59`。PHP 反射逐项核对八份词表，印度与尼日利亚使用相同国家名词表，Rust 复用该常量。固定 FakerPHP 抽验 128 个样本。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入、顺序回读并核对 129 行，包括三语共用示例。回归覆盖两种街道结构、无效地区和唯一街区后缀耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、84 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查与六项工厂页面示例检查通过。既有 Sanctum 排版差异只在隔离副本处理。原始 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，项目卷可用 80 GiB。下一批核对菲律宾与香港英语 Address。
+
+## 菲律宾和香港英语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，复核 FakerPHP v1.24.1 的 [菲律宾 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_PH/Address.php) 与 [香港 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_HK/Address.php)。菲律宾支持描笼涯加城市或市镇、四位邮编、四种楼号格式及继承的美国州名、简称与公寓编号。香港支持街道、村落与屋苑的三行地址、地区及加权命名模板。独立 postcode 沿用基础 provider 的五位模板。Rust 的地区专用方法使用 Result，并支持 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 参考中的编译式装配继续沿用。
+
+隔离基线 `c0f216f3`。PHP 反射核对 16 份词表和保留重复项的模板，固定 FakerPHP 实测两地共 320 个样本。实际 MySQL 8.4.13 使用 `main artisan db:seed --database=mysql --force` 写入、顺序回读并验证 322 行，包含三语共用示例，覆盖菲律宾两种与香港三种地址结构。Rust 回归覆盖不适用地区与唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、86 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查与六项工厂页面示例检查通过。既有 Sanctum 排版差异只在隔离副本处理。原始 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，项目卷可用 80 GiB。05-04 继续核对日语及其他地区 Address。
