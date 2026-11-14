@@ -300,3 +300,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 FakerPHP 1.24.1 Address 及 hu_HU、me_ME、zh_TW 覆盖。latitude、longitude 复用六位精度的 randomFloat，保留反向边界，非有限输入返回错误。Rust 用 Option 表达省略边界，用可序列化 Coordinates 表达带字段的坐标。成对坐标沿用匈牙利和黑山的上游地区范围，台湾地区范围由独立方法提供，成对入口保持上游默认范围。五个入口各自维护 unique，坐标值的正负零视作相同结果。v0.x 未发现等价 Faker 生成器，Goravel 装配未涉及。 [固定 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Address.php#L134)
 
 隔离基线 `dc92addb`。PHP 8.5.12 固定 FakerPHP 及 Rust 对四种 locale 验证坐标边界和六位小数，Rust 补验无效输入及去重耗尽。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 把匈牙利和台湾坐标写入数值列并原样回查。Rust 1.94.0 格式、工作区全目标严格 Clippy、19 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。已清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。
+
+## 工厂软删除状态
+
+固定 Laravel Factory 的动态 trashed 检查模型是否支持软删除，把模型自定义删除列追加到状态链，接受显式日期，省略日期时使用 Carbon 的前一日。Rust 以 trashed(Option<Value>) 表达可选日期，对不支持的模型返回 DatabaseError。默认状态在注册时捕获参考时刻，生成时以所选连接的应用时区计算前一日并沿用模型日期格式。复用旧版已移植的日历运算、模型元数据和日期转换。原有状态和序列的公开签名保留，之后追加的状态与显式属性可覆盖该值。Goravel 启动装配未涉及。 [Laravel Trashed State](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#trashed-state) · [Laravel 工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L760)
+
+隔离基线 `91fe3dd9`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证自定义删除列、批量默认日期、显式日期、后续清空和查询作用域。SQLite 与 MySQL 回归补验未保存模型不落库及不支持软删除的错误。Rust 1.94.0 格式、全目标严格 Clippy、20 项 Seeder 测试、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。

@@ -12,16 +12,18 @@ use crate::{
     database::{
         Connection, DB, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
     },
+    support::calendar,
 };
 
 use super::{
     Attributes, Collection, Model, casts,
     relations::{BelongsToMany, Relation},
+    soft_deletes,
 };
 
 type Definition =
     dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
-type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
+type State = dyn Fn(&Attributes, usize, &Connection) -> DatabaseResult<Attributes> + Send + Sync;
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type PivotResolver<M> = dyn Fn(&M) -> DatabaseResult<Attributes> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
@@ -299,7 +301,7 @@ impl<M: Model> Factory<M> {
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.states
-            .push(Box::new(move |attributes, _| state(attributes)));
+            .push(Box::new(move |attributes, _, _| Ok(state(attributes))));
         self
     }
 
@@ -310,7 +312,7 @@ impl<M: Model> Factory<M> {
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.states
-            .insert(0, Box::new(move |attributes, _| state(attributes)));
+            .insert(0, Box::new(move |attributes, _, _| Ok(state(attributes))));
         self
     }
 
@@ -322,12 +324,36 @@ impl<M: Model> Factory<M> {
         self.state(move |_| Attributes::from([(name.clone(), value.clone())]))
     }
 
+    /// Appends the soft-deleted state using the supplied date or the previous local day.
+    pub fn trashed(mut self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
+        let column = M::metadata()
+            .deleted_at
+            .ok_or_else(soft_deletes::unsupported)?;
+        if let Some(value) = deletedAt.filter(|value| !matches!(value, Value::Null)) {
+            return Ok(self.set(column, value));
+        }
+
+        let now = chrono::Utc::now();
+        self.states.push(Box::new(move |_, _, connection| {
+            let zone = connection.model_timezone;
+            let (_, yesterday) = calendar::date_interval("now", "-1 day", now, zone)
+                .map_err(|_| DatabaseError::InvalidQuery("invalid factory deletion timestamp"))?;
+            let value = casts::date::format_for_storage(
+                yesterday.with_timezone(&zone),
+                M::metadata().date_format,
+            )?;
+            Ok(Attributes::from([(column.to_owned(), value)]))
+        }));
+        Ok(self)
+    }
+
     #[must_use]
     pub fn sequence(
         mut self,
         sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.states.push(Box::new(move |_, index| sequence(index)));
+        self.states
+            .push(Box::new(move |_, index, _| Ok(sequence(index))));
         self
     }
 
@@ -943,7 +969,7 @@ impl<M: Model> Factory<M> {
             attributes.extend(defaults.clone());
         }
         for state in &self.states {
-            let changes = state(&attributes, index);
+            let changes = state(&attributes, index, connection)?;
             attributes.extend(changes);
         }
         if let Some((_, keys)) = relation {
@@ -1088,6 +1114,10 @@ impl<M: Model> FactoryBatch<M> {
 
     pub fn getConnectionName(&self) -> Option<&str> {
         self.factory.getConnectionName()
+    }
+
+    pub fn trashed(self, deletedAt: Option<Value>) -> DatabaseResult<Self> {
+        Ok(self.factory.trashed(deletedAt)?.count(self.count))
     }
 
     #[must_use]

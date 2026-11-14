@@ -157,6 +157,27 @@ Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding Fake
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.
 
+### Soft-deleted State {#trashed-state}
+
+Use `trashed(None)?` on a factory or counted batch for a model configured with `softDeletes`. It appends the model’s deletion column as a state, using the previous calendar day in the selected connection’s application time zone. Use `Some(value)` for an explicit deletion date. Later states and explicit creation attributes can override it. Unsupported models return an error. The factory creates a new model in this state through its ordinary creation lifecycle.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+    seeder::SeederContext,
+};
+
+async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<()> {
+    Factory::<M>::new(|| Attributes::from([("name".into(), "Archived".into())]))
+        .count(2)
+        .trashed(None)?
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
 ## Creating Models Using Factories
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.

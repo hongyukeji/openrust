@@ -2515,3 +2515,109 @@ fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseR
     assert!(taiwan.unique(false).localLongitude().is_ok());
     Ok(())
 }
+
+struct TrashedProbe(ModelState);
+
+impl Model for TrashedProbe {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("trashed_factory_probe")
+            .timestamps(None, None)
+            .softDeletes("removed_at");
+        &METADATA
+    }
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+async fn verify_trashed_factory(db: &Connection) -> DatabaseResult<()> {
+    db.getSchemaBuilder()
+        .create("trashed_factory_probe", |table| {
+            table.id();
+            table.string("name", 60);
+            table.dateTime("removed_at", 0).nullable();
+        })
+        .await?;
+    let definition = || Attributes::from([("name".into(), "sample".into())]);
+    let now = chrono::Utc::now();
+    let batch = Factory::<TrashedProbe>::new(definition)
+        .count(2)
+        .trashed(None)?;
+    let previews = batch.makeOn(db).await?;
+    assert_eq!(previews.len(), 2);
+    let mut previous = None;
+    for model in previews.iter() {
+        assert!(model.trashed());
+        let Some(Value::Text(value)) = model.getAttributeValue("removed_at")? else {
+            panic!("expected date text");
+        };
+        let raw = chrono::DateTime::parse_from_rfc3339(&value).unwrap();
+        assert!((86_399..=86_401).contains(&now.signed_duration_since(raw).num_seconds()));
+        if let Some(previous) = &previous {
+            assert_eq!(&value, previous);
+        }
+        previous = Some(value);
+    }
+    assert!(
+        TrashedProbe::queryOn(db)
+            .withTrashed()
+            .get()
+            .await?
+            .is_empty()
+    );
+    assert_eq!(batch.createOn(db).await?.len(), 2);
+
+    let explicit = "2020-02-03 04:05:06";
+    let model = Factory::<TrashedProbe>::new(definition)
+        .trashed(Some(explicit.into()))?
+        .createOn(db)
+        .await?;
+    assert!(model.trashed());
+    assert!(
+        db.table("trashed_factory_probe")
+            .pluck("removed_at")
+            .await?
+            .contains(&explicit.into())
+    );
+
+    let restored = Factory::<TrashedProbe>::new(definition)
+        .trashed(Some(Value::Null))?
+        .set("removed_at", Value::Null)
+        .createOn(db)
+        .await?;
+    assert!(!restored.trashed());
+    assert_eq!(TrashedProbe::queryOn(db).get().await?.len(), 1);
+    assert_eq!(
+        TrashedProbe::queryOn(db).onlyTrashed().get().await?.len(),
+        3
+    );
+    db.getSchemaBuilder().drop("trashed_factory_probe").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_trashed_state_respects_scopes_on_sqlite_and_mysql() {
+    let root = Root::new();
+    verify_trashed_factory(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_trashed_factory(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+    assert!(matches!(
+        Factory::<FactoryChild>::new(Attributes::new).trashed(None),
+        Err(DatabaseError::InvalidQuery(
+            "soft deletes are disabled for this model"
+        ))
+    ));
+}

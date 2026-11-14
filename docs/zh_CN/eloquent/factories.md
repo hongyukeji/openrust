@@ -157,6 +157,27 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
 
+### 软删除状态 {#trashed-state}
+
+对已配置 `softDeletes` 的模型，在工厂或批量工厂上使用 `trashed(None)?`。它追加模型所声明的删除列状态，以选定连接的应用时区计算前一日同一时间。传入 `Some(value)` 可指定删除日期。后续状态和显式创建属性可以覆盖该值。未开启软删除的模型会返回错误。工厂按普通创建生命周期生成处于此状态的新模型。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+    seeder::SeederContext,
+};
+
+async fn seed_trashed<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<()> {
+    Factory::<M>::new(|| Attributes::from([("name".into(), "Archived".into())]))
+        .count(2)
+        .trashed(None)?
+        .createOn(context.connection())
+        .await?;
+    Ok(())
+}
+```
+
 ## 使用工厂创建模型
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
