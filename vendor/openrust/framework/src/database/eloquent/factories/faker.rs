@@ -36,6 +36,9 @@ use chrono::{
 use chrono_tz::{GapInfo, Tz, UTC};
 use md5::{Digest as _, Md5};
 
+#[path = "faker_user_agent.rs"]
+mod user_agent;
+
 /// A sampled latitude and longitude in signed decimal degrees.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 pub struct Coordinates {

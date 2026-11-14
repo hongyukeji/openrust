@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### Localized Fake Data {#localized-fake-data}
 
-The catalog below lists the supported formatters. Some FakerPHP providers, including user agents, are pending.
+The catalog below lists the supported formatters.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
@@ -275,6 +275,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
         randomize: false,
         ..ImageOptions::default()
     })
+}
+```
+
+### Browser User Agents {#browser-user-agent-samples}
+
+Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed FakerPHP browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn browser_samples() -> DatabaseResult<(String, String)> {
+    let faker = fake(None)?;
+    Ok((faker.userAgent()?, faker.unique(false).msedge()?))
 }
 ```
 

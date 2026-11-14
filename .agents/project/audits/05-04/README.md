@@ -597,3 +597,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 后续继续核对 UserAgent。
 
 隔离 Cargo 产物和文档构建产物已清理，项目卷剩余 82 GiB。
+
+## Faker 浏览器 User-Agent
+
+对照固定 FakerPHP v1.24.1，接通随机 User-Agent、六种浏览器及六种平台或处理器标识。保留各平台的抽样权重、历史版本范围和格式，包括 Edge 的构建号拼接、iOS 版本和 Safari 的移动端标识。Firefox 在应用时区抽取 2010 年以来的 Gecko 日期。Rust 复用已有日期采样和 `unique` 历史，日期范围错误通过 `DatabaseResult` 返回，其余格式直接返回值。各候选平台只生成被抽中的分支。v0.x 未发现相应生成器，Goravel 的编译式工厂装配沿用当前路径。 [固定 FakerPHP UserAgent](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/UserAgent.php) · [Laravel 模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)
+
+隔离基线 `28a735a7`。PHP 8.5 运行固定 provider，按格式和范围对照 13 个入口的 3,328 条样本。两项 Rust 回归覆盖浏览器格式、版本日期、平台标识、唯一值耗尽与重置。真实 MySQL 8.4.13 运行 `main artisan db:seed --database=mysql --force`，逐项写入并回查 13 个 formatter 样本。49 项 Seeder 与 2 项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
+
+已恢复隔离副本的原始 Seeder，并清理 2.2 GiB Cargo 和 38 MiB 站点产物。磁盘剩余 82 GiB。05-04 继续核对 Color、Medical、HtmlLorem、Text、Biased、修饰器和地区 formatter。

@@ -95,7 +95,7 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 
 ### 本地化测试数据 {#localized-fake-data}
 
-下文列出已支持的生成器。FakerPHP 的 User-Agent 等生成器仍待接入。
+下文列出已支持的生成器。
 
 下文涉及的上游格式以[上游 Faker 词库与生成器](https://github.com/FakerPHP/Faker/tree/v1.24.1)为准。
 
@@ -275,6 +275,19 @@ fn placeholder_sample() -> DatabaseResult<String> {
         randomize: false,
         ..ImageOptions::default()
     })
+}
+```
+
+### 浏览器 User-Agent {#browser-user-agent-samples}
+
+用 `userAgent()?` 随机生成浏览器样本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。样本沿用固定 FakerPHP 的浏览器版本和平台标识。Firefox 按应用时区采样 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 单独生成标识。以上格式化方法均支持 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn browser_samples() -> DatabaseResult<(String, String)> {
+    let faker = fake(None)?;
+    Ok((faker.userAgent()?, faker.unique(false).msedge()?))
 }
 ```
 
