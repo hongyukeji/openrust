@@ -272,12 +272,22 @@ Use `raw()` or `rawOn(connection)` to get expanded attributes before model sette
 
 Use `rawWith(attributes)` or `rawWithState(callback)` to append a state for one call. The callback receives the accumulated attributes for each row before relationship keys are resolved. A foreign-key override, including null, skips resolution for that key. Use the corresponding `On` methods to select a connection.
 
+Use `rawWithParent(parent, callback)` or `rawWithParentOn(connection, parent, callback)` on either builder to supply a borrowed parent. Matching `stateWithParent` callbacks and the final callback can read it. Supplying the parent adds no relationship attributes by itself.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
 
 async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
     Factory::<M>::factoryForModel()
         .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+        .await
+}
+
+async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResult<Attributes> {
+    Factory::<M>::factoryForModel()
+        .rawWithParent(parent, |_, parent| {
+            Attributes::from([("parent_key".into(), parent.getKey().cloned().unwrap_or(openrust::database::Value::Null))])
+        })
         .await
 }
 ```

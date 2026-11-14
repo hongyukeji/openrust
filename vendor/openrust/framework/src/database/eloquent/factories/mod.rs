@@ -36,7 +36,7 @@ type CreateCallback<M> =
 
 #[derive(Clone, Copy)]
 struct RelationContext<'a> {
-    attributes: &'a (Attributes, Attributes),
+    attributes: Option<&'a (Attributes, Attributes)>,
     parent: &'a FactoryParentModel,
 }
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
@@ -686,7 +686,7 @@ impl<M: Model> Factory<M> {
                             &connection,
                             &pool,
                             Some(RelationContext {
-                                attributes: &attributes,
+                                attributes: Some(&attributes),
                                 parent,
                             }),
                         )
@@ -935,7 +935,7 @@ impl<M: Model> Factory<M> {
                                     &connection,
                                     inherited,
                                     Some(RelationContext {
-                                        attributes: &attributes,
+                                        attributes: Some(&attributes),
                                         parent,
                                     }),
                                 )
@@ -1191,8 +1191,38 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        self.raw_attributes(connection, 0, &std::sync::OnceLock::new(), state)
+        self.raw_attributes(connection, 0, &std::sync::OnceLock::new(), None, state)
             .await
+    }
+
+    /// Expands raw attributes with a parent available to the configured and final states.
+    pub async fn rawWithParent<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Attributes> {
+        self.rawWithParentOn(&self.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn rawWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Attributes> {
+        let context = RelationContext {
+            attributes: None,
+            parent,
+        };
+        self.raw_attributes(
+            connection,
+            0,
+            &std::sync::OnceLock::new(),
+            Some(context),
+            |attributes| state(attributes, parent),
+        )
+        .await
     }
 
     async fn raw_attributes(
@@ -1200,9 +1230,10 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         index: usize,
         faker: &std::sync::OnceLock<Faker>,
+        context: Option<RelationContext<'_>>,
         state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Attributes> {
-        let mut pending = self.prepare_attributes(connection, index, None, faker)?;
+        let mut pending = self.prepare_attributes(connection, index, context, faker)?;
         let attributes = state(&pending.values);
         pending.values.extend(attributes);
         self.resolve_attributes(connection, &self.recycled, &mut pending)
@@ -1254,8 +1285,8 @@ impl<M: Model> Factory<M> {
             }
             parents.push(parent);
         }
-        if let Some(context) = relation {
-            attributes.extend(context.attributes.0.clone());
+        if let Some(defaults) = relation.and_then(|context| context.attributes) {
+            attributes.extend(defaults.0.clone());
         }
         for state in &self.states {
             let changes = state(
@@ -1266,8 +1297,8 @@ impl<M: Model> Factory<M> {
             )?;
             attributes.extend(changes);
         }
-        if let Some(context) = relation {
-            attributes.extend(context.attributes.1.clone());
+        if let Some(defaults) = relation.and_then(|context| context.attributes) {
+            attributes.extend(defaults.1.clone());
         }
         Ok(FactoryAttributes {
             model,
@@ -1643,6 +1674,41 @@ impl<M: Model> FactoryBatch<M> {
     pub async fn rawWithStateOn(
         &self,
         connection: &Connection,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        self.raw_with_state(connection, None, state).await
+    }
+
+    /// Expands each row with a parent available to the configured and final states.
+    pub async fn rawWithParent<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        self.rawWithParentOn(&self.factory.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn rawWithParentOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        let context = RelationContext {
+            attributes: None,
+            parent,
+        };
+        self.raw_with_state(connection, Some(context), |attributes| {
+            state(attributes, parent)
+        })
+        .await
+    }
+
+    async fn raw_with_state(
+        &self,
+        connection: &Connection,
+        context: Option<RelationContext<'_>>,
         mut state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Vec<Attributes>> {
         let faker = std::sync::OnceLock::new();
@@ -1650,7 +1716,7 @@ impl<M: Model> FactoryBatch<M> {
         for index in 0..self.count {
             records.push(
                 self.factory
-                    .raw_attributes(connection, index, &faker, &mut state)
+                    .raw_attributes(connection, index, &faker, context, &mut state)
                     .await?,
             );
         }

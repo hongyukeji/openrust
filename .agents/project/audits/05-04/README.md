@@ -364,3 +364,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `43ae01c1`。MySQL 8.4.13 应用二进制 `artisan db:seed --database=mysql --force` 验证工厂绑定、覆盖只影响当次调用、批次闭包读取先前状态、显式 null 跳过父工厂、需要解析时只生成一个父模型、空批次跳过状态和定义。Rust 1.94.0 格式、工作区全目标严格 Clippy、28 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 本批隔离副本清理 2.2 GiB Cargo 产物及约 38 MiB 站点产物。项目磁盘可用 87 GiB。
+
+## 原始工厂属性的父模型上下文
+
+固定 Laravel 的 `raw($attributes, $parent)` 把父模型交给状态链。Rust 的单条和批量构建器提供 `rawWithParent` 和 `rawWithParentOn`，复用类型化的 `stateWithParent`，本次闭包接收同一模型的借用。现有无参和临时属性入口继续表达省略父模型的调用。父模型仅作为上下文，显式外键状态仍优先于关系解析。两条内部关系创建路径继续注入其默认和强制属性。固定 Goravel 的 Factory 接口及 v0.x 未发现等价入口。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L247) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `cc29539d`。实际应用二进制使用 MySQL 8.4.13 执行 `artisan db:seed --database=mysql --force`，验证单条、批量、上下文无隐式外键和显式外键覆盖不生成额外父记录，随后的普通调用独立解析父模型。Rust 1.94.0 格式、全目标严格 Clippy、29 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+清理本批隔离副本 2.2 GiB Cargo 产物与约 38 MiB 站点产物。后续核对 `make` 与 `insert` 的同类父模型参数。

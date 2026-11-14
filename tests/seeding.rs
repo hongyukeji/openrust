@@ -3494,3 +3494,82 @@ async fn factory_raw_overrides_are_temporary_and_resolve_parents_after_state() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+async fn verify_raw_parent_context(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
+    let parent = owners().createOn(connection).await?;
+    let key = parent.getKey().unwrap().clone();
+    let children = || {
+        Factory::<ExpansionChild>::new(Attributes::new).stateWithParent::<ExpansionOwner>(
+            |_, parent| {
+                Attributes::from([(
+                    "context_key".into(),
+                    parent
+                        .and_then(Model::getKey)
+                        .cloned()
+                        .unwrap_or(Value::Null),
+                )])
+            },
+        )
+    };
+    let only_context = children()
+        .rawWithParentOn(connection, &parent, |_, _| Attributes::new())
+        .await?;
+    assert_eq!(only_context["context_key"], key);
+    assert!(!only_context.contains_key("owner_id"));
+
+    let factory = children().r#for(
+        BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id"),
+        owners(),
+    );
+    let attributes = factory
+        .rawWithParentOn(connection, &parent, |attributes, model| {
+            assert!(std::ptr::eq(model, &parent));
+            assert_eq!(attributes["context_key"], key);
+            Attributes::from([("owner_id".into(), Value::Null)])
+        })
+        .await?;
+    assert_eq!(attributes["owner_id"], Value::Null);
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+
+    let batch = factory.count(2);
+    let mut calls = 0;
+    let rows = batch
+        .rawWithParentOn(connection, &parent, |attributes, model| {
+            assert!(std::ptr::eq(model, &parent));
+            assert_eq!(attributes["context_key"], key);
+            calls += 1;
+            Attributes::from([("owner_id".into(), key.clone())])
+        })
+        .await?;
+    assert_eq!(calls, 2);
+    assert!(rows.iter().all(|row| row["owner_id"] == key));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+    let without_parent = batch.rawOn(connection).await?;
+    assert_eq!(without_parent[0]["context_key"], Value::Null);
+    assert_ne!(without_parent[0]["owner_id"], key);
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 2);
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_raw_parent_is_state_context_without_automatic_association() {
+    let root = Root::new();
+    verify_raw_parent_context(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_raw_parent_context(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}

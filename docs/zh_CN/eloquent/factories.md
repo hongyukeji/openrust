@@ -272,12 +272,22 @@ fn conditional_factory<M: Model>(featured: bool, draft: bool) {
 
 用 `rawWith(attributes)` 或 `rawWithState(callback)` 追加仅本次生效的状态。闭包接收每条记录在解析关系键前的属性。覆盖外键时会跳过该键的解析，包括显式设为 null。对应的 `On` 方法可指定连接。
 
+单条和批量构建器都可用 `rawWithParent(parent, callback)` 或 `rawWithParentOn(connection, parent, callback)` 借用父模型。类型匹配的 `stateWithParent` 和本次闭包都可以读取父模型。传入父模型本身不会添加关系属性。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::{Factory, HasFactory}}};
 
 async fn preview_with_state<M: Model + HasFactory>() -> DatabaseResult<Attributes> {
     Factory::<M>::factoryForModel()
         .rawWithState(|_| Attributes::from([("name".into(), "Preview".into())]))
+        .await
+}
+
+async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResult<Attributes> {
+    Factory::<M>::factoryForModel()
+        .rawWithParent(parent, |_, parent| {
+            Attributes::from([("parent_key".into(), parent.getKey().cloned().unwrap_or(openrust::database::Value::Null))])
+        })
         .await
 }
 ```
