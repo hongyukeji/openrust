@@ -230,6 +230,18 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `email()?` 產生一般電子郵件地址，或用 `companyEmail()?` 產生使用隨機網域的地址。簡體中文的一般電子郵件使用該地區的免費信箱清單。`safeEmail()` 使用保留的範例網域，`freeEmail()` 使用地區信箱服務網域。只需網域時用 `safeEmailDomain()` 或 `freeEmailDomain()`。使用者名稱使用地區姓名或詞庫並轉寫為 ASCII。若無可用字元，OpenRust 產生一個 ASCII 字母，保留既有使用者名稱及電子郵件方法的直接回傳型別。`password(min, max)?` 使用從 `!` 到 `~` 的可列印 ASCII 字元，長度含兩端，接受反向邊界，預設值為 6 和 20。以上產生器均支援 `unique`。
 
+### 地區網域與信箱 {#regional-domains-and-email}
+
+`tld()` 和 `freeEmailDomain()` 從固定 Internet 詞表取樣，重複項目保留原權重。沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本的 `domainName()` 使用羅馬字姓氏詞表。其他地區組合 `domainWord()` 和網域後綴。尼泊爾的一般信箱範本包含兩個公司網域、一個免費網域、三個附加 `.np` 的公司網域。直接呼叫 `companyEmail()` 使用一般網域。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_email_sample() -> DatabaseResult<String> {
+    fake(Some("ne-NP"))?.unique(false).email()
+}
+```
+
 ### 地區使用者名稱 {#regional-usernames}
 
 `userName()` 在沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本使用固定 FakerPHP 羅馬字姓名詞表。立陶宛範本從相同性別群組取名字與姓氏。簡體中文使用固定 Lorem 詞表和含底線的範本。`safeEmail()` 和 `freeEmail()` 共用此產生器作為信箱本地部分。通用路徑使用 Rust 音譯，音譯後只剩分隔符時產生一個字母，保留使用者名稱與信箱的無錯誤簽名。

@@ -230,6 +230,18 @@ Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and
 
 Use `email()?` for a general address or `companyEmail()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safeEmail()` uses reserved example domains and `freeEmail()` uses localized provider domains. Use `safeEmailDomain()` and `freeEmailDomain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
 
+### Regional Domains and Email {#regional-domains-and-email}
+
+Use `tld()` and `freeEmailDomain()` to sample the pinned Internet catalogs. Repeated entries retain their upstream weight. `domainName()` uses the Romanized surname catalog in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Other locales use `domainWord()` followed by a suffix. General email in Nepal uses two company, one free-provider, and three company-with-`.np` template slots. Direct `companyEmail()` uses the ordinary domain there.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_email_sample() -> DatabaseResult<String> {
+    fake(Some("ne-NP"))?.unique(false).email()
+}
+```
+
 ### Regional Usernames {#regional-usernames}
 
 `userName()` uses FakerPHP’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safeEmail()` and `freeEmail()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.

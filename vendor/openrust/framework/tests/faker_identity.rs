@@ -1850,3 +1850,152 @@ fn usernames_use_regional_internet_templates_and_keep_email_local_parts() {
         }
     }
 }
+
+#[test]
+fn internet_domains_use_pinned_catalogs_and_nepalese_email_templates() {
+    use std::collections::HashSet;
+
+    for (locale, domains, suffixes) in [
+        (
+            "en-GB",
+            &[
+                "gmail.com",
+                "yahoo.com",
+                "hotmail.com",
+                "gmail.co.uk",
+                "yahoo.co.uk",
+                "hotmail.co.uk",
+            ][..],
+            &["com", "biz", "info", "net", "org", "co.uk"][..],
+        ),
+        (
+            "fr-CH",
+            &[
+                "gmail.com",
+                "hotmail.com",
+                "yahoo.com",
+                "googlemail.com",
+                "gmx.ch",
+                "bluewin.ch",
+                "swissonline.ch",
+            ][..],
+            &["com", "net", "org", "li", "ch"][..],
+        ),
+        (
+            "kk-KZ",
+            &["mail.kz", "yandex.kz", "host.kz"][..],
+            &["com", "net", "org", "kz"][..],
+        ),
+        (
+            "uk-UA",
+            &["gmail.com", "mail.ru", "ukr.net", "i.ua", "rambler.ru"][..],
+            &["ua", "com.ua", "org.ua", "net.ua", "com", "net", "org"][..],
+        ),
+        (
+            "ko-KR",
+            &["gmail.com", "yahoo.com", "hotmail.com"][..],
+            &["biz", "com", "info", "kr", "net", "org"][..],
+        ),
+        (
+            "ne-NP",
+            &["gmail.com", "yahoo.com", "hotmail.com"][..],
+            &["com", "net", "org"][..],
+        ),
+        (
+            "en-US",
+            &["gmail.com", "yahoo.com", "hotmail.com"][..],
+            &["com", "biz", "info", "net", "org"][..],
+        ),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..domains.len())
+            .map(|_| unique.freeEmailDomain().unwrap())
+            .collect();
+        assert_eq!(actual, domains.iter().copied().collect());
+        assert!(unique.freeEmailDomain().is_err());
+        let actual: HashSet<_> = (0..suffixes.len()).map(|_| unique.tld().unwrap()).collect();
+        assert_eq!(actual, suffixes.iter().copied().collect());
+        assert!(unique.tld().is_err());
+    }
+
+    let japan = fake(Some("ja-JP")).unwrap();
+    let domain = japan.domainName().unwrap();
+    let (name, _) = domain.split_once('.').unwrap();
+    assert!(
+        [
+            "aota",
+            "aoyama",
+            "ishida",
+            "idaka",
+            "ito",
+            "uno",
+            "ekoda",
+            "ogaki",
+            "kato",
+            "kanou",
+            "kijima",
+            "kimura",
+            "kiriyama",
+            "kudo",
+            "koizumi",
+            "kobayashi",
+            "kondo",
+            "saito",
+            "sakamoto",
+            "sasaki",
+            "sato",
+            "sasada",
+            "suzuki",
+            "sugiyama",
+            "takahashi",
+            "tanaka",
+            "tanabe",
+            "tsuda",
+            "nakajima",
+            "nakamura",
+            "nagisa",
+            "nakatsugawa",
+            "nishinosono",
+            "nomura",
+            "harada",
+            "hamada",
+            "hirokawa",
+            "fujimoto",
+            "matsumoto",
+            "miyake",
+            "miyazawa",
+            "murayama",
+            "yamagishi",
+            "yamaguchi",
+            "yamada",
+            "yamamoto",
+            "yoshida",
+            "yoshimoto",
+            "wakamatsu",
+            "watanabe"
+        ]
+        .contains(&name)
+    );
+
+    let nepal = fake(Some("ne-NP")).unwrap();
+    let mut categories = HashSet::new();
+    for _ in 0..256 {
+        let email = nepal.email().unwrap();
+        let (_, host) = email.split_once('@').unwrap();
+        categories.insert(if host.ends_with(".np") {
+            assert!(
+                [".com.np", ".net.np", ".org.np"]
+                    .iter()
+                    .any(|suffix| host.ends_with(suffix))
+            );
+            "nepal"
+        } else if ["gmail.com", "yahoo.com", "hotmail.com"].contains(&host) {
+            "free"
+        } else {
+            "company"
+        });
+    }
+    assert_eq!(categories, HashSet::from(["nepal", "free", "company"]));
+    assert!(!nepal.companyEmail().unwrap().ends_with(".np"));
+}

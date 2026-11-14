@@ -196,6 +196,9 @@ mod company;
 #[path = "faker_username.rs"]
 mod username;
 
+#[path = "faker_domains.rs"]
+mod domains;
+
 macro_rules! formatters {
     ($($name:ident => $generator:path),+ $(,)?) => {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -813,89 +816,7 @@ impl Faker {
     }
 
     pub fn freeEmailDomain(&self) -> &'static str {
-        let domains: &[&str] = match self.locale() {
-            "de_DE" => &[
-                "web.de",
-                "gmail.com",
-                "hotmail.de",
-                "yahoo.de",
-                "googlemail.com",
-                "aol.de",
-                "gmx.de",
-                "freenet.de",
-                "posteo.de",
-                "mail.de",
-                "live.de",
-                "t-online.de",
-            ],
-            "fr_FR" => &[
-                "gmail.com",
-                "hotmail.fr",
-                "yahoo.fr",
-                "laposte.net",
-                "free.fr",
-                "sfr.fr",
-                "orange.fr",
-                "club-internet.fr",
-                "dbmail.com",
-                "live.com",
-                "noos.fr",
-                "tele2.fr",
-                "wanadoo.fr",
-            ],
-            "it_IT" => &[
-                "gmail.com",
-                "yahoo.com",
-                "hotmail.com",
-                "email.it",
-                "libero.it",
-                "yahoo.it",
-            ],
-            "ja_JP" => &[
-                "gmail.com",
-                "yahoo.co.jp",
-                "hotmail.co.jp",
-                "mail.goo.ne.jp",
-            ],
-            "nl_NL" => &["gmail.com", "hotmail.nl", "live.nl", "yahoo.nl"],
-            "pt_BR" => &[
-                "gmail.com",
-                "yahoo.com",
-                "hotmail.com",
-                "uol.com.br",
-                "terra.com.br",
-                "ig.com.br",
-                "r7.com",
-            ],
-            "pt_PT" => &[
-                "gmail.com",
-                "yahoo.com",
-                "hotmail.com",
-                "sapo.pt",
-                "clix.pt",
-                "mail.pt",
-            ],
-            "tr_TR" => &[
-                "gmail.com",
-                "hotmail.com",
-                "yahoo.com",
-                "yandex.com.tr",
-                "mynet.com",
-                "turk.net",
-                "superposta.com",
-            ],
-            "zh_CN" => &[
-                "gmail.com",
-                "yahoo.com",
-                "hotmail.com",
-                "126.com",
-                "163.com",
-                "qq.com",
-                "sohu.com",
-                "sina.com",
-            ],
-            _ => &["gmail.com", "yahoo.com", "hotmail.com"],
-        };
+        let domains = domains::free_email_domains(self.locale());
         domains[fastrand::usize(..domains.len())]
     }
 
@@ -912,10 +833,15 @@ impl Faker {
     }
 
     pub fn email(&self) -> DatabaseResult<String> {
-        if self.locale() == "zh_CN" || self.boolean(None) {
-            Ok(self.freeEmail())
-        } else {
-            self.companyEmail()
+        match self.locale() {
+            "zh_CN" => Ok(self.freeEmail()),
+            "ne_NP" => match fastrand::u8(0..6) {
+                0..=1 => self.companyEmail(),
+                2 => Ok(self.freeEmail()),
+                _ => Ok(format!("{}.np", self.companyEmail()?)),
+            },
+            _ if self.boolean(None) => Ok(self.freeEmail()),
+            _ => self.companyEmail(),
         }
     }
 
@@ -1433,39 +1359,16 @@ impl Faker {
     }
 
     pub fn tld(&self) -> &'static str {
-        let suffixes: &[&str] = match self.locale() {
-            "ar_SA" => &["biz", "com", "info", "sa", "net", "org"],
-            "de_DE" => &["com", "com", "com", "net", "org", "de", "de", "de"],
-            "fa_IR" => &[
-                "biz", "com", "info", "ac.ir", "sch.ir", "co.ir", "ir", "net", "org",
-            ],
-            "fr_FR" => &["com", "com", "com", "net", "org", "fr", "fr", "fr"],
-            "it_IT" => &["com", "com", "com", "net", "org", "it", "it", "it"],
-            "ja_JP" => &[
-                "com", "com", "com", "biz", "info", "net", "org", "jp", "jp", "jp",
-            ],
-            "nl_NL" => &["com", "com", "com", "net", "org", "nl", "nl", "nl"],
-            "pt_BR" => &[
-                "com", "com", "com.br", "com.br", "net", "net.br", "br", "org",
-            ],
-            "pt_PT" => &["com", "com", "pt", "pt", "net", "org", "eu"],
-            "tr_TR" => &[
-                "com", "com", "com", "com", "com.tr", "com.tr", "info", "net", "org", "org.tr",
-                "edu", "edu.tr", "edu.tr",
-            ],
-            "zh_CN" => &[
-                "com", "com", "com", "com", "com", "com", "biz", "info", "net", "org", "cn",
-                "com.cn", "edu.cn", "net.cn", "biz.cn", "gov.cn", "org.cn",
-            ],
-            _ => &[
-                "com", "com", "com", "com", "com", "com", "biz", "info", "net", "org",
-            ],
-        };
+        let suffixes = domains::tlds(self.locale());
         suffixes[fastrand::usize(..suffixes.len())]
     }
 
     pub fn domainName(&self) -> DatabaseResult<String> {
-        Ok(format!("{}.{}", self.domainWord()?, self.tld()))
+        let name = match username::ascii_surname(self.locale()) {
+            Some(surname) => surname.to_owned(),
+            None => self.domainWord()?,
+        };
+        Ok(format!("{name}.{}", self.tld()))
     }
 
     pub fn slug(&self, wordCount: Option<usize>, variableWordCount: bool) -> String {

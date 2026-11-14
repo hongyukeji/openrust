@@ -2631,14 +2631,10 @@ pub(super) fn candidate(faker: &Faker) -> String {
         };
     }
 
-    let catalogs = match locale {
-        "ar_SA" | "ar_JO" => Some((AR_SA_FIRST, AR_SA_LAST)),
-        "ar_EG" => Some((AR_EG_FIRST, AR_EG_LAST)),
-        "fa_IR" => Some((FA_IR_FIRST, FA_IR_LAST)),
-        "ko_KR" => Some((KO_KR_FIRST, KO_KR_LAST)),
-        "ja_JP" => Some((JA_JP_FIRST, JA_JP_LAST)),
-        "zh_CN" => Some((LOREM_WORDS, LOREM_WORDS)),
-        _ => None,
+    let catalogs = if locale == "zh_CN" {
+        Some((LOREM_WORDS, LOREM_WORDS))
+    } else {
+        ascii_names(locale)
     };
     let first = || catalogs.map_or_else(|| faker.firstName(), |(names, _)| sample(names).into());
     let last = || catalogs.map_or_else(|| faker.lastName(), |(_, names)| sample(names).into());
@@ -2650,4 +2646,19 @@ pub(super) fn candidate(faker: &Faker) -> String {
         2 => format!("{}{:02}", first(), fastrand::u8(0..100)),
         _ => format!("{}{}", faker.randomLetter(), last()),
     }
+}
+
+fn ascii_names(locale: &str) -> Option<(&'static [&'static str], &'static [&'static str])> {
+    match locale {
+        "ar_SA" | "ar_JO" => Some((AR_SA_FIRST, AR_SA_LAST)),
+        "ar_EG" => Some((AR_EG_FIRST, AR_EG_LAST)),
+        "fa_IR" => Some((FA_IR_FIRST, FA_IR_LAST)),
+        "ko_KR" => Some((KO_KR_FIRST, KO_KR_LAST)),
+        "ja_JP" => Some((JA_JP_FIRST, JA_JP_LAST)),
+        _ => None,
+    }
+}
+
+pub(super) fn ascii_surname(locale: &str) -> Option<&'static str> {
+    ascii_names(locale).map(|(_, names)| sample(names))
 }
