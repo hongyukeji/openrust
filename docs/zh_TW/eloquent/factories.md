@@ -289,6 +289,23 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 免付費電話、服務號碼與 VoIP 樣本 {#phone-service-samples}
+
+美國、加拿大、德國和羅馬尼亞使用 `tollFreePhoneNumber()`。沒有 PhoneNumber Provider 的地區繼承美國格式。希臘、紐西蘭、南非和西班牙使用 `tollFreeNumber()`。新加坡提供 `tollFreeLineNumber()`、`tollFreeInternationalNumber()` 和 `premiumPhoneNumber()`。法國提供 `serviceNumber()`，羅馬尼亞提供 `premiumRatePhoneNumber()`，希臘提供 `personalNumber()`、`sharedCostNumber()` 和 `premiumRateNumber()`。
+
+新加坡和馬來西亞提供 `voipNumber()`。馬來西亞也支援 `voipNumberWithOptions(countryCodePrefix, formatting)`，預設包含國家前綴和分隔符號。各方法皆支援 `unique()`，目前地區的 Provider 缺少對應介面時回傳錯誤。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn phone_service_sample() -> DatabaseResult<(String, String)> {
+    Ok((
+        fake(Some("en-SG"))?.unique(false).tollFreeLineNumber()?,
+        fake(Some("ms-MY"))?.voipNumberWithOptions(false, false)?,
+    ))
+}
+```
+
 ### 條碼與 ISBN {#barcode-samples}
 
 使用 `ean8()`、`ean13()`、`isbn10()` 和 `isbn13()` 產生帶有檢查碼的樣本。回傳字串保留前導零。ISBN-10 的末位可以是 `X`，ISBN-13 以 `978` 或 `979` 開頭。各產生器獨立維護 `unique` 歷史。

@@ -289,6 +289,23 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Toll-free, service, and VoIP samples {#phone-service-samples}
+
+Use `tollFreePhoneNumber()` for US, Canadian, German, and Romanian formats. Locales without a PhoneNumber provider inherit the US formatter. Greece, New Zealand, South Africa, and Spain use `tollFreeNumber()`. Singapore provides `tollFreeLineNumber()`, `tollFreeInternationalNumber()`, and `premiumPhoneNumber()`. France provides `serviceNumber()`, Romania provides `premiumRatePhoneNumber()`, and Greece provides `personalNumber()`, `sharedCostNumber()`, and `premiumRateNumber()`.
+
+Singapore and Malaysia provide `voipNumber()`. Malaysia also supports `voipNumberWithOptions(countryCodePrefix, formatting)`. Its default includes the country prefix and separators. The formatters support `unique()` and return an error when the selected provider lacks the method.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn phone_service_sample() -> DatabaseResult<(String, String)> {
+    Ok((
+        fake(Some("en-SG"))?.unique(false).tollFreeLineNumber()?,
+        fake(Some("ms-MY"))?.voipNumberWithOptions(false, false)?,
+    ))
+}
+```
+
 ### Barcodes and ISBNs {#barcode-samples}
 
 Use `ean8()`, `ean13()`, `isbn10()`, and `isbn13()` for checksum-valid sample codes. The returned strings preserve leading zeros. ISBN-10 can end in `X`; ISBN-13 starts with `978` or `979`. Each formatter has its own `unique` history.

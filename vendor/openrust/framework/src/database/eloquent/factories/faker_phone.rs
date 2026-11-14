@@ -811,6 +811,79 @@ const AREA_CODES_BR: &[&str] = &[
     "97", "98", "99",
 ];
 
+const TOLL_US: &[&str] = &[
+    "{{tollFreeAreaCode}}-{{exchangeCode}}-####",
+    "({{tollFreeAreaCode}}) {{exchangeCode}}-####",
+    "1-{{tollFreeAreaCode}}-{{exchangeCode}}-####",
+    "{{tollFreeAreaCode}}.{{exchangeCode}}.####",
+];
+const TOLL_CODES_US: &[&str] = &["800", "844", "855", "866", "877", "888"];
+const TOLL_DE: &[&str] = &[
+    "0{{tollFreeAreaCode}} ### ####",
+    "(0{{tollFreeAreaCode}}) ### ####",
+    "+49{{tollFreeAreaCode}} ### ####",
+];
+const FR_SERVICE: &[&str] = &[
+    "+33 (0)8 {{phoneNumber08WithSeparator}}",
+    "+33 8 {{phoneNumber08WithSeparator}}",
+    "08 {{phoneNumber08WithSeparator}}",
+    "08{{phoneNumber08}}",
+];
+const TOLL_ES: &[&str] = &["900 ### ###", "800 ### ###"];
+const TOLL_NZ: &[&str] = &[
+    "0508######",
+    "0508 ######",
+    "0508 ### ###",
+    "0800######",
+    "0800 ######",
+    "0800 ### ###",
+];
+const TOLL_ZA: &[&str] = &[
+    "{{specialCode}}#######",
+    "{{specialCode}} ### ####",
+    "{{specialCode}}-###-####",
+    "({{specialCode}})###-####",
+];
+const TOLL_CODES_ZA: &[&str] = &["0800", "0860", "0861", "0862"];
+const GR_PERSONAL: &[&str] = &[
+    "{{internationalCodePrefix}}70########",
+    "{{internationalCodePrefix}} 70 #### ####",
+];
+const GR_TOLL: &[&str] = &[
+    "{{internationalCodePrefix}}800#######",
+    "{{internationalCodePrefix}} 800 ### ####",
+];
+const GR_SHARED: &[&str] = &[
+    "{{internationalCodePrefix}}{{sharedCostCode}}#######",
+    "{{internationalCodePrefix}} {{sharedCostCode}} ### ####",
+];
+const GR_PREMIUM: &[&str] = &[
+    "{{internationalCodePrefix}}{{premiumRateCode}}#######",
+    "{{internationalCodePrefix}} {{premiumRateCode}} ### ####",
+];
+const GR_SHARED_CODES: &[&str] = &["801", "806", "812", "825", "850", "875"];
+const GR_PREMIUM_CODES: &[&str] = &["901", "909"];
+const SG_VOIP: &[&str] = &[
+    "{{internationalCodePrefix}}3### ####",
+    "{{internationalCodePrefix}} 3### ####",
+    "3### ####",
+];
+const SG_TOLL_INTL: &[&str] = &["800 ### ####"];
+const SG_TOLL_LINE: &[&str] = &["1800 ### ####"];
+const SG_PREMIUM: &[&str] = &["1900 ### ####"];
+const MY_VOIP: &[&str] = &["015-{{zeroOneFivePrefix}}## ####"];
+const MY_VOIP_COMPACT: &[&str] = &["015{{zeroOneFivePrefix}}######"];
+const MY_015: &[&str] = &["1", "2", "3", "4", "5", "6", "9"];
+const RO_TOLL: &[&str] = &[
+    "0800######",
+    "0801######",
+    "0802######",
+    "0806######",
+    "0807######",
+    "0870######",
+];
+const RO_PREMIUM: &[&str] = &["0900######", "0903######", "0906######"];
+
 fn mobile_formats(locale: &str) -> Option<&'static [&'static str]> {
     Some(match locale {
         "de_CH" => DE_CH_MOBILE,
@@ -956,6 +1029,44 @@ impl Faker {
         Ok(self.sample_phone_template(EXTENSION_US, false))
     }
 
+    /// Generate a regional VoIP sample with the provider's default formatting.
+    pub fn voipNumber(&self) -> DatabaseResult<String> {
+        match self.locale() {
+            "ms_MY" => self.voipNumberWithOptions(true, true),
+            "en_SG" => Ok(self.sample_phone_template(SG_VOIP, false)),
+            _ => Err(DatabaseError::InvalidQuery(
+                "unsupported Faker VoIP number locale",
+            )),
+        }
+    }
+
+    /// Control the prefix and separators for the Malaysian VoIP format.
+    pub fn voipNumberWithOptions(
+        &self,
+        countryCodePrefix: bool,
+        formatting: bool,
+    ) -> DatabaseResult<String> {
+        self.malaysian_phone_number(
+            if formatting { MY_VOIP } else { MY_VOIP_COMPACT },
+            countryCodePrefix,
+            formatting,
+        )
+    }
+
+    pub fn tollFreePhoneNumber(&self) -> DatabaseResult<String> {
+        let formats = match self.locale() {
+            "de_DE" => TOLL_DE,
+            "ro_RO" => RO_TOLL,
+            locale if uses_us_phone_provider(locale) => TOLL_US,
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker toll-free phone number locale",
+                ));
+            }
+        };
+        Ok(self.sample_phone_template(formats, false))
+    }
+
     fn brazilian_phone_number(&self, formats: &[&str], formatted: bool) -> String {
         let area = sample(AREA_CODES_BR);
         let number = self.sample_phone_template(formats, false);
@@ -1019,6 +1130,25 @@ impl Faker {
             }
             ("ms_MY", "zeroOneOnePrefix") => sample(MY_011),
             ("ms_MY", "zeroOneFourPrefix") => sample(MY_014),
+            ("ms_MY", "zeroOneFivePrefix") => sample(MY_015),
+            ("el_GR", "sharedCostCode") => sample(GR_SHARED_CODES),
+            ("el_GR", "premiumRateCode") => sample(GR_PREMIUM_CODES),
+            ("en_ZA", "specialCode") => sample(TOLL_CODES_ZA),
+            ("de_DE", "tollFreeAreaCode") => "800",
+            (_, "tollFreeAreaCode") => sample(TOLL_CODES_US),
+            ("fr_FR", "phoneNumber08" | "phoneNumber08WithSeparator") => {
+                // FakerPHP's regex generator attaches the three trailing pairs to either branch.
+                rendered.push_str(if fastrand::bool() {
+                    sample(&["0#", "1#", "2#"])
+                } else {
+                    sample(&["91", "92", "93", "95", "97", "98", "99"])
+                });
+                if token.ends_with("WithSeparator") {
+                    " ## ## ##"
+                } else {
+                    "######"
+                }
+            }
             ("el_GR", "areaCode") => {
                 let code = sample(AREA_CODES_GR);
                 rendered.push_str(code);
@@ -1131,9 +1261,73 @@ impl UniqueFaker<'_> {
         self.try_generate("landlineNumber", || self.0.landlineNumber(formatted))
     }
 
+    pub fn tollFreePhoneNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("tollFreePhoneNumber", || self.0.tollFreePhoneNumber())
+    }
+
+    pub fn voipNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("voipNumber", || self.0.voipNumber())
+    }
+
+    pub fn voipNumberWithOptions(
+        &self,
+        countryCodePrefix: bool,
+        formatting: bool,
+    ) -> DatabaseResult<String> {
+        self.try_generate("voipNumber", || {
+            self.0.voipNumberWithOptions(countryCodePrefix, formatting)
+        })
+    }
+
     pub fn phoneNumberWithExtension(&self) -> DatabaseResult<String> {
         self.try_generate("phoneNumberWithExtension", || {
             self.0.phoneNumberWithExtension()
         })
     }
+}
+
+// These formatters differ only in their provider's masks and whitespace handling.
+macro_rules! phone_formatters {
+    ($($name:ident => { $($locale:literal => ($formats:ident, $trim:literal)),+ }),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(
+                pub fn $name(&self) -> DatabaseResult<String> {
+                    let (formats, trim) = match self.locale() {
+                        $($locale => ($formats, $trim),)+
+                        _ => return Err(DatabaseError::InvalidQuery(
+                            concat!("unsupported Faker ", stringify!($name), " locale"),
+                        )),
+                    };
+                    Ok(self.sample_phone_template(formats, trim))
+                }
+            )+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(
+                pub fn $name(&self) -> DatabaseResult<String> {
+                    self.try_generate(stringify!($name), || self.0.$name())
+                }
+            )+
+        }
+    };
+}
+
+phone_formatters! {
+    tollFreeNumber => {
+        "el_GR" => (GR_TOLL, true),
+        "en_NZ" => (TOLL_NZ, false),
+        "en_ZA" => (TOLL_ZA, false),
+        "es_ES" => (TOLL_ES, false)
+    },
+    personalNumber => { "el_GR" => (GR_PERSONAL, true) },
+    sharedCostNumber => { "el_GR" => (GR_SHARED, true) },
+    premiumRateNumber => { "el_GR" => (GR_PREMIUM, true) },
+    premiumRatePhoneNumber => { "ro_RO" => (RO_PREMIUM, false) },
+    premiumPhoneNumber => { "en_SG" => (SG_PREMIUM, false) },
+    tollFreeInternationalNumber => { "en_SG" => (SG_TOLL_INTL, false) },
+    tollFreeLineNumber => { "en_SG" => (SG_TOLL_LINE, false) },
+    serviceNumber => { "fr_FR" => (FR_SERVICE, false) },
 }

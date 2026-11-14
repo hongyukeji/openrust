@@ -3333,3 +3333,74 @@ fn regional_phone_formatters_preserve_options_and_inherited_extensions() {
     assert!(china.phoneNumberWithExtension().is_err());
     assert!(brazil.mobileNumberWithOptions(false, false).is_err());
 }
+
+#[test]
+fn phone_service_formatters_respect_region_and_voip_options() {
+    let canada = fake(Some("en-CA")).unwrap();
+    let unique = canada.unique(true);
+    let samples: std::collections::HashSet<_> = (0..48)
+        .map(|_| unique.tollFreePhoneNumber().unwrap())
+        .collect();
+    assert_eq!(samples.len(), 48);
+    for sample in samples {
+        let digits: String = sample.chars().filter(char::is_ascii_digit).collect();
+        let number = if digits.len() == 11 {
+            &digits[1..]
+        } else {
+            &digits
+        };
+        assert_eq!(number.len(), 10);
+        assert!(["800", "844", "855", "866", "877", "888"].contains(&&number[..3]));
+    }
+
+    let malaysia = fake(Some("ms-MY")).unwrap();
+    for prefix in [false, true] {
+        for formatting in [false, true] {
+            let sample = malaysia.voipNumberWithOptions(prefix, formatting).unwrap();
+            let local = match (prefix, formatting) {
+                (true, true) => sample.strip_prefix("+6").unwrap(),
+                (true, false) => sample.strip_prefix('6').unwrap(),
+                _ => &sample,
+            };
+            assert!(local.starts_with("015"));
+            assert_eq!(local.contains('-'), formatting);
+            assert_eq!(local.contains(' '), formatting);
+            assert_eq!(local.chars().filter(char::is_ascii_digit).count(), 10);
+        }
+    }
+
+    let french = fake(Some("fr-FR")).unwrap();
+    for _ in 0..64 {
+        let service = french.serviceNumber().unwrap();
+        let digits: String = service.chars().filter(char::is_ascii_digit).collect();
+        let local = if service.starts_with('+') {
+            digits.strip_prefix("33").unwrap().trim_start_matches('0')
+        } else {
+            digits.strip_prefix('0').unwrap()
+        };
+        assert_eq!(local.len(), 9);
+        assert!(local.starts_with('8'));
+        let prefix = &local[1..3];
+        assert!(
+            matches!(prefix.as_bytes()[0], b'0'..=b'2')
+                || ["91", "92", "93", "95", "97", "98", "99"].contains(&prefix)
+        );
+    }
+
+    let singapore = fake(Some("en-SG")).unwrap();
+    assert!(singapore.tollFreeLineNumber().unwrap().starts_with("1800"));
+    assert!(
+        singapore
+            .tollFreeInternationalNumber()
+            .unwrap()
+            .starts_with("800")
+    );
+    assert!(singapore.premiumPhoneNumber().unwrap().starts_with("1900"));
+    assert!(singapore.voipNumberWithOptions(false, false).is_err());
+
+    let romania = fake(Some("ro-RO")).unwrap();
+    assert!(romania.tollFreePhoneNumber().unwrap().starts_with("08"));
+    assert!(romania.premiumRatePhoneNumber().unwrap().starts_with("09"));
+    assert!(romania.tollFreeNumber().is_err());
+    assert!(fake(Some("ja-JP")).unwrap().tollFreePhoneNumber().is_err());
+}
