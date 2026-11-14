@@ -807,6 +807,28 @@ pub async fn ensure_role<P: Model, R: Model>(
 }
 ```
 
+`firstOrCreate` first searches the current relation, then looks for an existing model to attach, and creates a model if neither lookup matches. `updateOrCreate` follows the same lookup order and applies the supplied values to an existing related model. Both apply pivot attributes only when adding a link.
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn update_role<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Arc<R>> {
+    relation.updateOrCreate(
+        user,
+        Attributes::from([("slug".into(), "editor".into())]),
+        Attributes::from([("name".into(), "Editor".into())]),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

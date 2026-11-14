@@ -504,3 +504,9 @@ SQLite 与独立 MySQL 8.4.13 验证普通 Pivot 写入、多态删除隔离、�
 对照 Laravel 13.40.0 的 `BelongsToMany::createOrFirst`、上游测试与 #62223。创建时合并匹配属性和附加属性，后者优先。唯一键冲突时从写连接查找未限定于当前关系的候选，再补关联。再次碰到唯一键冲突时，从写连接在当前关系中查找并返回已经挂载的候选。无法匹配时返回原冲突，其他数据库错误直接传播。Rust 用类型化属性和 `Arc<R>`，将首次模型写入和 Pivot 写入置于同一事务。事件仍执行，关联模型的保存不触碰所属端，关系触碰在挂载后执行。旧版没有对应的创建或回查接口，沿用其写事务内处理 Pivot 的边界。固定 Goravel 以 `Orm.Transaction` 作为事务装配参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyCreateOrFirstTest.php) · [Laravel 写连接修复](https://github.com/laravel/framework/pull/62223)
 
 SQLite 分离读写文件且关闭 sticky，读库无相关表，验证两条唯一键冲突回退均使用写库。独立 MySQL 8.4.13 验证并发创建复用同一模型、保留已有 Pivot 值、无匹配冲突传播和 Pivot 写入失败后的模型回滚。Rust 1.94 工作区 621 项通过、8 项夹具忽略。格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。
+
+## 多对多先查、创建和更新
+
+对照 Laravel 13.40.0 的 `BelongsToMany::firstOrCreate`、`updateOrCreate` 及上游测试。先查当前关系，再按原模型作用域查未挂载候选，均未命中时复用 `createOrFirst`。补挂碰到唯一冲突时，用写连接确认关联。更新已有模型时应用值和模型事件，并沿用 Laravel 禁用模型所属端触碰的行为。Pivot 属性只用于新增关联。Rust 使用显式的匹配、模型值和 Pivot 属性映射，模型返回 `Arc<R>`，此批提供属性映射形式。旧版未找到这两个入口，复用其模型写入与 Pivot 写入分工，固定 Goravel 作连接事务参考。 [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyCreateOrFirstTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 验证既有关联、补挂未关联模型、创建、更新持久化、更新唯一键冲突及既有 Pivot 值保留。Rust 1.94 工作区 622 项通过、8 项夹具忽略，格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

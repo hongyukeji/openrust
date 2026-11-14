@@ -440,6 +440,67 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(self.wherePivot(column, "=", value))
     }
 
+    /// Finds an attached model, attaches an existing match, or creates a new model.
+    pub async fn firstOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        self.owner(parent)?;
+        if let Some(model) = self.find_attached(parent, &attributes, false).await? {
+            return Ok(model);
+        }
+        let connection = self.keys.connection(parent)?;
+        let query = self
+            .keys
+            .configure(R::queryOn(&connection))?
+            .unconstrained_relation_query()
+            .restrict_relation_attributes(&attributes);
+        if let Some(model) = query.first().await? {
+            self.attach_found(parent, model, &attributes, joining).await
+        } else {
+            self.createOrFirst(parent, attributes, values, joining)
+                .await
+        }
+    }
+
+    /// Fills and saves an existing related model, or creates and attaches a new one.
+    pub async fn updateOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        let model = self
+            .firstOrCreate(parent, attributes, values.clone(), joining)
+            .await?;
+        if model.state().wasRecentlyCreated() {
+            return Ok(model);
+        }
+
+        let mut model =
+            Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()));
+        model.fillAsync(values).await?;
+        super::super::persistence::save_with_touch(&mut model, None, false).await?;
+        Ok(Arc::new(model))
+    }
+
+    async fn find_attached(
+        &self,
+        parent: &P,
+        attributes: &Attributes,
+        use_writer: bool,
+    ) -> DatabaseResult<Option<Arc<R>>> {
+        Ok(self
+            .match_many(&[parent], None, Some((attributes, use_writer)))
+            .await?
+            .pop()
+            .and_then(|models| models.into_iter().next()))
+    }
+
     /// Creates and attaches a model, or attaches a matching model after a unique conflict.
     pub async fn createOrFirst(
         &self,
@@ -524,6 +585,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let Some(model) = query.first().await? else {
             return Err(conflict);
         };
+        self.attach_found(parent, model, &attributes, joining).await
+    }
+
+    async fn attach_found(
+        &self,
+        parent: &P,
+        model: R,
+        attributes: &Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
         let key = attachment_key(&model, self.keys.related)?;
         match self
             .attach_records(
@@ -536,10 +607,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         {
             Ok(()) => Ok(Arc::new(model)),
             Err(error) if is_unique_violation(&error) => self
-                .match_many(&[parent], None, Some(&attributes))
+                .find_attached(parent, attributes, true)
                 .await?
-                .pop()
-                .and_then(|models| models.into_iter().next())
                 .ok_or(error),
             Err(error) => Err(error),
         }
@@ -1115,7 +1184,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
-        write_lookup: Option<&Attributes>,
+        lookup: Option<(&Attributes, bool)>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -1168,11 +1237,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     )?
                     .apply_default_counts()?
                     .restrict_relation(&parent_column, batch);
-                if let Some(attributes) = write_lookup {
-                    query = query
-                        .restrict_relation_attributes(attributes)
-                        .useWritePdo()
-                        .limit(1);
+                if let Some((attributes, use_writer)) = lookup {
+                    query = query.restrict_relation_attributes(attributes).limit(1);
+                    if use_writer {
+                        query = query.useWritePdo();
+                    }
                 }
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();

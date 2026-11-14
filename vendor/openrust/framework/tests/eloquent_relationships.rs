@@ -4451,7 +4451,83 @@ async fn verify_pivot_reload(pivot: &Membership) {
     assert!(!refreshed.state().isDirty());
 }
 
-async fn verify_create_or_first(db: &Connection, mysql: bool) {
+async fn verify_first_and_update_or_create(db: &Connection) {
+    let parent = Author::queryOn(db).findOrFail(1).await.unwrap();
+    let relation = FEATURED_POSTS.withPivot(["label"]);
+    let title = |name: &str| Attributes::from([("title".into(), name.into())]);
+    let score = |value: i64| Attributes::from([("score".into(), value.into())]);
+    let label = |name: &str| Attributes::from([("label".into(), name.into())]);
+
+    let existing = relation
+        .firstOrCreate(&parent, title("unlinked"), score(70), label("attached"))
+        .await
+        .unwrap();
+    assert_eq!(existing.getKey(), Some(&100.into()));
+    assert_eq!(existing.getAttribute("score"), Some(&90.into()));
+    assert!(!existing.state().wasRecentlyCreated());
+
+    let first = relation
+        .firstOrCreate(&parent, title("unlinked"), score(71), label("ignored"))
+        .await
+        .unwrap();
+    assert_eq!(first.getAttribute("score"), Some(&90.into()));
+    assert_eq!(
+        first
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"attached".into())
+    );
+
+    let updated = relation
+        .updateOrCreate(&parent, title("unlinked"), score(72), label("ignored"))
+        .await
+        .unwrap();
+    assert_eq!(updated.getKey(), first.getKey());
+    assert_eq!(updated.getAttribute("score"), Some(&72.into()));
+    assert_eq!(
+        updated
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"attached".into())
+    );
+
+    let created = relation
+        .updateOrCreate(
+            &parent,
+            title("upsert-created"),
+            score(73),
+            label("created"),
+        )
+        .await
+        .unwrap();
+    assert!(created.state().wasRecentlyCreated());
+    assert_eq!(created.getAttribute("score"), Some(&73.into()));
+    assert_eq!(
+        Post::queryOn(db)
+            .findOrFail(100)
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&72.into())
+    );
+
+    let rejected = relation
+        .updateOrCreate(&parent, title("unlinked"), score(73), label("ignored"))
+        .await;
+    assert!(matches!(rejected, Err(DatabaseError::Driver { .. })));
+    assert_eq!(
+        Post::queryOn(db)
+            .findOrFail(100)
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&72.into())
+    );
+}
+
+async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     for sql in [
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
         if mysql {
@@ -4512,6 +4588,15 @@ async fn verify_create_or_first(db: &Connection, mysql: bool) {
         );
         assert_eq!(a.unwrap().getKey(), b.unwrap().getKey());
     }
+    if !split {
+        db.statement(
+            "INSERT INTO relation_posts VALUES (100, 'unlinked', 90, NULL)",
+            &[],
+        )
+        .await
+        .unwrap();
+        Box::pin(verify_first_and_update_or_create(db)).await;
+    }
     for table in [
         "relation_featured_posts",
         "relation_posts",
@@ -4521,6 +4606,12 @@ async fn verify_create_or_first(db: &Connection, mysql: bool) {
             .await
             .unwrap();
     }
+}
+
+#[tokio::test]
+async fn many_to_many_first_and_update_or_create_on_sqlite() {
+    let db = connect(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
+    Box::pin(verify_create_or_first(&db, false, false)).await;
 }
 
 #[tokio::test]
@@ -4534,7 +4625,7 @@ async fn create_or_first_reads_the_writer_when_replica_has_no_rows() {
         json!({"driver":"sqlite","database":write,"read":{"database":read},"sticky":false}),
     );
     assert!(db.table("relation_posts").count("*").await.is_err());
-    Box::pin(verify_create_or_first(&db, false)).await;
+    Box::pin(verify_create_or_first(&db, false, true)).await;
 }
 
 async fn verify_pivot_or_fail(db: &Connection, owner: &Author) {
@@ -5910,7 +6001,7 @@ async fn relationship_keys_and_query_counts_on_mysql() {
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_RELATION_MYSQL").is_none());
     if let Some(url) = url {
         let create_db = connect(json!({"url":url,"max_connections":2}));
-        Box::pin(verify_create_or_first(&create_db, true)).await;
+        Box::pin(verify_create_or_first(&create_db, true, false)).await;
         let db = connect(json!({"url":url,"max_connections":1}));
         // Keep the large integration fixture off the default debug test stack.
         Box::pin(verify(db, true)).await;

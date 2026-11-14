@@ -807,6 +807,28 @@ pub async fn ensure_role<P: Model, R: Model>(
 }
 ```
 
+`firstOrCreate` 先查当前关系，再查可挂载的现有模型，两次均未命中时创建模型。`updateOrCreate` 沿用同一查找顺序，并将提供的值保存到现有模型。两个方法都只在新增关联时写入 Pivot 属性。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn update_role<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Arc<R>> {
+    relation.updateOrCreate(
+        user,
+        Attributes::from([("slug".into(), "editor".into())]),
+        Attributes::from([("name".into(), "Editor".into())]),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。
