@@ -722,6 +722,18 @@ fn spanish_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Central European Names {#central-european-names}
+
+The `de-AT`, `de-CH`, `cs-CZ`, `sk-SK`, `hu-HU`, and `hr-HR` name formatters use the pinned Person templates and share surname catalogs with Company. Czech and Slovak surnames support `lastNameWithGender`, `lastNameMale`, and `lastNameFemale`. Hungarian templates preserve surname-first order and married-name forms. Use `firstNameMaleNe()` and `lastNameFemaleMarried()` to sample those forms directly.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn central_european_name_sample() -> DatabaseResult<String> {
+    fake(Some("cs-CZ"))?.unique(false).lastNameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

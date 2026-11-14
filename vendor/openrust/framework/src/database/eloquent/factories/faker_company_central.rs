@@ -42,7 +42,7 @@ const HR_HR_PREFIXES: &[&str] = &[
     "Voćarna",
 ];
 
-const HR_HR_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HR_HR_SURNAMES: &[&str] = &[
     "Abramović",
     "Adamić",
     "Antić",
@@ -109,7 +109,7 @@ const HR_HR_SURNAMES: &[&str] = &[
     "Župan",
 ];
 
-const HR_HR_MALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HR_HR_MALE_NAMES: &[&str] = &[
     "Adam",
     "Adrian",
     "Aleksandar",
@@ -206,7 +206,7 @@ const HR_HR_MALE_NAMES: &[&str] = &[
     "Šimun",
 ];
 
-const HR_HR_FEMALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HR_HR_FEMALE_NAMES: &[&str] = &[
     "Ana",
     "Anamarija",
     "Andrea",
@@ -292,7 +292,7 @@ const HR_HR_FEMALE_NAMES: &[&str] = &[
 
 const SK_SK_SUFFIXES: &[&str] = &["s.r.o.", "a.s.", "v.o.s."];
 
-const SK_SK_MALE_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SK_SK_MALE_SURNAMES: &[&str] = &[
     "Sloboda",
     "Novotný",
     "Kučera",
@@ -564,7 +564,7 @@ const SK_SK_MALE_SURNAMES: &[&str] = &[
     "Šťastný",
 ];
 
-const SK_SK_FEMALE_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SK_SK_FEMALE_SURNAMES: &[&str] = &[
     "Slobodová",
     "Novotná",
     "Čierna",
@@ -660,7 +660,7 @@ const SK_SK_FEMALE_SURNAMES: &[&str] = &[
 
 const HU_HU_SUFFIXES: &[&str] = &["Kft.", "és Tsa", "Kht", "Zrt.", "Nyrt.", "Bt."];
 
-const HU_HU_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const HU_HU_SURNAMES: &[&str] = &[
     "Antal",
     "Bakos",
     "Balla",

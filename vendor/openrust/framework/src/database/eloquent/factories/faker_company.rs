@@ -37,7 +37,7 @@ pub(super) mod iberian;
 pub(super) mod dutch;
 
 #[path = "faker_company_central.rs"]
-mod central;
+pub(super) mod central;
 
 #[path = "faker_company_balkan.rs"]
 mod balkan;
@@ -1148,7 +1148,7 @@ const DE_AT_SUFFIXES: &[&str] = &[
     "SE",
 ];
 
-const DE_AT_SURNAMES: &[&str] = &[
+pub(super) const DE_AT_SURNAMES: &[&str] = &[
     "Abraham",
     "Achleitner",
     "Adam",
@@ -1653,7 +1653,7 @@ const DE_AT_SURNAMES: &[&str] = &[
 
 const DE_CH_SUFFIXES: &[&str] = &["AG", "GmbH"];
 
-const DE_CH_SURNAMES: &[&str] = &[
+pub(super) const DE_CH_SURNAMES: &[&str] = &[
     "Achermann",
     "Ackermann",
     "Aeschlimann",
@@ -1860,7 +1860,7 @@ const CS_CZ_SUFFIXES: &[&str] = &[
     "s.r.o.", "s.r.o.", "s.r.o.", "s.r.o.", "a.s.", "o.p.s.", "o.s.",
 ];
 
-const CS_CZ_MALE_SURNAMES: &[&str] = &[
+pub(super) const CS_CZ_MALE_SURNAMES: &[&str] = &[
     "Adam",
     "Adamec",
     "Adámek",
@@ -2854,7 +2854,7 @@ const CS_CZ_MALE_SURNAMES: &[&str] = &[
     "Žůrek",
 ];
 
-const CS_CZ_FEMALE_SURNAMES: &[&str] = &[
+pub(super) const CS_CZ_FEMALE_SURNAMES: &[&str] = &[
     "Adamová",
     "Adamcová",
     "Adámková",

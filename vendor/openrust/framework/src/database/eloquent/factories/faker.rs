@@ -663,8 +663,10 @@ impl Faker {
     }
 
     pub fn name(&self) -> String {
-        if matches!(self.locale(), "nl_NL" | "is_IS" | "lt_LT" | "pl_PL")
-            || faker_person::surnames(self.locale()).is_some()
+        if matches!(
+            self.locale(),
+            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK"
+        ) || faker_person::surnames(self.locale()).is_some()
         {
             return self.nameWithGender(None);
         }
@@ -672,8 +674,10 @@ impl Faker {
     }
 
     pub fn firstName(&self) -> String {
-        if matches!(self.locale(), "nl_NL" | "is_IS" | "lt_LT" | "pl_PL")
-            || faker_person::surnames(self.locale()).is_some()
+        if matches!(
+            self.locale(),
+            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK"
+        ) || faker_person::surnames(self.locale()).is_some()
         {
             return self.firstNameWithGender(None);
         }
@@ -688,10 +692,10 @@ impl Faker {
             "is_IS" => return company::nordic::icelandic_surname(),
             // The pinned Lithuanian no-argument surname template samples given names.
             "lt_LT" => return self.firstNameWithGender(None),
-            "pl_PL" => {
+            "pl_PL" | "cs_CZ" | "sk_SK" => {
                 return self
                     .gendered_surname(fastrand::bool())
-                    .expect("fixed Polish surname locale");
+                    .expect("fixed gendered surname locale");
             }
             _ => {}
         }
@@ -715,7 +719,7 @@ impl Faker {
     }
 
     pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
-        if matches!(self.locale(), "lt_LT" | "pl_PL") {
+        if matches!(self.locale(), "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK") {
             match gender {
                 Some("male") => return self.lastNameMale().expect("fixed male surname locale"),
                 Some("female") => {
@@ -739,6 +743,10 @@ impl Faker {
         let names = match (self.locale(), male) {
             ("lt_LT", true) => faker_person::LT_LT_LAST_MALE,
             ("lt_LT", false) => faker_person::LT_LT_LAST_FEMALE,
+            ("cs_CZ", true) => company::CS_CZ_MALE_SURNAMES,
+            ("cs_CZ", false) => company::CS_CZ_FEMALE_SURNAMES,
+            ("sk_SK", true) => company::central::SK_SK_MALE_SURNAMES,
+            ("sk_SK", false) => company::central::SK_SK_FEMALE_SURNAMES,
             ("pl_PL", true) => faker_person::PL_PL_LAST_MALE,
             ("pl_PL", false) => faker_person::PL_PL_LAST_FEMALE,
             ("is_IS", _) => {
@@ -752,6 +760,26 @@ impl Faker {
             }
         };
         Ok(names[fastrand::usize(..names.len())].to_owned())
+    }
+
+    pub fn firstNameMaleNe(&self) -> DatabaseResult<&'static str> {
+        self.hungarian_married_name(faker_person::HU_MARRIED_FIRST_NAMES)
+    }
+
+    pub fn lastNameFemaleMarried(&self) -> DatabaseResult<&'static str> {
+        self.hungarian_married_name(faker_person::HU_MARRIED_SURNAMES)
+    }
+
+    fn hungarian_married_name(
+        &self,
+        names: &'static [&'static str],
+    ) -> DatabaseResult<&'static str> {
+        if self.locale() != "hu_HU" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker married name locale",
+            ));
+        }
+        Ok(names[fastrand::usize(..names.len())])
     }
 
     pub fn firstNameMale(&self) -> String {
@@ -815,6 +843,13 @@ impl Faker {
                 "lastNameFemale" => {
                     name.push_str(&self.lastNameFemale().expect("fixed female surname locale"))
                 }
+                "firstNameMaleNe" => {
+                    name.push_str(self.firstNameMaleNe().expect("fixed married name locale"))
+                }
+                "lastNameFemaleMarried" => name.push_str(
+                    self.lastNameFemaleMarried()
+                        .expect("fixed married name locale"),
+                ),
                 "lastName" => name.push_str(&self.lastName()),
                 "titleMale" => name.push_str(self.titleMale()),
                 "titleFemale" => name.push_str(self.titleFemale()),
@@ -852,6 +887,49 @@ impl Faker {
             "es_AR" | "es_PE" => &["Sr.", "Dn.", "Dr.", "Lic.", "Ing."],
             "es_ES" => &["Sr.", "D.", "Dr.", "Lic.", "Ing."],
             "es_VE" => &["Sr.", "Dn.", "Dr.", "Lcdo.", "Ing."],
+            "de_AT" => &[
+                "Herr",
+                "Dr.",
+                "Mag.",
+                "Ing.",
+                "Dipl.-Ing.",
+                "Prof.",
+                "Univ.Prof.",
+            ],
+            "de_CH" => &["Herr", "Herr Dr.", "Herr Prof.", "Herr Prof. Dr."],
+            "cs_CZ" => &[
+                "Bc.", "Ing.", "MUDr.", "MVDr.", "Mgr.", "JUDr.", "PhDr.", "RNDr.", "doc.", "Dr.",
+            ],
+            "sk_SK" => &[
+                "Bc.",
+                "Ing.",
+                "MUDr.",
+                "MVDr.",
+                "Mgr.",
+                "JUDr.",
+                "PhDr.",
+                "RNDr.",
+                "doc.",
+                "Dr.",
+                "BcA.",
+                "ICDr.",
+                "Ing.",
+                "Ing. arch.",
+                "JUDr.",
+                "Mgr. art.",
+                "MSDr.",
+                "PaedDr.",
+                "PharmDr.",
+                "PhDr.",
+                "PhMr.",
+                "RNDr.",
+                "RSDr.",
+                "ThDr.",
+                "ThLic.",
+                "prof.",
+                "Dr. h. c.",
+            ],
+            "hu_HU" => &["Dr.", "Prof.", "Id.", "Ifj.", "Báró", "Gróf"],
             "lt_LT" => &["p.", "ponas"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Hra.", "Tri."],
@@ -882,6 +960,49 @@ impl Faker {
             "es_ES" => &["Sra.", "Srta.", "Dña", "Dr.", "Lic.", "Ing."],
             "es_PE" => &["Sra.", "Srta.", "Dra.", "Lic.", "Ing."],
             "es_VE" => &["Sra.", "Srita.", "Dra.", "Lcda.", "Ing."],
+            "de_AT" => &[
+                "Frau",
+                "Dr.",
+                "Maga.",
+                "Ing.",
+                "Dipl.-Ing.",
+                "Prof.",
+                "Univ.Prof.",
+            ],
+            "de_CH" => &["Frau", "Frau Dr.", "Frau Prof.", "Frau Prof. Dr."],
+            "cs_CZ" => &[
+                "Bc.", "Ing.", "MUDr.", "MVDr.", "Mgr.", "JUDr.", "PhDr.", "RNDr.", "doc.", "Dr.",
+            ],
+            "sk_SK" => &[
+                "Bc.",
+                "Ing.",
+                "MUDr.",
+                "MVDr.",
+                "Mgr.",
+                "JUDr.",
+                "PhDr.",
+                "RNDr.",
+                "doc.",
+                "Dr.",
+                "BcA.",
+                "ICDr.",
+                "Ing.",
+                "Ing. arch.",
+                "JUDr.",
+                "Mgr. art.",
+                "MSDr.",
+                "PaedDr.",
+                "PharmDr.",
+                "PhDr.",
+                "PhMr.",
+                "RNDr.",
+                "RSDr.",
+                "ThDr.",
+                "ThLic.",
+                "prof.",
+                "Dr. h. c.",
+            ],
+            "hu_HU" => &["Özv.", "Dr.", "Prof."],
             "lt_LT" => &["p.", "ponia", "panelė"],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Rva.", "Nti.", "Tri."],
@@ -2372,6 +2493,14 @@ impl UniqueFaker<'_> {
 
     pub fn lastNameFemale(&self) -> DatabaseResult<String> {
         self.try_generate("lastNameFemale", || self.0.lastNameFemale())
+    }
+
+    pub fn firstNameMaleNe(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("firstNameMaleNe", || self.0.firstNameMaleNe())
+    }
+
+    pub fn lastNameFemaleMarried(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("lastNameFemaleMarried", || self.0.lastNameFemaleMarried())
     }
 
     pub fn firstNameMale(&self) -> DatabaseResult<String> {

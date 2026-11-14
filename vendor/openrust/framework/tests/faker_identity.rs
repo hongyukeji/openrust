@@ -2071,9 +2071,9 @@ fn nordic_names_follow_effective_person_templates() {
     let denmark = fake(Some("da-DK")).unwrap();
     let mut lengths = std::collections::HashSet::new();
     for _ in 0..128 {
-        lengths.insert(denmark.name().split([' ', '-']).count());
+        lengths.insert(denmark.name().split_whitespace().count());
     }
-    assert_eq!(lengths, [2, 3, 4].into_iter().collect());
+    assert_eq!(lengths, [2, 3].into_iter().collect());
     let unique = denmark.unique(true);
     assert_ne!(unique.middleName().unwrap(), unique.middleName().unwrap());
 
@@ -2203,4 +2203,43 @@ fn spanish_person_providers_share_surnames_and_keep_local_templates() {
         assert_ne!(surname, unique.lastName().unwrap());
         assert!(!faker.firstName().is_empty());
     }
+}
+
+#[test]
+fn central_european_person_names_keep_local_surnames_and_married_forms() {
+    use std::collections::HashSet;
+
+    for (locale, male_count, female_count, male, female) in [
+        ("cs-CZ", 990, 984, "Adam", "Adamová"),
+        ("sk-SK", 263, 89, "Sloboda", "Slobodová"),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let males: HashSet<_> = (0..male_count)
+            .map(|_| unique.lastNameMale().unwrap())
+            .collect();
+        let females: HashSet<_> = (0..female_count)
+            .map(|_| unique.lastNameFemale().unwrap())
+            .collect();
+        assert!(males.contains(male));
+        assert!(females.contains(female));
+        for _ in 0..32 {
+            assert!(females.contains(&faker.lastNameWithGender(Some("female"))));
+            let full = faker.nameWithGender(Some("female"));
+            assert!(females.iter().any(|surname| full.contains(surname)));
+        }
+        assert_ne!(faker.titleMale(), "Mr.");
+    }
+
+    let hungary = fake(Some("hu-HU")).unwrap();
+    let unique = hungary.unique(true);
+    assert_ne!(
+        unique.firstNameMaleNe().unwrap(),
+        unique.firstNameMaleNe().unwrap()
+    );
+    assert_ne!(
+        unique.lastNameFemaleMarried().unwrap(),
+        unique.lastNameFemaleMarried().unwrap()
+    );
+    assert!(fake(Some("de-AT")).unwrap().firstNameMaleNe().is_err());
 }
