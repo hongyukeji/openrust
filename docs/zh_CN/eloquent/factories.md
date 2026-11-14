@@ -270,6 +270,25 @@ fn username_sample() -> DatabaseResult<String> {
 
 用 `phoneNumber()` 生成地区显示号码。简体中文和繁体中文使用固定上游 Faker 模板，其他地区沿用已有 fake-rs 格式。`e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
 
+### 地区手机、座机和分机号样本 {#regional-phone-samples}
+
+支持相应接口的地区可用 `mobileNumber()` 和 `fixedLineNumber()`。马来西亚还支持 `mobileNumberWithOptions(countryCodePrefix, formatting)` 和 `fixedLineNumberWithOptions(countryCodePrefix, formatting)`，默认带国家前缀和分隔符。巴西的 `cellphoneNumber(formatted)` 和 `landlineNumber(formatted)` 默认带格式。香港提供 `landlineNumber(None)`，韩国使用 `cellPhoneNumber()`，希腊保留 `mobilePhoneNumber()`。
+
+用 `phoneNumberWithExtension()` 生成美国或加拿大的分机号。地区没有 PhoneNumber Provider 时回退至 `en-US`，沿用美国分机号及 E.164 规则。地区不提供相应接口时返回错误。各接口均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_phone_sample() -> DatabaseResult<(String, String)> {
+    let malaysia = fake(Some("ms-MY"))?;
+    let canada = fake(Some("en-CA"))?;
+    Ok((
+        malaysia.mobileNumberWithOptions(false, false)?,
+        canada.unique(false).phoneNumberWithExtension()?,
+    ))
+}
+```
+
 ### 条码与 ISBN {#barcode-samples}
 
 使用 `ean8()`、`ean13()`、`isbn10()` 和 `isbn13()` 生成带校验位的样本。返回字符串保留前导零。ISBN-10 的末位可以是 `X`，ISBN-13 以 `978` 或 `979` 开头。各生成器独立维护 `unique` 历史。

@@ -3277,3 +3277,59 @@ fn company_phrases_preserve_regional_provider_and_template_rules() {
     assert!(!china.catchPhrase().unwrap().is_empty());
     assert!(china.bs().is_err());
 }
+
+#[test]
+fn regional_phone_formatters_preserve_options_and_inherited_extensions() {
+    for locale in ["en-US", "en-CA", "en"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        for _ in 0..48 {
+            let number = unique.phoneNumberWithExtension().unwrap();
+            let (number, extension) = number.split_once(" x").unwrap();
+            assert!((3..=5).contains(&extension.len()));
+            assert!(extension.bytes().all(|x| x.is_ascii_digit()));
+            assert!((10..=11).contains(&number.bytes().filter(u8::is_ascii_digit).count()));
+            let e164 = faker.e164PhoneNumber();
+            assert_eq!(e164.len(), 12);
+            assert!(e164.starts_with("+1"));
+        }
+    }
+    let malaysia = fake(Some("ms-MY")).unwrap();
+    for prefix in [false, true] {
+        for formatting in [false, true] {
+            for number in [
+                malaysia
+                    .mobileNumberWithOptions(prefix, formatting)
+                    .unwrap(),
+                malaysia
+                    .fixedLineNumberWithOptions(prefix, formatting)
+                    .unwrap(),
+            ] {
+                let national = match (prefix, formatting) {
+                    (true, true) => number.strip_prefix("+6").unwrap(),
+                    (true, false) => number.strip_prefix('6').unwrap(),
+                    _ => &number,
+                };
+                assert!(national.starts_with('0'));
+                assert_eq!(national.contains('-'), formatting);
+                assert_eq!(national.contains(' '), formatting);
+            }
+        }
+    }
+    let brazil = fake(Some("pt-BR")).unwrap();
+    assert_eq!(brazil.cellphoneNumber(Some(false)).unwrap().len(), 11);
+    assert_eq!(brazil.landlineNumber(Some(false)).unwrap().len(), 10);
+    let korea = fake(Some("ko-KR")).unwrap();
+    let cell = korea.cellPhoneNumber().unwrap();
+    assert_eq!(cell.len(), 13);
+    assert!(cell.starts_with("010-"));
+    let hong_kong = fake(Some("en-HK")).unwrap();
+    assert!(matches!(
+        hong_kong.landlineNumber(None).unwrap().as_bytes()[0],
+        b'2' | b'3'
+    ));
+    let china = fake(Some("zh-CN")).unwrap();
+    assert!(china.mobileNumber().is_err());
+    assert!(china.phoneNumberWithExtension().is_err());
+    assert!(brazil.mobileNumberWithOptions(false, false).is_err());
+}

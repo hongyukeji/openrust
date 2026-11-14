@@ -6,7 +6,6 @@ use super::{
         CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
         card_masks_pt_br,
     },
-    faker_phone,
     regex_pattern::RegexPattern,
 };
 use std::{
@@ -220,6 +219,9 @@ macro_rules! generate {
 
 #[path = "faker_company.rs"]
 mod company;
+
+#[path = "faker_phone.rs"]
+mod faker_phone;
 
 #[path = "faker_person.rs"]
 mod faker_person;
@@ -1397,20 +1399,29 @@ impl Faker {
         }
     }
 
+    pub(super) fn us_phone_area_code(&self) -> String {
+        phone_area_code(&US_AREA_CODES, faker_phone::AREA_EN_US)
+    }
+
+    pub(super) fn us_phone_exchange_code(&self) -> String {
+        let first = fastrand::u8(2..=9);
+        let middle = self.randomDigit();
+        let last = if middle == 1 {
+            self.randomDigitNot(1)
+        } else {
+            self.randomDigit()
+        };
+        format!("{first}{middle}{last}")
+    }
+
     pub fn e164PhoneNumber(&self) -> String {
         match self.locale() {
-            "en_US" => {
-                let area = phone_area_code(&US_AREA_CODES, faker_phone::AREA_EN_US);
-                let first = fastrand::u8(2..=9);
-                let middle = self.randomDigit();
-                let last = if middle == 1 {
-                    self.randomDigitNot(1)
-                } else {
-                    self.randomDigit()
-                };
-                let subscriber = self.numerify(Some("####"));
-                format!("+1{area}{first}{middle}{last}{subscriber}")
-            }
+            locale if faker_phone::uses_us_phone_provider(locale) => format!(
+                "+1{}{}{}",
+                self.us_phone_area_code(),
+                self.us_phone_exchange_code(),
+                self.numerify(Some("####"))
+            ),
             "de_DE" => {
                 let area = phone_area_code(&DE_AREA_CODES, faker_phone::AREA_DE_DE);
                 format!("+49{area}{}", self.numerify(Some("#######")))

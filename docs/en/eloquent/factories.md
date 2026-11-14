@@ -270,6 +270,25 @@ fn username_sample() -> DatabaseResult<String> {
 
 Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned upstream Faker templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
+### Regional mobile, landline, and extension samples {#regional-phone-samples}
+
+Use `mobileNumber()` and `fixedLineNumber()` for the regions that expose those formatters. Malaysia also provides `mobileNumberWithOptions(countryCodePrefix, formatting)` and `fixedLineNumberWithOptions(countryCodePrefix, formatting)`. Its default includes the country prefix and separators. Brazil provides `cellphoneNumber(formatted)` and `landlineNumber(formatted)`, with formatting enabled by default. Hong Kong provides `landlineNumber(None)`, Korea uses `cellPhoneNumber()`, and Greece retains `mobilePhoneNumber()`.
+
+Use `phoneNumberWithExtension()` for the US or Canadian PhoneNumber provider. The same US extension and E.164 behavior applies when the chosen locale lacks a PhoneNumber provider and falls back to `en-US`. Regional methods return an error when unavailable. Each supports `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_phone_sample() -> DatabaseResult<(String, String)> {
+    let malaysia = fake(Some("ms-MY"))?;
+    let canada = fake(Some("en-CA"))?;
+    Ok((
+        malaysia.mobileNumberWithOptions(false, false)?,
+        canada.unique(false).phoneNumberWithExtension()?,
+    ))
+}
+```
+
 ### Barcodes and ISBNs {#barcode-samples}
 
 Use `ean8()`, `ean13()`, `isbn10()`, and `isbn13()` for checksum-valid sample codes. The returned strings preserve leading zeros. ISBN-10 can end in `X`; ISBN-13 starts with `978` or `979`. Each formatter has its own `unique` history.
