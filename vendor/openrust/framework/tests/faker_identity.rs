@@ -2886,3 +2886,64 @@ fn swiss_identity_numbers_use_dotted_ean_and_locale_aliases() {
     assert!(unrelated.avs13().is_err());
     assert!(unrelated.ahv13().is_err());
 }
+
+#[test]
+fn czech_birth_numbers_keep_era_offsets_and_optional_slashes() {
+    use chrono::Datelike;
+
+    let faker = fake(Some("cs-CZ")).unwrap();
+    let unique = faker.unique(true);
+    let now = chrono::Utc::now().date_naive();
+    for (year, female, slash) in [(1953, false, 0), (1954, true, 100), (2004, true, 100)] {
+        let age = u32::try_from(now.year() - year).unwrap();
+        let mut unique_numbers = std::collections::HashSet::new();
+        for _ in 0..32 {
+            let gender = if female { "female" } else { "male" };
+            let number = unique.birthNumber(Some(gender), age, age, slash).unwrap();
+            assert_eq!(number.as_bytes().get(6) == Some(&b'/'), slash == 100);
+            let digits = number.replace('/', "");
+            assert_eq!(digits.len(), if year < 1954 { 9 } else { 10 });
+            assert_eq!(digits[..2].parse::<i32>().unwrap(), year % 100);
+            let month = digits[2..4].parse::<u32>().unwrap() - if female { 50 } else { 0 };
+            assert!(
+                month == now.month()
+                    || (year >= 2004 && month == now.month() + 20)
+                    || (now.month() == 2 && now.day() == 29 && month == 3)
+            );
+            if year >= 1954 {
+                let remainder = digits[..9].parse::<u32>().unwrap() % 11;
+                assert_eq!(u32::from(digits.as_bytes()[9] - b'0'), remainder % 10);
+            }
+            assert!(unique_numbers.insert(number));
+        }
+    }
+    for (number, range) in [
+        (faker.birthNumberMale().unwrap(), 1..=32),
+        (faker.birthNumberFemale().unwrap(), 51..=82),
+    ] {
+        assert!(range.contains(&number[2..4].parse::<u32>().unwrap()));
+    }
+    assert!(faker.birthNumber(None, 21, 20, 50).is_err());
+    assert!(faker.birthNumber(None, 0, u32::MAX, 50).is_err());
+}
+
+#[test]
+fn danish_cpr_preserves_the_date_and_nonzero_serial_prefix() {
+    let faker = fake(Some("da-DK")).unwrap();
+    let unique = faker.unique(true);
+    let mut numbers = std::collections::HashSet::new();
+    for _ in 0..64 {
+        let number = unique.cpr().unwrap();
+        let (date, serial) = number.split_once('-').unwrap();
+        assert_eq!((date.len(), serial.len()), (6, 4));
+        assert!(
+            date.bytes()
+                .chain(serial.bytes())
+                .all(|byte| byte.is_ascii_digit())
+        );
+        assert_ne!(serial.as_bytes()[0], b'0');
+        assert!(numbers.insert(number));
+    }
+    assert!(faker.birthNumberMale().is_err());
+    assert!(fake(Some("cs-CZ")).unwrap().cpr().is_err());
+}

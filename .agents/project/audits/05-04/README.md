@@ -1106,3 +1106,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `deced248`。PHP 8.5 验证 512 个上游样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读四个地区／方法组合的 512 个样本，核对格式和 EAN 校验位，实际运行文档示例。58 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理，VitePress 保留已有分块大小提示。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对捷克出生号码和丹麦 CPR。
+
+## Faker 捷克出生号码和丹麦 CPR
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 的[捷克](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/cs_CZ/Person.php)和[丹麦](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/da_DK/Person.php) Person。捷克保留年份边界、月份偏移、校验位、斜杠概率及性别快捷入口。固定 PHP 快捷方法的静态调用声明会触发实例方法错误，Rust 复用同一实例的 `birthNumber` 实现。年龄使用无符号参数并拒绝倒置范围。丹麦复用近百年日期采样及非零首位序号。两地方法支持去重。v0.x 未找到等价入口，编译式工厂装配沿用现有实现。
+
+隔离基线 `d16a9da3`。PHP 8.5 校验 128 对上游号码，MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 256 个值，核对日期、1954／2004 年边界、偏移、校验位和序号，实际运行文档示例。上游样本核对使用 UTC，修正了首次脚本将宿主本地日期用于对照的问题。60 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对法国 NIR 和意大利税号接口。

@@ -134,6 +134,87 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a Danish CPR number using the Person provider's date and serial mask.
+    pub fn cpr(&self) -> DatabaseResult<String> {
+        if self.locale() != "da_DK" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker CPR locale"));
+        }
+        Ok(format!(
+            "{}-{}",
+            self.identity_birthdate()?.format("%d%m%y"),
+            self.numerify(Some("%###"))
+        ))
+    }
+
+    /// Samples a Czech birth number using the supplied age range and slash probability.
+    pub fn birthNumber(
+        &self,
+        gender: Option<&str>,
+        minAge: u32,
+        maxAge: u32,
+        slashProbability: i64,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "cs_CZ" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Czech birth number locale",
+            ));
+        }
+        if minAge > maxAge {
+            return Err(DatabaseError::InvalidQuery(
+                "invalid Faker birth number age range",
+            ));
+        }
+        let now = chrono::Utc::now();
+        let age_bound = |age: u32| -> DatabaseResult<_> {
+            let local = now.with_timezone(&self.application_timezone).naive_local();
+            let year = local
+                .year()
+                .checked_sub(i32::try_from(age).map_err(|_| super::DATE_RANGE_ERROR)?)
+                .ok_or(super::DATE_RANGE_ERROR)?;
+            // PHP normalizes February 29 to March 1 in a non-leap year.
+            let date = NaiveDate::from_ymd_opt(year, local.month(), local.day())
+                .or_else(|| {
+                    (local.month() == 2 && local.day() == 29)
+                        .then(|| NaiveDate::from_ymd_opt(year, 3, 1))
+                        .flatten()
+                })
+                .ok_or(super::DATE_RANGE_ERROR)?;
+            super::resolve_local(self.application_timezone, date.and_time(local.time()))
+        };
+        let date = self
+            .dateTimeBetween(age_bound(maxAge)?, age_bound(minAge)?)?
+            .with_timezone(&self.application_timezone);
+        let female = gender.map_or_else(fastrand::bool, |value| value == "female");
+        let year = date.year();
+        let capacity_offset = year >= 2004 && self.boolean(Some(10));
+        let month = date.month() + 50 * u32::from(female) + 20 * u32::from(capacity_offset);
+        let serial = self.numberBetween(0, 999);
+        let mut number = format!(
+            "{:02}{month:02}{:02}{serial:03}",
+            year.rem_euclid(100),
+            date.day()
+        );
+        if year >= 1954 {
+            let remainder = number
+                .parse::<u32>()
+                .expect("fixed Czech birth number digits")
+                % 11;
+            number.push(char::from(b'0' + (remainder % 10) as u8));
+        }
+        if self.boolean(Some(slashProbability)) {
+            number.insert(6, '/');
+        }
+        Ok(number)
+    }
+
+    pub fn birthNumberMale(&self) -> DatabaseResult<String> {
+        self.birthNumber(Some("male"), 0, 100, 50)
+    }
+
+    pub fn birthNumberFemale(&self) -> DatabaseResult<String> {
+        self.birthNumber(Some("female"), 0, 100, 50)
+    }
+
     /// Samples a Swiss social security number with the German formatter name.
     pub fn ahv13(&self) -> DatabaseResult<String> {
         if self.locale() != "de_CH" {
@@ -960,6 +1041,30 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn cpr(&self) -> DatabaseResult<String> {
+        self.try_generate("cpr", || self.0.cpr())
+    }
+
+    pub fn birthNumber(
+        &self,
+        gender: Option<&str>,
+        minAge: u32,
+        maxAge: u32,
+        slashProbability: i64,
+    ) -> DatabaseResult<String> {
+        self.try_generate("birthNumber", || {
+            self.0.birthNumber(gender, minAge, maxAge, slashProbability)
+        })
+    }
+
+    pub fn birthNumberMale(&self) -> DatabaseResult<String> {
+        self.try_generate("birthNumberMale", || self.0.birthNumberMale())
+    }
+
+    pub fn birthNumberFemale(&self) -> DatabaseResult<String> {
+        self.try_generate("birthNumberFemale", || self.0.birthNumberFemale())
     }
 
     pub fn ahv13(&self) -> DatabaseResult<String> {

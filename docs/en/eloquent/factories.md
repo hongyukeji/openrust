@@ -919,6 +919,18 @@ fn swiss_avs_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Czech Birth Numbers and Danish CPR {#czech-birth-numbers-and-danish-cpr}
+
+Use `birthNumber(gender, minAge, maxAge, slashProbability)` with `cs-CZ` to sample a Czech birth number. The numeric arguments specify age bounds and the percent chance of a slash. `birthNumberMale()` and `birthNumberFemale()` use ages 0 to 100 and a 50% slash probability. The formatter applies the female month offset, the additional month offset available from 2004, and the check digit from 1954. Inverted age bounds return an error. With `da-DK`, `cpr()` samples a civil birth date and a four-digit serial whose first digit is nonzero. Both providers support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn czech_birth_number() -> DatabaseResult<String> {
+    fake(Some("cs-CZ"))?.unique(false).birthNumber(Some("female"), 18, 65, 100)
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

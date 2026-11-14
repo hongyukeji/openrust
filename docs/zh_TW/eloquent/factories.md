@@ -919,6 +919,18 @@ fn swiss_avs_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 捷克出生號碼和丹麥 CPR {#czech-birth-numbers-and-danish-cpr}
+
+在 `cs-CZ` 呼叫 `birthNumber(gender, minAge, maxAge, slashProbability)` 產生捷克出生號碼樣本，數值參數指定年齡上下限和出現斜線的百分比。`birthNumberMale()` 和 `birthNumberFemale()` 預設使用 0 到 100 歲及 50% 的斜線機率。產生器保留女性月份偏移、2004 年起的額外月份偏移和 1954 年起的校驗位。年齡上下限顛倒時回傳錯誤。`da-DK` 的 `cpr()` 抽取公曆出生日期及首位非零的四位序號。兩地介面皆支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn czech_birth_number() -> DatabaseResult<String> {
+    fake(Some("cs-CZ"))?.unique(false).birthNumber(Some("female"), 18, 65, 100)
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。
