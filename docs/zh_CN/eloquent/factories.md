@@ -34,7 +34,7 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 `randomDigitNot(except)` 排除指定数字。`randomNumber(digits, strict)` 的位数传入 `None` 时随机选择一至九位。严格模式生成确切位数，非严格模式也接受零位并返回零。显式位数超过九位或严格模式指定零位时返回错误。两种方法均支持 `unique`。
 
-`randomFloat(decimals, min, max)` 先在区间取样，再按指定小数位舍入，中点远离零。传入 `None` 可随机选择零至九位精度或生成上界。上下界可逆序，舍入结果可能超出原区间。Rust 对非有限边界或舍入溢出返回错误。`unique` 将正零与负零视为同一个值。
+`randomFloat(decimals, min, max)` 先在区间取样，再按指定小数位舍入，中点远离零。传入 `None` 可随机选择零至九位精度或生成上界。上下界可逆序，舍入结果可能超出原区间。非有限边界返回错误。与 PHP 8.5 一样，正精度超过 308 或舍入后的数值溢出时保留取样值。精度小于 −308 时返回零。`unique` 将正零与负零视为同一个值。
 
 用 `unixTime(max)` 在 Unix 纪元与指定端点之间取样整秒，或用 `dateTime(max)` 返回 UTC 日期时间。传入 `None` 时使用当前时间。`date(format, max)` 和 `time(format, max)` 接收 Chrono 格式，默认分别为 `%Y-%m-%d` 和 `%H:%M:%S`，格式无效时返回错误。`iso8601(max)` 包含实际使用的时区偏移量。五种方法均支持 `unique`。
 
@@ -57,7 +57,7 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
-    DatabaseResult,
+    DatabaseResult, Value,
     eloquent::{Attributes, Model, factories::Factory},
 };
 
@@ -75,6 +75,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
+            ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),

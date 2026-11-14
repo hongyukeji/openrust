@@ -579,44 +579,49 @@ impl Faker {
     }
 }
 
+// Decimal scaling follows PHP 8.5's half-away-from-zero rounding order.
 fn round_decimal(value: f64, decimals: i32) -> DatabaseResult<f64> {
+    if value == 0.0 || decimals > 308 {
+        return Ok(value);
+    }
     if decimals < -308 {
-        return Ok(0.0_f64.copysign(value));
+        return Ok(0.0);
     }
-    if decimals > 323 {
-        return Ok(value);
-    }
-    let place = 10_f64.powi(decimals.clamp(-308, 308).abs());
-    let extra = 10_f64.powi((decimals - 308).max(0));
-    let (scaled, step) = if decimals < 0 {
-        (value / place, place)
-    } else {
-        (value * place * extra, 1.0 / place / extra)
-    };
-    if !scaled.is_finite() || scaled.abs() >= 1e16 {
-        return Ok(value);
-    }
-    // Recover decimal midpoints that fall just below a half after scaling.
-    let midpoint = scaled.trunc() + 0.5_f64.copysign(scaled);
+    let exponent = 10_f64.powf(f64::from(decimals.unsigned_abs()));
+    let positive_precision = decimals > 0;
     let unscale = |number: f64| {
-        if decimals < 0 {
-            number * step
+        if positive_precision {
+            number / exponent
         } else {
-            number / extra / place
+            number * exponent
         }
     };
-    let rounded = if unscale(midpoint) == value {
-        midpoint.round()
+    let scaled = if positive_precision {
+        value * exponent
     } else {
-        scaled.round()
+        value / exponent
     };
-    let value = unscale(rounded);
-    if !value.is_finite() {
-        return Err(DatabaseError::InvalidQuery(
-            "Faker rounded float is out of range",
-        ));
+    let mut integral = scaled.trunc();
+    let adjacent = integral + 1.0_f64.copysign(value);
+    if unscale(adjacent) == value {
+        integral = adjacent;
     }
-    Ok(value)
+    if integral.abs() >= 1e16 {
+        return Ok(value);
+    }
+    let edge = unscale(integral + 0.5_f64.copysign(integral)).abs();
+    if value.abs() >= edge {
+        integral += 1.0_f64.copysign(integral);
+    }
+
+    if decimals.unsigned_abs() >= 23 {
+        // Reparse the decimal result to avoid a second binary rounding during rescaling.
+        let rounded: f64 = format!("{integral:.0}e{}", -decimals)
+            .parse()
+            .map_err(|_| DatabaseError::InvalidQuery("Faker rounded float is out of range"))?;
+        return Ok(if rounded.is_finite() { rounded } else { value });
+    }
+    Ok(unscale(integral))
 }
 
 /// A uniqueness modifier that shares the generator's formatter history.

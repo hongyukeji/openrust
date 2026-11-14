@@ -212,3 +212,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 固定 FakerPHP 1.24.1 将 `strtotime` 失败得到的 false 传给数字取样，效果为 Unix 零秒。Rust 的 `unixTimeExpression` 和 `dateTimeBetweenExpressions` 复现这一行为，起点晚于终点仍返回错误。严格入口 `resolveDateMax` 保留输入校验，字符串相对区间保留无效日期错误。复用 v0.x 对语法、数值范围和资源限制的区分，仅语法错误进入零值回退。Goravel 装配无需调整。 [FakerPHP 日期端点](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L136) · [PHP strtotime](https://github.com/php/php-src/blob/php-8.5.0/ext/date/php_date.c)
 
 隔离基线 `fca741e0`。实际 FakerPHP 1.24.1 和 PHP 8.5.12 验证无效上界、双端点零值、反向区间和相对区间报错。MySQL 8.4.13 Seeder 回归另外验证超长输入不会转成零，应用二进制运行 `artisan db:seed --database=mysql --force` 写入并回查零值。Rust 1.94.0 格式与工作区全目标严格 Clippy、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。全日期语法及其他 Faker provider 的覆盖继续跟踪。
+
+## Faker 浮点舍入差分
+
+对照 FakerPHP 1.24.1 `randomFloat` 和 PHP 8.5.0 `round`，按十进制边界判断半值，恢复缩放时丢失的整数，并在高精度时通过十进制重读避免二次舍入。超出可用正精度或舍入后超范围时保留取样值，负精度低于 −308 时取零。Rust 继续使用现有随机源，拒绝非有限边界，unique 合并正负零。v0.x 无对应生成器。Goravel 装配无需调整。 [FakerPHP 随机浮点](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L104) · [PHP 8.5 舍入](https://github.com/php/php-src/blob/php-8.5.0/ext/standard/math.c#L165)
+
+隔离基线 `2d29104f`。实际 FakerPHP 1.24.1／PHP 8.5.12 与 Rust 舍入探针对照 7,911 组固定上下界样本，包含半值、极小正负值、正负精度和溢出，全部一致。固定回归从大型异步 Seeder 夹具拆到独立测试，默认栈复验。实际应用二进制运行 `artisan db:seed --database=mysql --force`，在 MySQL 8.4.13 写入并回查高精度样本。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例、站点构建和六项浏览器检查通过。其他 Faker provider 继续跟踪。

@@ -1872,3 +1872,21 @@ fn seed_generator_preserves_existing_files_until_forced() {
         Some(1)
     );
 }
+
+#[test]
+fn faker_float_rounding_matches_php_decimal_boundaries() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    for (value, decimals, expected) in [
+        (5.0e-310, 309, 5.0e-310),
+        (1.4239704891618352e-200, 200, 1.0e-200),
+        (1.75e308, -308, 1.75e308),
+        (1.0e308, -309, 0.0),
+        (0.285, 10, 0.285),
+    ] {
+        assert_eq!(
+            faker.randomFloat(Some(decimals), value, Some(value))?,
+            expected
+        );
+    }
+    Ok(())
+}

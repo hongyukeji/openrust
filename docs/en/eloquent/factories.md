@@ -34,7 +34,7 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 `randomDigitNot(except)` excludes the supplied digit. `randomNumber(digits, strict)` uses a random width from one to nine when given `None`. Strict mode requires exactly the selected width. Non-strict mode also accepts zero digits and returns zero. Explicit widths above nine and strict zero digits return errors. Both methods support `unique`.
 
-`randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Rust returns an error for non-finite bounds or a rounding overflow. `unique` treats positive and negative zero as the same result.
+`randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Non-finite bounds return an error. Like PHP 8.5, the formatter keeps the sampled value when positive precision exceeds 308 or rescaling would overflow. Precision below −308 yields zero. `unique` treats positive and negative zero as the same result.
 
 Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
@@ -57,7 +57,7 @@ Use `unixTimeExpression(max)` to sample Unix seconds directly from a string boun
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
-    DatabaseResult,
+    DatabaseResult, Value,
     eloquent::{Attributes, Model, factories::Factory},
 };
 
@@ -75,6 +75,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
+            ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
