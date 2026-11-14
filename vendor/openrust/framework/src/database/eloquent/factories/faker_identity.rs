@@ -267,6 +267,57 @@ impl Faker {
         Ok(Self::tcNoChecksum(split.0)? == split.1)
     }
 
+    /// Samples a Kazakh business ID using the supplied civil registration date.
+    pub fn businessIdentificationNumber(
+        &self,
+        registration_date: Option<NaiveDate>,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "kk_KZ" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker BIN locale"));
+        }
+        let date = match registration_date {
+            Some(date) => date,
+            None => {
+                let zone = self
+                    .getDefaultTimezone()
+                    .unwrap_or(self.application_timezone);
+                self.dateTimeThisYear(None)?
+                    .with_timezone(&zone)
+                    .date_naive()
+            }
+        };
+        let legal_type = fastrand::u8(4..=6);
+        let additional_type = fastrand::u8(0..=3);
+        let digits = self.numerify(Some("######"));
+        Ok(format!(
+            "{}{legal_type}{additional_type}{digits}",
+            date.format("%y%m")
+        ))
+    }
+
+    /// Samples a South African company registration number.
+    pub fn companyNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "en_ZA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker company registration locale",
+            ));
+        }
+        const ENTITIES: [&str; 23] = [
+            "01", "02", "06", "07", "08", "09", "10", "11", "12", "14", "15", "16", "17", "20",
+            "21", "22", "23", "24", "25", "26", "30", "31", "80",
+        ];
+        let zone = self
+            .getDefaultTimezone()
+            .unwrap_or(self.application_timezone);
+        let date = self
+            .dateTimeBetweenExpressions("-50 years", "now")?
+            .with_timezone(&zone);
+        let year = date.format("%Y");
+        let number = self.randomNumber(Some(6), true)?;
+        let entity = ENTITIES[fastrand::usize(..ENTITIES.len())];
+        Ok(format!("{year}/{number}/{entity}"))
+    }
+
     /// Samples a Saudi company identification number.
     pub fn companyIdNumber(&self) -> DatabaseResult<String> {
         if self.locale() != "ar_SA" {
@@ -744,6 +795,19 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn businessIdentificationNumber(
+        &self,
+        registration_date: Option<NaiveDate>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("businessIdentificationNumber", || {
+            self.0.businessIdentificationNumber(registration_date)
+        })
+    }
+
+    pub fn companyNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("companyNumber", || self.0.companyNumber())
     }
 
     pub fn companyIdNumber(&self) -> DatabaseResult<String> {

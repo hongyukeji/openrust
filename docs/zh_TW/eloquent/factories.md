@@ -304,10 +304,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `ar-SA` 的 `companyIdNumber()` 產生以 `700` 開頭的十位沙烏地阿拉伯企業編號。`ar-EG` 的 `companyTaxIdNumber()` 傳回十位企業稅號，`companyTradeRegisterNumber()` 傳回七位商業登記號。埃及兩種編號允許前導零。三種格式都附加 Luhn 檢查碼並支援 `unique`。
 
+`kk-KZ` 的 `businessIdentificationNumber(date)` 傳回十二位 BIN。可以傳入登記日期指定年月，或傳入 `None` 從本年年初至目前時間取樣。`en-ZA` 的 `companyNumber()` 從過去五十年至目前時間取樣登記年份，傳回 `YYYY/NNNNNN/TT`。兩者都支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 34]> {
+fn identity_samples() -> DatabaseResult<[String; 36]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -317,6 +319,8 @@ fn identity_samples() -> DatabaseResult<[String; 34]> {
     let danish = fake(Some("da-DK"))?;
     let egypt = fake(Some("ar-EG"))?;
     Ok([
+        fake(Some("kk-KZ"))?.businessIdentificationNumber(Some(birthdate))?,
+        fake(Some("en-ZA"))?.companyNumber()?,
         fake(Some("ar-SA"))?.companyIdNumber()?,
         egypt.companyTaxIdNumber()?,
         egypt.companyTradeRegisterNumber()?,

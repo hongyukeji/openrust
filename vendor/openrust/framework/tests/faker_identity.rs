@@ -698,3 +698,35 @@ fn saudi_and_egyptian_company_numbers_match_pinned_formats() {
     assert!(saudi.companyTaxIdNumber().is_err());
     assert!(saudi.companyTradeRegisterNumber().is_err());
 }
+
+#[test]
+fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
+    use chrono::{Datelike, NaiveDate, Utc};
+    let kazakh = fake(Some("kk-KZ")).unwrap();
+    let south_african = fake(Some("en-ZA")).unwrap();
+    let fixed = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let bin = Regex::new(r"^0002[4-6][0-3][0-9]{6}$").unwrap();
+    let company =
+        Regex::new(r"^[0-9]{4}/[1-9][0-9]{5}/(0[126789]|1[0124567]|2[0-6]|3[01]|80)$").unwrap();
+    let year = Utc::now().year();
+    let mut bins = std::collections::HashSet::new();
+    let mut companies = std::collections::HashSet::new();
+    let unique_kazakh = kazakh.unique(true);
+    let unique_south_african = south_african.unique(true);
+    for _ in 0..128 {
+        let id = unique_kazakh
+            .businessIdentificationNumber(Some(fixed))
+            .unwrap();
+        assert!(bin.is_match(&id));
+        assert!(bins.insert(id));
+        let id = unique_south_african.companyNumber().unwrap();
+        assert!(company.is_match(&id));
+        assert!((year - 50..=year).contains(&id[..4].parse::<i32>().unwrap()));
+        assert!(companies.insert(id));
+    }
+    let sampled = kazakh.businessIdentificationNumber(None).unwrap();
+    assert_eq!(&sampled[..2], format!("{:02}", year.rem_euclid(100)));
+    assert!((1..=Utc::now().month()).contains(&sampled[2..4].parse::<u32>().unwrap()));
+    assert!(kazakh.companyNumber().is_err());
+    assert!(south_african.businessIdentificationNumber(None).is_err());
+}

@@ -733,3 +733,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `e677f2bf`。PHP 8.5 核对 1,536 条固定上游样本。Rust 1.94.0 格式、全目标严格 Clippy、12 项身份编号测试及独立 MySQL 8.4.13 工厂回归通过。用实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查三条样本。Artisan inspire、三语示例编译、VitePress 与双挂载六项浏览器检查通过，站点保留已有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。后续核对哈萨克斯坦 BIN 和南非企业登记号。
 
 已恢复临时 Seeder，清理 1.7 GiB Cargo 及 39 MiB 站点产物。提交前周额度剩余 50%，磁盘 82 GiB。
+
+## Faker 哈萨克斯坦 BIN 与南非企业登记号
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[哈萨克斯坦 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/kk_KZ/Company.php)和[南非 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_ZA/Company.php)。BIN 用 `Option<NaiveDate>` 表达可选登记日期，保留两位年份、两位月份、两位实体分类和六位随机尾号。未指定日期时，复用现有 Faker 本年日期取样。南非企业登记号从过去五十年至当前时间取样，保留六位非零开头的序号以及全部 23 种实体代码。两者支持独立的 `unique` 历史，沿用现有 Faker 日期范围和时区机制。v0.x 未找到等价实现，Goravel 式编译装配继续使用现有 Faker。
+
+隔离基线 `50bae68f`。PHP 8.5 核对 1,536 条固定上游样本，另核对南非实体代码表和 23 种代码的样本覆盖。Rust 1.94.0 格式、全目标严格 Clippy、13 项身份编号测试及独立 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查显式日期 BIN、缺省日期 BIN 和南非登记号。Artisan inspire、三语示例编译、VitePress 和双挂载六项浏览器检查通过。站点保留已有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。
+
+临时 Seeder 已恢复，清理本批 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对台湾 VAT 及希腊税务办公室和经营类别。
