@@ -871,6 +871,18 @@ fn singapore_identity_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 比利時荷蘭語姓名和 RRN 樣本 {#belgian-dutch-names-and-rrn-samples}
+
+`nl-BE` 使用當地名字和姓氏詞表，並沿用名字在前的基礎範本。`rrn(gender)` 使用 `dateTimeThisCentury()` 抽取出生日期並產生 11 位數樣本。三位序號在 `"male"` 時為奇數，`"female"` 時為偶數，其他情況不限。結尾兩位按模 97 計算，2000 年起的出生日期使用對應的世紀偏移。此介面支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn belgian_rrn_sample() -> DatabaseResult<String> {
+    fake(Some("nl-BE"))?.unique(false).rrn(Some("female"))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

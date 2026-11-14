@@ -1415,7 +1415,7 @@ const DUTCH_SURNAMES: &[&str] = &[
     "Zwijsen",
 ];
 
-const BELGIAN_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const BELGIAN_SURNAMES: &[&str] = &[
     "Adam",
     "Aerts",
     "Amrani",

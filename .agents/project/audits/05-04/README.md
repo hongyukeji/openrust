@@ -1074,3 +1074,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `a9963589`。PHP 8.5 校验 512 组姓名及 128 组身份号码。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 640 个值，核对姓名、年份、证件前缀及校验字母，并运行文档示例。54 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对比利时荷兰语姓名与 RRN。
+
+## Faker 比利时荷兰语姓名及 RRN
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)和 [FakerPHP v1.24.1 比利时荷兰语 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_BE/Person.php)。接通地区名字和基础全名模板，逐项核对并复用 Company 的 218 个姓氏。RRN 保留日期、序号奇偶、女性序号可到 998、世纪偏移和模 97 校验位。Rust 返回字符串保留前导零，沿用 Faker 公历日期及时区实现、区域错误和去重。v0.x 无对应入口，编译式装配无需调整。
+
+隔离基线 `654b5415`。PHP 8.5 校验 512 组姓名、128 组 RRN。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 512 个值，核对姓名、出生日期范围、两个世纪的校验位、序号和文档示例。55 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批对账固定 Person provider 的地区专用接口及默认英语边界。

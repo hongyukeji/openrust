@@ -871,6 +871,18 @@ fn singapore_identity_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Belgian Dutch Names and RRN Samples {#belgian-dutch-names-and-rrn-samples}
+
+The `nl-BE` provider uses Belgian Dutch given-name and surname catalogs with the base given-name-first template. `rrn(gender)` generates an 11-digit sample from a birth date drawn by `dateTimeThisCentury()`. The three-digit serial is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The final two digits are a modulo-97 checksum that accounts for birth years from 2000 onward. The formatter supports `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn belgian_rrn_sample() -> DatabaseResult<String> {
+    fake(Some("nl-BE"))?.unique(false).rrn(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

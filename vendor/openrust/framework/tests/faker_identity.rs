@@ -2756,3 +2756,33 @@ fn singapore_person_keeps_base_names_and_identity_boundaries() {
     assert_eq!(unique.singaporeId(None, false).unwrap().len(), 9);
     assert!(fake(Some("en-US")).unwrap().nric(None).is_err());
 }
+
+#[test]
+fn belgian_dutch_person_uses_pinned_names_and_rrn_rules() {
+    let faker = fake(Some("nl-BE")).unwrap();
+    let unique = faker.unique(true);
+    let mut numbers = std::collections::HashSet::new();
+    for gender in [None, Some("male"), Some("female")] {
+        for _ in 0..64 {
+            assert_ne!(faker.lastName(), "Doe");
+            let rrn = unique.rrn(gender).unwrap();
+            assert_eq!(rrn.len(), 11);
+            assert!(rrn.bytes().all(|byte| byte.is_ascii_digit()));
+            let serial = rrn[6..9].parse::<u64>().unwrap();
+            match gender {
+                Some("male") => assert!((1..=997).contains(&serial) && serial % 2 == 1),
+                Some("female") => assert!((2..=998).contains(&serial) && serial % 2 == 0),
+                _ => assert!((1..=997).contains(&serial)),
+            }
+            let body = rrn[..9].parse::<u64>().unwrap();
+            let checksum = rrn[9..].parse::<u64>().unwrap();
+            assert!(
+                [0, 2_000_000_000]
+                    .into_iter()
+                    .any(|century| checksum == 97 - (century + body) % 97)
+            );
+            assert!(numbers.insert(rrn));
+        }
+    }
+    assert!(fake(Some("nl-NL")).unwrap().rrn(None).is_err());
+}

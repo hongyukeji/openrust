@@ -132,6 +132,35 @@ impl Faker {
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
+    /// Samples a Belgian National Register number.
+    pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        if self.locale() != "nl_BE" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Belgian identity locale",
+            ));
+        }
+
+        let mut serial = self.numberBetween(1, 997) as u64;
+        match gender {
+            Some("male") => serial += 1 - serial % 2,
+            Some("female") => serial += serial % 2,
+            _ => {}
+        }
+
+        let date = self.identity_birthdate()?;
+        let birth = u64::from(date.year().rem_euclid(100) as u32) * 10_000
+            + u64::from(date.month()) * 100
+            + u64::from(date.day());
+        let body = birth * 1_000 + serial;
+        let century = if date.year() >= 2000 {
+            2_000_000_000
+        } else {
+            0
+        };
+        let check = 97 - (century + body) % 97;
+        Ok(format!("{body:09}{check:02}"))
+    }
+
     /// Samples a Singapore citizen's NRIC.
     pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
         self.singaporeId(birthDate, false)
@@ -907,6 +936,10 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("rrn", || self.0.rrn(gender))
     }
 
     pub fn nric(&self, birthDate: Option<NaiveDate>) -> DatabaseResult<String> {
