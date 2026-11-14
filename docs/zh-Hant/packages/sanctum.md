@@ -18,17 +18,19 @@ cargo build --features sanctum
 
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 
-在應用程式資料庫上使用 `PersonalAccessTokens` 建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。
+使用 `Sanctum::personalAccessTokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。
 
 ```rust
-use openrust::{auth::AuthResult, database::Connection, sanctum::{NewAccessToken, PersonalAccessTokens}};
+use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};
 
-async fn issue(connection: Connection, user_id: u64) -> AuthResult<NewAccessToken> {
-    PersonalAccessTokens::new(connection, "")
+async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> AuthResult<NewAccessToken> {
+    sanctum.personalAccessTokens(database, "")?
         .createToken("app::models::User", user_id, "browser", &["reports:read"], None)
         .await
 }
 ```
+
+在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `usePersonalAccessTokenModel::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 欄位和整數 `id`。簽發、驗證、撤銷和清理共用該儲存庫，沿用標準權杖持久化邏輯。
 
 ## 保護路由與檢查能力 {#protecting-routes}
 
@@ -45,7 +47,9 @@ fn register() -> Result<(), RoutingError> {
 }
 ```
 
-簽發時以已註冊的 Provider 模型名稱作為權杖歸屬型別。預設應用程式使用 `app::models::User`。可在 `auth.guards` 為自訂 Sanctum 守衛設定 `provider`，省略時使用 Web 守衛的 Provider。以 `AccessToken::currentAccessToken(request)` 檢視目前請求的憑證。`sanctum.expiration` 以分鐘限制權杖最長有效期，與個別權杖的到期時間同時生效。Bearer 驗證成功後派發 `TokenAuthenticated` 事件並更新 `last_used_at`，可設定 `sanctum.last_used_at=false` 關閉。
+簽發時以已註冊的 Provider 模型名稱作為權杖歸屬型別。預設應用程式使用 `app::models::User`。可在 `auth.guards` 為自訂 Sanctum 守衛設定 `provider`，省略時透過已註冊的 Eloquent 模型和 `MorphMap` 解析歸屬。以 `AccessToken::currentAccessToken(request)` 檢視目前請求的憑證。`sanctum.expiration` 以分鐘限制權杖最長有效期，與個別權杖的到期時間同時生效。Bearer 驗證成功後派發 `TokenAuthenticated` 事件並更新 `last_used_at`，可設定 `sanctum.last_used_at=false` 關閉。
+
+使用 `getAccessTokenFromRequestUsing` 取代 Bearer 擷取邏輯。使用 `authenticateAccessTokensUsing` 決定已查到的權杖是否有效，回呼接收權杖及內建到期和 Provider 檢查結果。權杖歸屬仍須成功解析。
 
 ## SPA 驗證 {#spa-authentication}
 
@@ -54,6 +58,8 @@ fn register() -> Result<(), RoutingError> {
 跨來源第一方前端須為指定來源啟用攜帶憑證的 CORS。符合設定的 Referer 或 Origin 會啟用 Session、Cookie 和 CSRF 中介軟體。Sanctum 優先檢查已驗證的工作階段，再檢查 Bearer 權杖。第一方工作階段會通過權杖能力檢查，使用者操作權限由應用程式授權策略決定。
 
 第一方請求成功記錄密碼指紋後，變更密碼會使該工作階段在下次請求時失效。若要替換前端中介軟體，先透過應用程式的 `alias` 方法註冊，再將別名填入 `sanctum.middleware.encrypt_cookies`、`sanctum.middleware.validate_csrf_token` 或 `sanctum.middleware.authenticate_session`。
+
+在 `SANCTUM_STATEFUL_DOMAINS` 中加入 `__SANCTUM_CURRENT_REQUEST_HOST__`，或在逗號分隔的網域字串末尾附加 `Sanctum::currentRequestHost()`，即可比對目前請求的主機和連接埠。
 
 ## 清理過期權杖 {#pruning-expired-tokens}
 
