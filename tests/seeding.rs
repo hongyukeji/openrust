@@ -459,6 +459,53 @@ impl Seeder for PolymorphicFactories {
                 })
                 .count(3);
             let overrides = |name: &str| Attributes::from([("generated_name".into(), name.into())]);
+            let configured = Factory::<FactoryChild>::new(move || overrides("definition"))
+                .set("generated_name", "single-set")
+                .state(|attributes| {
+                    assert_eq!(attributes["generated_name"], "single-set".into());
+                    assert_eq!(attributes["generated_score"], 41_i64.into());
+                    Attributes::from([("generated_score".into(), 42_i64.into())])
+                })
+                .prependState(|attributes| {
+                    assert_eq!(attributes["generated_score"], 40_i64.into());
+                    Attributes::from([("generated_score".into(), 41_i64.into())])
+                })
+                .count(2)
+                .prependState(|attributes| {
+                    assert_eq!(attributes["generated_name"], "definition".into());
+                    Attributes::from([("generated_score".into(), 40_i64.into())])
+                })
+                .set("generated_name", "batch-set")
+                .state(|attributes| {
+                    assert_eq!(attributes["generated_name"], "batch-set".into());
+                    assert_eq!(attributes["generated_score"], 42_i64.into());
+                    Attributes::new()
+                });
+            let raw = configured.rawOn(connection).await?;
+            assert_eq!(raw.len(), 2);
+            assert_eq!(raw[0]["generated_name"], "batch-set".into());
+            let rows = configured
+                .createManyOn(
+                    connection,
+                    FactoryRecords::Attributes(vec![
+                        overrides("override-one"),
+                        overrides("override-two"),
+                    ]),
+                )
+                .await?;
+            assert_eq!(rows.len(), 2);
+            let rows = connection
+                .table("seed_factory_children")
+                .orderBy("id", "asc")
+                .get()
+                .await?;
+            assert_eq!(rows[0].get("generated_name"), Some(&"override-one".into()));
+            assert_eq!(rows[1].get("generated_name"), Some(&"override-two".into()));
+            assert!(
+                rows.iter()
+                    .all(|row| row.get("generated_score") == Some(&42_i64.into()))
+            );
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 2);
             let created = Factory::<FactoryChild>::new(move || overrides("before-callback"))
                 .afterMaking(|_| Err(DatabaseError::InvalidQuery("removed making callback")))
                 .withoutAfterMaking()

@@ -171,6 +171,25 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Runs this transformation before the factory's existing states.
+    #[must_use]
+    pub fn prependState(
+        mut self,
+        state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.states
+            .insert(0, Box::new(move |attributes, _| state(attributes)));
+        self
+    }
+
+    /// Appends a state that sets one attribute.
+    #[must_use]
+    pub fn set(self, name: impl Into<String>, value: impl Into<Value>) -> Self {
+        let name = name.into();
+        let value = value.into();
+        self.state(move |_| Attributes::from([(name.clone(), value.clone())]))
+    }
+
     #[must_use]
     pub fn sequence(
         mut self,
@@ -827,6 +846,24 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    #[must_use]
+    pub fn state(self, state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static) -> Self {
+        self.factory.state(state).count(self.count)
+    }
+
+    #[must_use]
+    pub fn prependState(
+        self,
+        state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.factory.prependState(state).count(self.count)
+    }
+
+    #[must_use]
+    pub fn set(self, name: impl Into<String>, value: impl Into<Value>) -> Self {
+        self.factory.set(name, value).count(self.count)
+    }
+
     #[must_use]
     pub fn withoutAfterMaking(self) -> Self {
         self.factory.withoutAfterMaking().count(self.count)

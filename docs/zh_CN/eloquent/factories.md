@@ -56,6 +56,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
 
+用 `prependState` 将转换放到当前所有已登记状态之前。每个转换都能读取前面生成的属性。用 `set(name, value)` 在末尾追加一个属性覆盖。两种方法都能在 `count` 前后使用。直接传给创建方法的属性在已登记状态之后应用。
+
 批量工厂先构造全部模型，再运行 `afterMaking`。`create` 逐个保存模型及其声明的关系，写入完成后才运行该批次的 `afterCreating`。`afterMaking` 失败时，该批模型尚未写入，构造期间解析的上级工厂可能已写入记录。
 
 使用 `raw()` 或 `rawOn(connection)` 获取应用模型修改器和转换前的展开属性。指定数量时返回属性映射列表。原始属性展开跳过目标工厂的回调和子关系，仍可能保存声明的上级以解析关联键。使用 `createQuietly()` 或 `createQuietlyOn(connection)` 可保存模型及关系，同时抑制 Eloquent 模型事件。工厂回调照常执行。

@@ -56,6 +56,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.
 
+Use `prependState` to run a transformation before all currently registered states. Each transformation sees the attributes produced so far. Use `set(name, value)` to append a single attribute override. Both work before or after `count`. Attributes passed directly to a creation method are applied after the registered states.
+
 For a counted batch, all models are constructed before `afterMaking` runs. `create` then saves each model and its declared relations. The batch runs `afterCreating` after those writes finish. If `afterMaking` fails, the batch itself has yet to be saved. Owner factories resolved during construction may already have written records.
 
 Use `raw()` or `rawOn(connection)` to get expanded attributes before model setters and casts. A counted factory returns a vector of attribute maps. Raw expansion skips the target factory’s callbacks and child relationships. It can still persist a declared parent to resolve its key. Use `createQuietly()` or `createQuietlyOn(connection)` to persist models and relationships while suppressing Eloquent model events. Factory callbacks still run.
