@@ -3967,7 +3967,9 @@ impl openrust::database::eloquent::concerns::ModelEventListener<Membership> for 
                         &[format!("{event:?}").into()],
                     )
                     .await?;
-                if event == Created && label == Some(77.into()) {
+                if (event == Created && label == Some(77.into()))
+                    || (matches!(event, Updated | Deleted) && label == Some(88.into()))
+                {
                     return Err(DatabaseError::InvalidQuery("reject pivot after writing"));
                 }
             }
@@ -4449,6 +4451,72 @@ async fn verify_pivot_reload(pivot: &Membership) {
     assert!(!refreshed.state().isDirty());
 }
 
+async fn verify_pivot_or_fail(db: &Connection, owner: &Author) {
+    let keys = [1.into(), 2.into()];
+    let label = |value: i64| Attributes::from([("label".into(), value.into())]);
+    let plain = FEATURED_POSTS;
+    plain.detachOrFail(owner, None).await.unwrap();
+    plain.attachOrFail(owner, &keys, label(11)).await.unwrap();
+    assert_eq!(
+        plain
+            .updateExistingPivotOrFail(owner, &keys[1], label(88))
+            .await
+            .unwrap(),
+        1
+    );
+    let custom = FEATURED_POSTS.using::<Membership>().withPivot(["label"]);
+    let count_events = || db.table("relation_membership_events").count("*");
+    let baseline = count_events().await.unwrap();
+    assert!(custom.detachOrFail(owner, Some(&keys)).await.is_err());
+    assert!(
+        custom
+            .updateExistingPivotOrFail(owner, &keys[0], label(88))
+            .await
+            .is_err()
+    );
+    assert_eq!(custom.getResults(owner).await.unwrap().len(), 2);
+    assert_eq!(count_events().await.unwrap(), baseline);
+
+    assert_eq!(
+        plain.detachOrFail(owner, Some(&keys[1..])).await.unwrap(),
+        1
+    );
+    let baseline = count_events().await.unwrap();
+    assert!(
+        custom
+            .attachOrFail(owner, &keys[1..], label(77))
+            .await
+            .is_err()
+    );
+    assert!(
+        custom
+            .syncWithPivotValuesOrFail(owner, &keys[1..], label(77), true)
+            .await
+            .is_err()
+    );
+    let current = custom.getResults(owner).await.unwrap();
+    assert_eq!(current.len(), 1);
+    assert_eq!(current[0].getKey(), Some(&keys[0]));
+    assert_eq!(
+        current[0]
+            .getRelation::<Membership>("pivot")
+            .unwrap()
+            .getAttributeValue("label")
+            .unwrap(),
+        Some(11.into())
+    );
+    assert_eq!(count_events().await.unwrap(), baseline);
+
+    let changes = custom
+        .syncWithoutDetachingOrFail(owner, &keys[1..])
+        .await
+        .unwrap();
+    assert_eq!(changes.attached, keys[1..]);
+    assert!(changes.detached.is_empty());
+    let changes = custom.syncOrFail(owner, &keys[1..], true).await.unwrap();
+    assert_eq!(changes.detached, keys[..1]);
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -4696,7 +4764,10 @@ async fn verify_custom_pivot(config: Json) {
     assert!(pivot.relationLoaded("author") && pivot.relationLoaded("post"));
     assert_eq!(pivot.getAttribute("subject_type"), Some(&"featured".into()));
     assert_eq!(pivot.getAttributeValue("label").unwrap(), Some(15.into()));
-    assert_eq!(morph.detach(&owner, Some(&[2.into()])).await.unwrap(), 1);
+    assert_eq!(
+        morph.detachOrFail(&owner, Some(&[2.into()])).await.unwrap(),
+        1
+    );
     assert_eq!(
         db.table("relation_morph_memberships")
             .count("*")
@@ -4745,6 +4816,7 @@ async fn verify_custom_pivot(config: Json) {
     Box::pin(verify_related_touch(&db)).await;
     Box::pin(verify_save_touches_related(&db)).await;
     Box::pin(verify_inferred_pivot_touch(&db)).await;
+    Box::pin(verify_pivot_or_fail(&db, &owner)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();

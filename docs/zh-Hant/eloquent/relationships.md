@@ -764,6 +764,25 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 用 `toggle` 依指定鍵解除既有關聯、建立缺少的關聯。`toggleWithPivotAttributes` 可為每個新增關聯傳入屬性。`toggle` 和 `toggleOrFail` 都在同一交易內執行，回傳新增與解除的鍵。
 
+### 交易式 Pivot 寫入 {#transactional-pivot-writes}
+
+使用 `attachOrFail`、`detachOrFail` 和 `updateExistingPivotOrFail`，在同一交易中執行寫入、自訂 Pivot 事件和已設定的時間戳記更新。`syncOrFail`、`syncWithoutDetachingOrFail` 和 `syncWithPivotValuesOrFail` 共用一般同步方法的交易。多型多對多關聯也可以呼叫這些方法。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn add_roles<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+    keys: &[Value],
+) -> DatabaseResult<()> {
+    relation.attachOrFail(user, keys, Attributes::new()).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

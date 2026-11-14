@@ -443,6 +443,26 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         keys: &'a [Value],
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        self.attach_records(parent, keys, attributes, false)
+    }
+
+    /// Runs the pivot write and any model events in a single transaction.
+    pub fn attachOrFail<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: &'a [Value],
+        attributes: Attributes,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        self.attach_records(parent, keys, attributes, true)
+    }
+
+    fn attach_records<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: &'a [Value],
+        attributes: Attributes,
+        transactional: bool,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             self.validate_pivot_attributes(&attributes)?;
             let owner = self.owner(parent)?;
@@ -457,7 +477,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             }
             let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             let custom = self.custom_pivot;
-            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
+            if transactional
+                || custom.is_some()
+                || parent_state.is_some()
+                || related_touch.is_some()
+            {
                 let identity = self.pivot.identity(self.timestamp_columns());
                 let source = connection.clone();
                 let rows = Arc::new(rows);
@@ -511,7 +535,27 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         &'a self,
         parent: &'a P,
         related: &'a Value,
+        attributes: Attributes,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        self.update_pivot(parent, related, attributes, false)
+    }
+
+    /// Runs the pivot write and any model events in a single transaction.
+    pub fn updateExistingPivotOrFail<'a>(
+        &'a self,
+        parent: &'a P,
+        related: &'a Value,
+        attributes: Attributes,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        self.update_pivot(parent, related, attributes, true)
+    }
+
+    fn update_pivot<'a>(
+        &'a self,
+        parent: &'a P,
+        related: &'a Value,
         mut attributes: Attributes,
+        transactional: bool,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
         Box::pin(async move {
             self.validate_pivot_attributes(&attributes)?;
@@ -532,7 +576,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 attributes.extend(self.pivot_write_timestamps(&connection)?.update);
             }
             let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
-            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
+            if transactional
+                || custom.is_some()
+                || parent_state.is_some()
+                || related_touch.is_some()
+            {
                 let pivot = self.pivot;
                 let identity = pivot.identity(self.timestamp_columns());
                 let owner = owner.clone();
@@ -618,12 +666,34 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         parent: &'a P,
         keys: Option<&'a [Value]>,
     ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        self.detach_records(parent, keys, false)
+    }
+
+    /// Runs the pivot write and any model events in a single transaction.
+    pub fn detachOrFail<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: Option<&'a [Value]>,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
+        self.detach_records(parent, keys, true)
+    }
+
+    fn detach_records<'a>(
+        &'a self,
+        parent: &'a P,
+        keys: Option<&'a [Value]>,
+        transactional: bool,
+    ) -> DatabaseFuture<'a, DatabaseResult<u64>> {
         Box::pin(async move {
             let owner = self.owner(parent)?;
             let connection = self.keys.connection(parent)?;
             let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             let custom = self.custom_pivot;
-            if custom.is_some() || parent_state.is_some() || related_touch.is_some() {
+            if transactional
+                || custom.is_some()
+                || parent_state.is_some()
+                || related_touch.is_some()
+            {
                 let pivot = self.pivot;
                 let identity = pivot.identity(self.timestamp_columns());
                 let constraints = self.pivot_constraints.clone();
@@ -725,6 +795,36 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             PivotOperation::Sync { detach },
         )
         .await
+    }
+
+    /// Synchronizes in the same transaction used by all sync variants.
+    pub async fn syncOrFail(
+        &self,
+        parent: &P,
+        keys: &[Value],
+        detach: bool,
+    ) -> DatabaseResult<SyncChanges> {
+        self.syncWithPivotValuesOrFail(parent, keys, Attributes::new(), detach)
+            .await
+    }
+
+    pub async fn syncWithoutDetachingOrFail(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> DatabaseResult<SyncChanges> {
+        self.syncOrFail(parent, keys, false).await
+    }
+
+    pub async fn syncWithPivotValuesOrFail(
+        &self,
+        parent: &P,
+        keys: &[Value],
+        attributes: Attributes,
+        detach: bool,
+    ) -> DatabaseResult<SyncChanges> {
+        self.syncWithPivotValues(parent, keys, attributes, detach)
+            .await
     }
 
     /// Synchronizes related keys with a distinct set of pivot values for each key.

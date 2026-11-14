@@ -764,6 +764,25 @@ Use `withPivot(["label"])` to select extra columns from the intermediate table. 
 
 Use `toggle` to remove existing links and insert missing links for the supplied keys. `toggleWithPivotAttributes` supplies per-key attributes for inserts. Both `toggle` and `toggleOrFail` run in one transaction and return attached and detached keys.
 
+### Transactional pivot writes {#transactional-pivot-writes}
+
+Use `attachOrFail`, `detachOrFail`, and `updateExistingPivotOrFail` to run the write, custom pivot events, and configured touches in one transaction. `syncOrFail`, `syncWithoutDetachingOrFail`, and `syncWithPivotValuesOrFail` share the transaction already used by the ordinary sync methods. The same methods work on polymorphic many-to-many relations.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn add_roles<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+    keys: &[Value],
+) -> DatabaseResult<()> {
+    relation.attachOrFail(user, keys, Attributes::new()).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

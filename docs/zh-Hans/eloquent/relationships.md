@@ -764,6 +764,25 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 用 `toggle` 对给定键解除已有关系、建立缺失关系。`toggleWithPivotAttributes` 可为每个新增关联传入属性。`toggle` 和 `toggleOrFail` 均在同一事务内执行，返回新增和解除的键。
 
+### 事务化 Pivot 写入 {#transactional-pivot-writes}
+
+使用 `attachOrFail`、`detachOrFail` 和 `updateExistingPivotOrFail`，在同一事务中执行写入、自定义 Pivot 事件和已配置的时间戳更新。`syncOrFail`、`syncWithoutDetachingOrFail` 和 `syncWithPivotValuesOrFail` 复用普通同步方法的事务。多态多对多关系也可以调用这些方法。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn add_roles<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+    keys: &[Value],
+) -> DatabaseResult<()> {
+    relation.attachOrFail(user, keys, Attributes::new()).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。
