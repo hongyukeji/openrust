@@ -50,6 +50,8 @@ Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, suc
 
 Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `dateTimeInInterval`.
 
+Use `resolveDateMax(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -66,6 +68,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let sampled_this_year = faker.dateTimeThisYear(None)?;
         let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
+        let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
+        let published_at = faker.iso8601(Some(cutoff));
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
@@ -73,6 +77,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
             ("historical".into(), historical.to_rfc3339().into()),
             ("archived_at".into(), archived_at.to_rfc3339().into()),
+            ("published_at".into(), published_at.into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))

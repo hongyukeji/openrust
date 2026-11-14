@@ -986,6 +986,41 @@ impl Seeder for PolymorphicFactories {
 
             let start = chrono::DateTime::from_timestamp(-1, 0).unwrap();
             let end = chrono::DateTime::from_timestamp(1, 0).unwrap();
+            let max = Some(faker.resolveDateMax("0")?);
+            assert_eq!(faker.unixTime(max), 0);
+            assert_eq!(faker.dateTime(max), epoch);
+            assert_eq!(faker.date(None, max)?, "1970-01-01");
+            assert_eq!(faker.time(None, max)?, "00:00:00");
+            assert_eq!(
+                faker.unique(false).iso8601(max)?,
+                "1970-01-01T00:00:00+0000"
+            );
+            assert!(faker.unique(false).iso8601(Some(epoch)).is_err());
+            faker.unique(true);
+            assert_eq!(faker.resolveDateMax(" -1.9 ")?.timestamp(), -1);
+            assert_eq!(faker.resolveDateMax("1e1")?.timestamp(), 10);
+            assert_eq!(
+                faker.resolveDateMax("2024-01-02 12:00")?.timestamp(),
+                1_704_168_000
+            );
+            assert_eq!(
+                faker.resolveDateMax("2024-01-02 12:00 UTC")?.timestamp(),
+                1_704_196_800
+            );
+            let before = chrono::Utc::now();
+            let resolved = faker.resolveDateMax("")?;
+            assert!((before..=chrono::Utc::now()).contains(&resolved));
+            assert!(matches!(
+                faker.resolveDateMax("bad date"),
+                Err(DatabaseError::InvalidQuery("invalid Faker date expression"))
+            ));
+            assert!(faker.resolveDateMax(" ").is_err());
+            assert!(matches!(
+                faker.resolveDateMax("1e100"),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker timestamp is out of range"
+                ))
+            ));
             assert_eq!(faker.unixTime(Some(epoch)), 0);
             assert!((-1..=0).contains(&faker.unixTime(Some(start))));
             assert!((0..=chrono::Utc::now().timestamp()).contains(&faker.unixTime(None)));

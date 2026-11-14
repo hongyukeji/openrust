@@ -258,26 +258,46 @@ impl Faker {
         end: &str,
     ) -> DatabaseResult<DateTime<Utc>> {
         let now = Utc::now();
-        let parse = |expression| {
-            calendar::parse_date_expression(expression, now, self.application_timezone)
-                .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date expression"))
-        };
-        let start = parse(start)?;
-        let end = end.trim_ascii();
-        let end = if calendar::is_numeric(end) {
-            let timestamp = end
+        let start = self.parse_date_expression(start, now)?;
+        let end = self.resolve_date_max(end, now)?;
+        self.dateTimeBetween(start, end)
+    }
+
+    /// Resolves a PHP-style maximum for any formatter that takes a UTC date bound.
+    pub fn resolveDateMax(&self, max: &str) -> DatabaseResult<DateTime<Utc>> {
+        self.resolve_date_max(max, Utc::now())
+    }
+
+    fn parse_date_expression(
+        &self,
+        value: &str,
+        now: DateTime<Utc>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        calendar::parse_date_expression(value, now, self.application_timezone)
+            .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date expression"))
+    }
+
+    fn resolve_date_max(&self, max: &str, now: DateTime<Utc>) -> DatabaseResult<DateTime<Utc>> {
+        if max.is_empty() {
+            return Ok(now);
+        }
+        let numeric = max.trim_ascii();
+        if numeric.is_empty() {
+            return Err(DatabaseError::InvalidQuery("invalid Faker date expression"));
+        }
+        if calendar::is_numeric(numeric) {
+            let timestamp = numeric
                 .parse::<i64>()
                 .ok()
                 .or_else(|| {
-                    let number = end.parse::<f64>().ok()?;
+                    let number = numeric.parse::<f64>().ok()?;
                     number.is_finite().then_some(number as i64)
                 })
                 .ok_or(DATE_RANGE_ERROR)?;
-            DateTime::from_timestamp(timestamp, 0).ok_or(DATE_RANGE_ERROR)?
+            DateTime::from_timestamp(timestamp, 0).ok_or(DATE_RANGE_ERROR)
         } else {
-            parse(end)?
-        };
-        self.dateTimeBetween(start, end)
+            self.parse_date_expression(max, now)
+        }
     }
 
     /// Samples between the supplied UTC instant and that instant plus a signed interval.

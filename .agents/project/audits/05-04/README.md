@@ -194,3 +194,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 `dateTimeInInterval` 和 PHP 8.5.0 `DateInterval::createFromDateString`／`timelib_add`。复用 v0.x 已移植的日期词法和相对运算，提取相对组件并按起始日期时区相加，按起始夏令时状态解析回拨重复时刻。表达式入口默认三十年前和五个日历日，与类型化 `dateTimeInInterval` 共享去重历史。类型化 `TimeDelta` 仍表示经过时长。v0.x 的 Carbon interval 入口面向请求值转换，Faker 沿用日期解析器实现 PHP 日期相加。Goravel 装配无需调整。其他 formatter 的字符串上界和全语法差分覆盖仍待完成。 [FakerPHP 日期区间](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L167) · [PHP 日期相加](https://github.com/php/php-src/blob/php-8.5.0/ext/date/lib/interval.c)
 
 隔离基线 `5a2c334f`。PHP 8.5.12 对照月底、相对星期、负区间、非法日期元素、纽约跳时以及纽约和巴黎回拨。Rust 固定端点回归及 MySQL 8.4.13 Seeder 集成通过，应用二进制用 `artisan db:seed --database=mysql --force` 写入并回查纽约跨夏令时样本。Rust 1.94.0 格式和工作区全目标严格 Clippy、MySQL／SQLite 工厂回归、`./artisan inspire`、三语代码示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 字符串日期上界
+
+对照 FakerPHP 1.24.1 `getMaxTimestamp`，由 `resolveDateMax` 统一解析字符串上界，所有接受 UTC 日期上界的 formatter 可直接消费同一类型值。日期区间也共用该解析器和参考时刻。复用 v0.x 已迁入的数字词法和时区日期解析。数字字符串按 Unix 秒向零截断，空字符串取当前时间，日期表达式默认按应用时区解析。无效、纯空白和超出 Chrono 范围的值返回错误。独立解析保留 Rust 日期方法的返回类型与 unique 契约。Goravel 装配无需调整。完整 PHP 日期语法差分和 PHP 的无效值／溢出强制转换继续跟踪。 [FakerPHP 上界解析](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L14)
+
+隔离基线 `e9b4659f`。PHP 8.5.12 对照小数、指数、零、空值和应用／显式时区。MySQL 8.4.13 Seeder 集成验证解析、错误和共享上界；应用二进制实际执行 `artisan db:seed --database=mysql --force` 写入并回查台北格式化结果。Rust 1.94.0 格式、全目标严格 Clippy、SQLite／MySQL 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。

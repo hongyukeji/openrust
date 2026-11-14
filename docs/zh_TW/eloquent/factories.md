@@ -50,6 +50,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `dateTimeInIntervalExpressions(date, interval)` 傳入 PHP 風格的相對區間，例如 `Some("+1 month")` 或 `Some("5 days ago")`。終點依起始日期所在時區的本地時間計算，跨越日光節約時間時也遵循此規則。取樣結果回傳 UTC。省略日期時從 30 年前開始，省略區間時使用五個日曆日。區間字串接受相對表達式，拒絕絕對日期、時間和時區識別碼。此方法與 `dateTimeInInterval` 共用 `unique` 歷史。
 
+用 `resolveDateMax(expression)` 解析 PHP 風格的日期上界，再以 `Some(max)` 傳給任何接受 `max` 的日期產生方法。解析一次即可在多個呼叫中共用同一上界。小數和科學記號的數字字串向零截斷為 Unix 秒。空字串使用目前時間。日期文字預設依應用程式時區解讀，文字中的明確時區優先。無效或超出範圍的值回傳錯誤。
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -66,6 +68,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let sampled_this_year = faker.dateTimeThisYear(None)?;
         let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
+        let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
+        let published_at = faker.iso8601(Some(cutoff));
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
@@ -73,6 +77,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
             ("historical".into(), historical.to_rfc3339().into()),
             ("archived_at".into(), archived_at.to_rfc3339().into()),
+            ("published_at".into(), published_at.into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))
