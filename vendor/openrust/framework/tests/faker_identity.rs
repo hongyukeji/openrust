@@ -3227,3 +3227,53 @@ fn venezuelan_rif_preserves_prefix_digits_and_optional_separator() {
         );
     }
 }
+
+#[test]
+fn company_phrases_preserve_regional_provider_and_template_rules() {
+    let missing = fake(Some("ja-JP")).unwrap();
+    assert!(missing.catchPhrase().is_err());
+    assert!(missing.bs().is_err());
+
+    let fallback = fake(Some("en-CA")).unwrap();
+    let unique = fallback.unique(true);
+    let slogans: std::collections::HashSet<_> =
+        (0..48).map(|_| unique.catchPhrase().unwrap()).collect();
+    assert_eq!(slogans.len(), 48);
+    assert!(!fallback.bs().unwrap().is_empty());
+    assert!(fallback.catchPhraseVerb().is_err());
+
+    for locale in ["ar-SA", "ar-JO", "hy-AM"] {
+        let faker = fake(Some(locale)).unwrap();
+        assert_eq!(faker.catchPhrase().unwrap().is_empty(), locale == "hy-AM");
+        let unique = faker.uniqueWithRetries(true, 2);
+        assert_eq!(unique.bs().unwrap(), "");
+        assert!(unique.bs().is_err());
+    }
+
+    for locale in ["fr-FR", "fr-CA", "fr-CH", "fr-BE"] {
+        let faker = fake(Some(locale)).unwrap();
+        assert!(!faker.catchPhraseNoun().unwrap().is_empty());
+        assert!(!faker.catchPhraseVerb().unwrap().is_empty());
+        assert!(!faker.catchPhraseAttribute().unwrap().is_empty());
+        assert!(faker.bs().is_err());
+        for _ in 0..128 {
+            let phrase = faker.catchPhrase().unwrap();
+            assert!(phrase.as_bytes()[0].is_ascii_uppercase());
+            for word in ["sécurité", "simpl"] {
+                assert!(phrase.matches(word).count() <= 1);
+            }
+        }
+    }
+
+    let czech = fake(Some("cs-CZ")).unwrap();
+    assert!(!czech.catchPhraseNoun().unwrap().is_empty());
+    assert!(!czech.catchPhraseVerb().unwrap().is_empty());
+    assert!(!czech.catchPhraseAttribute().unwrap().is_empty());
+    assert!(!czech.catchPhrase().unwrap().is_empty());
+
+    let taiwan = fake(Some("zh-Hant")).unwrap();
+    assert!(!taiwan.bs().unwrap().contains(char::is_whitespace));
+    let china = fake(Some("zh-Hans")).unwrap();
+    assert!(!china.catchPhrase().unwrap().is_empty());
+    assert!(china.bs().is_err());
+}

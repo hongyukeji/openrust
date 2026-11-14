@@ -1018,6 +1018,22 @@ fn person_fallback_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Company slogans and business phrases {#company-slogans-and-business-phrases}
+
+Use `catchPhrase()` for company slogans and `bs()` for business phrases. Both use the selected Company provider. A locale without a Company provider falls back to `en-US`. If a locale has its own provider but it lacks the formatter, the call returns an error. For `ar-SA`, `ar-JO`, and `hy-AM`, `bs()` returns an empty string. Armenian `catchPhrase()` also returns an empty string. In `zh-TW`, `bs()` joins words without spaces.
+
+French and Czech Company providers also expose `catchPhraseNoun()`, `catchPhraseVerb()`, and `catchPhraseAttribute()`. This includes the French providers for Belgium, Canada, and Switzerland. French slogans filter out repeated occurrences of `sécurité` and `simpl`. All five formatters work with `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn company_phrase_sample() -> DatabaseResult<(String, String)> {
+    let french = fake(Some("fr-CA"))?;
+    let taiwanese = fake(Some("zh-TW"))?;
+    Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

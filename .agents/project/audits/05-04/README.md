@@ -1178,3 +1178,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `74c975e1`。PHP 8.5 核对 576 个固定上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 577 个值，覆盖全部前缀、无分隔符、自定义多字符分隔符和三语共用示例。67 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。格式检查仅在隔离副本处理基线 Sanctum 排版差异。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.3 GiB 和站点产物约 40 MiB。提交前周额度剩余 42%，项目卷可用约 80 GiB。后续核对 Company 的 `catchPhrase`、`bs` 及地区词组接口，05-04 保持未闭合。
+
+## Faker Company 标语与商业短语
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)及 FakerPHP v1.24.1 [Company provider 目录](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)。补齐 `catchPhrase`、`bs`、`catchPhraseNoun`、`catchPhraseVerb`、`catchPhraseAttribute` 及去重入口。按 Company provider 解析地区与缺失接口。保留固定词表、模板权重、法语去重词根、捷克语模板及 PHP 首字母转换规则，并覆盖台湾无空格拼接和三个地区的空字符串。Rust 使用显式 Result 表达格式化器不可用。v0.x 无对应入口，编译式工厂装配无需改动。
+
+隔离基线 `84cb4b6b`。固定 PHP 8.5 核对 20 个地区及回退场景的 2,256 个样本。使用实际二进制 `main artisan db:seed --database=mysql --force` 写入 MySQL 8.4.13，并逐条回读 2,258 个值，包含三语共用示例的两个结果。两套结果按同一份上游词表、模板和格式规则验证。68 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全目标严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批隔离 Cargo 和站点产物。05-04 继续核对地区电话号码入口。

@@ -1018,6 +1018,22 @@ fn person_fallback_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 公司标语与商业短语 {#company-slogans-and-business-phrases}
+
+用 `catchPhrase()` 生成公司标语，用 `bs()` 生成商业短语。两者均使用当前地区的 Company Provider。地区没有 Company Provider 时回退至 `en-US`。地区有自己的 Provider 但缺少相应接口时返回错误。`ar-SA`、`ar-JO` 和 `hy-AM` 的 `bs()` 返回空字符串。`hy-AM` 的 `catchPhrase()` 也返回空字符串。`zh-TW` 的商业短语直接拼接词组，不加空格。
+
+法语和捷克语 Company Provider 还提供 `catchPhraseNoun()`、`catchPhraseVerb()` 和 `catchPhraseAttribute()`，比利时、加拿大和瑞士的法语 Provider 也支持这些入口。法语标语会过滤重复出现的 `sécurité` 和 `simpl`。五个接口均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn company_phrase_sample() -> DatabaseResult<(String, String)> {
+    let french = fake(Some("fr-CA"))?;
+    let taiwanese = fake(Some("zh-TW"))?;
+    Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

@@ -27,6 +27,11 @@
 use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker, faker, locales};
 use ::fake::Fake as _;
 
+#[path = "faker_company_phrases.rs"]
+mod phrases;
+
+use phrases::Part;
+
 #[path = "faker_company_nordic.rs"]
 pub(super) mod nordic;
 
@@ -3862,6 +3867,39 @@ fn polish_surname() -> &'static str {
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
+    /// Samples a company slogan from the selected Company provider.
+    pub fn catchPhrase(&self) -> DatabaseResult<String> {
+        phrases::catch_phrase(self.locale()).ok_or(DatabaseError::InvalidQuery(
+            "unsupported Faker catch phrase locale",
+        ))
+    }
+
+    /// Samples a business phrase from the selected Company provider.
+    pub fn bs(&self) -> DatabaseResult<String> {
+        phrases::business_phrase(self.locale()).ok_or(DatabaseError::InvalidQuery(
+            "unsupported Faker business phrase locale",
+        ))
+    }
+
+    pub fn catchPhraseNoun(&self) -> DatabaseResult<&'static str> {
+        self.catch_phrase_part(Part::Noun)
+    }
+
+    pub fn catchPhraseVerb(&self) -> DatabaseResult<&'static str> {
+        self.catch_phrase_part(Part::Verb)
+    }
+
+    pub fn catchPhraseAttribute(&self) -> DatabaseResult<&'static str> {
+        self.catch_phrase_part(Part::Attribute)
+    }
+
+    fn catch_phrase_part(&self, part: Part) -> DatabaseResult<&'static str> {
+        part.sample(self.locale())
+            .ok_or(DatabaseError::InvalidQuery(
+                "unsupported Faker catch phrase component locale",
+            ))
+    }
+
     /// Samples a company name using the selected locale.
     pub fn company(&self) -> String {
         let surname = || self.lastName();
@@ -4206,6 +4244,26 @@ impl Faker {
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
+    pub fn catchPhrase(&self) -> DatabaseResult<String> {
+        self.try_generate("catchPhrase", || self.0.catchPhrase())
+    }
+
+    pub fn bs(&self) -> DatabaseResult<String> {
+        self.try_generate("bs", || self.0.bs())
+    }
+
+    pub fn catchPhraseNoun(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseNoun", || self.0.catchPhraseNoun())
+    }
+
+    pub fn catchPhraseVerb(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseVerb", || self.0.catchPhraseVerb())
+    }
+
+    pub fn catchPhraseAttribute(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("catchPhraseAttribute", || self.0.catchPhraseAttribute())
+    }
+
     pub fn company(&self) -> DatabaseResult<String> {
         self.generate("company", || self.0.company())
     }
