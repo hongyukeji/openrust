@@ -42,6 +42,8 @@ Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC i
 
 Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled UTC date. The day and month numbers are zero-padded strings. Weekday and month names are English, matching FakerPHP’s date format. `dateTimeAD(max)` samples from FakerPHP’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
+Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -60,6 +62,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("weekday".into(), faker.dayOfWeek(Some(DateTime::UNIX_EPOCH)).into()),
+            ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))
     })
 }

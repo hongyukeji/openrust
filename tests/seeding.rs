@@ -952,6 +952,23 @@ impl Seeder for PolymorphicFactories {
             assert!((-1..=0).contains(&faker.unixTime(Some(start))));
             assert!((0..=chrono::Utc::now().timestamp()).contains(&faker.unixTime(None)));
             assert_eq!(faker.dateTime(Some(epoch)), epoch);
+            let mut china = [
+                faker.unique(false).timezone(Some("CN"))?,
+                faker.unique(false).timezone(Some("CN"))?,
+            ];
+            china.sort_unstable();
+            assert_eq!(china, [Some("Asia/Shanghai"), Some("Asia/Urumqi")]);
+            assert_eq!(faker.timezone(Some("TW")), Some("Asia/Taipei"));
+            assert_eq!(faker.timezone(Some("ZZ")), None);
+            assert_eq!(faker.timezone(Some("us")), None);
+            assert!(faker.timezone(None).is_some());
+            assert!(faker.timezone(Some("")).is_some());
+            assert_eq!(faker.unique(false).timezone(Some("ZZ"))?, None);
+            assert!(matches!(
+                faker.unique(false).timezone(Some("CN")),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+
             assert_eq!(faker.date(None, Some(epoch))?, "1970-01-01");
             assert_eq!(faker.time(None, Some(epoch))?, "00:00:00");
             assert_eq!(faker.date(Some("%d/%m/%Y"), Some(epoch))?, "01/01/1970");

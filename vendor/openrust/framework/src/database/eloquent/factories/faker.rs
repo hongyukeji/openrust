@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::Range,
-    sync::Mutex,
+    sync::{Mutex, OnceLock},
 };
 
 use crate::{
@@ -310,6 +310,37 @@ impl Faker {
         CENTURIES[(0..CENTURIES.len()).fake::<usize>()]
     }
 
+    /// Picks an IANA time zone, optionally restricted to an ISO country code.
+    pub fn timezone(&self, countryCode: Option<&str>) -> Option<&'static str> {
+        type ZoneLists = (Vec<&'static str>, HashMap<&'static str, Vec<&'static str>>);
+        static ZONES: OnceLock<ZoneLists> = OnceLock::new();
+        let (all, by_country) = ZONES.get_or_init(|| {
+            let mut all = vec!["UTC"];
+            let mut by_country: HashMap<&str, Vec<&str>> = HashMap::new();
+            // Public-domain IANA tzdb 2025b zone.tab, matching chrono-tz 0.10.4.
+            for line in include_str!("zone.tab")
+                .lines()
+                .filter(|line| !line.starts_with('#'))
+            {
+                let mut columns = line.split_ascii_whitespace();
+                if let (Some(country), Some(zone)) = (columns.next(), columns.nth(1)) {
+                    all.push(zone);
+                    by_country.entry(country).or_default().push(zone);
+                }
+            }
+            all.sort_unstable();
+            all.dedup();
+            (all, by_country)
+        });
+        let candidates = match countryCode {
+            None | Some("" | "0") => all,
+            Some(code) => by_country.get(code)?,
+        };
+        candidates
+            .get(fastrand::usize(0..candidates.len()))
+            .copied()
+    }
+
     fn format_date(&self, format: &str, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         use std::fmt::Write as _;
         let mut output = String::new();
@@ -513,6 +544,14 @@ impl UniqueFaker<'_> {
 
     pub fn century(&self) -> DatabaseResult<&'static str> {
         self.generate("century", || self.0.century())
+    }
+
+    pub fn timezone(&self, countryCode: Option<&str>) -> DatabaseResult<Option<&'static str>> {
+        // The empty key represents PHP's null result for an unknown country.
+        let zone = self.generate("timezone", || {
+            self.0.timezone(countryCode).unwrap_or_default()
+        })?;
+        Ok((!zone.is_empty()).then_some(zone))
     }
 
     fn generate<T: ToString>(

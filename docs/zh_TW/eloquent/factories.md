@@ -42,6 +42,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 格式化隨機 UTC 日期的各個部分。日和月的數字以補零字串回傳，星期和月份名稱沿用 FakerPHP 的英文日期格式。`dateTimeAD(max)` 從 FakerPHP 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
 
+用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `chrono-tz` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -60,6 +62,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("weekday".into(), faker.dayOfWeek(Some(DateTime::UNIX_EPOCH)).into()),
+            ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))
     })
 }
