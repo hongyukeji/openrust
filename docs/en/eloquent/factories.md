@@ -282,12 +282,17 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed FakerPHP ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
 
+The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same FakerPHP format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `chrono::NaiveDate`, or `None` to sample a date. Both SSN methods share the `unique` history.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 3]> {
+fn identity_samples() -> DatabaseResult<[String; 5]> {
+    let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     Ok([
         fake(Some("en-US"))?.ssn()?,
+        fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
+        fake(Some("is-IS"))?.ssn()?,
         fake(Some("en-GB"))?.nino()?,
         fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
     ])

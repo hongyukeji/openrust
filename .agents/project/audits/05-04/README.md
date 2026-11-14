@@ -653,3 +653,9 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `d85de5cf`。PHP 8.5 对照 1,024 条固定上游样本。Rust 回归覆盖取值范围、受限前缀、性别位、校验位、语言别名、错误与去重。MySQL 8.4.13 用实际二进制执行 `artisan db:seed --database=mysql --force`，回查美国和英国各一条与台湾两个性别位样本。多态 Seeder、Rust 1.94.0 格式与全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
 
 隔离副本原始 Seeder 已恢复，清理 2.2 GiB Cargo 和 38 MiB 站点产物，磁盘剩余 82 GiB。下一批继续核对地区 Person 的共有方法与签名差异。
+
+## Faker 地区 SSN
+
+对照固定 FakerPHP v1.24.1 Person provider，补齐泰国、奥地利、冰岛的 `ssn`。泰国沿用与美国相同的两段区号抽样。奥地利和冰岛保留最近 100 年生日采样、模 11 校验以及校验值为 10 时重抽序号的规则。奥地利的 PHP 可选生日参数由 Rust 的 `ssnWithBirthdate(Option<NaiveDate>)` 表达，并与 `ssn` 共用去重历史。复用既有日期生成与时区处理。旧版没有找到对应实现，编译式工厂接线沿用现有路径。 [泰国 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/th_TH/Person.php) · [奥地利 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/de_AT/Person.php) · [冰岛 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/is_IS/Person.php)
+
+隔离基线 `60a1af47`。PHP 8.5 校验 1,024 条样本，Rust 两项地区回归覆盖闰日、日期、校验位、范围与唯一值。MySQL 8.4.13 多态 Seeder 和实际 `main artisan db:seed --database=mysql --force` 通过，后者写入并回查四条 SSN。Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项双挂载浏览器检查通过。已恢复隔离副本的原始 Seeder，清理 2.2 GiB 编译产物和 39 MiB 站点产物，磁盘剩余 82 GiB。其余地区 `personalIdentityNumber` 继续跟踪。

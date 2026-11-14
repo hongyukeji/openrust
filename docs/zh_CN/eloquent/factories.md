@@ -282,12 +282,17 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 生成测试数据。美国和英国编号沿用固定 FakerPHP 的范围与前缀规则。台湾编号计算校验位，性别可传 `Some("male")`、`Some("female")` 或 `None` 随机生成。三个方法均支持 `unique`，不支持的语言会返回错误。
 
+`ssn()` 也支持 `th-TH`、`de-AT` 与 `is-IS`。泰语使用和美国英语相同的 FakerPHP 格式。奥地利和冰岛格式从最近 100 年内采样日期并计算校验位。使用 `de-AT` 时，可调用 `ssnWithBirthdate(Some(date))` 传入 `chrono::NaiveDate`，或用 `None` 采样日期。两个 SSN 方法共用 `unique` 历史。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 3]> {
+fn identity_samples() -> DatabaseResult<[String; 5]> {
+    let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     Ok([
         fake(Some("en-US"))?.ssn()?,
+        fake(Some("de-AT"))?.ssnWithBirthdate(Some(birthdate))?,
+        fake(Some("is-IS"))?.ssn()?,
         fake(Some("en-GB"))?.nino()?,
         fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
     ])

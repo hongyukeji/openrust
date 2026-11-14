@@ -62,3 +62,59 @@ fn regional_identity_samples_match_the_fakerphp_rules() {
     assert!(zh.nino().is_err());
     assert!(zh.personalIdentityNumber(None).is_err());
 }
+
+#[test]
+fn regional_ssn_samples_cover_thai_austrian_and_icelandic_providers() {
+    use chrono::{Datelike as _, NaiveDate, Utc};
+    use std::collections::HashSet;
+
+    let th = fake(Some("th-TH")).unwrap();
+    let at = fake(Some("de-AT")).unwrap();
+    let is = fake(Some("is-IS")).unwrap();
+    let fixed = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
+    let ssn = Regex::new(r"^([0-9]{3})-([0-9]{2})-([0-9]{4})$").unwrap();
+    let icelandic = Regex::new(r"^[0-9]{6}-[0-9]{4}$").unwrap();
+    let sum = |digits: &str, weights: &[u16]| {
+        digits
+            .bytes()
+            .zip(weights)
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum::<u16>()
+    };
+    let unique = at.unique(true);
+    let mut seen = HashSet::new();
+    for _ in 0..128 {
+        let sample = th.ssn().unwrap();
+        let parts = ssn.captures(&sample).unwrap();
+        let area: u16 = parts[1].parse().unwrap();
+        assert!((1..=899).contains(&area) && area != 666);
+        assert_ne!(&parts[2], "00");
+        assert_ne!(&parts[3], "0000");
+
+        let sample = unique.ssnWithBirthdate(Some(fixed)).unwrap();
+        assert_eq!(sample.len(), 10);
+        assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
+        assert!(seen.insert(sample.clone()));
+        assert_eq!(&sample[4..], "290200");
+        let total = sum(&sample[..3], &[3, 7, 9]) + sum(&sample[4..], &[5, 8, 4, 2, 1, 6]);
+        assert_eq!(total % 11, sample[3..4].parse::<u16>().unwrap());
+
+        let sample = is.ssn().unwrap();
+        assert!(icelandic.is_match(&sample));
+        let weights = sum(&sample[..6], &[3, 2, 7, 6, 5, 4]) + sum(&sample[7..9], &[3, 2]);
+        assert_eq!(
+            (11 - weights % 11) % 11,
+            sample[9..10].parse::<u16>().unwrap()
+        );
+        let current_year = Utc::now().year();
+        let year_suffix = sample[4..6].parse::<i32>().unwrap();
+        let century_digit = sample[10..].parse::<i32>().unwrap();
+        let year = (current_year - 101..=current_year)
+            .find(|&year| (year / 100) % 10 == century_digit && year % 100 == year_suffix)
+            .unwrap();
+        assert!(NaiveDate::parse_from_str(&format!("{}{year}", &sample[..4]), "%d%m%Y").is_ok());
+    }
+    let generated = at.ssn().unwrap();
+    assert_eq!(generated.len(), 10);
+    assert!(th.ssnWithBirthdate(Some(fixed)).is_err());
+}

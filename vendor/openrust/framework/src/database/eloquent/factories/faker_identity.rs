@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+
 use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker};
 
 const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
@@ -27,19 +29,38 @@ const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
-    /// Samples the US Person provider's Social Security number format.
+    /// Samples the selected Person provider's SSN format.
     pub fn ssn(&self) -> DatabaseResult<String> {
-        if self.locale() != "en_US" {
-            return Err(DatabaseError::InvalidQuery("unsupported Faker SSN locale"));
+        match self.locale() {
+            "en_US" | "th_TH" => Ok(us_ssn()),
+            "de_AT" => self.ssnWithBirthdate(None),
+            "is_IS" => Ok(icelandic_ssn(self.ssn_birthdate()?)),
+            _ => Err(DatabaseError::InvalidQuery("unsupported Faker SSN locale")),
         }
-        let area = if fastrand::bool() {
-            fastrand::u16(1..=665)
-        } else {
-            fastrand::u16(667..=899)
+    }
+
+    /// Samples the Austrian SSN using the supplied civil birth date, if any.
+    pub fn ssnWithBirthdate(&self, birthdate: Option<NaiveDate>) -> DatabaseResult<String> {
+        if self.locale() != "de_AT" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker SSN birthdate locale",
+            ));
+        }
+        let birthdate = match birthdate {
+            Some(date) => date,
+            None => self.ssn_birthdate()?,
         };
-        let group = fastrand::u8(1..=99);
-        let serial = fastrand::u16(1..=9999);
-        Ok(format!("{area:03}-{group:02}-{serial:04}"))
+        Ok(austrian_ssn(birthdate))
+    }
+
+    fn ssn_birthdate(&self) -> DatabaseResult<NaiveDate> {
+        let timezone = self
+            .getDefaultTimezone()
+            .unwrap_or(self.application_timezone);
+        Ok(self
+            .dateTimeThisCentury(None)?
+            .with_timezone(&timezone)
+            .date_naive())
     }
 
     /// Samples the British Person provider's National Insurance number format.
@@ -96,6 +117,10 @@ impl UniqueFaker<'_> {
         self.try_generate("ssn", || self.0.ssn())
     }
 
+    pub fn ssnWithBirthdate(&self, birthdate: Option<NaiveDate>) -> DatabaseResult<String> {
+        self.try_generate("ssn", || self.0.ssnWithBirthdate(birthdate))
+    }
+
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
     }
@@ -105,4 +130,50 @@ impl UniqueFaker<'_> {
             self.0.personalIdentityNumber(gender)
         })
     }
+}
+
+fn us_ssn() -> String {
+    let area = if fastrand::bool() {
+        fastrand::u16(1..=665)
+    } else {
+        fastrand::u16(667..=899)
+    };
+    let group = fastrand::u8(1..=99);
+    let serial = fastrand::u16(1..=9999);
+    format!("{area:03}-{group:02}-{serial:04}")
+}
+
+fn austrian_ssn(birthdate: NaiveDate) -> String {
+    let date = birthdate.format("%d%m%y").to_string();
+    let date_sum = weighted_digits(&date, &[5, 8, 4, 2, 1, 6]);
+    loop {
+        let serial = fastrand::u16(100..=999).to_string();
+        let check = (date_sum + weighted_digits(&serial, &[3, 7, 9])) % 11;
+        if check < 10 {
+            return format!("{serial}{check}{date}");
+        }
+    }
+}
+
+fn icelandic_ssn(birthdate: NaiveDate) -> String {
+    let formatted_year = birthdate.format("%Y").to_string();
+    let century_digit = formatted_year.as_bytes()[1] as char;
+    let date = birthdate.format("%d%m%y").to_string();
+    let date_sum = weighted_digits(&date, &[3, 2, 7, 6, 5, 4]);
+    loop {
+        let serial = fastrand::u8(0..=99);
+        let sum = date_sum + 3 * u16::from(serial / 10) + 2 * u16::from(serial % 10);
+        let check = (11 - sum % 11) % 11;
+        if check < 10 {
+            return format!("{date}-{serial:02}{check}{century_digit}");
+        }
+    }
+}
+
+fn weighted_digits(value: &str, weights: &[u16]) -> u16 {
+    value
+        .bytes()
+        .zip(weights)
+        .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+        .sum()
 }
