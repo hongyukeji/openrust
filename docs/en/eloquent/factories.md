@@ -117,6 +117,31 @@ Use `createOne(attributes)` to create one model even on a counted factory. Use `
 
 Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. Use the same `FactoryRecords` variants with `makeMany`. It retains the configured count for later calls, and a zero count yields an empty collection. Neither method saves the returned models. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.
 
+Use the callback returned by `lazy` as shown below. Creating the callback leaves the target table untouched. Each awaited invocation writes a new batch.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{
+        Attributes, Model,
+        factories::{Factory, FactoryRecords},
+    },
+};
+
+async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(|| {
+        Attributes::from([("name".into(), "Flight".into())])
+    })
+    .count(2);
+
+    let _one = batch.makeOne(Attributes::new()).await?;
+    let _previews = batch.makeMany(FactoryRecords::Default).await?;
+    let seed = batch.lazy(Attributes::new());
+    let _created = seed().await?;
+    Ok(())
+}
+```
+
 Use `forEachSequence(states)` to apply one attribute map per model and set the batch count to the number of maps. `crossJoinSequence(sequences)` combines the maps from each input sequence in order, with the last sequence changing fastest. Later maps override earlier maps on matching keys. Set the count separately to select how many combinations to use. The sequence repeats if the count exceeds the number of combinations. An empty input sequence returns an error.
 
 Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. It writes storage attributes, including hidden columns, without adding appended values or applying output accessors.

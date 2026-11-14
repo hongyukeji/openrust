@@ -117,6 +117,31 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `makeOne(attributes)` 构造一个未保存的模型，或用 `makeMany(records)` 按顺序构造多个未保存的模型。两者都接受显式属性并执行 `afterMaking`。`makeMany` 使用同样的 `FactoryRecords` 选项，调用后保留已配置数量，数量为零时返回空集合。两种方法均不保存返回的模型，解析已声明的上级关系时仍可能写入上级模型。对应的 `On` 方法可指定连接。`lazy(attributes)` 返回异步回调，调用并等待后才解析连接并创建单个模型或指定数量的批次。重复调用会重新创建。
 
+下面演示如何调用 `lazy` 返回的回调。创建回调时目标表没有写入，每次调用并等待都会写入一批新模型。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{
+        Attributes, Model,
+        factories::{Factory, FactoryRecords},
+    },
+};
+
+async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(|| {
+        Attributes::from([("name".into(), "Flight".into())])
+    })
+    .count(2);
+
+    let _one = batch.makeOne(Attributes::new()).await?;
+    let _previews = batch.makeMany(FactoryRecords::Default).await?;
+    let seed = batch.lazy(Attributes::new());
+    let _created = seed().await?;
+    Ok(())
+}
+```
+
 用 `forEachSequence(states)` 为每个模型应用一组属性，并按属性组数确定批次数量。`crossJoinSequence(sequences)` 按声明顺序组合各序列，最后一个序列变化最快，同名属性以后面的序列为准。单独设置批次数量，超过组合数时从头循环。传入空序列会返回错误。
 
 在单模型或批量工厂上使用 `insert(attributes)` 批量写入生成的行，或用 `insertOn(connection, attributes)` 指定连接。工厂会执行 `afterMaking` 并解析所需的上级键。批量写入跳过目标模型的持久化事件、子关系创建及 `afterCreating`。写入使用存储属性，包含隐藏列，跳过追加字段和输出访问器。
