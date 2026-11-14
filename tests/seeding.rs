@@ -2470,3 +2470,48 @@ fn faker_gendered_names_follow_catalogs_and_share_unique_history() -> DatabaseRe
     assert!(faker.unique(true).firstNameWithGender(None).is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_coordinates_preserve_bounds_precision_and_unique_history() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let global = Faker::new("en_US")?;
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    let hungary = Faker::new("hu-HU")?;
+    let montenegro = Faker::new("me-ME")?;
+    for _ in 0..64 {
+        for (faker, latitude, longitude) in [
+            (&global, -90.0..=90.0, -180.0..=180.0),
+            (&taiwan, -90.0..=90.0, -180.0..=180.0),
+            (&hungary, 46.262740..=47.564721, 17.077949..=20.604560),
+            (&montenegro, 42.43..=42.45, 19.16..=19.27),
+        ] {
+            let sample = faker.localCoordinates()?;
+            assert!(latitude.contains(&sample.latitude));
+            assert!(longitude.contains(&sample.longitude));
+            for coordinate in [sample.latitude, sample.longitude] {
+                assert_eq!(
+                    coordinate,
+                    format!("{coordinate:.6}").parse::<f64>().unwrap()
+                );
+            }
+        }
+        assert!((22.0..=25.0).contains(&taiwan.localLatitude()?));
+        assert!((120.0..=122.0).contains(&taiwan.localLongitude()?));
+        assert!((10.0..=12.0).contains(&global.latitude(Some(12.0), Some(10.0))?));
+    }
+    assert_eq!(
+        global.longitude(Some(0.1234567), Some(0.1234567))?,
+        0.123457
+    );
+    assert!(global.latitude(Some(f64::NAN), None).is_err());
+    assert!(global.longitude(None, Some(f64::INFINITY)).is_err());
+    let unique = global.unique(false);
+    assert_eq!(unique.latitude(Some(-0.0), Some(-0.0))?, 0.0);
+    assert!(unique.latitude(Some(0.0), Some(0.0)).is_err());
+    assert_eq!(unique.longitude(Some(0.0), Some(0.0))?, 0.0);
+    assert!(unique.localCoordinates().is_ok());
+    assert!(taiwan.unique(false).localLatitude().is_ok());
+    assert!(taiwan.unique(false).localLongitude().is_ok());
+    Ok(())
+}

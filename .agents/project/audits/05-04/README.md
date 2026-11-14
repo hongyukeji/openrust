@@ -294,3 +294,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 FakerPHP 1.24.1 Person。接通 firstNameMale、firstNameFemale、firstNameWithGender 和 nameWithGender，使用 13 个地区的固定名字词库和加权全名模板。未识别分组按上游随机取样。繁体中文名字按上游有放回取一个或两个字符。Rust 保留已有无参方法并共享对应 unique 历史，姓氏继续使用 fake-rs 数据，未覆盖地区使用英语名字词库和模板。荷兰语及土耳其语全名复用对应称谓组。目录保留上游 MIT 声明。v0.x 未发现等价 Faker 入口，Goravel 装配未涉及。 [FakerPHP Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Person.php#L48)
 
 隔离基线 `fcb6d868`。PHP 8.5.12 执行固定生成器，并逐项比对 13 个地区的 9,185 条名字数据及全名模板、前后缀。Rust 回归覆盖 13 个地区、英文回退、简繁中文字符、显式分组和 unique。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查简体、繁体和英文全名。Rust 1.94.0 格式、工作区全目标严格 Clippy、18 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。Address 的坐标及其余地区规则继续跟踪。
+
+## Faker 经纬度和地区坐标
+
+对照固定 FakerPHP 1.24.1 Address 及 hu_HU、me_ME、zh_TW 覆盖。latitude、longitude 复用六位精度的 randomFloat，保留反向边界，非有限输入返回错误。Rust 用 Option 表达省略边界，用可序列化 Coordinates 表达带字段的坐标。成对坐标沿用匈牙利和黑山的上游地区范围，台湾地区范围由独立方法提供，成对入口保持上游默认范围。五个入口各自维护 unique，坐标值的正负零视作相同结果。v0.x 未发现等价 Faker 生成器，Goravel 装配未涉及。 [固定 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Address.php#L134)
+
+隔离基线 `dc92addb`。PHP 8.5.12 固定 FakerPHP 及 Rust 对四种 locale 验证坐标边界和六位小数，Rust 补验无效输入及去重耗尽。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 把匈牙利和台湾坐标写入数值列并原样回查。Rust 1.94.0 格式、工作区全目标严格 Clippy、19 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。已清理本批 2.2 GiB Cargo 与约 37 MiB 站点产物。

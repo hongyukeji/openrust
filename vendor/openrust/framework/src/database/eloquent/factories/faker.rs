@@ -26,6 +26,13 @@ use chrono::{
 use chrono_tz::{GapInfo, Tz, UTC};
 use md5::{Digest as _, Md5};
 
+/// A sampled latitude and longitude in signed decimal degrees.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+pub struct Coordinates {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
@@ -347,6 +354,51 @@ impl Faker {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn latitude(&self, min: Option<f64>, max: Option<f64>) -> DatabaseResult<f64> {
+        self.randomFloat(Some(6), min.unwrap_or(-90.0), Some(max.unwrap_or(90.0)))
+    }
+
+    pub fn longitude(&self, min: Option<f64>, max: Option<f64>) -> DatabaseResult<f64> {
+        self.randomFloat(Some(6), min.unwrap_or(-180.0), Some(max.unwrap_or(180.0)))
+    }
+
+    pub fn localLatitude(&self) -> DatabaseResult<f64> {
+        match self.locale() {
+            "zh_TW" => self.latitude(Some(22.0), Some(25.0)),
+            _ => self.local_coordinate_latitude(),
+        }
+    }
+
+    pub fn localLongitude(&self) -> DatabaseResult<f64> {
+        match self.locale() {
+            "zh_TW" => self.longitude(Some(120.0), Some(122.0)),
+            _ => self.local_coordinate_longitude(),
+        }
+    }
+
+    fn local_coordinate_latitude(&self) -> DatabaseResult<f64> {
+        match self.locale() {
+            "hu_HU" => self.latitude(Some(46.262740), Some(47.564721)),
+            "me_ME" => self.latitude(Some(42.43), Some(42.45)),
+            _ => self.latitude(None, None),
+        }
+    }
+
+    fn local_coordinate_longitude(&self) -> DatabaseResult<f64> {
+        match self.locale() {
+            "hu_HU" => self.longitude(Some(17.077949), Some(20.604560)),
+            "me_ME" => self.longitude(Some(19.16), Some(19.27)),
+            _ => self.longitude(None, None),
+        }
+    }
+
+    pub fn localCoordinates(&self) -> DatabaseResult<Coordinates> {
+        Ok(Coordinates {
+            latitude: self.local_coordinate_latitude()?,
+            longitude: self.local_coordinate_longitude()?,
+        })
     }
 
     pub fn postcode(&self) -> String {
@@ -1551,6 +1603,44 @@ impl UniqueFaker<'_> {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> DatabaseResult<bool> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
+    }
+
+    pub fn latitude(&self, min: Option<f64>, max: Option<f64>) -> DatabaseResult<f64> {
+        self.try_generate("latitude", || {
+            self.0.latitude(min, max).map(|value| value + 0.0)
+        })
+    }
+
+    pub fn longitude(&self, min: Option<f64>, max: Option<f64>) -> DatabaseResult<f64> {
+        self.try_generate("longitude", || {
+            self.0.longitude(min, max).map(|value| value + 0.0)
+        })
+    }
+
+    pub fn localLatitude(&self) -> DatabaseResult<f64> {
+        self.try_generate("localLatitude", || {
+            self.0.localLatitude().map(|value| value + 0.0)
+        })
+    }
+
+    pub fn localLongitude(&self) -> DatabaseResult<f64> {
+        self.try_generate("localLongitude", || {
+            self.0.localLongitude().map(|value| value + 0.0)
+        })
+    }
+
+    pub fn localCoordinates(&self) -> DatabaseResult<Coordinates> {
+        self.generate_keyed(
+            "localCoordinates",
+            || self.0.localCoordinates(),
+            |value| {
+                Ok(format!(
+                    "{},{}",
+                    value.latitude + 0.0,
+                    value.longitude + 0.0
+                ))
+            },
+        )
     }
 
     pub fn postcode(&self) -> DatabaseResult<String> {

@@ -40,7 +40,7 @@ mod faker_phone;
 mod regex_pattern;
 mod relationships;
 
-pub use faker::{Faker, UniqueFaker, fake};
+pub use faker::{Coordinates, Faker, UniqueFaker, fake};
 
 pub use relationships::{FactoryChild, FactoryParent};
 

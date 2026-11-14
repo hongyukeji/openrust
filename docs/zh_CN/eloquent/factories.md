@@ -99,6 +99,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("phone".into(), faker.e164PhoneNumber().into()),
             ("address".into(), faker.address().into()),
             ("display_name".into(), faker.nameWithGender(Some("female")).into()),
+            ("latitude".into(), openrust::database::Value::Real(faker.latitude(None, None)?)),
         ]))
     })
 }
@@ -151,6 +152,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的 FakerPHP 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。现有无参 `name()` 和 `firstName()` 沿用原有数据来源，并与带分组的方法共享各自的 `unique` 历史。
+
+### 坐标 {#coordinate-samples}
+
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
 
 ## 使用工厂创建模型
 

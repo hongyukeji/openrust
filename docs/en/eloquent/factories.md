@@ -99,6 +99,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("phone".into(), faker.e164PhoneNumber().into()),
             ("address".into(), faker.address().into()),
             ("display_name".into(), faker.nameWithGender(Some("female")).into()),
+            ("latitude".into(), openrust::database::Value::Real(faker.latitude(None, None)?)),
         ]))
     })
 }
@@ -151,6 +152,10 @@ Use `streetAddress()` for a street line and `address()` for a complete address s
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding FakerPHP catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates. The existing no-argument `name()` and `firstName()` keep their data sources. Their gender-selecting variants share the corresponding `unique` history.
+
+### Coordinates {#coordinate-samples}
+
+Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.
 
 ## Creating Models Using Factories
 
