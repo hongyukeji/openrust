@@ -505,6 +505,22 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### Deferred Factory Attributes {#deferred-factory-attributes}
+
+Use `attribute` to compute one value after factory states and explicit overrides have been applied. Register dependent attributes in evaluation order. Use `parentAttributeWith` to build a related factory from the current values. An explicit value for the same key takes precedence, including a null foreign key. Parent exclusion also applies to `parentAttributeWith`.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn deferred_factory<M: Model>() -> Factory<M> {
+    Factory::new(Attributes::new)
+        .set("name", "Flight 1")
+        .attribute("display_name", |attributes| {
+            Ok(attributes["name"].clone())
+        })
+}
+```
+
 ## Factory Relationships
 
 ### Parent Context for States and Callbacks {#factory-parent-context}

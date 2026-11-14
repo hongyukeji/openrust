@@ -509,3 +509,15 @@ PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN�
 Payment provider 的公开生成器已验收。下一批回到 05-04 交付清单，核对模型工厂、Seeder 和文档覆盖，继续记录其他 Faker provider 的差异。
 
 验收期间主分支合入 `f6cfc23e`，其差异仅为 Sanctum 验收文档。本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB 已清理，项目卷剩余 83 GiB。
+
+## 05-04 复核与延迟属性展开
+
+对照固定 Laravel 文档和工厂测试。工厂生成、模型绑定、状态与回调、构造和持久化、序列、普通和多态关系及复用池都有实现和验收。Seeder 的选定连接、子调用、静默模型事件及失败退出有实际 Artisan 记录。固定测试另外覆盖了属性闭包读取已展开值，以及闭包返回关联工厂，这两条此前只有状态闭包及静态 `parentAttribute`。
+
+新增 `attribute` 和 `parentAttributeWith`。状态与显式覆盖先合并，登记的延迟定义再按顺序求值。由前一个定义产生的值可供后续定义使用。关联工厂沿用连接选择、回收模型、主键和排除规则。Rust 将延迟回调登记在工厂构建器上，数据库 `Attributes` 仍只承载值。v0.x 未找到等价接口，固定 Goravel 的工厂装配方式保持适用。 [Laravel Factory::expandAttributes](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L591) · [Laravel 回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L167)
+
+隔离基线 `38fe8c46`。MySQL 8.4.13 定向回归与实际 `artisan db:seed --database=mysql --force` 核对显式覆盖阻止关联写入、按依赖计算、父模型持久化、批量覆盖、排除和错误边界。Rust 1.94.0 格式及全目标严格 Clippy、实际多态 Seeder 和插入投影回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。
+
+下一批继续核对固定测试中模型值直接展开、关系触碰与关系缓存行为。PHP 的运行时宏与其余 Faker provider 差异继续跟踪。
+
+隔离 Cargo 目标目录与约 38 MiB 站点产物已清理，项目卷剩余 83 GiB。

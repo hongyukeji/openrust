@@ -505,6 +505,22 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### 延迟计算的工厂属性 {#deferred-factory-attributes}
+
+用 `attribute` 在应用工厂状态和显式覆盖后计算单个属性。按依赖顺序登记属性。用 `parentAttributeWith` 根据当前属性构建关联工厂。同名显式值优先，包括设为 null 的外键。上级关系排除规则也适用于 `parentAttributeWith`。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn deferred_factory<M: Model>() -> Factory<M> {
+    Factory::new(Attributes::new)
+        .set("name", "Flight 1")
+        .attribute("display_name", |attributes| {
+            Ok(attributes["name"].clone())
+        })
+}
+```
+
 ## 工厂关系
 
 ### 状态与回调的父模型 {#factory-parent-context}

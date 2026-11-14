@@ -4932,3 +4932,120 @@ fn faker_vat_samples_match_regional_provider_contracts() -> DatabaseResult<()> {
     assert!(french.vatWithType(Some("gov")).is_err());
     Ok(())
 }
+async fn verify_deferred_factory_attributes(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("seed_factory_owners", |table| {
+            table.id();
+            table.string("generated_name", 120);
+        })
+        .await?;
+    schema
+        .create("seed_factory_children", |table| {
+            table.id();
+            table.string("generated_name", 120);
+            table.string("derived_name", 120);
+            table.unsignedBigInteger("owner_id").nullable();
+        })
+        .await?;
+
+    let factory = Factory::<FactoryChild>::new(Attributes::new)
+        .set("generated_name", "default")
+        .attribute("derived_name", |values| {
+            let Some(Value::Text(name)) = values.get("generated_name") else {
+                return Err(DatabaseError::InvalidQuery("missing factory name"));
+            };
+            Ok(format!("{name}-derived").into())
+        })
+        .parentAttributeWith("owner_id", |values| {
+            let name = values["derived_name"].clone();
+            Factory::<FactoryOwner>::new(move || {
+                Attributes::from([("generated_name".into(), name.clone())])
+            })
+        });
+    let preview = factory
+        .rawWithOn(
+            connection,
+            Attributes::from([
+                ("generated_name".into(), "preview".into()),
+                ("owner_id".into(), Value::Null),
+            ]),
+        )
+        .await?;
+    assert_eq!(preview["derived_name"], "preview-derived".into());
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
+    let made = factory
+        .createOneOn(
+            connection,
+            Attributes::from([("generated_name".into(), "saved".into())]),
+        )
+        .await?;
+    assert_eq!(
+        made.getAttribute("derived_name"),
+        Some(&"saved-derived".into())
+    );
+    assert_eq!(
+        connection
+            .table("seed_factory_owners")
+            .pluck("generated_name")
+            .await?,
+        ["saved-derived".into()]
+    );
+
+    let batch = factory.count(2);
+    let made = batch
+        .createWithParentOn(
+            connection,
+            &FactoryOwner::from_state(Default::default()),
+            Attributes::from([
+                ("derived_name".into(), "override".into()),
+                ("owner_id".into(), Value::Null),
+            ]),
+        )
+        .await?;
+    assert!(
+        made.iter()
+            .all(|model| model.getAttribute("derived_name") == Some(&"override".into()))
+    );
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        3
+    );
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 1);
+
+    let disabled = Factory::<FactoryChild>::new(Attributes::new)
+        .attribute("computed", |_| Ok("kept".into()))
+        .parentAttributeWith::<FactoryOwner>("owner_id", |_| {
+            panic!("excluded owner factory was called")
+        })
+        .withoutParents(Vec::new());
+    let row = disabled.rawOn(connection).await?;
+    assert_eq!(row["computed"], "kept".into());
+    assert_eq!(row["owner_id"], Value::Null);
+
+    let failed = Factory::<FactoryChild>::new(Attributes::new)
+        .attribute("computed", |_| {
+            Err(DatabaseError::InvalidQuery("probe failed"))
+        })
+        .parentAttributeWith::<FactoryOwner>("owner_id", |_| panic!("later resolver was called"));
+    assert!(matches!(
+        failed.createOn(connection).await,
+        Err(DatabaseError::InvalidQuery("probe failed"))
+    ));
+    assert_eq!(
+        connection.table("seed_factory_children").count("*").await?,
+        3
+    );
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 1);
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_deferred_attributes_resolve_in_order_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = Root::new().connection(Some(&url), "");
+    verify_deferred_factory_attributes(&db).await.unwrap();
+}

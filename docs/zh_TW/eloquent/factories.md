@@ -505,6 +505,22 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 }
 ```
 
+### 延後計算的工廠屬性 {#deferred-factory-attributes}
+
+用 `attribute` 在套用工廠狀態與明確覆寫後計算單一屬性。依相依順序登記屬性。用 `parentAttributeWith` 根據目前屬性建構關聯工廠。同名的明確值優先，包括設為 null 的外鍵。上層關聯排除規則也適用於 `parentAttributeWith`。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, factories::Factory};
+
+fn deferred_factory<M: Model>() -> Factory<M> {
+    Factory::new(Attributes::new)
+        .set("name", "Flight 1")
+        .attribute("display_name", |attributes| {
+            Ok(attributes["name"].clone())
+        })
+}
+```
+
 ## 工廠關聯
 
 ### 狀態與回呼的父模型 {#factory-parent-context}

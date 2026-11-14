@@ -128,14 +128,18 @@ impl<R> ResolvedParents<R> {
     }
 }
 
-type ParentAttributeResolver = dyn for<'a> Fn(&'a Connection, &'a [RecycledModel]) -> DatabaseFuture<'a, DatabaseResult<Value>>
+type DeferredAttributeResolver = dyn for<'a> Fn(
+        &'a Attributes,
+        &'a Connection,
+        &'a [RecycledModel],
+    ) -> DatabaseFuture<'a, DatabaseResult<Value>>
     + Send
     + Sync;
 
-struct ParentAttribute {
+struct DeferredAttribute {
     name: String,
-    model: TypeId,
-    resolve: Box<ParentAttributeResolver>,
+    model: Option<TypeId>,
+    resolve: Box<DeferredAttributeResolver>,
 }
 
 /// Identifies a factory-valued parent attribute to exclude from expansion.
@@ -359,7 +363,7 @@ pub struct Factory<M: Model> {
     states: Vec<Box<State>>,
     recycled: Vec<RecycledModel>,
     parents: Vec<Box<Parent<M>>>,
-    parent_attributes: Vec<ParentAttribute>,
+    deferred_attributes: Vec<DeferredAttribute>,
     expand_relationships: bool,
     excluded_parents: Vec<FactoryParentSelector>,
     children: Vec<Box<Relationship<M>>>,
@@ -404,7 +408,7 @@ impl<M: Model> Factory<M> {
             states: Vec::new(),
             recycled: Vec::new(),
             parents: Vec::new(),
-            parent_attributes: Vec::new(),
+            deferred_attributes: Vec::new(),
             expand_relationships: EXPAND_RELATIONSHIPS_BY_DEFAULT.load(Ordering::Relaxed),
             excluded_parents: Vec::new(),
             children: Vec::new(),
@@ -806,18 +810,70 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Computes an attribute from the current values after states and overrides.
+    #[must_use]
+    pub fn attribute(
+        mut self,
+        name: impl Into<String>,
+        resolve: impl Fn(&Attributes) -> DatabaseResult<Value> + Send + Sync + 'static,
+    ) -> Self {
+        self.set_deferred_attribute(
+            name.into(),
+            None,
+            Box::new(move |values, _, _| Box::pin(std::future::ready(resolve(values)))),
+        );
+        self
+    }
+
     /// Declares a factory-valued foreign key in the model definition.
     #[must_use]
-    pub fn parentAttribute<R: Model>(mut self, name: impl Into<String>, owner: Factory<R>) -> Self {
-        let name = name.into();
-        self.parent_attributes
-            .retain(|attribute| attribute.name != name);
+    pub fn parentAttribute<R: Model>(self, name: impl Into<String>, owner: Factory<R>) -> Self {
         let owner = Arc::new(owner);
-        self.parent_attributes.push(ParentAttribute {
+        self.set_parent_attribute(name.into(), move |_| Arc::clone(&owner))
+    }
+
+    /// Computes a factory-valued foreign key from the current attribute values.
+    #[must_use]
+    pub fn parentAttributeWith<R: Model>(
+        self,
+        name: impl Into<String>,
+        owner: impl Fn(&Attributes) -> Factory<R> + Send + Sync + 'static,
+    ) -> Self {
+        self.set_parent_attribute(name.into(), move |values| Arc::new(owner(values)))
+    }
+
+    fn set_deferred_attribute(
+        &mut self,
+        name: String,
+        model: Option<TypeId>,
+        resolve: Box<DeferredAttributeResolver>,
+    ) {
+        let attribute = DeferredAttribute {
             name,
-            model: TypeId::of::<R>(),
-            resolve: Box::new(move |connection, inherited| {
-                let owner = Arc::clone(&owner);
+            model,
+            resolve,
+        };
+        if let Some(existing) = self
+            .deferred_attributes
+            .iter_mut()
+            .find(|existing| existing.name == attribute.name)
+        {
+            *existing = attribute;
+        } else {
+            self.deferred_attributes.push(attribute);
+        }
+    }
+
+    fn set_parent_attribute<R: Model>(
+        mut self,
+        name: String,
+        owner: impl Fn(&Attributes) -> Arc<Factory<R>> + Send + Sync + 'static,
+    ) -> Self {
+        self.set_deferred_attribute(
+            name,
+            Some(TypeId::of::<R>()),
+            Box::new(move |values, connection, inherited| {
+                let owner = owner(values);
                 Box::pin(async move {
                     let connection = owner.resolve_related_connection(connection)?;
                     let pool = owner.recycle_pool(inherited);
@@ -847,7 +903,7 @@ impl<M: Model> Factory<M> {
                         .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
                 })
             }),
-        });
+        );
         self
     }
 
@@ -1467,34 +1523,48 @@ impl<M: Model> Factory<M> {
             }
             (parent.resolve)(connection, &mut pending.model, pool).await?;
         }
-        self.expand_parent_attributes(connection, &mut pending.values, pool, &last_parent)
-            .await
+        self.expand_deferred_attributes(
+            connection,
+            &pending.model,
+            &mut pending.values,
+            pool,
+            &last_parent,
+        )
+        .await
     }
 
-    async fn expand_parent_attributes(
+    async fn expand_deferred_attributes(
         &self,
         connection: &Connection,
-        attributes: &mut Attributes,
+        model: &M,
+        values: &mut Attributes,
         pool: &[RecycledModel],
         explicit_parents: &BTreeMap<&String, usize>,
     ) -> DatabaseResult<()> {
-        for attribute in &self.parent_attributes {
-            if attributes.contains_key(&attribute.name)
+        if self.deferred_attributes.is_empty() {
+            return Ok(());
+        }
+        let mut resolved = model.state().attributes.clone();
+        resolved.extend(values.clone());
+        for attribute in &self.deferred_attributes {
+            if values.contains_key(&attribute.name)
                 || explicit_parents.contains_key(&attribute.name)
             {
                 continue;
             }
-            let excluded = !self.expand_relationships
-                || self.excluded_parents.iter().any(|selector| match selector {
-                    FactoryParentSelector::Attribute(name) => *name == attribute.name,
-                    FactoryParentSelector::Model(model) => *model == attribute.model,
-                });
+            let excluded = attribute.model.is_some()
+                && (!self.expand_relationships
+                    || self.excluded_parents.iter().any(|selector| match selector {
+                        FactoryParentSelector::Attribute(name) => *name == attribute.name,
+                        FactoryParentSelector::Model(model) => Some(*model) == attribute.model,
+                    }));
             let value = if excluded {
                 Value::Null
             } else {
-                (attribute.resolve)(connection, pool).await?
+                (attribute.resolve)(&resolved, connection, pool).await?
             };
-            attributes.insert(attribute.name.clone(), value);
+            resolved.insert(attribute.name.clone(), value.clone());
+            values.insert(attribute.name.clone(), value);
         }
         Ok(())
     }
