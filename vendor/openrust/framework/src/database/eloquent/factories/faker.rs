@@ -278,26 +278,24 @@ impl Faker {
     }
 
     fn resolve_date_max(&self, max: &str, now: DateTime<Utc>) -> DatabaseResult<DateTime<Utc>> {
+        DateTime::from_timestamp(self.resolve_timestamp_max(max, now)?, 0).ok_or(DATE_RANGE_ERROR)
+    }
+
+    fn resolve_timestamp_max(&self, max: &str, now: DateTime<Utc>) -> DatabaseResult<i64> {
         if max.is_empty() {
-            return Ok(now);
+            return Ok(now.timestamp());
         }
-        let numeric = max.trim_ascii();
-        if numeric.is_empty() {
-            return Err(DatabaseError::InvalidQuery("invalid Faker date expression"));
-        }
+        let numeric = max.trim_matches(calendar::php_whitespace);
         if calendar::is_numeric(numeric) {
-            let timestamp = numeric
-                .parse::<i64>()
-                .ok()
-                .or_else(|| {
-                    let number = numeric.parse::<f64>().ok()?;
-                    number.is_finite().then_some(number as i64)
-                })
-                .ok_or(DATE_RANGE_ERROR)?;
-            DateTime::from_timestamp(timestamp, 0).ok_or(DATE_RANGE_ERROR)
-        } else {
-            self.parse_date_expression(max, now)
+            if let Ok(integer) = numeric.parse::<i64>() {
+                return Ok(integer);
+            }
+            let number = numeric.parse::<f64>().map_err(|_| DATE_RANGE_ERROR)?;
+            // PHP's numeric-string cast saturates finite values and maps infinity to zero.
+            return Ok(if number.is_finite() { number as i64 } else { 0 });
         }
+        calendar::parse_timestamp_expression(max, now, self.application_timezone)
+            .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date expression"))
     }
 
     /// Samples between the supplied UTC instant and that instant plus a signed interval.
@@ -390,6 +388,12 @@ impl Faker {
     pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> i64 {
         let end = max.map_or_else(|| Utc::now().timestamp(), |date| date.timestamp());
         self.numberBetween(0, end)
+    }
+
+    /// Samples Unix seconds with a string endpoint, including dates outside Chrono's range.
+    pub fn unixTimeExpression(&self, max: &str) -> DatabaseResult<i64> {
+        let end = self.resolve_timestamp_max(max, Utc::now())?;
+        Ok(self.numberBetween(0, end))
     }
 
     /// Returns a sampled instant in UTC.
@@ -678,6 +682,11 @@ impl UniqueFaker<'_> {
 
     pub fn unixTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<i64> {
         self.generate("unixTime", || self.0.unixTime(max))
+    }
+
+    pub fn unixTimeExpression(&self, max: &str) -> DatabaseResult<i64> {
+        let end = self.0.resolve_timestamp_max(max, Utc::now())?;
+        self.generate("unixTime", || self.0.numberBetween(0, end))
     }
 
     pub fn dateTime(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {

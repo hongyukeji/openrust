@@ -1009,12 +1009,24 @@ impl Seeder for PolymorphicFactories {
             );
             let before = chrono::Utc::now();
             let resolved = faker.resolveDateMax("")?;
-            assert!((before..=chrono::Utc::now()).contains(&resolved));
+            assert!(
+                (before.timestamp()..=chrono::Utc::now().timestamp())
+                    .contains(&resolved.timestamp())
+            );
             assert!(matches!(
                 faker.resolveDateMax("bad date"),
                 Err(DatabaseError::InvalidQuery("invalid Faker date expression"))
             ));
             assert!(faker.resolveDateMax(" ").is_err());
+            assert_eq!(faker.resolveDateMax("\u{b}1e999\u{c}")?, epoch);
+            assert_eq!(faker.resolveDateMax("-1e999")?, epoch);
+            assert_eq!(faker.unique(false).unixTimeExpression("1e999")?, 0);
+            assert!(faker.unique(false).unixTime(Some(epoch)).is_err());
+            faker.unique(true);
+            assert!(faker.unixTimeExpression("+1000000-01-01")? >= 0);
+            assert!(faker.unixTimeExpression("@-9223372036854775808")? <= 0);
+            assert!(faker.unixTimeExpression("9223372036854775808")? >= 0);
+
             assert!(matches!(
                 faker.resolveDateMax("1e100"),
                 Err(DatabaseError::InvalidQuery(

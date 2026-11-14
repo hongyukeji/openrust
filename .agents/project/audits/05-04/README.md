@@ -200,3 +200,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 `getMaxTimestamp`，由 `resolveDateMax` 统一解析字符串上界，所有接受 UTC 日期上界的 formatter 可直接消费同一类型值。日期区间也共用该解析器和参考时刻。复用 v0.x 已迁入的数字词法和时区日期解析。数字字符串按 Unix 秒向零截断，空字符串取当前时间，日期表达式默认按应用时区解析。无效、纯空白和超出 Chrono 范围的值返回错误。独立解析保留 Rust 日期方法的返回类型与 unique 契约。Goravel 装配无需调整。完整 PHP 日期语法差分和 PHP 的无效值／溢出强制转换继续跟踪。 [FakerPHP 上界解析](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L14)
 
 隔离基线 `e9b4659f`。PHP 8.5.12 对照小数、指数、零、空值和应用／显式时区。MySQL 8.4.13 Seeder 集成验证解析、错误和共享上界；应用二进制实际执行 `artisan db:seed --database=mysql --force` 写入并回查台北格式化结果。Rust 1.94.0 格式、全目标严格 Clippy、SQLite／MySQL 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 扩展日期的 Unix 秒上界
+
+对照 FakerPHP 1.24.1 的 `unixTime` 和 PHP 数字字符串转整数。字符串上界在整数层解析，`unixTimeExpression` 支持扩展年份与完整 i64 取样区间，并与 `unixTime` 共用 unique。有限数字溢出按 PHP 规则饱和，指数溢出至无穷大取零，兼容 PHP 数字空白。复用 v0.x 已迁入的日期词法和扩展公历运算。日期对象方法仍要求 Chrono 可表示的时间，非法日期表达式仍返回错误。Goravel 装配无需调整。 [FakerPHP Unix 秒](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L14)
+
+隔离基线 `f71294a5`。从 v0.x 日期夹具筛选 265 个无自定义格式、字符串长度不超过 1024 的日期样本，在固定 UTC 参考时刻逐项对照 PHP 8.5.12 `strtotime`。原日期对象路径有五项因 Chrono 范围失败，独立 Unix 秒路径 265 项全部匹配。MySQL 8.4.13 实际应用二进制执行 `artisan db:seed --database=mysql --force` 写入并回查扩展年份取样。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。样本集之外的日期语法和 FakerPHP 无效输入的隐式零值继续跟踪。

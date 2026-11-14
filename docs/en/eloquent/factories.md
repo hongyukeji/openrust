@@ -52,6 +52,8 @@ Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative int
 
 Use `resolveDateMax(expression)` to pass a PHP-style upper bound to any date formatter that takes `max`. Resolve once to share the same bound across calls, then pass it as `Some(max)`. Decimal and exponent-form numeric strings are truncated toward zero as Unix seconds. An empty string uses the current time. Date text uses the application time zone unless it specifies a zone. Invalid or out-of-range values return an error.
 
+Use `unixTimeExpression(max)` to sample Unix seconds directly from a string bound, including timestamps and expanded years outside Chrono’s date range. It shares `unique` history with `unixTime`. Finite numeric strings beyond the signed 64-bit range saturate, and numeric strings that overflow to infinity resolve to zero, following PHP’s integer cast. Date-returning methods still require a bound representable by Chrono.
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -70,6 +72,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
         let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
         let published_at = faker.iso8601(Some(cutoff));
+        let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
@@ -78,6 +81,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("historical".into(), historical.to_rfc3339().into()),
             ("archived_at".into(), archived_at.to_rfc3339().into()),
             ("published_at".into(), published_at.into()),
+            ("epoch_seconds".into(), epoch_seconds.into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))

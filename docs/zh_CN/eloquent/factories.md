@@ -52,6 +52,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `resolveDateMax(expression)` 解析 PHP 风格的日期上界，再以 `Some(max)` 传给任何接受 `max` 的日期生成方法。解析一次即可在多个调用中共用同一上界。小数和科学计数法的数字字符串向零截断为 Unix 秒。空字符串使用当前时间。日期文本默认按应用时区解释，文本中的显式时区优先。无效或超出范围的值返回错误。
 
+用 `unixTimeExpression(max)` 从字符串上界直接取样 Unix 秒，支持 Chrono 日期范围之外的时间戳和扩展年份。它与 `unixTime` 共用 `unique` 历史。有限数字字符串超出有符号 64 位范围时饱和到端点，溢出为无穷大时按 PHP 整数转换规则取零。返回日期的接口仍要求上界可由 Chrono 表示。
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -70,6 +72,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
         let cutoff = faker.resolveDateMax("2024-12-31 23:59:59 UTC")?;
         let published_at = faker.iso8601(Some(cutoff));
+        let epoch_seconds = faker.unixTimeExpression("+1000000-01-01 UTC")?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
@@ -78,6 +81,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("historical".into(), historical.to_rfc3339().into()),
             ("archived_at".into(), archived_at.to_rfc3339().into()),
             ("published_at".into(), published_at.into()),
+            ("epoch_seconds".into(), epoch_seconds.into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))

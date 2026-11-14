@@ -49,7 +49,23 @@ pub(crate) fn parse_date_expression(
     reference: DateTime<Utc>,
     timezone: Tz,
 ) -> Result<DateTime<Utc>> {
-    if expression.is_empty() {
+    parse_expression(expression, reference, timezone)?.try_chrono()
+}
+
+pub(crate) fn parse_timestamp_expression(
+    expression: &str,
+    reference: DateTime<Utc>,
+    timezone: Tz,
+) -> Result<i64> {
+    Ok(parse_expression(expression, reference, timezone)?.epoch_seconds)
+}
+
+fn parse_expression(
+    expression: &str,
+    reference: DateTime<Utc>,
+    timezone: Tz,
+) -> Result<CalendarInstant> {
+    if expression.trim_matches(php_whitespace).is_empty() {
         return Err(calendar_error("input_date_invalid"));
     }
     if expression.len() > MAX_CALENDAR_BYTES {
@@ -58,7 +74,11 @@ pub(crate) fn parse_date_expression(
     let reference =
         CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
     let zone = ResolvedTimezone::parse(timezone.name())?;
-    parse::parse_text(expression, reference, &zone)?.try_chrono()
+    parse::parse_text(expression, reference, &zone)
+}
+
+pub(crate) fn php_whitespace(character: char) -> bool {
+    matches!(character, ' ' | '\t' | '\n' | '\r' | '\u{b}' | '\u{c}')
 }
 
 pub(crate) fn date_interval(
