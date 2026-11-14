@@ -11,7 +11,7 @@ use super::RelatedValues;
 use super::{ExistenceRelation, HasMany, MorphOne, Relation};
 
 /// Links a parent model to many related records tagged with a morph alias.
-pub struct MorphMany<P: Model, R: Model>(HasMany<P, R>);
+pub struct MorphMany<P: Model, R: Model>(pub(super) HasMany<P, R>);
 
 impl<P: Model, R: Model> MorphMany<P, R> {
     pub const fn new(

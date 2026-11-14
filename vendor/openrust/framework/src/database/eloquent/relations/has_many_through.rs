@@ -23,6 +23,7 @@ pub struct HasManyThrough<P: Model, I: Model, R: Model> {
     first_key: &'static str,
     second_local_key: &'static str,
     include_trashed_parents: bool,
+    intermediate_morph: Option<(&'static str, &'static str)>,
     pub(super) selection: Option<OneOfMany>,
     intermediate: PhantomData<fn() -> I>,
 }
@@ -40,9 +41,18 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             first_key,
             second_local_key,
             include_trashed_parents: false,
+            intermediate_morph: None,
             selection: None,
             intermediate: PhantomData,
         }
+    }
+
+    pub(super) fn with_intermediate_morph(
+        mut self,
+        morph: Option<(&'static str, &'static str)>,
+    ) -> Self {
+        self.intermediate_morph = morph;
+        self
     }
 
     #[must_use]
@@ -104,6 +114,9 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             match_key: format!("{alias}.{}", self.first_key),
             intermediate_key: format!("{alias}.{}", self.second_local_key),
             related_key: related.qualifyColumn(self.keys.related),
+            morph: self
+                .intermediate_morph
+                .map(|(column, value)| (format!("{alias}.{column}"), value)),
             deleted_at: intermediate
                 .deleted_at
                 .filter(|_| !self.include_trashed_parents)
@@ -130,7 +143,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 .select([query::Expression::new("1")])
                 .whereColumn(&join.intermediate_key, "=", &join.related_key)
                 .whereColumn(&join.match_key, "=", &outer.match_key);
-            candidates.whereExists(&join.filter_deleted(middle))
+            candidates.whereExists(&join.filter_intermediate(middle))
         })
     }
 
@@ -427,15 +440,19 @@ struct ThroughJoin {
     intermediate_key: String,
     related_key: String,
     deleted_at: Option<String>,
+    morph: Option<(String, &'static str)>,
 }
 
 impl ThroughJoin {
     fn apply(&self, query: query::Builder<'static>) -> query::Builder<'static> {
         let query = query.join(&self.source, &self.intermediate_key, "=", &self.related_key);
-        self.filter_deleted(query)
+        self.filter_intermediate(query)
     }
 
-    fn filter_deleted(&self, query: query::Builder<'static>) -> query::Builder<'static> {
+    fn filter_intermediate(&self, mut query: query::Builder<'static>) -> query::Builder<'static> {
+        if let Some((column, value)) = &self.morph {
+            query = query.r#where(column, "=", *value);
+        }
         match &self.deleted_at {
             Some(column) => query.whereNull(column),
             None => query,

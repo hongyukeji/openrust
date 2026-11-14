@@ -129,6 +129,19 @@ pub async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Co
 }
 ```
 
+通过 `Model::through(local).has(distant)` 复用已有关系键。两段关系均传入类型化描述符。任一段为多值时返回 `HasManyThrough`，两段均为单值时返回 `HasOneThrough`。如果中间关系是多态关系，组合会保留其中间类型条件。附加查询条件可在返回的穿透关系上配置。
+
+```rust
+use openrust::database::eloquent::{Model, relations::{HasMany, HasManyThrough}};
+
+pub fn comments<P: Model, I: Model, R: Model>(
+    posts: HasMany<P, I>,
+    comments: HasMany<I, R>,
+) -> HasManyThrough<P, I, R> {
+    P::through(posts).has(comments)
+}
+```
+
 ### 从穿透一对多中择一
 
 用 `one` 将 `HasManyThrough` 转为穿透单值关系，再调用 `latestOfMany`、`oldestOfMany` 或 `ofMany`。每个父模型的所有合格中间记录共同参与排序。用 `whereCandidates` 在排序前筛选最终模型。中间模型和最终模型各自的软删除规则仍然生效。

@@ -216,6 +216,11 @@ pub trait Model: Sized + Send + Sync + 'static {
         &[]
     }
 
+    /// Defines a through relationship by reusing an existing local relationship.
+    fn through<L: super::relations::ThroughRelation<Parent = Self>>(local: L) -> L::Pending {
+        local.pending()
+    }
+
     /// Defines the relationship descriptors available to named eager loading.
     fn namedRelations() -> super::NamedRelations<Self> {
         super::NamedRelations::default()

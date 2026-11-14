@@ -14,6 +14,7 @@ mod morph_pivot;
 mod morph_to;
 mod morph_to_many;
 mod one_of_many;
+mod pending_has_through_relationship;
 mod pivot;
 mod pivot_constraints;
 mod push;
@@ -32,6 +33,7 @@ pub use morph_pivot::MorphPivot;
 pub use morph_to::{MorphIdentity, MorphTarget, MorphTo};
 pub use morph_to_many::MorphToMany;
 pub use one_of_many::OneOfManyAggregate;
+pub use pending_has_through_relationship::{PendingHasThroughRelationship, ThroughRelation};
 pub use pivot::Pivot;
 pub use relation::{ConstrainableRelation, ExistenceRelation, NestedRelation, Relation};
 

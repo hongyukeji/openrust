@@ -326,6 +326,36 @@ async fn verify_through_and_morph(
         profile.getAttribute("subject_id"),
         visible.getAttribute("subject_id")
     );
+    let comments = Author::through(POSTS).has(HasMany::<Post, Comment>::new("id", "post_id"));
+    let found = comments.getResults(author).await.unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].getKey(), visible.getKey());
+    assert_eq!(
+        comments
+            .withTrashedParents()
+            .getResults(author)
+            .await
+            .unwrap()
+            .len(),
+        2,
+    );
+    let comment = Author::through(FIRST_POST).has(HasOne::<Post, Comment>::new("id", "post_id"));
+    assert_eq!(
+        comment.getResults(author).await.unwrap().unwrap().getKey(),
+        visible.getKey()
+    );
+    let owner =
+        Author::through(AUTHOR_COMMENT).has(HasMany::<Comment, Author>::new("subject_id", "id"));
+    let found = owner.getResults(author).await.unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].getKey(), author.getKey());
+    let found = Author::queryOn(db)
+        .has(&owner)
+        .unwrap()
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(found.modelKeys(), vec![author.getKey().unwrap().clone()]);
     assert!(AUTHOR_COMMENT.is(author, Some(&profile)).await.unwrap());
     assert!(
         AUTHOR_COMMENT

@@ -618,3 +618,11 @@ Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区回归 624 项通�
 SQLite 和独立 MySQL 8.4.13 专项验证批量预加载、直接读取、关闭反向缓存、创建、未保存模型和缺省模型。MySQL 普通预加载及反向读取共两次 SELECT，多态单值读取及反向读取共一次 SELECT。首次测试夹具的集合借用和临时描述符生命周期问题已修正并复验。
 
 Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 复用两段关系定义穿透关系
+
+按固定 Laravel 的 `PendingHasThroughRelationship` 复用两段关系的四个键。Rust 使用 `Model::through(local).has(distant)` 和类型化描述符，编译时核对中间模型并决定结果基数。任一段为多值时产生 `HasManyThrough`。与固定源码一致，组合带入本地多态关系的类型条件，附加查询条件由返回的穿透关系配置。中间类型过滤复用现有连接、软删除和择一查询。旧版未找到链式构造，沿用当前穿透关系连接机制。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#has-many-through) · [Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/PendingHasThroughRelationship.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentThroughTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证链式单值、多值、自定义列、软删除中间模型、相同外键值的多态隔离及存在查询。
+
+Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

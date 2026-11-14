@@ -129,6 +129,19 @@ pub async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Co
 }
 ```
 
+Reuse existing relationship keys with `Model::through(local).has(distant)`. Pass typed descriptors for both relationships. The result is a `HasManyThrough` if either descriptor is to-many, and a `HasOneThrough` otherwise. The composition carries the intermediate morph discriminator when present. Configure additional query conditions on the returned through relationship.
+
+```rust
+use openrust::database::eloquent::{Model, relations::{HasMany, HasManyThrough}};
+
+pub fn comments<P: Model, I: Model, R: Model>(
+    posts: HasMany<P, I>,
+    comments: HasMany<I, R>,
+) -> HasManyThrough<P, I, R> {
+    P::through(posts).has(comments)
+}
+```
+
 ### Has One Through of Many
 
 Convert a `HasManyThrough` relationship with `one`, then choose `latestOfMany`, `oldestOfMany`, or `ofMany`. Ranking spans all eligible intermediate rows for each parent. `whereCandidates` filters the final model before ranking. The intermediate and final model soft-delete rules still apply.
