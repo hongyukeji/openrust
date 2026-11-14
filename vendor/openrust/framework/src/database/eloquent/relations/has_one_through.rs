@@ -205,6 +205,13 @@ impl<P: Model, I: Model, R: Model> Relation for HasOneThrough<P, I, R> {
         super::super::detached_autoload::attach_outputs(outputs);
     }
 
+    fn pushLoaded<'a>(
+        output: &'a Self::Output,
+        context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
+        Box::pin(context.push_one(output))
+    }
+
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
         Some(output.clone())
     }

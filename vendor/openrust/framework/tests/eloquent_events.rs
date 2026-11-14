@@ -1216,8 +1216,114 @@ async fn verify_touch_owners(config: Json, id: &str) {
     db.statement("DROP TABLE touch_nodes", &[]).await.unwrap();
 }
 
+async fn verify_push(config: Json, id: &str) {
+    let (_app, db) = app_with_database(config, vec![Box::new(ObserverProvider)]).await;
+    db.statement("DROP TABLE IF EXISTS model_event_articles", &[])
+        .await
+        .unwrap();
+    db.statement("DROP TABLE IF EXISTS model_observer_log", &[])
+        .await
+        .unwrap();
+    db.statement(&format!(
+        "CREATE TABLE model_event_articles (id {id}, title VARCHAR(30) UNIQUE NOT NULL, deleted_at DATETIME NULL)"
+    ), &[]).await.unwrap();
+    db.statement(
+        "CREATE TABLE model_observer_log (article_id BIGINT NOT NULL)",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let new =
+        |title: &str| Article::newInstanceOn(&db, [("title".into(), title.into())].into()).unwrap();
+    let mut root = new("root");
+    let mut first = new("first");
+    first.setRelation::<BelongsTo<Article, Article>>("nested", Some(Arc::new(new("nested"))));
+    let first = Arc::new(first);
+    root.setRelation::<HasMany<Article, Article>>(
+        "children",
+        vec![
+            first.clone(),
+            Arc::new(new("blocked")),
+            Arc::new(new("after")),
+        ],
+    );
+    root.setRelation::<BelongsTo<Article, Article>>("alias", Some(first.clone()));
+    root.setRelation::<BelongsTo<Article, Article>>("empty", None);
+
+    assert!(!root.push().await.unwrap());
+    assert!(root.state().exists());
+    let children = root.getRelation::<Vec<Arc<Article>>>("children").unwrap();
+    assert!(children[0].state().exists());
+    assert!(!children[1].state().exists());
+    assert!(!children[2].state().exists());
+    assert!(!first.state().exists());
+    assert_eq!(Article::queryOn(&db).get().await.unwrap().len(), 3);
+
+    // Retry with the successfully persisted snapshot and share it across two relation outputs.
+    let saved_first = children[0].clone();
+    root.setRelation::<BelongsTo<Article, Article>>("alias", Some(saved_first));
+    let before = db.table("model_observer_log").get().await.unwrap().len();
+    assert!(root.pushQuietly().await.unwrap());
+    assert_eq!(
+        db.table("model_observer_log").get().await.unwrap().len(),
+        before
+    );
+    assert_eq!(Article::queryOn(&db).get().await.unwrap().len(), 5);
+    let children = root.getRelation::<Vec<Arc<Article>>>("children").unwrap();
+    let alias = root.getRelation::<Option<Arc<Article>>>("alias").unwrap();
+    assert!(Arc::ptr_eq(&children[0], alias.as_ref().unwrap()));
+    assert!(children.iter().all(|child| child.state().exists()));
+    assert!(
+        children[0]
+            .getRelation::<Option<Arc<Article>>>("nested")
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .state()
+            .exists()
+    );
+
+    let morph = MorphTo::<Article>::new("title", "id").target::<Article>("root", "id");
+    root.load("morph", &morph).await.unwrap();
+    root.setAttribute("title", "renamed");
+    assert!(root.pushQuietly().await.unwrap());
+    let target = root
+        .getRelation::<Option<openrust::database::eloquent::relations::MorphTarget>>("morph")
+        .unwrap();
+    assert_eq!(target.as_ref().unwrap().alias(), "root");
+    assert!(
+        target
+            .as_ref()
+            .unwrap()
+            .downcast_ref::<Article>()
+            .unwrap()
+            .state()
+            .exists()
+    );
+
+    let mut duplicate = new("duplicate root");
+    duplicate.setRelation::<HasMany<Article, Article>>(
+        "children",
+        vec![Arc::new(new("first")), Arc::new(new("skipped"))],
+    );
+    assert!(matches!(
+        duplicate.push().await,
+        Err(DatabaseError::Driver { .. })
+    ));
+    assert!(duplicate.state().exists());
+    let mut skipped = Article::queryOn(&db);
+    skipped.r#where("title", "=", "skipped");
+    assert!(skipped.first().await.unwrap().is_none());
+}
+
 #[tokio::test]
 async fn model_events_on_sqlite() {
+    verify_push(
+        json!({"driver":"sqlite","database":":memory:"}),
+        "INTEGER PRIMARY KEY",
+    )
+    .await;
     verify_touch_owners(
         json!({"driver":"sqlite","database":":memory:"}),
         "INTEGER PRIMARY KEY",
@@ -1260,6 +1366,7 @@ async fn model_events_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_ELOQUENT_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
+        verify_push(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_touch_owners(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_refreshes(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;
         verify_replication(json!({"url":url}), "BIGINT AUTO_INCREMENT PRIMARY KEY").await;

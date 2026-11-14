@@ -690,12 +690,26 @@ trait ProjectableModel: Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<serde_json::Value>;
     fn queueable_relations(&self) -> Vec<String>;
+    fn push_snapshot<'a>(
+        self: Arc<Self>,
+        context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (ErasedModel, DatabaseResult<bool>)>;
     fn attach_autoload(&self, group: &mut [&mut MorphTarget]);
 }
 
 impl<M: Model> ProjectableModel for M {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn push_snapshot<'a>(
+        mut self: Arc<Self>,
+        context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (ErasedModel, DatabaseResult<bool>)> {
+        Box::pin(async move {
+            let result = context.push_model(&mut self).await;
+            (self as ErasedModel, result)
+        })
     }
 
     fn attach_autoload(&self, group: &mut [&mut MorphTarget]) {
@@ -954,6 +968,25 @@ impl<P: Model> Relation for MorphTo<P> {
             let representative = group[0].model.clone();
             representative.attach_autoload(&mut group);
         }
+    }
+
+    fn pushLoaded<'a>(
+        output: &'a Self::Output,
+        context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
+        Box::pin(async move {
+            let Some(target) = output else {
+                return (None, Ok(true));
+            };
+            let (model, result) = target.model.clone().push_snapshot(context).await;
+            (
+                Some(Some(MorphTarget {
+                    alias: target.alias,
+                    model,
+                })),
+                result,
+            )
+        })
     }
 
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {

@@ -602,3 +602,11 @@ Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区测试 624 项通�
 SQLite 和独立 MySQL 8.4.13 专项验收查询过滤、显式属性优先、仅默认值模式、直接创建和保存、未保存模型、多态强制创建、穿透创建，以及多对多创建和挂载。
 
 Rust 1.94.0 格式、严格 Clippy 和锁定工作区回归通过，624 项通过、8 项夹具忽略。实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 递归保存模型与关系
+
+对照固定 Laravel 的 `push`、`pushQuietly` 及单值、多值、空关系与循环测试。Rust 按加载或设置顺序遍历当前关系缓存，保留模型保存事件和停止语义。类型化 `setRelation` 支持将编辑后的快照放回关系缓存；每次遍历重用共享模型的已保存快照，并对活动路径上的同一快照停止递归。普通、多态、自定义 Pivot 和动态关系均接入缓存遍历。失败前已经写入的模型保留，先前借出的 `Arc` 继续引用原快照。旧版未找到递归保存入口，复用当前模型保存、事件抑制与连接选择。固定 Goravel 用作连接级 ORM 参考。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#recursively-saving-models-and-relationships) · [Laravel 模型测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentModelTest.php#L1224) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 验证多层及多态已加载关系、共享子模型快照、保存取消与数据库冲突后的前序写入、后续节点跳过、静默重试和缓存写回。框架的普通 Pivot 是只读属性投影，通过关系的 Pivot 写入接口管理。
+
+Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

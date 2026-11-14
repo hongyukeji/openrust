@@ -144,6 +144,13 @@ impl<R: Relation> Relation for DynamicRelation<R> {
     type Parent = R::Parent;
     type Output = R::Output;
 
+    fn pushLoaded<'a>(
+        output: &'a Self::Output,
+        context: &'a mut super::relations::PushContext,
+    ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
+        R::pushLoaded(output, context)
+    }
+
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {
         R::autoloadOutput(output)
     }

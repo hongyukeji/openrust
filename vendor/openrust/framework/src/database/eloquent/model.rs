@@ -1106,6 +1106,22 @@ pub trait Model: Sized + Send + Sync + 'static {
         concerns::has_events::without_events(work)
     }
 
+    /// Saves this model and its already loaded relationship graph.
+    fn push(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        async { super::relations::PushContext::default().push(self).await }
+    }
+
+    fn pushQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
+        Self::withoutEvents(self.push())
+    }
+
+    /// Replaces a cached relation with a typed output without querying it.
+    fn setRelation<R: Relation<Parent = Self>>(&mut self, name: &str, output: R::Output) {
+        concerns::has_relationships::update_association_cache::<R>(self, Some(name), || {
+            Some(output)
+        });
+    }
+
     fn saveQuietly(&mut self) -> impl Future<Output = DatabaseResult<bool>> + Send {
         Self::withoutEvents(self.save())
     }

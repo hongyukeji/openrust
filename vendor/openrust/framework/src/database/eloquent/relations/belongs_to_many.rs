@@ -1637,20 +1637,15 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                             defaults.extend(attributes);
                             let mut inverses = LoadedRelations::default();
                             if let Some(name) = declaring_inverse {
-                                inverses.insert(
+                                inverses.insert_inverse(
                                     name.clone(),
                                     declaring_models.get(&owner).cloned(),
-                                    super::super::serialization::one::<P>,
                                 );
                             }
                             if let Some(name) = related_inverse {
                                 // An owned snapshot avoids a strong reference cycle through the pivot.
                                 let related = Arc::new(R::from_state(state.clone()));
-                                inverses.insert(
-                                    name.clone(),
-                                    Some(related),
-                                    super::super::serialization::one::<R>,
-                                );
+                                inverses.insert_inverse(name.clone(), Some(related));
                             }
                             (custom.hydrate)(
                                 &mut state.relations,
@@ -1697,6 +1692,13 @@ impl<P: Model, R: Model> Relation for BelongsToMany<P, R> {
 
     fn attachAutoload(outputs: &mut [Self::Output]) {
         super::super::detached_autoload::attach_outputs(outputs);
+    }
+
+    fn pushLoaded<'a>(
+        output: &'a Self::Output,
+        context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
+        Box::pin(context.push_many(output))
     }
 
     fn autoloadOutput(output: &Self::Output) -> Option<Self::Output> {

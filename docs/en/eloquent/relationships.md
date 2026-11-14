@@ -771,6 +771,26 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 `HasMany::create` and `save` populate the foreign key before saving a related model. `BelongsTo::associate` and `dissociate` modify the child in memory. Call `save` on the child to persist the change.
 
+### Recursively saving models and relationships {#recursively-saving-models-and-relationships}
+
+Call `push` to save a model and the related models already in its cache. `setRelation` can place an edited snapshot in that cache. The save visits relations in their cache order and stops if a model cancels or returns an error. Earlier writes remain committed. `pushQuietly` suppresses model events across the traversal. Re-read the relation from the root for saved snapshots. Previously retained `Arc` references still point to the original snapshots.
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, relations::HasMany},
+};
+
+pub async fn save_posts<P: Model, R: Model>(
+    author: &mut P,
+    posts: Vec<Arc<R>>,
+) -> DatabaseResult<bool> {
+    author.setRelation::<HasMany<P, R>>("posts", posts);
+    author.push().await
+}
+```
+
 ### Saving related models in batches {#saving-related-models-in-batches}
 
 For direct and polymorphic one-to-one or one-to-many relations, `saveMany` saves a mutable slice in order. `createMany` accepts attribute maps and returns the new models in input order. The `Quietly` variants suppress model events for the entire operation. Each model is written separately. If a later write returns an error, earlier writes remain committed.

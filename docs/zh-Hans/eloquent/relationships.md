@@ -771,6 +771,26 @@ pub fn roles<U: Model, R: Model, Membership: Model>() -> BelongsToMany<U, R> {
 
 `HasMany::create` 和 `save` 在保存前填入关联模型外键。`BelongsTo::associate` 和 `dissociate` 修改子模型的内存状态。调用子模型的 `save` 持久化修改。
 
+### 递归保存模型与关系 {#recursively-saving-models-and-relationships}
+
+调用 `push` 保存模型及其缓存中已加载的关联模型。可用 `setRelation` 把编辑后的快照放入缓存。保存按关系缓存顺序执行，遇到模型取消保存或返回错误时停止，前序写入已经提交。`pushQuietly` 抑制整次遍历的模型事件。从根模型重新读取关系即可取得已保存的快照，先前持有的 `Arc` 仍指向原快照。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, relations::HasMany},
+};
+
+pub async fn save_posts<P: Model, R: Model>(
+    author: &mut P,
+    posts: Vec<Arc<R>>,
+) -> DatabaseResult<bool> {
+    author.setRelation::<HasMany<P, R>>("posts", posts);
+    author.push().await
+}
+```
+
 ### 批量保存关联模型 {#saving-related-models-in-batches}
 
 直接和多态的一对一、一对多关系支持 `saveMany`，按顺序保存可变切片中的模型。`createMany` 接收属性映射，按输入顺序返回新模型。带 `Quietly` 后缀的方法会抑制操作期间的模型事件。每个模型单独写入，后续写入报错时，先前已提交的写入仍保留。

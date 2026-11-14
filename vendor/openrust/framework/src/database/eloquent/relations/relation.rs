@@ -43,6 +43,15 @@ pub trait Relation: Send + Sync + 'static {
         None
     }
 
+    /// Saves model snapshots in a loaded output and returns the replacement output.
+    #[doc(hidden)]
+    fn pushLoaded<'a>(
+        _output: &'a Self::Output,
+        _context: &'a mut super::PushContext,
+    ) -> DatabaseFuture<'a, (Option<Self::Output>, DatabaseResult<bool>)> {
+        Box::pin(async { (None, Ok(true)) })
+    }
+
     /// Returns one result per parent, in the original order.
     fn matchResults<'a>(
         &'a self,

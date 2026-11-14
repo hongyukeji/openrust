@@ -16,6 +16,7 @@ mod morph_to_many;
 mod one_of_many;
 mod pivot;
 mod pivot_constraints;
+mod push;
 pub(super) mod relation;
 
 pub use belongs_to::BelongsTo;
@@ -40,3 +41,6 @@ fn require_soft_deletes<R: super::Model>() -> crate::database::DatabaseResult<()
         .map(|_| ())
         .ok_or_else(super::soft_deletes::unsupported)
 }
+
+#[doc(hidden)]
+pub use push::PushContext;

@@ -1,28 +1,38 @@
-use std::{any::Any, collections::BTreeMap, sync::Arc};
+use std::{any::Any, sync::Arc};
 
 use indexmap::IndexMap;
 use serde_json::{Map, Value as Json};
 
 use crate::database::{DatabaseError, DatabaseFuture, DatabaseResult, Transaction};
 
-use super::super::{Model, relations::Relation};
+use super::super::{
+    Model,
+    relations::{PushContext, Relation},
+};
 
 #[derive(Clone, Default)]
 pub(in crate::database::eloquent) struct LoadedRelations {
-    values: BTreeMap<String, Arc<dyn LoadedRelation>>,
+    values: IndexMap<String, Arc<dyn LoadedRelation>>,
 }
+
+type PushedRelation<'a> =
+    DatabaseFuture<'a, (Option<Arc<dyn LoadedRelation>>, DatabaseResult<bool>)>;
+type PushOutput<T> =
+    for<'a> fn(&'a T, &'a mut PushContext) -> DatabaseFuture<'a, (Option<T>, DatabaseResult<bool>)>;
 
 trait LoadedRelation: Send + Sync {
     fn value(&self) -> &dyn Any;
     fn project(&self) -> DatabaseResult<Option<Json>>;
     fn queueable_paths(&self) -> Option<Vec<String>>;
     fn reloadable(&self) -> bool;
+    fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a>;
 }
 
 struct LoadedValue<T> {
     value: T,
     project: fn(&T) -> DatabaseResult<Option<Json>>,
     queueable_paths: Option<fn(&T) -> Vec<String>>,
+    push: Option<PushOutput<T>>,
 }
 
 impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
@@ -39,6 +49,23 @@ impl<T: Send + Sync + 'static> LoadedRelation for LoadedValue<T> {
     }
     fn reloadable(&self) -> bool {
         self.queueable_paths.is_some()
+    }
+    fn push<'a>(&'a self, context: &'a mut PushContext) -> PushedRelation<'a> {
+        Box::pin(async move {
+            let Some(push) = self.push else {
+                return (None, Ok(true));
+            };
+            let (value, result) = push(&self.value, context).await;
+            let replacement = value.map(|value| {
+                Arc::new(Self {
+                    value,
+                    project: self.project,
+                    queueable_paths: self.queueable_paths,
+                    push: self.push,
+                }) as Arc<dyn LoadedRelation>
+            });
+            (replacement, result)
+        })
     }
 }
 
@@ -66,6 +93,7 @@ impl LoadedRelations {
                 value,
                 project,
                 queueable_paths: None,
+                push: None,
             }),
         );
     }
@@ -81,8 +109,64 @@ impl LoadedRelations {
                 value,
                 project: R::serialize,
                 queueable_paths: Some(R::queueableRelations),
+                push: Some(R::pushLoaded),
             }),
         );
+    }
+
+    pub(in crate::database::eloquent) fn insert_inverse<M: Model>(
+        &mut self,
+        name: String,
+        model: Option<Arc<M>>,
+    ) {
+        self.values.insert(
+            name,
+            Arc::new(LoadedValue {
+                value: model,
+                project: super::super::serialization::one::<M>,
+                queueable_paths: None,
+                push: Some(|model, context| Box::pin(context.push_one(model))),
+            }),
+        );
+    }
+
+    pub(in crate::database::eloquent) fn insert_model<M: Model>(
+        &mut self,
+        name: String,
+        model: M,
+        project: fn(&M) -> DatabaseResult<Option<Json>>,
+    ) {
+        self.values.insert(
+            name,
+            Arc::new(LoadedValue {
+                value: model,
+                project,
+                queueable_paths: None,
+                push: Some(|model, context| {
+                    Box::pin(async move {
+                        let mut model = M::from_state(model.state().clone());
+                        let result = context.push(&mut model).await;
+                        (Some(model), result)
+                    })
+                }),
+            }),
+        );
+    }
+
+    pub(in crate::database::eloquent) async fn push(
+        &mut self,
+        context: &mut PushContext,
+    ) -> DatabaseResult<bool> {
+        for value in self.values.values_mut() {
+            let (replacement, result) = value.push(context).await;
+            if let Some(replacement) = replacement {
+                *value = replacement;
+            }
+            if !result? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     pub(in crate::database::eloquent) fn reloadable_names(&self) -> Vec<String> {
@@ -137,7 +221,7 @@ impl LoadedRelations {
     }
 
     pub(in crate::database::eloquent) fn remove(&mut self, name: &str) {
-        self.values.remove(name);
+        self.values.shift_remove(name);
     }
 
     pub(in crate::database::eloquent) fn clear(&mut self) {
