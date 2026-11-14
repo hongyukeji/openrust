@@ -46,13 +46,13 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 日期字符串优先使用 `setDefaultTimezone(Some(zone))` 为当前生成器指定的时区，其次读取应用或工厂连接所属应用的 `app.timezone`，缺省为 UTC。传入 `None` 可清除覆盖，`getDefaultTimezone()` 可查看覆盖值。`dateTimeInTimezone(max, timezone)` 返回带时区的日期时间，传入 `Some(zone)` 可覆盖本次调用。日期时间方法仍返回 UTC 时刻。生成器的时区覆盖用于输出格式化，日历边界继续按应用时区计算。
 
-用 `dateTimeBetweenExpressions(start, end)` 传入 PHP 风格的日期表达式，例如 `"-30 years"` 和 `"now"`。两个端点共用同一参考时刻，并按应用时区解析。表达式中的显式时区优先。数字终点字符串按 Unix 时间戳解析，`"@-1"` 则是显式时间戳表达式。无效表达式返回错误。此方法与 `dateTimeBetween` 共享 `unique` 历史。
+用 `dateTimeBetweenExpressions(start, end)` 传入 PHP 风格的日期表达式，例如 `"-30 years"` 和 `"now"`。两个端点共用同一参考时刻，并按应用时区解析。表达式中的显式时区优先。数字终点字符串按 Unix 时间戳解析，`"@-1"` 则是显式时间戳表达式。端点解析失败时按 FakerPHP 的数值转换规则使用 Unix 零秒。起点晚于终点仍返回错误。此方法与 `dateTimeBetween` 共享 `unique` 历史。
 
 用 `dateTimeInIntervalExpressions(date, interval)` 传入 PHP 风格的相对区间，例如 `Some("+1 month")` 或 `Some("5 days ago")`。终点按起始日期所在时区的本地时间计算，跨夏令时也遵循该规则。取样结果返回 UTC。省略日期时从 30 年前开始，省略区间时使用五个日历日。区间字符串接受相对表达式，拒绝绝对日期、时间和时区标识。此方法与 `dateTimeInInterval` 共享 `unique` 历史。
 
 用 `resolveDateMax(expression)` 解析 PHP 风格的日期上界，再以 `Some(max)` 传给任何接受 `max` 的日期生成方法。解析一次即可在多个调用中共用同一上界。小数和科学计数法的数字字符串向零截断为 Unix 秒。空字符串使用当前时间。日期文本默认按应用时区解释，文本中的显式时区优先。无效或超出范围的值返回错误。
 
-用 `unixTimeExpression(max)` 从字符串上界直接取样 Unix 秒，支持 Chrono 日期范围之外的时间戳和扩展年份。它与 `unixTime` 共用 `unique` 历史。有限数字字符串超出有符号 64 位范围时饱和到端点，溢出为无穷大时按 PHP 整数转换规则取零。返回日期的接口仍要求上界可由 Chrono 表示。
+用 `unixTimeExpression(max)` 从字符串上界直接取样 Unix 秒，支持 Chrono 日期范围之外的时间戳和扩展年份。它与 `unixTime` 共用 `unique` 历史。语法无效的上界使用 Unix 零秒。需要在取样前验证输入时，用 `resolveDateMax`。超过解析限制或数值范围时仍返回错误。有限数字字符串超出有符号 64 位范围时饱和到端点，溢出为无穷大时按 PHP 整数转换规则取零。返回日期的接口仍要求上界可由 Chrono 表示。
 
 ```rust
 use chrono::{DateTime, TimeDelta};

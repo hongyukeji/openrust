@@ -206,3 +206,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 的 `unixTime` 和 PHP 数字字符串转整数。字符串上界在整数层解析，`unixTimeExpression` 支持扩展年份与完整 i64 取样区间，并与 `unixTime` 共用 unique。有限数字溢出按 PHP 规则饱和，指数溢出至无穷大取零，兼容 PHP 数字空白。复用 v0.x 已迁入的日期词法和扩展公历运算。日期对象方法仍要求 Chrono 可表示的时间，非法日期表达式仍返回错误。Goravel 装配无需调整。 [FakerPHP Unix 秒](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L14)
 
 隔离基线 `f71294a5`。从 v0.x 日期夹具筛选 265 个无自定义格式、字符串长度不超过 1024 的日期样本，在固定 UTC 参考时刻逐项对照 PHP 8.5.12 `strtotime`。原日期对象路径有五项因 Chrono 范围失败，独立 Unix 秒路径 265 项全部匹配。MySQL 8.4.13 实际应用二进制执行 `artisan db:seed --database=mysql --force` 写入并回查扩展年份取样。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。样本集之外的日期语法和 FakerPHP 无效输入的隐式零值继续跟踪。
+
+## Faker 无效日期的数值回退
+
+固定 FakerPHP 1.24.1 将 `strtotime` 失败得到的 false 传给数字取样，效果为 Unix 零秒。Rust 的 `unixTimeExpression` 和 `dateTimeBetweenExpressions` 复现这一行为，起点晚于终点仍返回错误。严格入口 `resolveDateMax` 保留输入校验，字符串相对区间保留无效日期错误。复用 v0.x 对语法、数值范围和资源限制的区分，仅语法错误进入零值回退。Goravel 装配无需调整。 [FakerPHP 日期端点](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L136) · [PHP strtotime](https://github.com/php/php-src/blob/php-8.5.0/ext/date/php_date.c)
+
+隔离基线 `fca741e0`。实际 FakerPHP 1.24.1 和 PHP 8.5.12 验证无效上界、双端点零值、反向区间和相对区间报错。MySQL 8.4.13 Seeder 回归另外验证超长输入不会转成零，应用二进制运行 `artisan db:seed --database=mysql --force` 写入并回查零值。Rust 1.94.0 格式与工作区全目标严格 Clippy、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。全日期语法及其他 Faker provider 的覆盖继续跟踪。

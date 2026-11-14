@@ -1138,9 +1138,25 @@ impl Seeder for PolymorphicFactories {
                     expected
                 );
             }
+            assert_eq!(faker.unixTimeExpression("bad date")?, 0);
+            assert_eq!(faker.dateTimeBetweenExpressions("bad date", "0")?, epoch);
+            assert_eq!(faker.dateTimeBetweenExpressions("@0", "bad date")?, epoch);
             assert!(matches!(
-                faker.dateTimeBetweenExpressions("not a date", "now"),
-                Err(DatabaseError::InvalidQuery("invalid Faker date expression"))
+                faker.dateTimeBetweenExpressions("@1", "bad date"),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker start date exceeds end date"
+                ))
+            ));
+            assert!(
+                faker
+                    .dateTimeInIntervalExpressions(Some("bad date"), Some("1 day"))
+                    .is_err()
+            );
+            assert!(matches!(
+                faker.unixTimeExpression(&" ".repeat(20 * 1024 * 1024 + 1)),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker date expression exceeds parser limits"
+                ))
             ));
             assert!(matches!(
                 faker.dateTimeBetweenExpressions("tomorrow", "today"),

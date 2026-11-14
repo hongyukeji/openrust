@@ -18,7 +18,11 @@ use zone::ResolvedTimezone;
 const MAX_CALENDAR_BYTES: usize = 20 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct CalendarError;
+pub(crate) enum CalendarError {
+    InvalidExpression,
+    OutOfRange,
+    LimitExceeded,
+}
 type Result<T> = std::result::Result<T, CalendarError>;
 
 #[derive(Clone, Copy)]
@@ -44,14 +48,6 @@ impl CalendarInstant {
     }
 }
 
-pub(crate) fn parse_date_expression(
-    expression: &str,
-    reference: DateTime<Utc>,
-    timezone: Tz,
-) -> Result<DateTime<Utc>> {
-    parse_expression(expression, reference, timezone)?.try_chrono()
-}
-
 pub(crate) fn parse_timestamp_expression(
     expression: &str,
     reference: DateTime<Utc>,
@@ -65,11 +61,11 @@ fn parse_expression(
     reference: DateTime<Utc>,
     timezone: Tz,
 ) -> Result<CalendarInstant> {
-    if expression.trim_matches(php_whitespace).is_empty() {
-        return Err(calendar_error("input_date_invalid"));
-    }
     if expression.len() > MAX_CALENDAR_BYTES {
         return Err(limit_error());
+    }
+    if expression.trim_matches(php_whitespace).is_empty() {
+        return Err(calendar_error("input_date_invalid"));
     }
     let reference =
         CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
@@ -104,8 +100,14 @@ pub(crate) fn is_numeric(expression: &str) -> bool {
     lexer::is_numeric(expression)
 }
 
-fn calendar_error(_code: &'static str) -> CalendarError {
-    CalendarError
+fn calendar_error(code: &'static str) -> CalendarError {
+    match code {
+        "input_calendar_out_of_range" | "input_calendar_timezone_range_unsupported" => {
+            CalendarError::OutOfRange
+        }
+        "input_limits_exceeded" => CalendarError::LimitExceeded,
+        _ => CalendarError::InvalidExpression,
+    }
 }
 
 fn range_error() -> CalendarError {
