@@ -796,8 +796,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.owner(parent)?;
         self.validate_pivot_attributes(&joining)?;
         let connection = self.keys.connection(parent)?;
+        let query = self.keys.configure(R::queryOn(&connection))?;
         let mut model = R::newInstanceOn(&connection, Attributes::new())?;
-        for (column, value) in attributes {
+        for (column, value) in query.creation_attributes(attributes) {
             model.setAttributeValueAsync(&column, value).await?;
         }
         self.save(parent, &mut model, joining).await?;
@@ -823,7 +824,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.owner(parent)?;
         self.validate_pivot_attributes(&joining)?;
         let connection = self.keys.connection(parent)?;
-        let mut model = R::queryOn(&connection).makeAsync(attributes).await?;
+        let mut model = self
+            .keys
+            .configure(R::queryOn(&connection))?
+            .makeAsync(attributes)
+            .await?;
         self.save_and_attach(parent, &mut model, joining, touch)
             .await?;
         Ok(model)

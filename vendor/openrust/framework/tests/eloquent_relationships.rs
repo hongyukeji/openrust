@@ -4458,6 +4458,30 @@ async fn verify_first_and_update_or_create(db: &Connection) {
     let score = |value: i64| Attributes::from([("score".into(), value.into())]);
     let label = |name: &str| Attributes::from([("label".into(), name.into())]);
 
+    let scoped = FEATURED_POSTS.constrain(move |query| query.withAttributes(score(83), true));
+    let scoped_post = scoped
+        .create(&parent, title("scoped-pivot"), label("scoped"))
+        .await
+        .unwrap();
+    assert_eq!(scoped_post.getAttribute("score"), Some(&83.into()));
+    let scoped_force = FEATURED_POSTS
+        .constrain(move |query| query.withAttributes(score(84), false))
+        .forceCreate(&parent, title("scoped-pivot-force"), label("scoped"))
+        .await
+        .unwrap();
+    assert_eq!(scoped_force.getAttribute("score"), Some(&84.into()));
+    assert_eq!(scoped.getResults(&parent).await.unwrap().len(), 1);
+    scoped
+        .detach(
+            &parent,
+            Some(&[
+                scoped_post.getKey().unwrap().clone(),
+                scoped_force.getKey().unwrap().clone(),
+            ]),
+        )
+        .await
+        .unwrap();
+
     let existing = relation
         .firstOrCreate(&parent, title("unlinked"), score(70), label("attached"))
         .await
@@ -4984,6 +5008,72 @@ async fn verify_non_pivot_lookup(author: &Author, post: &Post) {
     assert_eq!(updated.getAttribute("count"), Some(&7.into()));
 }
 
+async fn verify_scoped_attributes(db: &Connection, author: &Author, post: &Post) {
+    let name = |name: &str| Attributes::from([("name".into(), name.into())]);
+    let defaults = |count: i64| Attributes::from([("count".into(), count.into())]);
+    let direct = HasMany::<Post, RelationCounter>::new("id", "post_id")
+        .constrain(move |query| query.withAttributes(defaults(77), true));
+    let created = direct.create(post, name("scoped-create")).await.unwrap();
+    assert_eq!(created.getAttribute("count"), Some(&77.into()));
+    let mut attributes = name("scoped-override");
+    attributes.insert("count".into(), 78.into());
+    let overridden = direct.create(post, attributes).await.unwrap();
+    assert_eq!(overridden.getAttribute("count"), Some(&78.into()));
+
+    let mut existing = RelationCounter::newInstanceOn(db, name("scoped-save")).unwrap();
+    assert!(direct.save(post, &mut existing).await.unwrap());
+    assert_eq!(existing.getAttribute("count"), Some(&77.into()));
+    let made = direct
+        .firstOrNew(post, name("scoped-new"), Attributes::new())
+        .await
+        .unwrap();
+    assert!(!made.state().exists());
+    assert_eq!(made.getAttribute("count"), Some(&77.into()));
+    let scoped = direct.getResults(post).await.unwrap();
+    assert!(
+        scoped
+            .iter()
+            .any(|model| model.getKey() == created.getKey())
+    );
+    assert!(
+        !scoped
+            .iter()
+            .any(|model| model.getKey() == overridden.getKey())
+    );
+
+    let morph = MorphMany::<Post, RelationCounter>::new("id", "post_id", "owner_type", "scoped")
+        .constrain(move |query| {
+            query.withAttributes(
+                Attributes::from([
+                    ("count".into(), 79.into()),
+                    ("owner_type".into(), "ignored".into()),
+                    ("post_id".into(), 999.into()),
+                ]),
+                false,
+            )
+        });
+    let forced = morph.forceCreate(post, name("scoped-force")).await.unwrap();
+    assert_eq!(forced.getAttribute("count"), Some(&79.into()));
+    assert_eq!(forced.getAttribute("owner_type"), Some(&"scoped".into()));
+    assert_eq!(forced.getAttribute("post_id"), post.getKey());
+
+    let through =
+        HasManyThrough::<Author, Post, RelationCounter>::new("author_id", "post_id", "id", "id")
+            .constrain(move |query| query.withAttributes(defaults(81), false));
+    let mut input = name("scoped-through");
+    input.insert("post_id".into(), post.getKey().unwrap().clone());
+    let related = through
+        .firstOrCreate(author, input, Attributes::new())
+        .await
+        .unwrap();
+    assert_eq!(related.getAttribute("count"), Some(&81.into()));
+
+    let query = RelationCounter::queryOn(db).withAttributes(defaults(82), false);
+    let instance = query.make(name("scoped-builder")).unwrap();
+    assert_eq!(instance.getAttribute("count"), Some(&82.into()));
+    assert!(query.get().await.unwrap().len() > scoped.len());
+}
+
 async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     let id = if mysql {
         "BIGINT AUTO_INCREMENT PRIMARY KEY"
@@ -5138,6 +5228,7 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
     assert_eq!(persisted.getAttribute("visits"), Some(&9.into()));
     Box::pin(verify_cast_counter(db, &post, mysql)).await;
     Box::pin(verify_non_pivot_lookup(&author, &post)).await;
+    Box::pin(verify_scoped_attributes(db, &author, &post)).await;
     db.statement("DROP TABLE relation_counters", &[])
         .await
         .unwrap();

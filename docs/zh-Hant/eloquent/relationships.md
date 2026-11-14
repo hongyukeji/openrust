@@ -6,6 +6,23 @@
 
 `BelongsToMany` 接收中介資料表、父模型與關聯模型在中介表的外鍵，以及兩個模型鍵。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
+### 帶作用域的關聯 {#scoped-relationships}
+
+在關聯的 `constrain` 閉包中呼叫 `withAttributes`，為建立的模型提供預設屬性。傳入 `true` 同時加入等值查詢條件，傳入 `false` 僅提供預設屬性。模型明確設定的屬性優先。直接和多型關聯仍會設定各自的父鍵和類型。
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, relations::HasMany};
+
+pub fn featured_posts<P: Model, R: Model>() -> HasMany<P, R> {
+    HasMany::new("id", "author_id").constrain(|query| {
+        query.withAttributes(
+            Attributes::from([("featured".into(), true.into())]),
+            true,
+        )
+    })
+}
+```
+
 ### 設定所屬模型 {#associating-an-owner}
 
 透過 `.named("author")` 指定 `BelongsTo` 的快取名稱。`associate` 使用傳入模型設定外鍵並快取目前的快照。`associateKey` 直接設定外鍵並使該快取項目失效，下次存取時重新查詢。`dissociate` 及其別名 `disassociate` 將外鍵設為空值，並快取已載入的空關聯。其他已載入關聯仍可讀取。呼叫 `save().await?` 儲存子模型。

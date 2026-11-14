@@ -594,3 +594,11 @@ Rust 1.94.0 格式与全目标严格 Clippy 通过。工作区锁定测试 624 �
 SQLite 与独立 MySQL 8.4.13 专项验证普通所属关系写入、多态选择两个目标表、冲突更新、目标模型自动 ULID、缺失和非法别名、空批次及声明模型关联不变。
 
 Rust 1.94.0 格式、全目标严格 Clippy、锁定工作区测试 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 带作用域的关系与默认属性
+
+按固定 Laravel 的 Scoped Relationships 接入 `Builder::withAttributes`，通过 `constrain` 在关系定义中使用。Rust 用 `Attributes` 和显式布尔参数表达 Laravel 的数组及 `asConditions`。条件可独立关闭，已赋值的模型属性优先。直接和多态关系先设置关系键，再为模型补缺失属性，继续使用属性转换。穿透关系沿用 Builder 创建默认值，多对多关系保留已有挂载事务。旧版未找到 pending attributes 机制，沿用主分支已有的属性转换和关系连接。固定 Goravel 用作连接级 ORM 参考。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#scoped-relationships) · [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) · [Laravel 关系源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 和独立 MySQL 8.4.13 专项验收查询过滤、显式属性优先、仅默认值模式、直接创建和保存、未保存模型、多态强制创建、穿透创建，以及多对多创建和挂载。
+
+Rust 1.94.0 格式、严格 Clippy 和锁定工作区回归通过，624 项通过、8 项夹具忽略。实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

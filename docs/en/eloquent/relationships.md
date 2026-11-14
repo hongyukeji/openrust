@@ -6,6 +6,23 @@ Declare `HasOne`, `HasMany`, or `BelongsTo` with explicit keys. For example, `Ha
 
 `BelongsToMany` takes the intermediate table, its parent and related foreign keys, and the two model keys. For an `author_post` table, use `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`.
 
+### Scoped Relationships {#scoped-relationships}
+
+Use `withAttributes` inside the relation’s `constrain` callback to add defaults to newly created models. Pass `true` to also add equality conditions to relation queries, or `false` to supply defaults only. Explicit model values take precedence. Direct and polymorphic relations assign their own parent keys and morph type.
+
+```rust
+use openrust::database::eloquent::{Attributes, Model, relations::HasMany};
+
+pub fn featured_posts<P: Model, R: Model>() -> HasMany<P, R> {
+    HasMany::new("id", "author_id").constrain(|query| {
+        query.withAttributes(
+            Attributes::from([("featured".into(), true.into())]),
+            true,
+        )
+    })
+}
+```
+
 ### Associating an owner {#associating-an-owner}
 
 Name a `BelongsTo` with `.named("author")` to identify its cache entry. `associate` sets the foreign key from the supplied owner and caches its current snapshot. `associateKey` sets the key directly and invalidates that cache entry so the next access reloads the owner. `dissociate` and its alias `disassociate` clear the foreign key and cache a loaded empty relationship. Other loaded relations remain available. Call `save().await?` to persist the child.

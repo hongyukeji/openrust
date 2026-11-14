@@ -89,13 +89,7 @@ impl<P: Model, R: Model> HasMany<P, R> {
         }
         let mut attributes = attributes;
         attributes.extend(values.into().resolve());
-        let connection = self.0.connection(parent)?;
-        let mut model = self
-            .0
-            .configure(R::queryOn(&connection))?
-            .makeAsync(attributes)
-            .await?;
-        self.set_parent_attributes(parent, &mut model)?;
+        let model = self.make(parent, attributes).await?;
         Ok(model)
     }
 
@@ -212,15 +206,10 @@ impl<P: Model, R: Model> HasMany<P, R> {
         {
             return Ok(model);
         }
-        let connection = self.0.connection(parent)?;
         let mut insert = attributes.clone();
         insert.extend(values.resolve());
-        let mut model = self
-            .0
-            .configure(R::queryOn(&connection))?
-            .makeAsync(insert)
-            .await?;
-        match self.save(parent, &mut model).await {
+        let mut model = self.make(parent, insert).await?;
+        match model.save().await {
             Ok(true) => Ok(model),
             Ok(false) => Err(DatabaseError::InvalidQuery(
                 "related model creation cancelled",
@@ -289,8 +278,35 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
-        self.set_parent_attributes(parent, model)?;
+        let connection = self.0.connection(parent)?;
+        let query = self.0.configure(R::queryOn(&connection))?;
+        self.apply_creation_attributes(parent, model, query.pending_attributes)
+            .await?;
         model.save().await
+    }
+
+    async fn make(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
+        let connection = self.0.connection(parent)?;
+        let query = self.0.configure(R::queryOn(&connection))?;
+        let mut model = query.make_with_attributes_async(attributes).await?;
+        self.apply_creation_attributes(parent, &mut model, query.pending_attributes)
+            .await?;
+        Ok(model)
+    }
+
+    async fn apply_creation_attributes(
+        &self,
+        parent: &P,
+        model: &mut R,
+        attributes: Attributes,
+    ) -> DatabaseResult<()> {
+        self.set_parent_attributes(parent, model)?;
+        for (column, value) in attributes {
+            if model.getAttribute(&column).is_none() {
+                model.setAttributeValueAsync(&column, value).await?;
+            }
+        }
+        Ok(())
     }
 
     fn set_parent_attributes(&self, parent: &P, model: &mut R) -> DatabaseResult<()> {
@@ -361,11 +377,14 @@ impl<P: Model, R: Model> HasMany<P, R> {
 
     #[allow(non_snake_case, reason = "Matches Laravel's relationship write API")]
     pub async fn forceCreate(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        let mut model = R::newInstanceOn(&self.0.connection(parent)?, Attributes::new())?;
-        for (column, value) in attributes {
+        let connection = self.0.connection(parent)?;
+        let query = self.0.configure(R::queryOn(&connection))?;
+        let mut model = R::newInstanceOn(&connection, Attributes::new())?;
+        for (column, value) in query.creation_attributes(attributes) {
             model.setAttributeValueAsync(&column, value).await?;
         }
-        self.save(parent, &mut model).await?;
+        self.set_parent_attributes(parent, &mut model)?;
+        model.save().await?;
         Ok(model)
     }
 
@@ -401,19 +420,8 @@ impl<P: Model, R: Model> HasMany<P, R> {
     }
 
     pub async fn create(&self, parent: &P, attributes: Attributes) -> DatabaseResult<R> {
-        let mut model = if attributes.keys().any(|name| {
-            super::super::casts::needs_async::<R>(
-                name,
-                &super::super::casts::CastOverrides::default(),
-            )
-        }) {
-            let mut model = R::newInstanceOn(&self.0.connection(parent)?, Attributes::new())?;
-            Box::pin(model.fillAsync(attributes)).await?;
-            model
-        } else {
-            R::newInstance(attributes)?
-        };
-        self.save(parent, &mut model).await?;
+        let mut model = self.make(parent, attributes).await?;
+        model.save().await?;
         Ok(model)
     }
 }

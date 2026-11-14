@@ -29,6 +29,7 @@ pub struct Builder<'connection, M: Model> {
     existence_attributes: HashSet<String>,
     pub(super) casts: CastOverrides,
     predicates: query::Conditions,
+    pub(super) pending_attributes: Attributes,
     eager_load: EagerLoads<M>,
     default_counts: bool,
     removed_scopes: HashSet<String>,
@@ -48,6 +49,7 @@ impl<M: Model> Builder<'static, M> {
             existence_attributes: HashSet::new(),
             casts: CastOverrides::default(),
             predicates: query::Conditions::default(),
+            pending_attributes: Attributes::new(),
             eager_load: EagerLoads::default(),
             default_counts: false,
             removed_scopes: HashSet::new(),
@@ -1290,7 +1292,30 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
+    /// Supplies model defaults and optionally adds matching query conditions.
+    #[must_use]
+    pub fn withAttributes(mut self, attributes: Attributes, as_conditions: bool) -> Self {
+        if as_conditions {
+            for (column, value) in &attributes {
+                let column = self.qualifyColumn(column);
+                self.r#where(&column, "=", value.clone());
+            }
+        }
+        self.pending_attributes.extend(attributes);
+        self
+    }
+
     pub fn make(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.make_with_attributes(self.creation_attributes(attributes))
+    }
+
+    pub(super) fn creation_attributes(&self, attributes: Attributes) -> Attributes {
+        let mut pending = self.pending_attributes.clone();
+        pending.extend(attributes);
+        pending
+    }
+
+    fn make_with_attributes(&self, attributes: Attributes) -> DatabaseResult<M> {
         if self.casts.is_empty() {
             return M::newInstanceOn(&self.connection, attributes);
         }
@@ -1307,13 +1332,21 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub async fn makeAsync(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.make_with_attributes_async(self.creation_attributes(attributes))
+            .await
+    }
+
+    pub(super) async fn make_with_attributes_async(
+        &self,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
         if !attributes
             .keys()
             .any(|name| super::casts::needs_async::<M>(name, &self.casts))
         {
-            return self.make(attributes);
+            return self.make_with_attributes(attributes);
         }
-        let mut model = self.make(Attributes::new())?;
+        let mut model = self.make_with_attributes(Attributes::new())?;
         model.fillAsync(attributes).await?;
         Ok(model)
     }
