@@ -237,6 +237,23 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Regional Bank Accounts {#regional-bank-account-samples}
+
+Use `bankAccountNumber(prefix, countryCode, length)` to select the account format for the Faker locale. The supported IBAN aliases default to their own country and accept explicit overrides. The Egyptian provider always generates an Egyptian IBAN. US English, Malaysian Malay and Nepali generate domestic formats. For these four providers, pass `("", None, None)`. `bankRoutingNumber()` generates a nine-digit routing sample for `en_US`. `Faker::calculateRoutingNumberChecksum` reads the first eight digits and returns the check digit. Unsupported locales return an error. Both generators support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_bank_samples() -> DatabaseResult<(String, String)> {
+    let uk = fake(Some("en-GB"))?;
+    let us = fake(Some("en-US"))?;
+    Ok((
+        uk.bankAccountNumber("BANK", None, None)?,
+        us.unique(false).bankRoutingNumber()?,
+    ))
+}
+```
+
 ### Credit Card Samples {#credit-card-samples}
 
 The credit card formatters generate vendor names, numbers with Luhn check digits, expiration dates and card details. Formatted numbers default to hyphen-separated groups. The `pt-BR` locale uses Brazilian vendor masks. Pass `true` for an expiration between now and 36 months ahead, or `false` for a date between 36 months ago and 36 months ahead. `creditCardExpirationDateString` accepts Chrono directives and defaults to `%m/%y`. All five formatters support `unique`.

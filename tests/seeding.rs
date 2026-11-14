@@ -4603,3 +4603,122 @@ fn faker_credit_cards_follow_provider_masks_and_expiration_contract() -> Databas
     assert_ne!(unique.creditCardNumber(None, false, None)?, first);
     Ok(())
 }
+
+#[test]
+fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::{Faker, fake};
+
+    for (locale, country) in [
+        ("ar_SA", "SA"),
+        ("bg_BG", "BG"),
+        ("cs_CZ", "CZ"),
+        ("da_DK", "DK"),
+        ("de_AT", "AT"),
+        ("de_CH", "CH"),
+        ("de_DE", "DE"),
+        ("el_CY", "CY"),
+        ("el_GR", "GR"),
+        ("en_GB", "GB"),
+        ("es_ES", "ES"),
+        ("fi_FI", "FI"),
+        ("fr_BE", "BE"),
+        ("fr_CH", "CH"),
+        ("fr_FR", "FR"),
+        ("he_IL", "IL"),
+        ("hr_HR", "HR"),
+        ("hu_HU", "HU"),
+        ("is_IS", "IS"),
+        ("it_CH", "CH"),
+        ("it_IT", "IT"),
+        ("ka_GE", "GE"),
+        ("kk_KZ", "KZ"),
+        ("lt_LT", "LT"),
+        ("lv_LV", "LV"),
+        ("me_ME", "ME"),
+        ("nb_NO", "NO"),
+        ("nl_BE", "BE"),
+        ("nl_NL", "NL"),
+        ("pl_PL", "PL"),
+        ("pt_BR", "BR"),
+        ("pt_PT", "PT"),
+        ("ro_MD", "MD"),
+        ("ro_RO", "RO"),
+        ("sk_SK", "SK"),
+        ("sl_SI", "SI"),
+        ("sr_Cyrl_RS", "RS"),
+        ("sr_Latn_RS", "RS"),
+        ("sr_RS", "RS"),
+        ("sv_SE", "SE"),
+        ("tr_TR", "TR"),
+        ("ar_EG", "EG"),
+    ] {
+        let account = fake(Some(locale))?.bankAccountNumber("", None, None)?;
+        assert!(account.starts_with(country), "{locale}: {account}");
+        assert_test_iban(&account);
+    }
+    let uk = fake(Some("en-GB"))?;
+    let gb = uk.bankAccountNumber("BANK", None, None)?;
+    assert_eq!(&gb[4..8], "BANK");
+    assert_eq!(gb.len(), 22);
+    let override_account = uk.bankAccountNumber("00", Some("ZZ"), Some(7))?;
+    assert_eq!(override_account.len(), 11);
+    assert_eq!(&override_account[4..6], "00");
+    assert_eq!(
+        fake(Some("me-ME"))?
+            .bankAccountNumber("", Some("ZZ"), None)?
+            .len(),
+        22
+    );
+
+    let usa = fake(Some("en-US"))?;
+    let malaysia = fake(Some("ms-MY"))?;
+    let nepal = fake(Some("ne-NP"))?;
+    let unique = usa.unique(true);
+    let mut routes = std::collections::HashSet::new();
+    for _ in 0..128 {
+        let account = usa.bankAccountNumber("", None, None)?;
+        assert!((5..=17).contains(&account.len()));
+        assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
+        let account = malaysia.bankAccountNumber("", None, None)?;
+        assert!((10..=16).contains(&account.len()));
+        assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
+        let account = nepal.bankAccountNumber("", None, None)?;
+        let digits = if let Some(digits) = account.strip_prefix("00") {
+            digits
+        } else {
+            assert!(account.as_bytes()[0].is_ascii_uppercase());
+            &account[1..]
+        };
+        assert!((9..=20).contains(&account.len()));
+        assert!(digits.bytes().all(|byte| (b'1'..=b'9').contains(&byte)));
+        let route = unique.bankRoutingNumber()?;
+        assert_eq!(route.len(), 9);
+        let district: u8 = route[..2].parse().unwrap();
+        assert!(matches!(district, 1..=12 | 21..=32 | 61..=72));
+        assert_ne!(route.as_bytes()[2], b'0');
+        assert_ne!(route.as_bytes()[4], b'0');
+        let checksum: u32 = route
+            .bytes()
+            .zip([3, 7, 1].into_iter().cycle())
+            .map(|(digit, weight)| u32::from(digit - b'0') * weight)
+            .sum();
+        assert_eq!(checksum % 10, 0);
+        assert!(routes.insert(route));
+    }
+    assert_eq!(Faker::calculateRoutingNumberChecksum("02100002")?, 1);
+    assert_eq!(Faker::calculateRoutingNumberChecksum("021000021")?, 1);
+    assert!(Faker::calculateRoutingNumberChecksum("0210000x").is_err());
+    assert!(Faker::calculateRoutingNumberChecksum("123").is_err());
+    assert!(usa.bankAccountNumber("00", None, None).is_err());
+    assert!(uk.bankRoutingNumber().is_err());
+    assert!(
+        fake(Some("zh-Hant"))?
+            .bankAccountNumber("", None, None)
+            .is_err()
+    );
+    assert_ne!(
+        unique.bankAccountNumber("", None, None)?,
+        unique.bankAccountNumber("", None, None)?
+    );
+    Ok(())
+}

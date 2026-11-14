@@ -1,7 +1,10 @@
 use super::{
     faker_address::DISTRICTS_ZH_CN,
     faker_miscellaneous,
-    faker_payment::{CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, card_masks, card_masks_pt_br},
+    faker_payment::{
+        CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
+        card_masks_pt_br,
+    },
     faker_person, faker_phone,
     regex_pattern::RegexPattern,
 };
@@ -971,6 +974,79 @@ impl Faker {
             name: self.name(),
             expiration_date: self.creditCardExpirationDateString(valid, None)?,
         })
+    }
+
+    /// Generates the bank account format provided by this locale.
+    pub fn bankAccountNumber(
+        &self,
+        prefix: &str,
+        countryCode: Option<&str>,
+        length: Option<usize>,
+    ) -> DatabaseResult<String> {
+        if let Some((country, default_length)) = account_iban_defaults(self.locale()) {
+            return self.iban(
+                Some(countryCode.unwrap_or(country)),
+                prefix,
+                length.or(default_length),
+            );
+        }
+        if !prefix.is_empty() || countryCode.is_some() || length.is_some() {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker local bank account takes no arguments",
+            ));
+        }
+        match self.locale() {
+            "ar_EG" => self.iban(Some("EG"), "", Some(25)),
+            "en_US" => {
+                let length = 5 + (0..4).map(|_| fastrand::usize(0..=3)).sum::<usize>();
+                Ok(self.numerify(Some(&"#".repeat(length))))
+            }
+            "ms_MY" => Ok(self.numerify(Some(&"#".repeat(fastrand::usize(10..=16))))),
+            "ne_NP" => self.regexify(if fastrand::bool() {
+                "[A-Z][1-9]{8,19}"
+            } else {
+                "00[1-9]{7,18}"
+            }),
+            _ => Err(DatabaseError::InvalidQuery(
+                "unsupported Faker bank account locale",
+            )),
+        }
+    }
+
+    /// Generates the routing-number sample provided by the US locale.
+    pub fn bankRoutingNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "en_US" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker bank routing locale",
+            ));
+        }
+        let bank_type = [0, 0, 0, 0, 20, 20, 60][fastrand::usize(..7)];
+        let district = self.numberBetween(1, 12);
+        let clearing_center = self.randomDigitNotNull();
+        let state = self.randomDigit();
+        let institution = self.numberBetween(1000, 9999);
+        let routing = format!(
+            "{:02}{clearing_center}{state}{institution}",
+            district + bank_type
+        );
+        let checksum = Self::calculateRoutingNumberChecksum(&routing)?;
+        Ok(format!("{routing}{checksum}"))
+    }
+
+    /// Computes the check digit from the first eight routing-number digits.
+    pub fn calculateRoutingNumberChecksum(routing: &str) -> DatabaseResult<u8> {
+        let digits = routing
+            .as_bytes()
+            .get(..8)
+            .filter(|digits| digits.iter().all(u8::is_ascii_digit))
+            .ok_or(DatabaseError::InvalidQuery("invalid Faker routing number"))?;
+        let weights = [7, 3, 9, 7, 3, 9, 7, 3];
+        let sum: u16 = digits
+            .iter()
+            .zip(weights)
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum();
+        Ok((sum % 10) as u8)
     }
 
     /// Generates a sample IBAN using the selected country's account layout.
@@ -1997,6 +2073,21 @@ impl UniqueFaker<'_> {
             || self.0.creditCardDetails(valid),
             faker_json_key,
         )
+    }
+
+    pub fn bankAccountNumber(
+        &self,
+        prefix: &str,
+        countryCode: Option<&str>,
+        length: Option<usize>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("bankAccountNumber", || {
+            self.0.bankAccountNumber(prefix, countryCode, length)
+        })
+    }
+
+    pub fn bankRoutingNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("bankRoutingNumber", || self.0.bankRoutingNumber())
     }
 
     pub fn iban(

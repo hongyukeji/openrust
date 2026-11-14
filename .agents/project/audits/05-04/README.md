@@ -479,3 +479,13 @@ PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN�
 下一批按地区核对 `bankAccountNumber`、`bankRoutingNumber` 及其他 Payment provider 特有接口。
 
 清理本批独立 Cargo 产物 2.2 GiB 和站点产物约 38 MiB，复查项目卷剩余 83 GiB。
+
+## Faker 地区账号与路由号
+
+对应固定 Laravel 模型工厂的 `fake()`。FakerPHP v1.24.1 有 45 个地区提供 `bankAccountNumber`。Rust 复用 IBAN 生成器，保留 41 个地区别名的默认国家和可覆盖参数，以及埃及固定 IBAN 和美国、马来西亚、尼泊尔的本地格式。美国地区另提供 `bankRoutingNumber` 与公开的 `calculateRoutingNumberChecksum`。两种生成方法各有独立 `unique` 历史。Rust 使用统一签名，对无参地区传入非默认参数、缺少 formatter 的地区和不合法的校验输入返回错误。旧版未找到对应方法，工厂装配沿用当前框架路径。 [Laravel 工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [FakerPHP 美国 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Payment.php) · [FakerPHP 英国 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_GB/Payment.php)
+
+隔离基线 `e8940a08`。PHP 8.5 从固定源码检查 45 个地区各 32 条账号及 32 条美国路由号。Rust 定向回归覆盖每个账号地区、参数覆盖、两种校验位、唯一历史和错误路径。实际 MySQL 8.4.13 用 `artisan db:seed --database=mysql --force` 回查美国账号和路由号、带前导零前缀的英国 IBAN 和尼泊尔账号。Rust 1.94.0 格式、全目标严格 Clippy、MySQL 定向工厂回归、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。
+
+下一批核对地区银行名称、分类及本地 SWIFT 接口。地区税号另行按其 formatter 契约验收。
+
+已清理本批独占 Cargo 产物 2.2 GiB 和文档站产物约 38 MiB，项目卷剩余 81 GiB。

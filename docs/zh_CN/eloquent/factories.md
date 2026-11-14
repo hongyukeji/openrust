@@ -237,6 +237,23 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 地区银行账号 {#regional-bank-account-samples}
+
+用 `bankAccountNumber(prefix, countryCode, length)` 按 Faker 地区生成账号。支持 IBAN 别名的地区默认使用本国代码，可显式覆盖参数。埃及地区固定生成埃及 IBAN。美国英语、马来西亚马来语和尼泊尔语生成本地账号。这四种地区传入 `("", None, None)`。`bankRoutingNumber()` 为 `en_US` 生成九位路由号样本。`Faker::calculateRoutingNumberChecksum` 读取前八位并返回校验位。不支持的地区返回错误。两种生成方法均支持 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_bank_samples() -> DatabaseResult<(String, String)> {
+    let uk = fake(Some("en-GB"))?;
+    let us = fake(Some("en-US"))?;
+    Ok((
+        uk.bankAccountNumber("BANK", None, None)?,
+        us.unique(false).bankRoutingNumber()?,
+    ))
+}
+```
+
 ### 信用卡样本 {#credit-card-samples}
 
 信用卡生成器提供品牌、带 Luhn 校验位的卡号、到期日和完整样本。卡号格式化时默认用连字符分组。`pt-BR` 使用巴西品牌格式。到期日期传入 `true` 时从现在到未来 36 个月取样，传入 `false` 时从过去 36 个月到未来 36 个月取样。`creditCardExpirationDateString` 接受 Chrono 格式指令，默认 `%m/%y`。五个方法均支持 `unique`。

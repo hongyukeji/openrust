@@ -1,4 +1,4 @@
-// IBAN layouts and card masks from FakerPHP 1.24.1, src/Faker/Provider/Payment.php.
+// Payment formats from FakerPHP 1.24.1, src/Faker/Provider/{locale/}Payment.php.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
 // Portions Copyright (c) 2008 Adam Royle
@@ -200,6 +200,48 @@ pub(super) fn card_masks_pt_br(vendor: &str) -> Option<&'static [&'static str]> 
         ],
         "Hipercard" => &["38#############", "60#############"],
         "Aura" => &["50#############"],
+        _ => return None,
+    })
+}
+
+pub(super) fn account_iban_defaults(locale: &str) -> Option<(&'static str, Option<usize>)> {
+    Some(match locale {
+        "de_AT" => ("AT", None),
+        "fr_BE" | "nl_BE" => ("BE", None),
+        "bg_BG" => ("BG", None),
+        "pt_BR" => ("BR", None),
+        "de_CH" | "fr_CH" | "it_CH" => ("CH", None),
+        "el_CY" => ("CY", None),
+        "cs_CZ" => ("CZ", None),
+        "de_DE" => ("DE", None),
+        "da_DK" => ("DK", None),
+        "es_ES" => ("ES", None),
+        "fi_FI" => ("FI", None),
+        "fr_FR" => ("FR", None),
+        "en_GB" => ("GB", None),
+        "ka_GE" => ("GE", None),
+        "el_GR" => ("GR", None),
+        "hr_HR" => ("HR", None),
+        "hu_HU" => ("HU", None),
+        "he_IL" => ("IL", None),
+        "is_IS" => ("IS", None),
+        "it_IT" => ("IT", None),
+        "kk_KZ" => ("KZ", None),
+        "lt_LT" => ("LT", None),
+        "lv_LV" => ("LV", None),
+        "ro_MD" => ("MD", None),
+        "me_ME" => ("ME", Some(18)),
+        "nl_NL" => ("NL", None),
+        "nb_NO" => ("NO", None),
+        "pl_PL" => ("PL", None),
+        "pt_PT" => ("PT", None),
+        "ro_RO" => ("RO", None),
+        "sr_Cyrl_RS" | "sr_Latn_RS" | "sr_RS" => ("RS", None),
+        "ar_SA" => ("SA", None),
+        "sv_SE" => ("SE", None),
+        "sl_SI" => ("SI", None),
+        "sk_SK" => ("SK", None),
+        "tr_TR" => ("TR", None),
         _ => return None,
     })
 }
