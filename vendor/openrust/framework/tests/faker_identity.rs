@@ -3151,3 +3151,32 @@ fn lithuanian_driver_licence_is_numeric_and_supports_unique() {
         assert!(values.insert(value));
     }
 }
+
+#[test]
+fn missing_person_provider_uses_us_names_and_optional_formatters() {
+    let english = fake(Some("en-US")).unwrap();
+    let surnames: std::collections::HashSet<_> = (0..1200)
+        .map_while(|_| english.unique(false).lastName().ok())
+        .collect();
+    assert!(surnames.len() >= 400);
+
+    for locale in ["en-CA", "cy-GB", "en"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        for _ in 0..16 {
+            assert!(!faker.name().is_empty());
+            assert!(!faker.firstName().is_empty());
+            assert!(surnames.contains(&faker.lastName()));
+            assert_eq!(unique.ssn().unwrap().len(), 11);
+        }
+        assert!(unique.suffix().unwrap().is_some());
+        assert!(faker.prefix().is_err());
+        assert!(faker.nino().is_err());
+    }
+
+    for locale in ["en-SG", "zh-CN", "en-GB"] {
+        let faker = fake(Some(locale)).unwrap();
+        assert!(faker.ssn().is_err());
+        assert!(faker.suffix().is_err());
+    }
+}

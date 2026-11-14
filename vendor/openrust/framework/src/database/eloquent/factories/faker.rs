@@ -706,34 +706,11 @@ impl Faker {
     }
 
     pub fn name(&self) -> String {
-        if self.uses_pinned_person_names() {
-            return self.nameWithGender(None);
-        }
-        generate!(self.locale(), faker::name::raw::Name,)
+        self.nameWithGender(None)
     }
 
     pub fn firstName(&self) -> String {
-        if self.uses_pinned_person_names() {
-            return self.firstNameWithGender(None);
-        }
-        generate!(self.locale(), faker::name::raw::FirstName,)
-    }
-
-    fn uses_pinned_person_names(&self) -> bool {
-        matches!(
-            self.locale(),
-            "nl_NL"
-                | "is_IS"
-                | "lt_LT"
-                | "pl_PL"
-                | "cs_CZ"
-                | "sk_SK"
-                | "el_GR"
-                | "bg_BG"
-                | "ru_RU"
-                | "id_ID"
-                | "ms_MY"
-        ) || faker_person::surnames(self.locale()).is_some()
+        self.firstNameWithGender(None)
     }
 
     pub fn lastName(&self) -> String {
@@ -753,10 +730,9 @@ impl Faker {
             }
             _ => {}
         }
-        if let Some(surnames) = faker_person::surnames(self.locale()) {
-            return surnames[fastrand::usize(..surnames.len())].to_owned();
-        }
-        generate!(self.locale(), faker::name::raw::LastName,)
+        let surnames = faker_person::surnames(faker_person::provider_locale(self.locale()))
+            .expect("fixed Faker surname catalog");
+        surnames[fastrand::usize(..surnames.len())].to_owned()
     }
 
     pub fn middleName(&self) -> DatabaseResult<&'static str> {
@@ -1129,12 +1105,13 @@ impl Faker {
 
     /// Samples a name suffix, including the upstream null and empty-string values.
     pub fn suffix(&self) -> DatabaseResult<Option<&'static str>> {
-        let catalog = match self.locale() {
+        let locale = faker_person::provider_locale(self.locale());
+        let catalog = match locale {
             "it_CH" | "it_IT" => return Ok(None),
             "hy_AM" | "zh_TW" => return Ok(Some("")),
             "de_AT" | "de_CH" | "de_DE" | "en_US" | "es_AR" | "es_ES" | "es_PE" | "es_VE"
             | "hu_HU" | "id_ID" | "nl_NL" | "pt_BR" | "sk_SK" | "th_TH" => {
-                faker_person::catalog(self.locale()).suffixes
+                faker_person::catalog(locale).suffixes
             }
             _ => {
                 return Err(DatabaseError::InvalidQuery(

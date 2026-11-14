@@ -79,7 +79,7 @@ const GREEK_OBJECT: &[&str] = &[
 impl Faker {
     /// Samples the selected Person provider's SSN format.
     pub fn ssn(&self) -> DatabaseResult<String> {
-        match self.locale() {
+        match super::faker_person::provider_locale(self.locale()) {
             "en_US" | "th_TH" => Ok(us_ssn()),
             "de_AT" => self.ssnWithBirthdate(None),
             "is_IS" => Ok(icelandic_ssn(self.identity_birthdate()?)),

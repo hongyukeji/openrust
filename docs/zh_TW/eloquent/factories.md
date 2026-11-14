@@ -994,6 +994,18 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 }
 ```
 
+### Person 地區回退 {#person-locale-fallback}
+
+當指定地區沒有 Person provider 時，姓名介面、`suffix()` 和 `ssn()` 使用 `en-US` Person provider。已有 Person provider 的地區使用自身和繼承的介面。例如，`en-CA` 會回退到美國英語 Person，`en-SG` 有自己的 Person provider，呼叫 `ssn()` 回傳不支援錯誤。此回退僅適用於 Person 介面。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_fallback_sample() -> DatabaseResult<String> {
+    fake(Some("en-CA"))?.unique(false).ssn()
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

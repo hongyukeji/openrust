@@ -1154,3 +1154,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `2c05cf39`。PHP 8.5 核对 512 个上游样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 512 个值，覆盖两个地区和两种证件，并执行文档示例。65 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用 80 GiB。下一批继续复核 Person 同名方法和显式地区回退。
+
+## Faker Person 地区回退
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 [Factory::getProviderClassname](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Factory.php#L36)。Person 查不到地区实现时统一使用 en-US Provider 的姓名、后缀及 SSN，已有地区 Person 保留继承和不支持接口的行为。Rust 复用现有目录和结构化错误，继续接受规范化 BCP 47 地区标识。v0.x 未找到对应分派。编译式工厂装配及其他 provider 无需调整。
+
+隔离基线 `0bc168b0`。PHP 8.5 通过固定实现解析三个回退地区并核对 192 组上游结果。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 960 个值，覆盖 en-CA、cy-GB 和 en，验证姓名模板、词表、后缀及 SSN 并执行文档示例。验收同时覆盖 en-SG、en-GB 和 zh-CN 自有 Person 的不支持接口。66 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用约 80 GiB。下一批对账 Person 模板、词表及地区分派的剩余行为。

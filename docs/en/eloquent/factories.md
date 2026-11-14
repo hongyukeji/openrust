@@ -994,6 +994,18 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 }
 ```
 
+### Person Locale Fallback {#person-locale-fallback}
+
+When a locale has no Person provider, name formatters, `suffix()`, and `ssn()` use the `en-US` Person provider. A locale with its own Person provider uses that provider’s formatters, including the ones it inherits. For example, `en-CA` falls back to the US Person provider, while `en-SG` has its own provider and returns an unsupported-locale error for `ssn()`. The Person fallback applies only to Person formatters.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn person_fallback_sample() -> DatabaseResult<String> {
+    fake(Some("en-CA"))?.unique(false).ssn()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

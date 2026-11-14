@@ -9437,7 +9437,20 @@ const EN_US: PersonNames = PersonNames {
 };
 
 pub(super) fn catalog(locale: &str) -> &'static PersonNames {
-    match locale {
+    localized_catalog(locale).unwrap_or(&EN_US)
+}
+
+pub(super) fn provider_locale(locale: &str) -> &str {
+    if localized_catalog(locale).is_some() {
+        locale
+    } else {
+        "en_US"
+    }
+}
+
+fn localized_catalog(locale: &str) -> Option<&'static PersonNames> {
+    Some(match locale {
+        "en_US" => &EN_US,
         "ar_SA" => &AR_SA,
         "de_DE" => &DE_DE,
         "fa_IR" => &FA_IR,
@@ -9505,8 +9518,8 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "mn_MN" => &MN_MN,
         "en_SG" => &EN_SG,
         "nl_BE" => &NL_BE,
-        _ => &EN_US,
-    }
+        _ => return None,
+    })
 }
 
 const EN_US_SURNAMES: &[&str] = &[
