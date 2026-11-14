@@ -794,6 +794,25 @@ pub async fn import_post<P: Model, R: Model>(
 
 `syncWithPivotValues` 為所有鍵套用同一組屬性。`syncWithPivotAttributes` 接收 `(鍵, 屬性)` 配對，為各鍵設定不同屬性。兩者均回傳附加、解除綁定和更新的鍵。同步失敗會復原本次修改。
 
+### 儲存和建立多對多模型 {#saving-many-to-many-models}
+
+用 `save` 儲存並掛載關聯模型，用 `create` 從屬性建立並掛載。Pivot 屬性獨立傳入。各模型及其關聯在同一交易寫入。`saveMany` 和 `createMany` 依輸入位置對應 Pivot 屬性，批次成功後更新已設定的關聯時間戳記。後續記錄失敗時保留先前已提交的記錄。帶有 `Quietly` 後綴的方法抑制模型事件。`forceCreate` 和 `forceCreateQuietly` 繞過批次賦值保護，仍執行屬性轉換。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::BelongsToMany}};
+
+pub async fn create_roles<P: Model, R: Model>(
+    roles: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Vec<R>> {
+    roles.createMany(
+        user,
+        [Attributes::from([("name".into(), "Editor".into())])],
+        &[Attributes::from([("source".into(), "manual".into())])],
+    ).await
+}
+```
+
 ### 切換關聯 {#toggling-associations}
 
 用 `toggle` 依指定鍵解除既有關聯、建立缺少的關聯。`toggleWithPivotAttributes` 可為每個新增關聯傳入屬性。`toggle` 和 `toggleOrFail` 都在同一交易內執行，回傳新增與解除的鍵。

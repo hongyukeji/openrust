@@ -794,6 +794,25 @@ Use `withPivot(["label"])` to select extra columns from the intermediate table. 
 
 `syncWithPivotValues` applies the same attributes to every key. Use `syncWithPivotAttributes` with `(key, attributes)` pairs for individual values. Both return attached, detached, and updated keys. A failed sync rolls back its changes.
 
+### Saving and creating many-to-many models {#saving-many-to-many-models}
+
+Use `save` to persist a related model and attach it, or `create` to construct it from attributes and attach it. Supply pivot attributes separately. Each model and its link are written in one transaction. `saveMany` and `createMany` match pivot attributes by input position and touch configured endpoints after the batch succeeds. Earlier rows remain committed if a later row fails. The `Quietly` variants suppress model events. `forceCreate` and `forceCreateQuietly` bypass mass-assignment guards while still running casts.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::BelongsToMany}};
+
+pub async fn create_roles<P: Model, R: Model>(
+    roles: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Vec<R>> {
+    roles.createMany(
+        user,
+        [Attributes::from([("name".into(), "Editor".into())])],
+        &[Attributes::from([("source".into(), "manual".into())])],
+    ).await
+}
+```
+
 ### Toggling associations {#toggling-associations}
 
 Use `toggle` to remove existing links and insert missing links for the supplied keys. `toggleWithPivotAttributes` supplies per-key attributes for inserts. Both `toggle` and `toggleOrFail` run in one transaction and return attached and detached keys.

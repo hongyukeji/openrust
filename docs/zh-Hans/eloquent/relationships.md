@@ -794,6 +794,25 @@ pub async fn import_post<P: Model, R: Model>(
 
 `syncWithPivotValues` 为所有键应用同一组属性。`syncWithPivotAttributes` 接收 `(键, 属性)` 对，为各键设置不同属性。两者均返回附加、解绑和更新的键。同步失败会回滚本次修改。
 
+### 保存和创建多对多模型 {#saving-many-to-many-models}
+
+用 `save` 保存并挂载关联模型，用 `create` 从属性创建并挂载。Pivot 属性单独传入。每个模型与其关联在同一事务写入。`saveMany` 和 `createMany` 按输入位置对应 Pivot 属性，在批量成功后更新已配置的关联时间戳。后续记录失败时保留先前已提交的记录。带 `Quietly` 后缀的方法抑制模型事件。`forceCreate` 和 `forceCreateQuietly` 绕过批量赋值保护，仍执行属性转换。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, relations::BelongsToMany}};
+
+pub async fn create_roles<P: Model, R: Model>(
+    roles: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Vec<R>> {
+    roles.createMany(
+        user,
+        [Attributes::from([("name".into(), "Editor".into())])],
+        &[Attributes::from([("source".into(), "manual".into())])],
+    ).await
+}
+```
+
 ### 切换关联 {#toggling-associations}
 
 用 `toggle` 对给定键解除已有关系、建立缺失关系。`toggleWithPivotAttributes` 可为每个新增关联传入属性。`toggle` 和 `toggleOrFail` 均在同一事务内执行，返回新增和解除的键。

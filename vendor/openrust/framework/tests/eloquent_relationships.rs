@@ -5039,6 +5039,121 @@ async fn verify_non_pivot_counters(db: &Connection, mysql: bool) {
         .unwrap();
 }
 
+async fn verify_many_to_many_writes(db: &Connection, parent: &Author) {
+    let relation = FEATURED_POSTS;
+    let model = |title: &str, score: i64| {
+        Attributes::from([
+            ("title".into(), title.into()),
+            ("score".into(), score.into()),
+        ])
+    };
+    let joining = |label: &str| Attributes::from([("label".into(), label.into())]);
+    let created = relation
+        .create(parent, model("saved with pivot", 700), joining("first"))
+        .await
+        .unwrap();
+
+    let mut existing = Post::queryOn(db)
+        .findOrFail(created.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    existing.setAttribute("score", 701);
+    assert!(
+        relation
+            .save(parent, &mut existing, joining("duplicate"))
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        Post::queryOn(db)
+            .findOrFail(created.getKey().unwrap().clone())
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&700.into())
+    );
+    assert!(existing.getDirty().unwrap().contains_key("score"));
+
+    let saved = relation
+        .createManyQuietly(
+            parent,
+            [model("batch one", 702), model("batch two", 703)],
+            &[joining("one"), joining("two")],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        saved
+            .iter()
+            .map(|row| row.getAttribute("score").cloned().unwrap())
+            .collect::<Vec<_>>(),
+        vec![702.into(), 703.into()]
+    );
+    let mut batch = [
+        Post::newInstance(model("saved batch one", 704)).unwrap(),
+        Post::newInstance(model("saved batch rejected", 705)).unwrap(),
+    ];
+    assert!(
+        relation
+            .saveMany(
+                parent,
+                &mut batch,
+                &[joining("committed"), Attributes::new()]
+            )
+            .await
+            .is_err()
+    );
+    assert!(batch[0].state().exists());
+    assert!(!batch[1].state().exists());
+    let mut query = Post::queryOn(db);
+    query.r#where("title", "=", "saved batch rejected");
+    assert!(query.first().await.unwrap().is_none());
+    relation
+        .saveManyQuietly(parent, &mut batch[1..], &[joining("retry")])
+        .await
+        .unwrap();
+    assert!(batch[1].state().exists());
+
+    let forced = relation
+        .forceCreateQuietly(
+            parent,
+            Attributes::from([
+                ("title".into(), "forced pivot".into()),
+                ("score".into(), 706.into()),
+                ("author_id".into(), 44.into()),
+            ]),
+            joining("forced"),
+        )
+        .await
+        .unwrap();
+    assert_eq!(forced.getAttribute("author_id"), Some(&44.into()));
+    let posts = FEATURED_POSTS
+        .withPivot(["label"])
+        .getResults(parent)
+        .await
+        .unwrap();
+    for (score, expected) in [
+        (700, "first"),
+        (702, "one"),
+        (703, "two"),
+        (704, "committed"),
+        (705, "retry"),
+        (706, "forced"),
+    ] {
+        let model = posts
+            .iter()
+            .find(|model| model.getAttribute("score") == Some(&score.into()))
+            .unwrap();
+        assert_eq!(
+            model
+                .getRelation::<Pivot>("pivot")
+                .unwrap()
+                .getAttribute("label"),
+            Some(&expected.into())
+        );
+    }
+}
+
 async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     for sql in [
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
@@ -5111,6 +5226,7 @@ async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
         Box::pin(verify_restore_and_deferred_values(db)).await;
         Box::pin(verify_increment_or_create(db, mysql)).await;
         Box::pin(verify_non_pivot_counters(db, mysql)).await;
+        Box::pin(verify_many_to_many_writes(db, &parent)).await;
     }
     for table in [
         "relation_featured_posts",

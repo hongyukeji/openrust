@@ -655,68 +655,13 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         joining: Attributes,
         include_trashed: bool,
     ) -> DatabaseResult<Arc<R>> {
-        self.validate_pivot_attributes(&joining)?;
-        let owner = self.owner(parent)?;
         let connection = self.keys.connection(parent)?;
-        let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
-        let owner = owner.clone();
-        let pivot = self.pivot;
-        let identity = pivot.identity(self.timestamp_columns());
-        let custom = self.custom_pivot;
-        let related_key = self.keys.related;
-        let defaults = self.pivot_constraints.defaults.clone();
-        let timestamps = self.pivot_write_timestamps(&connection)?;
         let mut insert = attributes.clone();
         insert.extend(values.resolve());
-        let attempt = connection
-            .transaction(
-                |transaction| {
-                    let insert = insert.clone();
-                    let joining = joining.clone();
-                    let connection = connection.clone();
-                    let owner = owner.clone();
-                    let defaults = defaults.clone();
-                    let stamps = timestamps.insert.clone();
-                    let parent_state = parent_state.clone();
-                    let related_touch = related_touch.clone();
-                    Box::pin(async move {
-                        let mut model = R::queryOn(&connection).makeAsync(insert).await?;
-                        if !super::super::persistence::save_with_touch(
-                            &mut model,
-                            Some(transaction),
-                            false,
-                        )
-                        .await?
-                        {
-                            return Err(DatabaseError::InvalidQuery(
-                                "related model creation cancelled",
-                            ));
-                        }
-                        let key = attachment_key(&model, related_key)?;
-                        let mut rows = pivot.records(&owner, [key].into_iter());
-                        for row in &mut rows {
-                            row.extend(stamps.clone());
-                            row.extend(defaults.clone());
-                            row.extend(joining.clone());
-                        }
-                        if !insert_pivot_rows(transaction, &connection, identity, custom, &rows)
-                            .await?
-                        {
-                            return Err(DatabaseError::InvalidQuery("pivot attachment cancelled"));
-                        }
-                        touch_endpoints::<P, R>(
-                            parent_state,
-                            related_touch,
-                            &connection,
-                            transaction,
-                        )
-                        .await?;
-                        Ok(Arc::new(model))
-                    })
-                },
-                1,
-            )
-            .await;
+        let attempt = self
+            .create(parent, insert, joining.clone())
+            .await
+            .map(Arc::new);
         let conflict = match attempt {
             Err(error) if is_unique_violation(&error) => error,
             result => return result,
@@ -731,6 +676,229 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             return Err(conflict);
         };
         self.attach_found(parent, model, lookup, joining).await
+    }
+
+    /// Saves the related model and attaches it in the same transaction.
+    pub async fn save(&self, parent: &P, model: &mut R, joining: Attributes) -> DatabaseResult<()> {
+        self.save_and_attach(parent, model, joining, true).await
+    }
+
+    pub async fn saveQuietly(
+        &self,
+        parent: &P,
+        model: &mut R,
+        joining: Attributes,
+    ) -> DatabaseResult<()> {
+        R::withoutEvents(self.save(parent, model, joining)).await
+    }
+
+    pub async fn saveMany(
+        &self,
+        parent: &P,
+        models: &mut [R],
+        joinings: &[Attributes],
+    ) -> DatabaseResult<()> {
+        for (index, model) in models.iter_mut().enumerate() {
+            self.save_and_attach(
+                parent,
+                model,
+                joinings.get(index).cloned().unwrap_or_default(),
+                false,
+            )
+            .await?;
+        }
+        self.touch_after_batch(parent).await
+    }
+
+    pub async fn saveManyQuietly(
+        &self,
+        parent: &P,
+        models: &mut [R],
+        joinings: &[Attributes],
+    ) -> DatabaseResult<()> {
+        R::withoutEvents(self.saveMany(parent, models, joinings)).await
+    }
+
+    pub async fn create(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<R> {
+        self.create_and_attach(parent, attributes, joining, true)
+            .await
+    }
+
+    pub async fn createQuietly(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<R> {
+        R::withoutEvents(self.create(parent, attributes, joining)).await
+    }
+
+    pub async fn createMany(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+        joinings: &[Attributes],
+    ) -> DatabaseResult<Vec<R>> {
+        let mut models = Vec::new();
+        for (index, attributes) in records.into_iter().enumerate() {
+            models.push(
+                self.create_and_attach(
+                    parent,
+                    attributes,
+                    joinings.get(index).cloned().unwrap_or_default(),
+                    false,
+                )
+                .await?,
+            );
+        }
+        self.touch_after_batch(parent).await?;
+        Ok(models)
+    }
+
+    pub async fn createManyQuietly(
+        &self,
+        parent: &P,
+        records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
+        joinings: &[Attributes],
+    ) -> DatabaseResult<Vec<R>> {
+        R::withoutEvents(self.createMany(parent, records, joinings)).await
+    }
+
+    pub async fn forceCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<R> {
+        self.owner(parent)?;
+        self.validate_pivot_attributes(&joining)?;
+        let connection = self.keys.connection(parent)?;
+        let mut model = R::newInstanceOn(&connection, Attributes::new())?;
+        for (column, value) in attributes {
+            model.setAttributeValueAsync(&column, value).await?;
+        }
+        self.save(parent, &mut model, joining).await?;
+        Ok(model)
+    }
+
+    pub async fn forceCreateQuietly(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<R> {
+        R::withoutEvents(self.forceCreate(parent, attributes, joining)).await
+    }
+
+    async fn create_and_attach(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        joining: Attributes,
+        touch: bool,
+    ) -> DatabaseResult<R> {
+        self.owner(parent)?;
+        self.validate_pivot_attributes(&joining)?;
+        let connection = self.keys.connection(parent)?;
+        let mut model = R::queryOn(&connection).makeAsync(attributes).await?;
+        self.save_and_attach(parent, &mut model, joining, touch)
+            .await?;
+        Ok(model)
+    }
+
+    async fn save_and_attach(
+        &self,
+        parent: &P,
+        model: &mut R,
+        joining: Attributes,
+        touch: bool,
+    ) -> DatabaseResult<()> {
+        self.validate_pivot_attributes(&joining)?;
+        let owner = self.owner(parent)?.clone();
+        let connection = self.keys.connection(parent)?;
+        let (parent_state, related_touch) = if touch {
+            self.pivot_touches(parent, &owner, &connection)?
+        } else {
+            (None, None)
+        };
+        let pivot = self.pivot;
+        let identity = pivot.identity(self.timestamp_columns());
+        let custom = self.custom_pivot;
+        let related_key = self.keys.related;
+        let mut pivot_attributes = self.pivot_write_timestamps(&connection)?.insert;
+        pivot_attributes.extend(self.pivot_constraints.defaults.clone());
+        pivot_attributes.extend(joining);
+        let initial = model.state();
+        let saved = connection
+            .transaction(
+                |transaction| {
+                    let mut model = R::from_state(initial.clone());
+                    let connection = connection.clone();
+                    let owner = owner.clone();
+                    let pivot_attributes = pivot_attributes.clone();
+                    let parent_state = parent_state.clone();
+                    let related_touch = related_touch.clone();
+                    Box::pin(async move {
+                        if !super::super::persistence::save_with_touch(
+                            &mut model,
+                            Some(transaction),
+                            false,
+                        )
+                        .await?
+                        {
+                            return Err(DatabaseError::InvalidQuery(
+                                "related model creation cancelled",
+                            ));
+                        }
+                        let key = attachment_key(&model, related_key)?;
+                        let mut rows = pivot.records(&owner, std::iter::once(key));
+                        rows[0].extend(pivot_attributes);
+                        if !insert_pivot_rows(transaction, &connection, identity, custom, &rows)
+                            .await?
+                        {
+                            return Err(DatabaseError::InvalidQuery("pivot attachment cancelled"));
+                        }
+                        touch_endpoints::<P, R>(
+                            parent_state,
+                            related_touch,
+                            &connection,
+                            transaction,
+                        )
+                        .await?;
+                        Ok(model.state().clone())
+                    })
+                },
+                1,
+            )
+            .await?;
+        *model.state_mut() = saved;
+        Ok(())
+    }
+
+    async fn touch_after_batch(&self, parent: &P) -> DatabaseResult<()> {
+        let connection = self.keys.connection(parent)?;
+        let (state, related) = self.pivot_touches(parent, self.owner(parent)?, &connection)?;
+        if state.is_none() && related.is_none() {
+            return Ok(());
+        }
+        connection
+            .transaction(
+                |transaction| {
+                    let state = state.clone();
+                    let related = related.clone();
+                    let connection = connection.clone();
+                    Box::pin(async move {
+                        touch_endpoints::<P, R>(state, related, &connection, transaction).await
+                    })
+                },
+                1,
+            )
+            .await
     }
 
     async fn attach_found(
