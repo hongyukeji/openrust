@@ -1,13 +1,14 @@
 use chrono::{DateTime, Utc};
 use subtle::ConstantTimeEq as _;
 
+use crate::auth::AuthIdentifier;
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model, casts::AttributeCast},
 };
 
 use super::PersonalAccessToken;
-use super::personal_access_token::{integer, invalid_row, parse_timestamp};
+use super::personal_access_token::{integer_key, invalid_row, parse_timestamp};
 
 type FoundModelToken = Option<(PersonalAccessToken, Box<dyn ModelToken>)>;
 
@@ -18,14 +19,14 @@ pub(super) trait ModelStore: Send + Sync {
     ) -> DatabaseFuture<'_, DatabaseResult<PersonalAccessToken>>;
     fn find<'a>(
         &'a self,
-        id: Option<u64>,
+        id: Option<&'a str>,
         hash: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<FoundModelToken>>;
     fn revoke<'a>(
         &'a self,
         owner: &'a str,
-        owner_id: u64,
-        id: u64,
+        owner_id: AuthIdentifier,
+        id: AuthIdentifier,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>>;
     fn prune(
         &self,
@@ -49,6 +50,15 @@ impl<M: Model> EloquentTokenStore<M> {
         Self {
             connection,
             model: std::marker::PhantomData,
+        }
+    }
+
+    fn credential_key(&self, id: &str) -> Option<Value> {
+        if M::getIncrementing() {
+            integer_key(id, &self.connection)
+        } else {
+            let key = M::from_state(Default::default()).getKeyName();
+            M::routeBindingValue(key, id)
         }
     }
 
@@ -86,13 +96,16 @@ impl<M: Model> ModelStore for EloquentTokenStore<M> {
 
     fn find<'a>(
         &'a self,
-        id: Option<u64>,
+        id: Option<&'a str>,
         hash: &'a str,
     ) -> DatabaseFuture<'a, DatabaseResult<FoundModelToken>> {
         Box::pin(async move {
             let mut query = self.query();
             if let Some(id) = id {
-                query.whereKey(Value::Unsigned(id));
+                let Some(key) = self.credential_key(id) else {
+                    return Ok(None);
+                };
+                query.whereKey(key);
             } else {
                 query.r#where("token", "=", hash);
             }
@@ -116,18 +129,29 @@ impl<M: Model> ModelStore for EloquentTokenStore<M> {
     fn revoke<'a>(
         &'a self,
         owner: &'a str,
-        owner_id: u64,
-        id: u64,
+        owner_id: AuthIdentifier,
+        id: AuthIdentifier,
     ) -> DatabaseFuture<'a, DatabaseResult<bool>> {
         Box::pin(async move {
             let mut query = self.query();
+            let Some(key) = self.credential_key(&id.to_string()) else {
+                return Ok(false);
+            };
             query
-                .whereKey(Value::Unsigned(id))
+                .whereKey(key)
                 .r#where("tokenable_type", "=", owner)
-                .r#where("tokenable_id", "=", Value::Unsigned(owner_id));
+                .r#where("tokenable_id", "=", Value::from(owner_id.clone()));
             let Some(mut model) = query.first().await? else {
                 return Ok(false);
             };
+            let stored_owner = model
+                .getRawOriginal("tokenable_id")
+                .ok_or_else(invalid_row)?;
+            if identifier(stored_owner)? != identifier(&owner_id.into())?
+                || model.getRawOriginal("tokenable_type") != Some(&Value::from(owner))
+            {
+                return Ok(false);
+            }
             let mut transaction = self.connection.beginTransaction().await?;
             let deleted = lock_token(&mut transaction, &model).await?
                 && model.deleteInTransaction(&mut transaction).await?;
@@ -220,9 +244,9 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         _ => return Err(invalid_row()),
     };
     Ok(PersonalAccessToken {
-        id: integer(model.getKey().ok_or_else(invalid_row)?)?,
+        id: token_key(model.getKey().ok_or_else(invalid_row)?)?,
         tokenable_type: text(model, "tokenable_type")?,
-        tokenable_id: integer(
+        tokenable_id: identifier(
             &model
                 .getAttributeValue("tokenable_id")?
                 .ok_or_else(invalid_row)?,
@@ -233,6 +257,20 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         last_used_at: date(model, "last_used_at")?,
         expires_at: date(model, "expires_at")?,
     })
+}
+
+fn identifier(value: &Value) -> DatabaseResult<AuthIdentifier> {
+    match value {
+        Value::Integer(value) if *value >= 0 => Ok(AuthIdentifier::UnsignedInteger(*value as u64)),
+        _ => AuthIdentifier::try_from(value).map_err(|_| invalid_row()),
+    }
+}
+
+fn token_key(value: &Value) -> DatabaseResult<AuthIdentifier> {
+    match value {
+        Value::Text(key) if key.is_empty() || key.contains('|') => Err(invalid_row()),
+        _ => identifier(value),
+    }
 }
 
 fn text<M: Model>(model: &M, column: &str) -> DatabaseResult<String> {

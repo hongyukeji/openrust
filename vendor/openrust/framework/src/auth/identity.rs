@@ -17,6 +17,34 @@ pub enum AuthIdentifier {
     String(String),
 }
 
+impl fmt::Display for AuthIdentifier {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Integer(value) => value.fmt(formatter),
+            Self::UnsignedInteger(value) => value.fmt(formatter),
+            Self::String(value) => value.fmt(formatter),
+        }
+    }
+}
+
+impl From<u64> for AuthIdentifier {
+    fn from(value: u64) -> Self {
+        Self::UnsignedInteger(value)
+    }
+}
+
+impl From<String> for AuthIdentifier {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<&str> for AuthIdentifier {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_owned())
+    }
+}
+
 impl From<AuthIdentifier> for Value {
     fn from(id: AuthIdentifier) -> Self {
         match id {

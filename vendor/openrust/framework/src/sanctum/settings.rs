@@ -4,6 +4,7 @@ use zeroize::Zeroizing;
 
 use crate::{
     auth::{AuthError, AuthResult},
+    contracts::config::Repository,
     database::{DatabaseManager, eloquent::Model},
     http::Request,
 };
@@ -18,6 +19,7 @@ pub(super) const CURRENT_REQUEST_HOST: &str = "__SANCTUM_CURRENT_REQUEST_HOST__"
 /// Sanctum extensions owned by one application.
 #[derive(Default)]
 pub struct Sanctum {
+    config: Option<Arc<dyn Repository>>,
     model: RwLock<Option<TokenModel>>,
     retrieval: RwLock<Option<Arc<Retrieval>>>,
     authentication: RwLock<Option<Arc<Authentication>>>,
@@ -25,6 +27,13 @@ pub struct Sanctum {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Sanctum API")]
 impl Sanctum {
+    pub(crate) fn configured(config: Arc<dyn Repository>) -> Self {
+        Self {
+            config: Some(config),
+            ..Self::default()
+        }
+    }
+
     /// Returns the suffix to append to a comma-separated list of stateful domains.
     pub fn currentRequestHost() -> &'static str {
         ",__SANCTUM_CURRENT_REQUEST_HOST__"
@@ -47,7 +56,18 @@ impl Sanctum {
         prefix: impl Into<String>,
     ) -> AuthResult<PersonalAccessTokens> {
         let model = *self.model.read().expect("Sanctum token model lock");
-        let prefix = prefix.into();
+        let mut prefix = prefix.into();
+        if prefix.is_empty()
+            && let Some(configured) = self
+                .config
+                .as_ref()
+                .and_then(|config| config.get("sanctum.token_prefix"))
+        {
+            prefix = configured
+                .as_str()
+                .ok_or(AuthError::Configuration("sanctum.token_prefix"))?
+                .to_owned();
+        }
         match model {
             Some(model) => model(database, prefix),
             None => Ok(PersonalAccessTokens::new(

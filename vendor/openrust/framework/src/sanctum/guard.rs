@@ -4,7 +4,7 @@ use chrono::{TimeDelta, Utc};
 use serde_json::Value;
 
 use crate::{
-    auth::{AuthError, AuthIdentifier, AuthManager, AuthResult},
+    auth::{AuthError, AuthManager, AuthResult},
     container::Container,
     contracts::{
         auth::Authenticatable, config::Repository, container::Container as _,
@@ -79,14 +79,15 @@ impl Guard {
         let Some((token, token_model)) = tokens.find_for_authentication(&credential).await? else {
             return Ok(None);
         };
-        let id = AuthIdentifier::UnsignedInteger(token.tokenable_id);
         let morphs = container
             .make::<crate::database::eloquent::relations::MorphMap>()
             .map_err(AuthError::backend)?;
         let model = morphs
             .getMorphedModel(&token.tokenable_type)
             .unwrap_or(&token.tokenable_type);
-        let user = auth.retrieve_sanctum_owner(model, &id).await?;
+        let user = auth
+            .retrieve_sanctum_owner(model, &token.tokenable_id)
+            .await?;
         let valid_provider = self.provider_model.as_ref().is_none_or(|configured| {
             user.is_some() && auth.same_registered_model(configured, model)
         });

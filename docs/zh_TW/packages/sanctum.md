@@ -30,7 +30,11 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 }
 ```
 
-在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `usePersonalAccessTokenModel::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 欄位和整數 `id`。簽發時套用模型的屬性修改器和轉換，並觸發 Eloquent 建立事件。Bearer 驗證透過模型的存取器和轉換讀取屬性，再透過同一模型實例儲存最後使用時間。`revokeToken` 依歸屬刪除模型實例，遵循模型刪除事件。Artisan 清理套用模型全域作用域並批次刪除，不逐筆觸發模型事件。
+在服務提供者中透過應用程式的 `Sanctum` 服務呼叫 `usePersonalAccessTokenModel::<M>()`，選擇 Eloquent 模型的資料表和連線。應用程式遷移負責建立自訂資料表，使用標準 Sanctum 屬性以及模型宣告的主鍵。簽發時套用模型的屬性修改器和轉換，並觸發 Eloquent 建立事件。Bearer 驗證透過模型的存取器和轉換讀取屬性，再透過同一模型實例儲存最後使用時間。`revokeToken` 依歸屬刪除模型實例，遵循模型刪除事件。Artisan 清理套用模型全域作用域並批次刪除，不逐筆觸發模型事件。
+
+使用 UUID 或 ULID 主鍵時，在遷移中宣告對應的欄位，並在模型中用 `ModelMetadata::uniqueId(UniqueId::Uuid)` 或 `UniqueId::Ulid` 設定產生策略。若主鍵欄位名稱不是 `id`，用 `primaryKey` 宣告。憑證格式仍為 `<主鍵>|<密鑰>`。權杖與歸屬識別碼使用 `AuthIdentifier` 保留整數或字串型別。歸屬主鍵是字串時，遷移須使用相符的 `tokenable_id` 欄位型別，簽發和撤銷時傳入該歸屬識別碼。
+
+可用 `SANCTUM_TOKEN_PREFIX` 為新簽發的權杖密鑰設定應用程式專用前綴。
 
 ## 保護路由與檢查能力 {#protecting-routes}
 

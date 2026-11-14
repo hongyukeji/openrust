@@ -27,8 +27,10 @@ impl ServiceProvider for AuthServiceProvider {
             })?;
             container.alias("auth", crate::container::ServiceKey::typed::<AuthManager>())?;
             #[cfg(feature = "sanctum")]
-            container.singleton::<crate::sanctum::Sanctum, _>(|_| {
-                Ok(Arc::new(crate::sanctum::Sanctum::default()))
+            container.singleton::<crate::sanctum::Sanctum, _>(|container| {
+                Ok(Arc::new(crate::sanctum::Sanctum::configured(
+                    container.get::<dyn Repository>("config")?,
+                )))
             })?;
             let owner = Arc::downgrade(&app.container_handle());
             container.singletonNamed("auth.password", move |container| {

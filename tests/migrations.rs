@@ -254,8 +254,11 @@ async fn verify_token_storage(db: &Connection) {
         let token = store.findToken(credential).await.unwrap().unwrap();
         assert_eq!(token.id, issued.access_token.id);
         assert_eq!(
-            (token.tokenable_type.as_str(), token.tokenable_id),
-            ("users", 42)
+            (token.tokenable_type.as_str(), &token.tokenable_id),
+            (
+                "users",
+                &openrust::auth::AuthIdentifier::UnsignedInteger(42)
+            )
         );
         assert_eq!(token.expires_at, Some(expiry));
         assert!(token.can("read") && token.cant("write"));
@@ -283,10 +286,10 @@ async fn verify_token_storage(db: &Connection) {
     assert_ne!(a.plain_text_token.as_str(), b.plain_text_token.as_str());
     assert!(a.access_token.can("write"));
     let id = issued.access_token.id;
-    assert!(!store.revokeToken("other", 42, id).await.unwrap());
-    assert!(!store.revokeToken("users", 43, id).await.unwrap());
-    assert!(store.revokeToken("users", 42, id).await.unwrap());
-    assert!(!store.revokeToken("users", 42, id).await.unwrap());
+    assert!(!store.revokeToken("other", 42, id.clone()).await.unwrap());
+    assert!(!store.revokeToken("users", 43, id.clone()).await.unwrap());
+    assert!(store.revokeToken("users", 42, id.clone()).await.unwrap());
+    assert!(!store.revokeToken("users", 42, id.clone()).await.unwrap());
     assert!(
         store
             .findToken(&issued.plain_text_token)

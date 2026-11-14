@@ -38,8 +38,16 @@ Rust 1.94.0 执行 `cargo test --locked --offline --features sanctum -p openrust
 
 ## 自定义令牌模型生命周期
 
-固定 Sanctum v4.4.0 使用 Eloquent 模型签发、查询及保存最后使用时间。单个实例撤销遵循模型删除事件，Artisan 清理通过带模型作用域的批量删除执行。自定义模型仍使用标准 Sanctum 字段和整数令牌标识。现有 Eloquent API 提供属性转换、访问器、修改器和模型事件，旧版令牌仓储没有对应的 Eloquent 模型接线。 [上游签发](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/HasApiTokens.php) · [上游认证](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php) · [上游清理](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Console/Commands/PruneExpired.php)
+固定 Sanctum v4.4.0 使用 Eloquent 模型签发、查询及保存最后使用时间。单个实例撤销遵循模型删除事件，Artisan 清理通过带模型作用域的批量删除执行。自定义模型使用标准 Sanctum 属性。字符串主键接线见下节。现有 Eloquent API 提供属性转换、访问器、修改器和模型事件，旧版令牌仓储没有对应的 Eloquent 模型接线。 [上游签发](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/HasApiTokens.php) · [上游认证](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php) · [上游清理](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Console/Commands/PruneExpired.php)
 
 Rust 1.94.0 对隔离的 MySQL 8.4.13 执行 `cargo test --locked --offline --features sanctum -p openrust-framework --test sanctum_authentication bearer_and_spa_over_http_with_mysql -- --exact`。真实 HTTP 与 Artisan 验收通过，覆盖签发事件顺序与取消、名称访问器／修改器、能力转换、认证写回和时间转换、撤销事件与取消、清理全局作用域及批量删除无实例事件。以 Asia/Shanghai 验证自定义模型与清理的时间一致性。格式检查、启用 Sanctum 的工作区全目标严格 Clippy 和三语站点 12 项浏览器检查通过。
+
+## 自定义主键与归属标识
+
+固定 Sanctum v4.4.0 的 Guard 只对整数主键要求纯数字。签发把模型实际主键写入凭据，查找使用该模型主键。Rust 沿用 Eloquent 的 UUID／ULID 生成与验证，公开的令牌和归属标识使用 `AuthIdentifier`，默认迁移仍使用自增整数。自定义字符串归属须提供匹配的列类型。旧版 `auth/pat.rs` 的签发与撤销使用整数标识，本批沿用现行摘要比较及模型事件。 [固定 Guard](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php) · [固定令牌模型](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/PersonalAccessToken.php)
+
+MySQL 8.4.13 实测默认整数模型、自定义整数模型以及 UUID 自定义列 `token_id`。验证 UUID 签发、纯密钥查找、错误格式和错误摘要 401、字符串归属和显式 Provider 限制、归属隔离撤销、撤销后 401，以及真实 Artisan 按到期时间和全局寿命清理。清理保留有效令牌与作用域排除的记录。另运行真实 Artisan 的 `artisan_migrations_use_a_real_mysql_ledger`，默认表迁移、整数令牌签发和撤销及默认清理均通过。对照上游配置同步 `SANCTUM_TOKEN_PREFIX`，签发测试验证配置前缀和 UUID 可组合使用。Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 和三语站点 12 项浏览器检查通过。ULID 沿用同一模型唯一标识机制，本轮未单列真实数据库用例。
+
+本轮闭合自定义主键和归属相关的运行链路。固定上游的 `Sanctum::actingAs` 测试辅助入口以及自定义模型覆写 `findToken` 的行为扩展仍待专项对齐。应用的令牌持久化接口保留标准 Sanctum 属性及摘要校验。 [上游扩展接口](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php)
 
 Passport 和安装器的 Passport 选项单独跟踪。
