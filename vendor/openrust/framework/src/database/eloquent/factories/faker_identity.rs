@@ -27,6 +27,52 @@ const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
     ('Z', 33),
 ];
 
+const GREEK_DOY: &[&str] = &[
+    "Α' Αθήνας",
+    "Β' Αθήνας",
+    "Γ' Αθήνας",
+    "ΣΤ' Αθήνας",
+    "Γαλάτσιου",
+    "Α' Πειραιά",
+    "Β' Πειραιά",
+    "Γ' Πειραιά",
+    "Α' Θεσσαλονίκης",
+    "Β' Θεσσαλονίκης",
+    "Γλυφάδας",
+    "Ωροπού",
+    "Καλιθέας",
+    "Αγίου Δημητρίου",
+    "Νέας Σμύρνης",
+    "Αμαρουσίου",
+    "Θήρας",
+    "Αμοργού",
+    "Πατρών",
+    "ΔΟΥ ΠΛΟΙΩΝ",
+    "ΦΑΕΕ ΑΘΗΝΩΝ",
+];
+
+const GREEK_OBJECT: &[&str] = &[
+    "Προγραμματιστής",
+    "Δικηγόρος",
+    "Γιατρός",
+    "Γραφίστας",
+    "Αρχαιολόγος",
+    "Εκπαιδευτικός",
+    "Μεταφραστής",
+    "Μηχανολόγος-μηχανικός",
+    "Αρχιτέκτονας",
+    "Δημοσιογράφος",
+    "Υπηρεσίες Διαδικτύου",
+    "Ραδιοφωνικές παραγωγές",
+    "Καραγκιοζοπαίχτης",
+    "Κουλουράς",
+    "Κομπάρσος",
+    "Καλλιτεχνικός πράκτορας",
+    "Εισαγωγαί-εξαγωγαί",
+    "Ωρολογοποιός",
+    "Καθεκλοποιός",
+];
+
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl Faker {
     /// Samples the selected Person provider's SSN format.
@@ -265,6 +311,36 @@ impl Faker {
                 "Faker Turkish identity number has an invalid length",
             ))?;
         Ok(Self::tcNoChecksum(split.0)? == split.1)
+    }
+
+    /// Samples the Taiwanese eight-digit VAT identifier.
+    pub fn VAT(&self) -> DatabaseResult<i64> {
+        if self.locale() != "zh_TW" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Taiwanese VAT locale",
+            ));
+        }
+        self.randomNumber(Some(8), true)
+    }
+
+    /// Samples a Greek tax office.
+    pub fn doy(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "el_GR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker tax office locale",
+            ));
+        }
+        Ok(GREEK_DOY[fastrand::usize(..GREEK_DOY.len())])
+    }
+
+    /// Samples a Greek company's business activity.
+    pub fn object(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "el_GR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker business activity locale",
+            ));
+        }
+        Ok(GREEK_OBJECT[fastrand::usize(..GREEK_OBJECT.len())])
     }
 
     /// Samples a Kazakh business ID using the supplied civil registration date.
@@ -795,6 +871,18 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn VAT(&self) -> DatabaseResult<i64> {
+        self.try_generate("VAT", || self.0.VAT())
+    }
+
+    pub fn doy(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("doy", || self.0.doy())
+    }
+
+    pub fn object(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("object", || self.0.object())
     }
 
     pub fn businessIdentificationNumber(

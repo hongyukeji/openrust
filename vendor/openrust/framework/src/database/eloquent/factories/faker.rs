@@ -1136,6 +1136,7 @@ impl Faker {
         };
         let digits = |count| self.randomNumber(Some(count), true);
         match self.locale() {
+            "zh_TW" => Ok(self.VAT()?.to_string()),
             "bg_BG" => Ok(format!(
                 "BG{separator}{}{}",
                 digits(5)?,

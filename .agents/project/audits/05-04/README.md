@@ -741,3 +741,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `50bae68f`。PHP 8.5 核对 1,536 条固定上游样本，另核对南非实体代码表和 23 种代码的样本覆盖。Rust 1.94.0 格式、全目标严格 Clippy、13 项身份编号测试及独立 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查显式日期 BIN、缺省日期 BIN 和南非登记号。Artisan inspire、三语示例编译、VitePress 和双挂载六项浏览器检查通过。站点保留已有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。
 
 临时 Seeder 已恢复，清理本批 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对台湾 VAT 及希腊税务办公室和经营类别。
+
+## Faker 台湾 VAT 与希腊税务办公室、经营类别
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[台湾 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Company.php)和[希腊 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/el_GR/Company.php)。`VAT()` 保留八位整数，既有 `vat(...)` 入口支持同一地区并按其字符串契约返回，无国家前缀。Rust 两个入口的去重历史按各自方法名保存。希腊 `doy()` 和 `object()` 直接借用静态目录文本，保留全部 21 个税务办公室与 19 种经营类别，支持 `unique` 并在候选耗尽时返回错误。v0.x 未发现等价实现，编译式装配沿用现有 Faker。
+
+隔离基线 `c9b18a9b`。PHP 8.5 核对 1,536 条上游样本，逐项比对希腊两份目录及完整采样覆盖。Rust 1.94.0 格式、全目标严格 Clippy、14 项身份编号测试和 MySQL 8.4.13 工厂回归通过。实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查台湾 VAT 与两条希腊文本。Artisan inspire、三语示例编译、VitePress 和根路径及 `/docs/` 下六项浏览器检查通过，站点保留既有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。
+
+已恢复临时 Seeder，清理 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘可用 82 GiB。下一批核对其余地区公司名称与后缀格式，对照现有 company() 的语言覆盖。

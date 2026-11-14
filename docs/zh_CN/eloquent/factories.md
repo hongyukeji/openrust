@@ -306,10 +306,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `kk-KZ` 的 `businessIdentificationNumber(date)` 返回十二位 BIN。可以传入登记日期指定年月，或传入 `None` 从本年年初至当前时间取样。`en-ZA` 的 `companyNumber()` 从过去五十年至当前时间取样登记年份，返回 `YYYY/NNNNNN/TT`。两者均支持 `unique`。
 
+`zh-Hant` 的 `VAT()` 返回八位台湾税号样本，类型为整数。现有 `vat(...)` 在该地区返回相同格式的数字字符串，不加国家前缀。`el-GR` 的 `doy()` 从 21 个税务办公室抽样，`object()` 从 19 种经营类别抽样。每个方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 36]> {
+fn identity_samples() -> DatabaseResult<[String; 39]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -318,7 +320,11 @@ fn identity_samples() -> DatabaseResult<[String; 36]> {
     let kpp = russian.kpp(Some(&inn))?;
     let danish = fake(Some("da-DK"))?;
     let egypt = fake(Some("ar-EG"))?;
+    let greek = fake(Some("el-GR"))?;
     Ok([
+        fake(Some("zh-Hant"))?.VAT()?.to_string(),
+        greek.doy()?.to_owned(),
+        greek.object()?.to_owned(),
         fake(Some("kk-KZ"))?.businessIdentificationNumber(Some(birthdate))?,
         fake(Some("en-ZA"))?.companyNumber()?,
         fake(Some("ar-SA"))?.companyIdNumber()?,

@@ -306,10 +306,12 @@ With `ar-SA`, `companyIdNumber()` generates a ten-digit Saudi company ID beginni
 
 With `kk-KZ`, `businessIdentificationNumber(date)` returns a twelve-digit BIN. Pass a civil registration date to set its year and month, or `None` to sample a date from the start of this year through now. With `en-ZA`, `companyNumber()` samples a registration year from the last fifty years through now and returns `YYYY/NNNNNN/TT`. Both support `unique`.
 
+With `zh-Hant`, `VAT()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 36]> {
+fn identity_samples() -> DatabaseResult<[String; 39]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -318,7 +320,11 @@ fn identity_samples() -> DatabaseResult<[String; 36]> {
     let kpp = russian.kpp(Some(&inn))?;
     let danish = fake(Some("da-DK"))?;
     let egypt = fake(Some("ar-EG"))?;
+    let greek = fake(Some("el-GR"))?;
     Ok([
+        fake(Some("zh-Hant"))?.VAT()?.to_string(),
+        greek.doy()?.to_owned(),
+        greek.object()?.to_owned(),
         fake(Some("kk-KZ"))?.businessIdentificationNumber(Some(birthdate))?,
         fake(Some("en-ZA"))?.companyNumber()?,
         fake(Some("ar-SA"))?.companyIdNumber()?,

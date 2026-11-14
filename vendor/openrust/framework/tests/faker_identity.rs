@@ -730,3 +730,34 @@ fn kazakh_and_south_african_company_numbers_use_pinned_dates_and_formats() {
     assert!(kazakh.companyNumber().is_err());
     assert!(south_african.businessIdentificationNumber(None).is_err());
 }
+
+#[test]
+fn taiwanese_vat_and_greek_business_catalogs_follow_pinned_formats() {
+    let taiwan = fake(Some("zh-Hant")).unwrap();
+    let greek = fake(Some("el-GR")).unwrap();
+    let vat = taiwan.unique(true);
+    let mut seen = std::collections::HashSet::new();
+    for _ in 0..128 {
+        let number = vat.VAT().unwrap();
+        assert!((10_000_000..=99_999_999).contains(&number));
+        assert!(seen.insert(number));
+    }
+    let compat = taiwan.vat(Some(false)).unwrap();
+    assert_eq!(compat.len(), 8);
+    assert!(compat.bytes().all(|digit| digit.is_ascii_digit()));
+    let unique = greek.unique(true);
+    let offices: std::collections::HashSet<_> = (0..21).map(|_| unique.doy().unwrap()).collect();
+    let activities: std::collections::HashSet<_> =
+        (0..19).map(|_| unique.object().unwrap()).collect();
+    assert_eq!(offices.len(), 21);
+    assert_eq!(activities.len(), 19);
+    assert!(offices.contains("Α' Αθήνας"));
+    assert!(offices.contains("ΔΟΥ ΠΛΟΙΩΝ"));
+    assert!(activities.contains("Μηχανολόγος-μηχανικός"));
+    assert!(activities.contains("Εισαγωγαί-εξαγωγαί"));
+    assert!(unique.doy().is_err());
+    assert!(unique.object().is_err());
+    assert!(greek.VAT().is_err());
+    assert!(taiwan.doy().is_err());
+    assert!(taiwan.object().is_err());
+}
