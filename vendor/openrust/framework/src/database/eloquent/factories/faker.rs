@@ -57,7 +57,7 @@ fn calendar_query_error(error: calendar::CalendarError) -> DatabaseError {
 }
 
 fn faker_timestamp(error: calendar::CalendarError) -> DatabaseResult<i64> {
-    // FakerPHP passes strtotime's false through to numeric consumers as zero.
+    // The upstream date parser’s failure value becomes zero in numeric contexts.
     match error {
         calendar::CalendarError::InvalidExpression => Ok(0),
         error => Err(calendar_query_error(error)),
@@ -1350,7 +1350,7 @@ impl Faker {
             .to_string()
     }
 
-    /// Samples between the FakerPHP AD lower bound and the supplied endpoint.
+    /// Samples from the upstream 64-bit AD lower bound to the supplied endpoint.
     pub fn dateTimeAD(&self, max: Option<DateTime<Utc>>) -> DateTime<Utc> {
         const FIRST_AD_TIMESTAMP: i64 = -62_135_597_361;
         let end = max.unwrap_or_else(Utc::now).timestamp();
@@ -1475,7 +1475,7 @@ fn lorem_count(count: usize, variable: bool) -> usize {
 }
 
 fn capitalize_lorem_word(word: &str) -> String {
-    // FakerPHP's ucwords capitalizes ASCII without changing UTF-8 byte length.
+    // Capitalize an ASCII initial without changing the UTF-8 byte length.
     let mut output = word.to_owned();
     if let Some(first) = output.get_mut(..1) {
         first.make_ascii_uppercase();

@@ -73,6 +73,8 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 
 ### 本地化測試資料 {#localized-fake-data}
 
+下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。
+
 使用 `Factory::withFaker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr_FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safeEmail`、`city` 和 `sentence`。尚未支援的語言使用英文資料。
 
 ```rust
@@ -101,15 +103,15 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `unixTime(max)` 在 Unix 紀元與指定端點之間取樣整秒，或用 `dateTime(max)` 回傳 UTC 日期時間。傳入 `None` 時使用目前時間。`date(format, max)` 和 `time(format, max)` 接收 Chrono 格式，預設分別為 `%Y-%m-%d` 和 `%H:%M:%S`，格式無效時回傳錯誤。`iso8601(max)` 包含實際使用的時區偏移量。五種方法皆支援 `unique`。
 
-用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Chrono `TimeDelta` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `dateTimeInInterval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `TimeDelta` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依 FakerPHP 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
+用 `dateTimeInInterval(date, interval)` 在 UTC 起點和該時間加上帶正負號的 Chrono `TimeDelta` 之間按整秒取樣。負時長向過去取樣。起點和時長傳入 `None` 時，分別預設為 30 年前和往後五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分別從目前時間往前 100 年、10 年和一個月開始。`dateTimeThisYear(max)` 從應用程式時區當年 1 月 1 日零點開始。其他日曆回溯和 `dateTimeInInterval` 的預設起點也採用應用程式時區。兩個區間參數都省略時，預設五天依本地日曆計算。明確傳入的 `TimeDelta` 表示實際經過的時長。這四個方法在 `max` 為 `None` 時以目前時間為終點，拒絕早於起點的終點，日曆溢出依上游 Faker 規則正規化。五個方法皆支援 `unique`。Rust 使用具型別的日期和時長。需要自訂日曆區間時，可計算終點後呼叫 `dateTimeBetween`。
 
-用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。日和月的數字以補零字串回傳，星期和月份名稱沿用 FakerPHP 的英文日期格式。`dateTimeAD(max)` 從 FakerPHP 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
+用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。日和月的數字以補零字串回傳，星期和月份名稱沿用上游 Faker 的英文日期格式。`dateTimeAD(max)` 從上游 Faker 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
 
 用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `chrono-tz` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
 
 日期字串優先使用 `setDefaultTimezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`getDefaultTimezone()` 可查看覆寫值。`dateTimeInTimezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。
 
-用 `dateTimeBetweenExpressions(start, end)` 傳入 PHP 風格的日期表達式，例如 `"-30 years"` 和 `"now"`。兩個端點共用同一參考時刻，並依應用程式時區解析。表達式中的明確時區優先。數字終點字串依 Unix 時間戳解析，`"@-1"` 則是明確的時間戳表達式。端點解析失敗時依 FakerPHP 的數值轉換規則使用 Unix 零秒。起點晚於終點仍回傳錯誤。此方法與 `dateTimeBetween` 共用 `unique` 歷史。
+用 `dateTimeBetweenExpressions(start, end)` 傳入 PHP 風格的日期表達式，例如 `"-30 years"` 和 `"now"`。兩個端點共用同一參考時刻，並依應用程式時區解析。表達式中的明確時區優先。數字終點字串依 Unix 時間戳解析，`"@-1"` 則是明確的時間戳表達式。端點解析失敗時依上游 Faker 的數值轉換規則使用 Unix 零秒。起點晚於終點仍回傳錯誤。此方法與 `dateTimeBetween` 共用 `unique` 歷史。
 
 用 `dateTimeInIntervalExpressions(date, interval)` 傳入 PHP 風格的相對區間，例如 `Some("+1 month")` 或 `Some("5 days ago")`。終點依起始日期所在時區的本地時間計算，跨越日光節約時間時也遵循此規則。取樣結果回傳 UTC。省略日期時從 30 年前開始，省略區間時使用五個日曆日。區間字串接受相對表達式，拒絕絕對日期、時間和時區識別碼。此方法與 `dateTimeInInterval` 共用 `unique` 歷史。
 
@@ -170,13 +172,13 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### 文字產生 {#text-generation}
 
-用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依 FakerPHP 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。
+用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依上游 Faker 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。
 
 ### 預留字元格式化 {#pattern-formatters}
 
-用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用 FakerPHP 預設範本。`randomLetter()` 和 `randomAscii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。
+用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用上游 Faker 預設範本。`randomLetter()` 和 `randomAscii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。
 
-用 `regexify(pattern)?` 從基本正規表示式產生樣本。支援可選的斜線分隔符號和外層錨點、字面值、ASCII 字元類別和範圍、`\d`、`\w`、點號、一般群組、分支和有限重複。與 FakerPHP 相同，`*` 和 `+` 分別為目前範本選取一至九的重複上限。語法錯誤、環視和反向參照等未支援功能，以及超出產生限制的模式均回傳錯誤。`unique(false).regexify(pattern)?` 可對結果去重。
+用 `regexify(pattern)?` 從基本正規表示式產生樣本。支援可選的斜線分隔符號和外層錨點、字面值、ASCII 字元類別和範圍、`\d`、`\w`、點號、一般群組、分支和有限重複。與上游 Faker 相同，`*` 和 `+` 分別為目前範本選取一至九的重複上限。語法錯誤、環視和反向參照等未支援功能，以及超出產生限制的模式均回傳錯誤。`unique(false).regexify(pattern)?` 可對結果去重。
 
 ### 集合取樣 {#collection-sampling}
 
@@ -186,11 +188,11 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### 語言、國家和貨幣樣本 {#locale-and-code-samples}
 
-用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 從固定 FakerPHP 目錄產生測試值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等語言地區識別碼，對應 FakerPHP 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。
+用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 從固定上游 Faker 目錄產生測試值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等語言地區識別碼，對應上游 Faker 的 `locale()` 產生器。OpenRust 既有的 `locale()` 讀取目前產生器的設定。樣本目錄包含歷史識別碼。六個產生器均支援 `unique`。
 
 ### 摘要樣本 {#digest-samples}
 
-用 `md5()`、`sha1()` 和 `sha256()` 產生 32、40 和 64 個字元的小寫十六進位樣本。每個產生器遵循 FakerPHP 的做法，從 0 到 2,147,483,647 抽取整數，再對其十進位文字計算摘要。三個方法均支援 `unique`，供測試和資料填充使用。
+用 `md5()`、`sha1()` 和 `sha256()` 產生 32、40 和 64 個字元的小寫十六進位樣本。每個產生器遵循上游 Faker 的做法，從 0 到 2,147,483,647 抽取整數，再對其十進位文字計算摘要。三個方法均支援 `unique`，供測試和資料填充使用。
 
 ### 網路位址樣本 {#network-address-samples}
 
@@ -198,7 +200,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### 網域名稱、URL 和 slug {#domain-url-slug-samples}
 
-用 `domainWord()?` 將產生的姓氏轉寫為小寫 ASCII，用 `tld()` 依支援語言地區的 FakerPHP 權重抽取後綴，`domainName()?` 將兩者連接。`url()?` 使用上游 HTTP 和 HTTPS 範本，可帶 `www`、slug 和 `.html`。姓氏使用 OpenRust 的語言資料和轉寫規則，與 FakerPHP 的 ICU 或備援映射可能不同。姓氏無法轉寫出可用字元時，網域名稱和 URL 產生器回傳錯誤。`slug(count, variable)` 用連字號拼接產生的詞。傳入 `None` 使用六個基準詞、`Some(0)` 回傳空字串，`false` 固定詞數。五個產生器均支援 `unique`。
+用 `domainWord()?` 將產生的姓氏轉寫為小寫 ASCII，用 `tld()` 依支援語言地區的上游 Faker 權重抽取後綴，`domainName()?` 將兩者連接。`url()?` 使用上游 HTTP 和 HTTPS 範本，可帶 `www`、slug 和 `.html`。姓氏使用 OpenRust 的語言資料和轉寫規則，與上游 Faker 的 ICU 或備援映射可能不同。姓氏無法轉寫出可用字元時，網域名稱和 URL 產生器回傳錯誤。`slug(count, variable)` 用連字號拼接產生的詞。傳入 `None` 使用六個基準詞、`Some(0)` 回傳空字串，`false` 固定詞數。五個產生器均支援 `unique`。
 
 ### 電子郵件和密碼樣本 {#email-and-password-samples}
 
@@ -206,15 +208,15 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### 電話號碼和 IMEI 樣本 {#phone-and-imei-samples}
 
-用 `phoneNumber()` 產生地區顯示號碼。簡體中文和繁體中文使用固定 FakerPHP 範本，其他地區沿用既有 fake-rs 格式。`e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
+用 `phoneNumber()` 產生地區顯示號碼。簡體中文和繁體中文使用固定上游 Faker 範本，其他地區沿用既有 fake-rs 格式。`e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
 
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
-用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的 FakerPHP 排列規則。城市、街道和部分地址元件仍使用 fake-rs 資料。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。城市、街道和部分地址元件仍使用 fake-rs 資料。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
 
 ### 依性別產生名字 {#given-names-by-gender}
 
-用 `firstNameMale()` 或 `firstNameFemale()` 從對應的 FakerPHP 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。既有無參數 `name()` 和 `firstName()` 沿用原本的資料來源，並與具分組的方式共用各自的 `unique` 歷史。
+用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。既有無參數 `name()` 和 `firstName()` 沿用原本的資料來源，並與具分組的方式共用各自的 `unique` 歷史。
 
 ### 座標 {#coordinate-samples}
 

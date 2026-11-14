@@ -73,6 +73,8 @@ Use `Factory::<Flight>::factoryForModel()` to obtain the factory bound by the mo
 
 ### Localized Fake Data {#localized-fake-data}
 
+The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
+
 Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr_FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.
 
 ```rust
@@ -101,15 +103,15 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
-Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `TimeDelta` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as FakerPHP does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
+Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `TimeDelta` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
 
-Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The day and month numbers are zero-padded strings. Weekday and month names are English, matching FakerPHP’s date format. `dateTimeAD(max)` samples from FakerPHP’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The day and month numbers are zero-padded strings. Weekday and month names are English, matching upstream Faker’s date format. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
 Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
 
 Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect.
 
-Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching FakerPHP’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `dateTimeBetween`.
+Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching upstream Faker’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `dateTimeBetween`.
 
 Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `dateTimeInInterval`.
 
@@ -170,13 +172,13 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 ### Text Generation {#text-generation}
 
-Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as FakerPHP. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
+Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as upstream Faker. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
 
 ### Pattern Formatters {#pattern-formatters}
 
-Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the FakerPHP default pattern. `randomLetter()` and `randomAscii()` return individual Rust characters. All six methods support `unique`.
+Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the upstream Faker default pattern. `randomLetter()` and `randomAscii()` return individual Rust characters. All six methods support `unique`.
 
-Use `regexify(pattern)?` to generate a sample from a basic regular expression. It accepts optional slash delimiters and outer anchors, literals, ASCII classes and ranges, `\d`, `\w`, dots, ordinary groups, alternatives and bounded repeats. As in FakerPHP, `*` and `+` choose a per-pattern upper bound from one through nine. Invalid syntax, unsupported features such as lookarounds and backreferences, and oversized generation return errors. `unique(false).regexify(pattern)?` deduplicates generated strings.
+Use `regexify(pattern)?` to generate a sample from a basic regular expression. It accepts optional slash delimiters and outer anchors, literals, ASCII classes and ranges, `\d`, `\w`, dots, ordinary groups, alternatives and bounded repeats. As in upstream Faker, `*` and `+` choose a per-pattern upper bound from one through nine. Invalid syntax, unsupported features such as lookarounds and backreferences, and oversized generation return errors. `unique(false).regexify(pattern)?` deduplicates generated strings.
 
 ### Collection Sampling {#collection-sampling}
 
@@ -186,11 +188,11 @@ Use `shuffleArray(values)` to return a shuffled clone and `shuffleString(value)`
 
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
-Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned FakerPHP catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to FakerPHP’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.
+Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.
 
 ### Digest Samples {#digest-samples}
 
-Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture values of 32, 40, and 64 characters. Like FakerPHP, each formatter hashes the decimal text of a random integer from 0 through 2,147,483,647. All three support `unique` and are intended for test and seed data.
+Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture values of 32, 40, and 64 characters. Like upstream Faker, each formatter hashes the decimal text of a random integer from 0 through 2,147,483,647. All three support `unique` and are intended for test and seed data.
 
 ### Network Address Samples {#network-address-samples}
 
@@ -198,7 +200,7 @@ Use `ipv4()`, `localIpv4()`, `ipv6()`, and `macAddress()` for network fixtures. 
 
 ### Domains, URLs and Slugs {#domain-url-slug-samples}
 
-Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the FakerPHP weights for supported locales. `domainName()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from FakerPHP’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
+Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the upstream Faker weights for supported locales. `domainName()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from upstream Faker’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
 
 ### Email and Password Samples {#email-and-password-samples}
 
@@ -206,15 +208,15 @@ Use `email()?` for a general address or `companyEmail()?` for an address on a ge
 
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
-Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned FakerPHP templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned upstream Faker templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
 ### Postal Addresses and Titles {#address-and-title-samples}
 
-Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective FakerPHP layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
 
 ### Given Names by Gender {#given-names-by-gender}
 
-Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding FakerPHP catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates. The existing no-argument `name()` and `firstName()` keep their data sources. Their gender-selecting variants share the corresponding `unique` history.
+Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates. The existing no-argument `name()` and `firstName()` keep their data sources. Their gender-selecting variants share the corresponding `unique` history.
 
 ### Coordinates {#coordinate-samples}
 

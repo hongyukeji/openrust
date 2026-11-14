@@ -1954,7 +1954,7 @@ fn seed_generator_preserves_existing_files_until_forced() {
 }
 
 #[test]
-fn faker_float_rounding_matches_php_decimal_boundaries() -> DatabaseResult<()> {
+fn faker_float_rounding_matches_upstream_decimal_boundaries() -> DatabaseResult<()> {
     let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
     for (value, decimals, expected) in [
         (5.0e-310, 309, 5.0e-310),
@@ -2218,7 +2218,7 @@ fn faker_digest_samples_are_lowercase_hex_and_support_unique() -> DatabaseResult
 }
 
 #[test]
-fn faker_network_addresses_follow_fakerphp_formats_and_ranges() -> DatabaseResult<()> {
+fn faker_network_addresses_follow_expected_formats_and_ranges() -> DatabaseResult<()> {
     use openrust::database::eloquent::factories::Faker;
     use std::net::{Ipv4Addr, Ipv6Addr};
 
