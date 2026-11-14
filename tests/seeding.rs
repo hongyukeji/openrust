@@ -1982,3 +1982,62 @@ fn faker_placeholders_preserve_classes_literals_and_unique_history() -> Database
     assert_eq!(faker.unique(true).bothify(Some("樣品"))?, "樣品");
     Ok(())
 }
+
+#[test]
+fn faker_sampling_and_shuffle_follow_collection_boundaries() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::Faker::new("en_US")?;
+    let values = [4, 4, 9];
+    assert_eq!(faker.randomElement::<i32>(&[]), None);
+    assert_eq!(faker.randomKey::<i32>(&[]), None);
+    assert!(faker.randomElements::<i32>(&[], Some(0), false)?.is_empty());
+    assert!(faker.randomElements::<i32>(&[], None, false).is_err());
+    assert!(faker.randomElements::<i32>(&[], Some(1), true).is_err());
+    assert!(faker.randomElements(&values, Some(4), false).is_err());
+    for _ in 0..64 {
+        let mut selected = faker.randomElements(&values, Some(3), false)?;
+        selected.sort_unstable();
+        assert_eq!(selected, [&4, &4, &9]);
+        assert!((1..=3).contains(&faker.randomElements(&values, None, false)?.len()));
+        assert_eq!(
+            faker.randomElements(&values[..1], Some(5), true)?,
+            vec![&4; 5]
+        );
+        assert!(
+            faker
+                .randomKey(&values)
+                .is_some_and(|index| index < values.len())
+        );
+        assert!(
+            faker
+                .randomElement(&values)
+                .is_some_and(|item| values.contains(item))
+        );
+        assert!(!faker.boolean(Some(0)));
+        assert!(faker.boolean(Some(100)));
+    }
+    let mut shuffled = faker.shuffleArray(&values);
+    shuffled.sort_unstable();
+    assert_eq!(shuffled, values);
+    let mut shuffled: Vec<_> = faker.shuffleString("中a😊中").chars().collect();
+    shuffled.sort_unstable();
+    assert_eq!(shuffled, ['a', '中', '中', '😊']);
+    assert_eq!(faker.shuffleString(""), "");
+    let unique = faker.unique(false);
+    assert!(!unique.boolean(Some(0))?);
+    assert!(unique.boolean(Some(0)).is_err());
+    assert_eq!(unique.randomKey(&values[..1])?, Some(0));
+    assert!(unique.randomKey(&values[..1]).is_err());
+    assert_eq!(unique.randomElement(&values[..1])?, Some(&4));
+    assert!(unique.randomElement(&values[1..2]).is_err());
+    assert_eq!(unique.randomElements(&values[..1], Some(1), false)?, [&4]);
+    assert!(
+        unique
+            .randomElements(&values[1..2], Some(1), false)
+            .is_err()
+    );
+    assert_eq!(unique.shuffleArray(&values[..1])?, [4]);
+    assert!(unique.shuffleArray(&values[..1]).is_err());
+    assert_eq!(unique.shuffleString("中")?, "中");
+    assert!(unique.shuffleString("中").is_err());
+    Ok(())
+}

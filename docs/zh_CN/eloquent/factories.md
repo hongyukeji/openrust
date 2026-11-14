@@ -88,6 +88,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("epoch_seconds".into(), epoch_seconds.into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
+            ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
+            ("active".into(), faker.boolean(Some(75)).into()),
         ]))
     })
 }
@@ -102,6 +104,12 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 用 `numerify(Some(pattern))` 将 `#` 替换为数字、将 `%` 替换为非零数字。`lexify` 将 `?` 替换为 ASCII 小写字母。`bothify` 处理这三种占位符，并以相同概率将每个 `*` 替换为数字或小写字母。`asciify` 将 `*` 替换为 `!` 至 `~` 的可打印 ASCII 字符。其余字符按原样保留。传入 `None` 使用 FakerPHP 默认模板。`randomLetter()` 和 `randomAscii()` 返回单个 Rust 字符。六个方法均支持 `unique`。
 
 用 `regexify(pattern)?` 从基本正则表达式生成样本。支持可选的斜杠分隔符和外层锚点、字面量、ASCII 字符类和区间、`\d`、`\w`、点号、普通分组、分支和有限重复。与 FakerPHP 一样，`*` 和 `+` 分别为当前模板选取一至九的重复上限。语法错误、环视和反向引用等未支持特性以及超出生成限制的模式均返回错误。`unique(false).regexify(pattern)?` 可对结果去重。
+
+### 集合采样 {#collection-sampling}
+
+用 `randomElement(values)` 借用一个元素，空切片返回 `None`。`randomKey(values)` 返回从零开始的位置。要从映射键或枚举变体中选择，将键或变体的切片传给 `randomElement`。`randomElements(values, count, allowDuplicates)?` 接受 `Some(n)` 固定抽取数量，或用 `None` 在一到切片长度之间随机选择数量。不放回时每个位置最多抽一次，不同位置上的相同值仍可同时出现。零条返回空向量。非零采样要求切片非空，不放回采样的数量不能超过切片长度。
+
+用 `shuffleArray(values)` 返回打乱后的副本，或用 `shuffleString(value)` 按 Unicode 标量值打乱字符串。`boolean(None)` 有 50% 的概率返回 true，传入 `Some(75)` 可设为 75%。这些方法均支持 `unique`，泛型采样和数组打乱按 JSON 序列化结果判断重复。
 
 ## 使用工厂创建模型
 

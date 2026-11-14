@@ -240,3 +240,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 Base 的 `regexify`，接通可选斜杠及外层锚点、字面值、ASCII 字符集、数字和小写字母转义、点号、分组、分支及重复。每次生成对 `*` 和 `+` 分别取一至九的上限。Rust 复用锁定的 regex-syntax 解析，按语法树生成并限制复杂度。对无效语法、未支持结构和超限请求返回错误。去重重试复用语法树并重新采样。v0.x 未发现对应生成器，Goravel 装配无需调整。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L541)
 
 隔离基线 `e5ccdfb1`。固定 FakerPHP 1.24.1／PHP 8.5.12 三组模式各生成 64 个结果，全部满足原正则。Rust 回归逐个匹配 256 个样本，并验证空模式、语法错误、不支持的特性、展开限制和去重重置。实际应用二进制运行 `artisan db:seed --database=mysql --force`，在 MySQL 8.4.13 写入并回查含繁體字面值的样本。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 集合采样与布尔值
+
+对照 FakerPHP 1.24.1 Base 和 Miscellaneous，接入 randomElement、randomKey、randomElements、shuffleArray、shuffleString 和 boolean。Rust 用切片表示有序输入，按位置不放回采样，保留相同值的独立位置。使用稀疏 Fisher–Yates，辅助空间随采样数量增长。映射键与枚举变体由调用方提供切片，字符串使用 UTF-8 Unicode 标量，数组与字符串各用类型化方法。泛型 unique 以 JSON 序列化结果为键，序列化失败返回错误。v0.x 未发现等价实现，Goravel 启动装配无需调整。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L193) · [FakerPHP Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Miscellaneous.php)
+
+隔离源码基线 `0ad665aa`。固定 FakerPHP／PHP 8.5.12 对照通过，Rust 验证空输入、抽取数量、重复值、放回、Unicode 标量、布尔极值和 unique 耗尽。MySQL 8.4.13 实际应用二进制运行 `artisan db:seed --database=mysql --force`，持久化打乱后的 Unicode 字符串并回查。Rust 1.94.0 格式、全目标严格 Clippy、10 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 产物及约 37 MiB 站点产物。其他 Faker provider 继续跟踪。

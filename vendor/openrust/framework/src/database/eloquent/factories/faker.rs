@@ -309,6 +309,75 @@ impl Faker {
         digit + u8::from(i64::from(digit) >= except)
     }
 
+    pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
+        self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn randomElement<'a, T>(&self, values: &'a [T]) -> Option<&'a T> {
+        self.randomKey(values).map(|index| &values[index])
+    }
+
+    /// Selects a positional key; pass an explicit slice of keys to sample a keyed collection.
+    pub fn randomKey<T>(&self, values: &[T]) -> Option<usize> {
+        (!values.is_empty()).then(|| fastrand::usize(..values.len()))
+    }
+
+    pub fn randomElements<'a, T>(
+        &self,
+        values: &'a [T],
+        count: Option<usize>,
+        allowDuplicates: bool,
+    ) -> DatabaseResult<Vec<&'a T>> {
+        let size = values.len();
+        let count = match count {
+            Some(0) => return Ok(Vec::new()),
+            _ if size == 0 => {
+                return Err(DatabaseError::InvalidQuery(
+                    "cannot sample an empty Faker collection",
+                ));
+            }
+            Some(count) => count,
+            None => fastrand::usize(1..=size),
+        };
+        if allowDuplicates {
+            return Ok((0..count)
+                .map(|_| &values[fastrand::usize(..size)])
+                .collect());
+        }
+        if count > size {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker sample count exceeds collection length",
+            ));
+        }
+
+        // A sparse partial Fisher–Yates shuffle samples positions in O(count) space.
+        let mut swaps = HashMap::with_capacity(count);
+        let mut selected = Vec::with_capacity(count);
+        for remaining in (size - count + 1..=size).rev() {
+            let index = fastrand::usize(..remaining);
+            let last = remaining - 1;
+            let picked = swaps.remove(&index).unwrap_or(index);
+            let replacement = swaps.remove(&last).unwrap_or(last);
+            if index != last {
+                swaps.insert(index, replacement);
+            }
+            selected.push(&values[picked]);
+        }
+        Ok(selected)
+    }
+
+    pub fn shuffleArray<T: Clone>(&self, values: &[T]) -> Vec<T> {
+        let mut shuffled = values.to_vec();
+        fastrand::shuffle(&mut shuffled);
+        shuffled
+    }
+
+    pub fn shuffleString(&self, value: &str) -> String {
+        let mut characters: Vec<_> = value.chars().collect();
+        fastrand::shuffle(&mut characters);
+        characters.into_iter().collect()
+    }
+
     pub fn randomLetter(&self) -> char {
         char::from(fastrand::u8(b'a'..=b'z'))
     }
@@ -805,7 +874,7 @@ impl UniqueFaker<'_> {
         self.generate_keyed(
             "words",
             || Ok(self.0.words(count)),
-            |items| format!("{items:?}"),
+            |items| Ok(format!("{items:?}")),
         )
     }
 
@@ -817,7 +886,7 @@ impl UniqueFaker<'_> {
         self.generate_keyed(
             "sentences",
             || Ok(self.0.sentences(count)),
-            |items| format!("{items:?}"),
+            |items| Ok(format!("{items:?}")),
         )
     }
 
@@ -829,7 +898,7 @@ impl UniqueFaker<'_> {
         self.generate_keyed(
             "paragraphs",
             || Ok(self.0.paragraphs(count)),
-            |items| format!("{items:?}"),
+            |items| Ok(format!("{items:?}")),
         )
     }
 
@@ -851,6 +920,57 @@ impl UniqueFaker<'_> {
 
     pub fn randomDigitNot(&self, except: i64) -> DatabaseResult<u8> {
         self.generate("randomDigitNot", || self.0.randomDigitNot(except))
+    }
+
+    pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> DatabaseResult<bool> {
+        self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
+    }
+
+    pub fn randomElement<'a, T: serde::Serialize>(
+        &self,
+        values: &'a [T],
+    ) -> DatabaseResult<Option<&'a T>> {
+        self.generate_keyed(
+            "randomElement",
+            || Ok(self.0.randomElement(values)),
+            faker_json_key,
+        )
+    }
+
+    pub fn randomElements<'a, T: serde::Serialize>(
+        &self,
+        values: &'a [T],
+        count: Option<usize>,
+        allowDuplicates: bool,
+    ) -> DatabaseResult<Vec<&'a T>> {
+        self.generate_keyed(
+            "randomElements",
+            || self.0.randomElements(values, count, allowDuplicates),
+            faker_json_key,
+        )
+    }
+
+    pub fn shuffleArray<T: Clone + serde::Serialize>(
+        &self,
+        values: &[T],
+    ) -> DatabaseResult<Vec<T>> {
+        self.generate_keyed(
+            "shuffleArray",
+            || Ok(self.0.shuffleArray(values)),
+            faker_json_key,
+        )
+    }
+
+    pub fn randomKey<T>(&self, values: &[T]) -> DatabaseResult<Option<usize>> {
+        self.generate_keyed(
+            "randomKey",
+            || Ok(self.0.randomKey(values)),
+            |key| Ok(format!("{key:?}")),
+        )
+    }
+
+    pub fn shuffleString(&self, value: &str) -> DatabaseResult<String> {
+        self.generate("shuffleString", || self.0.shuffleString(value))
     }
 
     pub fn randomLetter(&self) -> DatabaseResult<char> {
@@ -1044,17 +1164,18 @@ impl UniqueFaker<'_> {
         formatter: &'static str,
         value: impl FnMut() -> DatabaseResult<T>,
     ) -> DatabaseResult<T> {
-        self.generate_keyed(formatter, value, ToString::to_string)
+        self.generate_keyed(formatter, value, |value| Ok(value.to_string()))
     }
 
     fn generate_keyed<T>(
         &self,
         formatter: &'static str,
         mut value: impl FnMut() -> DatabaseResult<T>,
-        key: impl Fn(&T) -> String,
+        key: impl Fn(&T) -> DatabaseResult<String>,
     ) -> DatabaseResult<T> {
         for _ in 0..10_000 {
             let value = value()?;
+            let key = key(&value)?;
             if self
                 .0
                 .unique
@@ -1062,11 +1183,17 @@ impl UniqueFaker<'_> {
                 .unwrap()
                 .entry(formatter)
                 .or_default()
-                .insert(key(&value))
+                .insert(key)
             {
                 return Ok(value);
             }
         }
         Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
     }
+}
+
+fn faker_json_key<T: serde::Serialize>(value: &T) -> DatabaseResult<String> {
+    serde_json::to_string(value).map_err(|_| {
+        DatabaseError::InvalidQuery("Faker sample could not be serialized for uniqueness")
+    })
 }
