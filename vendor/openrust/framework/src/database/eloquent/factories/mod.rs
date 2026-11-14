@@ -63,6 +63,15 @@ pub trait HasFactory: Model {
     fn factory() -> Factory<Self>;
 }
 
+/// Selects the records to create with an Eloquent factory.
+#[derive(Default)]
+pub enum FactoryRecords {
+    #[default]
+    Default,
+    Count(usize),
+    Attributes(Vec<Attributes>),
+}
+
 /// A model definition with ordered attribute states and relationship callbacks.
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
@@ -285,7 +294,14 @@ impl<M: Model> Factory<M> {
                                 return Ok(model);
                             }
                             let model = owner
-                                .create_one(&connection, 0, &owner.parent_cache(), &pool)
+                                .create_one(
+                                    &connection,
+                                    0,
+                                    &owner.parent_cache(),
+                                    &pool,
+                                    &std::sync::OnceLock::new(),
+                                    Attributes::new(),
+                                )
                                 .await?;
                             Ok::<SharedModel, DatabaseError>(Arc::new(model))
                         })
@@ -396,8 +412,102 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.create_one(connection, 0, &self.parent_cache(), &self.recycled)
+        self.createOneOn(connection, Attributes::new()).await
+    }
+
+    pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.createOneOn(&DB::connection(M::metadata().connection)?, attributes)
             .await
+    }
+
+    pub async fn createOneOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.create_one(
+            connection,
+            0,
+            &self.parent_cache(),
+            &self.recycled,
+            &std::sync::OnceLock::new(),
+            attributes,
+        )
+        .await
+    }
+
+    pub async fn createOneQuietly(&self, attributes: Attributes) -> DatabaseResult<M> {
+        M::withoutEvents(self.createOne(attributes)).await
+    }
+
+    pub async fn createOneQuietlyOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createOneOn(connection, attributes)).await
+    }
+
+    pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.createManyOn(&DB::connection(M::metadata().connection)?, records)
+            .await
+    }
+
+    pub async fn createManyOn(
+        &self,
+        connection: &Connection,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        self.create_many(connection, records, 1).await
+    }
+
+    pub async fn createManyQuietly(
+        &self,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createMany(records)).await
+    }
+
+    pub async fn createManyQuietlyOn(
+        &self,
+        connection: &Connection,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createManyOn(connection, records)).await
+    }
+
+    async fn create_many(
+        &self,
+        connection: &Connection,
+        records: FactoryRecords,
+        default_count: usize,
+    ) -> DatabaseResult<Collection<M>> {
+        let (count, attributes) = match records {
+            FactoryRecords::Default => (default_count, Vec::new()),
+            FactoryRecords::Count(count) => (count, Vec::new()),
+            FactoryRecords::Attributes(attributes) => (0, attributes),
+        };
+        let cache = self.parent_cache();
+        let faker = std::sync::OnceLock::new();
+        let mut models = Vec::new();
+        for (index, attributes) in attributes
+            .into_iter()
+            .chain(std::iter::repeat_with(Attributes::new).take(count))
+            .enumerate()
+        {
+            models.push(
+                self.create_one(
+                    connection,
+                    index,
+                    &cache,
+                    &self.recycled,
+                    &faker,
+                    attributes,
+                )
+                .await?,
+            );
+        }
+        Ok(Collection::new(models))
     }
 
     pub async fn createQuietly(&self) -> DatabaseResult<M> {
@@ -451,9 +561,17 @@ impl<M: Model> Factory<M> {
         relation: Option<&(Attributes, Attributes)>,
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<M> {
-        let (mut model, attributes) = self
+        let (model, attributes) = self
             .expand_attributes(connection, index, cache, pool, relation, faker)
             .await?;
+        Self::apply_attributes(connection, model, attributes).await
+    }
+
+    async fn apply_attributes(
+        connection: &Connection,
+        mut model: M,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
         // Parent keys provide defaults. Factory states and explicit overrides can replace them.
         let mut raw = model.state().attributes.clone();
         for (name, value) in attributes {
@@ -504,17 +622,14 @@ impl<M: Model> Factory<M> {
         index: usize,
         cache: &[ParentCache],
         pool: &[RecycledModel],
+        faker: &std::sync::OnceLock<Faker>,
+        overrides: Attributes,
     ) -> DatabaseResult<M> {
-        let mut model = self
-            .instantiate(
-                connection,
-                index,
-                cache,
-                pool,
-                None,
-                &std::sync::OnceLock::new(),
-            )
+        let (model, mut attributes) = self
+            .expand_attributes(connection, index, cache, pool, None, faker)
             .await?;
+        attributes.extend(overrides);
+        let mut model = Self::apply_attributes(connection, model, attributes).await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         self.store(connection, &mut model, pool).await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_creating)?;
@@ -583,6 +698,62 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.createOne(attributes).await
+    }
+
+    pub async fn createOneOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.factory.createOneOn(connection, attributes).await
+    }
+
+    pub async fn createOneQuietly(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.createOneQuietly(attributes).await
+    }
+
+    pub async fn createOneQuietlyOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<M> {
+        self.factory
+            .createOneQuietlyOn(connection, attributes)
+            .await
+    }
+
+    pub async fn createMany(&self, records: FactoryRecords) -> DatabaseResult<Collection<M>> {
+        self.createManyOn(&DB::connection(M::metadata().connection)?, records)
+            .await
+    }
+
+    pub async fn createManyOn(
+        &self,
+        connection: &Connection,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        self.factory
+            .create_many(connection, records, self.count)
+            .await
+    }
+
+    pub async fn createManyQuietly(
+        &self,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createMany(records)).await
+    }
+
+    pub async fn createManyQuietlyOn(
+        &self,
+        connection: &Connection,
+        records: FactoryRecords,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createManyOn(connection, records)).await
+    }
+
     pub async fn raw(&self) -> DatabaseResult<Vec<Attributes>> {
         self.rawOn(&DB::connection(M::metadata().connection)?).await
     }

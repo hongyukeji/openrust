@@ -18,7 +18,7 @@ use openrust::{
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState, NamedRelations,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            factories::{Factory, fake},
+            factories::{Factory, FactoryRecords, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
@@ -270,6 +270,94 @@ impl Seeder for PolymorphicFactories {
                     .await?,
                 3
             );
+            let phases = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let record_phase = |phase| {
+                let phases = Arc::clone(&phases);
+                move |_: &mut FactoryChild| {
+                    phases.lock().unwrap().push(phase);
+                    Ok(())
+                }
+            };
+            let batch = Factory::<FactoryChild>::new(Attributes::new)
+                .afterMaking(record_phase("making"))
+                .afterCreating(record_phase("created"))
+                .sequence(|index| {
+                    Attributes::from([("generated_name".into(), format!("many-{index}").into())])
+                })
+                .count(3);
+            let overrides = |name: &str| Attributes::from([("generated_name".into(), name.into())]);
+            let one = batch.createOneOn(connection, overrides("many-one")).await?;
+            assert_eq!(one.getAttribute("generated_name"), Some(&"many-one".into()));
+            phases.lock().unwrap().clear();
+            let defaults = batch.createMany(FactoryRecords::Default).await?;
+            assert_eq!(defaults.len(), 3);
+            assert_eq!(
+                *phases.lock().unwrap(),
+                [
+                    "making", "created", "making", "created", "making", "created"
+                ]
+            );
+            assert_eq!(
+                defaults[2].getAttribute("generated_name"),
+                Some(&"many-2".into())
+            );
+            let counted = batch
+                .createManyOn(connection, FactoryRecords::Count(1))
+                .await?;
+            assert_eq!(counted.len(), 1);
+            assert!(
+                batch
+                    .createManyOn(connection, FactoryRecords::Count(0))
+                    .await?
+                    .is_empty()
+            );
+            assert!(matches!(
+                batch
+                    .createManyOn(
+                        connection,
+                        FactoryRecords::Attributes(vec![
+                            overrides("many-before-error"),
+                            overrides("quiet-fixture"),
+                            overrides("many-after-error"),
+                        ])
+                    )
+                    .await,
+                Err(DatabaseError::InvalidQuery(
+                    "factory model creation cancelled"
+                ))
+            ));
+            assert_eq!(
+                connection
+                    .table("seed_factory_children")
+                    .r#where("generated_name", "=", "many-before-error")
+                    .count("*")
+                    .await?,
+                1
+            );
+            assert_eq!(
+                connection
+                    .table("seed_factory_children")
+                    .r#where("generated_name", "=", "many-after-error")
+                    .count("*")
+                    .await?,
+                0
+            );
+            batch.createOneQuietly(overrides("quiet-fixture")).await?;
+            let quiet = batch
+                .createManyQuietlyOn(
+                    connection,
+                    FactoryRecords::Attributes(vec![
+                        overrides("quiet-fixture"),
+                        overrides("many-quiet"),
+                    ]),
+                )
+                .await?;
+            assert_eq!(quiet.len(), 2);
+            assert_eq!(
+                quiet[1].getAttribute("generated_name"),
+                Some(&"many-quiet".into())
+            );
+            assert_eq!(connection.table("seed_factory_children").delete().await?, 9);
             assert_eq!(fake(None)?.locale(), "zh_TW");
             assert_eq!(fake(Some("fr-fr"))?.locale(), "fr_FR");
             let invalid = fake(Some("../en"));
