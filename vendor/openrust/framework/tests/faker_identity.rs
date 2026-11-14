@@ -1040,3 +1040,95 @@ fn nordic_company_names_use_regional_suffixes_and_connectors() {
         }));
     }
 }
+
+#[test]
+fn spanish_and_portuguese_companies_use_regional_suffixes_and_prefixes() {
+    use std::collections::HashSet;
+    let common_spanish = [
+        "e Hijo", "e Hija", "e Hijos", "y Asoc.", "y Flia.", "SRL", "SA", "S. de H.",
+    ];
+    let spanish_prefixes = [
+        "Asociación",
+        "Centro",
+        "Corporación",
+        "Empresa",
+        "Gestora",
+        "Global",
+        "Grupo",
+        "Viajes",
+        "Air",
+    ];
+    let venezuelan_prefixes = [
+        "Asociación",
+        "Centro",
+        "Corporación",
+        "Cooperativa",
+        "Empresa",
+        "Gestora",
+        "Global",
+        "Grupo",
+        "Viajes",
+        "Inversiones",
+        "Lic.",
+        "Dr.",
+    ];
+    for (locale, suffixes, prefixes, connector) in [
+        ("es-AR", common_spanish.as_slice(), &[][..], " y "),
+        (
+            "es-ES",
+            common_spanish.as_slice(),
+            spanish_prefixes.as_slice(),
+            " y ",
+        ),
+        ("es-PE", common_spanish.as_slice(), &[][..], " y "),
+        (
+            "es-VE",
+            &["S.R.L.", "C.A.", "S.A.", "R.L.", "etc"],
+            venezuelan_prefixes.as_slice(),
+            " y ",
+        ),
+        (
+            "pt-BR",
+            &["e Filhos", "e Associados", "Ltda.", "S.A."],
+            &[][..],
+            " e ",
+        ),
+        (
+            "pt-PT",
+            &["e Filhos", "e Associados", "Lda.", "S.A."],
+            &[][..],
+            " e ",
+        ),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let sampled: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            sampled,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+        let sampled: HashSet<_> = (0..prefixes.len())
+            .map(|_| unique.companyPrefix().unwrap())
+            .collect();
+        assert_eq!(sampled, prefixes.iter().copied().collect());
+        assert!(unique.companyPrefix().is_err());
+
+        let names: Vec<_> = (0..128).map(|_| faker.company()).collect();
+        assert!(names.iter().any(|name| name.contains(connector)));
+        assert!(names.iter().any(|name| {
+            suffixes
+                .iter()
+                .any(|suffix| name.ends_with(&format!(" {suffix}")))
+        }));
+        if !prefixes.is_empty() {
+            assert!(names.iter().any(|name| {
+                prefixes
+                    .iter()
+                    .any(|prefix| name.starts_with(&format!("{prefix} ")))
+            }));
+        }
+    }
+}

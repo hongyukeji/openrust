@@ -318,10 +318,12 @@ With `de-DE`, `de-AT`, `de-CH`, and `cs-CZ`, `company()` uses the pinned regiona
 
 With `da-DK`, `is-IS`, `fi-FI`, `sv-SE`, and `nb-NO`, `company()` uses the pinned regional name and suffix catalogs. The templates retain their original conjunctions, punctuation, and sampling weights. Use `companySuffix()` to sample just the suffix. Both methods support `unique`.
 
+For `es-AR`, `es-ES`, `es-PE`, `es-VE`, `pt-BR`, and `pt-PT`, `company()` uses the pinned regional surnames and company templates. `companySuffix()` uses the corresponding suffix catalog, including `Ltda.` in Brazil and `Lda.` in Portugal. `companyPrefix()` also supports Spain and Venezuela. All three methods support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 50]> {
+fn identity_samples() -> DatabaseResult<[String; 52]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -333,6 +335,8 @@ fn identity_samples() -> DatabaseResult<[String; 50]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("es-VE"))?.companyPrefix()?.to_owned(),
+        fake(Some("pt-PT"))?.company(),
         fake(Some("is-IS"))?.company(),
         fake(Some("nb-NO"))?.unique(false).companySuffix()?,
         fake(Some("cs-CZ"))?.company(),

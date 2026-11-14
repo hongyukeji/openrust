@@ -787,3 +787,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `48be76cc`。PHP 8.5 核对 2,560 组固定上游名称及后缀，并逐项比较词表。Rust 1.94.0 格式、全目标严格 Clippy、19 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force`，写入并回查五个地区共十条记录。Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。站点保留既有分块大小提示，本批数据库验收只运行 MySQL。
 
 临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下批核对西语和葡语地区模板。
+
+## Faker 西语与葡语地区公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。接入 FakerPHP v1.24.1 的阿根廷、西班牙、秘鲁、委内瑞拉、巴西和葡萄牙 Company 模板及 Person 姓氏表。保留当地拼写、模板权重和连接词，西班牙与委内瑞拉提供 `companyPrefix()`。Rust 使用静态模板片段表达 PHP 占位符，保留现有 `company()`、`companySuffix()` 与 `unique` 契约。v0.x 未发现等价入口，编译式装配沿用现有入口。 [FakerPHP v1.24.1 地区实现](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)
+
+隔离基线 `537aa9d6`。PHP 8.5 核对 3,072 组上游名称及后缀，逐项比较六地模板、姓氏、前缀和后缀。Rust 1.94.0 格式、全目标严格 Clippy、20 项 Faker 回归和 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查六地共十二条名称和后缀。Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。站点保留既有分块大小提示，本批数据库验收只运行 MySQL。
+
+临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 49%，磁盘 82 GiB。下一批核对荷兰语地区公司模板与名称规则。

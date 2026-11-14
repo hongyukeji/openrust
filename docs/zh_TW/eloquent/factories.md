@@ -318,10 +318,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `da-DK`、`is-IS`、`fi-FI`、`sv-SE` 和 `nb-NO` 的 `company()` 使用固定上游的地區姓名與後綴詞表，保留範本中的連接詞、標點與抽樣權重。可用 `companySuffix()` 單獨抽樣後綴。兩個方法都支援 `unique`。
 
+`es-AR`、`es-ES`、`es-PE`、`es-VE`、`pt-BR` 和 `pt-PT` 的 `company()` 使用固定上游的地區姓氏和公司範本。`companySuffix()` 使用對應的後綴詞表，例如巴西的 `Ltda.` 和葡萄牙的 `Lda.`。`companyPrefix()` 新增西班牙和委內瑞拉。三個方法均支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 50]> {
+fn identity_samples() -> DatabaseResult<[String; 52]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -333,6 +335,8 @@ fn identity_samples() -> DatabaseResult<[String; 50]> {
     let greek = fake(Some("el-GR"))?;
     let taiwan = fake(Some("zh-Hant"))?;
     Ok([
+        fake(Some("es-VE"))?.companyPrefix()?.to_owned(),
+        fake(Some("pt-PT"))?.company(),
         fake(Some("is-IS"))?.company(),
         fake(Some("nb-NO"))?.unique(false).companySuffix()?,
         fake(Some("cs-CZ"))?.company(),
