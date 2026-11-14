@@ -77,6 +77,10 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 
 从磁盘停点恢复后，在隔离副本使用 Rust 1.94 通过格式和工作区全目标严格 Clippy 检查。MySQL 8.4.13 的实际 db:seed 验证单条和批量构造不写入目标表、默认数量、属性覆盖、零条结果、延迟写入及重复调用。MySQL 与 SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。
 
+在 `a6c9a039` 的隔离副本复验已提交的 `1a233c5e`。Rust 1.94.0 格式及工作区全目标严格 Clippy 通过。强制连接 MySQL 8.4.13 的 Seeder 集成用例及 MySQL／SQLite 工厂回归通过。另用应用二进制执行 `artisan db:seed --database=mysql --force`，确认 `makeOne` 和 `makeMany` 返回未保存的模型，零条返回空集合，单条及批次 `lazy` 在等待前保持零写入，重复调用后数据库共四条记录。`./artisan inspire`、三语 Seeder 示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。
+
+固定 Laravel 的 `makeMany` 会清空工厂计数。Rust 的 `FactoryBatch` 在共享借用下保留其计数。三语文档同步说明了该差异和解析上级模型可能产生写入的边界。复验后清理隔离副本的 Cargo 产物 2.2 GiB 和站点产物 37 MiB。
+
 ## 逐项序列与笛卡尔积序列
 
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)
