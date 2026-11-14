@@ -533,6 +533,23 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 }
 ```
 
+### 預先載入指定欄位 {#eager-loading-specific-columns}
+
+在每條路徑的末級關聯名稱後加冒號，再列出逗號分隔的欄位。若需選擇中間關聯的欄位，將中間關聯另外列出。保留模型比對與下一層載入所需的主鍵和外鍵。多型關聯的各目標均須具有所選欄位。`loadMissingPaths` 保留已載入的關聯值。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
+
+pub async fn authors_with_selected_columns<A: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<A>> {
+    A::queryOn(connection)
+        .withPaths(&["posts:id,author_id,title", "posts.comments:id,subject_id,body"])?
+        .get()
+        .await
+}
+```
+
 ### 預設預先載入
 
 在模型中實作 `Model::withDefaultRelations`，宣告預設載入的型別化關聯。它對應 Laravel 模型的 `$with` 屬性。

@@ -370,6 +370,17 @@ impl<P: Model> MorphTo<P> {
         }
     }
 
+    pub(in crate::database::eloquent) fn select_path_columns(
+        &mut self,
+        columns: Option<&[String]>,
+    ) {
+        if let Some(columns) = columns {
+            for target in self.targets.values_mut() {
+                target.select_path_columns(columns.to_vec());
+            }
+        }
+    }
+
     pub(in crate::database::eloquent) fn with_constrained_paths(
         &mut self,
         name: &str,
@@ -769,6 +780,7 @@ trait Target<P: Model>: Send + Sync {
         targets: &'a mut [&mut ErasedModel],
         children: &'a [&'a str],
     ) -> DatabaseFuture<'a, DatabaseResult<()>>;
+    fn select_path_columns(&mut self, columns: Vec<String>);
     fn with_paths(
         &mut self,
         children: &[&str],
@@ -894,6 +906,10 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             }
             Ok(())
         })
+    }
+
+    fn select_path_columns(&mut self, columns: Vec<String>) {
+        self.append_constraint(move |query| query.select_path_columns(&columns));
     }
 
     fn with_paths(

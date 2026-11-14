@@ -2205,6 +2205,12 @@ impl<P: Model, R: Model> super::NestedRelation for BelongsToMany<P, R> {
         self
     }
 
+    fn with_path_columns(mut self, columns: Vec<String>) -> DatabaseResult<Self> {
+        self.keys
+            .append_constraint(move |query| query.select_path_columns(&columns));
+        Ok(self)
+    }
+
     fn with_path_constraint(
         self,
         constraint: impl Fn(

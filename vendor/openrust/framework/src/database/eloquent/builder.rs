@@ -1261,6 +1261,14 @@ impl<M: Model> Builder<'static, M> {
         Ok(self.with_eager_loads(super::NamedRelations::<M>::prepare(paths)?))
     }
 
+    pub(super) fn select_path_columns(self, columns: &[String]) -> Self {
+        let columns = columns
+            .iter()
+            .map(|column| self.qualifyColumn(column))
+            .collect::<Vec<_>>();
+        self.select(columns.iter().map(String::as_str))
+    }
+
     pub(super) fn with_path_constraint(
         mut self,
         constraint: &(impl Fn(query::Conditions, &str) -> query::Conditions + ?Sized),

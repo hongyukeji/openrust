@@ -17,6 +17,7 @@ type Prepare<M> = dyn Fn(
         EagerLoads<M>,
         &str,
         &[&str],
+        Option<&[String]>,
         Option<&PathConstraint>,
         Option<&DiscoveredMorphs>,
     ) -> DatabaseResult<EagerLoads<M>>
@@ -59,7 +60,12 @@ impl DiscoveredMorphs {
     }
 }
 
-type LoadMissing<M> = dyn for<'a> Fn(&'a mut [M], &'a str, &'a [&'a str]) -> DatabaseFuture<'a, DatabaseResult<()>>
+type LoadMissing<M> = dyn for<'a> Fn(
+        &'a mut [M],
+        &'a str,
+        &'a [&'a str],
+        Option<&'a [String]>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
     + Sync;
 
@@ -96,28 +102,33 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint, discovered| {
-                    let relation = eager();
-                    let relation = if children.is_empty() {
-                        match constraint {
-                            Some(constraint) => {
-                                let constraint = constraint.clone();
-                                relation.with_path_constraint(move |conditions, qualifier| {
-                                    constraint(conditions, qualifier)
-                                })?
+                prepare: Box::new(
+                    move |loads, name, children, columns, constraint, discovered| {
+                        let relation = select_columns(eager(), columns)?;
+                        let relation = if children.is_empty() {
+                            match constraint {
+                                Some(constraint) => {
+                                    let constraint = constraint.clone();
+                                    relation.with_path_constraint(
+                                        move |conditions, qualifier| {
+                                            constraint(conditions, qualifier)
+                                        },
+                                    )?
+                                }
+                                None => relation,
                             }
-                            None => relation,
-                        }
-                    } else {
-                        relation.with_nested(NamedRelations::<R::Related>::prepare_constrained(
-                            children, constraint, discovered,
-                        )?)
-                    };
-                    Ok(loads.with(name, relation))
-                }),
-                load_missing: Box::new(move |models, name, children| {
+                        } else {
+                            relation.with_nested(NamedRelations::<R::Related>::prepare_constrained(
+                                children, constraint, discovered,
+                            )?)
+                        };
+                        Ok(loads.with(name, relation))
+                    },
+                ),
+                load_missing: Box::new(move |models, name, children, columns| {
                     let relation = missing();
                     Box::pin(async move {
+                        let relation = select_columns(relation, columns)?;
                         load(models, name, &relation, true).await?;
                         if children.is_empty() {
                             return Ok(());
@@ -182,8 +193,8 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint, _| {
-                    if constraint.is_some() {
+                prepare: Box::new(move |loads, name, children, columns, constraint, _| {
+                    if constraint.is_some() || columns.is_some() {
                         return Err(DatabaseError::InvalidQuery(
                             "relationship path does not support constraints",
                         ));
@@ -195,9 +206,14 @@ impl<M: Model> NamedRelations<M> {
                     }
                     Ok(loads.with(name, eager()))
                 }),
-                load_missing: Box::new(move |models, name, children| {
+                load_missing: Box::new(move |models, name, children, columns| {
                     let relation = factory();
                     Box::pin(async move {
+                        if columns.is_some() {
+                            return Err(DatabaseError::InvalidQuery(
+                                "relationship path does not support column selection",
+                            ));
+                        }
                         if !children.is_empty() {
                             return Err(DatabaseError::InvalidQuery(
                                 "relationship path cannot be nested",
@@ -228,13 +244,17 @@ impl<M: Model> NamedRelations<M> {
         self.0.insert(
             name,
             NamedRelation {
-                prepare: Box::new(move |loads, name, children, constraint, discovered| {
-                    let mut relation = eager();
-                    relation.with_constrained_paths(name, children, constraint, discovered)?;
-                    Ok(loads.with(name, relation))
-                }),
-                load_missing: Box::new(move |models, name, children| {
-                    let relation = missing();
+                prepare: Box::new(
+                    move |loads, name, children, columns, constraint, discovered| {
+                        let mut relation = eager();
+                        relation.select_path_columns(columns);
+                        relation.with_constrained_paths(name, children, constraint, discovered)?;
+                        Ok(loads.with(name, relation))
+                    },
+                ),
+                load_missing: Box::new(move |models, name, children, columns| {
+                    let mut relation = missing();
+                    relation.select_path_columns(columns);
                     Box::pin(async move {
                         load(models, name, &relation, true).await?;
                         relation.load_missing_paths(models, name, children).await
@@ -320,12 +340,13 @@ impl<M: Model> NamedRelations<M> {
         Box::pin(async move {
             let grouped = group_paths(paths)?;
             let registered = M::namedRelations();
-            for (name, children) in grouped {
+            for (name, path) in grouped {
                 let relation = registered
                     .0
                     .get(name)
                     .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-                (relation.load_missing)(models, name, &children).await?;
+                (relation.load_missing)(models, name, &path.children, path.columns.as_deref())
+                    .await?;
             }
             Ok(())
         })
@@ -343,27 +364,68 @@ impl<M: Model> NamedRelations<M> {
         let grouped = group_paths(paths)?;
         let registered = M::namedRelations();
         let mut loads = EagerLoads::default();
-        for (name, children) in grouped {
+        for (name, path) in grouped {
             let prepare = registered
                 .0
                 .get(name)
                 .ok_or(DatabaseError::InvalidQuery("unknown relationship path"))?;
-            loads = (prepare.prepare)(loads, name, &children, constraint, discovered)?;
+            loads = (prepare.prepare)(
+                loads,
+                name,
+                &path.children,
+                path.columns.as_deref(),
+                constraint,
+                discovered,
+            )?;
         }
         Ok(loads)
     }
 }
 
-fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, Vec<&'a str>>> {
-    let mut grouped = IndexMap::<&str, Vec<&str>>::new();
+fn select_columns<R: NestedRelation>(relation: R, columns: Option<&[String]>) -> DatabaseResult<R> {
+    match columns {
+        Some(columns) => relation.with_path_columns(columns.to_vec()),
+        None => Ok(relation),
+    }
+}
+
+#[derive(Default)]
+struct EagerPath<'a> {
+    columns: Option<Vec<String>>,
+    children: Vec<&'a str>,
+}
+
+fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerPath<'a>>> {
+    let mut grouped = IndexMap::<&str, EagerPath<'_>>::new();
     for path in paths {
-        if path.split('.').any(str::is_empty) {
+        let (names, columns) = path
+            .split_once(':')
+            .map_or((*path, None), |(names, columns)| (names, Some(columns)));
+        if names.split('.').any(str::is_empty) {
             return Err(DatabaseError::InvalidQuery("invalid relationship path"));
         }
-        if let Some((name, child)) = path.split_once('.') {
-            grouped.entry(name).or_default().push(child);
+        if let Some((name, _)) = names.split_once('.') {
+            grouped
+                .entry(name)
+                .or_default()
+                .children
+                .push(&path[name.len() + 1..]);
         } else {
-            grouped.entry(path).or_default();
+            let entry = grouped.entry(names).or_default();
+            if let Some(columns) = columns {
+                let columns = columns
+                    .split(',')
+                    .map(str::trim)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                if columns
+                    .iter()
+                    .any(|column| column.is_empty() || column.contains(':'))
+                {
+                    return Err(DatabaseError::InvalidQuery("invalid relationship columns"));
+                }
+                entry.columns = Some(columns);
+            }
         }
     }
 

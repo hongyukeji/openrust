@@ -322,6 +322,11 @@ impl<P: Model, R: Model> super::NestedRelation for MorphOne<P, R> {
         Self(super::NestedRelation::with_nested(self.0, nested))
     }
 
+    fn with_path_columns(mut self, columns: Vec<String>) -> DatabaseResult<Self> {
+        self.0 = super::NestedRelation::with_path_columns(self.0, columns)?;
+        Ok(self)
+    }
+
     fn with_path_constraint(
         self,
         constraint: impl Fn(

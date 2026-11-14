@@ -93,6 +93,16 @@ pub trait NestedRelation: Relation {
     fn with_nested(self, nested: super::super::EagerLoads<Self::Related>) -> Self;
 
     #[doc(hidden)]
+    fn with_path_columns(self, _columns: Vec<String>) -> DatabaseResult<Self>
+    where
+        Self: Sized,
+    {
+        Err(DatabaseError::InvalidQuery(
+            "relationship path does not support column selection",
+        ))
+    }
+
+    #[doc(hidden)]
     fn with_path_constraint(
         self,
         _constraint: impl Fn(query::Conditions, &str) -> query::Conditions + Send + Sync + 'static,

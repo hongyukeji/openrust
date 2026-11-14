@@ -626,3 +626,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 SQLite 与独立 MySQL 8.4.13 验证链式单值、多值、自定义列、软删除中间模型、相同外键值的多态隔离及存在查询。
 
 Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。
+
+## 预加载特定列
+
+按固定 Laravel 的关系路径冒号列选择实现 `withPaths`、`loadPaths`、`loadMissingPaths`。同次调用可为中间关系和末级关系分别指定列。调用方保留匹配所需的主外键，框架为多对多和穿透关系继续附加内部匹配列。Rust 复用类型化关系约束和现有查询列验证，多态目标共用列清单。旧版未找到命名路径列选择入口，沿用当前模型选择和关系连接。 [Laravel 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-relationships.md#eager-loading-specific-columns) · [Laravel Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) · [Laravel 关系测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentBelongsToManyTest.php) · [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/orm/orm.go)
+
+SQLite 与独立 MySQL 8.4.13 专项覆盖嵌套列投影、主外键匹配、已加载值保留、多态目标、Pivot 和穿透内部匹配、无效列清单。MySQL 嵌套预加载连同根查询共 3 次 SELECT。
+
+Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 项夹具忽略、实际 Artisan、三语示例编译、站点构建和 18 项浏览器检查通过。

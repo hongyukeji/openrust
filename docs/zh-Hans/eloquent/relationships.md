@@ -533,6 +533,23 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 }
 ```
 
+### 预加载特定列 {#eager-loading-specific-columns}
+
+在每条路径的末级关系名后加冒号，再列出逗号分隔的字段。若需选择中间关系的列，将中间关系单独列出。保留模型匹配和下一层加载所需的主键及外键。多态关系的各目标都需具有所选列。`loadMissingPaths` 保留已加载的关系值。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
+
+pub async fn authors_with_selected_columns<A: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<A>> {
+    A::queryOn(connection)
+        .withPaths(&["posts:id,author_id,title", "posts.comments:id,subject_id,body"])?
+        .get()
+        .await
+}
+```
+
 ### 默认预加载
 
 在模型中实现 `Model::withDefaultRelations`，声明默认加载的类型化关系。它对应 Laravel 模型的 `$with` 属性。

@@ -100,6 +100,8 @@ impl Model for Author {
         NamedRelations::default()
             .nested("posts", || POSTS)
             .nested("details", || POSTS)
+            .nested("featured", || FEATURED_POSTS)
+            .nested("commentsThrough", || COMMENTS_THROUGH)
     }
 
     fn metadata() -> &'static ModelMetadata {
@@ -1756,6 +1758,105 @@ async fn verify_model_reload_relations(db: &Connection, model: &Author) {
         .update(Attributes::from([("name".into(), prior_name)]))
         .await
         .unwrap();
+}
+
+async fn verify_eager_columns(db: &Connection, mysql: bool) {
+    assert!(matches!(
+        Author::queryOn(db).withPaths(&["posts:id,"]),
+        Err(DatabaseError::InvalidQuery("invalid relationship columns"))
+    ));
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let author = Author::queryOn(db)
+        .withPaths(&[
+            "posts:id,author_id,title",
+            "posts.comments:id,subject_id,body",
+        ])
+        .unwrap()
+        .findOrFail(1)
+        .await
+        .unwrap();
+    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    assert!(!posts.is_empty());
+    let mut comments_count = 0;
+    for post in posts {
+        assert!(post.getAttribute("title").is_some());
+        assert!(post.getAttribute("score").is_none());
+        assert_eq!(post.getAttribute("author_id"), author.getKey());
+        for comment in post.getRelation::<Vec<Arc<Comment>>>("comments").unwrap() {
+            assert_eq!(comment.getAttribute("subject_id"), post.getKey());
+            assert!(comment.getAttribute("body").is_some());
+            assert!(comment.getAttribute("subject_type").is_none());
+            comments_count += 1;
+        }
+    }
+    assert!(comments_count > 0);
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 3);
+    }
+
+    let mut author = Author::queryOn(db).findOrFail(1).await.unwrap();
+    author
+        .loadMissingPaths(&["posts:id,author_id"])
+        .await
+        .unwrap();
+    author
+        .loadMissingPaths(&["posts:id,author_id,title"])
+        .await
+        .unwrap();
+    let posts = author.getRelation::<Vec<Arc<Post>>>("posts").unwrap();
+    assert!(
+        posts
+            .iter()
+            .all(|post| post.getAttribute("title").is_none())
+    );
+
+    let post_id = posts[0].getKey().unwrap().clone();
+    FEATURED_POSTS
+        .syncWithoutDetaching(&author, std::slice::from_ref(&post_id))
+        .await
+        .unwrap();
+    let joined = Author::queryOn(db)
+        .withPaths(&["featured:id,title", "commentsThrough:id,body"])
+        .unwrap()
+        .findOrFail(1)
+        .await
+        .unwrap();
+    let featured = joined.getRelation::<Vec<Arc<Post>>>("featured").unwrap();
+    let post = featured
+        .iter()
+        .find(|post| post.getKey() == Some(&post_id))
+        .unwrap();
+    assert!(post.getAttribute("author_id").is_none());
+    assert!(post.getRelation::<Pivot>("pivot").is_some());
+    let through = joined
+        .getRelation::<Vec<Arc<Comment>>>("commentsThrough")
+        .unwrap();
+    assert!(!through.is_empty());
+    assert!(
+        through
+            .iter()
+            .all(|comment| comment.getAttribute("post_id").is_none())
+    );
+
+    let comment = Comment::queryOn(db)
+        .withPaths(&["subject:id"])
+        .unwrap()
+        .whereMorphType(
+            &MorphTo::<Comment>::new("subject_type", "subject_id").target::<Post>("post", "id"),
+            Some("post"),
+        )
+        .firstOrFail()
+        .await
+        .unwrap();
+    let owner = comment
+        .getRelation::<Option<openrust::database::eloquent::relations::MorphTarget>>("subject")
+        .unwrap()
+        .as_ref()
+        .unwrap()
+        .downcast_ref::<Post>()
+        .unwrap();
+    assert_eq!(owner.getKey(), comment.getAttribute("subject_id"));
+    assert!(owner.getAttribute("title").is_none());
 }
 
 async fn verify_named_paths(db: &Connection, mysql: bool) {
@@ -7069,6 +7170,7 @@ async fn verify(db: Connection, mysql: bool) {
     verify_relation_autoload(&db, mysql).await;
     verify_relation_chain(&db, mysql).await;
     Box::pin(verify_named_paths(&db, mysql)).await;
+    Box::pin(verify_eager_columns(&db, mysql)).await;
     Box::pin(verify_path_constraints(&db)).await;
 
     verify_morph_batches(&db, mysql).await;

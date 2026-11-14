@@ -533,6 +533,23 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 }
 ```
 
+### Eager loading specific columns {#eager-loading-specific-columns}
+
+Add a colon and comma-separated columns after the final relation in each path. Use a separate entry to select columns on an intermediate relation. Include the primary and foreign keys needed to match the models and to load any deeper relationships. For a polymorphic target, the listed columns must be available on each selected target. `loadMissingPaths` keeps existing relation values.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
+
+pub async fn authors_with_selected_columns<A: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<A>> {
+    A::queryOn(connection)
+        .withPaths(&["posts:id,author_id,title", "posts.comments:id,subject_id,body"])?
+        .get()
+        .await
+}
+```
+
 ### Eager Loading by Default
 
 Implement `Model::withDefaultRelations` to declare the typed relationships loaded by default. This is the model's equivalent of Laravel's `$with` property.
