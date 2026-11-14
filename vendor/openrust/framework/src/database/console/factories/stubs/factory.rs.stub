@@ -1,4 +1,7 @@
-use openrust::database::eloquent::{Attributes, factories::Factory};
+use openrust::database::eloquent::{
+    Attributes,
+    factories::{Factory, FactoryDefinition},
+};
 
 use {{import}};
 
@@ -6,8 +9,12 @@ pub struct {{class}};
 
 impl {{class}} {
     pub fn factory() -> Factory<{{model}}> {
-        Factory::new(Self::definition)
+        <Self as FactoryDefinition>::factory()
     }
+}
+
+impl FactoryDefinition for {{class}} {
+    type Model = {{model}};
 
     fn definition() -> Attributes {
         Attributes::new()

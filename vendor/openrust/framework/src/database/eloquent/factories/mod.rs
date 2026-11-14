@@ -100,6 +100,22 @@ fn recycled_owner<R: Model>(
     fastrand::choice(candidates).map(|entry| entry.model.clone())
 }
 
+/// A named factory definition with a compile-time model binding.
+pub trait FactoryDefinition: Sized + 'static {
+    type Model: Model;
+
+    fn definition() -> Attributes;
+
+    /// Configures the fresh factory before the caller adds states.
+    fn configure(factory: Factory<Self::Model>) -> Factory<Self::Model> {
+        factory
+    }
+
+    fn factory() -> Factory<Self::Model> {
+        Self::configure(Factory::new(Self::definition))
+    }
+}
+
 /// Associates a model with the factory definition chosen by its application.
 pub trait HasFactory: Model {
     fn factory() -> Factory<Self>;

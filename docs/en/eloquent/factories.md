@@ -8,6 +8,58 @@ Use `Factory::new` to define the model’s default attributes. Implement `HasFac
 ./artisan make:factory FlightFactory --model=Flight
 ```
 
+### Binding a Model to Its Factory {#factory-model-binding}
+
+The generated factory implements `FactoryDefinition`. Its associated `Model` binds the factory to a model at compile time. Declare the factory in `database/factories/mod.rs` and declare `factories` in `database/mod.rs`. Implement `HasFactory` on the model to delegate `Flight::factory()` to the chosen factory. You can also call `FlightFactory::factory()` directly. The `configure` hook runs on each fresh builder before call-site states, which can override its defaults.
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model, ModelMetadata, ModelState,
+    factories::{Factory, FactoryDefinition, HasFactory},
+};
+
+struct Flight(ModelState);
+
+impl Model for Flight {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("flights");
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct FlightFactory;
+
+impl FactoryDefinition for FlightFactory {
+    type Model = Flight;
+
+    fn definition() -> Attributes {
+        Attributes::from([("name".into(), "Flight".into())])
+    }
+
+    fn configure(factory: Factory<Flight>) -> Factory<Flight> {
+        factory.set("name", "Scheduled flight")
+    }
+}
+
+impl HasFactory for Flight {
+    fn factory() -> Factory<Self> {
+        FlightFactory::factory()
+    }
+}
+```
+
 ### Localized Fake Data {#localized-fake-data}
 
 Use `Factory::withFaker` to define generated model attributes. It reads `app.faker_locale` from the application owning the selected connection. Use `fake(Some("fr_FR"))` to select a locale explicitly, or `fake(None)` to use the current application. The Rust generator uses fake-rs data and exposes `name`, `safeEmail`, `city`, and `sentence`. Unsupported locales use English data.

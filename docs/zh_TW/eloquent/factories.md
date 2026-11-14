@@ -8,6 +8,58 @@
 ./artisan make:factory FlightFactory --model=Flight
 ```
 
+### 模型與工廠繫結 {#factory-model-binding}
+
+產生的工廠實作 `FactoryDefinition`，透過關聯型別 `Model` 在編譯期繫結模型。在 `database/factories/mod.rs` 宣告產生的模組，並在 `database/mod.rs` 宣告 `factories`。在模型上實作 `HasFactory`，將 `Flight::factory()` 委派給選定的工廠。也可直接使用 `FlightFactory::factory()`。每次建立工廠時先執行 `configure`，呼叫端追加的狀態可以覆寫其預設值。
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model, ModelMetadata, ModelState,
+    factories::{Factory, FactoryDefinition, HasFactory},
+};
+
+struct Flight(ModelState);
+
+impl Model for Flight {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("flights");
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct FlightFactory;
+
+impl FactoryDefinition for FlightFactory {
+    type Model = Flight;
+
+    fn definition() -> Attributes {
+        Attributes::from([("name".into(), "Flight".into())])
+    }
+
+    fn configure(factory: Factory<Flight>) -> Factory<Flight> {
+        factory.set("name", "Scheduled flight")
+    }
+}
+
+impl HasFactory for Flight {
+    fn factory() -> Factory<Self> {
+        FlightFactory::factory()
+    }
+}
+```
+
 ### 本地化測試資料 {#localized-fake-data}
 
 使用 `Factory::withFaker` 定義產生的模型屬性。它讀取所選連線所屬應用程式的 `app.faker_locale`。使用 `fake(Some("fr_FR"))` 明確指定語言，或用 `fake(None)` 讀取目前應用程式的設定。Rust 產生器使用 fake-rs 的資料，提供 `name`、`safeEmail`、`city` 和 `sentence`。尚未支援的語言使用英文資料。

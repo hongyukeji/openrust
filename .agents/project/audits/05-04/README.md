@@ -312,3 +312,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel Factory 的 Conditionable 和条件回调测试，单模型与批量工厂提供 when、unless、whenElse、unlessElse。布尔条件在配置时决定分支，选中的闭包接收并返回工厂，之后继续按声明顺序合并状态。Rust 使用显式布尔值和第三个参数的 Else 方法表达默认分支，动态真值、可变回调返回类型及 HigherOrderWhenProxy 由显式 Rust 表达式替代。起步 API 与现有图片构建器的 when、unless 一致。v0.x 未发现模型工厂的对应实现，Goravel 装配未涉及。 [Laravel Conditionable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Conditionable/Traits/Conditionable.php) · [Laravel 工厂条件测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L744)
 
 隔离基线 `5d81ba91`。PHP 8.5.12 执行固定 Conditionable 验证分支及备用回调。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证状态覆盖顺序和两条批量记录，双库回归覆盖 raw、make、create 及跳过分支。Rust 1.94.0 格式、全目标严格 Clippy、21 项 Seeder、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。
+
+## 模型与命名工厂绑定
+
+对照固定 Laravel 的 HasFactory、UseFactory、UseModel 与 configure。生成工厂实现 FactoryDefinition，使用关联类型绑定模型，每个新工厂自动执行配置钩子。既有 HasFactory::factory 显式选择命名工厂，后续状态与批次数量仍由调用方链式设置。Rust 使用已编译的模块和关联类型表达 PHP 的类发现及选定模型，不引入全局名称推断。v0.x 的查询工厂没有对应实现，Goravel 的编译型装配作为参考。 [Laravel 工厂发现约定](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-and-model-discovery-conventions) · [Laravel HasFactory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/HasFactory.php)
+
+隔离基线 `ec764c4a`。实际 Artisan 生成 BindingProbe 模型和工厂，在隔离项目声明模块、显式绑定并重新构建。MySQL 8.4.13 `artisan db:seed --database=mysql --force` 查得一条配置默认值和两条调用处状态覆盖记录。SQLite 回归验证调用之间的工厂状态隔离。Rust 1.94.0 格式、全目标严格 Clippy、22 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。

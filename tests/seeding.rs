@@ -19,7 +19,10 @@ use openrust::{
             Attributes, Model, ModelMetadata, ModelState, NamedRelations, UniqueId,
             casts::{Attribute, AttributeCast},
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            factories::{Factory, FactoryParentSelector, FactoryPivot, FactoryRecords, fake},
+            factories::{
+                Factory, FactoryDefinition, FactoryParentSelector, FactoryPivot, FactoryRecords,
+                HasFactory, fake,
+            },
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
@@ -2717,4 +2720,52 @@ async fn factory_conditionals_select_only_one_branch_and_keep_batch_count() {
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
+}
+
+struct BoundFactory;
+
+impl FactoryDefinition for BoundFactory {
+    type Model = FactoryChild;
+
+    fn definition() -> Attributes {
+        Attributes::from([("label".into(), "defined".into())])
+    }
+
+    fn configure(factory: Factory<Self::Model>) -> Factory<Self::Model> {
+        factory.state(|attributes| {
+            assert_eq!(attributes.get("label"), Some(&"defined".into()));
+            Attributes::from([("label".into(), "configured".into())])
+        })
+    }
+}
+
+impl HasFactory for FactoryChild {
+    fn factory() -> Factory<Self> {
+        BoundFactory::factory()
+    }
+}
+
+#[tokio::test]
+async fn model_factory_binding_configures_each_fresh_builder() {
+    let root = Root::new();
+    let connection = root.connection(None, "database/database.sqlite");
+
+    let configured = FactoryChild::factory();
+    let overridden = FactoryChild::factory().set("label", "explicit");
+    assert_eq!(
+        configured.rawOn(&connection).await.unwrap().get("label"),
+        Some(&"configured".into())
+    );
+    assert_eq!(
+        overridden.rawOn(&connection).await.unwrap().get("label"),
+        Some(&"explicit".into())
+    );
+    assert_eq!(
+        BoundFactory::factory()
+            .rawOn(&connection)
+            .await
+            .unwrap()
+            .get("label"),
+        Some(&"configured".into())
+    );
 }
