@@ -1,3 +1,4 @@
+use super::regex_pattern::RegexPattern;
 use std::{
     collections::{HashMap, HashSet},
     ops::Range,
@@ -352,6 +353,10 @@ impl Faker {
                 literal => literal,
             })
             .collect()
+    }
+
+    pub fn regexify(&self, pattern: &str) -> DatabaseResult<String> {
+        Ok(RegexPattern::parse(pattern)?.sample())
     }
 
     pub fn asciify(&self, pattern: Option<&str>) -> String {
@@ -866,6 +871,11 @@ impl UniqueFaker<'_> {
 
     pub fn bothify(&self, pattern: Option<&str>) -> DatabaseResult<String> {
         self.generate("bothify", || self.0.bothify(pattern))
+    }
+
+    pub fn regexify(&self, pattern: &str) -> DatabaseResult<String> {
+        let pattern = RegexPattern::parse(pattern)?;
+        self.generate("regexify", || pattern.sample())
     }
 
     pub fn asciify(&self, pattern: Option<&str>) -> DatabaseResult<String> {

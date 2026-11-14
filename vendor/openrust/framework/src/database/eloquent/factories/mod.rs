@@ -33,6 +33,7 @@ type Relationship<M> = dyn for<'a> Fn(
     + Sync;
 
 mod faker;
+mod regex_pattern;
 mod relationships;
 
 pub use faker::{Faker, UniqueFaker, fake};

@@ -2670,6 +2670,7 @@ dependencies = [
  "quick-xml",
  "redis",
  "regex",
+ "regex-syntax",
  "reqwest",
  "rustix",
  "serde",

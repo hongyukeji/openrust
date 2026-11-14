@@ -78,6 +78,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
+            ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
@@ -99,6 +100,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 預留字元格式化 {#pattern-formatters}
 
 用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用 FakerPHP 預設範本。`randomLetter()` 和 `randomAscii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。
+
+用 `regexify(pattern)?` 從基本正規表示式產生樣本。支援可選的斜線分隔符號和外層錨點、字面值、ASCII 字元類別和範圍、`\d`、`\w`、點號、一般群組、分支和有限重複。與 FakerPHP 相同，`*` 和 `+` 分別為目前範本選取一至九的重複上限。語法錯誤、環視和反向參照等未支援功能，以及超出產生限制的模式均回傳錯誤。`unique(false).regexify(pattern)?` 可對結果去重。
 
 ## 使用工廠建立模型
 

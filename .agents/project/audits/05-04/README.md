@@ -230,3 +230,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 Base 的 `numerify`、`lexify`、`bothify`、`asciify`、`randomLetter` 和 `randomAscii`。Rust 用 Option 表达默认模板，使用一次字符扫描和现有随机源替换占位符。保留非占位符 Unicode 字符及 `bothify` 的字母／数字等概率选择。六个入口支持 unique。v0.x 未发现对应模板实现，Goravel 装配无需调整。正则表达式生成继续跟踪。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L437)
 
 隔离基线 `ebee71a3`。FakerPHP 1.24.1／PHP 8.5.12 对四种模板各运行 64 次并校验字符类别。Rust 回归覆盖默认值、空模板、超过九位的数字串、繁體字面值与去重重置。实际应用二进制执行 `artisan db:seed --database=mysql --force`，在 MySQL 8.4.13 写入并回查混合编号。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 正则样本
+
+对照 FakerPHP 1.24.1 Base 的 `regexify`，接通可选斜杠及外层锚点、字面值、ASCII 字符集、数字和小写字母转义、点号、分组、分支及重复。每次生成对 `*` 和 `+` 分别取一至九的上限。Rust 复用锁定的 regex-syntax 解析，按语法树生成并限制复杂度。对无效语法、未支持结构和超限请求返回错误。去重重试复用语法树并重新采样。v0.x 未发现对应生成器，Goravel 装配无需调整。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L541)
+
+隔离基线 `e5ccdfb1`。固定 FakerPHP 1.24.1／PHP 8.5.12 三组模式各生成 64 个结果，全部满足原正则。Rust 回归逐个匹配 256 个样本，并验证空模式、语法错误、不支持的特性、展开限制和去重重置。实际应用二进制运行 `artisan db:seed --database=mysql --force`，在 MySQL 8.4.13 写入并回查含繁體字面值的样本。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。

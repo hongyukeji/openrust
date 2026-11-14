@@ -78,6 +78,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
+            ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
@@ -99,6 +100,8 @@ Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of e
 ### Pattern Formatters {#pattern-formatters}
 
 Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the FakerPHP default pattern. `randomLetter()` and `randomAscii()` return individual Rust characters. All six methods support `unique`.
+
+Use `regexify(pattern)?` to generate a sample from a basic regular expression. It accepts optional slash delimiters and outer anchors, literals, ASCII classes and ranges, `\d`, `\w`, dots, ordinary groups, alternatives and bounded repeats. As in FakerPHP, `*` and `+` choose a per-pattern upper bound from one through nine. Invalid syntax, unsupported features such as lookarounds and backreferences, and oversized generation return errors. `unique(false).regexify(pattern)?` deduplicates generated strings.
 
 ## Creating Models Using Factories
 

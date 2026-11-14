@@ -78,6 +78,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("ratio".into(), Value::Real(faker.randomFloat(Some(2), 0.0, Some(1.0))?)),
             ("description".into(), faker.text(200)?.into()),
             ("reference".into(), faker.bothify(Some("FL-??-%%##")).into()),
+            ("ticket".into(), faker.regexify(r"FL-[A-Z]{2}-\d{4}")?.into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
@@ -99,6 +100,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 占位符格式化 {#pattern-formatters}
 
 用 `numerify(Some(pattern))` 将 `#` 替换为数字、将 `%` 替换为非零数字。`lexify` 将 `?` 替换为 ASCII 小写字母。`bothify` 处理这三种占位符，并以相同概率将每个 `*` 替换为数字或小写字母。`asciify` 将 `*` 替换为 `!` 至 `~` 的可打印 ASCII 字符。其余字符按原样保留。传入 `None` 使用 FakerPHP 默认模板。`randomLetter()` 和 `randomAscii()` 返回单个 Rust 字符。六个方法均支持 `unique`。
+
+用 `regexify(pattern)?` 从基本正则表达式生成样本。支持可选的斜杠分隔符和外层锚点、字面量、ASCII 字符类和区间、`\d`、`\w`、点号、普通分组、分支和有限重复。与 FakerPHP 一样，`*` 和 `+` 分别为当前模板选取一至九的重复上限。语法错误、环视和反向引用等未支持特性以及超出生成限制的模式均返回错误。`unique(false).regexify(pattern)?` 可对结果去重。
 
 ## 使用工厂创建模型
 
