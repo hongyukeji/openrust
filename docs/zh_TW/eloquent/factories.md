@@ -338,7 +338,22 @@ fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
 }
 ```
 
-`has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `forExisting` 關聯既有模型。每次批次呼叫只解析一次上層模型，`make` 也遵循這項規則。再次呼叫會產生新的上層模型。`MorphTo` 描述元需要登錄目標模型與對應別名。`hasAttached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
+`has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `forExisting` 關聯既有模型。每次批次呼叫最多解析一次所需的上層模型，`make` 也遵循這項規則。再次呼叫會產生新的上層模型。`MorphTo` 描述元需要登錄目標模型與對應別名。`hasAttached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
+
+對 `BelongsTo` 和 `MorphTo`，同一外鍵以最後一次 `r#for` 或 `forExisting` 宣告覆寫工廠定義。之後可以用狀態或操作參數覆寫外鍵，包括傳入 `Value::Null`。此時不會建立或關聯上層模型。`MorphTo` 仍單獨提供類型預設值，狀態也可以覆寫類型。
+
+```rust
+use openrust::database::{Value, eloquent::{Model, factories::Factory, relations::BelongsTo}};
+
+fn override_factory_owner<Child: Model, Owner: Model>(
+    children: Factory<Child>,
+    owners: Factory<Owner>,
+) -> Factory<Child> {
+    children
+        .r#for(BelongsTo::new("owner_id", "id"), owners)
+        .set("owner_id", Value::Null)
+}
+```
 
 ```rust
 use openrust::database::{

@@ -332,3 +332,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `0938c8ff`。Rust 1.94.0 格式和工作区全目标严格 Clippy 通过。MySQL 8.4.13 和 SQLite 共通过 24 项 Seeder 与 2 项工厂回归，包含 `makeOne`、`makeMany`、`lazy` 与跨模型类型的展开默认值。实际应用二进制两次执行 `artisan db:seed --database=mysql --force`。一轮验证预览和零数量不写入、延迟任务执行前零写入及重复执行后四条记录，另一轮验证默认值快照、显式外键和已有模型关联。MySQL 无符号主键按数据库读回值校验，两库共有断言。另通过 `./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查。
 
 验收后清理本批隔离副本的 Cargo 构建产物 2.2 GiB 和站点产物约 37 MiB。复查项目磁盘可用 87 GiB。05-04 继续跟踪显式外键覆盖 `for` 时的延迟解析。
+
+## 父关系外键按需解析
+
+固定 Laravel 的 `BelongsToRelationship` 先登记外键解析闭包，多态类型是独立默认值。显式状态或调用属性覆盖外键时，连同 `null` 一起按属性值处理，旧闭包不执行。同一外键最后登记的父关系覆盖前项，也覆盖工厂定义。Rust 通过类型化描述符识别这些列，沿用每次批量操作的父模型缓存。待解析外键在 Rust 的状态字典中省略，Laravel 状态闭包可以看到 PHP 的占位闭包。手写 `FactoryParent` 实现可提供列元数据来参与此优先级，默认继续使用现有的关联契约。v0.x 未发现等价实现，Goravel 装配未涉及。 [Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L552) · [Laravel BelongsToRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/BelongsToRelationship.php#L49)
+
+隔离基线 `d4f34329`。实际应用二进制在 MySQL 8.4.13 执行 `artisan db:seed --database=mysql --force`。实测状态及调用属性覆盖、重复父关系登记、保留多态类型默认值、批量只写一条上级记录并保存四条子记录。MySQL 与 SQLite 回归还断言覆盖后没有错误的关系缓存。Rust 1.94.0 格式、全目标严格 Clippy、25 项 Seeder、2 项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和根路径与 `/docs/` 下 6 项浏览器检查通过。
+
+清理本批隔离副本 2.2 GiB Cargo 产物与约 37 MiB 站点产物，磁盘可用 87 GiB。后续仍需核对固定 Laravel 的公开回收模型查询入口，以及构建器多次调用间的父关系缓存生命周期。

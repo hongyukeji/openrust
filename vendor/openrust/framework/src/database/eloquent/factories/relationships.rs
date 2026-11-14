@@ -36,16 +36,40 @@ factory_children!(HasOne, HasMany, MorphOne, MorphMany);
 /// A factory relationship that associates the generated model with an owner.
 pub trait FactoryParent<M: Model, R: Model>: Send + Sync + 'static {
     fn associate(&self, model: &mut M, owner: &R) -> DatabaseResult<()>;
+
+    #[doc(hidden)]
+    fn factory_foreign_key(&self) -> Option<&str> {
+        None
+    }
+
+    #[doc(hidden)]
+    fn factory_morph_type(&self, _owner: &R) -> DatabaseResult<Option<(&str, &'static str)>> {
+        Ok(None)
+    }
 }
 
 impl<M: Model, R: Model> FactoryParent<M, R> for BelongsTo<M, R> {
     fn associate(&self, model: &mut M, owner: &R) -> DatabaseResult<()> {
         Self::associate(self, model, owner)
     }
+
+    fn factory_foreign_key(&self) -> Option<&str> {
+        Some(self.identity_columns().0)
+    }
 }
 
 impl<M: Model, R: Model> FactoryParent<M, R> for MorphTo<M> {
     fn associate(&self, model: &mut M, owner: &R) -> DatabaseResult<()> {
         self.associateMapped(model, owner)
+    }
+
+    fn factory_foreign_key(&self) -> Option<&str> {
+        Some(self.id_column())
+    }
+
+    fn factory_morph_type(&self, owner: &R) -> DatabaseResult<Option<(&str, &'static str)>> {
+        let alias = owner.getMorphClass()?;
+        self.validate_target::<R>(alias)?;
+        Ok(Some((self.type_column(), alias)))
     }
 }

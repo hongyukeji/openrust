@@ -338,7 +338,22 @@ fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
 }
 ```
 
-Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. A batch resolves each generated owner once, including when using `make`. A new invocation resolves a new owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
+Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. A batch resolves each required generated owner at most once, including when using `make`. A new invocation resolves a new owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
+
+For `BelongsTo` and `MorphTo`, the last `r#for` or `forExisting` targeting a foreign key replaces the definition of that key. A state or explicit operation attribute can then replace it, including with `Value::Null`. In that case the owner is neither created nor associated. A `MorphTo` declaration still supplies its type as a separate default, which a state can also replace.
+
+```rust
+use openrust::database::{Value, eloquent::{Model, factories::Factory, relations::BelongsTo}};
+
+fn override_factory_owner<Child: Model, Owner: Model>(
+    children: Factory<Child>,
+    owners: Factory<Owner>,
+) -> Factory<Child> {
+    children
+        .r#for(BelongsTo::new("owner_id", "id"), owners)
+        .set("owner_id", Value::Null)
+}
+```
 
 ```rust
 use openrust::database::{

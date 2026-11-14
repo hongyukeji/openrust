@@ -3035,3 +3035,110 @@ async fn factory_relationship_expansion_defaults_are_snapshotted() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+async fn verify_deferred_factory_owner(connection: &Connection) -> DatabaseResult<()> {
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("expansion_owners", |table| {
+            table.id();
+        })
+        .await?;
+    schema
+        .create("expansion_children", |table| {
+            table.id();
+            table.unsignedBigInteger("owner_id").nullable();
+            table.string("owner_type", 120).nullable();
+        })
+        .await?;
+
+    let owners = || Factory::<ExpansionOwner>::new(Attributes::new);
+    let children = || {
+        Factory::<ExpansionChild>::new(|| Attributes::from([("owner_id".into(), 98_i64.into())]))
+    };
+    let relation =
+        || BelongsTo::<ExpansionChild, ExpansionOwner>::new("owner_id", "id").named("owner");
+
+    let skipped = children()
+        .r#for(relation(), owners().connection(Some("missing")))
+        .set("owner_id", Value::Null)
+        .rawOn(connection)
+        .await?;
+    assert_eq!(skipped["owner_id"], Value::Null);
+
+    let overridden = children()
+        .r#for(relation(), owners())
+        .makeOneOn(
+            connection,
+            Attributes::from([("owner_id".into(), 5_i64.into())]),
+        )
+        .await?;
+    assert_eq!(overridden.getAttribute("owner_id"), Some(&5_i64.into()));
+    assert!(!overridden.relationLoaded("owner"));
+
+    let morph_class = ExpansionOwner::from_state(ModelState::default()).getMorphClass()?;
+    let morph = MorphTo::<ExpansionChild>::new("owner_type", "owner_id")
+        .target::<ExpansionOwner>(morph_class, "id");
+    let morph_preview = children()
+        .r#for(morph, owners())
+        .state(move |attributes| {
+            assert_eq!(attributes["owner_type"], morph_class.into());
+            Attributes::from([("owner_id".into(), Value::Null)])
+        })
+        .rawOn(connection)
+        .await?;
+    assert_eq!(morph_preview["owner_id"], Value::Null);
+    assert_eq!(morph_preview["owner_type"], morph_class.into());
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 0);
+
+    let records = children()
+        .parentAttribute("owner_id", owners().connection(Some("missing")))
+        .r#for(relation(), owners().connection(Some("missing")))
+        .r#for(relation(), owners())
+        .sequence(|index| {
+            if index == 0 {
+                Attributes::from([("owner_id".into(), 5_i64.into())])
+            } else {
+                Attributes::new()
+            }
+        })
+        .count(3)
+        .createOn(connection)
+        .await?;
+    assert_eq!(records[0].getAttribute("owner_id"), Some(&5_i64.into()));
+    assert!(!records[0].relationLoaded("owner"));
+    let generated_key = records[1].getAttribute("owner_id").unwrap();
+    assert_ne!(*generated_key, 98_i64.into());
+    assert_eq!(Some(generated_key), records[2].getAttribute("owner_id"));
+    assert!(records[1].relationLoaded("owner"));
+    assert_eq!(connection.table("expansion_owners").count("*").await?, 1);
+
+    let owner = ExpansionOwner::queryOn(connection)
+        .findOrFail(generated_key.clone())
+        .await?;
+    let replaced = children()
+        .forExisting(relation(), owner)
+        .set("owner_id", Value::Null)
+        .createOn(connection)
+        .await?;
+    assert_eq!(replaced.getAttribute("owner_id"), Some(&Value::Null));
+    assert!(!replaced.relationLoaded("owner"));
+    assert_eq!(connection.table("expansion_children").count("*").await?, 4);
+    schema.drop("expansion_children").await?;
+    schema.drop("expansion_owners").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn factory_owner_resolution_skips_overwritten_keys() {
+    let root = Root::new();
+    verify_deferred_factory_owner(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_deferred_factory_owner(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
