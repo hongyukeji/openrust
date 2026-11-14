@@ -180,6 +180,43 @@ impl<M: Model> Factory<M> {
         self
     }
 
+    /// Sets a sequence of attribute maps and makes the batch as long as the sequence.
+    pub fn forEachSequence(self, states: Vec<Attributes>) -> FactoryBatch<M> {
+        let count = states.len();
+        self.sequence(move |index| {
+            index
+                .checked_rem(count)
+                .map(|offset| states[offset].clone())
+                .unwrap_or_default()
+        })
+        .count(count)
+    }
+
+    /// Cycles through combinations in declaration order without allocating the product.
+    pub fn crossJoinSequence(self, sequences: Vec<Vec<Attributes>>) -> DatabaseResult<Self> {
+        if sequences.iter().any(Vec::is_empty) {
+            return Err(DatabaseError::InvalidQuery(
+                "factory cross join sequence is empty",
+            ));
+        }
+        Ok(self.sequence(move |mut index| {
+            let selected = sequences.iter().rev().map(|sequence| {
+                let state = &sequence[index % sequence.len()];
+                index /= sequence.len();
+                state
+            });
+            let mut attributes = Attributes::new();
+            for state in selected {
+                for (name, value) in state {
+                    attributes
+                        .entry(name.clone())
+                        .or_insert_with(|| value.clone());
+                }
+            }
+            attributes
+        }))
+    }
+
     pub fn count(self, count: usize) -> FactoryBatch<M> {
         FactoryBatch {
             factory: self,

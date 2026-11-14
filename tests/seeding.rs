@@ -333,6 +333,60 @@ impl Seeder for PolymorphicFactories {
             assert!(deferred_one().await?.state().exists());
             assert!(deferred_one().await?.state().exists());
             assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
+            let each = Factory::<FactoryChild>::new(Attributes::new)
+                .forEachSequence(vec![overrides("sequence-one"), overrides("sequence-two")])
+                .createOn(connection)
+                .await?;
+            assert_eq!(each.len(), 2);
+            assert_eq!(
+                each[1].getAttribute("generated_name"),
+                Some(&"sequence-two".into())
+            );
+            assert!(
+                Factory::<FactoryChild>::new(Attributes::new)
+                    .forEachSequence(vec![])
+                    .createOn(connection)
+                    .await?
+                    .is_empty()
+            );
+            let score = |value: i64| Attributes::from([("generated_score".into(), value.into())]);
+            let crossed = Factory::<FactoryChild>::new(Attributes::new)
+                .crossJoinSequence(vec![
+                    vec![overrides("cross-a"), overrides("cross-b")],
+                    vec![score(31), score(32)],
+                    vec![score(40), score(41)],
+                ])?
+                .count(9)
+                .createOn(connection)
+                .await?;
+            let order: Vec<_> = crossed
+                .iter()
+                .map(|model| {
+                    (
+                        model.getAttribute("generated_name").cloned(),
+                        model.getAttribute("generated_score").cloned(),
+                    )
+                })
+                .collect();
+            let expected: Vec<_> = [
+                "cross-a", "cross-a", "cross-a", "cross-a", "cross-b", "cross-b", "cross-b",
+                "cross-b", "cross-a",
+            ]
+            .into_iter()
+            .zip([40_i64, 41, 40, 41, 40, 41, 40, 41, 40])
+            .map(|(name, score)| (Some(name.into()), Some(score.into())))
+            .collect();
+            assert_eq!(order, expected);
+            assert!(matches!(
+                Factory::<FactoryChild>::new(Attributes::new).crossJoinSequence(vec![vec![]]),
+                Err(DatabaseError::InvalidQuery(
+                    "factory cross join sequence is empty"
+                ))
+            ));
+            assert_eq!(
+                connection.table("seed_factory_children").delete().await?,
+                11
+            );
             let one = batch.createOneOn(connection, overrides("many-one")).await?;
             assert_eq!(one.getAttribute("generated_name"), Some(&"many-one".into()));
             phases.lock().unwrap().clear();
