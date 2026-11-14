@@ -4125,11 +4125,17 @@ async fn verify_default_application_seeder(root: &Root, mysql: Option<&str>) {
 }
 
 #[tokio::test]
-async fn application_default_seeder_creates_the_verified_example_user() {
+async fn application_default_seeder_creates_the_verified_example_user_on_sqlite() {
     verify_default_application_seeder(&Root::new(), None).await;
-    if let Ok(url) = std::env::var("OPENRUST_TEST_DEFAULT_SEEDER_MYSQL_URL") {
-        verify_default_application_seeder(&Root::new(), Some(&url)).await;
-    }
+}
+
+#[tokio::test]
+async fn application_default_seeder_creates_the_verified_example_user_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_DEFAULT_SEEDER_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_default_application_seeder(&Root::new(), Some(&url)).await;
 }
 
 async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()> {

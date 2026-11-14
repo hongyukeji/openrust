@@ -547,3 +547,19 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `b4d185c4`。两个实际 Artisan 回归覆盖斜杠、反斜杠、默认导入、`-m`、重复生成、`--force`、空模型名和发布模板。通过真实 `make:model Fleet/Flight` 与 `make:factory Fleet/FlightFactory` 生成代码，声明模块并编译，再以 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证嵌套模型绑定及扩展 trait 生成的 `scheduled` 状态。Rust 1.94.0 格式、严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。
 
 已清理本批隔离编译与站点产物。后续核对 05-04 的工厂功能闭合状态与 Faker 差异。
+
+## 05-04 交付清单复验
+
+| 固定 Laravel 章节 | 本轮结论 | 对应验收 |
+| --- | --- | --- |
+| 定义模型工厂、状态和回调 | 嵌套生成、编译期模型绑定、扩展 trait、状态与回调有验收。PHP 动态发现和宏由显式 Rust 模块与类型表达。 | 本轮真实 `make:factory` 回归和前批生成源码编译，见[嵌套工厂](#嵌套工厂模型发现与扩展) |
+| 使用工厂创建模型 | 预构造、持久化、序列、延迟计算和批量插入已有行为证据。Rust 用返回类型区分单个模型和集合。 | 本轮 MySQL 复验延迟属性，见[延迟属性](#05-04-复核与延迟属性展开) |
+| 工厂关系 | 多态填充、命名多对多、自定义 Pivot 和触碰后缓存通过复验。 | 本轮定向多态 Seeder 与命名 Pivot 回归 |
+| Seeder 使用工厂与静默事件 | 默认用户实际迁移和填充通过，二次填充因重复账号退出 1，仍只有一条记录。选定连接和子 Seeder 已复验。 | 本轮默认与选定连接 MySQL Artisan 用例，静默范围及失败后的恢复见[静默模型事件](#seeder-调用链静默模型事件) |
+| Faker 生成数据 | 地区和核心格式已有显式实现及证据。固定 Laravel 的 `fake()` 按应用和语言缓存生成器，当前独立调用新建 Faker，工厂在单次构造批次内共用。跨调用 `unique` 仍有差异。 | [固定 Laravel fake 助手](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/helpers.php) |
+
+隔离基线 `8ce37bf4`。将默认 Seeder 回归拆成 MySQL 和 SQLite 独立入口，以便日常验收锁定 MySQL，缺少必需 URL 时失败。本轮用 MySQL 8.4.13 跑五项定向测试，覆盖默认 Seeder 的 `migrate`、`db:seed`、哈希和重复执行，选定连接、关系填充、Pivot 缓存和延迟属性。另通过 Rust 1.94.0 格式、全目标严格 Clippy、嵌套工厂生成回归、`./artisan inspire`、六个三语示例的编译、VitePress 和两种挂载路径下的六项导航回归。保留 SQLite 回归供发布验收。
+
+05-04 继续开放。下一批优先核对 Faker 按应用和规范化语言复用的生命周期及跨调用唯一值，分别验证同作用域复用、不同语言和不同应用隔离。目录差异继续跟踪 File、Image、UserAgent、Uuid、Color、Medical、HtmlLorem、Text、Biased、修饰器和其余地区 formatter。05-05 已有独立闭合记录，本次不重复计入。
+
+本批独占 Cargo 产物 2.2 GiB 与文档构建产物已清理，项目卷剩余 82 GiB。

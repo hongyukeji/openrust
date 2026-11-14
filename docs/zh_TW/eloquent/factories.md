@@ -4,6 +4,8 @@
 
 用 `Factory::new` 定義模型的預設屬性。若希望透過 `Flight::factory()` 呼叫，在模型上實作 `HasFactory`。執行下方指令在 `database/factories` 產生檔案，再宣告 Rust 模組並填寫屬性定義。
 
+應用程式入口與資料庫連線選擇請見 [在 Seeder 中使用模型工廠](../database/seeding.md#using-model-factories)。
+
 ```sh
 ./artisan make:factory FlightFactory --model=Flight
 ```
@@ -92,6 +94,8 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 ```
 
 ### 本地化測試資料 {#localized-fake-data}
+
+下文列出已支援的產生器。FakerPHP 的檔案、圖片產生和 User-Agent 等產生器仍待接入。
 
 下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。
 

@@ -4,6 +4,8 @@
 
 Use `Factory::new` to define the model’s default attributes. Implement `HasFactory` on the model if you want to call `Flight::factory()`. Generate a factory under `database/factories` with the command below, then declare its Rust module and supply the definition.
 
+See [Using Model Factories in Seeders](../database/seeding.md#using-model-factories) for the application entry point and selected database connection.
+
 ```sh
 ./artisan make:factory FlightFactory --model=Flight
 ```
@@ -92,6 +94,8 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
 ```
 
 ### Localized Fake Data {#localized-fake-data}
+
+The catalog below lists the supported formatters. Some FakerPHP providers, including files, image generation and user agents, are pending.
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
 
