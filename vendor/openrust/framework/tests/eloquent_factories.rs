@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use openrust::database::eloquent::RelatedCollection;
 use openrust::{
@@ -192,12 +195,53 @@ async fn verify(config: Json, id: &str) {
             .unwrap()
             .is_empty()
     );
+    let stages = Arc::new(Mutex::new(Vec::new()));
+    let observe = |stage| {
+        let stages = stages.clone();
+        move |_: &mut Author| {
+            stages.lock().unwrap().push(stage);
+            Ok(())
+        }
+    };
+    let child_stages = stages.clone();
+    let child_factory = entries().afterCreating(move |child| {
+        assert!(child.getAttribute("author_id").is_some());
+        child_stages.lock().unwrap().push("child");
+        Ok(())
+    });
+
     let batch = authors()
+        .afterMaking(observe("make"))
+        .afterCreating(observe("created"))
+        .has(HasMany::new("id", "author_id"), child_factory.count(1))
         .sequence(|index| Attributes::from([("name".into(), format!("batch {index}").into())]))
         .count(2)
         .createOn(&connection)
         .await
         .unwrap();
+    assert_eq!(
+        *stages.lock().unwrap(),
+        ["make", "make", "child", "child", "created", "created"]
+    );
+    let before = Author::queryOn(&connection).get().await.unwrap().len();
+    let failed = authors()
+        .sequence(|index| Attributes::from([("name".into(), format!("failure {index}").into())]))
+        .afterMaking(|author| {
+            if author.getAttribute("name") == Some(&"failure 1".into()) {
+                return Err(openrust::database::DatabaseError::InvalidQuery(
+                    "rejected draft",
+                ));
+            }
+            Ok(())
+        })
+        .count(2)
+        .createOn(&connection)
+        .await;
+    assert!(failed.is_err());
+    assert_eq!(
+        Author::queryOn(&connection).get().await.unwrap().len(),
+        before
+    );
     for (index, model) in batch.iter().enumerate() {
         assert!(model.state().exists());
         assert_eq!(

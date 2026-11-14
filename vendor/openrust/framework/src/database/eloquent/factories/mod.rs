@@ -163,23 +163,22 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, children) = &*relation;
                     let connection = related_connection::<R>(connection)?;
-                    let cache = children.factory.parent_cache();
                     let pool = children.factory.recycle_pool(inherited);
-                    for index in 0..children.count {
-                        let mut child = children
-                            .factory
-                            .make_one(&connection, index, &cache, &pool)
-                            .await?;
-                        if !relation.save(parent, &mut child).await? {
+                    let mut models = children.make_with_pool(&connection, &pool).await?;
+                    for child in models.models_mut() {
+                        if !relation.save(parent, child).await? {
                             return Err(DatabaseError::InvalidQuery(
                                 "factory child creation cancelled",
                             ));
                         }
                         children
                             .factory
-                            .complete(&connection, &mut child, &pool)
+                            .create_children(&connection, child, &pool)
                             .await?;
                     }
+                    children
+                        .factory
+                        .run_callbacks(models.models_mut(), &children.factory.after_creating)?;
                     Ok(())
                 })
             }));
@@ -265,8 +264,11 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.make_one(connection, 0, &self.parent_cache(), &self.recycled)
-            .await
+        let mut model = self
+            .instantiate(connection, 0, &self.parent_cache(), &self.recycled)
+            .await?;
+        self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
+        Ok(model)
     }
 
     pub async fn create(&self) -> DatabaseResult<M> {
@@ -283,7 +285,7 @@ impl<M: Model> Factory<M> {
         self.parents.iter().map(|_| OnceCell::new()).collect()
     }
 
-    async fn make_one(
+    async fn instantiate(
         &self,
         connection: &Connection,
         index: usize,
@@ -313,9 +315,6 @@ impl<M: Model> Factory<M> {
             .await?;
         }
         model.state_mut().replace_attributes(raw);
-        for callback in &self.after_making {
-            callback(&mut model)?;
-        }
         Ok(model)
     }
 
@@ -326,17 +325,41 @@ impl<M: Model> Factory<M> {
         cache: &[ParentCache],
         pool: &[RecycledModel],
     ) -> DatabaseResult<M> {
-        let mut model = self.make_one(connection, index, cache, pool).await?;
+        let mut model = self.instantiate(connection, index, cache, pool).await?;
+        self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
+        self.store(connection, &mut model, pool).await?;
+        self.run_callbacks(std::slice::from_mut(&mut model), &self.after_creating)?;
+        Ok(model)
+    }
+
+    async fn store(
+        &self,
+        connection: &Connection,
+        model: &mut M,
+        pool: &[RecycledModel],
+    ) -> DatabaseResult<()> {
         if !model.save().await? {
             return Err(DatabaseError::InvalidQuery(
                 "factory model creation cancelled",
             ));
         }
-        self.complete(connection, &mut model, pool).await?;
-        Ok(model)
+        self.create_children(connection, model, pool).await
     }
 
-    async fn complete(
+    fn run_callbacks(
+        &self,
+        models: &mut [M],
+        callbacks: &[Box<Callback<M>>],
+    ) -> DatabaseResult<()> {
+        for model in models {
+            for callback in callbacks {
+                callback(model)?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn create_children(
         &self,
         connection: &Connection,
         model: &mut M,
@@ -344,9 +367,6 @@ impl<M: Model> Factory<M> {
     ) -> DatabaseResult<()> {
         for child in &self.children {
             child(connection, model, pool).await?;
-        }
-        for callback in &self.after_creating {
-            callback(model)?;
         }
         Ok(())
     }
@@ -386,16 +406,28 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
+        self.make_with_pool(connection, &self.factory.recycled)
+            .await
+    }
+
+    async fn make_with_pool(
+        &self,
+        connection: &Connection,
+        pool: &[RecycledModel],
+    ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
         let cache = self.factory.parent_cache();
         for index in 0..self.count {
             models.push(
                 self.factory
-                    .make_one(connection, index, &cache, &self.factory.recycled)
+                    .instantiate(connection, index, &cache, pool)
                     .await?,
             );
         }
-        Ok(M::newCollection(models))
+        let mut models = M::newCollection(models);
+        self.factory
+            .run_callbacks(models.models_mut(), &self.factory.after_making)?;
+        Ok(models)
     }
 
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
@@ -413,15 +445,12 @@ impl<M: Model> FactoryBatch<M> {
         inherited: &[RecycledModel],
     ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
-        let mut models = Vec::with_capacity(self.count);
-        let cache = self.factory.parent_cache();
-        for index in 0..self.count {
-            models.push(
-                self.factory
-                    .create_one(connection, index, &cache, &pool)
-                    .await?,
-            );
+        let mut models = self.make_with_pool(connection, &pool).await?;
+        for model in models.models_mut() {
+            self.factory.store(connection, model, &pool).await?;
         }
-        Ok(M::newCollection(models))
+        self.factory
+            .run_callbacks(models.models_mut(), &self.factory.after_creating)?;
+        Ok(models)
     }
 }

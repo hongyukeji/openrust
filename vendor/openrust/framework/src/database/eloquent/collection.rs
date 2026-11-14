@@ -537,6 +537,10 @@ impl<M: Model> Collection<M> {
             .ok_or(DatabaseError::InvalidQuery("relationship output type"))
     }
 
+    pub(super) fn models_mut(&mut self) -> &mut [M] {
+        &mut self.models
+    }
+
     pub fn all(&self) -> &[M] {
         &self.models
     }

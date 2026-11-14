@@ -12,6 +12,8 @@
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。
 
+批量工厂先构造全部模型，再运行 `afterMaking`。`create` 逐个保存模型及其声明的关系，写入完成后才运行该批次的 `afterCreating`。`afterMaking` 失败时，该批模型尚未写入，构造期间解析的上级工厂可能已写入记录。
+
 ```rust
 use openrust::database::{
     DatabaseResult,
