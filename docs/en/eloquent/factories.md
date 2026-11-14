@@ -822,6 +822,18 @@ fn latvian_driver_licence() -> DatabaseResult<String> {
 }
 ```
 
+### Indian English and Nepali Names {#indian-english-and-nepali-names}
+
+The `en-IN` and `ne-NP` providers use regional given names, surnames, and full-name templates. Indian English exposes `middleNameMale()`. Nepali exposes both `middleNameMale()` and `middleNameFemale()`. Use these methods directly or pass the corresponding gender to `middleNameWithGender`. The no-argument `middleName()` returns an unsupported-locale error for these providers. The gendered methods support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn nepali_middle_name() -> DatabaseResult<&'static str> {
+    fake(Some("ne-NP"))?.unique(false).middleNameFemale()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

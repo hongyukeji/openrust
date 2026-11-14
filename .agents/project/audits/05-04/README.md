@@ -1042,3 +1042,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `beed80a3`。PHP 8.5 核对 1,536 组上游姓名以及 128 组拉脱维亚证件样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 384 个姓名及 384 个拉脱维亚证件值，校验词表、模板、掩码和身份校验位。50 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译及实际运行、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对印度和尼泊尔 Person 模板及中间名。
+
+## Faker 印度英语和尼泊尔语姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[印度英语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_IN/Person.php)和[尼泊尔语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ne_NP/Person.php)。保留名字、姓氏、全名模板的重复权重及中间名词表。印度英语只提供男性中间名，两地均无通用无参中间名。Rust 可用现有显式性别方法或直接调用，支持去重及词表耗尽错误。v0.x 未找到等价实现，编译式工厂装配无需调整。
+
+隔离基线 `f56162ea`。PHP 8.5 核对 1,024 组上游姓名和 384 个中间名。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 256 个全名及 384 个中间名，按固定词表和模板验证，另执行文档中的女性中间名示例。51 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、Rust 1.94 全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对尼日利亚和乌干达英语姓名模板。

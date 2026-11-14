@@ -2607,3 +2607,41 @@ fn latvian_driver_licence_uses_the_pinned_mask_and_unique_history() {
     }
     assert!(fake(Some("et-EE")).unwrap().driverLicence().is_err());
 }
+
+#[test]
+fn indian_and_nepali_names_use_regional_middle_name_catalogs() {
+    let indian = fake(Some("en-IN")).unwrap();
+    let nepali = fake(Some("ne-NP")).unwrap();
+
+    assert!(indian.middleName().is_err());
+    assert!(indian.middleNameFemale().is_err());
+    assert!(nepali.middleName().is_err());
+
+    for (faker, gender, expected) in [
+        (
+            &indian,
+            "male",
+            &[
+                "Dev", "Chandra", "Kumar", "Lal", "Prasad", "Raj", "Singh", "Rao", "Ram", "Pratap",
+                "Bhai",
+            ][..],
+        ),
+        (
+            &nepali,
+            "male",
+            &[
+                "Bahadur", "Dev", "Kumar", "Man", "Mani", "Nath", "Prasad", "Raj", "Ratna",
+            ][..],
+        ),
+        (&nepali, "female", &["Devi", "Kumari"][..]),
+    ] {
+        let unique = faker.unique(true);
+        let mut names = std::collections::HashSet::new();
+        for _ in expected {
+            let name = unique.middleNameWithGender(Some(gender)).unwrap();
+            assert!(expected.contains(&name));
+            assert!(names.insert(name));
+        }
+        assert!(unique.middleNameWithGender(Some(gender)).is_err());
+    }
+}

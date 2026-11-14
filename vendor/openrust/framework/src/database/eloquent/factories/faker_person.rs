@@ -30,6 +30,8 @@ use super::romanian_serbian;
 
 use super::baltic_montenegrin;
 
+use super::indian_nepali;
+
 pub(super) struct PersonNames {
     pub(super) male: &'static [&'static str],
     pub(super) female: &'static [&'static str],
@@ -9494,6 +9496,8 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "et_EE" => &baltic_montenegrin::ET_EE,
         "lv_LV" => &baltic_montenegrin::LV_LV,
         "me_ME" => &baltic_montenegrin::ME_ME,
+        "en_IN" => &indian_nepali::EN_IN,
+        "ne_NP" => &indian_nepali::NE_NP,
         _ => &EN_US,
     }
 }
@@ -10583,6 +10587,8 @@ pub(super) fn surnames(locale: &str) -> Option<&'static [&'static str]> {
         "et_EE" => Some(baltic_montenegrin::ET_EE_SURNAMES),
         "lv_LV" => Some(baltic_montenegrin::LV_LV_SURNAMES),
         "me_ME" => Some(baltic_montenegrin::ME_ME_SURNAMES),
+        "en_IN" => Some(indian_nepali::EN_IN_SURNAMES),
+        "ne_NP" => Some(indian_nepali::NE_NP_SURNAMES),
         locale => iberian::surnames(locale),
     }
 }

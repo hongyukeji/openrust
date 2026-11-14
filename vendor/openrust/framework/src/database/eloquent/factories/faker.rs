@@ -224,6 +224,9 @@ mod company;
 #[path = "faker_person.rs"]
 mod faker_person;
 
+#[path = "faker_person_indian_nepali.rs"]
+mod indian_nepali;
+
 #[path = "faker_person_baltic_montenegrin.rs"]
 mod baltic_montenegrin;
 
@@ -802,6 +805,9 @@ impl Faker {
             ("uk_UA", false) => faker_person::UK_UA_MIDDLE_FEMALE,
             ("vi_VN", true) => south_southeast_asian::VI_VN_MIDDLE_MALE,
             ("vi_VN", false) => south_southeast_asian::VI_VN_MIDDLE_FEMALE,
+            ("en_IN", true) => indian_nepali::EN_IN_MIDDLE_MALE,
+            ("ne_NP", true) => indian_nepali::NE_NP_MIDDLE_MALE,
+            ("ne_NP", false) => indian_nepali::NE_NP_MIDDLE_FEMALE,
             _ => {
                 return Err(DatabaseError::InvalidQuery(
                     "unsupported Faker gendered middle name locale",
