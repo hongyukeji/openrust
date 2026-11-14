@@ -246,3 +246,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 Base 和 Miscellaneous，接入 randomElement、randomKey、randomElements、shuffleArray、shuffleString 和 boolean。Rust 用切片表示有序输入，按位置不放回采样，保留相同值的独立位置。使用稀疏 Fisher–Yates，辅助空间随采样数量增长。映射键与枚举变体由调用方提供切片，字符串使用 UTF-8 Unicode 标量，数组与字符串各用类型化方法。泛型 unique 以 JSON 序列化结果为键，序列化失败返回错误。v0.x 未发现等价实现，Goravel 启动装配无需调整。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L193) · [FakerPHP Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Miscellaneous.php)
 
 隔离源码基线 `0ad665aa`。固定 FakerPHP／PHP 8.5.12 对照通过，Rust 验证空输入、抽取数量、重复值、放回、Unicode 标量、布尔极值和 unique 耗尽。MySQL 8.4.13 实际应用二进制运行 `artisan db:seed --database=mysql --force`，持久化打乱后的 Unicode 字符串并回查。Rust 1.94.0 格式、全目标严格 Clippy、10 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 产物及约 37 MiB 站点产物。其他 Faker provider 继续跟踪。
+
+## Faker 语言环境、国家、货币和表情样本
+
+对照 FakerPHP 1.24.1 Miscellaneous，按原目录接通 languageCode、countryCode、countryISOAlpha3、currencyCode、emoji 及随机语言环境。Rust 的 randomLocale 对应上游 locale 生成器，保留已有 locale 配置读取接口。样本目录保留固定上游的历史标识，随机抽取不改变应用语言配置。六个入口支持 unique。目录附上游 MIT 声明。v0.x 未发现等价生成器，Goravel 启动装配未涉及。 [FakerPHP Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Miscellaneous.php#L280)
+
+隔离基线 `fab2ddcf`。在 PHP 8.5.12 读取固定版本六组目录，与 Rust 逐项比对 1,145 个值，全部一致。Rust 验证各目录去重耗尽、重置、语言环境格式和配置读取。MySQL 8.4.13 实际运行 `artisan db:seed --database=mysql --force` 写入六种样本并回查。Rust 1.94.0 格式、工作区全目标严格 Clippy、11 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 产物和约 37 MiB 站点产物。Miscellaneous 的摘要生成器后续补齐。

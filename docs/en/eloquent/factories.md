@@ -90,6 +90,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
             ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
+            ("sample_locale".into(), faker.randomLocale().into()),
+            ("currency".into(), faker.currencyCode().into()),
         ]))
     })
 }
@@ -110,6 +112,10 @@ Use `regexify(pattern)?` to generate a sample from a basic regular expression. I
 Use `randomElement(values)` to borrow one item or get `None` from an empty slice. `randomKey(values)` returns its zero-based position. To choose from map keys or enum variants, pass a slice of the keys or variants to `randomElement`. With `randomElements(values, count, allowDuplicates)?`, use `Some(n)` for a fixed count or `None` for a random count from one through the slice length. With replacement disabled, each position is selected at most once. Equal values at different positions can still appear together. A zero count returns an empty vector. A nonzero sample requires a nonempty slice, and sampling without replacement rejects counts above its length.
 
 Use `shuffleArray(values)` to return a shuffled clone and `shuffleString(value)` to shuffle Unicode scalar values. `boolean(None)` uses a 50% chance of true. Pass `Some(75)` for a 75% chance. These methods support `unique`, which compares JSON-serialized values for generic samples and shuffled arrays.
+
+### Locale, Country and Currency Samples {#locale-and-code-samples}
+
+Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned FakerPHP catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to FakerPHP’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.
 
 ## Creating Models Using Factories
 

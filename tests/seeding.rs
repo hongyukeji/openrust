@@ -2041,3 +2041,67 @@ fn faker_sampling_and_shuffle_follow_collection_boundaries() -> DatabaseResult<(
     assert!(unique.shuffleString("中").is_err());
     Ok(())
 }
+
+#[test]
+fn faker_miscellaneous_codes_and_emoji_preserve_the_configured_locale() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let faker = Faker::new("zh-Hant-TW")?;
+    let unique = faker.unique(false);
+    let mut language_codes = std::collections::HashSet::new();
+    for _ in 0..184 {
+        let language = unique.languageCode()?;
+        assert_eq!(language.len(), 2);
+        assert!(language.bytes().all(|byte| byte.is_ascii_lowercase()));
+        assert!(language_codes.insert(language));
+    }
+    assert!(language_codes.contains("en"));
+    assert!(language_codes.contains("zh"));
+    assert!(unique.languageCode().is_err());
+
+    let mut locales = std::collections::HashSet::new();
+    for _ in 0..255 {
+        let locale = unique.randomLocale()?;
+        assert_eq!(
+            openrust::translation::canonical_locale(locale)
+                .as_deref()
+                .ok(),
+            Some(locale)
+        );
+        assert!(locales.insert(locale));
+    }
+    for locale in ["en_GB", "en_US", "zh_CN", "zh_HK", "zh_TW"] {
+        assert!(locales.contains(locale));
+    }
+    assert!(unique.randomLocale().is_err());
+
+    fn check_codes(
+        next: impl Fn() -> DatabaseResult<&'static str>,
+        count: usize,
+        length: usize,
+    ) -> DatabaseResult<()> {
+        let mut values = std::collections::HashSet::new();
+        for _ in 0..count {
+            let value = next()?;
+            assert_eq!(value.len(), length);
+            assert!(value.bytes().all(|byte| byte.is_ascii_uppercase()));
+            assert!(values.insert(value));
+        }
+        assert!(next().is_err());
+        Ok(())
+    }
+
+    check_codes(|| unique.countryCode(), 247, 2)?;
+    check_codes(|| unique.countryISOAlpha3(), 249, 3)?;
+    check_codes(|| unique.currencyCode(), 154, 3)?;
+    let mut emoji = (0..56)
+        .map(|_| unique.emoji())
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    emoji.sort_unstable();
+    assert_eq!(emoji.first(), Some(&"😀"));
+    assert_eq!(emoji.last(), Some(&"😷"));
+    assert!(unique.emoji().is_err());
+    assert_eq!(faker.locale(), "zh_TW");
+    assert!(faker.unique(true).emoji().is_ok());
+    Ok(())
+}

@@ -90,6 +90,8 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
             ("category".into(), faker.randomElement(&["launch", "review"]).copied().unwrap_or("launch").into()),
             ("active".into(), faker.boolean(Some(75)).into()),
+            ("sample_locale".into(), faker.randomLocale().into()),
+            ("currency".into(), faker.currencyCode().into()),
         ]))
     })
 }
@@ -110,6 +112,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 用 `randomElement(values)` 借用一个元素，空切片返回 `None`。`randomKey(values)` 返回从零开始的位置。要从映射键或枚举变体中选择，将键或变体的切片传给 `randomElement`。`randomElements(values, count, allowDuplicates)?` 接受 `Some(n)` 固定抽取数量，或用 `None` 在一到切片长度之间随机选择数量。不放回时每个位置最多抽一次，不同位置上的相同值仍可同时出现。零条返回空向量。非零采样要求切片非空，不放回采样的数量不能超过切片长度。
 
 用 `shuffleArray(values)` 返回打乱后的副本，或用 `shuffleString(value)` 按 Unicode 标量值打乱字符串。`boolean(None)` 有 50% 的概率返回 true，传入 `Some(75)` 可设为 75%。这些方法均支持 `unique`，泛型采样和数组打乱按 JSON 序列化结果判断重复。
+
+### 语言、国家和货币样本 {#locale-and-code-samples}
+
+用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定 FakerPHP 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应 FakerPHP 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。
 
 ## 使用工厂创建模型
 

@@ -1,4 +1,4 @@
-use super::regex_pattern::RegexPattern;
+use super::{faker_miscellaneous, regex_pattern::RegexPattern};
 use std::{
     collections::{HashMap, HashSet},
     ops::Range,
@@ -138,6 +138,34 @@ formatters! {
     phoneNumber => faker::phone_number::raw::PhoneNumber,
     company => faker::company::raw::CompanyName,
     word => faker::lorem::raw::Word,
+}
+
+macro_rules! sample_formatters {
+    ($($name:ident => $samples:ident),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(pub fn $name(&self) -> &'static str {
+                let samples = faker_miscellaneous::$samples;
+                samples[fastrand::usize(..samples.len())]
+            })+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(pub fn $name(&self) -> DatabaseResult<&'static str> {
+                self.generate(stringify!($name), || self.0.$name())
+            })+
+        }
+    };
+}
+
+sample_formatters! {
+    randomLocale => LOCALE_DATA,
+    languageCode => LANGUAGE_CODE,
+    countryCode => COUNTRY_CODE,
+    countryISOAlpha3 => COUNTRY_ISOALPHA3,
+    currencyCode => CURRENCY_CODE,
+    emoji => EMOJI,
 }
 
 /// Creates a generator using an explicit locale or the scoped application configuration.
