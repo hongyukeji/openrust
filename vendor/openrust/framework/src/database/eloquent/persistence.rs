@@ -148,7 +148,15 @@ pub(super) async fn refresh<'a, M: Model>(
 
 pub(super) async fn save<M: Model>(
     model: &mut M,
+    transaction: Option<&mut Transaction>,
+) -> DatabaseResult<bool> {
+    save_with_touch(model, transaction, true).await
+}
+
+pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
+    model: &mut M,
     mut transaction: Option<&mut Transaction>,
+    touch: bool,
 ) -> DatabaseResult<bool> {
     let metadata = M::metadata();
     let connection = operation_connection(model, transaction.as_deref())?;
@@ -290,7 +298,9 @@ pub(super) async fn save<M: Model>(
         )
         .await?;
         fire_with_transaction(model, &connection, Saved, false, transaction.as_deref_mut()).await?;
-        touches::touch_owners(model, &persisted, &connection, transaction).await?;
+        if touch {
+            touches::touch_owners(model, &persisted, &connection, transaction).await?;
+        }
         Ok(true)
     }
     .await;

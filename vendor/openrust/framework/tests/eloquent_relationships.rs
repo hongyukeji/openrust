@@ -4451,6 +4451,92 @@ async fn verify_pivot_reload(pivot: &Membership) {
     assert!(!refreshed.state().isDirty());
 }
 
+async fn verify_create_or_first(db: &Connection, mysql: bool) {
+    for sql in [
+        "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
+        if mysql {
+            "CREATE TABLE relation_posts (id BIGINT AUTO_INCREMENT PRIMARY KEY, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME)"
+        } else {
+            "CREATE TABLE relation_posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title VARCHAR(80) UNIQUE, score BIGINT UNIQUE, deleted_at DATETIME)"
+        },
+        "CREATE TABLE relation_featured_posts (author_id BIGINT, post_id BIGINT, label VARCHAR(80) NOT NULL, PRIMARY KEY (author_id, post_id))",
+        "INSERT INTO relation_authors VALUES (1, 'owner')",
+        "INSERT INTO relation_posts VALUES (2, 'existing', 20, NULL)",
+    ] {
+        db.statement(sql, &[]).await.unwrap();
+    }
+    let parent = Author::queryOn(db)
+        .useWritePdo()
+        .findOrFail(1)
+        .await
+        .unwrap();
+    let relation = FEATURED_POSTS.withPivot(["label"]);
+    let create = |title: &str, score: i64, label: Value| {
+        relation.createOrFirst(
+            &parent,
+            Attributes::from([("title".into(), title.into())]),
+            Attributes::from([("score".into(), score.into())]),
+            Attributes::from([("label".into(), label)]),
+        )
+    };
+    let first = create("new", 10, "new pivot".into()).await.unwrap();
+    assert!(first.getKey().is_some());
+    let existing = create("existing", 30, "existing pivot".into())
+        .await
+        .unwrap();
+    assert_eq!(existing.getKey(), Some(&2.into()));
+    let attached = create("existing", 40, "ignored".into()).await.unwrap();
+    assert_eq!(attached.getKey(), Some(&2.into()));
+    assert_eq!(
+        attached
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"existing pivot".into())
+    );
+    assert!(matches!(
+        create("unrelated conflict", 10, "unused".into()).await,
+        Err(DatabaseError::Driver { .. })
+    ));
+    assert!(matches!(
+        create("rollback", 50, Value::Null).await,
+        Err(DatabaseError::Driver { .. })
+    ));
+    let mut rolled_back = Post::queryOn(db).useWritePdo();
+    rolled_back.r#where("title", "=", "rollback");
+    assert!(rolled_back.first().await.unwrap().is_none());
+    if mysql {
+        let (a, b) = tokio::join!(
+            create("race", 60, "a".into()),
+            create("race", 70, "b".into())
+        );
+        assert_eq!(a.unwrap().getKey(), b.unwrap().getKey());
+    }
+    for table in [
+        "relation_featured_posts",
+        "relation_posts",
+        "relation_authors",
+    ] {
+        db.statement(&format!("DROP TABLE {table}"), &[])
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test]
+async fn create_or_first_reads_the_writer_when_replica_has_no_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let write = dir.path().join("write.sqlite");
+    let read = dir.path().join("read.sqlite");
+    std::fs::File::create(&write).unwrap();
+    std::fs::File::create(&read).unwrap();
+    let db = connect(
+        json!({"driver":"sqlite","database":write,"read":{"database":read},"sticky":false}),
+    );
+    assert!(db.table("relation_posts").count("*").await.is_err());
+    Box::pin(verify_create_or_first(&db, false)).await;
+}
+
 async fn verify_pivot_or_fail(db: &Connection, owner: &Author) {
     let keys = [1.into(), 2.into()];
     let label = |value: i64| Attributes::from([("label".into(), value.into())]);
@@ -5823,6 +5909,8 @@ async fn relationship_keys_and_query_counts_on_mysql() {
     let url = std::env::var("OPENRUST_TEST_RELATION_MYSQL_URL").ok();
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_RELATION_MYSQL").is_none());
     if let Some(url) = url {
+        let create_db = connect(json!({"url":url,"max_connections":2}));
+        Box::pin(verify_create_or_first(&create_db, true)).await;
         let db = connect(json!({"url":url,"max_connections":1}));
         // Keep the large integration fixture off the default debug test stack.
         Box::pin(verify(db, true)).await;

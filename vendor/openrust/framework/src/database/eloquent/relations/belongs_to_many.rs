@@ -53,6 +53,13 @@ pub struct ToggleChanges {
     pub detached: Vec<Value>,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum AttachmentMode {
+    Default,
+    Transactional,
+    Required,
+}
+
 #[derive(Clone, Copy)]
 enum PivotOperation {
     Sync { detach: bool },
@@ -433,6 +440,128 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(self.wherePivot(column, "=", value))
     }
 
+    /// Creates and attaches a model, or attaches a matching model after a unique conflict.
+    pub async fn createOrFirst(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        values: Attributes,
+        joining: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        self.validate_pivot_attributes(&joining)?;
+        let owner = self.owner(parent)?;
+        let connection = self.keys.connection(parent)?;
+        let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
+        let owner = owner.clone();
+        let pivot = self.pivot;
+        let identity = pivot.identity(self.timestamp_columns());
+        let custom = self.custom_pivot;
+        let related_key = self.keys.related;
+        let defaults = self.pivot_constraints.defaults.clone();
+        let timestamps = self.pivot_write_timestamps(&connection)?;
+        let mut insert = attributes.clone();
+        insert.extend(values);
+        let attempt = connection
+            .transaction(
+                |transaction| {
+                    let insert = insert.clone();
+                    let joining = joining.clone();
+                    let connection = connection.clone();
+                    let owner = owner.clone();
+                    let defaults = defaults.clone();
+                    let stamps = timestamps.insert.clone();
+                    let parent_state = parent_state.clone();
+                    let related_touch = related_touch.clone();
+                    Box::pin(async move {
+                        let mut model = R::queryOn(&connection).makeAsync(insert).await?;
+                        if !super::super::persistence::save_with_touch(
+                            &mut model,
+                            Some(transaction),
+                            false,
+                        )
+                        .await?
+                        {
+                            return Err(DatabaseError::InvalidQuery(
+                                "related model creation cancelled",
+                            ));
+                        }
+                        let key = attachment_key(&model, related_key)?;
+                        let mut rows = pivot.records(&owner, [key].into_iter());
+                        for row in &mut rows {
+                            row.extend(stamps.clone());
+                            row.extend(defaults.clone());
+                            row.extend(joining.clone());
+                        }
+                        if !insert_pivot_rows(transaction, &connection, identity, custom, &rows)
+                            .await?
+                        {
+                            return Err(DatabaseError::InvalidQuery("pivot attachment cancelled"));
+                        }
+                        touch_endpoints::<P, R>(
+                            parent_state,
+                            related_touch,
+                            &connection,
+                            transaction,
+                        )
+                        .await?;
+                        Ok(Arc::new(model))
+                    })
+                },
+                1,
+            )
+            .await;
+        let conflict = match attempt {
+            Err(error) if is_unique_violation(&error) => error,
+            result => return result,
+        };
+
+        let query = self
+            .keys
+            .configure(R::queryOn(&connection))?
+            .unconstrained_relation_query()
+            .restrict_relation_attributes(&attributes)
+            .useWritePdo();
+        let Some(model) = query.first().await? else {
+            return Err(conflict);
+        };
+        let key = attachment_key(&model, self.keys.related)?;
+        match self
+            .attach_records(
+                parent,
+                std::slice::from_ref(key),
+                joining,
+                AttachmentMode::Required,
+            )
+            .await
+        {
+            Ok(()) => Ok(Arc::new(model)),
+            Err(error) if is_unique_violation(&error) => self
+                .match_many(&[parent], None, Some(&attributes))
+                .await?
+                .pop()
+                .and_then(|models| models.into_iter().next())
+                .ok_or(error),
+            Err(error) => Err(error),
+        }
+    }
+
+    fn attachment_rows<'a>(
+        &self,
+        owner: &Value,
+        keys: impl Iterator<Item = &'a Value>,
+        attributes: Attributes,
+        connection: &Connection,
+    ) -> DatabaseResult<Vec<Attributes>> {
+        let timestamps = self.pivot_write_timestamps(connection)?;
+        let mut rows = self.pivot.records(owner, keys);
+        for row in &mut rows {
+            row.extend(timestamps.insert.clone());
+            row.extend(self.pivot_constraints.defaults.clone());
+            row.extend(attributes.clone());
+        }
+        Ok(rows)
+    }
+
     pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
         self.attachWith(parent, keys, Attributes::new()).await
     }
@@ -443,7 +572,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         keys: &'a [Value],
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        self.attach_records(parent, keys, attributes, false)
+        self.attach_records(parent, keys, attributes, AttachmentMode::Default)
     }
 
     /// Runs the pivot write and any model events in a single transaction.
@@ -453,7 +582,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         keys: &'a [Value],
         attributes: Attributes,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        self.attach_records(parent, keys, attributes, true)
+        self.attach_records(parent, keys, attributes, AttachmentMode::Transactional)
     }
 
     fn attach_records<'a>(
@@ -461,23 +590,17 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         parent: &'a P,
         keys: &'a [Value],
         attributes: Attributes,
-        transactional: bool,
+        mode: AttachmentMode,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
             self.validate_pivot_attributes(&attributes)?;
             let owner = self.owner(parent)?;
             let keys = key_map(keys.iter().cloned())?;
             let connection = self.keys.connection(parent)?;
-            let timestamps = self.pivot_write_timestamps(&connection)?;
-            let mut rows = self.pivot.records(owner, keys.values());
-            for row in &mut rows {
-                row.extend(timestamps.insert.clone());
-                row.extend(self.pivot_constraints.defaults.clone());
-                row.extend(attributes.clone());
-            }
+            let rows = self.attachment_rows(owner, keys.values(), attributes, &connection)?;
             let (parent_state, related_touch) = self.pivot_touches(parent, owner, &connection)?;
             let custom = self.custom_pivot;
-            if transactional
+            if mode != AttachmentMode::Default
                 || custom.is_some()
                 || parent_state.is_some()
                 || related_touch.is_some()
@@ -493,23 +616,9 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                             let rows = rows.clone();
                             let parent_state = parent_state.clone();
                             Box::pin(async move {
-                                let mut changed = false;
-                                if let Some(custom) = custom {
-                                    for row in rows.iter() {
-                                        changed |= (custom.insert)(
-                                            transaction,
-                                            &source,
-                                            identity,
-                                            row.clone(),
-                                        )
-                                        .await?;
-                                    }
-                                } else {
-                                    changed =
-                                        transaction.table(identity.table).insert(&rows).await?
-                                            && !rows.is_empty();
-                                }
-                                if changed {
+                                if insert_pivot_rows(transaction, &source, identity, custom, &rows)
+                                    .await?
+                                {
                                     touch_endpoints::<P, R>(
                                         parent_state,
                                         related_touch,
@@ -517,6 +626,10 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                                         transaction,
                                     )
                                     .await?;
+                                } else if mode == AttachmentMode::Required {
+                                    return Err(DatabaseError::InvalidQuery(
+                                        "pivot attachment cancelled",
+                                    ));
                                 }
                                 Ok(())
                             })
@@ -1002,6 +1115,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
+        write_lookup: Option<&Attributes>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -1054,6 +1168,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     )?
                     .apply_default_counts()?
                     .restrict_relation(&parent_column, batch);
+                if let Some(attributes) = write_lookup {
+                    query = query
+                        .restrict_relation_attributes(attributes)
+                        .useWritePdo()
+                        .limit(1);
+                }
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();
                 let casts = query.casts.clone();
@@ -1197,7 +1317,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         parents: &'a [&'a P],
         transaction: Option<&'a mut Transaction>,
     ) -> DatabaseFuture<'a, DatabaseResult<Vec<<Self as Relation>::Output>>> {
-        Box::pin(self.match_many(parents, transaction))
+        Box::pin(self.match_many(parents, transaction, None))
     }
 }
 
@@ -1243,6 +1363,34 @@ impl RelatedTouch {
             .await?;
         Ok(())
     }
+}
+
+fn attachment_key<'a, R: Model>(model: &'a R, key: &str) -> DatabaseResult<&'a Value> {
+    model
+        .getAttribute(key)
+        .filter(|value| !matches!(value, Value::Null))
+        .ok_or(DatabaseError::InvalidQuery("relationship related key"))
+}
+
+fn is_unique_violation(error: &DatabaseError) -> bool {
+    matches!(error, DatabaseError::Driver { source, .. } if source.as_database_error().is_some_and(|error| error.is_unique_violation()))
+}
+
+async fn insert_pivot_rows(
+    transaction: &mut Transaction,
+    connection: &Connection,
+    identity: PivotIdentity,
+    custom: Option<CustomPivot>,
+    rows: &[Attributes],
+) -> DatabaseResult<bool> {
+    if let Some(custom) = custom {
+        let mut changed = false;
+        for row in rows {
+            changed |= (custom.insert)(transaction, connection, identity, row.clone()).await?;
+        }
+        return Ok(changed);
+    }
+    Ok(transaction.table(identity.table).insert(rows).await? && !rows.is_empty())
 }
 
 async fn touch_endpoints<P: Model, R: Model>(

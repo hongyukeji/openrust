@@ -783,6 +783,30 @@ pub async fn add_roles<P: Model, R: Model>(
 }
 ```
 
+### 建立或掛載關聯模型 {#creating-or-attaching-related-models}
+
+在多對多關聯上呼叫 `createOrFirst`，在同一交易內建立關聯模型並寫入中間表。分別傳入比對屬性、建立時的附加屬性和 Pivot 屬性。發生唯一鍵衝突時，從寫入連線查回模型並補上關聯。既有的關聯保留原 Pivot 屬性。請為比對屬性建立唯一約束。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn ensure_role<P: Model, R: Model>(
+    relation: &BelongsToMany<P, R>,
+    user: &P,
+) -> DatabaseResult<Arc<R>> {
+    relation.createOrFirst(
+        user,
+        Attributes::from([("slug".into(), "editor".into())]),
+        Attributes::from([("name".into(), "Editor".into())]),
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

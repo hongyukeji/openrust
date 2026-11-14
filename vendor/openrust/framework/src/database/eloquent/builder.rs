@@ -545,11 +545,27 @@ impl<M: Model> Builder<'static, M> {
     }
 
     pub(super) fn relation_candidate(&self, alias: &str) -> Self {
-        let mut candidate = Self::new(self.connection.clone()).alias_relation(alias);
+        self.unconstrained_relation_query().alias_relation(alias)
+    }
+
+    pub(super) fn unconstrained_relation_query(&self) -> Self {
+        let mut candidate = Self::new(self.connection.clone());
         candidate.removed_scopes.clone_from(&self.removed_scopes);
         candidate.apply_global_scopes = self.apply_global_scopes;
         candidate.trashed = self.trashed;
         candidate
+    }
+
+    pub(super) fn restrict_relation_attributes(mut self, attributes: &Attributes) -> Self {
+        for (column, value) in attributes {
+            let column = self.qualifyColumn(column);
+            self.query = if matches!(value, Value::Null) {
+                self.query.whereNull(&column)
+            } else {
+                self.query.r#where(&column, "=", value.clone())
+            };
+        }
+        self
     }
 
     pub(super) fn restrict_relation(mut self, column: &str, keys: &[Value]) -> Self {
