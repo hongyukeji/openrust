@@ -1,6 +1,7 @@
 //! Shared framework extension points.
 
 mod arr;
+pub(crate) mod calendar;
 mod collection;
 mod data;
 mod deferred_provider;

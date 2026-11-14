@@ -1070,7 +1070,42 @@ impl Seeder for PolymorphicFactories {
                     "Faker start date exceeds end date"
                 ))
             ));
+            for (expression, expected) in [
+                ("2024-03-31 12:34:00 -1 month", "2024-03-02T04:34:00Z"),
+                (
+                    "2024-04-10 02:30 America/New_York -1 month",
+                    "2024-03-10T07:30:00Z",
+                ),
+                (
+                    "2024-11-27 02:30 Europe/Paris -1 month",
+                    "2024-10-27T00:30:00Z",
+                ),
+                ("2100-07-15 12:00 America/New_York", "2100-07-15T16:00:00Z"),
+                ("2024-01-15 12:00 next Monday", "2024-01-21T16:00:00Z"),
+                ("@-1", "1969-12-31T23:59:59Z"),
+            ] {
+                let expected = chrono::DateTime::parse_from_rfc3339(expected).unwrap();
+                let upper = expected.timestamp().to_string();
+                assert_eq!(
+                    faker.dateTimeBetweenExpressions(expression, &upper)?,
+                    expected
+                );
+            }
+            assert!(matches!(
+                faker.dateTimeBetweenExpressions("not a date", "now"),
+                Err(DatabaseError::InvalidQuery("invalid Faker date expression"))
+            ));
+            assert!(matches!(
+                faker.dateTimeBetweenExpressions("tomorrow", "today"),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker start date exceeds end date"
+                ))
+            ));
             assert_eq!(faker.unique(false).dateTimeBetween(start, start)?, start);
+            assert!(matches!(
+                faker.unique(false).dateTimeBetweenExpressions("@-1", "-1"),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
             let second = chrono::TimeDelta::seconds(1);
             for interval in [second, -second] {
                 let other = epoch + interval;

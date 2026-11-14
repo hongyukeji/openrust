@@ -46,6 +46,8 @@ Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` 
 
 Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect.
 
+Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. Invalid expressions return an error. This method shares `unique` history with `dateTimeBetween`.
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -60,11 +62,13 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let happened_at = faker.dateTimeBetween(start, end)?;
         let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
         let sampled_this_year = faker.dateTimeThisYear(None)?;
+        let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
+            ("historical".into(), historical.to_rfc3339().into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))

@@ -8,6 +8,7 @@ use crate::{
     container::Container,
     contracts::{config::Repository, container::Container as _},
     database::{Connection, DatabaseError, DatabaseResult},
+    support::calendar,
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
@@ -248,6 +249,35 @@ impl Faker {
         DateTime::from_timestamp(self.numberBetween(start, end), 0).ok_or(
             DatabaseError::InvalidQuery("Faker timestamp is out of range"),
         )
+    }
+
+    /// Resolves PHP-style date expressions in the application time zone and samples their range.
+    pub fn dateTimeBetweenExpressions(
+        &self,
+        start: &str,
+        end: &str,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let now = Utc::now();
+        let parse = |expression| {
+            calendar::parse_date_expression(expression, now, self.application_timezone)
+                .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date expression"))
+        };
+        let start = parse(start)?;
+        let end = end.trim_ascii();
+        let end = if calendar::is_numeric(end) {
+            let timestamp = end
+                .parse::<i64>()
+                .ok()
+                .or_else(|| {
+                    let number = end.parse::<f64>().ok()?;
+                    number.is_finite().then_some(number as i64)
+                })
+                .ok_or(DATE_RANGE_ERROR)?;
+            DateTime::from_timestamp(timestamp, 0).ok_or(DATE_RANGE_ERROR)?
+        } else {
+            parse(end)?
+        };
+        self.dateTimeBetween(start, end)
     }
 
     /// Samples between the supplied UTC instant and that instant plus a signed interval.
@@ -558,6 +588,16 @@ impl UniqueFaker<'_> {
         end: DateTime<Utc>,
     ) -> DatabaseResult<DateTime<Utc>> {
         self.try_generate("dateTimeBetween", || self.0.dateTimeBetween(start, end))
+    }
+
+    pub fn dateTimeBetweenExpressions(
+        &self,
+        start: &str,
+        end: &str,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeBetween", || {
+            self.0.dateTimeBetweenExpressions(start, end)
+        })
     }
 
     pub fn dateTimeInInterval(
