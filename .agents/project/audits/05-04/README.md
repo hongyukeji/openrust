@@ -109,6 +109,14 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy 和 `./artisan inspire` 通
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译和 VitePress 构建通过，根路径和 `/docs/` 共六项浏览器检查通过。VitePress 仍有既有的分块大小提示。已恢复临时 Seeder 并清理本批 2.7 GiB Cargo 产物和 39 MiB 站点产物。提交前周额度剩余 50%，项目磁盘可用 82 GiB。
 
+### 工厂预构造与延迟创建恢复验收
+
+在隔离基线 `4545dda1` 复验 `1a233c5e` 和 `ebfa2a31`。固定 Laravel 的 `makeOne` 保留工厂数量，`makeMany` 取用并清空默认数量。OpenRust 的 `lazy` 返回异步回调，等待回调返回的 Future 才写入。三语示例加入逐条属性覆盖及单模型延迟创建。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L342)
+
+Rust 1.94.0 通过工作区全目标严格 Clippy。MySQL 8.4.13 和 SQLite 通过 49 项 Seeder 及 2 项工厂回归。MySQL fresh 使用一次性容器内的验收库，并显式提供清库 URL。实际二进制执行 `artisan db:seed --database=mysql --force`，验证单条及批量预构造、逐条属性覆盖和零条预构造均未写入目标表，批次数量由两条重置为一条。单条、批量 Future 在等待前均未写入，依次等待两次批量和两次单条调用后按主键回读六条记录。随后执行三语共用示例，新增五条记录。
+
+`./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。VitePress 仍有既有分块大小提示。工作区格式检查在隔离副本格式化基线已有的 Sanctum 测试后通过。临时 Seeder 已恢复。清理本轮独占 Cargo 产物 2.3 GiB 和站点产物约 40 MiB，磁盘可用 80 GiB。05-04 其余 Faker 差异继续跟踪。
+
 ## 逐项序列与笛卡尔积序列
 
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)

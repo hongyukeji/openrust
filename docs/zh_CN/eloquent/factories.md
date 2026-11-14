@@ -1100,7 +1100,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` 保留已配置的批量数量，供下一次 `makeMany` 使用。示例中的两次默认批量调用依次返回两个模型和一个模型。预构造消耗数量后，用独立的批量工厂配置 `lazy` 的写入数量。创建或调用回调后，目标表在等待返回的 Future 前没有写入。下面每次调用并等待都会写入两个新模型。未设置批量数量的工厂返回的 `lazy` 回调，每次成功执行会创建并返回一个模型。回调不会缓存上次的结果。
+`makeOne` 保留已配置的批量数量，供下一次 `makeMany` 使用。示例中的两次默认批量调用依次返回两个模型和一个模型。预构造消耗数量后，用独立的批量工厂配置 `lazy` 的写入数量。创建或调用回调后，目标表在等待返回的 Future 前没有写入。下面每次调用并等待都会写入两个新模型。未设置批量数量的工厂返回的 `lazy` 回调，每次成功执行会创建并返回一个模型。示例还验证逐条属性覆盖，并等待单模型回调。每次调用并等待都会重新创建。
 
 ```rust
 use openrust::database::{
@@ -1125,11 +1125,23 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
     assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
     assert!(previews.makeMany(FactoryRecords::Count(0)).await?.is_empty());
 
+    let names = FactoryRecords::Attributes(vec![
+        Attributes::from([("name".into(), "Morning flight".into())]),
+        Attributes::from([("name".into(), "Evening flight".into())]),
+    ]);
+    let custom = previews.makeMany(names).await?;
+    assert_eq!(custom[0].getAttribute("name"), Some(&"Morning flight".into()));
+    assert_eq!(custom[1].getAttribute("name"), Some(&"Evening flight".into()));
+
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
     let pending = seed();
     assert_eq!(pending.await?.len(), 2);
     assert_eq!(seed().await?.len(), 2);
+
+    let single = factory();
+    let seed_one = single.lazy(Attributes::new());
+    assert!(seed_one().await?.state().exists());
     Ok(())
 }
 ```

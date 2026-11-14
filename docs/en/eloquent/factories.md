@@ -1100,7 +1100,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The callback does not cache a previous result.
+`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The example also checks per-model overrides and awaits a single-model callback. Each invocation does fresh work.
 
 ```rust
 use openrust::database::{
@@ -1125,11 +1125,23 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
     assert_eq!(previews.makeMany(FactoryRecords::Default).await?.len(), 1);
     assert!(previews.makeMany(FactoryRecords::Count(0)).await?.is_empty());
 
+    let names = FactoryRecords::Attributes(vec![
+        Attributes::from([("name".into(), "Morning flight".into())]),
+        Attributes::from([("name".into(), "Evening flight".into())]),
+    ]);
+    let custom = previews.makeMany(names).await?;
+    assert_eq!(custom[0].getAttribute("name"), Some(&"Morning flight".into()));
+    assert_eq!(custom[1].getAttribute("name"), Some(&"Evening flight".into()));
+
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
     let pending = seed();
     assert_eq!(pending.await?.len(), 2);
     assert_eq!(seed().await?.len(), 2);
+
+    let single = factory();
+    let seed_one = single.lazy(Attributes::new());
+    assert!(seed_one().await?.state().exists());
     Ok(())
 }
 ```
