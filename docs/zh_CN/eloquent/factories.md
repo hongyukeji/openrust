@@ -796,6 +796,20 @@ fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 罗马尼亚语和塞尔维亚语姓名 {#romanian-and-serbian-names}
+
+`ro-RO` 和 `ro-MD` 共享罗马尼亚语姓名及称谓词表。`sr-RS` 与 `sr-Cyrl-RS` 使用各自的西里尔文字词表，`sr-Latn-RS` 使用拉丁文字词表。
+
+在 `ro-RO` 调用 `cnp(gender, dateOfBirth, county, isResident)` 可生成 13 位样本号码。出生日期可省略，也可在 1800–2099 年内使用 `YYYY`、`YYYY-MM` 或 `YYYY-MM-DD`。日期缺少的字段取自该年随机一天。抽到的日若超出指定月份的天数，调用返回错误。县代码区分大小写。该方法计算校验位并支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn romanian_cnp_sample() -> DatabaseResult<String> {
+    fake(Some("ro-RO"))?.unique(false).cnp(Some("female"), Some("1981-06-16"), Some("B1"), true)
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

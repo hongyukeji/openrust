@@ -796,6 +796,20 @@ fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Romanian and Serbian Names {#romanian-and-serbian-names}
+
+The `ro-RO` and `ro-MD` providers share Romanian name and title catalogs. `sr-RS` and `sr-Cyrl-RS` use separate Cyrillic catalogs, while `sr-Latn-RS` uses its Latin catalog.
+
+Use `cnp(gender, dateOfBirth, county, isResident)` with `ro-RO` to generate a sample 13-digit identifier. The optional birth date accepts `YYYY`, `YYYY-MM`, or `YYYY-MM-DD` within 1800–2099. A partial date draws missing fields from a random day in that year. When the sampled day does not exist in the supplied month, the call returns an error. County codes are case-sensitive. The method calculates the checksum and supports `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn romanian_cnp_sample() -> DatabaseResult<String> {
+    fake(Some("ro-RO"))?.unique(false).cnp(Some("female"), Some("1981-06-16"), Some("B1"), true)
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

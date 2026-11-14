@@ -224,6 +224,9 @@ mod company;
 #[path = "faker_person.rs"]
 mod faker_person;
 
+#[path = "faker_person_romanian_serbian.rs"]
+mod romanian_serbian;
+
 #[path = "faker_person_south_southeast_asian.rs"]
 mod south_southeast_asian;
 
@@ -939,6 +942,19 @@ impl Faker {
         ))
     }
 
+    pub fn cnp(
+        &self,
+        gender: Option<&str>,
+        dateOfBirth: Option<&str>,
+        county: Option<&str>,
+        isResident: bool,
+    ) -> DatabaseResult<String> {
+        if self.locale() != "ro_RO" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker CNP locale"));
+        }
+        romanian_serbian::cnp(gender, dateOfBirth, county, isResident)
+    }
+
     pub fn firstNameWithGender(&self, gender: Option<&str>) -> String {
         match gender {
             Some("male") => self.firstNameMale(),
@@ -1100,6 +1116,7 @@ impl Faker {
             "hy_AM" => &["Պարոն"],
             "ka_GE" => &["ბნ.", "დოქ.", "პროფ."],
             "lt_LT" => &["p.", "ponas"],
+            "ro_RO" | "ro_MD" => &["dl.", "ing.", "dr."],
             "bn_BD" => &["মি."],
             "id_ID" => &["dr.", "drg.", "Dr.", "Drs.", "Ir.", "H."],
             "vi_VN" => &["Cụ", "Ông", "Bác", "Chú", "Anh", "Em"],
@@ -1191,6 +1208,7 @@ impl Faker {
             "hy_AM" => &["տիկին", "օրիորդ"],
             "ka_GE" => &["ქნ.", "დოქ.", "პროფ."],
             "lt_LT" => &["p.", "ponia", "panelė"],
+            "ro_RO" | "ro_MD" => &["d-na.", "d-șoara", "ing.", "dr."],
             "bn_BD" => &["মিসেস.", "মিস."],
             "id_ID" => &["dr.", "drg.", "Dr.", "Hj."],
             "vi_VN" => &["Cụ", "Bà", "Bác", "Cô", "Chị", "Em"],
@@ -2732,6 +2750,18 @@ impl UniqueFaker<'_> {
     ) -> DatabaseResult<String> {
         self.try_generate("myKadNumber", || {
             self.0.myKadNumber(gender, formatted, separator)
+        })
+    }
+
+    pub fn cnp(
+        &self,
+        gender: Option<&str>,
+        dateOfBirth: Option<&str>,
+        county: Option<&str>,
+        isResident: bool,
+    ) -> DatabaseResult<String> {
+        self.try_generate("cnp", || {
+            self.0.cnp(gender, dateOfBirth, county, isResident)
         })
     }
 

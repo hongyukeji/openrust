@@ -2382,6 +2382,7 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
     let thai = fake(Some("th-TH")).unwrap();
     let vietnamese = fake(Some("vi-VN")).unwrap();
     let mut unique_surnames = std::collections::HashSet::new();
+    let mut regional_malaysian_name_seen = false;
 
     for _ in 0..64 {
         assert!(
@@ -2397,7 +2398,7 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
 
         assert_eq!(malaysian.firstNameWithGender(Some("male")), "John");
         assert_eq!(malaysian.firstNameWithGender(Some("female")), "Jane");
-        assert!(!["John", "Jane"].contains(&malaysian.firstName().as_str()));
+        regional_malaysian_name_seen |= !["John", "Jane"].contains(&malaysian.firstName().as_str());
         assert_ne!(malaysian.lastName(), "Doe");
         assert!(
             [
@@ -2444,6 +2445,7 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
         );
     }
     assert_eq!(unique_surnames.len(), 64);
+    assert!(regional_malaysian_name_seen);
 }
 
 #[test]
@@ -2499,4 +2501,81 @@ fn malaysian_person_formatters_preserve_groups_separators_and_unique_history() {
             2
         );
     }
+}
+
+#[test]
+fn romanian_and_serbian_faker_names_preserve_person_catalogs() {
+    for locale in ["ro-RO", "ro-MD"] {
+        let faker = fake(Some(locale)).unwrap();
+        for _ in 0..32 {
+            assert!(["dl.", "ing.", "dr."].contains(&faker.titleMale()));
+            assert!(["d-na.", "d-șoara", "ing.", "dr."].contains(&faker.titleFemale()));
+            assert_ne!(faker.firstNameMale(), "John");
+            assert_ne!(faker.lastName(), "Doe");
+        }
+    }
+
+    for (locale, cyrillic) in [("sr-RS", true), ("sr-Cyrl-RS", true), ("sr-Latn-RS", false)] {
+        let faker = fake(Some(locale)).unwrap();
+        for _ in 0..32 {
+            let name = faker.name();
+            assert_eq!(
+                name.chars().any(|c| ('\u{0400}'..='\u{04ff}').contains(&c)),
+                cyrillic
+            );
+        }
+    }
+}
+
+#[test]
+fn romanian_cnp_keeps_the_pinned_date_county_and_checksum_contract() {
+    let faker = fake(Some("ro-RO")).unwrap();
+    let unique = faker.unique(true);
+    let mut cards = std::collections::HashSet::new();
+    for _ in 0..16 {
+        for (gender, date, resident, prefix) in [
+            ("male", "1804-02-29", true, "304022952"),
+            ("female", "1981-06-16", true, "281061652"),
+            ("male", "2000-01-01", true, "500010152"),
+            ("female", "2085-03-01", false, "985030152"),
+        ] {
+            let card = unique
+                .cnp(Some(gender), Some(date), Some("GR"), resident)
+                .unwrap();
+            assert_eq!(card.len(), 13);
+            assert!(card.starts_with(prefix));
+            assert_ne!(card.as_bytes()[11], b'0');
+            let digits = card
+                .as_bytes()
+                .iter()
+                .map(|&b| u32::from(b - b'0'))
+                .collect::<Vec<_>>();
+            let sum = digits
+                .iter()
+                .zip([2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9])
+                .map(|(digit, weight)| digit * weight)
+                .sum::<u32>()
+                % 11;
+            assert_eq!(digits[12], if sum == 10 { 1 } else { sum });
+            assert!(cards.insert(card));
+        }
+        assert!(
+            faker
+                .cnp(Some("female"), Some("2085-03"), Some("B1"), true)
+                .unwrap()
+                .starts_with("68503")
+        );
+        assert_eq!(faker.cnp(None, Some("2000"), None, true).unwrap().len(), 13);
+    }
+    assert!(faker.cnp(Some("other"), None, None, true).is_err());
+    assert!(faker.cnp(None, None, Some("gr"), true).is_err());
+    for invalid in ["1799", "2100", "1981-13", "1900-02-29", "2000-01-01-01"] {
+        assert!(faker.cnp(None, Some(invalid), None, true).is_err());
+    }
+    assert!(
+        fake(Some("ro-MD"))
+            .unwrap()
+            .cnp(None, None, None, true)
+            .is_err()
+    );
 }

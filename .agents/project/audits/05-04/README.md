@@ -1026,3 +1026,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `4b08f0fd`。PHP 8.5 核对 512 组上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 核对 128 组、共 2,560 个值，逐条回读并验证词表、分隔符及数字范围。首轮验收任务重叠时，临时 Seeder 替换影响默认 Seeder 测试，且临时 MySQL 容器名冲突。恢复种子文件并串行复验后，49 项 Seeder、MySQL／SQLite 工厂回归和实际 Seeder 均通过。Rust 1.94.0 全目标严格 Clippy、46 项 Faker、`./artisan inspire`、三语示例编译、实际运行文档示例、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本格式化。
 
 原始 Seeder 已恢复并核对。清理本批独占 Cargo 产物 2.2 GiB、站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。05-04 后续核对罗马尼亚、摩尔多瓦、塞尔维亚等尚未接入的地区姓名。
+
+## Faker 罗马尼亚语与塞尔维亚语姓名及 CNP
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的罗马尼亚、摩尔多瓦和三个塞尔维亚 Person provider。罗马尼亚和摩尔多瓦复用相同的姓名及称谓词表。塞尔维亚保留无显式文字、西里尔和拉丁三套固定目录，沿用 BCP 47 的文字标记。罗马尼亚 `cnp` 支持三种出生日期精度、县代码、居住身份、序列与校验位及去重。Rust 按公历日期抽样，保留指定月份与抽样日冲突时的错误，以 Result 表达。v0.x 未找到对应工厂入口，Goravel 式编译装配无需改动。
+
+隔离基线 `372997f4`。PHP 8.5 校验 2,560 组固定上游姓名样本和 128 组 CNP。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读 640 个姓名和 128 个 CNP，验证姓名成分词表、模板、日期、县代码、性别与居住身份前缀、序列和校验位。48 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译及实际运行、VitePress 与六项浏览器检查通过。首轮发现旧马来西亚测试将当地词表允许的 John／Jane 一律判为错误，修正断言后复验通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对爱沙尼亚、拉脱维亚和黑山 Person。

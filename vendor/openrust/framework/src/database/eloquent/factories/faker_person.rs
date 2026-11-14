@@ -26,6 +26,8 @@ use super::company::{self, central, iberian, lt_sl_tr, nordic, romance, ukza_cy,
 
 use super::south_southeast_asian as asian;
 
+use super::romanian_serbian;
+
 pub(super) struct PersonNames {
     pub(super) male: &'static [&'static str],
     pub(super) female: &'static [&'static str],
@@ -9483,6 +9485,10 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "th_TH" => &asian::TH_TH,
         "vi_VN" => &asian::VI_VN,
         "ms_MY" => &asian::MS_MY,
+        "ro_RO" | "ro_MD" => &romanian_serbian::RO_RO,
+        "sr_RS" => &romanian_serbian::SR_RS,
+        "sr_Cyrl_RS" => &romanian_serbian::SR_CYRL_RS,
+        "sr_Latn_RS" => &romanian_serbian::SR_LATN_RS,
         _ => &EN_US,
     }
 }
@@ -10565,6 +10571,10 @@ pub(super) fn surnames(locale: &str) -> Option<&'static [&'static str]> {
         "ko_KR" => Some(asian::KO_KR_SURNAMES),
         "th_TH" => Some(company::south_southeast_asian::TH_SURNAMES),
         "vi_VN" => Some(asian::VI_VN_SURNAMES),
+        "ro_RO" | "ro_MD" => Some(romanian_serbian::RO_RO_SURNAMES),
+        "sr_RS" => Some(romanian_serbian::SR_RS_SURNAMES),
+        "sr_Cyrl_RS" => Some(romanian_serbian::SR_CYRL_RS_SURNAMES),
+        "sr_Latn_RS" => Some(romanian_serbian::SR_LATN_RS_SURNAMES),
         locale => iberian::surnames(locale),
     }
 }
