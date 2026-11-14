@@ -30,7 +30,7 @@ use ::fake::{Fake, faker, locales};
 use aws_lc_rs::digest;
 use chrono::{
     DateTime, Datelike, Days, LocalResult, Months, NaiveDate, NaiveDateTime, Offset, TimeDelta,
-    TimeZone, Utc,
+    TimeZone, Timelike, Utc,
 };
 use chrono_tz::{GapInfo, Tz, UTC};
 use md5::{Digest as _, Md5};
@@ -2449,15 +2449,70 @@ impl Faker {
     }
 
     pub fn amPm(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None).format("%P").to_string()
+        let date = self.dateTimeInTimezone(max, None);
+        let morning = date.hour() < 12;
+        match (self.locale(), morning) {
+            ("tr_TR", true) => "öö".into(),
+            ("tr_TR", false) => "ös".into(),
+            ("zh_CN" | "zh_TW", true) => "上午".into(),
+            ("zh_CN" | "zh_TW", false) => "下午".into(),
+            _ => date.format("%P").to_string(),
+        }
     }
 
     pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None).format("%d").to_string()
+        let pattern = if self.locale() == "cs_CZ" {
+            "%-d"
+        } else {
+            "%d"
+        };
+        self.dateTimeInTimezone(max, None)
+            .format(pattern)
+            .to_string()
     }
 
     pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None).format("%A").to_string()
+        let date = self.dateTimeInTimezone(max, None);
+        let names: &[&str] = match self.locale() {
+            "cs_CZ" => &[
+                "neděle",
+                "pondělí",
+                "úterý",
+                "středa",
+                "čtvrtek",
+                "pátek",
+                "sobota",
+            ],
+            "tr_TR" => &[
+                "Pazar",
+                "Pazartesi",
+                "Salı",
+                "Çarşamba",
+                "Perşembe",
+                "Cuma",
+                "Cumartesi",
+            ],
+            "zh_CN" | "zh_TW" => &[
+                "星期日",
+                "星期一",
+                "星期二",
+                "星期三",
+                "星期四",
+                "星期五",
+                "星期六",
+            ],
+            "ka_GE" => &[
+                "კვირა",
+                "ორშაბათი",
+                "სამშაბათი",
+                "ოთხშაბათი",
+                "ხუთშაბათი",
+                "პარასკევი",
+                "შაბათი",
+            ],
+            _ => return date.format("%A").to_string(),
+        };
+        names[date.weekday().num_days_from_sunday() as usize].to_owned()
     }
 
     pub fn month(&self, max: Option<DateTime<Utc>>) -> String {
@@ -2465,7 +2520,93 @@ impl Faker {
     }
 
     pub fn monthName(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTimeInTimezone(max, None).format("%B").to_string()
+        let date = self.dateTimeInTimezone(max, None);
+        let names: &[&str] = match self.locale() {
+            "cs_CZ" => &[
+                "leden",
+                "únor",
+                "březen",
+                "duben",
+                "květen",
+                "červen",
+                "červenec",
+                "srpen",
+                "září",
+                "říjen",
+                "listopad",
+                "prosinec",
+            ],
+            "tr_TR" => &[
+                "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül",
+                "Ekim", "Kasım", "Aralık",
+            ],
+            "zh_CN" | "zh_TW" => &[
+                "一月",
+                "二月",
+                "三月",
+                "四月",
+                "五月",
+                "六月",
+                "七月",
+                "八月",
+                "九月",
+                "十月",
+                "十一月",
+                "十二月",
+            ],
+            "ka_GE" => &[
+                "იანვარი",
+                "თებერვალი",
+                "მარტი",
+                "აპრილი",
+                "მაისი",
+                "ივნისი",
+                "ივლისი",
+                "აგვისტო",
+                "სექტემბერი",
+                "ოქტომბერი",
+                "ნოემბერი",
+                "დეკემბერი",
+            ],
+            _ => return date.format("%B").to_string(),
+        };
+        names[date.month0() as usize].to_owned()
+    }
+
+    /// Samples the Czech genitive form of a month name.
+    pub fn monthNameGenitive(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<&'static str> {
+        if self.locale() != "cs_CZ" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker genitive month locale",
+            ));
+        }
+        const NAMES: [&str; 12] = [
+            "ledna",
+            "února",
+            "března",
+            "dubna",
+            "května",
+            "června",
+            "července",
+            "srpna",
+            "září",
+            "října",
+            "listopadu",
+            "prosince",
+        ];
+        Ok(NAMES[self.dateTimeInTimezone(max, None).month0() as usize])
+    }
+
+    /// Samples the Czech display date, drawing each of its three fields separately.
+    pub fn formattedDate(&self) -> DatabaseResult<String> {
+        if self.locale() != "cs_CZ" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker formatted date locale",
+            ));
+        }
+        let day = self.dayOfMonth(None);
+        let month = self.monthNameGenitive(None)?;
+        Ok(format!("{day}. {month} {}", self.year(None)))
     }
 
     pub fn year(&self, max: Option<DateTime<Utc>>) -> String {
@@ -3332,6 +3473,14 @@ impl UniqueFaker<'_> {
 
     pub fn monthName(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         self.generate("monthName", || self.0.monthName(max))
+    }
+
+    pub fn monthNameGenitive(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<&'static str> {
+        self.try_generate("monthNameGenitive", || self.0.monthNameGenitive(max))
+    }
+
+    pub fn formattedDate(&self) -> DatabaseResult<String> {
+        self.try_generate("formattedDate", || self.0.formattedDate())
     }
 
     pub fn year(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {

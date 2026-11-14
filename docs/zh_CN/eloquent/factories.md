@@ -129,7 +129,17 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `dateTimeInInterval(date, interval)` 在 UTC 起点和该时间加上带符号的 Chrono `TimeDelta` 之间按整秒取样。负时长向过去取样。起点和时长传入 `None` 时，分别默认取 30 年前和向后五天。`dateTimeThisCentury(max)`、`dateTimeThisDecade(max)` 和 `dateTimeThisMonth(max)` 分别从当前时间往前 100 年、10 年和一个月开始。`dateTimeThisYear(max)` 从应用时区当年 1 月 1 日零点开始。其他日历回溯和 `dateTimeInInterval` 的缺省起点也采用应用时区。两个区间参数都省略时，默认五天按本地日历计算。显式传入的 `TimeDelta` 表示实际经过的时长。这四个方法在 `max` 为 `None` 时以上述当前时间为终点，拒绝早于起点的终点，日历溢出按上游 Faker 规则归一化。五个方法均支持 `unique`。Rust 使用有类型的日期和时长。需要自定义日历区间时，可计算终点后调用 `dateTimeBetween`。
 
-用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 按实际使用的时区格式化随机日期的各个部分。日和月的数字以补零字符串返回，星期和月份名称沿用上游 Faker 的英文日期格式。`dateTimeAD(max)` 从上游 Faker 的 64 位公元日期下界开始取样。这些方法在 `max` 为 `None` 时使用当前时间。`century()` 随机返回 I 至 XXI 的罗马数字。所有方法均支持 `unique`。
+用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 按实际使用的时区格式化随机日期的各个部分。数字月份补零，数字日期除 `cs-CZ` 外也补零。捷克语、土耳其语、简体中文、繁体中文和格鲁吉亚语使用对应的星期和月份名称。土耳其语和两种中文还会本地化 `amPm`。`dateTimeAD(max)` 从上游 Faker 的 64 位公元日期下界开始取样。这些方法在 `max` 为 `None` 时使用当前时间。`century()` 随机返回 I 至 XXI 的罗马数字。所有方法均支持 `unique`。
+
+在 `cs-CZ` 中，`monthNameGenitive(max)` 返回月份属格，`formattedDate()` 生成 `16. listopadu 2003` 这样的显示文本。日、月、年独立抽样，结果可能超出有效日期范围。两种方法均支持 `unique`，在其他地区调用时返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_date_sample() -> DatabaseResult<String> {
+    fake(Some("cs-CZ"))?.unique(false).formattedDate()
+}
+```
 
 用 `timezone(countryCode)` 随机获取 IANA 时区标识。传入 `None` 从完整列表取样，也可传入 `Some("TW")` 等国家或地区代码来限定范围。代码区分大小写，未知代码返回 `None`。框架内置与 `chrono-tz` 同版的 IANA 数据。该方法支持 `unique`。返回的标识可用于将 UTC 日期转换到目标时区。
 

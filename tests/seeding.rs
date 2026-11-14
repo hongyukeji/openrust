@@ -1059,19 +1059,19 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T00:00:00+0000");
             let first_ad = chrono::DateTime::from_timestamp(-62_135_597_361, 0).unwrap();
             assert_eq!(faker.dateTimeAD(Some(first_ad)), first_ad);
-            assert_eq!(faker.amPm(Some(epoch)), "am");
+            assert_eq!(faker.amPm(Some(epoch)), "上午");
             assert_eq!(faker.dayOfMonth(Some(epoch)), "01");
-            assert_eq!(faker.dayOfWeek(Some(epoch)), "Thursday");
+            assert_eq!(faker.dayOfWeek(Some(epoch)), "星期四");
             assert_eq!(faker.month(Some(epoch)), "01");
-            assert_eq!(faker.monthName(Some(epoch)), "January");
+            assert_eq!(faker.monthName(Some(epoch)), "一月");
             assert_eq!(faker.year(Some(epoch)), "1970");
             let calendar_unique = faker.unique(false);
             assert_eq!(calendar_unique.dateTimeAD(Some(first_ad))?, first_ad);
-            assert_eq!(calendar_unique.amPm(Some(epoch))?, "am");
+            assert_eq!(calendar_unique.amPm(Some(epoch))?, "上午");
             assert_eq!(calendar_unique.dayOfMonth(Some(epoch))?, "01");
-            assert_eq!(calendar_unique.dayOfWeek(Some(epoch))?, "Thursday");
+            assert_eq!(calendar_unique.dayOfWeek(Some(epoch))?, "星期四");
             assert_eq!(calendar_unique.month(Some(epoch))?, "01");
-            assert_eq!(calendar_unique.monthName(Some(epoch))?, "January");
+            assert_eq!(calendar_unique.monthName(Some(epoch))?, "一月");
             assert_eq!(calendar_unique.year(Some(epoch))?, "1970");
             assert!(calendar_unique.amPm(Some(epoch)).is_err());
             let mut centuries = (0..21)

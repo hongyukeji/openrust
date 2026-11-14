@@ -129,7 +129,17 @@ Use `unixTime(max)` to sample Unix seconds between the epoch and the specified e
 
 Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight on January 1 in the application time zone. The other calendar lookbacks and the omitted start of `dateTimeInInterval` also use that time zone. When both interval inputs are omitted, the default five days are local calendar days. An explicit `TimeDelta` is elapsed time. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as upstream Faker does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
 
-Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The day and month numbers are zero-padded strings. Weekday and month names are English, matching upstream Faker’s date format. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The numeric month is zero-padded. The numeric day is also zero-padded except in `cs-CZ`. Czech, Turkish, Simplified Chinese, Traditional Chinese, and Georgian use local weekday and month names. Turkish and both Chinese locales also localize `amPm`. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+
+With `cs-CZ`, use `monthNameGenitive(max)` for the genitive month and `formattedDate()` for a display string such as `16. listopadu 2003`. The day, month, and year are sampled independently, so the result may fall outside the calendar. Both methods support `unique` and return an error in other locales.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn regional_date_sample() -> DatabaseResult<String> {
+    fake(Some("cs-CZ"))?.unique(false).formattedDate()
+}
+```
 
 Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
 

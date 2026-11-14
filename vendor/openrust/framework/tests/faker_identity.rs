@@ -3486,3 +3486,48 @@ fn internet_ascii_names_are_locale_specific_and_support_unique() {
     assert!(us.firstNameAscii().is_err());
     assert!(us.unique(false).lastNameAscii().is_err());
 }
+
+#[test]
+fn regional_date_names_and_czech_display_dates_follow_the_provider() {
+    let epoch = chrono::DateTime::UNIX_EPOCH;
+    for (locale, month, weekday, period) in [
+        ("cs-CZ", "leden", "čtvrtek", "am"),
+        ("tr-TR", "Ocak", "Perşembe", "öö"),
+        ("zh-CN", "一月", "星期四", "上午"),
+        ("zh-TW", "一月", "星期四", "上午"),
+        ("ka-GE", "იანვარი", "ხუთშაბათი", "am"),
+        ("en-US", "January", "Thursday", "am"),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        assert_eq!(faker.monthName(Some(epoch)), month);
+        assert_eq!(faker.dayOfWeek(Some(epoch)), weekday);
+        assert_eq!(faker.amPm(Some(epoch)), period);
+        assert_eq!(
+            faker.dayOfMonth(Some(epoch)),
+            if locale == "cs-CZ" { "1" } else { "01" }
+        );
+        if locale != "cs-CZ" {
+            assert!(faker.monthNameGenitive(Some(epoch)).is_err());
+            assert!(faker.formattedDate().is_err());
+        }
+    }
+
+    let czech = fake(Some("cs-CZ")).unwrap();
+    let unique = czech.uniqueWithRetries(true, 2);
+    assert_eq!(unique.monthNameGenitive(Some(epoch)).unwrap(), "ledna");
+    assert!(unique.monthNameGenitive(Some(epoch)).is_err());
+
+    czech.setDefaultTimezone(Some(chrono_tz::America::New_York));
+    assert_eq!(czech.monthNameGenitive(Some(epoch)).unwrap(), "prosince");
+    assert_eq!(czech.dayOfMonth(Some(epoch)), "31");
+    czech.setDefaultTimezone(None);
+    for _ in 0..64 {
+        let date = czech.formattedDate().unwrap();
+        let (day, rest) = date.split_once(". ").unwrap();
+        let (month, year) = rest.split_once(' ').unwrap();
+        assert!((1..=31).contains(&day.parse::<u32>().unwrap()));
+        assert!(!day.starts_with('0'));
+        assert!(!month.is_empty());
+        assert!(year.parse::<u32>().unwrap() >= 1970);
+    }
+}

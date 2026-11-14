@@ -1244,3 +1244,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／SQLite 两项工厂回归及 `./artisan inspire` 通过。MySQL 的清库回归使用独立测试库。原基线的 Sanctum 测试排版差异仅在隔离副本处理，随后格式检查通过。三语示例增加批量属性覆盖后的未保存断言和单条回调重复调用，均通过编译。VitePress 构建及根路径与 `/docs/` 下六项浏览器验收通过。
 
 临时 Seeder 已恢复，MySQL 验收容器已移除。清理本批独占 Cargo 产物 2.3 GiB 和站点产物约 40 MiB。提交前周额度剩余 41%，项目卷可用 78 GiB。05-04 其余 Faker 地区和 formatter 继续跟踪。
+
+## Faker DateTime 地区格式
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [地区 DateTime Provider](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)。捷克语、土耳其语、简体中文、繁体中文和格鲁吉亚语使用各自的星期和月份名称。土耳其语与两种中文使用地区化的上午和下午。捷克语日期数字不补零，增加 `monthNameGenitive` 和 `formattedDate`。后者按上游顺序独立抽取日、月、年，因此结果可能超出有效日历日期。Rust 沿用已配置的时区和类型化时间参数，对不支持的地区通过 `Result` 返回错误。两个新方法支持 `unique`。v0.x 未发现等价的捷克语入口，Goravel 式应用装配无需调整。
+
+隔离运行以 `caea64ea` 的源码和文档为基线。固定 PHP 8.5 的 24 组成对时区与地区结果逐值匹配，另对照 PHP 词表及 256 条捷克语显示日期样本。MySQL 8.4.13 上用实际应用二进制运行 `artisan db:seed --database=mysql --force`，顺序回读 473 行，包含 24 条纪元时区样本、384 条地区随机样本及 65 条捷克语显示日期，其中一条来自三语共用示例。验证了中文 Seeder 的时段、星期和月份，也覆盖英语回退、捷克语时区跨月和唯一值耗尽。
+
+74 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，容器已移除，清理本批独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。后续继续逐项对账 DateTime 和其他尚未覆盖的 formatter。
