@@ -3103,3 +3103,38 @@ fn kazakh_iin_and_venezuelan_national_id_follow_the_pinned_masks() {
     );
     assert!(kazakh.nationalId(None).is_err());
 }
+
+#[test]
+fn portuguese_nif_and_taiwanese_random_names_follow_the_pinned_helpers() {
+    use openrust::database::eloquent::factories::Faker;
+
+    assert_eq!(Faker::dvCalcMod11("").unwrap(), 0);
+    assert_eq!(Faker::dvCalcMod11("000000001").unwrap(), 9);
+    assert_eq!(Faker::dvCalcMod11("123456789").unwrap(), 7);
+    assert!(Faker::dvCalcMod11("١").is_err());
+    let portugal = fake(Some("pt-PT")).unwrap();
+    let unique = portugal.unique(true);
+    for _ in 0..32 {
+        let nif = unique.taxpayerIdentificationNumber().unwrap();
+        assert_eq!(nif.len(), 9);
+        assert!(
+            [
+                "1", "2", "3", "45", "5", "6", "70", "71", "72", "77", "79", "8", "90", "98", "99"
+            ]
+            .iter()
+            .any(|prefix| nif.starts_with(prefix))
+        );
+        assert_eq!(
+            nif.as_bytes()[8] - b'0',
+            Faker::dvCalcMod11(&nif[..8]).unwrap()
+        );
+    }
+    let taiwan = fake(Some("zh-TW")).unwrap();
+    assert_eq!(taiwan.randomName(&["明"], 3).unwrap(), "明明明");
+    assert_eq!(taiwan.randomName(&["明"], 0).unwrap(), "");
+    assert_eq!(taiwan.randomName(&[], 2).unwrap(), "");
+    let unique = taiwan.unique(true);
+    assert_eq!(unique.randomName(&["明"], 1).unwrap(), "明");
+    assert!(unique.randomName(&["明"], 1).is_err());
+    assert!(portugal.randomName(&["明"], 1).is_err());
+}

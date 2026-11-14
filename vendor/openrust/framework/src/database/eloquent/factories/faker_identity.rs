@@ -1136,8 +1136,34 @@ impl Faker {
         Ok(format!("{prefix}{check}"))
     }
 
-    /// Samples a Polish tax identification number (NIP).
+    /// Calculates the Portuguese Person provider's modulo-11 check digit.
+    pub fn dvCalcMod11(number: &str) -> DatabaseResult<u8> {
+        let mut remainder = 0;
+        for (digit, weight) in number.bytes().rev().zip((2..=9).cycle()) {
+            if !digit.is_ascii_digit() {
+                return Err(DatabaseError::InvalidQuery(
+                    "Faker modulo-11 input must contain only ASCII digits",
+                ));
+            }
+            remainder = (remainder + (digit - b'0') * weight) % 11;
+        }
+        Ok(if remainder < 2 { 0 } else { 11 - remainder })
+    }
+
+    /// Samples a Portuguese NIF or Polish NIP.
     pub fn taxpayerIdentificationNumber(&self) -> DatabaseResult<String> {
+        if self.locale() == "pt_PT" {
+            const MASKS: &[&str] = &[
+                "1#######", "2#######", "3#######", "45######", "5#######", "6#######", "70######",
+                "71######", "72######", "77######", "79######", "8#######", "90######", "98######",
+                "99######",
+            ];
+            let mask = MASKS[fastrand::usize(..MASKS.len())];
+            let mut number = self.numerify(Some(mask));
+            let digit = Self::dvCalcMod11(&number)?;
+            number.push(char::from(b'0' + digit));
+            return Ok(number);
+        }
         if self.locale() != "pl_PL" {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker taxpayer identification locale",

@@ -1138,3 +1138,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `ff19c2d4`。PHP 8.5 核对 192 对上游号码，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 384 个值，覆盖三个世纪、性别位、两种前缀、分隔符和校验值，执行了文档示例。63 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用 80 GiB。下一批核对葡萄牙校验辅助及台湾华语姓名专用接口。
+
+## Faker 葡萄牙 NIF 与台湾华语名字词表
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 的[葡萄牙](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_PT/Person.php)和[台湾华语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Person.php) Person。葡萄牙 `taxpayerIdentificationNumber()` 复用公开 `Faker::dvCalcMod11`，保留前缀权重、右向左循环校验及前导零。校验入口拒绝非 ASCII 数字。台湾华语 `randomName` 以字符串切片和非负抽样数表达输入，保留重复抽样及空词表结果，现有性别名字生成复用同一实现。两个生成器支持去重。v0.x 未找到对应接口，沿用编译式装配。
+
+隔离基线 `c5b91b19`。PHP 8.5 核对 192 对上游值和跨权重周期的校验值。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回查 384 个值，覆盖两元素词表、单元素重复抽样、零抽样及空词表，验证 NIF 前缀和校验位并执行文档示例。64 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 43%，清理后项目卷可用 80 GiB。下一批复核 Person 继承接口与同名地区分派，再对账 Person 的剩余差异。

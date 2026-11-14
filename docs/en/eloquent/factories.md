@@ -970,6 +970,18 @@ fn kazakh_iin_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Portuguese NIF and Taiwanese Name Pools {#portuguese-nif-and-taiwanese-name-pools}
+
+Use `taxpayerIdentificationNumber()` with `pt-PT` for a nine-digit NIF sample. `Faker::dvCalcMod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `randomName(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwanese_name_sample() -> DatabaseResult<String> {
+    fake(Some("zh-TW"))?.randomName(&["明", "安"], 2)
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

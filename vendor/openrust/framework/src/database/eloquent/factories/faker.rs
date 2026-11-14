@@ -1000,12 +1000,25 @@ impl Faker {
         self.render_person_name(format, catalog)
     }
 
-    fn sample_given_name(&self, names: &[&str]) -> String {
-        let first = names[fastrand::usize(..names.len())];
-        if self.locale() == "zh_TW" && self.boolean(None) {
-            return format!("{first}{}", names[fastrand::usize(..names.len())]);
+    /// Concatenates independent draws from a Taiwanese name pool.
+    pub fn randomName(&self, pool: &[&str], count: usize) -> DatabaseResult<String> {
+        if self.locale() != "zh_TW" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker random name locale",
+            ));
         }
-        first.to_owned()
+        Ok((0..count)
+            .map_while(|_| self.randomElement(pool).copied())
+            .collect())
+    }
+
+    fn sample_given_name(&self, names: &[&str]) -> String {
+        if self.locale() == "zh_TW" {
+            return self
+                .randomName(names, fastrand::usize(1..=2))
+                .expect("fixed random name locale");
+        }
+        names[fastrand::usize(..names.len())].to_owned()
     }
 
     fn render_person_name(&self, mut format: &str, catalog: &faker_person::PersonNames) -> String {
@@ -2878,6 +2891,10 @@ impl UniqueFaker<'_> {
 
     pub fn lastKanaName(&self) -> DatabaseResult<&'static str> {
         self.try_generate("lastKanaName", || self.0.lastKanaName())
+    }
+
+    pub fn randomName(&self, pool: &[&str], count: usize) -> DatabaseResult<String> {
+        self.try_generate("randomName", || self.0.randomName(pool, count))
     }
 
     pub fn prefix(&self) -> DatabaseResult<&'static str> {

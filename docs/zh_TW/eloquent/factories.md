@@ -970,6 +970,18 @@ fn kazakh_iin_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 葡萄牙 NIF 和臺灣華語名字詞表 {#portuguese-nif-and-taiwanese-name-pools}
+
+在 `pt-PT` 中用 `taxpayerIdentificationNumber()` 產生九位數 NIF 樣本。`Faker::dvCalcMod11(number)` 接收 ASCII 數字字串計算校驗位，可保留前導零。在 `zh-TW` 中，`randomName(pool, count)` 從字串切片獨立抽樣後拼接，可以重複抽到同一項。詞表為空或抽樣數為零時回傳空字串。兩個產生器皆支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn taiwanese_name_sample() -> DatabaseResult<String> {
+    fake(Some("zh-TW"))?.randomName(&["明", "安"], 2)
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。
