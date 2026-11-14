@@ -267,6 +267,42 @@ impl Faker {
         Ok(Self::tcNoChecksum(split.0)? == split.1)
     }
 
+    /// Samples a Saudi company identification number.
+    pub fn companyIdNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "ar_SA" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Saudi company ID locale",
+            ));
+        }
+        Ok(self.company_number_with_luhn("700######"))
+    }
+
+    /// Samples an Egyptian company tax identification number.
+    pub fn companyTaxIdNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "ar_EG" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Egyptian company tax ID locale",
+            ));
+        }
+        Ok(self.company_number_with_luhn("#########"))
+    }
+
+    /// Samples an Egyptian commercial registration number.
+    pub fn companyTradeRegisterNumber(&self) -> DatabaseResult<String> {
+        if self.locale() != "ar_EG" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Egyptian commercial registration locale",
+            ));
+        }
+        Ok(self.company_number_with_luhn("######"))
+    }
+
+    fn company_number_with_luhn(&self, mask: &str) -> String {
+        let mut number = self.numerify(Some(mask));
+        number.push(luhn_check_digit(&number));
+        number
+    }
+
     /// Samples a Czech business identification number (IČO).
     pub fn ico(&self) -> DatabaseResult<String> {
         if self.locale() != "cs_CZ" {
@@ -708,6 +744,20 @@ impl UniqueFaker<'_> {
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
         self.try_generate("governorateId", || self.0.governorateId())
+    }
+
+    pub fn companyIdNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("companyIdNumber", || self.0.companyIdNumber())
+    }
+
+    pub fn companyTaxIdNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("companyTaxIdNumber", || self.0.companyTaxIdNumber())
+    }
+
+    pub fn companyTradeRegisterNumber(&self) -> DatabaseResult<String> {
+        self.try_generate("companyTradeRegisterNumber", || {
+            self.0.companyTradeRegisterNumber()
+        })
     }
 
     pub fn ico(&self) -> DatabaseResult<String> {

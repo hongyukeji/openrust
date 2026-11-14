@@ -670,3 +670,31 @@ fn czech_danish_and_icelandic_business_identifiers_match_pinned_formats() {
     assert!(icelandic.p().is_err());
     assert!(danish.vsk().is_err());
 }
+
+#[test]
+fn saudi_and_egyptian_company_numbers_match_pinned_formats() {
+    let saudi = fake(Some("ar-SA")).unwrap();
+    let egypt = fake(Some("ar-EG")).unwrap();
+    let saudi_unique = saudi.unique(true);
+    let egypt_unique = egypt.unique(true);
+    let mut seen = std::collections::HashSet::new();
+
+    for _ in 0..128 {
+        let saudi_id = saudi_unique.companyIdNumber().unwrap();
+        assert!(saudi_id.starts_with("700"));
+        for (number, length) in [
+            (saudi_id, 10),
+            (egypt_unique.companyTaxIdNumber().unwrap(), 10),
+            (egypt_unique.companyTradeRegisterNumber().unwrap(), 7),
+        ] {
+            assert_eq!(number.len(), length);
+            assert!(number.bytes().all(|digit| digit.is_ascii_digit()));
+            luhn(&number);
+        }
+        assert!(seen.insert(egypt_unique.companyTradeRegisterNumber().unwrap()));
+    }
+
+    assert!(egypt.companyIdNumber().is_err());
+    assert!(saudi.companyTaxIdNumber().is_err());
+    assert!(saudi.companyTradeRegisterNumber().is_err());
+}

@@ -302,10 +302,12 @@ Use `siret(None)` with `fr-FR` for a French establishment identifier formatted a
 
 Use `ico()` with `cs-CZ` for an eight-digit Czech business number with a check digit. With `da-DK`, `cvr()` returns eight digits and `p()` returns ten. With `is-IS`, `vsk()` returns five digits. The Danish and Icelandic formats start with a nonzero digit and follow the upstream sample masks. All four generators support `unique`.
 
+With `ar-SA`, `companyIdNumber()` generates a ten-digit Saudi company ID beginning with `700`. With `ar-EG`, `companyTaxIdNumber()` returns ten digits and `companyTradeRegisterNumber()` returns seven. The Egyptian formats may start with zero. All three append a Luhn check digit and support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 31]> {
+fn identity_samples() -> DatabaseResult<[String; 34]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -313,7 +315,11 @@ fn identity_samples() -> DatabaseResult<[String; 31]> {
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
     let danish = fake(Some("da-DK"))?;
+    let egypt = fake(Some("ar-EG"))?;
     Ok([
+        fake(Some("ar-SA"))?.companyIdNumber()?,
+        egypt.companyTaxIdNumber()?,
+        egypt.companyTradeRegisterNumber()?,
         fake(Some("cs-CZ"))?.ico()?,
         danish.cvr()?,
         danish.p()?,

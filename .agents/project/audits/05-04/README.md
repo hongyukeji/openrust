@@ -725,3 +725,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `5ddb1d38`。PHP 8.5 核对 2,048 条固定上游样本，覆盖 IČO 全部 11 种余数。Rust 1.94.0 格式、工作区全目标严格 Clippy、11 项地区测试、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过，独立临时 MySQL 实例实际执行 fresh 用例。MySQL 8.4.13 通过实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查四条样本。Artisan inspire、三语示例编译、VitePress 和双挂载六项浏览器检查通过，保留已有分块大小提示。
 
 已恢复临时 Seeder，清理本批 2.2 GiB Cargo 产物与 39 MiB 站点产物。提交前周额度剩余 50%，磁盘 81 GiB。下一批核对沙特与埃及企业编号。
+
+## Faker 沙特企业编号与埃及企业税号、商业登记号
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [沙特 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_SA/Company.php) 与[埃及 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_EG/Company.php) 接通 `companyIdNumber`、`companyTaxIdNumber` 和 `companyTradeRegisterNumber`。复用数字掩码和 Luhn 校验，保留沙特 `700` 前缀、埃及前导零与三个方法的独立去重历史。Rust 返回字符串以保留前导零，并对不适用的地区返回错误。v0.x 未发现等价入口，Goravel 式装配继续使用现有 Faker。
+
+隔离基线 `e677f2bf`。PHP 8.5 核对 1,536 条固定上游样本。Rust 1.94.0 格式、全目标严格 Clippy、12 项身份编号测试及独立 MySQL 8.4.13 工厂回归通过。用实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查三条样本。Artisan inspire、三语示例编译、VitePress 与双挂载六项浏览器检查通过，站点保留已有分块大小提示。按日常验收约定，本批数据库只运行 MySQL。后续核对哈萨克斯坦 BIN 和南非企业登记号。
+
+已恢复临时 Seeder，清理 1.7 GiB Cargo 及 39 MiB 站点产物。提交前周额度剩余 50%，磁盘 82 GiB。

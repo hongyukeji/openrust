@@ -302,10 +302,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `cs-CZ` 的 `ico()` 生成带校验位的八位捷克企业编号。`da-DK` 的 `cvr()` 返回八位数字，`p()` 返回十位数字。`is-IS` 的 `vsk()` 返回五位数字。丹麦和冰岛的格式沿用上游样本规则，首位为非零数字。四个方法均支持 `unique`。
 
+`ar-SA` 的 `companyIdNumber()` 生成以 `700` 开头的十位沙特企业编号。`ar-EG` 的 `companyTaxIdNumber()` 返回十位企业税号，`companyTradeRegisterNumber()` 返回七位商业登记号。埃及两种编号允许前导零。三种格式都附加 Luhn 校验位并支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 31]> {
+fn identity_samples() -> DatabaseResult<[String; 34]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -313,7 +315,11 @@ fn identity_samples() -> DatabaseResult<[String; 31]> {
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
     let danish = fake(Some("da-DK"))?;
+    let egypt = fake(Some("ar-EG"))?;
     Ok([
+        fake(Some("ar-SA"))?.companyIdNumber()?,
+        egypt.companyTaxIdNumber()?,
+        egypt.companyTradeRegisterNumber()?,
         fake(Some("cs-CZ"))?.ico()?,
         danish.cvr()?,
         danish.p()?,
