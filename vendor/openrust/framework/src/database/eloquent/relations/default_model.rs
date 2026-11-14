@@ -23,15 +23,24 @@ pub(super) fn match_defaults<P: Model, R: Model>(
             let Some(configure) = configure.filter(|_| model.is_none()) else {
                 return Ok(model);
             };
-            let mut model = R::newInstance(Attributes::new())?;
-            if parent.state().connection.is_some()
-                || (R::metadata().connection.is_none() && P::metadata().connection.is_some())
-            {
-                model.state_mut().connection = Some(keys.connection(parent)?);
-            }
-            model.forceFill(attributes(parent));
-            configure(&mut model, parent);
-            Ok(Some(Arc::new(model)))
+            new_default(parent, configure, keys, attributes(parent)).map(Some)
         })
         .collect()
+}
+
+pub(super) fn new_default<P: Model, R: Model>(
+    parent: &P,
+    configure: &ConfigureDefault<P, R>,
+    keys: &RelationKeys<P, R>,
+    attributes: Attributes,
+) -> DatabaseResult<Arc<R>> {
+    let mut model = R::newInstance(Attributes::new())?;
+    if parent.state().connection.is_some()
+        || (R::metadata().connection.is_none() && P::metadata().connection.is_some())
+    {
+        model.state_mut().connection = Some(keys.connection(parent)?);
+    }
+    model.forceFill(attributes);
+    configure(&mut model, parent);
+    Ok(Arc::new(model))
 }

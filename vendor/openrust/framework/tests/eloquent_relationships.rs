@@ -424,6 +424,7 @@ async fn verify_through_and_morph(
         &profile,
     ))
     .await;
+    Box::pin(verify_morph_defaults(db, &visible, &hidden_comment)).await;
     let subject = subjects();
     let valid = Comment::queryOn(db)
         .whereHasMorph(&subject, &["post", "author"])
@@ -771,6 +772,73 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
         assert!(matched.modelKeys().contains(&3.into()));
         FEATURED_POSTS.detach(&other, None).await.unwrap();
     })
+}
+
+async fn verify_morph_defaults(db: &Connection, visible: &Comment, hidden: &Comment) {
+    let defaults = || {
+        MorphTo::<Comment>::new("subject_type", "subject_id")
+            .target::<Post>("post", "id")
+            .target::<Author>("author", "id")
+            .withDefault::<Post>("post", |post, parent| {
+                post.setAttribute("title", parent.getAttribute("body").unwrap().clone());
+            })
+            .unwrap()
+            .withDefault::<Author>("author", |author, _| {
+                author.setAttribute("name", "Guest");
+            })
+            .unwrap()
+    };
+
+    let mut query = Comment::queryOn(db).with("subject", defaults());
+    query.whereIn(
+        "id",
+        vec![
+            visible.getKey().unwrap().clone(),
+            hidden.getKey().unwrap().clone(),
+        ],
+    );
+    let parents = Box::pin(query.get()).await.unwrap();
+    for (parent, exists) in [(visible, true), (hidden, false)] {
+        let row = parents.find(parent.getKey().unwrap()).unwrap().unwrap();
+        let target = row
+            .getRelation::<Option<MorphTarget>>("subject")
+            .unwrap()
+            .as_ref()
+            .unwrap();
+        let post = target.downcast_ref::<Post>().unwrap();
+        assert_eq!(post.state().exists(), exists);
+        if !exists {
+            assert!(post.getKey().is_none());
+            assert_eq!(post.getConnectionName(), parent.getConnectionName());
+            assert_eq!(row.toArray().unwrap()["subject"]["title"], "hidden parent");
+        }
+    }
+    let mut missing = Comment::from_state(hidden.state().clone());
+    missing.setAttribute("subject_id", 999999);
+    let result = defaults().getResults(&missing).await.unwrap().unwrap();
+    assert!(!result.downcast_ref::<Post>().unwrap().state().exists());
+    missing.setAttribute("subject_type", Value::Null);
+    assert!(defaults().getResults(&missing).await.unwrap().is_none());
+    let result = defaults()
+        .defaultForMissingType("author")
+        .unwrap()
+        .getResults(&missing)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(result.alias(), "author");
+    assert_eq!(
+        result
+            .downcast_ref::<Author>()
+            .unwrap()
+            .getAttribute("name"),
+        Some(&"Guest".into())
+    );
+    missing.setAttribute("subject_type", "unknown");
+    assert!(matches!(
+        defaults().getResults(&missing).await,
+        Err(DatabaseError::InvalidQuery("unknown morph type"))
+    ));
 }
 
 async fn verify_morph_soft_deletes(

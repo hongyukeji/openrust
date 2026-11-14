@@ -20,6 +20,21 @@ pub fn author_with_default() -> BelongsTo<Post, Author> {
 }
 ```
 
+对 `MorphTo` 关系，为需要兜底的别名注册类型化 `withDefault`。闭包接收未保存的目标和父模型。外键为空或找不到匹配行时，已存储的别名选择自己的默认模型。用 `defaultForMissingType` 为类型为空的记录显式选择已登记的默认模型。外键存在但别名未知时仍返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<T>("post", "id")
+        .withDefault::<T>("post", |post, _| {
+            post.setAttribute("title", "Unavailable");
+        })?
+        .defaultForMissingType("post")
+}
+```
+
 ### 从一对多中择一
 
 用 `one` 转换 `HasMany` 或 `MorphMany`，再使用 `latestOfMany`、`oldestOfMany` 或 `ofMany`。未指定列时，最新和最早方法使用关联模型主键。按其他列排序且值相同时，默认选择主键最大的记录，也可指定其他规则。`whereCandidates` 在排序前筛选候选记录。SQL 最小值和最大值跳过空值，排序列全为空时该父模型没有结果。

@@ -20,6 +20,21 @@ pub fn author_with_default() -> BelongsTo<Post, Author> {
 }
 ```
 
+For a `MorphTo` relationship, register a typed `withDefault` for each alias that needs a fallback. The callback receives the new unsaved target and its parent. A stored alias selects its own default when the key or matching row is missing. Use `defaultForMissingType` to explicitly choose a registered default for a null or empty type. An unknown alias with a foreign key still returns an error.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<T>("post", "id")
+        .withDefault::<T>("post", |post, _| {
+            post.setAttribute("title", "Unavailable");
+        })?
+        .defaultForMissingType("post")
+}
+```
+
 ### Has One of Many
 
 Convert a `HasMany` or `MorphMany` descriptor with `one`, then choose `latestOfMany`, `oldestOfMany`, or `ofMany`. With no column argument, the latest and oldest methods use the related primary key. When ranking by another column, a tied value is resolved using the maximum primary key unless you specify another tie rule. Use `whereCandidates` to filter before ranking. SQL min and max ignore nulls, so a parent with only null ranking values has no result.

@@ -20,6 +20,21 @@ pub fn author_with_default() -> BelongsTo<Post, Author> {
 }
 ```
 
+對 `MorphTo` 關聯，為需要預設值的別名登記型別化 `withDefault`。閉包接收未儲存的目標和父模型。外鍵為空或找不到相符資料列時，已儲存的別名選擇自己的預設模型。用 `defaultForMissingType` 為型別為空的記錄明確選擇已登記的預設模型。外鍵存在但別名未知時仍回傳錯誤。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+pub fn subject_with_default<P: Model, T: Model>() -> DatabaseResult<MorphTo<P>> {
+    MorphTo::new("subject_type", "subject_id")
+        .target::<T>("post", "id")
+        .withDefault::<T>("post", |post, _| {
+            post.setAttribute("title", "Unavailable");
+        })?
+        .defaultForMissingType("post")
+}
+```
+
 ### 從一對多中選一
 
 使用 `one` 轉換 `HasMany` 或 `MorphMany`，再使用 `latestOfMany`、`oldestOfMany` 或 `ofMany`。未指定欄位時，最新和最早方法使用關聯模型主鍵。依其他欄位排序且值相同時，預設選擇主鍵最大的記錄，也能指定其他規則。`whereCandidates` 在排序前篩選候選記錄。SQL 最小值和最大值會略過空值，排序欄位全為空值時該父模型沒有結果。

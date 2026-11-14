@@ -17,6 +17,7 @@ use crate::database::{
 
 use super::{
     ExistenceRelation, Relation,
+    default_model::{ConfigureDefault, new_default},
     relation::{RelationKeys, dictionary_key},
 };
 
@@ -27,7 +28,11 @@ pub struct MorphTo<P: Model> {
     targets: IndexMap<&'static str, Box<dyn Target<P>>>,
     path_aliases: Option<Vec<&'static str>>,
     soft_deletes: SoftDeleteMacros,
+    defaults: IndexMap<&'static str, Box<DefaultTarget<P>>>,
+    untyped_default: Option<&'static str>,
 }
+
+type DefaultTarget<P> = dyn Fn(&P) -> DatabaseResult<ErasedModel> + Send + Sync;
 
 #[derive(Clone, Copy, Default)]
 struct SoftDeleteMacros {
@@ -147,6 +152,47 @@ impl<P: Model> MorphTo<P> {
             targets: IndexMap::new(),
             path_aliases: None,
             soft_deletes: SoftDeleteMacros::default(),
+            defaults: IndexMap::new(),
+            untyped_default: None,
+        }
+    }
+
+    /// Supplies an unsaved model when this registered target has no matching row.
+    pub fn withDefault<R: Model>(
+        mut self,
+        alias: &'static str,
+        configure: impl Fn(&mut R, &P) + Send + Sync + 'static,
+    ) -> DatabaseResult<Self> {
+        self.validate_target::<R>(alias)?;
+        let keys = RelationKeys::<P, R>::new(self.id_column, self.targets[alias].owner_key());
+        let configure: Box<ConfigureDefault<P, R>> = Box::new(configure);
+        self.defaults.insert(
+            alias,
+            Box::new(move |parent| {
+                Ok(
+                    new_default(parent, configure.as_ref(), &keys, Attributes::new())?
+                        as ErasedModel,
+                )
+            }),
+        );
+        Ok(self)
+    }
+
+    /// Selects a configured default for parents without a morph type.
+    pub fn defaultForMissingType(mut self, alias: &'static str) -> DatabaseResult<Self> {
+        if !self.defaults.contains_key(alias) {
+            return Err(DatabaseError::InvalidQuery(
+                "morph type has no default model",
+            ));
+        }
+        self.untyped_default = Some(alias);
+        Ok(self)
+    }
+
+    fn clear_default(&mut self, alias: &str) {
+        self.defaults.shift_remove(alias);
+        if self.untyped_default == Some(alias) {
+            self.untyped_default = None;
         }
     }
 
@@ -173,6 +219,7 @@ impl<P: Model> MorphTo<P> {
 
     #[must_use]
     pub fn target<R: Model>(mut self, alias: &'static str, owner_key: &'static str) -> Self {
+        self.clear_default(alias);
         self.targets.insert(
             alias,
             Box::new(RelationKeys::<P, R>::new(self.id_column, owner_key)),
@@ -208,6 +255,7 @@ impl<P: Model> MorphTo<P> {
         {
             keys.morph_constraint = Some(Box::new(configure));
         } else {
+            self.clear_default(alias);
             let mut keys = RelationKeys::<P, R>::new(self.id_column, owner_key);
             keys.morph_constraint = Some(Box::new(configure));
             self.targets.insert(alias, Box::new(keys));
@@ -259,6 +307,7 @@ impl<P: Model> MorphTo<P> {
             keys.append_query_configuration(configure);
             self
         } else {
+            self.clear_default(alias);
             let mut keys = RelationKeys::<P, R>::new(self.id_column, owner_key);
             keys.try_constrain(configure);
             self.targets.insert(alias, Box::new(keys));
@@ -521,6 +570,7 @@ impl<P: Model> MorphTo<P> {
             }
             match parent.getAttribute(self.type_column) {
                 None | Some(Value::Null) => (),
+                Some(Value::Text(alias)) if alias.is_empty() && self.untyped_default.is_some() => {}
                 Some(Value::Text(alias)) => groups.entry(alias).or_default().push((index, parent)),
                 _ => return Err(DatabaseError::InvalidQuery("morph type column")),
             }
@@ -544,6 +594,34 @@ impl<P: Model> MorphTo<P> {
                 .await?;
             for (index, model) in indexes.into_iter().zip(loaded) {
                 matches[index] = model.map(|model| MorphTarget { alias, model });
+            }
+        }
+        if !self.defaults.is_empty() {
+            for (parent, matched) in parents.iter().zip(&mut matches) {
+                if matched.is_some() {
+                    continue;
+                }
+                let alias = match parent.getAttribute(self.type_column) {
+                    None | Some(Value::Null) => self.untyped_default,
+                    Some(Value::Text(alias)) if alias.is_empty() => self.untyped_default,
+                    Some(Value::Text(alias)) => Some(alias.as_str()),
+                    _ => None,
+                };
+                if let Some((alias, create)) =
+                    alias.and_then(|alias| self.defaults.get_key_value(alias))
+                {
+                    if self
+                        .path_aliases
+                        .as_ref()
+                        .is_some_and(|aliases| !aliases.contains(alias))
+                    {
+                        continue;
+                    }
+                    *matched = Some(MorphTarget {
+                        alias,
+                        model: create(parent)?,
+                    });
+                }
             }
         }
         Ok(matches)
