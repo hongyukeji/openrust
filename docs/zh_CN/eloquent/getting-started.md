@@ -120,6 +120,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 }
 ```
 
+在 Eloquent 查询上使用 `fillAndInsert(rows)`，批量插入前会应用模型默认值、查询预设属性、修改器和转换。构造器补齐缺失的唯一标识和时间戳，保留显式时间戳，并绕过批量赋值保护和模型持久化事件。`fillAndInsertOrIgnore(rows)` 使用驱动的忽略插入语义，`fillAndInsertGetId(row)` 返回单条记录由数据库生成的 ID。`fillForInsert(rows)` 仅返回准备好的属性。
+
 ## 删除模型
 
 使用 `softDeletes("deleted_at")` 启用软删除。模型查询默认排除软删除记录，可用 `withTrashed` 或 `onlyTrashed` 查询它们，用 `restore` 清除删除时间，用 `forceDelete` 永久删除。

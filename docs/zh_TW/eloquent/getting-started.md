@@ -120,6 +120,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 }
 ```
 
+在 Eloquent 查詢上使用 `fillAndInsert(rows)`，批次插入前會套用模型預設值、查詢預設屬性、修改器和轉換。建構器補齊缺少的唯一識別碼與時間戳記，保留明確提供的時間戳記，並略過批次賦值保護和模型持久化事件。`fillAndInsertOrIgnore(rows)` 使用驅動程式的忽略插入行為，`fillAndInsertGetId(row)` 回傳單筆記錄由資料庫產生的 ID。`fillForInsert(rows)` 僅回傳準備好的屬性。
+
 ## 刪除模型
 
 使用 `softDeletes("deleted_at")` 啟用軟刪除。模型查詢預設排除軟刪除記錄，可用 `withTrashed` 或 `onlyTrashed` 查詢這些記錄，用 `restore` 清除刪除時間，用 `forceDelete` 永久刪除。

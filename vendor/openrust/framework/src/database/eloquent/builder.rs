@@ -1339,6 +1339,71 @@ impl<M: Model> Builder<'static, M> {
         Ok(model)
     }
 
+    /// Prepares insert rows with model defaults, casts, unique IDs and timestamps.
+    pub async fn fillForInsert(&self, rows: Vec<Attributes>) -> DatabaseResult<Vec<Attributes>> {
+        if rows.is_empty() {
+            return Ok(rows);
+        }
+        let metadata = M::metadata();
+        let time = if metadata.created_at.is_some() || metadata.updated_at.is_some() {
+            Some(timestamp(&self.connection, metadata.date_format)?)
+        } else {
+            None
+        };
+        let mut prepared = Vec::with_capacity(rows.len());
+        for row in rows {
+            let mut model = M::newInstanceOn(&self.connection, Attributes::new())?;
+            let state = model.state_mut();
+            state.casts.merge_from(&self.casts);
+            let mut attributes = state.attributes.clone();
+            for (name, value) in self.creation_attributes(row) {
+                super::casts::write_async::<M>(
+                    &mut attributes,
+                    name,
+                    value,
+                    Some(&self.connection),
+                    &state.casts,
+                )
+                .await?;
+            }
+            model.state_mut().replace_attributes(attributes);
+            model.setUniqueIds().await?;
+            let mut attributes = mem::take(&mut model.state_mut().attributes);
+            if let Some(time) = &time {
+                for column in [metadata.created_at, metadata.updated_at]
+                    .into_iter()
+                    .flatten()
+                {
+                    attributes
+                        .entry(column.into())
+                        .or_insert_with(|| time.clone());
+                }
+            }
+            prepared.push(attributes);
+        }
+        Ok(prepared)
+    }
+
+    /// Inserts prepared rows without dispatching model persistence events.
+    pub async fn fillAndInsert(self, rows: Vec<Attributes>) -> DatabaseResult<bool> {
+        let rows = self.fillForInsert(rows).await?;
+        self.scoped()?.0.insert(&rows).await
+    }
+
+    pub async fn fillAndInsertOrIgnore(self, rows: Vec<Attributes>) -> DatabaseResult<u64> {
+        let rows = self.fillForInsert(rows).await?;
+        self.scoped()?.0.insertOrIgnore(&rows).await
+    }
+
+    pub async fn fillAndInsertGetId(self, row: Attributes) -> DatabaseResult<Value> {
+        let row = self
+            .fillForInsert(vec![row])
+            .await?
+            .pop()
+            .expect("one prepared insert row");
+        self.scoped()?.0.insertGetId(row).await
+    }
+
     pub async fn makeAsync(&self, attributes: Attributes) -> DatabaseResult<M> {
         self.make_with_attributes_async(self.creation_attributes(attributes))
             .await

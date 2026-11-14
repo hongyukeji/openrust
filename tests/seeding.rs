@@ -16,7 +16,8 @@ use openrust::{
     database::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
         eloquent::{
-            Attributes, Model, ModelMetadata, ModelState, NamedRelations,
+            Attributes, Model, ModelMetadata, ModelState, NamedRelations, UniqueId,
+            casts::{Attribute, AttributeCast},
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             factories::{Factory, FactoryRecords, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
@@ -182,6 +183,61 @@ factory_model!(
 
 struct PolymorphicFactories;
 
+struct BulkSeed(ModelState);
+
+impl Model for BulkSeed {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("seed_bulk")
+            .guarded(&["*"])
+            .uniqueId(UniqueId::Uuid)
+            .uniqueIds(&["external_id"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        let mut model = Self(state);
+        model.setAttribute("label", "model-default");
+        model
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("options", AttributeCast::Json)]
+    }
+
+    fn attribute(name: &str) -> Option<Attribute> {
+        (name == "label").then(|| {
+            Attribute::set(|value, _| {
+                let Value::Text(value) = value else {
+                    return Err(DatabaseError::InvalidQuery("bulk label"));
+                };
+                Ok(Attributes::from([(
+                    "label".into(),
+                    value.trim().to_lowercase().into(),
+                )]))
+            })
+        })
+    }
+}
+
+impl ModelEventListener<BulkSeed> for CancelFactoryChild {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        _: &'a mut BulkSeed,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async { Ok(ModelEventResponse::Cancel) })
+    }
+}
+
 struct CancelFactoryChild;
 
 impl ModelEventListener<FactoryChild> for CancelFactoryChild {
@@ -209,6 +265,65 @@ impl Seeder for PolymorphicFactories {
         Box::pin(async {
             let connection = context.connection();
             assert_eq!(connection.getName(), "alternate");
+            let query = || {
+                BulkSeed::queryOn(connection).withAttributes(
+                    Attributes::from([("label".into(), "query-default".into())]),
+                    false,
+                )
+            };
+            let record = |label: &str| {
+                Attributes::from([
+                    ("label".into(), label.into()),
+                    ("score".into(), "42".into()),
+                ])
+            };
+            let rows = BulkSeed::queryOn(connection)
+                .fillForInsert(vec![Attributes::new()])
+                .await?;
+            assert_eq!(rows[0]["label"], "model-default".into());
+            let rows = query()
+                .fillForInsert(vec![Attributes::from([
+                    ("score".into(), "42".into()),
+                    ("options".into(), true.into()),
+                ])])
+                .await?;
+            assert_eq!(rows[0]["label"], "query-default".into());
+            assert_eq!(rows[0]["score"], "42".into());
+            assert_eq!(rows[0]["options"], Value::Json(json!(true)));
+            assert!(
+                matches!(&rows[0]["external_id"], Value::Text(id) if BulkSeed::isValidUniqueId(id))
+            );
+            assert_eq!(rows[0]["created_at"], rows[0]["updated_at"]);
+            assert!(query().fillAndInsert(vec![]).await?);
+            let mut explicit = record(" BULK-A ");
+            explicit.insert("created_at".into(), "2001-01-01 00:00:00".into());
+            assert!(
+                query()
+                    .fillAndInsert(vec![explicit, record("bulk-b")])
+                    .await?
+            );
+            assert_eq!(
+                query()
+                    .fillAndInsertOrIgnore(vec![record("bulk-a"), record("bulk-c")])
+                    .await?,
+                1
+            );
+            let id = query().fillAndInsertGetId(record("bulk-d")).await?;
+            let row = connection
+                .table("seed_bulk")
+                .r#where("id", "=", id)
+                .first()
+                .await?
+                .unwrap();
+            assert_eq!(row.get("label"), Some(&"bulk-d".into()));
+            let row = connection
+                .table("seed_bulk")
+                .r#where("label", "=", "bulk-a")
+                .first()
+                .await?
+                .unwrap();
+            assert_eq!(row.get("created_at"), Some(&"2001-01-01 00:00:00".into()));
+            assert_eq!(connection.table("seed_bulk").count("*").await?, 4);
             let quiet = || {
                 Factory::<FactoryChild>::new(|| {
                     Attributes::from([("generated_name".into(), "quiet-fixture".into())])
@@ -692,6 +807,7 @@ impl ServiceProvider for Provider {
                 )
             })?;
             FactoryChild::registerModelEvent(app, ModelEvent::Creating, CancelFactoryChild)?;
+            BulkSeed::registerModelEvent(app, ModelEvent::Creating, CancelFactoryChild)?;
             MorphMap::morphMap(
                 app,
                 [MorphMapEntry::model::<FactoryOwner>("seed-owner")],
@@ -912,6 +1028,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     let db = root.connection(Some(&url), "");
     let mut schema = db.getSchemaBuilder();
     for table in [
+        "seed_bulk",
         "seed_factory_links",
         "seed_factory_children",
         "seed_factory_owners",
@@ -919,6 +1036,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
         schema.dropIfExists(table).await.unwrap();
     }
     for sql in [
+        "CREATE TABLE seed_bulk (id BIGINT AUTO_INCREMENT PRIMARY KEY, external_id VARCHAR(36) NOT NULL, label VARCHAR(80) NOT NULL UNIQUE, score BIGINT NOT NULL, options JSON, created_at VARCHAR(40) NOT NULL, updated_at VARCHAR(40) NOT NULL)",
         "CREATE TABLE seed_factory_owners (id BIGINT AUTO_INCREMENT PRIMARY KEY)",
         "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40), generated_name VARCHAR(120), generated_score BIGINT, generated_at VARCHAR(40))",
         "CREATE TABLE seed_factory_links (owner_id BIGINT NOT NULL, child_id BIGINT NOT NULL, owner_type VARCHAR(40) NOT NULL, label VARCHAR(40) NOT NULL)",
@@ -981,6 +1099,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
         2
     );
     for table in [
+        "seed_bulk",
         "seed_factory_links",
         "seed_factory_children",
         "seed_factory_owners",

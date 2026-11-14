@@ -120,6 +120,8 @@ pub async fn count_visit_quietly<M: Model>(model: &mut M) -> DatabaseResult<u64>
 }
 ```
 
+Use `fillAndInsert(rows)` on an Eloquent query to apply model defaults, pending query attributes, setters and casts before a bulk insert. The builder generates missing unique IDs and timestamps, preserves explicit timestamps, and bypasses mass-assignment guards and model persistence events. Use `fillAndInsertOrIgnore(rows)` for the driver’s insert-ignore behavior and `fillAndInsertGetId(row)` for a single generated database ID. `fillForInsert(rows)` returns the prepared attributes without inserting them.
+
 ## Deleting Models
 
 Enable soft deletes with `softDeletes("deleted_at")`. Model queries exclude soft-deleted rows by default. Use `withTrashed` or `onlyTrashed` to include them, `restore` to clear the deletion timestamp, and `forceDelete` to remove a row permanently.

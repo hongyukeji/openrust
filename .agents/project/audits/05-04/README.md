@@ -82,3 +82,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel 的 forEachSequence、crossJoinSequence 和 CrossJoinSequence。逐项序列按属性组数设定批次数量。笛卡尔积序列保留独立数量，最后一个序列变化最快，同名属性由后者覆盖。Rust 按批内索引直接计算组合，避免预先分配笛卡尔积，组合用完后循环。传入空子序列时返回错误。旧版未发现对应实现，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636)
 
 隔离基线 1a233c5e。实际 MySQL 8.4.13 Seeder 验证逐项数量、空批次、组合顺序、覆盖、循环与写入，MySQL／SQLite 工厂回归通过。Rust 1.94 格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 与 18 项浏览器检查通过。Factory::insert 仍依赖 Eloquent fillAndInsert。
+
+## Eloquent 批量插入准备
+
+对照固定 Laravel Eloquent Builder 的 fillForInsert、fillAndInsert、fillAndInsertOrIgnore 与 fillAndInsertGetId。复用模型默认值、查询预设属性、写入修改器和转换、唯一标识与时间戳。显式值优先，批量赋值保护和模型持久化事件不参与批量插入。Rust 使用显式属性列表和数据库 Value，Query Builder 校验各行列集合一致。旧版未发现对应入口，Goravel 装配无需调整。 [固定 Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L495)
+
+隔离基线 020235d2。MySQL 8.4.13 实际 db:seed 验证默认值优先级、修改器、JSON 写入转换、UUID、显式时间戳、空输入、事件抑制、重复键忽略和生成 ID。MySQL／SQLite 工厂回归、Rust 1.94 格式和全目标严格 Clippy、Artisan inspire、VitePress 和 18 项浏览器检查通过。下一批用该入口接 Factory::insert。
