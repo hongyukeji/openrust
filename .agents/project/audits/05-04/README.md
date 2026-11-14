@@ -539,3 +539,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `e44ad4c9`。独立 MySQL 8.4.13 定向回归和真实 `artisan db:seed --database=mysql --force` 覆盖已有和生成模型、已有旧缓存与首次加载、成员时间戳、未关联模型的时间戳、自定义 Pivot 类型和逐条属性。Rust 1.94.0 格式、全目标严格 Clippy、多态 Seeder 回归、`./artisan inspire`、三语示例编译、VitePress 构建及六项浏览器检查通过。
 
 本批隔离编译与站点产物已清理。后续核对固定工厂测试中的运行时宏扩展与模型发现的 Rust 对应机制。
+
+## 嵌套工厂模型发现与扩展
+
+固定 Laravel 的工厂和模型发现保留嵌套命名空间，`make:factory` 支持 `-m`。Rust 修复默认推断丢失嵌套路径的问题，并接通 `-m` 显式覆盖。模块声明后由 `FactoryDefinition::Model` 和 `HasFactory` 编译时绑定。Laravel 的运行时宏调用用可导入的 Rust 扩展 trait 表达，适用于工厂构建器及命名状态。该机制允许编译器检查模型、方法、参数与返回类型。固定 Goravel 沿用类型显式的工厂契约，v0.x 未发现等价工厂生成器。 [Laravel 生成命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Factories/FactoryMakeCommand.php) · [Laravel 嵌套发现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L713) · [Laravel 工厂宏](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L807) · [固定 Goravel](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `b4d185c4`。两个实际 Artisan 回归覆盖斜杠、反斜杠、默认导入、`-m`、重复生成、`--force`、空模型名和发布模板。通过真实 `make:model Fleet/Flight` 与 `make:factory Fleet/FlightFactory` 生成代码，声明模块并编译，再以 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证嵌套模型绑定及扩展 trait 生成的 `scheduled` 状态。Rust 1.94.0 格式、严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。
+
+已清理本批隔离编译与站点产物。后续核对 05-04 的工厂功能闭合状态与 Faker 差异。

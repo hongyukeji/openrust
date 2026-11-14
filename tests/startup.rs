@@ -2094,3 +2094,43 @@ fn unreachable_handler(
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     unreachable!("invalid route must not be dispatched")
 }
+
+#[test]
+fn artisan_factory_generator_binds_nested_models_and_accepts_model_alias() {
+    let root = TestRoot::new("factory-binding");
+    let run = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_main"))
+            .arg("artisan")
+            .args(args)
+            .env("APP_BASE_PATH", &root.0)
+            .output()
+            .unwrap()
+    };
+    for factory in ["Fleet/FlightFactory", "Fleet\\RouteFactory"] {
+        let result = run(&["make:factory", factory]);
+        assert!(result.status.success(), "{result:?}");
+    }
+    let flight = root.0.join("database/factories/fleet/flight_factory.rs");
+    let source = fs::read_to_string(&flight).unwrap();
+    assert!(source.contains("use crate::app::models::fleet::flight::Flight;"));
+    assert!(source.contains("type Model = Flight;"));
+    let route =
+        fs::read_to_string(root.0.join("database/factories/fleet/route_factory.rs")).unwrap();
+    assert!(route.contains("use crate::app::models::fleet::route::Route;"));
+
+    let args = ["make:factory", "Fleet/FlightFactory", "-m", "User"];
+    assert!(!run(&args).status.success());
+    assert_eq!(fs::read_to_string(&flight).unwrap(), source);
+    let result = run(&[
+        "make:factory",
+        "Fleet/FlightFactory",
+        "-m",
+        "User",
+        "--force",
+    ]);
+    assert!(result.status.success(), "{result:?}");
+    let source = fs::read_to_string(flight).unwrap();
+    assert!(source.contains("use crate::app::models::user::User;"));
+    assert!(source.contains("type Model = User;"));
+    assert!(!run(&["make:factory", "Fleet/Factory"]).status.success());
+}

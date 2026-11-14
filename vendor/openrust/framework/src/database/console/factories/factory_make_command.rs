@@ -17,7 +17,7 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         Syntax::new("make:factory")
             .about("Create a new Eloquent model factory")
             .arg(Arg::new("name").required(true))
-            .arg(Arg::new("model").long("model"))
+            .arg(Arg::new("model").short('m').long("model"))
             .arg(Arg::new("force").long("force").action(ArgAction::SetTrue)),
     ))))
 }
@@ -47,10 +47,15 @@ impl Command for FactoryMakeCommand {
             } else {
                 format!("{class}Factory")
             };
-            let model = arguments
-                .get_one::<String>("model")
-                .map_or_else(|| class.trim_end_matches("Factory"), String::as_str);
-            let model = model_import(model)?;
+            let model = match arguments.get_one::<String>("model") {
+                Some(model) => model_import(&type_parts(model)?),
+                None => {
+                    let model = class.strip_suffix("Factory").expect("factory suffix");
+                    let mut model_parts = namespaces.to_vec();
+                    model_parts.extend(type_parts(model)?);
+                    model_import(&model_parts)
+                }
+            };
             let mut relative = PathBuf::from("database/factories");
             relative.extend(namespaces.iter().map(|part| snake_case(part)));
             relative.push(format!("{}.rs", snake_case(&class)));
@@ -93,8 +98,7 @@ fn type_parts(name: &str) -> Result<Vec<&str>, ConsoleError> {
     Ok(parts)
 }
 
-fn model_import(name: &str) -> Result<String, ConsoleError> {
-    let parts = type_parts(name)?;
+fn model_import(parts: &[&str]) -> String {
     let class = *parts.last().expect("validated name");
     let mut import = String::from("crate::app::models");
     for part in parts {
@@ -103,5 +107,5 @@ fn model_import(name: &str) -> Result<String, ConsoleError> {
     }
     import.push_str("::");
     import.push_str(class);
-    Ok(import)
+    import
 }

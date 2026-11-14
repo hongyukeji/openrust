@@ -71,6 +71,26 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 用 `FlightFactory::new(attributes)` 或 `FlightFactory::newWithState(callback)` 在 `configure` 前登錄初始狀態。`FlightFactory::times(2)` 建立設定完成的兩筆批次。單筆與批次建構器的 `modelName()` 回傳繫結的 Rust 型別名稱。`newModel(attributes)` 依模型的批量賦值規則建構尚未儲存的模型，無須執行工廠定義與狀態。
 用 `Factory::<Flight>::factoryForModel()` 取得模型透過 `HasFactory` 繫結的工廠。繫結以編譯期模型型別為準。
 
+產生 `Fleet/FlightFactory` 等巢狀工廠時，Artisan 會推斷對應的 `app::models::fleet` 模型。可用 `--model` 或 `-m` 選擇其他模型。編譯前宣告產生的模組，模型和工廠仍透過 `FactoryDefinition::Model` 與 `HasFactory` 明確繫結。
+
+### 工廠擴充 {#factory-extensions}
+
+用 Rust 擴充 trait 為工廠提供可重複使用的方法。呼叫端匯入 trait 後，可以用方法為建構器套用具名狀態。
+
+```rust
+use openrust::database::eloquent::{Model, factories::Factory};
+
+trait FlightFactoryExt {
+    fn scheduled(self) -> Self;
+}
+
+impl<M: Model> FlightFactoryExt for Factory<M> {
+    fn scheduled(self) -> Self {
+        self.set("status", "scheduled")
+    }
+}
+```
+
 ### 本地化測試資料 {#localized-fake-data}
 
 下文涉及的上游格式以[上游 Faker 資料集與產生器](https://github.com/FakerPHP/Faker/tree/v1.24.1)為準。

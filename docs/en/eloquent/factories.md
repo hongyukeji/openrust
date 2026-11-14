@@ -71,6 +71,26 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 Use `FlightFactory::new(attributes)` or `FlightFactory::newWithState(callback)` to register the initial state before `configure`. `FlightFactory::times(2)` starts a configured batch of two. On either builder, `modelName()` returns the bound Rust type name. `newModel(attributes)` constructs an unsaved model using its normal mass-assignment rules, without evaluating the factory definition or states.
 Use `Factory::<Flight>::factoryForModel()` to obtain the factory bound by the model’s `HasFactory` implementation. The binding is explicit and uses the compiled model type.
 
+For a nested factory such as `Fleet/FlightFactory`, Artisan infers the model in the corresponding `app::models::fleet` module. Pass `--model` or `-m` to choose another model. Declare the generated modules before compiling. The compiled association remains explicit through `FactoryDefinition::Model` and `HasFactory`.
+
+### Factory Extensions {#factory-extensions}
+
+Use a Rust extension trait for reusable factory methods. The trait can be imported where needed and can return the original builder after applying a named state.
+
+```rust
+use openrust::database::eloquent::{Model, factories::Factory};
+
+trait FlightFactoryExt {
+    fn scheduled(self) -> Self;
+}
+
+impl<M: Model> FlightFactoryExt for Factory<M> {
+    fn scheduled(self) -> Self {
+        self.set("status", "scheduled")
+    }
+}
+```
+
 ### Localized Fake Data {#localized-fake-data}
 
 The [upstream Faker catalog](https://github.com/FakerPHP/Faker/tree/v1.24.1) is the reference for the formats described below.
