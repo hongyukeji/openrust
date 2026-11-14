@@ -223,6 +223,20 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### Bank Identifiers {#bank-identifier-samples}
+
+Use `iban(countryCode, prefix, length)` for IBAN samples with a modulo 97 checksum. Pass `None` for a random country or supply a two-letter code. Known countries use the fixed FakerPHP layouts. An unlisted code uses a numeric account body with the requested length, defaulting to 24 digits. The prefix replaces the beginning of that body and preserves leading zeros. Rust accepts uppercase ASCII letters and digits in the prefix and caps the account body at 30 characters. `swiftBicNumber()` returns an 8- or 11-character sample. Both methods support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn bank_samples() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en"))?;
+    let unique = faker.unique(false);
+    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swiftBicNumber()?))
+}
+```
+
 ### Postal Addresses and Titles {#address-and-title-samples}
 
 Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.

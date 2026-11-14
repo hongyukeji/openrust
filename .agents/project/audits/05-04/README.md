@@ -459,3 +459,13 @@ PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rus
 实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 与独立 MySQL 定向回归确认访问器与修改器顺序、隐藏列落库、追加字段跳过、JSON 和日期回查，以及重复唯一键导致整批零写入。Rust 1.94.0 格式与全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。测试按项目约定使用独立 MySQL 实例。
 
 合入同时提交的 Sanctum 基线 `b4d23daf` 后复验格式、严格 Clippy、MySQL 定向测试和实际 Seeder。清理本批独立构建与站点产物。后续继续核对其余 Faker 生成器和地区行为。
+
+## Faker 银行标识
+
+对应固定 Laravel 的模型工厂数据生成，OpenRust 的 `fake()` 增加 `iban` 和 `swiftBicNumber`，并分别维护 `unique` 历史。对照 FakerPHP v1.24.1 Payment provider，迁移 63 个国家的账号格式，保留前缀、校验位、未收录代码的 24 位数字回退和 BIC 可选分行后缀。Rust 使用类型化可选参数，对非两字母国家代码、非大写 ASCII 字母或数字的前缀、超过 30 字符的账号部分返回错误。固定 Goravel 保留现有编译工厂装配，v0.x 未找到对应方法。 [Laravel 工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) · [FakerPHP Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Payment.php#L241)
+
+PHP 8.5 执行固定 provider 和校验器，校验 63 种格式各 8 条 IBAN、128 条 BIC，并将 PHP 格式表与 Rust 数据逐项比较。Rust 回归覆盖模 97、前导零、自定义与默认长度、非法参数和唯一历史。独立 MySQL 8.4.13 用实际二进制运行 `artisan db:seed --database=mysql --force`，回查德国、英国及未收录国别的三条账号与 BIC。Rust 1.94.0 格式及全目标严格 Clippy、39 项 Seeder 测试、MySQL 与 SQLite 两项工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+下一批核对 Payment provider 的信用卡 formatter，其他地区特有的银行方法单独跟踪。
+
+已清理本批隔离副本的 2.2 GiB Cargo 产物与约 38 MiB 文档站产物，复查项目卷剩余 84 GiB。

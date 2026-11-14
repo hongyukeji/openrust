@@ -1,6 +1,6 @@
 use super::{
-    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_person, faker_phone,
-    regex_pattern::RegexPattern,
+    faker_address::DISTRICTS_ZH_CN, faker_miscellaneous, faker_payment::IBAN_FORMATS, faker_person,
+    faker_phone, regex_pattern::RegexPattern,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -877,6 +877,77 @@ impl Faker {
         code.push_str(prefix);
         code.push_str(&self.numerify(Some("#########")));
         ean_with_checksum(code)
+    }
+
+    /// Generates a sample IBAN using the selected country's account layout.
+    pub fn iban(
+        &self,
+        countryCode: Option<&str>,
+        prefix: &str,
+        length: Option<usize>,
+    ) -> DatabaseResult<String> {
+        let country = countryCode.map_or_else(
+            || {
+                IBAN_FORMATS[fastrand::usize(..IBAN_FORMATS.len())]
+                    .0
+                    .to_owned()
+            },
+            str::to_ascii_uppercase,
+        );
+        if country.len() != 2 || !country.bytes().all(|byte| byte.is_ascii_uppercase()) {
+            return Err(DatabaseError::InvalidQuery("Faker IBAN country code"));
+        }
+        if !prefix
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+        {
+            return Err(DatabaseError::InvalidQuery("Faker IBAN prefix"));
+        }
+        let layout = IBAN_FORMATS
+            .binary_search_by_key(&country.as_str(), |(code, _)| *code)
+            .ok()
+            .map(|index| IBAN_FORMATS[index].1);
+        let length = layout.map_or_else(|| length.unwrap_or(24), <[u8]>::len);
+        if length > 30 || prefix.len() > 30 {
+            return Err(DatabaseError::InvalidQuery("Faker IBAN account length"));
+        }
+        let mut account = String::with_capacity(length.max(prefix.len()));
+        account.push_str(prefix);
+        for index in prefix.len()..length {
+            let class = layout.map_or(b'n', |layout| layout[index]);
+            let letter = class == b'a' || (class == b'c' && fastrand::bool());
+            account.push(if letter {
+                char::from(fastrand::u8(b'A'..=b'Z'))
+            } else {
+                char::from(fastrand::u8(b'0'..=b'9'))
+            });
+        }
+        let remainder =
+            account
+                .bytes()
+                .chain(country.bytes())
+                .chain(*b"00")
+                .fold(0_u32, |remainder, byte| {
+                    if byte.is_ascii_digit() {
+                        (10 * remainder + u32::from(byte - b'0')) % 97
+                    } else {
+                        (100 * remainder + u32::from(byte - b'A') + 10) % 97
+                    }
+                });
+        Ok(format!("{country}{:02}{account}", 98 - remainder))
+    }
+
+    /// Generates a sample SWIFT/BIC code with an optional three-character branch suffix.
+    pub fn swiftBicNumber(&self) -> String {
+        const ALPHANUMERIC: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        let location_length = if fastrand::bool() { 2 } else { 5 };
+        let mut code = String::with_capacity(6 + location_length);
+        code.extend((0..6).map(|_| char::from(fastrand::u8(b'A'..=b'Z'))));
+        code.extend(
+            (0..location_length)
+                .map(|_| char::from(ALPHANUMERIC[fastrand::usize(..ALPHANUMERIC.len())])),
+        );
+        code
     }
 
     pub fn imei(&self) -> String {
@@ -1792,6 +1863,19 @@ impl UniqueFaker<'_> {
 
     pub fn isbn13(&self) -> DatabaseResult<String> {
         self.generate("isbn13", || self.0.isbn13())
+    }
+
+    pub fn iban(
+        &self,
+        countryCode: Option<&str>,
+        prefix: &str,
+        length: Option<usize>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("iban", || self.0.iban(countryCode, prefix, length))
+    }
+
+    pub fn swiftBicNumber(&self) -> DatabaseResult<String> {
+        self.generate("swiftBicNumber", || self.0.swiftBicNumber())
     }
 
     pub fn imei(&self) -> DatabaseResult<String> {

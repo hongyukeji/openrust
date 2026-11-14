@@ -223,6 +223,20 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 }
 ```
 
+### 银行标识 {#bank-identifier-samples}
+
+用 `iban(countryCode, prefix, length)` 生成带模 97 校验位的 IBAN 样本。传入 `None` 随机选择国家，或指定两字母代码。已收录国家使用固定 FakerPHP 格式，未收录代码使用指定长度的数字账号，默认 24 位。前缀替换账号开头并保留前导零。Rust 接受由 ASCII 大写字母和数字组成的前缀，账号部分最长 30 个字符。`swiftBicNumber()` 生成 8 或 11 个字符的样本，两者均支持 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn bank_samples() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en"))?;
+    let unique = faker.unique(false);
+    Ok((unique.iban(Some("DE"), "0012", None)?, unique.swiftBicNumber()?))
+}
+```
+
 ### 邮寄地址和称谓 {#address-and-title-samples}
 
 用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的上游 Faker 排列规则。城市、街道和部分地址组件仍使用 fake-rs 数据。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。

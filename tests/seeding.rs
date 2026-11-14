@@ -4448,3 +4448,72 @@ async fn factory_insert_projects_attributes_before_writing_on_mysql() {
         .await
         .unwrap();
 }
+
+fn assert_test_iban(iban: &str) {
+    let rotated = format!("{}{}", &iban[4..], &iban[..4]);
+    let decimal: String = rotated
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_digit() {
+                char::from(byte).to_string()
+            } else {
+                (byte - b'A' + 10).to_string()
+            }
+        })
+        .collect();
+    let remainder = decimal.bytes().fold(0_u32, |value, digit| {
+        (10 * value + u32::from(digit - b'0')) % 97
+    });
+    assert_eq!(remainder, 1);
+}
+
+#[test]
+fn faker_bank_identifiers_follow_fixed_layouts_and_checksums() -> DatabaseResult<()> {
+    let faker = openrust::database::eloquent::factories::fake(Some("en"))?;
+    let de = faker.iban(Some("de"), "0012", Some(1))?;
+    assert!(de.starts_with("DE"));
+    assert_eq!(de.len(), 22);
+    assert_eq!(&de[4..8], "0012");
+    assert!(de[4..].bytes().all(|byte| byte.is_ascii_digit()));
+    assert_test_iban(&de);
+
+    let gb = faker.iban(Some("GB"), "BANK", None)?;
+    assert_eq!(gb.len(), 22);
+    assert_eq!(&gb[4..8], "BANK");
+    assert!(gb[8..].bytes().all(|byte| byte.is_ascii_digit()));
+    assert_test_iban(&gb);
+    let fr = faker.iban(Some("FR"), "", None)?;
+    assert_eq!(fr.len(), 27);
+    assert!(fr[4..14].bytes().all(|byte| byte.is_ascii_digit()));
+    assert!(fr[14..25].bytes().all(|byte| byte.is_ascii_alphanumeric()));
+    assert!(fr[25..].bytes().all(|byte| byte.is_ascii_digit()));
+    assert_test_iban(&fr);
+
+    let fallback = faker.iban(Some("ZZ"), "", None)?;
+    assert_eq!(fallback.len(), 28);
+    assert!(fallback[4..].bytes().all(|byte| byte.is_ascii_digit()));
+    assert_test_iban(&fallback);
+    let short = faker.iban(Some("ZZ"), "003", Some(5))?;
+    assert_eq!(short.len(), 9);
+    assert_eq!(&short[4..7], "003");
+    assert_test_iban(&short);
+    assert!(faker.iban(Some("USA"), "", None).is_err());
+    assert!(faker.iban(Some("GB"), "bad-", None).is_err());
+    assert!(faker.iban(Some("ZZ"), "", Some(31)).is_err());
+    assert!(faker.iban(Some("GB"), &"A".repeat(31), None).is_err());
+
+    let unique = faker.unique(true);
+    let mut ibans = std::collections::HashSet::new();
+    let mut bics = std::collections::HashSet::new();
+    for _ in 0..128 {
+        let iban = unique.iban(None, "", None)?;
+        assert_test_iban(&iban);
+        assert!(ibans.insert(iban));
+        let bic = unique.swiftBicNumber()?;
+        assert!(matches!(bic.len(), 8 | 11));
+        assert!(bic[..6].bytes().all(|byte| byte.is_ascii_uppercase()));
+        assert!(bic[6..].bytes().all(|byte| byte.is_ascii_alphanumeric()));
+        assert!(bics.insert(bic));
+    }
+    Ok(())
+}
