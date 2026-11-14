@@ -853,6 +853,32 @@ pub async fn restore_role<P: Model, R: Model>(
 }
 ```
 
+### Creating or incrementing a related counter {#incrementing-related-counters}
+
+Use `incrementOrCreate` to attach a matching model or create it with an initial counter. For an existing model, the database adds the step atomically and writes any extra model attributes in the same update. The counter update fires `Updating` and `Updated`. Give the lookup attributes a unique constraint. The initial counter and step are explicit SQL numbers in Rust.
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn count_tag<P: Model, R: Model>(
+    tags: &BelongsToMany<P, R>,
+    post: &P,
+) -> DatabaseResult<Arc<R>> {
+    tags.incrementOrCreate(
+        post,
+        Attributes::from([("name".into(), "rust".into())]),
+        "count",
+        1_i64,
+        1_i64,
+        Attributes::new(),
+    ).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

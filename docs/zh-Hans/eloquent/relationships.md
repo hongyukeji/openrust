@@ -853,6 +853,32 @@ pub async fn restore_role<P: Model, R: Model>(
 }
 ```
 
+### 创建或递增关联模型的计数器 {#incrementing-related-counters}
+
+使用 `incrementOrCreate` 挂载匹配的模型，或以初始计数创建模型。已有模型由数据库原子加上步长，并在同一次更新写入额外模型属性。递增触发 `Updating` 和 `Updated`。请为匹配属性建立唯一约束。Rust 接口显式接收 SQL 数值作为初始计数和步长。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn count_tag<P: Model, R: Model>(
+    tags: &BelongsToMany<P, R>,
+    post: &P,
+) -> DatabaseResult<Arc<R>> {
+    tags.incrementOrCreate(
+        post,
+        Attributes::from([("name".into(), "rust".into())]),
+        "count",
+        1_i64,
+        1_i64,
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

@@ -309,6 +309,136 @@ pub(in crate::database::eloquent) async fn save_with_touch<M: Model>(
     result
 }
 
+pub(super) fn validate_counter<M: Model>(
+    column: &str,
+    default: &Value,
+    step: &Value,
+    extra: &super::Attributes,
+) -> DatabaseResult<()> {
+    let numeric = |value: &Value| match value {
+        Value::Integer(_) | Value::Unsigned(_) => true,
+        Value::Real(value) => value.is_finite(),
+        _ => false,
+    };
+    let key = M::metadata().primary_key;
+    if column.is_empty()
+        || column.contains(['.', '*'])
+        || column.eq_ignore_ascii_case(key)
+        || extra.keys().any(|name| name.eq_ignore_ascii_case(key))
+        || !numeric(default)
+        || !numeric(step)
+    {
+        return Err(DatabaseError::InvalidQuery("related model counter"));
+    }
+    Ok(())
+}
+
+pub(super) async fn increment_related<M: Model>(
+    model: M,
+    column: &str,
+    step: Value,
+    extra: super::Attributes,
+) -> DatabaseResult<M> {
+    let connection = connection(&model)?;
+    let counter = connection.grammar.column(column)?;
+    let column = column.to_owned();
+    let expression = format!("{counter} + ? as {counter}");
+    connection
+        .transaction(
+            |transaction| {
+                let mut model = M::from_state(model.state().clone());
+                let connection = connection.clone();
+                let column = column.clone();
+                let expression = expression.clone();
+                let step = step.clone();
+                let extra = extra.clone();
+                Box::pin(async move {
+                    let table = persistence_table(&model);
+                    // Project the next value using the database's arithmetic so the
+                    // event sees the same numeric representation as the write.
+                    let value = scoped_model(&model, transaction.table(table))?
+                        .selectRaw(&expression, vec![step.clone()])
+                        .lockForUpdate()
+                        .first()
+                        .await?
+                        .ok_or(DatabaseError::ModelNotFound(table))?;
+                    let next = value
+                        .get(&column)
+                        .cloned()
+                        .ok_or(DatabaseError::InvalidScalar)?;
+                    model.setAttribute(&column, next);
+
+                    let before_extra = model.state().attributes.clone();
+                    for (name, value) in extra {
+                        model.setAttributeValueAsync(&name, value).await?;
+                    }
+                    let mut assignments: super::Attributes = model
+                        .state()
+                        .attributes
+                        .iter()
+                        .filter(|(name, value)| before_extra.get(*name) != Some(*value))
+                        .map(|(name, value)| (name.clone(), value.clone()))
+                        .collect();
+                    if !fire_with_transaction(
+                        &mut model,
+                        &connection,
+                        Updating,
+                        true,
+                        Some(transaction),
+                    )
+                    .await?
+                    {
+                        return Ok(model);
+                    }
+                    if let Some(updated_at) = M::metadata().updated_at
+                        && !assignments.contains_key(updated_at)
+                    {
+                        assignments.insert(
+                            updated_at.into(),
+                            timestamp(&connection, M::metadata().date_format)?,
+                        );
+                    }
+                    scoped_model(&model, transaction.table(table))?
+                        .increment(&column, step, assignments.clone())
+                        .await?;
+
+                    let mut columns: Vec<_> = assignments
+                        .keys()
+                        .map(String::as_str)
+                        .chain([column.as_str()])
+                        .chain(M::metadata().refreshes.iter().copied())
+                        .collect();
+                    columns.sort_unstable();
+                    columns.dedup();
+                    let persisted: super::Attributes =
+                        scoped_model(&model, transaction.table(table))?
+                            .select(columns)
+                            .first()
+                            .await?
+                            .ok_or(DatabaseError::ModelNotFound(table))?
+                            .into_columns()
+                            .into_iter()
+                            .collect();
+                    let state = model.state_mut();
+                    state.apply_attributes(persisted.clone());
+                    state.changes = state.getDirty();
+                    fire_with_transaction(
+                        &mut model,
+                        &connection,
+                        Updated,
+                        false,
+                        Some(transaction),
+                    )
+                    .await?;
+                    model.state_mut().original.extend(persisted);
+                    Ok(model)
+                })
+            },
+            3,
+        )
+        .await
+}
+
 async fn refresh_saved_attributes<M: Model>(
     model: &M,
     connection: &Connection,

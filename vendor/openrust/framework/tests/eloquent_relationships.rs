@@ -4644,6 +4644,81 @@ async fn verify_restore_and_deferred_values(db: &Connection) {
     ));
 }
 
+async fn verify_increment_or_create(db: &Connection, concurrent: bool) {
+    let parent = Author::queryOn(db).findOrFail(1).await.unwrap();
+    let relation = FEATURED_POSTS
+        .withPivot(["label"])
+        .withPivotValue("label", "counter")
+        .unwrap();
+    let attributes = || Attributes::from([("title".into(), "counter-start".into())]);
+    let increment =
+        |extra| relation.incrementOrCreate(&parent, attributes(), "score", 300_i64, 2_i64, extra);
+    let created = increment(Attributes::new()).await.unwrap();
+    assert!(created.state().wasRecentlyCreated());
+    assert_eq!(created.getAttribute("score"), Some(&300.into()));
+
+    let updated = increment(Attributes::new()).await.unwrap();
+    assert!(!updated.state().wasRecentlyCreated());
+    assert_eq!(updated.getKey(), created.getKey());
+    assert_eq!(updated.getAttribute("score"), Some(&302.into()));
+    assert_eq!(
+        updated
+            .getRelation::<Pivot>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&"counter".into())
+    );
+
+    let extra = Attributes::from([("title".into(), "counter-renamed".into())]);
+    let updated = increment(extra).await.unwrap();
+    assert_eq!(
+        updated.getAttribute("title"),
+        Some(&"counter-renamed".into())
+    );
+    assert_eq!(updated.getAttribute("score"), Some(&304.into()));
+    if concurrent {
+        let attributes = || Attributes::from([("title".into(), "counter-renamed".into())]);
+        let increment = || {
+            relation.incrementOrCreate(
+                &parent,
+                attributes(),
+                "score",
+                300_i64,
+                2_i64,
+                Attributes::new(),
+            )
+        };
+        let (a, b) = tokio::join!(increment(), increment());
+        let mut scores = [a.unwrap(), b.unwrap()].map(|model| match model.getAttribute("score") {
+            Some(Value::Integer(score)) => *score,
+            other => panic!("expected integer counter, got {other:?}"),
+        });
+        scores.sort_unstable();
+        assert_eq!(scores, [306, 308]);
+    }
+    let persisted = Post::queryOn(db)
+        .findOrFail(created.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        persisted.getAttribute("score"),
+        Some(&if concurrent { 308.into() } else { 304.into() })
+    );
+    assert!(matches!(
+        relation
+            .incrementOrCreate(
+                &parent,
+                attributes(),
+                "score",
+                0_i64,
+                "invalid",
+                Attributes::new()
+            )
+            .await,
+        Err(DatabaseError::InvalidQuery(_))
+    ));
+}
+
 async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
     for sql in [
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80))",
@@ -4714,6 +4789,7 @@ async fn verify_create_or_first(db: &Connection, mysql: bool, split: bool) {
         .unwrap();
         Box::pin(verify_first_and_update_or_create(db)).await;
         Box::pin(verify_restore_and_deferred_values(db)).await;
+        Box::pin(verify_increment_or_create(db, mysql)).await;
     }
     for table in [
         "relation_featured_posts",
@@ -4812,6 +4888,112 @@ async fn verify_pivot_or_fail(db: &Connection, owner: &Author) {
     assert_eq!(changes.detached, keys[..1]);
 }
 
+struct CounterEvents;
+
+impl openrust::database::eloquent::concerns::ModelEventListener<Post> for CounterEvents {
+    fn handle<'a>(
+        &'a self,
+        _: openrust::database::eloquent::concerns::ModelEvent,
+        _: &'a mut Post,
+        _: &'a Connection,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+    > {
+        Box::pin(async { panic!("counter events must run in the update transaction") })
+    }
+
+    fn handleInTransaction<'a>(
+        &'a self,
+        event: openrust::database::eloquent::concerns::ModelEvent,
+        model: &'a mut Post,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> openrust::database::DatabaseFuture<
+        'a,
+        DatabaseResult<openrust::database::eloquent::concerns::ModelEventResponse>,
+    > {
+        use openrust::database::eloquent::concerns::{ModelEvent::*, ModelEventResponse::*};
+        Box::pin(async move {
+            let score = model.getAttribute("score").unwrap().clone();
+            transaction
+                .statement(
+                    "INSERT INTO relation_counter_events (event, score) VALUES (?, ?)",
+                    &[format!("{event:?}").into(), score],
+                )
+                .await?;
+            if event == Updated && model.getAttribute("score") == Some(&14.into()) {
+                return Err(DatabaseError::InvalidQuery(
+                    "counter observer rejected update",
+                ));
+            }
+            Ok(Continue)
+        })
+    }
+}
+
+async fn verify_counter_events(
+    app: &openrust::foundation::Application,
+    db: &Connection,
+    parent: &Author,
+) {
+    use openrust::database::eloquent::concerns::ModelEvent::{Saved, Saving, Updated, Updating};
+    for event in [Saving, Updating, Updated, Saved] {
+        Post::registerModelEvent(app, event, CounterEvents).unwrap();
+    }
+    db.statement(
+        "CREATE TABLE relation_counter_events (event VARCHAR(20), score BIGINT)",
+        &[],
+    )
+    .await
+    .unwrap();
+    let relation = FEATURED_POSTS;
+    let increment = || {
+        relation.incrementOrCreate(
+            parent,
+            Attributes::from([("title".into(), "second".into())]),
+            "score",
+            10_i64,
+            2_i64,
+            Attributes::new(),
+        )
+    };
+    assert_eq!(
+        increment().await.unwrap().getAttribute("score"),
+        Some(&12.into())
+    );
+    assert!(matches!(
+        increment().await,
+        Err(DatabaseError::InvalidQuery(
+            "counter observer rejected update"
+        ))
+    ));
+    let events = db
+        .table("relation_counter_events")
+        .orderBy("event", "asc")
+        .get()
+        .await
+        .unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].get("event"), Some(&"Updated".into()));
+    assert_eq!(events[1].get("event"), Some(&"Updating".into()));
+    assert!(
+        events
+            .iter()
+            .all(|event| event.get("score") == Some(&12.into()))
+    );
+    assert_eq!(
+        Post::queryOn(db)
+            .findOrFail(2)
+            .await
+            .unwrap()
+            .getAttribute("score"),
+        Some(&12.into())
+    );
+    db.statement("DROP TABLE relation_counter_events", &[])
+        .await
+        .unwrap();
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -4846,11 +5028,11 @@ async fn verify_custom_pivot(config: Json) {
         "DROP TABLE IF EXISTS relation_posts",
         "DROP TABLE IF EXISTS relation_authors",
         "CREATE TABLE relation_authors (id BIGINT PRIMARY KEY, name VARCHAR(80), updated_at VARCHAR(32))",
-        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME, updated_at VARCHAR(32), CHECK (id <> 4 OR updated_at = '2000-01-01 00:00:00'))",
+        "CREATE TABLE relation_posts (id BIGINT PRIMARY KEY, author_id BIGINT, title VARCHAR(80), deleted_at DATETIME, updated_at VARCHAR(32), score BIGINT DEFAULT 10, CHECK (id <> 4 OR updated_at = '2000-01-01 00:00:00'))",
         "CREATE TABLE relation_featured_posts (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label VARCHAR(80), PRIMARY KEY (author_id, post_id))",
         "CREATE TABLE relation_membership_events (event VARCHAR(30) NOT NULL)",
         "INSERT INTO relation_authors VALUES (1,'first','2000-01-01 00:00:00'),(2,'second','2000-01-01 00:00:00')",
-        "INSERT INTO relation_posts VALUES (1,1,'first',NULL,'2000-01-01 00:00:00'),(2,1,'second',NULL,'2000-01-01 00:00:00')",
+        "INSERT INTO relation_posts (id, author_id, title, deleted_at, updated_at) VALUES (1,1,'first',NULL,'2000-01-01 00:00:00'),(2,1,'second',NULL,'2000-01-01 00:00:00')",
         "INSERT INTO relation_featured_posts VALUES (2,1,'55'),(1,2,'99')",
     ] {
         db.statement(sql, &[]).await.unwrap();
@@ -5107,11 +5289,12 @@ async fn verify_custom_pivot(config: Json) {
         1
     );
     Box::pin(verify_toggle_and_touch(&db)).await;
-    db.statement("INSERT INTO relation_posts VALUES (3,1,'deleted','2000-01-01 00:00:00','2000-01-01 00:00:00'),(4,1,'reject touch',NULL,'2000-01-01 00:00:00')", &[]).await.unwrap();
+    db.statement("INSERT INTO relation_posts (id, author_id, title, deleted_at, updated_at) VALUES (3,1,'deleted','2000-01-01 00:00:00','2000-01-01 00:00:00'),(4,1,'reject touch',NULL,'2000-01-01 00:00:00')", &[]).await.unwrap();
     Box::pin(verify_related_touch(&db)).await;
     Box::pin(verify_save_touches_related(&db)).await;
     Box::pin(verify_inferred_pivot_touch(&db)).await;
     Box::pin(verify_pivot_or_fail(&db, &owner)).await;
+    Box::pin(verify_counter_events(&app, &db, &owner)).await;
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();

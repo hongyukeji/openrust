@@ -508,6 +508,33 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(Arc::new(model))
     }
 
+    /// Creates a related model with an initial counter or atomically increments an existing one.
+    pub async fn incrementOrCreate(
+        &self,
+        parent: &P,
+        attributes: Attributes,
+        column: &str,
+        default: impl Into<Value>,
+        step: impl Into<Value>,
+        mut extra: Attributes,
+    ) -> DatabaseResult<Arc<R>> {
+        let default = default.into();
+        let step = step.into();
+        super::super::persistence::validate_counter::<R>(column, &default, &step, &extra)?;
+        let mut values = extra.clone();
+        values.insert(column.into(), default);
+        extra.remove(column);
+        let model = self
+            .firstOrCreate(parent, attributes, values, Attributes::new())
+            .await?;
+        if model.state().wasRecentlyCreated() {
+            return Ok(model);
+        }
+        super::super::persistence::increment_related(owned_model(model), column, step, extra)
+            .await
+            .map(Arc::new)
+    }
+
     /// Finds or creates a related model and restores it through the model lifecycle.
     pub async fn restoreOrCreate<'a>(
         &self,

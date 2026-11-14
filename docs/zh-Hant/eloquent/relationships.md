@@ -853,6 +853,32 @@ pub async fn restore_role<P: Model, R: Model>(
 }
 ```
 
+### 建立或遞增關聯模型的計數器 {#incrementing-related-counters}
+
+使用 `incrementOrCreate` 掛載符合條件的模型，或以初始計數建立模型。既有模型由資料庫原子加上步長，並在同一次更新寫入額外模型屬性。遞增觸發 `Updating` 和 `Updated`。請為比對屬性建立唯一約束。Rust 介面明確接收 SQL 數值作為初始計數和步長。
+
+```rust
+use std::sync::Arc;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, relations::BelongsToMany},
+};
+
+pub async fn count_tag<P: Model, R: Model>(
+    tags: &BelongsToMany<P, R>,
+    post: &P,
+) -> DatabaseResult<Arc<R>> {
+    tags.incrementOrCreate(
+        post,
+        Attributes::from([("name".into(), "rust".into())]),
+        "count",
+        1_i64,
+        1_i64,
+        Attributes::new(),
+    ).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。
