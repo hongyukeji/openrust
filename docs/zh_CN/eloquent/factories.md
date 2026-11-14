@@ -810,6 +810,18 @@ fn romanian_cnp_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 爱沙尼亚、拉脱维亚和黑山姓名 {#estonian-latvian-and-montenegrin-names}
+
+`et-EE`、`lv-LV` 和 `me-ME` 使用各地的名字和姓氏词表，沿用名字在前的基础模板。拉脱维亚 `driverLicence()` 输出两个小写 ASCII 字母和六位数字。护照号码使用七位数字。可用 `personalIdentityNumberWithBirthdate` 传入公历出生日期。这些身份格式化器均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn latvian_driver_licence() -> DatabaseResult<String> {
+    fake(Some("lv-LV"))?.unique(false).driverLicence()
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

@@ -224,6 +224,9 @@ mod company;
 #[path = "faker_person.rs"]
 mod faker_person;
 
+#[path = "faker_person_baltic_montenegrin.rs"]
+mod baltic_montenegrin;
+
 #[path = "faker_person_romanian_serbian.rs"]
 mod romanian_serbian;
 

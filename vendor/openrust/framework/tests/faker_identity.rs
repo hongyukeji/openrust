@@ -2579,3 +2579,31 @@ fn romanian_cnp_keeps_the_pinned_date_county_and_checksum_contract() {
             .is_err()
     );
 }
+
+#[test]
+fn estonian_latvian_and_montenegrin_person_use_local_names() {
+    for locale in ["et-EE", "lv-LV", "me-ME"] {
+        let faker = fake(Some(locale)).unwrap();
+        for _ in 0..64 {
+            assert!(!faker.name().is_empty());
+            assert_ne!(faker.lastName(), "Doe");
+            assert!(["Mr.", "Dr.", "Prof."].contains(&faker.titleMale()));
+        }
+    }
+}
+
+#[test]
+fn latvian_driver_licence_uses_the_pinned_mask_and_unique_history() {
+    let faker = fake(Some("lv-LV")).unwrap();
+    let unique = faker.unique(true);
+    let mut licences = std::collections::HashSet::new();
+    for _ in 0..64 {
+        let licence = unique.driverLicence().unwrap();
+        let bytes = licence.as_bytes();
+        assert_eq!(bytes.len(), 8);
+        assert!(bytes[..2].iter().all(u8::is_ascii_lowercase));
+        assert!(bytes[2..].iter().all(u8::is_ascii_digit));
+        assert!(licences.insert(licence));
+    }
+    assert!(fake(Some("et-EE")).unwrap().driverLicence().is_err());
+}

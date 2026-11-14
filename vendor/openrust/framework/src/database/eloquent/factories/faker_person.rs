@@ -28,6 +28,8 @@ use super::south_southeast_asian as asian;
 
 use super::romanian_serbian;
 
+use super::baltic_montenegrin;
+
 pub(super) struct PersonNames {
     pub(super) male: &'static [&'static str],
     pub(super) female: &'static [&'static str],
@@ -9489,6 +9491,9 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "sr_RS" => &romanian_serbian::SR_RS,
         "sr_Cyrl_RS" => &romanian_serbian::SR_CYRL_RS,
         "sr_Latn_RS" => &romanian_serbian::SR_LATN_RS,
+        "et_EE" => &baltic_montenegrin::ET_EE,
+        "lv_LV" => &baltic_montenegrin::LV_LV,
+        "me_ME" => &baltic_montenegrin::ME_ME,
         _ => &EN_US,
     }
 }
@@ -10575,6 +10580,9 @@ pub(super) fn surnames(locale: &str) -> Option<&'static [&'static str]> {
         "sr_RS" => Some(romanian_serbian::SR_RS_SURNAMES),
         "sr_Cyrl_RS" => Some(romanian_serbian::SR_CYRL_RS_SURNAMES),
         "sr_Latn_RS" => Some(romanian_serbian::SR_LATN_RS_SURNAMES),
+        "et_EE" => Some(baltic_montenegrin::ET_EE_SURNAMES),
+        "lv_LV" => Some(baltic_montenegrin::LV_LV_SURNAMES),
+        "me_ME" => Some(baltic_montenegrin::ME_ME_SURNAMES),
         locale => iberian::surnames(locale),
     }
 }

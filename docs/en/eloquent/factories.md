@@ -810,6 +810,18 @@ fn romanian_cnp_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Estonian, Latvian, and Montenegrin Names {#estonian-latvian-and-montenegrin-names}
+
+The `et-EE`, `lv-LV`, and `me-ME` providers use their own given names and surnames with the base given-name-first template. Latvian `driverLicence()` emits two lower-case ASCII letters followed by six digits. Its passport formatter uses seven digits. Use `personalIdentityNumberWithBirthdate` to supply a civil birth date. These identity formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn latvian_driver_licence() -> DatabaseResult<String> {
+    fake(Some("lv-LV"))?.unique(false).driverLicence()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

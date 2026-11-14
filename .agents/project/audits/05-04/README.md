@@ -1034,3 +1034,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `372997f4`。PHP 8.5 校验 2,560 组固定上游姓名样本和 128 组 CNP。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并回读 640 个姓名和 128 个 CNP，验证姓名成分词表、模板、日期、县代码、性别与居住身份前缀、序列和校验位。48 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译及实际运行、VitePress 与六项浏览器检查通过。首轮发现旧马来西亚测试将当地词表允许的 John／Jane 一律判为错误，修正断言后复验通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对爱沙尼亚、拉脱维亚和黑山 Person。
+
+## Faker 爱沙尼亚、拉脱维亚和黑山 Person
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[爱沙尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/et_EE/Person.php)、[拉脱维亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/lv_LV/Person.php)和[黑山](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/me_ME/Person.php)词表及继承模板。接通三地姓名入口，拉脱维亚新增 `driverLicence()` 和去重，复验已有护照及个人身份号码。Rust 沿用显式 locale 和 Result，既有公历日期入口表达拉脱维亚出生日期。v0.x 未找到对应实现，沿用现有编译式工厂接线。
+
+隔离基线 `beed80a3`。PHP 8.5 核对 1,536 组上游姓名以及 128 组拉脱维亚证件样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 384 个姓名及 384 个拉脱维亚证件值，校验词表、模板、掩码和身份校验位。50 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译及实际运行、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对印度和尼泊尔 Person 模板及中间名。

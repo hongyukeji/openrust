@@ -263,6 +263,16 @@ impl Faker {
         Ok(CODES[fastrand::usize(..CODES.len())])
     }
 
+    /// Samples a Latvian driving licence number.
+    pub fn driverLicence(&self) -> DatabaseResult<String> {
+        if self.locale() != "lv_LV" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker driving licence locale",
+            ));
+        }
+        Ok(self.bothify(Some("??######")))
+    }
+
     /// Samples a passport number using the Lithuanian or Latvian provider.
     pub fn passportNumber(&self) -> DatabaseResult<String> {
         match self.locale() {
@@ -954,6 +964,10 @@ impl UniqueFaker<'_> {
 
     pub fn kpp(&self, inn: Option<&str>) -> DatabaseResult<String> {
         self.try_generate("kpp", || self.0.kpp(inn))
+    }
+
+    pub fn driverLicence(&self) -> DatabaseResult<String> {
+        self.try_generate("driverLicence", || self.0.driverLicence())
     }
 
     pub fn passportNumber(&self) -> DatabaseResult<String> {
