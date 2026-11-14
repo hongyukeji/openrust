@@ -136,6 +136,10 @@ impl MiddlewareRegistry {
             "ability" => Arc::new(crate::sanctum::CheckForAnyAbility::new(
                 parameters.split(','),
             )),
+            #[cfg(feature = "sanctum")]
+            "scopes" => Arc::new(crate::sanctum::CheckScopes::new(parameters.split(','))),
+            #[cfg(feature = "sanctum")]
+            "scope" => Arc::new(crate::sanctum::CheckForAnyScope::new(parameters.split(','))),
             "can" => Arc::new(crate::auth::middleware::Authorize::parse(parameters)?),
             "signed" => Arc::new(ValidateSignature::parse(parameters)?),
             "verified" => Arc::new(crate::auth::middleware::EnsureEmailIsVerified::redirect_to(

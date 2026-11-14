@@ -30,6 +30,8 @@ struct Extensions {
     providers: HashMap<String, Arc<ProviderFactory>>,
     models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
     requests: HashMap<String, Arc<Resolver>>,
+    #[cfg(feature = "sanctum")]
+    sanctum_models: std::collections::HashSet<std::any::TypeId>,
 }
 
 /// Application-level guard definitions. Guard state lives in the HTTP request.
@@ -88,6 +90,36 @@ impl AuthManager {
                     }),
                 ),
             );
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub fn registerSanctumModel<M: crate::sanctum::HasApiTokens>(&self, name: impl Into<String>) {
+        self.registerModel::<M>(name);
+        self.extensions
+            .write()
+            .expect("auth extensions lock")
+            .sanctum_models
+            .insert(std::any::TypeId::of::<M>());
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn supports_sanctum_tokens(&self, user: &dyn Authenticatable) -> bool {
+        self.extensions
+            .read()
+            .expect("auth extensions lock")
+            .sanctum_models
+            .contains(&user.type_id())
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn guard_uses_driver(
+        &self,
+        request: &Request,
+        name: &str,
+        driver: &str,
+    ) -> AuthResult<bool> {
+        let (_, config) = self.guard_config(request, Some(name))?;
+        Ok(text(&config, "driver")? == driver)
     }
 
     #[cfg(feature = "sanctum")]
@@ -227,8 +259,18 @@ impl AuthManager {
         }
         let config = self.config.get(&format!("auth.guards.{name}"));
         #[cfg(feature = "sanctum")]
-        let config = config
-            .or_else(|| (name == "sanctum").then(|| serde_json::json!({"driver": "sanctum"})));
+        let config = if name == "sanctum" {
+            let mut config = config.unwrap_or_else(|| serde_json::json!({}));
+            if let Some(overrides) = config.as_object_mut() {
+                overrides
+                    .entry("driver")
+                    .or_insert_with(|| Value::from("sanctum"));
+                overrides.entry("provider").or_insert(Value::Null);
+            }
+            Some(config)
+        } else {
+            config
+        };
         let config = config.ok_or(AuthError::Configuration("guard"))?;
         Ok((name, config))
     }

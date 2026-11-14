@@ -35,6 +35,9 @@ impl Model for User {
     }
 }
 
+#[cfg(feature = "sanctum")]
+impl openrust::sanctum::HasApiTokens for User {}
+
 impl Authenticatable for User {
     fn get_auth_identifier_name(&self) -> &str {
         self.getKeyName()

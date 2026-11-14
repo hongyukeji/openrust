@@ -257,6 +257,12 @@ fn api() -> Result<(), RoutingError> {
             router
                 .get("/any", whoami)?
                 .middleware_name("ability:write,read");
+            router
+                .get("/scopes", whoami)?
+                .middleware_name("scopes:read,write");
+            router
+                .get("/scope", whoami)?
+                .middleware_name("scope:write,read");
             router.r#match(&[Method::POST], "/user", whoami)?;
             Ok(())
         },
@@ -357,7 +363,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                     json!({"validate_csrf_token":"custom-csrf"})
                 } else { json!({}) }})),
             ("auth".into(), json!({
-                "guards":{"web":{"driver":"session","provider":"users"},"restricted":{"driver":"sanctum","provider":"users"}},
+                "guards":{"web":{"driver":"session","provider":"users"},"sanctum":{"provider":null},"restricted":{"driver":"sanctum","provider":"users"}},
                 "providers":{"users":{"driver":"eloquent","model":"SanctumUser"}}
             })),
         ].into()))
@@ -374,8 +380,9 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .set("database.connections.fixture", database.clone())
         .unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.registerModel::<User<false, KEY>>("SanctumUser");
-    auth.registerModel::<User<true>>("ServiceAccount");
+    auth.registerSanctumModel::<User<false, KEY>>("SanctumUser");
+    auth.registerSanctumModel::<User<true>>("ServiceAccount");
+    auth.registerModel::<User<false, 9>>("WithoutTokens");
     MorphMap::morphMap(
         &app,
         [
@@ -416,7 +423,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .set("app.url", json!("https://spa.example:8443/frontend"))
             .unwrap();
         config.set("sanctum", json!({
-            "expiration":5,"token_prefix":"fixture_","middleware":{"validate_csrf_token":"custom-csrf"}
+            "expiration":5,"token_prefix":"fixture_","guard":["web","restricted"],"middleware":{"validate_csrf_token":"custom-csrf"}
         })).unwrap();
     }
     let token_table = if custom_csrf {
@@ -619,6 +626,10 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .createToken(&sanctum, &database, "related", &["read"], None)
         .await
         .unwrap();
+    let payload: Value = serde_json::from_str(&issued.toJson().unwrap()).unwrap();
+    assert_eq!(payload["plainTextToken"], issued.plain_text_token.as_str());
+    assert_eq!(payload["accessToken"]["id"], json!(issued.access_token.id));
+    assert!(payload["accessToken"].get("token").is_none());
     assert_eq!(issued.access_token.tokenable_type, "users_alias");
     assert_eq!(issued.access_token.tokenable_id, owner(4));
     let morphs = app.container().make::<MorphMap>().unwrap();
@@ -660,11 +671,15 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .is_some()
     );
 
+    let unsupported = tokens
+        .createToken("WithoutTokens", owner(1), "unsupported", &["*"], None)
+        .await
+        .unwrap();
     let events = app
         .container()
         .make::<Dispatcher>()
         .unwrap()
-        .fake(&["TokenAuthenticated"]);
+        .fake(&[TokenAuthenticated::NAME]);
     let (base, server) = start(app).await;
     let client = Client::builder()
         .timeout(std::time::Duration::from_secs(7))
@@ -675,6 +690,15 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .get(format!("{base}{path}"))
             .header(header::ACCEPT, "application/json")
     };
+    assert_eq!(
+        get("/api/user")
+            .bearer_auth(unsupported.plain_text_token.as_str())
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        401
+    );
     if custom_csrf {
         use ModelEvent::*;
         model_events.take();
@@ -788,11 +812,11 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         401
     );
 
-    events.assertDispatchedTimes("TokenAuthenticated", if custom_csrf { 6 } else { 5 });
-    let first = events.dispatched("TokenAuthenticated");
+    events.assertDispatchedTimes(TokenAuthenticated::NAME, if custom_csrf { 6 } else { 5 });
+    let first = events.dispatched(TokenAuthenticated::NAME);
     let first = first[0].downcast_ref::<TokenAuthenticated>().unwrap();
-    assert_eq!(first.access_token.id, read.access_token.id.clone());
-    assert!(first.access_token.last_used_at.is_none());
+    assert_eq!(first.token.id, read.access_token.id.clone());
+    assert!(first.token.last_used_at.is_none());
 
     if custom_csrf {
         for (credential, expected) in [(&read, 200), (&service, 401)] {
@@ -1210,14 +1234,17 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
                 .ok_or(HttpError::Unauthenticated)?;
             let mut other = User::<false, 0>(ModelState::default());
             other.setAttribute("id", SqlValue::Unsigned(43));
-            Response::json(
-                StatusCode::OK,
-                json!({
-                    "read": user.tokenCan(request, "read"),
-                    "write_denied": user.tokenCant(request, "write"),
-                    "other_denied": other.tokenCant(request, "read"),
-                }),
-            )
+            let abilities = json!({
+                "read": user.tokenCan(request, "read"),
+                "write_denied": user.tokenCant(request, "write"),
+                "other_denied": other.tokenCant(request, "read"),
+            });
+            let token = AccessToken::Test(Arc::from(["write".to_owned()]));
+            assert!(other.withAccessToken(request, token.clone()).is_err());
+            user.withAccessToken(request, token)?;
+            assert!(user.tokenCan(request, "write"));
+            assert!(user.tokenCant(request, "read"));
+            Response::json(StatusCode::OK, abilities)
         })
     }
 
@@ -1271,6 +1298,27 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         .await
         .unwrap()
         .assertStatus(StatusCode::FORBIDDEN);
+    app.get("/api/scope").await.unwrap().assertOk();
+    for (path, message) in [
+        ("/api/all", "Invalid ability provided."),
+        ("/api/scopes", "Invalid scope(s) provided."),
+    ] {
+        let response = app
+            .call(
+                axum::http::Request::get(path)
+                    .header("accept", "application/json")
+                    .body(openrust::http::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        response.assertStatus(StatusCode::FORBIDDEN);
+        assert_eq!(response.json::<Value>().unwrap()["message"], message);
+    }
+    let missing = openrust::sanctum::MissingAbilityException::new(["read"]);
+    assert_eq!(missing.abilities(), ["read"]);
+    let missing = openrust::sanctum::MissingScopeException::new(["write", "read"]);
+    assert_eq!(missing.scopes(), ["write", "read"]);
     other
         .get("/api/user")
         .await
@@ -1290,4 +1338,44 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
         .await
         .unwrap()
         .assertStatus(StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations() {
+    let mut app = TestApp::create(|builder| builder).unwrap();
+    let config = app.root().join("config/sanctum.rs");
+    let migration = app
+        .root()
+        .join("database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs");
+    assert_eq!(
+        app.artisan(["vendor:publish", "--tag=sanctum-config"])
+            .await
+            .status,
+        0
+    );
+    assert!(config.is_file());
+    assert!(!migration.exists());
+    std::fs::write(&config, "// customized").unwrap();
+    assert_eq!(
+        app.artisan([
+            "vendor:publish",
+            "--provider=OpenRust\\Sanctum\\SanctumServiceProvider"
+        ])
+        .await
+        .status,
+        0
+    );
+    assert_eq!(std::fs::read_to_string(&config).unwrap(), "// customized");
+    assert!(migration.is_file());
+    assert_eq!(
+        app.artisan(["vendor:publish", "--force", "--tag=sanctum-config"])
+            .await
+            .status,
+        0
+    );
+    assert!(
+        std::fs::read_to_string(config)
+            .unwrap()
+            .contains("SANCTUM_TOKEN_PREFIX")
+    );
 }

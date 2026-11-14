@@ -16,7 +16,7 @@ const TABLE: &str = "personal_access_tokens";
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
 /// A persisted token. Its digest is kept in storage and its secret is only returned at issuance.
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize)]
 pub struct PersonalAccessToken {
     pub id: AuthIdentifier,
     pub tokenable_type: String,
@@ -53,6 +53,24 @@ impl PersonalAccessToken {
 pub struct NewAccessToken {
     pub access_token: PersonalAccessToken,
     pub plain_text_token: Zeroizing<String>,
+}
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Sanctum's explicit serialization API"
+)]
+impl NewAccessToken {
+    /// Includes the plaintext credential for the issuance response.
+    pub fn toArray(&self) -> serde_json::Value {
+        serde_json::json!({
+            "accessToken": self.access_token,
+            "plainTextToken": self.plain_text_token.as_str(),
+        })
+    }
+
+    pub fn toJson(&self) -> serde_json::Result<Zeroizing<String>> {
+        serde_json::to_string(&self.toArray()).map(Zeroizing::new)
+    }
 }
 
 /// Persists and retrieves personal access tokens on the selected application connection.
@@ -92,8 +110,26 @@ impl PersonalAccessTokens {
         abilities: &[&str],
         expires_at: Option<DateTime<Utc>>,
     ) -> AuthResult<NewAccessToken> {
-        let tokenable_id = tokenable_id.into();
-        let secret = self.generateTokenString()?;
+        self.create_with_secret(
+            tokenable_type,
+            tokenable_id.into(),
+            name,
+            abilities,
+            expires_at,
+            generate_secret(&self.prefix)?,
+        )
+        .await
+    }
+
+    pub(super) async fn create_with_secret(
+        &self,
+        tokenable_type: &str,
+        tokenable_id: AuthIdentifier,
+        name: &str,
+        abilities: &[&str],
+        expires_at: Option<DateTime<Utc>>,
+        secret: Zeroizing<String>,
+    ) -> AuthResult<NewAccessToken> {
         if let Some(model) = &self.model {
             let access_token = model
                 .create(Record::from([
@@ -361,30 +397,29 @@ impl PersonalAccessTokens {
             .map_err(AuthError::backend)?;
         Ok(())
     }
-
-    fn generateTokenString(&self) -> AuthResult<Zeroizing<String>> {
-        const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-        let mut entropy = Zeroizing::new(String::with_capacity(40));
-        let mut random = Zeroizing::new([0_u8; 64]);
-        while entropy.len() < 40 {
-            rand::fill(random.as_mut()).map_err(AuthError::backend)?;
-            for &byte in random.iter().filter(|&&byte| byte < 248) {
-                entropy.push(char::from(ALPHABET[usize::from(byte % 62)]));
-                if entropy.len() == 40 {
-                    break;
-                }
-            }
-        }
-        let checksum = crc32fast::hash(entropy.as_bytes());
-        Ok(Zeroizing::new(format!(
-            "{}{}{:08x}",
-            self.prefix,
-            entropy.as_str(),
-            checksum
-        )))
-    }
 }
 
+pub(super) fn generate_secret(prefix: &str) -> AuthResult<Zeroizing<String>> {
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut entropy = Zeroizing::new(String::with_capacity(40));
+    let mut random = Zeroizing::new([0_u8; 64]);
+    while entropy.len() < 40 {
+        rand::fill(random.as_mut()).map_err(AuthError::backend)?;
+        for &byte in random.iter().filter(|&&byte| byte < 248) {
+            entropy.push(char::from(ALPHABET[usize::from(byte % 62)]));
+            if entropy.len() == 40 {
+                break;
+            }
+        }
+    }
+    let checksum = crc32fast::hash(entropy.as_bytes());
+    Ok(Zeroizing::new(format!(
+        "{}{}{:08x}",
+        prefix,
+        entropy.as_str(),
+        checksum
+    )))
+}
 pub(super) fn token_hash(token: &str) -> String {
     let hash = digest::digest(&digest::SHA256, token.as_bytes());
     let mut output = String::with_capacity(64);

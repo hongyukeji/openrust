@@ -6,60 +6,116 @@ use crate::{
 
 use super::AccessToken;
 
-pub struct CheckAbilities(Vec<String>);
-pub struct CheckForAnyAbility(Vec<String>);
+#[derive(Debug)]
+pub struct MissingAbilityException(Vec<String>);
 
-impl CheckAbilities {
-    pub fn new(abilities: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        Self(abilities.into_iter().map(Into::into).collect())
+impl std::fmt::Display for MissingAbilityException {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(Self::MESSAGE)
     }
 }
 
-impl CheckForAnyAbility {
-    pub fn new(abilities: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        Self(abilities.into_iter().map(Into::into).collect())
+impl std::error::Error for MissingAbilityException {}
+
+impl MissingAbilityException {
+    pub(crate) const MESSAGE: &str = "Invalid ability provided.";
+
+    pub fn new(values: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self(values.into_iter().map(Into::into).collect())
+    }
+
+    pub fn abilities(&self) -> &[String] {
+        &self.0
     }
 }
 
-async fn current_token(request: &mut Request) -> Result<&AccessToken, HttpError> {
-    if Auth::user(request).await?.is_none() {
-        return Err(HttpError::Unauthenticated);
+#[derive(Debug)]
+pub struct MissingScopeException(Vec<String>);
+
+impl std::fmt::Display for MissingScopeException {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(Self::MESSAGE)
     }
-    AccessToken::currentAccessToken(request).ok_or(HttpError::Unauthenticated)
 }
 
-impl Middleware for CheckAbilities {
+impl std::error::Error for MissingScopeException {}
+
+impl MissingScopeException {
+    pub(crate) const MESSAGE: &str = "Invalid scope(s) provided.";
+
+    pub fn new(values: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Self(values.into_iter().map(Into::into).collect())
+    }
+
+    pub fn scopes(&self) -> &[String] {
+        &self.0
+    }
+}
+
+struct AbilityCheck {
+    values: Vec<String>,
+    any: bool,
+    scopes: bool,
+}
+
+impl Middleware for AbilityCheck {
     fn handle<'a>(
         &'a self,
         request: &'a mut Request,
         next: Next<'a>,
     ) -> HttpFuture<'a, Result<Response, HttpError>> {
         Box::pin(async move {
-            let token = current_token(request).await?;
-            if let Some(ability) = self.0.iter().find(|ability| token.cant(ability)) {
-                return Err(HttpError::AuthorizationDenied(format!(
-                    "Missing ability: {ability}"
-                )));
+            if Auth::user(request).await?.is_none() {
+                return Err(HttpError::Unauthenticated);
             }
-            Ok(next.run(request).await)
+            let token =
+                AccessToken::currentAccessToken(request).ok_or(HttpError::Unauthenticated)?;
+            let missing = if self.any {
+                (!self.values.iter().any(|ability| token.can(ability))).then(|| self.values.clone())
+            } else {
+                self.values
+                    .iter()
+                    .find(|ability| token.cant(ability))
+                    .map(|ability| vec![ability.clone()])
+            };
+            match missing {
+                None => Ok(next.run(request).await),
+                Some(values) if self.scopes => {
+                    Err(HttpError::MissingScope(MissingScopeException(values)))
+                }
+                Some(values) => Err(HttpError::MissingAbility(MissingAbilityException(values))),
+            }
         })
     }
 }
 
-impl Middleware for CheckForAnyAbility {
-    fn handle<'a>(
-        &'a self,
-        request: &'a mut Request,
-        next: Next<'a>,
-    ) -> HttpFuture<'a, Result<Response, HttpError>> {
-        Box::pin(async move {
-            let token = current_token(request).await?;
-            if !self.0.iter().any(|ability| token.can(ability)) {
-                return Err(HttpError::AuthorizationDenied(
-                    "Missing required ability.".into(),
-                ));
+macro_rules! middleware {
+    ($name:ident, $any:expr, $scopes:expr) => {
+        pub struct $name(AbilityCheck);
+
+        impl $name {
+            pub fn new(abilities: impl IntoIterator<Item = impl Into<String>>) -> Self {
+                Self(AbilityCheck {
+                    values: abilities.into_iter().map(Into::into).collect(),
+                    any: $any,
+                    scopes: $scopes,
+                })
             }
-            Ok(next.run(request).await)
-        })
-    }
+        }
+
+        impl Middleware for $name {
+            fn handle<'a>(
+                &'a self,
+                request: &'a mut Request,
+                next: Next<'a>,
+            ) -> HttpFuture<'a, Result<Response, HttpError>> {
+                self.0.handle(request, next)
+            }
+        }
+    };
 }
+
+middleware!(CheckAbilities, false, false);
+middleware!(CheckForAnyAbility, true, false);
+middleware!(CheckScopes, false, true);
+middleware!(CheckForAnyScope, true, true);

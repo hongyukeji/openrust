@@ -45,8 +45,14 @@ impl Middleware for AuthenticateSession {
                 return Ok(next.run(request).await);
             }
             let auth = Auth::manager()?;
-            let mut invalid = false;
+            let mut session_guards = Vec::new();
             for guard in &self.guards {
+                if auth.guard_uses_driver(request, guard, "session")? {
+                    session_guards.push(guard);
+                }
+            }
+            let mut invalid = false;
+            for guard in &session_guards {
                 let key = format!("password_hash_{guard}");
                 let Some(stored) = request
                     .session()
@@ -56,13 +62,14 @@ impl Middleware for AuthenticateSession {
                 else {
                     continue;
                 };
-                let user = auth.userForGuard(request, Some(guard)).await?;
-                let expected =
-                    self.fingerprint(user.as_ref().and_then(|user| user.get_auth_password()));
-                let valid = serde_json::from_value::<Vec<u8>>(stored)
-                    .is_ok_and(|stored| user.is_some() && bool::from(stored.ct_eq(&expected)));
+                let user = auth.userForGuard(request, Some(guard.as_str())).await?;
+                let valid = user.is_some_and(|user| {
+                    let password = user.get_auth_password();
+                    serde_json::from_value::<Vec<u8>>(stored)
+                        .is_ok_and(|stored| bool::from(stored.ct_eq(&self.fingerprint(password))))
+                });
                 if !valid {
-                    auth.sessionGuard(request, Some(guard))?
+                    auth.sessionGuard(request, Some(guard.as_str()))?
                         .logoutCurrentDevice()?;
                     invalid = true;
                 }
@@ -74,7 +81,7 @@ impl Middleware for AuthenticateSession {
             }
 
             let response = next.run(request).await;
-            for guard in &self.guards {
+            for guard in session_guards {
                 if let Some(user) = AuthManager::resolved_user(request, guard) {
                     let fingerprint = self.fingerprint(user.get_auth_password());
                     request

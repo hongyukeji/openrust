@@ -18,7 +18,7 @@ use crate::{
 use super::{AccessToken, RequestTokens, Sanctum, TokenAuthenticated};
 
 #[derive(Clone)]
-pub(crate) struct Guard {
+pub struct Guard {
     name: String,
     session_guards: Vec<String>,
     provider_model: Option<String>,
@@ -27,7 +27,7 @@ pub(crate) struct Guard {
 }
 
 impl Guard {
-    pub(crate) fn new(name: String, config: &dyn Repository, guard: &Value) -> AuthResult<Self> {
+    pub fn new(name: String, config: &dyn Repository, guard: &Value) -> AuthResult<Self> {
         let session_guards = session_guards(config)?;
         let provider_model = guard
             .get("provider")
@@ -52,7 +52,7 @@ impl Guard {
         })
     }
 
-    pub(crate) async fn resolve(
+    pub async fn resolve(
         &self,
         container: &Container,
         request: &mut Request,
@@ -62,8 +62,14 @@ impl Guard {
             .map_err(AuthError::backend)?;
         if request.hasSession() {
             for name in &self.session_guards {
+                // Delegating to another Sanctum guard can recursively enter this same chain.
+                if auth.guard_uses_driver(request, name, "sanctum")? {
+                    continue;
+                }
                 if let Some(user) = auth.userForGuard(request, Some(name)).await? {
-                    RequestTokens::insert(request, &self.name, AccessToken::Transient);
+                    if auth.supports_sanctum_tokens(user.as_ref()) {
+                        RequestTokens::insert(request, &self.name, AccessToken::Transient);
+                    }
                     return Ok(Some(user));
                 }
             }
@@ -95,7 +101,7 @@ impl Guard {
         ) {
             return Ok(None);
         }
-        let Some(user) = user else {
+        let Some(user) = user.filter(|user| auth.supports_sanctum_tokens(user.as_ref())) else {
             return Ok(None);
         };
         let token = Arc::new(token);
@@ -104,7 +110,7 @@ impl Guard {
             .map_err(AuthError::backend)?
             .dispatch(
                 Arc::new(TokenAuthenticated {
-                    access_token: token.clone(),
+                    token: token.clone(),
                 }),
                 &mut EventContext::new(),
             )
@@ -142,9 +148,9 @@ pub(super) fn expiration(config: &dyn Repository) -> AuthResult<Option<TimeDelta
 }
 
 pub(super) fn session_guards(config: &dyn Repository) -> AuthResult<Vec<String>> {
-    let guards = match config.get("sanctum.guard") {
+    Ok(match config.get("sanctum.guard") {
         None if config.get("auth.guards.web").is_some() => vec!["web".to_owned()],
-        None => Vec::new(),
+        None | Some(Value::Null) => Vec::new(),
         Some(Value::String(name)) => vec![name],
         Some(Value::Array(names)) => names
             .into_iter()
@@ -154,16 +160,5 @@ pub(super) fn session_guards(config: &dyn Repository) -> AuthResult<Vec<String>>
             })
             .collect::<AuthResult<_>>()?,
         _ => return Err(AuthError::Configuration("sanctum.guard")),
-    };
-    for name in &guards {
-        if config
-            .get(&format!("auth.guards.{name}.driver"))
-            .as_ref()
-            .and_then(Value::as_str)
-            != Some("session")
-        {
-            return Err(AuthError::Configuration("sanctum session guard"));
-        }
-    }
-    Ok(guards)
+    })
 }

@@ -109,7 +109,10 @@ impl Kernel {
                             maintenance_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]
-                            crate::sanctum::prune_expired::register(&mut self.artisan)?;
+                            {
+                                crate::sanctum::prune_expired::register(&mut self.artisan)?;
+                                crate::sanctum::publish::register(&mut self.artisan)?;
+                            }
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::queue::console::register(&mut self.artisan)?;
                             crate::notifications::console::register(&mut self.artisan)?;

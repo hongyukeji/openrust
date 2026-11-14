@@ -122,8 +122,19 @@ impl<M: Model> EloquentTokenStore<M> {
         query.r#where("tokenable_type", "=", owner).r#where(
             "tokenable_id",
             "=",
-            Value::from(owner_id),
+            Value::from(owner_id.clone()),
         );
+        if !self.connection.is_sqlite() {
+            // Keep the indexable predicates and disallow MySQL's implicit numeric/collation matches.
+            query.whereNested(|conditions| {
+                conditions
+                    .whereRaw("BINARY tokenable_type = BINARY ?", vec![owner.into()])
+                    .whereRaw(
+                        "BINARY CAST(tokenable_id AS CHAR) = BINARY ?",
+                        vec![owner_id.to_string().into()],
+                    )
+            });
+        }
         query
     }
 

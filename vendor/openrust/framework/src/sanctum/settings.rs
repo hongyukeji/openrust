@@ -133,16 +133,8 @@ impl Sanctum {
     ) -> AuthResult<PersonalAccessTokens> {
         let model = *self.model.read().expect("Sanctum token model lock");
         let mut prefix = prefix.into();
-        if prefix.is_empty()
-            && let Some(configured) = self
-                .config
-                .as_ref()
-                .and_then(|config| config.get("sanctum.token_prefix"))
-        {
-            prefix = configured
-                .as_str()
-                .ok_or(AuthError::Configuration("sanctum.token_prefix"))?
-                .to_owned();
+        if prefix.is_empty() {
+            prefix = self.token_prefix()?;
         }
         match model {
             Some(model) => (model.store)(database, prefix),
@@ -150,6 +142,20 @@ impl Sanctum {
                 database.connection(None).map_err(AuthError::backend)?,
                 prefix,
             )),
+        }
+    }
+
+    pub(super) fn token_prefix(&self) -> AuthResult<String> {
+        match self
+            .config
+            .as_ref()
+            .and_then(|config| config.get("sanctum.token_prefix"))
+        {
+            Some(value) => value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or(AuthError::Configuration("sanctum.token_prefix")),
+            None => Ok(String::new()),
         }
     }
 

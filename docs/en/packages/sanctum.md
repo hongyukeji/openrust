@@ -4,6 +4,8 @@
 
 Run `./artisan install:api` to create `routes/api.rs` and register it in the application. Build with `cargo build --features sanctum` to enable the generated `GET /api/user` endpoint and the compiled migration. In a Sanctum-enabled binary, the interactive installer offers to run pending migrations. For CI, use `--without-migration-prompt` and run `artisan migrate` separately. Use `--force` to replace an existing API routes file with the generated template.
 
+Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
+
 ## Token table migration {#token-table-migration}
 
 Build the application with the `sanctum` Cargo feature to register the compiled `personal_access_tokens` migration. Use the resulting binary for migration and rollback.
@@ -62,6 +64,8 @@ fn register() -> Result<(), RoutingError> {
 Use the registered provider model name as the token owner type. The default application uses `app::models::User`. A custom Sanctum guard can set its `provider` in `auth.guards`; when omitted, the guard resolves the owner through the registered Eloquent models and `MorphMap`. Use `AccessToken::currentAccessToken(request)` to inspect the request's credential. Set `sanctum.expiration` in minutes to cap token age independently of per-token expiry. Successful Bearer authentication dispatches `TokenAuthenticated` and updates `last_used_at`. Set `sanctum.last_used_at` to false to disable the timestamp update.
 
 Register `getAccessTokenFromRequestUsing` to replace Bearer extraction. Register `authenticateAccessTokensUsing` to decide whether a found token is valid. The callback receives the token and the built-in expiration and provider decision. The owner must still resolve.
+
+Register token-capable owners with `AuthManager::registerSanctumModel`. Use `NewAccessToken::toJson()` or `toArray()` explicitly to return the plaintext credential at issuance. The nested token omits its stored digest. The event payload is `TokenAuthenticated::token`.
 
 ## SPA authentication {#spa-authentication}
 

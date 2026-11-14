@@ -15,13 +15,13 @@ impl StatefulFrontend {
     }
 }
 
-pub(crate) struct EnsureFrontendRequestsAreStateful {
+pub struct EnsureFrontendRequestsAreStateful {
     patterns: Vec<String>,
     stack: Vec<Arc<dyn Middleware>>,
 }
 
 impl EnsureFrontendRequestsAreStateful {
-    pub(crate) fn new(
+    pub fn new(
         config: &dyn Repository,
         stack: Vec<Arc<dyn Middleware>>,
     ) -> Result<Self, ConfigError> {

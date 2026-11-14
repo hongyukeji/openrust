@@ -10,17 +10,53 @@ mod ensure_frontend_requests_are_stateful;
 mod guard;
 mod has_api_tokens;
 pub(crate) mod prune_expired;
+pub(crate) mod publish;
 mod settings;
 mod token_model;
-pub use abilities::{CheckAbilities, CheckForAnyAbility};
-pub use authenticate_session::AuthenticateSession;
-pub(crate) use ensure_frontend_requests_are_stateful::{
-    EnsureFrontendRequestsAreStateful, StatefulFrontend,
+pub use abilities::{
+    CheckAbilities, CheckForAnyAbility, CheckForAnyScope, CheckScopes, MissingAbilityException,
+    MissingScopeException,
 };
-pub(crate) use guard::Guard;
+pub use authenticate_session::AuthenticateSession;
+pub use ensure_frontend_requests_are_stateful::EnsureFrontendRequestsAreStateful;
+pub(crate) use ensure_frontend_requests_are_stateful::StatefulFrontend;
+pub use guard::Guard;
 pub use has_api_tokens::{HasApiTokens, TokenRelation};
 pub use settings::Sanctum;
 pub use token_model::PersonalAccessTokenModel;
+
+pub mod contracts {
+    pub use super::{HasAbilities, HasApiTokens};
+}
+
+pub mod events {
+    pub use super::TokenAuthenticated;
+}
+
+pub mod exceptions {
+    pub use super::{MissingAbilityException, MissingScopeException};
+}
+
+pub mod http {
+    pub mod controllers {
+        use crate::http::{HttpError, HttpFuture, Request, Response, StatusCode};
+
+        pub struct CsrfCookieController;
+
+        impl CsrfCookieController {
+            pub fn show(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+                Box::pin(async { Ok(Response::empty(StatusCode::NO_CONTENT)) })
+            }
+        }
+    }
+
+    pub mod middleware {
+        pub use super::super::{
+            AuthenticateSession, CheckAbilities, CheckForAnyAbility, CheckForAnyScope, CheckScopes,
+            EnsureFrontendRequestsAreStateful,
+        };
+    }
+}
 
 use crate::{contracts::events::Event, http::Request};
 use std::{collections::HashMap, sync::Arc};
@@ -44,6 +80,34 @@ pub(crate) struct TestIdentity {
     pub(crate) guard: String,
     pub(crate) user: Arc<dyn crate::contracts::auth::Authenticatable>,
     pub(crate) abilities: Arc<[String]>,
+}
+
+pub trait HasAbilities {
+    fn can(&self, ability: &str) -> bool;
+
+    fn cant(&self, ability: &str) -> bool {
+        !self.can(ability)
+    }
+}
+
+pub struct TransientToken;
+
+impl HasAbilities for TransientToken {
+    fn can(&self, _: &str) -> bool {
+        true
+    }
+}
+
+impl HasAbilities for PersonalAccessToken {
+    fn can(&self, ability: &str) -> bool {
+        self.can(ability)
+    }
+}
+
+impl HasAbilities for AccessToken {
+    fn can(&self, ability: &str) -> bool {
+        self.can(ability)
+    }
 }
 
 /// The credential associated with the current Sanctum identity.
@@ -83,12 +147,16 @@ impl AccessToken {
 
 /// Dispatched when a personal access token resolves to its authenticated owner.
 pub struct TokenAuthenticated {
-    pub access_token: Arc<PersonalAccessToken>,
+    pub token: Arc<PersonalAccessToken>,
+}
+
+impl TokenAuthenticated {
+    pub const NAME: &str = "OpenRust\\Sanctum\\Events\\TokenAuthenticated";
 }
 
 impl Event for TokenAuthenticated {
     fn name(&self) -> &str {
-        "TokenAuthenticated"
+        Self::NAME
     }
 }
 
@@ -118,19 +186,12 @@ pub(crate) fn register_routes(
             .middleware_name("web"),
         |router| {
             router
-                .get("/csrf-cookie", csrf_cookie)?
+                .get(
+                    "/csrf-cookie",
+                    http::controllers::CsrfCookieController::show,
+                )?
                 .name("sanctum.csrf-cookie");
             Ok(())
         },
     )
-}
-
-fn csrf_cookie(
-    _: &mut Request,
-) -> crate::http::HttpFuture<'_, Result<crate::http::Response, crate::http::HttpError>> {
-    Box::pin(async {
-        Ok(crate::http::Response::empty(
-            crate::http::StatusCode::NO_CONTENT,
-        ))
-    })
 }

@@ -39,13 +39,44 @@ pub trait HasApiTokens: Model + Authenticatable {
         expires_at: Option<DateTime<Utc>>,
     ) -> impl Future<Output = AuthResult<NewAccessToken>> + Send + 'a {
         async move {
-            self.tokens(sanctum, database)?
-                .createToken(name, abilities, expires_at)
+            let relation = self.tokens(sanctum, database)?;
+            relation
+                .store
+                .create_with_secret(
+                    relation.owner_type,
+                    relation.owner_id,
+                    name,
+                    abilities,
+                    expires_at,
+                    self.generateTokenString(sanctum)?,
+                )
                 .await
         }
     }
 
+    fn generateTokenString(&self, sanctum: &Sanctum) -> AuthResult<zeroize::Zeroizing<String>> {
+        super::personal_access_token::generate_secret(&sanctum.token_prefix()?)
+    }
+
     fn currentAccessToken<'a>(&self, request: &'a Request) -> Option<&'a AccessToken> {
+        self.access_token_guard(request)?;
+        AccessToken::currentAccessToken(request)
+    }
+
+    fn withAccessToken<'a>(
+        &'a self,
+        request: &mut Request,
+        token: AccessToken,
+    ) -> AuthResult<&'a Self> {
+        let guard = self
+            .access_token_guard(request)
+            .ok_or(AuthError::InvalidIdentity)?;
+        super::RequestTokens::insert(request, &guard, token);
+        Ok(self)
+    }
+
+    #[doc(hidden)]
+    fn access_token_guard(&self, request: &Request) -> Option<String> {
         let guard = AuthManager::selected_guard(request)
             .map(str::to_owned)
             .or_else(|| {
@@ -56,8 +87,7 @@ pub trait HasApiTokens: Model + Authenticatable {
         let user = AuthManager::resolved_user(request, &guard)?;
         (user.get_auth_identifier() == self.get_auth_identifier()
             && user.as_ref().type_id() == std::any::TypeId::of::<Self>())
-        .then(|| AccessToken::currentAccessToken(request))
-        .flatten()
+        .then_some(guard)
     }
 
     fn tokenCan(&self, request: &Request, ability: &str) -> bool {

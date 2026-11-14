@@ -11,6 +11,10 @@ pub enum HttpError {
     Unauthenticated,
     InvalidSignature,
     AuthorizationDenied(String),
+    #[cfg(feature = "sanctum")]
+    MissingAbility(crate::sanctum::MissingAbilityException),
+    #[cfg(feature = "sanctum")]
+    MissingScope(crate::sanctum::MissingScopeException),
     AuthorizationDeniedWithStatus {
         status: StatusCode,
         message: String,
@@ -51,6 +55,8 @@ impl HttpError {
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::InvalidSignature | Self::AuthorizationDenied(_) => StatusCode::FORBIDDEN,
+            #[cfg(feature = "sanctum")]
+            Self::MissingAbility(_) | Self::MissingScope(_) => StatusCode::FORBIDDEN,
             Self::AuthorizationDeniedWithStatus { status, .. } => *status,
             Self::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             Self::OriginMismatch => StatusCode::FORBIDDEN,
@@ -88,6 +94,10 @@ impl Error for HttpError {
         match self {
             Self::Internal { source } => Some(source.as_ref()),
             Self::Validation(source) => Some(source.as_ref()),
+            #[cfg(feature = "sanctum")]
+            Self::MissingAbility(source) => Some(source),
+            #[cfg(feature = "sanctum")]
+            Self::MissingScope(source) => Some(source),
             _ => None,
         }
     }

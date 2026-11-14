@@ -4,6 +4,8 @@
 
 執行 `./artisan install:api` 建立並註冊 `routes/api.rs`。以 `cargo build --features sanctum` 建置後啟用產生的 `GET /api/user` 與編譯註冊的遷移。啟用 Sanctum 的執行檔會在互動終端詢問是否執行待處理的遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `artisan migrate`。使用 `--force` 將既有 API 路由檔案替換為產生的範本。
 
+Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 發佈 Rust 資源。預設應用程式原始碼已包含這些檔案。
+
 ## 權杖資料表遷移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能編譯應用程式，註冊 `personal_access_tokens` 遷移。遷移和復原均使用含有此功能的執行檔。
@@ -62,6 +64,8 @@ fn register() -> Result<(), RoutingError> {
 簽發時以已註冊的 Provider 模型名稱作為權杖歸屬型別。預設應用程式使用 `app::models::User`。可在 `auth.guards` 為自訂 Sanctum 守衛設定 `provider`，省略時透過已註冊的 Eloquent 模型和 `MorphMap` 解析歸屬。以 `AccessToken::currentAccessToken(request)` 檢視目前請求的憑證。`sanctum.expiration` 以分鐘限制權杖最長有效期，與個別權杖的到期時間同時生效。Bearer 驗證成功後派發 `TokenAuthenticated` 事件並更新 `last_used_at`，可設定 `sanctum.last_used_at=false` 關閉。
 
 使用 `getAccessTokenFromRequestUsing` 取代 Bearer 擷取邏輯。使用 `authenticateAccessTokensUsing` 決定已查到的權杖是否有效，回呼接收權杖及內建到期和 Provider 檢查結果。權杖歸屬仍須成功解析。
+
+在驗證管理器中以 `AuthManager::registerSanctumModel` 註冊支援權杖的模型。簽發時可明確呼叫 `NewAccessToken::toJson()` 或 `toArray()` 傳回明文憑證。內嵌權杖不含資料庫摘要，驗證事件資料可從 `TokenAuthenticated::token` 取得。
 
 ## SPA 驗證 {#spa-authentication}
 

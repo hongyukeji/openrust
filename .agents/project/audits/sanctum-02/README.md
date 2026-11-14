@@ -76,3 +76,5 @@ Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 通
 Rust 1.94.0 与专用 MySQL 8.4.13 执行 `cargo test --locked --offline --features sanctum -p openrust-framework --test sanctum_authentication -- --skip bearer_and_opt_in_spa_over_http_with_sqlite`，两项通过。覆盖真实保存后的标志重置、默认和自定义模型类型、归属限定的签发／查询／撤销、反向归属、请求能力和守卫隔离，以及 APP_URL 含显式端口时的默认 SPA 来源。MySQL 同轮回归整数、UUID、ULID 三类主键及 Artisan 过期清理。格式检查、启用 Sanctum 的工作区全目标严格 Clippy、三语构建及 12 项浏览器检查通过。
 
 Passport 和安装器的 Passport 选项单独跟踪。
+
+[固定 v4.4.0 完整对照与验收](parity-v4.4.0.md)补充了公开类型、配置、事件、能力错误和发布行为。

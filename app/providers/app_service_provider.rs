@@ -24,9 +24,11 @@ impl ServiceProvider for AppServiceProvider {
                 .instance::<SeederRegistry>(std::sync::Arc::new(SeederRegistry(
                     crate::database::seeders::ENTRIES,
                 )))?;
-            app.container()
-                .make::<AuthManager>()?
-                .registerModel::<crate::app::models::User>("app::models::User");
+            let auth = app.container().make::<AuthManager>()?;
+            #[cfg(feature = "sanctum")]
+            auth.registerSanctumModel::<crate::app::models::User>("app::models::User");
+            #[cfg(not(feature = "sanctum"))]
+            auth.registerModel::<crate::app::models::User>("app::models::User");
             Ok(())
         })
     }

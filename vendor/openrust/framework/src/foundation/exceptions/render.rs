@@ -17,6 +17,10 @@ pub(super) fn default_response(
 ) -> Response {
     let status = error.map_or(StatusCode::INTERNAL_SERVER_ERROR, HttpError::status);
     let message = match error {
+        #[cfg(feature = "sanctum")]
+        Some(HttpError::MissingAbility(_)) => crate::sanctum::MissingAbilityException::MESSAGE,
+        #[cfg(feature = "sanctum")]
+        Some(HttpError::MissingScope(_)) => crate::sanctum::MissingScopeException::MESSAGE,
         Some(HttpError::InvalidSignature) => "Invalid signature.",
         Some(HttpError::Unauthenticated) => "Unauthenticated.",
         Some(HttpError::OriginMismatch) => "Origin mismatch.",

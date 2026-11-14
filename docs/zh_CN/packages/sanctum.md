@@ -4,6 +4,8 @@
 
 运行 `./artisan install:api` 创建并注册 `routes/api.rs`。使用 `cargo build --features sanctum` 构建后启用生成的 `GET /api/user` 和编译注册的迁移。启用了 Sanctum 的二进制会在交互终端询问是否执行待运行的迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `artisan migrate`。使用 `--force` 将已有 API 路由文件替换为生成模板。
 
+Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
+
 ## 令牌表迁移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能编译应用，注册 `personal_access_tokens` 迁移。迁移和回滚都使用带有该功能的二进制。
@@ -62,6 +64,8 @@ fn register() -> Result<(), RoutingError> {
 签发时将已注册的 Provider 模型名用作令牌归属类型。默认应用使用 `app::models::User`。可在 `auth.guards` 为自定义 Sanctum 守卫设置 `provider`，省略时通过已注册的 Eloquent 模型和 `MorphMap` 解析归属。用 `AccessToken::currentAccessToken(request)` 查看当前请求凭据。`sanctum.expiration` 以分钟限制令牌最长有效期，与单个令牌的到期时间同时生效。Bearer 认证成功后派发 `TokenAuthenticated` 事件并更新 `last_used_at`，可设 `sanctum.last_used_at=false` 关闭。
 
 用 `getAccessTokenFromRequestUsing` 替换 Bearer 提取逻辑。用 `authenticateAccessTokensUsing` 决定已查到的令牌是否有效，回调接收令牌及内置过期和 Provider 检查结果。令牌归属仍须成功解析。
+
+在认证管理器中用 `AuthManager::registerSanctumModel` 注册支持令牌的模型。签发时可显式调用 `NewAccessToken::toJson()` 或 `toArray()` 返回明文凭据。嵌套令牌不包含数据库摘要，认证事件载荷可从 `TokenAuthenticated::token` 读取。
 
 ## SPA 认证 {#spa-authentication}
 
