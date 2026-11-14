@@ -264,3 +264,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 FakerPHP 1.24.1 Internet 的 ipv4、localIpv4、ipv6 与 macAddress。普通 IPv4 等概率选择两个上游范围，保留私有及特殊用途地址。私有 IPv4 等概率选择三个网段，再均匀抽取网段内地址。IPv6 使用八组不补零、不压缩的小写十六进制，MAC 使用六组补零的大写十六进制。Rust 用无符号位模式和标准库 IPv4 格式化，四个入口均支持独立 unique 历史。v0.x 未发现对应生成器，Goravel 启动装配未涉及。 [FakerPHP Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php#L225)
 
 隔离基线 `14dbc536`。固定 FakerPHP 与 PHP 8.5.12 对四个入口各检查 256 次，Rust 回归也对四个入口各检查 256 次，覆盖地址范围、格式和去重。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查四种地址。Rust 1.94.0 格式、全目标严格 Clippy、13 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。Internet 的域名、URL、slug 和其余文本生成器继续跟踪。
+
+## Faker 域名、URL 和 slug
+
+对照固定 FakerPHP 1.24.1 Internet，接通 domainWord、tld、domainName、slug 和 url，保留十种 URL 模板的权重、受支持地区的后缀分布、固定或浮动词数和独立 unique 历史。Faker 复用基于 v0.x 转写实现移植的 Str，按上游过滤姓氏字符。Rust 使用 fake-rs 的语言资料和现有转写表，姓氏、词库与部分字符转写可以和 PHP 不同。姓氏转写结果为空时返回错误。Rust 由 Option 表达默认词数。Goravel 启动装配未涉及。 [FakerPHP Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php#L157)
+
+隔离基线 `510bde88`。固定 FakerPHP 与 PHP 8.5.12 用实际生成器检查域名、URL 和 slug，以及 zh_CN、zh_TW、fr_FR 后缀集合。Rust 回归检查相同契约、去重耗尽和重置。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查域名、URL 和 slug。Rust 1.94.0 格式、工作区全目标严格 Clippy、14 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。Internet 的 email、邮件域名和密码样本继续跟踪。

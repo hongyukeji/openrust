@@ -94,6 +94,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("currency".into(), faker.currencyCode().into()),
             ("sample_digest".into(), faker.sha256().into()),
             ("sample_ip".into(), faker.localIpv4().into()),
+            ("website".into(), faker.url()?.into()),
         ]))
     })
 }
@@ -126,6 +127,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 网络地址样本 {#network-address-samples}
 
 用 `ipv4()`、`localIpv4()`、`ipv6()` 和 `macAddress()` 生成网络测试数据。`ipv4()` 在 `1.0.0.0`–`127.255.255.255` 和 `128.0.0.0`–`255.255.255.254` 两段中等概率选一段，再抽取地址，可能返回私有或特殊用途地址。`localIpv4()` 在 `10/8`、`172.16/12` 和 `192.168/16` 中等概率选一段。IPv6 返回八组未压缩的小写十六进制数，各组省略前导零。MAC 地址由六组以冒号分隔的两位大写十六进制数组成。四个方法均支持 `unique`。
+
+### 域名、URL 和 slug {#domain-url-slug-samples}
+
+用 `domainWord()?` 将生成的姓氏转写为小写 ASCII，用 `tld()` 按受支持语言环境的 FakerPHP 权重抽取后缀，`domainName()?` 将两者连接。`url()?` 使用上游 HTTP 和 HTTPS 模板，可带 `www`、slug 和 `.html`。姓氏使用 OpenRust 的语言数据和转写规则，与 FakerPHP 的 ICU 或回退映射可能不同。姓氏无法转写出可用字符时，域名和 URL 生成器返回错误。`slug(count, variable)` 用连字符拼接生成的词。传入 `None` 使用六个基准词，`Some(0)` 返回空字符串，`false` 固定词数。五个生成器均支持 `unique`。
 
 ## 使用工厂创建模型
 

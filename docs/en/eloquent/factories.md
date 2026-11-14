@@ -94,6 +94,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("currency".into(), faker.currencyCode().into()),
             ("sample_digest".into(), faker.sha256().into()),
             ("sample_ip".into(), faker.localIpv4().into()),
+            ("website".into(), faker.url()?.into()),
         ]))
     })
 }
@@ -126,6 +127,10 @@ Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture 
 ### Network Address Samples {#network-address-samples}
 
 Use `ipv4()`, `localIpv4()`, `ipv6()`, and `macAddress()` for network fixtures. `ipv4()` samples the ranges `1.0.0.0`–`127.255.255.255` and `128.0.0.0`–`255.255.255.254` with equal probability for each range. The result can include private or special-use addresses. `localIpv4()` chooses among `10/8`, `172.16/12`, and `192.168/16` with equal probability. IPv6 uses eight uncompressed lowercase hexadecimal groups without leading zeros. MAC addresses use six uppercase two-digit octets separated by colons. All four support `unique`.
+
+### Domains, URLs and Slugs {#domain-url-slug-samples}
+
+Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the FakerPHP weights for supported locales. `domainName()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from FakerPHP’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
 
 ## Creating Models Using Factories
 

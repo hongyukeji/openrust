@@ -11,7 +11,7 @@ use crate::{
     container::Container,
     contracts::{config::Repository, container::Container as _},
     database::{Connection, DatabaseError, DatabaseResult},
-    support::calendar,
+    support::{Str, calendar},
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
@@ -343,6 +343,81 @@ impl Faker {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn domainWord(&self) -> DatabaseResult<String> {
+        let mut name = Str::transliterateWithUnknown(&self.lastName(), Some(""));
+        name.retain(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '_' | '.')
+        });
+        if name.trim_matches(['.', '_']).is_empty() {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker surname cannot be transliterated to a domain word",
+            ));
+        }
+        name.truncate(name.trim_end_matches('.').len());
+        name.make_ascii_lowercase();
+        Ok(name)
+    }
+
+    pub fn tld(&self) -> &'static str {
+        let suffixes: &[&str] = match self.locale() {
+            "ar_SA" => &["biz", "com", "info", "sa", "net", "org"],
+            "de_DE" => &["com", "com", "com", "net", "org", "de", "de", "de"],
+            "fa_IR" => &[
+                "biz", "com", "info", "ac.ir", "sch.ir", "co.ir", "ir", "net", "org",
+            ],
+            "fr_FR" => &["com", "com", "com", "net", "org", "fr", "fr", "fr"],
+            "it_IT" => &["com", "com", "com", "net", "org", "it", "it", "it"],
+            "ja_JP" => &[
+                "com", "com", "com", "biz", "info", "net", "org", "jp", "jp", "jp",
+            ],
+            "nl_NL" => &["com", "com", "com", "net", "org", "nl", "nl", "nl"],
+            "pt_BR" => &[
+                "com", "com", "com.br", "com.br", "net", "net.br", "br", "org",
+            ],
+            "pt_PT" => &["com", "com", "pt", "pt", "net", "org", "eu"],
+            "tr_TR" => &[
+                "com", "com", "com", "com", "com.tr", "com.tr", "info", "net", "org", "org.tr",
+                "edu", "edu.tr", "edu.tr",
+            ],
+            "zh_CN" => &[
+                "com", "com", "com", "com", "com", "com", "biz", "info", "net", "org", "cn",
+                "com.cn", "edu.cn", "net.cn", "biz.cn", "gov.cn", "org.cn",
+            ],
+            _ => &[
+                "com", "com", "com", "com", "com", "com", "biz", "info", "net", "org",
+            ],
+        };
+        suffixes[fastrand::usize(..suffixes.len())]
+    }
+
+    pub fn domainName(&self) -> DatabaseResult<String> {
+        Ok(format!("{}.{}", self.domainWord()?, self.tld()))
+    }
+
+    pub fn slug(&self, wordCount: Option<usize>, variableWordCount: bool) -> String {
+        self.words(lorem_count(wordCount.unwrap_or(6), variableWordCount))
+            .join("-")
+    }
+
+    pub fn url(&self) -> DatabaseResult<String> {
+        let (prefix, path, extension) = match fastrand::u8(0..10) {
+            0 => ("http://www.", false, ""),
+            1 => ("http://", false, ""),
+            2 | 3 => ("http://www.", true, ""),
+            4 => ("https://www.", true, ""),
+            5 => ("http://www.", true, ".html"),
+            6 | 7 => ("http://", true, ""),
+            8 => ("http://", true, ".html"),
+            _ => ("https://", true, ".html"),
+        };
+        let mut url = format!("{prefix}{}/", self.domainName()?);
+        if path {
+            url.push_str(&self.slug(None, true));
+            url.push_str(extension);
+        }
+        Ok(url)
     }
 
     pub fn ipv4(&self) -> String {
@@ -1014,6 +1089,30 @@ impl UniqueFaker<'_> {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> DatabaseResult<bool> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
+    }
+
+    pub fn domainWord(&self) -> DatabaseResult<String> {
+        self.try_generate("domainWord", || self.0.domainWord())
+    }
+
+    pub fn tld(&self) -> DatabaseResult<&'static str> {
+        self.generate("tld", || self.0.tld())
+    }
+
+    pub fn domainName(&self) -> DatabaseResult<String> {
+        self.try_generate("domainName", || self.0.domainName())
+    }
+
+    pub fn slug(
+        &self,
+        wordCount: Option<usize>,
+        variableWordCount: bool,
+    ) -> DatabaseResult<String> {
+        self.generate("slug", || self.0.slug(wordCount, variableWordCount))
+    }
+
+    pub fn url(&self) -> DatabaseResult<String> {
+        self.try_generate("url", || self.0.url())
     }
 
     pub fn ipv4(&self) -> DatabaseResult<String> {

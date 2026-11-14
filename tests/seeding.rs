@@ -2181,3 +2181,61 @@ fn faker_network_addresses_follow_fakerphp_formats_and_ranges() -> DatabaseResul
     assert!(faker.unique(true).ipv4().is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let faker = Faker::new("en_US")?;
+    assert!(faker.slug(Some(0), true).is_empty());
+    for _ in 0..64 {
+        assert_eq!(faker.slug(Some(3), false).split('-').count(), 3);
+        assert!((4..=9).contains(&faker.slug(None, true).split('-').count()));
+        let domain = faker.domainName()?;
+        let (name, suffix) = domain.rsplit_once('.').unwrap();
+        assert!(!name.is_empty());
+        assert!(
+            name.bytes()
+                .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'_' | b'.'))
+        );
+        assert!(["com", "biz", "info", "net", "org"].contains(&suffix));
+        let address = faker.url()?;
+        let (scheme, host_path) = address.split_once("://").unwrap();
+        let (host, path) = host_path.split_once('/').unwrap();
+        assert!(matches!(scheme, "http" | "https"));
+        assert!(!host.is_empty() && !host.contains(char::is_whitespace));
+        if !path.is_empty() {
+            let slug = path.strip_suffix(".html").unwrap_or(path);
+            assert!((4..=9).contains(&slug.split('-').count()));
+        }
+    }
+
+    for (locale, expected) in [
+        (
+            "zh_CN",
+            &[
+                "biz", "biz.cn", "cn", "com", "com.cn", "edu.cn", "gov.cn", "info", "net",
+                "net.cn", "org", "org.cn",
+            ][..],
+        ),
+        ("zh_TW", &["biz", "com", "info", "net", "org"][..]),
+        ("fr_FR", &["com", "fr", "net", "org"][..]),
+    ] {
+        let faker = Faker::new(locale)?;
+        let unique = faker.unique(false);
+        let mut suffixes = (0..expected.len())
+            .map(|_| unique.tld())
+            .collect::<DatabaseResult<Vec<_>>>()?;
+        suffixes.sort_unstable();
+        assert_eq!(suffixes, expected);
+        assert!(unique.tld().is_err());
+        assert!(faker.unique(true).tld().is_ok());
+    }
+    let unique = faker.unique(false);
+    assert_eq!(unique.slug(Some(0), false)?, "");
+    assert!(unique.slug(Some(0), true).is_err());
+    assert!(unique.domainWord().is_ok());
+    assert!(unique.domainName().is_ok());
+    assert!(unique.url().is_ok());
+    Ok(())
+}
