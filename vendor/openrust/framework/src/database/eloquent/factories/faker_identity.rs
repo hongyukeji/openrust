@@ -237,6 +237,66 @@ impl Faker {
         Ok([&digits[..3], &digits[3..7], &digits[7..11], &digits[11..]].join("."))
     }
 
+    /// Samples a French NIR with optional spacing.
+    pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {
+        if !matches!(self.locale(), "fr_FR" | "fr_CH") {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker NIR locale"));
+        }
+
+        const DEPARTMENTS: &[&str] = &[
+            "01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14",
+            "15", "16", "17", "18", "19", "2A", "2B", "21", "22", "23", "24", "25", "26", "27",
+            "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41",
+            "42", "43", "44", "45", "46", "47", "48", "49", "50", "51", "52", "53", "54", "55",
+            "56", "57", "58", "59", "60", "61", "62", "63", "64", "65", "66", "67", "68", "69",
+            "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82", "83",
+            "84", "85", "86", "87", "88", "89", "90", "91", "92", "93", "94", "95", "971", "972",
+            "973", "974", "976",
+        ];
+        let sex = match gender {
+            Some("male") => 1,
+            Some("female") => 2,
+            _ => self.numberBetween(1, 2),
+        };
+        let year = self.numerify(Some("##"));
+        let month = self.numberBetween(1, 12);
+        let department = DEPARTMENTS[fastrand::usize(..DEPARTMENTS.len())];
+        let town = self.numerify(Some(if department.len() == 2 { "###" } else { "##" }));
+        let serial = self.numerify(Some("###"));
+
+        let numeric_department = match department {
+            "2A" => "19",
+            "2B" => "18",
+            digits => digits,
+        };
+        let numeric_body = format!("{sex}{year}{month:02}{numeric_department}{town}{serial}");
+        let check = 97 - numeric_body.parse::<u64>().expect("fixed NIR digits") % 97;
+        let body = format!("{sex}{year}{month:02}{department}{town}{serial}{check:02}");
+        if formatted {
+            return Ok([
+                &body[..1],
+                &body[1..3],
+                &body[3..5],
+                &body[5..7],
+                &body[7..10],
+                &body[10..13],
+                &body[13..],
+            ]
+            .join(" "));
+        }
+        Ok(body)
+    }
+
+    /// Samples the uppercase Italian tax ID mask.
+    pub fn taxId(&self) -> DatabaseResult<String> {
+        if !matches!(self.locale(), "it_IT" | "it_CH") {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Italian tax ID locale",
+            ));
+        }
+        Ok(self.bothify(Some("??????##?##?###?")).to_ascii_uppercase())
+    }
+
     /// Samples a Belgian National Register number.
     pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {
         if self.locale() != "nl_BE" {
@@ -1073,6 +1133,14 @@ impl UniqueFaker<'_> {
 
     pub fn avs13(&self) -> DatabaseResult<String> {
         self.try_generate("avs13", || self.0.avs13())
+    }
+
+    pub fn nir(&self, gender: Option<&str>, formatted: bool) -> DatabaseResult<String> {
+        self.try_generate("nir", || self.0.nir(gender, formatted))
+    }
+
+    pub fn taxId(&self) -> DatabaseResult<String> {
+        self.try_generate("taxId", || self.0.taxId())
     }
 
     pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {

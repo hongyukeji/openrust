@@ -1114,3 +1114,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `d16a9da3`。PHP 8.5 校验 128 对上游号码，MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 256 个值，核对日期、1954／2004 年边界、偏移、校验位和序号，实际运行文档示例。上游样本核对使用 UTC，修正了首次脚本将宿主本地日期用于对照的问题。60 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对法国 NIR 和意大利税号接口。
+
+## Faker 法国 NIR 与意大利税号样本
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 的[法国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_FR/Person.php)和[意大利](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/it_IT/Person.php) Person。保留瑞士相应语言继承、法国 NIR 的紧凑与分组格式、科西嘉校验转换及海外省长度规则。意大利复用 bothify 生成大写税号掩码。Rust 沿用可选性别、类型化错误及去重记录。v0.x 未找到等价入口，编译式注册无需调整。
+
+隔离基线 `0df87b34`。PHP 8.5 核对 1,024 个上游样本，实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 1,024 个值。双方都覆盖 2A、2B 及全部五个三位海外省代码，验证性别首位、月份、分组、校验位、税号掩码及文档示例。61 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对伊朗国民号码和印度尼西亚 NIK。

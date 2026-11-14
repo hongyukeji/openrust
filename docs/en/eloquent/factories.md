@@ -931,6 +931,18 @@ fn czech_birth_number() -> DatabaseResult<String> {
 }
 ```
 
+### French NIR and Italian Tax ID Samples {#french-nir-and-italian-tax-id-samples}
+
+Use `nir(gender, formatted)` with `fr-FR` or `fr-CH`. Pass `Some("male")` or `Some("female")` to select the first digit, or `None` to sample it. The NIR uses the French department catalog and a modulo-97 check key. The compact form has 15 characters. The formatted form separates the same characters as 1–2–2–2–3–3–2. Use `taxId()` with `it-IT` or `it-CH` for the uppercase 16-character sample mask used by FakerPHP. Both formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn french_nir_sample() -> DatabaseResult<String> {
+    fake(Some("fr-FR"))?.unique(false).nir(Some("female"), true)
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

@@ -2947,3 +2947,49 @@ fn danish_cpr_preserves_the_date_and_nonzero_serial_prefix() {
     assert!(faker.birthNumberMale().is_err());
     assert!(fake(Some("cs-CZ")).unwrap().cpr().is_err());
 }
+
+#[test]
+fn french_nir_and_italian_tax_id_preserve_the_pinned_patterns() {
+    let mask = regex::Regex::new(r"^[A-Z]{6}[0-9]{2}[A-Z][0-9]{2}[A-Z][0-9]{3}[A-Z]$").unwrap();
+    for locale in ["it-IT", "it-CH"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let mut values = std::collections::HashSet::new();
+        for _ in 0..32 {
+            let value = unique.taxId().unwrap();
+            assert!(mask.is_match(&value));
+            assert!(values.insert(value));
+        }
+        assert!(faker.nir(None, false).is_err());
+    }
+
+    for locale in ["fr-FR", "fr-CH"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let mut values = std::collections::HashSet::new();
+        for gender in [None, Some("male"), Some("female")] {
+            for formatted in [false, true] {
+                let value = unique.nir(gender, formatted).unwrap();
+                if formatted {
+                    assert_eq!(
+                        value.split(' ').map(str::len).collect::<Vec<_>>(),
+                        [1, 2, 2, 2, 3, 3, 2]
+                    );
+                }
+                let compact = value.replace(' ', "");
+                assert_eq!(compact.len(), 15);
+                match gender {
+                    Some("male") => assert!(compact.starts_with('1')),
+                    Some("female") => assert!(compact.starts_with('2')),
+                    _ => assert!(compact.starts_with(['1', '2'])),
+                }
+                assert!((1..=12).contains(&compact[3..5].parse::<u8>().unwrap()));
+                let numeric = compact[..13].replace("2A", "19").replace("2B", "18");
+                let check = 97 - numeric.parse::<u64>().unwrap() % 97;
+                assert_eq!(compact[13..].parse::<u64>().unwrap(), check);
+                assert!(values.insert(value));
+            }
+        }
+        assert!(faker.taxId().is_err());
+    }
+}

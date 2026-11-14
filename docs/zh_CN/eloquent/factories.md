@@ -931,6 +931,18 @@ fn czech_birth_number() -> DatabaseResult<String> {
 }
 ```
 
+### 法国 NIR 和意大利税号样本 {#french-nir-and-italian-tax-id-samples}
+
+在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 选择首位，或用 `None` 随机选择。NIR 使用法国省级行政区代码和模 97 校验位。紧凑格式有 15 个字符，带空格格式按 1–2–2–2–3–3–2 分组。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 生成 FakerPHP 的 16 位大写税号样本。两个接口均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn french_nir_sample() -> DatabaseResult<String> {
+    fake(Some("fr-FR"))?.unique(false).nir(Some("female"), true)
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
