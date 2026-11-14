@@ -95,6 +95,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_digest".into(), faker.sha256().into()),
             ("sample_ip".into(), faker.localIpv4().into()),
             ("website".into(), faker.url()?.into()),
+            ("contact".into(), faker.safeEmail().into()),
         ]))
     })
 }
@@ -131,6 +132,10 @@ Use `ipv4()`, `localIpv4()`, `ipv6()`, and `macAddress()` for network fixtures. 
 ### Domains, URLs and Slugs {#domain-url-slug-samples}
 
 Use `domainWord()?` to transliterate a generated surname to lowercase ASCII, and `tld()` to sample a suffix using the FakerPHP weights for supported locales. `domainName()?` joins them. `url()?` uses the upstream HTTP and HTTPS templates with optional `www`, slug and `.html`. Names use OpenRust’s locale data and transliteration, which can differ from FakerPHP’s ICU or fallback mappings. If the surname yields no usable characters, the domain and URL formatters return an error. `slug(count, variable)` joins generated words with hyphens. Pass `None` for six base words, `Some(0)` for an empty result, or `false` for an exact count. All five formatters support `unique`.
+
+### Email and Password Samples {#email-and-password-samples}
+
+Use `email()?` for a general address or `companyEmail()?` for an address on a generated domain. The simplified Chinese locale uses its free-provider list for general email. `safeEmail()` uses reserved example domains and `freeEmail()` uses localized provider domains. Use `safeEmailDomain()` and `freeEmailDomain()` to sample only the domain. Usernames use localized names or words with ASCII transliteration. If the result contains no usable characters, OpenRust generates an ASCII letter to preserve the infallible username and email methods. `password(min, max)?` generates printable ASCII from `!` through `~` with inclusive bounds in either order. The defaults are 6 and 20. These formatters support `unique`.
 
 ## Creating Models Using Factories
 

@@ -95,6 +95,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_digest".into(), faker.sha256().into()),
             ("sample_ip".into(), faker.localIpv4().into()),
             ("website".into(), faker.url()?.into()),
+            ("contact".into(), faker.safeEmail().into()),
         ]))
     })
 }
@@ -131,6 +132,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 網域名稱、URL 和 slug {#domain-url-slug-samples}
 
 用 `domainWord()?` 將產生的姓氏轉寫為小寫 ASCII，用 `tld()` 依支援語言地區的 FakerPHP 權重抽取後綴，`domainName()?` 將兩者連接。`url()?` 使用上游 HTTP 和 HTTPS 範本，可帶 `www`、slug 和 `.html`。姓氏使用 OpenRust 的語言資料和轉寫規則，與 FakerPHP 的 ICU 或備援映射可能不同。姓氏無法轉寫出可用字元時，網域名稱和 URL 產生器回傳錯誤。`slug(count, variable)` 用連字號拼接產生的詞。傳入 `None` 使用六個基準詞、`Some(0)` 回傳空字串，`false` 固定詞數。五個產生器均支援 `unique`。
+
+### 電子郵件和密碼樣本 {#email-and-password-samples}
+
+用 `email()?` 產生一般電子郵件地址，或用 `companyEmail()?` 產生使用隨機網域的地址。簡體中文的一般電子郵件使用該地區的免費信箱清單。`safeEmail()` 使用保留的範例網域，`freeEmail()` 使用地區信箱服務網域。只需網域時用 `safeEmailDomain()` 或 `freeEmailDomain()`。使用者名稱使用地區姓名或詞庫並轉寫為 ASCII。若無可用字元，OpenRust 產生一個 ASCII 字母，保留既有使用者名稱及電子郵件方法的直接回傳型別。`password(min, max)?` 使用從 `!` 到 `~` 的可列印 ASCII 字元，長度含兩端，接受反向邊界，預設值為 6 和 20。以上產生器均支援 `unique`。
 
 ## 使用工廠建立模型
 

@@ -2239,3 +2239,68 @@ fn faker_internet_formats_use_localized_suffixes_and_upstream_slug_counts() -> D
     assert!(unique.url().is_ok());
     Ok(())
 }
+
+#[test]
+fn faker_mail_and_password_follow_internet_formatter_contracts() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+
+    let faker = Faker::new("zh-Hans-CN")?;
+    let free_domains = [
+        "gmail.com",
+        "yahoo.com",
+        "hotmail.com",
+        "126.com",
+        "163.com",
+        "qq.com",
+        "sohu.com",
+        "sina.com",
+    ];
+    for _ in 0..64 {
+        let username = faker.userName();
+        assert!(!username.trim_matches(['.', '_']).is_empty());
+        assert!(
+            username
+                .bytes()
+                .all(|byte| matches!(byte, b'a'..=b'z' | b'0'..=b'9' | b'.' | b'_'))
+        );
+        for sample in [faker.freeEmail(), faker.email()?] {
+            let (name, domain) = sample.split_once('@').unwrap();
+            assert!(!name.is_empty());
+            assert!(free_domains.contains(&domain));
+        }
+        for sample in [faker.safeEmail(), faker.companyEmail()?] {
+            assert_eq!(sample.matches('@').count(), 1);
+            assert!(!sample.contains(char::is_whitespace));
+        }
+        assert!(matches!(
+            faker.safeEmailDomain(),
+            "example.com" | "example.org" | "example.net"
+        ));
+        let password = faker.password(None, None)?;
+        assert!((6..=20).contains(&password.len()));
+        assert!(password.bytes().all(|byte| (b'!'..=b'~').contains(&byte)));
+        assert!((3..=5).contains(&faker.password(Some(5), Some(3))?.len()));
+    }
+    assert_eq!(faker.password(Some(0), Some(0))?, "");
+    assert_eq!(faker.password(Some(8), Some(8))?.len(), 8);
+    assert!(faker.password(Some(usize::MAX), Some(usize::MAX)).is_err());
+
+    let unique = faker.unique(false);
+    let mut sampled = (0..free_domains.len())
+        .map(|_| unique.freeEmailDomain())
+        .collect::<DatabaseResult<Vec<_>>>()?;
+    sampled.sort_unstable();
+    let mut expected = free_domains;
+    expected.sort_unstable();
+    assert_eq!(sampled, expected);
+    assert!(unique.freeEmailDomain().is_err());
+    assert!(unique.email().is_ok());
+    assert!(unique.companyEmail().is_ok());
+    assert!(unique.safeEmail().is_ok());
+    assert!(unique.freeEmail().is_ok());
+    assert!(unique.userName().is_ok());
+    assert_eq!(unique.password(Some(0), Some(0))?, "");
+    assert!(unique.password(Some(0), Some(0)).is_err());
+    assert!(faker.unique(true).password(Some(0), Some(0)).is_ok());
+    Ok(())
+}

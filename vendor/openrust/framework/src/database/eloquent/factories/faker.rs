@@ -133,9 +133,6 @@ formatters! {
     name => faker::name::raw::Name,
     firstName => faker::name::raw::FirstName,
     lastName => faker::name::raw::LastName,
-    safeEmail => faker::internet::raw::SafeEmail,
-    freeEmail => faker::internet::raw::FreeEmail,
-    userName => faker::internet::raw::Username,
     city => faker::address::raw::CityName,
     streetName => faker::address::raw::StreetName,
     postcode => faker::address::raw::PostCode,
@@ -345,18 +342,170 @@ impl Faker {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
     }
 
+    pub fn userName(&self) -> String {
+        let first = || {
+            if self.locale() == "zh_CN" {
+                self.word()
+            } else {
+                self.firstName()
+            }
+        };
+        let last = || {
+            if self.locale() == "zh_CN" {
+                self.word()
+            } else {
+                self.lastName()
+            }
+        };
+        let candidate = match fastrand::u8(0..4) {
+            0 => format!("{}.{}", last(), first()),
+            1 if self.locale() == "zh_CN" => format!("{}_{}", first(), last()),
+            1 => format!("{}.{}", first(), last()),
+            2 => format!("{}{:02}", first(), fastrand::u8(0..100)),
+            _ => format!("{}{}", self.randomLetter(), last()),
+        };
+        let candidate = internet_ascii(&candidate).replace("..", ".");
+        if candidate.trim_matches(['.', '_']).is_empty() {
+            return self.randomLetter().to_string();
+        }
+        candidate.trim_end_matches('.').to_owned()
+    }
+
+    pub fn safeEmailDomain(&self) -> &'static str {
+        ["example.com", "example.org", "example.net"][fastrand::usize(0..3)]
+    }
+
+    pub fn freeEmailDomain(&self) -> &'static str {
+        let domains: &[&str] = match self.locale() {
+            "de_DE" => &[
+                "web.de",
+                "gmail.com",
+                "hotmail.de",
+                "yahoo.de",
+                "googlemail.com",
+                "aol.de",
+                "gmx.de",
+                "freenet.de",
+                "posteo.de",
+                "mail.de",
+                "live.de",
+                "t-online.de",
+            ],
+            "fr_FR" => &[
+                "gmail.com",
+                "hotmail.fr",
+                "yahoo.fr",
+                "laposte.net",
+                "free.fr",
+                "sfr.fr",
+                "orange.fr",
+                "club-internet.fr",
+                "dbmail.com",
+                "live.com",
+                "noos.fr",
+                "tele2.fr",
+                "wanadoo.fr",
+            ],
+            "it_IT" => &[
+                "gmail.com",
+                "yahoo.com",
+                "hotmail.com",
+                "email.it",
+                "libero.it",
+                "yahoo.it",
+            ],
+            "ja_JP" => &[
+                "gmail.com",
+                "yahoo.co.jp",
+                "hotmail.co.jp",
+                "mail.goo.ne.jp",
+            ],
+            "nl_NL" => &["gmail.com", "hotmail.nl", "live.nl", "yahoo.nl"],
+            "pt_BR" => &[
+                "gmail.com",
+                "yahoo.com",
+                "hotmail.com",
+                "uol.com.br",
+                "terra.com.br",
+                "ig.com.br",
+                "r7.com",
+            ],
+            "pt_PT" => &[
+                "gmail.com",
+                "yahoo.com",
+                "hotmail.com",
+                "sapo.pt",
+                "clix.pt",
+                "mail.pt",
+            ],
+            "tr_TR" => &[
+                "gmail.com",
+                "hotmail.com",
+                "yahoo.com",
+                "yandex.com.tr",
+                "mynet.com",
+                "turk.net",
+                "superposta.com",
+            ],
+            "zh_CN" => &[
+                "gmail.com",
+                "yahoo.com",
+                "hotmail.com",
+                "126.com",
+                "163.com",
+                "qq.com",
+                "sohu.com",
+                "sina.com",
+            ],
+            _ => &["gmail.com", "yahoo.com", "hotmail.com"],
+        };
+        domains[fastrand::usize(..domains.len())]
+    }
+
+    pub fn safeEmail(&self) -> String {
+        format!("{}@{}", self.userName(), self.safeEmailDomain())
+    }
+
+    pub fn freeEmail(&self) -> String {
+        format!("{}@{}", self.userName(), self.freeEmailDomain())
+    }
+
+    pub fn companyEmail(&self) -> DatabaseResult<String> {
+        Ok(format!("{}@{}", self.userName(), self.domainName()?))
+    }
+
+    pub fn email(&self) -> DatabaseResult<String> {
+        if self.locale() == "zh_CN" || self.boolean(None) {
+            Ok(self.freeEmail())
+        } else {
+            self.companyEmail()
+        }
+    }
+
+    pub fn password(
+        &self,
+        minLength: Option<usize>,
+        maxLength: Option<usize>,
+    ) -> DatabaseResult<String> {
+        let min = minLength.unwrap_or(6);
+        let max = maxLength.unwrap_or(20);
+        let length = fastrand::usize(min.min(max)..=min.max(max));
+        let mut result = String::new();
+        result.try_reserve_exact(length).map_err(|_| {
+            DatabaseError::InvalidQuery("Faker password length exceeds string capacity")
+        })?;
+        result.extend((0..length).map(|_| self.randomAscii()));
+        Ok(result)
+    }
+
     pub fn domainWord(&self) -> DatabaseResult<String> {
-        let mut name = Str::transliterateWithUnknown(&self.lastName(), Some(""));
-        name.retain(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '_' | '.')
-        });
+        let mut name = internet_ascii(&self.lastName());
         if name.trim_matches(['.', '_']).is_empty() {
             return Err(DatabaseError::InvalidQuery(
                 "Faker surname cannot be transliterated to a domain word",
             ));
         }
         name.truncate(name.trim_end_matches('.').len());
-        name.make_ascii_lowercase();
         Ok(name)
     }
 
@@ -1091,6 +1240,42 @@ impl UniqueFaker<'_> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
     }
 
+    pub fn userName(&self) -> DatabaseResult<String> {
+        self.generate("userName", || self.0.userName())
+    }
+
+    pub fn safeEmailDomain(&self) -> DatabaseResult<&'static str> {
+        self.generate("safeEmailDomain", || self.0.safeEmailDomain())
+    }
+
+    pub fn freeEmailDomain(&self) -> DatabaseResult<&'static str> {
+        self.generate("freeEmailDomain", || self.0.freeEmailDomain())
+    }
+
+    pub fn safeEmail(&self) -> DatabaseResult<String> {
+        self.generate("safeEmail", || self.0.safeEmail())
+    }
+
+    pub fn freeEmail(&self) -> DatabaseResult<String> {
+        self.generate("freeEmail", || self.0.freeEmail())
+    }
+
+    pub fn companyEmail(&self) -> DatabaseResult<String> {
+        self.try_generate("companyEmail", || self.0.companyEmail())
+    }
+
+    pub fn email(&self) -> DatabaseResult<String> {
+        self.try_generate("email", || self.0.email())
+    }
+
+    pub fn password(
+        &self,
+        minLength: Option<usize>,
+        maxLength: Option<usize>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("password", || self.0.password(minLength, maxLength))
+    }
+
     pub fn domainWord(&self) -> DatabaseResult<String> {
         self.try_generate("domainWord", || self.0.domainWord())
     }
@@ -1420,5 +1605,12 @@ fn digest_hex(bytes: &[u8]) -> String {
     for byte in bytes {
         write!(output, "{byte:02x}").expect("writing to String cannot fail");
     }
+    output
+}
+
+fn internet_ascii(value: &str) -> String {
+    let mut output = Str::transliterateWithUnknown(value, Some(""));
+    output.retain(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '.'));
+    output.make_ascii_lowercase();
     output
 }

@@ -95,6 +95,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_digest".into(), faker.sha256().into()),
             ("sample_ip".into(), faker.localIpv4().into()),
             ("website".into(), faker.url()?.into()),
+            ("contact".into(), faker.safeEmail().into()),
         ]))
     })
 }
@@ -131,6 +132,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 域名、URL 和 slug {#domain-url-slug-samples}
 
 用 `domainWord()?` 将生成的姓氏转写为小写 ASCII，用 `tld()` 按受支持语言环境的 FakerPHP 权重抽取后缀，`domainName()?` 将两者连接。`url()?` 使用上游 HTTP 和 HTTPS 模板，可带 `www`、slug 和 `.html`。姓氏使用 OpenRust 的语言数据和转写规则，与 FakerPHP 的 ICU 或回退映射可能不同。姓氏无法转写出可用字符时，域名和 URL 生成器返回错误。`slug(count, variable)` 用连字符拼接生成的词。传入 `None` 使用六个基准词，`Some(0)` 返回空字符串，`false` 固定词数。五个生成器均支持 `unique`。
+
+### 邮件和密码样本 {#email-and-password-samples}
+
+用 `email()?` 生成普通邮件地址，或用 `companyEmail()?` 生成使用随机域名的地址。简体中文的普通邮件使用本地区免费邮箱列表。`safeEmail()` 使用保留的示例域名，`freeEmail()` 使用地区邮箱服务域名。只需域名时用 `safeEmailDomain()` 或 `freeEmailDomain()`。用户名使用地区姓名或词库并转写为 ASCII。若无可用字符，OpenRust 生成一个 ASCII 字母，保留已有用户名及邮件方法的直接返回类型。`password(min, max)?` 使用从 `!` 到 `~` 的可打印 ASCII 字符，长度包含两端，接受反向边界，默认值为 6 和 20。以上生成器均支持 `unique`。
 
 ## 使用工厂创建模型
 
