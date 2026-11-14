@@ -1412,3 +1412,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、90 项 Faker、49 项 See
 隔离基线 `fd542d2a`。PHP 反射核对 16 份独立词表或格式，以及马来西亚全部 16 组城镇、州名和邮编范围。固定 FakerPHP 共 320 个样本通过。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 322 行，包含三语共用示例，核对 Perlis 前导零、Pahang 分段范围和同地区组合。Rust 回归覆盖无效州键、不适用地区和按州邮编唯一抽样。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、92 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对孟加拉语及尼泊尔语 Address。
+
+## 孟加拉语和尼泊尔语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [孟加拉语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/bn_BD/Address.php) 和 [尼泊尔语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ne_NP/Address.php)。孟加拉语保留 1–100 的本地数字街号和独立 ASCII 邮编。尼泊尔语保留一位或两位字符串选区编号、地名与街名的拼接及五位邮编。国家词表与美国完全一致，复用常量。Rust 地区专用方法返回 Result 并接入 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `66edac05`。PHP 反射核对 12 份词表与模板，按同一规则核对 320 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 322 行，包括三语共用示例。Rust 回归覆盖本地街号、两种选区编号长度、不适用地区和孟加拉语街名唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、93 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对阿拉伯语地区 Address。

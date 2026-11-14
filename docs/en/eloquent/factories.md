@@ -929,6 +929,18 @@ fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String,
 }
 ```
 
+Bengali addresses use Bengali digits for the street number. The independent `postcode()` formatter uses ASCII digits with an optional four-digit extension. Nepali addresses join the city and one- or two-digit ward with a hyphen, then add the street name, district, and five-digit postcode. These regional formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
+    let bengali = fake(Some("bn-BD"))?;
+    let nepali = fake(Some("ne-NP"))?;
+    Ok((bengali.address(), nepali.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

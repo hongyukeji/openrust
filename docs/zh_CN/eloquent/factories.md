@@ -929,6 +929,18 @@ fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String,
 }
 ```
 
+孟加拉语地址的街号使用孟加拉数字。独立的 `postcode()` 使用 ASCII 数字，可带四位扩展。尼泊尔语地址用连字符连接城市和一位或两位选区编号，再拼接街名、县和五位邮编。地区方法支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
+    let bengali = fake(Some("bn-BD"))?;
+    let nepali = fake(Some("ne-NP"))?;
+    Ok((bengali.address(), nepali.address()))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

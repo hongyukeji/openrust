@@ -4182,3 +4182,36 @@ fn malaysian_address_keeps_state_town_and_postcode_in_one_region() {
         unique.postcodeWithState("perlis").unwrap()
     );
 }
+
+#[test]
+fn bengali_and_nepali_addresses_follow_local_number_and_address_templates() {
+    let bengali = fake(Some("bn-BD")).unwrap();
+    let nepali = fake(Some("ne-NP")).unwrap();
+    let street = Regex::new(r"^(?:[১-৯][০-৯]?|১০০) .+$").unwrap();
+    let postcode = Regex::new(r"^[0-9]{5}(?:-[0-9]{4})?$").unwrap();
+    let layout = Regex::new(r"^.+-[0-9]{1,2}, .+, .+ [0-9]{5}$").unwrap();
+    let mut ward_lengths = [false; 2];
+    for _ in 0..128 {
+        let address = bengali.address();
+        let (prefix, locality) = address.split_once(", ").unwrap();
+        assert!(street.is_match(prefix), "{address}");
+        assert!(locality.contains(' ') && !locality.bytes().any(|value| value.is_ascii_digit()));
+        assert!(postcode.is_match(&bengali.postcode()));
+        assert!(layout.is_match(&nepali.address()));
+        assert!(
+            !nepali
+                .streetAddress()
+                .starts_with(|c: char| c.is_ascii_digit())
+        );
+        let ward = nepali.wardNumber().unwrap();
+        assert!(ward.bytes().all(|value| value.is_ascii_digit()));
+        ward_lengths[ward.len() - 1] = true;
+    }
+    assert_eq!(ward_lengths, [true; 2]);
+    assert!(bengali.wardNumber().is_err());
+    let unique = bengali.unique(true);
+    for _ in 0..3 {
+        assert!(unique.banglaStreetName().is_ok());
+    }
+    assert!(unique.banglaStreetName().is_err());
+}
