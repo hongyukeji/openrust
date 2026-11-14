@@ -267,6 +267,49 @@ impl Faker {
         Ok(Self::tcNoChecksum(split.0)? == split.1)
     }
 
+    /// Samples a French establishment identifier with a valid SIREN prefix.
+    pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        const NIC_FORMATS: [&str; 3] = ["####", "0###", "00#%"];
+        let mut number = self.siren(false)?;
+        number.push_str(&self.numerify(Some(NIC_FORMATS[fastrand::usize(..NIC_FORMATS.len())])));
+        number.push(luhn_check_digit(&number));
+        if formatted.unwrap_or(true) {
+            Ok(format!(
+                "{} {} {} {}",
+                &number[..3],
+                &number[3..6],
+                &number[6..9],
+                &number[9..],
+            ))
+        } else {
+            Ok(number)
+        }
+    }
+
+    /// Samples a Polish national business register number.
+    pub fn regon(&self) -> DatabaseResult<String> {
+        if self.locale() != "pl_PL" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker REGON locale",
+            ));
+        }
+        let region = fastrand::u8(0..50) * 2 + 1;
+        let mut number = format!("{region:02}{:06}", fastrand::u32(..1_000_000));
+        number.push(regon_check_digit(&number, &[8, 9, 2, 3, 4, 5, 6, 7]));
+        Ok(number)
+    }
+
+    /// Samples a Polish local business register number with a valid REGON prefix.
+    pub fn regonLocal(&self) -> DatabaseResult<String> {
+        let mut number = self.regon()?;
+        number.push_str(&self.numerify(Some("####")));
+        number.push(regon_check_digit(
+            &number,
+            &[2, 4, 8, 5, 0, 9, 7, 3, 6, 1, 2, 4, 8],
+        ));
+        Ok(number)
+    }
+
     /// Samples a US Employer Identification Number.
     pub fn ein(&self) -> DatabaseResult<String> {
         const PREFIXES: &[u8] = &[
@@ -626,6 +669,18 @@ impl UniqueFaker<'_> {
         self.try_generate("governorateId", || self.0.governorateId())
     }
 
+    pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {
+        self.try_generate("siret", || self.0.siret(formatted))
+    }
+
+    pub fn regon(&self) -> DatabaseResult<String> {
+        self.try_generate("regon", || self.0.regon())
+    }
+
+    pub fn regonLocal(&self) -> DatabaseResult<String> {
+        self.try_generate("regonLocal", || self.0.regonLocal())
+    }
+
     pub fn ein(&self) -> DatabaseResult<String> {
         self.try_generate("ein", || self.0.ein())
     }
@@ -749,6 +804,11 @@ fn icelandic_ssn(birthdate: NaiveDate) -> String {
             return format!("{date}-{serial:02}{check}{century_digit}");
         }
     }
+}
+
+fn regon_check_digit(number: &str, weights: &[u16]) -> char {
+    let digit = (weighted_digits(number, weights) % 11) % 10;
+    char::from(b'0' + digit as u8)
 }
 
 fn weighted_digits(value: &str, weights: &[u16]) -> u16 {

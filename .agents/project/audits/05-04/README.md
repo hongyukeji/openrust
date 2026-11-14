@@ -709,3 +709,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 对应固定 Laravel [Eloquent Factories — Defining Model Factories](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，按 FakerPHP v1.24.1 的 [美国 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Company.php) 和[俄罗斯 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ru_RU/Company.php) 实现。EIN 保留 83 个前缀及七位数字后缀，INN 保留地区范围、模 11 再模 10 校验和旧名 `inn`，KPP 保留四位前缀和 `01001`。四个格式支持 `unique`。Rust 通过可选参数表达缺省值，要求显式地区编号和校验前缀采用 ASCII 数字，验证接口对格式无效的号码返回 false。公开格式各自保留去重历史。v0.x 未找到等价入口，Goravel 式编译装配沿用原入口。
 
 隔离基线 `3e1d2fc5`。PHP 8.5 生成并核对 2,048 条上游样本，逐项比对全部 83 个 EIN 前缀。Rust 九项地区回归、49 项 Seeder、两项 MySQL／SQLite 工厂回归通过，MySQL fresh 单独提供清库 URL 实际执行。MySQL 8.4.13 通过实际二进制 `main artisan db:seed --database=mysql --force` 写入并回查 EIN、INN、旧名 INN 和 KPP 四条记录。Rust 1.94.0 格式及全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 及双挂载六项浏览器检查通过。站点保留既有分块大小提示。恢复原 Seeder，Cargo 清理输出为 2.2 GiB，另清理 39 MiB 站点产物。提交前周额度剩余 50%，项目卷可用 81 GiB。后续核对法国 SIRET 和波兰 REGON。
+
+## Faker 法国 SIRET 与波兰 REGON
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。按 FakerPHP v1.24.1 的 [法国 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_FR/Company.php) 与[波兰 Company](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/Company.php) 实现。SIRET 复用 SIREN 和 Luhn，保留三种机构序号掩码、默认分组以及纯数字格式。Rust 以 `Option<bool>` 表达 PHP 可选格式参数。REGON 保留奇数地区码和模 11 校验，`regonLocal` 复用有效的九位前缀并按本地登记号权重计算末位。三个方法独立维护 `unique` 历史。v0.x 未找到对应入口。现有编译式装配继续调用同一个 Faker。
+
+隔离基线 `53f8edc7`。PHP 8.5 生成并核对 2,048 条固定上游样本。Rust 1.94.0 格式、工作区全目标严格 Clippy、10 项地区回归、49 项 Seeder 和两项 MySQL／SQLite 工厂回归通过，MySQL fresh 已在独立临时数据库另行执行。MySQL 8.4.13 通过实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查四条样本，覆盖 SIRET 两种输出和 REGON 两种长度。Artisan inspire、三语示例编译、VitePress 和根路径及 `/docs/` 下六项浏览器检查通过，保留已有分块大小提示。下一批核对捷克 IČO、丹麦 CVR 与 P 编号及冰岛 VSK。
+
+已恢复临时 Seeder，清理本批 2.2 GiB Cargo 产物及 39 MiB 站点产物。提交前周额度剩余 50%，项目卷可用 81 GiB。

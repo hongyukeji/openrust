@@ -298,10 +298,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `en-US` 的 `ein()` 返回两位前缀、连字符和七位后缀。`ru-RU` 的 `inn10(area)` 和旧名 `inn(area)` 生成十位 INN。传入 `None`、空字符串或零时，从 01 至 91 抽样地区编号。显式地区编号须用 ASCII 数字表示 1 至 99。`kpp(inn)` 取 INN 前四位并附加 `01001`，缺省或不足四字节时生成新 INN。`Faker::inn10Checksum` 根据九位前缀计算校验位，`Faker::inn10IsValid` 验证完整号码。四个生成方法均支持 `unique`。
 
+`fr-FR` 的 `siret(None)` 按 3–3–3–5 分组生成法国机构编号，传入 `Some(false)` 可取得无空格形式。九位 SIREN 前缀和十四位完整编号分别通过 Luhn 校验。`pl-PL` 的 `regon()` 生成九位企业登记号，`regonLocal()` 以有效的 REGON 为前缀生成十四位本地登记号。两者采用加权模 11 校验，余数为 10 时校验位为零。三个生成方法均支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 24]> {
+fn identity_samples() -> DatabaseResult<[String; 27]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -309,6 +311,9 @@ fn identity_samples() -> DatabaseResult<[String; 24]> {
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
     Ok([
+        fake(Some("fr-FR"))?.siret(None)?,
+        polish.regon()?,
+        polish.unique(false).regonLocal()?,
         fake(Some("en-US"))?.ein()?,
         inn,
         kpp,

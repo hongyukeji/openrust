@@ -298,10 +298,12 @@ Use `passportNumber()` with `lt-LT` for eight digits or `lv-LV` for two lowercas
 
 Use `ein()` with `en-US` for a two-digit provider prefix and a seven-digit suffix. With `ru-RU`, `inn10(area)` and its legacy name `inn(area)` generate a ten-digit INN. Pass `None`, an empty string, or zero to sample an area from 01 to 91. An explicit area must represent a number from 1 to 99 using ASCII digits. `kpp(inn)` uses the first four digits of an INN and appends `01001`. A missing or short input samples a fresh INN. Use `Faker::inn10Checksum` on a nine-digit prefix and `Faker::inn10IsValid` on a complete number. All four generators support `unique`.
 
+Use `siret(None)` with `fr-FR` for a French establishment identifier formatted as 3–3–3–5 digits. Pass `Some(false)` for the compact form. The nine-digit SIREN prefix and the full fourteen-digit identifier each have a Luhn check digit. With `pl-PL`, `regon()` generates a nine-digit business register number and `regonLocal()` extends a valid REGON prefix to fourteen digits. Both use a weighted modulo-11 check digit, mapping a remainder of 10 to zero. All three generators support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 24]> {
+fn identity_samples() -> DatabaseResult<[String; 27]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -309,6 +311,9 @@ fn identity_samples() -> DatabaseResult<[String; 24]> {
     let inn = russian.inn10(Some("77"))?;
     let kpp = russian.kpp(Some(&inn))?;
     Ok([
+        fake(Some("fr-FR"))?.siret(None)?,
+        polish.regon()?,
+        polish.unique(false).regonLocal()?,
         fake(Some("en-US"))?.ein()?,
         inn,
         kpp,

@@ -1,6 +1,19 @@
 use openrust::database::eloquent::factories::fake;
 use regex::Regex;
 
+fn luhn(sample: &str) {
+    let sum: u32 = sample
+        .bytes()
+        .rev()
+        .enumerate()
+        .map(|(i, digit)| {
+            let digit = u32::from(digit - b'0') * if i % 2 == 0 { 1 } else { 2 };
+            digit / 10 + digit % 10
+        })
+        .sum();
+    assert_eq!(sum % 10, 0);
+}
+
 #[test]
 fn regional_identity_samples_match_the_fakerphp_rules() {
     let us = fake(Some("en-US")).unwrap();
@@ -418,18 +431,6 @@ fn regional_id_numbers_match_their_pinned_providers() {
     let mn = fake(Some("mn-MN")).unwrap();
     let eg = fake(Some("ar-EG")).unwrap();
     let date = NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
-    let luhn = |sample: &str| {
-        let sum: u32 = sample
-            .bytes()
-            .rev()
-            .enumerate()
-            .map(|(i, digit)| {
-                let digit = u32::from(digit - b'0') * if i % 2 == 0 { 1 } else { 2 };
-                digit / 10 + digit % 10
-            })
-            .sum();
-        assert_eq!(sum % 10, 0);
-    };
     let alphabet = "АЛХБМЦВНЧГОШДӨЩЕПЪЁРЫЖСЬЗТЭИУЮЙҮЯКФ";
     let governorates = [
         "02", "19", "28", "25", "29", "31", "18", "22", "03", "35", "01", "12", "11", "26", "04",
@@ -577,4 +578,56 @@ fn us_and_russian_tax_identifiers_follow_pinned_formats() {
     assert!(ru.ein().is_err());
     assert!(us.inn10(None).is_err());
     assert!(us.kpp(None).is_err());
+}
+
+#[test]
+fn french_siret_and_polish_regon_follow_pinned_formats() {
+    fn regon_valid(sample: &str, weights: &[u16]) {
+        assert_eq!(sample.len(), weights.len() + 1);
+        assert!(sample.bytes().all(|digit| digit.is_ascii_digit()));
+        let sum: u16 = sample
+            .bytes()
+            .zip(weights)
+            .map(|(digit, weight)| u16::from(digit - b'0') * weight)
+            .sum();
+        assert_eq!(
+            sum % 11 % 10,
+            u16::from(sample.as_bytes()[weights.len()] - b'0')
+        );
+    }
+
+    let french = fake(Some("fr-FR")).unwrap();
+    let polish = fake(Some("pl-PL")).unwrap();
+    let formatted = Regex::new(r"^[1-9][0-9]{2} [0-9]{3} [0-9]{3} [0-9]{5}$").unwrap();
+    let mut sirets = std::collections::HashSet::new();
+    let mut regional_ids = std::collections::HashSet::new();
+    let mut local_ids = std::collections::HashSet::new();
+    let french_unique = french.unique(true);
+    let polish_unique = polish.unique(true);
+    let weights = [8, 9, 2, 3, 4, 5, 6, 7];
+    for _ in 0..128 {
+        let sample = french_unique.siret(None).unwrap();
+        assert!(formatted.is_match(&sample));
+        let sample = sample.replace(' ', "");
+        assert!(sirets.insert(sample.clone()));
+        luhn(&sample);
+        luhn(&sample[..9]);
+        let compact = french.siret(Some(false)).unwrap();
+        assert_eq!(compact.len(), 14);
+        assert!(compact.bytes().all(|digit| digit.is_ascii_digit()));
+        luhn(&compact);
+
+        let regional = polish_unique.regon().unwrap();
+        regon_valid(&regional, &weights);
+        assert_eq!((regional.as_bytes()[1] - b'0') % 2, 1);
+        assert!(regional_ids.insert(regional));
+        let local = polish_unique.regonLocal().unwrap();
+        regon_valid(&local, &[2, 4, 8, 5, 0, 9, 7, 3, 6, 1, 2, 4, 8]);
+        regon_valid(&local[..9], &weights);
+        assert_eq!((local.as_bytes()[1] - b'0') % 2, 1);
+        assert!(local_ids.insert(local));
+    }
+    assert!(polish.siret(None).is_err());
+    assert!(french.regon().is_err());
+    assert!(french.regonLocal().is_err());
 }
