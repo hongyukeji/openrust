@@ -26,6 +26,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 ```
 
 
+用 `faker.unique(false)` 让同一个生成器按方法去重，用 `unique(true)` 清空历史。`Factory::tryWithFaker` 的同一批次共享生成器，重试耗尽会在该批模型写入前返回错误。独立工厂调用各有自己的历史。例如，可在工厂定义中使用 `faker.unique(false).safeEmail()?`。
+
 ## 使用工厂创建模型
 
 `state` 按声明顺序叠加。`sequence` 接收批次内从零开始的索引。`make` 创建内存模型并运行 `afterMaking`。`create` 保存模型、创建已声明的子关系，然后运行 `afterCreating`。调用 `count` 后返回 Eloquent 集合。工厂属性绕过批量赋值过滤，并继续执行模型修改器与属性转换。

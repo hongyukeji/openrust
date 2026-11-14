@@ -1,4 +1,8 @@
-use std::ops::Range;
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Range,
+    sync::Mutex,
+};
 
 use crate::{
     container::Container,
@@ -11,6 +15,7 @@ use ::fake::{Fake, faker, locales};
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
+    unique: Mutex<HashMap<&'static str, HashSet<String>>>,
 }
 
 macro_rules! generate {
@@ -47,7 +52,10 @@ impl Faker {
     pub fn new(locale: &str) -> DatabaseResult<Self> {
         let locale = canonical_locale(locale)
             .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
-        Ok(Self { locale })
+        Ok(Self {
+            locale,
+            unique: Mutex::default(),
+        })
     }
 
     pub(super) fn for_connection(connection: &Connection) -> DatabaseResult<Self> {
@@ -72,6 +80,14 @@ impl Faker {
         &self.locale
     }
 
+    /// Generates values without repeating previously returned values for each formatter.
+    pub fn unique(&self, reset: bool) -> UniqueFaker<'_> {
+        if reset {
+            self.unique.lock().unwrap().clear();
+        }
+        UniqueFaker(self)
+    }
+
     pub fn name(&self) -> String {
         generate!(self.locale.as_str(), faker::name::raw::Name,)
     }
@@ -86,5 +102,49 @@ impl Faker {
 
     pub fn sentence(&self, words: Range<usize>) -> String {
         generate!(self.locale.as_str(), faker::lorem::raw::Sentence, words)
+    }
+}
+
+/// A uniqueness modifier that shares the generator's formatter history.
+pub struct UniqueFaker<'a>(&'a Faker);
+
+#[allow(non_snake_case, reason = "Matches Faker formatter names")]
+impl UniqueFaker<'_> {
+    pub fn name(&self) -> DatabaseResult<String> {
+        self.generate("name", || self.0.name())
+    }
+
+    pub fn safeEmail(&self) -> DatabaseResult<String> {
+        self.generate("safeEmail", || self.0.safeEmail())
+    }
+
+    pub fn city(&self) -> DatabaseResult<String> {
+        self.generate("city", || self.0.city())
+    }
+
+    pub fn sentence(&self, words: Range<usize>) -> DatabaseResult<String> {
+        self.generate("sentence", || self.0.sentence(words.clone()))
+    }
+
+    fn generate(
+        &self,
+        formatter: &'static str,
+        mut value: impl FnMut() -> String,
+    ) -> DatabaseResult<String> {
+        for _ in 0..10_000 {
+            let value = value();
+            if self
+                .0
+                .unique
+                .lock()
+                .unwrap()
+                .entry(formatter)
+                .or_default()
+                .insert(value.clone())
+            {
+                return Ok(value);
+            }
+        }
+        Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
     }
 }

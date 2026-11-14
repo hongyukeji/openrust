@@ -8,7 +8,8 @@ use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseRes
 
 use super::{Attributes, Collection, Model, casts, relations::BelongsToMany};
 
-type Definition = dyn Fn(&Connection) -> DatabaseResult<Attributes> + Send + Sync;
+type Definition =
+    dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
 type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
@@ -22,7 +23,7 @@ type Relationship<M> = dyn for<'a> Fn(
 mod faker;
 mod relationships;
 
-pub use faker::{Faker, fake};
+pub use faker::{Faker, UniqueFaker, fake};
 
 pub use relationships::{FactoryChild, FactoryParent};
 
@@ -73,16 +74,31 @@ pub struct Factory<M: Model> {
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> Factory<M> {
     pub fn new(definition: impl Fn() -> Attributes + Send + Sync + 'static) -> Self {
-        Self::from_definition(move |_| Ok(definition()))
+        Self::from_definition(move |_, _| Ok(definition()))
     }
 
     /// Defines model attributes using the application's configured Faker locale.
     pub fn withFaker(definition: impl Fn(&Faker) -> Attributes + Send + Sync + 'static) -> Self {
-        Self::from_definition(move |connection| Ok(definition(&Faker::for_connection(connection)?)))
+        Self::tryWithFaker(move |faker| Ok(definition(faker)))
+    }
+
+    /// Defines model attributes with a generator that can return an error.
+    pub fn tryWithFaker(
+        definition: impl Fn(&Faker) -> DatabaseResult<Attributes> + Send + Sync + 'static,
+    ) -> Self {
+        Self::from_definition(move |connection, faker| {
+            if faker.get().is_none() {
+                let _ = faker.set(Faker::for_connection(connection)?);
+            }
+            definition(faker.get().expect("factory generator initialized"))
+        })
     }
 
     fn from_definition(
-        definition: impl Fn(&Connection) -> DatabaseResult<Attributes> + Send + Sync + 'static,
+        definition: impl Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes>
+        + Send
+        + Sync
+        + 'static,
     ) -> Self {
         Self {
             definition: Box::new(definition),
@@ -285,7 +301,14 @@ impl<M: Model> Factory<M> {
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
         let mut model = self
-            .instantiate(connection, 0, &self.parent_cache(), &self.recycled, None)
+            .instantiate(
+                connection,
+                0,
+                &self.parent_cache(),
+                &self.recycled,
+                None,
+                &std::sync::OnceLock::new(),
+            )
             .await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         Ok(model)
@@ -312,8 +335,9 @@ impl<M: Model> Factory<M> {
         cache: &[ParentCache],
         pool: &[RecycledModel],
         relation: Option<&(Attributes, Attributes)>,
+        faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<M> {
-        let mut attributes = (self.definition)(connection)?;
+        let mut attributes = (self.definition)(connection, faker)?;
         if let Some((defaults, _)) = relation {
             attributes.extend(defaults.clone());
         }
@@ -353,7 +377,14 @@ impl<M: Model> Factory<M> {
         pool: &[RecycledModel],
     ) -> DatabaseResult<M> {
         let mut model = self
-            .instantiate(connection, index, cache, pool, None)
+            .instantiate(
+                connection,
+                index,
+                cache,
+                pool,
+                None,
+                &std::sync::OnceLock::new(),
+            )
             .await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         self.store(connection, &mut model, pool).await?;
@@ -447,10 +478,11 @@ impl<M: Model> FactoryBatch<M> {
     ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
         let cache = self.factory.parent_cache();
+        let faker = std::sync::OnceLock::new();
         for index in 0..self.count {
             models.push(
                 self.factory
-                    .instantiate(connection, index, &cache, pool, relation)
+                    .instantiate(connection, index, &cache, pool, relation, &faker)
                     .await?,
             );
         }

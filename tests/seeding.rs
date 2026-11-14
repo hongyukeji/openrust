@@ -170,19 +170,48 @@ impl Seeder for PolymorphicFactories {
                 invalid,
                 Err(DatabaseError::InvalidConfiguration(_))
             ));
-            let localized = Factory::<FactoryChild>::withFaker(|faker| {
+            let faker = fake(None)?;
+            assert_eq!(faker.unique(false).sentence(0..1)?, ".");
+            assert!(matches!(
+                faker.unique(false).sentence(0..1),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            assert_eq!(faker.unique(true).sentence(0..1)?, ".");
+
+            let exhausted = Factory::<FactoryChild>::tryWithFaker(|faker| {
+                Ok(Attributes::from([(
+                    "generated_name".into(),
+                    faker.unique(false).sentence(0..1)?.into(),
+                )]))
+            })
+            .count(2);
+            for _ in 0..2 {
+                assert!(matches!(
+                    exhausted.createOn(connection).await,
+                    Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+                ));
+                assert_eq!(
+                    connection.table("seed_factory_children").count("*").await?,
+                    0
+                );
+            }
+            let localized = Factory::<FactoryChild>::tryWithFaker(|faker| {
                 assert_eq!(faker.locale(), "zh_TW");
-                let name = faker.name();
+                let name = faker.unique(false).name()?;
                 assert!(
                     name.chars()
                         .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
                 );
-                Attributes::from([("generated_name".into(), name.into())])
+                Ok(Attributes::from([("generated_name".into(), name.into())]))
             })
             .count(2)
             .createOn(connection)
             .await?;
             assert!(localized.iter().all(|model| model.state().exists()));
+            assert_ne!(
+                localized[0].getAttribute("generated_name"),
+                localized[1].getAttribute("generated_name")
+            );
             let owners = || Factory::<FactoryOwner>::new(Attributes::new);
             let children = || Factory::<FactoryChild>::new(Attributes::new);
             let subject = || {
