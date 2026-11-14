@@ -1,7 +1,7 @@
 //! Eloquent model factories for seeders and tests.
 
 use std::{
-    any::{Any, TypeId},
+    any::{Any, TypeId, type_name},
     collections::BTreeMap,
     sync::{
         Arc, Mutex,
@@ -169,13 +169,39 @@ pub trait FactoryDefinition: Sized + 'static {
 
     fn definition() -> Attributes;
 
-    /// Configures the fresh factory before the caller adds states.
+    /// Configures the fresh factory after its initial state is registered.
     fn configure(factory: Factory<Self::Model>) -> Factory<Self::Model> {
         factory
     }
 
     fn factory() -> Factory<Self::Model> {
-        Self::configure(Factory::new(Self::definition))
+        Self::new(Attributes::new())
+    }
+
+    /// Builds a factory with an initial state, then applies its configuration.
+    #[allow(
+        clippy::new_ret_no_self,
+        reason = "A named definition returns its typed factory builder"
+    )]
+    fn new(attributes: Attributes) -> Factory<Self::Model> {
+        if attributes.is_empty() {
+            Self::configure(Factory::new(Self::definition))
+        } else {
+            Self::newWithState(move |_| attributes.clone())
+        }
+    }
+
+    /// Builds a factory with a computed initial state before configuration.
+    #[allow(non_snake_case, reason = "Matches the factory API naming")]
+    fn newWithState(
+        state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Factory<Self::Model> {
+        Self::configure(Factory::new(Self::definition).state(state))
+    }
+
+    /// Builds a configured factory for the given number of models.
+    fn times(count: usize) -> FactoryBatch<Self::Model> {
+        Self::factory().count(count)
     }
 }
 
@@ -374,6 +400,16 @@ impl<M: Model> Factory<M> {
     pub fn connection(mut self, name: Option<&str>) -> Self {
         self.connection = name.map(str::to_owned);
         self
+    }
+
+    /// The Rust type name of the model bound to this factory.
+    pub fn modelName(&self) -> &'static str {
+        type_name::<M>()
+    }
+
+    /// Constructs an unsaved model from caller attributes using normal mass assignment.
+    pub fn newModel(&self, attributes: Attributes) -> DatabaseResult<M> {
+        M::newInstance(attributes)
     }
 
     pub fn getConnectionName(&self) -> Option<&str> {
@@ -1361,6 +1397,16 @@ impl<M: Model> FactoryBatch<M> {
     #[must_use]
     pub fn connection(self, name: Option<&str>) -> Self {
         self.factory.connection(name).count(self.count)
+    }
+
+    /// The Rust type name of the model bound to this factory.
+    pub fn modelName(&self) -> &'static str {
+        self.factory.modelName()
+    }
+
+    /// Constructs an unsaved model from caller attributes using normal mass assignment.
+    pub fn newModel(&self, attributes: Attributes) -> DatabaseResult<M> {
+        self.factory.newModel(attributes)
     }
 
     pub fn getConnectionName(&self) -> Option<&str> {

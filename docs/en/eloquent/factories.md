@@ -58,7 +58,17 @@ impl HasFactory for Flight {
         FlightFactory::factory()
     }
 }
+
+fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
+    let factory = FlightFactory::new(Attributes::from([("name".into(), "Initial".into())]));
+    assert_eq!(factory.modelName(), std::any::type_name::<Flight>());
+    assert!(!factory.newModel(Attributes::new())?.state().exists());
+    let _batch = FlightFactory::times(2);
+    Ok(())
+}
 ```
+
+Use `FlightFactory::new(attributes)` or `FlightFactory::newWithState(callback)` to register the initial state before `configure`. `FlightFactory::times(2)` starts a configured batch of two. On either builder, `modelName()` returns the bound Rust type name. `newModel(attributes)` constructs an unsaved model using its normal mass-assignment rules, without evaluating the factory definition or states.
 
 ### Localized Fake Data {#localized-fake-data}
 

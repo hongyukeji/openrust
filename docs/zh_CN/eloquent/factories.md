@@ -58,7 +58,17 @@ impl HasFactory for Flight {
         FlightFactory::factory()
     }
 }
+
+fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
+    let factory = FlightFactory::new(Attributes::from([("name".into(), "Initial".into())]));
+    assert_eq!(factory.modelName(), std::any::type_name::<Flight>());
+    assert!(!factory.newModel(Attributes::new())?.state().exists());
+    let _batch = FlightFactory::times(2);
+    Ok(())
+}
 ```
+
+用 `FlightFactory::new(attributes)` 或 `FlightFactory::newWithState(callback)` 在 `configure` 之前登记初始状态。`FlightFactory::times(2)` 创建配置好的两条批次。单条和批量构建器的 `modelName()` 返回绑定的 Rust 类型名。`newModel(attributes)` 按模型的批量赋值规则构造未保存的模型，不执行工厂定义和状态。
 
 ### 本地化测试数据 {#localized-fake-data}
 

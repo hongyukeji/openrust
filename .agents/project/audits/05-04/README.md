@@ -348,3 +348,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `2f1a0a51`。实际应用二进制 `artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 和隔离 SQLite 连接验证首次失败后重试、raw 与 make 并发只建一条上级记录、构建器转换为批次后沿用父键、连接切换及类型化回收查询。已有的多态 Seeder 验证两次 create 使用同一父键。Rust 1.94.0 格式、工作区全目标严格 Clippy、26 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 清理本批隔离副本 2.2 GiB Cargo 产物及约 37 MiB 站点产物，磁盘可用 87 GiB。05-04 后续核对模型元数据入口和固定 Laravel 工厂创建快捷方法。
+
+## 工厂创建快捷入口与模型元数据
+
+固定 Laravel 的 `new` 先登记状态，再调用 `configure`。`times` 在配置后的新构建器上设定数量，`newModel` 直接构造模型。Rust 的 `FactoryDefinition` 用 `new(attributes)` 和 `newWithState(callback)` 表达 Laravel 同一参数接受属性或闭包的行为，`times(usize)` 返回类型化批次。单条与批量构建器的 `modelName()` 返回静态绑定类型名，`newModel(attributes)` 复用模型批量赋值规则，保留已有 `Factory::new(definition)` 及模型 `factory()` 入口。固定 Goravel 的 Factory 以 Count 构造批次，旧版未发现等价命名模型工厂接口。 [Laravel Factory 创建入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L214) · [Laravel 模型构造](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L949) · [固定 Goravel 工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+隔离基线 `0dbdc71b`。MySQL 8.4.13 实际 `artisan db:seed --database=mysql --force` 验证初始属性和闭包先于配置、调用状态可覆盖、直接构造不执行工厂定义并遵守 fillable、零数量无写入以及两条批次落库回查。Rust 1.94.0 格式、工作区全目标严格 Clippy、27 项 Seeder、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 及 6 项浏览器检查通过。
+
+清理本批隔离副本 2.2 GiB Cargo 产物与约 37 MiB 站点产物。下一批核对固定 Laravel 的模型反查工厂入口及 `raw` 操作的临时状态参数。

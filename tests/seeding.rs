@@ -3278,3 +3278,141 @@ async fn factory_parent_cache_survives_calls_and_respects_connections() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+struct ShortcutModel(ModelState);
+
+impl Model for ShortcutModel {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("factory_shortcuts")
+            .timestamps(None, None)
+            .fillable(&["label"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct ShortcutFactory;
+
+impl FactoryDefinition for ShortcutFactory {
+    type Model = ShortcutModel;
+
+    fn definition() -> Attributes {
+        Attributes::from([("label".into(), "definition".into())])
+    }
+
+    fn configure(factory: Factory<Self::Model>) -> Factory<Self::Model> {
+        factory.state(|attributes| {
+            let label = match &attributes["label"] {
+                Value::Text(label) => format!("{label}-configured"),
+                other => panic!("unexpected label {other:?}"),
+            };
+            Attributes::from([("label".into(), label.into())])
+        })
+    }
+}
+
+async fn verify_factory_shortcuts(connection: &Connection) -> DatabaseResult<()> {
+    let initial = ShortcutFactory::new(Attributes::from([("label".into(), "initial".into())]));
+    assert_eq!(initial.modelName(), std::any::type_name::<ShortcutModel>());
+    let attributes = Attributes::from([("label".into(), "direct".into())]);
+    let unsaved = initial.newModel(attributes.clone())?;
+    assert!(!unsaved.state().exists());
+    assert_eq!(unsaved.getAttribute("label"), Some(&"direct".into()));
+    assert!(
+        initial
+            .newModel(Attributes::new())?
+            .getAttribute("label")
+            .is_none()
+    );
+    let guarded = initial.newModel(Attributes::from([
+        ("label".into(), "direct".into()),
+        ("id".into(), 9_i64.into()),
+    ]))?;
+    assert!(guarded.getAttribute("id").is_none());
+    let computed = ShortcutFactory::newWithState(|attributes| {
+        assert_eq!(attributes["label"], "definition".into());
+        Attributes::from([("label".into(), "computed".into())])
+    });
+    assert_eq!(
+        computed.rawOn(connection).await?["label"],
+        "computed-configured".into()
+    );
+
+    assert_eq!(
+        initial.rawOn(connection).await?["label"],
+        "initial-configured".into()
+    );
+    assert_eq!(
+        initial.set("label", "override").rawOn(connection).await?["label"],
+        "override".into()
+    );
+
+    let batch = ShortcutFactory::times(2);
+    assert_eq!(batch.modelName(), std::any::type_name::<ShortcutModel>());
+    assert_eq!(
+        batch.newModel(attributes)?.getAttribute("label"),
+        Some(&"direct".into())
+    );
+    let previews = batch.rawOn(connection).await?;
+    assert_eq!(previews.len(), 2);
+    assert!(
+        previews
+            .iter()
+            .all(|row| row["label"] == "definition-configured".into())
+    );
+
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("factory_shortcuts", |table| {
+            table.id();
+            table.string("label", 100);
+        })
+        .await?;
+    assert!(
+        ShortcutFactory::times(0)
+            .createOn(connection)
+            .await?
+            .is_empty()
+    );
+    assert_eq!(connection.table("factory_shortcuts").count("*").await?, 0);
+    assert_eq!(batch.createOn(connection).await?.len(), 2);
+    assert_eq!(
+        connection
+            .table("factory_shortcuts")
+            .orderBy("id", "asc")
+            .pluck("label")
+            .await?,
+        [
+            "definition-configured".into(),
+            "definition-configured".into()
+        ]
+    );
+    schema.drop("factory_shortcuts").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn named_factory_shortcuts_preserve_configuration_and_model_construction() {
+    let root = Root::new();
+    verify_factory_shortcuts(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_factory_shortcuts(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
