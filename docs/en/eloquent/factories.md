@@ -32,6 +32,8 @@ Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userNam
 
 Use `numberBetween(first, second)` for an inclusive integer range in either order. `randomDigit()` returns 0 through 9, and `randomDigitNotNull()` returns 1 through 9. `dateTimeBetween(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.
 
+`randomDigitNot(except)` excludes the supplied digit. `randomNumber(digits, strict)` uses a random width from one to nine when given `None`. Strict mode requires exactly the selected width. Non-strict mode also accepts zero digits and returns zero. Explicit widths above nine and strict zero digits return errors. Both methods support `unique`.
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{

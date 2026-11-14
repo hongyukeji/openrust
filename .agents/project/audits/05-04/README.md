@@ -130,3 +130,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel Factory 的 expandAttributes 和 withoutParents。Rust 用 parentAttribute 声明工厂外键属性，展开时优先读取显式属性，按需生成上级或复用同类型同连接模型。按属性名或模型类型排除时生成 Null，显式 for 与 forExisting 关系继续解析。批次中每个未覆盖的属性独立展开。旧版未发现对应入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L550)
 
 隔离基线 7081089a。MySQL 8.4.13 实际 db:seed 验证全部禁用、按名及类型排除、显式覆盖、批次生成、模型复用、显式关系与实际入库。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。
+
+## Faker 数字排除与位数生成
+
+对照 FakerPHP 1.24.1 的 randomDigitNot 和 randomNumber。randomDigitNot 从九个候选值中取样并跳过指定值。randomNumber 支持随机位数、严格位数和非严格零位，保留上游的 32 位最大随机值约束。Rust 使用 Option 和 Result 表达缺省值及非法位数，拒绝严格零位。两个方法沿用 unique 去重。旧版未发现对应入口，Goravel 装配无需调整。 [FakerPHP Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L45)
+
+隔离基线 8bea2ca1。MySQL 8.4.13 实际 db:seed 验证排除值、严格和缺省位数、非法边界、零位及唯一值耗尽。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。

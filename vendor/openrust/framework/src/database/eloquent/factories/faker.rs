@@ -139,6 +139,34 @@ impl Faker {
         fastrand::u8(1..=9)
     }
 
+    pub fn randomDigitNot(&self, except: i64) -> u8 {
+        let digit = fastrand::u8(0..=8);
+        digit + u8::from(i64::from(digit) >= except)
+    }
+
+    /// Generates an integer with at most the requested number of digits.
+    pub fn randomNumber(&self, digits: Option<u32>, strict: bool) -> DatabaseResult<i64> {
+        let digits = digits.unwrap_or_else(|| u32::from(self.randomDigitNotNull()));
+        let max = 10_i64
+            .checked_pow(digits)
+            .map(|limit| limit - 1)
+            .filter(|&limit| limit <= i64::from(i32::MAX))
+            .ok_or(DatabaseError::InvalidQuery(
+                "Faker random number exceeds digit limit",
+            ))?;
+        let min = if strict {
+            10_i64.pow(digits.saturating_sub(1))
+        } else {
+            0
+        };
+        if min > max {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker strict digit count is zero",
+            ));
+        }
+        Ok(self.numberBetween(min, max))
+    }
+
     /// Samples an inclusive interval at Unix-second precision.
     pub fn dateTimeBetween(
         &self,
@@ -176,6 +204,14 @@ impl UniqueFaker<'_> {
 
     pub fn randomDigitNotNull(&self) -> DatabaseResult<u8> {
         self.generate("randomDigitNotNull", || self.0.randomDigitNotNull())
+    }
+
+    pub fn randomDigitNot(&self, except: i64) -> DatabaseResult<u8> {
+        self.generate("randomDigitNot", || self.0.randomDigitNot(except))
+    }
+
+    pub fn randomNumber(&self, digits: Option<u32>, strict: bool) -> DatabaseResult<i64> {
+        self.try_generate("randomNumber", || self.0.randomNumber(digits, strict))
     }
 
     pub fn dateTimeBetween(

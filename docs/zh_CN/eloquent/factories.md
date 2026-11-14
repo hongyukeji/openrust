@@ -32,6 +32,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `numberBetween(first, second)` 生成整数，包含两个端点，端点可以任意排序。`randomDigit()` 返回 0 至 9，`randomDigitNotNull()` 返回 1 至 9。`dateTimeBetween(start, end)` 接收显式 UTC 日期时间，按整秒取样并包含两端，起始秒晚于结束秒时返回错误。四种方法都支持 `unique`。
 
+`randomDigitNot(except)` 排除指定数字。`randomNumber(digits, strict)` 的位数传入 `None` 时随机选择一至九位。严格模式生成确切位数，非严格模式也接受零位并返回零。显式位数超过九位或严格模式指定零位时返回错误。两种方法均支持 `unique`。
+
 ```rust
 use chrono::DateTime;
 use openrust::database::{
