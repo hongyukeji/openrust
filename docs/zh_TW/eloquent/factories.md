@@ -431,6 +431,18 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
 }
 ```
 
+### 職業名稱 {#job-titles}
+
+呼叫 `jobTitle()` 從目前地區的 Company provider 產生職業名稱。`de-DE`、`en-US`、`fr-FR`、`id-ID`、`nb-NO`、`nl-NL`、`ru-RU`、`sv-SE`、`tr-TR` 和 `uk-UA` 有獨立詞表。比利時、加拿大與瑞士的法語地區繼承法國詞表。Company provider 繼承基礎職業範本時回傳單個 Lorem 詞，缺少 Company provider 時使用美國詞表。可透過 `unique(false).jobTitle()` 去重。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn job_title_sample() -> DatabaseResult<String> {
+    fake(Some("id-ID"))?.unique(false).jobTitle()
+}
+```
+
 ### 偏置取樣與產生器修飾器 {#faker-biased-and-modifiers}
 
 用 `biasedNumberBetween(min, max, function)?` 在包含端點的整數範圍內取樣。傳入 `None` 分別採用預設下限 0、上限 100 與平方根曲線。自訂曲線接收 [0, 1) 內的數並傳回 0 至 1 的機率。範圍反向、機率無效或取樣耗盡時回傳錯誤。此方法支援 `unique`。

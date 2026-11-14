@@ -60,6 +60,9 @@ mod west_asian;
 #[path = "faker_company_south_southeast_asian.rs"]
 mod south_southeast_asian;
 
+#[path = "faker_job_title.rs"]
+mod job_title;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4192,6 +4195,11 @@ impl Faker {
         }
     }
 
+    /// Samples a job title using the configured Company provider.
+    pub fn jobTitle(&self) -> String {
+        job_title::job_title(self.locale())
+    }
+
     /// Samples a company prefix for a locale with a prefix catalog.
     pub fn companyPrefix(&self) -> DatabaseResult<&'static str> {
         let prefixes = match self.locale() {
@@ -4362,6 +4370,10 @@ impl Faker {
 impl UniqueFaker<'_> {
     pub fn company(&self) -> DatabaseResult<String> {
         self.generate("company", || self.0.company())
+    }
+
+    pub fn jobTitle(&self) -> DatabaseResult<String> {
+        self.generate("jobTitle", || self.0.jobTitle())
     }
 
     pub fn companyPrefix(&self) -> DatabaseResult<&'static str> {

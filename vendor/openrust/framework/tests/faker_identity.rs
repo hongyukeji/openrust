@@ -1558,3 +1558,50 @@ fn south_and_southeast_asian_companies_keep_pinned_formats() {
     assert!(malaysia.companyType().is_err());
     assert!(bangladesh.slogan().is_err());
 }
+
+#[test]
+fn job_titles_use_the_company_provider_and_share_unique_history() {
+    let swedish = fake(Some("sv-SE")).unwrap();
+    let titles = swedish.unique(true);
+    let catalog: std::collections::HashSet<_> =
+        (0..22).map(|_| titles.jobTitle().unwrap()).collect();
+    assert_eq!(catalog.len(), 22);
+    assert!(catalog.contains("Automationsingenjör"));
+    assert!(catalog.contains("Webbutvecklare"));
+    assert!(catalog.contains(swedish.jobTitle().as_str()));
+    assert!(swedish.uniqueWithRetries(false, 1).jobTitle().is_err());
+    assert!(catalog.contains(swedish.unique(true).jobTitle().unwrap().as_str()));
+
+    let german = fake(Some("de-DE")).unwrap();
+    let german_titles = german.unique(true);
+    let catalog: std::collections::HashSet<_> =
+        (0..25).map(|_| german_titles.jobTitle().unwrap()).collect();
+    assert!(catalog.contains("Abteilungsdirektor"));
+    assert!(catalog.contains("Werksleiter"));
+
+    let french = fake(Some("fr-CA")).unwrap();
+    let french_titles = french.unique(true);
+    let catalog: std::collections::HashSet<_> = (0..300)
+        .map(|_| french_titles.jobTitle().unwrap())
+        .collect();
+    assert!(catalog.contains("Agent d'accueil"));
+    assert!(catalog.contains("Vitrier"));
+    for locale in ["fr-FR", "fr-BE", "fr-CH"] {
+        assert!(catalog.contains(&fake(Some(locale)).unwrap().jobTitle()));
+    }
+
+    let fallback_locale = fake(Some("en-CA")).unwrap();
+    let inherited_locale = fake(Some("zh-Hant")).unwrap();
+    let inherited = inherited_locale.unique(true);
+    for _ in 0..32 {
+        let title = inherited.jobTitle().unwrap();
+        assert!(title.bytes().all(|byte| byte.is_ascii_lowercase()));
+    }
+    // en-CA lacks a dedicated Company provider and uses the US title list.
+    assert!((0..32).any(|_| {
+        fallback_locale
+            .jobTitle()
+            .bytes()
+            .any(|byte| byte.is_ascii_uppercase())
+    }));
+}
