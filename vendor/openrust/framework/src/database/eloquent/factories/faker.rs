@@ -847,6 +847,38 @@ impl Faker {
         }
     }
 
+    pub fn ean13(&self) -> String {
+        ean_with_checksum(self.numerify(Some("############")))
+    }
+
+    pub fn ean8(&self) -> String {
+        ean_with_checksum(self.numerify(Some("#######")))
+    }
+
+    pub fn isbn10(&self) -> String {
+        let mut code = self.numerify(Some("#########"));
+        let sum: u32 = code
+            .bytes()
+            .enumerate()
+            .map(|(index, digit)| (10 - index as u32) * u32::from(digit - b'0'))
+            .sum();
+        let check = ((11 - sum % 11) % 11) as u8;
+        code.push(if check == 10 {
+            'X'
+        } else {
+            char::from(b'0' + check)
+        });
+        code
+    }
+
+    pub fn isbn13(&self) -> String {
+        let prefix = if fastrand::bool() { "978" } else { "979" };
+        let mut code = String::with_capacity(13);
+        code.push_str(prefix);
+        code.push_str(&self.numerify(Some("#########")));
+        ean_with_checksum(code)
+    }
+
     pub fn imei(&self) -> String {
         let mut digits = self.numerify(Some("##############"));
         let sum: u32 = digits
@@ -1466,6 +1498,17 @@ impl Faker {
     }
 }
 
+fn ean_with_checksum(mut code: String) -> String {
+    let sum: u32 = code
+        .bytes()
+        .rev()
+        .enumerate()
+        .map(|(index, digit)| (3 - 2 * (index % 2) as u32) * u32::from(digit - b'0'))
+        .sum();
+    code.push(char::from(b'0' + ((10 - sum % 10) % 10) as u8));
+    code
+}
+
 fn lorem_count(count: usize, variable: bool) -> usize {
     if !variable || count == 0 {
         return count;
@@ -1733,6 +1776,22 @@ impl UniqueFaker<'_> {
 
     pub fn e164PhoneNumber(&self) -> DatabaseResult<String> {
         self.generate("e164PhoneNumber", || self.0.e164PhoneNumber())
+    }
+
+    pub fn ean13(&self) -> DatabaseResult<String> {
+        self.generate("ean13", || self.0.ean13())
+    }
+
+    pub fn ean8(&self) -> DatabaseResult<String> {
+        self.generate("ean8", || self.0.ean8())
+    }
+
+    pub fn isbn10(&self) -> DatabaseResult<String> {
+        self.generate("isbn10", || self.0.isbn10())
+    }
+
+    pub fn isbn13(&self) -> DatabaseResult<String> {
+        self.generate("isbn13", || self.0.isbn13())
     }
 
     pub fn imei(&self) -> DatabaseResult<String> {

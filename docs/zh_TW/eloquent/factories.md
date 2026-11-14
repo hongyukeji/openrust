@@ -210,6 +210,19 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用 `phoneNumber()` 產生地區顯示號碼。簡體中文和繁體中文使用固定上游 Faker 範本，其他地區沿用既有 fake-rs 格式。`e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
 
+### 條碼與 ISBN {#barcode-samples}
+
+使用 `ean8()`、`ean13()`、`isbn10()` 和 `isbn13()` 產生帶有檢查碼的樣本。回傳字串保留前導零。ISBN-10 的末位可以是 `X`，ISBN-13 以 `978` 或 `979` 開頭。各產生器獨立維護 `unique` 歷史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn catalog_codes() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en"))?;
+    Ok((faker.ean13(), faker.unique(false).isbn13()?))
+}
+```
+
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
 用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。城市、街道和部分地址元件仍使用 fake-rs 資料。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。

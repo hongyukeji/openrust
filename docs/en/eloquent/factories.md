@@ -210,6 +210,19 @@ Use `email()?` for a general address or `companyEmail()?` for an address on a ge
 
 Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned upstream Faker templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
+### Barcodes and ISBNs {#barcode-samples}
+
+Use `ean8()`, `ean13()`, `isbn10()`, and `isbn13()` for checksum-valid sample codes. The returned strings preserve leading zeros. ISBN-10 can end in `X`; ISBN-13 starts with `978` or `979`. Each formatter has its own `unique` history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn catalog_codes() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en"))?;
+    Ok((faker.ean13(), faker.unique(false).isbn13()?))
+}
+```
+
 ### Postal Addresses and Titles {#address-and-title-samples}
 
 Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. City and street names and some address components still use fake-rs data. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.

@@ -3908,3 +3908,73 @@ async fn seeder_event_muting_covers_children_and_restores_after_errors() {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }
 }
+
+#[test]
+fn faker_barcodes_match_checksums_and_preserve_unique_history() -> DatabaseResult<()> {
+    let faker = fake(Some("zh-Hant"))?;
+    for (length, generate) in [
+        (
+            8,
+            openrust::database::eloquent::factories::Faker::ean8 as fn(_) -> _,
+        ),
+        (13, openrust::database::eloquent::factories::Faker::ean13),
+        (13, openrust::database::eloquent::factories::Faker::isbn13),
+    ] {
+        for _ in 0..64 {
+            let code: String = generate(&faker);
+            assert_eq!(code.len(), length);
+            assert!(code.bytes().all(|digit| digit.is_ascii_digit()));
+            let sum: u32 = code
+                .bytes()
+                .rev()
+                .enumerate()
+                .map(|(index, digit)| u32::from(digit - b'0') * if index % 2 == 0 { 1 } else { 3 })
+                .sum();
+            assert_eq!(sum % 10, 0);
+        }
+    }
+    for _ in 0..64 {
+        let code = faker.isbn13();
+        assert!(code.starts_with("978") || code.starts_with("979"));
+        let code = faker.isbn10();
+        assert_eq!(code.len(), 10);
+        assert!(code[..9].bytes().all(|digit| digit.is_ascii_digit()));
+        let sum: u32 = code
+            .bytes()
+            .zip((1..=10).rev())
+            .map(|(digit, weight)| {
+                weight
+                    * if digit == b'X' {
+                        10
+                    } else {
+                        u32::from(digit - b'0')
+                    }
+            })
+            .sum();
+        assert_eq!(sum % 11, 0);
+    }
+    let unique = faker.unique(true);
+    for samples in [
+        (0..128)
+            .map(|_| unique.ean8())
+            .collect::<DatabaseResult<Vec<_>>>()?,
+        (0..128)
+            .map(|_| unique.ean13())
+            .collect::<DatabaseResult<Vec<_>>>()?,
+        (0..128)
+            .map(|_| unique.isbn10())
+            .collect::<DatabaseResult<Vec<_>>>()?,
+        (0..128)
+            .map(|_| unique.isbn13())
+            .collect::<DatabaseResult<Vec<_>>>()?,
+    ] {
+        assert_eq!(
+            samples
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            samples.len()
+        );
+    }
+    Ok(())
+}

@@ -403,3 +403,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `29cbef89`。真实应用二进制执行 MySQL 8.4.13 `artisan db:seed --database=mysql --force`，确认子 Seeder 在静默范围内写入两条记录，成功和失败返回后同一进程的监听器重新取消普通写入。MySQL／SQLite Artisan 回归还验证未处理错误的退出码 1、错误文本和失败前写入。通过 32 项 Seeder、2 项双库工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
 
 本批隔离清理 2.2 GiB Cargo 构建产物和约 38 MiB 站点产物。05-04 仍跟踪 FakerPHP 生成器与地区行为差异。
+
+## Faker 条码与 ISBN
+
+对照固定的 Barcode provider 及 Ean、Isbn 计算器。接入 `ean8`、`ean13`、`isbn10` 和 `isbn13`，复用现有数字采样与 unique 历史。Rust 按字节计算十进制校验位并保留字符串输出。ISBN-10 的校验值 10 写为 X，ISBN-13 使用 978 或 979 前缀。按上游格式验证输出，随机序列由各语言的生成器决定。固定 Goravel 的 Factory 契约提供编译型生成入口，v0.x 未发现对应格式化器。 [固定 Barcode](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Barcode.php) · [固定 EAN](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Calculator/Ean.php) · [固定 ISBN](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Calculator/Isbn.php) · [固定 Goravel Factory](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)
+
+PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rust 以独立校验公式验证样本，并逐格式验证 128 条唯一值。隔离基线 `aa7d03df` 的实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查四种格式及带前导零的样本。Rust 1.94.0 格式、全目标严格 Clippy、33 项 Seeder、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
+
+清理本批隔离构建和站点产物。05-04 仍跟踪其他生成器和地区差异、应用默认 Seeder 与工厂模块接线，以及工厂跨次状态生命周期等未闭合项。
