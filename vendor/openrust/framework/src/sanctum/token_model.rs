@@ -136,6 +136,7 @@ pub(super) trait ModelToken: Send + Sync {
     fn record_use(&mut self, now: DateTime<Utc>) -> DatabaseFuture<'_, DatabaseResult<bool>>;
     fn serialized_model(&self) -> SerializedModel;
     fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>>;
+    fn updated_at(&self) -> DatabaseResult<Option<DateTime<Utc>>>;
 }
 
 pub(super) struct EloquentTokenStore<M> {
@@ -356,6 +357,10 @@ impl<M: Model> ModelToken for LoadedModel<M> {
     fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>> {
         date(&self.model, "last_used_at")
     }
+
+    fn updated_at(&self) -> DatabaseResult<Option<DateTime<Utc>>> {
+        date(&self.model, "updated_at")
+    }
 }
 
 async fn lock_token<M: Model>(transaction: &mut Transaction, model: &M) -> DatabaseResult<bool> {
@@ -390,9 +395,10 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         name: text(model, "name")?,
         abilities,
         created_at: date(model, "created_at")?,
+        updated_at: date(model, "updated_at")?,
         last_used_at: date(model, "last_used_at")?,
         expires_at: date(model, "expires_at")?,
-        serialized_model: Some(serialized_model(model)),
+        serialized_model: serialized_model(model),
     })
 }
 

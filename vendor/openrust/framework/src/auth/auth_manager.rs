@@ -24,11 +24,13 @@ use super::{
 
 type ProviderFactory =
     dyn Fn(&Container, &Value) -> AuthResult<Arc<dyn UserProvider>> + Send + Sync;
+type ModelSerializer = fn(&dyn Authenticatable) -> AuthResult<serde_json::Map<String, Value>>;
 
 #[derive(Default)]
 struct Extensions {
     providers: HashMap<String, Arc<ProviderFactory>>,
     models: HashMap<String, (&'static str, Arc<ProviderFactory>)>,
+    model_serializers: HashMap<std::any::TypeId, ModelSerializer>,
     requests: HashMap<String, Arc<Resolver>>,
     #[cfg(feature = "sanctum")]
     sanctum_models: std::collections::HashSet<std::any::TypeId>,
@@ -67,29 +69,61 @@ impl AuthManager {
     }
 
     pub fn registerModel<M: Model + Authenticatable>(&self, name: impl Into<String>) {
-        self.extensions
-            .write()
+        let mut extensions = self.extensions.write().expect("auth extensions lock");
+        extensions
+            .model_serializers
+            .insert(std::any::TypeId::of::<M>(), |user| {
+                (user as &dyn std::any::Any)
+                    .downcast_ref::<M>()
+                    .expect("serializer registered for this model")
+                    .toArray()
+                    .map_err(AuthError::backend)
+            });
+        extensions.models.insert(
+            name.into(),
+            (
+                std::any::type_name::<M>(),
+                Arc::new(|container, config| {
+                    let manager = container
+                        .make::<DatabaseManager>()
+                        .map_err(AuthError::backend)?;
+                    let prototype = M::from_state(Default::default());
+                    let name = config
+                        .get("connection")
+                        .and_then(Value::as_str)
+                        .or_else(|| prototype.getConnectionName());
+                    let connection = manager.connection(name).map_err(AuthError::backend)?;
+                    let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
+                    Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))
+                }),
+            ),
+        );
+    }
+
+    /// Serializes the authenticated identity through its registered model.
+    pub fn userAttributes(
+        &self,
+        user: &dyn Authenticatable,
+    ) -> AuthResult<serde_json::Map<String, Value>> {
+        let serializer = self
+            .extensions
+            .read()
             .expect("auth extensions lock")
-            .models
-            .insert(
-                name.into(),
-                (
-                    std::any::type_name::<M>(),
-                    Arc::new(|container, config| {
-                        let manager = container
-                            .make::<DatabaseManager>()
-                            .map_err(AuthError::backend)?;
-                        let prototype = M::from_state(Default::default());
-                        let name = config
-                            .get("connection")
-                            .and_then(Value::as_str)
-                            .or_else(|| prototype.getConnectionName());
-                        let connection = manager.connection(name).map_err(AuthError::backend)?;
-                        let hasher = container.make::<dyn Hasher>().map_err(AuthError::backend)?;
-                        Ok(Arc::new(EloquentUserProvider::<M>::new(connection, hasher)))
-                    }),
-                ),
-            );
+            .model_serializers
+            .get(&user.type_id())
+            .copied();
+        let mut attributes = match serializer {
+            Some(serialize) => serialize(user)?,
+            None => [(
+                user.get_auth_identifier_name().to_owned(),
+                serde_json::to_value(user.get_auth_identifier()).map_err(AuthError::backend)?,
+            )]
+            .into_iter()
+            .collect(),
+        };
+        attributes.remove(user.get_auth_password_name());
+        attributes.remove(user.get_remember_token_name());
+        Ok(attributes)
     }
 
     #[cfg(feature = "sanctum")]

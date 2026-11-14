@@ -2,7 +2,7 @@
 
 ## 安裝 API 路由 {#installation}
 
-執行 `./artisan install:api`，建立並註冊 `routes/api.rs`，同時把 Sanctum 加入應用程式的 Cargo 預設功能。互動終端會詢問是否執行待處理的遷移，首次安裝確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。
+執行 `./artisan install:api`，建立並註冊 `routes/api.rs`，同時把 Sanctum 加入應用程式的 Cargo 預設功能。互動終端會詢問是否執行待處理的遷移，首次安裝確認後會先重新建置再遷移。CI 可使用 `--without-migration-prompt`，再單獨執行 `./artisan migrate`。使用 `--force` 覆寫既有 API 路由。 安裝器無法修改自訂啟動檔時，會保留產生的路由並提示手動註冊。產生的路由會回傳已註冊驗證模型的可見屬性。選用的遷移失敗時，安裝器會顯示錯誤並保留鷹架。自動化需要遷移結束代碼時，請單獨執行 `./artisan migrate`。
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 發佈 Rust 資源。預設應用程式原始碼已包含這些檔案。
 
@@ -22,7 +22,7 @@ cargo build --features sanctum
 
 ## 簽發個人存取權杖 {#issuing-api-tokens}
 
-使用 `Sanctum::personalAccessTokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。
+使用 `Sanctum::personalAccessTokens` 解析出的權杖儲存庫建立權杖，傳入歸屬型別、歸屬 ID、名稱、能力和選用的到期時間。簽發時將傳回的 `plain_text_token` 交給用戶端。資料庫保存 SHA-256 摘要。`findToken` 查找憑證，`revokeToken` 依歸屬刪除權杖。`can` 支援精確能力及萬用字元 `*`。HTTP 守衛在驗證請求前檢查到期時間。 簽發、驗證時寫回及單筆撤銷都會走 Eloquent 生命週期。預設權杖回應包含 `updated_at`。
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};

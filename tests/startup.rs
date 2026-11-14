@@ -48,11 +48,20 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             .unwrap()
     };
     let result = run(&["install:api", "--without-migration-prompt"]);
-    assert_eq!(result.status.code(), Some(1));
+    assert!(result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("manually"));
-    assert!(!root.0.join("routes/api.rs").exists());
-    assert!(!fs::read_to_string(&modules).unwrap().contains("mod api;"));
-    assert_eq!(fs::read_to_string(&manifest).unwrap(), original);
+    assert!(root.0.join("routes/api.rs").exists());
+    assert_eq!(
+        fs::read_to_string(&bootstrap).unwrap(),
+        "custom bootstrap\n"
+    );
+    assert!(fs::read_to_string(&modules).unwrap().contains("mod api;"));
+    assert!(
+        fs::read_to_string(&manifest)
+            .unwrap()
+            .contains("\"sanctum\"")
+    );
+    fs::remove_file(root.0.join("routes/api.rs")).unwrap();
 
     let default_bootstrap = include_str!("../bootstrap/app.rs");
     let default_modules = include_str!("../routes/mod.rs");

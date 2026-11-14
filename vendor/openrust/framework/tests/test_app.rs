@@ -161,9 +161,15 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
     test.artisan(["vendor:publish", "--no-interaction"])
         .await
         .assertSuccessful();
-    test.artisan(["vendor:publish", "--all", "--existing"])
-        .await
-        .assertSuccessful();
+    let absent = test
+        .artisan(["vendor:publish", "--all", "--existing"])
+        .await;
+    absent.assertSuccessful();
+    assert!(
+        absent
+            .stdout
+            .contains("File [config/fixture.rs] does not exist SKIPPED")
+    );
     assert!(!config.exists());
     assert!(!migrations.exists());
 
@@ -175,7 +181,21 @@ async fn artisan_publishes_registered_package_assets_and_migrations()
         ])
         .await;
     result.assertSuccessful();
-    assert!(result.stdout.contains("Published config/fixture.rs."));
+    assert!(result.stdout.contains("Publishing [fixture] assets"));
+    assert!(result.stdout.contains("Copying file [embedded"));
+    assert!(result.stdout.contains("to [config/fixture.rs]"));
+    let skipped = test
+        .artisan([
+            "vendor:publish",
+            "--provider=FixturePackage",
+            "--tag=fixture",
+        ])
+        .await;
+    assert!(
+        skipped
+            .stdout
+            .contains("File [config/fixture.rs] already exists SKIPPED")
+    );
     assert_eq!(fs::read(&config)?, b"config");
     assert!(!stylesheet.exists());
     assert!(!migrations.exists());
@@ -385,9 +405,12 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     assert!(!target.join("asset.bin").exists());
 
     fs::write(target.join("nested/site.css"), "local edit")?;
-    app.artisan(["vendor:publish", "--tag=package-assets"])
-        .await
-        .assertSuccessful();
+    let directory = app
+        .artisan(["vendor:publish", "--tag=package-assets"])
+        .await;
+    directory.assertSuccessful();
+    assert!(directory.stdout.contains("Copying directory"));
+    assert!(directory.stdout.contains("to [public"));
     assert_eq!(fs::read(target.join("nested/site.css"))?, b"local edit");
     assert_eq!(fs::read(target.join("asset.bin"))?, [0, 255, 42]);
     assert_eq!(fs::read(target.join(".hidden"))?, b"hidden asset");

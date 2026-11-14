@@ -119,10 +119,7 @@ impl Guard {
             .map_err(AuthError::backend)?;
         let token = if self.track_last_used_at {
             let mut token = Arc::unwrap_or_clone(token);
-            if !tokens
-                .record_use(&mut token, &credential, token_model)
-                .await?
-            {
+            if !tokens.record_use(&mut token, token_model).await? {
                 return Ok(None);
             }
             Arc::new(token)

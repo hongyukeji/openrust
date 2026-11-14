@@ -114,11 +114,15 @@ impl Command for InstallRoutesCommand {
             let spec = self.spec;
             let api = spec.command == "install:api";
             let force = api && input.matches().get_flag("force");
-            let existing = tokio::task::spawn_blocking(move || install(&root, spec, force))
-                .await
-                .map_err(|error| ConsoleError::new(error.to_string()))??;
+            let (existing, warnings) =
+                tokio::task::spawn_blocking(move || install(&root, spec, force))
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))??;
             if api && existing && !force {
                 output.stderr.push_str("API routes file already exists.\n");
+            }
+            for warning in warnings {
+                output.stderr.push_str(&format!("Warning: {warning}\n"));
             }
             output.info(&format!(
                 "routes/{}.rs is installed. {}\n",
@@ -133,24 +137,31 @@ impl Command for InstallRoutesCommand {
                     .map_err(|error| ConsoleError::new(error.to_string()))??
             {
                 if cfg!(feature = "sanctum") {
-                    return Ok(app.share().run_console(&["migrate".into()], output).await);
+                    app.share().run_console(&["migrate".into()], output).await;
+                } else {
+                    let root = app.base_path().to_owned();
+                    tokio::task::spawn_blocking(move || migrate_after_rebuild(&root))
+                        .await
+                        .map_err(|error| ConsoleError::new(error.to_string()))??;
                 }
-                let root = app.base_path().to_owned();
-                return tokio::task::spawn_blocking(move || migrate_after_rebuild(&root))
-                    .await
-                    .map_err(|error| ConsoleError::new(error.to_string()))?;
             }
             Ok(0)
         })
     }
 }
 
-fn migrate_after_rebuild(root: &Path) -> Result<i32, ConsoleError> {
+fn migrate_after_rebuild(root: &Path) -> Result<(), ConsoleError> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = std::process::Command::new(cargo);
     command
         .current_dir(root)
-        .args(["run", "--quiet", "--locked"]);
+        .args([
+            "build",
+            "--quiet",
+            "--locked",
+            "--message-format=json-render-diagnostics",
+        ])
+        .stderr(std::process::Stdio::inherit());
     // Windows locks the installer executable until this command returns.
     #[cfg(windows)]
     let target = tempfile::Builder::new()
@@ -161,15 +172,57 @@ fn migrate_after_rebuild(root: &Path) -> Result<i32, ConsoleError> {
         })?;
     #[cfg(windows)]
     command.arg("--target-dir").arg(target.path());
-    let status = command
-        .args(["--", "artisan", "migrate"])
+    let built = command.output().map_err(|error| {
+        ConsoleError::new(format!(
+            "Could not rebuild and run pending migrations: {error}"
+        ))
+    })?;
+    if !built.status.success() {
+        return Err(ConsoleError::new(format!(
+            "Could not rebuild the application: {}",
+            built.status
+        )));
+    }
+    let manifest_path = root.join("Cargo.toml");
+    let manifest = read(&manifest_path)?
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|error| ConsoleError::new(format!("Invalid Cargo.toml: {error}")))?;
+    let default_run = manifest
+        .get("package")
+        .and_then(toml_edit::Item::as_table_like)
+        .and_then(|package| package.get("default-run"))
+        .and_then(toml_edit::Item::as_str);
+    let mut executables = String::from_utf8_lossy(&built.stdout)
+        .lines()
+        .filter_map(|line| {
+            let message: serde_json::Value = serde_json::from_str(line).ok()?;
+            let path = message["manifest_path"].as_str()?;
+            if Path::new(path) != manifest_path
+                && fs::canonicalize(path).ok()? != fs::canonicalize(&manifest_path).ok()?
+            {
+                return None;
+            }
+            let target = &message["target"];
+            if !target["kind"].as_array()?.iter().any(|kind| kind == "bin")
+                || default_run.is_some_and(|name| target["name"] != name)
+            {
+                return None;
+            }
+            message["executable"].as_str().map(std::path::PathBuf::from)
+        })
+        .collect::<Vec<_>>();
+    executables.dedup();
+    let [executable] = executables.as_slice() else {
+        return Err(ConsoleError::new(
+            "Could not identify the application binary. Set package.default-run in Cargo.toml.",
+        ));
+    };
+    std::process::Command::new(executable)
+        .current_dir(root)
+        .args(["artisan", "migrate"])
         .status()
-        .map_err(|error| {
-            ConsoleError::new(format!(
-                "Could not rebuild and run pending migrations: {error}"
-            ))
-        })?;
-    Ok(status.code().unwrap_or(1))
+        .map_err(|error| ConsoleError::new(format!("Could not run pending migrations: {error}")))?;
+    Ok(())
 }
 
 fn confirm_migrations() -> Result<bool, ConsoleError> {
@@ -194,7 +247,11 @@ fn confirm_migrations() -> Result<bool, ConsoleError> {
         ))
 }
 
-fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, ConsoleError> {
+fn install(
+    root: &Path,
+    spec: &InstallSpec,
+    force: bool,
+) -> Result<(bool, Vec<ConsoleError>), ConsoleError> {
     let _manifest = lock_manifest(root)?;
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
@@ -211,6 +268,7 @@ fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, Console
     let module = format!("mod {};", spec.module);
     let module_statement = format!("pub(crate) {module}");
     let anchor = format!("pub(crate) mod {};", spec.module_anchor);
+    let mut warnings = Vec::new();
     let modules_update = if modules.lines().any(|line| {
         let line = line.trim();
         line == module
@@ -219,12 +277,13 @@ fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, Console
     }) {
         None
     } else {
-        Some(insert_before(
-            &modules,
-            &routes_module,
-            &module_statement,
-            |line| line.trim() == anchor,
-        )?)
+        registration_update(
+            insert_before(&modules, &routes_module, &module_statement, |line| {
+                line.trim() == anchor
+            }),
+            spec,
+            &mut warnings,
+        )?
     };
     let startup_update = if startup.lines().any(|line| {
         let line = line.trim();
@@ -237,17 +296,23 @@ fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, Console
                 .iter()
                 .any(|method| line.trim_start().starts_with(method))
         }) {
-            return Err(ConsoleError::new(format!(
-                "bootstrap/app.rs already has a custom {} registration. Add `{}` manually if needed.",
-                spec.module, spec.registration
-            )));
+            registration_update(
+                Err(ConsoleError::new(format!(
+                    "bootstrap/app.rs already has a custom {} registration. Add `{}` manually if needed.",
+                    spec.module, spec.registration
+                ))),
+                spec,
+                &mut warnings,
+            )?
+        } else {
+            registration_update(
+                insert_before(&startup, &bootstrap, spec.registration, |line| {
+                    line.trim_start().starts_with(spec.bootstrap_anchor)
+                }),
+                spec,
+                &mut warnings,
+            )?
         }
-        Some(insert_before(
-            &startup,
-            &bootstrap,
-            spec.registration,
-            |line| line.trim_start().starts_with(spec.bootstrap_anchor),
-        )?)
     };
 
     let existing = !create_routes(&routes, spec.stub)?;
@@ -265,7 +330,21 @@ fn install(root: &Path, spec: &InstallSpec, force: bool) -> Result<bool, Console
     if let Some((previous, updated)) = manifest_update {
         replace(&manifest_path, &previous, &updated)?;
     }
-    Ok(existing)
+    Ok((existing, warnings))
+}
+
+fn registration_update(
+    update: Result<String, ConsoleError>,
+    spec: &InstallSpec,
+    warnings: &mut Vec<ConsoleError>,
+) -> Result<Option<String>, ConsoleError> {
+    match update {
+        Err(warning) if spec.command == "install:api" => {
+            warnings.push(warning);
+            Ok(None)
+        }
+        result => result.map(Some),
+    }
 }
 
 fn enable_sanctum(source: &str) -> Result<Option<String>, ConsoleError> {

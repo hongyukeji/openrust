@@ -2,7 +2,7 @@
 
 ## 安装 API 路由 {#installation}
 
-运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，首次安装确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。
+运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，首次安装确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。 安装器无法修改自定义启动文件时，会保留生成的路由并提示手动接线。生成的路由返回已注册认证模型的可见属性。可选迁移失败时，安装器显示错误并保留脚手架。自动化需要迁移退出码时，单独运行 `./artisan migrate`。
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
 
@@ -22,7 +22,7 @@ cargo build --features sanctum
 
 ## 签发个人访问令牌 {#issuing-api-tokens}
 
-使用 `Sanctum::personalAccessTokens` 解析出的令牌仓储创建令牌，传入归属类型、归属 ID、名称、能力和可选的过期时间。签发时将返回的 `plain_text_token` 交给客户端。数据库保存 SHA-256 摘要。`findToken` 查找凭据，`revokeToken` 按归属删除令牌。`can` 支持精确能力及通配符 `*`。HTTP 守卫在认证请求前检查过期时间。
+使用 `Sanctum::personalAccessTokens` 解析出的令牌仓储创建令牌，传入归属类型、归属 ID、名称、能力和可选的过期时间。签发时将返回的 `plain_text_token` 交给客户端。数据库保存 SHA-256 摘要。`findToken` 查找凭据，`revokeToken` 按归属删除令牌。`can` 支持精确能力及通配符 `*`。HTTP 守卫在认证请求前检查过期时间。 签发、认证时写回及单条撤销都走 Eloquent 生命周期。默认令牌响应包含 `updated_at`。
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};

@@ -14,22 +14,17 @@ fn user(
     request: &mut openrust::http::Request,
 ) -> openrust::http::HttpFuture<'_, Result<openrust::http::Response, openrust::http::HttpError>> {
     use openrust::{
-        database::eloquent::Model,
         http::{HttpError, Response, StatusCode},
         support::facades::Auth,
     };
-    use std::any::Any;
 
     Box::pin(async move {
-        let user = Auth::user(request)
+        let auth = Auth::manager()?;
+        let user = auth
+            .user(request)
             .await?
             .ok_or(HttpError::Unauthenticated)?;
-        let user = (user.as_ref() as &dyn Any)
-            .downcast_ref::<crate::app::models::User>()
-            .ok_or(HttpError::Unauthenticated)?;
-        let attributes = user.toArray().map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let attributes = auth.userAttributes(user.as_ref())?;
         Response::json(StatusCode::OK, attributes)
     })
 }

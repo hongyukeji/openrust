@@ -2,7 +2,7 @@
 
 ## Installing API routes {#installation}
 
-Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept on the first installation, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file.
+Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept on the first installation, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file. If the installer cannot update a custom bootstrap, it preserves the generated route and prints the manual registration instruction. The route returns the registered authenticated model’s visible attributes. If an optional migration fails, the installer displays the error and retains the API scaffolding. Run `./artisan migrate` separately when automation needs the migration exit code.
 
 Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
 
@@ -22,7 +22,7 @@ The migration creates a polymorphic owner, a unique 64-character token hash colu
 
 ## Issuing personal access tokens {#issuing-api-tokens}
 
-Create a token with the token store resolved by `Sanctum::personalAccessTokens`. Supply the owner type, owner ID, name, abilities and optional expiration. Give the client the returned `plain_text_token` once. The database stores its SHA-256 digest. `findToken` resolves credentials, and `revokeToken` deletes a token scoped to its owner. `can` accepts an exact ability or the wildcard `*`. The HTTP guard checks expiration before authenticating the request.
+Create a token with the token store resolved by `Sanctum::personalAccessTokens`. Supply the owner type, owner ID, name, abilities and optional expiration. Give the client the returned `plain_text_token` once. The database stores its SHA-256 digest. `findToken` resolves credentials, and `revokeToken` deletes a token scoped to its owner. `can` accepts an exact ability or the wildcard `*`. The HTTP guard checks expiration before authenticating the request. Token issuance, authentication updates and individual revocation use the Eloquent lifecycle. The default token response includes `updated_at`.
 
 ```rust
 use openrust::{auth::AuthResult, database::DatabaseManager, sanctum::{NewAccessToken, Sanctum}};

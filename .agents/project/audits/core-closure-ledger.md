@@ -63,9 +63,25 @@ SQLite 记住登录测试使用密文子串判断明文是否泄露，随机密�
 | --- | --- | --- |
 | [08-02 Reverb](08-02/README.md) | WebSocket 协议和 Redis 跨进程基础已有实测 | 全局在线成员、跨节点客户端事件及协议剩余接口 |
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
-| Sanctum | [令牌迁移](sanctum-01/README.md)、[Bearer 与 SPA](sanctum-02/README.md)、[API 安装](sanctum-03/README.md)已验收 | 自定义令牌模型和回调、定期清理及 Session 失效机制 |
+| Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
+| `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 07-07 的包发现及完整的包开发验收继续跟踪。 |
 | [其他生态包](../plans/laravel-docs-delivery-map.md#packages) | Fortify、Passport／OIDC SSO、Scout、Horizon、Dusk 等单独跟踪 | 各包范围和完整交付验收 |
 | [08-04 发布](08-04/README.md) | macOS ARM64、Linux ARM64 和部分 Windows 运行路径已有实测 | Linux x86_64、Windows 完整部署、生产 TLS、目标数据库版本矩阵及托管 AWS SQS 标准／FIFO 实机验收 |
+
+### Sanctum、API 安装与资源发布复核（2026-11-15）
+
+复核快照 `c8b60fb8`。对照固定 Laravel 13.40.0 和 Sanctum 4.4.0，复用以下实际验收。Windows 首装见 `f6cfc23e`，Windows 发布交互见 `707ab390`。本轮只执行新增或受影响的验收。
+
+| 范围 | 已验收 | 本轮差异验收 |
+| --- | --- | --- |
+| [Sanctum-01](sanctum-01/README.md) | `156702c5`。SQLite 和 MySQL 8.4 的首次、重复迁移、回滚和重建。 | 该单元闭合。 |
+| [Sanctum-02](sanctum-02/parity-v4.4.0.md) | Bearer、显式 SPA、密码变更后会话失效、可替换中间件、清理命令、自定义模型事件与转换、整数／UUID／ULID、提取与验证回调、测试身份及令牌关系已有实测。 | 默认令牌使用 Eloquent，MySQL 8.4.13 实测签发、真实 HTTP 认证、最后使用时间写回和单条撤销的生命周期。默认序列化包含 `updated_at` 并隐藏摘要，自定义模型仍遵循其可见性。 |
+| [Sanctum-03 / `install:api`](sanctum-03/README.md) | `4d0b8b03`、`b4d23daf`、`f6cfc23e`。首次生成、重复安装、覆盖与迁移确认通过。macOS 和 Windows CMD／PowerShell 有实测，生成路由已验证 Bearer 200／401。 | 实测生成模板返回已注册的自定义认证模型及其可见字段。无法自动接线时保留生成文件并警告。macOS 真实终端确认迁移，分别验证启用 Sanctum 与自动重建两条路径中的迁移失败提示、安装退出码 0 和脚手架保留，以及首次重建迁移成功。构建错误仍作为安装错误返回。 |
+| [`vendor:publish`](sanctum-02/parity-v4.4.0.md#vendorpublish-逐键交互) | `8e47fbf6`、`265f9646`、`707ab390`、`b4d23daf`。Provider、标签、全部、交集、目录复制、覆盖、事件和迁移日期已有实测。macOS 与 Windows CMD／PowerShell 逐键选择通过。 | 实际 Artisan 及定向测试验证逐标签提示、文件和目录复制状态、已存在和缺失目标两种跳过原因及发布事件。 |
+
+保留已记录的 Rust 装配边界：`install:api` 通过 Cargo 功能和编译迁移注册实现安装，Composer 路径选项属于 PHP。已有迁移文件沿用原文件名以匹配已编译的迁移注册及账本。Windows 保留已验收的逐键搜索交互。本轮新增的 Windows 重建分支未重复实测。无已注册模型序列化器的自定义身份只返回认证标识。Rust 1.94 格式、工作区全目标严格 Clippy（启用 Sanctum）及三语 VitePress 构建通过。
+
+`install:api --passport` 单独归入 Passport 集成。待 Passport 就绪后验收选项、安装、受保护路由及相应守卫，不计入上述 Sanctum 验收。核心单元的闭合数仍沿用本账本口径。
 
 ## 额外队列驱动与载荷定稿
 

@@ -186,6 +186,20 @@ impl<const KEY: u8> ModelEventListener<CustomToken<KEY>> for TokenEvents {
     }
 }
 
+impl ModelEventListener<DefaultPersonalAccessToken> for TokenEvents {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        _: &'a mut DefaultPersonalAccessToken,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            self.0.lock().unwrap().push(event);
+            Ok(ModelEventResponse::Continue)
+        })
+    }
+}
+
 struct CustomCsrf;
 
 impl Middleware for CustomCsrf {
@@ -447,6 +461,13 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         );
         "custom_sanctum_tokens"
     } else {
+        use ModelEvent::*;
+        for event in [
+            Saving, Creating, Created, Saved, Retrieved, Updating, Updated, Deleting, Deleted,
+        ] {
+            DefaultPersonalAccessToken::registerModelEvent(&app, event, model_events.clone())
+                .unwrap();
+        }
         "personal_access_tokens"
     };
     db.statement("DROP TABLE IF EXISTS sanctum_users", &[])
@@ -533,9 +554,17 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .1
             .starts_with("fixture_")
     );
+    assert_eq!(
+        model_events.take(),
+        [
+            ModelEvent::Saving,
+            ModelEvent::Creating,
+            ModelEvent::Created,
+            ModelEvent::Saved
+        ]
+    );
+    assert!(read.access_token.updated_at.is_some());
     if custom_csrf {
-        use ModelEvent::*;
-        assert_eq!(model_events.take(), [Saving, Creating, Created, Saved]);
         assert_eq!(read.access_token.name, "read");
         assert!(read.access_token.can("write"));
         let stored_name = db
@@ -551,7 +580,10 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
                 .await
                 .is_err()
         );
-        assert_eq!(model_events.take(), [Saving, Creating]);
+        assert_eq!(
+            model_events.take(),
+            [ModelEvent::Saving, ModelEvent::Creating]
+        );
         assert_eq!(db.table(token_table).count("*").await.unwrap(), 1);
     }
     if KEY != 0 {
@@ -648,6 +680,8 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     if custom_csrf {
         assert_eq!(payload["accessToken"]["display_name"], "Token related");
         assert!(payload["accessToken"].get("updated_at").is_none());
+    } else {
+        assert!(payload["accessToken"]["updated_at"].is_string());
     }
     assert!(payload["accessToken"].get("token").is_none());
     assert_eq!(issued.access_token.tokenable_type, "users_alias");
@@ -775,7 +809,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .status(),
         401
     );
-    if custom_csrf {
+    {
         use ModelEvent::*;
         model_events.take();
         assert_eq!(
@@ -852,9 +886,16 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
             .await
             .unwrap()
     );
+    assert_eq!(
+        model_events.take(),
+        [
+            ModelEvent::Retrieved,
+            ModelEvent::Deleting,
+            ModelEvent::Deleted
+        ]
+    );
     if custom_csrf {
         use ModelEvent::*;
-        assert_eq!(model_events.take(), [Retrieved, Deleting, Deleted]);
         assert!(
             !tokens
                 .revokeToken("SanctumUser", owner(1), full.access_token.id.clone())
@@ -888,7 +929,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         401
     );
 
-    events.assertDispatchedTimes(TokenAuthenticated::NAME, if custom_csrf { 6 } else { 5 });
+    events.assertDispatchedTimes(TokenAuthenticated::NAME, 6);
     let first = events.dispatched(TokenAuthenticated::NAME);
     let first = first[0].downcast_ref::<TokenAuthenticated>().unwrap();
     assert_eq!(first.token.id, read.access_token.id.clone());
@@ -1318,6 +1359,9 @@ async fn bearer_and_spa_over_http_with_mysql() {
     verify::<2>(json!({"url":url}), true, true).await;
 }
 
+#[path = "../src/foundation/console/stubs/api-routes.stub"]
+mod installed_api_routes;
+
 #[tokio::test]
 async fn sanctum_checks_configured_request_guard_without_a_session() {
     let root = tempfile::tempdir().unwrap();
@@ -1332,12 +1376,12 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
             ]
             .into())
         })
-        .withRouting(Routing::default().api(api))
+        .withRouting(Routing::default().api(installed_api_routes::register))
         .create()
         .unwrap();
     app.boot().await.unwrap();
     let auth = app.container().make::<AuthManager>().unwrap();
-    auth.registerSanctumModel::<User>("users");
+    auth.registerSanctumModel::<User<true>>("other-users");
     auth.viaRequest("trusted-header", |request| {
         let trusted = request
             .headers()
@@ -1348,8 +1392,11 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
             if !trusted {
                 return Ok(None);
             }
-            let mut user = User::<false, 0>(ModelState::default());
+            let mut user = User::<true>(ModelState::default());
             user.setAttribute("id", SqlValue::Unsigned(42));
+            user.setAttribute("name", "Custom account");
+            user.setAttribute("password", "hidden-secret");
+            user.setAttribute("remember_token", "hidden-remember-token");
             Ok(Some(Box::new(user) as Box<dyn Authenticatable>))
         })
     });
@@ -1365,10 +1412,7 @@ async fn sanctum_checks_configured_request_guard_without_a_session() {
         .await
         .unwrap();
     assert_eq!(response.status(), 200);
-    assert_eq!(
-        response.json::<Value>().await.unwrap(),
-        json!({"user":42,"token":"session"})
-    );
+    assert_eq!(response.json::<Value>().await.unwrap(), json!({"id":42,"name":"Custom account"}));
     server.abort();
 }
 

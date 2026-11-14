@@ -145,14 +145,18 @@ impl Command for VendorPublishCommand {
                     ));
                     continue;
                 }
+                match &tag {
+                    Some(tag) => output.info(&format!("Publishing [{tag}] assets")),
+                    None => output.info("Publishing assets"),
+                }
                 let paths = selected
                     .iter()
                     .map(|(source, asset)| (source.clone(), root.join(&asset.path)))
                     .collect();
-                let root = root.clone();
+                let publish_root = root.clone();
                 let result = tokio::task::spawn_blocking(move || {
                     publish(
-                        &root,
+                        &publish_root,
                         selected.into_values(),
                         existing,
                         force,
@@ -165,13 +169,21 @@ impl Command for VendorPublishCommand {
                 .map_err(console_error)?;
                 let (publication, next_timestamp) = result;
                 timestamp = next_timestamp;
-                for missing in publication.missing {
-                    output
-                        .stderr
-                        .push_str(&format!("Can't locate path: <{}>\n", missing.display()));
-                }
-                for path in publication.written {
-                    output.info(&format!("Published {}.", path.display()));
+                for notice in publication.notices {
+                    match notice {
+                        PublishNotice::Missing(source) => output
+                            .stderr
+                            .push_str(&format!("Can't locate path: <{}>\n", source.display())),
+                        PublishNotice::Copied(kind, source, target) => output.info(&format!(
+                            "Copying {kind} [{}] to [{}]",
+                            publish_display(&root, &source).display(),
+                            publish_display(&root, &target).display()
+                        )),
+                        PublishNotice::Skipped(target, reason) => output.comment(&format!(
+                            "File [{}] {reason} SKIPPED",
+                            publish_display(&root, &target).display()
+                        )),
+                    }
                 }
                 Event::dispatch(VendorTagPublished { tag, paths })
                     .await
@@ -325,8 +337,24 @@ fn select(resources: &[PublishableResource]) -> io::Result<Option<Selection>> {
 
 #[derive(Default)]
 struct Publication {
-    written: Vec<PathBuf>,
-    missing: Vec<PathBuf>,
+    notices: Vec<PublishNotice>,
+}
+
+enum PublishNotice {
+    Missing(PathBuf),
+    Copied(&'static str, PathBuf, PathBuf),
+    Skipped(PathBuf, &'static str),
+}
+
+fn publish_display<'a>(root: &Path, path: &'a Path) -> &'a Path {
+    path.strip_prefix(root).unwrap_or(path)
+}
+
+fn file_notice(source: PathBuf, target: PathBuf, skipped: Option<&'static str>) -> PublishNotice {
+    match skipped {
+        Some(reason) => PublishNotice::Skipped(target, reason),
+        None => PublishNotice::Copied("file", source, target),
+    }
 }
 
 fn publish(
@@ -347,35 +375,29 @@ fn publish(
         if resource.migration {
             target = migration_destination(target, timestamp)?;
         }
+        let source_path = resource.source_path();
         match resource.source {
             PublishSource::Embedded(bytes) => {
-                publish_file(
-                    root,
-                    &target,
-                    existing,
-                    force,
-                    || Ok(bytes),
-                    &mut publication,
-                )?;
+                let skipped = publish_file(root, &target, existing, force, || Ok(bytes))?;
+                publication
+                    .notices
+                    .push(file_notice(source_path, target, skipped));
             }
             PublishSource::Path(source) => {
                 let kind = match fs::symlink_metadata(&source) {
                     Ok(meta) => meta.file_type(),
                     Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                        publication.missing.push(source);
+                        publication.notices.push(PublishNotice::Missing(source));
                         continue;
                     }
                     Err(error) => return Err(error),
                 };
                 if kind.is_file() {
-                    publish_file(
-                        root,
-                        &target,
-                        existing,
-                        force,
-                        || fs::read(&source),
-                        &mut publication,
-                    )?;
+                    let skipped =
+                        publish_file(root, &target, existing, force, || fs::read(&source))?;
+                    publication
+                        .notices
+                        .push(file_notice(source, target, skipped));
                 } else if kind.is_dir() {
                     let mut files = Vec::new();
                     directory_files(&source, Path::new(""), &mut files)?;
@@ -384,15 +406,13 @@ fn publish(
                         if resource.migration {
                             destination = migration_destination(destination, timestamp)?;
                         }
-                        publish_file(
-                            root,
-                            &destination,
-                            existing,
-                            force,
-                            || fs::read(source.join(&path)),
-                            &mut publication,
-                        )?;
+                        publish_file(root, &destination, existing, force, || {
+                            fs::read(source.join(&path))
+                        })?;
                     }
+                    publication
+                        .notices
+                        .push(PublishNotice::Copied("directory", source, target));
                 } else {
                     return Err(invalid_path(&source));
                 }
@@ -425,8 +445,7 @@ fn publish_file<B: AsRef<[u8]>>(
     existing: bool,
     force: bool,
     bytes: impl FnOnce() -> io::Result<B>,
-    publication: &mut Publication,
-) -> io::Result<()> {
+) -> io::Result<Option<&'static str>> {
     let relative = target
         .strip_prefix(root)
         .map_err(|_| invalid_path(target))?;
@@ -441,20 +460,22 @@ fn publish_file<B: AsRef<[u8]>>(
         }
     }
     let exists = target.try_exists()?;
-    if (existing && !exists) || (!existing && !force && exists) {
-        return Ok(());
+    if existing && !exists {
+        return Ok(Some("does not exist"));
+    }
+    if !existing && !force && exists {
+        return Ok(Some("already exists"));
     }
     match write_generated(target, bytes()?.as_ref(), exists && (force || existing)) {
-        Ok(()) => publication.written.push(relative.to_owned()),
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists && !force && !existing => {}
-        Err(error) => {
-            return Err(io::Error::new(
-                error.kind(),
-                format!("{}: {error}", target.display()),
-            ));
+        Ok(()) => Ok(None),
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists && !force && !existing => {
+            Ok(Some("already exists"))
         }
+        Err(error) => Err(io::Error::new(
+            error.kind(),
+            format!("{}: {error}", target.display()),
+        )),
     }
-    Ok(())
 }
 
 fn invalid_path(path: &Path) -> io::Error {
