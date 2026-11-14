@@ -345,7 +345,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
                 let mut query =
                     restoration_query::<M>(self.connection.as_deref())?.for_pivot(pivot);
                 query.whereNested(|_| predicates);
-                for model in query.get().await? {
+                for model in query.get_models_with_transaction(None).await? {
                     let columns = M::metadata().primary_key;
                     let key = std::iter::once(columns)
                         .chain(pivot.columns())
@@ -356,7 +356,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
                     }
                 }
             }
-            return Ok(Collection::new(models));
+            return Ok(M::newCollection(models));
         }
         let mut keys = Vec::with_capacity(self.ids.len());
         let mut bindings = indexmap::IndexMap::new();
@@ -368,14 +368,14 @@ impl<M: Model> ModelCollectionIdentifier<M> {
             }
         }
         if keys.is_empty() {
-            return Ok(Collection::new(Vec::new()));
+            return Ok(M::newCollection(Vec::new()));
         }
         let mut found = HashMap::new();
         let bindings: Vec<_> = bindings.into_values().collect();
         for batch in bindings.chunks(500) {
             let mut query = restoration_query::<M>(self.connection.as_deref())?;
             query.whereIn(M::metadata().primary_key, batch.to_vec());
-            for model in query.get().await? {
+            for model in query.get_models_with_transaction(None).await? {
                 if let Some(key) = dictionary_key(model.getKey())? {
                     found.insert(key, model);
                 }
@@ -386,7 +386,7 @@ impl<M: Model> ModelCollectionIdentifier<M> {
             .filter_map(|key| found.get(key))
             .map(|model| M::from_state(model.state().clone()))
             .collect();
-        let mut collection = Collection::new(models);
+        let mut collection = M::newCollection(models);
         if !collection.is_empty() {
             let paths: Vec<_> = self.relations.iter().map(String::as_str).collect();
             collection.loadMissingPaths(&paths).await?;

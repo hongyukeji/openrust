@@ -253,7 +253,7 @@ impl<M: Model> FactoryBatch<M> {
         for index in 0..self.count {
             models.push(self.factory.make_one(connection, index).await?);
         }
-        Ok(Collection::new(models))
+        Ok(M::newCollection(models))
     }
 
     pub async fn create(&self) -> DatabaseResult<Collection<M>> {
@@ -266,6 +266,6 @@ impl<M: Model> FactoryBatch<M> {
         for index in 0..self.count {
             models.push(self.factory.create_one(connection, index).await?);
         }
-        Ok(Collection::new(models))
+        Ok(M::newCollection(models))
     }
 }

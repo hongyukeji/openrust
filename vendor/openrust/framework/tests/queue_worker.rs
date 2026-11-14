@@ -105,6 +105,16 @@ impl JobMiddleware for Tag {
 struct QueuedModel(ModelState);
 
 impl Model for QueuedModel {
+    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(
+            models
+                .into_iter()
+                .enumerate()
+                .map(|(index, model)| (format!("queued-{index}"), model)),
+        )
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata =
             ModelMetadata::new("queued_models").softDeletes("deleted_at");
@@ -166,6 +176,14 @@ impl JobHandler for RestoreModels {
             ));
             let collection = job.collection.restore().await.map_err(execution)?;
             assert_eq!(collection.modelKeys(), [2.into(), 1.into(), 2.into()]);
+            assert_eq!(
+                collection.getByKey("queued-1").unwrap().getKey(),
+                Some(&1.into())
+            );
+            assert_eq!(
+                collection.getByKey("queued-2").unwrap().getKey(),
+                Some(&2.into())
+            );
             assert!(
                 collection
                     .iter()
@@ -187,6 +205,16 @@ impl JobHandler for RestoreModels {
 struct QueuedPivot(ModelState);
 
 impl Model for QueuedPivot {
+    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(
+            models
+                .into_iter()
+                .enumerate()
+                .map(|(index, model)| (format!("pivot-{index}"), model)),
+        )
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata = ModelMetadata::new("unused_queue_pivot")
             .incrementing(false)
@@ -270,7 +298,7 @@ impl JobHandler for RestorePivots {
             let restored = job.collection.restore().await.map_err(execution)?;
             assert_eq!(restored.len(), 1);
             assert_eq!(
-                restored[0].getAttribute("label"),
+                restored.getByKey("pivot-0").unwrap().getAttribute("label"),
                 Some(&"saved by worker".into())
             );
             DB::connection(None)
@@ -1816,10 +1844,12 @@ async fn exercise(redis: Option<u16>, mysql: Option<&str>) {
     let id = format!("{:016x}", fastrand::u64(..));
     let root = TempRoot(std::env::temp_dir().join(format!("openrust-worker-{id}")));
     std::fs::create_dir_all(&root.0).unwrap();
-    std::fs::File::create(root.0.join("fixture.sqlite")).unwrap();
     let default_queue = if redis.is_some() { "redis" } else { "database" };
     let db_config = mysql.map_or_else(
-        || json!({"driver":"sqlite", "database":"fixture.sqlite"}),
+        || {
+            std::fs::File::create(root.0.join("fixture.sqlite")).unwrap();
+            json!({"driver":"sqlite", "database":"fixture.sqlite"})
+        },
         |url| json!({"url":url}),
     );
     let model_config = mysql.map_or_else(

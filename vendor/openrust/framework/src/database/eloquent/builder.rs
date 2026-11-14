@@ -1372,32 +1372,41 @@ impl<M: Model> Builder<'static, M> {
 
     pub(super) fn get_with_transaction<'a>(
         self,
-        mut transaction: Option<&'a mut crate::database::Transaction>,
+        transaction: Option<&'a mut crate::database::Transaction>,
     ) -> crate::database::DatabaseFuture<'a, DatabaseResult<Collection<M>>> {
         Box::pin(async move {
-            let (query, hydration) = self.hydration_query()?;
-            let mut models = hydration.rows(
-                query
-                    .get_with_transaction(transaction.as_deref_mut())
-                    .await?,
-            );
-            let source = transaction
-                .as_deref_mut()
-                .filter(|tx| tx.belongs_to(&hydration.connection));
-            super::concerns::has_events::retrieved_with_transaction(
-                &mut models,
-                &hydration.connection,
-                source,
-            )
-            .await?;
-            super::concerns::has_relationships::load_eager_with_transaction(
-                hydration.eager,
-                &mut models,
-                transaction,
-            )
-            .await?;
-            Ok(M::newCollection(models))
+            self.get_models_with_transaction(transaction)
+                .await
+                .map(M::newCollection)
         })
+    }
+
+    pub(super) async fn get_models_with_transaction(
+        self,
+        mut transaction: Option<&mut crate::database::Transaction>,
+    ) -> DatabaseResult<Vec<M>> {
+        let (query, hydration) = self.hydration_query()?;
+        let mut models = hydration.rows(
+            query
+                .get_with_transaction(transaction.as_deref_mut())
+                .await?,
+        );
+        let source = transaction
+            .as_deref_mut()
+            .filter(|tx| tx.belongs_to(&hydration.connection));
+        super::concerns::has_events::retrieved_with_transaction(
+            &mut models,
+            &hydration.connection,
+            source,
+        )
+        .await?;
+        super::concerns::has_relationships::load_eager_with_transaction(
+            hydration.eager,
+            &mut models,
+            transaction,
+        )
+        .await?;
+        Ok(models)
     }
 
     pub async fn paginate(self, per_page: u64) -> DatabaseResult<LengthAwarePaginator<M>> {

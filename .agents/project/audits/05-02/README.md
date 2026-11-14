@@ -654,3 +654,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 对照固定 Laravel 的 `HasCollection::newCollection` 与 `HasOneOrMany::make`、`makeMany`。模型查询在水合与预加载后调用集合工厂。普通和多态的一对一、一对多关系复用已有未保存模型构造逻辑，批量构造也调用关联模型的工厂。Rust 保留 `Collection<M>` 返回类型，可通过工厂设置集合键，通过扩展 trait 增加业务方法。PHP 的 `CollectedBy` 子类替换及多值关系缓存的返回类型仍有差异。旧版未找到对应工厂和批量未保存构造。 [Laravel 自定义集合](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-collections.md#custom-collections) · [Laravel 集合工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/HasCollection.php) · [Laravel 关系测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentInverseRelationHasManyTest.php)
 
 独立源码副本在 MySQL 8.4.13 通过关系定向验收，覆盖查询工厂、集合键、未保存批次顺序、作用域默认值、普通反向缓存与多态键，以及数据库未写入草稿。隔离副本 Rust 1.94.0 格式、严格 Clippy 和实际 Artisan 通过，三语示例编译、站点构建及 18 项浏览器检查通过。共享工作区的 Artisan 编译碰到同时修改的会话代码，隔离复验通过。SQLite 与其他数据库留到发布前。
+
+## 批量模型工厂与队列集合恢复
+
+对照 Laravel 13.40.0 的批量工厂和队列标识恢复。模型工厂的 `count(...).make()` 与 `count(...).create()` 使用 `Model::newCollection` 构造结果，保留既有状态、持久化和回调顺序。队列从写连接读取模型，先按载荷重组普通模型、保留重复 ID 并省略缺失行，再构造集合并补载关联。自定义 Pivot 保留既有去重规则。Rust 由已注册模型选择构造方式，队列 JSON 契约保持原样。旧版没有同契约的集合工厂或队列模型恢复实现。 [Laravel 工厂](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php) · [Laravel 队列恢复](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Queue/SerializesAndRestoresModelIdentifiers.php)
+
+独立 MySQL 8.4.13 定向验收覆盖批量草稿与持久化结果的自定义键，以及真实 `queue:work` 恢复的顺序、重复 ID、缺失模型、关联和自定义 Pivot 集合键。Rust 1.94.0 格式、全目标严格 Clippy、实际 Artisan、三语示例编译、站点构建及 18 项浏览器检查通过。默认 Rust 1.99 的严格 Clippy 仍报告分页和 Redis 限流两处基线以外的告警。其他数据库留待发布前验收。

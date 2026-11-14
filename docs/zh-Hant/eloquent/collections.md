@@ -204,6 +204,8 @@ pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>
 
 覆寫 `Model::newCollection` 可自訂查詢結果的集合建構。掛鉤在關聯預先載入後接收已水合模型，`makeMany` 建立尚未儲存的關聯模型時也會呼叫它。設定集合鍵時應保留輸入模型的順序。Rust 回傳 `Collection<Self>`，可用擴充 trait 新增業務方法。
 
+指定數量的模型工廠也會對 `make()` 和 `create()` 的結果呼叫此掛鉤。佇列還原在組裝好模型清單後呼叫掛鉤。一般模型按承載資料順序還原，保留重複 ID，略過已缺少的記錄。承載資料保存模型識別碼，接收端透過模型掛鉤設定集合鍵。
+
 ```rust
 use openrust::database::eloquent::{Collection, Model};
 

@@ -5,7 +5,7 @@ use openrust::{
     database::{
         DatabaseManager, Value,
         eloquent::{
-            Attributes, Model, ModelMetadata, ModelState,
+            Attributes, Collection, Model, ModelMetadata, ModelState,
             factories::Factory,
             relations::{BelongsTo, BelongsToMany, HasMany, Pivot, Relation},
         },
@@ -17,6 +17,16 @@ struct Author(ModelState);
 struct Entry(ModelState);
 
 impl Model for Author {
+    #[allow(non_snake_case, reason = "Matches Laravel's collection factory hook")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(
+            models
+                .into_iter()
+                .enumerate()
+                .map(|(index, model)| (format!("author-{index}"), model)),
+        )
+    }
+
     fn metadata() -> &'static ModelMetadata {
         static METADATA: ModelMetadata =
             ModelMetadata::new("factory_authors").timestamps(None, None);
@@ -97,6 +107,8 @@ async fn verify(config: Json, id: &str) {
         .makeOn(&connection)
         .await
         .unwrap();
+    assert!(previews.getByKey("author-0").is_some());
+    assert!(previews.getByKey("author-1").is_some());
     assert!(previews.iter().all(|author| !author.state().exists()));
     assert_eq!(Author::queryOn(&connection).get().await.unwrap().len(), 0);
 
@@ -179,6 +191,24 @@ async fn verify(config: Json, id: &str) {
             .unwrap()
             .is_empty()
     );
+    let batch = authors()
+        .sequence(|index| Attributes::from([("name".into(), format!("batch {index}").into())]))
+        .count(2)
+        .createOn(&connection)
+        .await
+        .unwrap();
+    for (index, model) in batch.iter().enumerate() {
+        assert!(model.state().exists());
+        assert_eq!(
+            model.getAttribute("name"),
+            Some(&format!("batch {index}").into())
+        );
+        assert_eq!(
+            batch.getByKey(format!("author-{index}")).unwrap().getKey(),
+            model.getKey()
+        );
+    }
+
     for table in ["factory_links", "factory_entries", "factory_authors"] {
         connection
             .statement(&format!("DROP TABLE {table}"), &[])

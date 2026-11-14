@@ -204,6 +204,8 @@ pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>
 
 覆写 `Model::newCollection` 可定制查询结果的集合构造。钩子在关系预加载后接收已水合模型，`makeMany` 构造未保存的关联模型时也会调用它。设置集合键时应保留输入模型的顺序。Rust 返回 `Collection<Self>`，可用扩展 trait 添加业务方法。
 
+指定数量的模型工厂也会对 `make()` 和 `create()` 的结果调用此钩子。队列恢复在组装好模型列表后调用钩子。普通模型按载荷顺序恢复，保留重复 ID，跳过已缺失的记录。载荷保存模型标识，接收端通过模型钩子设置集合键。
+
 ```rust
 use openrust::database::eloquent::{Collection, Model};
 
