@@ -1,6 +1,8 @@
 use chrono::{Datelike as _, NaiveDate};
 
-use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker, luhn_check_digit};
+use super::{
+    DatabaseError, DatabaseResult, Faker, UniqueFaker, ean_with_checksum, luhn_check_digit,
+};
 
 const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
     ('A', 10),
@@ -130,6 +132,28 @@ impl Faker {
         let digits = fastrand::u32(..1_000_000);
         let suffix = char::from(fastrand::u8(b'A'..=b'D'));
         Ok(format!("{first}{second}{digits:06}{suffix}"))
+    }
+
+    /// Samples a Swiss social security number with the German formatter name.
+    pub fn ahv13(&self) -> DatabaseResult<String> {
+        if self.locale() != "de_CH" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker AHV13 locale",
+            ));
+        }
+        self.avs13()
+    }
+
+    /// Samples a Swiss social security number in dotted notation.
+    pub fn avs13(&self) -> DatabaseResult<String> {
+        if !matches!(self.locale(), "de_CH" | "fr_CH" | "it_CH") {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker AVS13 locale",
+            ));
+        }
+
+        let digits = ean_with_checksum(self.numerify(Some("756#########")));
+        Ok([&digits[..3], &digits[3..7], &digits[7..11], &digits[11..]].join("."))
     }
 
     /// Samples a Belgian National Register number.
@@ -936,6 +960,14 @@ impl UniqueFaker<'_> {
 
     pub fn nino(&self) -> DatabaseResult<String> {
         self.try_generate("nino", || self.0.nino())
+    }
+
+    pub fn ahv13(&self) -> DatabaseResult<String> {
+        self.try_generate("ahv13", || self.0.ahv13())
+    }
+
+    pub fn avs13(&self) -> DatabaseResult<String> {
+        self.try_generate("avs13", || self.0.avs13())
     }
 
     pub fn rrn(&self, gender: Option<&str>) -> DatabaseResult<String> {

@@ -2850,3 +2850,39 @@ fn japanese_kana_names_select_gender_and_exhaust_the_pinned_catalogs() {
     }
     assert!(fake(Some("en-US")).unwrap().kanaName(None).is_err());
 }
+
+#[test]
+fn swiss_identity_numbers_use_dotted_ean_and_locale_aliases() {
+    let mut numbers = std::collections::HashSet::new();
+    for locale in ["de-CH", "fr-CH", "it-CH"] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        for _ in 0..64 {
+            let number = unique.avs13().unwrap();
+            let parts: Vec<_> = number.split('.').collect();
+            assert_eq!(
+                parts.iter().map(|part| part.len()).collect::<Vec<_>>(),
+                [3, 4, 4, 2]
+            );
+            assert_eq!(parts[0], "756");
+            let digits = parts.concat();
+            assert!(digits.bytes().all(|byte| byte.is_ascii_digit()));
+            let total: u32 = digits
+                .bytes()
+                .rev()
+                .enumerate()
+                .map(|(index, digit)| u32::from(digit - b'0') * if index % 2 == 0 { 1 } else { 3 })
+                .sum();
+            assert_eq!(total % 10, 0);
+            assert!(numbers.insert((locale, number)));
+        }
+        if locale == "de-CH" {
+            assert!(unique.ahv13().unwrap().starts_with("756."));
+        } else {
+            assert!(unique.ahv13().is_err());
+        }
+    }
+    let unrelated = fake(Some("de-DE")).unwrap();
+    assert!(unrelated.avs13().is_err());
+    assert!(unrelated.ahv13().is_err());
+}

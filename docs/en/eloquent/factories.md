@@ -907,6 +907,18 @@ fn japanese_kana_name() -> DatabaseResult<String> {
 }
 ```
 
+### Swiss AHV and AVS Samples {#swiss-ahv-and-avs-samples}
+
+Use `avs13()` with `de-CH`, `fr-CH`, or `it-CH` to generate a Swiss social security sample in the form `756.####.####.##`. Swiss German also provides `ahv13()`, with the same format and EAN check digit. Both formatter names support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_avs_sample() -> DatabaseResult<String> {
+    fake(Some("fr-CH"))?.unique(false).avs13()
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

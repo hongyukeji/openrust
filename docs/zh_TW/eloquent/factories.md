@@ -907,6 +907,18 @@ fn japanese_kana_name() -> DatabaseResult<String> {
 }
 ```
 
+### 瑞士 AHV 和 AVS 樣本 {#swiss-ahv-and-avs-samples}
+
+用 `de-CH`、`fr-CH` 或 `it-CH` 的 `avs13()` 產生 `756.####.####.##` 格式的瑞士社會保險號碼樣本。瑞士德語也提供 `ahv13()`，格式和 EAN 校驗位相同。兩個介面皆支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_avs_sample() -> DatabaseResult<String> {
+    fake(Some("fr-CH"))?.unique(false).avs13()
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

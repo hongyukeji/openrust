@@ -1098,3 +1098,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `e656e9c6`。PHP 8.5 验证 128 组上游数据。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 640 个值，核对词表、性别、全名顺序及文档示例。57 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。隔离副本首轮编译发现去重方法落在错误的 impl 块，纠正后复验通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批继续核对地区证件 formatter。
+
+## Faker 瑞士 AHV13 和 AVS13
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 FakerPHP v1.24.1 [瑞士法语 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_CH/Person.php)。瑞士德语、法语和意大利语提供 `avs13()`，瑞士德语另提供 `ahv13()`。复用框架 EAN 校验位计算，保留 756 前缀、点分段和前导零。两个方法按名称维护各自的去重历史，在不支持的地区返回错误。v0.x 无对应实现，编译式工厂装配无需调整。
+
+隔离基线 `deced248`。PHP 8.5 验证 512 个上游样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读四个地区／方法组合的 512 个样本，核对格式和 EAN 校验位，实际运行文档示例。58 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本处理，VitePress 保留已有分块大小提示。
+
+原始 Seeder 已恢复。清理独占 Cargo 产物约 2.2 GiB、站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批核对捷克出生号码和丹麦 CPR。
