@@ -315,6 +315,29 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## Factory Relationships
 
+### Parent Context for States and Callbacks {#factory-parent-context}
+
+Use `stateWithParent::<Parent>` and `afterCreatingWithParent::<Parent>` when a child factory needs to read the model that creates it through `has` or `hasAttached`. The callback receives `Some(&Parent)` for the matching type and `None` for standalone creation or a different parent type. Construction callbacks registered with `afterMaking` still receive the child only.
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model,
+    factories::{Factory, FactoryBatch},
+};
+
+fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
+    Factory::<C>::new(Attributes::new)
+        .count(2)
+        .stateWithParent::<P>(|_, parent| {
+            parent
+                .and_then(|model| model.getAttribute("name"))
+                .map(|name| Attributes::from([("label".into(), name.clone())]))
+                .unwrap_or_default()
+        })
+        .afterCreatingWithParent::<P>(|_, _| Ok(()))
+}
+```
+
 Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. A batch resolves each generated owner once, including when using `make`. A new invocation resolves a new owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
 
 ```rust

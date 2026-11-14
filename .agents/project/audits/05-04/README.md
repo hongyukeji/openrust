@@ -318,3 +318,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel 的 HasFactory、UseFactory、UseModel 与 configure。生成工厂实现 FactoryDefinition，使用关联类型绑定模型，每个新工厂自动执行配置钩子。既有 HasFactory::factory 显式选择命名工厂，后续状态与批次数量仍由调用方链式设置。Rust 使用已编译的模块和关联类型表达 PHP 的类发现及选定模型，不引入全局名称推断。v0.x 的查询工厂没有对应实现，Goravel 的编译型装配作为参考。 [Laravel 工厂发现约定](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-and-model-discovery-conventions) · [Laravel HasFactory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/HasFactory.php)
 
 隔离基线 `ec764c4a`。实际 Artisan 生成 BindingProbe 模型和工厂，在隔离项目声明模块、显式绑定并重新构建。MySQL 8.4.13 `artisan db:seed --database=mysql --force` 查得一条配置默认值和两条调用处状态覆盖记录。SQLite 回归验证调用之间的工厂状态隔离。Rust 1.94.0 格式、全目标严格 Clippy、22 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。
+
+## 关系工厂的父模型上下文
+
+对照固定 Laravel Factory 的状态闭包和 afterCreating、Relationship 与 BelongsToManyRelationship 的子模型创建。直接和多态子关系及生成型 hasAttached 传入当前父模型，构造回调只接收子模型。Rust 的 stateWithParent 和 afterCreatingWithParent 通过显式模型类型提供可选借用，独立生成或类型不匹配得到 None。原有回调形状、状态顺序和外键补写保留。v0.x 未发现等价工厂回调，Goravel 装配未涉及。 [Laravel 工厂关系状态](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#has-many-relationships) · [Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php)
+
+隔离基线 `540470e2`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 验证父模型身份、直接外键、附件中间表及独立创建回退。SQLite 和 MySQL 双库回归覆盖同一契约和类型不匹配。首轮既有多态 Seeder 夹具出现 Debug 栈溢出，批量 createOn 的内部 Future 改在堆上后默认栈复验通过。Rust 1.94.0 格式、全目标严格 Clippy、23 项 Seeder、2 项工厂回归、Artisan inspire、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。

@@ -23,7 +23,18 @@ use super::{
 
 type Definition =
     dyn Fn(&Connection, &std::sync::OnceLock<Faker>) -> DatabaseResult<Attributes> + Send + Sync;
-type State = dyn Fn(&Attributes, usize, &Connection) -> DatabaseResult<Attributes> + Send + Sync;
+type FactoryParentModel = dyn Any + Send + Sync;
+type State = dyn Fn(&Attributes, usize, &Connection, Option<&FactoryParentModel>) -> DatabaseResult<Attributes>
+    + Send
+    + Sync;
+type CreateCallback<M> =
+    dyn Fn(&mut M, Option<&FactoryParentModel>) -> DatabaseResult<()> + Send + Sync;
+
+#[derive(Clone, Copy)]
+struct RelationContext<'a> {
+    attributes: &'a (Attributes, Attributes),
+    parent: &'a FactoryParentModel,
+}
 type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type PivotResolver<M> = dyn Fn(&M) -> DatabaseResult<Attributes> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(
@@ -254,7 +265,7 @@ pub struct Factory<M: Model> {
     excluded_parents: Option<Vec<FactoryParentSelector>>,
     children: Vec<Box<Relationship<M>>>,
     after_making: Vec<Box<Callback<M>>>,
-    after_creating: Vec<Box<Callback<M>>>,
+    after_creating: Vec<Box<CreateCallback<M>>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
@@ -362,7 +373,22 @@ impl<M: Model> Factory<M> {
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.states
-            .push(Box::new(move |attributes, _, _| Ok(state(attributes))));
+            .push(Box::new(move |attributes, _, _, _| Ok(state(attributes))));
+        self
+    }
+
+    /// Appends a state that can read the enclosing relationship factory's parent.
+    #[must_use]
+    pub fn stateWithParent<P: Model>(
+        mut self,
+        state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.states.push(Box::new(move |attributes, _, _, parent| {
+            Ok(state(
+                attributes,
+                parent.and_then(|model| model.downcast_ref::<P>()),
+            ))
+        }));
         self
     }
 
@@ -372,8 +398,10 @@ impl<M: Model> Factory<M> {
         mut self,
         state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static,
     ) -> Self {
-        self.states
-            .insert(0, Box::new(move |attributes, _, _| Ok(state(attributes))));
+        self.states.insert(
+            0,
+            Box::new(move |attributes, _, _, _| Ok(state(attributes))),
+        );
         self
     }
 
@@ -395,7 +423,7 @@ impl<M: Model> Factory<M> {
         }
 
         let now = chrono::Utc::now();
-        self.states.push(Box::new(move |_, _, connection| {
+        self.states.push(Box::new(move |_, _, connection, _| {
             let zone = connection.model_timezone;
             let (_, yesterday) = calendar::date_interval("now", "-1 day", now, zone)
                 .map_err(|_| DatabaseError::InvalidQuery("invalid factory deletion timestamp"))?;
@@ -414,7 +442,7 @@ impl<M: Model> Factory<M> {
         sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.states
-            .push(Box::new(move |_, index, _| Ok(sequence(index))));
+            .push(Box::new(move |_, index, _, _| Ok(sequence(index))));
         self
     }
 
@@ -476,7 +504,20 @@ impl<M: Model> Factory<M> {
         mut self,
         callback: impl Fn(&mut M) -> DatabaseResult<()> + Send + Sync + 'static,
     ) -> Self {
-        self.after_creating.push(Box::new(callback));
+        self.after_creating
+            .push(Box::new(move |model, _| callback(model)));
+        self
+    }
+
+    /// Registers a creation callback that can read the enclosing relationship factory's parent.
+    #[must_use]
+    pub fn afterCreatingWithParent<P: Model>(
+        mut self,
+        callback: impl Fn(&mut M, Option<&P>) -> DatabaseResult<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.after_creating.push(Box::new(move |model, parent| {
+            callback(model, parent.and_then(|model| model.downcast_ref::<P>()))
+        }));
         self
     }
 
@@ -534,7 +575,14 @@ impl<M: Model> Factory<M> {
                     let pool = children.factory.recycle_pool(inherited);
                     let attributes = relation.attributes(parent)?;
                     let mut models = children
-                        .make_with_pool(&connection, &pool, Some(&attributes))
+                        .make_with_pool(
+                            &connection,
+                            &pool,
+                            Some(RelationContext {
+                                attributes: &attributes,
+                                parent,
+                            }),
+                        )
                         .await?;
                     for child in models.models_mut() {
                         if !relation.save(parent, child).await? {
@@ -549,7 +597,7 @@ impl<M: Model> Factory<M> {
                     }
                     children
                         .factory
-                        .run_callbacks(models.models_mut(), &children.factory.after_creating)?;
+                        .run_after_creating(models.models_mut(), Some(parent))?;
                     Ok(())
                 })
             }));
@@ -725,7 +773,14 @@ impl<M: Model> Factory<M> {
                             let attributes =
                                 (relation.factory_defaults(&connection)?, Attributes::new());
                             generated = factory
-                                .create_with_pool(&connection, inherited, Some(&attributes))
+                                .create_with_pool(
+                                    &connection,
+                                    inherited,
+                                    Some(RelationContext {
+                                        attributes: &attributes,
+                                        parent,
+                                    }),
+                                )
                                 .await?;
                             &generated
                         }
@@ -1022,19 +1077,24 @@ impl<M: Model> Factory<M> {
         index: usize,
         cache: &[ParentCache],
         pool: &[RecycledModel],
-        relation: Option<&(Attributes, Attributes)>,
+        relation: Option<RelationContext<'_>>,
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<(M, Attributes)> {
         let mut attributes = (self.definition)(connection, faker)?;
-        if let Some((defaults, _)) = relation {
-            attributes.extend(defaults.clone());
+        if let Some(context) = relation {
+            attributes.extend(context.attributes.0.clone());
         }
         for state in &self.states {
-            let changes = state(&attributes, index, connection)?;
+            let changes = state(
+                &attributes,
+                index,
+                connection,
+                relation.map(|context| context.parent),
+            )?;
             attributes.extend(changes);
         }
-        if let Some((_, keys)) = relation {
-            attributes.extend(keys.clone());
+        if let Some(context) = relation {
+            attributes.extend(context.attributes.1.clone());
         }
         let mut model = M::from_state(Default::default());
         model.state_mut().connection = Some(connection.clone());
@@ -1104,7 +1164,7 @@ impl<M: Model> Factory<M> {
             .make_one(connection, index, cache, pool, faker, overrides)
             .await?;
         self.store(connection, &mut model, pool).await?;
-        self.run_callbacks(std::slice::from_mut(&mut model), &self.after_creating)?;
+        self.run_after_creating(std::slice::from_mut(&mut model), None)?;
         Ok(model)
     }
 
@@ -1130,6 +1190,19 @@ impl<M: Model> Factory<M> {
         for model in models {
             for callback in callbacks {
                 callback(model)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn run_after_creating(
+        &self,
+        models: &mut [M],
+        parent: Option<&FactoryParentModel>,
+    ) -> DatabaseResult<()> {
+        for model in models {
+            for callback in &self.after_creating {
+                callback(model, parent)?;
             }
         }
         Ok(())
@@ -1186,6 +1259,24 @@ impl<M: Model> FactoryBatch<M> {
     #[must_use]
     pub fn state(self, state: impl Fn(&Attributes) -> Attributes + Send + Sync + 'static) -> Self {
         self.factory.state(state).count(self.count)
+    }
+
+    #[must_use]
+    pub fn stateWithParent<P: Model>(
+        self,
+        state: impl Fn(&Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.factory.stateWithParent(state).count(self.count)
+    }
+
+    #[must_use]
+    pub fn afterCreatingWithParent<P: Model>(
+        self,
+        callback: impl Fn(&mut M, Option<&P>) -> DatabaseResult<()> + Send + Sync + 'static,
+    ) -> Self {
+        self.factory
+            .afterCreatingWithParent(callback)
+            .count(self.count)
     }
 
     #[must_use]
@@ -1251,7 +1342,8 @@ impl<M: Model> FactoryBatch<M> {
                 let mut models = self
                     .make_with_overrides(&connection, &pool, None, &attributes)
                     .await?;
-                self.store_models(&connection, &pool, &mut models).await?;
+                self.store_models(&connection, &pool, &mut models, None)
+                    .await?;
                 Ok(models)
             })
         }
@@ -1357,7 +1449,7 @@ impl<M: Model> FactoryBatch<M> {
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
-        relation: Option<&(Attributes, Attributes)>,
+        relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
         self.make_with_overrides(connection, pool, relation, &Attributes::new())
             .await
@@ -1367,7 +1459,7 @@ impl<M: Model> FactoryBatch<M> {
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
-        relation: Option<&(Attributes, Attributes)>,
+        relation: Option<RelationContext<'_>>,
         overrides: &Attributes,
     ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
@@ -1415,7 +1507,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        self.create_with_pool(connection, &[], None).await
+        Box::pin(self.create_with_pool(connection, &[], None)).await
     }
 
     pub async fn createQuietly(&self) -> DatabaseResult<Collection<M>> {
@@ -1430,11 +1522,17 @@ impl<M: Model> FactoryBatch<M> {
         &self,
         connection: &Connection,
         inherited: &[RecycledModel],
-        relation: Option<&(Attributes, Attributes)>,
+        relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
         let mut models = self.make_with_pool(connection, &pool, relation).await?;
-        self.store_models(connection, &pool, &mut models).await?;
+        self.store_models(
+            connection,
+            &pool,
+            &mut models,
+            relation.map(|context| context.parent),
+        )
+        .await?;
         Ok(models)
     }
 
@@ -1443,11 +1541,11 @@ impl<M: Model> FactoryBatch<M> {
         connection: &Connection,
         pool: &[RecycledModel],
         models: &mut Collection<M>,
+        parent: Option<&FactoryParentModel>,
     ) -> DatabaseResult<()> {
         for model in models.models_mut() {
             self.factory.store(connection, model, pool).await?;
         }
-        self.factory
-            .run_callbacks(models.models_mut(), &self.factory.after_creating)
+        self.factory.run_after_creating(models.models_mut(), parent)
     }
 }

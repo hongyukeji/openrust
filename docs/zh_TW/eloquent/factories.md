@@ -315,6 +315,29 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## 工廠關聯
 
+### 狀態與回呼的父模型 {#factory-parent-context}
+
+當子工廠需要讀取透過 `has` 或 `hasAttached` 建立它的模型時，使用 `stateWithParent::<Parent>` 和 `afterCreatingWithParent::<Parent>`。型別相符時回呼接收 `Some(&Parent)`，獨立建立或父模型型別不同時接收 `None`。`afterMaking` 建構回呼仍只接收子模型。
+
+```rust
+use openrust::database::eloquent::{
+    Attributes, Model,
+    factories::{Factory, FactoryBatch},
+};
+
+fn children_with_parent<P: Model, C: Model>() -> FactoryBatch<C> {
+    Factory::<C>::new(Attributes::new)
+        .count(2)
+        .stateWithParent::<P>(|_, parent| {
+            parent
+                .and_then(|model| model.getAttribute("name"))
+                .map(|name| Attributes::from([("label".into(), name.clone())]))
+                .unwrap_or_default()
+        })
+        .afterCreatingWithParent::<P>(|_, _| Ok(()))
+}
+```
+
 `has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `forExisting` 關聯既有模型。每次批次呼叫只解析一次上層模型，`make` 也遵循這項規則。再次呼叫會產生新的上層模型。`MorphTo` 描述元需要登錄目標模型與對應別名。`hasAttached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
 
 ```rust

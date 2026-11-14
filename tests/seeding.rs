@@ -2769,3 +2769,142 @@ async fn model_factory_binding_configures_each_fresh_builder() {
         Some(&"configured".into())
     );
 }
+struct ParentProbe(ModelState);
+struct ChildProbe(ModelState);
+
+macro_rules! probe_model {
+    ($model:ident, $table:literal) => {
+        impl Model for $model {
+            fn metadata() -> &'static ModelMetadata {
+                static METADATA: ModelMetadata = ModelMetadata::new($table).timestamps(None, None);
+                &METADATA
+            }
+            fn from_state(state: ModelState) -> Self {
+                Self(state)
+            }
+            fn state(&self) -> &ModelState {
+                &self.0
+            }
+            fn state_mut(&mut self) -> &mut ModelState {
+                &mut self.0
+            }
+        }
+    };
+}
+
+probe_model!(ParentProbe, "factory_parent_probe");
+probe_model!(ChildProbe, "factory_child_probe");
+
+async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("factory_parent_probe", |table| {
+            table.id();
+            table.string("name", 60);
+        })
+        .await?;
+    schema
+        .create("factory_child_probe", |table| {
+            table.id();
+            table.unsignedBigInteger("parent_id").nullable();
+            table.string("name", 60);
+        })
+        .await?;
+    schema
+        .create("factory_parent_links", |table| {
+            table.unsignedBigInteger("parent_id");
+            table.unsignedBigInteger("child_id");
+        })
+        .await?;
+
+    let standalone =
+        Factory::<ChildProbe>::new(|| Attributes::from([("name".into(), "standalone".into())]))
+            .stateWithParent::<ParentProbe>(|_, parent| {
+                assert!(parent.is_none());
+                Attributes::new()
+            })
+            .afterCreatingWithParent::<ParentProbe>(|_, parent| {
+                assert!(parent.is_none());
+                Ok(())
+            });
+    standalone.createOn(db).await?;
+
+    let children = |attached| {
+        Factory::<ChildProbe>::new(|| Attributes::from([("name".into(), "base".into())]))
+            .stateWithParent::<ChildProbe>(|_, parent| {
+                assert!(parent.is_none());
+                Attributes::new()
+            })
+            .count(2)
+            .stateWithParent::<ParentProbe>(move |attributes, parent| {
+                assert_eq!(attributes.get("name"), Some(&"base".into()));
+                let parent = parent.unwrap();
+                assert!(parent.getAttribute("id").is_some());
+                let name = if attached { "attached" } else { "direct" };
+                assert_eq!(parent.getAttribute("name"), Some(&"owner".into()));
+                Attributes::from([("name".into(), name.into())])
+            })
+            .afterCreatingWithParent::<ParentProbe>(move |child, parent| {
+                let parent = parent.unwrap();
+                assert!(child.getAttribute("id").is_some());
+                if !attached {
+                    assert_eq!(child.getAttribute("parent_id"), parent.getAttribute("id"));
+                }
+                assert_eq!(parent.getAttribute("name"), Some(&"owner".into()));
+                Ok(())
+            })
+    };
+
+    Factory::<ParentProbe>::new(|| Attributes::from([("name".into(), "owner".into())]))
+        .has(
+            openrust::database::eloquent::relations::HasMany::<ParentProbe, ChildProbe>::new(
+                "id",
+                "parent_id",
+            ),
+            children(false),
+        )
+        .hasAttached(
+            openrust::database::eloquent::relations::BelongsToMany::<ParentProbe, ChildProbe>::new(
+                "factory_parent_links",
+                "parent_id",
+                "child_id",
+                "id",
+                "id",
+            ),
+            children(true),
+            Attributes::new(),
+        )
+        .createOn(db)
+        .await?;
+    assert_eq!(
+        db.table("factory_child_probe")
+            .orderBy("id", "asc")
+            .pluck("name")
+            .await?,
+        ["standalone", "direct", "direct", "attached", "attached"].map(Value::from)
+    );
+    assert_eq!(db.table("factory_parent_links").count("*").await?, 2);
+    for table in [
+        "factory_parent_links",
+        "factory_child_probe",
+        "factory_parent_probe",
+    ] {
+        schema.drop(table).await?;
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn relation_factories_supply_parent_to_states_and_create_callbacks() {
+    let root = Root::new();
+    verify_relation_parent(&root.connection(None, "database/database.sqlite"))
+        .await
+        .unwrap();
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_relation_parent(&root.connection(Some(&url), ""))
+            .await
+            .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
