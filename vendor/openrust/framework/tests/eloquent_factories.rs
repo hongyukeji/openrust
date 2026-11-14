@@ -164,9 +164,18 @@ async fn verify(config: Json, id: &str) {
     };
     let linked = authors()
         .hasAttached(
-            links(),
+            links().constrain(|query| {
+                query.withAttributes(
+                    Attributes::from([("name".into(), "attachment default".into())]),
+                    false,
+                )
+            }),
             entries()
                 .r#for(BelongsTo::new("author_id", "id"), authors())
+                .state(|attributes| {
+                    assert_eq!(attributes.get("name"), Some(&"attachment default".into()));
+                    Attributes::from([("name".into(), "explicit attachment".into())])
+                })
                 .count(1),
             Attributes::from([("label".into(), "featured".into())]),
         )
@@ -179,6 +188,10 @@ async fn verify(config: Json, id: &str) {
         .await
         .unwrap();
     assert_eq!(attached.len(), 1);
+    assert_eq!(
+        attached[0].getAttribute("name"),
+        Some(&"explicit attachment".into())
+    );
     assert_eq!(
         attached[0]
             .getRelation::<Pivot>("pivot")
@@ -204,16 +217,38 @@ async fn verify(config: Json, id: &str) {
         }
     };
     let child_stages = stages.clone();
-    let child_factory = entries().afterCreating(move |child| {
-        assert!(child.getAttribute("author_id").is_some());
-        child_stages.lock().unwrap().push("child");
-        Ok(())
-    });
+    let child_factory = entries()
+        .state(|attributes| {
+            assert_eq!(attributes.get("name"), Some(&"relation default".into()));
+            Attributes::from([
+                ("name".into(), "explicit child".into()),
+                ("author_id".into(), 999.into()),
+            ])
+        })
+        .afterMaking(|child| {
+            assert_ne!(child.getAttribute("author_id"), Some(&999.into()));
+            assert!(child.getAttribute("author_id").is_some());
+            assert_eq!(child.getAttribute("name"), Some(&"explicit child".into()));
+            Ok(())
+        })
+        .afterCreating(move |child| {
+            assert!(child.getAttribute("author_id").is_some());
+            child_stages.lock().unwrap().push("child");
+            Ok(())
+        });
 
     let batch = authors()
         .afterMaking(observe("make"))
         .afterCreating(observe("created"))
-        .has(HasMany::new("id", "author_id"), child_factory.count(1))
+        .has(
+            HasMany::new("id", "author_id").constrain(|query| {
+                query.withAttributes(
+                    Attributes::from([("name".into(), "relation default".into())]),
+                    false,
+                )
+            }),
+            child_factory.count(1),
+        )
         .sequence(|index| Attributes::from([("name".into(), format!("batch {index}").into())]))
         .count(2)
         .createOn(&connection)

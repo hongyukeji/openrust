@@ -973,6 +973,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(rows)
     }
 
+    pub(in crate::database::eloquent) fn factory_defaults(
+        &self,
+        connection: &Connection,
+    ) -> DatabaseResult<Attributes> {
+        Ok(self
+            .keys
+            .configure(R::queryOn(connection))?
+            .pending_attributes)
+    }
+
     pub(in crate::database::eloquent) fn related_key(&self) -> &'static str {
         self.keys.related
     }

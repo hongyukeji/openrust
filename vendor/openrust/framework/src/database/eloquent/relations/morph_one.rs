@@ -123,6 +123,21 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.upsert(parent, rows, unique_by, update).await
     }
 
+    pub(in crate::database::eloquent) fn factory_attributes(
+        &self,
+        parent: &P,
+    ) -> DatabaseResult<(Attributes, Attributes)> {
+        self.0.factory_attributes(parent)
+    }
+
+    pub(in crate::database::eloquent) async fn save_factory_child(
+        &self,
+        parent: &P,
+        model: &mut R,
+    ) -> DatabaseResult<bool> {
+        self.0.save_factory_child(parent, model).await
+    }
+
     pub async fn save(&self, parent: &P, model: &mut R) -> DatabaseResult<bool> {
         self.0.save(parent, model).await
     }

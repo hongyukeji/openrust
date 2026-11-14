@@ -336,6 +336,40 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(R::newCollection(models))
     }
 
+    pub(in crate::database::eloquent) fn factory_attributes(
+        &self,
+        parent: &P,
+    ) -> DatabaseResult<(Attributes, Attributes)> {
+        let connection = self.0.connection(parent)?;
+        let defaults = self
+            .0
+            .configure(R::queryOn(&connection))?
+            .pending_attributes;
+        let mut model = R::from_state(Default::default());
+        self.set_parent_attributes(parent, &mut model)?;
+        Ok((defaults, model.state().attributes.clone()))
+    }
+
+    pub(in crate::database::eloquent) async fn save_factory_child(
+        &self,
+        parent: &P,
+        model: &mut R,
+    ) -> DatabaseResult<bool> {
+        let connection = self.0.connection(parent)?;
+        if model
+            .state()
+            .connection
+            .as_ref()
+            .is_some_and(|current| !current.same_query_source(&connection))
+        {
+            return Err(DatabaseError::InvalidQuery(
+                "mixed relationship connections",
+            ));
+        }
+        self.0.hydrate_inverse(parent, model);
+        model.save().await
+    }
+
     async fn apply_creation_attributes(
         &self,
         parent: &P,

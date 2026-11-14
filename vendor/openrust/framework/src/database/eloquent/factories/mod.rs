@@ -164,7 +164,10 @@ impl<M: Model> Factory<M> {
                     let (relation, children) = &*relation;
                     let connection = related_connection::<R>(connection)?;
                     let pool = children.factory.recycle_pool(inherited);
-                    let mut models = children.make_with_pool(&connection, &pool).await?;
+                    let attributes = relation.attributes(parent)?;
+                    let mut models = children
+                        .make_with_pool(&connection, &pool, Some(&attributes))
+                        .await?;
                     for child in models.models_mut() {
                         if !relation.save(parent, child).await? {
                             return Err(DatabaseError::InvalidQuery(
@@ -241,7 +244,10 @@ impl<M: Model> Factory<M> {
                 Box::pin(async move {
                     let (relation, models, pivot) = &*relation;
                     let connection = related_connection::<R>(connection)?;
-                    let models = models.create_with_pool(&connection, inherited).await?;
+                    let attributes = (relation.factory_defaults(&connection)?, Attributes::new());
+                    let models = models
+                        .create_with_pool(&connection, inherited, Some(&attributes))
+                        .await?;
                     let keys = models
                         .iter()
                         .map(|model| {
@@ -265,7 +271,7 @@ impl<M: Model> Factory<M> {
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
         let mut model = self
-            .instantiate(connection, 0, &self.parent_cache(), &self.recycled)
+            .instantiate(connection, 0, &self.parent_cache(), &self.recycled, None)
             .await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         Ok(model)
@@ -291,11 +297,18 @@ impl<M: Model> Factory<M> {
         index: usize,
         cache: &[ParentCache],
         pool: &[RecycledModel],
+        relation: Option<&(Attributes, Attributes)>,
     ) -> DatabaseResult<M> {
         let mut attributes = (self.definition)();
+        if let Some((defaults, _)) = relation {
+            attributes.extend(defaults.clone());
+        }
         for state in &self.states {
             let changes = state(&attributes, index);
             attributes.extend(changes);
+        }
+        if let Some((_, keys)) = relation {
+            attributes.extend(keys.clone());
         }
         let mut model = M::from_state(Default::default());
         model.state_mut().connection = Some(connection.clone());
@@ -325,7 +338,9 @@ impl<M: Model> Factory<M> {
         cache: &[ParentCache],
         pool: &[RecycledModel],
     ) -> DatabaseResult<M> {
-        let mut model = self.instantiate(connection, index, cache, pool).await?;
+        let mut model = self
+            .instantiate(connection, index, cache, pool, None)
+            .await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         self.store(connection, &mut model, pool).await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_creating)?;
@@ -406,7 +421,7 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        self.make_with_pool(connection, &self.factory.recycled)
+        self.make_with_pool(connection, &self.factory.recycled, None)
             .await
     }
 
@@ -414,13 +429,14 @@ impl<M: Model> FactoryBatch<M> {
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
+        relation: Option<&(Attributes, Attributes)>,
     ) -> DatabaseResult<Collection<M>> {
         let mut models = Vec::with_capacity(self.count);
         let cache = self.factory.parent_cache();
         for index in 0..self.count {
             models.push(
                 self.factory
-                    .instantiate(connection, index, &cache, pool)
+                    .instantiate(connection, index, &cache, pool, relation)
                     .await?,
             );
         }
@@ -436,16 +452,17 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        self.create_with_pool(connection, &[]).await
+        self.create_with_pool(connection, &[], None).await
     }
 
     async fn create_with_pool(
         &self,
         connection: &Connection,
         inherited: &[RecycledModel],
+        relation: Option<&(Attributes, Attributes)>,
     ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
-        let mut models = self.make_with_pool(connection, &pool).await?;
+        let mut models = self.make_with_pool(connection, &pool, relation).await?;
         for model in models.models_mut() {
             self.factory.store(connection, model, &pool).await?;
         }

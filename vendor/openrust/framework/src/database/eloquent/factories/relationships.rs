@@ -3,20 +3,29 @@ use std::future::Future;
 use crate::database::DatabaseResult;
 
 use super::super::{
-    Model,
+    Attributes, Model,
     relations::{BelongsTo, HasMany, HasOne, MorphMany, MorphOne, MorphTo},
 };
 
 /// A factory relationship that saves a generated child of a persisted model.
 pub trait FactoryChild<P: Model, R: Model>: Send + Sync + 'static {
+    #[doc(hidden)]
+    fn attributes(&self, _parent: &P) -> DatabaseResult<(Attributes, Attributes)> {
+        Ok((Attributes::new(), Attributes::new()))
+    }
+
     fn save(&self, parent: &P, child: &mut R) -> impl Future<Output = DatabaseResult<bool>> + Send;
 }
 
 macro_rules! factory_children {
     ($($relation:ident),+ $(,)?) => {
         $(impl<P: Model, R: Model> FactoryChild<P, R> for $relation<P, R> {
+            fn attributes(&self, parent: &P) -> DatabaseResult<(Attributes, Attributes)> {
+                self.factory_attributes(parent)
+            }
+
             fn save(&self, parent: &P, child: &mut R) -> impl Future<Output = DatabaseResult<bool>> + Send {
-                Self::save(self, parent, child)
+                self.save_factory_child(parent, child)
             }
         })+
     };
