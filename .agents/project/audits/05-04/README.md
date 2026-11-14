@@ -1404,3 +1404,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、89 项 Faker、49 项 See
 隔离基线 `b6d30616`。PHP 反射核对七份词表和门牌模板，对照固定 Person 词表验证 160 个实际 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入、顺序回读并验证 161 行，包含三语共用示例。回归覆盖道路前缀唯一值耗尽、斜杠门牌及两行分隔。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、90 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对印尼语及马来语 Address。
+
+## 印尼语和马来语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [印尼语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/id_ID/Address.php) 与 [马来语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Address.php)。印尼语覆盖当地街道、城市、州简称及非零起首五位邮编。马来语覆盖加权门牌和社区格式、地区别名及城镇和邮编关联。Rust 保留无参 postcode，增加 postcodeWithState 接收上游州键并对无效键返回错误。两个入口共用 unique 的邮编历史。地区专用方法使用 Result。v0.x 无对应 Faker 地址模块，编译式装配沿用现有路径。
+
+隔离基线 `fd542d2a`。PHP 反射核对 16 份独立词表或格式，以及马来西亚全部 16 组城镇、州名和邮编范围。固定 FakerPHP 共 320 个样本通过。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 322 行，包含三语共用示例，核对 Perlis 前导零、Pahang 分段范围和同地区组合。Rust 回归覆盖无效州键、不适用地区和按州邮编唯一抽样。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、92 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对孟加拉语及尼泊尔语 Address。

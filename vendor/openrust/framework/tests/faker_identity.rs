@@ -4131,3 +4131,54 @@ fn thai_addresses_preserve_road_prefixes_and_postcode_separators() {
     assert_eq!(prefixes_sampled, HashSet::from(prefixes));
     assert!(unique.streetPrefix().is_err());
 }
+
+#[test]
+fn indonesian_address_uses_local_streets_and_state_abbreviations() {
+    let faker = fake(Some("id-ID")).unwrap();
+    let street = Regex::new(r"^.+ No\. [1-9][0-9]{0,2}$").unwrap();
+    let postal = Regex::new(r"^.+ [1-9][0-9]{4}$").unwrap();
+    for _ in 0..128 {
+        let address = faker.address();
+        let (first, state) = address.rsplit_once(", ").unwrap();
+        let (road, city) = first.rsplit_once(", ").unwrap();
+        assert!(street.is_match(road), "{address}");
+        assert!(postal.is_match(city), "{address}");
+        assert!(!state.is_empty());
+        assert!((1..=999).contains(&faker.buildingNumber().parse::<u16>().unwrap()));
+        assert!(faker.streetPrefix().is_ok() && faker.street().is_ok() && faker.cityName().is_ok());
+    }
+}
+
+#[test]
+fn malaysian_address_keeps_state_town_and_postcode_in_one_region() {
+    let faker = fake(Some("ms-MY")).unwrap();
+    let mut found = false;
+    for _ in 0..256 {
+        let address = faker.address();
+        let town_state = address.splitn(4, ", ").nth(3).unwrap();
+        let (town, state) = town_state.rsplit_once(", ").unwrap();
+        let (zip, town) = town.split_once(' ').unwrap();
+        assert_eq!(zip.len(), 5);
+        assert!(!town.is_empty());
+        if matches!(state, "Perlis Indera Kayangan" | "Perlis") {
+            assert!((1000..=2800).contains(&zip.parse::<u32>().unwrap()));
+            found = true;
+        }
+        let perlis = faker.postcodeWithState("perlis").unwrap();
+        assert!(perlis.starts_with('0') && perlis.len() == 5);
+        assert!((1000..=2800).contains(&perlis.parse::<u32>().unwrap()));
+    }
+    assert!(found);
+    assert!(faker.postcodeWithState("unknown").is_err());
+    assert!(
+        fake(Some("id-ID"))
+            .unwrap()
+            .postcodeWithState("perlis")
+            .is_err()
+    );
+    let unique = faker.unique(true);
+    assert_ne!(
+        unique.postcodeWithState("perlis").unwrap(),
+        unique.postcodeWithState("perlis").unwrap()
+    );
+}

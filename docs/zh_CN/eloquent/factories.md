@@ -917,6 +917,18 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+印尼语地址在门牌号前加 `No.`，五位邮编首位非零，末尾使用州名简称。马来语地址的城镇、邮编和州名取自同一地区。可用 `postcodeWithState("perlis")` 按 FakerPHP 的州键生成邮编。`postcode()` 随机选择地区，邮编保留前导零。马来语楼栋和社区方法支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String, String)> {
+    let indonesia = fake(Some("id-ID"))?;
+    let malaysia = fake(Some("ms-MY"))?;
+    Ok((indonesia.address(), malaysia.address(), malaysia.postcodeWithState("perlis")?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

@@ -917,6 +917,18 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+Indonesian addresses place `No.` before the building number, use a five-digit postcode with a nonzero first digit, and end with a state abbreviation. Malaysian addresses keep the town, postcode, and state in the same region. Use `postcodeWithState("perlis")` for a specific FakerPHP state key. `postcode()` samples a region, and postcodes preserve leading zeroes. Malaysian building and township formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn indonesian_and_malaysian_address_samples() -> DatabaseResult<(String, String, String)> {
+    let indonesia = fake(Some("id-ID"))?;
+    let malaysia = fake(Some("ms-MY"))?;
+    Ok((indonesia.address(), malaysia.address(), malaysia.postcodeWithState("perlis")?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

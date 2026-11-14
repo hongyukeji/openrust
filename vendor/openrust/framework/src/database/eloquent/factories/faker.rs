@@ -634,6 +634,8 @@ impl Faker {
             "en_PH" => address_sample(faker_address::CITY_EN_PH).into(),
             "en_HK" => address_sample(faker_address::CITY_EN_HK).into(),
             "ko_KR" => address_sample(faker_address::CITY_KO_KR).into(),
+            "id_ID" => address_sample(faker_address::CITY_ID_ID).into(),
+            "ms_MY" => address_sample(Self::malaysian_region().towns).into(),
             "vi_VN" => address_sample(faker_address::CITY_VI_VN).into(),
             "ja_JP" => format!("{}{}", self.lastName(), self.citySuffix()),
             "en_NG" | "en_NZ" | "en_SG" => format!("{}{}", self.firstName(), self.citySuffix()),
@@ -708,6 +710,8 @@ impl Faker {
             }
             "en_HK" => Self::hong_kong_name(faker_address::STREET_NAME_FORMATS_EN_HK),
             "ko_KR" => address_sample(faker_address::STREET_NAME_KO_KR).into(),
+            "id_ID" => address_sample(faker_address::STREET_ID_ID).into(),
+            "ms_MY" => self.malaysian_address_name(faker_address::STREET_NAME_FORMATS_MS_MY),
             "vi_VN" => self.vietnamese_address_name(faker_address::STREET_NAME_FORMATS_VI_VN),
             "ja_JP" => format!("{}{}", self.lastName(), self.streetSuffix()),
             "th_TH" => format!(
@@ -750,7 +754,9 @@ impl Faker {
     pub fn citySuffix(&self) -> String {
         match self.locale() {
             "en_ZA" => address_sample(faker_address::CITY_SUFFIX_EN_ZA).into(),
-            "en_HK" | "en_IN" | "en_NG" | "en_SG" | "ko_KR" | "vi_VN" => "Ville".into(),
+            "en_HK" | "en_IN" | "en_NG" | "en_SG" | "id_ID" | "ko_KR" | "ms_MY" | "vi_VN" => {
+                "Ville".into()
+            }
             "en_GB" => address_sample(faker_address::CITY_SUFFIX_EN_GB).into(),
             "en_NZ" => address_sample(faker_address::CITY_SUFFIX_EN_NZ).into(),
             "en_US" | "en_CA" | "en_AU" | "en_PH" | "en_UG" => {
@@ -778,10 +784,13 @@ impl Faker {
             }
             "fr_BE" => address_sample(faker_address::STREET_SUFFIX_FR_BE).into(),
             "fr_CA" => address_sample(faker_address::STREET_SUFFIX_FR_CA).into(),
-            "fr_FR" | "fr_CH" | "zh_CN" | "en_IN" | "en_NG" | "ko_KR" | "vi_VN" => "Street".into(),
+            "fr_FR" | "fr_CH" | "zh_CN" | "en_IN" | "en_NG" | "id_ID" | "ko_KR" | "vi_VN" => {
+                "Street".into()
+            }
             "zh_TW" => address_sample(faker_address::STREET_SUFFIX_ZH_TW).into(),
             "ja_JP" => "町".into(),
             "th_TH" => address_sample(faker_address::STREET_SUFFIX_TH_TH).into(),
+            "ms_MY" => address_sample(faker_address::STREET_SUFFIX_MS_MY).into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::StreetSuffix,),
         }
     }
@@ -802,6 +811,8 @@ impl Faker {
             "zh_TW" => address_sample(faker_address::COUNTRY_ZH_TW).into(),
             "ja_JP" => address_sample(faker_address::COUNTRY_JA_JP).into(),
             "th_TH" => address_sample(faker_address::COUNTRY_TH_TH).into(),
+            "id_ID" => address_sample(faker_address::COUNTRY_ID_ID).into(),
+            "ms_MY" => address_sample(faker_address::COUNTRY_MS_MY).into(),
             "ko_KR" => address_sample(faker_address::COUNTRY_KO_KR).into(),
             _ => generate!(self.locale.as_str(), faker::address::raw::CountryName,),
         }
@@ -809,6 +820,8 @@ impl Faker {
 
     pub fn state(&self) -> String {
         match self.locale() {
+            "id_ID" => address_sample(faker_address::STATE_ID_ID).into(),
+            "ms_MY" => address_sample(Self::malaysian_region().names).into(),
             "fr_CA" => address_sample(faker_address::STATE_FR_CA).into(),
             "en_IN" => address_sample(faker_address::STATE_EN_IN).into(),
             "en_AU" => address_sample(faker_address::STATE_EN_AU).into(),
@@ -823,6 +836,7 @@ impl Faker {
 
     pub fn stateAbbr(&self) -> String {
         match self.locale() {
+            "id_ID" => address_sample(faker_address::STATE_ABBR_ID_ID).into(),
             "fr_CA" => address_sample(faker_address::STATE_ABBR_FR_CA).into(),
             "en_IN" => address_sample(faker_address::STATE_ABBR_EN_IN).into(),
             "en_AU" => address_sample(faker_address::STATE_ABBR_EN_AU).into(),
@@ -844,21 +858,26 @@ impl Faker {
         }
     }
 
-    /// Returns a street stem from the Taiwanese Address provider.
+    /// Returns a street stem from the Taiwanese or Indonesian Address provider.
     pub fn street(&self) -> DatabaseResult<&'static str> {
-        if self.locale() == "zh_TW" {
-            Ok(address_sample(faker_address::STREET_ZH_TW))
-        } else {
-            Err(DatabaseError::InvalidQuery(
-                "unsupported Faker street locale",
-            ))
-        }
+        let values = match self.locale() {
+            "zh_TW" => faker_address::STREET_ZH_TW,
+            "id_ID" => faker_address::STREET_ID_ID,
+            _ => {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker street locale",
+                ));
+            }
+        };
+        Ok(address_sample(values))
     }
 
     pub fn streetPrefix(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
             "en_SG" => &["Jalan"],
             "th_TH" => faker_address::STREET_PREFIX_TH_TH,
+            "id_ID" => faker_address::STREET_PREFIX_ID_ID,
+            "ms_MY" => faker_address::STREET_PREFIX_MS_MY,
             "fr_CH" => faker_address::STREET_PREFIX_FR_CH,
             "fr_FR" | "fr_BE" | "fr_CA" => faker_address::STREET_PREFIX_FR_FR,
             _ => {
@@ -1144,9 +1163,97 @@ impl Faker {
         name
     }
 
+    pub fn buildingPrefix(&self) -> DatabaseResult<&'static str> {
+        self.require_address_locale("ms_MY")?;
+        Ok(address_sample(faker_address::BUILDING_PREFIX_MS_MY))
+    }
+
+    pub fn township(&self) -> DatabaseResult<String> {
+        self.require_address_locale("ms_MY")?;
+        Ok(self.malaysian_township())
+    }
+
+    pub fn townshipPrefixAbbr(&self) -> DatabaseResult<&'static str> {
+        self.require_address_locale("ms_MY")?;
+        Ok(address_sample(faker_address::TOWNSHIP_PREFIX_ABBR_MS_MY))
+    }
+
+    pub fn townshipPrefix(&self) -> DatabaseResult<&'static str> {
+        self.require_address_locale("ms_MY")?;
+        Ok(address_sample(faker_address::TOWNSHIP_PREFIX_MS_MY))
+    }
+
+    pub fn townshipSuffix(&self) -> DatabaseResult<&'static str> {
+        self.require_address_locale("ms_MY")?;
+        Ok(address_sample(faker_address::TOWNSHIP_SUFFIX_MS_MY))
+    }
+
+    pub fn townState(&self) -> DatabaseResult<String> {
+        self.require_address_locale("ms_MY")?;
+        Ok(Self::malaysian_town_state())
+    }
+
+    /// Generates a Malaysian postcode from a FakerPHP state key, such as `perlis`.
+    pub fn postcodeWithState(&self, state: &str) -> DatabaseResult<String> {
+        self.require_address_locale("ms_MY")?;
+        faker_address::MALAYSIAN_REGIONS
+            .iter()
+            .find(|region| region.key == state)
+            .map(faker_address::MalaysianRegion::postcode)
+            .ok_or(DatabaseError::InvalidQuery(
+                "unknown Faker Malaysian postcode state",
+            ))
+    }
+
+    fn malaysian_region() -> &'static faker_address::MalaysianRegion {
+        let regions = faker_address::MALAYSIAN_REGIONS;
+        &regions[fastrand::usize(..regions.len())]
+    }
+
+    fn malaysian_town_state() -> String {
+        let region = Self::malaysian_region();
+        format!(
+            "{} {}, {}",
+            region.postcode(),
+            address_sample(region.towns),
+            address_sample(region.names)
+        )
+    }
+
+    fn malaysian_township(&self) -> String {
+        self.malaysian_address_name(faker_address::TOWNSHIP_FORMATS_MS_MY)
+    }
+
+    fn malaysian_address_name(&self, formats: &[&str]) -> String {
+        let formatted = self
+            .bothify(Some(address_sample(formats)))
+            .to_ascii_uppercase();
+        let mut template = formatted.as_str();
+        let mut name = String::new();
+        while let Some((literal, token)) = template.split_once("{{") {
+            let (token, rest) = token
+                .split_once("}}")
+                .expect("fixed Malaysian address template");
+            name.push_str(literal);
+            let values = match token {
+                "STREETPREFIX" => faker_address::STREET_PREFIX_MS_MY,
+                "STREETSUFFIX" => faker_address::STREET_SUFFIX_MS_MY,
+                "TOWNSHIPPREFIX" => faker_address::TOWNSHIP_PREFIX_MS_MY,
+                "TOWNSHIPPREFIXABBR" => faker_address::TOWNSHIP_PREFIX_ABBR_MS_MY,
+                "TOWNSHIPSUFFIX" => faker_address::TOWNSHIP_SUFFIX_MS_MY,
+                _ => unreachable!("unknown fixed Malaysian address token: {token}"),
+            };
+            name.push_str(address_sample(values));
+            template = rest;
+        }
+        name.push_str(template);
+        name
+    }
+
     pub fn cityName(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
             "en_UG" => faker_address::CITY_NAME_EN_UG,
+            "id_ID" => faker_address::CITY_ID_ID,
             "fr_BE" => faker_address::CITY_FR_BE,
             "fr_CH" => faker_address::CITY_FR_CH,
             _ => {
@@ -1350,6 +1457,8 @@ impl Faker {
                 .bothify(Some(address_sample(&["?#? #?#", "?#?#?#"])))
                 .to_ascii_uppercase(),
             "en_HK" | "fr_FR" | "th_TH" => self.numerify(Some("#####")),
+            "id_ID" => self.numerify(Some("%####")),
+            "ms_MY" => Self::malaysian_region().postcode(),
             "ko_KR" => self.numerify(Some(address_sample(faker_address::POSTCODE_KO_KR))),
             "vi_VN" => self.numerify(Some(address_sample(faker_address::POSTCODE_VI_VN))),
             "ja_JP" => format!(
@@ -1373,6 +1482,12 @@ impl Faker {
             "ko_KR" => faker_address::BUILDING_NUMBER_KO_KR,
             "vi_VN" => faker_address::BUILDING_NUMBER_VI_VN,
             "th_TH" => faker_address::BUILDING_NUMBER_TH_TH,
+            "id_ID" => return self.numberBetween(1, 999).to_string(),
+            "ms_MY" => {
+                return self
+                    .bothify(Some(address_sample(faker_address::BUILDING_NUMBER_MS_MY)))
+                    .to_ascii_uppercase();
+            }
             "ja_JP" => return self.numberBetween(101, 110).to_string(),
             _ => return generate!(self.locale.as_str(), faker::address::raw::BuildingNumber,),
         };
@@ -1413,6 +1528,25 @@ impl Faker {
     }
 
     pub fn streetAddress(&self) -> String {
+        match self.locale() {
+            "id_ID" => {
+                return format!(
+                    "{} {} No. {}",
+                    address_sample(faker_address::STREET_PREFIX_ID_ID),
+                    self.streetName(),
+                    self.buildingNumber(),
+                );
+            }
+            "ms_MY" => {
+                return format!(
+                    "{}{}, {}",
+                    address_sample(faker_address::BUILDING_PREFIX_MS_MY),
+                    self.buildingNumber(),
+                    self.streetName(),
+                );
+            }
+            _ => {}
+        }
         if self.locale() == "en_HK" {
             let number = self.buildingNumber();
             return match fastrand::u8(0..3) {
@@ -1502,6 +1636,19 @@ impl Faker {
 
     pub fn address(&self) -> String {
         match self.locale() {
+            "id_ID" => format!(
+                "{}, {} {}, {}",
+                self.streetAddress(),
+                self.city(),
+                self.postcode(),
+                self.stateAbbr()
+            ),
+            "ms_MY" => format!(
+                "{}, {}, {}",
+                self.streetAddress(),
+                self.malaysian_township(),
+                Self::malaysian_town_state()
+            ),
             "th_TH" => format!(
                 "{}\n{}, {}",
                 self.streetAddress(),
@@ -4071,6 +4218,34 @@ impl UniqueFaker<'_> {
 
     pub fn districtPrefix(&self) -> DatabaseResult<&'static str> {
         self.try_generate("districtPrefix", || self.0.districtPrefix())
+    }
+
+    pub fn buildingPrefix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("buildingPrefix", || self.0.buildingPrefix())
+    }
+
+    pub fn township(&self) -> DatabaseResult<String> {
+        self.try_generate("township", || self.0.township())
+    }
+
+    pub fn townshipPrefixAbbr(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("townshipPrefixAbbr", || self.0.townshipPrefixAbbr())
+    }
+
+    pub fn townshipPrefix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("townshipPrefix", || self.0.townshipPrefix())
+    }
+
+    pub fn townshipSuffix(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("townshipSuffix", || self.0.townshipSuffix())
+    }
+
+    pub fn townState(&self) -> DatabaseResult<String> {
+        self.try_generate("townState", || self.0.townState())
+    }
+
+    pub fn postcodeWithState(&self, state: &str) -> DatabaseResult<String> {
+        self.try_generate("postcode", || self.0.postcodeWithState(state))
     }
 
     pub fn cityName(&self) -> DatabaseResult<&'static str> {
