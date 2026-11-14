@@ -60,36 +60,13 @@ impl Command for PruneExpired {
             let database = app.make::<DatabaseManager>().await.map_err(error)?;
             let sanctum = app.container().make::<super::Sanctum>().map_err(error)?;
             let tokens = sanctum.personalAccessTokens(&database, "").map_err(error)?;
-            let connection = tokens.connection;
             output.comment("Pruning tokens with expired expires_at timestamps");
-            connection
-                .table(tokens.table)
-                .r#where(
-                    "expires_at",
-                    "<",
-                    cutoff
-                        .format(super::personal_access_token::TIMESTAMP)
-                        .to_string(),
-                )
-                .delete()
-                .await
-                .map_err(error)?;
+            tokens.prune("expires_at", cutoff).await.map_err(error)?;
             if let Some(cutoff) = created_cutoff {
                 output.comment(
                     "Pruning tokens with expired expiration value based on configuration file",
                 );
-                connection
-                    .table(tokens.table)
-                    .r#where(
-                        "created_at",
-                        "<",
-                        cutoff
-                            .format(super::personal_access_token::TIMESTAMP)
-                            .to_string(),
-                    )
-                    .delete()
-                    .await
-                    .map_err(error)?;
+                tokens.prune("created_at", cutoff).await.map_err(error)?;
             } else {
                 output.comment("Expiration value not specified in configuration file.");
             }

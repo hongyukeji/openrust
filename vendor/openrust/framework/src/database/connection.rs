@@ -465,6 +465,11 @@ impl Connection {
         result
     }
 
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn model_timezone(&self) -> chrono_tz::Tz {
+        self.model_timezone
+    }
+
     pub fn getName(&self) -> &str {
         &self.name
     }

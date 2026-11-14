@@ -1,6 +1,6 @@
 #![cfg(feature = "sanctum")]
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use axum::{extract::State, handler::Handler as _};
 use chrono::{TimeDelta, Utc};
@@ -14,9 +14,11 @@ use openrust::{
         http::{Kernel as _, Middleware},
     },
     database::{
-        DatabaseManager,
+        Connection, DatabaseFuture, DatabaseManager, DatabaseResult, Value as SqlValue,
         eloquent::{
-            Model, ModelMetadata, ModelState,
+            Attributes, Builder, Model, ModelMetadata, ModelState, Scope,
+            casts::{Attribute, AttributeCast},
+            concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             relations::{MorphMap, MorphMapEntry},
         },
     },
@@ -40,6 +42,48 @@ impl Model for CustomToken {
             ModelMetadata::new("custom_sanctum_tokens").connection("token_fixture");
         &META
     }
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("last_used_at", AttributeCast::Timestamp)]
+    }
+
+    fn attribute(name: &str) -> Option<Attribute> {
+        match name {
+            "name" => Some(Attribute::make(
+                Some(|value, _| {
+                    let Some(SqlValue::Text(name)) = value else {
+                        panic!("expected token name")
+                    };
+                    Ok(name.strip_prefix("stored:").unwrap().into())
+                }),
+                Some(|value, _| {
+                    let SqlValue::Text(name) = value else {
+                        panic!("expected token name")
+                    };
+                    Ok(Attributes::from([(
+                        "name".into(),
+                        format!("stored:{name}").into(),
+                    )]))
+                }),
+            )),
+            "abilities" => Some(Attribute::get(|value, _| {
+                let mut abilities: Vec<String> = match value {
+                    Some(SqlValue::Text(value)) => serde_json::from_str(value).unwrap(),
+                    Some(SqlValue::Json(value)) => serde_json::from_value(value.clone()).unwrap(),
+                    _ => panic!("expected serialized token abilities"),
+                };
+                if abilities.iter().any(|ability| ability == "read") {
+                    abilities.push("write".into());
+                }
+                Ok(SqlValue::Json(json!(abilities)))
+            })),
+            _ => None,
+        }
+    }
+
+    #[allow(non_snake_case, reason = "Implements the Eloquent scope hook")]
+    fn globalScopes() -> &'static [(&'static str, &'static dyn Scope<Self>)] {
+        &[("visible", &VisibleToken)]
+    }
     fn from_state(state: ModelState) -> Self {
         Self(state)
     }
@@ -48,6 +92,53 @@ impl Model for CustomToken {
     }
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
+    }
+}
+
+struct VisibleToken;
+
+impl Scope<CustomToken> for VisibleToken {
+    fn apply(&self, query: &mut Builder<'_, CustomToken>) -> DatabaseResult<()> {
+        query.r#where("name", "!=", "stored:hidden");
+        Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+struct TokenEvents(Arc<Mutex<Vec<ModelEvent>>>);
+
+impl TokenEvents {
+    fn register(&self, app: &Application) {
+        use ModelEvent::*;
+        for event in [
+            Saving, Creating, Created, Saved, Retrieved, Updating, Updated, Deleting, Deleted,
+        ] {
+            CustomToken::registerModelEvent(app, event, self.clone()).unwrap();
+        }
+    }
+
+    fn take(&self) -> Vec<ModelEvent> {
+        std::mem::take(&mut *self.0.lock().unwrap())
+    }
+}
+
+impl ModelEventListener<CustomToken> for TokenEvents {
+    fn handle<'a>(
+        &'a self,
+        event: ModelEvent,
+        token: &'a mut CustomToken,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            self.0.lock().unwrap().push(event);
+            let name = token.getAttribute("name");
+            if (event == ModelEvent::Creating && name == Some(&SqlValue::from("stored:cancel")))
+                || (event == ModelEvent::Deleting && name == Some(&SqlValue::from("stored:read")))
+            {
+                return Ok(ModelEventResponse::Cancel);
+            }
+            Ok(ModelEventResponse::Continue)
+        })
     }
 }
 
@@ -257,11 +348,16 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
             .set("database.connections.token_fixture", database.clone())
             .unwrap();
     }
+    if custom_csrf {
+        config.set("app.timezone", json!("Asia/Shanghai")).unwrap();
+    }
     let fixture_config = database;
     let database = app.container().make::<DatabaseManager>().unwrap();
     let db = database.connection(None).unwrap();
     let sanctum = app.container().make::<Sanctum>().unwrap();
+    let model_events = TokenEvents::default();
     let token_table = if custom_csrf {
+        model_events.register(&app);
         sanctum.usePersonalAccessTokenModel::<CustomToken>();
         "custom_sanctum_tokens"
     } else {
@@ -303,6 +399,27 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         .createToken("users_alias", 1, "read", &["read"], None)
         .await
         .unwrap();
+    if custom_csrf {
+        use ModelEvent::*;
+        assert_eq!(model_events.take(), [Saving, Creating, Created, Saved]);
+        assert_eq!(read.access_token.name, "read");
+        assert!(read.access_token.can("write"));
+        let stored_name = db
+            .table(token_table)
+            .r#where("id", "=", SqlValue::Unsigned(read.access_token.id))
+            .value("name")
+            .await
+            .unwrap();
+        assert_eq!(stored_name, "stored:read".into());
+        assert!(
+            tokens
+                .createToken("users_alias", 1, "cancel", &["read"], None)
+                .await
+                .is_err()
+        );
+        assert_eq!(model_events.take(), [Saving, Creating]);
+        assert_eq!(db.table(token_table).count("*").await.unwrap(), 1);
+    }
     let full = tokens
         .createToken("SanctumUser", 1, "full", &["*"], None)
         .await
@@ -355,10 +472,40 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
             .get(format!("{base}{path}"))
             .header(header::ACCEPT, "application/json")
     };
+    if custom_csrf {
+        use ModelEvent::*;
+        model_events.take();
+        assert_eq!(
+            get("/api/user")
+                .bearer_auth(read.plain_text_token.as_str())
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            200
+        );
+        assert_eq!(
+            model_events.take(),
+            [Retrieved, Saving, Updating, Updated, Saved]
+        );
+        assert!(
+            tokens
+                .findToken(read.plain_text_token.as_str())
+                .await
+                .unwrap()
+                .unwrap()
+                .last_used_at
+                .is_some()
+        );
+    }
     for (path, credential, status) in [
         ("/api/user", read.plain_text_token.as_str(), 200),
         ("/api/user", read.plain_text_token.as_str(), 200),
-        ("/api/all", read.plain_text_token.as_str(), 403),
+        (
+            "/api/all",
+            read.plain_text_token.as_str(),
+            if custom_csrf { 200 } else { 403 },
+        ),
         ("/api/any", read.plain_text_token.as_str(), 200),
         ("/api/all", full.plain_text_token.as_str(), 200),
         ("/api/user", expired.plain_text_token.as_str(), 401),
@@ -392,12 +539,39 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
             .last_used_at
             .is_none()
     );
+    model_events.take();
     assert!(
         tokens
             .revokeToken("SanctumUser", 1, full.access_token.id)
             .await
             .unwrap()
     );
+    if custom_csrf {
+        use ModelEvent::*;
+        assert_eq!(model_events.take(), [Retrieved, Deleting, Deleted]);
+        assert!(
+            !tokens
+                .revokeToken("SanctumUser", 1, full.access_token.id)
+                .await
+                .unwrap()
+        );
+        assert!(model_events.take().is_empty());
+        assert!(
+            !tokens
+                .revokeToken("users_alias", 1, read.access_token.id)
+                .await
+                .unwrap()
+        );
+        assert_eq!(model_events.take(), [Retrieved, Deleting]);
+        assert!(
+            tokens
+                .findToken(read.plain_text_token.as_str())
+                .await
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(model_events.take(), [Retrieved]);
+    }
     assert_eq!(
         get("/api/user")
             .bearer_auth(full.plain_text_token.as_str())
@@ -408,7 +582,7 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
         401
     );
 
-    events.assertDispatchedTimes("TokenAuthenticated", 5);
+    events.assertDispatchedTimes("TokenAuthenticated", if custom_csrf { 6 } else { 5 });
     let first = events.dispatched("TokenAuthenticated");
     let first = first[0].downcast_ref::<TokenAuthenticated>().unwrap();
     assert_eq!(first.access_token.id, read.access_token.id);
@@ -638,12 +812,32 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
     assert!(server.await.unwrap_err().is_cancelled());
 
     if custom_csrf {
+        let hidden = tokens
+            .createToken(
+                "SanctumUser",
+                1,
+                "hidden",
+                &["*"],
+                Some(Utc::now() - TimeDelta::minutes(2)),
+            )
+            .await
+            .unwrap();
+        assert!(
+            tokens
+                .findToken(hidden.plain_text_token.as_str())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        let prune_events = TokenEvents::default();
         let mut console = Application::configure(root.path().to_path_buf())
             .create()
             .unwrap();
         console.boot().await.unwrap();
+        prune_events.register(&console);
         let config = console.container().get::<dyn Repository>("config").unwrap();
         config.set("database.default", json!("unused")).unwrap();
+        config.set("app.timezone", json!("Asia/Shanghai")).unwrap();
         config
             .set("database.connections.token_fixture", fixture_config)
             .unwrap();
@@ -658,6 +852,14 @@ async fn verify(database: Value, stateful: bool, custom_csrf: bool) {
                 .await
                 .unwrap(),
             0
+        );
+        assert!(prune_events.take().is_empty());
+        assert!(
+            db.table(token_table)
+                .r#where("id", "=", SqlValue::Unsigned(hidden.access_token.id))
+                .exists()
+                .await
+                .unwrap()
         );
         assert!(
             tokens

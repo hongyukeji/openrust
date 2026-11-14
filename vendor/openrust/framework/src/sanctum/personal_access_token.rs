@@ -7,8 +7,12 @@ use zeroize::Zeroizing;
 
 use crate::{
     auth::{AuthError, AuthResult},
-    database::{Connection, DatabaseError, Row, Value, query::Record},
+    database::{
+        Connection, DatabaseError, DatabaseResult, Row, Value, eloquent::Model, query::Record,
+    },
 };
+
+use super::token_model::{EloquentTokenStore, ModelStore, ModelToken};
 
 const TABLE: &str = "personal_access_tokens";
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
@@ -55,26 +59,27 @@ pub struct NewAccessToken {
 
 /// Persists and retrieves personal access tokens on the selected application connection.
 pub struct PersonalAccessTokens {
-    pub(super) connection: Connection,
+    connection: Connection,
     prefix: String,
-    pub(super) table: &'static str,
+    model: Option<Box<dyn ModelStore>>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
 impl PersonalAccessTokens {
     pub fn new(connection: Connection, prefix: impl Into<String>) -> Self {
-        Self::for_table(connection, prefix, TABLE)
-    }
-
-    pub(super) fn for_table(
-        connection: Connection,
-        prefix: impl Into<String>,
-        table: &'static str,
-    ) -> Self {
         Self {
             connection,
             prefix: prefix.into(),
-            table,
+            model: None,
+        }
+    }
+
+    pub(super) fn for_model<M: Model>(connection: Connection, prefix: String) -> Self {
+        let model = Box::new(EloquentTokenStore::<M>::new(connection.clone()));
+        Self {
+            connection,
+            prefix,
+            model: Some(model),
         }
     }
 
@@ -87,6 +92,33 @@ impl PersonalAccessTokens {
         expires_at: Option<DateTime<Utc>>,
     ) -> AuthResult<NewAccessToken> {
         let secret = self.generateTokenString()?;
+        if let Some(model) = &self.model {
+            let access_token = model
+                .create(Record::from([
+                    ("tokenable_type".into(), tokenable_type.into()),
+                    ("tokenable_id".into(), Value::Unsigned(tokenable_id)),
+                    ("name".into(), name.into()),
+                    ("token".into(), token_hash(&secret).into()),
+                    (
+                        "abilities".into(),
+                        Value::Json(serde_json::json!(abilities)),
+                    ),
+                    (
+                        "expires_at".into(),
+                        expires_at.map_or(Value::Null, |date| date.to_rfc3339().into()),
+                    ),
+                ]))
+                .await
+                .map_err(AuthError::backend)?;
+            return Ok(NewAccessToken {
+                plain_text_token: Zeroizing::new(format!(
+                    "{}|{}",
+                    access_token.id,
+                    secret.as_str()
+                )),
+                access_token,
+            });
+        }
         let created_at = seconds_precision(DateTime::<Utc>::from(SystemTime::now()));
         let expires_at = expires_at.map(seconds_precision);
         let created = created_at.format(TIMESTAMP).to_string();
@@ -112,11 +144,11 @@ impl PersonalAccessTokens {
         ]);
         let id = self
             .connection
-            .table(self.table)
+            .table(TABLE)
             .insertGetId(row)
             .await
             .map_err(AuthError::backend)?;
-        let id = integer(&id)?;
+        let id = integer(&id).map_err(AuthError::backend)?;
         Ok(NewAccessToken {
             access_token: PersonalAccessToken {
                 id,
@@ -133,8 +165,17 @@ impl PersonalAccessTokens {
     }
 
     pub async fn findToken(&self, credential: &str) -> AuthResult<Option<PersonalAccessToken>> {
-        let query = self.connection.table(self.table).useWritePdo();
-        let (query, hash) = if let Some((id, secret)) = credential.split_once('|') {
+        Ok(self
+            .find_for_authentication(credential)
+            .await?
+            .map(|(token, _)| token))
+    }
+
+    pub(super) async fn find_for_authentication(
+        &self,
+        credential: &str,
+    ) -> AuthResult<Option<(PersonalAccessToken, Option<Box<dyn ModelToken>>)>> {
+        let (id, secret) = if let Some((id, secret)) = credential.split_once('|') {
             if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) || secret.is_empty() {
                 return Ok(None);
             }
@@ -144,16 +185,24 @@ impl PersonalAccessTokens {
             if id == 0 || (self.connection.is_sqlite() && i64::try_from(id).is_err()) {
                 return Ok(None);
             }
-            (
-                query.r#where("id", "=", Value::Unsigned(id)),
-                token_hash(secret),
-            )
+            (Some(id), secret)
+        } else if credential.is_empty() {
+            return Ok(None);
         } else {
-            if credential.is_empty() {
-                return Ok(None);
-            }
-            let hash = token_hash(credential);
-            (query.r#where("token", "=", hash.as_str()), hash)
+            (None, credential)
+        };
+        let hash = token_hash(secret);
+        if let Some(model) = &self.model {
+            return model
+                .find(id, &hash)
+                .await
+                .map(|found| found.map(|(token, model)| (token, Some(model))))
+                .map_err(AuthError::backend);
+        }
+        let query = self.connection.table(TABLE).useWritePdo();
+        let query = match id {
+            Some(id) => query.r#where("id", "=", Value::Unsigned(id)),
+            None => query.r#where("token", "=", hash.as_str()),
         };
         let Some(row) = query.first().await.map_err(AuthError::backend)? else {
             return Ok(None);
@@ -161,7 +210,7 @@ impl PersonalAccessTokens {
         if !bool::from(text(&row, "token")?.as_bytes().ct_eq(hash.as_bytes())) {
             return Ok(None);
         }
-        decode(&row).map(Some)
+        Ok(Some((decode(&row)?, None)))
     }
 
     /// Revokes only a token belonging to the supplied owner.
@@ -171,8 +220,14 @@ impl PersonalAccessTokens {
         tokenable_id: u64,
         id: u64,
     ) -> AuthResult<bool> {
+        if let Some(model) = &self.model {
+            return model
+                .revoke(tokenable_type, tokenable_id, id)
+                .await
+                .map_err(AuthError::backend);
+        }
         self.connection
-            .table(self.table)
+            .table(TABLE)
             .r#where("id", "=", Value::Unsigned(id))
             .r#where("tokenable_type", "=", tokenable_type)
             .r#where("tokenable_id", "=", Value::Unsigned(tokenable_id))
@@ -182,12 +237,20 @@ impl PersonalAccessTokens {
             .map_err(AuthError::backend)
     }
 
-    pub(crate) async fn record_use(
+    pub(super) async fn record_use(
         &self,
         token: &mut PersonalAccessToken,
         credential: &str,
+        model: Option<Box<dyn ModelToken>>,
     ) -> AuthResult<bool> {
         let now = seconds_precision(Utc::now());
+        if let Some(mut model) = model {
+            if !model.record_use(now).await.map_err(AuthError::backend)? {
+                return Ok(false);
+            }
+            token.last_used_at = model.last_used_at().map_err(AuthError::backend)?;
+            return Ok(true);
+        }
         let timestamp = now.format(TIMESTAMP).to_string();
         let secret = credential
             .split_once('|')
@@ -195,7 +258,7 @@ impl PersonalAccessTokens {
         let modified = self.connection.hasModifiedRecords();
         let result = self
             .connection
-            .table(self.table)
+            .table(TABLE)
             .r#where("id", "=", Value::Unsigned(token.id))
             .r#where("token", "=", token_hash(secret))
             .update(Record::from([
@@ -210,6 +273,26 @@ impl PersonalAccessTokens {
         }
         token.last_used_at = Some(now);
         Ok(true)
+    }
+
+    pub(super) async fn prune(
+        &self,
+        column: &'static str,
+        cutoff: DateTime<Utc>,
+    ) -> AuthResult<()> {
+        if let Some(model) = &self.model {
+            return model
+                .prune(column, cutoff)
+                .await
+                .map_err(AuthError::backend);
+        }
+        self.connection
+            .table(TABLE)
+            .r#where(column, "<", cutoff.format(TIMESTAMP).to_string())
+            .delete()
+            .await
+            .map_err(AuthError::backend)?;
+        Ok(())
     }
 
     fn generateTokenString(&self) -> AuthResult<Zeroizing<String>> {
@@ -247,14 +330,16 @@ fn token_hash(token: &str) -> String {
 }
 
 fn decode(row: &Row) -> AuthResult<PersonalAccessToken> {
-    let id = integer(row.get("id").ok_or(AuthError::InvalidIdentity)?)?;
-    let tokenable_id = integer(row.get("tokenable_id").ok_or(AuthError::InvalidIdentity)?)?;
+    let id =
+        integer(row.get("id").ok_or(AuthError::InvalidIdentity)?).map_err(AuthError::backend)?;
+    let tokenable_id = integer(row.get("tokenable_id").ok_or(AuthError::InvalidIdentity)?)
+        .map_err(AuthError::backend)?;
     let abilities = match row.get("abilities") {
         Some(Value::Null) => Vec::new(),
         Some(Value::Text(abilities)) => {
             serde_json::from_str(abilities).map_err(AuthError::backend)?
         }
-        _ => return Err(invalid_row()),
+        _ => return Err(AuthError::backend(invalid_row())),
     };
     Ok(PersonalAccessToken {
         id,
@@ -268,26 +353,26 @@ fn decode(row: &Row) -> AuthResult<PersonalAccessToken> {
     })
 }
 
-fn integer(value: &Value) -> AuthResult<u64> {
+pub(super) fn integer(value: &Value) -> DatabaseResult<u64> {
     match value {
         Value::Unsigned(value) => Ok(*value),
-        Value::Integer(value) => u64::try_from(*value).map_err(AuthError::backend),
-        _ => Err(AuthError::InvalidIdentity),
+        Value::Integer(value) => u64::try_from(*value).map_err(|_| invalid_row()),
+        _ => Err(invalid_row()),
     }
 }
 
 fn text<'a>(row: &'a Row, name: &str) -> AuthResult<&'a str> {
     match row.get(name) {
         Some(Value::Text(value)) => Ok(value),
-        _ => Err(invalid_row()),
+        _ => Err(AuthError::backend(invalid_row())),
     }
 }
 
 fn date(row: &Row, name: &str) -> AuthResult<Option<DateTime<Utc>>> {
     match row.get(name) {
-        Some(Value::Text(value)) => parse_timestamp(value).map(Some),
+        Some(Value::Text(value)) => parse_timestamp(value).map(Some).map_err(AuthError::backend),
         Some(Value::Null) => Ok(None),
-        _ => Err(invalid_row()),
+        _ => Err(AuthError::backend(invalid_row())),
     }
 }
 
@@ -298,12 +383,13 @@ fn seconds_precision(value: DateTime<Utc>) -> DateTime<Utc> {
         .expect("zero nanoseconds are valid")
 }
 
-fn parse_timestamp(value: &str) -> AuthResult<DateTime<Utc>> {
-    NaiveDateTime::parse_from_str(value, TIMESTAMP)
-        .map(|time| time.and_utc())
-        .map_err(AuthError::backend)
+pub(super) fn parse_timestamp(value: &str) -> DatabaseResult<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
+        .map(|time| time.to_utc())
+        .or_else(|_| NaiveDateTime::parse_from_str(value, TIMESTAMP).map(|time| time.and_utc()))
+        .map_err(|_| invalid_row())
 }
 
-fn invalid_row() -> AuthError {
-    AuthError::backend(DatabaseError::InvalidQuery("personal access token row"))
+pub(super) fn invalid_row() -> DatabaseError {
+    DatabaseError::InvalidQuery("personal access token row")
 }

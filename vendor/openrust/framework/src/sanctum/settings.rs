@@ -36,11 +36,7 @@ impl Sanctum {
             let connection = database
                 .connection(model.getConnectionName())
                 .map_err(AuthError::backend)?;
-            Ok(PersonalAccessTokens::for_table(
-                connection,
-                prefix,
-                model.getTable(),
-            ))
+            Ok(PersonalAccessTokens::for_model::<M>(connection, prefix))
         });
     }
 

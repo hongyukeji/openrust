@@ -32,8 +32,14 @@ Rust 1.94.0 用独立 MySQL 8.4.13 运行带 Sanctum 的 `migrations` 测试目�
 
 ## 自定义模型、回调和多态归属
 
-对照固定 Sanctum v4.4.0 的 `Sanctum`、`Guard` 与前端中间件。旧版固定查询用户表，本批复用当前 Eloquent 模型注册、MorphMap 和令牌仓储。应用级 `usePersonalAccessTokenModel` 使用自定义模型的表与连接，令牌仓储沿用标准列和整数主键。持久化仍经框架令牌仓储，任意 Eloquent 模型事件和属性转换未接入该链路。未指定 Provider 时从归属类型解析已注册模型。显式 Provider 保留类型限制。提取回调替换 Bearer 提取，认证回调接收内置校验结果并决定是否接受，归属仍须存在。当前主机占位默认不启用，启用后按每个请求的主机和端口比对。 [固定 Sanctum](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php) · [固定 Guard](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php)
+对照固定 Sanctum v4.4.0 的 `Sanctum`、`Guard` 与前端中间件。旧版固定查询用户表，本批复用当前 Eloquent 模型注册、MorphMap 和令牌仓储。应用级 `usePersonalAccessTokenModel` 使用自定义模型的表与连接，令牌仓储沿用标准列和整数主键。模型事件与属性转换的后续接线见下节。未指定 Provider 时从归属类型解析已注册模型。显式 Provider 保留类型限制。提取回调替换 Bearer 提取，认证回调接收内置校验结果并决定是否接受，归属仍须存在。当前主机占位默认不启用，启用后按每个请求的主机和端口比对。 [固定 Sanctum](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Sanctum.php) · [固定 Guard](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php)
 
 Rust 1.94.0 执行 `cargo test --locked --offline --features sanctum -p openrust-framework --test sanctum_authentication`。SQLite 和专用 MySQL 8.4.13 两项测试通过，覆盖真实 HTTP 自定义提取、有效令牌拒绝、已到期令牌覆盖放行、两个归属模型及显式 Provider、SPA 当前主机匹配及错误端口拒绝。自定义表和命名连接覆盖签发、认证、撤销及真实 Artisan `sanctum:prune-expired --hours=0`。清理后有效令牌仍可查找。Rust 1.94.0 格式检查、启用 Sanctum 的工作区全目标严格 Clippy 和三语 Rust 示例编译通过。三语 VitePress 构建及根路径、`/docs/` 下桌面和手机共 12 项浏览器检查通过。
+
+## 自定义令牌模型生命周期
+
+固定 Sanctum v4.4.0 使用 Eloquent 模型签发、查询及保存最后使用时间。单个实例撤销遵循模型删除事件，Artisan 清理通过带模型作用域的批量删除执行。自定义模型仍使用标准 Sanctum 字段和整数令牌标识。现有 Eloquent API 提供属性转换、访问器、修改器和模型事件，旧版令牌仓储没有对应的 Eloquent 模型接线。 [上游签发](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/HasApiTokens.php) · [上游认证](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Guard.php) · [上游清理](https://github.com/laravel/sanctum/blob/a28ea5d4c2b123420562d6a3a233414f84b70774/src/Console/Commands/PruneExpired.php)
+
+Rust 1.94.0 对隔离的 MySQL 8.4.13 执行 `cargo test --locked --offline --features sanctum -p openrust-framework --test sanctum_authentication bearer_and_spa_over_http_with_mysql -- --exact`。真实 HTTP 与 Artisan 验收通过，覆盖签发事件顺序与取消、名称访问器／修改器、能力转换、认证写回和时间转换、撤销事件与取消、清理全局作用域及批量删除无实例事件。以 Asia/Shanghai 验证自定义模型与清理的时间一致性。格式检查、启用 Sanctum 的工作区全目标严格 Clippy 和三语站点 12 项浏览器检查通过。
 
 Passport 和安装器的 Passport 选项单独跟踪。

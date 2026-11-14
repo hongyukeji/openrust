@@ -76,7 +76,7 @@ impl Guard {
             .make::<DatabaseManager>()
             .map_err(AuthError::backend)?;
         let tokens = sanctum.personalAccessTokens(&database, "")?;
-        let Some(token) = tokens.findToken(&credential).await? else {
+        let Some((token, token_model)) = tokens.find_for_authentication(&credential).await? else {
             return Ok(None);
         };
         let id = AuthIdentifier::UnsignedInteger(token.tokenable_id);
@@ -113,7 +113,10 @@ impl Guard {
             .map_err(AuthError::backend)?;
         let token = if self.track_last_used_at {
             let mut token = Arc::unwrap_or_clone(token);
-            if !tokens.record_use(&mut token, &credential).await? {
+            if !tokens
+                .record_use(&mut token, &credential, token_model)
+                .await?
+            {
                 return Ok(None);
             }
             Arc::new(token)

@@ -30,7 +30,7 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 }
 ```
 
-In a service provider, call `usePersonalAccessTokenModel::<M>()` on the application’s `Sanctum` service to select the Eloquent model’s table and connection. Create the custom table in an application migration using the standard Sanctum columns and integer `id`. The resolved store is shared by issuance, authentication, revocation and pruning. The store uses the standard token persistence logic.
+In a service provider, call `usePersonalAccessTokenModel::<M>()` on the application’s `Sanctum` service to select the Eloquent model’s table and connection. Create the custom table in an application migration using the standard Sanctum columns and integer `id`. Issuance applies model mutators and casts before saving and fires the Eloquent creation events. Bearer authentication reads through the model’s accessors and casts and saves the last-used timestamp through the same model instance. `revokeToken` deletes the owner’s model instance and honors its deletion events. Artisan pruning applies the model’s global scopes and deletes in bulk without firing per-token events.
 
 ## Protecting routes and checking abilities {#protecting-routes}
 
