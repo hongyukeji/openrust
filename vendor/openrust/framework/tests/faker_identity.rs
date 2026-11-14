@@ -3761,3 +3761,29 @@ fn french_departments_and_taiwanese_address_numbers_preserve_values() {
     assert!(taiwan.departmentNumber().is_err());
     assert!(french.randomNumber2().is_err());
 }
+
+#[test]
+fn french_address_locales_preserve_regional_overrides() {
+    let belgium = fake(Some("fr-BE")).unwrap();
+    let swiss = fake(Some("fr-CH")).unwrap();
+    let canada = fake(Some("fr-CA")).unwrap();
+    let belgian_line = Regex::new(r"\n [0-9]{4} .+$").unwrap();
+    let swiss_line = Regex::new(r"\n[0-9]{4} .+$").unwrap();
+    let canadian_postcode = Regex::new(r"^[A-Z][0-9][A-Z] ?[0-9][A-Z][0-9]$").unwrap();
+    for _ in 0..64 {
+        assert!(belgian_line.is_match(&belgium.address()));
+        assert!(swiss_line.is_match(&swiss.address()));
+        assert!(canadian_postcode.is_match(&canada.postcode()));
+        assert!(canada.address().split(", ").count() == 3);
+        assert!(belgium.region().is_ok());
+        assert!(swiss.department().is_ok());
+        assert!(canada.streetPrefix().is_ok());
+    }
+    let unique = swiss.uniqueWithRetries(true, 2048);
+    let all: std::collections::BTreeMap<_, _> = (0..26).map(|_| unique.canton().unwrap()).collect();
+    assert_eq!(all.len(), 26);
+    assert_eq!(all.get("GE"), Some(&"Genève"));
+    assert!(unique.canton().is_err());
+    assert!(swiss.province().is_err());
+    assert!(canada.cityName().is_err());
+}

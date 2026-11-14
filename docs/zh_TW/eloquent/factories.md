@@ -795,6 +795,17 @@ fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
 }
 ```
 
+比利時、瑞士和加拿大法語採用各自的城市、街道與郵遞區號範本。`cityName()` 用於比利時和瑞士，`province()` 用於比利時，`canton()` 回傳瑞士邦代碼與名稱的字串組。`cantonShort()` 和 `cantonName()` 分別獨立取樣。三地沿用法國的國家、大區和行政區詞表，瑞士使用自己的街道前綴。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("fr-CH"))?;
+    Ok((faker.address(), faker.unique(false).cantonShort()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

@@ -1316,3 +1316,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `a30c0b0b`。PHP 反射核对五个法国词表，包含 101 条编号与名称的对应关系。PHP 8.5.12 抽验 256 组地址与数字结果。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 257 行并按上游词表和模板核对，包含三语共用行政区示例。Rust 回归遍历行政区和汉字数字的唯一值并核对耗尽、编号及错误地区。
 
 78 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。其他法语地区的继承数据和覆盖模板以及其他地址 provider 继续对账。
+
+## 比利时、瑞士与加拿大法语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [比利时](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_BE/Address.php)、[瑞士](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_CH/Address.php)与[加拿大](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fr_CA/Address.php)的法语 Address。三地沿用法国的国家、大区和行政区目录，仅按地区覆盖城市、街道、楼号、邮编及地址行模板。比利时保留邮编行开头的空格并暴露 `province`。瑞士保留三种街道模板、带字母楼号和本地街道前缀，`canton` 返回代码与名称的字符串对。加拿大保留地名后缀权重、可选附加地址和两种大写邮编形式。Rust 沿用已有 Person 词表和 formatter 去重，地区专用方法通过 `Result` 传播错误。v0.x 无对应生成器，编译式工厂装配无需调整。
+
+隔离基线 `2e5df3c5`。逐项比对 11 份地区词表，保留原有顺序和重复项，并用 PHP 8.5.12 核对 384 个运行样本。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，覆盖三地模板和继承词表，包含三语共用的瑞士地址示例。Rust 回归另外遍历 26 条州记录，验证去重耗尽和地区错误。
+
+79 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续对账其他地区 Address 的继承、词表和格式。

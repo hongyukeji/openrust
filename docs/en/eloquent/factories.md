@@ -795,6 +795,17 @@ fn french_department_sample() -> DatabaseResult<(&'static str, &'static str)> {
 }
 ```
 
+Belgian, Swiss, and Canadian French use their regional city, street, and postal layouts. Use `cityName()` for Belgium or Switzerland, `province()` for Belgium, and `canton()` for a Swiss code/name pair. `cantonShort()` and `cantonName()` sample their field independently. The three providers inherit the French country, region, and department catalogs, while Swiss street prefixes override the inherited list.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("fr-CH"))?;
+    Ok((faker.address(), faker.unique(false).cantonShort()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
