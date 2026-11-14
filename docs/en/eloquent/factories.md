@@ -30,6 +30,28 @@ Use `faker.unique(false)` to avoid duplicates per formatter. `unique(true)` clea
 
 Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
 
+Use `numberBetween(first, second)` for an inclusive integer range in either order. `randomDigit()` returns 0 through 9, and `randomDigitNotNull()` returns 1 through 9. `dateTimeBetween(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.
+
+```rust
+use chrono::DateTime;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+};
+
+pub fn activity_factory<M: Model>() -> Factory<M> {
+    Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
+        let start = DateTime::UNIX_EPOCH;
+        let end = DateTime::from_timestamp(86_400, 0).unwrap();
+        let happened_at = faker.dateTimeBetween(start, end)?;
+        Ok(Attributes::from([
+            ("score".into(), faker.numberBetween(1, 100).into()),
+            ("happened_at".into(), happened_at.to_rfc3339().into()),
+        ]))
+    })
+}
+```
+
 ## Creating Models Using Factories
 
 Apply `state` in declaration order. A `sequence` receives the zero-based index for the current batch. `make` builds the model and runs `afterMaking`. `create` saves it, creates its declared children, then runs `afterCreating`. Calling `count` switches the result to an Eloquent collection. Factory attributes bypass mass-assignment filtering and still pass through the model’s setters and casts.

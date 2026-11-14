@@ -11,6 +11,7 @@ use crate::{
     translation::canonical_locale,
 };
 use ::fake::{Fake, faker, locales};
+use chrono::{DateTime, Utc};
 
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
@@ -124,6 +125,36 @@ impl Faker {
     pub fn sentence(&self, words: Range<usize>) -> String {
         generate!(self.locale.as_str(), faker::lorem::raw::Sentence, words)
     }
+
+    /// Samples an inclusive integer interval, accepting endpoints in either order.
+    pub fn numberBetween(&self, first: i64, second: i64) -> i64 {
+        fastrand::i64(first.min(second)..=first.max(second))
+    }
+
+    pub fn randomDigit(&self) -> u8 {
+        fastrand::u8(0..=9)
+    }
+
+    pub fn randomDigitNotNull(&self) -> u8 {
+        fastrand::u8(1..=9)
+    }
+
+    /// Samples an inclusive interval at Unix-second precision.
+    pub fn dateTimeBetween(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let (start, end) = (start.timestamp(), end.timestamp());
+        if start > end {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker start date exceeds end date",
+            ));
+        }
+        DateTime::from_timestamp(self.numberBetween(start, end), 0).ok_or(
+            DatabaseError::InvalidQuery("Faker timestamp is out of range"),
+        )
+    }
 }
 
 /// A uniqueness modifier that shares the generator's formatter history.
@@ -135,13 +166,41 @@ impl UniqueFaker<'_> {
         self.generate("sentence", || self.0.sentence(words.clone()))
     }
 
-    fn generate(
+    pub fn numberBetween(&self, first: i64, second: i64) -> DatabaseResult<i64> {
+        self.generate("numberBetween", || self.0.numberBetween(first, second))
+    }
+
+    pub fn randomDigit(&self) -> DatabaseResult<u8> {
+        self.generate("randomDigit", || self.0.randomDigit())
+    }
+
+    pub fn randomDigitNotNull(&self) -> DatabaseResult<u8> {
+        self.generate("randomDigitNotNull", || self.0.randomDigitNotNull())
+    }
+
+    pub fn dateTimeBetween(
+        &self,
+        start: DateTime<Utc>,
+        end: DateTime<Utc>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeBetween", || self.0.dateTimeBetween(start, end))
+    }
+
+    fn generate<T: ToString>(
         &self,
         formatter: &'static str,
-        mut value: impl FnMut() -> String,
-    ) -> DatabaseResult<String> {
+        mut value: impl FnMut() -> T,
+    ) -> DatabaseResult<T> {
+        self.try_generate(formatter, || Ok(value()))
+    }
+
+    fn try_generate<T: ToString>(
+        &self,
+        formatter: &'static str,
+        mut value: impl FnMut() -> DatabaseResult<T>,
+    ) -> DatabaseResult<T> {
         for _ in 0..10_000 {
-            let value = value();
+            let value = value()?;
             if self
                 .0
                 .unique
@@ -149,7 +208,7 @@ impl UniqueFaker<'_> {
                 .unwrap()
                 .entry(formatter)
                 .or_default()
-                .insert(value.clone())
+                .insert(value.to_string())
             {
                 return Ok(value);
             }

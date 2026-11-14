@@ -210,6 +210,36 @@ impl Seeder for PolymorphicFactories {
             }
             assert!(faker.freeEmail().contains('@'));
 
+            let start = chrono::DateTime::from_timestamp(-1, 0).unwrap();
+            let end = chrono::DateTime::from_timestamp(1, 0).unwrap();
+            for _ in 0..20 {
+                assert!((-2..=3).contains(&faker.numberBetween(3, -2)));
+                assert!(faker.randomDigit() <= 9);
+                assert!((1..=9).contains(&faker.randomDigitNotNull()));
+                assert!((start..=end).contains(&faker.dateTimeBetween(start, end)?));
+            }
+            assert!(matches!(
+                faker.unique(false).dateTimeBetween(end, start),
+                Err(DatabaseError::InvalidQuery(
+                    "Faker start date exceeds end date"
+                ))
+            ));
+            assert_eq!(faker.unique(false).dateTimeBetween(start, start)?, start);
+            assert_eq!(
+                faker.unique(false).numberBetween(i64::MIN, i64::MIN)?,
+                i64::MIN
+            );
+            assert_eq!(
+                faker.unique(false).numberBetween(i64::MAX, i64::MAX)?,
+                i64::MAX
+            );
+            assert!(matches!(
+                faker.unique(false).numberBetween(i64::MIN, i64::MIN),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            assert!(faker.unique(false).randomDigit()? <= 9);
+            assert!((1..=9).contains(&faker.unique(false).randomDigitNotNull()?));
+
             assert_eq!(faker.unique(false).sentence(0..1)?, ".");
             assert!(matches!(
                 faker.unique(false).sentence(0..1),
@@ -234,14 +264,24 @@ impl Seeder for PolymorphicFactories {
                     0
                 );
             }
-            let localized = Factory::<FactoryChild>::tryWithFaker(|faker| {
+            let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");
                 let name = faker.unique(false).firstName()?;
                 assert!(
                     name.chars()
                         .any(|character| ('\u{4e00}'..='\u{9fff}').contains(&character))
                 );
-                Ok(Attributes::from([("generated_name".into(), name.into())]))
+                Ok(Attributes::from([
+                    ("generated_name".into(), name.into()),
+                    (
+                        "generated_score".into(),
+                        faker.unique(false).numberBetween(10, 11)?.into(),
+                    ),
+                    (
+                        "generated_at".into(),
+                        faker.dateTimeBetween(start, start)?.to_rfc3339().into(),
+                    ),
+                ]))
             })
             .count(2)
             .createOn(connection)
@@ -608,7 +648,7 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
     }
     for sql in [
         "CREATE TABLE seed_factory_owners (id BIGINT AUTO_INCREMENT PRIMARY KEY)",
-        "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40), generated_name VARCHAR(120))",
+        "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40), generated_name VARCHAR(120), generated_score BIGINT, generated_at VARCHAR(40))",
         "CREATE TABLE seed_factory_links (owner_id BIGINT NOT NULL, child_id BIGINT NOT NULL, owner_type VARCHAR(40) NOT NULL, label VARCHAR(40) NOT NULL)",
     ] {
         db.statement(sql, &[]).await.unwrap();
@@ -654,6 +694,18 @@ async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
             .iter()
             .filter(|name| matches!(name, Value::Text(value) if !value.is_empty()))
             .count(),
+        2
+    );
+    let generated = db.table("seed_factory_children");
+    let scores = generated.pluck("generated_score").await.unwrap();
+    assert!(scores.contains(&10_i64.into()));
+    assert!(scores.contains(&11_i64.into()));
+    assert_eq!(
+        db.table("seed_factory_children")
+            .r#where("generated_at", "=", "1969-12-31T23:59:59+00:00")
+            .count("*")
+            .await
+            .unwrap(),
         2
     );
     for table in [

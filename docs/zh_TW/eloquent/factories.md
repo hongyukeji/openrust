@@ -30,6 +30,28 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 內建產生方法還包括 `firstName`、`lastName`、`freeEmail`、`userName`、`streetName`、`postcode`、`phoneNumber`、`company` 和 `word`。這些方法也可透過 `unique` 呼叫。樣本取自 fake-rs 中對應語言的資料集。
 
+用 `numberBetween(first, second)` 產生整數，包含兩個端點，端點可以任意排序。`randomDigit()` 回傳 0 至 9，`randomDigitNotNull()` 回傳 1 至 9。`dateTimeBetween(start, end)` 接收明確的 UTC 日期時間，以整秒取樣並包含兩端，起始秒晚於結束秒時回傳錯誤。四種方法均支援 `unique`。
+
+```rust
+use chrono::DateTime;
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Attributes, Model, factories::Factory},
+};
+
+pub fn activity_factory<M: Model>() -> Factory<M> {
+    Factory::tryWithFaker(|faker| -> DatabaseResult<Attributes> {
+        let start = DateTime::UNIX_EPOCH;
+        let end = DateTime::from_timestamp(86_400, 0).unwrap();
+        let happened_at = faker.dateTimeBetween(start, end)?;
+        Ok(Attributes::from([
+            ("score".into(), faker.numberBetween(1, 100).into()),
+            ("happened_at".into(), happened_at.to_rfc3339().into()),
+        ]))
+    })
+}
+```
+
 ## 使用工廠建立模型
 
 `state` 按宣告順序疊加。`sequence` 接收批次內從零開始的索引。`make` 建立記憶體模型並執行 `afterMaking`。`create` 儲存模型、建立已宣告的子關聯，再執行 `afterCreating`。呼叫 `count` 後回傳 Eloquent 集合。工廠屬性略過大量賦值篩選，並繼續執行模型修改器與屬性轉換。
