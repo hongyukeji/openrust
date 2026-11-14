@@ -1018,3 +1018,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `f5d06cc4`。PHP 8.5 核对 3,072 组固定上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并按主键回查 768 个姓名，逐组按相同上游词表和模板验证全名、名字、姓氏、称谓，另核对 128 组越南中间名。Rust 1.94.0 全目标严格 Clippy、45 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例、VitePress 和六项浏览器检查通过。既有 Sanctum 测试的格式差异仅在隔离副本处理，格式复验通过。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对尚未接入的 Person 地区及专用格式化器。
+
+## Faker 马来西亚 Person 专用格式化器
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)的假数据入口。按 [FakerPHP v1.24.1 马来西亚 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Person.php) 暴露 17 个姓名成分和 `myKadNumber`。直接调用复用全名模板词表，保留空成分、尾部空格和华人名字的双成分。MyKad 保留独立月日抽样、出生地范围及排除值、性别末位规则。Rust 采用布尔值与可选分隔符表达 PHP 的 bool/string 参数，采样日期沿用 Faker 时区设置。所有入口支持独立去重，非马来西亚地区返回错误。v0.x 未发现等价入口，沿用当前编译式应用装配。
+
+隔离基线 `4b08f0fd`。PHP 8.5 核对 512 组上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 核对 128 组、共 2,560 个值，逐条回读并验证词表、分隔符及数字范围。首轮验收任务重叠时，临时 Seeder 替换影响默认 Seeder 测试，且临时 MySQL 容器名冲突。恢复种子文件并串行复验后，49 项 Seeder、MySQL／SQLite 工厂回归和实际 Seeder 均通过。Rust 1.94.0 全目标严格 Clippy、46 项 Faker、`./artisan inspire`、三语示例编译、实际运行文档示例、VitePress 和六项浏览器检查通过。基线 Sanctum 排版差异仅在隔离副本格式化。
+
+原始 Seeder 已恢复并核对。清理本批独占 Cargo 产物 2.2 GiB、站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。05-04 后续核对罗马尼亚、摩尔多瓦、塞尔维亚等尚未接入的地区姓名。

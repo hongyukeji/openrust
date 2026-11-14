@@ -782,6 +782,20 @@ fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
+The `ms-MY` provider also exposes its template parts directly. Use `firstNameMaleMalay`, `firstNameFemaleMalay`, `lastNameMalay`, `muhammadName`, `nurName`, `haji`, `hajjah`, and `titleMaleMalay` for Malay name components. The other formatters are `lastNameChinese`, `firstNameMaleChinese`, `firstNameFemaleChinese`, `firstNameMaleChristian`, `firstNameFemaleChristian`, `initialIndian`, `firstNameMaleIndian`, `firstNameFemaleIndian`, and `lastNameIndian`. Optional components can be empty and preserve their trailing space when present.
+
+`myKadNumber(gender, formatted, separator)` generates sample data. It emits 12 digits when `formatted` is false. When true, it inserts a hyphen or the supplied separator between the six-, two-, and four-digit groups. The last digit is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The month and day are sampled independently. All these formatters support `unique()` and return an error outside `ms-MY`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("ms-MY"))?;
+    let unique = faker.unique(false);
+    Ok((unique.firstNameMaleMalay()?, unique.myKadNumber(Some("male"), true, None)?))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

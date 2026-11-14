@@ -102,6 +102,34 @@ institution_formatters! {
     digitalWallet => "ne_NP", NE_NP_DIGITAL_WALLETS;
 }
 
+// Use the same samples for direct calls and full-name templates.
+macro_rules! malaysian_person_formatters {
+    ($($method:ident),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(pub fn $method(&self) -> DatabaseResult<String> {
+                self.require_malaysian_person()?;
+                Ok(south_southeast_asian::malaysian_name_part(stringify!($method)).into_owned())
+            })+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(pub fn $method(&self) -> DatabaseResult<String> {
+                self.try_generate(stringify!($method), || self.0.$method())
+            })+
+        }
+    };
+}
+
+malaysian_person_formatters! {
+    firstNameMaleMalay, firstNameFemaleMalay, lastNameMalay,
+    muhammadName, nurName, haji, hajjah, titleMaleMalay,
+    lastNameChinese, firstNameMaleChinese, firstNameFemaleChinese,
+    firstNameMaleChristian, firstNameFemaleChristian,
+    initialIndian, firstNameMaleIndian, firstNameFemaleIndian, lastNameIndian,
+}
+
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
@@ -868,6 +896,47 @@ impl Faker {
 
     pub fn firstNameFemale(&self) -> String {
         self.sample_given_name(faker_person::catalog(self.locale()).female)
+    }
+
+    fn require_malaysian_person(&self) -> DatabaseResult<()> {
+        if self.locale() != "ms_MY" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker Malaysian Person locale",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn myKadNumber(
+        &self,
+        gender: Option<&str>,
+        formatted: bool,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.require_malaysian_person()?;
+        let separator = if formatted {
+            separator.unwrap_or("-")
+        } else {
+            ""
+        };
+        let year = self.numberBetween(0, 99);
+        // The upstream month and day are sampled separately.
+        let month = self.dateTimeInTimezone(None, None).month();
+        let day = self.dateTimeInTimezone(None, None).day();
+        let mut place = self.numberBetween(1, 55);
+        if place >= 17 {
+            place += 4;
+        }
+        let serial = self.numberBetween(0, 999);
+        let digit = self.numberBetween(0, 9);
+        let digit = match gender {
+            Some("male") => digit | 1,
+            Some("female") => digit & !1,
+            _ => digit,
+        };
+        Ok(format!(
+            "{year:02}{month:02}{day:02}{separator}{place:02}{separator}{serial:03}{digit}"
+        ))
     }
 
     pub fn firstNameWithGender(&self, gender: Option<&str>) -> String {
@@ -2653,6 +2722,17 @@ impl UniqueFaker<'_> {
 
     pub fn firstNameFemale(&self) -> DatabaseResult<String> {
         self.generate("firstNameFemale", || self.0.firstNameFemale())
+    }
+
+    pub fn myKadNumber(
+        &self,
+        gender: Option<&str>,
+        formatted: bool,
+        separator: Option<&str>,
+    ) -> DatabaseResult<String> {
+        self.try_generate("myKadNumber", || {
+            self.0.myKadNumber(gender, formatted, separator)
+        })
     }
 
     pub fn firstNameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {

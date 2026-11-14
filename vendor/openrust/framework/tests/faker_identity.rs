@@ -2445,3 +2445,58 @@ fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
     }
     assert_eq!(unique_surnames.len(), 64);
 }
+
+#[test]
+fn malaysian_person_formatters_preserve_groups_separators_and_unique_history() {
+    let malaysia = fake(Some("ms-MY")).unwrap();
+    let other = fake(Some("en-US")).unwrap();
+    assert!(other.firstNameMaleMalay().is_err());
+    assert!(other.unique(false).myKadNumber(None, false, None).is_err());
+    let unique = malaysia.unique(true);
+    let mut initials = std::collections::HashSet::new();
+    let mut cards = std::collections::HashSet::new();
+    for _ in 0..24 {
+        assert!(initials.insert(unique.initialIndian().unwrap()));
+        assert!(!malaysia.firstNameMaleMalay().unwrap().is_empty());
+        assert_eq!(
+            malaysia
+                .firstNameFemaleChinese()
+                .unwrap()
+                .split(' ')
+                .count(),
+            2
+        );
+        assert!(["", "Haji ", "Hj "].contains(&malaysia.haji().unwrap().as_str()));
+        let compact = unique.myKadNumber(Some("male"), false, Some("/")).unwrap();
+        assert_eq!(compact.len(), 12);
+        assert!(compact.bytes().all(|b| b.is_ascii_digit()));
+        assert!((1..=12).contains(&compact[2..4].parse::<u8>().unwrap()));
+        assert!((1..=31).contains(&compact[4..6].parse::<u8>().unwrap()));
+        let place = compact[6..8].parse::<u8>().unwrap();
+        assert!((1..=59).contains(&place) && !(17..=20).contains(&place));
+        assert!(matches!(
+            compact.as_bytes().last(),
+            Some(b'1' | b'3' | b'5' | b'7' | b'9')
+        ));
+        assert!(cards.insert(compact));
+        let custom = malaysia
+            .myKadNumber(Some("female"), true, Some("／"))
+            .unwrap();
+        assert_eq!(
+            custom.split('／').map(str::len).collect::<Vec<_>>(),
+            [6, 2, 4]
+        );
+        assert!(matches!(
+            custom.as_bytes().last(),
+            Some(b'0' | b'2' | b'4' | b'6' | b'8')
+        ));
+        assert_eq!(
+            malaysia
+                .myKadNumber(None, true, None)
+                .unwrap()
+                .matches('-')
+                .count(),
+            2
+        );
+    }
+}

@@ -782,6 +782,20 @@ fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
+`ms-MY` 可直接生成姓名模板的各个成分。马来姓名使用 `firstNameMaleMalay`、`firstNameFemaleMalay`、`lastNameMalay`、`muhammadName`、`nurName`、`haji`、`hajjah` 和 `titleMaleMalay`。其余接口包括 `lastNameChinese`、`firstNameMaleChinese`、`firstNameFemaleChinese`、`firstNameMaleChristian`、`firstNameFemaleChristian`、`initialIndian`、`firstNameMaleIndian`、`firstNameFemaleIndian` 和 `lastNameIndian`。可选成分可以为空，非空时保留词表原有的末尾空格。
+
+`myKadNumber(gender, formatted, separator)` 生成样本号码。关闭格式化时输出 12 位数字，开启后用连字符或指定分隔符分为六位、两位和四位三组。末位在 `"male"` 时为奇数，`"female"` 时为偶数，其余情况不限制。月、日分别抽样。以上接口均支持 `unique()`，在 `ms-MY` 以外的地区返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn malaysian_person_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("ms-MY"))?;
+    let unique = faker.unique(false);
+    Ok((unique.firstNameMaleMalay()?, unique.myKadNumber(Some("male"), true, None)?))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
