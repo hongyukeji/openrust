@@ -63,6 +63,7 @@ pub(super) struct ApplicationState {
     pub(super) api_prefix: OnceLock<Arc<str>>,
     pub(super) grpc_registrar: Mutex<Option<grpc::Registrar>>,
     package_routes: Mutex<Option<Vec<PackageRoutes>>>,
+    pub(crate) publishable: Mutex<Vec<crate::support::PublishableResource>>,
     pub(super) package_commands: Mutex<Vec<PackageCommands>>,
     middleware_configurators: Mutex<Vec<MiddlewareConfigurator>>,
     middleware: OnceLock<Middleware>,
@@ -184,6 +185,10 @@ impl Application {
             })?
             .push(register);
         Ok(())
+    }
+
+    pub(crate) fn publishable(&self) -> &Mutex<Vec<crate::support::PublishableResource>> {
+        &self.shared.publishable
     }
 
     pub(crate) fn register_package_commands(&self, register: PackageCommands) {
@@ -330,6 +335,7 @@ impl Application {
             api_prefix: OnceLock::new(),
             grpc_registrar: Mutex::new(None),
             package_routes: Mutex::new(Some(Vec::new())),
+            publishable: Mutex::default(),
             package_commands: Mutex::default(),
             middleware_configurators: Mutex::new(middleware_configurators),
             middleware: OnceLock::new(),

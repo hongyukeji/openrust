@@ -27,7 +27,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Method, Next, Request, Response, StatusCode},
     routing::{RouteGroup, RoutingError},
     sanctum::{
-        AccessToken, HasApiTokens, PersonalAccessToken, PersonalAccessTokenModel, Sanctum,
+        AccessToken, DefaultPersonalAccessToken, HasApiTokens, PersonalAccessTokenModel, Sanctum,
         TokenAuthenticated,
     },
     support::facades::{Auth, Route},
@@ -42,14 +42,20 @@ struct User<const SERVICE: bool = false, const TEXT: u8 = 0>(ModelState);
 struct CustomToken<const KEY: u8 = 0>(ModelState);
 impl<const KEY: u8> Model for CustomToken<KEY> {
     fn metadata() -> &'static ModelMetadata {
-        static META: ModelMetadata =
-            ModelMetadata::new("custom_sanctum_tokens").connection("token_fixture");
+        static META: ModelMetadata = ModelMetadata::new("custom_sanctum_tokens")
+            .connection("token_fixture")
+            .hidden(&["updated_at"])
+            .appends(&["display_name"]);
         static UUID_META: ModelMetadata = ModelMetadata::new("custom_sanctum_tokens")
             .connection("token_fixture")
+            .hidden(&["updated_at"])
+            .appends(&["display_name"])
             .primaryKey("token_id")
             .uniqueId(UniqueId::Uuid);
         static ULID_META: ModelMetadata = ModelMetadata::new("custom_sanctum_tokens")
             .connection("token_fixture")
+            .hidden(&["updated_at"])
+            .appends(&["display_name"])
             .primaryKey("token_id")
             .uniqueId(UniqueId::Ulid);
         match KEY {
@@ -64,6 +70,12 @@ impl<const KEY: u8> Model for CustomToken<KEY> {
 
     fn attribute(name: &str) -> Option<Attribute> {
         match name {
+            "display_name" => Some(Attribute::get(|_, values| {
+                let Some(SqlValue::Text(name)) = values.get("name") else {
+                    return Ok(SqlValue::Null);
+                };
+                Ok(format!("Token {}", name.trim_start_matches("stored:")).into())
+            })),
             "name" => Some(Attribute::make(
                 Some(|value, _| {
                     let Some(SqlValue::Text(name)) = value else {
@@ -407,7 +419,7 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
     let model_events = TokenEvents::default();
     assert_eq!(
         sanctum.personalAccessTokenModel(),
-        std::any::type_name::<PersonalAccessToken>()
+        std::any::type_name::<DefaultPersonalAccessToken>()
     );
     assert_eq!(sanctum.currentApplicationUrlWithPort(), "");
     for (url, suffix) in [
@@ -627,8 +639,16 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         .await
         .unwrap();
     let payload: Value = serde_json::from_str(&issued.toJson().unwrap()).unwrap();
+    assert_eq!(payload, issued.toArray().unwrap());
     assert_eq!(payload["plainTextToken"], issued.plain_text_token.as_str());
-    assert_eq!(payload["accessToken"]["id"], json!(issued.access_token.id));
+    assert_eq!(
+        payload["accessToken"][token_key],
+        json!(issued.access_token.id)
+    );
+    if custom_csrf {
+        assert_eq!(payload["accessToken"]["display_name"], "Token related");
+        assert!(payload["accessToken"].get("updated_at").is_none());
+    }
     assert!(payload["accessToken"].get("token").is_none());
     assert_eq!(issued.access_token.tokenable_type, "users_alias");
     assert_eq!(issued.access_token.tokenable_id, owner(4));
@@ -644,6 +664,62 @@ async fn verify<const KEY: u8>(database: Value, stateful: bool, custom_csrf: boo
         json!(fresh_user.get_auth_identifier())
     );
     assert_eq!(relation.get().await.unwrap().len(), 1);
+    let case_variant = tokens
+        .createToken("USERS_ALIAS", owner(4), "related", &["read"], None)
+        .await
+        .unwrap();
+    async fn verify_typed<T: PersonalAccessTokenModel, const KEY: u8>(
+        user: &User<false, KEY>,
+        db: &Connection,
+        database: &DatabaseManager,
+        sanctum: &Sanctum,
+    ) {
+        let mut chain = user.tokensQuery::<T>(sanctum, database).unwrap();
+        chain.r#where("name", "=", "nonexistent").orWhere(
+            "tokenable_id",
+            "=",
+            SqlValue::Unsigned(1),
+        );
+        assert!(chain.get().await.unwrap().is_empty());
+        let mut chain = user.tokensQuery::<T>(sanctum, database).unwrap();
+        chain.r#where("name", "like", "%related");
+        assert_eq!(chain.get().await.unwrap().len(), 1);
+        let relation = user.tokensRelation::<T>(sanctum).unwrap();
+        let mut owners = User::<false, KEY>::queryOn(db).with("tokens", relation);
+        owners.whereKey(SqlValue::from(user.get_auth_identifier()));
+        let owner = owners.first().await.unwrap().unwrap();
+        let tokens = owner
+            .getRelation::<openrust::database::eloquent::RelatedCollection<T>>("tokens")
+            .unwrap();
+        assert_eq!(tokens.len(), 1);
+    }
+    app.call(
+        openrust::container::Callback::new(&[], |_| async {
+            if custom_csrf {
+                verify_typed::<CustomToken<KEY>, KEY>(&fresh_user, &db, &database, &sanctum).await;
+            } else {
+                verify_typed::<DefaultPersonalAccessToken, KEY>(
+                    &fresh_user,
+                    &db,
+                    &database,
+                    &sanctum,
+                )
+                .await;
+            }
+            Ok(())
+        }),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    assert!(
+        tokens
+            .revokeToken("USERS_ALIAS", owner(4), case_variant.access_token.id)
+            .await
+            .unwrap()
+    );
+
     assert_eq!(
         relation
             .deleteToken(read.access_token.id.clone())
@@ -1344,9 +1420,7 @@ async fn acting_as_isolated_to_test_app_and_selected_guard() {
 async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations() {
     let mut app = TestApp::create(|builder| builder).unwrap();
     let config = app.root().join("config/sanctum.rs");
-    let migration = app
-        .root()
-        .join("database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs");
+    let migrations = app.root().join("database/migrations");
     assert_eq!(
         app.artisan(["vendor:publish", "--tag=sanctum-config"])
             .await
@@ -1354,7 +1428,7 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
         0
     );
     assert!(config.is_file());
-    assert!(!migration.exists());
+    assert!(!migrations.exists());
     std::fs::write(&config, "// customized").unwrap();
     assert_eq!(
         app.artisan([
@@ -1366,7 +1440,21 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
         0
     );
     assert_eq!(std::fs::read_to_string(&config).unwrap(), "// customized");
-    assert!(migration.is_file());
+    let published = std::fs::read_dir(&migrations)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(published.len(), 1);
+    let name = published[0].file_name().into_string().unwrap();
+    assert!(name.ends_with("_create_personal_access_tokens_table.rs"));
+    assert!(!name.starts_with("2019_12_14_000001"));
+    assert_eq!(
+        app.artisan(["vendor:publish", "--tag=sanctum-migrations"])
+            .await
+            .status,
+        0
+    );
+    assert_eq!(std::fs::read_dir(migrations).unwrap().count(), 1);
     assert_eq!(
         app.artisan(["vendor:publish", "--force", "--tag=sanctum-config"])
             .await

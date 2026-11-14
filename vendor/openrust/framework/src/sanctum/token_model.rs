@@ -4,12 +4,13 @@ use subtle::ConstantTimeEq as _;
 use crate::auth::AuthIdentifier;
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
-    eloquent::{Attributes, Builder, Model, casts::AttributeCast},
+    eloquent::{Attributes, Builder, Model, ModelMetadata, ModelState, casts::AttributeCast},
 };
 
 use super::PersonalAccessToken;
 use super::personal_access_token::{integer_key, invalid_row, parse_timestamp, token_hash};
 
+pub(super) type SerializedModel = Result<serde_json::Map<String, serde_json::Value>, String>;
 type FoundModelToken = Option<(PersonalAccessToken, Box<dyn ModelToken>)>;
 
 /// An Eloquent token model with an overridable Sanctum credential lookup.
@@ -57,6 +58,37 @@ pub trait PersonalAccessTokenModel: Model {
     }
 }
 
+/// The Eloquent model used for typed queries against Sanctum's default table.
+pub struct DefaultPersonalAccessToken(ModelState);
+
+impl Model for DefaultPersonalAccessToken {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata =
+            ModelMetadata::new("personal_access_tokens").hidden(&["token"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[
+            ("abilities", AttributeCast::Json),
+            ("last_used_at", AttributeCast::DateTime),
+            ("expires_at", AttributeCast::DateTime),
+        ]
+    }
+}
+
+impl PersonalAccessTokenModel for DefaultPersonalAccessToken {}
+
 fn credential_key<M: Model>(id: &str, connection: &Connection) -> Option<Value> {
     if M::getIncrementing() {
         integer_key(id, connection)
@@ -101,6 +133,7 @@ pub(super) trait ModelStore: Send + Sync {
 
 pub(super) trait ModelToken: Send + Sync {
     fn record_use(&mut self, now: DateTime<Utc>) -> DatabaseFuture<'_, DatabaseResult<bool>>;
+    fn serialized_model(&self) -> SerializedModel;
     fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>>;
 }
 
@@ -117,25 +150,22 @@ impl<M: Model> EloquentTokenStore<M> {
         }
     }
 
-    fn owner_query(&self, owner: &str, owner_id: AuthIdentifier) -> Builder<'static, M> {
-        let mut query = self.query();
-        query.r#where("tokenable_type", "=", owner).r#where(
-            "tokenable_id",
-            "=",
-            Value::from(owner_id.clone()),
-        );
-        if !self.connection.is_sqlite() {
-            // Keep the indexable predicates and disallow MySQL's implicit numeric/collation matches.
-            query.whereNested(|conditions| {
-                conditions
-                    .whereRaw("BINARY tokenable_type = BINARY ?", vec![owner.into()])
-                    .whereRaw(
-                        "BINARY CAST(tokenable_id AS CHAR) = BINARY ?",
-                        vec![owner_id.to_string().into()],
-                    )
-            });
+    pub(super) fn owner_query(&self, owner: &str, owner_id: AuthIdentifier) -> Builder<'static, M> {
+        let query = self
+            .query()
+            .require_relation_value("tokenable_type", owner)
+            .require_mysql_morph_alias(owner)
+            .require_relation_value("tokenable_id", Value::from(owner_id.clone()));
+        if self.connection.is_sqlite() {
+            query
+        } else {
+            query.require_relation_conditions(|conditions| {
+                conditions.whereRaw(
+                    "BINARY CAST(tokenable_id AS CHAR) = BINARY ?",
+                    vec![owner_id.to_string().into()],
+                )
+            })
         }
-        query
     }
 
     fn query(&self) -> Builder<'static, M> {
@@ -314,6 +344,10 @@ impl<M: Model> ModelToken for LoadedModel<M> {
         })
     }
 
+    fn serialized_model(&self) -> SerializedModel {
+        serialized_model(&self.model)
+    }
+
     fn last_used_at(&self) -> DatabaseResult<Option<DateTime<Utc>>> {
         date(&self.model, "last_used_at")
     }
@@ -353,7 +387,14 @@ fn snapshot<M: Model>(model: &M) -> DatabaseResult<PersonalAccessToken> {
         created_at: date(model, "created_at")?,
         last_used_at: date(model, "last_used_at")?,
         expires_at: date(model, "expires_at")?,
+        serialized_model: Some(serialized_model(model)),
     })
+}
+
+fn serialized_model<M: Model>(model: &M) -> SerializedModel {
+    let mut values = model.toArray().map_err(|error| error.to_string())?;
+    values.remove("token");
+    Ok(values)
 }
 
 fn identifier(value: &Value) -> DatabaseResult<AuthIdentifier> {

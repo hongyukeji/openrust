@@ -136,6 +136,26 @@ pub trait ServiceProvider: Any + Send + Sync {
         })
     }
 
+    /// Publish compiled package resources under the given Artisan tag.
+    fn publishes(
+        &self,
+        app: &Application,
+        files: &[(&str, &'static [u8])],
+        tag: &str,
+    ) -> ProviderResult {
+        crate::support::publishing::register(app, self.name(), files, tag, false)
+    }
+
+    /// Publish package migration sources with fresh timestamps on first copy.
+    fn publishesMigrations(
+        &self,
+        app: &Application,
+        files: &[(&str, &'static [u8])],
+        tag: &str,
+    ) -> ProviderResult {
+        crate::support::publishing::register(app, self.name(), files, tag, true)
+    }
+
     /// Add compiled package migrations to the application's existing migration ledger.
     fn loadMigrationsFrom<'a>(
         &'a self,

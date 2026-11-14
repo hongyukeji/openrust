@@ -6,6 +6,8 @@
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
 
+在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。迁移首次发布会生成新时间戳，重复发布沿用已有文件名，保持迁移账本稳定。新发布的迁移需要在 `database/migrations/mod.rs` 注册并重新编译后执行。
+
 ## 令牌表迁移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能编译应用，注册 `personal_access_tokens` 迁移。迁移和回滚都使用带有该功能的二进制。
@@ -45,6 +47,8 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 ## 模型令牌关系 {#model-token-relationship}
 
 在 Eloquent 归属模型上实现 `HasApiTokens`。用 `user.tokens(&sanctum, &database)?` 查询或撤销该模型的令牌，用 `user.createToken(&sanctum, &database, name, abilities, expires_at)` 签发。关系使用已配置的令牌模型以及归属模型的多态别名和主键。`deleteToken` 和 `delete` 按关系范围批量删除。令牌可以通过 `tokenable` 解析归属模型。归属模型可通过 `currentAccessToken`、`tokenCan` 和 `tokenCant` 检查当前请求的令牌及能力。
+
+用 `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?` 链式查询。用 `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` 取得关系，再用 Eloquent 的 `with("tokens", relation)` 预加载。使用自定义模型时，替换为已注册的模型类型。签发响应的嵌套令牌采用模型的属性转换、访问器、附加字段和可见性，并始终排除摘要。直接序列化自定义模型时，应在模型中隐藏 `token` 字段。
 
 ## 保护路由与检查能力 {#protecting-routes}
 

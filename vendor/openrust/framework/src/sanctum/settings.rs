@@ -107,9 +107,17 @@ impl Sanctum {
         self.model
             .read()
             .expect("Sanctum token model lock")
-            .map_or(type_name::<super::PersonalAccessToken>(), |model| {
+            .map_or(type_name::<super::DefaultPersonalAccessToken>(), |model| {
                 model.name
             })
+    }
+
+    pub(super) fn require_token_model<M: PersonalAccessTokenModel>(&self) -> AuthResult<()> {
+        if self.personalAccessTokenModel() == type_name::<M>() {
+            Ok(())
+        } else {
+            Err(AuthError::Configuration("Sanctum token relation model"))
+        }
     }
 
     pub fn usePersonalAccessTokenModel<M: PersonalAccessTokenModel>(&self) {

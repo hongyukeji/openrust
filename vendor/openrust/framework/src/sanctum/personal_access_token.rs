@@ -16,7 +16,7 @@ const TABLE: &str = "personal_access_tokens";
 pub(super) const TIMESTAMP: &str = "%Y-%m-%d %H:%M:%S";
 
 /// A persisted token. Its digest is kept in storage and its secret is only returned at issuance.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone)]
 pub struct PersonalAccessToken {
     pub id: AuthIdentifier,
     pub tokenable_type: String,
@@ -26,6 +26,25 @@ pub struct PersonalAccessToken {
     pub created_at: Option<DateTime<Utc>>,
     pub last_used_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
+    pub(super) serialized_model: Option<super::token_model::SerializedModel>,
+}
+
+impl serde::Serialize for PersonalAccessToken {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        if let Some(model) = &self.serialized_model {
+            let model = model.as_ref().map_err(serde::ser::Error::custom)?;
+            return serde::Serialize::serialize(model, serializer);
+        }
+        serde::Serialize::serialize(
+            &serde_json::json!({
+                "id": self.id, "name": self.name, "abilities": self.abilities,
+                "tokenable_type": self.tokenable_type, "tokenable_id": self.tokenable_id,
+                "created_at": self.created_at, "last_used_at": self.last_used_at,
+                "expires_at": self.expires_at,
+            }),
+            serializer,
+        )
+    }
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Sanctum token API")]
@@ -61,16 +80,27 @@ pub struct NewAccessToken {
 )]
 impl NewAccessToken {
     /// Includes the plaintext credential for the issuance response.
-    pub fn toArray(&self) -> serde_json::Value {
-        serde_json::json!({
-            "accessToken": self.access_token,
-            "plainTextToken": self.plain_text_token.as_str(),
-        })
+    pub fn toArray(&self) -> serde_json::Result<serde_json::Value> {
+        serde_json::to_value(self.issuance_payload())
     }
 
     pub fn toJson(&self) -> serde_json::Result<Zeroizing<String>> {
-        serde_json::to_string(&self.toArray()).map(Zeroizing::new)
+        serde_json::to_string(&self.issuance_payload()).map(Zeroizing::new)
     }
+
+    fn issuance_payload(&self) -> IssuancePayload<'_> {
+        IssuancePayload {
+            access_token: &self.access_token,
+            plain_text_token: self.plain_text_token.as_str(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct IssuancePayload<'a> {
+    access_token: &'a PersonalAccessToken,
+    plain_text_token: &'a str,
 }
 
 /// Persists and retrieves personal access tokens on the selected application connection.
@@ -88,6 +118,10 @@ impl PersonalAccessTokens {
             prefix: prefix.into(),
             model: None,
         }
+    }
+
+    pub(super) fn connection(&self) -> &Connection {
+        &self.connection
     }
 
     pub(super) fn for_model<M: PersonalAccessTokenModel>(
@@ -200,6 +234,7 @@ impl PersonalAccessTokens {
                 created_at: Some(created_at),
                 last_used_at: None,
                 expires_at,
+                serialized_model: None,
             },
             plain_text_token: Zeroizing::new(format!("{id}|{}", secret.as_str())),
         })
@@ -296,6 +331,7 @@ impl PersonalAccessTokens {
                 return Ok(false);
             }
             token.last_used_at = model.last_used_at().map_err(AuthError::backend)?;
+            token.serialized_model = Some(model.serialized_model());
             return Ok(true);
         }
         let timestamp = now.format(TIMESTAMP).to_string();
@@ -463,6 +499,7 @@ fn decode(row: &Row) -> AuthResult<PersonalAccessToken> {
         created_at: date(row, "created_at")?,
         last_used_at: date(row, "last_used_at")?,
         expires_at: date(row, "expires_at")?,
+        serialized_model: None,
     })
 }
 

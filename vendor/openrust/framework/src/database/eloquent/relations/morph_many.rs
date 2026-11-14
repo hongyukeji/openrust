@@ -38,6 +38,14 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         Self(HasMany::morph(local_key, id_column, type_column, alias))
     }
 
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn with_exact_morph_alias(mut self, alias: &'static str) -> Self {
+        self.0.0.morph_constraint = Some(Box::new(move |query| {
+            Ok(query.require_mysql_morph_alias(alias))
+        }));
+        self
+    }
+
     pub fn one(self) -> MorphOne<P, R> {
         MorphOne(self.0.one())
     }

@@ -10,7 +10,6 @@ mod ensure_frontend_requests_are_stateful;
 mod guard;
 mod has_api_tokens;
 pub(crate) mod prune_expired;
-pub(crate) mod publish;
 mod settings;
 mod token_model;
 pub use abilities::{
@@ -23,7 +22,7 @@ pub(crate) use ensure_frontend_requests_are_stateful::StatefulFrontend;
 pub use guard::Guard;
 pub use has_api_tokens::{HasApiTokens, TokenRelation};
 pub use settings::Sanctum;
-pub use token_model::PersonalAccessTokenModel;
+pub use token_model::{DefaultPersonalAccessToken, PersonalAccessTokenModel};
 
 pub mod contracts {
     pub use super::{HasAbilities, HasApiTokens};
@@ -56,6 +55,30 @@ pub mod http {
             EnsureFrontendRequestsAreStateful,
         };
     }
+}
+
+pub(crate) fn register_publishable_resources(
+    app: &crate::foundation::Application,
+) -> crate::support::ProviderResult {
+    use crate::support::publishing::register;
+    const PROVIDER: &str = "OpenRust\\Sanctum\\SanctumServiceProvider";
+    register(
+        app,
+        PROVIDER,
+        &[("config/sanctum.rs", include_bytes!("stubs/sanctum.stub"))],
+        "sanctum-config",
+        false,
+    )?;
+    register(
+        app,
+        PROVIDER,
+        &[(
+            "database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs",
+            include_bytes!("stubs/personal_access_tokens.stub"),
+        )],
+        "sanctum-migrations",
+        true,
+    )
 }
 
 use crate::{contracts::events::Event, http::Request};

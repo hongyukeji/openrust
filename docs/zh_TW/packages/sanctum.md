@@ -6,6 +6,8 @@
 
 Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 發佈 Rust 資源。預設應用程式原始碼已包含這些檔案。
 
+在終端機執行 `vendor:publish` 可互動選擇服務提供者或標籤。第三方套件在服務提供者的 `boot` 中呼叫 `publishes` 或 `publishesMigrations` 註冊編譯進程式的資源。遷移首次發佈會產生新時間戳記，重複發佈沿用既有檔名，維持遷移帳本穩定。新發佈的遷移需要在 `database/migrations/mod.rs` 註冊並重新編譯後執行。
+
 ## 權杖資料表遷移 {#token-table-migration}
 
 使用 Cargo 的 `sanctum` 功能編譯應用程式，註冊 `personal_access_tokens` 遷移。遷移和復原均使用含有此功能的執行檔。
@@ -45,6 +47,8 @@ async fn issue(sanctum: &Sanctum, database: &DatabaseManager, user_id: u64) -> A
 ## 模型權杖關聯 {#model-token-relationship}
 
 在 Eloquent 歸屬模型上實作 `HasApiTokens`。使用 `user.tokens(&sanctum, &database)?` 查詢或撤銷該模型的權杖，使用 `user.createToken(&sanctum, &database, name, abilities, expires_at)` 簽發。關聯使用已設定的權杖模型及歸屬模型的多型別名和主鍵。`deleteToken` 和 `delete` 依關聯範圍批次刪除。權杖可透過 `tokenable` 解析歸屬模型。歸屬模型可透過 `currentAccessToken`、`tokenCan` 和 `tokenCant` 檢查目前請求的權杖及能力。
+
+使用 `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?` 串接查詢。用 `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` 取得關聯，再使用 Eloquent 的 `with("tokens", relation)` 預先載入。使用自訂模型時，請替換成已註冊的模型型別。簽發回應的內嵌權杖採用模型的屬性轉換、存取器、附加欄位及可見性，並一律排除摘要。直接序列化自訂模型時，應在模型中隱藏 `token` 欄位。
 
 ## 保護路由與檢查能力 {#protecting-routes}
 

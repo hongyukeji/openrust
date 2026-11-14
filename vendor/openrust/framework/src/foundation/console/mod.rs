@@ -23,6 +23,7 @@ mod stub_publish_command;
 mod test_command;
 mod test_make_command;
 mod type_make_command;
+mod vendor_publish_command;
 
 use std::{ffi::OsString, io::Write as _, sync::Arc};
 
@@ -109,10 +110,8 @@ impl Kernel {
                             maintenance_command::register(&mut self.artisan)?;
                             crate::auth::console::register(&mut self.artisan)?;
                             #[cfg(feature = "sanctum")]
-                            {
-                                crate::sanctum::prune_expired::register(&mut self.artisan)?;
-                                crate::sanctum::publish::register(&mut self.artisan)?;
-                            }
+                            crate::sanctum::prune_expired::register(&mut self.artisan)?;
+                            vendor_publish_command::register(&mut self.artisan)?;
                             crate::cache::console::register(&mut self.artisan)?;
                             crate::queue::console::register(&mut self.artisan)?;
                             crate::notifications::console::register(&mut self.artisan)?;

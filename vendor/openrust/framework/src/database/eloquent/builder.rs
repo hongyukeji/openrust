@@ -532,7 +532,26 @@ impl<M: Model> Builder<'static, M> {
         ))
     }
 
-    pub(super) fn require_relation_value(mut self, column: &str, value: impl Into<Value>) -> Self {
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn require_relation_conditions(
+        mut self,
+        configure: impl FnOnce(query::Conditions) -> query::Conditions,
+    ) -> Self {
+        self.query = self.query.whereNested(configure);
+        self
+    }
+
+    #[cfg(feature = "sanctum")]
+    pub(crate) fn require_mysql_morph_alias(self, alias: &str) -> Self {
+        if self.connection.is_sqlite() {
+            return self;
+        }
+        self.require_relation_conditions(|conditions| {
+            conditions.whereRaw("BINARY tokenable_type = BINARY ?", vec![alias.into()])
+        })
+    }
+
+    pub(crate) fn require_relation_value(mut self, column: &str, value: impl Into<Value>) -> Self {
         self.query = self.query.r#where(column, "=", value);
         self
     }

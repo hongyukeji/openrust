@@ -6,6 +6,8 @@ Run `./artisan install:api` to create `routes/api.rs` and register it in the app
 
 Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
 
+Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp. Republishing reuses the existing filename, so the migration ledger stays stable. Add a newly published migration to `database/migrations/mod.rs` and rebuild before running it.
+
 ## Token table migration {#token-table-migration}
 
 Build the application with the `sanctum` Cargo feature to register the compiled `personal_access_tokens` migration. Use the resulting binary for migration and rollback.
@@ -45,6 +47,8 @@ The application service exposes its registered model type through `personalAcces
 ## Model token relationship {#model-token-relationship}
 
 Implement `HasApiTokens` on the Eloquent owner. Use `user.tokens(&sanctum, &database)?` to list or revoke its tokens and `user.createToken(&sanctum, &database, name, abilities, expires_at)` to issue one. The relationship uses the configured token model and the owner’s morph alias and primary key. `deleteToken` and `delete` use scoped bulk deletion. A persisted token can resolve its owner with `tokenable`. Read the request’s token and abilities through `currentAccessToken`, `tokenCan` and `tokenCant` on the owner.
+
+For a chainable Eloquent query, use `user.tokensQuery::<DefaultPersonalAccessToken>(&sanctum, &database)?`. Use `user.tokensRelation::<DefaultPersonalAccessToken>(&sanctum)?` with Eloquent’s `with("tokens", relation)` to eager-load. Substitute the registered model type for a custom model. The nested token in the issuance response uses the model’s casts, accessors, appended fields, and visibility, and always omits the digest. Hide the `token` field in custom models when serializing them directly.
 
 ## Protecting routes and checking abilities {#protecting-routes}
 

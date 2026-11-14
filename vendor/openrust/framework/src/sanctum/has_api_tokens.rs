@@ -7,7 +7,10 @@ use crate::{
     contracts::auth::Authenticatable,
     database::{
         DatabaseManager,
-        eloquent::{Model, relations::MorphMap},
+        eloquent::{
+            Builder, Model,
+            relations::{MorphMany, MorphMap},
+        },
     },
     http::Request,
 };
@@ -28,6 +31,33 @@ pub trait HasApiTokens: Model + Authenticatable {
             owner_id,
             store: sanctum.personalAccessTokens(database, "")?,
         })
+    }
+
+    /// Typed relation for Eloquent eager loading and relationship existence queries.
+    fn tokensRelation<T: super::PersonalAccessTokenModel>(
+        &self,
+        sanctum: &Sanctum,
+    ) -> AuthResult<MorphMany<Self, T>> {
+        sanctum.require_token_model::<T>()?;
+        let alias = self.getMorphClass().map_err(AuthError::backend)?;
+        Ok(
+            MorphMany::new(self.getKeyName(), "tokenable_id", "tokenable_type", alias)
+                .with_exact_morph_alias(alias),
+        )
+    }
+
+    /// Starts a typed Eloquent query constrained to this owner.
+    fn tokensQuery<T: super::PersonalAccessTokenModel>(
+        &self,
+        sanctum: &Sanctum,
+        database: &DatabaseManager,
+    ) -> AuthResult<Builder<'static, T>> {
+        sanctum.require_token_model::<T>()?;
+        let owner = self.tokens(sanctum, database)?;
+        Ok(
+            super::token_model::EloquentTokenStore::<T>::new(owner.store.connection().clone())
+                .owner_query(owner.owner_type, owner.owner_id),
+        )
     }
 
     fn createToken<'a>(
