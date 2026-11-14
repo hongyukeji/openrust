@@ -11,7 +11,6 @@ pub(super) struct TailRecord {
     pub from_epoch: i64,
     pub first_epoch: Option<i64>,
     pub first_offset: i32,
-    #[allow(dead_code, reason = "retains the generated tzdb table schema")]
     pub first_is_dst: bool,
     #[allow(dead_code, reason = "retains the generated tzdb table schema")]
     pub first_abbreviation: &'static str,
@@ -54,7 +53,6 @@ pub(super) struct State {
     pub offset: i32,
     #[allow(dead_code, reason = "retains the POSIX transition metadata")]
     pub abbreviation: &'static str,
-    #[allow(dead_code, reason = "retains the POSIX transition metadata")]
     pub is_dst: bool,
 }
 
@@ -156,7 +154,7 @@ impl Tail {
         self,
         civil: Civil,
         from_epoch: i64,
-        explicit_zone: bool,
+        prefer_dst: Option<bool>,
     ) -> Result<Option<CalendarInstant>> {
         let standard = civil.instant(self.offset)?;
         let saving = self
@@ -180,7 +178,7 @@ impl Tail {
             (false, true) => saving.ok_or_else(invalid)?,
             (true, true) => {
                 let guess = self.state(civil.instant(0)?)?.offset;
-                if !explicit_zone && guess == self.offset {
+                if !prefer_dst.unwrap_or(guess != self.offset) {
                     standard
                 } else {
                     saving.ok_or_else(invalid)?

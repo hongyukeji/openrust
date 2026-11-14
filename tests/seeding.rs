@@ -1106,6 +1106,36 @@ impl Seeder for PolymorphicFactories {
                 faker.unique(false).dateTimeBetweenExpressions("@-1", "-1"),
                 Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
             ));
+            let expression_interval = faker.dateTimeInIntervalExpressions(
+                Some("2024-03-09 12:00 America/New_York"),
+                Some("+1 day"),
+            )?;
+            let spring_start =
+                chrono::DateTime::parse_from_rfc3339("2024-03-09T17:00:00Z").unwrap();
+            let spring_end = chrono::DateTime::parse_from_rfc3339("2024-03-10T16:00:00Z").unwrap();
+            assert!(
+                (spring_start.timestamp()..=spring_end.timestamp())
+                    .contains(&expression_interval.timestamp())
+            );
+            assert_eq!(
+                faker
+                    .unique(false)
+                    .dateTimeInIntervalExpressions(Some("@0"), Some("today"))?,
+                epoch
+            );
+            assert!(matches!(
+                faker
+                    .unique(false)
+                    .dateTimeInInterval(Some(epoch), Some(chrono::TimeDelta::zero())),
+                Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+            ));
+            faker.unique(true);
+            assert!(matches!(
+                faker.dateTimeInIntervalExpressions(Some("now"), Some("1 day UTC")),
+                Err(DatabaseError::InvalidQuery(
+                    "invalid Faker date or interval expression"
+                ))
+            ));
             let second = chrono::TimeDelta::seconds(1);
             for interval in [second, -second] {
                 let other = epoch + interval;

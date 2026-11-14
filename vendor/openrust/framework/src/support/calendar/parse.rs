@@ -10,6 +10,24 @@ pub(super) fn parse_text(
     now: CalendarInstant,
     zone: &ResolvedTimezone,
 ) -> Result<CalendarInstant> {
+    let state = scan(text, now, zone)?;
+    state.finish()
+}
+
+pub(super) fn add_interval(
+    date: &str,
+    interval: &str,
+    now: CalendarInstant,
+    zone: &ResolvedTimezone,
+) -> Result<(CalendarInstant, CalendarInstant)> {
+    let parsed = scan(date, now, zone)?;
+    let zone = parsed.timezone().clone();
+    let start = parsed.finish()?;
+    let end = scan(interval, start, &zone)?.finish_interval(start)?;
+    Ok((start, end))
+}
+
+fn scan(text: &str, now: CalendarInstant, zone: &ResolvedTimezone) -> Result<ParseState> {
     // 只规范化一次；后续生产匹配均使用游标切片，避免深前缀的平方次复制。
     let clean = text.to_ascii_lowercase();
     let mut cursor = Cursor::new(source_trim(&clean));
@@ -45,7 +63,7 @@ pub(super) fn parse_text(
             return Err(invalid());
         }
     }
-    state.finish()
+    Ok(state)
 }
 
 fn source_trim(text: &str) -> &str {

@@ -100,10 +100,38 @@ impl ResolvedTimezone {
             }
         }
     }
+    pub(super) fn is_dst(&self, instant: CalendarInstant) -> Result<bool> {
+        match &self.kind {
+            ZoneKind::Fixed(_) => Ok(false),
+            ZoneKind::Named { zone, record, tail } => {
+                if instant.epoch_seconds >= record.from_epoch {
+                    return Ok(tail.state(instant)?.is_dst);
+                }
+                if record
+                    .first_epoch
+                    .is_some_and(|first| instant.epoch_seconds < first)
+                {
+                    return Ok(record.first_is_dst);
+                }
+                let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
+                let utc = instant.try_chrono()?;
+                Ok(zone
+                    .offset_from_utc_datetime(&utc.naive_utc())
+                    .dst_offset()
+                    .num_seconds()
+                    != 0)
+            }
+        }
+    }
+
     pub(super) fn civil(&self, instant: CalendarInstant) -> Result<Civil> {
         Civil::from_instant(instant, self.offset_seconds(instant)?)
     }
-    pub(super) fn resolve(&self, civil: Civil, explicit_zone: bool) -> Result<CalendarInstant> {
+    pub(super) fn resolve(
+        &self,
+        civil: Civil,
+        prefer_dst: Option<bool>,
+    ) -> Result<CalendarInstant> {
         let civil = civil.normalize()?;
         match &self.kind {
             ZoneKind::Fixed(offset) => civil.instant(*offset),
@@ -115,7 +143,7 @@ impl ResolvedTimezone {
                 {
                     return Ok(early);
                 }
-                if let Some(instant) = tail.resolve(civil, record.from_epoch, explicit_zone)? {
+                if let Some(instant) = tail.resolve(civil, record.from_epoch, prefer_dst)? {
                     return Ok(instant);
                 }
                 let zone = zone.ok_or_else(|| calendar_error("input_timezone_invalid"))?;
@@ -129,11 +157,11 @@ impl ResolvedTimezone {
                         let guess = self.offset_seconds(civil.instant(0)?)?;
                         let first_is_dst = first.offset().dst_offset().num_seconds() != 0;
                         let second_is_dst = second.offset().dst_offset().num_seconds() != 0;
-                        // A parsed zone ID leaves timelib's DST flag unset, which is truthy.
-                        let use_first = if explicit_zone && first_is_dst != second_is_dst {
-                            first_is_dst
-                        } else {
-                            first.offset().fix().local_minus_utc() == guess
+                        let use_first = match prefer_dst {
+                            Some(preferred) if first_is_dst != second_is_dst => {
+                                first_is_dst == preferred
+                            }
+                            _ => first.offset().fix().local_minus_utc() == guess,
                         };
                         let value = if use_first { first } else { second };
                         CalendarInstant::new(value.timestamp(), value.timestamp_subsec_micros())

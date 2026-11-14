@@ -312,6 +312,26 @@ impl Faker {
         self.dateTimeBetween(date.min(other), date.max(other))
     }
 
+    /// Samples a range using PHP-style date and relative interval expressions.
+    pub fn dateTimeInIntervalExpressions(
+        &self,
+        date: Option<&str>,
+        interval: Option<&str>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let (start, end) = calendar::date_interval(
+            match date {
+                Some("") => "now",
+                Some(date) => date,
+                None => "-30 years",
+            },
+            interval.unwrap_or("+5 days"),
+            Utc::now(),
+            self.application_timezone,
+        )
+        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date or interval expression"))?;
+        self.dateTimeBetween(start.min(end), start.max(end))
+    }
+
     pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
         self.date_time_since_months_ago(100 * 12, max)
     }
@@ -607,6 +627,16 @@ impl UniqueFaker<'_> {
     ) -> DatabaseResult<DateTime<Utc>> {
         self.try_generate("dateTimeInInterval", || {
             self.0.dateTimeInInterval(date, interval)
+        })
+    }
+
+    pub fn dateTimeInIntervalExpressions(
+        &self,
+        date: Option<&str>,
+        interval: Option<&str>,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        self.try_generate("dateTimeInInterval", || {
+            self.0.dateTimeInIntervalExpressions(date, interval)
         })
     }
 

@@ -337,6 +337,23 @@ impl ParseState {
         }
         Ok(())
     }
+    pub fn timezone(&self) -> &ResolvedTimezone {
+        &self.timezone
+    }
+
+    pub fn finish_interval(mut self, start: CalendarInstant) -> Result<CalendarInstant> {
+        if self.have_date || self.date_mask != 0 || self.have_time != 0 || self.zone_count != 0 {
+            return Err(invalid());
+        }
+        self.civil = self.timezone.civil(start)?;
+        let prefer_dst = self.timezone.is_dst(start)?;
+        // timelib_add copies special intervals wholesale. Ordinary intervals only add components.
+        if self.relative.weekday.is_none() && self.relative.special.is_none() {
+            self.relative.first_last = None;
+        }
+        self.apply_relative(Some(prefer_dst))
+    }
+
     pub fn finish(mut self) -> Result<CalendarInstant> {
         if let Some(reference) = self.reference {
             let current = self.base_timezone.civil(reference)?;
@@ -363,6 +380,11 @@ impl ParseState {
         if self.have_date && !self.time_touched {
             self.civil = self.civil.midnight();
         }
+        let prefer_dst = (self.zone_count != 0).then_some(true);
+        self.apply_relative(prefer_dst)
+    }
+
+    fn apply_relative(mut self, prefer_dst: Option<bool>) -> Result<CalendarInstant> {
         self.special_early()?;
         self.adjust_weekday()?;
         self.civil = self.civil.normalize()?;
@@ -383,7 +405,7 @@ impl ParseState {
             special_weekdays(&mut self.civil, amount)?;
         }
         self.civil = self.civil.normalize()?;
-        self.timezone.resolve(self.civil, self.zone_count != 0)
+        self.timezone.resolve(self.civil, prefer_dst)
     }
     fn apply_first_last(&mut self) -> Result<()> {
         match self.relative.first_last {

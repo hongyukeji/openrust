@@ -48,6 +48,8 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 用 `dateTimeBetweenExpressions(start, end)` 传入 PHP 风格的日期表达式，例如 `"-30 years"` 和 `"now"`。两个端点共用同一参考时刻，并按应用时区解析。表达式中的显式时区优先。数字终点字符串按 Unix 时间戳解析，`"@-1"` 则是显式时间戳表达式。无效表达式返回错误。此方法与 `dateTimeBetween` 共享 `unique` 历史。
 
+用 `dateTimeInIntervalExpressions(date, interval)` 传入 PHP 风格的相对区间，例如 `Some("+1 month")` 或 `Some("5 days ago")`。终点按起始日期所在时区的本地时间计算，跨夏令时也遵循该规则。取样结果返回 UTC。省略日期时从 30 年前开始，省略区间时使用五个日历日。区间字符串接受相对表达式，拒绝绝对日期、时间和时区标识。此方法与 `dateTimeInInterval` 共享 `unique` 历史。
+
 ```rust
 use chrono::{DateTime, TimeDelta};
 use openrust::database::{
@@ -63,12 +65,14 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
         let reviewed_at = faker.dateTimeInInterval(Some(happened_at), Some(TimeDelta::days(5)))?;
         let sampled_this_year = faker.dateTimeThisYear(None)?;
         let historical = faker.dateTimeBetweenExpressions("-30 years", "now")?;
+        let archived_at = faker.dateTimeInIntervalExpressions(Some("2024-01-31"), Some("+1 month"))?;
         Ok(Attributes::from([
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
             ("sampled_this_year".into(), sampled_this_year.to_rfc3339().into()),
             ("historical".into(), historical.to_rfc3339().into()),
+            ("archived_at".into(), archived_at.to_rfc3339().into()),
             ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))

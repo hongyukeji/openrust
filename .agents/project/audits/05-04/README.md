@@ -188,3 +188,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 的 `dateTimeBetween` 和 `getMaxTimestamp`。Rust 保留类型化方法，新增 `dateTimeBetweenExpressions` 接收绝对和相对日期字符串。两个端点共用显式参考时刻，应用时区用于缺项，表达式可指定时区，数字终点按 Unix 秒处理。字符串与类型化调用共享 unique 记录。复用 v0.x `6d1a8192` 的扫描器、公历运算、PHP 8.5.0 / IANA 2025b 历史及 POSIX 尾规则，按 PHP 的显式时区行为调整回拨选择。超出 Chrono 可表示范围或无效输入以 Rust 错误返回。Goravel 装配无需调整。字符串区间另一个入口 `dateTimeInInterval` 的 PHP DateInterval 语义、其他 formatter 的字符串上界及全语法差分覆盖仍待完成。 [FakerPHP 字符串区间](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L136)
 
 隔离基线 `4f560aea`。PHP 8.5.12 对照月底溢出、纽约跳时、巴黎显式时区回拨、2100 年纽约偏移、相对星期和纪元前时间。MySQL 8.4.13 Seeder 回归使用同一组结果，并验证非法日期、反向范围和去重耗尽。应用二进制执行 `artisan db:seed --database=mysql --force` 写入并回查 2100 年纽约样本。Rust 1.94.0 格式、工作区全目标严格 Clippy、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 字符串相对区间
+
+对照 FakerPHP 1.24.1 `dateTimeInInterval` 和 PHP 8.5.0 `DateInterval::createFromDateString`／`timelib_add`。复用 v0.x 已移植的日期词法和相对运算，提取相对组件并按起始日期时区相加，按起始夏令时状态解析回拨重复时刻。表达式入口默认三十年前和五个日历日，与类型化 `dateTimeInInterval` 共享去重历史。类型化 `TimeDelta` 仍表示经过时长。v0.x 的 Carbon interval 入口面向请求值转换，Faker 沿用日期解析器实现 PHP 日期相加。Goravel 装配无需调整。其他 formatter 的字符串上界和全语法差分覆盖仍待完成。 [FakerPHP 日期区间](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L167) · [PHP 日期相加](https://github.com/php/php-src/blob/php-8.5.0/ext/date/lib/interval.c)
+
+隔离基线 `5a2c334f`。PHP 8.5.12 对照月底、相对星期、负区间、非法日期元素、纽约跳时以及纽约和巴黎回拨。Rust 固定端点回归及 MySQL 8.4.13 Seeder 集成通过，应用二进制用 `artisan db:seed --database=mysql --force` 写入并回查纽约跨夏令时样本。Rust 1.94.0 格式和工作区全目标严格 Clippy、MySQL／SQLite 工厂回归、`./artisan inspire`、三语代码示例编译、VitePress 和六项浏览器检查通过。

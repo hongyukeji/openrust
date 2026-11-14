@@ -61,6 +61,25 @@ pub(crate) fn parse_date_expression(
     parse::parse_text(expression, reference, &zone)?.try_chrono()
 }
 
+pub(crate) fn date_interval(
+    date: &str,
+    interval: &str,
+    reference: DateTime<Utc>,
+    timezone: Tz,
+) -> Result<(DateTime<Utc>, DateTime<Utc>)> {
+    if date.len().saturating_add(interval.len()) > MAX_CALENDAR_BYTES {
+        return Err(limit_error());
+    }
+    if interval.trim_ascii().is_empty() {
+        return Err(calendar_error("input_date_invalid"));
+    }
+    let reference =
+        CalendarInstant::new(reference.timestamp(), reference.timestamp_subsec_micros())?;
+    let zone = ResolvedTimezone::parse(timezone.name())?;
+    let (start, end) = parse::add_interval(date, interval, reference, &zone)?;
+    Ok((start.try_chrono()?, end.try_chrono()?))
+}
+
 pub(crate) fn is_numeric(expression: &str) -> bool {
     lexer::is_numeric(expression)
 }
@@ -76,3 +95,7 @@ fn range_error() -> CalendarError {
 fn limit_error() -> CalendarError {
     calendar_error("input_limits_exceeded")
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/calendar_intervals.rs"]
+mod tests;
