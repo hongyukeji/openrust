@@ -268,7 +268,17 @@ fn username_sample() -> DatabaseResult<String> {
 
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
-Use `phoneNumber()` for localized display numbers. Simplified and traditional Chinese use the pinned upstream Faker templates. Other locales retain the existing fake-rs formats. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+Use `phoneNumber()` for display numbers from the pinned FakerPHP regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phoneNumberCleared()` for digits-only numbers and supports `unique()`. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn display_phone_sample() -> DatabaseResult<(String, String)> {
+    let bangladesh = fake(Some("bn-BD"))?;
+    let brazil = fake(Some("pt-BR"))?;
+    Ok((bangladesh.phoneNumber(), brazil.unique(false).phoneNumberCleared()?))
+}
+```
 
 ### Regional mobile, landline, and extension samples {#regional-phone-samples}
 

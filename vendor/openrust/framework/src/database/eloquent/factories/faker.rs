@@ -1381,22 +1381,8 @@ impl Faker {
         Ok(result)
     }
 
-    pub fn phoneNumber(&self) -> String {
-        match self.locale() {
-            "zh_CN" => {
-                let operators = faker_phone::CHINA_OPERATORS;
-                let prefix = operators[fastrand::usize(..operators.len())];
-                format!(
-                    "{prefix}{}",
-                    self.numerify(Some(&"###########"[prefix.len()..]))
-                )
-            }
-            "zh_TW" => {
-                let formats = faker_phone::TAIWAN;
-                self.numerify(Some(formats[fastrand::usize(..formats.len())]))
-            }
-            _ => generate!(self.locale.as_str(), faker::phone_number::raw::PhoneNumber,),
-        }
+    pub(super) fn de_phone_area_code(&self) -> String {
+        phone_area_code(&DE_AREA_CODES, faker_phone::AREA_DE_DE)
     }
 
     pub(super) fn us_phone_area_code(&self) -> String {
@@ -1423,7 +1409,7 @@ impl Faker {
                 self.numerify(Some("####"))
             ),
             "de_DE" => {
-                let area = phone_area_code(&DE_AREA_CODES, faker_phone::AREA_DE_DE);
+                let area = self.de_phone_area_code();
                 format!("+49{area}{}", self.numerify(Some("#######")))
             }
             locale => {

@@ -268,7 +268,17 @@ fn username_sample() -> DatabaseResult<String> {
 
 ### 電話號碼和 IMEI 樣本 {#phone-and-imei-samples}
 
-用 `phoneNumber()` 產生地區顯示號碼。簡體中文和繁體中文使用固定上游 Faker 範本，其他地區沿用既有 fake-rs 格式。`e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
+用 `phoneNumber()` 產生固定 FakerPHP 地區 Provider 的顯示號碼。地區沒有 PhoneNumber Provider 時使用美國顯示範本。孟加拉使用孟加拉數字，越南依所選區碼決定用戶號碼長度。巴西也提供僅含數字的 `phoneNumberCleared()`，支援 `unique()`。 `e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn display_phone_sample() -> DatabaseResult<(String, String)> {
+    let bangladesh = fake(Some("bn-BD"))?;
+    let brazil = fake(Some("pt-BR"))?;
+    Ok((bangladesh.phoneNumber(), brazil.unique(false).phoneNumberCleared()?))
+}
+```
 
 ### 地區手機、市話與分機號碼樣本 {#regional-phone-samples}
 

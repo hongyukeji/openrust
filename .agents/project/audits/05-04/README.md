@@ -1202,3 +1202,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `7281b93c`。固定版 PHP 8.5 的 576 个样本和实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 逐条写入回读的 578 个值通过同一套模板校验，其中两条来自三语共用示例。70 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 和站点产物。常规展示号码与剩余地区辅助接口继续由 05-04 跟踪。
+
+## Faker 常规展示号码
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)及 [FakerPHP v1.24.1 PhoneNumber](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)。`phoneNumber` 使用 66 个地区 Provider 的模板和美国回退。保留重复模板权重、芬兰嵌套格式、孟加拉数字、越南区号与用户号码长度关联，以及罗马尼亚和巴西的类别抽样。复用既有地区手机号、座机、VoIP、服务号码、区号和交换码逻辑。巴西另提供支持去重的 `phoneNumberCleared`，其地区边界用 Result 表达。v0.x 无等价实现，编译式工厂装配无需调整。
+
+隔离基线 `26d8ca55`。PHP 8.5 的 2,144 个固定版样本和实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读的 4,290 个值通过格式核对，覆盖全部地区、英语回退和三语示例。71 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 及六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 和站点产物。05-04 继续核对 PhoneNumber 尚未公开的地区辅助 formatter。

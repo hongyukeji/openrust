@@ -3404,3 +3404,34 @@ fn phone_service_formatters_respect_region_and_voip_options() {
     assert!(romania.tollFreeNumber().is_err());
     assert!(fake(Some("ja-JP")).unwrap().tollFreePhoneNumber().is_err());
 }
+
+#[test]
+fn display_phone_numbers_use_pinned_provider_templates() {
+    for locale in [
+        "en-US", "en", "en-GB", "en-CA", "de-DE", "fi-FI", "fr-FR", "el-GR", "en-SG", "ms-MY",
+        "vi-VN", "ro-RO", "zh-CN", "zh-TW",
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        for _ in 0..48 {
+            let phone = unique.phoneNumber().unwrap();
+            assert!(phone.bytes().filter(u8::is_ascii_digit).count() >= 7);
+            assert!(!phone.contains(['#', '{', '}']));
+        }
+    }
+    let bangladesh = fake(Some("bn-BD")).unwrap();
+    let phone = bangladesh.phoneNumber();
+    let digits = phone.strip_prefix("+৮৮০").unwrap();
+    assert!((1..=7).contains(&digits.chars().count()));
+    assert!(digits.chars().all(|c| ('০'..='৯').contains(&c)));
+
+    let brazil = fake(Some("pt-BR")).unwrap();
+    let unique = brazil.unique(true);
+    for _ in 0..64 {
+        let number = unique.phoneNumberCleared().unwrap();
+        assert!(matches!(number.len(), 10 | 11));
+        assert!(number.bytes().all(|x| x.is_ascii_digit()));
+        assert!(brazil.phoneNumber().starts_with('('));
+    }
+    assert!(bangladesh.phoneNumberCleared().is_err());
+}
