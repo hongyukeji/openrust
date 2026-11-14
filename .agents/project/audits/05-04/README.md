@@ -645,3 +645,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `c675f09e`。PHP 8.5 验证 1,536 条偏置样本与三种修饰器边界。Rust 两项回归覆盖曲线方向、上下界、错误传播、默认值、重试耗尽和重置。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回查偏置整数、默认值和通过验证的样本，并在真实 Seeder 中验证唯一值耗尽。多态 Seeder、Rust 1.94.0 格式、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与双挂载六项浏览器检查通过。
 
 恢复隔离副本原始 Seeder，清理 2.2 GiB Cargo 与 38 MiB 站点产物，磁盘剩余 82 GiB。后续按 FakerPHP provider 面逐项对照地区 formatter，核对 05-04 的余项。
+
+## Faker 地区身份编号
+
+对照固定 FakerPHP v1.24.1 Person provider，接通 `en_US` 的 `ssn`、`en_GB` 的 `nino` 和 `zh_TW` 的 `personalIdentityNumber`。保留美国区号的两段等权抽样、英国前缀及后缀规则、台湾地区字母表、七位序号和校验位。Rust 复用规范化语言及 `unique`，未接入的地区返回明确错误。当前 `ssn` 与 `personalIdentityNumber` 的其他地区实现仍待逐个对照。v0.x 未发现对应方法，Goravel 编译式工厂装配沿用现有路径。 [美国 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Person.php) · [英国 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_GB/Person.php) · [台湾 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Person.php)
+
+隔离基线 `d85de5cf`。PHP 8.5 对照 1,024 条固定上游样本。Rust 回归覆盖取值范围、受限前缀、性别位、校验位、语言别名、错误与去重。MySQL 8.4.13 用实际二进制执行 `artisan db:seed --database=mysql --force`，回查美国和英国各一条与台湾两个性别位样本。多态 Seeder、Rust 1.94.0 格式与全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和双挂载六项浏览器检查通过。
+
+隔离副本原始 Seeder 已恢复，清理 2.2 GiB Cargo 和 38 MiB 站点产物，磁盘剩余 82 GiB。下一批继续核对地区 Person 的共有方法与签名差异。

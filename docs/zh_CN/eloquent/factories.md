@@ -278,6 +278,22 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 地区身份编号样本 {#regional-identity-samples}
+
+用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 生成测试数据。美国和英国编号沿用固定 FakerPHP 的范围与前缀规则。台湾编号计算校验位，性别可传 `Some("male")`、`Some("female")` 或 `None` 随机生成。三个方法均支持 `unique`，不支持的语言会返回错误。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn identity_samples() -> DatabaseResult<[String; 3]> {
+    Ok([
+        fake(Some("en-US"))?.ssn()?,
+        fake(Some("en-GB"))?.nino()?,
+        fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
+    ])
+}
+```
+
 ### 偏置采样与生成器修饰器 {#faker-biased-and-modifiers}
 
 用 `biasedNumberBetween(min, max, function)?` 在包含端点的整数范围内采样。传入 `None` 分别使用默认下限 0、上限 100 和平方根曲线。自定义曲线接收 [0, 1) 内的数并返回 0 至 1 的概率。范围反向、概率无效或采样耗尽时返回错误。该方法支持 `unique`。

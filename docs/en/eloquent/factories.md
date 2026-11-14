@@ -278,6 +278,22 @@ fn placeholder_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Regional Identity Samples {#regional-identity-samples}
+
+Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed FakerPHP ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn identity_samples() -> DatabaseResult<[String; 3]> {
+    Ok([
+        fake(Some("en-US"))?.ssn()?,
+        fake(Some("en-GB"))?.nino()?,
+        fake(Some("zh-Hant"))?.unique(false).personalIdentityNumber(None)?,
+    ])
+}
+```
+
 ### Biased Sampling and Modifiers {#faker-biased-and-modifiers}
 
 Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`.

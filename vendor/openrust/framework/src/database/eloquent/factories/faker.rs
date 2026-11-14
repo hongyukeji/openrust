@@ -42,6 +42,9 @@ mod color;
 #[path = "faker_html_lorem.rs"]
 mod html_lorem;
 
+#[path = "faker_identity.rs"]
+mod identity;
+
 #[path = "faker_modifiers.rs"]
 mod modifiers;
 
