@@ -895,6 +895,18 @@ fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
 }
 ```
 
+### Japanese Kana Names {#japanese-kana-names}
+
+Use `kanaName(gender)` with `ja-JP` to generate a katakana surname followed by a space and a given name. `firstKanaName(gender)` returns a given name, and `lastKanaName()` returns a surname. Pass `Some("male")`, `Some("female")`, or `None` for either given-name catalog. `firstKanaNameMale()` and `firstKanaNameFemale()` select a catalog directly. All five formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn japanese_kana_name() -> DatabaseResult<String> {
+    fake(Some("ja-JP"))?.unique(false).kanaName(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.

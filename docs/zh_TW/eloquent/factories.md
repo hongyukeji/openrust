@@ -895,6 +895,18 @@ fn person_affixes() -> DatabaseResult<(&'static str, Option<&'static str>)> {
 }
 ```
 
+### 日語假名姓名 {#japanese-kana-names}
+
+在 `ja-JP` 呼叫 `kanaName(gender)` 可產生片假名全名，姓氏在前，以一個空格分隔。`firstKanaName(gender)` 產生名字，`lastKanaName()` 產生姓氏。可傳入 `Some("male")`、`Some("female")` 或 `None`，分別選擇男性、女性或任一名字詞表。`firstKanaNameMale()` 和 `firstKanaNameFemale()` 直接選擇對應詞表。五個介面皆支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn japanese_kana_name() -> DatabaseResult<String> {
+    fake(Some("ja-JP"))?.unique(false).kanaName(Some("female"))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

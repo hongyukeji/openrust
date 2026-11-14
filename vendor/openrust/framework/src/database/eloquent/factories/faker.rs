@@ -1060,6 +1060,45 @@ impl Faker {
         name
     }
 
+    /// Samples a Japanese full name in katakana.
+    pub fn kanaName(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        Ok(format!(
+            "{} {}",
+            self.lastKanaName()?,
+            self.firstKanaName(gender)?
+        ))
+    }
+
+    pub fn firstKanaName(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {
+        match gender {
+            Some("male") => self.firstKanaNameMale(),
+            Some("female") => self.firstKanaNameFemale(),
+            _ if fastrand::bool() => self.firstKanaNameMale(),
+            _ => self.firstKanaNameFemale(),
+        }
+    }
+
+    pub fn firstKanaNameMale(&self) -> DatabaseResult<&'static str> {
+        self.sample_kana(faker_person::JA_JP_KANA_MALE)
+    }
+
+    pub fn firstKanaNameFemale(&self) -> DatabaseResult<&'static str> {
+        self.sample_kana(faker_person::JA_JP_KANA_FEMALE)
+    }
+
+    pub fn lastKanaName(&self) -> DatabaseResult<&'static str> {
+        self.sample_kana(faker_person::JA_JP_KANA_SURNAMES)
+    }
+
+    fn sample_kana(&self, names: &'static [&'static str]) -> DatabaseResult<&'static str> {
+        if self.locale() != "ja_JP" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker kana name locale",
+            ));
+        }
+        Ok(names[fastrand::usize(..names.len())])
+    }
+
     /// Samples a name prefix from the selected Person provider.
     pub fn prefix(&self) -> DatabaseResult<&'static str> {
         let catalog = match self.locale() {
@@ -2819,6 +2858,26 @@ impl UniqueFaker<'_> {
 
     pub fn nameWithGender(&self, gender: Option<&str>) -> DatabaseResult<String> {
         self.generate("name", || self.0.nameWithGender(gender))
+    }
+
+    pub fn kanaName(&self, gender: Option<&str>) -> DatabaseResult<String> {
+        self.try_generate("kanaName", || self.0.kanaName(gender))
+    }
+
+    pub fn firstKanaName(&self, gender: Option<&str>) -> DatabaseResult<&'static str> {
+        self.try_generate("firstKanaName", || self.0.firstKanaName(gender))
+    }
+
+    pub fn firstKanaNameMale(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("firstKanaNameMale", || self.0.firstKanaNameMale())
+    }
+
+    pub fn firstKanaNameFemale(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("firstKanaNameFemale", || self.0.firstKanaNameFemale())
+    }
+
+    pub fn lastKanaName(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("lastKanaName", || self.0.lastKanaName())
     }
 
     pub fn prefix(&self) -> DatabaseResult<&'static str> {

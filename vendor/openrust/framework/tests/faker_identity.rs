@@ -2822,3 +2822,31 @@ fn person_affixes_support_inherited_values_null_and_empty_strings() {
     }
     assert!(fake(Some("en-SG")).unwrap().suffix().is_err());
 }
+
+#[test]
+fn japanese_kana_names_select_gender_and_exhaust_the_pinned_catalogs() {
+    let faker = fake(Some("ja-JP")).unwrap();
+    let unique = faker.unique(true);
+    let male: std::collections::HashSet<_> = (0..30)
+        .map(|_| unique.firstKanaNameMale().unwrap())
+        .collect();
+    let female: std::collections::HashSet<_> = (0..21)
+        .map(|_| unique.firstKanaNameFemale().unwrap())
+        .collect();
+    let surnames: std::collections::HashSet<_> =
+        (0..49).map(|_| unique.lastKanaName().unwrap()).collect();
+    assert_eq!((male.len(), female.len(), surnames.len()), (30, 21, 49));
+    assert!(unique.firstKanaNameMale().is_err());
+    assert!(unique.firstKanaNameFemale().is_err());
+    assert!(unique.lastKanaName().is_err());
+    for (gender, names) in [("male", &male), ("female", &female)] {
+        for _ in 0..32 {
+            let full = faker.kanaName(Some(gender)).unwrap();
+            let (last, first) = full.split_once(' ').unwrap();
+            assert!(surnames.contains(last));
+            assert!(names.contains(first));
+            assert!(names.contains(faker.firstKanaName(Some(gender)).unwrap()));
+        }
+    }
+    assert!(fake(Some("en-US")).unwrap().kanaName(None).is_err());
+}

@@ -1090,3 +1090,11 @@ Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all 
 隔离基线 `d4bf0405`。PHP 8.5 校验 512 组默认英语姓名和 768 个前后缀样本。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 写入并逐条回读 1,152 个值，其中包含 768 个前后缀值与 384 个默认姓名值，核对模板、目录及文档示例。56 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 与六项浏览器检查通过。基线 Sanctum 格式差异仅在隔离副本处理。
 
 原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。后续补齐日语 Kana 姓名及仍缺的地区证件 formatter。
+
+## Faker 日语假名姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 [FakerPHP v1.24.1 日语 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ja_JP/Person.php)。补齐 `kanaName`、`firstKanaName`、`firstKanaNameMale`、`firstKanaNameFemale` 和 `lastKanaName`。保留姓氏在前、单空格、性别词表与重复条目的采样权重。Rust 以可选性别、借用词表结果和 Result 表达接口，五个入口均接入去重。v0.x 未找到等价入口，编译式工厂装配无需调整。
+
+隔离基线 `e656e9c6`。PHP 8.5 验证 128 组上游数据。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并逐条回读 640 个值，核对词表、性别、全名顺序及文档示例。57 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、严格 Clippy、Artisan、三语示例编译、VitePress 和六项浏览器检查通过。隔离副本首轮编译发现去重方法落在错误的 impl 块，纠正后复验通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 44%，清理后项目卷可用 81 GiB。下一批继续核对地区证件 formatter。
