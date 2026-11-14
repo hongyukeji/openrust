@@ -817,6 +817,17 @@ fn canadian_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+英國英語使用固定 `en-GB` 郵遞區號詞表以及城市與街道範本。街道以門牌號碼開始，也可以在街道名前獨立輸出 `Flat` 或 `Studio` 一行。用 `county()` 取樣英國郡名。`postcode()` 和 `county()` 皆支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("en-GB"))?;
+    Ok((faker.address(), faker.unique(false).county()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

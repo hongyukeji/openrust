@@ -817,6 +817,17 @@ fn canadian_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+British English uses the fixed `en-GB` postcode catalog, city and street templates. The street line starts with a building number or with a separate `Flat` or `Studio` line. Use `county()` to sample the British county catalog. Both `postcode()` and `county()` support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("en-GB"))?;
+    Ok((faker.address(), faker.unique(false).county()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

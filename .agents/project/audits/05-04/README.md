@@ -1332,3 +1332,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `971b5cad`。按 PHP 8.5.12 反射核对 13 份地区词表的顺序和重复项，执行固定 FakerPHP 抽验 384 个样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，核对地址格式、继承词表和三语共用样例。Rust 回归验证地区错误和四个澳大利亚楼号字母的唯一值耗尽。
 
 80 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续核对英国等其他英语地区的独立 Address provider。
+
+## 英国英语地址与郡名
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [英国 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_GB/Address.php)。英国邮编按固定 provider 直接抽取 497 条完整字符串。保留楼号街道与独立 Flat／Studio 行的 2:1 权重、英国城市和后缀词表、地址换行及 `county()`。英文城市前缀复用与英国完全相同的美国词表。Rust 的地区专用 `county` 使用 `Result` 并接入 `unique`。v0.x 无对应地址生成器，编译式工厂装配无需调整。
+
+隔离基线 `eda080b2`。PHP 8.5.12 反射核对 7 份词表的顺序与重复项，并用固定 FakerPHP 抽验 256 个样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 257 行，覆盖三行与四行地址、词表组合及三语共用示例。Rust 回归遍历 497 个邮编和 89 个郡名并验证唯一值耗尽。
+
+81 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 41 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续核对其他英语及地区 Address provider。

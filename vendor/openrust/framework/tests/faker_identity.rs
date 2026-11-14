@@ -3817,3 +3817,35 @@ fn english_address_locales_use_local_postcodes_and_inherited_vocabularies() {
     assert!(australia.randomPostcodeLetter().is_err());
     assert!(new_zealand.provinceAbbr().is_err());
 }
+
+#[test]
+fn british_address_uses_fixed_postcodes_and_both_street_layouts() {
+    let british = fake(Some("en-GB")).unwrap();
+    let postcode = Regex::new(r"^[A-Z0-9]{2,4} [0-9][A-Z]{2}$").unwrap();
+    let secondary = Regex::new(r"^(Flat|Studio) [0-9]{2}[a-z]?$").unwrap();
+
+    for _ in 0..64 {
+        let address = british.address();
+        let lines: Vec<_> = address.lines().collect();
+        assert!(matches!(lines.len(), 3 | 4));
+        assert!(postcode.is_match(lines.last().unwrap()));
+        if lines.len() == 4 {
+            assert!(secondary.is_match(lines[0]));
+        } else {
+            assert!(lines[0].starts_with(|ch: char| ch.is_ascii_digit()));
+        }
+    }
+
+    let unique = british.uniqueWithRetries(true, 20_000);
+    let postcodes: std::collections::HashSet<_> =
+        (0..497).map(|_| unique.postcode().unwrap()).collect();
+    assert_eq!(postcodes.len(), 497);
+    assert!(postcodes.contains("DD8 1LR"));
+    assert!(unique.postcode().is_err());
+    let counties: std::collections::HashSet<_> =
+        (0..89).map(|_| unique.county().unwrap()).collect();
+    assert_eq!(counties.len(), 89);
+    assert!(counties.contains("Hampshire"));
+    assert!(unique.county().is_err());
+    assert!(fake(Some("en-US")).unwrap().county().is_err());
+}
