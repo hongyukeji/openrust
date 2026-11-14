@@ -66,7 +66,6 @@ mod faker_image;
 mod faker_institutions;
 mod faker_miscellaneous;
 mod faker_payment;
-mod faker_person;
 mod faker_phone;
 mod regex_pattern;
 mod relationships;

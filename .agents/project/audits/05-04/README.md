@@ -938,3 +938,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `8c2c1d63`。PHP 8.5 核对 1,024 组样本，覆盖尼泊尔八种输出形态和乌克兰两种标签模板。Rust 1.94.0 格式、全目标严格 Clippy、36 项 Faker 测试、49 项 Seeder 与 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读 24 条 URL 和公司标签。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。站点保留既有分块大小提示。
 
 隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 与站点产物 39 MiB，提交前额度剩余 47%、项目卷剩余 81 GiB。后续核对其余地区 Person 姓名及工厂单元的剩余差异。
+
+## Faker 北欧 Person 姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 [Person](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)，接入丹麦、冰岛、芬兰、瑞典和挪威书面语姓名。丹麦保留中间名及重复模板权重。冰岛保留独立父名词干和性别后缀。芬兰保留可选称谓。瑞典和挪威书面语使用实际生效的基类姓名格式。复用已核对的 Company 词表及冰岛词干函数。Rust 沿用无参与显式性别名字入口，地区专用方法返回 Result 并支持 unique。v0.x 未发现等价实现，工厂装配沿用现有编译路径。
+
+隔离基线 `f2969fc1`。PHP 8.5 验证 2,560 组姓名、名字、姓氏和称谓样本。Rust 1.94.0 格式、全目标严格 Clippy、37 项 Faker、49 项 Seeder、MySQL 8.4.13／SQLite 两项工厂回归通过。实际应用 `main artisan db:seed --database=mysql --force` 写入并回读五地 25 条姓名和公司名称。实际 `./artisan inspire`、三语示例编译、VitePress 及六项浏览器检查通过。
+
+丹麦回归最初只按空白统计姓名成分，现按空白与连字符判断，重跑通过。隔离副本原始 Seeder 已恢复，清理本批独占 Cargo 产物 2.2 GiB 与站点产物 39 MiB。提交前额度剩余 46%、项目卷剩余 81 GiB。下一批核对波兰与立陶宛的性别姓氏规则及其余 Person 地区。

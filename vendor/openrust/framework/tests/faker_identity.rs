@@ -2058,3 +2058,36 @@ fn nepalese_urls_and_ukrainian_company_labels_follow_the_pinned_templates() {
         ))
     ));
 }
+
+#[test]
+fn nordic_names_follow_effective_person_templates() {
+    for locale in ["sv-SE", "nb-NO"] {
+        let faker = fake(Some(locale)).unwrap();
+        for _ in 0..64 {
+            assert_eq!(faker.name().split_whitespace().count(), 2);
+        }
+    }
+
+    let denmark = fake(Some("da-DK")).unwrap();
+    let mut lengths = std::collections::HashSet::new();
+    for _ in 0..128 {
+        lengths.insert(denmark.name().split([' ', '-']).count());
+    }
+    assert_eq!(lengths, [2, 3, 4].into_iter().collect());
+    let unique = denmark.unique(true);
+    assert_ne!(unique.middleName().unwrap(), unique.middleName().unwrap());
+
+    let iceland = fake(Some("is-IS")).unwrap();
+    for _ in 0..64 {
+        assert!(iceland.lastName().ends_with('s'));
+        assert!(iceland.nameWithGender(Some("male")).ends_with("sson"));
+        assert!(iceland.nameWithGender(Some("female")).ends_with("sdóttir"));
+    }
+    assert!(iceland.middleName().is_ok());
+
+    let finland = fake(Some("fi-FI")).unwrap();
+    assert!(["Hra.", "Tri."].contains(&finland.titleMale()));
+    assert!(["Rva.", "Nti.", "Tri."].contains(&finland.titleFemale()));
+    assert!(finland.middleName().is_err());
+    assert!(finland.lastNameMale().is_err());
+}

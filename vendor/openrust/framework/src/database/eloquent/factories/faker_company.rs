@@ -28,7 +28,7 @@ use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker, faker, locales};
 use ::fake::Fake as _;
 
 #[path = "faker_company_nordic.rs"]
-mod nordic;
+pub(super) mod nordic;
 
 #[path = "faker_company_iberian.rs"]
 mod iberian;

@@ -674,6 +674,18 @@ fn person_name_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 北欧姓名 {#nordic-names}
+
+丹麦和冰岛的姓名模板可以包含中间名。可用 `middleName()` 单独生成。`is-IS` 的 `lastName()` 返回父名词干，`lastNameMale()` 和 `lastNameFemale()` 添加对应后缀。芬兰姓名可包含本地称谓。瑞典语和挪威书面语姓名使用名字加姓氏。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn nordic_name_sample() -> DatabaseResult<String> {
+    fake(Some("is-IS"))?.unique(false).nameWithGender(Some("female"))
+}
+```
+
 ### 坐标 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。

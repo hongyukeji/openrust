@@ -28,7 +28,7 @@ use super::sample;
 
 const DA_DK_SUFFIXES: &[&str] = &["ApS", "A/S", "I/S", "K/S"];
 
-const DA_DK_LAST: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const DA_DK_LAST: &[&str] = &[
     "Jensen",
     "Nielsen",
     "Hansen",
@@ -452,7 +452,7 @@ const DA_DK_LAST: &[&str] = &[
     "Munk",
 ];
 
-const DA_DK_MIDDLE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const DA_DK_MIDDLE: &[&str] = &[
     "Møller",
     "Lund",
     "Holm",
@@ -719,7 +719,7 @@ const DA_DK_MIDDLE: &[&str] = &[
     "Bank",
 ];
 
-const DA_DK_MALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const DA_DK_MALE: &[&str] = &[
     "Aage",
     "Adam",
     "Ahmad",
@@ -995,7 +995,7 @@ const DA_DK_MALE: &[&str] = &[
     "Villiam",
 ];
 
-const DA_DK_FEMALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const DA_DK_FEMALE: &[&str] = &[
     "Aase",
     "Agathe",
     "Agnes",
@@ -1332,7 +1332,7 @@ const DA_DK_FEMALE: &[&str] = &[
 
 const IS_IS_SUFFIXES: &[&str] = &["ehf.", "hf.", "sf."];
 
-const IS_IS_MIDDLE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const IS_IS_MIDDLE: &[&str] = &[
     "Aðaldal",
     "Aldan",
     "Arnberg",
@@ -1477,7 +1477,7 @@ const IS_IS_MIDDLE: &[&str] = &[
     "Öxndal",
 ];
 
-const IS_IS_MALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const IS_IS_MALE: &[&str] = &[
     "Aage",
     "Abel",
     "Abraham",
@@ -3276,7 +3276,7 @@ const IS_IS_MALE: &[&str] = &[
     "Öxar",
 ];
 
-const IS_IS_FEMALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const IS_IS_FEMALE: &[&str] = &[
     "Aagot",
     "Abela",
     "Abigael",
@@ -5231,7 +5231,7 @@ const IS_IS_FEMALE: &[&str] = &[
 
 const FI_FI_SUFFIXES: &[&str] = &["OY", "AB", "OY AB", "RY", "OYj", "Tmi.", "Inc.", "Ltd"];
 
-const FI_FI_LAST: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const FI_FI_LAST: &[&str] = &[
     "Aakula",
     "Aalto",
     "Aaltonen",
@@ -6075,7 +6075,7 @@ const FI_FI_LAST: &[&str] = &[
 
 const SV_SE_SUFFIXES: &[&str] = &["AB", "HB"];
 
-const SV_SE_LAST: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SV_SE_LAST: &[&str] = &[
     "Abrahamsson",
     "Andersson",
     "Andreasson",
@@ -6178,7 +6178,7 @@ const SV_SE_LAST: &[&str] = &[
     "Öberg",
 ];
 
-const SV_SE_MALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SV_SE_MALE: &[&str] = &[
     "Abraham",
     "Adam",
     "Adrian",
@@ -6680,7 +6680,7 @@ const SV_SE_MALE: &[&str] = &[
     "Östen",
 ];
 
-const SV_SE_FEMALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const SV_SE_FEMALE: &[&str] = &[
     "Ada",
     "Adela",
     "Adele",
@@ -7181,7 +7181,7 @@ const NB_NO_SUFFIXES: &[&str] = &[
     "ANS", "AS", "ASA", "BA", "DA", "ENK", "GFS", "KTRF", "NUF", "PK", "SA", "SPA", "STI", "VIFE",
 ];
 
-const NB_NO_LAST: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const NB_NO_LAST: &[&str] = &[
     "Aas",
     "Aase",
     "Aasen",
@@ -7384,7 +7384,7 @@ const NB_NO_LAST: &[&str] = &[
     "Øien",
 ];
 
-const NB_NO_MALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const NB_NO_MALE: &[&str] = &[
     "Abbas",
     "Abdallah",
     "Abdelaziz",
@@ -8753,7 +8753,7 @@ const NB_NO_MALE: &[&str] = &[
     "Åvar",
 ];
 
-const NB_NO_FEMALE: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const NB_NO_FEMALE: &[&str] = &[
     "Abida",
     "Abigail",
     "Abir",
@@ -9847,7 +9847,7 @@ fn given(male: &'static [&'static str], female: &'static [&'static str]) -> &'st
     sample(if fastrand::bool() { male } else { female })
 }
 
-fn icelandic_surname() -> String {
+pub(in crate::database::eloquent::factories::faker) fn icelandic_surname() -> String {
     let name = sample(IS_IS_MALE);
     let stem = name.strip_suffix("ur").unwrap_or(name);
     if stem.ends_with('s') {
