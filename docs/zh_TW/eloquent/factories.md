@@ -330,10 +330,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `fr-BE`、`fr-CA`、`fr-CH` 和 `it-CH` 的 `company()` 使用固定上游的地區姓氏與範本。加拿大法語繼承法國公司後綴，瑞士法語及義大利語分別使用自己的後綴，例如 `Sàrl` 和 `Sarl`。`company()` 和 `companySuffix()` 都支援 `unique`。
 
+`lt-LT`、`sl-SI` 和 `tr-TR` 的 `company()` 使用固定上游的地區範本。立陶宛將法定類別放在名稱前，斯洛維尼亞獨資經營名稱以 `s.p.` 結尾，土耳其範本可包含營業領域。`tr-TR` 的 `companyField()` 可單獨抽樣營業領域，並支援 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 63]> {
+fn identity_samples() -> DatabaseResult<[String; 65]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -346,6 +348,8 @@ fn identity_samples() -> DatabaseResult<[String; 63]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("lt-LT"))?.company(),
+        fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
         fake(Some("fr-CA"))?.company(),
         fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),

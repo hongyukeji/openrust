@@ -48,6 +48,9 @@ mod ukza_cy;
 #[path = "faker_company_romance.rs"]
 mod romance;
 
+#[path = "faker_company_lt_sl_tr.rs"]
+mod lt_sl_tr;
+
 const EN_US_SUFFIXES: &[&str] = &["Inc", "and Sons", "LLC", "Group", "PLC", "Ltd"];
 
 const FR_FR_SUFFIXES: &[&str] = &["SA", "S.A.", "SARL", "S.A.R.L.", "SAS", "S.A.S.", "et Fils"];
@@ -4172,6 +4175,7 @@ impl Faker {
                 .or_else(|| balkan::company(locale))
                 .or_else(|| ukza_cy::company(locale))
                 .or_else(|| romance::company(locale))
+                .or_else(|| lt_sl_tr::company(locale))
                 .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
         }
     }
@@ -4234,6 +4238,16 @@ impl Faker {
         Ok(balkan::company_type())
     }
 
+    /// Samples a Turkish company field.
+    pub fn companyField(&self) -> DatabaseResult<&'static str> {
+        if self.locale() != "tr_TR" {
+            return Err(DatabaseError::InvalidQuery(
+                "unsupported Faker company field locale",
+            ));
+        }
+        Ok(lt_sl_tr::company_field())
+    }
+
     /// Samples the selected company provider's suffix.
     pub fn companySuffix(&self) -> String {
         let suffixes = match self.locale() {
@@ -4263,6 +4277,7 @@ impl Faker {
                 .or_else(|| balkan::suffixes(locale))
                 .or_else(|| ukza_cy::suffixes(locale))
                 .or_else(|| romance::suffixes(locale))
+                .or_else(|| lt_sl_tr::suffixes(locale))
             {
                 Some(values) => values,
                 None => return generate!(locale, faker::company::raw::CompanySuffix,),
@@ -4296,6 +4311,10 @@ impl UniqueFaker<'_> {
 
     pub fn companyType(&self) -> DatabaseResult<&'static str> {
         self.try_generate("companyType", || self.0.companyType())
+    }
+
+    pub fn companyField(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("companyField", || self.0.companyField())
     }
 
     pub fn companySuffix(&self) -> DatabaseResult<String> {

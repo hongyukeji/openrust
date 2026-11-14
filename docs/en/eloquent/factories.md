@@ -330,10 +330,12 @@ With `en-GB` or `en-ZA`, `company()` combines a regional surname with the inheri
 
 With `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH`, `company()` uses the pinned regional surnames and templates. French Canada inherits the French company suffixes. The two Swiss providers use their own suffixes, including `Sàrl` in French and `Sarl` in Italian. Both `company()` and `companySuffix()` support `unique`.
 
+For `lt-LT`, `sl-SI`, and `tr-TR`, `company()` uses the pinned regional templates. Lithuanian legal designations precede the name, Slovenian sole-proprietor names end in `s.p.`, and Turkish templates can include a business field. Use `companyField()` with `tr-TR` for a field on its own. It also supports `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 63]> {
+fn identity_samples() -> DatabaseResult<[String; 65]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -346,6 +348,8 @@ fn identity_samples() -> DatabaseResult<[String; 63]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("lt-LT"))?.company(),
+        fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
         fake(Some("fr-CA"))?.company(),
         fake(Some("it-CH"))?.companySuffix(),
         fake(Some("en-GB"))?.company(),

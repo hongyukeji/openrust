@@ -1355,3 +1355,45 @@ fn french_and_italian_regional_companies_follow_inherited_templates() {
         assert!(faker.companyPrefix().is_err());
     }
 }
+
+#[test]
+fn lithuanian_slovenian_and_turkish_companies_preserve_local_formats() {
+    use std::collections::HashSet;
+
+    let lithuanian = fake(Some("lt-LT")).unwrap();
+    let slovenian = fake(Some("sl-SI")).unwrap();
+    let turkish = fake(Some("tr-TR")).unwrap();
+    for (faker, suffixes) in [
+        (&lithuanian, &["UAB", "AB", "IĮ", "MB", "VŠĮ"][..]),
+        (
+            &slovenian,
+            &["d.o.o.", "d.d.", "k.d.", "k.d.d.", "d.n.o.", "so.p."][..],
+        ),
+        (&turkish, &["A.Ş.", "Ltd. Şti."][..]),
+    ] {
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..suffixes.len())
+            .map(|_| unique.companySuffix().unwrap())
+            .collect();
+        assert_eq!(
+            actual,
+            suffixes.iter().map(|suffix| (*suffix).to_owned()).collect()
+        );
+        assert!(unique.companySuffix().is_err());
+    }
+    let names: Vec<_> = (0..128).map(|_| lithuanian.company()).collect();
+    assert!(names.iter().all(|name| {
+        ["UAB", "AB", "IĮ", "MB", "VŠĮ"]
+            .iter()
+            .any(|suffix| name.starts_with(&format!("{suffix} ")))
+    }));
+    assert!(names.iter().any(|name| name.ends_with('"')));
+    assert!((0..128).any(|_| slovenian.company().ends_with(" s.p.")));
+    assert!((0..128).any(|_| turkish.company().contains("oğlu ")));
+    let unique = turkish.unique(true);
+    let fields: HashSet<_> = (0..49).map(|_| unique.companyField().unwrap()).collect();
+    assert_eq!(fields.len(), 49);
+    assert!(fields.contains("Dış Ticaret"));
+    assert!(unique.companyField().is_err());
+    assert!(lithuanian.companyField().is_err());
+}
