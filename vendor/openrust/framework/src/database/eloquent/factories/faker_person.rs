@@ -24,6 +24,8 @@
 
 use super::company::{self, central, iberian, lt_sl_tr, nordic, romance, ukza_cy, west_asian};
 
+use super::south_southeast_asian as asian;
+
 pub(super) struct PersonNames {
     pub(super) male: &'static [&'static str],
     pub(super) female: &'static [&'static str],
@@ -9475,6 +9477,12 @@ pub(super) fn catalog(locale: &str) -> &'static PersonNames {
         "ru_RU" => &RU_RU,
         "uk_UA" => &UK_UA,
         "kk_KZ" => &KK_KZ,
+        "bn_BD" => &asian::BN_BD,
+        "id_ID" => &asian::ID_ID,
+        "ko_KR" => &asian::KO_KR,
+        "th_TH" => &asian::TH_TH,
+        "vi_VN" => &asian::VI_VN,
+        "ms_MY" => &asian::MS_MY,
         _ => &EN_US,
     }
 }
@@ -10553,6 +10561,10 @@ pub(super) fn surnames(locale: &str) -> Option<&'static [&'static str]> {
         "ka_GE" => Some(KA_GE_SURNAMES),
         "uk_UA" => Some(UK_UA_SURNAMES),
         "kk_KZ" => Some(KK_KZ_SURNAMES),
+        "bn_BD" => Some(asian::BN_BD_SURNAMES),
+        "ko_KR" => Some(asian::KO_KR_SURNAMES),
+        "th_TH" => Some(company::south_southeast_asian::TH_SURNAMES),
+        "vi_VN" => Some(asian::VI_VN_SURNAMES),
         locale => iberian::surnames(locale),
     }
 }

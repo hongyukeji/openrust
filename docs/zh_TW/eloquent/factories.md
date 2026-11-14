@@ -770,6 +770,18 @@ fn patronymic_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
+### 南亞、東南亞和韓國姓名 {#south-southeast-asian-and-korean-names}
+
+`bn-BD`、`id-ID`、`ms-MY`、`ko-KR`、`th-TH` 和 `vi-VN` 使用各地的姓名詞表與全名範本。印尼姓氏支援性別選擇。韓文全名姓氏在前，中間無空格。越南語 `middleName()` 從名字詞表抽樣，明確傳入性別的 `middleNameWithGender` 使用對應的中間名詞表。馬來西亞 `name()` 使用馬來、華人和印度裔全名範本，`firstName()` 也包含基督教名字。明確選擇男性或女性名字時，沿用固定 provider 繼承的 `John` 和 `Jane`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
+    fake(Some("vi-VN"))?.unique(false).middleNameWithGender(Some("female"))
+}
+```
+
 ### 座標 {#coordinate-samples}
 
 用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。

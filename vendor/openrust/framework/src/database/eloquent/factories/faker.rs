@@ -196,6 +196,9 @@ mod company;
 #[path = "faker_person.rs"]
 mod faker_person;
 
+#[path = "faker_person_south_southeast_asian.rs"]
+mod south_southeast_asian;
+
 #[path = "faker_username.rs"]
 mod username;
 
@@ -663,25 +666,34 @@ impl Faker {
     }
 
     pub fn name(&self) -> String {
-        if matches!(
-            self.locale(),
-            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU"
-        ) || faker_person::surnames(self.locale()).is_some()
-        {
+        if self.uses_pinned_person_names() {
             return self.nameWithGender(None);
         }
         generate!(self.locale(), faker::name::raw::Name,)
     }
 
     pub fn firstName(&self) -> String {
-        if matches!(
-            self.locale(),
-            "nl_NL" | "is_IS" | "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU"
-        ) || faker_person::surnames(self.locale()).is_some()
-        {
+        if self.uses_pinned_person_names() {
             return self.firstNameWithGender(None);
         }
         generate!(self.locale(), faker::name::raw::FirstName,)
+    }
+
+    fn uses_pinned_person_names(&self) -> bool {
+        matches!(
+            self.locale(),
+            "nl_NL"
+                | "is_IS"
+                | "lt_LT"
+                | "pl_PL"
+                | "cs_CZ"
+                | "sk_SK"
+                | "el_GR"
+                | "bg_BG"
+                | "ru_RU"
+                | "id_ID"
+                | "ms_MY"
+        ) || faker_person::surnames(self.locale()).is_some()
     }
 
     pub fn lastName(&self) -> String {
@@ -693,7 +705,8 @@ impl Faker {
             "is_IS" => return company::nordic::icelandic_surname(),
             // The pinned Lithuanian no-argument surname template samples given names.
             "lt_LT" => return self.firstNameWithGender(None),
-            "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" => {
+            "ms_MY" => return south_southeast_asian::malaysian_last_name().to_owned(),
+            "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "id_ID" => {
                 return self
                     .gendered_surname(fastrand::bool())
                     .expect("fixed gendered surname locale");
@@ -708,11 +721,20 @@ impl Faker {
 
     pub fn middleName(&self) -> DatabaseResult<&'static str> {
         if matches!(self.locale(), "ru_RU" | "uk_UA") {
-            return self.patronymic(fastrand::bool());
+            return self.gendered_middle_name(fastrand::bool());
         }
         let names = match self.locale() {
             "da_DK" => company::nordic::DA_DK_MIDDLE,
             "is_IS" => company::nordic::IS_IS_MIDDLE,
+            // The pinned Vietnamese no-argument middle-name template samples given names.
+            "vi_VN" => {
+                let catalog = faker_person::catalog(self.locale());
+                if fastrand::bool() {
+                    catalog.male
+                } else {
+                    catalog.female
+                }
+            }
             _ => {
                 return Err(DatabaseError::InvalidQuery(
                     "unsupported Faker middle name locale",
@@ -731,19 +753,21 @@ impl Faker {
     }
 
     pub fn middleNameMale(&self) -> DatabaseResult<&'static str> {
-        self.patronymic(true)
+        self.gendered_middle_name(true)
     }
 
     pub fn middleNameFemale(&self) -> DatabaseResult<&'static str> {
-        self.patronymic(false)
+        self.gendered_middle_name(false)
     }
 
-    fn patronymic(&self, male: bool) -> DatabaseResult<&'static str> {
+    fn gendered_middle_name(&self, male: bool) -> DatabaseResult<&'static str> {
         let names = match (self.locale(), male) {
             ("ru_RU", true) => faker_person::RU_RU_MIDDLE_MALE,
             ("ru_RU", false) => faker_person::RU_RU_MIDDLE_FEMALE,
             ("uk_UA", true) => faker_person::UK_UA_MIDDLE_MALE,
             ("uk_UA", false) => faker_person::UK_UA_MIDDLE_FEMALE,
+            ("vi_VN", true) => south_southeast_asian::VI_VN_MIDDLE_MALE,
+            ("vi_VN", false) => south_southeast_asian::VI_VN_MIDDLE_FEMALE,
             _ => {
                 return Err(DatabaseError::InvalidQuery(
                     "unsupported Faker gendered middle name locale",
@@ -766,7 +790,7 @@ impl Faker {
     pub fn lastNameWithGender(&self, gender: Option<&str>) -> String {
         if matches!(
             self.locale(),
-            "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU"
+            "lt_LT" | "pl_PL" | "cs_CZ" | "sk_SK" | "el_GR" | "bg_BG" | "ru_RU" | "id_ID"
         ) {
             match gender {
                 Some("male") => return self.lastNameMale().expect("fixed male surname locale"),
@@ -803,6 +827,8 @@ impl Faker {
             ("sl_SI", _) => company::lt_sl_tr::SL_SI_SURNAMES,
             ("pl_PL", true) => faker_person::PL_PL_LAST_MALE,
             ("pl_PL", false) => faker_person::PL_PL_LAST_FEMALE,
+            ("id_ID", true) => company::south_southeast_asian::ID_MALE_SURNAMES,
+            ("id_ID", false) => company::south_southeast_asian::ID_FEMALE_SURNAMES,
             ("is_IS", _) => {
                 let ending = if male { "son" } else { "dóttir" };
                 return Ok(format!("{}{ending}", self.lastName()));
@@ -848,6 +874,7 @@ impl Faker {
         match gender {
             Some("male") => self.firstNameMale(),
             Some("female") => self.firstNameFemale(),
+            _ if self.locale() == "ms_MY" => south_southeast_asian::malaysian_first_name(),
             _ if self.boolean(None) => self.firstNameMale(),
             _ => self.firstNameFemale(),
         }
@@ -890,12 +917,14 @@ impl Faker {
             match token {
                 "firstNameMale" => name.push_str(&self.firstNameMale()),
                 "firstNameFemale" => name.push_str(&self.firstNameFemale()),
-                "middleNameFemale" => {
-                    name.push_str(self.middleNameFemale().expect("fixed patronymic locale"))
-                }
-                "middleNameMale" => {
-                    name.push_str(self.middleNameMale().expect("fixed patronymic locale"))
-                }
+                "middleNameFemale" => name.push_str(
+                    self.middleNameFemale()
+                        .expect("fixed gendered middle-name locale"),
+                ),
+                "middleNameMale" => name.push_str(
+                    self.middleNameMale()
+                        .expect("fixed gendered middle-name locale"),
+                ),
                 "middleName" => name.push_str(self.middleName().expect("fixed middle-name locale")),
                 "lastNameMale" => {
                     name.push_str(&self.lastNameMale().expect("fixed male surname locale"))
@@ -919,6 +948,9 @@ impl Faker {
                 }
                 "suffix" => {
                     name.push_str(catalog.suffixes[fastrand::usize(..catalog.suffixes.len())])
+                }
+                _ if self.locale() == "ms_MY" => {
+                    name.push_str(&south_southeast_asian::malaysian_name_part(token));
                 }
                 _ => unreachable!("fixed Faker name template token"),
             }
@@ -999,6 +1031,20 @@ impl Faker {
             "hy_AM" => &["Պարոն"],
             "ka_GE" => &["ბნ.", "დოქ.", "პროფ."],
             "lt_LT" => &["p.", "ponas"],
+            "bn_BD" => &["মি."],
+            "id_ID" => &["dr.", "drg.", "Dr.", "Drs.", "Ir.", "H."],
+            "vi_VN" => &["Cụ", "Ông", "Bác", "Chú", "Anh", "Em"],
+            "ms_MY" => &[
+                "En.",
+                "Dr.",
+                "Prof.",
+                "Datuk",
+                "Dato'",
+                "Datuk Seri",
+                "Dato' Sri",
+                "Tan Sri",
+                "Tun",
+            ],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Hra.", "Tri."],
             "nl_NL" => faker_person::NL_NL_TITLES,
@@ -1076,6 +1122,20 @@ impl Faker {
             "hy_AM" => &["տիկին", "օրիորդ"],
             "ka_GE" => &["ქნ.", "დოქ.", "პროფ."],
             "lt_LT" => &["p.", "ponia", "panelė"],
+            "bn_BD" => &["মিসেস.", "মিস."],
+            "id_ID" => &["dr.", "drg.", "Dr.", "Hj."],
+            "vi_VN" => &["Cụ", "Bà", "Bác", "Cô", "Chị", "Em"],
+            "ms_MY" => &[
+                "Pn.",
+                "Cik",
+                "Dr.",
+                "Prof.",
+                "Datin",
+                "Datin Paduka",
+                "Datin Paduka Seri",
+                "Puan Sri",
+                "Toh Puan",
+            ],
             "pl_PL" => &["mgr", "inż.", "dr", "doc."],
             "fi_FI" => &["Rva.", "Nti.", "Tri."],
             "nl_NL" => faker_person::NL_NL_TITLES,

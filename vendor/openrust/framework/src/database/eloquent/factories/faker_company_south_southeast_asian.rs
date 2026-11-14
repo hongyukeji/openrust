@@ -34,7 +34,7 @@ const ID_PREFIXES: &[&str] = &["PT", "Fa", "CV", "UD", "PJ", "PD", "Perum", "Yay
 
 const ID_SUFFIXES: &[&str] = &["(Persero) Tbk", "Tbk"];
 
-const ID_MALE_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const ID_MALE_SURNAMES: &[&str] = &[
     "Adriansyah",
     "Ardianto",
     "Anggriawan",
@@ -143,7 +143,7 @@ const ID_MALE_SURNAMES: &[&str] = &[
     "Zulkarnain",
 ];
 
-const ID_FEMALE_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const ID_FEMALE_SURNAMES: &[&str] = &[
     "Agustina",
     "Andriani",
     "Anggraini",
@@ -798,7 +798,7 @@ const MY_SUFFIXES: &[&str] = &[
     "Sdn. Bhd.",
 ];
 
-const MY_MALAY_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const MY_MALAY_SURNAMES: &[&str] = &[
     "'Aizat",
     "A'liyyuddin",
     "Abas",
@@ -1689,7 +1689,7 @@ const MY_MALAY_SURNAMES: &[&str] = &[
     "Zuwairi",
 ];
 
-const MY_CHINESE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const MY_CHINESE_NAMES: &[&str] = &[
     "Ah", "Ai", "Aik", "An", "Ann", "Ang", "Au", "Aun", "Aw", "Bae", "Bai", "Bak", "Ban", "Bang",
     "Bao", "Bau", "Bee", "Beh", "Bei", "Ben", "Beng", "Bi", "Bik", "Bin", "Bing", "Bo", "Bok",
     "Bong", "Boo", "Boon", "Bow", "Bu", "Bui", "Buk", "Bun", "Bung", "Cai", "Car", "Caw", "Cee",
@@ -1765,7 +1765,7 @@ const MY_CHINESE_NAMES: &[&str] = &[
     "Zuk", "Zung",
 ];
 
-const MY_CHINESE_MALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const MY_CHINESE_MALE_NAMES: &[&str] = &[
     "Aik", "Ang", "Au", "Aun", "Bak", "Ban", "Bang", "Bao", "Bau", "Ben", "Beng", "Bing", "Bok",
     "Bong", "Boo", "Boon", "Bow", "Buk", "Bun", "Bung", "Chai", "Chak", "Chan", "Chang", "Chao",
     "Chap", "Chat", "Chau", "Chaw", "Cheah", "Chee", "Cheen", "Chek", "Chen", "Cheong", "Cher",
@@ -1815,7 +1815,7 @@ const MY_CHINESE_MALE_NAMES: &[&str] = &[
     "Zit", "Zuk", "Zung",
 ];
 
-const MY_INDIAN_MALE_NAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const MY_INDIAN_MALE_NAMES: &[&str] = &[
     "Anbil",
     "Ananda",
     "Arasu",
@@ -1995,7 +1995,7 @@ const MY_INDIAN_MALE_NAMES: &[&str] = &[
     "Yugendran",
 ];
 
-const TH_SURNAMES: &[&str] = &[
+pub(in crate::database::eloquent::factories::faker) const TH_SURNAMES: &[&str] = &[
     "กติยา",
     "กมลานันท์",
     "กล้านอนหงาย",

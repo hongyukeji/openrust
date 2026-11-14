@@ -58,7 +58,7 @@ mod cyrillic;
 pub(super) mod west_asian;
 
 #[path = "faker_company_south_southeast_asian.rs"]
-mod south_southeast_asian;
+pub(super) mod south_southeast_asian;
 
 #[path = "faker_job_title.rs"]
 pub(super) mod job_title;

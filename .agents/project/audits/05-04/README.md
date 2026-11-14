@@ -1010,3 +1010,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 Rust 1.94.0 工作区全目标严格 Clippy 通过。基线的 `cargo fmt --all --check` 发现一处既有 Sanctum 测试排版差异，仅在隔离副本格式化后复验通过。Seeder 49 项、MySQL／SQLite 工厂回归两项、`./artisan inspire`、三语示例编译、VitePress 构建及根路径和 `/docs/` 下六项浏览器检查通过。三语示例补充未保存状态、批次数量和零条结果的断言。
 
 临时 Seeder 已恢复并核对基线内容。清理隔离副本独占 Cargo 产物 2.2 GiB、站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。其余 Faker 地区和 formatter 差异仍由 05-04 跟踪。
+
+## Faker 南亚、东南亚和韩国姓名
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 [FakerPHP v1.24.1 Person](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider) 的孟加拉国、印度尼西亚、马来西亚、韩国、泰国和越南 provider。复用 Company 的七组对应词表，保留印度尼西亚性别姓氏和后缀、韩国无间隔全名、泰国称谓和后缀、越南中间名分组及马来西亚各姓名模板的权重和空格。马来西亚显式性别名字沿用继承的 John／Jane，无参入口按八组地区模板抽样。Rust 通过现有类型化姓名接口和去重入口调用；语言各自使用随机数生成器。马来西亚地区专用格式化器的独立公开入口及其他 provider 方法继续跟踪。v0.x 未发现等价姓名入口，Goravel 式编译装配沿用当前工厂入口。
+
+隔离基线 `f5d06cc4`。PHP 8.5 核对 3,072 组固定上游样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并按主键回查 768 个姓名，逐组按相同上游词表和模板验证全名、名字、姓氏、称谓，另核对 128 组越南中间名。Rust 1.94.0 全目标严格 Clippy、45 项 Faker、49 项 Seeder、MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例、VitePress 和六项浏览器检查通过。既有 Sanctum 测试的格式差异仅在隔离副本处理，格式复验通过。
+
+原始 Seeder 已恢复。清理本批独占 Cargo 产物约 2.2 GiB 和站点产物 39 MiB。提交前额度剩余 45%，项目卷可用 81 GiB。下一批核对尚未接入的 Person 地区及专用格式化器。

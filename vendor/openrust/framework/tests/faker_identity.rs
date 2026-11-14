@@ -2372,3 +2372,76 @@ fn russian_ukrainian_and_kazakh_person_names_keep_local_templates() {
     assert!(kazakh.middleNameMale().is_err());
     assert_eq!(kazakh.name().split_whitespace().count(), 2);
 }
+
+#[test]
+fn south_and_southeast_asian_and_korean_person_names_follow_local_templates() {
+    let bengali = fake(Some("bn-BD")).unwrap();
+    let indonesian = fake(Some("id-ID")).unwrap();
+    let malaysian = fake(Some("ms-MY")).unwrap();
+    let korean = fake(Some("ko-KR")).unwrap();
+    let thai = fake(Some("th-TH")).unwrap();
+    let vietnamese = fake(Some("vi-VN")).unwrap();
+    let mut unique_surnames = std::collections::HashSet::new();
+
+    for _ in 0..64 {
+        assert!(
+            ["খান", "শেখ", "শিকদার", "আলী", "তাসনীম", "তাবাসসুম"].contains(&bengali.lastName().as_str())
+        );
+        assert_eq!(bengali.titleMale(), "মি.");
+        assert!((2..=3).contains(&bengali.name().split_whitespace().count()));
+
+        let surname = indonesian.unique(false).lastNameFemale().unwrap();
+        assert!(unique_surnames.insert(surname));
+        assert_ne!(indonesian.lastNameWithGender(Some("male")), "Doe");
+        assert!(["dr.", "drg.", "Dr.", "Hj."].contains(&indonesian.titleFemale()));
+
+        assert_eq!(malaysian.firstNameWithGender(Some("male")), "John");
+        assert_eq!(malaysian.firstNameWithGender(Some("female")), "Jane");
+        assert!(!["John", "Jane"].contains(&malaysian.firstName().as_str()));
+        assert_ne!(malaysian.lastName(), "Doe");
+        assert!(
+            [
+                "En.",
+                "Dr.",
+                "Prof.",
+                "Datuk",
+                "Dato'",
+                "Datuk Seri",
+                "Dato' Sri",
+                "Tan Sri",
+                "Tun"
+            ]
+            .contains(&malaysian.titleMale())
+        );
+
+        let name = korean.name();
+        assert!(name.chars().all(|c| ('가'..='힣').contains(&c)));
+        assert!(name.chars().count() >= 2);
+        assert!(
+            korean
+                .firstNameFemale()
+                .chars()
+                .all(|c| ('가'..='힣').contains(&c))
+        );
+
+        assert!(
+            thai.lastName()
+                .chars()
+                .all(|c| c == ' ' || ('\u{0e00}'..='\u{0e7f}').contains(&c))
+        );
+        assert!(
+            thai.firstName()
+                .chars()
+                .all(|c| ('\u{0e00}'..='\u{0e7f}').contains(&c))
+        );
+        assert!(["Cụ", "Bà", "Bác", "Cô", "Chị", "Em"].contains(&vietnamese.titleFemale()));
+        assert!(!vietnamese.middleName().unwrap().is_empty());
+        assert!(
+            !vietnamese
+                .middleNameWithGender(Some("female"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+    assert_eq!(unique_surnames.len(), 64);
+}

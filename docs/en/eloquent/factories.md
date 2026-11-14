@@ -770,6 +770,18 @@ fn patronymic_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
+### South and Southeast Asian and Korean Names {#south-southeast-asian-and-korean-names}
+
+The Person catalogs for `bn-BD`, `id-ID`, `ms-MY`, `ko-KR`, `th-TH`, and `vi-VN` use local spellings and full-name templates. Indonesian surnames support gender selection. Korean full names put the surname first and omit the space. Vietnamese `middleName()` draws from the given-name catalogs, while `middleNameWithGender(Some("male"))` and its female counterpart use the middle-name catalogs. Malaysian `name()` uses Malay, Chinese, and Indian templates. Malaysian `firstName()` also includes Christian given names. Its explicit male and female first-name formatters inherit `John` and `Jane` from the pinned provider.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
+    fake(Some("vi-VN"))?.unique(false).middleNameWithGender(Some("female"))
+}
+```
+
 ### Coordinates {#coordinate-samples}
 
 Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.
