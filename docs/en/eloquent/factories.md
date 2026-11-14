@@ -118,6 +118,8 @@ Child factories apply relation query defaults after the definition and before ex
 
 Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by name. The factory uses a descriptor registered through `Model::namedRelations` or the application’s `resolveRelationUsing`. Pass the Rust descriptor type explicitly, for example `forNamed::<_, MorphTo<Comment>>("subject", posts)`. Unknown names and incompatible descriptor types return errors.
 
+Use `parentAttribute("owner_id", owners)` to declare a foreign-key attribute backed by another factory. It expands to a saved model key and can reuse a matching recycled model. An explicit value from the definition, a state, or the operation takes precedence. `withoutParents(vec![])` disables all factory-valued attributes. Pass `FactoryParentSelector::attribute("owner_id")` or `FactoryParentSelector::model::<Owner>()` to disable specific ones. Disabled attributes expand to null. Explicit `for` and `forExisting` relationships still resolve.
+
 ### Recycling Existing Models {#recycling-existing-models}
 
 Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match. A batch reuses its selected owner.

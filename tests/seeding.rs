@@ -19,7 +19,7 @@ use openrust::{
             Attributes, Model, ModelMetadata, ModelState, NamedRelations, UniqueId,
             casts::{Attribute, AttributeCast},
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
-            factories::{Factory, FactoryPivot, FactoryRecords, fake},
+            factories::{Factory, FactoryParentSelector, FactoryPivot, FactoryRecords, fake},
             relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
@@ -256,6 +256,64 @@ impl ModelEventListener<FactoryChild> for CancelFactoryChild {
             }
         })
     }
+}
+
+async fn verify_parent_attributes(connection: &Connection) -> DatabaseResult<()> {
+    let factory = || {
+        Factory::<FactoryChild>::new(Attributes::new)
+            .parentAttribute("owner_id", Factory::<FactoryOwner>::new(Attributes::new))
+    };
+    let omitted = factory()
+        .count(2)
+        .withoutParents(vec![])
+        .rawOn(connection)
+        .await?;
+    assert!(
+        omitted
+            .iter()
+            .all(|attributes| attributes["owner_id"] == Value::Null)
+    );
+    let selected = factory()
+        .withoutParents(vec![FactoryParentSelector::model::<FactoryOwner>()])
+        .rawOn(connection)
+        .await?;
+    assert_eq!(selected["owner_id"], Value::Null);
+    let selected = factory()
+        .withoutParents(vec![FactoryParentSelector::attribute("owner_id")])
+        .rawOn(connection)
+        .await?;
+    assert_eq!(selected["owner_id"], Value::Null);
+    let explicit = factory()
+        .makeOneOn(
+            connection,
+            Attributes::from([("owner_id".into(), 99_i64.into())]),
+        )
+        .await?;
+    assert_eq!(explicit.getAttribute("owner_id"), Some(&99_i64.into()));
+    assert_eq!(connection.table("seed_factory_owners").count("*").await?, 0);
+
+    let generated = factory().count(2).createOn(connection).await?;
+    assert_ne!(
+        generated[0].getAttribute("owner_id"),
+        generated[1].getAttribute("owner_id")
+    );
+    let owner = Factory::<FactoryOwner>::new(Attributes::new)
+        .createOn(connection)
+        .await?;
+    let key = owner.getKey().unwrap().clone();
+    let recycled = factory().recycle(owner).rawOn(connection).await?;
+    assert_eq!(recycled["owner_id"], key);
+    let relation = MorphTo::<FactoryChild>::new("owner_type", "owner_id")
+        .target::<FactoryOwner>("seed-owner", "id");
+    let explicit_relation = Factory::<FactoryChild>::new(Attributes::new)
+        .r#for(relation, Factory::<FactoryOwner>::new(Attributes::new))
+        .withoutParents(vec![])
+        .rawOn(connection)
+        .await?;
+    assert_eq!(explicit_relation["owner_type"], "seed-owner".into());
+    assert_eq!(connection.table("seed_factory_children").delete().await?, 2);
+    assert_eq!(connection.table("seed_factory_owners").delete().await?, 4);
+    Ok(())
 }
 
 async fn verify_existing_attachments(
@@ -982,6 +1040,7 @@ impl Seeder for PolymorphicFactories {
             assert_eq!(connection.table("seed_factory_links").delete().await?, 5);
             assert_eq!(connection.table("seed_factory_children").delete().await?, 5);
             assert_eq!(connection.table("seed_factory_owners").delete().await?, 1);
+            Box::pin(verify_parent_attributes(connection)).await?;
             Box::pin(verify_existing_attachments(connection, &sqlite)).await?;
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");

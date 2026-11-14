@@ -124,3 +124,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 Laravel Factory::hasAttached 与 BelongsToManyRelationship 的已有模型分支。Rust 支持传入单个模型、列表或 Eloquent 集合，沿用共享、序列和回调中间表属性。关系要求模型已持久化、关联键存在且连接来源一致，校验目标后才写中间表。外层模型已在关系写入前保存。旧版未发现对应工厂入口，Goravel 装配无需调整。 [固定 Laravel BelongsToManyRelationship](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/BelongsToManyRelationship.php#L47)
 
 隔离基线 9ad57012。MySQL 8.4.13 实际 db:seed 覆盖单模型和集合、多态中间表顺序、原关联模型行数、未保存目标和 SQLite 跨连接拒绝。测试夹具的新增路径独立装箱，按默认栈复验通过。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。
+
+## 工厂外键属性展开
+
+对照固定 Laravel Factory 的 expandAttributes 和 withoutParents。Rust 用 parentAttribute 声明工厂外键属性，展开时优先读取显式属性，按需生成上级或复用同类型同连接模型。按属性名或模型类型排除时生成 Null，显式 for 与 forExisting 关系继续解析。批次中每个未覆盖的属性独立展开。旧版未发现对应入口，Goravel 装配无需调整。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L550)
+
+隔离基线 7081089a。MySQL 8.4.13 实际 db:seed 验证全部禁用、按名及类型排除、显式覆盖、批次生成、模型复用、显式关系与实际入库。MySQL／SQLite 工厂回归、Rust 1.94 格式及全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 18 项浏览器检查通过。

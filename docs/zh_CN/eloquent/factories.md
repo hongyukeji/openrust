@@ -118,6 +118,8 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 用 `hasNamed`、`forNamed` 或 `hasAttachedNamed` 按名称解析关系。工厂使用 `Model::namedRelations` 或应用 `resolveRelationUsing` 登记的描述符。显式传入 Rust 描述符类型，例如 `forNamed::<_, MorphTo<Comment>>("subject", posts)`。名称不存在或类型不匹配时返回错误。
 
+用 `parentAttribute("owner_id", owners)` 声明由另一工厂生成的外键属性。它展开为已保存模型的键，也可复用匹配的模型。定义、状态或调用传入的显式值优先。`withoutParents(vec![])` 禁用所有工厂外键属性。传入 `FactoryParentSelector::attribute("owner_id")` 或 `FactoryParentSelector::model::<Owner>()` 可按属性名或模型类型禁用。禁用的属性展开为 null，显式 `for` 和 `forExisting` 关系仍会解析。
+
 ### 复用已有模型 {#recycling-existing-models}
 
 用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。同一批次复用已选中的上级。

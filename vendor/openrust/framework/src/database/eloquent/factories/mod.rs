@@ -1,6 +1,9 @@
 //! Eloquent model factories for seeders and tests.
 
-use std::{any::Any, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 
 use tokio::sync::OnceCell;
 
@@ -46,6 +49,32 @@ type Parent<M> = dyn for<'a> Fn(
     + Sync;
 type SharedModel = Arc<dyn Any + Send + Sync>;
 type ParentCache = OnceCell<SharedModel>;
+
+type ParentAttributeResolver = dyn for<'a> Fn(&'a Connection, &'a [RecycledModel]) -> DatabaseFuture<'a, DatabaseResult<Value>>
+    + Send
+    + Sync;
+
+struct ParentAttribute {
+    name: String,
+    model: TypeId,
+    resolve: Box<ParentAttributeResolver>,
+}
+
+/// Identifies a factory-valued parent attribute to exclude from expansion.
+pub enum FactoryParentSelector {
+    Attribute(String),
+    Model(TypeId),
+}
+
+impl FactoryParentSelector {
+    pub fn attribute(name: impl Into<String>) -> Self {
+        Self::Attribute(name.into())
+    }
+
+    pub fn model<R: Model>() -> Self {
+        Self::Model(TypeId::of::<R>())
+    }
+}
 
 #[derive(Clone)]
 struct RecycledModel {
@@ -155,6 +184,8 @@ pub struct Factory<M: Model> {
     states: Vec<Box<State>>,
     recycled: Vec<RecycledModel>,
     parents: Vec<Box<Parent<M>>>,
+    parent_attributes: Vec<ParentAttribute>,
+    excluded_parents: Option<Vec<FactoryParentSelector>>,
     children: Vec<Box<Relationship<M>>>,
     after_making: Vec<Box<Callback<M>>>,
     after_creating: Vec<Box<Callback<M>>>,
@@ -195,6 +226,8 @@ impl<M: Model> Factory<M> {
             states: Vec::new(),
             recycled: Vec::new(),
             parents: Vec::new(),
+            parent_attributes: Vec::new(),
+            excluded_parents: None,
             children: Vec::new(),
             after_making: Vec::new(),
             after_creating: Vec::new(),
@@ -487,6 +520,56 @@ impl<M: Model> Factory<M> {
                     relation.associate(model, owner)
                 })
             }));
+        self
+    }
+
+    /// Declares a factory-valued foreign key in the model definition.
+    #[must_use]
+    pub fn parentAttribute<R: Model>(mut self, name: impl Into<String>, owner: Factory<R>) -> Self {
+        let name = name.into();
+        self.parent_attributes
+            .retain(|attribute| attribute.name != name);
+        let owner = Arc::new(owner);
+        self.parent_attributes.push(ParentAttribute {
+            name,
+            model: TypeId::of::<R>(),
+            resolve: Box::new(move |connection, inherited| {
+                let owner = Arc::clone(&owner);
+                Box::pin(async move {
+                    let connection = owner.resolve_related_connection(connection)?;
+                    let pool = owner.recycle_pool(inherited);
+                    let existing = recycled_owner::<R>(&pool, &connection);
+                    let generated;
+                    let related = if let Some(existing) = &existing {
+                        existing.downcast_ref::<R>().expect("factory owner type")
+                    } else {
+                        generated = owner
+                            .create_one(
+                                &connection,
+                                0,
+                                &owner.parent_cache(),
+                                &pool,
+                                &std::sync::OnceLock::new(),
+                                Attributes::new(),
+                            )
+                            .await?;
+                        &generated
+                    };
+                    related
+                        .getKey()
+                        .filter(|key| !matches!(key, Value::Null))
+                        .cloned()
+                        .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
+                })
+            }),
+        });
+        self
+    }
+
+    /// Excludes the selected factory-valued attributes, or all when the list is empty.
+    #[must_use]
+    pub fn withoutParents(mut self, parents: Vec<FactoryParentSelector>) -> Self {
+        self.excluded_parents = Some(parents);
         self
     }
 
@@ -806,10 +889,12 @@ impl<M: Model> Factory<M> {
         cache: &[ParentCache],
         faker: &std::sync::OnceLock<Faker>,
     ) -> DatabaseResult<Attributes> {
-        let (mut model, attributes) = self
+        let (model, mut attributes) = self
             .expand_attributes(connection, index, cache, &self.recycled, None, faker)
             .await?;
-        let mut expanded = std::mem::take(&mut model.state_mut().attributes);
+        self.expand_parent_attributes(connection, &mut attributes, &self.recycled)
+            .await?;
+        let mut expanded = model.state().attributes.clone();
         expanded.extend(attributes);
         Ok(expanded)
     }
@@ -867,6 +952,33 @@ impl<M: Model> Factory<M> {
         Ok((model, attributes))
     }
 
+    async fn expand_parent_attributes(
+        &self,
+        connection: &Connection,
+        attributes: &mut Attributes,
+        pool: &[RecycledModel],
+    ) -> DatabaseResult<()> {
+        for attribute in &self.parent_attributes {
+            if attributes.contains_key(&attribute.name) {
+                continue;
+            }
+            let excluded = self.excluded_parents.as_ref().is_some_and(|selectors| {
+                selectors.is_empty()
+                    || selectors.iter().any(|selector| match selector {
+                        FactoryParentSelector::Attribute(name) => *name == attribute.name,
+                        FactoryParentSelector::Model(model) => *model == attribute.model,
+                    })
+            });
+            let value = if excluded {
+                Value::Null
+            } else {
+                (attribute.resolve)(connection, pool).await?
+            };
+            attributes.insert(attribute.name.clone(), value);
+        }
+        Ok(())
+    }
+
     async fn make_one(
         &self,
         connection: &Connection,
@@ -880,6 +992,8 @@ impl<M: Model> Factory<M> {
             .expand_attributes(connection, index, cache, pool, None, faker)
             .await?;
         attributes.extend(overrides);
+        self.expand_parent_attributes(connection, &mut attributes, pool)
+            .await?;
         let mut model = Self::apply_attributes(connection, model, attributes).await?;
         self.run_callbacks(std::slice::from_mut(&mut model), &self.after_making)?;
         Ok(model)
@@ -957,6 +1071,11 @@ pub struct FactoryBatch<M: Model> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's factory API")]
 impl<M: Model> FactoryBatch<M> {
+    #[must_use]
+    pub fn withoutParents(self, parents: Vec<FactoryParentSelector>) -> Self {
+        self.factory.withoutParents(parents).count(self.count)
+    }
+
     #[must_use]
     pub fn connection(self, name: Option<&str>) -> Self {
         self.factory.connection(name).count(self.count)
@@ -1162,6 +1281,9 @@ impl<M: Model> FactoryBatch<M> {
                 .expand_attributes(connection, index, &cache, pool, relation, &faker)
                 .await?;
             attributes.extend(overrides.clone());
+            self.factory
+                .expand_parent_attributes(connection, &mut attributes, pool)
+                .await?;
             models.push(Factory::<M>::apply_attributes(connection, model, attributes).await?);
         }
         let mut models = M::newCollection(models);
