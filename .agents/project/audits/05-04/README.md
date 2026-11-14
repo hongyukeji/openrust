@@ -258,3 +258,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照固定 FakerPHP 1.24.1 Miscellaneous 的 md5、sha1、sha256，从闭区间 0 至 2,147,483,647 抽取整数，对十进制文本计算小写十六进制摘要。三种生成器支持各自的 unique 历史。Rust 继续使用现有 Faker 随机源，输出长度与算法对应。SHA-1 和 SHA-256 复用 AWS-LC，MD5 直接引用锁文件已有的 md-5 0.11.0。旧版签名模块的 SHA-256 同样输出小写十六进制，没有 Faker 随机入口。Goravel 启动装配未涉及。 [FakerPHP Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Miscellaneous.php#L250)
 
 隔离基线 `2811a5c2`。PHP 8.5.12 对固定 FakerPHP 的三个入口各运行 64 组固定种子，验证输入边界和摘要规则。Rust 记录 256 个随机输入及各自三种摘要，与 PHP 逐项对照一致。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查三种摘要。Rust 1.94.0 格式、工作区全目标严格 Clippy、12 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。已清理本批 2.2 GiB Cargo 产物和约 37 MiB 站点产物。其余 provider 继续跟踪。
+
+## Faker 网络地址样本
+
+对照固定 FakerPHP 1.24.1 Internet 的 ipv4、localIpv4、ipv6 与 macAddress。普通 IPv4 等概率选择两个上游范围，保留私有及特殊用途地址。私有 IPv4 等概率选择三个网段，再均匀抽取网段内地址。IPv6 使用八组不补零、不压缩的小写十六进制，MAC 使用六组补零的大写十六进制。Rust 用无符号位模式和标准库 IPv4 格式化，四个入口均支持独立 unique 历史。v0.x 未发现对应生成器，Goravel 启动装配未涉及。 [FakerPHP Internet](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php#L225)
+
+隔离基线 `14dbc536`。固定 FakerPHP 与 PHP 8.5.12 对四个入口各检查 256 次，Rust 回归也对四个入口各检查 256 次，覆盖地址范围、格式和去重。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查四种地址。Rust 1.94.0 格式、全目标严格 Clippy、13 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。清理本批 2.2 GiB Cargo 和约 37 MiB 站点产物。Internet 的域名、URL、slug 和其余文本生成器继续跟踪。

@@ -93,6 +93,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_locale".into(), faker.randomLocale().into()),
             ("currency".into(), faker.currencyCode().into()),
             ("sample_digest".into(), faker.sha256().into()),
+            ("sample_ip".into(), faker.localIpv4().into()),
         ]))
     })
 }
@@ -121,6 +122,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 摘要樣本 {#digest-samples}
 
 用 `md5()`、`sha1()` 和 `sha256()` 產生 32、40 和 64 個字元的小寫十六進位樣本。每個產生器遵循 FakerPHP 的做法，從 0 到 2,147,483,647 抽取整數，再對其十進位文字計算摘要。三個方法均支援 `unique`，供測試和資料填充使用。
+
+### 網路位址樣本 {#network-address-samples}
+
+用 `ipv4()`、`localIpv4()`、`ipv6()` 和 `macAddress()` 產生網路測試資料。`ipv4()` 在 `1.0.0.0`–`127.255.255.255` 和 `128.0.0.0`–`255.255.255.254` 兩段中以相同機率選一段，再抽取位址，可能回傳私有或特殊用途位址。`localIpv4()` 在 `10/8`、`172.16/12` 和 `192.168/16` 中以相同機率選一段。IPv6 回傳八組未壓縮的小寫十六進位數，各組省略前導零。MAC 位址由六組以冒號分隔的兩位大寫十六進位數組成。四個方法均支援 `unique`。
 
 ## 使用工廠建立模型
 

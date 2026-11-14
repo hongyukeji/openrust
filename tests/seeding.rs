@@ -2136,3 +2136,48 @@ fn faker_digest_samples_are_lowercase_hex_and_support_unique() -> DatabaseResult
     assert_eq!(faker.unique(true).sha256()?.len(), 64);
     Ok(())
 }
+
+#[test]
+fn faker_network_addresses_follow_fakerphp_formats_and_ranges() -> DatabaseResult<()> {
+    use openrust::database::eloquent::factories::Faker;
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    let faker = Faker::new("en_US")?;
+    let unique = faker.unique(false);
+    let mut addresses = std::collections::HashSet::new();
+    for _ in 0..256 {
+        let sample = unique.ipv4()?;
+        let address = u32::from(sample.parse::<Ipv4Addr>().unwrap());
+        assert!((0x0100_0000..=0xffff_fffe).contains(&address));
+        assert!(addresses.insert(sample));
+
+        let sample = unique.localIpv4()?;
+        assert!(sample.parse::<Ipv4Addr>().unwrap().is_private());
+        assert!(addresses.insert(format!("private:{sample}")));
+
+        let sample = unique.ipv6()?;
+        assert!(sample.parse::<Ipv6Addr>().is_ok());
+        let groups: Vec<_> = sample.split(':').collect();
+        assert_eq!(groups.len(), 8);
+        for group in groups {
+            assert_eq!(
+                group,
+                format!("{:x}", u16::from_str_radix(group, 16).unwrap())
+            );
+        }
+        assert!(addresses.insert(sample));
+
+        let sample = unique.macAddress()?;
+        let octets: Vec<_> = sample.split(':').collect();
+        assert_eq!(octets.len(), 6);
+        for octet in octets {
+            assert_eq!(
+                octet,
+                format!("{:02X}", u8::from_str_radix(octet, 16).unwrap())
+            );
+        }
+        assert!(addresses.insert(sample));
+    }
+    assert!(faker.unique(true).ipv4().is_ok());
+    Ok(())
+}

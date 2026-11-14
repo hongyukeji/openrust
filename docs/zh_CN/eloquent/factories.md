@@ -93,6 +93,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_locale".into(), faker.randomLocale().into()),
             ("currency".into(), faker.currencyCode().into()),
             ("sample_digest".into(), faker.sha256().into()),
+            ("sample_ip".into(), faker.localIpv4().into()),
         ]))
     })
 }
@@ -121,6 +122,10 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 ### 摘要样本 {#digest-samples}
 
 用 `md5()`、`sha1()` 和 `sha256()` 生成 32、40 和 64 个字符的小写十六进制样本。每个生成器遵循 FakerPHP 的做法，从 0 到 2,147,483,647 抽取整数，再对其十进制文本计算摘要。三个方法均支持 `unique`，用于测试和填充数据。
+
+### 网络地址样本 {#network-address-samples}
+
+用 `ipv4()`、`localIpv4()`、`ipv6()` 和 `macAddress()` 生成网络测试数据。`ipv4()` 在 `1.0.0.0`–`127.255.255.255` 和 `128.0.0.0`–`255.255.255.254` 两段中等概率选一段，再抽取地址，可能返回私有或特殊用途地址。`localIpv4()` 在 `10/8`、`172.16/12` 和 `192.168/16` 中等概率选一段。IPv6 返回八组未压缩的小写十六进制数，各组省略前导零。MAC 地址由六组以冒号分隔的两位大写十六进制数组成。四个方法均支持 `unique`。
 
 ## 使用工厂创建模型
 

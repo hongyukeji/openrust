@@ -93,6 +93,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("sample_locale".into(), faker.randomLocale().into()),
             ("currency".into(), faker.currencyCode().into()),
             ("sample_digest".into(), faker.sha256().into()),
+            ("sample_ip".into(), faker.localIpv4().into()),
         ]))
     })
 }
@@ -121,6 +122,10 @@ Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, a
 ### Digest Samples {#digest-samples}
 
 Use `md5()`, `sha1()`, and `sha256()` to generate lowercase hexadecimal fixture values of 32, 40, and 64 characters. Like FakerPHP, each formatter hashes the decimal text of a random integer from 0 through 2,147,483,647. All three support `unique` and are intended for test and seed data.
+
+### Network Address Samples {#network-address-samples}
+
+Use `ipv4()`, `localIpv4()`, `ipv6()`, and `macAddress()` for network fixtures. `ipv4()` samples the ranges `1.0.0.0`–`127.255.255.255` and `128.0.0.0`–`255.255.255.254` with equal probability for each range. The result can include private or special-use addresses. `localIpv4()` chooses among `10/8`, `172.16/12`, and `192.168/16` with equal probability. IPv6 uses eight uncompressed lowercase hexadecimal groups without leading zeros. MAC addresses use six uppercase two-digit octets separated by colons. All four support `unique`.
 
 ## Creating Models Using Factories
 

@@ -2,6 +2,7 @@ use super::{faker_miscellaneous, regex_pattern::RegexPattern};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write as _,
+    net::Ipv4Addr,
     ops::Range,
     sync::{Mutex, OnceLock},
 };
@@ -342,6 +343,46 @@ impl Faker {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> bool {
         self.numberBetween(1, 100) <= chanceOfGettingTrue.unwrap_or(50)
+    }
+
+    pub fn ipv4(&self) -> String {
+        let address = if self.boolean(None) {
+            fastrand::u32(0x8000_0000..=0xffff_fffe)
+        } else {
+            fastrand::u32(0x0100_0000..=0x7fff_ffff)
+        };
+        Ipv4Addr::from(address).to_string()
+    }
+
+    pub fn ipv6(&self) -> String {
+        let mut address = String::with_capacity(39);
+        for index in 0..8 {
+            if index != 0 {
+                address.push(':');
+            }
+            write!(address, "{:x}", fastrand::u16(..)).expect("writing to String cannot fail");
+        }
+        address
+    }
+
+    pub fn localIpv4(&self) -> String {
+        let (network, host_mask) = match fastrand::u8(0..3) {
+            0 => (0x0a00_0000, 0x00ff_ffff),
+            1 => (0xac10_0000, 0x000f_ffff),
+            _ => (0xc0a8_0000, 0x0000_ffff),
+        };
+        Ipv4Addr::from(network | fastrand::u32(0..=host_mask)).to_string()
+    }
+
+    pub fn macAddress(&self) -> String {
+        let mut address = String::with_capacity(17);
+        for index in 0..6 {
+            if index != 0 {
+                address.push(':');
+            }
+            write!(address, "{:02X}", fastrand::u8(..)).expect("writing to String cannot fail");
+        }
+        address
     }
 
     pub fn md5(&self) -> String {
@@ -973,6 +1014,22 @@ impl UniqueFaker<'_> {
 
     pub fn boolean(&self, chanceOfGettingTrue: Option<i64>) -> DatabaseResult<bool> {
         self.generate("boolean", || self.0.boolean(chanceOfGettingTrue))
+    }
+
+    pub fn ipv4(&self) -> DatabaseResult<String> {
+        self.generate("ipv4", || self.0.ipv4())
+    }
+
+    pub fn ipv6(&self) -> DatabaseResult<String> {
+        self.generate("ipv6", || self.0.ipv6())
+    }
+
+    pub fn localIpv4(&self) -> DatabaseResult<String> {
+        self.generate("localIpv4", || self.0.localIpv4())
+    }
+
+    pub fn macAddress(&self) -> DatabaseResult<String> {
+        self.generate("macAddress", || self.0.macAddress())
     }
 
     pub fn md5(&self) -> DatabaseResult<String> {
