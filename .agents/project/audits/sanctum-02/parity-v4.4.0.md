@@ -47,4 +47,15 @@
 ## `vendor:publish` 逐键交互
 
 - 对照固定 Laravel 13.40.0 的 Provider、标签、全部选项和不区分大小写的包含匹配。Rust 用 `console` 读取终端按键，逐键筛选并用最多 15 行展示结果。方向键移动，回车确认，Esc 或 Ctrl+C 取消。Laravel 在 Windows 使用选择菜单，OpenRust 使用同一套 Rust 终端接口提供筛选。 [固定上游命令](https://github.com/laravel/framework/blob/v13.40.0/src/Illuminate/Foundation/Console/VendorPublishCommand.php#L122-L157)
-- 在 macOS 伪终端启动实际应用二进制，发送无换行的搜索文本并检查即时刷新。验证不区分大小写的 Provider 搜索、退格和方向键选配置标签、方向键选迁移标签，以及方向键选全部。逐次核对发布文件。另验证无匹配时回车不发布、Esc 和 Ctrl+C 无副作用、终端恢复正常输入模式，以及没有终端和 `--no-interaction` 时跳过菜单。Windows 未做实机验证。
+- 在 macOS 伪终端启动实际应用二进制，发送无换行的搜索文本并检查即时刷新。验证不区分大小写的 Provider 搜索、退格和方向键选配置标签、方向键选迁移标签，以及方向键选全部。逐次核对发布文件。另验证无匹配时回车不发布、Esc 和 Ctrl+C 无副作用、终端恢复正常输入模式，以及没有终端和 `--no-interaction` 时跳过菜单。
+
+### Windows 验收
+
+- 在 Parallels 的 Windows 11 ARM64（构建 26200）中，从 `0bf1b7a2` 使用 Rust 1.94.0 和 ARM64 MSVC 工具链原生构建。只在隔离验收副本将 `sanctum` 加入默认 feature，以便仓库原有的 `artisan.bat` 直接加载真实 Provider 和发布标签。
+- 在 Win32 控制台中，分别从 CMD 执行 `artisan.bat vendor:publish`、从 PowerShell 执行 `.\artisan.bat vendor:publish`。发送原生按键事件并读取控制台内容，确认搜索逐键刷新、方向键移动选择、回车前不写入、回车后退出码为 0。每项使用独立的空应用目录。
+
+| 选项 | CMD | PowerShell | 实际发布 |
+| --- | --- | --- | --- |
+| Sanctum Provider | 通过 | 通过 | 配置和令牌表迁移 |
+| `sanctum-config` 标签 | 通过 | 通过 | 仅配置 |
+| 全部 Provider 和标签 | 通过 | 通过 | 配置和令牌表迁移 |
