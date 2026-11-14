@@ -170,3 +170,9 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 对照 FakerPHP 1.24.1 的 `timezone` 和 `randomElement`。内置与 chrono-tz 0.10.4 同版的 IANA 2025b 公共领域 `zone.tab`，首次使用时按国家或地区建立索引。通用候选包含 UTC，筛选按原代码大小写匹配，未知代码返回 `None`，对应 PHP 的 null。`unique` 按 formatter 跟踪重复结果，未知代码也参与去重。旧版未发现国家到时区的标识列表。Goravel 装配无需调整。默认时区和 PHP 相对时间表达式继续跟踪。 [FakerPHP](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L313) · [IANA 2025b](https://data.iana.org/time-zones/tzdb-2025b/zone.tab)
 
 隔离基线 `943690e6`。PHP 8.5.12 对照全部 419 个通用候选和 247 个国家或地区候选集，全部标识可由锁定的 chrono-tz 解析。MySQL 8.4.13 Seeder 用例验证 CN、TW、未知和小写代码、全表回退与去重耗尽。实际应用二进制运行 `artisan db:seed --database=mysql --force`，写入并回查 `Asia/Taipei`。MySQL／SQLite 工厂回归、Rust 1.94.0 格式和工作区全目标严格 Clippy、`./artisan inspire`、三语日期示例编译、VitePress 和六项浏览器检查通过。
+
+## Faker 默认时区
+
+固定 Laravel 装配从 `app.timezone` 设置应用时区，FakerPHP 的日期格式化采用显式时区、Faker 覆盖值和应用默认值。Rust 从应用或工厂连接的容器读取 `app.timezone`，无作用域时使用 UTC。覆盖值由当前生成器持有，支持设置、查询和清除。日期字符串使用有效时区，`dateTimeInTimezone` 支持单次显式时区。已公开的 `DateTime<Utc>` 方法和 UTC 区间保持兼容。旧版日期解析有独立时区上下文，没有对应的 Faker 配置。Goravel 装配无需调整。PHP 相对日期输入和按本地日历计算的区间边界继续跟踪。 [Laravel 配置加载](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/LoadConfiguration.php#L59) · [FakerPHP 时区解析](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php#L330)
+
+隔离基线 `fdcd57f0`。PHP 8.5.12 对照 UTC、台北与纽约的纪元日期和偏移。MySQL 8.4.13 的 Seeder 回归验证应用配置、显式语言继承时区、生成器覆盖和清除、单次覆盖、生成器间隔离及工厂连接配置。应用二进制使用 `APP_TIMEZONE=Asia/Taipei` 执行 `artisan db:seed --database=mysql --force`，写入并回查 `1970-01-01T08:00:00+0800`。MySQL／SQLite 工厂回归、Rust 1.94.0 格式及工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。

@@ -36,13 +36,15 @@ Use `numberBetween(first, second)` for an inclusive integer range in either orde
 
 `randomFloat(decimals, min, max)` samples between the bounds and then rounds to the requested decimal place, with ties away from zero. Use `None` to choose a precision from zero to nine or to generate an upper bound. Reversed bounds are accepted. Rounding can move the result outside the original interval. Rust returns an error for non-finite bounds or a rounding overflow. `unique` treats positive and negative zero as the same result.
 
-Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the UTC offset `+0000`. Convert the returned date-time to another time zone with Chrono when needed. All five methods support `unique`.
+Use `unixTime(max)` to sample Unix seconds between the epoch and the specified endpoint, or `dateTime(max)` to return a UTC date-time. With `None`, the endpoint is the current time. `date(format, max)` and `time(format, max)` accept Chrono format strings, default to `%Y-%m-%d` and `%H:%M:%S`, and return an error for invalid formats. `iso8601(max)` includes the effective time-zone offset. All five methods support `unique`.
 
 Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC instant and that instant plus a signed Chrono `TimeDelta`. A negative duration samples backward. `None` defaults to 30 years ago for the instant and five days forward for the duration. Use `dateTimeThisCentury(max)`, `dateTimeThisDecade(max)`, or `dateTimeThisMonth(max)` to start 100 years, 10 years, or one month before now. `dateTimeThisYear(max)` starts at midnight UTC on January 1. All four use now when `max` is `None`, reject an end before the start, and normalize calendar overflow as FakerPHP does. All five methods support `unique`. Supply typed dates and durations in Rust. For an application-defined calendar interval, compute its endpoint and use `dateTimeBetween`.
 
-Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled UTC date. The day and month numbers are zero-padded strings. Weekday and month names are English, matching FakerPHP’s date format. `dateTimeAD(max)` samples from FakerPHP’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
+Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The day and month numbers are zero-padded strings. Weekday and month names are English, matching FakerPHP’s date format. `dateTimeAD(max)` samples from FakerPHP’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
 Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
+
+Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The existing UTC date-time methods and their range boundaries stay in UTC.
 
 ```rust
 use chrono::{DateTime, TimeDelta};
@@ -61,7 +63,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
             ("score".into(), faker.numberBetween(1, 100).into()),
             ("happened_at".into(), happened_at.to_rfc3339().into()),
             ("reviewed_at".into(), reviewed_at.to_rfc3339().into()),
-            ("weekday".into(), faker.dayOfWeek(Some(DateTime::UNIX_EPOCH)).into()),
+            ("weekday".into(), faker.dateTimeInTimezone(Some(DateTime::UNIX_EPOCH), None).format("%A").to_string().into()),
             ("timezone".into(), faker.timezone(Some("TW")).unwrap_or("UTC").into()),
         ]))
     })

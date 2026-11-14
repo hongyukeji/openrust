@@ -930,7 +930,46 @@ impl Seeder for PolymorphicFactories {
                 invalid,
                 Err(DatabaseError::InvalidConfiguration(_))
             ));
-            let faker = fake(None)?;
+            let epoch = chrono::DateTime::UNIX_EPOCH;
+            let taipei = "Asia/Taipei".parse().unwrap();
+            let new_york = "America/New_York".parse().unwrap();
+            let utc = "UTC".parse().unwrap();
+            let mut faker = fake(None)?;
+            let mut other = fake(Some("fr-fr"))?;
+            assert_eq!(faker.getDefaultTimezone(), None);
+            assert_eq!(faker.iso8601(Some(epoch)), "1970-01-01T08:00:00+0800");
+            assert_eq!(
+                other.dateTimeInTimezone(Some(epoch), None).timezone(),
+                taipei
+            );
+            other.setDefaultTimezone(Some(new_york));
+            assert_eq!(other.getDefaultTimezone(), Some(new_york));
+            assert_eq!(other.date(None, Some(epoch))?, "1969-12-31");
+            assert_eq!(other.year(Some(epoch)), "1969");
+            assert_eq!(other.dayOfWeek(Some(epoch)), "Wednesday");
+            assert_eq!(
+                other
+                    .unique(false)
+                    .dateTimeInTimezone(Some(epoch), Some(utc))?
+                    .timezone(),
+                utc
+            );
+            assert_eq!(
+                faker.dateTimeInTimezone(Some(epoch), None).timezone(),
+                taipei
+            );
+            other.setDefaultTimezone(None);
+            assert_eq!(
+                other.dateTimeInTimezone(Some(epoch), None).timezone(),
+                taipei
+            );
+            assert_eq!(
+                openrust::database::eloquent::factories::Faker::new("en")?
+                    .dateTimeInTimezone(Some(epoch), None)
+                    .timezone(),
+                utc
+            );
+            faker.setDefaultTimezone(Some(utc));
             for value in [
                 faker.firstName(),
                 faker.lastName(),
@@ -947,7 +986,6 @@ impl Seeder for PolymorphicFactories {
 
             let start = chrono::DateTime::from_timestamp(-1, 0).unwrap();
             let end = chrono::DateTime::from_timestamp(1, 0).unwrap();
-            let epoch = chrono::DateTime::UNIX_EPOCH;
             assert_eq!(faker.unixTime(Some(epoch)), 0);
             assert!((-1..=0).contains(&faker.unixTime(Some(start))));
             assert!((0..=chrono::Utc::now().timestamp()).contains(&faker.unixTime(None)));
@@ -1209,6 +1247,10 @@ impl Seeder for PolymorphicFactories {
             Box::pin(verify_existing_attachments(connection, &sqlite)).await?;
             let localized = Factory::<FactoryChild>::tryWithFaker(move |faker| {
                 assert_eq!(faker.locale(), "zh_TW");
+                assert_eq!(
+                    faker.dateTimeInTimezone(Some(epoch), None).timezone(),
+                    taipei
+                );
                 let name = faker.unique(false).firstName()?;
                 assert!(
                     name.chars()
@@ -1386,7 +1428,7 @@ fn load(_: &Path, _: &Environment) -> Result<BTreeMap<String, Json>, ConfigError
     Ok(BTreeMap::from([
         (
             "app".into(),
-            json!({"env":environment,"faker_locale":"zh-hant"}),
+            json!({"env":environment,"faker_locale":"zh-hant","timezone":"Asia/Taipei"}),
         ),
         (
             "database".into(),

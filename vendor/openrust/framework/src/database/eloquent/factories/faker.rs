@@ -12,10 +12,13 @@ use crate::{
 };
 use ::fake::{Fake, faker, locales};
 use chrono::{DateTime, Datelike, Days, Months, TimeDelta, TimeZone, Utc};
+use chrono_tz::{Tz, UTC};
 
 /// Generates localized sample data for tests and seeders.
 pub struct Faker {
     locale: String,
+    application_timezone: Tz,
+    default_timezone: Option<Tz>,
     unique: Mutex<HashMap<&'static str, HashSet<String>>>,
 }
 
@@ -85,10 +88,7 @@ formatters! {
 
 /// Creates a generator using an explicit locale or the scoped application configuration.
 pub fn fake(locale: Option<&str>) -> DatabaseResult<Faker> {
-    match locale {
-        Some(locale) => Faker::new(locale),
-        None => Faker::configured(Connection::model_container(None).as_deref()),
-    }
+    Faker::configured(Connection::model_container(None).as_deref(), locale)
 }
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -98,26 +98,50 @@ impl Faker {
             .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
         Ok(Self {
             locale,
+            application_timezone: UTC,
+            default_timezone: None,
             unique: Mutex::default(),
         })
     }
 
     pub(super) fn for_connection(connection: &Connection) -> DatabaseResult<Self> {
-        Self::configured(Connection::model_container(Some(connection)).as_deref())
+        Self::configured(
+            Connection::model_container(Some(connection)).as_deref(),
+            None,
+        )
     }
 
-    fn configured(container: Option<&Container>) -> DatabaseResult<Self> {
+    fn configured(container: Option<&Container>, locale: Option<&str>) -> DatabaseResult<Self> {
         let Some(container) = container else {
-            return Self::new("en_US");
+            return Self::new(locale.unwrap_or("en_US"));
         };
         let config = container
             .get::<dyn Repository>("config")
             .map_err(|_| DatabaseError::InvalidConfiguration("app.faker_locale"))?;
-        match config.get("app.faker_locale") {
-            Some(serde_json::Value::String(locale)) => Self::new(&locale),
-            None => Self::new("en_US"),
-            _ => Err(DatabaseError::InvalidConfiguration("app.faker_locale")),
-        }
+        let locale = match (locale, config.get("app.faker_locale")) {
+            (Some(locale), _) => locale.to_owned(),
+            (None, Some(serde_json::Value::String(locale))) => locale,
+            (None, None) => "en_US".to_owned(),
+            _ => return Err(DatabaseError::InvalidConfiguration("app.faker_locale")),
+        };
+        let mut faker = Self::new(&locale)?;
+        faker.application_timezone = match config.get("app.timezone") {
+            None => UTC,
+            Some(serde_json::Value::String(zone)) => zone
+                .parse()
+                .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
+            _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
+        };
+        Ok(faker)
+    }
+
+    /// Overrides the time zone for this generator. Pass None to restore the application default.
+    pub fn setDefaultTimezone(&mut self, timezone: Option<Tz>) {
+        self.default_timezone = timezone;
+    }
+
+    pub fn getDefaultTimezone(&self) -> Option<Tz> {
+        self.default_timezone
     }
 
     pub fn locale(&self) -> &str {
@@ -256,6 +280,18 @@ impl Faker {
             .expect("sample lies between valid timestamps")
     }
 
+    /// Returns a sampled date in the explicit time zone or the generator's default.
+    pub fn dateTimeInTimezone(
+        &self,
+        max: Option<DateTime<Utc>>,
+        timezone: Option<Tz>,
+    ) -> DateTime<Tz> {
+        let timezone = timezone
+            .or(self.default_timezone)
+            .unwrap_or(self.application_timezone);
+        self.dateTime(max).with_timezone(&timezone)
+    }
+
     pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         self.format_date(format.unwrap_or("%Y-%m-%d"), max)
     }
@@ -265,7 +301,9 @@ impl Faker {
     }
 
     pub fn iso8601(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%Y-%m-%dT%H:%M:%S%z").to_string()
+        self.dateTimeInTimezone(max, None)
+            .format("%Y-%m-%dT%H:%M:%S%z")
+            .to_string()
     }
 
     /// Samples between the FakerPHP AD lower bound and the supplied endpoint.
@@ -277,29 +315,31 @@ impl Faker {
     }
 
     pub fn amPm(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%P").to_string()
+        self.dateTimeInTimezone(max, None).format("%P").to_string()
     }
 
     pub fn dayOfMonth(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%d").to_string()
+        self.dateTimeInTimezone(max, None).format("%d").to_string()
     }
 
     pub fn dayOfWeek(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%A").to_string()
+        self.dateTimeInTimezone(max, None).format("%A").to_string()
     }
 
     pub fn month(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%m").to_string()
+        self.dateTimeInTimezone(max, None).format("%m").to_string()
     }
 
     pub fn monthName(&self, max: Option<DateTime<Utc>>) -> String {
-        self.dateTime(max).format("%B").to_string()
+        self.dateTimeInTimezone(max, None).format("%B").to_string()
     }
 
     pub fn year(&self, max: Option<DateTime<Utc>>) -> String {
-        let year = self.dateTime(max).year();
-        let sign = if year < 0 { "-" } else { "" };
-        format!("{sign}{:04}", year.unsigned_abs())
+        let year = self.dateTimeInTimezone(max, None).format("%Y").to_string();
+        match year.strip_prefix('+') {
+            Some(unsigned) => unsigned.to_owned(),
+            None => year,
+        }
     }
 
     pub fn century(&self) -> &'static str {
@@ -344,8 +384,12 @@ impl Faker {
     fn format_date(&self, format: &str, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         use std::fmt::Write as _;
         let mut output = String::new();
-        write!(output, "{}", self.dateTime(max).format(format))
-            .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
+        write!(
+            output,
+            "{}",
+            self.dateTimeInTimezone(max, None).format(format)
+        )
+        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker date format"))?;
         Ok(output)
     }
 
@@ -552,6 +596,16 @@ impl UniqueFaker<'_> {
             self.0.timezone(countryCode).unwrap_or_default()
         })?;
         Ok((!zone.is_empty()).then_some(zone))
+    }
+
+    pub fn dateTimeInTimezone(
+        &self,
+        max: Option<DateTime<Utc>>,
+        timezone: Option<Tz>,
+    ) -> DatabaseResult<DateTime<Tz>> {
+        self.generate("dateTimeInTimezone", || {
+            self.0.dateTimeInTimezone(max, timezone)
+        })
     }
 
     fn generate<T: ToString>(
