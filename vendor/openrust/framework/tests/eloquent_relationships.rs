@@ -777,6 +777,80 @@ fn verify_relation_identity(db: &Connection) -> openrust::database::DatabaseFutu
     })
 }
 
+async fn verify_belongs_to_cache(
+    db: &Connection,
+    mysql: bool,
+    post: &Post,
+    first: &Author,
+    second: &Author,
+) {
+    let relation = AUTHOR.named("author");
+    let mut model = Post::from_state(post.state().clone());
+    model.load("author", &relation).await.unwrap();
+    model.load("comments", &POST_COMMENTS).await.unwrap();
+    let mut edited = Author::from_state(second.state().clone());
+    edited.setAttribute("name", "Local owner");
+    let baseline = if mysql { select_count(db).await } else { 0 };
+
+    let unsaved = Author::newInstance(Attributes::new()).unwrap();
+    assert!(matches!(
+        relation.associate(&mut model, &unsaved),
+        Err(DatabaseError::InvalidQuery("relationship owner key"))
+    ));
+    assert_eq!(model.getAttribute("author_id"), first.getKey());
+    relation.associate(&mut model, &edited).unwrap();
+    assert_eq!(model.getAttribute("author_id"), second.getKey());
+    assert!(model.relationLoaded("comments"));
+    assert_eq!(model.toArray().unwrap()["author"]["name"], "Local owner");
+    assert!(
+        model
+            .getRelationOrLoad("author", &relation)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
+
+    relation.associateKey(&mut model, first.getKey().unwrap().clone());
+    assert!(!model.relationLoaded("author"));
+    assert!(model.relationLoaded("comments"));
+    assert_eq!(
+        model
+            .getRelationOrLoad("author", &relation)
+            .await
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        first.getKey()
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+
+    relation.disassociate(&mut model);
+    assert_eq!(model.getAttribute("author_id"), Some(&Value::Null));
+    assert!(model.relationLoaded("author") && model.relationLoaded("comments"));
+    assert!(
+        model
+            .getRelationOrLoad("author", &relation)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(model.toArray().unwrap()["author"].is_null());
+    assert_eq!(
+        Post::queryOn(db)
+            .findOrFail(post.getKey().unwrap().clone())
+            .await
+            .unwrap()
+            .getAttribute("author_id"),
+        first.getKey()
+    );
+}
+
 async fn verify_morph_association(
     db: &Connection,
     mysql: bool,
@@ -5011,6 +5085,8 @@ async fn verify(db: Connection, mysql: bool) {
     );
 
     verify_collection_keys(&db).await;
+
+    Box::pin(verify_belongs_to_cache(&db, mysql, &p1, &first, &second)).await;
 
     p1.load("author", &AUTHOR).await.unwrap();
     let related = p1.getRelation::<Option<Arc<Author>>>("author").unwrap();

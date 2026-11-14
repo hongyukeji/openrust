@@ -145,6 +145,28 @@ impl LoadedRelations {
     }
 }
 
+// Run before editing the foreign key so detached autoload snapshots still match.
+pub(in crate::database::eloquent) fn update_association_cache<R: Relation>(
+    model: &mut R::Parent,
+    name: Option<&str>,
+    output: impl FnOnce() -> Option<R::Output>,
+) {
+    let state = model.state_mut();
+    if let Some(name) = name {
+        if let Some(link) = state.detached_autoload.take() {
+            state.relations = link.visible_relations(state, |key| key != name);
+        }
+        match output() {
+            Some(output) => state
+                .relations
+                .insert_relation::<R>(name.to_owned(), output),
+            None => state.relations.remove(name),
+        }
+    } else {
+        state.relations.clear();
+    }
+}
+
 pub(in crate::database::eloquent) async fn load<M, R>(
     models: &mut [M],
     name: &str,

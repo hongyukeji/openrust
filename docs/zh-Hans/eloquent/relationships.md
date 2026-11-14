@@ -6,6 +6,21 @@
 
 `BelongsToMany` 接收中间表、父模型与关联模型在中间表的外键，以及两个模型键。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
+### 设置所属模型 {#associating-an-owner}
+
+通过 `.named("author")` 指定 `BelongsTo` 的缓存名称。`associate` 使用传入模型设置外键并缓存当前快照。`associateKey` 直接设置外键并使该缓存项失效，下次访问时重新查询。`dissociate` 及其别名 `disassociate` 将外键置空，并缓存已加载的空关系。其他已加载关系仍可读取。调用 `save().await?` 保存子模型。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsTo}};
+
+pub async fn set_author<P: Model, A: Model>(post: &mut P, author: &A) -> DatabaseResult<()> {
+    let relation = BelongsTo::new("author_id", "id").named("author");
+    relation.associate(post, author)?;
+    post.save().await?;
+    Ok(())
+}
+```
+
 ### 默认关联模型
 
 可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上调用 `withDefault`，在缺少关联记录时提供一个未保存的模型。闭包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的属性。`HasOne` 会预填外键，`MorphOne` 还会预填类型别名。可从已加载关系读取默认实例。关系存在和计数查询仍以数据库记录为准。

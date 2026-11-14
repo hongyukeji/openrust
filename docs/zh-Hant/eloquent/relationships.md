@@ -6,6 +6,21 @@
 
 `BelongsToMany` 接收中介資料表、父模型與關聯模型在中介表的外鍵，以及兩個模型鍵。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
+### 設定所屬模型 {#associating-an-owner}
+
+透過 `.named("author")` 指定 `BelongsTo` 的快取名稱。`associate` 使用傳入模型設定外鍵並快取目前的快照。`associateKey` 直接設定外鍵並使該快取項目失效，下次存取時重新查詢。`dissociate` 及其別名 `disassociate` 將外鍵設為空值，並快取已載入的空關聯。其他已載入關聯仍可讀取。呼叫 `save().await?` 儲存子模型。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsTo}};
+
+pub async fn set_author<P: Model, A: Model>(post: &mut P, author: &A) -> DatabaseResult<()> {
+    let relation = BelongsTo::new("author_id", "id").named("author");
+    relation.associate(post, author)?;
+    post.save().await?;
+    Ok(())
+}
+```
+
 ### 預設關聯模型
 
 可在 `BelongsTo`、`HasOne`、`HasOneThrough` 或 `MorphOne` 上呼叫 `withDefault`，在缺少關聯記錄時提供未儲存的模型。閉包接收新模型和父模型。用 `|_, _| {}` 可保留框架初始化的屬性。`HasOne` 會預填外鍵，`MorphOne` 還會預填型別別名。可從已載入關聯讀取預設實例。關聯存在與計數查詢仍以資料庫記錄為準。

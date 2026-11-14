@@ -6,6 +6,21 @@ Declare `HasOne`, `HasMany`, or `BelongsTo` with explicit keys. For example, `Ha
 
 `BelongsToMany` takes the intermediate table, its parent and related foreign keys, and the two model keys. For an `author_post` table, use `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`.
 
+### Associating an owner {#associating-an-owner}
+
+Name a `BelongsTo` with `.named("author")` to identify its cache entry. `associate` sets the foreign key from the supplied owner and caches its current snapshot. `associateKey` sets the key directly and invalidates that cache entry so the next access reloads the owner. `dissociate` and its alias `disassociate` clear the foreign key and cache a loaded empty relationship. Other loaded relations remain available. Call `save().await?` to persist the child.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::BelongsTo}};
+
+pub async fn set_author<P: Model, A: Model>(post: &mut P, author: &A) -> DatabaseResult<()> {
+    let relation = BelongsTo::new("author_id", "id").named("author");
+    relation.associate(post, author)?;
+    post.save().await?;
+    Ok(())
+}
+```
+
 ### Default Models
 
 Use `withDefault` on `BelongsTo`, `HasOne`, `HasOneThrough`, or `MorphOne` to supply an unsaved model when the related row is absent. The closure receives the new model and the parent. Use `|_, _| {}` for a default with no extra attributes. `HasOne` initializes the foreign key, and `MorphOne` also initializes the type alias. A fallback is available through the loaded relationship. Relationship existence and count queries still reflect stored rows.

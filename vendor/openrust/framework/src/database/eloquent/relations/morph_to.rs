@@ -9,6 +9,7 @@ use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, EagerLoads, Model, NamedRelations,
+        concerns::has_relationships::update_association_cache,
         named_relations::{DiscoveredMorphs, PathConstraint},
         touches::TouchedOwners,
     },
@@ -531,11 +532,11 @@ impl<P: Model> MorphTo<P> {
             .getAttribute(target.owner_key())
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship owner key"))?;
-        self.cache_association(model, || {
-            Some(MorphTarget {
+        update_association_cache::<Self>(model, self.relation_name, || {
+            Some(Some(MorphTarget {
                 alias,
                 model: Arc::new(R::from_state(related.state().clone())),
-            })
+            }))
         });
         model
             .setAttribute(self.type_column, alias)
@@ -544,25 +545,10 @@ impl<P: Model> MorphTo<P> {
     }
 
     pub fn dissociate(&self, model: &mut P) {
-        self.cache_association(model, || None);
+        update_association_cache::<Self>(model, self.relation_name, || Some(None));
         model
             .setAttribute(self.type_column, Value::Null)
             .setAttribute(self.id_column, Value::Null);
-    }
-
-    fn cache_association(&self, model: &mut P, target: impl FnOnce() -> Option<MorphTarget>) {
-        if let Some(name) = self.relation_name {
-            // Retain unrelated values published by a detached autoload batch.
-            let state = model.state_mut();
-            if let Some(link) = state.detached_autoload.take() {
-                state.relations = link.visible_relations(state, |key| key != name);
-            }
-            state
-                .relations
-                .insert_relation::<Self>(name.to_owned(), target());
-        } else {
-            model.state_mut().relations.clear();
-        }
     }
 
     pub(in crate::database::eloquent) async fn touch_owner(

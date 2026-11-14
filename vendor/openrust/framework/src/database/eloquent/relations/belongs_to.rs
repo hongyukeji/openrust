@@ -6,6 +6,8 @@ use crate::database::{
     query,
 };
 
+use super::super::concerns::has_relationships::update_association_cache;
+
 use super::{
     ExistenceRelation, Relation,
     default_model::{ConfigureDefault, match_defaults},
@@ -13,7 +15,11 @@ use super::{
 };
 
 /// Resolves a model's foreign key against a related owner's key.
-pub struct BelongsTo<P: Model, R: Model>(RelationKeys<P, R>, Option<Box<ConfigureDefault<P, R>>>);
+pub struct BelongsTo<P: Model, R: Model>(
+    RelationKeys<P, R>,
+    Option<Box<ConfigureDefault<P, R>>>,
+    Option<&'static str>,
+);
 
 #[allow(non_snake_case, reason = "Matches Laravel's default relationship API")]
 impl<P: Model, R: Model> BelongsTo<P, R> {
@@ -22,7 +28,14 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
     }
 
     pub const fn new(foreign_key: &'static str, owner_key: &'static str) -> Self {
-        Self(RelationKeys::new(foreign_key, owner_key), None)
+        Self(RelationKeys::new(foreign_key, owner_key), None, None)
+    }
+
+    /// Names the relationship cache entry updated by association.
+    #[must_use]
+    pub const fn named(mut self, name: &'static str) -> Self {
+        self.2 = Some(name);
+        self
     }
 
     /// Configures an unsaved owner for children without a matching owner.
@@ -56,14 +69,27 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
                 "mixed relationship connections",
             ));
         }
+        update_association_cache::<Self>(model, self.2, || {
+            Some(Some(Arc::new(R::from_state(related.state().clone()))))
+        });
         model.setAttribute(self.0.parent, value.clone());
-        model.state_mut().relations.clear();
         Ok(())
     }
 
+    /// Sets the foreign key and invalidates the cached owner.
+    pub fn associateKey(&self, model: &mut P, key: impl Into<Value>) {
+        update_association_cache::<Self>(model, self.2, || None);
+        model.setAttribute(self.0.parent, key);
+    }
+
     pub fn dissociate(&self, model: &mut P) {
+        update_association_cache::<Self>(model, self.2, || Some(None));
         model.setAttribute(self.0.parent, Value::Null);
-        model.state_mut().relations.clear();
+    }
+
+    /// Alias for `dissociate`.
+    pub fn disassociate(&self, model: &mut P) {
+        self.dissociate(model);
     }
 
     pub(in crate::database::eloquent) async fn touch_owner(
