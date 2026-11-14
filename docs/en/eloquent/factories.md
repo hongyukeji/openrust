@@ -628,11 +628,13 @@ Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upst
 
 With `en-US`, `fr-FR`, `it-IT`, and `ja-JP`, `name()`, `firstName()`, and `lastName()` use the pinned Person templates and catalogs. The Company templates use the same surnames. `firstNameWithGender` and `nameWithGender` share their corresponding `unique` history with the no-argument methods.
 
+The same Person behavior also applies to `ar-SA`, `de-DE`, `fa-IR`, `nl-NL`, `pt-BR`, `pt-PT`, `tr-TR`, `zh-Hans`, and `zh-Hant`. Dutch Person and Company formatters share the pinned surname categories, weighted 1:10:5:10 for long, common Dutch, common foreign, and general Dutch surnames.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn person_name_sample() -> DatabaseResult<String> {
-    fake(Some("ja-JP"))?.unique(false).name()
+    fake(Some("nl-NL"))?.unique(false).name()
 }
 ```
 

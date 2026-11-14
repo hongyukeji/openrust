@@ -34,7 +34,7 @@ mod nordic;
 mod iberian;
 
 #[path = "faker_company_dutch.rs"]
-mod dutch;
+pub(super) mod dutch;
 
 #[path = "faker_company_central.rs"]
 mod central;

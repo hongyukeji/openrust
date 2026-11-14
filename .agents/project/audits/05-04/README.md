@@ -906,3 +906,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `86452513`。PHP 8.5 比对 1,025 条姓氏及已有全名模板，并运行 2,048 组上游姓名、名字、姓氏及称谓样本。Rust 1.94.0 格式、全目标严格 Clippy、32 项 Faker 测试、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读四地共二十条 Person 和 Company 样本。实际 `./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。站点保留已有分块大小提示。
 
 隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%，项目卷剩余 81 GiB。下一批核对其余已接入 Person 地区，含荷兰姓氏分类权重，然后核对 Internet 用户名。
+
+## Faker 九地姓名及荷兰姓氏权重
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [Person provider](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider) 及[荷兰 Person](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_NL/Person.php)。接入沙特、德国、伊朗、荷兰、巴西、葡萄牙、土耳其、简体中文和繁体中文地区的无参 `name()`、`firstName()`、`lastName()`，沿用已核对的名字、全名模板和称谓。荷兰复用 Company 现有四个词表和 1:10:5:10 分类权重。台湾名字保留一或两个字符的等权抽样。Rust 保留显式性别入口及共享去重历史。v0.x 未发现等价实现，启动与编译式工厂接线保持原有路径。
+
+隔离基线 `e4b549b2`。PHP 8.5 比对 3,432 条姓氏及现有姓名模板，验证 4,608 组上游样本。Rust 1.94.0 格式、全目标严格 Clippy、33 项 Faker、49 项 Seeder 和 MySQL 8.4.13／SQLite 两项工厂回归通过。实际 `main artisan db:seed --database=mysql --force` 写入并回读九地 45 条姓名及公司名称。实际 `./artisan inspire`、三语示例编译、VitePress 与六项浏览器检查通过。站点保留已有分块大小提示。
+
+隔离副本原始 Seeder 已恢复。清理本批独占 Cargo 产物 2.2 GiB 和站点产物 39 MiB，提交前额度剩余 47%，项目卷剩余 81 GiB。现有十三个地区 Person 词表已接入公开姓名入口。后续核对 Internet 用户名，以及尚未接入公开姓名入口的其他 Person 地区。

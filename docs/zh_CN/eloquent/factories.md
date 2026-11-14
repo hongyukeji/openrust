@@ -628,11 +628,13 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 `en-US`、`fr-FR`、`it-IT` 和 `ja-JP` 的 `name()`、`firstName()` 与 `lastName()` 使用固定 Person 模板和词表。公司模板共享同一套姓氏。`firstNameWithGender` 和 `nameWithGender` 与对应的无参方法共享 `unique` 历史。
 
+`ar-SA`、`de-DE`、`fa-IR`、`nl-NL`、`pt-BR`、`pt-PT`、`tr-TR`、`zh-Hans` 和 `zh-Hant` 也使用对应的 Person 模板和词表。荷兰 Person 与 Company 使用同一套姓氏抽样规则，长姓、常见荷兰姓、常见外来姓和一般荷兰姓的权重依次为 1:10:5:10。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn person_name_sample() -> DatabaseResult<String> {
-    fake(Some("ja-JP"))?.unique(false).name()
+    fake(Some("nl-NL"))?.unique(false).name()
 }
 ```
 

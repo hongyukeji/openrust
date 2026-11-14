@@ -1721,3 +1721,45 @@ fn person_and_company_share_the_pinned_surnames() {
         }
     }
 }
+
+#[test]
+fn localized_person_surname_catalogs_are_used_by_public_formatters() {
+    use std::collections::HashSet;
+
+    let cases = [
+        ("ar-SA", 51, "العتيبي"),
+        ("de-DE", 500, "Ackermann"),
+        ("fa-IR", 346, "آختاچی"),
+        ("pt-BR", 182, "Abreu"),
+        ("pt-PT", 96, "Abreu"),
+        ("tr-TR", 197, "Abacı"),
+        ("zh-CN", 297, "李"),
+        ("zh-TW", 504, "趙"),
+    ];
+    for (locale, count, expected) in cases {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: HashSet<_> = (0..count).map(|_| unique.lastName().unwrap()).collect();
+        assert_eq!(actual.len(), count);
+        assert!(actual.contains(expected));
+        assert!(faker.uniqueWithRetries(false, 1).lastName().is_err());
+        assert!(actual.contains(&faker.lastName()));
+    }
+
+    let dutch = fake(Some("nl-NL")).unwrap();
+    let surnames: HashSet<_> = (0..12_000).map(|_| dutch.lastName()).collect();
+    for expected in ["Albinus genaamd Weiss von Weissenlöw", "de Jong", "Yilmaz"] {
+        assert!(surnames.contains(expected));
+    }
+    assert!(!surnames.contains("Doe"));
+
+    for locale in ["zh-Hans", "zh-Hant"] {
+        let faker = fake(Some(locale)).unwrap();
+        for _ in 0..64 {
+            let name = faker.name();
+            assert!(name.chars().all(|character| !character.is_ascii()));
+            let first = faker.firstName();
+            assert!((1..=2).contains(&first.chars().count()));
+        }
+    }
+}

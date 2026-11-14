@@ -1636,6 +1636,16 @@ const BELGIAN_SURNAMES: &[&str] = &[
     "Yilmaz",
 ];
 
+pub(in crate::database::eloquent::factories::faker) fn dutch_surname() -> &'static str {
+    let names = match fastrand::u8(0..26) {
+        0 => LONG_SURNAMES,
+        1..=10 => COMMON_DUTCH_SURNAMES,
+        11..=15 => COMMON_FOREIGN_SURNAMES,
+        _ => DUTCH_SURNAMES,
+    };
+    sample(names)
+}
+
 pub(super) fn company(locale: &str) -> Option<String> {
     match locale {
         "nl_NL" => {
@@ -1643,13 +1653,7 @@ pub(super) fn company(locale: &str) -> Option<String> {
                 0 => format!("{} {}", sample(PRODUCTS), sample(TYPES)),
                 1 => format!("{}{}", sample(PRODUCTS), sample(TYPES).to_ascii_lowercase()),
                 _ => {
-                    let names = match fastrand::u8(0..26) {
-                        0 => LONG_SURNAMES,
-                        1..=10 => COMMON_DUTCH_SURNAMES,
-                        11..=15 => COMMON_FOREIGN_SURNAMES,
-                        _ => DUTCH_SURNAMES,
-                    };
-                    format!("{} {}", sample(STORES), sample(names))
+                    format!("{} {}", sample(STORES), dutch_surname())
                 }
             };
             if fastrand::bool() {

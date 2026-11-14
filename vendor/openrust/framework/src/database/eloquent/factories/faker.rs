@@ -654,20 +654,23 @@ impl Faker {
     }
 
     pub fn name(&self) -> String {
-        if faker_person::surnames(self.locale()).is_some() {
+        if self.locale() == "nl_NL" || faker_person::surnames(self.locale()).is_some() {
             return self.nameWithGender(None);
         }
         generate!(self.locale(), faker::name::raw::Name,)
     }
 
     pub fn firstName(&self) -> String {
-        if faker_person::surnames(self.locale()).is_some() {
+        if self.locale() == "nl_NL" || faker_person::surnames(self.locale()).is_some() {
             return self.firstNameWithGender(None);
         }
         generate!(self.locale(), faker::name::raw::FirstName,)
     }
 
     pub fn lastName(&self) -> String {
+        if self.locale() == "nl_NL" {
+            return company::dutch::dutch_surname().to_owned();
+        }
         if let Some(surnames) = faker_person::surnames(self.locale()) {
             return surnames[fastrand::usize(..surnames.len())].to_owned();
         }
