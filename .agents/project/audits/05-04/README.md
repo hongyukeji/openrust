@@ -1340,3 +1340,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `eda080b2`。PHP 8.5.12 反射核对 7 份词表的顺序与重复项，并用固定 FakerPHP 抽验 256 个样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 257 行，覆盖三行与四行地址、词表组合及三语共用示例。Rust 回归遍历 497 个邮编和 89 个郡名并验证唯一值耗尽。
 
 81 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。原始 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 41 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续核对其他英语及地区 Address provider。
+
+## 南非、乌干达和尼日利亚英语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [南非](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_ZA/Address.php)、[乌干达](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_UG/Address.php)及[尼日利亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_NG/Address.php) Address。南非覆盖城市后缀、省份、简称及四位邮编。乌干达覆盖城市、地区、行政区和一至五位邮编，完整地址沿用上游继承的美国州简称。尼日利亚从基础 Address 继承城市、街道和楼号模板，覆盖国家、州郡、地区与两种五位邮编。Rust 的地区方法通过 `Result` 表达不支持的地区并支持 `unique`。v0.x 未发现对应 Faker 地址实现，编译式工厂装配无需改动。
+
+隔离基线 `4d64bda8`。PHP 8.5.12 反射核对 11 份词表的顺序与重复项，其中两个南非词表与美国完全一致并复用。固定 FakerPHP 抽验 384 个样本，真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 回读 385 行，覆盖三地模板、继承字段及三语共用示例。Rust 回归验证乌干达地区的唯一值耗尽和无效地区调用。
+
+82 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 41 MiB。提交前周额度剩余 39%，项目卷可用 80 GiB。05-04 继续核对其他英语及地区 Address provider。

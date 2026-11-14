@@ -3849,3 +3849,30 @@ fn british_address_uses_fixed_postcodes_and_both_street_layouts() {
     assert!(unique.county().is_err());
     assert!(fake(Some("en-US")).unwrap().county().is_err());
 }
+
+#[test]
+fn african_english_address_providers_keep_regional_fields() {
+    let south_africa = fake(Some("en-ZA")).unwrap();
+    let uganda = fake(Some("en-UG")).unwrap();
+    let nigeria = fake(Some("en-NG")).unwrap();
+    let south_african_line = Regex::new(r", (EC|FS|GP|KZN|LP|MP|NW|NC|WC) [0-9]{4}$").unwrap();
+    let nigerian_postcode = Regex::new(r"^[0-9]{2} ?[0-9]{3}$").unwrap();
+    for _ in 0..64 {
+        assert!(south_african_line.is_match(&south_africa.address()));
+        let postcode = uganda.postcode();
+        assert!(
+            (1..=5).contains(&postcode.len()) && postcode.bytes().all(|byte| byte.is_ascii_digit())
+        );
+        assert!(uganda.district().is_ok());
+        assert!(nigerian_postcode.is_match(&nigeria.postcode()));
+        assert!(nigeria.city().ends_with("Ville"));
+        assert!(nigeria.streetName().ends_with(" Street"));
+        assert!(nigeria.county().is_ok());
+    }
+    let unique = uganda.uniqueWithRetries(true, 128);
+    let mut regions: Vec<_> = (0..4).map(|_| unique.region().unwrap()).collect();
+    regions.sort_unstable();
+    assert_eq!(regions, ["Central", "East", "North", "West"]);
+    assert!(unique.region().is_err());
+    assert!(nigeria.district().is_err());
+}

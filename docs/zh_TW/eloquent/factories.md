@@ -828,6 +828,17 @@ fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+南非英語使用當地省份、簡稱、城市後綴和四位郵遞區號。烏干達英語提供 `cityName()`、`district()` 和 `region()`，郵遞區號為一至五位。奈及利亞英語提供 `county()` 和 `region()`，五位郵遞區號可含空格。上述地區方法皆支援 `unique`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("en-UG"))?;
+    Ok((faker.address(), faker.unique(false).district()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

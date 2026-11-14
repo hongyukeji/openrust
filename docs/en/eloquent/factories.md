@@ -828,6 +828,17 @@ fn british_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+South African English uses its own province names, abbreviations, city suffixes, and four-digit postcodes. Ugandan English offers `cityName()`, `district()`, and `region()` and samples one- to five-digit postcodes. Nigerian English offers `county()` and `region()` and supports both spaced and unspaced five-digit postcodes. All these regional formatters support `unique`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("en-UG"))?;
+    Ok((faker.address(), faker.unique(false).district()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
