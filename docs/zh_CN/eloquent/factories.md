@@ -906,6 +906,17 @@ fn vietnamese_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+泰语地址分两行。第一行是门牌号和道路名，道路名由前缀与词表条目组成。第二行是由人名生成的城市名、逗号及五位邮编。门牌号可以含斜杠和前导零。`province()` 可单独生成省名。道路前缀和省名支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("th-TH"))?;
+    Ok((faker.address(), faker.unique(false).province()?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

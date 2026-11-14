@@ -1396,3 +1396,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、88 项 Faker、49 项 See
 隔离基线 `a38dce57`。PHP 反射核对 12 份词表和带重复项的模板，按上游名字、前缀、数字和行政区词表审查 160 个实际 PHP 样本。MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入、顺序回读并核对 161 行，包含三语共用示例及三种地址。Rust 回归覆盖村组前缀、无效地区和唯一县前缀耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、89 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对泰语及其他地区 Address。
+
+## 泰语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [泰语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/th_TH/Address.php) 和 Person 词表。完整地址保留两行结构、五种门牌号模板、道路词表、四种城市名模板和五位邮编。省名可单独生成。Rust 沿用 Result 表达地区可用性，已有 unique 接口覆盖泰语道路前缀和省名。v0.x 无对应地址模块，编译式装配沿用现有路径。
+
+隔离基线 `b6d30616`。PHP 反射核对七份词表和门牌模板，对照固定 Person 词表验证 160 个实际 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入、顺序回读并验证 161 行，包含三语共用示例。回归覆盖道路前缀唯一值耗尽、斜杠门牌及两行分隔。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、90 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径和 /docs/ 的 12 项浏览器检查及六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对印尼语及马来语 Address。

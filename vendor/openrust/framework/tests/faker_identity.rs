@@ -4102,3 +4102,32 @@ fn vietnamese_address_preserves_urban_rural_and_inherited_prefix_formats() {
     assert!(unique.districtPrefix().is_err());
     assert!(fake(Some("ko-KR")).unwrap().hamletName().is_err());
 }
+
+#[test]
+fn thai_addresses_preserve_road_prefixes_and_postcode_separators() {
+    use std::collections::HashSet;
+
+    let faker = fake(Some("th-TH")).unwrap();
+    let prefixes = ["ซอย", "ถนน", "สะพาน", "วงเวียน", "แยก"];
+    let number = Regex::new(r"^(?:[0-9]{2,5}|[0-9]{2}/[0-9]{3})$").unwrap();
+    let postcode = Regex::new(r"^[0-9]{5}$").unwrap();
+    let mut slash = false;
+    for _ in 0..128 {
+        let address = faker.address();
+        let (street, locality) = address.split_once('\n').unwrap();
+        let (building, road) = street.split_once(' ').unwrap();
+        assert!(number.is_match(building));
+        slash |= building.contains('/');
+        assert!(prefixes.contains(&road.split_once(' ').unwrap().0));
+        let (city, postal) = locality.rsplit_once(", ").unwrap();
+        assert!(!city.is_empty() && postcode.is_match(postal));
+        assert!(!faker.province().unwrap().is_empty());
+    }
+    assert!(slash);
+    let unique = faker.unique(true);
+    let prefixes_sampled: HashSet<_> = (0..prefixes.len())
+        .map(|_| unique.streetPrefix().unwrap())
+        .collect();
+    assert_eq!(prefixes_sampled, HashSet::from(prefixes));
+    assert!(unique.streetPrefix().is_err());
+}
