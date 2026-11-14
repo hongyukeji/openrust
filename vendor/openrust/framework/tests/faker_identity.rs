@@ -3876,3 +3876,33 @@ fn african_english_address_providers_keep_regional_fields() {
     assert!(unique.region().is_err());
     assert!(nigeria.district().is_err());
 }
+
+#[test]
+fn singapore_address_preserves_street_blocks_and_literal_unit_patterns() {
+    let faker = fake(Some("en-SG")).unwrap();
+    let street = Regex::new(r"^[0-9]{2,3} .+\nSINGAPORE [0-9]{6}$").unwrap();
+    let block =
+        Regex::new(r"^Blk (?:[0-9]{2}|[0-9]{3}[A-H]?) .+\n(?:##|0#) #{2,3}\nSINGAPORE [0-9]{6}$")
+            .unwrap();
+    let mut formats = [false; 2];
+    for _ in 0..256 {
+        let address = faker.address();
+        if street.is_match(&address) {
+            formats[0] = true;
+        } else {
+            assert!(block.is_match(&address), "{address:?}");
+            formats[1] = true;
+        }
+        assert!(["##", "0#"].contains(&faker.floorNumber().unwrap()));
+        assert!(["##", "###"].contains(&faker.apartmentNumber().unwrap()));
+    }
+    assert_eq!(formats, [true; 2]);
+    assert_eq!(faker.country(), "SINGAPORE");
+    assert_eq!(faker.townName().unwrap(), "SINGAPORE");
+    assert_eq!(faker.streetPrefix().unwrap(), "Jalan");
+    assert!(faker.city().ends_with("Ville"));
+    assert!(fake(Some("en-US")).unwrap().blockNumber().is_err());
+    let unique = faker.unique(true);
+    assert_ne!(unique.floorNumber().unwrap(), unique.floorNumber().unwrap());
+    assert!(unique.floorNumber().is_err());
+}

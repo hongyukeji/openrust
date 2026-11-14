@@ -839,6 +839,17 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+新加坡英語沿用以姓氏組成的街名，並使用當地街道後綴與六位郵遞區號。完整地址可使用門牌號碼，也可使用棟號和單元列。固定版 FakerPHP 的 `floorNumber()` 與 `apartmentNumber()` 傳回原始範本字串，完整地址也保留這些字串。地區方法支援 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn singapore_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en-SG"))?;
+    Ok((faker.address(), faker.blockNumber()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

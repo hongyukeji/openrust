@@ -4510,3 +4510,19 @@ pub(super) const REGIONS_EN_NG: &[&str] = &[
     "Yenagoa",
     "Yola",
 ];
+
+pub(super) const STREET_SUFFIX_EN_SG: &[&str] = &[
+    "Alley", "Avenue", "Bridge", "Crescent", "Drive", "Grove", "Highway", "Hill", "Lane", "Link",
+    "Park", "Place", "Quay", "Road", "Walk", "Way",
+];
+
+pub(super) const BLOCK_NUMBER_EN_SG: &[&str] = &[
+    "Blk ##", "Blk ###", "Blk ###A", "Blk ###B", "Blk ###C", "Blk ###D", "Blk ###E", "Blk ###F",
+    "Blk ###G", "Blk ###H",
+];
+
+pub(super) const STREET_NUMBER_EN_SG: &[&str] = &["##", "###"];
+
+pub(super) const FLOOR_NUMBER_EN_SG: &[&str] = &["##", "0#"];
+
+pub(super) const APARTMENT_NUMBER_EN_SG: &[&str] = &["##", "###"];

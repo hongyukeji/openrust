@@ -839,6 +839,17 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+Singapore English uses inherited surname-based street names, local street suffixes, and six-digit postcodes. Full addresses use a street number or a block number and unit line. The pinned FakerPHP provider returns literal patterns from `floorNumber()` and `apartmentNumber()`, including in the full address. The regional formatters support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn singapore_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("en-SG"))?;
+    Ok((faker.address(), faker.blockNumber()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
