@@ -31,4 +31,22 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## 工廠關聯
 
-`has` 接收型別化的 `HasMany`，`r#for` 建立 `BelongsTo` 的上層模型，`forExisting` 重用已有的上層模型，`hasAttached` 建立多對多關聯並填入中介表屬性。每個子模型各自建立新的上層模型，`make` 也遵循這條規則。關聯按順序寫入。後續關聯失敗時，先前的寫入可能保留。
+`has` 接受 `HasOne`、`HasMany`、`MorphOne` 或 `MorphMany`。用 `r#for` 建立 `BelongsTo` 或 `MorphTo` 的上層模型，用 `forExisting` 關聯既有模型。每次批次呼叫只解析一次上層模型，`make` 也遵循這項規則。再次呼叫會產生新的上層模型。`MorphTo` 描述元需要登錄目標模型與對應別名。`hasAttached` 接受 `BelongsToMany` 或 `MorphToMany` 並寫入中介表屬性。寫入依序執行。後續關聯失敗時，先前的寫入可能保留。
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::MorphTo},
+    seeder::SeederContext,
+};
+
+pub async fn seed_comments<C: Model, P: Model>(
+    context: &SeederContext<'_>,
+    comments: Factory<C>,
+    posts: Factory<P>,
+    subject: MorphTo<C>,
+) -> DatabaseResult<()> {
+    comments.r#for(subject, posts).count(3).createOn(context.connection()).await?;
+    Ok(())
+}
+```

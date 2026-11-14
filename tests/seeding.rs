@@ -15,6 +15,11 @@ use openrust::{
     contracts::{container::Container as _, foundation::Application as _},
     database::{
         Connection, DatabaseError, DatabaseFuture, DatabaseManager, DatabaseResult, Value,
+        eloquent::{
+            Attributes, Model, ModelMetadata, ModelState,
+            factories::Factory,
+            relations::{MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
+        },
         migrations::{Migration, MigrationContext, MigrationEntry, MigrationRegistry},
         query::Record,
         seeder::{Seeder, SeederContext, SeederEntry, SeederRegistry},
@@ -122,6 +127,99 @@ impl Seeder for Recursive {
     }
 }
 
+struct FactoryOwner(ModelState);
+struct FactoryChild(ModelState);
+
+macro_rules! factory_model {
+    ($model:ident, $table:literal) => {
+        impl Model for $model {
+            fn metadata() -> &'static ModelMetadata {
+                static METADATA: ModelMetadata = ModelMetadata::new($table).timestamps(None, None);
+                &METADATA
+            }
+
+            fn from_state(state: ModelState) -> Self {
+                Self(state)
+            }
+            fn state(&self) -> &ModelState {
+                &self.0
+            }
+            fn state_mut(&mut self) -> &mut ModelState {
+                &mut self.0
+            }
+        }
+    };
+}
+
+factory_model!(FactoryOwner, "seed_factory_owners");
+factory_model!(FactoryChild, "seed_factory_children");
+
+struct PolymorphicFactories;
+impl Seeder for PolymorphicFactories {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async {
+            let connection = context.connection();
+            assert_eq!(connection.getName(), "alternate");
+            let owners = || Factory::<FactoryOwner>::new(Attributes::new);
+            let children = || Factory::<FactoryChild>::new(Attributes::new);
+            let subject = || {
+                MorphTo::<FactoryChild>::new("owner_type", "owner_id")
+                    .target::<FactoryOwner>("seed-owner", "id")
+            };
+            let parented = children().r#for(subject(), owners()).count(2);
+            let first = parented.createOn(connection).await?;
+            let second = parented.createOn(connection).await?;
+            assert_eq!(
+                first[0].getAttribute("owner_id"),
+                first[1].getAttribute("owner_id")
+            );
+            assert_ne!(
+                first[0].getAttribute("owner_id"),
+                second[0].getAttribute("owner_id")
+            );
+            assert_eq!(
+                second[0].getAttribute("owner_id"),
+                second[1].getAttribute("owner_id")
+            );
+            assert_eq!(
+                first[0].getAttribute("owner_type"),
+                Some(&"seed-owner".into())
+            );
+
+            let owner = owners()
+                .has(
+                    MorphMany::new("id", "owner_id", "owner_type", "seed-owner"),
+                    children().count(2),
+                )
+                .hasAttached(
+                    MorphToMany::new(
+                        "seed_factory_links",
+                        "owner_id",
+                        "child_id",
+                        "id",
+                        "id",
+                        "owner_type",
+                        "seed-owner",
+                    ),
+                    children().count(1),
+                    Attributes::from([("label".into(), "attached".into())]),
+                )
+                .createOn(connection)
+                .await?;
+            let draft = children()
+                .forExisting(subject(), owner)
+                .makeOn(connection)
+                .await?;
+            assert_eq!(draft.getAttribute("owner_type"), Some(&"seed-owner".into()));
+            assert!(!draft.state().exists());
+            Ok(())
+        })
+    }
+}
+
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -138,7 +236,13 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("ParameterSeeder", &Insert("fallback")),
                 SeederEntry::new("FailingSeeder", &Failing),
                 SeederEntry::new("RecursiveSeeder", &Recursive),
+                SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
             ];
+            MorphMap::morphMap(
+                app,
+                [MorphMapEntry::model::<FactoryOwner>("seed-owner")],
+                true,
+            )?;
             app.container()
                 .instance(Arc::new(MigrationRegistry(MIGRATIONS)))?;
             app.container()
@@ -339,6 +443,69 @@ async fn artisan_seeders_write_to_real_mysql() {
         return;
     };
     verify(Some(&url), false).await;
+}
+
+#[tokio::test]
+async fn artisan_seeder_persists_polymorphic_factory_relationships_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = root.connection(Some(&url), "");
+    let mut schema = db.getSchemaBuilder();
+    for table in [
+        "seed_factory_links",
+        "seed_factory_children",
+        "seed_factory_owners",
+    ] {
+        schema.dropIfExists(table).await.unwrap();
+    }
+    for sql in [
+        "CREATE TABLE seed_factory_owners (id BIGINT AUTO_INCREMENT PRIMARY KEY)",
+        "CREATE TABLE seed_factory_children (id BIGINT AUTO_INCREMENT PRIMARY KEY, owner_id BIGINT, owner_type VARCHAR(40))",
+        "CREATE TABLE seed_factory_links (owner_id BIGINT NOT NULL, child_id BIGINT NOT NULL, owner_type VARCHAR(40) NOT NULL, label VARCHAR(40) NOT NULL)",
+    ] {
+        db.statement(sql, &[]).await.unwrap();
+    }
+    success(root.fixture(
+        "production",
+        Some(&url),
+        &[
+            "db:seed",
+            "--database=alternate",
+            "--class=PolymorphicFactories",
+            "--force",
+        ],
+    ));
+    assert_eq!(db.table("seed_factory_owners").count("*").await.unwrap(), 3);
+    assert_eq!(
+        db.table("seed_factory_children").count("*").await.unwrap(),
+        7
+    );
+    assert_eq!(
+        db.table("seed_factory_children")
+            .r#where("owner_type", "=", "seed-owner")
+            .count("*")
+            .await
+            .unwrap(),
+        6
+    );
+    assert_eq!(
+        db.table("seed_factory_links")
+            .r#where("owner_type", "=", "seed-owner")
+            .pluck("label")
+            .await
+            .unwrap(),
+        ["attached".into()]
+    );
+    for table in [
+        "seed_factory_links",
+        "seed_factory_children",
+        "seed_factory_owners",
+    ] {
+        schema.drop(table).await.unwrap();
+    }
 }
 
 #[tokio::test]

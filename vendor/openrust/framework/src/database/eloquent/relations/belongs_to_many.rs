@@ -973,6 +973,10 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         Ok(rows)
     }
 
+    pub(in crate::database::eloquent) fn related_key(&self) -> &'static str {
+        self.keys.related
+    }
+
     pub async fn attach(&self, parent: &P, keys: &[Value]) -> DatabaseResult<()> {
         self.attachWith(parent, keys, Attributes::new()).await
     }

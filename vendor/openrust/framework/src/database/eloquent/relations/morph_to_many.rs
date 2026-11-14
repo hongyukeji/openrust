@@ -148,6 +148,12 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
     }
 }
 
+impl<P: Model, R: Model> From<MorphToMany<P, R>> for BelongsToMany<P, R> {
+    fn from(relation: MorphToMany<P, R>) -> Self {
+        relation.0
+    }
+}
+
 impl<P: Model, R: Model> Deref for MorphToMany<P, R> {
     type Target = BelongsToMany<P, R>;
 

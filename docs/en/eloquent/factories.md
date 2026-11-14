@@ -31,4 +31,22 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
 
 ## Factory Relationships
 
-Use `has` for a typed `HasMany`, `r#for` for a new `BelongsTo` owner, `forExisting` for a previously created owner, and `hasAttached` for many-to-many records and their pivot attributes. A factory for a new owner runs once per generated child, including during `make`. Writes are sequential. If a later relation fails, earlier writes can remain.
+Use `has` with `HasOne`, `HasMany`, `MorphOne` or `MorphMany`. Use `r#for` to generate a `BelongsTo` or `MorphTo` owner, or `forExisting` to associate an existing model. A batch resolves each generated owner once, including when using `make`. A new invocation resolves a new owner. A `MorphTo` descriptor must include the owner target and its mapped alias. `hasAttached` accepts a `BelongsToMany` or `MorphToMany` descriptor and writes the pivot attributes. Writes are sequential. If a later relation fails, earlier writes can remain.
+
+```rust
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::Factory, relations::MorphTo},
+    seeder::SeederContext,
+};
+
+pub async fn seed_comments<C: Model, P: Model>(
+    context: &SeederContext<'_>,
+    comments: Factory<C>,
+    posts: Factory<P>,
+    subject: MorphTo<C>,
+) -> DatabaseResult<()> {
+    comments.r#for(subject, posts).count(3).createOn(context.connection()).await?;
+    Ok(())
+}
+```

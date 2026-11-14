@@ -1,13 +1,12 @@
 //! Eloquent model factories for seeders and tests.
 
-use std::sync::Arc;
+use std::{any::Any, sync::Arc};
+
+use tokio::sync::OnceCell;
 
 use crate::database::{Connection, DB, DatabaseError, DatabaseFuture, DatabaseResult, Value};
 
-use super::{
-    Attributes, Collection, Model, casts,
-    relations::{BelongsTo, BelongsToMany, HasMany},
-};
+use super::{Attributes, Collection, Model, casts, relations::BelongsToMany};
 
 type Definition = dyn Fn() -> Attributes + Send + Sync;
 type State = dyn Fn(&Attributes, usize) -> Attributes + Send + Sync;
@@ -15,6 +14,15 @@ type Callback<M> = dyn Fn(&mut M) -> DatabaseResult<()> + Send + Sync;
 type Relationship<M> = dyn for<'a> Fn(&'a Connection, &'a mut M) -> DatabaseFuture<'a, DatabaseResult<()>>
     + Send
     + Sync;
+
+mod relationships;
+
+pub use relationships::{FactoryChild, FactoryParent};
+
+type Parent<M> = dyn for<'a> Fn(&'a Connection, &'a mut M, &'a ParentCache) -> DatabaseFuture<'a, DatabaseResult<()>>
+    + Send
+    + Sync;
+type ParentCache = OnceCell<Box<dyn Any + Send + Sync>>;
 
 /// Associates a model with the factory definition chosen by its application.
 pub trait HasFactory: Model {
@@ -25,7 +33,7 @@ pub trait HasFactory: Model {
 pub struct Factory<M: Model> {
     definition: Box<Definition>,
     states: Vec<Box<State>>,
-    parents: Vec<Box<Relationship<M>>>,
+    parents: Vec<Box<Parent<M>>>,
     children: Vec<Box<Relationship<M>>>,
     after_making: Vec<Box<Callback<M>>>,
     after_creating: Vec<Box<Callback<M>>>,
@@ -89,16 +97,28 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn has<R: Model>(mut self, relation: HasMany<M, R>, children: FactoryBatch<R>) -> Self {
+    pub fn has<R: Model>(
+        mut self,
+        relation: impl FactoryChild<M, R>,
+        children: FactoryBatch<R>,
+    ) -> Self {
         let relation = Arc::new((relation, children));
         self.children.push(Box::new(move |connection, parent| {
             let relation = Arc::clone(&relation);
             Box::pin(async move {
                 let (relation, children) = &*relation;
                 let connection = related_connection::<R>(connection)?;
+                let cache = children.factory.parent_cache();
                 for index in 0..children.count {
-                    let mut child = children.factory.make_one(&connection, index).await?;
-                    relation.save(parent, &mut child).await?;
+                    let mut child = children
+                        .factory
+                        .make_one(&connection, index, &cache)
+                        .await?;
+                    if !relation.save(parent, &mut child).await? {
+                        return Err(DatabaseError::InvalidQuery(
+                            "factory child creation cancelled",
+                        ));
+                    }
                     children.factory.complete(&connection, &mut child).await?;
                 }
                 Ok(())
@@ -108,24 +128,34 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn r#for<R: Model>(mut self, relation: BelongsTo<M, R>, owner: Factory<R>) -> Self {
+    pub fn r#for<R: Model>(
+        mut self,
+        relation: impl FactoryParent<M, R>,
+        owner: Factory<R>,
+    ) -> Self {
         let relation = Arc::new((relation, owner));
-        self.parents.push(Box::new(move |connection, model| {
+        self.parents.push(Box::new(move |connection, model, cache| {
             let relation = Arc::clone(&relation);
             Box::pin(async move {
                 let (relation, owner) = &*relation;
-                let connection = related_connection::<R>(connection)?;
-                let owner = owner.createOn(&connection).await?;
-                relation.associate(model, &owner)
+                let owner = cache
+                    .get_or_try_init(|| async {
+                        let connection = related_connection::<R>(connection)?;
+                        let model = owner.createOn(&connection).await?;
+                        Ok::<Box<dyn Any + Send + Sync>, DatabaseError>(Box::new(model))
+                    })
+                    .await?;
+                let owner = owner.downcast_ref::<R>().expect("factory owner cache type");
+                relation.associate(model, owner)
             })
         }));
         self
     }
 
     #[must_use]
-    pub fn forExisting<R: Model>(mut self, relation: BelongsTo<M, R>, owner: R) -> Self {
+    pub fn forExisting<R: Model>(mut self, relation: impl FactoryParent<M, R>, owner: R) -> Self {
         let relation = Arc::new((relation, owner));
-        self.parents.push(Box::new(move |_, model| {
+        self.parents.push(Box::new(move |_, model, _| {
             let relation = Arc::clone(&relation);
             Box::pin(async move { relation.0.associate(model, &relation.1) })
         }));
@@ -135,11 +165,11 @@ impl<M: Model> Factory<M> {
     #[must_use]
     pub fn hasAttached<R: Model>(
         mut self,
-        relation: BelongsToMany<M, R>,
+        relation: impl Into<BelongsToMany<M, R>>,
         models: FactoryBatch<R>,
         pivot: Attributes,
     ) -> Self {
-        let relation = Arc::new((relation, models, pivot));
+        let relation = Arc::new((relation.into(), models, pivot));
         self.children.push(Box::new(move |connection, parent| {
             let relation = Arc::clone(&relation);
             Box::pin(async move {
@@ -150,7 +180,7 @@ impl<M: Model> Factory<M> {
                     .iter()
                     .map(|model| {
                         model
-                            .getKey()
+                            .getAttribute(relation.related_key())
                             .filter(|key| !matches!(key, Value::Null))
                             .cloned()
                             .ok_or(DatabaseError::InvalidQuery("factory related primary key"))
@@ -168,7 +198,7 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.make_one(connection, 0).await
+        self.make_one(connection, 0, &self.parent_cache()).await
     }
 
     pub async fn create(&self) -> DatabaseResult<M> {
@@ -177,10 +207,19 @@ impl<M: Model> Factory<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<M> {
-        self.create_one(connection, 0).await
+        self.create_one(connection, 0, &self.parent_cache()).await
     }
 
-    async fn make_one(&self, connection: &Connection, index: usize) -> DatabaseResult<M> {
+    fn parent_cache(&self) -> Vec<ParentCache> {
+        self.parents.iter().map(|_| OnceCell::new()).collect()
+    }
+
+    async fn make_one(
+        &self,
+        connection: &Connection,
+        index: usize,
+        cache: &[ParentCache],
+    ) -> DatabaseResult<M> {
         let mut attributes = (self.definition)();
         for state in &self.states {
             let changes = state(&attributes, index);
@@ -188,8 +227,8 @@ impl<M: Model> Factory<M> {
         }
         let mut model = M::from_state(Default::default());
         model.state_mut().connection = Some(connection.clone());
-        for parent in &self.parents {
-            parent(connection, &mut model).await?;
+        for (parent, cache) in self.parents.iter().zip(cache) {
+            parent(connection, &mut model, cache).await?;
         }
         // Parent keys provide defaults. Factory states and explicit overrides can replace them.
         let mut raw = model.state().attributes.clone();
@@ -210,9 +249,18 @@ impl<M: Model> Factory<M> {
         Ok(model)
     }
 
-    async fn create_one(&self, connection: &Connection, index: usize) -> DatabaseResult<M> {
-        let mut model = self.make_one(connection, index).await?;
-        model.save().await?;
+    async fn create_one(
+        &self,
+        connection: &Connection,
+        index: usize,
+        cache: &[ParentCache],
+    ) -> DatabaseResult<M> {
+        let mut model = self.make_one(connection, index, cache).await?;
+        if !model.save().await? {
+            return Err(DatabaseError::InvalidQuery(
+                "factory model creation cancelled",
+            ));
+        }
         self.complete(connection, &mut model).await?;
         Ok(model)
     }
@@ -249,9 +297,10 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn makeOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        let mut models = Vec::new();
+        let mut models = Vec::with_capacity(self.count);
+        let cache = self.factory.parent_cache();
         for index in 0..self.count {
-            models.push(self.factory.make_one(connection, index).await?);
+            models.push(self.factory.make_one(connection, index, &cache).await?);
         }
         Ok(M::newCollection(models))
     }
@@ -262,9 +311,10 @@ impl<M: Model> FactoryBatch<M> {
     }
 
     pub async fn createOn(&self, connection: &Connection) -> DatabaseResult<Collection<M>> {
-        let mut models = Vec::new();
+        let mut models = Vec::with_capacity(self.count);
+        let cache = self.factory.parent_cache();
         for index in 0..self.count {
-            models.push(self.factory.create_one(connection, index).await?);
+            models.push(self.factory.create_one(connection, index, &cache).await?);
         }
         Ok(M::newCollection(models))
     }
