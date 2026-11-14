@@ -3567,3 +3567,126 @@ fn php_date_formats_preserve_native_formats_and_share_unique_history() {
         "Asia/Kathmandu +0530 +05:30"
     );
 }
+
+#[test]
+fn zoned_date_formatters_keep_the_interval_and_zone_identity() {
+    use chrono::{DateTime, TimeDelta, Utc};
+    use chrono_tz::{
+        America::New_York,
+        Asia::{Shanghai, Taipei},
+        Etc, UTC,
+    };
+
+    let faker = fake(Some("en-US")).unwrap();
+    let epoch = DateTime::UNIX_EPOCH;
+    faker.setDefaultTimezone(Some(Shanghai));
+
+    let date = faker.dateTimeBetweenInTimezone(epoch, epoch, None).unwrap();
+    assert_eq!((date.timestamp(), date.timezone()), (0, Shanghai));
+
+    let date = faker
+        .dateTimeBetweenExpressionsInTimezone("1970-01-01 00:00:00 UTC", "0", Some(New_York))
+        .unwrap();
+    assert_eq!(date.to_rfc3339(), "1969-12-31T19:00:00-05:00");
+    assert_eq!(faker.getDefaultTimezone(), Some(Shanghai));
+    assert_eq!(
+        faker
+            .dateTimeInIntervalInTimezone(Some(epoch), Some(TimeDelta::zero()), Some(UTC))
+            .unwrap()
+            .timestamp(),
+        0,
+    );
+    assert!(
+        faker
+            .dateTimeBetweenInTimezone(epoch + TimeDelta::seconds(1), epoch, Some(UTC))
+            .is_err()
+    );
+    assert!(
+        faker
+            .dateTimeInIntervalExpressionsInTimezone(
+                Some("bad date"),
+                Some("+0 seconds"),
+                Some(UTC)
+            )
+            .is_err()
+    );
+
+    let unique = faker.uniqueWithRetries(true, 2);
+    assert_eq!(unique.dateTime(Some(epoch)).unwrap(), epoch);
+    assert!(unique.dateTimeInTimezone(Some(epoch), Some(UTC)).is_err());
+    assert_eq!(
+        unique
+            .dateTimeInTimezone(Some(epoch), Some(Etc::UTC))
+            .unwrap()
+            .timezone(),
+        Etc::UTC
+    );
+    assert_eq!(
+        unique
+            .dateTimeInTimezone(Some(epoch), None)
+            .unwrap()
+            .timezone(),
+        Shanghai
+    );
+    assert_eq!(
+        unique
+            .dateTimeInTimezone(Some(epoch), Some(Taipei))
+            .unwrap()
+            .timezone(),
+        Taipei
+    );
+    assert!(
+        unique
+            .dateTimeInTimezone(Some(epoch), Some(Taipei))
+            .is_err()
+    );
+
+    assert_eq!(unique.dateTimeBetween(epoch, epoch).unwrap(), epoch);
+    assert!(
+        unique
+            .dateTimeBetweenInTimezone(epoch, epoch, Some(UTC))
+            .is_err()
+    );
+    assert_eq!(
+        unique
+            .dateTimeBetweenExpressionsInTimezone("1970-01-01 00:00:00 UTC", "0", Some(Taipei))
+            .unwrap()
+            .timezone(),
+        Taipei,
+    );
+    assert!(
+        unique
+            .dateTimeBetweenInTimezone(epoch, epoch, Some(Taipei))
+            .is_err()
+    );
+    unique
+        .dateTimeInIntervalInTimezone(Some(epoch), Some(TimeDelta::zero()), Some(UTC))
+        .unwrap();
+    assert!(
+        unique
+            .dateTimeInIntervalExpressionsInTimezone(
+                Some("1970-01-01 00:00:00 UTC"),
+                Some("+0 seconds"),
+                Some(UTC)
+            )
+            .is_err()
+    );
+    let before_fallback = DateTime::from_timestamp(1_730_611_800, 0).unwrap();
+    let after_fallback = DateTime::from_timestamp(1_730_615_400, 0).unwrap();
+    unique
+        .dateTimeBetweenInTimezone(before_fallback, before_fallback, Some(New_York))
+        .unwrap();
+    assert!(
+        unique
+            .dateTimeBetweenInTimezone(after_fallback, after_fallback, Some(New_York))
+            .is_err()
+    );
+    let ad = DateTime::<Utc>::from_timestamp(-62_135_597_361, 0).unwrap();
+    assert_eq!(
+        unique
+            .dateTimeADInTimezone(Some(ad), Some(New_York))
+            .unwrap()
+            .timestamp(),
+        ad.timestamp()
+    );
+}

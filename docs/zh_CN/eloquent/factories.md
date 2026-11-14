@@ -155,6 +155,20 @@ fn regional_date_sample() -> DatabaseResult<String> {
 
 日期字符串优先使用 `setDefaultTimezone(Some(zone))` 为当前生成器指定的时区，其次读取应用或工厂连接所属应用的 `app.timezone`，缺省为 UTC。传入 `None` 可清除覆盖，`getDefaultTimezone()` 可查看覆盖值。`dateTimeInTimezone(max, timezone)` 返回带时区的日期时间，传入 `Some(zone)` 可覆盖本次调用。日期时间方法仍返回 UTC 时刻。生成器的时区覆盖用于输出格式化，日历边界继续按应用时区计算。
 
+需要让结果携带输出时区时，使用 `dateTimeAD`、`dateTimeBetween`、`dateTimeInInterval` 和四个 `dateTimeThis…` 方法的 `InTimezone` 变体。两个日期表达式区间方法也有带时区的版本。显式时区只作用于返回值。相对表达式沿用应用时区，也可在表达式内指定时区。原方法返回 UTC。`unique` 按对应方法共享历史，并区分名称不同但 UTC 偏移相同的时区。夏令时回拨时，同一时区重复出现的本地时间按重复值处理。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn zoned_date_sample() -> DatabaseResult<String> {
+    let epoch = chrono::DateTime::UNIX_EPOCH;
+    let tokyo = "Asia/Tokyo".parse().expect("known IANA time zone");
+    Ok(fake(None)?
+        .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
+        .to_rfc3339())
+}
+```
+
 用 `dateTimeBetweenExpressions(start, end)` 传入 PHP 风格的日期表达式，例如 `"-30 years"` 和 `"now"`。两个端点共用同一参考时刻，并按应用时区解析。表达式中的显式时区优先。数字终点字符串按 Unix 时间戳解析，`"@-1"` 则是显式时间戳表达式。端点解析失败时按上游 Faker 的数值转换规则使用 Unix 零秒。起点晚于终点仍返回错误。此方法与 `dateTimeBetween` 共享 `unique` 历史。
 
 用 `dateTimeInIntervalExpressions(date, interval)` 传入 PHP 风格的相对区间，例如 `Some("+1 month")` 或 `Some("5 days ago")`。终点按起始日期所在时区的本地时间计算，跨夏令时也遵循该规则。取样结果返回 UTC。省略日期时从 30 年前开始，省略区间时使用五个日历日。区间字符串接受相对表达式，拒绝绝对日期、时间和时区标识。此方法与 `dateTimeInInterval` 共享 `unique` 历史。

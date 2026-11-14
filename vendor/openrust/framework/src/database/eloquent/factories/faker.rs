@@ -277,6 +277,50 @@ formatters! {
     word => faker::lorem::raw::Word,
 }
 
+macro_rules! zoned_date_formatters {
+    ($($zoned:ident => $base:ident($($argument:ident: $kind:ty),*) as $history:literal),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(
+                #[doc = concat!("Samples with `", stringify!($base), "` and returns the chosen output time zone.")]
+                pub fn $zoned(
+                    &self,
+                    $($argument: $kind,)*
+                    timezone: Option<Tz>,
+                ) -> DatabaseResult<DateTime<Tz>> {
+                    self.$base($($argument),*)
+                        .map(|instant| self.zoned_date(instant, timezone))
+                }
+            )+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(
+                #[doc = concat!("Samples a unique zoned value with `", stringify!($base), "`.")]
+                pub fn $zoned(
+                    &self,
+                    $($argument: $kind,)*
+                    timezone: Option<Tz>,
+                ) -> DatabaseResult<DateTime<Tz>> {
+                    self.generate_zoned($history, || self.0.$zoned($($argument,)* timezone))
+                }
+            )+
+        }
+    };
+}
+
+zoned_date_formatters! {
+    dateTimeBetweenInTimezone => dateTimeBetween(start: DateTime<Utc>, end: DateTime<Utc>) as "dateTimeBetween",
+    dateTimeBetweenExpressionsInTimezone => dateTimeBetweenExpressions(start: &str, end: &str) as "dateTimeBetween",
+    dateTimeInIntervalInTimezone => dateTimeInInterval(date: Option<DateTime<Utc>>, interval: Option<TimeDelta>) as "dateTimeInInterval",
+    dateTimeInIntervalExpressionsInTimezone => dateTimeInIntervalExpressions(date: Option<&str>, interval: Option<&str>) as "dateTimeInInterval",
+    dateTimeThisCenturyInTimezone => dateTimeThisCentury(max: Option<DateTime<Utc>>) as "dateTimeThisCentury",
+    dateTimeThisDecadeInTimezone => dateTimeThisDecade(max: Option<DateTime<Utc>>) as "dateTimeThisDecade",
+    dateTimeThisYearInTimezone => dateTimeThisYear(max: Option<DateTime<Utc>>) as "dateTimeThisYear",
+    dateTimeThisMonthInTimezone => dateTimeThisMonth(max: Option<DateTime<Utc>>) as "dateTimeThisMonth",
+}
+
 macro_rules! sample_formatters {
     ($($name:ident => $samples:ident),+ $(,)?) => {
         #[allow(non_snake_case, reason = "Matches Faker formatter names")]
@@ -2420,10 +2464,14 @@ impl Faker {
         max: Option<DateTime<Utc>>,
         timezone: Option<Tz>,
     ) -> DateTime<Tz> {
+        self.zoned_date(self.dateTime(max), timezone)
+    }
+
+    fn zoned_date(&self, instant: DateTime<Utc>, timezone: Option<Tz>) -> DateTime<Tz> {
         let timezone = timezone
-            .or(self.getDefaultTimezone())
+            .or_else(|| self.getDefaultTimezone())
             .unwrap_or(self.application_timezone);
-        self.dateTime(max).with_timezone(&timezone)
+        instant.with_timezone(&timezone)
     }
 
     pub fn date(&self, format: Option<&str>, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
@@ -2468,6 +2516,15 @@ impl Faker {
         let end = max.unwrap_or_else(Utc::now).timestamp();
         DateTime::from_timestamp(self.numberBetween(FIRST_AD_TIMESTAMP, end), 0)
             .expect("sample lies between valid timestamps")
+    }
+
+    /// Samples an AD date and returns it in the chosen output time zone.
+    pub fn dateTimeADInTimezone(
+        &self,
+        max: Option<DateTime<Utc>>,
+        timezone: Option<Tz>,
+    ) -> DateTime<Tz> {
+        self.zoned_date(self.dateTimeAD(max), timezone)
     }
 
     pub fn amPm(&self, max: Option<DateTime<Utc>>) -> String {
@@ -3493,6 +3550,16 @@ impl UniqueFaker<'_> {
         self.generate("dateTimeAD", || self.0.dateTimeAD(max))
     }
 
+    pub fn dateTimeADInTimezone(
+        &self,
+        max: Option<DateTime<Utc>>,
+        timezone: Option<Tz>,
+    ) -> DatabaseResult<DateTime<Tz>> {
+        self.generate_zoned("dateTimeAD", || {
+            Ok(self.0.dateTimeADInTimezone(max, timezone))
+        })
+    }
+
     pub fn amPm(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<String> {
         self.generate("amPm", || self.0.amPm(max))
     }
@@ -3542,8 +3609,27 @@ impl UniqueFaker<'_> {
         max: Option<DateTime<Utc>>,
         timezone: Option<Tz>,
     ) -> DatabaseResult<DateTime<Tz>> {
-        self.generate("dateTimeInTimezone", || {
-            self.0.dateTimeInTimezone(max, timezone)
+        self.generate_zoned("dateTime", || Ok(self.0.dateTimeInTimezone(max, timezone)))
+    }
+
+    fn generate_zoned(
+        &self,
+        formatter: &'static str,
+        value: impl FnMut() -> DatabaseResult<DateTime<Tz>>,
+    ) -> DatabaseResult<DateTime<Tz>> {
+        self.generate_keyed(formatter, value, |date| {
+            Ok(if date.timezone() == UTC {
+                date.with_timezone(&Utc).to_string()
+            } else {
+                // PHP serializes named DateTime results as a wall clock and a zone name.
+                let local_seconds =
+                    date.timestamp() + i64::from(date.offset().fix().local_minus_utc());
+                format!(
+                    "{local_seconds}:{} [{}]",
+                    date.timestamp_subsec_nanos(),
+                    date.timezone().name()
+                )
+            })
         })
     }
 

@@ -155,6 +155,20 @@ Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` 
 
 Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect.
 
+Use the `InTimezone` variants of `dateTimeAD`, `dateTimeBetween`, `dateTimeInInterval`, and the four `dateTimeThis…` methods when the result needs to retain its output zone. The two expression-based range methods have zoned variants too. An explicit zone controls the result only. Relative expressions keep using the application time zone unless the expression specifies its own. Zoneless calls return UTC. `unique` shares history by formatter and distinguishes named output zones, even when their UTC offsets match. A repeated local time in the same zone during a daylight-saving rollback counts as a repeat.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn zoned_date_sample() -> DatabaseResult<String> {
+    let epoch = chrono::DateTime::UNIX_EPOCH;
+    let tokyo = "Asia/Tokyo".parse().expect("known IANA time zone");
+    Ok(fake(None)?
+        .dateTimeBetweenInTimezone(epoch, epoch, Some(tokyo))?
+        .to_rfc3339())
+}
+```
+
 Use `dateTimeBetweenExpressions(start, end)` for PHP-style date expressions, such as `"-30 years"` and `"now"`. Both bounds use one reference time and the application time zone. An explicit zone in an expression takes precedence. A numeric end string is a Unix timestamp, and `"@-1"` is an explicit timestamp expression. When an endpoint fails to parse, this method uses Unix second zero, matching upstream Faker’s numeric use of PHP’s `false`. A start later than the end still returns an error. This method shares `unique` history with `dateTimeBetween`.
 
 Use `dateTimeInIntervalExpressions(date, interval)` for a PHP-style relative interval, such as `Some("+1 month")` or `Some("5 days ago")`. The end is calculated in the starting date’s time zone, using civil time across daylight-saving changes. The sampled instant is returned in UTC. Omitting the date uses 30 years ago, and omitting the interval uses five calendar days. The interval string accepts relative expressions and rejects absolute dates, times, and zone identifiers. It shares `unique` history with `dateTimeInInterval`.

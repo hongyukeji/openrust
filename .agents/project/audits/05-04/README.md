@@ -1260,3 +1260,11 @@ Rust 1.94.0 全工作区全目标严格 Clippy、49 项 Seeder 回归、MySQL／
 隔离基线 `5bda15eb`。MySQL 8.4.13 实际运行 `main artisan db:seed --database=mysql --force`，顺序回读 477 行，并与 PHP 8.5.12 逐值比较。涵盖七个时区、29 个固定纪元结果和 448 个携带采样时间戳的结果。固定值按 FakerPHP 入口对照，随机值按 PHP DateTime 对照。包含空格式、尾部反斜线、Unicode 字面量、三语示例、半小时与 45 分钟偏移。日历回归另覆盖巴黎历史秒级偏移和扩展年份。
 
 75 项 Faker、49 项 Seeder、两项日历回归、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。原 Seeder 已恢复，MySQL 容器已移除，清理本批独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。05-04 继续对账 DateTime 的显式时区返回形式、PHP 表达式及其他 formatter。
+
+## Faker DateTime 显式输出时区
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories) 与 [FakerPHP v1.24.1 DateTime](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php)。给公元日期、类型化和表达式区间以及四个日历范围补上 `InTimezone` 变体。输出时区按显式参数、生成器覆盖和应用时区取值。区间仍使用原始采样逻辑和表达式解析时区。Rust 用 `DateTime<Tz>` 保留时区名，原入口返回 `DateTime<Utc>`。按 FakerPHP 的序列化去重行为，同一方法对 UTC 版本共用历史，命名时区按当地日期时间与时区名区分。夏令时回拨的重复本地时间在同一时区识别为重复。v0.x 提供日历时区解析部件，未提供对应的 Faker 变体。Goravel 式装配无需调整。
+
+隔离基线 `385a6a61`。MySQL 8.4.13 实际运行 `main artisan db:seed --database=mysql --force`，顺序回读 51 行。用 PHP 8.5.12 和固定 FakerPHP 对照五个输出时区的纪元、公元下界、固定区间、四种日历范围上下界及三语共用示例。另对照默认的 419 个时区和全部 676 个大写两字母筛选值，247 组非空列表共 418 项与内置列表一致。回归覆盖显式覆盖、默认值、错误区间、同偏移别名、跨表达式去重及夏令时回拨。
+
+76 项 Faker、49 项 Seeder、MySQL／SQLite 两项工厂回归、全工作区全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 和六项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理，随后格式检查通过。临时 Seeder 已恢复，容器已移除。清理独占 Cargo 产物 2.4 GiB 和站点产物约 40 MiB。提交前周额度剩余 40%，项目卷可用 80 GiB。后续继续对照 DateTime 的 PHP 表达式语义及其余 formatter。
