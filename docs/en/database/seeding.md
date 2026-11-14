@@ -97,3 +97,15 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Ok(())
 }
 ```
+
+## Muting Model Events {#muting-model-events}
+
+Register the seeder with `withoutModelEvents()` to mute Eloquent model events while it runs. Child seeders called from it inherit the scope. Model events resume when it returns, including on error. Seeder progress output and factory callbacks still run.
+
+```rust
+use openrust::database::seeder::{Seeder, SeederEntry};
+
+const fn muted_entry(seeder: &'static dyn Seeder) -> SeederEntry {
+    SeederEntry::new("DatabaseSeeder", seeder).withoutModelEvents()
+}
+```

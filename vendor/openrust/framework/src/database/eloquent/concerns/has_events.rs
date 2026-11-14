@@ -110,7 +110,7 @@ tokio::task_local! {
     static SUPPRESSED: ();
 }
 
-pub(in crate::database::eloquent) async fn without_events<F: Future>(work: F) -> F::Output {
+pub(in crate::database) async fn without_events<F: Future>(work: F) -> F::Output {
     SUPPRESSED.scope((), work).await
 }
 

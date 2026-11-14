@@ -22,11 +22,24 @@ pub trait Seeder: Send + Sync {
 pub struct SeederEntry {
     name: &'static str,
     seeder: &'static dyn Seeder,
+    without_model_events: bool,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's Seeder API")]
 impl SeederEntry {
     pub const fn new(name: &'static str, seeder: &'static dyn Seeder) -> Self {
-        Self { name, seeder }
+        Self {
+            name,
+            seeder,
+            without_model_events: false,
+        }
+    }
+
+    /// Mutes Eloquent model events for this seeder and the seeders it calls.
+    #[must_use]
+    pub const fn withoutModelEvents(mut self) -> Self {
+        self.without_model_events = true;
+        self
     }
 }
 
@@ -134,14 +147,16 @@ impl SeederContext<'_> {
             stack,
             parameters,
         };
-        entry
-            .seeder
-            .run(&mut child)
-            .await
-            .map_err(|error| DatabaseError::SeederFailed {
-                seeder: entry.name.to_owned(),
-                source: Box::new(error),
-            })?;
+        let run = async { entry.seeder.run(&mut child).await };
+        let result = if entry.without_model_events {
+            super::eloquent::concerns::without_events(run).await
+        } else {
+            run.await
+        };
+        result.map_err(|error| DatabaseError::SeederFailed {
+            seeder: entry.name.to_owned(),
+            source: Box::new(error),
+        })?;
         self.called.insert(name);
         if !silent {
             writeln!(self.output.stdout, "{} DONE", entry.name).expect("writing to a String");

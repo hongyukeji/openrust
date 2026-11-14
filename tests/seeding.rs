@@ -1511,6 +1511,78 @@ impl Seeder for PolymorphicFactories {
     }
 }
 
+struct SeederEventFlow;
+struct MutedSeeder;
+struct EventModelSeeder;
+struct FailingEventSeeder;
+struct FailedSeederEventFlow;
+
+impl Seeder for EventModelSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async {
+            Factory::<FactoryChild>::new(|| {
+                Attributes::from([("generated_name".into(), "quiet-fixture".into())])
+            })
+            .createOn(context.connection())
+            .await?;
+            Ok(())
+        })
+    }
+}
+
+impl Seeder for MutedSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(context.call(&["EventModelSeeder"]))
+    }
+}
+
+impl Seeder for FailingEventSeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async {
+            context.call(&["EventModelSeeder"]).await?;
+            Err(DatabaseError::InvalidSeeder("muted fixture failure"))
+        })
+    }
+}
+
+impl Seeder for SeederEventFlow {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async {
+            assert!(context.call(&["EventModelSeeder"]).await.is_err());
+            context.call(&["MutedSeeder"]).await?;
+            assert!(context.call(&["EventModelSeeder"]).await.is_err());
+            let error = context.call(&["FailingEventSeeder"]).await.unwrap_err();
+            assert!(
+                error.to_string().contains("muted fixture failure"),
+                "{error}"
+            );
+            assert!(context.call(&["EventModelSeeder"]).await.is_err());
+            Ok(())
+        })
+    }
+}
+
+impl Seeder for FailedSeederEventFlow {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(context.call(&["FailingEventSeeder"]))
+    }
+}
+
 struct Provider;
 impl ServiceProvider for Provider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
@@ -1527,6 +1599,11 @@ impl ServiceProvider for Provider {
                 SeederEntry::new("ParameterSeeder", &Insert("fallback")),
                 SeederEntry::new("FailingSeeder", &Failing),
                 SeederEntry::new("RecursiveSeeder", &Recursive),
+                SeederEntry::new("SeederEventFlow", &SeederEventFlow),
+                SeederEntry::new("MutedSeeder", &MutedSeeder).withoutModelEvents(),
+                SeederEntry::new("EventModelSeeder", &EventModelSeeder),
+                SeederEntry::new("FailingEventSeeder", &FailingEventSeeder).withoutModelEvents(),
+                SeederEntry::new("FailedSeederEventFlow", &FailedSeederEventFlow),
                 SeederEntry::new("PolymorphicFactories", &PolymorphicFactories),
             ];
             FactoryOwner::resolveRelationUsing(app, "children", |_| {
@@ -3772,6 +3849,61 @@ async fn factory_attachment_infers_count_only_for_uncounted_factories() {
         verify_attachment_pivot_count(&root.connection(Some(&url), ""))
             .await
             .unwrap();
+    } else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+    }
+}
+
+async fn verify_seeder_events(root: &Root, mysql: Option<&str>) {
+    let connection = root.connection(mysql, "database/alternate.sqlite");
+    let mut schema = connection.getSchemaBuilder();
+    schema
+        .create("seed_factory_children", |table| {
+            table.id();
+            table.string("generated_name", 80);
+        })
+        .await
+        .unwrap();
+    let run = |name| {
+        root.fixture(
+            "production",
+            mysql,
+            &[
+                "db:seed",
+                "--database=alternate",
+                "--force",
+                "--class",
+                name,
+            ],
+        )
+    };
+    let completed = success(run("SeederEventFlow"));
+    assert!(completed.contains("MutedSeeder DONE") && completed.contains("EventModelSeeder DONE"));
+    let failed = run("FailedSeederEventFlow");
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("muted fixture failure"));
+    let rows = connection
+        .table("seed_factory_children")
+        .pluck("generated_name")
+        .await
+        .unwrap();
+    assert_eq!(
+        rows,
+        [
+            "quiet-fixture".into(),
+            "quiet-fixture".into(),
+            "quiet-fixture".into()
+        ]
+    );
+    schema.drop("seed_factory_children").await.unwrap();
+}
+
+#[tokio::test]
+async fn seeder_event_muting_covers_children_and_restores_after_errors() {
+    let root = Root::new();
+    verify_seeder_events(&root, None).await;
+    if let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") {
+        verify_seeder_events(&root, Some(&url)).await;
     } else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
     }

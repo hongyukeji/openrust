@@ -97,3 +97,15 @@ async fn seed_flights<M: Model>(context: &SeederContext<'_>) -> DatabaseResult<(
     Ok(())
 }
 ```
+
+## 静默模型事件 {#muting-model-events}
+
+注册 Seeder 时调用 `withoutModelEvents()`，可在执行期间静默 Eloquent 模型事件。它调用的子 Seeder 继承该范围。成功返回或报错后都会恢复模型事件。Seeder 进度输出与工厂回调照常执行。
+
+```rust
+use openrust::database::seeder::{Seeder, SeederEntry};
+
+const fn muted_entry(seeder: &'static dyn Seeder) -> SeederEntry {
+    SeederEntry::new("DatabaseSeeder", seeder).withoutModelEvents()
+}
+```

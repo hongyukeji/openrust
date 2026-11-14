@@ -395,3 +395,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 隔离基线 `0bf1b7a2`。实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 回查未计数序列、显式三条、显式零条、空序列及共享属性，在五种场景中合计七条关联记录。Rust 1.94.0 格式、全目标严格 Clippy、31 项 Seeder、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 清理本批隔离副本 2.2 GiB Cargo 产物与约 38 MiB 站点产物。05-04 保留未闭合状态，下一批核对 Seeder 的整棵调用链静默模型事件。
+
+## Seeder 调用链静默模型事件
+
+固定 Laravel 的 `Seeder::__invoke` 识别 `WithoutModelEvents`，并在 `Model::withoutEvents` 范围内执行。OpenRust 在编译期注册用 `SeederEntry::withoutModelEvents()` 选择同一行为，沿用从 v0.x 移植的任务局部 Eloquent 事件静默机制。普通子 Seeder 继承当前调用链范围，返回或失败后恢复。固定 Goravel 的注册、调用和签名组织提供装配参考。 [Laravel Seeder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Seeder.php#L166) · [Laravel WithoutModelEvents](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Seeds/WithoutModelEvents.php) · [Laravel 静默模型事件](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/seeding.md#muting-model-events) · [固定 Goravel Seeder](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/seeder/seeder.go)
+
+隔离基线 `29cbef89`。真实应用二进制执行 MySQL 8.4.13 `artisan db:seed --database=mysql --force`，确认子 Seeder 在静默范围内写入两条记录，成功和失败返回后同一进程的监听器重新取消普通写入。MySQL／SQLite Artisan 回归还验证未处理错误的退出码 1、错误文本和失败前写入。通过 32 项 Seeder、2 项双库工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
+
+本批隔离清理 2.2 GiB Cargo 构建产物和约 38 MiB 站点产物。05-04 仍跟踪 FakerPHP 生成器与地区行为差异。
