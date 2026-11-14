@@ -332,10 +332,12 @@ With `fr-BE`, `fr-CA`, `fr-CH`, and `it-CH`, `company()` uses the pinned regiona
 
 For `lt-LT`, `sl-SI`, and `tr-TR`, `company()` uses the pinned regional templates. Lithuanian legal designations precede the name, Slovenian sole-proprietor names end in `s.p.`, and Turkish templates can include a business field. Use `companyField()` with `tr-TR` for a field on its own. It also supports `unique`.
 
+With `ru-RU` and `kk-KZ`, company names combine a legal prefix with name elements and an optional name ending. Use `companyNameElement()` and `companyNameSuffix()` to sample those parts. `companySuffix()` still returns the inherited `Ltd`. With `uk-UA`, `companyName()` samples the base name, and `company()` can add a prefix, quoted name, or hyphenated suffix. The regional formatters support `unique`.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 65]> {
+fn identity_samples() -> DatabaseResult<[String; 68]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -348,6 +350,9 @@ fn identity_samples() -> DatabaseResult<[String; 65]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
+        fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
+        fake(Some("uk-UA"))?.companyName()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
         fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
         fake(Some("fr-CA"))?.company(),

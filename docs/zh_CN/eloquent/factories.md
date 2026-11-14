@@ -332,10 +332,12 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `lt-LT`、`sl-SI` 和 `tr-TR` 的 `company()` 使用固定上游的地区模板。立陶宛将法定类别放在名称前，斯洛文尼亚个体经营名称以 `s.p.` 结尾，土耳其模板可包含经营领域。`tr-TR` 的 `companyField()` 可单独抽样经营领域，并支持 `unique`。
 
+`ru-RU` 和 `kk-KZ` 的公司名组合了法定前缀、名称词素和可选的名称尾部。可用 `companyNameElement()` 与 `companyNameSuffix()` 单独抽样，`companySuffix()` 仍返回继承的 `Ltd`。`uk-UA` 的 `companyName()` 抽样基础名称，`company()` 可加入前缀、引号或连字符后缀。这些地区方法支持 `unique`。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
-fn identity_samples() -> DatabaseResult<[String; 65]> {
+fn identity_samples() -> DatabaseResult<[String; 68]> {
     let birthdate = chrono::NaiveDate::from_ymd_opt(2000, 2, 29).unwrap();
     let polish = fake(Some("pl-PL"))?;
     let brazilian = fake(Some("pt-BR"))?;
@@ -348,6 +350,9 @@ fn identity_samples() -> DatabaseResult<[String; 65]> {
     let taiwan = fake(Some("zh-Hant"))?;
     let montenegrin = fake(Some("me-ME"))?;
     Ok([
+        fake(Some("ru-RU"))?.companyNameElement()?.to_owned(),
+        fake(Some("kk-KZ"))?.companyNameSuffix()?.to_owned(),
+        fake(Some("uk-UA"))?.companyName()?.to_owned(),
         fake(Some("lt-LT"))?.company(),
         fake(Some("tr-TR"))?.unique(false).companyField()?.to_owned(),
         fake(Some("fr-CA"))?.company(),

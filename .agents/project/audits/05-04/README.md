@@ -822,7 +822,7 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 
 ### 公司格式后续验收
 
-- 尚未逐项对照的 Company 地区有 `bn_BD`、`fa_IR`、`he_IL`、`hy_AM`、`id_ID`、`ka_GE`、`kk_KZ`、`ms_MY`、`ru_RU`、`th_TH`、`uk_UA`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
+- 尚未逐项对照的 Company 地区有 `bn_BD`、`fa_IR`、`he_IL`、`hy_AM`、`id_ID`、`ka_GE`、`ms_MY`、`th_TH`。需核对固定上游实际模板、姓名词表、前后缀与抽样权重，含仅继承通用模板的地区。
 - 美国、法国、意大利及日本的公司模板仍复用现有姓氏生成器。Person 姓名词表和 Internet 用户名模板的地区行为需要分别核对。
 - 台湾 `companyEn()` 的上游失败已复现。继续核对固定版本的默认 provider 和可扩展 formatter 行为，再以实际运行用例确认等价入口。
 
@@ -849,3 +849,11 @@ Payment provider 的公开生成器已验收。下一批回到 05-04 交付清�
 隔离基线 `83c4cfc2`。PHP 8.5 反射提取固定词表并核对 1,536 组上游名称与后缀。Rust 1.94.0 格式、全目标严格 Clippy、26 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制 `main artisan db:seed --database=mysql --force` 写入并回查七条公司数据。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。站点仍有既有分块大小提示，本批数据库验收使用 MySQL。
 
 临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 和 39 MiB 站点产物。提交前周额度剩余 48%，磁盘 82 GiB。下一批核对俄语、乌克兰语和哈萨克语公司格式。
+
+## Faker 俄语、乌克兰语与哈萨克语公司名称
+
+对应固定 Laravel [模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的[俄语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ru_RU/Company.php)、[乌克兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/uk_UA/Company.php)和[哈萨克语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/kk_KZ/Company.php) Company。保留法定前缀、词素拼接、引号、连字符和重复项的抽样权重。Rust 新增 `companyNameElement()`、`companyNameSuffix()`，并扩展 `companyName()`，返回静态词表借用并支持 `unique`。俄语和哈萨克语仍从基类继承 `companySuffix()` 的 `Ltd`。v0.x 未发现等价实现，编译式装配沿用现有路径。乌克兰 `companyUrl()` 随地区 Internet 格式继续跟踪。
+
+隔离基线 `7082d269`。PHP 8.5 反射提取固定词表并核对 1,536 组上游名称与后缀。Rust 1.94.0 格式、全目标严格 Clippy、27 项 Faker 回归及 MySQL 8.4.13 工厂回归通过。实际应用二进制执行 `main artisan db:seed --database=mysql --force` 写入并回查九条样本。Artisan inspire、三语示例编译、VitePress 与六项浏览器检查通过。站点保留已有分块大小提示，本批数据库验收使用 MySQL。
+
+临时 Seeder 已恢复，清理本批独占 1.7 GiB Cargo 与 39 MiB 站点产物。提交前周额度剩余 48%，磁盘 82 GiB。下一批核对西亚公司模板。

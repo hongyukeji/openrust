@@ -1397,3 +1397,43 @@ fn lithuanian_slovenian_and_turkish_companies_preserve_local_formats() {
     assert!(unique.companyField().is_err());
     assert!(lithuanian.companyField().is_err());
 }
+
+#[test]
+fn russian_ukrainian_and_kazakh_companies_use_local_components() {
+    for (locale, prefixes, suffix_count) in [
+        (
+            "ru-RU",
+            &["ООО", "ЗАО", "ООО Компания", "ОАО", "ПАО", "МКК", "МФО"][..],
+            18,
+        ),
+        ("kk-KZ", &["АҚ", "ЖШС", "ЖАҚ"][..], 8),
+    ] {
+        let faker = fake(Some(locale)).unwrap();
+        let unique = faker.unique(true);
+        let actual: std::collections::HashSet<_> = (0..prefixes.len())
+            .map(|_| unique.companyPrefix().unwrap())
+            .collect();
+        assert_eq!(actual, prefixes.iter().copied().collect());
+        assert!(unique.companyPrefix().is_err());
+        for _ in 0..suffix_count {
+            unique.companyNameSuffix().unwrap();
+        }
+        assert!(unique.companyNameSuffix().is_err());
+        assert!(!faker.companyNameElement().unwrap().is_empty());
+        assert_eq!(faker.companySuffix(), "Ltd");
+        for _ in 0..64 {
+            let name = faker.company();
+            assert!(
+                prefixes
+                    .iter()
+                    .any(|prefix| name.starts_with(&format!("{prefix} ")))
+            );
+        }
+    }
+    let faker = fake(Some("uk-UA")).unwrap();
+    assert!(!faker.companyName().unwrap().is_empty());
+    assert!(faker.companyNameElement().is_err());
+    assert!(faker.companyNameSuffix().is_err());
+    assert!((0..128).any(|_| faker.company().contains('"')));
+    assert!((0..128).any(|_| faker.company().contains('-')));
+}
