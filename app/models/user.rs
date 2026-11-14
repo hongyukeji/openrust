@@ -21,7 +21,10 @@ impl Model for User {
     }
 
     fn casts() -> &'static [(&'static str, AttributeCast)] {
-        &[("password", AttributeCast::Hashed)]
+        &[
+            ("email_verified_at", AttributeCast::DateTime),
+            ("password", AttributeCast::Hashed),
+        ]
     }
 
     fn from_state(state: ModelState) -> Self {

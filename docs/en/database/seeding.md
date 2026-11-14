@@ -79,6 +79,8 @@ Production runs prompt for confirmation. Use `--force` when the deployment has a
 
 ## Using Model Factories
 
+The application ships a default `UserFactory` in `database/factories`. After migrating an empty database, `./artisan db:seed` uses it to create the verified sample account `test@example.com` with the password `password`. The model hashes the password using the selected application configuration. The default seeder uses the selected database and mutes model events during the run. Repeating the default seeder against the same account returns a duplicate-email error.
+
 Pass the seeder’s selected connection to `createOn`, including when running `db:seed --database=…`. The following function can be called from a seeder’s `run` method.
 
 ```rust

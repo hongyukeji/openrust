@@ -1937,7 +1937,7 @@ fn seed_generator_preserves_existing_files_until_forced() {
             .output()
             .unwrap()
     };
-    success(command(&["db:seed"]));
+    success(command(&["migrate", "--seed"]));
     let args = ["make:seeder", "Admin/APIUserSeeder"];
     assert!(success(command(&args)).contains("database/seeders/admin/api_user_seeder.rs"));
     let file = root.0.join("database/seeders/admin/api_user_seeder.rs");
@@ -3977,4 +3977,66 @@ fn faker_barcodes_match_checksums_and_preserve_unique_history() -> DatabaseResul
         );
     }
     Ok(())
+}
+
+async fn verify_default_application_seeder(root: &Root, mysql: Option<&str>) {
+    use openrust::{
+        contracts::hashing::Hasher,
+        hashing::{BcryptConfig, BcryptHasher, HashOptions},
+    };
+
+    let database = if mysql.is_some() { "mysql" } else { "sqlite" };
+    let run = |args: &[&str]| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_main"));
+        command
+            .env("APP_BASE_PATH", &root.0)
+            .env("APP_ENV", "local")
+            .env("DB_CONNECTION", database)
+            .env("HASH_DRIVER", "bcrypt")
+            .env_remove("DB_URL")
+            .env_remove("DB_DATABASE")
+            .args(["artisan"])
+            .args(args);
+        if let Some(url) = mysql {
+            command.env("DB_URL", url);
+        }
+        command.output().unwrap()
+    };
+
+    success(run(&["migrate", "--force"]));
+    success(run(&["db:seed", "--database", database, "--force"]));
+    let connection = root.connection(mysql, "database/database.sqlite");
+    let user = connection.table("users").first().await.unwrap().unwrap();
+    assert_eq!(user.get("name"), Some(&"Test User".into()));
+    assert_eq!(user.get("email"), Some(&"test@example.com".into()));
+    assert!(
+        user.get("email_verified_at")
+            .is_some_and(|value| *value != Value::Null)
+    );
+    let Some(Value::Text(token)) = user.get("remember_token") else {
+        panic!("missing remember token");
+    };
+    assert_eq!(token.len(), 10);
+    assert!(token.bytes().all(|byte| byte.is_ascii_alphanumeric()));
+    let Some(Value::Text(password)) = user.get("password") else {
+        panic!("missing password");
+    };
+    assert!(
+        BcryptHasher::new(BcryptConfig::default())
+            .check(b"password", password, &HashOptions::new())
+            .await
+            .unwrap()
+    );
+    let duplicate = run(&["db:seed", "--database", database, "--force"]);
+    assert_eq!(duplicate.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("DatabaseSeeder"));
+    assert_eq!(connection.table("users").count("*").await.unwrap(), 1);
+}
+
+#[tokio::test]
+async fn application_default_seeder_creates_the_verified_example_user() {
+    verify_default_application_seeder(&Root::new(), None).await;
+    if let Ok(url) = std::env::var("OPENRUST_TEST_DEFAULT_SEEDER_MYSQL_URL") {
+        verify_default_application_seeder(&Root::new(), Some(&url)).await;
+    }
 }

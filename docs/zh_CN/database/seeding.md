@@ -79,6 +79,8 @@ pub const ENTRIES: &[SeederEntry] = &[
 
 ## 使用模型工厂
 
+应用在 `database/factories` 提供默认 `UserFactory`。迁移空数据库后，`./artisan db:seed` 使用它创建已验证的示例账号 `test@example.com`，密码为 `password`。模型按应用配置哈希密码。默认 Seeder 使用当前选定的数据库，运行期间静默模型事件。对同一账号重复执行默认 Seeder 会收到邮箱重复错误。
+
 将 Seeder 选中的连接传给 `createOn`，即可沿用 `db:seed --database=…` 的连接选择。可在 Seeder 的 `run` 中调用下面的函数。
 
 ```rust

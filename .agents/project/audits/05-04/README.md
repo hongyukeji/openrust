@@ -411,3 +411,11 @@ MySQL 8.4.13 实际 db:seed 验证默认和显式数量、空批次、属性覆�
 PHP 8.5 执行固定 provider 和校验器，四种格式各 128 条通过。Rust 以独立校验公式验证样本，并逐格式验证 128 条唯一值。隔离基线 `aa7d03df` 的实际 MySQL 8.4.13 `artisan db:seed --database=mysql --force` 写入并回查四种格式及带前导零的样本。Rust 1.94.0 格式、全目标严格 Clippy、33 项 Seeder、2 项 MySQL／SQLite 工厂回归、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查通过。
 
 清理本批隔离构建和站点产物。05-04 仍跟踪其他生成器和地区差异、应用默认 Seeder 与工厂模块接线，以及工厂跨次状态生命周期等未闭合项。
+
+## 默认用户工厂与应用 Seeder
+
+对照固定 Laravel 应用骨架的 `UserFactory`、`User` 和 `DatabaseSeeder`。应用编译 `database/factories`，在用户工厂模块显式实现 `HasFactory`。默认 Seeder 通过选定连接创建已验证的 Test User，并以 `withoutModelEvents` 注册。用户工厂保留随机姓名、安全邮箱、十位字母数字令牌与未验证状态。密码由模型的配置化 hashed cast 处理。Laravel 工厂在 PHP 进程内缓存默认密码的哈希，Rust 复用模型写入路径，每次创建时按当前应用的哈希配置处理。重复填充按邮箱唯一约束失败。v0.x 未找到相同的默认用户工厂和 Seeder。Goravel 的固定应用骨架提供迁移，编译注册参照其 Seeder 合约。 [固定 Laravel UserFactory](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/database/factories/UserFactory.php) · [固定 Laravel DatabaseSeeder](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/database/seeders/DatabaseSeeder.php) · [固定 Goravel Seeder](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/seeder/seeder.go)
+
+隔离基线 `9092a042`。实际应用二进制在空 SQLite 和 MySQL 8.4.13 执行 `artisan migrate --force` 与 `artisan db:seed --database … --force`，回查示例用户、验证时间和令牌，验证 bcrypt 可校验密码。两库重复填充退出码为 1，用户记录仍为一条。另通过 `migrate --seed`、34 项 Seeder 测试、2 项 MySQL／SQLite 工厂回归、格式、全目标严格 Clippy、Artisan inspire、三语示例编译、VitePress 和 6 项浏览器检查。
+
+本批隔离构建与站点产物已清理。后续继续核对公开工厂创建入口、跨次状态和其余生成器的差异。
