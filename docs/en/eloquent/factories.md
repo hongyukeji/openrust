@@ -1764,6 +1764,32 @@ Use `makeWithParent(parent, attributes)` and `insertWithParent(parent, attribute
 
 Use `createWithParent(parent, attributes)`, `createQuietlyWithParent(parent, attributes)`, or `lazyWithParent(parent, attributes)` on a single or counted factory. The borrowed parent is available to matching `stateWithParent` and `afterCreatingWithParent` callbacks. Use the `On` variants for immediate creation on a particular connection. The lazy callback uses the connection resolved when awaited. The parent alone adds no foreign key.
 
+Use `makeWithParentState`, `createWithParentState`, or `createQuietlyWithParentState` when the final state needs both the accumulated attributes and the borrowed parent. These methods support single and counted factories, with `On` forms for an explicit connection. The callback runs before deferred attributes and owner keys are resolved.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn seed_with_parent_state<P: Model, C: Model>(parent: &P) -> DatabaseResult<()> {
+    let children = Factory::<C>::new(|| {
+        Attributes::from([("name".into(), "Flight".into())])
+    }).count(2);
+    let named = |attributes: &Attributes, parent: &P| {
+        let (Some(Value::Text(prefix)), Some(Value::Text(name))) =
+            (parent.getAttribute("name"), attributes.get("name"))
+        else {
+            return Attributes::new();
+        };
+        Attributes::from([("name".into(), format!("{prefix} {name}").into())])
+    };
+
+    let drafts = children.makeWithParentState(parent, named).await?;
+    assert!(drafts.iter().all(|model| !model.state().exists()));
+    let saved = children.createWithParentState(parent, named).await?;
+    assert_eq!(saved.len(), 2);
+    Ok(())
+}
+```
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
 

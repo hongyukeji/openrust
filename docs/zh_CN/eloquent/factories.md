@@ -1764,6 +1764,32 @@ async fn insert_projected<M: Model>(factory: Factory<M>) -> DatabaseResult<()> {
 
 单条或批量工厂可以调用 `createWithParent(parent, attributes)`、`createQuietlyWithParent(parent, attributes)` 或 `lazyWithParent(parent, attributes)`。类型匹配的 `stateWithParent` 和 `afterCreatingWithParent` 可以读取借用的父模型。即时创建的 `On` 变体可指定连接，延迟回调在等待时解析连接。父模型本身不会添加外键。
 
+如果末尾状态同时需要累积属性和借用的父模型，可用 `makeWithParentState`、`createWithParentState` 或 `createQuietlyWithParentState`。这些方法支持单条和计数工厂，`On` 变体可指定连接。回调在解析延迟属性和父键之前执行。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn seed_with_parent_state<P: Model, C: Model>(parent: &P) -> DatabaseResult<()> {
+    let children = Factory::<C>::new(|| {
+        Attributes::from([("name".into(), "Flight".into())])
+    }).count(2);
+    let named = |attributes: &Attributes, parent: &P| {
+        let (Some(Value::Text(prefix)), Some(Value::Text(name))) =
+            (parent.getAttribute("name"), attributes.get("name"))
+        else {
+            return Attributes::new();
+        };
+        Attributes::from([("name".into(), format!("{prefix} {name}").into())])
+    };
+
+    let drafts = children.makeWithParentState(parent, named).await?;
+    assert!(drafts.iter().all(|model| !model.state().exists()));
+    let saved = children.createWithParentState(parent, named).await?;
+    assert_eq!(saved.len(), 2);
+    Ok(())
+}
+```
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
 

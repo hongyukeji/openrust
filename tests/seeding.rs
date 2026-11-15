@@ -1700,12 +1700,29 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
                 Ok(())
             })
     };
+    let final_state = |attributes: &Attributes, model: &FactoryOwner| {
+        let key = model.getKey().unwrap();
+        assert_eq!(model.getKey(), parent.getKey());
+        assert_eq!(
+            attributes["generated_name"],
+            format!("parent-{key:?}").into()
+        );
+        Attributes::from([("generated_name".into(), "computed".into())])
+    };
     let child = factory()
-        .createWithParentOn(connection, &parent, Attributes::new())
+        .createWithParentStateOn(connection, &parent, final_state)
         .await?;
     assert!(child.getAttribute("owner_id").is_none());
-    assert!(
-        matches!(child.getAttribute("generated_name"), Some(Value::Text(name)) if name.starts_with("parent-"))
+    assert_eq!(
+        child.getAttribute("generated_name"),
+        Some(&"computed".into())
+    );
+    assert_eq!(
+        connection
+            .table("seed_factory_children")
+            .pluck("generated_name")
+            .await?,
+        ["computed".into()]
     );
     let cancelled = || Attributes::from([("generated_name".into(), "quiet-fixture".into())]);
     assert!(
@@ -1714,13 +1731,22 @@ async fn verify_parent_creation(connection: &Connection) -> DatabaseResult<()> {
             .await
             .is_err()
     );
+    let quiet_state = |attributes: &Attributes, owner: &FactoryOwner| {
+        final_state(attributes, owner);
+        cancelled()
+    };
     factory()
-        .createQuietlyWithParentOn(connection, &parent, cancelled())
+        .createQuietlyWithParentStateOn(connection, &parent, quiet_state)
         .await?;
     let batch = factory().count(2);
+    let mut quiet_calls = 0;
     batch
-        .createQuietlyWithParentOn(connection, &parent, cancelled())
+        .createQuietlyWithParentStateOn(connection, &parent, |attributes, owner| {
+            quiet_calls += 1;
+            quiet_state(attributes, owner)
+        })
         .await?;
+    assert_eq!(quiet_calls, 2);
     assert!(
         batch
             .createWithParentOn(connection, &parent, cancelled())
@@ -3888,16 +3914,21 @@ async fn verify_make_and_insert_parent(connection: &Connection) -> DatabaseResul
             .afterCreating(|_| panic!("insert ran afterCreating"))
     };
     let overrides = || Attributes::from([("owner_id".into(), Value::Null)]);
+    let final_state = |attributes: &Attributes, parent: &ExpansionOwner| {
+        assert_eq!(parent.getKey(), Some(&key));
+        assert_eq!(attributes["context_key"], key);
+        overrides()
+    };
     let single = factory();
     let model = single
-        .makeWithParentOn(connection, &parent, overrides())
+        .makeWithParentStateOn(connection, &parent, final_state)
         .await?;
     assert_eq!(model.getAttribute("context_key"), Some(&key));
     assert_eq!(model.getAttribute("owner_id"), Some(&Value::Null));
     assert_eq!(model.getAttribute("label"), Some(&"made".into()));
     let batch = factory().count(2);
     let drafts = batch
-        .makeWithParentOn(connection, &parent, overrides())
+        .makeWithParentStateOn(connection, &parent, final_state)
         .await?;
     assert_eq!(drafts.len(), 2);
     assert!(

@@ -1254,12 +1254,32 @@ impl<M: Model> Factory<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
+        self.makeWithParentStateOn(connection, parent, |_, _| attributes)
+            .await
+    }
+
+    /// Builds unsaved models with a final state that can read the parent.
+    pub async fn makeWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        self.makeWithParentStateOn(&self.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn makeWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
         self.make_one(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
             Some(RelationContext::parent_only(parent)),
-            |_| attributes,
+            |attributes| state(attributes, parent),
         )
         .await
     }
@@ -1317,12 +1337,32 @@ impl<M: Model> Factory<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
+        self.createWithParentStateOn(connection, parent, |_, _| attributes)
+            .await
+    }
+
+    /// Persists models with a final state that can read the parent.
+    pub async fn createWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        self.createWithParentStateOn(&self.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn createWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
         self.create_one(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
             Some(RelationContext::parent_only(parent)),
-            |_| attributes,
+            |attributes| state(attributes, parent),
         )
         .await
     }
@@ -1343,6 +1383,25 @@ impl<M: Model> Factory<M> {
         attributes: Attributes,
     ) -> DatabaseResult<M> {
         M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+    }
+
+    /// Applies a final parent-aware state while suppressing model events.
+    pub async fn createQuietlyWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        self.createQuietlyWithParentStateOn(&self.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn createQuietlyWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        state: impl FnOnce(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createWithParentStateOn(connection, parent, state)).await
     }
 
     /// Returns a reusable callback borrowing the parent until invocation.
@@ -2385,11 +2444,31 @@ impl<M: Model> FactoryBatch<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
+        self.makeWithParentStateOn(connection, parent, |_, _| attributes.clone())
+            .await
+    }
+
+    /// Builds unsaved models with a final state that can read the parent.
+    pub async fn makeWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.makeWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn makeWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
         self.make_with_state(
             connection,
             &self.factory.recycled,
             Some(RelationContext::parent_only(parent)),
-            |_| attributes.clone(),
+            |attributes| state(attributes, parent),
         )
         .await
     }
@@ -2453,11 +2532,31 @@ impl<M: Model> FactoryBatch<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
+        self.createWithParentStateOn(connection, parent, |_, _| attributes.clone())
+            .await
+    }
+
+    /// Persists models with a final state that can read the parent.
+    pub async fn createWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn createWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        mut state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
         Box::pin(self.create_with_state(
             connection,
             &[],
             Some(RelationContext::parent_only(parent)),
-            |_| attributes.clone(),
+            |attributes| state(attributes, parent),
         ))
         .await
     }
@@ -2478,6 +2577,25 @@ impl<M: Model> FactoryBatch<M> {
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
         M::withoutEvents(self.createWithParentOn(connection, parent, attributes)).await
+    }
+
+    /// Applies a final parent-aware state while suppressing model events.
+    pub async fn createQuietlyWithParentState<P: Model>(
+        &self,
+        parent: &P,
+        state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createQuietlyWithParentStateOn(&self.factory.resolve_connection()?, parent, state)
+            .await
+    }
+
+    pub async fn createQuietlyWithParentStateOn<P: Model>(
+        &self,
+        connection: &Connection,
+        parent: &P,
+        state: impl FnMut(&Attributes, &P) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createWithParentStateOn(connection, parent, state)).await
     }
 
     /// Returns a reusable callback borrowing the parent until invocation.
