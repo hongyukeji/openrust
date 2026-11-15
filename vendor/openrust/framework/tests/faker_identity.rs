@@ -4388,3 +4388,31 @@ fn german_address_building_numbers_and_swiss_cantons_use_local_catalogs() {
     assert!(germany.canton().is_err());
     assert!(fake(Some("en-US")).unwrap().streetSuffixShort().is_err());
 }
+
+#[test]
+fn dutch_addresses_keep_country_specific_postcodes_and_whitespace() {
+    let nl = fake(Some("nl-NL")).unwrap();
+    let be = fake(Some("nl-BE")).unwrap();
+    let nl_postcode = Regex::new(r"^[0-9]{4}[A-Z]{2}$").unwrap();
+    let be_postcode = Regex::new(r"^[0-9]{4}$").unwrap();
+    let nl_number = Regex::new(r"^[1-9][0-9]{0,3}(?:[a-z]|-[a-z]|-[0-9]{1,2})?$").unwrap();
+    let mut alphabetic = false;
+    for _ in 0..128 {
+        let address = nl.address();
+        let (street, place) = address.split_once('\n').unwrap();
+        let number = street.rsplit_once(' ').unwrap().1;
+        assert!(nl_number.is_match(number), "{address}");
+        alphabetic |= number.bytes().any(|digit| digit.is_ascii_lowercase());
+        assert!(nl_postcode.is_match(place.split_once(' ').unwrap().0));
+        let address = be.address();
+        let (_, place) = address.split_once("\n ").unwrap();
+        assert!(be_postcode.is_match(place.split_once(' ').unwrap().0));
+        assert!(be.cityName().is_ok());
+    }
+    assert!(alphabetic);
+    let unique = nl.unique(true);
+    for _ in 0..12 {
+        assert!(!unique.state().unwrap().is_empty());
+    }
+    assert!(unique.state().is_err());
+}

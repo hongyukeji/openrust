@@ -1004,6 +1004,16 @@ fn swiss_german_address_sample() -> DatabaseResult<(String, (&'static str, &'sta
 }
 ```
 
+Dutch addresses in the Netherlands and Belgium join a surname and street suffix, followed by the building number. Both locales sample complete postcodes from their own catalogs. Belgian Dutch preserves a leading space before the postcode on the second line. `cityName()` and `state()` sample the local city and province catalogs.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn dutch_address_samples() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("nl-NL"))?.address(), fake(Some("nl-BE"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

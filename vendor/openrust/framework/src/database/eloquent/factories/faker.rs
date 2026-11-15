@@ -637,6 +637,8 @@ impl Faker {
             "de_DE" => address_sample(faker_address::CITY_DE_DE).into(),
             "de_AT" => address_sample(faker_address::CITY_DE_AT).into(),
             "de_CH" => address_sample(faker_address::CITY_DE_CH).into(),
+            "nl_NL" => address_sample(faker_address::CITY_NL_NL).into(),
+            "nl_BE" => address_sample(faker_address::CITY_NL_BE).into(),
             "pl_PL" => address_sample(faker_address::CITY_PL_PL).into(),
             "cs_CZ" => address_sample(faker_address::CITY_CS_CZ).into(),
             "sk_SK" => address_sample(faker_address::CITY_SK_SK).into(),
@@ -742,6 +744,7 @@ impl Faker {
             "en_HK" => Self::hong_kong_name(faker_address::STREET_NAME_FORMATS_EN_HK),
             "ko_KR" => address_sample(faker_address::STREET_NAME_KO_KR).into(),
             "de_DE" | "de_AT" | "de_CH" => self.german_street_name(),
+            "nl_NL" | "nl_BE" => format!("{}{}", self.lastName(), self.streetSuffix()),
             "pl_PL" => address_sample(faker_address::STREET_PL_PL).into(),
             "cs_CZ" => address_sample(faker_address::STREET_CS_CZ).into(),
             "sk_SK" => {
@@ -855,7 +858,7 @@ impl Faker {
             "fr_CA" => address_sample(faker_address::CITY_SUFFIX_FR_CA).into(),
             "fr_FR" | "fr_BE" | "fr_CH" => address_sample(faker_address::CITY_SUFFIX_FR_FR).into(),
             "ar_EG" | "ar_JO" | "ar_SA" | "fa_IR" | "ru_RU" | "tr_TR" | "zh_CN" | "pl_PL"
-            | "cs_CZ" | "sk_SK" | "de_AT" | "de_CH" | "de_DE" => "Ville".into(),
+            | "cs_CZ" | "sk_SK" | "de_AT" | "de_CH" | "de_DE" | "nl_NL" | "nl_BE" => "Ville".into(),
             "kk_KZ" => "қаласы".into(),
             "ja_JP" => "市".into(),
             "th_TH" => address_sample(faker_address::CITY_SUFFIX_TH_TH).into(),
@@ -885,6 +888,7 @@ impl Faker {
             "ja_JP" => "町".into(),
             "th_TH" => address_sample(faker_address::STREET_SUFFIX_TH_TH).into(),
             "he_IL" => address_sample(faker_address::STREET_SUFFIX_HE_IL).into(),
+            "nl_NL" | "nl_BE" => address_sample(faker_address::STREET_SUFFIX_NL_NL).into(),
             "kk_KZ" => address_sample(faker_address::STREET_SUFFIX_KK_KZ).into(),
             "uk_UA" => String::new(),
             "tr_TR" => address_sample(faker_address::STREET_SUFFIX_TR_TR).into(),
@@ -914,6 +918,8 @@ impl Faker {
             "he_IL" => address_sample(faker_address::COUNTRY_HE_IL).into(),
             "de_DE" | "de_AT" => address_sample(faker_address::COUNTRY_DE_DE_AT).into(),
             "de_CH" => address_sample(faker_address::COUNTRY_DE_CH).into(),
+            "nl_NL" => address_sample(faker_address::COUNTRY_NL_NL).into(),
+            "nl_BE" => address_sample(faker_address::COUNTRY_NL_BE).into(),
             "pl_PL" => address_sample(faker_address::COUNTRY_PL_PL).into(),
             "cs_CZ" => address_sample(faker_address::COUNTRY_CS_CZ).into(),
             "sk_SK" => address_sample(faker_address::COUNTRY_SK_SK).into(),
@@ -936,6 +942,8 @@ impl Faker {
             "bn_BD" => address_sample(faker_address::STATE_BN_BD).into(),
             "de_DE" => address_sample(faker_address::STATE_DE_DE).into(),
             "de_AT" => address_sample(faker_address::STATE_DE_AT).into(),
+            "nl_NL" => address_sample(faker_address::STATE_NL_NL).into(),
+            "nl_BE" => address_sample(faker_address::STATE_NL_BE).into(),
             "pl_PL" => address_sample(faker_address::STATE_PL_PL).into(),
             "ms_MY" => address_sample(Self::malaysian_region().names).into(),
             "fr_CA" => address_sample(faker_address::STATE_FR_CA).into(),
@@ -1547,6 +1555,8 @@ impl Faker {
             "de_DE" => faker_address::CITY_DE_DE,
             "de_AT" => faker_address::CITY_DE_AT,
             "de_CH" => faker_address::CITY_DE_CH,
+            "nl_NL" => faker_address::CITY_NL_NL,
+            "nl_BE" => faker_address::CITY_NL_BE,
             "ar_EG" => faker_address::CITY_AR_EG,
             "ar_JO" => faker_address::CITY_AR_JO,
             "ar_SA" => faker_address::CITY_AR_SA,
@@ -1731,6 +1741,8 @@ impl Faker {
             "de_CH" | "en_PH" | "en_ZA" => self.numerify(Some("####")),
             "de_DE" => self.numerify(Some("#####")),
             "de_AT" => address_sample(faker_address::POSTCODE_DE_AT).into(),
+            "nl_NL" => address_sample(faker_address::POSTCODE_NL_NL).into(),
+            "nl_BE" => address_sample(faker_address::POSTCODE_NL_BE).into(),
             "en_SG" => self.numerify(Some("######")),
             "en_IN" => self.numerify(Some(address_sample(faker_address::POSTCODE_EN_IN))),
             "en_UG" => self.numerify(Some(address_sample(&["#", "##", "###", "####", "#####"]))),
@@ -1801,11 +1813,14 @@ impl Faker {
             "fr_CA" => &["%####", "%###", "%##", "%#", "%"],
             "fr_CH" => &["%##", "%#", "%", "#a", "#b", "#c"],
             "zh_CN" | "zh_TW" | "bn_BD" | "en_HK" | "en_IN" | "en_NG" | "en_SG" | "fa_IR"
-            | "ne_NP" | "ru_RU" | "uk_UA" => &["%#"],
+            | "ne_NP" | "ru_RU" | "uk_UA" | "nl_BE" => &["%#"],
             "en_PH" => faker_address::BUILDING_NUMBER_EN_PH,
             "ko_KR" => faker_address::BUILDING_NUMBER_KO_KR,
             "vi_VN" => faker_address::BUILDING_NUMBER_VI_VN,
             "th_TH" => faker_address::BUILDING_NUMBER_TH_TH,
+            "nl_NL" => {
+                return self.bothify(Some(address_sample(faker_address::BUILDING_NUMBER_NL_NL)));
+            }
             "de_DE" => return self.german_building_number(faker_address::BUILDING_NUMBER_DE_DE),
             "de_AT" | "de_CH" => {
                 return self.german_building_number(faker_address::BUILDING_NUMBER_DE_AT_CH);
@@ -1981,7 +1996,7 @@ impl Faker {
             }
             "cs_CZ" if fastrand::u8(0..5) == 0 => street,
             "cs_CZ" | "de_AT" | "de_CH" | "de_DE" | "fr_BE" | "fr_CH" | "pl_PL" | "sk_SK"
-            | "tr_TR" => {
+            | "tr_TR" | "nl_NL" | "nl_BE" => {
                 format!("{street} {}", self.buildingNumber())
             }
             "fr_FR" if fastrand::u8(0..6) == 0 => street,
@@ -2011,7 +2026,13 @@ impl Faker {
 
     pub fn address(&self) -> String {
         match self.locale() {
-            "de_AT" | "de_CH" | "de_DE" => format!(
+            "nl_BE" => format!(
+                "{}\n {} {}",
+                self.streetAddress(),
+                self.postcode(),
+                self.city()
+            ),
+            "de_AT" | "de_CH" | "de_DE" | "nl_NL" => format!(
                 "{}\n{} {}",
                 self.streetAddress(),
                 self.postcode(),

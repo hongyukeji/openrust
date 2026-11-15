@@ -1468,3 +1468,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、98 项 Faker、49 项 See
 隔离基线 `7e8c4574`。PHP 反射核对 19 份词表和门牌模板及 26 组州数据，三地共 384 个固定 PHP 样本通过。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，包含三语共用示例。回归覆盖地区门牌、瑞士德语州名、唯一值耗尽和无效地区。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、99 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对荷兰语地区 Address。
+
+## 荷兰和比利时荷兰语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [荷兰](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_NL/Address.php) 和 [比利时荷兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nl_BE/Address.php) Address。保留完整邮编词表、当地城市和省、门牌模板以及比利时第二行的前导空格。两地复用逐项相同的街道后缀，Rust 沿用 Result 和 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `490c438e`。PHP 反射核对 10 份独立词表和门牌模板，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 258 行，含三语共用示例。回归覆盖不同邮编格式、荷兰字母门牌、比利时前导空格和荷兰省名唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、100 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对北欧地区 Address。
