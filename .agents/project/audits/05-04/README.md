@@ -1651,3 +1651,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 三语共用示例编译进实际应用二进制。MySQL 上两次运行 `main artisan db:seed --database=mysql --force` 均无子 Seeder 进度行，回读一条 `standard:Standard plan`。显式指定 `--class=CatalogSeeder` 显示进度，回读同一行更新为 `standard:Standard`。`./artisan inspire`、三语 VitePress 构建及 18 项浏览器检查通过。临时应用代码已恢复，测试容器已回收。清理本批 Cargo 编译产物、文档站和浏览器测试依赖，磁盘可用 78 GiB。
 
 05-04 继续核对工厂操作的临时属性。固定 Laravel 的 `make`、`create`、`createQuietly` 接受映射或回调作为本次操作的末尾状态，`lazy` 接受映射并在调用时保存。OpenRust 已有 `rawWithState` 和显式父模型入口，仍需核对无父模型时的成批覆盖和普通延迟入口。
+
+## 工厂单次属性与批量生命周期
+
+对照固定 [Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L325)、[工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L193)和[用工厂创建模型](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#creating-models-using-factories)。Laravel 将调用传入的属性映射或闭包追加为最后一个状态。Rust 延续 `rawWithState` 的命名，单模型用 `FnOnce`，计数工厂用 `FnMut` 逐条计算。属性映射复用相同路径，父键及延迟属性在覆盖之后解析。计数创建沿用整批构造、逐条写模型与关系、整批触发 `afterCreating` 的顺序。`lazy` 在等待结果时解析连接并执行创建，可重复调用。旧版同名工厂只构造查询，当前 Seeder 沿用参考固定 Goravel 的编译注册接线。
+
+隔离基线 `b69da0a4`。Rust 1.94.0 格式和工作区严格 Clippy、49 项 Seeder 与 2 项 MySQL／SQLite 工厂回归通过。复验单条及批量临时属性、父键覆盖跳过额外写入、重复使用同一工厂、批量回调顺序及 `afterMaking` 失败时未写入目标表。既有 Sanctum 排版差异仅在隔离副本处理。
+
+三语共享示例编译进实际应用，通过 MySQL 8.4.13 上的 `main artisan db:seed --database=mysql --force` 回读八条按序记录。两条由回调创建，两次延迟调用各创建两条，两条由静默创建。普通创建在绑定取消事件时失败，静默创建后再次普通创建仍触发取消。无草稿或失败记录写入。`./artisan inspire`、三语 VitePress 构建、站点根路径及 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器和独占构建缓存已清理，磁盘恢复至 78 GiB。
+
+05-04 继续核对已显式传入父模型时的末尾回调。当前 `rawWithParent` 支持直接读取父模型和累积属性，`makeWithParent` 及持久化变体直接接收属性映射。

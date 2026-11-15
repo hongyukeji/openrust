@@ -7,7 +7,7 @@ use openrust::database::eloquent::RelatedCollection;
 use openrust::{
     config::Repository,
     database::{
-        DatabaseManager, Value,
+        Connection, DatabaseManager, Value,
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState, NamedRelations,
             factories::{Factory, FactoryRecords},
@@ -293,7 +293,6 @@ async fn verify(config: Json, id: &str) {
     );
     let before = Author::queryOn(&connection).get().await.unwrap().len();
     let failed = authors()
-        .sequence(|index| Attributes::from([("name".into(), format!("failure {index}").into())]))
         .afterMaking(|author| {
             if author.getAttribute("name") == Some(&"failure 1".into()) {
                 return Err(openrust::database::DatabaseError::InvalidQuery(
@@ -303,7 +302,15 @@ async fn verify(config: Json, id: &str) {
             Ok(())
         })
         .count(2)
-        .createOn(&connection)
+        .createWithStateOn(&connection, {
+            let mut index = 0;
+            move |_| {
+                let attributes =
+                    Attributes::from([("name".into(), format!("failure {index}").into())]);
+                index += 1;
+                attributes
+            }
+        })
         .await;
     assert!(failed.is_err());
     assert_eq!(
@@ -439,12 +446,92 @@ async fn verify(config: Json, id: &str) {
         .unwrap();
     assert!(opted_in[0].relationLoaded("all_entries"));
 
+    verify_final_state(&connection).await;
+
     for table in ["factory_links", "factory_entries", "factory_authors"] {
         connection
             .statement(&format!("DROP TABLE {table}"), &[])
             .await
             .unwrap();
     }
+}
+
+async fn verify_final_state(connection: &Connection) {
+    let named = |name: &str| Attributes::from([("name".into(), name.into())]);
+    let author_rows = || connection.table("factory_authors");
+    let before = author_rows().count("*").await.unwrap();
+    let draft = authors()
+        .state(move |_| named("configured"))
+        .makeWithStateOn(connection, |attributes| {
+            assert_eq!(attributes["name"], "configured".into());
+            named("single override")
+        })
+        .await
+        .unwrap();
+    assert_eq!(draft.getAttribute("name"), Some(&"single override".into()));
+    assert!(!draft.state().exists());
+
+    let drafts = entries().parentAttribute("author_id", authors()).count(2);
+    let made = drafts
+        .makeWithOn(
+            connection,
+            Attributes::from([("author_id".into(), 100.into())]),
+        )
+        .await
+        .unwrap();
+    assert_eq!(made.len(), 2);
+    assert!(made.iter().all(|entry| {
+        !entry.state().exists() && entry.getAttribute("author_id") == Some(&100.into())
+    }));
+    assert_eq!(author_rows().count("*").await.unwrap(), before);
+
+    let phases = Arc::new(Mutex::new(Vec::new()));
+    let observe = |phase| {
+        let phases = phases.clone();
+        move |_: &mut Author| {
+            phases.lock().unwrap().push(phase);
+            Ok(())
+        }
+    };
+    let batch = authors()
+        .state(move |_| named("configured"))
+        .afterMaking(observe("make"))
+        .afterCreating(observe("create"))
+        .count(2);
+    let mut names = ["first", "second"].into_iter();
+    let models = batch
+        .createWithStateOn(connection, |attributes| {
+            assert_eq!(attributes["name"], "configured".into());
+            named(names.next().unwrap())
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        *phases.lock().unwrap(),
+        ["make", "make", "create", "create"]
+    );
+    assert_eq!(models[0].getAttribute("name"), Some(&"first".into()));
+    assert_eq!(models[1].getAttribute("name"), Some(&"second".into()));
+    let original = batch.makeOn(connection).await.unwrap();
+    assert_eq!(original.len(), 2);
+    assert!(
+        original
+            .iter()
+            .all(|model| model.getAttribute("name") == Some(&"configured".into()))
+    );
+
+    let quiet = batch
+        .createQuietlyWithOn(connection, named("quiet"))
+        .await
+        .unwrap();
+    assert_eq!(quiet.len(), 2);
+    assert!(quiet.iter().all(|model| model.state().exists()));
+    let quiet_one = authors()
+        .createQuietlyWithStateOn(connection, |_| named("one quiet"))
+        .await
+        .unwrap();
+    assert_eq!(quiet_one.getAttribute("name"), Some(&"one quiet".into()));
+    assert_eq!(author_rows().count("*").await.unwrap(), before + 5);
 }
 
 #[tokio::test]

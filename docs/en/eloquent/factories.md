@@ -1631,6 +1631,33 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 }
 ```
 
+Use `makeWithState`, `createWithState`, or `createQuietlyWithState` to apply a final state for one operation. Counted factories also accept an attribute map through `makeWith`, `createWith`, or `createQuietlyWith`. For one model, the map forms are `makeOne`, `createOne`, and `createOneQuietly`. The corresponding `On` forms select a connection.
+
+The callback receives the attributes accumulated for each model before deferred attributes and parent keys are resolved. The final state applies only to that call.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
+    let name = |value: &str| Attributes::from([("name".into(), value.into())]);
+    let batch = Factory::<M>::new(move || name("Flight")).count(2);
+
+    let drafts = batch.makeWith(name("Preview")).await?;
+    assert!(drafts.iter().all(|model| !model.state().exists()));
+
+    let saved = batch.createWithState(|attributes| {
+        assert_eq!(attributes["name"], "Flight".into());
+        name("Scheduled")
+    }).await?;
+    assert_eq!(saved.len(), 2);
+
+    let seed = batch.lazy(name("Evening flight"));
+    assert_eq!(seed().await?.len(), 2);
+    assert_eq!(seed().await?.len(), 2);
+    Ok(())
+}
+```
+
 Use `createOne(attributes)` to create one model even on a counted factory. Use `createMany(records)` to create records one at a time, in order. Pass `FactoryRecords::Default` for the configured count (one on an uncounted factory), `FactoryRecords::Count(n)` for an explicit count, or `FactoryRecords::Attributes(vec![…])` for per-record overrides. The overrides apply after factory states. Each record runs both factory callbacks before the next one starts. If a later record fails, earlier writes can remain. Use `createOneQuietly` and `createManyQuietly` to suppress model events, or the corresponding `On` methods to select a connection.
 
 Use `makeOne(attributes)` to build one unsaved model, or `makeMany(records)` to build unsaved models in order. Both run `afterMaking` and accept explicit attributes. Use the same `FactoryRecords` variants with `makeMany`. A zero count yields an empty collection. Both `makeMany` and `createMany` consume the configured default count. This also applies to explicit input, zero records, and errors during model generation. Subsequent calls default to one model, and Rust batch methods continue to return collection-shaped results. The make methods leave the returned models unsaved. Resolving a declared parent can still write that parent. The `On` variants take a connection. `lazy(attributes)` returns an async callback. Await a call to create the model or counted batch using the connection resolved at that time. Calling it again creates a fresh result.

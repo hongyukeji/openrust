@@ -757,7 +757,7 @@ impl<M: Model> Factory<M> {
                                     &pool,
                                     &std::sync::OnceLock::new(),
                                     context,
-                                    Attributes::new(),
+                                    |_| Attributes::new(),
                                 )
                                 .await?;
                             std::slice::from_mut(&mut single)
@@ -854,7 +854,7 @@ impl<M: Model> Factory<M> {
                                         &pool,
                                         &std::sync::OnceLock::new(),
                                         None,
-                                        Attributes::new(),
+                                        |_| Attributes::new(),
                                     )
                                     .await?;
                                 Ok::<_, DatabaseError>(Arc::new(model))
@@ -956,7 +956,7 @@ impl<M: Model> Factory<M> {
                                 &pool,
                                 &std::sync::OnceLock::new(),
                                 None,
-                                Attributes::new(),
+                                |_| Attributes::new(),
                             )
                             .await?;
                         &generated
@@ -1211,12 +1211,29 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
+        self.makeWithStateOn(connection, |_| attributes).await
+    }
+
+    /// Applies a final state to the accumulated attributes for this operation.
+    pub async fn makeWithState(
+        &self,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        self.makeWithStateOn(&self.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn makeWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
         self.make_one(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
             None,
-            attributes,
+            state,
         )
         .await
     }
@@ -1242,7 +1259,7 @@ impl<M: Model> Factory<M> {
             &self.recycled,
             &std::sync::OnceLock::new(),
             Some(RelationContext::parent_only(parent)),
-            attributes,
+            |_| attributes,
         )
         .await
     }
@@ -1269,7 +1286,7 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for attributes in records.into_attributes(default_count) {
             models.push(
-                self.make_one(connection, &self.recycled, &faker, None, attributes)
+                self.make_one(connection, &self.recycled, &faker, None, |_| attributes)
                     .await?,
             );
         }
@@ -1305,7 +1322,7 @@ impl<M: Model> Factory<M> {
             &self.recycled,
             &std::sync::OnceLock::new(),
             Some(RelationContext::parent_only(parent)),
-            attributes,
+            |_| attributes,
         )
         .await
     }
@@ -1408,12 +1425,29 @@ impl<M: Model> Factory<M> {
         connection: &Connection,
         attributes: Attributes,
     ) -> DatabaseResult<M> {
+        self.createWithStateOn(connection, |_| attributes).await
+    }
+
+    /// Applies a final state to the accumulated attributes for this operation.
+    pub async fn createWithState(
+        &self,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        self.createWithStateOn(&self.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn createWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
         self.create_one(
             connection,
             &self.recycled,
             &std::sync::OnceLock::new(),
             None,
-            attributes,
+            state,
         )
         .await
     }
@@ -1468,7 +1502,7 @@ impl<M: Model> Factory<M> {
         let mut models = Vec::new();
         for attributes in records.into_attributes(default_count) {
             models.push(
-                self.create_one(connection, &self.recycled, &faker, None, attributes)
+                self.create_one(connection, &self.recycled, &faker, None, |_| attributes)
                     .await?,
             );
         }
@@ -1481,6 +1515,22 @@ impl<M: Model> Factory<M> {
 
     pub async fn createQuietlyOn(&self, connection: &Connection) -> DatabaseResult<M> {
         M::withoutEvents(self.createOn(connection)).await
+    }
+
+    /// Applies a final state while suppressing model events.
+    pub async fn createQuietlyWithState(
+        &self,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createWithState(state)).await
+    }
+
+    pub async fn createQuietlyWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<M> {
+        M::withoutEvents(self.createWithStateOn(connection, state)).await
     }
 
     /// Expands the factory definition and parent keys without applying model casts or callbacks.
@@ -1701,11 +1751,12 @@ impl<M: Model> Factory<M> {
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Arc<Faker>>,
         context: Option<RelationContext<'_>>,
-        overrides: Attributes,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
         without_relationship_autoloading(async {
             let mut pending = self.prepare_attributes(connection, context, faker)?;
-            pending.values.extend(overrides);
+            let attributes = state(&pending.values);
+            pending.values.extend(attributes);
             self.resolve_attributes(connection, pool, &mut pending)
                 .await?;
             let mut model =
@@ -1722,10 +1773,10 @@ impl<M: Model> Factory<M> {
         pool: &[RecycledModel],
         faker: &std::sync::OnceLock<Arc<Faker>>,
         context: Option<RelationContext<'_>>,
-        overrides: Attributes,
+        state: impl FnOnce(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<M> {
         let mut model = self
-            .make_one(connection, pool, faker, context, overrides)
+            .make_one(connection, pool, faker, context, state)
             .await?;
         self.store(connection, &mut model, pool).await?;
         self.run_after_creating(
@@ -2117,18 +2168,7 @@ impl<M: Model> FactoryBatch<M> {
         &'a self,
         attributes: Attributes,
     ) -> impl Fn() -> DatabaseFuture<'a, DatabaseResult<Collection<M>>> + 'a {
-        move || {
-            let attributes = attributes.clone();
-            Box::pin(async move {
-                self.create_with_overrides(
-                    &self.factory.resolve_connection()?,
-                    &[],
-                    None,
-                    &attributes,
-                )
-                .await
-            })
-        }
+        move || Box::pin(self.createWith(attributes.clone()))
     }
 
     pub async fn createOne(&self, attributes: Attributes) -> DatabaseResult<M> {
@@ -2296,6 +2336,39 @@ impl<M: Model> FactoryBatch<M> {
             .await
     }
 
+    /// Applies the same final attributes to every model in this operation.
+    pub async fn makeWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
+        self.makeWithOn(&self.factory.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn makeWithOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.makeWithStateOn(connection, |_| attributes.clone())
+            .await
+    }
+
+    /// Computes the final state separately for every model in the batch.
+    pub async fn makeWithState(
+        &self,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.makeWithStateOn(&self.factory.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn makeWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.make_with_state(connection, &self.factory.recycled, None, state)
+            .await
+    }
+
     /// Constructs unsaved models with a parent available to factory states.
     pub async fn makeWithParent<P: Model>(
         &self,
@@ -2312,11 +2385,11 @@ impl<M: Model> FactoryBatch<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_with_overrides(
+        self.make_with_state(
             connection,
             &self.factory.recycled,
             Some(RelationContext::parent_only(parent)),
-            &attributes,
+            |_| attributes.clone(),
         )
         .await
     }
@@ -2327,16 +2400,16 @@ impl<M: Model> FactoryBatch<M> {
         pool: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
-        self.make_with_overrides(connection, pool, relation, &Attributes::new())
+        self.make_with_state(connection, pool, relation, |_| Attributes::new())
             .await
     }
 
-    async fn make_with_overrides(
+    async fn make_with_state(
         &self,
         connection: &Connection,
         pool: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
-        overrides: &Attributes,
+        mut state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
         without_relationship_autoloading(async {
             let count = self.count.load(Ordering::Relaxed);
@@ -2346,7 +2419,8 @@ impl<M: Model> FactoryBatch<M> {
                 let mut pending = self
                     .factory
                     .prepare_attributes(connection, relation, &faker)?;
-                pending.values.extend(overrides.clone());
+                let changes = state(&pending.values);
+                pending.values.extend(changes);
                 self.factory
                     .resolve_attributes(connection, pool, &mut pending)
                     .await?;
@@ -2379,11 +2453,11 @@ impl<M: Model> FactoryBatch<M> {
         parent: &P,
         attributes: Attributes,
     ) -> DatabaseResult<Collection<M>> {
-        Box::pin(self.create_with_overrides(
+        Box::pin(self.create_with_state(
             connection,
             &[],
             Some(RelationContext::parent_only(parent)),
-            &attributes,
+            |_| attributes.clone(),
         ))
         .await
     }
@@ -2419,6 +2493,38 @@ impl<M: Model> FactoryBatch<M> {
         self.createOn(&self.factory.resolve_connection()?).await
     }
 
+    /// Applies the same final attributes to every model in this operation.
+    pub async fn createWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
+        self.createWithOn(&self.factory.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn createWithOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createWithStateOn(connection, |_| attributes.clone())
+            .await
+    }
+
+    /// Computes the final state separately for every model in the batch.
+    pub async fn createWithState(
+        &self,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createWithStateOn(&self.factory.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn createWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        Box::pin(self.create_with_state(connection, &[], None, state)).await
+    }
+
     /// Inserts the generated batch in one statement after running afterMaking callbacks.
     pub async fn insert(&self, attributes: Attributes) -> DatabaseResult<()> {
         self.insertOn(&self.factory.resolve_connection()?, attributes)
@@ -2431,7 +2537,9 @@ impl<M: Model> FactoryBatch<M> {
         attributes: Attributes,
     ) -> DatabaseResult<()> {
         let models = self
-            .make_with_overrides(connection, &self.factory.recycled, None, &attributes)
+            .make_with_state(connection, &self.factory.recycled, None, |_| {
+                attributes.clone()
+            })
             .await?;
         Factory::<M>::insert_models(connection, models.into_iter().collect()).await
     }
@@ -2470,26 +2578,58 @@ impl<M: Model> FactoryBatch<M> {
         M::withoutEvents(self.createOn(connection)).await
     }
 
+    /// Applies the same final attributes to every model in this operation.
+    pub async fn createQuietlyWith(&self, attributes: Attributes) -> DatabaseResult<Collection<M>> {
+        self.createQuietlyWithOn(&self.factory.resolve_connection()?, attributes)
+            .await
+    }
+
+    pub async fn createQuietlyWithOn(
+        &self,
+        connection: &Connection,
+        attributes: Attributes,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createQuietlyWithStateOn(connection, |_| attributes.clone())
+            .await
+    }
+
+    /// Computes the final state separately for every model in the batch.
+    pub async fn createQuietlyWithState(
+        &self,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        self.createQuietlyWithStateOn(&self.factory.resolve_connection()?, state)
+            .await
+    }
+
+    pub async fn createQuietlyWithStateOn(
+        &self,
+        connection: &Connection,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
+    ) -> DatabaseResult<Collection<M>> {
+        M::withoutEvents(self.createWithStateOn(connection, state)).await
+    }
+
     async fn create_with_pool(
         &self,
         connection: &Connection,
         inherited: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
     ) -> DatabaseResult<Collection<M>> {
-        self.create_with_overrides(connection, inherited, relation, &Attributes::new())
+        self.create_with_state(connection, inherited, relation, |_| Attributes::new())
             .await
     }
 
-    async fn create_with_overrides(
+    async fn create_with_state(
         &self,
         connection: &Connection,
         inherited: &[RecycledModel],
         relation: Option<RelationContext<'_>>,
-        attributes: &Attributes,
+        state: impl FnMut(&Attributes) -> Attributes + Send,
     ) -> DatabaseResult<Collection<M>> {
         let pool = self.factory.recycle_pool(inherited);
         let mut models = self
-            .make_with_overrides(connection, &pool, relation, attributes)
+            .make_with_state(connection, &pool, relation, state)
             .await?;
         self.store_models(
             connection,

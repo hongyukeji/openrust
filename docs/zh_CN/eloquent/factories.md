@@ -1631,6 +1631,33 @@ async fn preview_for_parent<M: HasFactory, P: Model>(parent: &P) -> DatabaseResu
 }
 ```
 
+用 `makeWithState`、`createWithState` 或 `createQuietlyWithState` 为本次操作追加末尾状态。计数工厂也可以用 `makeWith`、`createWith` 或 `createQuietlyWith` 接收属性映射。单条模型的映射入口为 `makeOne`、`createOne` 和 `createOneQuietly`。对应的 `On` 方法可以指定连接。
+
+回调按模型读取已累积的属性，此时尚未解析延迟属性和父模型键。末尾状态只作用于当前调用。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Attributes, Model, factories::Factory}};
+
+async fn seed_with_final_state<M: Model>() -> DatabaseResult<()> {
+    let name = |value: &str| Attributes::from([("name".into(), value.into())]);
+    let batch = Factory::<M>::new(move || name("Flight")).count(2);
+
+    let drafts = batch.makeWith(name("Preview")).await?;
+    assert!(drafts.iter().all(|model| !model.state().exists()));
+
+    let saved = batch.createWithState(|attributes| {
+        assert_eq!(attributes["name"], "Flight".into());
+        name("Scheduled")
+    }).await?;
+    assert_eq!(saved.len(), 2);
+
+    let seed = batch.lazy(name("Evening flight"));
+    assert_eq!(seed().await?.len(), 2);
+    assert_eq!(seed().await?.len(), 2);
+    Ok(())
+}
+```
+
 用 `createOne(attributes)` 创建单个模型，即使工厂已指定批次数量。用 `createMany(records)` 逐条按顺序创建。传入 `FactoryRecords::Default` 使用工厂数量，未指定时创建一条。传入 `FactoryRecords::Count(n)` 指定数量，或用 `FactoryRecords::Attributes(vec![…])` 为每条记录指定覆盖属性。覆盖值在工厂状态之后应用。每条记录完成两个工厂回调后才开始下一条。后续记录失败时，先前写入可能保留。用 `createOneQuietly` 和 `createManyQuietly` 抑制模型事件，或用对应的 `On` 方法指定连接。
 
 用 `makeOne(attributes)` 构造一个未保存的模型，或用 `makeMany(records)` 按顺序构造多个未保存的模型。两者都接受显式属性并执行 `afterMaking`。`makeMany` 使用同样的 `FactoryRecords` 选项，数量为零时返回空集合。`makeMany` 和 `createMany` 都会消耗已配置的默认数量。显式指定记录、零条及模型生成失败时同样生效。后续调用默认处理一条记录，Rust 批量接口仍返回集合形状。两种方法均不保存返回的模型，解析已声明的上级关系时仍可能写入上级模型。对应的 `On` 方法可指定连接。`lazy(attributes)` 返回异步回调，调用并等待后才解析连接并创建单个模型或指定数量的批次。重复调用会重新创建。
