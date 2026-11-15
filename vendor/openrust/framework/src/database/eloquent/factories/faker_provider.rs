@@ -3,6 +3,8 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
+use chrono::{DateTime, SecondsFormat, Utc};
+use chrono_tz::Tz;
 use regex::Regex;
 
 use super::Faker;
@@ -262,6 +264,24 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
         },
         (DATE_TIME, "datetime") => |faker, args| date_time(faker, args, false),
         (DATE_TIME, "datetimead") => |faker, args| date_time(faker, args, true),
+        (DATE_TIME, "datetimebetween") => date_between,
+        (DATE_TIME, "datetimeininterval") => date_interval,
+        (DATE_TIME, "datetimethisweek") => {
+            |faker, args| date_period(faker, args, "monday this week", "sunday this week")
+        }
+        (DATE_TIME, "datetimethismonth") => |faker, args| {
+            date_period(
+                faker,
+                args,
+                "first day of this month",
+                "last day of this month",
+            )
+        },
+        (DATE_TIME, "datetimethisyear") => {
+            |faker, args| date_period(faker, args, "first day of january", "last day of december")
+        }
+        (DATE_TIME, "datetimethisdecade") => |faker, args| date_calendar_period(faker, args, 10),
+        (DATE_TIME, "datetimethiscentury") => |faker, args| date_calendar_period(faker, args, 100),
         (DATE_TIME, "iso8601") => |faker, args| date_component(faker, args, "Y-m-d\\TH:i:sO"),
         (DATE_TIME, "ampm") => |faker, args| date_component(faker, args, "a"),
         (DATE_TIME, "dayofmonth") => |faker, args| date_component(faker, args, "d"),
@@ -488,17 +508,22 @@ fn text(value: Option<&Value>) -> DatabaseResult<Option<&str>> {
     }
 }
 
-fn date_max(
+fn date_max(faker: &Faker, value: Option<&Value>) -> DatabaseResult<Option<DateTime<Utc>>> {
+    date_max_at(faker, value, Utc::now())
+}
+
+fn date_max_at(
     faker: &Faker,
     value: Option<&Value>,
-) -> DatabaseResult<Option<chrono::DateTime<chrono::Utc>>> {
+    now: DateTime<Utc>,
+) -> DatabaseResult<Option<DateTime<Utc>>> {
     let timestamp = match value {
-        Some(Value::Text(expression)) => return faker.resolveDateMax(expression).map(Some),
+        Some(Value::Text(expression)) => return faker.resolve_date_max(expression, now).map(Some),
         value => integer(value)?,
     };
     timestamp
         .map(|timestamp| {
-            chrono::DateTime::from_timestamp(timestamp, 0).ok_or(DatabaseError::InvalidQuery(
+            DateTime::from_timestamp(timestamp, 0).ok_or(DatabaseError::InvalidQuery(
                 "Faker timestamp is out of range",
             ))
         })
@@ -521,17 +546,95 @@ fn date_component(faker: &Faker, args: &[Value], format: &str) -> DatabaseResult
 
 fn date_time(faker: &Faker, args: &[Value], ad: bool) -> DatabaseResult<Value> {
     let [until, zone] = arguments(args)?;
-    let zone = text(zone)?
-        .map(str::parse)
-        .transpose()
-        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker time zone"))?;
+    let zone = date_zone(zone)?;
     let until = date_max(faker, until)?;
     let date = if ad {
         faker.dateTimeADInTimezone(until, zone)
     } else {
         faker.dateTimeInTimezone(until, zone)
     };
-    Ok(date
-        .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+    Ok(date.to_rfc3339_opts(SecondsFormat::Secs, false).into())
+}
+
+fn date_zone(value: Option<&Value>) -> DatabaseResult<Option<Tz>> {
+    text(value)?
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker time zone"))
+}
+
+fn date_bound(
+    faker: &Faker,
+    value: Option<&Value>,
+    default: &str,
+    now: DateTime<Utc>,
+) -> DatabaseResult<DateTime<Utc>> {
+    match value {
+        None => faker.resolve_date_max(default, now),
+        Some(value) => Ok(date_max_at(faker, Some(value), now)?.unwrap_or(now)),
+    }
+}
+
+fn date_between(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [from, until, zone] = arguments(args)?;
+    let zone = date_zone(zone)?;
+    let now = Utc::now();
+    let start = date_bound(faker, from, "-30 years", now)?;
+    let end = date_bound(faker, until, "now", now)?;
+    let date = faker.dateTimeBetween(start, end)?;
+    Ok(faker
+        .zoned_date(date, zone)
+        .to_rfc3339_opts(SecondsFormat::Secs, false)
+        .into())
+}
+
+fn date_interval(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [from, interval, zone] = arguments(args)?;
+    let zone = date_zone(zone)?;
+    let timestamp;
+    let from = match from {
+        None | Some(Value::Null) => None,
+        Some(Value::Text(expression)) => Some(expression.as_str()),
+        value => {
+            let seconds = integer(value)?.expect("a non-null integer bound");
+            timestamp = format!("@{seconds}");
+            Some(timestamp.as_str())
+        }
+    };
+    let date = faker.dateTimeInIntervalExpressions(from, text(interval)?)?;
+    Ok(faker
+        .zoned_date(date, zone)
+        .to_rfc3339_opts(SecondsFormat::Secs, false)
+        .into())
+}
+
+fn date_period(
+    faker: &Faker,
+    args: &[Value],
+    start: &str,
+    default_end: &str,
+) -> DatabaseResult<Value> {
+    let [until, zone] = arguments(args)?;
+    let zone = date_zone(zone)?;
+    let now = Utc::now();
+    let start = faker.resolve_date_max(start, now)?;
+    let end = date_bound(faker, until, default_end, now)?;
+    let date = faker.dateTimeBetween(start, end)?;
+    Ok(faker
+        .zoned_date(date, zone)
+        .to_rfc3339_opts(SecondsFormat::Secs, false)
+        .into())
+}
+
+fn date_calendar_period(faker: &Faker, args: &[Value], years: i32) -> DatabaseResult<Value> {
+    let [until, zone] = arguments(args)?;
+    let zone = date_zone(zone)?;
+    let now = Utc::now();
+    let start = faker.calendar_period_start(now, years)?;
+    let end = date_bound(faker, until, "now", now)?;
+    let date = faker.dateTimeBetween(start, end)?;
+    Ok(faker
+        .zoned_date(date, zone)
+        .to_rfc3339_opts(SecondsFormat::Secs, false)
         .into())
 }

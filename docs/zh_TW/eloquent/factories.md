@@ -370,6 +370,23 @@ fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
 }
 ```
 
+具名日期擴充也提供 `dateTimeBetween`、`dateTimeInInterval`、`dateTimeThisWeek`、`dateTimeThisMonth`、`dateTimeThisYear`、`dateTimeThisDecade` 和 `dateTimeThisCentury`。區間方法接受相對日期運算式，可以往過去取樣。週期方法以上游的日曆邊界為起點，可傳入結束時間。這些方法回傳 RFC 3339 文字。日期運算式使用應用程式時區，選用的 IANA 時區參數決定輸出偏移。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let dates = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    let range = dates.format(
+        "dateTimeBetween",
+        &["@0".into(), 0.into(), "Asia/Shanghai".into()],
+    )?;
+    let interval = dates.format("dateTimeInInterval", &["@0".into(), "+0 seconds".into()])?;
+    Ok((range, interval))
+}
+```
+
 ### 文字產生 {#text-generation}
 
 用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依上游 Faker 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。

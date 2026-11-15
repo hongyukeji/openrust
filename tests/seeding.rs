@@ -5829,6 +5829,73 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_qualified_date_ranges_match_extension_boundaries() -> DatabaseResult<()> {
+    use chrono::{DateTime, Datelike as _, Utc};
+
+    let faker = Faker::new("en-US")?;
+    let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    assert_eq!(
+        date.format(
+            "dateTimeBetween",
+            &["@0".into(), 0.into(), "Asia/Shanghai".into()]
+        )?,
+        "1970-01-01T08:00:00+08:00".into()
+    );
+    assert!(
+        date.format("dateTimeBetween", &[1.into(), 0.into()])
+            .is_err()
+    );
+    assert!(
+        date.format(
+            "dateTimeInInterval",
+            &["@0".into(), "invalid interval".into()]
+        )
+        .is_err()
+    );
+    assert_eq!(
+        date.format("dateTimeInInterval", &[0.into(), "+0 seconds".into()])?,
+        "1970-01-01T00:00:00+00:00".into()
+    );
+    let Value::Text(sample) = date.format("dateTimeInInterval", &["@0".into(), "-1 day".into()])?
+    else {
+        panic!("expected a date string");
+    };
+    assert!((-86_400..=0).contains(&DateTime::parse_from_rfc3339(&sample).unwrap().timestamp()));
+
+    let Value::Text(week) = date.format("dateTimeThisWeek", &["monday this week".into()])? else {
+        panic!("expected a date string");
+    };
+    assert_eq!(
+        DateTime::parse_from_rfc3339(&week).unwrap().weekday(),
+        chrono::Weekday::Mon
+    );
+    let Value::Text(month) =
+        date.format("dateTimeThisMonth", &["first day of this month".into()])?
+    else {
+        panic!("expected a date string");
+    };
+    assert_eq!(DateTime::parse_from_rfc3339(&month).unwrap().day(), 1);
+    let Value::Text(year) = date.format("dateTimeThisYear", &["first day of january".into()])?
+    else {
+        panic!("expected a date string");
+    };
+    assert_eq!(DateTime::parse_from_rfc3339(&year).unwrap().ordinal(), 1);
+
+    let year = Utc::now().year();
+    for (formatter, width) in [("dateTimeThisDecade", 10), ("dateTimeThisCentury", 100)] {
+        let first_year = year.div_euclid(width) * width;
+        let latest = format!("{first_year}-01-02T00:00:00+00:00");
+        let Value::Text(sample) = date.format(formatter, &[latest.clone().into()])? else {
+            panic!("expected a date string");
+        };
+        let sample = DateTime::parse_from_rfc3339(&sample).unwrap();
+        assert_eq!(sample.year(), first_year);
+        assert!(sample <= DateTime::parse_from_rfc3339(&latest).unwrap());
+    }
+    Ok(())
+}
+
+#[test]
 fn faker_datetime_version_and_file_extensions_use_seeded_and_real_outputs() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;

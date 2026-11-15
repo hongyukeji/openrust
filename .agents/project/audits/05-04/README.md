@@ -1799,3 +1799,15 @@ Rust 复用现有 PHP 日期格式化、时间上界解析和时区能力。新�
 隔离基线 `387bac4e`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、57 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。以固定种子验收版本形状和标记、纪元日期和显式时区、真实空文件及参数错误。
 
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译运行三语共用示例，回读纪元日期和版本号，并验证空文件创建和删除。无效时区报错且状态为 1。`./artisan inspire`、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已移除，清理隔离 Cargo 产物 5.0 GiB 和站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。DateTimeExtension 的日期区间、相对周期以及其他具名 formatter 待继续对账。
+
+## Faker DateTime 区间与相对周期
+
+对应固定 Laravel 工厂数据生成和固定上游 Faker DateTimeExtension。PHP 8.5 探针运行固定 Core/DateTime、Number 和 Generator，验证等端点、可用时区、周一、本月首日、年初及十年和百年边界，以及反向端点报错。v0.x 的同名工厂用于查询构造，固定 Goravel 继续作为编译装配参考。
+
+具名 DateTimeExtension 接入 dateTimeBetween、dateTimeInInterval 及本周、本月、本年、十年和百年范围。以同一参考时间解析范围端点，端点按应用时区解释。区间复用现有相对时间解析，可向过去取样。输出 RFC 3339 文本，显式时区用于渲染偏移。具名周期跟随上游扩展的日历边界，既有类型化周期继续沿用其对应的旧提供器行为。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/DateTime.php#L86 。
+
+隔离基线 `4241f60f`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、58 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读 `1970-01-01T08:00:00+08:00` 和 `1970-01-01T00:00:00+00:00`。反向端点报告错误并以状态 1 退出。Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 及站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 后续继续核对集合等剩余具名 formatter 与整单元账本。

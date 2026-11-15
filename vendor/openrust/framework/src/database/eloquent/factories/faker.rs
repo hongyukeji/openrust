@@ -4925,7 +4925,11 @@ impl Faker {
         calendar::parse_timestamp_expression(expression, now, self.application_timezone)
     }
 
-    fn resolve_date_max(&self, max: &str, now: DateTime<Utc>) -> DatabaseResult<DateTime<Utc>> {
+    pub(super) fn resolve_date_max(
+        &self,
+        max: &str,
+        now: DateTime<Utc>,
+    ) -> DatabaseResult<DateTime<Utc>> {
         let timestamp = self
             .resolve_timestamp_max(max, now)
             .map_err(calendar_query_error)?;
@@ -5006,6 +5010,16 @@ impl Faker {
         self.dateTimeBetween(start.min(end), start.max(end))
     }
 
+    pub(super) fn calendar_period_start(
+        &self,
+        now: DateTime<Utc>,
+        years: i32,
+    ) -> DatabaseResult<DateTime<Utc>> {
+        let year = now.with_timezone(&self.application_timezone).year();
+        let first_year = year.div_euclid(years) * years;
+        self.resolve_date_max(&format!("first day of january {first_year}"), now)
+    }
+
     pub fn dateTimeThisCentury(&self, max: Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>> {
         self.date_time_since_months_ago(100 * 12, max)
     }
@@ -5069,7 +5083,7 @@ impl Faker {
         self.zoned_date(self.dateTime(max), timezone)
     }
 
-    fn zoned_date(&self, instant: DateTime<Utc>, timezone: Option<Tz>) -> DateTime<Tz> {
+    pub(super) fn zoned_date(&self, instant: DateTime<Utc>, timezone: Option<Tz>) -> DateTime<Tz> {
         let timezone = timezone
             .or_else(|| self.getDefaultTimezone())
             .unwrap_or(self.application_timezone);

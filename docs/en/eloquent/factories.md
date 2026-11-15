@@ -370,6 +370,23 @@ fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
 }
 ```
 
+The named date extension also exposes `dateTimeBetween`, `dateTimeInInterval`, and `dateTimeThisWeek`, `dateTimeThisMonth`, `dateTimeThisYear`, `dateTimeThisDecade`, and `dateTimeThisCentury`. Intervals accept relative date expressions and can run backward. Period methods start at the upstream calendar boundary and accept an optional end. These methods return RFC 3339 text. Date expressions use the application time zone, and the optional IANA time zone selects the output offset.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let dates = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    let range = dates.format(
+        "dateTimeBetween",
+        &["@0".into(), 0.into(), "Asia/Shanghai".into()],
+    )?;
+    let interval = dates.format("dateTimeInInterval", &["@0".into(), "+0 seconds".into()])?;
+    Ok((range, interval))
+}
+```
+
 ### Text Generation {#text-generation}
 
 Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as upstream Faker. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
