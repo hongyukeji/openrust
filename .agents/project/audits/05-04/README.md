@@ -1540,3 +1540,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、106 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、107 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对克罗地亚和斯洛文尼亚 Address。
+
+## 克罗地亚和斯洛文尼亚地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [克罗地亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hr_HR/Address.php) 和 [斯洛文尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sl_SI/Address.php) Address。两地按原序保留街道、城市和国家词表。克罗地亚使用五位邮编及街道查询入口。斯洛文尼亚保留尾数为零的四位邮编、加权门牌模板及完整地址里的两处字面 `\n`。Rust 直接采样固定名称，复用已有地址模板和 UniqueFaker。v0.x 无等价 Faker 地址代码，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `24206956`。按 PHP 反射逐项核对 15 份词表和模板，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖当地邮编、斯洛文尼亚字面分隔符、克罗地亚 street 入口及两地 cityName。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、108 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对立陶宛和拉脱维亚 Address。

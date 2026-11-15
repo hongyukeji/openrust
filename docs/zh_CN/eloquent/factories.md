@@ -1089,6 +1089,16 @@ fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+克罗地亚地址从当地词表抽取街名和城市，使用五位邮编，也可通过 `street()` 单独抽取街名。斯洛文尼亚邮编为四位，末位固定为零。斯洛文尼亚完整地址保留 FakerPHP 中两处字面的 `\n` 分隔符。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("hr-HR"))?.address(), fake(Some("sl-SI"))?.address()])
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

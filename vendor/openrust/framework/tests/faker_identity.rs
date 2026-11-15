@@ -4663,3 +4663,20 @@ fn romanian_addresses_keep_weighted_layouts_and_local_postcodes() {
     assert!(singapore.apartmentNumber().is_ok());
     assert!(singapore.floor().is_err());
 }
+
+#[test]
+fn croatian_and_slovenian_addresses_keep_local_layouts_and_postcodes() {
+    let croatian = fake(Some("hr-HR")).unwrap();
+    let slovenian = fake(Some("sl-SI")).unwrap();
+    let croatian_address = Regex::new(r"^.+ [1-9][0-9], [0-9]{5} .+$").unwrap();
+    let slovenian_address = Regex::new(r"^.+ [1-9][0-9]{0,2}\\n [0-9]{3}0\\n .+$").unwrap();
+    for _ in 0..128 {
+        assert!(croatian_address.is_match(&croatian.address()));
+        let address = slovenian.address();
+        assert!(slovenian_address.is_match(&address));
+        assert!(!address.contains('\n'));
+    }
+    assert!(croatian.unique(true).street().is_ok());
+    assert!(slovenian.street().is_err());
+    assert!(slovenian.unique(true).cityName().is_ok());
+}
