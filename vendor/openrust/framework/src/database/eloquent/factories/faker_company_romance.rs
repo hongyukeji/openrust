@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // French and Italian regional company data from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -24,7 +26,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use super::{FR_FR_SUFFIXES, sample};
+use super::FR_FR_SUFFIXES;
 
 const FR_BE_SUFFIXES: &[&str] = &[
     "ASBL",
@@ -805,7 +807,7 @@ pub(in crate::database::eloquent::factories::faker) const IT_CH_SURNAMES: &[&str
     "Zimmermann",
 ];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     let surnames = match locale {
         "fr_BE" => FR_BE_SURNAMES,
         "fr_CA" => FR_CA_SURNAMES,
@@ -813,13 +815,17 @@ pub(super) fn company(locale: &str) -> Option<String> {
         "it_CH" => IT_CH_SURNAMES,
         _ => return None,
     };
-    let name = sample(surnames);
+    let name = random.sample(surnames);
     let suffixes = suffixes(locale)?;
     let templates = if locale == "fr_BE" { 2 } else { 4 };
-    Some(match (locale, fastrand::u8(0..templates)) {
-        (_, 0) => format!("{name} {}", sample(suffixes)),
+    Some(match (locale, random.u8(0..templates)) {
+        (_, 0) => format!("{name} {}", random.sample(suffixes)),
         (locale, 1) if locale != "fr_BE" => {
-            format!("{name} {} {}", sample(surnames), sample(suffixes))
+            format!(
+                "{name} {} {}",
+                random.sample(surnames),
+                random.sample(suffixes)
+            )
         }
         _ => name.to_owned(),
     })

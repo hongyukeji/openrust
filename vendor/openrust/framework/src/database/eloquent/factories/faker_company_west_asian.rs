@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // West Asian company formats and names from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const FA_IR_SURNAMES: &[&str] = &[
     "آختاچی",
@@ -2574,52 +2574,52 @@ const KA_GE_NAME_SUFFIXES: &[&str] = &[
 
 const KA_GE_SUFFIXES: &[&str] = &["Ltd"];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     Some(match locale {
         "fa_IR" => {
-            let field = sample(FA_IR_FIELDS);
-            let template = fastrand::u8(0..8);
+            let field = random.sample(FA_IR_FIELDS);
+            let template = random.u8(0..8);
             let person = match template {
-                4 | 7 => sample(FA_IR_SURNAMES),
-                _ => sample(if fastrand::bool() {
+                4 | 7 => random.sample(FA_IR_SURNAMES),
+                _ => random.sample(if random.bool() {
                     FA_IR_MALE_NAMES
                 } else {
                     FA_IR_FEMALE_NAMES
                 }),
             };
             if template < 5 {
-                format!("{} {field} {person}", sample(FA_IR_PREFIXES))
+                format!("{} {field} {person}", random.sample(FA_IR_PREFIXES))
             } else {
                 format!("{field} {person}")
             }
         }
         "he_IL" => {
-            let name = sample(HE_IL_SURNAMES);
-            match fastrand::u8(0..3) {
-                0 => format!("{name} {}", sample(HE_IL_SUFFIXES)),
+            let name = random.sample(HE_IL_SURNAMES);
+            match random.u8(0..3) {
+                0 => format!("{name} {}", random.sample(HE_IL_SUFFIXES)),
                 1 => format!(
                     "{name} את {} {}",
-                    sample(HE_IL_SURNAMES),
-                    sample(HE_IL_SUFFIXES)
+                    random.sample(HE_IL_SURNAMES),
+                    random.sample(HE_IL_SUFFIXES)
                 ),
-                _ => format!("{name} ו{}", sample(HE_IL_SURNAMES)),
+                _ => format!("{name} ו{}", random.sample(HE_IL_SURNAMES)),
             }
         }
         "hy_AM" => {
-            let name = sample(HY_AM_SURNAMES);
-            let suffix = if fastrand::u8(0..9) == 0 {
+            let name = random.sample(HY_AM_SURNAMES);
+            let suffix = if random.u8(0..9) == 0 {
                 "եղբայրներ"
             } else {
-                sample(HY_AM_SUFFIXES)
+                random.sample(HY_AM_SUFFIXES)
             };
             format!("{name} {suffix}")
         }
         "ka_GE" => {
-            let mut name = format!("{} ", sample(KA_GE_PREFIXES));
-            for _ in 0..fastrand::u8(1..=4).min(3) {
-                name.push_str(sample(KA_GE_ELEMENTS));
+            let mut name = format!("{} ", random.sample(KA_GE_PREFIXES));
+            for _ in 0..random.u8(1..=4).min(3) {
+                name.push_str(random.sample(KA_GE_ELEMENTS));
             }
-            name.push_str(sample(KA_GE_NAME_SUFFIXES));
+            name.push_str(random.sample(KA_GE_NAME_SUFFIXES));
             name
         }
         _ => return None,
@@ -2644,12 +2644,12 @@ pub(super) fn prefixes(locale: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-pub(super) fn company_field() -> &'static str {
-    sample(FA_IR_FIELDS)
+pub(super) fn company_field(random: &FakerRandom) -> &'static str {
+    random.sample(FA_IR_FIELDS)
 }
 
-pub(super) fn contract() -> &'static str {
-    sample(FA_IR_CONTRACTS)
+pub(super) fn contract(random: &FakerRandom) -> &'static str {
+    random.sample(FA_IR_CONTRACTS)
 }
 
 pub(super) fn elements(locale: &str) -> Option<&'static [&'static str]> {

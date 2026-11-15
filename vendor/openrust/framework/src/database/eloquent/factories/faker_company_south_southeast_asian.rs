@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Company templates and Person vocabularies from FakerPHP v1.24.1 (MIT).
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -21,8 +23,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const INHERITED_SUFFIXES: &[&str] = &["Ltd"];
 
@@ -2134,44 +2134,56 @@ const TH_SLOGAN_ENDINGS: &[&str] = &[
     "สมัยใหม่",
     "รูปแบบใหม่",
 ];
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     Some(match locale {
-        "bn_BD" => format!("{} {}", sample(BN_NAMES), sample(BN_TYPES)),
+        "bn_BD" => format!("{} {}", random.sample(BN_NAMES), random.sample(BN_TYPES)),
         "id_ID" => {
-            let prefix = sample(ID_PREFIXES);
-            let surname = indonesian_surname();
-            match fastrand::u8(0..4) {
+            let prefix = random.sample(ID_PREFIXES);
+            let surname = indonesian_surname(random);
+            match random.u8(0..4) {
                 0 => format!("{prefix} {surname}"),
-                1 => format!("{prefix} {surname} {}", indonesian_surname()),
-                2 => format!("{prefix} {surname} {}", sample(ID_SUFFIXES)),
+                1 => format!("{prefix} {surname} {}", indonesian_surname(random)),
+                2 => format!("{prefix} {surname} {}", random.sample(ID_SUFFIXES)),
                 _ => format!(
                     "{prefix} {surname} {} {}",
-                    indonesian_surname(),
-                    sample(ID_SUFFIXES)
+                    indonesian_surname(random),
+                    random.sample(ID_SUFFIXES)
                 ),
             }
         }
         "ms_MY" => {
-            let suffix = sample(MY_SUFFIXES);
-            match fastrand::u8(0..4) {
-                0 => format!("{} {suffix}", sample(MY_COMPANIES)),
-                1 => format!("{} {} {suffix}", industry(), sample(MY_MALAY_SURNAMES)),
+            let suffix = random.sample(MY_SUFFIXES);
+            match random.u8(0..4) {
+                0 => format!("{} {suffix}", random.sample(MY_COMPANIES)),
+                1 => format!(
+                    "{} {} {suffix}",
+                    industry(random),
+                    random.sample(MY_MALAY_SURNAMES)
+                ),
                 2 => format!(
                     "{} {} {} {suffix}",
-                    industry(),
-                    sample(MY_CHINESE_NAMES),
-                    sample(MY_CHINESE_MALE_NAMES)
+                    industry(random),
+                    random.sample(MY_CHINESE_NAMES),
+                    random.sample(MY_CHINESE_MALE_NAMES)
                 ),
-                _ => format!("{} {} {suffix}", industry(), sample(MY_INDIAN_MALE_NAMES)),
+                _ => format!(
+                    "{} {} {suffix}",
+                    industry(random),
+                    random.sample(MY_INDIAN_MALE_NAMES)
+                ),
             }
         }
-        "th_TH" => format!("{} {}", sample(TH_SURNAMES), sample(INHERITED_SUFFIXES)),
+        "th_TH" => format!(
+            "{} {}",
+            random.sample(TH_SURNAMES),
+            random.sample(INHERITED_SUFFIXES)
+        ),
         _ => return None,
     })
 }
 
-fn indonesian_surname() -> &'static str {
-    sample(if fastrand::bool() {
+fn indonesian_surname(random: &FakerRandom) -> &'static str {
+    random.sample(if random.bool() {
         ID_MALE_SURNAMES
     } else {
         ID_FEMALE_SURNAMES
@@ -2186,19 +2198,19 @@ pub(super) fn company_names(locale: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-pub(super) fn bangladeshi_company_type() -> &'static str {
-    sample(BN_TYPES)
+pub(super) fn bangladeshi_company_type(random: &FakerRandom) -> &'static str {
+    random.sample(BN_TYPES)
 }
 
-pub(super) fn industry() -> &'static str {
-    sample(MY_INDUSTRIES)
+pub(super) fn industry(random: &FakerRandom) -> &'static str {
+    random.sample(MY_INDUSTRIES)
 }
 
-pub(super) fn slogan() -> String {
+pub(super) fn slogan(random: &FakerRandom) -> String {
     [
-        sample(TH_SLOGAN_VERBS),
-        sample(TH_SLOGAN_OBJECTS),
-        sample(TH_SLOGAN_ENDINGS),
+        random.sample(TH_SLOGAN_VERBS),
+        random.sample(TH_SLOGAN_OBJECTS),
+        random.sample(TH_SLOGAN_ENDINGS),
     ]
     .concat()
 }

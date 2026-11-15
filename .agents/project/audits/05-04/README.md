@@ -1701,3 +1701,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 实际 `main artisan db:seed --database=mysql --force` 运行三语共用示例。MySQL 按键回读 4 条父记录和 8 条子记录。前两条子记录指向各自的父记录，后两个父模型各有按 alpha、beta、gamma 排列的子记录。父记录值验证移除指定阶段后的写入结果。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器和本批独占缓存已清理，磁盘可用 78 GiB。
 
 [用例对照表](test-matrix.md)中的工厂与 Seeder 待补组合已有对应证据。05-04 仍需核对 FakerPHP 兼容边界。其中固定 [FakerPHP Generator::seed](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php) 可重置随机序列，现有 Rust Faker 没有该公开入口。下一批验证同种子可复现、不同种子及独立应用的作用域，再更新 Faker 验收状态。
+
+## Faker 随机种子与应用隔离
+
+对照固定 [FakerPHP Generator::seed](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php#L685)和 [Laravel 工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。固定 PHP 8.5 探针运行该方法，重复种子重放相同整数序列，更换种子产生不同序列。Rust 让每个 Faker 实例持有随机序列，以隔离不同应用、语言及独立生成器。工厂仍从所选连接所属应用获取单独绑定的 Faker。区域词表、正则及 fake-rs 回退都从该序列取样。Rust RNG 与 PHP MT 产生的具体值有差异。尚未设种子时走原有随机路径，显式设种子后只在抽样时同步访问该实例的随机状态。跨任务共享实例的结果顺序取决于调度，重放依赖相同调用顺序及输入，带相对时间的格式还依赖时钟。文件取样在设种子后按文件名排序，下载临时文件继续独立生成名称。旧版同名工厂为查询构造，Goravel 式编译装配无需改动。
+
+隔离基线 `531f60ee`。10 个 locale 的混合 formatter 回归验证重设相同种子、不同种子、实例交错、默认熵重置入口及单独的 uniqueness 历史。两次同进程 Artisan 应用调用验证语言别名共用序列、不同语言和应用各自推进。Rust 1.94.0 格式、全工作区全目标严格 Clippy、50 项 Seeder 与两项 MySQL／SQLite 工厂回归通过。既有 Sanctum 排版差异仅在隔离副本处理。
+
+实际 `main artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 运行三语共用示例。两次独立设种子写入六条记录，三对位置对应的名称逐字节一致。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器和本批缓存已清理，磁盘可用 78 GiB。
+
+下一批按固定 FakerPHP 的自定义 provider、formatter 重名覆盖和错误路径复核 Rust 扩展入口，完成 05-04 剩余兼容边界对照。

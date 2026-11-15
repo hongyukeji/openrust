@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Company phrase catalogs from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const AR_CATCH_PHRASE: &[&[&str]] = &[
     &["الخدمات", "الحلول", "الانظمة"],
@@ -2832,15 +2832,15 @@ fn company_locale(locale: &str) -> &str {
     }
 }
 
-pub(super) fn catch_phrase(locale: &str) -> Option<String> {
+pub(super) fn catch_phrase(random: &FakerRandom, locale: &str) -> Option<String> {
     let words = match company_locale(locale) {
         "ar_EG" | "ar_JO" | "ar_SA" => AR_CATCH_PHRASE,
-        "cs_CZ" => return Some(render_phrase(CS_CZ_FORMS)),
+        "cs_CZ" => return Some(render_phrase(random, CS_CZ_FORMS)),
         "en_US" => EN_US_CATCH_PHRASE,
         "es_AR" | "es_ES" | "es_PE" => ES_CATCH_PHRASE,
         "fi_FI" => FI_FI_CATCH_PHRASE,
         "fr_FR" => loop {
-            let phrase = render_phrase(FR_FR_FORMS);
+            let phrase = render_phrase(random, FR_FR_FORMS);
             if ["sécurité", "simpl"]
                 .iter()
                 .all(|word| phrase.matches(word).count() <= 1)
@@ -2852,14 +2852,14 @@ pub(super) fn catch_phrase(locale: &str) -> Option<String> {
         "it_IT" => IT_IT_CATCH_PHRASE,
         "ru_RU" => RU_RU_CATCH_PHRASE,
         "sk_SK" => SK_SK_CATCH_PHRASE,
-        "zh_CN" => return Some(sample(ZH_CN_CATCH_PHRASE).to_owned()),
-        "zh_TW" => return Some(sample(ZH_TW_CATCH_PHRASE).to_owned()),
+        "zh_CN" => return Some(random.sample(ZH_CN_CATCH_PHRASE).to_owned()),
+        "zh_TW" => return Some(random.sample(ZH_TW_CATCH_PHRASE).to_owned()),
         _ => return None,
     };
-    Some(join_groups(words, " "))
+    Some(join_groups(random, words, " "))
 }
 
-pub(super) fn business_phrase(locale: &str) -> Option<String> {
+pub(super) fn business_phrase(random: &FakerRandom, locale: &str) -> Option<String> {
     let words = match company_locale(locale) {
         "ar_JO" | "ar_SA" | "hy_AM" => return Some(String::new()),
         "en_US" => EN_US_BS,
@@ -2867,16 +2867,20 @@ pub(super) fn business_phrase(locale: &str) -> Option<String> {
         "fi_FI" => FI_FI_BS,
         "it_IT" => IT_IT_BS,
         "sk_SK" => SK_SK_BS,
-        "zh_TW" => return Some(join_groups(ZH_TW_BS, "")),
+        "zh_TW" => return Some(join_groups(random, ZH_TW_BS, "")),
         _ => return None,
     };
-    Some(join_groups(words, " "))
+    Some(join_groups(random, words, " "))
 }
 
-fn join_groups(groups: &[&'static [&'static str]], separator: &str) -> String {
+fn join_groups(
+    random: &FakerRandom,
+    groups: &[&'static [&'static str]],
+    separator: &str,
+) -> String {
     groups
         .iter()
-        .map(|group| sample(group))
+        .map(|group| random.sample(group))
         .collect::<Vec<_>>()
         .join(separator)
 }
@@ -2889,13 +2893,13 @@ pub(super) enum Part {
 }
 
 impl Part {
-    pub(super) fn sample(self, locale: &str) -> Option<&'static str> {
+    pub(super) fn sample(self, random: &FakerRandom, locale: &str) -> Option<&'static str> {
         let parts = match company_locale(locale) {
             "cs_CZ" => CS_CZ_FORMS,
             "fr_FR" => FR_FR_FORMS,
             _ => return None,
         };
-        Some(parts.sample(self))
+        Some(parts.sample(random, self))
     }
 }
 
@@ -2907,8 +2911,8 @@ struct PhraseForms {
 }
 
 impl PhraseForms {
-    fn sample(&self, part: Part) -> &'static str {
-        sample(match part {
+    fn sample(&self, random: &FakerRandom, part: Part) -> &'static str {
+        random.sample(match part {
             Part::Noun => self.nouns,
             Part::Verb => self.verbs,
             Part::Attribute => self.attributes,
@@ -2930,8 +2934,8 @@ const FR_FR_FORMS: PhraseForms = PhraseForms {
     attributes: FR_FR_ATTRIBUTE,
 };
 
-fn render_phrase(forms: PhraseForms) -> String {
-    let mut format = sample(forms.formats);
+fn render_phrase(random: &FakerRandom, forms: PhraseForms) -> String {
+    let mut format = random.sample(forms.formats);
     let mut phrase = String::new();
     while let Some((prefix, token)) = format.split_once("{{") {
         let (token, rest) = token
@@ -2944,7 +2948,7 @@ fn render_phrase(forms: PhraseForms) -> String {
             _ => unreachable!("fixed company phrase token"),
         };
         phrase.push_str(prefix);
-        phrase.push_str(forms.sample(part));
+        phrase.push_str(forms.sample(random, part));
         format = rest;
     }
     phrase.push_str(format);

@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Data from FakerPHP 1.24.1, src/Faker/Provider/pl_PL/LicensePlate.php.
 // The upstream MIT notice follows.
 //
@@ -28,7 +30,7 @@ use std::sync::OnceLock;
 
 use crate::database::{DatabaseError, DatabaseResult};
 
-use super::{Faker, RegexPattern, UniqueFaker, address_sample};
+use super::{Faker, RegexPattern, UniqueFaker};
 
 struct PlateRegion {
     name: &'static str,
@@ -603,10 +605,11 @@ impl Faker {
         } else {
             &REGIONS[..STANDARD_REGION_COUNT]
         };
-        let region = sample_area(regions, voivodeships, |region| region.name);
-        let region_code = address_sample(region.prefixes);
-        let (_, county_codes) = sample_area(region.counties, counties, |county| county.0);
-        let county_code = address_sample(county_codes);
+        let region = sample_area(&self.random, regions, voivodeships, |region| region.name);
+        let region_code = self.random.sample(region.prefixes);
+        let (_, county_codes) =
+            sample_area(&self.random, region.counties, counties, |county| county.0);
+        let county_code = self.random.sample(county_codes);
         let (cache, suffixes) = if county_code.len() == 1 {
             (&SUFFIX_PATTERNS_1, SUFFIX_GROUP_1)
         } else {
@@ -618,7 +621,7 @@ impl Faker {
                 .map(|suffix| RegexPattern::parse(suffix).expect("fixed Polish plate suffix"))
                 .collect()
         });
-        let suffix = patterns[fastrand::usize(..patterns.len())].sample();
+        let suffix = patterns[self.random.usize(..patterns.len())].sample(&self.random);
         Ok(format!("{region_code}{county_code} {suffix}"))
     }
 }
@@ -643,6 +646,7 @@ impl UniqueFaker<'_> {
 }
 
 fn sample_area<'a, T>(
+    random: &FakerRandom,
     areas: &'a [T],
     requested: Option<&[&str]>,
     name: impl Fn(&T) -> &'static str,
@@ -652,9 +656,9 @@ fn sample_area<'a, T>(
         let count = matches.clone().count();
         if count > 0 {
             return matches
-                .nth(fastrand::usize(..count))
+                .nth(random.usize(..count))
                 .expect("selected a matching Polish plate area");
         }
     }
-    &areas[fastrand::usize(..areas.len())]
+    &areas[random.usize(..areas.len())]
 }

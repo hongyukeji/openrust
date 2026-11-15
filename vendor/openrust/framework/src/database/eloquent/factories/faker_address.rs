@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Address data from the pinned FakerPHP 1.24.1 regional providers.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -9422,9 +9424,9 @@ pub(super) struct MalaysianRegion {
 }
 
 impl MalaysianRegion {
-    pub(super) fn postcode(&self) -> String {
-        let (start, end) = self.postcodes[fastrand::usize(..self.postcodes.len())];
-        format!("{:05}", fastrand::u32(start..=end))
+    pub(super) fn postcode(&self, random: &FakerRandom) -> String {
+        let (start, end) = self.postcodes[random.usize(..self.postcodes.len())];
+        format!("{:05}", random.u32(start..=end))
     }
 }
 

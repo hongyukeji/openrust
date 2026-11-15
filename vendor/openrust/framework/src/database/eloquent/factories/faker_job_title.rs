@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // FakerPHP v1.24.1 Company and Lorem catalogs.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -21,8 +23,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const DE_DE: &[&str] = &[
     "Abteilungsdirektor",
@@ -5223,7 +5223,7 @@ pub(in crate::database::eloquent::factories::faker) const LOREM_WORDS: &[&str] =
     "repellat",
 ];
 
-pub(super) fn job_title(locale: &str) -> String {
+pub(super) fn job_title(random: &FakerRandom, locale: &str) -> String {
     let titles = match locale {
         "de_DE" => DE_DE,
         "fr_FR" | "fr_BE" | "fr_CA" | "fr_CH" => FR_FR,
@@ -5244,5 +5244,5 @@ pub(super) fn job_title(locale: &str) -> String {
         }
         _ => EN_US,
     };
-    sample(titles).to_owned()
+    random.sample(titles).to_owned()
 }

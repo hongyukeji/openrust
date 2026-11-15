@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Croatian, Slovak and Hungarian company formats and names from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const HR_HR_SUFFIXES: &[&str] = &["d.o.o.", "j.d.o.o.", "Security"];
 
@@ -762,38 +762,46 @@ pub(in crate::database::eloquent::factories::faker) const HU_HU_SURNAMES: &[&str
     "Vörös",
 ];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     Some(match locale {
-        "hr_HR" => match fastrand::u8(0..3) {
-            0 => format!("{} {}", sample(HR_HR_SURNAMES), sample(HR_HR_SUFFIXES)),
-            1 => format!("{} {}", sample(HR_HR_PREFIXES), sample(HR_HR_SURNAMES)),
+        "hr_HR" => match random.u8(0..3) {
+            0 => format!(
+                "{} {}",
+                random.sample(HR_HR_SURNAMES),
+                random.sample(HR_HR_SUFFIXES)
+            ),
+            1 => format!(
+                "{} {}",
+                random.sample(HR_HR_PREFIXES),
+                random.sample(HR_HR_SURNAMES)
+            ),
             _ => {
-                let names = if fastrand::bool() {
+                let names = if random.bool() {
                     HR_HR_MALE_NAMES
                 } else {
                     HR_HR_FEMALE_NAMES
                 };
-                format!("{} {}", sample(HR_HR_PREFIXES), sample(names))
+                format!("{} {}", random.sample(HR_HR_PREFIXES), random.sample(names))
             }
         },
         "sk_SK" => {
             let surname = || {
-                sample(if fastrand::bool() {
+                random.sample(if random.bool() {
                     SK_SK_MALE_SURNAMES
                 } else {
                     SK_SK_FEMALE_SURNAMES
                 })
             };
-            match fastrand::u8(0..3) {
-                0 => format!("{} {}", surname(), sample(SK_SK_SUFFIXES)),
+            match random.u8(0..3) {
+                0 => format!("{} {}", surname(), random.sample(SK_SK_SUFFIXES)),
                 1 => format!("{}-{}", surname(), surname()),
                 _ => format!("{}, {} and {}", surname(), surname(), surname()),
             }
         }
         "hu_HU" => {
-            let surname = sample(HU_HU_SURNAMES);
-            if fastrand::bool() {
-                format!("{surname} {}", sample(HU_HU_SUFFIXES))
+            let surname = random.sample(HU_HU_SURNAMES);
+            if random.bool() {
+                format!("{surname} {}", random.sample(HU_HU_SUFFIXES))
             } else {
                 surname.to_owned()
             }

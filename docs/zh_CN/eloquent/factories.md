@@ -127,6 +127,20 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 在应用内，`fake()` 返回 `Arc<Faker>`，同一规范化语言的调用共享生成器。`unique(false)` 的历史和时区覆盖会跨调用保留，`unique(true)` 会清空共享历史。工厂使用由所选连接所属应用持有的独立生成器，同一应用内的批次和后续工厂调用共享其历史。生成器在构造批次时耗尽会在写入该批模型前返回错误。应用之外的 `fake()` 每次创建新生成器。用 `Faker::new` 可单独创建生成器。
 
+用 `seed(2026)` 重置某个生成器的随机序列。保持语言、formatter 调用顺序和参数一致，就可重放同一序列。日期 formatter 默认使用当前时间时，重放时应传入固定边界。并发任务需要各自稳定复现时，用 `Faker::new` 为每个任务创建独立生成器。
+
+传入 `None` 可从新的熵源重新设种子。带种子的值使用 Rust 随机生成器。设置种子会保留去重历史，需要同时重置历史时，另行调用 `unique(true)`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::Faker};
+
+fn seeded_names() -> DatabaseResult<Vec<String>> {
+    let faker = Faker::new("en-US")?;
+    faker.seed(2026);
+    Ok((0..3).map(|_| faker.name()).collect())
+}
+```
+
 内置生成方法还包括 `firstName`、`lastName`、`freeEmail`、`userName`、`streetName`、`postcode`、`phoneNumber`、`company` 和 `word`。这些方法也可通过 `unique` 调用。样本取自 fake-rs 中相应语言的数据集。
 
 用 `numberBetween(first, second)` 生成整数，包含两个端点，端点可以任意排序。`randomDigit()` 返回 0 至 9，`randomDigitNotNull()` 返回 1 至 9。`dateTimeBetween(start, end)` 接收显式 UTC 日期时间，按整秒取样并包含两端，起始秒晚于结束秒时返回错误。四种方法都支持 `unique`。

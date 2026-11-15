@@ -54,7 +54,7 @@ impl Faker {
         let color = if options.gray {
             "CCCCCC".to_owned()
         } else {
-            let value = fastrand::u8(..);
+            let value = self.random.u8(..);
             let high = value >> 4;
             let low = value & 15;
             format!("00{high:x}{high:x}{low:x}{low:x}")

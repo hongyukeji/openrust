@@ -935,7 +935,7 @@ impl Faker {
     pub fn phoneNumber(&self) -> String {
         match self.locale() {
             "zh_CN" => {
-                let prefix = sample(CHINA_OPERATORS);
+                let prefix = self.random.sample(CHINA_OPERATORS);
                 format!(
                     "{prefix}{}",
                     self.numerify(Some(&"###########"[prefix.len()..]))
@@ -943,7 +943,7 @@ impl Faker {
             }
             "pt_BR" => self.brazilian_display_number(true),
             "bn_BD" => {
-                let number = fastrand::u32(0..=9_999_999);
+                let number = self.random.u32(0..=9_999_999);
                 format!("+880{number}")
                     .chars()
                     .map(|digit| {
@@ -954,7 +954,7 @@ impl Faker {
                     .collect()
             }
             "ro_RO" => self.sample_phone_template(
-                if fastrand::bool() {
+                if self.random.bool() {
                     DISPLAY_RO_MOBILE
                 } else {
                     DISPLAY_RO_LANDLINE
@@ -962,13 +962,13 @@ impl Faker {
                 false,
             ),
             "vi_VN" => {
-                let area = sample(VI_AREA);
+                let area = self.random.sample(VI_AREA);
                 let masks = if area.len() < 2 {
                     DISPLAY_VI_8
                 } else {
                     DISPLAY_VI_7
                 };
-                self.numerify(Some(&sample(masks).replace("[a]", area)))
+                self.numerify(Some(&self.random.sample(masks).replace("[a]", area)))
             }
             locale => self.sample_phone_template(display_formats(locale), false),
         }
@@ -985,7 +985,7 @@ impl Faker {
     }
 
     fn brazilian_display_number(&self, formatting: bool) -> String {
-        let formats: &[&str] = if fastrand::bool() { BR_CELL } else { BR_LAND };
+        let formats: &[&str] = if self.random.bool() { BR_CELL } else { BR_LAND };
         self.brazilian_phone_number(formats, formatting)
     }
 
@@ -1177,7 +1177,7 @@ impl Faker {
                 ));
             }
         };
-        Ok(sample(formats))
+        Ok(self.random.sample(formats))
     }
 
     pub fn separator(&self) -> DatabaseResult<&'static str> {
@@ -1186,7 +1186,7 @@ impl Faker {
                 "unsupported Faker phone separator locale",
             ));
         }
-        Ok(sample(&[" ", "-"]))
+        Ok(self.random.sample(&[" ", "-"]))
     }
 
     pub fn cellphone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
@@ -1200,7 +1200,7 @@ impl Faker {
     pub fn phone(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         // Two of the three upstream choices select the cellphone group.
         self.brazilian_subscriber(
-            if fastrand::u8(0..3) == 0 {
+            if self.random.u8(0..3) == 0 {
                 BR_LAND
             } else {
                 BR_CELL
@@ -1224,7 +1224,7 @@ impl Faker {
     }
 
     fn brazilian_phone_number(&self, formats: &[&str], formatted: bool) -> String {
-        let area = sample(AREA_CODES_BR);
+        let area = self.random.sample(AREA_CODES_BR);
         let number = self.sample_phone_template(formats, false);
         if formatted {
             format!("({area}) {number}")
@@ -1248,7 +1248,7 @@ impl Faker {
     }
 
     fn sample_phone_template(&self, formats: &[&str], trim_start: bool) -> String {
-        let mut format = sample(formats);
+        let mut format = self.random.sample(formats);
         let mut rendered = String::new();
         while let Some((literal, tail)) = format.split_once("{{") {
             let (token, remaining) = tail.split_once("}}").expect("fixed phone template");
@@ -1266,30 +1266,31 @@ impl Faker {
 
     fn append_phone_token(&self, rendered: &mut String, token: &str) {
         let literal = match (self.locale(), token) {
-            ("el_GR", "internationalCodePrefix") => sample(&["", "+30"]),
-            ("en_SG", "internationalCodePrefix") => sample(&["+65", "65"]),
-            ("el_GR", "mobileCode") => sample(MOBILE_CODES_GR),
-            ("de_DE", "mobileCode") => sample(MOBILE_CODES_DE),
+            ("el_GR", "internationalCodePrefix") => self.random.sample(&["", "+30"]),
+            ("en_SG", "internationalCodePrefix") => self.random.sample(&["+65", "65"]),
+            ("el_GR", "mobileCode") => self.random.sample(MOBILE_CODES_GR),
+            ("de_DE", "mobileCode") => self.random.sample(MOBILE_CODES_DE),
             ("en_SG", "zeroToEight") => {
-                return rendered.push(char::from(b'0' + fastrand::u8(0..=8)));
+                return rendered.push(char::from(b'0' + self.random.u8(0..=8)));
             }
             ("en_SG", "oneToEight") => {
-                return rendered.push(char::from(b'0' + fastrand::u8(1..=8)));
+                return rendered.push(char::from(b'0' + self.random.u8(1..=8)));
             }
-            ("ms_MY", "zeroOneOnePrefix") => sample(MY_011),
-            ("ms_MY", "zeroOneFourPrefix") => sample(MY_014),
-            ("ms_MY", "zeroOneFivePrefix") => sample(MY_015),
-            ("el_GR", "sharedCostCode") => sample(GR_SHARED_CODES),
-            ("el_GR", "premiumRateCode") => sample(GR_PREMIUM_CODES),
-            ("en_ZA", "specialCode") => sample(TOLL_CODES_ZA),
+            ("ms_MY", "zeroOneOnePrefix") => self.random.sample(MY_011),
+            ("ms_MY", "zeroOneFourPrefix") => self.random.sample(MY_014),
+            ("ms_MY", "zeroOneFivePrefix") => self.random.sample(MY_015),
+            ("el_GR", "sharedCostCode") => self.random.sample(GR_SHARED_CODES),
+            ("el_GR", "premiumRateCode") => self.random.sample(GR_PREMIUM_CODES),
+            ("en_ZA", "specialCode") => self.random.sample(TOLL_CODES_ZA),
             ("de_DE", "tollFreeAreaCode") => "800",
-            (_, "tollFreeAreaCode") => sample(TOLL_CODES_US),
+            (_, "tollFreeAreaCode") => self.random.sample(TOLL_CODES_US),
             ("fr_FR", "phoneNumber08" | "phoneNumber08WithSeparator") => {
                 // FakerPHP's regex generator attaches the three trailing pairs to either branch.
-                rendered.push_str(if fastrand::bool() {
-                    sample(&["0#", "1#", "2#"])
+                rendered.push_str(if self.random.bool() {
+                    self.random.sample(&["0#", "1#", "2#"])
                 } else {
-                    sample(&["91", "92", "93", "95", "97", "98", "99"])
+                    self.random
+                        .sample(&["91", "92", "93", "95", "97", "98", "99"])
                 });
                 if token.ends_with("WithSeparator") {
                     " ## ## ##"
@@ -1298,36 +1299,39 @@ impl Faker {
                 }
             }
             ("el_GR", "areaCode") => {
-                let code = sample(AREA_CODES_GR);
+                let code = self.random.sample(AREA_CODES_GR);
                 rendered.push_str(code);
                 return rendered.push_str(&"####"[code.len()..]);
             }
             ("en_ZA", "cellphoneCode") => {
-                let first = fastrand::u8(6..=8);
+                let first = self.random.u8(6..=8);
                 let second = match first {
-                    6 => fastrand::u8(0..=2),
-                    7 => match fastrand::u8(1..=9) {
+                    6 => self.random.u8(0..=2),
+                    7 => match self.random.u8(1..=9) {
                         value @ (5 | 7) => value + 1,
                         value => value,
                     },
-                    _ => fastrand::u8(1..=9),
+                    _ => self.random.u8(1..=9),
                 };
                 rendered.push(char::from(b'0' + first));
                 return rendered.push(char::from(b'0' + second));
             }
             ("fr_FR", "phoneNumber06" | "phoneNumber06WithSeparator") => {
-                match fastrand::u8(0..3) {
+                match self.random.u8(0..3) {
                     0 => {
-                        rendered.push_str(sample(&["0", "1", "2", "4", "5", "6", "7", "8"]));
+                        rendered.push_str(
+                            self.random
+                                .sample(&["0", "1", "2", "4", "5", "6", "7", "8"]),
+                        );
                         rendered.push('#');
                     }
                     1 => {
                         rendered.push('3');
-                        rendered.push(char::from(b'0' + fastrand::u8(0..=8)));
+                        rendered.push(char::from(b'0' + self.random.u8(0..=8)));
                     }
                     _ => {
                         rendered.push('9');
-                        rendered.push_str(sample(&["5", "8", "9"]));
+                        rendered.push_str(self.random.sample(&["5", "8", "9"]));
                     }
                 }
                 if token.ends_with("WithSeparator") {
@@ -1337,7 +1341,7 @@ impl Faker {
                 }
             }
             ("fr_FR", "phoneNumber07" | "phoneNumber07WithSeparator") => {
-                rendered.push(char::from(b'0' + fastrand::u8(3..=8)));
+                rendered.push(char::from(b'0' + self.random.u8(3..=8)));
                 if token.ends_with("WithSeparator") {
                     "# ## ## ##"
                 } else {
@@ -1345,13 +1349,13 @@ impl Faker {
                 }
             }
             ("de_DE", "areaCode") => return rendered.push_str(&self.de_phone_area_code()),
-            ("pt_BR", "areaCode") => sample(AREA_CODES_BR),
-            ("en_AU", "areaCode") => sample(AU_AREA),
-            ("en_NZ", "areaCode") => sample(NZ_AREA),
-            ("en_NZ", "beginningNumber") => sample(NZ_BEGINNING),
+            ("pt_BR", "areaCode") => self.random.sample(AREA_CODES_BR),
+            ("en_AU", "areaCode") => self.random.sample(AU_AREA),
+            ("en_NZ", "areaCode") => self.random.sample(NZ_AREA),
+            ("en_NZ", "beginningNumber") => self.random.sample(NZ_BEGINNING),
             ("en_ZA", "areaCode") => {
-                let first = fastrand::u8(1..=5);
-                let second = match (first, fastrand::u8(1..=if first == 4 { 9 } else { 8 })) {
+                let first = self.random.u8(1..=5);
+                let second = match (first, self.random.u8(1..=if first == 4 { 9 } else { 8 })) {
                     (2, digit @ (5 | 6)) | (5, digit @ (2 | 5)) => digit + 2,
                     (3, digit @ (7 | 8)) => digit - 2,
                     (_, digit) => digit,
@@ -1359,12 +1363,12 @@ impl Faker {
                 rendered.push(char::from(b'0' + first));
                 return rendered.push(char::from(b'0' + second));
             }
-            ("hy_AM", "code") => sample(AM_CODE),
+            ("hy_AM", "code") => self.random.sample(AM_CODE),
             (_, "numberFormat") => self.numberFormat().expect("fixed phone mask locale"),
-            ("fi_FI", "landLineAreaCode") => sample(FI_LAND_CODE),
-            ("fi_FI", "e164landLineAreaCode") => &sample(FI_LAND_CODE)[1..],
-            ("fi_FI", "mobileNetworkAreaCode") => sample(FI_MOBILE_CODE),
-            ("fi_FI", "e164MobileNetworkAreaCode") => &sample(FI_MOBILE_CODE)[1..],
+            ("fi_FI", "landLineAreaCode") => self.random.sample(FI_LAND_CODE),
+            ("fi_FI", "e164landLineAreaCode") => &self.random.sample(FI_LAND_CODE)[1..],
+            ("fi_FI", "mobileNetworkAreaCode") => self.random.sample(FI_MOBILE_CODE),
+            ("fi_FI", "e164MobileNetworkAreaCode") => &self.random.sample(FI_MOBILE_CODE)[1..],
             ("fi_FI", "separator") => self.separator().expect("fixed phone separator locale"),
             (_, "fixedLineNumber") => {
                 return rendered.push_str(
@@ -1415,10 +1419,6 @@ impl Faker {
         };
         rendered.push_str(literal);
     }
-}
-
-fn sample<'a>(values: &[&'a str]) -> &'a str {
-    values[fastrand::usize(..values.len())]
 }
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]

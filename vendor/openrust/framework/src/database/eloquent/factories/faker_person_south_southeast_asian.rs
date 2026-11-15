@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Given-name catalogs and full-name templates from FakerPHP 1.24.1.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -4574,60 +4576,62 @@ const MY_NUR_NAME: &[&str] = &[
 
 const MY_TITLE_MALE_MALAY: &[&str] = &["", "", "", "", "", "", "Syed ", "Wan ", "Nik ", "Che "];
 
-fn sample(names: &[&'static str]) -> &'static str {
-    names[fastrand::usize(..names.len())]
-}
-
-pub(super) fn malaysian_name_part(token: &str) -> std::borrow::Cow<'static, str> {
+pub(super) fn malaysian_name_part(
+    random: &FakerRandom,
+    token: &str,
+) -> std::borrow::Cow<'static, str> {
     match token {
         "firstNameFemaleChinese" => format!(
             "{} {}",
-            sample(MY_CHINESE_NAMES),
-            sample(MY_FIRST_NAME_FEMALE_CHINESE)
+            random.sample(MY_CHINESE_NAMES),
+            random.sample(MY_FIRST_NAME_FEMALE_CHINESE)
         )
         .into(),
-        "firstNameFemaleChristian" => sample(MY_FIRST_NAME_FEMALE_CHRISTIAN).into(),
-        "firstNameFemaleIndian" => sample(MY_FIRST_NAME_FEMALE_INDIAN).into(),
-        "firstNameFemaleMalay" => sample(MY_FIRST_NAME_FEMALE_MALAY).into(),
+        "firstNameFemaleChristian" => random.sample(MY_FIRST_NAME_FEMALE_CHRISTIAN).into(),
+        "firstNameFemaleIndian" => random.sample(MY_FIRST_NAME_FEMALE_INDIAN).into(),
+        "firstNameFemaleMalay" => random.sample(MY_FIRST_NAME_FEMALE_MALAY).into(),
         "firstNameMaleChinese" => format!(
             "{} {}",
-            sample(MY_CHINESE_NAMES),
-            sample(MY_CHINESE_MALE_NAMES)
+            random.sample(MY_CHINESE_NAMES),
+            random.sample(MY_CHINESE_MALE_NAMES)
         )
         .into(),
-        "firstNameMaleChristian" => sample(MY_FIRST_NAME_MALE_CHRISTIAN).into(),
-        "firstNameMaleIndian" => sample(MY_INDIAN_MALE_NAMES).into(),
-        "firstNameMaleMalay" => sample(MY_FIRST_NAME_MALE_MALAY).into(),
-        "haji" => sample(MY_HAJI).into(),
-        "hajjah" => sample(MY_HAJJAH).into(),
-        "initialIndian" => sample(MY_INITIAL_INDIAN).into(),
-        "lastNameChinese" => sample(MY_LAST_NAME_CHINESE).into(),
-        "lastNameIndian" => sample(MY_LAST_NAME_INDIAN).into(),
-        "lastNameMalay" => sample(MY_MALAY_SURNAMES).into(),
-        "muhammadName" => sample(MY_MUHAMMAD_NAME).into(),
-        "nurName" => sample(MY_NUR_NAME).into(),
-        "titleMaleMalay" => sample(MY_TITLE_MALE_MALAY).into(),
+        "firstNameMaleChristian" => random.sample(MY_FIRST_NAME_MALE_CHRISTIAN).into(),
+        "firstNameMaleIndian" => random.sample(MY_INDIAN_MALE_NAMES).into(),
+        "firstNameMaleMalay" => random.sample(MY_FIRST_NAME_MALE_MALAY).into(),
+        "haji" => random.sample(MY_HAJI).into(),
+        "hajjah" => random.sample(MY_HAJJAH).into(),
+        "initialIndian" => random.sample(MY_INITIAL_INDIAN).into(),
+        "lastNameChinese" => random.sample(MY_LAST_NAME_CHINESE).into(),
+        "lastNameIndian" => random.sample(MY_LAST_NAME_INDIAN).into(),
+        "lastNameMalay" => random.sample(MY_MALAY_SURNAMES).into(),
+        "muhammadName" => random.sample(MY_MUHAMMAD_NAME).into(),
+        "nurName" => random.sample(MY_NUR_NAME).into(),
+        "titleMaleMalay" => random.sample(MY_TITLE_MALE_MALAY).into(),
         _ => unreachable!("fixed Malaysian Person template token"),
     }
 }
 
-pub(super) fn malaysian_first_name() -> String {
-    malaysian_name_part(sample(&[
-        "firstNameMaleMalay",
-        "firstNameFemaleMalay",
-        "firstNameMaleChinese",
-        "firstNameFemaleChinese",
-        "firstNameMaleIndian",
-        "firstNameFemaleIndian",
-        "firstNameMaleChristian",
-        "firstNameFemaleChristian",
-    ]))
+pub(super) fn malaysian_first_name(random: &FakerRandom) -> String {
+    malaysian_name_part(
+        random,
+        random.sample(&[
+            "firstNameMaleMalay",
+            "firstNameFemaleMalay",
+            "firstNameMaleChinese",
+            "firstNameFemaleChinese",
+            "firstNameMaleIndian",
+            "firstNameFemaleIndian",
+            "firstNameMaleChristian",
+            "firstNameFemaleChristian",
+        ]),
+    )
     .into_owned()
 }
 
-pub(super) fn malaysian_last_name() -> &'static str {
+pub(super) fn malaysian_last_name(random: &FakerRandom) -> &'static str {
     let catalogs = [MY_MALAY_SURNAMES, MY_LAST_NAME_CHINESE, MY_LAST_NAME_INDIAN];
-    sample(catalogs[fastrand::usize(..catalogs.len())])
+    random.sample(catalogs[random.usize(..catalogs.len())])
 }
 
 pub(super) const ID_BIRTH_PLACE_CODES: &[&str] = &[

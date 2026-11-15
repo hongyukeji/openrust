@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Lithuanian, Slovenian and Turkish company data from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -25,7 +27,6 @@
 // THE SOFTWARE.
 
 use super::super::faker_person::LT_LT_LAST_MALE;
-use super::sample;
 
 const LT_LT_SUFFIXES: &[&str] = &["UAB", "AB", "IĮ", "MB", "VŠĮ"];
 
@@ -970,50 +971,50 @@ const TR_TR_FIELDS: &[&str] = &[
     "Yatırım",
 ];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     Some(match locale {
         "lt_LT" => {
-            let suffix = sample(LT_LT_SUFFIXES);
-            let name = sample(LT_LT_LAST_MALE);
-            match fastrand::u8(0..4) {
+            let suffix = random.sample(LT_LT_SUFFIXES);
+            let name = random.sample(LT_LT_LAST_MALE);
+            match random.u8(0..4) {
                 0 => format!("{suffix} {name}"),
-                1 => format!("{suffix} {name} ir {}", sample(LT_LT_LAST_MALE)),
-                2 => format!("{suffix} \"{name} ir {}\"", sample(LT_LT_LAST_MALE)),
+                1 => format!("{suffix} {name} ir {}", random.sample(LT_LT_LAST_MALE)),
+                2 => format!("{suffix} \"{name} ir {}\"", random.sample(LT_LT_LAST_MALE)),
                 _ => format!("{suffix} \"{name}\""),
             }
         }
         "sl_SI" => {
-            let name = sample(SL_SI_SURNAMES);
-            match fastrand::u8(0..3) {
+            let name = random.sample(SL_SI_SURNAMES);
+            match random.u8(0..3) {
                 0 => {
-                    let names = if fastrand::bool() {
+                    let names = if random.bool() {
                         SL_SI_MALE_NAMES
                     } else {
                         SL_SI_FEMALE_NAMES
                     };
-                    format!("{} {name} s.p.", sample(names))
+                    format!("{} {name} s.p.", random.sample(names))
                 }
-                1 => format!("{name} {}", sample(SL_SI_SUFFIXES)),
+                1 => format!("{name} {}", random.sample(SL_SI_SUFFIXES)),
                 _ => format!(
                     "{name}, {} in {} {}",
-                    sample(SL_SI_SURNAMES),
-                    sample(SL_SI_SURNAMES),
-                    sample(SL_SI_SUFFIXES)
+                    random.sample(SL_SI_SURNAMES),
+                    random.sample(SL_SI_SURNAMES),
+                    random.sample(SL_SI_SUFFIXES)
                 ),
             }
         }
         "tr_TR" => {
-            let name = sample(TR_TR_SURNAMES);
-            let suffix = sample(TR_TR_SUFFIXES);
-            match fastrand::u8(0..7) {
+            let name = random.sample(TR_TR_SURNAMES);
+            let suffix = random.sample(TR_TR_SUFFIXES);
+            match random.u8(0..7) {
                 0 => format!("{name} {suffix}"),
                 1 => format!("{name}oğlu {suffix}"),
-                2 => format!("{name} {} {suffix}", sample(TR_TR_SURNAMES)),
-                3..=5 => format!("{name} {} {suffix}", sample(TR_TR_FIELDS)),
+                2 => format!("{name} {} {suffix}", random.sample(TR_TR_SURNAMES)),
+                3..=5 => format!("{name} {} {suffix}", random.sample(TR_TR_FIELDS)),
                 _ => format!(
                     "{name} {} {} {suffix}",
-                    sample(TR_TR_SURNAMES),
-                    sample(TR_TR_FIELDS)
+                    random.sample(TR_TR_SURNAMES),
+                    random.sample(TR_TR_FIELDS)
                 ),
             }
         }
@@ -1030,6 +1031,6 @@ pub(super) fn suffixes(locale: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-pub(super) fn company_field() -> &'static str {
-    sample(TR_TR_FIELDS)
+pub(super) fn company_field(random: &FakerRandom) -> &'static str {
+    random.sample(TR_TR_FIELDS)
 }

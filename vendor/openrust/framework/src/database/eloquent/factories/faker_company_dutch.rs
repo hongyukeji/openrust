@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Dutch and Belgian Dutch company formats and surnames from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const PRODUCTS: &[&str] = &[
     "Keuken",
@@ -1636,36 +1636,42 @@ pub(in crate::database::eloquent::factories::faker) const BELGIAN_SURNAMES: &[&s
     "Yilmaz",
 ];
 
-pub(in crate::database::eloquent::factories::faker) fn dutch_surname() -> &'static str {
-    let names = match fastrand::u8(0..26) {
+pub(in crate::database::eloquent::factories::faker) fn dutch_surname(
+    random: &FakerRandom,
+) -> &'static str {
+    let names = match random.u8(0..26) {
         0 => LONG_SURNAMES,
         1..=10 => COMMON_DUTCH_SURNAMES,
         11..=15 => COMMON_FOREIGN_SURNAMES,
         _ => DUTCH_SURNAMES,
     };
-    sample(names)
+    random.sample(names)
 }
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     match locale {
         "nl_NL" => {
-            let mut name = match fastrand::u8(0..3) {
-                0 => format!("{} {}", sample(PRODUCTS), sample(TYPES)),
-                1 => format!("{}{}", sample(PRODUCTS), sample(TYPES).to_ascii_lowercase()),
+            let mut name = match random.u8(0..3) {
+                0 => format!("{} {}", random.sample(PRODUCTS), random.sample(TYPES)),
+                1 => format!(
+                    "{}{}",
+                    random.sample(PRODUCTS),
+                    random.sample(TYPES).to_ascii_lowercase()
+                ),
                 _ => {
-                    format!("{} {}", sample(STORES), dutch_surname())
+                    format!("{} {}", random.sample(STORES), dutch_surname(random))
                 }
             };
-            if fastrand::bool() {
+            if random.bool() {
                 name.push(' ');
-                name.push_str(sample(DUTCH_SUFFIXES));
+                name.push_str(random.sample(DUTCH_SUFFIXES));
             }
             Some(name)
         }
         "nl_BE" => {
-            let surname = sample(BELGIAN_SURNAMES);
-            Some(if fastrand::bool() {
-                format!("{surname} {}", sample(BELGIAN_SUFFIXES))
+            let surname = random.sample(BELGIAN_SURNAMES);
+            Some(if random.bool() {
+                format!("{surname} {}", random.sample(BELGIAN_SUFFIXES))
             } else {
                 surname.to_owned()
             })

@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 use regex_syntax::ast::{
     Ast, ClassPerl, ClassPerlKind, ClassSet, ClassSetItem, GroupKind, RepetitionKind,
     RepetitionRange, parse::ParserBuilder,
@@ -50,12 +52,13 @@ impl RegexPattern {
         Ok(compiled)
     }
 
-    pub(super) fn sample(&self) -> String {
+    pub(super) fn sample(&self, random: &FakerRandom) -> String {
         let mut output = String::new();
         append(
+            random,
             &self.pattern,
             &mut output,
-            (fastrand::u32(1..=9), fastrand::u32(1..=9)),
+            (random.u32(1..=9), random.u32(1..=9)),
         );
         output
     }
@@ -108,31 +111,32 @@ impl RegexPattern {
     }
 }
 
-fn append(node: &Ast, output: &mut String, repeat_limits: (u32, u32)) {
+fn append(random: &FakerRandom, node: &Ast, output: &mut String, repeat_limits: (u32, u32)) {
     match node {
         Ast::Empty(_) => {}
         Ast::Literal(literal) => output.push(literal.c),
-        Ast::Dot(_) => output.push(char::from(fastrand::u8(b'!'..=b'~'))),
+        Ast::Dot(_) => output.push(char::from(random.u8(b'!'..=b'~'))),
         Ast::ClassPerl(class) => {
             let (min, max) = perl_range(class).expect("validated character class");
-            output.push(char::from(fastrand::u8(min..=max)));
+            output.push(char::from(random.u8(min..=max)));
         }
         Ast::ClassBracketed(class) => {
             let ClassSet::Item(item) = &class.kind else {
                 unreachable!("validated character set")
             };
-            let index = fastrand::usize(0..class_size(item).expect("validated character set"));
+            let index = random.usize(0..class_size(item).expect("validated character set"));
             output.push(class_character(item, index));
         }
-        Ast::Group(group) => append(&group.ast, output, repeat_limits),
+        Ast::Group(group) => append(random, &group.ast, output, repeat_limits),
         Ast::Concat(sequence) => {
             for node in &sequence.asts {
-                append(node, output, repeat_limits);
+                append(random, node, output, repeat_limits);
             }
         }
         Ast::Alternation(alternatives) => {
             append(
-                &alternatives.asts[fastrand::usize(..alternatives.asts.len())],
+                random,
+                &alternatives.asts[random.usize(..alternatives.asts.len())],
                 output,
                 repeat_limits,
             );
@@ -140,8 +144,8 @@ fn append(node: &Ast, output: &mut String, repeat_limits: (u32, u32)) {
         Ast::Repetition(repetition) => {
             let (min, max) = RegexPattern::bounds(&repetition.op.kind, repeat_limits)
                 .expect("validated repetition");
-            for _ in 0..fastrand::u32(min..=max) {
-                append(&repetition.ast, output, repeat_limits);
+            for _ in 0..random.u32(min..=max) {
+                append(random, &repetition.ast, output, repeat_limits);
             }
         }
         _ => unreachable!("validated Faker regex"),

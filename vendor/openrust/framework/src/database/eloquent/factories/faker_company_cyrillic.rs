@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Russian, Ukrainian and Kazakh company data from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const RU_RU_PREFIXES: &[&str] = &[
     "ООО",
@@ -183,27 +183,27 @@ const KK_KZ_NAME_SUFFIXES: &[&str] = &[
     "Телеком",
 ];
 
-pub(super) fn company(locale: &str) -> Option<String> {
-    let prefix = || sample(prefixes(locale).expect("company provider has prefixes"));
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
+    let prefix = || random.sample(prefixes(locale).expect("company provider has prefixes"));
     Some(match locale {
         "uk_UA" => {
-            let name = sample(UK_UA_NAMES);
-            match fastrand::u8(0..4) {
+            let name = random.sample(UK_UA_NAMES);
+            match random.u8(0..4) {
                 0 => name.to_owned(),
                 1 => format!("{} \"{name}\"", prefix()),
-                2 => format!("{name}-{}", sample(UK_UA_SUFFIXES)),
-                _ => format!("{} \"{name}-{}\"", prefix(), sample(UK_UA_SUFFIXES)),
+                2 => format!("{name}-{}", random.sample(UK_UA_SUFFIXES)),
+                _ => format!("{} \"{name}-{}\"", prefix(), random.sample(UK_UA_SUFFIXES)),
             }
         }
         "ru_RU" | "kk_KZ" => {
             let elements = elements(locale)?;
-            let count = fastrand::u8(1..=4);
+            let count = random.u8(1..=4);
             let mut name = format!("{} ", prefix());
             for _ in 0..count.min(3) {
-                name.push_str(sample(elements));
+                name.push_str(random.sample(elements));
             }
             if count == 4 {
-                name.push_str(sample(name_suffixes(locale)?));
+                name.push_str(random.sample(name_suffixes(locale)?));
             }
             name
         }
@@ -245,6 +245,6 @@ pub(super) fn name_suffixes(locale: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-pub(super) fn ukrainian_name() -> &'static str {
-    sample(UK_UA_NAMES)
+pub(super) fn ukrainian_name(random: &FakerRandom) -> &'static str {
+    random.sample(UK_UA_NAMES)
 }

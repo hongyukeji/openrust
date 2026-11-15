@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Username catalogs from FakerPHP v1.24.1.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -2614,20 +2616,24 @@ const LT_FEMALE_LAST: &[&str] = &[
 ];
 use super::{Faker, company::job_title::LOREM_WORDS};
 
-fn sample(values: &[&'static str]) -> &'static str {
-    values[fastrand::usize(..values.len())]
-}
-
-pub(super) fn candidate(faker: &Faker) -> String {
+pub(super) fn candidate(random: &FakerRandom, faker: &Faker) -> String {
     let locale = faker.locale();
     if locale == "lt_LT" {
-        return match fastrand::u8(0..6) {
-            0 => format!("{}.{}", sample(LT_MALE_LAST), sample(LT_MALE_FIRST)),
-            1 => format!("{}.{}", sample(LT_FEMALE_LAST), sample(LT_FEMALE_FIRST)),
-            2 => format!("{}{:02}", sample(LT_MALE_FIRST), fastrand::u8(0..100)),
-            3 => format!("{}{:02}", sample(LT_FEMALE_FIRST), fastrand::u8(0..100)),
-            4 => format!("{}{}", faker.randomLetter(), sample(LT_FEMALE_LAST)),
-            _ => format!("{}{}", faker.randomLetter(), sample(LT_MALE_LAST)),
+        return match random.u8(0..6) {
+            0 => format!(
+                "{}.{}",
+                random.sample(LT_MALE_LAST),
+                random.sample(LT_MALE_FIRST)
+            ),
+            1 => format!(
+                "{}.{}",
+                random.sample(LT_FEMALE_LAST),
+                random.sample(LT_FEMALE_FIRST)
+            ),
+            2 => format!("{}{:02}", random.sample(LT_MALE_FIRST), random.u8(0..100)),
+            3 => format!("{}{:02}", random.sample(LT_FEMALE_FIRST), random.u8(0..100)),
+            4 => format!("{}{}", faker.randomLetter(), random.sample(LT_FEMALE_LAST)),
+            _ => format!("{}{}", faker.randomLetter(), random.sample(LT_MALE_LAST)),
         };
     }
 
@@ -2636,14 +2642,24 @@ pub(super) fn candidate(faker: &Faker) -> String {
     } else {
         ascii_names(locale)
     };
-    let first = || catalogs.map_or_else(|| faker.firstName(), |(names, _)| sample(names).into());
-    let last = || catalogs.map_or_else(|| faker.lastName(), |(_, names)| sample(names).into());
+    let first = || {
+        catalogs.map_or_else(
+            || faker.firstName(),
+            |(names, _)| random.sample(names).into(),
+        )
+    };
+    let last = || {
+        catalogs.map_or_else(
+            || faker.lastName(),
+            |(_, names)| random.sample(names).into(),
+        )
+    };
 
-    match fastrand::u8(0..4) {
+    match random.u8(0..4) {
         0 => format!("{}.{}", last(), first()),
         1 if locale == "zh_CN" => format!("{}_{}", first(), last()),
         1 => format!("{}.{}", first(), last()),
-        2 => format!("{}{:02}", first(), fastrand::u8(0..100)),
+        2 => format!("{}{:02}", first(), random.u8(0..100)),
         _ => format!("{}{}", faker.randomLetter(), last()),
     }
 }
@@ -2659,10 +2675,10 @@ fn ascii_names(locale: &str) -> Option<(&'static [&'static str], &'static [&'sta
     }
 }
 
-pub(super) fn ascii_surname(locale: &str) -> Option<&'static str> {
-    ascii_names(locale).map(|(_, names)| sample(names))
+pub(super) fn ascii_surname(random: &FakerRandom, locale: &str) -> Option<&'static str> {
+    ascii_names(locale).map(|(_, names)| random.sample(names))
 }
 
-pub(super) fn ascii_given_name(locale: &str) -> Option<&'static str> {
-    ascii_names(locale).map(|(names, _)| sample(names))
+pub(super) fn ascii_given_name(random: &FakerRandom, locale: &str) -> Option<&'static str> {
+    ascii_names(locale).map(|(names, _)| random.sample(names))
 }

@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 use std::{
     collections::HashMap,
     sync::{LazyLock, OnceLock},
@@ -21,7 +23,7 @@ impl Faker {
         if self.locale() == "fa_IR" {
             validate(1, max, indexSize.unwrap_or(2))?;
             let (model, syntax) = text_model(self.locale(), indexSize.unwrap_or(2));
-            return Ok(model.generate(max, syntax, true));
+            return Ok(model.generate(&self.random, max, syntax, true));
         }
         let min = max - (max / 5 + usize::from(max % 5 >= 3));
         let mut text = self.realTextBetween(Some(min), Some(max), indexSize)?;
@@ -45,7 +47,7 @@ impl Faker {
         validate(min, max, index)?;
         let (model, syntax) = text_model(self.locale(), index);
         for _ in 0..99 {
-            let text = model.generate(max, syntax, false);
+            let text = model.generate(&self.random, max, syntax, false);
             if text.chars().count() > min {
                 return Ok(text);
             }
@@ -216,8 +218,8 @@ impl TextModel {
         }
     }
 
-    fn generate(&self, max: usize, syntax: Syntax, persian: bool) -> String {
-        let mut context = self.starts[fastrand::usize(..self.starts.len())];
+    fn generate(&self, random: &FakerRandom, max: usize, syntax: Syntax, persian: bool) -> String {
+        let mut context = self.starts[random.usize(..self.starts.len())];
         let separator = syntax.separator();
         let mut length = 0_usize;
         let mut words = Vec::new();
@@ -226,7 +228,7 @@ impl TextModel {
             let Some(followers) = self.transitions.get(&context) else {
                 break;
             };
-            let next = followers[fastrand::usize(..followers.len())];
+            let next = followers[random.usize(..followers.len())];
             context.copy_within(1..self.index, 0);
             context[self.index - 1] = next;
             let word = self.vocabulary[next as usize];

@@ -127,6 +127,20 @@ pub fn profile_factory<M: Model>() -> Factory<M> {
 
 Within an application, `fake()` returns an `Arc<Faker>` shared by calls with the same normalized locale. Its `unique(false)` history and timezone override carry across those calls. `unique(true)` clears the shared history. Factories use a separate generator owned by the selected connection’s application, and batches and subsequent factory calls on that application share its history. If a formatter exhausts its values while constructing a batch, the batch returns an error before saving those models. Outside an application, `fake()` creates a fresh generator. Use `Faker::new` for an independent generator.
 
+Use `seed(2026)` to restart the random sequence on a generator. Reuse the locale, formatter order, and arguments to replay the same sequence. Supply fixed bounds to date formatters that otherwise use the current time. In concurrent code, give each task its own `Faker::new` if the sequence must be independent of task scheduling.
+
+Pass `None` to reseed from fresh entropy. Seeded values use Rust’s random generators. Seeding leaves uniqueness history intact, so use `unique(true)` separately when the history also needs to restart.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::Faker};
+
+fn seeded_names() -> DatabaseResult<Vec<String>> {
+    let faker = Faker::new("en-US")?;
+    faker.seed(2026);
+    Ok((0..3).map(|_| faker.name()).collect())
+}
+```
+
 Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
 
 Use `numberBetween(first, second)` for an inclusive integer range in either order. `randomDigit()` returns 0 through 9, and `randomDigitNotNull()` returns 1 through 9. `dateTimeBetween(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.

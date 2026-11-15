@@ -21,7 +21,7 @@ use openrust::{
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             factories::{
                 Factory, FactoryDefinition, FactoryParentSelector, FactoryPivot, FactoryRecords,
-                HasFactory, fake,
+                Faker, HasFactory, fake,
             },
             relations::{BelongsTo, MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
@@ -5504,6 +5504,61 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
     Ok(())
 }
 
+#[test]
+fn faker_seed_restarts_formats_without_touching_other_generators() -> DatabaseResult<()> {
+    let sequence = |faker: &Faker| -> DatabaseResult<Vec<String>> {
+        let mut values = Vec::new();
+        for _ in 0..4 {
+            values.extend([
+                faker.name(),
+                faker.address(),
+                faker.company(),
+                faker.sentence(5..6),
+                faker.phoneNumber(),
+                faker.safeEmail(),
+                faker.regexify("([A-Z]{2}|[0-9]{3})")?,
+                faker.safeHexColor(),
+                faker.chrome(),
+                faker.uuid().to_string(),
+                faker.numerify(Some("#%#-###")),
+                faker.randomHtml(Some(2), Some(3))?,
+                faker
+                    .dateTimeBetweenExpressions("2020-01-01", "2020-02-01")?
+                    .to_rfc3339(),
+            ]);
+        }
+        Ok(values)
+    };
+    for locale in [
+        "en-US", "fr-FR", "nl-NL", "is-IS", "fr-CH", "ms-MY", "zh-CN", "zh-TW", "ro-RO", "ja-JP",
+    ] {
+        let left = Faker::new(locale)?;
+        let right = Faker::new(locale)?;
+        left.seed(47);
+        right.seed(Some(47));
+        let first = sequence(&left)?;
+        assert_eq!(sequence(&right)?, first, "{locale}");
+        // Draws and reseeding on one handle leave the other handle's sequence intact.
+        let next = sequence(&left)?;
+        left.seed(48);
+        assert_ne!(sequence(&left)?, first, "{locale}");
+        assert_eq!(sequence(&right)?, next, "{locale}");
+        left.seed(47);
+        assert_eq!(sequence(&left)?, first, "{locale}");
+        left.seed(None);
+    }
+
+    let faker = Faker::new("en-US")?;
+    faker.seed(5);
+    assert_eq!(faker.unique(false).numberBetween(1, 1)?, 1);
+    faker.seed(5);
+    assert!(faker.unique(false).numberBetween(1, 1).is_err());
+    assert_eq!(faker.unique(true).numberBetween(1, 1)?, 1);
+    Ok(())
+}
+
+static FAKER_SEEDER_GENERATOR: std::sync::Mutex<Option<Arc<Faker>>> = std::sync::Mutex::new(None);
+
 struct FakerApplicationScope;
 
 impl Seeder for FakerApplicationScope {
@@ -5514,7 +5569,14 @@ impl Seeder for FakerApplicationScope {
         Box::pin(async move {
             let default = fake(None)?;
             let alias = fake(Some("zh-Hant-TW"))?;
+            let independent = openrust::database::eloquent::factories::Faker::new("zh-TW")?;
             assert!(Arc::ptr_eq(&default, &alias));
+            default.seed(813);
+            independent.seed(813);
+            assert_eq!(default.address(), independent.address());
+            assert_eq!(alias.phoneNumber(), independent.phoneNumber());
+            fake(Some("en-US"))?.seed(814);
+            assert_eq!(default.company(), independent.company());
             let value = |generator: &openrust::database::eloquent::factories::Faker| {
                 generator.unique(false).numberBetween(760, 760)
             };
@@ -5553,6 +5615,7 @@ impl Seeder for FakerApplicationScope {
                 .getSchemaBuilder()
                 .drop("seed_factory_children")
                 .await?;
+            *FAKER_SEEDER_GENERATOR.lock().unwrap() = Some(default);
             Ok(())
         })
     }
@@ -5571,6 +5634,7 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
         "--force",
     ]
     .map(OsString::from);
+    let mut previous = None::<(Arc<Faker>, Faker)>;
     // Run in one process so a process-wide Faker cache cannot pass this test.
     for _ in 0..2 {
         let root = Root::new();
@@ -5591,6 +5655,16 @@ async fn artisan_faker_is_shared_by_application_and_locale_on_mysql() {
         let mut arguments = args.clone();
         arguments[1] = "--database=faker_test".into();
         assert_eq!(app.handleCommand(&arguments).await.unwrap(), 0);
+        let current = FAKER_SEEDER_GENERATOR.lock().unwrap().take().unwrap();
+        if let Some((first, control)) = previous.take() {
+            assert!(!Arc::ptr_eq(&current, &first));
+            assert_eq!(first.address(), control.address());
+        }
+        let control = Faker::new("zh-TW").unwrap();
+        current.seed(951);
+        control.seed(951);
+        assert_eq!(current.address(), control.address());
+        previous = Some((current, control));
     }
 }
 

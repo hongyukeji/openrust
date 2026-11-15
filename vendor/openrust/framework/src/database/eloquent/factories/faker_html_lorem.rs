@@ -63,13 +63,13 @@ impl HtmlLorem<'_> {
             return Ok(());
         }
         let depth = depth - 1;
-        let siblings = fastrand::i32(width.min(1)..=width.max(1));
+        let siblings = self.faker.random.i32(width.min(1)..=width.max(1));
         for _ in 0..siblings {
             if depth == 1 {
                 self.leaf();
             } else {
                 self.open_div()?;
-                self.subtree(fastrand::i32(0..=depth), width)?;
+                self.subtree(self.faker.random.i32(0..=depth), width)?;
                 self.html.push_str("</div>");
             }
         }
@@ -77,13 +77,13 @@ impl HtmlLorem<'_> {
     }
 
     fn open_div(&mut self) -> DatabaseResult<()> {
-        if fastrand::bool() {
+        if self.faker.random.bool() {
             write!(self.html, r#"<div class="{}">"#, escape(self.faker.word())).unwrap();
             return Ok(());
         }
 
         for _ in 0..10_000 {
-            let id = fastrand::u32(..100_000);
+            let id = self.faker.random.u32(..100_000);
             if self.ids.insert(id) {
                 write!(self.html, r#"<div id="{id}">"#).unwrap();
                 return Ok(());
@@ -95,7 +95,7 @@ impl HtmlLorem<'_> {
     }
 
     fn leaf(&mut self) {
-        match fastrand::u8(1..=10) {
+        match self.faker.random.u8(1..=10) {
             1 => self.sentence_element("p", 10),
             2 => {
                 let href = self.faker.safeEmailDomain();
@@ -106,13 +106,13 @@ impl HtmlLorem<'_> {
             3 => self.sentence_element("span", 10),
             4 => {
                 self.html.push_str("<ul>");
-                for _ in 0..fastrand::u8(1..=11) {
+                for _ in 0..self.faker.random.u8(1..=11) {
                     self.sentence_element("li", 4);
                 }
                 self.html.push_str("</ul>");
             }
             5 => {
-                let tag = ["h1", "h2", "h3"][fastrand::usize(..3)];
+                let tag = ["h1", "h2", "h3"][self.faker.random.usize(..3)];
                 self.sentence_element(tag, 10);
             }
             6 => self.sentence_element("b", 10),
@@ -123,8 +123,8 @@ impl HtmlLorem<'_> {
     }
 
     fn table(&mut self) {
-        let rows = fastrand::u8(1..=10);
-        let columns = fastrand::u8(1..=6);
+        let rows = self.faker.random.u8(1..=10);
+        let columns = self.faker.random.u8(1..=6);
         self.html.push_str("<table><thead><tr>");
         for _ in 0..columns {
             self.sentence_element("th", 4);
@@ -149,7 +149,7 @@ impl HtmlLorem<'_> {
     fn sentence(&mut self, max_words: usize) {
         let text = self
             .faker
-            .sentenceWithWordCount(fastrand::usize(1..=max_words), true);
+            .sentenceWithWordCount(self.faker.random.usize(1..=max_words), true);
         self.html.push_str(&partial_escape(text));
     }
 }

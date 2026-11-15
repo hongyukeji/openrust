@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Greek and Montenegrin company formats and names from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const GREEK_SUFFIXES: &[&str] = &["Ο.Ε", "Ε.Ε", "Α.Ε", "Ε.Π.Ε"];
 
@@ -341,20 +341,24 @@ const MONTENEGRIN_NAMES: &[&str] = &[
 
 const MONTENEGRIN_TYPES: &[&str] = &["A.D.", "A.D PODGORICA"];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     match locale {
         "el_GR" => {
-            let surnames = if fastrand::bool() {
+            let surnames = if random.bool() {
                 GREEK_MALE_NAMES
             } else {
                 GREEK_FEMALE_NAMES
             };
-            Some(format!("{} {}", sample(surnames), sample(GREEK_SUFFIXES)))
+            Some(format!(
+                "{} {}",
+                random.sample(surnames),
+                random.sample(GREEK_SUFFIXES)
+            ))
         }
         "me_ME" => Some(format!(
             "{} {}",
-            sample(MONTENEGRIN_NAMES),
-            sample(MONTENEGRIN_TYPES),
+            random.sample(MONTENEGRIN_NAMES),
+            random.sample(MONTENEGRIN_TYPES),
         )),
         _ => None,
     }
@@ -368,10 +372,10 @@ pub(super) fn suffixes(locale: &str) -> Option<&'static [&'static str]> {
     }
 }
 
-pub(super) fn company_name() -> &'static str {
-    sample(MONTENEGRIN_NAMES)
+pub(super) fn company_name(random: &FakerRandom) -> &'static str {
+    random.sample(MONTENEGRIN_NAMES)
 }
 
-pub(super) fn company_type() -> &'static str {
-    sample(MONTENEGRIN_TYPES)
+pub(super) fn company_type(random: &FakerRandom) -> &'static str {
+    random.sample(MONTENEGRIN_TYPES)
 }

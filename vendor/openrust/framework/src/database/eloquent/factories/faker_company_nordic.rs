@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Nordic company and person data from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const DA_DK_SUFFIXES: &[&str] = &["ApS", "A/S", "I/S", "K/S"];
 
@@ -9843,12 +9843,18 @@ pub(in crate::database::eloquent::factories::faker) const NB_NO_FEMALE: &[&str] 
     "Aasta",
 ];
 
-fn given(male: &'static [&'static str], female: &'static [&'static str]) -> &'static str {
-    sample(if fastrand::bool() { male } else { female })
+fn given(
+    random: &FakerRandom,
+    male: &'static [&'static str],
+    female: &'static [&'static str],
+) -> &'static str {
+    random.sample(if random.bool() { male } else { female })
 }
 
-pub(in crate::database::eloquent::factories::faker) fn icelandic_surname() -> String {
-    let name = sample(IS_IS_MALE);
+pub(in crate::database::eloquent::factories::faker) fn icelandic_surname(
+    random: &FakerRandom,
+) -> String {
+    let name = random.sample(IS_IS_MALE);
     let stem = name.strip_suffix("ur").unwrap_or(name);
     if stem.ends_with('s') {
         stem.to_owned()
@@ -9858,14 +9864,15 @@ pub(in crate::database::eloquent::factories::faker) fn icelandic_surname() -> St
 }
 
 fn danish_or_icelandic(
+    random: &FakerRandom,
     surname: impl Fn() -> String,
     middle_names: &'static [&'static str],
     first: impl Fn() -> &'static str,
     suffixes: &'static [&'static str],
 ) -> String {
-    let middle = || sample(middle_names);
-    let suffix = || sample(suffixes);
-    match fastrand::u8(0..16) {
+    let middle = || random.sample(middle_names);
+    let suffix = || random.sample(suffixes);
+    match random.u8(0..16) {
         0..=2 => format!("{} {}", surname(), suffix()),
         3 => format!("{} {} {}", first(), surname(), suffix()),
         4..=6 => format!("{} {}", middle(), suffix()),
@@ -9880,14 +9887,15 @@ fn danish_or_icelandic(
 }
 
 fn swedish_or_norwegian(
+    random: &FakerRandom,
     last: &'static [&'static str],
     first: impl Fn() -> &'static str,
     suffixes: &'static [&'static str],
     conjunction: &str,
 ) -> String {
-    let surname = || sample(last);
-    let suffix = || sample(suffixes);
-    match fastrand::u8(0..8) {
+    let surname = || random.sample(last);
+    let suffix = || random.sample(suffixes);
+    match random.u8(0..8) {
         0..=2 => format!("{} {}", surname(), suffix()),
         3 => format!("{} {} {}", first(), surname(), suffix()),
         4 => format!("{} & {} {}", surname(), surname(), suffix()),
@@ -9897,37 +9905,41 @@ fn swedish_or_norwegian(
     }
 }
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     Some(match locale {
         "da_DK" => danish_or_icelandic(
-            || sample(DA_DK_LAST).to_owned(),
+            random,
+            || random.sample(DA_DK_LAST).to_owned(),
             DA_DK_MIDDLE,
-            || given(DA_DK_MALE, DA_DK_FEMALE),
+            || given(random, DA_DK_MALE, DA_DK_FEMALE),
             DA_DK_SUFFIXES,
         ),
         "is_IS" => danish_or_icelandic(
-            icelandic_surname,
+            random,
+            || icelandic_surname(random),
             IS_IS_MIDDLE,
-            || given(IS_IS_MALE, IS_IS_FEMALE),
+            || given(random, IS_IS_MALE, IS_IS_FEMALE),
             IS_IS_SUFFIXES,
         ),
         "fi_FI" => {
-            let surname = || sample(FI_FI_LAST);
-            match fastrand::u8(0..3) {
-                0 => format!("{} {}", surname(), sample(FI_FI_SUFFIXES)),
+            let surname = || random.sample(FI_FI_LAST);
+            match random.u8(0..3) {
+                0 => format!("{} {}", surname(), random.sample(FI_FI_SUFFIXES)),
                 1 => format!("{}-{}", surname(), surname()),
                 _ => format!("{}, {} and {}", surname(), surname(), surname()),
             }
         }
         "sv_SE" => swedish_or_norwegian(
+            random,
             SV_SE_LAST,
-            || given(SV_SE_MALE, SV_SE_FEMALE),
+            || given(random, SV_SE_MALE, SV_SE_FEMALE),
             SV_SE_SUFFIXES,
             "och",
         ),
         "nb_NO" => swedish_or_norwegian(
+            random,
             NB_NO_LAST,
-            || given(NB_NO_MALE, NB_NO_FEMALE),
+            || given(random, NB_NO_MALE, NB_NO_FEMALE),
             NB_NO_SUFFIXES,
             "og",
         ),

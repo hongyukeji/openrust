@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Given-name catalogs and full-name templates from FakerPHP 1.24.1.
 // Copyright (c) 2011 François Zaninotto
 // Portions Copyright (c) 2008 Caius Durling
@@ -13079,20 +13081,21 @@ const CNP_COUNTIES: &[(&str, &str)] = &[
 ];
 
 pub(super) fn cnp(
+    random: &FakerRandom,
     gender: Option<&str>,
     date_of_birth: Option<&str>,
     county: Option<&str>,
     is_resident: bool,
 ) -> DatabaseResult<String> {
     let female = match gender {
-        None | Some("" | "0") => fastrand::bool(),
+        None | Some("" | "0") => random.bool(),
         Some("male") => false,
         Some("female") => true,
         _ => return Err(DatabaseError::InvalidQuery("invalid Faker CNP gender")),
     };
-    let date = cnp_birth_date(date_of_birth)?;
+    let date = cnp_birth_date(random, date_of_birth)?;
     let county = match county {
-        None => CNP_COUNTIES[fastrand::usize(..CNP_COUNTIES.len())].1,
+        None => CNP_COUNTIES[random.usize(..CNP_COUNTIES.len())].1,
         Some(code) => CNP_COUNTIES
             .iter()
             .find_map(|(name, digits)| (*name == code).then_some(*digits))
@@ -13108,8 +13111,8 @@ pub(super) fn cnp(
     } else {
         9
     };
-    let serial = fastrand::u16(0..=99);
-    let serial_end = fastrand::u8(1..=9);
+    let serial = random.u16(0..=99);
+    let serial_end = random.u8(1..=9);
     let date = date.format("%y%m%d");
     let number = format!("{prefix}{date}{county}{serial:02}{serial_end}");
     let remainder = number
@@ -13122,7 +13125,7 @@ pub(super) fn cnp(
     Ok(format!("{number}{check}"))
 }
 
-fn cnp_birth_date(input: Option<&str>) -> DatabaseResult<NaiveDate> {
+fn cnp_birth_date(random: &FakerRandom, input: Option<&str>) -> DatabaseResult<NaiveDate> {
     const INVALID: DatabaseError = DatabaseError::InvalidQuery("invalid Faker CNP birth date");
 
     let parse = |value: &str, width| {
@@ -13132,7 +13135,7 @@ fn cnp_birth_date(input: Option<&str>) -> DatabaseResult<NaiveDate> {
         value.parse::<u32>().map_err(|_| INVALID)
     };
     let (year, month, day) = match input {
-        None | Some("" | "0") => (fastrand::i32(1800..=2099), None, None),
+        None | Some("" | "0") => (random.i32(1800..=2099), None, None),
         Some(value) => {
             let mut parts = value.split('-');
             let year = parse(parts.next().ok_or(INVALID)?, 4)? as i32;
@@ -13152,7 +13155,7 @@ fn cnp_birth_date(input: Option<&str>) -> DatabaseResult<NaiveDate> {
     }
     let start = NaiveDate::from_ymd_opt(year, 1, 1).ok_or(INVALID)?;
     let end = NaiveDate::from_ymd_opt(year + 1, 1, 1).ok_or(INVALID)?;
-    let offset = fastrand::u64(0..(end - start).num_days() as u64);
+    let offset = random.u64(0..(end - start).num_days() as u64);
     let sample = start.checked_add_days(Days::new(offset)).ok_or(INVALID)?;
     // FakerPHP takes the day from a random date in the year, including when the month is fixed.
     NaiveDate::from_ymd_opt(year, month.unwrap_or(sample.month()), sample.day()).ok_or(INVALID)

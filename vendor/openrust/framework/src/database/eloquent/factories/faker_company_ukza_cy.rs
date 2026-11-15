@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // British, South African and Cypriot company data from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 const EN_GB_SUFFIXES: &[&str] = &["Ltd"];
 
@@ -764,18 +764,18 @@ pub(in crate::database::eloquent::factories::faker) const EL_CY_SURNAMES: &[&str
     "Χρύσανθου",
 ];
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     let (names, suffixes) = match locale {
         "en_GB" => (EN_GB_SURNAMES, EN_GB_SUFFIXES),
         "en_ZA" => (EN_ZA_SURNAMES, EN_ZA_SUFFIXES),
         "el_CY" => (EL_CY_SURNAMES, EL_CY_SUFFIXES),
         _ => return None,
     };
-    let name = sample(names);
-    if locale == "el_CY" && fastrand::bool() {
-        Some(format!("{name}-{}", sample(names)))
+    let name = random.sample(names);
+    if locale == "el_CY" && random.bool() {
+        Some(format!("{name}-{}", random.sample(names)))
     } else {
-        Some(format!("{name} {}", sample(suffixes)))
+        Some(format!("{name} {}", random.sample(suffixes)))
     }
 }
 

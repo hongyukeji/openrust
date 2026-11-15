@@ -1,8 +1,10 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 use chrono::{Datelike as _, NaiveDate};
 
 use super::{
-    DatabaseError, DatabaseResult, Faker, UniqueFaker, address_sample, ean_with_checksum,
-    faker_address, luhn_check_digit,
+    DatabaseError, DatabaseResult, Faker, UniqueFaker, ean_with_checksum, faker_address,
+    luhn_check_digit,
 };
 
 const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
@@ -81,9 +83,9 @@ impl Faker {
     /// Samples the selected Person provider's SSN format.
     pub fn ssn(&self) -> DatabaseResult<String> {
         match super::faker_person::provider_locale(self.locale()) {
-            "en_US" | "th_TH" => Ok(us_ssn()),
+            "en_US" | "th_TH" => Ok(us_ssn(&self.random)),
             "de_AT" => self.ssnWithBirthdate(None),
-            "is_IS" => Ok(icelandic_ssn(self.identity_birthdate()?)),
+            "is_IS" => Ok(icelandic_ssn(&self.random, self.identity_birthdate()?)),
             _ => Err(DatabaseError::InvalidQuery("unsupported Faker SSN locale")),
         }
     }
@@ -99,7 +101,7 @@ impl Faker {
             Some(date) => date,
             None => self.identity_birthdate()?,
         };
-        Ok(austrian_ssn(birthdate))
+        Ok(austrian_ssn(&self.random, birthdate))
     }
 
     fn identity_birthdate(&self) -> DatabaseResult<NaiveDate> {
@@ -120,8 +122,8 @@ impl Faker {
         const LETTERS: &[u8] = b"ABCEGHJKLMNOPRSTWXYZ";
         let prefix = loop {
             let prefix = [
-                LETTERS[fastrand::usize(..LETTERS.len())],
-                LETTERS[fastrand::usize(..LETTERS.len())],
+                LETTERS[self.random.usize(..LETTERS.len())],
+                LETTERS[self.random.usize(..LETTERS.len())],
             ];
             if prefix[1] != b'O'
                 && ![*b"BG", *b"GB", *b"KN", *b"NK", *b"NT", *b"TN", *b"ZZ"].contains(&prefix)
@@ -130,8 +132,8 @@ impl Faker {
             }
         };
         let [first, second] = prefix;
-        let digits = fastrand::u32(..1_000_000);
-        let suffix = char::from(fastrand::u8(b'A'..=b'D'));
+        let digits = self.random.u32(..1_000_000);
+        let suffix = char::from(self.random.u8(b'A'..=b'D'));
         Ok(format!("{first}{second}{digits:06}{suffix}"))
     }
 
@@ -185,7 +187,7 @@ impl Faker {
         let date = self
             .dateTimeBetween(age_bound(maxAge)?, age_bound(minAge)?)?
             .with_timezone(&self.application_timezone);
-        let female = gender.map_or_else(fastrand::bool, |value| value == "female");
+        let female = gender.map_or_else(|| self.random.bool(), |value| value == "female");
         let year = date.year();
         let capacity_offset = year >= 2004 && self.boolean(Some(10));
         let month = date.month() + 50 * u32::from(female) + 20 * u32::from(capacity_offset);
@@ -306,7 +308,7 @@ impl Faker {
                 "unsupported Faker Venezuelan national ID locale",
             ));
         }
-        let (prefix, lower) = if fastrand::bool() {
+        let (prefix, lower) = if self.random.bool() {
             ('V', 10_000)
         } else {
             ('E', 80_000_000)
@@ -358,11 +360,11 @@ impl Faker {
                 .date_naive(),
         };
         let female = match gender {
-            None | Some("" | "0") => fastrand::bool(),
+            None | Some("" | "0") => self.random.bool(),
             Some(value) => value == "female",
         };
         let places = super::south_southeast_asian::ID_BIRTH_PLACE_CODES;
-        let place = places[fastrand::usize(..places.len())];
+        let place = places[self.random.usize(..places.len())];
         let district = self.numberBetween(0, 99);
         let day = date.day() + 40 * u32::from(female);
         let month = date.month();
@@ -396,7 +398,7 @@ impl Faker {
         };
         let year = self.numerify(Some("##"));
         let month = self.numberBetween(1, 12);
-        let department = DEPARTMENTS[fastrand::usize(..DEPARTMENTS.len())];
+        let department = DEPARTMENTS[self.random.usize(..DEPARTMENTS.len())];
         let town = self.numerify(Some(if department.len() == 2 { "###" } else { "##" }));
         let serial = self.numerify(Some("###"));
 
@@ -498,7 +500,7 @@ impl Faker {
             self.numerify(Some("#######"))
         } else {
             let year_digits = if year < 1968 {
-                fastrand::u8(0..=1).to_string()
+                self.random.u8(0..=1).to_string()
             } else {
                 date.format("%y").to_string()
             };
@@ -515,8 +517,8 @@ impl Faker {
     pub fn idNumber(&self) -> DatabaseResult<String> {
         match self.locale() {
             "en_ZA" => self.idNumberWithBirthdate(None, None, None),
-            "nl_NL" => Ok(dutch_identity()),
-            "ar_SA" => Ok(self.saudi_identity(if fastrand::bool() { "1" } else { "2" })),
+            "nl_NL" => Ok(dutch_identity(&self.random)),
+            "ar_SA" => Ok(self.saudi_identity(if self.random.bool() { "1" } else { "2" })),
             "mn_MN" => Ok(format!(
                 "{}{}{}",
                 self.alphabet()?,
@@ -546,11 +548,11 @@ impl Faker {
             None => self.identity_birthdate()?,
         };
         let sex = match gender {
-            Some(value) if value.eq_ignore_ascii_case("female") => fastrand::u16(0..=4),
-            Some(value) if value.eq_ignore_ascii_case("male") => fastrand::u16(5..=9),
-            _ => fastrand::u16(0..=9),
+            Some(value) if value.eq_ignore_ascii_case("female") => self.random.u16(0..=4),
+            Some(value) if value.eq_ignore_ascii_case("male") => self.random.u16(5..=9),
+            _ => self.random.u16(0..=9),
         };
-        let sequence = fastrand::u16(0..=999);
+        let sequence = self.random.u16(0..=999);
         // PHP pads on both sides, with the extra zero on the right.
         let sequence = match sequence {
             0..=9 => format!("0{sequence}0"),
@@ -558,7 +560,7 @@ impl Faker {
             _ => sequence.to_string(),
         };
         let citizenship = u8::from(!citizen.unwrap_or(true));
-        let race = fastrand::u8(8..=9);
+        let race = self.random.u8(8..=9);
         let mut number = format!(
             "{}{sex}{sequence}{citizenship}{race}",
             birthdate.format("%y%m%d")
@@ -585,13 +587,13 @@ impl Faker {
             .dateTimeBetweenExpressions("1950-01-10", "2005-12-25")?
             .with_timezone(&self.application_timezone);
         let century = if date.year() >= 2000 { 3 } else { 2 };
-        let sequence = fastrand::u16(1..=500);
+        let sequence = self.random.u16(1..=500);
         let sequence = match gender {
             Some("male") => sequence | 1,
             Some("female") => sequence & !1,
             _ => sequence,
         };
-        let check = fastrand::u8(1..=9);
+        let check = self.random.u8(1..=9);
         Ok(format!(
             "{century}{}{governorate}{sequence:04}{check}",
             date.format("%y%m%d"),
@@ -626,7 +628,7 @@ impl Faker {
             'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ё', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'Ө', 'П',
             'Р', 'С', 'Т', 'У', 'Ү', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Э', 'Ю', 'Я',
         ];
-        Ok(PREFIXES[fastrand::usize(..PREFIXES.len())])
+        Ok(PREFIXES[self.random.usize(..PREFIXES.len())])
     }
 
     pub fn alphabet(&self) -> DatabaseResult<char> {
@@ -640,7 +642,7 @@ impl Faker {
             'Ъ', 'Ё', 'Р', 'Ы', 'Ж', 'С', 'Ь', 'З', 'Т', 'Э', 'И', 'У', 'Ю', 'Й', 'Ү', 'Я', 'К',
             'Ф',
         ];
-        Ok(ALPHABET[fastrand::usize(..ALPHABET.len())])
+        Ok(ALPHABET[self.random.usize(..ALPHABET.len())])
     }
 
     pub fn governorateId(&self) -> DatabaseResult<&'static str> {
@@ -649,7 +651,7 @@ impl Faker {
                 "unsupported Faker governorate locale",
             ));
         }
-        Ok(address_sample(faker_address::GOVERNORATES_AR_EG).1)
+        Ok(self.random.sample(faker_address::GOVERNORATES_AR_EG).1)
     }
 
     /// Samples a driving licence number using the Lithuanian or Latvian provider.
@@ -730,7 +732,7 @@ impl Faker {
                 "unsupported Faker tax office locale",
             ));
         }
-        Ok(GREEK_DOY[fastrand::usize(..GREEK_DOY.len())])
+        Ok(GREEK_DOY[self.random.usize(..GREEK_DOY.len())])
     }
 
     /// Samples a Greek company's business activity.
@@ -740,7 +742,7 @@ impl Faker {
                 "unsupported Faker business activity locale",
             ));
         }
-        Ok(GREEK_OBJECT[fastrand::usize(..GREEK_OBJECT.len())])
+        Ok(GREEK_OBJECT[self.random.usize(..GREEK_OBJECT.len())])
     }
 
     /// Samples a Kazakh business ID using the supplied civil registration date.
@@ -762,8 +764,8 @@ impl Faker {
                     .date_naive()
             }
         };
-        let legal_type = fastrand::u8(4..=6);
-        let additional_type = fastrand::u8(0..=3);
+        let legal_type = self.random.u8(4..=6);
+        let additional_type = self.random.u8(0..=3);
         let digits = self.numerify(Some("######"));
         Ok(format!(
             "{}{legal_type}{additional_type}{digits}",
@@ -790,7 +792,7 @@ impl Faker {
             .with_timezone(&zone);
         let year = date.format("%Y");
         let number = self.randomNumber(Some(6), true)?;
-        let entity = ENTITIES[fastrand::usize(..ENTITIES.len())];
+        let entity = ENTITIES[self.random.usize(..ENTITIES.len())];
         Ok(format!("{year}/{number}/{entity}"))
     }
 
@@ -875,7 +877,7 @@ impl Faker {
     pub fn siret(&self, formatted: Option<bool>) -> DatabaseResult<String> {
         const NIC_FORMATS: [&str; 3] = ["####", "0###", "00#%"];
         let mut number = self.siren(false)?;
-        number.push_str(&self.numerify(Some(NIC_FORMATS[fastrand::usize(..NIC_FORMATS.len())])));
+        number.push_str(&self.numerify(Some(NIC_FORMATS[self.random.usize(..NIC_FORMATS.len())])));
         number.push(luhn_check_digit(&number));
         if formatted.unwrap_or(true) {
             Ok(format!(
@@ -897,8 +899,8 @@ impl Faker {
                 "unsupported Faker REGON locale",
             ));
         }
-        let region = fastrand::u8(0..50) * 2 + 1;
-        let mut number = format!("{region:02}{:06}", fastrand::u32(..1_000_000));
+        let region = self.random.u8(0..50) * 2 + 1;
+        let mut number = format!("{region:02}{:06}", self.random.u32(..1_000_000));
         number.push(regon_check_digit(&number, &[8, 9, 2, 3, 4, 5, 6, 7]));
         Ok(number)
     }
@@ -926,8 +928,8 @@ impl Faker {
             return Err(DatabaseError::InvalidQuery("unsupported Faker EIN locale"));
         }
 
-        let prefix = PREFIXES[fastrand::usize(..PREFIXES.len())];
-        let suffix = fastrand::u32(..10_000_000);
+        let prefix = PREFIXES[self.random.usize(..PREFIXES.len())];
+        let suffix = self.random.u32(..10_000_000);
         Ok(format!("{prefix:02}-{suffix:07}"))
     }
 
@@ -953,11 +955,11 @@ impl Faker {
                 ))?,
         };
         let area = if area == 0 {
-            fastrand::u8(1..=91)
+            self.random.u8(1..=91)
         } else {
             area
         };
-        let mut number = format!("{area:02}{:07}", fastrand::u32(..10_000_000));
+        let mut number = format!("{area:02}{:07}", self.random.u32(..10_000_000));
         number.push_str(&Self::inn10Checksum(&number)?);
         Ok(number)
     }
@@ -1007,7 +1009,7 @@ impl Faker {
         match self.locale() {
             "es_ES" => {
                 const LETTERS: &[u8; 23] = b"TRWAGMYFPDXBNJZSQVHLCKE";
-                let number = fastrand::usize(..100_000_000);
+                let number = self.random.usize(..100_000_000);
                 let check = char::from(LETTERS[number % LETTERS.len()]);
                 Ok(format!("{number:08}{check}"))
             }
@@ -1045,7 +1047,7 @@ impl Faker {
                 ));
             }
         };
-        Ok(codes[fastrand::usize(..codes.len())])
+        Ok(codes[self.random.usize(..codes.len())])
     }
 
     /// Samples a Brazilian CPF, with punctuation by default.
@@ -1127,7 +1129,7 @@ impl Faker {
 
         let month = birthdate.month() + ((year as u32 / 100 - 14) % 5) * 20;
         let day = birthdate.day();
-        let serial = fastrand::u16(0..=4999) * 2 + u16::from(sex != Some("F"));
+        let serial = self.random.u16(0..=4999) * 2 + u16::from(sex != Some("F"));
         let prefix = format!("{:02}{month:02}{day:02}{serial:04}", year % 100);
         let sum = weighted_digits(&prefix, &[1, 3, 7, 9, 1, 3, 7, 9, 1, 3]);
         let check = (10 - sum % 10) % 10;
@@ -1159,7 +1161,7 @@ impl Faker {
                 "71######", "72######", "77######", "79######", "8#######", "90######", "98######",
                 "99######",
             ];
-            let mask = MASKS[fastrand::usize(..MASKS.len())];
+            let mask = MASKS[self.random.usize(..MASKS.len())];
             let mut number = self.numerify(Some(mask));
             let digit = Self::dvCalcMod11(&number)?;
             number.push(char::from(b'0' + digit));
@@ -1200,7 +1202,7 @@ impl Faker {
     pub fn personalIdentityNumber(&self, gender: Option<&str>) -> DatabaseResult<String> {
         match self.locale() {
             "zh_TW" => Ok(self.taiwanese_identity(gender)),
-            "pl_PL" => Ok(polish_identity()),
+            "pl_PL" => Ok(polish_identity(&self.random)),
             _ => self.personalIdentityNumberWithBirthdate(None, gender),
         }
     }
@@ -1222,11 +1224,11 @@ impl Faker {
             None => self.identity_birthdate()?,
         };
         match locale {
-            "lt_LT" => lithuanian_identity(birthdate, gender, None),
-            "lv_LV" => Ok(latvian_identity(birthdate)),
-            "fi_FI" => finnish_identity(birthdate, gender),
-            "nb_NO" => Ok(norwegian_identity(birthdate, gender)),
-            _ => Ok(swedish_identity(birthdate, gender)),
+            "lt_LT" => lithuanian_identity(&self.random, birthdate, gender, None),
+            "lv_LV" => Ok(latvian_identity(&self.random, birthdate)),
+            "fi_FI" => finnish_identity(&self.random, birthdate, gender),
+            "nb_NO" => Ok(norwegian_identity(&self.random, birthdate, gender)),
+            _ => Ok(swedish_identity(&self.random, birthdate, gender)),
         }
     }
 
@@ -1246,7 +1248,7 @@ impl Faker {
             Some(date) => date,
             None => self.identity_birthdate()?,
         };
-        lithuanian_identity(birthdate, gender, serial)
+        lithuanian_identity(&self.random, birthdate, gender, serial)
     }
 
     fn taiwanese_identity(&self, gender: Option<&str>) -> String {
@@ -1254,9 +1256,9 @@ impl Faker {
         let gender = match gender.filter(|value| !value.is_empty()) {
             Some("male") => 1,
             Some(_) => 2,
-            None => fastrand::u32(1..=2),
+            None => self.random.u32(1..=2),
         };
-        let serial = fastrand::u32(1_000_000..=9_999_999);
+        let serial = self.random.u32(1_000_000..=9_999_999);
         let mut remaining = serial;
         let mut total = code / 10 + 9 * (code % 10) + 8 * gender;
         for weight in 1..=7 {
@@ -1576,22 +1578,22 @@ impl UniqueFaker<'_> {
     }
 }
 
-fn us_ssn() -> String {
-    let area = if fastrand::bool() {
-        fastrand::u16(1..=665)
+fn us_ssn(random: &FakerRandom) -> String {
+    let area = if random.bool() {
+        random.u16(1..=665)
     } else {
-        fastrand::u16(667..=899)
+        random.u16(667..=899)
     };
-    let group = fastrand::u8(1..=99);
-    let serial = fastrand::u16(1..=9999);
+    let group = random.u8(1..=99);
+    let serial = random.u16(1..=9999);
     format!("{area:03}-{group:02}-{serial:04}")
 }
 
-fn austrian_ssn(birthdate: NaiveDate) -> String {
+fn austrian_ssn(random: &FakerRandom, birthdate: NaiveDate) -> String {
     let date = birthdate.format("%d%m%y").to_string();
     let date_sum = weighted_digits(&date, &[5, 8, 4, 2, 1, 6]);
     loop {
-        let serial = fastrand::u16(100..=999).to_string();
+        let serial = random.u16(100..=999).to_string();
         let check = (date_sum + weighted_digits(&serial, &[3, 7, 9])) % 11;
         if check < 10 {
             return format!("{serial}{check}{date}");
@@ -1599,13 +1601,13 @@ fn austrian_ssn(birthdate: NaiveDate) -> String {
     }
 }
 
-fn icelandic_ssn(birthdate: NaiveDate) -> String {
+fn icelandic_ssn(random: &FakerRandom, birthdate: NaiveDate) -> String {
     let formatted_year = birthdate.format("%Y").to_string();
     let century_digit = formatted_year.as_bytes()[1] as char;
     let date = birthdate.format("%d%m%y").to_string();
     let date_sum = weighted_digits(&date, &[3, 2, 7, 6, 5, 4]);
     loop {
-        let serial = fastrand::u8(0..=99);
+        let serial = random.u8(0..=99);
         let sum = date_sum + 3 * u16::from(serial / 10) + 2 * u16::from(serial % 10);
         let check = (11 - sum % 11) % 11;
         if check < 10 {
@@ -1628,6 +1630,7 @@ fn weighted_digits(value: &str, weights: &[u16]) -> u16 {
 }
 
 fn lithuanian_identity(
+    random: &FakerRandom,
     birthdate: NaiveDate,
     gender: Option<&str>,
     serial: Option<&str>,
@@ -1649,7 +1652,7 @@ fn lithuanian_identity(
                 ))?;
             digits.to_owned()
         }
-        _ => format!("{:03}", fastrand::u16(0..=999)),
+        _ => format!("{:03}", random.u16(0..=999)),
     };
     let prefix = format!("{first}{}{serial}", birthdate.format("%y%m%d"));
     let mut check = weighted_digits(&prefix, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 1]) % 11;
@@ -1659,21 +1662,25 @@ fn lithuanian_identity(
     Ok(format!("{prefix}{check}"))
 }
 
-fn latvian_identity(birthdate: NaiveDate) -> String {
+fn latvian_identity(random: &FakerRandom, birthdate: NaiveDate) -> String {
     let century = match birthdate.year() {
         2000..=2099 => 2,
         1900..=1999 => 1,
         _ => 0,
     };
     let date = birthdate.format("%d%m%y").to_string();
-    let serial = format!("{century}{:03}", fastrand::u16(0..=999));
+    let serial = format!("{century}{:03}", random.u16(0..=999));
     let total =
         weighted_digits(&date, &[1, 6, 3, 7, 9, 10]) + weighted_digits(&serial, &[5, 8, 4, 2]);
     let check = (1101 - total) % 11 % 10;
     format!("{date}-{serial}{check}")
 }
 
-fn finnish_identity(birthdate: NaiveDate, gender: Option<&str>) -> DatabaseResult<String> {
+fn finnish_identity(
+    random: &FakerRandom,
+    birthdate: NaiveDate,
+    gender: Option<&str>,
+) -> DatabaseResult<String> {
     let century = match birthdate.year() {
         1800..=1899 => '+',
         1900..=1999 => '-',
@@ -1685,16 +1692,16 @@ fn finnish_identity(birthdate: NaiveDate, gender: Option<&str>) -> DatabaseResul
         }
     };
     let date = birthdate.format("%d%m%y").to_string();
-    let base = fastrand::u16(0..=89) * 10;
+    let base = random.u16(0..=89) * 10;
     let tail = if base == 0 {
         loop {
-            let digit = gender_digit(gender);
+            let digit = gender_digit(random, gender);
             if digit >= 2 {
                 break digit;
             }
         }
     } else {
-        gender_digit(gender)
+        gender_digit(random, gender)
     };
     let serial = base + tail;
     let checksum_chars = b"0123456789ABCDEFHJKLMNPRSTUVWXY";
@@ -1703,18 +1710,18 @@ fn finnish_identity(birthdate: NaiveDate, gender: Option<&str>) -> DatabaseResul
     Ok(format!("{date}{century}{serial:03}{check}"))
 }
 
-fn norwegian_identity(birthdate: NaiveDate, gender: Option<&str>) -> String {
+fn norwegian_identity(random: &FakerRandom, birthdate: NaiveDate, gender: Option<&str>) -> String {
     let date = birthdate.format("%d%m%y");
-    let serial = fastrand::u8(0..=99);
-    let gender = gender_digit(gender);
+    let serial = random.u8(0..=99);
+    let gender = gender_digit(random, gender);
     // The pinned provider uses two random digits here.
-    let trailing = fastrand::u8(0..=99);
+    let trailing = random.u8(0..=99);
     format!("{date}{serial:02}{gender}{trailing:02}")
 }
 
-fn swedish_identity(birthdate: NaiveDate, gender: Option<&str>) -> String {
+fn swedish_identity(random: &FakerRandom, birthdate: NaiveDate, gender: Option<&str>) -> String {
     let serial = loop {
-        let candidate = fastrand::u16(0..=99) * 10 + gender_digit(gender);
+        let candidate = random.u16(0..=99) * 10 + gender_digit(random, gender);
         if candidate != 0 {
             break candidate;
         }
@@ -1724,14 +1731,14 @@ fn swedish_identity(birthdate: NaiveDate, gender: Option<&str>) -> String {
     format!("{date}-{serial:03}{check}")
 }
 
-fn polish_identity() -> String {
+fn polish_identity(random: &FakerRandom) -> String {
     const LETTERS: &[u8] = b"ABCDEFGHIJKLMNPRSTUVWXYZ";
     let letters = [
         b'A',
-        LETTERS[fastrand::usize(..LETTERS.len())],
-        LETTERS[fastrand::usize(..LETTERS.len())],
+        LETTERS[random.usize(..LETTERS.len())],
+        LETTERS[random.usize(..LETTERS.len())],
     ];
-    let serial = format!("{:05}", fastrand::u32(0..=99_999));
+    let serial = format!("{:05}", random.u32(0..=99_999));
     let total: u16 = letters
         .into_iter()
         .zip([7, 3, 1])
@@ -1742,11 +1749,11 @@ fn polish_identity() -> String {
     format!("{first}{second}{third}{check}{serial}")
 }
 
-fn gender_digit(gender: Option<&str>) -> u16 {
+fn gender_digit(random: &FakerRandom, gender: Option<&str>) -> u16 {
     match gender {
-        Some("male") => fastrand::u16(0..=4) * 2 + 1,
-        Some("female") => fastrand::u16(0..=4) * 2,
-        _ => fastrand::u16(0..=9),
+        Some("male") => random.u16(0..=4) * 2 + 1,
+        Some("female") => random.u16(0..=4) * 2,
+        _ => random.u16(0..=9),
     }
 }
 
@@ -1768,9 +1775,9 @@ fn brazilian_check_digit(number: &str) -> char {
     char::from(b'0' + if check < 10 { check as u8 } else { 0 })
 }
 
-fn dutch_identity() -> String {
-    let mut digits = std::array::from_fn::<_, 9, _>(|_| fastrand::u8(0..=9));
-    digits[0] = fastrand::u8(0..=6);
+fn dutch_identity(random: &FakerRandom) -> String {
+    let mut digits = std::array::from_fn::<_, 9, _>(|_| random.u8(0..=9));
+    digits[0] = random.u8(0..=6);
     let total: u16 = digits[..8]
         .iter()
         .zip((2..=9).rev())

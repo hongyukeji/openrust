@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Spanish and Portuguese company formats and surnames from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -23,8 +25,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-use super::sample;
 
 enum Part {
     Text(&'static str),
@@ -3196,17 +3196,17 @@ fn provider(locale: &str) -> Option<&'static Provider> {
     }
 }
 
-pub(super) fn company(locale: &str) -> Option<String> {
+pub(super) fn company(random: &FakerRandom, locale: &str) -> Option<String> {
     let provider = provider(locale)?;
-    let template = provider.templates[fastrand::usize(..provider.templates.len())];
+    let template = provider.templates[random.usize(..provider.templates.len())];
     Some(
         template
             .iter()
             .map(|part| match part {
                 Text(text) => *text,
-                Prefix => sample(provider.prefixes),
-                Surname => sample(provider.names),
-                Suffix => sample(provider.suffixes),
+                Prefix => random.sample(provider.prefixes),
+                Surname => random.sample(provider.names),
+                Suffix => random.sample(provider.suffixes),
             })
             .collect(),
     )

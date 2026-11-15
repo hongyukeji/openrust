@@ -22,7 +22,7 @@ impl Faker {
         const SCALE: u64 = 1 << 53;
         let width = (i128::from(max) - i128::from(min) + 1) as u128;
         for _ in 0..DEFAULT_RETRIES {
-            let draw = fastrand::u64(..);
+            let draw = self.random.u64(..);
             let x = (draw >> 11) as f64 / SCALE as f64;
             let acceptance = function.map_or_else(|| x.sqrt(), |curve| curve(x));
             if !(0.0..=1.0).contains(&acceptance) {
@@ -30,7 +30,7 @@ impl Faker {
                     "Faker bias must be finite and between 0 and 1",
                 ));
             }
-            if fastrand::f64() < acceptance {
+            if self.random.f64() < acceptance {
                 let offset = (u128::from(draw) * width) >> 64;
                 return Ok((i128::from(min) + offset as i128) as i64);
             }
@@ -49,7 +49,7 @@ impl Faker {
     ) -> DatabaseResult<Option<T>> {
         let weight = weight.unwrap_or(0.5);
         let weight = if weight > 1.0 { weight / 100.0 } else { weight };
-        if f64::from(fastrand::u8(1..=100)) <= weight * 100.0 {
+        if f64::from(self.random.u8(1..=100)) <= weight * 100.0 {
             generate(self).map(Some)
         } else {
             Ok(default)

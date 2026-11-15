@@ -1,3 +1,5 @@
+use crate::database::eloquent::factories::faker_rng::FakerRandom;
+
 // Company formats and Polish surnames from FakerPHP v1.24.1.
 // https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider
 //
@@ -3853,12 +3855,8 @@ pub(super) const CS_CZ_FEMALE_SURNAMES: &[&str] = &[
     "Žůrková",
 ];
 
-fn sample(values: &'static [&'static str]) -> &'static str {
-    values[fastrand::usize(..values.len())]
-}
-
-fn polish_surname() -> &'static str {
-    sample(if fastrand::bool() {
+fn polish_surname(random: &FakerRandom) -> &'static str {
+    random.sample(if random.bool() {
         super::faker_person::PL_PL_LAST_MALE
     } else {
         super::faker_person::PL_PL_LAST_FEMALE
@@ -3869,14 +3867,14 @@ fn polish_surname() -> &'static str {
 impl Faker {
     /// Samples a company slogan from the selected Company provider.
     pub fn catchPhrase(&self) -> DatabaseResult<String> {
-        phrases::catch_phrase(self.locale()).ok_or(DatabaseError::InvalidQuery(
+        phrases::catch_phrase(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
             "unsupported Faker catch phrase locale",
         ))
     }
 
     /// Samples a business phrase from the selected Company provider.
     pub fn bs(&self) -> DatabaseResult<String> {
-        phrases::business_phrase(self.locale()).ok_or(DatabaseError::InvalidQuery(
+        phrases::business_phrase(&self.random, self.locale()).ok_or(DatabaseError::InvalidQuery(
             "unsupported Faker business phrase locale",
         ))
     }
@@ -3894,7 +3892,7 @@ impl Faker {
     }
 
     fn catch_phrase_part(&self, part: Part) -> DatabaseResult<&'static str> {
-        part.sample(self.locale())
+        part.sample(&self.random, self.locale())
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker catch phrase component locale",
             ))
@@ -3906,10 +3904,10 @@ impl Faker {
         let suffix = || self.companySuffix();
         match self.locale() {
             "ar_EG" => {
-                let prefix = || sample(ARABIC_PREFIXES);
-                let surname = || sample(EGYPTIAN_SURNAMES);
-                let city = || sample(EGYPTIAN_CITIES);
-                match fastrand::u8(0..6) {
+                let prefix = || self.random.sample(ARABIC_PREFIXES);
+                let surname = || self.random.sample(EGYPTIAN_SURNAMES);
+                let city = || self.random.sample(EGYPTIAN_CITIES);
+                match self.random.u8(0..6) {
                     0 => format!("{} {}", prefix(), city()),
                     1 => format!("{} {}", prefix(), surname()),
                     2 => format!("{} {}", city(), suffix()),
@@ -3924,9 +3922,9 @@ impl Faker {
                 } else {
                     SAUDI_SURNAMES
                 };
-                let name = sample(names);
-                let prefix = || sample(ARABIC_PREFIXES);
-                match fastrand::u8(0..3) {
+                let name = self.random.sample(names);
+                let prefix = || self.random.sample(ARABIC_PREFIXES);
+                match self.random.u8(0..3) {
                     0 => format!("{name} {}", suffix()),
                     1 => format!("{} {name} {}", prefix(), suffix()),
                     _ => format!("{} {name}", prefix()),
@@ -3938,16 +3936,16 @@ impl Faker {
                 } else {
                     DE_CH_SURNAMES
                 };
-                let name = sample(names);
-                match fastrand::u8(0..4) {
+                let name = self.random.sample(names);
+                match self.random.u8(0..4) {
                     0 => format!("{name} {}", suffix()),
-                    1 => format!("{name} {} {}", sample(names), suffix()),
+                    1 => format!("{name} {} {}", self.random.sample(names), suffix()),
                     _ => name.to_owned(),
                 }
             }
             "de_AT" => {
-                let name = sample(DE_AT_SURNAMES);
-                if fastrand::bool() {
+                let name = self.random.sample(DE_AT_SURNAMES);
+                if self.random.bool() {
                     format!("{name} {}", suffix())
                 } else {
                     name.to_owned()
@@ -3955,81 +3953,95 @@ impl Faker {
             }
             "cs_CZ" => {
                 let surname = || {
-                    sample(if fastrand::bool() {
+                    self.random.sample(if self.random.bool() {
                         CS_CZ_MALE_SURNAMES
                     } else {
                         CS_CZ_FEMALE_SURNAMES
                     })
                 };
                 let name = surname();
-                match fastrand::u8(0..4) {
+                match self.random.u8(0..4) {
                     0 => format!("{name} {}", suffix()),
                     1 => format!("{name} {} {}", surname(), suffix()),
                     2 => format!("{name}-{} {}", surname(), suffix()),
                     _ => format!("{name} a {} {}", surname(), suffix()),
                 }
             }
-            "en_US" => match fastrand::u8(0..3) {
+            "en_US" => match self.random.u8(0..3) {
                 0 => format!("{} {}", surname(), suffix()),
                 1 => format!("{}-{}", surname(), surname()),
                 _ => format!("{}, {} and {}", surname(), surname(), surname()),
             },
-            "fr_FR" => match fastrand::u8(0..4) {
+            "fr_FR" => match self.random.u8(0..4) {
                 0 => format!("{} {}", surname(), suffix()),
                 1 => format!("{} {} {}", surname(), surname(), suffix()),
                 _ => surname(),
             },
-            "it_IT" => match fastrand::u8(0..3) {
+            "it_IT" => match self.random.u8(0..3) {
                 0 => format!("{} {}", surname(), suffix()),
                 1 => format!("{}-{} {}", surname(), surname(), suffix()),
                 _ => format!("{}, {} e {} {}", surname(), surname(), surname(), suffix()),
             },
-            "pl_PL" => match fastrand::u8(0..8) {
-                0..=1 => polish_surname().to_owned(),
-                2..=5 => format!("{} {}", polish_surname(), suffix()),
-                6 => format!("{} {}", sample(POLISH_PREFIXES), polish_surname()),
-                _ => format!("{}-{}", polish_surname(), polish_surname()),
+            "pl_PL" => match self.random.u8(0..8) {
+                0..=1 => polish_surname(&self.random).to_owned(),
+                2..=5 => format!("{} {}", polish_surname(&self.random), suffix()),
+                6 => format!(
+                    "{} {}",
+                    self.random.sample(POLISH_PREFIXES),
+                    polish_surname(&self.random)
+                ),
+                _ => format!(
+                    "{}-{}",
+                    polish_surname(&self.random),
+                    polish_surname(&self.random)
+                ),
             },
-            "zh_CN" => format!("{}{}", sample(CHINESE_PREFIXES), suffix()),
+            "zh_CN" => format!("{}{}", self.random.sample(CHINESE_PREFIXES), suffix()),
             "zh_TW" => {
-                let prefix = sample(TAIWANESE_PREFIXES);
-                match fastrand::u8(0..3) {
-                    0 => format!("{prefix}{}", sample(TAIWANESE_MODIFIERS)),
+                let prefix = self.random.sample(TAIWANESE_PREFIXES);
+                match self.random.u8(0..3) {
+                    0 => format!("{prefix}{}", self.random.sample(TAIWANESE_MODIFIERS)),
                     1 => format!("{prefix}{}", suffix()),
-                    _ => format!("{prefix}{}{}", sample(TAIWANESE_MODIFIERS), suffix()),
+                    _ => format!(
+                        "{prefix}{}{}",
+                        self.random.sample(TAIWANESE_MODIFIERS),
+                        suffix()
+                    ),
                 }
             }
-            "ja_JP" => format!("{} {}", sample(JAPANESE_PREFIXES), surname()),
+            "ja_JP" => format!("{} {}", self.random.sample(JAPANESE_PREFIXES), surname()),
             "ko_KR" => {
-                let name = sample(if fastrand::bool() {
+                let name = self.random.sample(if self.random.bool() {
                     KOREAN_MALE_GIVEN_NAMES
                 } else {
                     KOREAN_FEMALE_GIVEN_NAMES
                 });
-                match fastrand::u8(0..6) {
-                    0 => format!("{}{name}", sample(KOREAN_PREFIXES)),
-                    1 => format!("{}{name}{}", sample(KOREAN_PREFIXES), suffix()),
+                match self.random.u8(0..6) {
+                    0 => format!("{}{name}", self.random.sample(KOREAN_PREFIXES)),
+                    1 => format!("{}{name}{}", self.random.sample(KOREAN_PREFIXES), suffix()),
                     _ => format!("{name}{}", suffix()),
                 }
             }
-            locale => nordic::company(locale)
-                .or_else(|| iberian::company(locale))
-                .or_else(|| dutch::company(locale))
-                .or_else(|| central::company(locale))
-                .or_else(|| balkan::company(locale))
-                .or_else(|| ukza_cy::company(locale))
-                .or_else(|| romance::company(locale))
-                .or_else(|| lt_sl_tr::company(locale))
-                .or_else(|| cyrillic::company(locale))
-                .or_else(|| west_asian::company(locale))
-                .or_else(|| south_southeast_asian::company(locale))
-                .unwrap_or_else(|| generate!(locale, faker::company::raw::CompanyName,)),
+            locale => nordic::company(&self.random, locale)
+                .or_else(|| iberian::company(&self.random, locale))
+                .or_else(|| dutch::company(&self.random, locale))
+                .or_else(|| central::company(&self.random, locale))
+                .or_else(|| balkan::company(&self.random, locale))
+                .or_else(|| ukza_cy::company(&self.random, locale))
+                .or_else(|| romance::company(&self.random, locale))
+                .or_else(|| lt_sl_tr::company(&self.random, locale))
+                .or_else(|| cyrillic::company(&self.random, locale))
+                .or_else(|| west_asian::company(&self.random, locale))
+                .or_else(|| south_southeast_asian::company(&self.random, locale))
+                .unwrap_or_else(|| {
+                    generate!(&self.random, locale, faker::company::raw::CompanyName,)
+                }),
         }
     }
 
     /// Samples a job title using the configured Company provider.
     pub fn jobTitle(&self) -> String {
-        job_title::job_title(self.locale())
+        job_title::job_title(&self.random, self.locale())
     }
 
     /// Samples a company prefix for a locale with a prefix catalog.
@@ -4050,7 +4062,7 @@ impl Faker {
                     "unsupported Faker company prefix locale",
                 ))?,
         };
-        Ok(sample(prefixes))
+        Ok(self.random.sample(prefixes))
     }
 
     /// Samples the modifier in a Taiwanese company name.
@@ -4060,7 +4072,7 @@ impl Faker {
                 "unsupported Faker company modifier locale",
             ));
         }
-        Ok(sample(TAIWANESE_MODIFIERS))
+        Ok(self.random.sample(TAIWANESE_MODIFIERS))
     }
 
     /// Generates an English company name with the default Taiwanese provider.
@@ -4083,7 +4095,7 @@ impl Faker {
             ));
         }
 
-        let template = fastrand::u8(0..3);
+        let template = self.random.u8(0..3);
         let first = last_name()?;
         Ok(match template {
             0 => format!("{first} {}", self.companyEnSuffix()?),
@@ -4099,16 +4111,16 @@ impl Faker {
                 "unsupported Faker English company suffix locale",
             ));
         }
-        Ok(sample(EN_US_SUFFIXES))
+        Ok(self.random.sample(EN_US_SUFFIXES))
     }
 
     /// Samples a company name from the locale’s company catalog.
     pub fn companyName(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
-            "me_ME" => Ok(balkan::company_name()),
-            "uk_UA" => Ok(cyrillic::ukrainian_name()),
+            "me_ME" => Ok(balkan::company_name(&self.random)),
+            "uk_UA" => Ok(cyrillic::ukrainian_name(&self.random)),
             locale => south_southeast_asian::company_names(locale)
-                .map(sample)
+                .map(|values| self.random.sample(values))
                 .ok_or(DatabaseError::InvalidQuery(
                     "unsupported Faker company name locale",
                 )),
@@ -4123,8 +4135,8 @@ impl Faker {
             ));
         }
 
-        let name = cyrillic::ukrainian_name();
-        if fastrand::bool() {
+        let name = cyrillic::ukrainian_name(&self.random);
+        if self.random.bool() {
             return Ok(format!("{name}-{}", self.companySuffix()));
         }
         Ok(name.to_owned())
@@ -4133,8 +4145,10 @@ impl Faker {
     /// Samples a company type from the locale’s company catalog.
     pub fn companyType(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
-            "me_ME" => Ok(balkan::company_type()),
-            "bn_BD" => Ok(south_southeast_asian::bangladeshi_company_type()),
+            "me_ME" => Ok(balkan::company_type(&self.random)),
+            "bn_BD" => Ok(south_southeast_asian::bangladeshi_company_type(
+                &self.random,
+            )),
             _ => Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company type locale",
             )),
@@ -4148,7 +4162,7 @@ impl Faker {
                 "unsupported Faker industry locale",
             ));
         }
-        Ok(south_southeast_asian::industry())
+        Ok(south_southeast_asian::industry(&self.random))
     }
 
     /// Generates a Thai slogan.
@@ -4158,14 +4172,14 @@ impl Faker {
                 "unsupported Faker slogan locale",
             ));
         }
-        Ok(south_southeast_asian::slogan())
+        Ok(south_southeast_asian::slogan(&self.random))
     }
 
     /// Samples a Turkish or Iranian company field.
     pub fn companyField(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
-            "tr_TR" => Ok(lt_sl_tr::company_field()),
-            "fa_IR" => Ok(west_asian::company_field()),
+            "tr_TR" => Ok(lt_sl_tr::company_field(&self.random)),
+            "fa_IR" => Ok(west_asian::company_field(&self.random)),
             _ => Err(DatabaseError::InvalidQuery(
                 "unsupported Faker company field locale",
             )),
@@ -4175,7 +4189,7 @@ impl Faker {
     pub fn companyNameElement(&self) -> DatabaseResult<&'static str> {
         cyrillic::elements(self.locale())
             .or_else(|| west_asian::elements(self.locale()))
-            .map(sample)
+            .map(|values| self.random.sample(values))
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker companyNameElement locale",
             ))
@@ -4184,7 +4198,7 @@ impl Faker {
     pub fn companyNameSuffix(&self) -> DatabaseResult<&'static str> {
         cyrillic::name_suffixes(self.locale())
             .or_else(|| west_asian::name_suffixes(self.locale()))
-            .map(sample)
+            .map(|values| self.random.sample(values))
             .ok_or(DatabaseError::InvalidQuery(
                 "unsupported Faker companyNameSuffix locale",
             ))
@@ -4197,7 +4211,7 @@ impl Faker {
                 "unsupported Faker contract locale",
             ));
         }
-        Ok(west_asian::contract())
+        Ok(west_asian::contract(&self.random))
     }
 
     /// Samples the selected company provider's suffix.
@@ -4235,10 +4249,10 @@ impl Faker {
                 .or_else(|| south_southeast_asian::suffixes(locale))
             {
                 Some(values) => values,
-                None => return generate!(locale, faker::company::raw::CompanySuffix,),
+                None => return generate!(&self.random, locale, faker::company::raw::CompanySuffix,),
             },
         };
-        sample(suffixes).to_owned()
+        self.random.sample(suffixes).to_owned()
     }
 }
 
