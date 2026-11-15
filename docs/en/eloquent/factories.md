@@ -1700,7 +1700,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The example also checks per-model overrides and awaits a single-model callback. Each invocation does fresh work.
+`makeOne` leaves the configured batch count available for the next `makeMany` call. In the example, the two default batch calls return two models and then one. Use a separate counted factory for `lazy` when the preview has consumed its count. Preparing or invoking the callback leaves the target table untouched until the returned future is awaited. Each awaited invocation on the factory below writes two new models. A `lazy` callback from an uncounted factory returns one model per successful call. The example checks that per-model overrides preserve input order and that both forms of the callback return saved models.
 
 ```rust
 use openrust::database::{
@@ -1737,13 +1737,16 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
-    let pending = seed();
-    assert_eq!(pending.await?.len(), 2);
-    assert_eq!(seed().await?.len(), 2);
+    let pending_batch = seed();
 
     let single = factory();
     let seed_one = single.lazy(Attributes::new());
     let pending_one = seed_one();
+
+    let created = pending_batch.await?;
+    assert_eq!(created.len(), 2);
+    assert!(created.iter().all(|model| model.state().exists()));
+    assert_eq!(seed().await?.len(), 2);
     assert!(pending_one.await?.state().exists());
     assert!(seed_one().await?.state().exists());
     Ok(())

@@ -1711,3 +1711,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 实际 `main artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 运行三语共用示例。两次独立设种子写入六条记录，三对位置对应的名称逐字节一致。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器和本批缓存已清理，磁盘可用 78 GiB。
 
 下一批按固定 FakerPHP 的自定义 provider、formatter 重名覆盖和错误路径复核 Rust 扩展入口，完成 05-04 剩余兼容边界对照。
+
+## 05-04 恢复复验：预构造与延迟写入
+
+隔离基线 `185501c1`。按固定 Laravel 的 [Factory 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L357)及[使用工厂创建模型](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#creating-models-using-factories)复验已提交的入口。固定 Goravel 继续作为编译装配参考。v0.x 同名代码用于构造查询。三语示例同时取得单条和批量回调的 Future，再等待其完成并检查保存状态。Laravel 在调用闭包时同步写入，Rust 在等待 Future 时开始异步写入。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 验证预构造不写入目标表，`makeOne` 保留批量数量，两次默认 `makeMany` 依次返回两条和一条，逐条覆盖保留顺序，显式零数量返回空集合。调用两种 `lazy` 回调并取得 Future 后仍为零行。两次批量与两次单条执行后按主键核对四条批量与两条单条记录。三语共享示例在同一真实 Seeder 内运行，再新增六条。
+
+Rust 1.94.0 全工作区全目标严格 Clippy、50 项 Seeder、MySQL 和 SQLite 各一项工厂回归、`./artisan inspire`、三语示例独立编译、VitePress 构建及 18 项浏览器检查通过。基线既有 Sanctum 测试格式差异仅在隔离副本处理后通过格式检查。临时 Seeder 已恢复，临时 MySQL 容器已回收。清理隔离 Cargo 产物 4.9 GiB、站点产物及独占文档依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。Faker 自定义 provider、同名格式化器覆盖及错误路径继续在 05-04 跟踪。

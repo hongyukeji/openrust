@@ -1700,7 +1700,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。未設定批次數量的工廠回傳的 `lazy` 回呼，每次成功執行會建立並回傳一個模型。範例也驗證逐筆屬性覆寫，並等待單模型回呼。每次呼叫並等待都會重新建立。
+`makeOne` 保留已設定的批次數量，供下一次 `makeMany` 使用。範例中的兩次預設批次呼叫依序回傳兩個模型和一個模型。預先建構消耗數量後，用獨立的批次工廠設定 `lazy` 的寫入數量。建立或呼叫回呼後，目標資料表在等待回傳的 Future 前沒有寫入。以下每次呼叫並等待都會寫入兩個新模型。未設定批次數量的工廠回傳的 `lazy` 回呼，每次成功執行會建立並回傳一個模型。範例驗證逐筆覆寫保留輸入順序，並檢查兩種回呼回傳的模型皆已儲存。
 
 ```rust
 use openrust::database::{
@@ -1737,13 +1737,16 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
-    let pending = seed();
-    assert_eq!(pending.await?.len(), 2);
-    assert_eq!(seed().await?.len(), 2);
+    let pending_batch = seed();
 
     let single = factory();
     let seed_one = single.lazy(Attributes::new());
     let pending_one = seed_one();
+
+    let created = pending_batch.await?;
+    assert_eq!(created.len(), 2);
+    assert!(created.iter().all(|model| model.state().exists()));
+    assert_eq!(seed().await?.len(), 2);
     assert!(pending_one.await?.state().exists());
     assert!(seed_one().await?.state().exists());
     Ok(())
