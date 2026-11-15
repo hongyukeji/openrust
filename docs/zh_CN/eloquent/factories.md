@@ -961,6 +961,17 @@ fn persian_and_hebrew_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+土耳其语地址把门牌号放在街名后面。第二行以五位邮编开头，随后是 81 个城市词表中的一个。街名沿用固定版名字与姓氏的抽样权重。可用 `cityName()` 直接抽取城市，也支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn turkish_address_sample() -> DatabaseResult<(String, &'static str)> {
+    let faker = fake(Some("tr-TR"))?;
+    Ok((faker.address(), faker.unique(false).cityName()?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

@@ -4280,3 +4280,27 @@ fn persian_and_hebrew_addresses_preserve_optional_segments_and_spaces() {
     assert_eq!(unique.postcodePrefix().unwrap(), "کد پستی");
     assert!(unique.postcodePrefix().is_err());
 }
+
+#[test]
+fn turkish_addresses_put_the_building_last_and_the_postcode_before_the_city() {
+    use std::collections::HashSet;
+
+    let faker = fake(Some("tr-TR")).unwrap();
+    let building = Regex::new(r"^[1-9][0-9]{0,2}$").unwrap();
+    let postcode = Regex::new(r"^[0-9]{5}$").unwrap();
+    let suffixes = ["Sokak", "Caddesi", "Kavşağı", "Durağı", "İş Hanı", "Mevkii"];
+    for _ in 0..128 {
+        let address = faker.address();
+        let (street, place) = address.split_once('\n').unwrap();
+        let (name, number) = street.rsplit_once(' ').unwrap();
+        assert!(building.is_match(number), "{address}");
+        assert!(suffixes.iter().any(|suffix| name.ends_with(suffix)));
+        let (postal, city) = place.split_once(' ').unwrap();
+        assert!(postcode.is_match(postal) && !city.is_empty());
+    }
+    let unique = faker.unique(true);
+    let cities: HashSet<_> = (0..81).map(|_| unique.cityName().unwrap()).collect();
+    assert_eq!(cities.len(), 81);
+    assert!(cities.contains("İstanbul") && cities.contains("Şanlıurfa"));
+    assert!(unique.cityName().is_err());
+}
