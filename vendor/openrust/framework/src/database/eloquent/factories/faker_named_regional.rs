@@ -16,6 +16,49 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "country" => |faker, _| Ok(faker.country().into()),
         "state" => |faker, _| Ok(faker.state().into()),
         "stateabbr" => |faker, _| Ok(faker.stateAbbr().into()),
+        "alphabet" => |faker, _| {
+            faker
+                .alphabet()
+                .map(|character| character.to_string().into())
+        },
+        "bs" => |faker, _| faker.bs().map(Value::from),
+        "catchphrase" => |faker, _| faker.catchPhrase().map(Value::from),
+        "catchphraseattribute" => |faker, _| faker.catchPhraseAttribute().map(Value::from),
+        "catchphrasenoun" => |faker, _| faker.catchPhraseNoun().map(Value::from),
+        "catchphraseverb" => |faker, _| faker.catchPhraseVerb().map(Value::from),
+        "companyfield" => |faker, _| faker.companyField().map(Value::from),
+        "companyname" => |faker, _| faker.companyName().map(Value::from),
+        "companynameelement" => |faker, _| faker.companyNameElement().map(Value::from),
+        "companynamesuffix" => |faker, _| faker.companyNameSuffix().map(Value::from),
+        "companytype" => |faker, _| faker.companyType().map(Value::from),
+        "companyurl" => |faker, _| faker.companyUrl().map(Value::from),
+        "contract" => |faker, _| faker.contract().map(Value::from),
+        "firstnamefemalechinese" => |faker, _| faker.firstNameFemaleChinese().map(Value::from),
+        "firstnamefemalechristian" => |faker, _| faker.firstNameFemaleChristian().map(Value::from),
+        "firstnamefemaleindian" => |faker, _| faker.firstNameFemaleIndian().map(Value::from),
+        "firstnamefemalemalay" => |faker, _| faker.firstNameFemaleMalay().map(Value::from),
+        "firstnamemalechinese" => |faker, _| faker.firstNameMaleChinese().map(Value::from),
+        "firstnamemalechristian" => |faker, _| faker.firstNameMaleChristian().map(Value::from),
+        "firstnamemaleindian" => |faker, _| faker.firstNameMaleIndian().map(Value::from),
+        "firstnamemalemalay" => |faker, _| faker.firstNameMaleMalay().map(Value::from),
+        "haji" => |faker, _| faker.haji().map(Value::from),
+        "hajjah" => |faker, _| faker.hajjah().map(Value::from),
+        "industry" => |faker, _| faker.industry().map(Value::from),
+        "initialindian" => |faker, _| faker.initialIndian().map(Value::from),
+        "jobtitle" => |faker, _| Ok(faker.jobTitle().into()),
+        "lastnamechinese" => |faker, _| faker.lastNameChinese().map(Value::from),
+        "lastnameindian" => |faker, _| faker.lastNameIndian().map(Value::from),
+        "lastnamemalay" => |faker, _| faker.lastNameMalay().map(Value::from),
+        "muhammadname" => |faker, _| faker.muhammadName().map(Value::from),
+        "nameprefix" => |faker, _| {
+            faker
+                .namePrefix()
+                .map(|character| character.to_string().into())
+        },
+        "nurname" => |faker, _| faker.nurName().map(Value::from),
+        "randomname" => random_name,
+        "slogan" => |faker, _| faker.slogan().map(Value::from),
+        "titlemalemalay" => |faker, _| faker.titleMaleMalay().map(Value::from),
         "firstnamemale" => |faker, _| Ok(faker.firstNameMale().into()),
         "firstnamefemale" => |faker, _| Ok(faker.firstNameFemale().into()),
         "titlemale" => |faker, _| Ok(faker.titleMale().into()),
@@ -316,6 +359,31 @@ fn plate_area_names(input: Option<&Value>) -> DatabaseResult<Vec<&str>> {
         .map(|name| {
             name.as_str().ok_or(DatabaseError::InvalidQuery(
                 "Faker plate area names must be text",
+            ))
+        })
+        .collect()
+}
+
+fn random_name(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [pool, count] = arguments(args)?;
+    let count = integer(count)?.ok_or(DatabaseError::InvalidQuery(
+        "Faker randomName requires an integer count",
+    ))?;
+    let count = usize::try_from(count.max(0))
+        .map_err(|_| DatabaseError::InvalidQuery("Faker name length is out of range"))?;
+    let pool = required_text_collection(pool)?;
+    faker.randomName(&pool, count).map(Value::from)
+}
+
+fn required_text_collection(value: Option<&Value>) -> DatabaseResult<Vec<&str>> {
+    let value = value.ok_or(DatabaseError::InvalidQuery(
+        "Faker randomName requires a name pool",
+    ))?;
+    collection_values(Some(value), &[])?
+        .into_iter()
+        .map(|name| {
+            name.as_str().ok_or(DatabaseError::InvalidQuery(
+                "Faker name pool entries must be text",
             ))
         })
         .collect()

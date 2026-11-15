@@ -1515,7 +1515,7 @@ fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
-`ms-MY` 可直接生成姓名模板的各个成分。马来姓名使用 `firstNameMaleMalay`、`firstNameFemaleMalay`、`lastNameMalay`、`muhammadName`、`nurName`、`haji`、`hajjah` 和 `titleMaleMalay`。其余接口包括 `lastNameChinese`、`firstNameMaleChinese`、`firstNameFemaleChinese`、`firstNameMaleChristian`、`firstNameFemaleChristian`、`initialIndian`、`firstNameMaleIndian`、`firstNameFemaleIndian` 和 `lastNameIndian`。可选成分可以为空，非空时保留词表原有的末尾空格。
+`ms-MY` 可直接生成姓名模板的各个成分。马来姓名使用 `firstNameMaleMalay`、`firstNameFemaleMalay`、`lastNameMalay`、`muhammadName`、`nurName`、`haji`、`hajjah` 和 `titleMaleMalay`。其余接口包括 `lastNameChinese`、`firstNameMaleChinese`、`firstNameFemaleChinese`、`firstNameMaleChristian`、`firstNameFemaleChristian`、`initialIndian`、`firstNameMaleIndian`、`firstNameFemaleIndian` 和 `lastNameIndian`。可选成分可以为空，非空时保留词表原有的末尾空格。 这些模板组件也可通过 `format(name, &[])` 按名称调用。
 
 `myKadNumber(gender, formatted, separator)` 生成样本号码。关闭格式化时输出 12 位数字，开启后用连字符或指定分隔符分为六位、两位和四位三组。末位在 `"male"` 时为奇数，`"female"` 时为偶数，其余情况不限制。月、日分别抽样。以上接口均支持 `unique()`，在 `ms-MY` 以外的地区返回错误。
 
@@ -1594,6 +1594,8 @@ fn mongolian_initial() -> DatabaseResult<char> {
 ### 新加坡英语姓名和证件样本 {#singapore-english-names-and-identity-samples}
 
 `en-SG` 沿用基础姓名 `John Doe` 和 `Jane Doe`。用 `nric(birthDate)` 或 `fin(issueDate)` 生成证件样本，也可用 `singaporeId(issueDate, foreigner)` 指定类型。日期接受可选的公历日期，省略时使用 `dateTimeThisCentury()` 的日期范围。前缀以 2000 年为分界。NRIC 从 1968 年起取年份后两位，更早的日期从 `00` 和 `01` 抽样。三个接口均计算末尾校验字母并支持 `unique()`。
+
+通过 `format("singaporeId", args)` 调用时，日期用 `YYYY-MM-DD` 或 null 表示，第二个参数是可选的 `foreigner` 布尔值。
 
 ```rust
 use chrono::NaiveDate;
@@ -1717,7 +1719,7 @@ fn venezuelan_rif_sample() -> DatabaseResult<String> {
 
 ### 葡萄牙 NIF 和台湾华语名字词表 {#portuguese-nif-and-taiwanese-name-pools}
 
-在 `pt-PT` 中用 `taxpayerIdentificationNumber()` 生成九位 NIF 样本。`Faker::dvCalcMod11(number)` 接收 ASCII 数字字符串计算校验位，可保留前导零。在 `zh-TW` 中，`randomName(pool, count)` 从字符串切片独立抽样后拼接，可以重复抽到同一项。词表为空或抽样数为零时返回空字符串。两个生成器均支持 `unique()`。
+在 `pt-PT` 中用 `taxpayerIdentificationNumber()` 生成九位 NIF 样本。`Faker::dvCalcMod11(number)` 接收 ASCII 数字字符串计算校验位，可保留前导零。在 `zh-TW` 中，`randomName(pool, count)` 从字符串切片独立抽样后拼接，可以重复抽到同一项。词表为空或抽样数为零时返回空字符串。两个生成器均支持 `unique()`。 通过 `format("randomName", args)` 调用时，依次传入由文本值组成的 JSON 数组或对象及整数数量。数量小于或等于零时返回空字符串。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1812,6 +1814,23 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-CA"))?;
     let taiwanese = fake(Some("zh-TW"))?;
     Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+}
+```
+
+公司标语、商业短语及地区公司名称组件可通过 `format(name, &[])` 按原方法名调用。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
+    let malaysia = Faker::new("ms-MY")?;
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    Ok([
+        malaysia.format("firstNameMaleChinese", &[])?,
+        malaysia.format("industry", &[])?,
+        taiwan.format("randomName", &[Value::Json(json!(["明"])), 2_i64.into()])?,
+    ])
 }
 ```
 

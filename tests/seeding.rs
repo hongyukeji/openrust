@@ -5829,6 +5829,79 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_company_and_person_reuse_regional_generators() -> DatabaseResult<()> {
+    let malaysia = Faker::new("ms-MY")?;
+    malaysia.seed(94);
+    let name = malaysia.firstNameMaleChinese()?;
+    malaysia.seed(94);
+    assert_eq!(malaysia.format("firstNameMaleChinese", &[])?, name.into());
+    malaysia.seed(94);
+    let industry = malaysia.industry()?;
+    malaysia.seed(94);
+    assert_eq!(malaysia.format("industry", &[])?, industry.into());
+    assert!(matches!(malaysia.format("companyName", &[])?, Value::Text(name) if !name.is_empty()));
+    assert!(
+        matches!(malaysia.format("hajjah", &[])?, Value::Text(value) if ["", "Hajjah ", "Hjh "].contains(&value.as_str()))
+    );
+
+    let mongolia = Faker::new("mn-MN")?;
+    assert!(
+        matches!(mongolia.format("namePrefix", &[])?, Value::Text(value) if value.chars().count() == 1)
+    );
+    let france = Faker::new("fr-FR")?;
+    france.seed(94);
+    let slogan = france.catchPhrase()?;
+    france.seed(94);
+    assert_eq!(france.format("catchPhrase", &[])?, slogan.into());
+    assert!(
+        matches!(france.format("catchPhraseNoun", &[])?, Value::Text(noun) if !noun.is_empty())
+    );
+    let armenia = Faker::new("hy-AM")?;
+    assert_eq!(armenia.format("bs", &[])?, "".into());
+
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    let pool = Value::Json(json!({"name":"明"}));
+    assert_eq!(
+        taiwan.format("randomName", &[pool.clone(), 2_i64.into()])?,
+        "明明".into()
+    );
+    assert_eq!(
+        taiwan.format("randomName", &[pool.clone(), (-1_i64).into()])?,
+        "".into()
+    );
+    assert_eq!(
+        taiwan.format("randomName", &[Value::Json(json!([])), 4_i64.into()])?,
+        "".into()
+    );
+    assert!(
+        taiwan
+            .format("randomName", &[pool, i64::MAX.into()])
+            .is_err()
+    );
+    assert!(
+        taiwan
+            .format("randomName", &[Value::Json(json!([3])), 2_i64.into()])
+            .is_err()
+    );
+    assert!(france.format("firstNameMaleChinese", &[]).is_err());
+
+    let singapore = Faker::new("en-SG")?;
+    let id = singapore.format("singaporeId", &["2002-02-01".into(), true.into()])?;
+    assert!(matches!(id, Value::Text(id) if id.starts_with('G') && id.len() == 9));
+    assert!(
+        singapore
+            .format("singaporeId", &["2002-02-30".into()])
+            .is_err()
+    );
+    assert!(
+        singapore
+            .format("singaporeId", &[Value::Null, Value::Null])
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
 fn faker_named_address_and_plate_components_follow_provider_contracts() -> DatabaseResult<()> {
     let taiwan = Faker::new("zh-Hant-TW")?;
     assert!(

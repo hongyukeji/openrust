@@ -3583,9 +3583,21 @@ impl Faker {
                 "unsupported Faker random name locale",
             ));
         }
-        Ok((0..count)
-            .map_while(|_| self.randomElement(pool).copied())
-            .collect())
+        let Some(max_bytes) = pool.iter().map(|name| name.len()).max() else {
+            return Ok(String::new());
+        };
+        let capacity_error =
+            || DatabaseError::InvalidQuery("Faker name length exceeds allocation capacity");
+        let capacity = count
+            .checked_mul(max_bytes.max(1))
+            .ok_or_else(capacity_error)?;
+        let mut name = String::new();
+        name.try_reserve_exact(capacity)
+            .map_err(|_| capacity_error())?;
+        for _ in 0..count {
+            name.push_str(self.random.sample(pool));
+        }
+        Ok(name)
     }
 
     fn sample_given_name(&self, names: &[&str]) -> String {

@@ -130,6 +130,19 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
             let [birth, sex] = arguments(args)?;
             faker.pesel(date(birth)?, text(sex)?).map(Value::from)
         },
+        "singaporeid" => |faker, args| {
+            let [issue, foreigner] = arguments(args)?;
+            let foreigner = match foreigner {
+                None => false,
+                Some(Value::Bool(value)) => *value,
+                _ => {
+                    return Err(DatabaseError::InvalidQuery(
+                        "Faker formatter expects a boolean",
+                    ));
+                }
+            };
+            faker.singaporeId(date(issue)?, foreigner).map(Value::from)
+        },
         "nric" => |faker, args| {
             let [birth] = arguments(args)?;
             faker.nric(date(birth)?).map(Value::from)

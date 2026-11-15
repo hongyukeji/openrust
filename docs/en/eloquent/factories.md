@@ -1515,7 +1515,7 @@ fn vietnamese_middle_name_sample() -> DatabaseResult<&'static str> {
 }
 ```
 
-The `ms-MY` provider also exposes its template parts directly. Use `firstNameMaleMalay`, `firstNameFemaleMalay`, `lastNameMalay`, `muhammadName`, `nurName`, `haji`, `hajjah`, and `titleMaleMalay` for Malay name components. The other formatters are `lastNameChinese`, `firstNameMaleChinese`, `firstNameFemaleChinese`, `firstNameMaleChristian`, `firstNameFemaleChristian`, `initialIndian`, `firstNameMaleIndian`, `firstNameFemaleIndian`, and `lastNameIndian`. Optional components can be empty and preserve their trailing space when present.
+The `ms-MY` provider also exposes its template parts directly. Use `firstNameMaleMalay`, `firstNameFemaleMalay`, `lastNameMalay`, `muhammadName`, `nurName`, `haji`, `hajjah`, and `titleMaleMalay` for Malay name components. The other formatters are `lastNameChinese`, `firstNameMaleChinese`, `firstNameFemaleChinese`, `firstNameMaleChristian`, `firstNameFemaleChristian`, `initialIndian`, `firstNameMaleIndian`, `firstNameFemaleIndian`, and `lastNameIndian`. Optional components can be empty and preserve their trailing space when present. These template parts also work by name with `format(name, &[])`.
 
 `myKadNumber(gender, formatted, separator)` generates sample data. It emits 12 digits when `formatted` is false. When true, it inserts a hyphen or the supplied separator between the six-, two-, and four-digit groups. The last digit is odd for `"male"`, even for `"female"`, and unrestricted otherwise. The month and day are sampled independently. All these formatters support `unique()` and return an error outside `ms-MY`.
 
@@ -1594,6 +1594,8 @@ fn mongolian_initial() -> DatabaseResult<char> {
 ### Singapore English Names and Identity Samples {#singapore-english-names-and-identity-samples}
 
 The `en-SG` provider inherits the base names `John Doe` and `Jane Doe`. Use `nric(birthDate)` or `fin(issueDate)` to generate a sample identifier, or `singaporeId(issueDate, foreigner)` to select the type explicitly. Dates are optional civil dates. Omitting the date uses the same date range as `dateTimeThisCentury()`. The prefix changes at 2000. NRICs use the year’s last two digits from 1968 onward and sample `00` or `01` for earlier dates. Each formatter calculates the final checksum letter and supports `unique()`.
+
+For `format("singaporeId", args)`, pass a civil date as `YYYY-MM-DD` or null, followed by the optional `foreigner` boolean.
 
 ```rust
 use chrono::NaiveDate;
@@ -1717,7 +1719,7 @@ fn venezuelan_rif_sample() -> DatabaseResult<String> {
 
 ### Portuguese NIF and Taiwanese Name Pools {#portuguese-nif-and-taiwanese-name-pools}
 
-Use `taxpayerIdentificationNumber()` with `pt-PT` for a nine-digit NIF sample. `Faker::dvCalcMod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `randomName(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`.
+Use `taxpayerIdentificationNumber()` with `pt-PT` for a nine-digit NIF sample. `Faker::dvCalcMod11(number)` computes the check digit from ASCII digits, preserving leading zeros in the input. With `zh-TW`, `randomName(pool, count)` concatenates independent draws from a slice of strings. Entries can repeat. An empty pool or a count of zero yields an empty string. Both generators support `unique()`. For `format("randomName", args)`, pass a JSON array or object of text values and an integer count. Nonpositive counts yield an empty string.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1812,6 +1814,23 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
     let french = fake(Some("fr-CA"))?;
     let taiwanese = fake(Some("zh-TW"))?;
     Ok((french.unique(false).catchPhrase()?, taiwanese.bs()?))
+}
+```
+
+Use the Company formatter names with `format(name, &[])` for slogans, business phrases, and regional name components.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn named_person_and_company_samples() -> DatabaseResult<[Value; 3]> {
+    let malaysia = Faker::new("ms-MY")?;
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    Ok([
+        malaysia.format("firstNameMaleChinese", &[])?,
+        malaysia.format("industry", &[])?,
+        taiwan.format("randomName", &[Value::Json(json!(["明"])), 2_i64.into()])?,
+    ])
 }
 ```
 
