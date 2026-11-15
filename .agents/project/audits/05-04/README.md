@@ -1444,3 +1444,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、95 项 Faker、49 项 See
 隔离基线 `36820b0a`。PHP 反射核对六份词表和模板，利用上游 Person 词表、标点和顺序验证 160 个固定 PHP 样本。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 161 行，含三语共用示例。回归检查 81 个城市唯一抽样耗尽及邮编、门牌顺序。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、96 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对俄语、乌克兰语及哈萨克语地区 Address。
+
+## 俄语、乌克兰语和哈萨克语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [俄语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ru_RU/Address.php)、[乌克兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/uk_UA/Address.php) 和 [哈萨克语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/kk_KZ/Address.php) Address。乌克兰语保留 24 组城市与州配对，独立调用 city、region 时各自抽样。俄语与哈萨克语沿用独立地区抽样、当地街道顺序和六位邮编，哈萨克语邮编首位为零。地区方法返回 Result，并支持 unique。v0.x 无对应 Faker 地址模块，Goravel 式编译装配沿用现有路径。
+
+隔离基线 `3a0a38ea`。PHP 反射核对 13 份独立词表与 24 组城市和州的配对，逐项核对 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，含三语共用示例。回归覆盖地区格式、无效地区和 24 组配对唯一抽样耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、97 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对波兰语、捷克语及斯洛伐克语 Address。

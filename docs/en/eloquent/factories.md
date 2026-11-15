@@ -972,6 +972,17 @@ fn turkish_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+Russian addresses use six-digit postcodes and sample cities and regions independently. Ukrainian addresses use five-digit postcodes and keep the city and region paired. Use `cityAndRegion()` to sample the pair, including through `unique()`. Kazakh addresses start with a six-digit postcode whose first digit is zero and put the street suffix after the street name.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("uk-UA"))?;
+    Ok((faker.address(), faker.unique(false).cityAndRegion()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

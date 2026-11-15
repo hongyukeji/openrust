@@ -972,6 +972,17 @@ fn turkish_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
+俄語地址使用六位郵遞區號，城市和地區各自抽樣。烏克蘭語地址使用五位郵遞區號，城市與州成對抽樣，可透過 `cityAndRegion()` 單獨取得配對，也支援 `unique()`。哈薩克語地址以首位為零的六位郵遞區號開頭，街道後綴放在街名後。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
+    let faker = fake(Some("uk-UA"))?;
+    Ok((faker.address(), faker.unique(false).cityAndRegion()?))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

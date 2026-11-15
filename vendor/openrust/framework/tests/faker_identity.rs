@@ -4304,3 +4304,31 @@ fn turkish_addresses_put_the_building_last_and_the_postcode_before_the_city() {
     assert!(cities.contains("İstanbul") && cities.contains("Şanlıurfa"));
     assert!(unique.cityName().is_err());
 }
+
+#[test]
+fn russian_ukrainian_and_kazakh_addresses_preserve_regional_layouts() {
+    let ru = fake(Some("ru-RU")).unwrap();
+    let ua = fake(Some("uk-UA")).unwrap();
+    let kz = fake(Some("kk-KZ")).unwrap();
+    let russian = Regex::new(r"^[0-9]{6}, .+ область, город .+, .+, [1-9][0-9]$").unwrap();
+    let ukrainian = Regex::new(r"^[0-9]{5}, .+ область, місто .+, .+, [1-9][0-9]$").unwrap();
+    let kazakh =
+        Regex::new(r"^0[0-9]{5}, .+ облысы, .+ қаласы, .+ (?:көшесі|даңғылы), [1-9][0-9]{2}$")
+            .unwrap();
+
+    for _ in 0..128 {
+        assert!(russian.is_match(&ru.address()));
+        assert!(ukrainian.is_match(&ua.address()));
+        assert!(kazakh.is_match(&kz.address()));
+        assert!(ru.street().is_ok() && kz.street().is_ok());
+    }
+    assert_eq!(ua.streetSuffix(), "");
+    assert!(ru.cityAndRegion().is_err());
+    let unique = ua.unique(true);
+    let pairs: std::collections::HashSet<_> =
+        (0..24).map(|_| unique.cityAndRegion().unwrap()).collect();
+    assert_eq!(pairs.len(), 24);
+    assert!(pairs.contains("Закарпатська область, місто Ужгород"));
+    assert!(pairs.contains("Львівська область, місто Львів"));
+    assert!(unique.cityAndRegion().is_err());
+}
