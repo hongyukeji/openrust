@@ -89,7 +89,7 @@ pub const ENTRIES: &[SeederEntry] = &[
 
 ## 使用模型工厂 {#using-model-factories}
 
-模型绑定、状态、回调和关联工厂见 [Eloquent 工厂](../eloquent/factories.md)。
+模型绑定、状态、回调和关联工厂见 [Eloquent 工厂](../eloquent/factories.md#factory-model-binding)。
 
 应用在 `database/factories` 提供默认 `UserFactory`。迁移空数据库后，`./artisan db:seed` 使用它创建已验证的示例账号 `test@example.com`，密码为 `password`。模型按应用配置哈希密码。默认 Seeder 使用当前选定的数据库，运行期间静默模型事件。对同一账号重复执行默认 Seeder 会收到邮箱重复错误。
 

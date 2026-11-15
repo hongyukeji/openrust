@@ -1956,3 +1956,19 @@ PHP 8.5 实跑固定地区提供器及 Core DateTime，验证纪元日的四个�
 隔离基线 `c0c2ff3f`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、69 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异仅在隔离副本调整。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，按序回读繁体中文名称、核心英语名称和序列化 RGB 数组。未知扩展方法报告原名称并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
 
 临时 Seeder 与原始文件一致，测试容器已回收。清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批依据计划与固定 Factory、Seeder 用例矩阵复核整单元证据，确认兼容边界和账本闭合条件。
+
+## 05-04 整单元验收
+
+基线 `8061fb1a`。前置 02-07 数据填充和 05-01 模型读写已在账本闭合。按固定 Laravel 的[定义模型工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)、[通过工厂创建模型](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#creating-models-using-factories)、[工厂关系](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-relationships)及 [Seeder 使用工厂](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/seeding.md#using-model-factories)复核。固定框架源码中的 70 个 Factory 用例和 5 个 Seeder 用例与[行为矩阵](test-matrix.md)的分组及数量一致。
+
+| 计划要求 | 验收证据 |
+| --- | --- |
+| 定义、生成和绑定 | 实际 Artisan 的 `make:factory` 回归覆盖嵌套模型推断、显式模型和短选项。生成源码与扩展 trait 的编译及 MySQL Seeder 结果见[工厂发现](#工厂发现扩展和固定用例对照)。固定 Goravel 类型化工厂作为装配参考，旧版 factory 服务查询构造，旧 Seeder 已采用编译注册。 |
+| 预构造、持久化、状态、回调和工厂关系 | 两项 MySQL／SQLite 工厂测试及 69 项 Seeder 回归通过，含延迟属性、默认批次数量、静默事件和失败恢复、多态关联、已有模型复用、Pivot 及关系缓存。 |
+| Faker 与隔离 | 115 项 Faker 回归通过。此前固定 PHP 探针和真实 Seeder 样本覆盖各提供器及参数，最新[颜色与扩展对账](#faker-颜色具名调用与扩展词表)核对无前缀调用和八个默认扩展。Rust 以规范化地区和应用作用域复用生成器，实例时区与具名去重行为见三语工厂文档。 |
+| 实际数据库入口 | MySQL 8.4.13 的真实二进制通过 `migrate --force` 与 `db:seed --database=mysql --force`。默认已验证账号读回一条，二次填充退出 1，仍只有一条。三语 Seeder 共用代码按所选连接写入并按主键回读 `Flight 0`、`Flight 1`、`Flight 2`。 |
+| 三语发布内容 | 三语 Seeder 示例随应用编译和运行。VitePress 通过，根路径与 `/docs/` 下的三语工厂／Seeder 互链六项检查及十二项站点检查通过。 |
+
+Rust 使用关联类型、模块和扩展 trait 表达工厂绑定与扩展，Seeder 显式通过上下文访问连接与应用。异步 `lazy` 在 Future 开始轮询时执行，日期返回值和格式化器集合按三语正文的 Rust 类型传递。Faker 的自定义提供器和默认扩展以注册后的 Rust 回调调用，固定上游目录复验与各地区已记录的语言适配保留在前述验收节。
+
+Rust 1.94.0 格式与全工作区全目标严格 Clippy、生成器回归和 `./artisan inspire` 通过。既有 Sanctum 格式差异只在隔离副本调整，临时 Seeder 已恢复，测试 MySQL 容器已回收。清理隔离 Cargo 产物 2.8 GiB 及独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。按计划完成 05-04，下一阶段复核 05-06 的 05-02 关系依赖。

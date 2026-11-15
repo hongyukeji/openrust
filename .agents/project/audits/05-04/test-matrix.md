@@ -31,3 +31,7 @@
 | [解析子 Seeder 并调用](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php#L31) | 1 | 应用的 `SeederRegistry` 通过签名选择编译注册的 Seeder。双库 Artisan 回归检查命名调用顺序、找不到时退出失败。 |
 | [注入容器与命令上下文](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php#L50) | 2 | `SeederContext` 提供同一应用容器和数据库连接，Artisan 负责输出。双库 Artisan、默认 Seeder、事件抑制和连接恢复已有回归。PHP 可调用 setter 更换依赖，Rust 在执行时借用作用域。 |
 | [运行入口依赖注入及透传参数](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php#L64) | 2 | 子 Seeder 通过 `context.application()` 访问容器，通过 `parameters()` 读取调用参数。共享参数、仅一次、静默和失败重试已有双库实测及三语示例。PHP 通过反射按参数签名绑定，Rust 依赖和参数在 `run` 中显式读取。 |
+
+## 整单元复验
+
+在 `8061fb1a` 重新读取固定源码，确认矩阵对应 70 个 Factory 和 5 个 Seeder 命名用例。使用实际 MySQL 8.4.13 二进制执行默认与文档 Seeder，并运行 OpenRust 对应工厂、Seeder、Faker 和生成器回归。PHP 动态发现、运行时宏、反射注入及闭包执行时机的 Rust 对应行为按表说明。 [整单元证据](README.md#05-04-整单元验收)
