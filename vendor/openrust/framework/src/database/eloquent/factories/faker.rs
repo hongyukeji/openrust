@@ -101,6 +101,85 @@ institution_formatters! {
     digitalWallet => "ne_NP", NE_NP_DIGITAL_WALLETS;
 }
 
+macro_rules! jpj_catalog_formatters {
+    ($($method:ident => $values:ident),+ $(,)?) => {
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl Faker {
+            $(pub fn $method(&self) -> DatabaseResult<&'static str> {
+                self.require_jpj_locale()?;
+                Ok(address_sample(faker_miscellaneous::$values))
+            })+
+        }
+
+        #[allow(non_snake_case, reason = "Matches Faker formatter names")]
+        impl UniqueFaker<'_> {
+            $(pub fn $method(&self) -> DatabaseResult<&'static str> {
+                self.try_generate(stringify!($method), || self.0.$method())
+            })+
+        }
+    };
+}
+
+jpj_catalog_formatters! {
+    peninsularPrefix => PENINSULAR_PREFIX,
+    sarawakPrefix => SARAWAK_PREFIX,
+    sabahPrefix => SABAH_PREFIX,
+    specialPrefix => SPECIAL_PREFIX,
+    validAlphabet => VALID_ALPHABETS,
+}
+
+#[allow(non_snake_case, reason = "Matches Faker formatter names")]
+impl Faker {
+    pub fn jpjNumberPlate(&self) -> DatabaseResult<String> {
+        self.require_jpj_locale()?;
+        let mut template = address_sample(faker_miscellaneous::JPJ_NUMBER_PLATE_FORMATS);
+        let mut plate = String::new();
+        while let Some((literal, token)) = template.split_once("{{") {
+            plate.push_str(literal);
+            let (token, rest) = token.split_once("}}").expect("fixed JPJ plate template");
+            if token == "numberSequence" {
+                plate.push_str(&self.numberSequence()?.to_string());
+            } else {
+                let values = match token {
+                    "peninsularPrefix" => faker_miscellaneous::PENINSULAR_PREFIX,
+                    "sarawakPrefix" => faker_miscellaneous::SARAWAK_PREFIX,
+                    "sabahPrefix" => faker_miscellaneous::SABAH_PREFIX,
+                    "specialPrefix" => faker_miscellaneous::SPECIAL_PREFIX,
+                    "validAlphabet" => faker_miscellaneous::VALID_ALPHABETS,
+                    _ => unreachable!("fixed JPJ plate token"),
+                };
+                plate.push_str(address_sample(values));
+            }
+            template = rest;
+        }
+        plate.push_str(template);
+        Ok(plate)
+    }
+
+    pub fn numberSequence(&self) -> DatabaseResult<i64> {
+        self.require_jpj_locale()?;
+        Ok(self.numberBetween(1, 9999))
+    }
+
+    fn require_jpj_locale(&self) -> DatabaseResult<()> {
+        if self.locale() != "ms_MY" {
+            return Err(DatabaseError::InvalidQuery("unsupported Faker JPJ locale"));
+        }
+        Ok(())
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Faker formatter names")]
+impl UniqueFaker<'_> {
+    pub fn jpjNumberPlate(&self) -> DatabaseResult<String> {
+        self.try_generate("jpjNumberPlate", || self.0.jpjNumberPlate())
+    }
+
+    pub fn numberSequence(&self) -> DatabaseResult<i64> {
+        self.try_generate("numberSequence", || self.0.numberSequence())
+    }
+}
+
 // Use the same samples for direct calls and full-name templates.
 macro_rules! malaysian_person_formatters {
     ($($method:ident),+ $(,)?) => {

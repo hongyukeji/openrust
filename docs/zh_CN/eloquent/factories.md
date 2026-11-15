@@ -1499,6 +1499,18 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 }
 ```
 
+### 马来西亚车牌 {#malaysian-registration-plates}
+
+使用 `ms-MY` 的 `jpjNumberPlate()` 生成马来西亚车牌。带权重的前缀、特殊前缀的大小写及可为空的字母均沿用固定版 FakerPHP。也可单独调用 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。这些方法均支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn malaysian_plate_sample() -> DatabaseResult<String> {
+    fake(Some("ms-MY"))?.unique(false).jpjNumberPlate()
+}
+```
+
 ### Person 地区回退 {#person-locale-fallback}
 
 当指定地区没有 Person provider 时，姓名接口、`suffix()` 和 `ssn()` 使用 `en-US` Person provider。已有 Person provider 的地区使用自身和继承的接口。例如，`en-CA` 会回退到美国英语 Person，`en-SG` 有自己的 Person provider，调用 `ssn()` 返回不支持错误。此回退仅适用于 Person 接口。

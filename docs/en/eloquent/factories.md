@@ -1499,6 +1499,18 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 }
 ```
 
+### Malaysian registration plates {#malaysian-registration-plates}
+
+Use `jpjNumberPlate()` with `ms-MY` to sample Malaysian registration plates. The weighted prefix catalogs, mixed-case special prefixes, and optional empty letters follow the pinned FakerPHP provider. The provider also exposes `peninsularPrefix()`, `sarawakPrefix()`, `sabahPrefix()`, `specialPrefix()`, `validAlphabet()`, and `numberSequence()`. All support `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn malaysian_plate_sample() -> DatabaseResult<String> {
+    fake(Some("ms-MY"))?.unique(false).jpjNumberPlate()
+}
+```
+
 ### Person Locale Fallback {#person-locale-fallback}
 
 When a locale has no Person provider, name formatters, `suffix()`, and `ssn()` use the `en-US` Person provider. A locale with its own Person provider uses that provider’s formatters, including the ones it inherits. For example, `en-CA` falls back to the US Person provider, while `en-SG` has its own provider and returns an unsupported-locale error for `ssn()`. The Person fallback applies only to Person formatters.

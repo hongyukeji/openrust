@@ -4814,3 +4814,29 @@ fn absent_address_provider_uses_us_layout_without_switching_person_locale() {
         assert!(faker.capital().is_err());
     }
 }
+
+#[test]
+fn malaysian_jpj_plates_preserve_empty_letters_and_special_prefix_case() {
+    let faker = fake(Some("ms-MY")).unwrap();
+    let plate = Regex::new(r"^[A-Za-z0-9]+ [1-9][0-9]{0,3}(?: [A-HJ-NP-Y]?)?$").unwrap();
+    let mut trailing_space = false;
+    for _ in 0..1024 {
+        let value = faker.jpjNumberPlate().unwrap();
+        assert!(plate.is_match(&value), "{value:?}");
+        trailing_space |= value.ends_with(' ');
+        assert!((1..=9999).contains(&faker.numberSequence().unwrap()));
+    }
+    assert!(trailing_space);
+    let unique = faker.unique(true);
+    let alphabets = (0..24)
+        .map(|_| unique.validAlphabet().unwrap())
+        .collect::<Vec<_>>();
+    assert!(alphabets.contains(&""));
+    assert!(!alphabets.contains(&"I") && !alphabets.contains(&"O"));
+    assert!(unique.validAlphabet().is_err());
+    let prefixes = (0..41)
+        .map(|_| unique.specialPrefix().unwrap())
+        .collect::<Vec<_>>();
+    assert!(prefixes.contains(&"BAMbee"));
+    assert!(fake(Some("en-US")).unwrap().jpjNumberPlate().is_err());
+}

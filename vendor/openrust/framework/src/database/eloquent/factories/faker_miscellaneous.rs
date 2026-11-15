@@ -131,3 +131,72 @@ pub(super) const EMOJI: &[&str] = &[
     "😠", "😡", "😢", "😣", "😤", "😥", "😦", "😧", "😨", "😩", "😪", "😫", "😬", "😭", "😮", "😯",
     "😰", "😱", "😲", "😳", "😴", "😵", "😶", "😷",
 ];
+
+// Malaysian vehicle registration data from FakerPHP v1.24.1.
+pub(super) const JPJ_NUMBER_PLATE_FORMATS: &[&str] = &[
+    "{{peninsularPrefix}}{{validAlphabet}}{{validAlphabet}} {{numberSequence}}",
+    "{{peninsularPrefix}}{{validAlphabet}}{{validAlphabet}} {{numberSequence}}",
+    "{{peninsularPrefix}}{{validAlphabet}}{{validAlphabet}} {{numberSequence}}",
+    "{{peninsularPrefix}}{{validAlphabet}}{{validAlphabet}} {{numberSequence}}",
+    "W{{validAlphabet}}{{validAlphabet}} {{numberSequence}} {{validAlphabet}}",
+    "KV {{numberSequence}} {{validAlphabet}}",
+    "{{sarawakPrefix}} {{numberSequence}} {{validAlphabet}}",
+    "{{sabahPrefix}} {{numberSequence}} {{validAlphabet}}",
+    "{{specialPrefix}} {{numberSequence}}",
+];
+pub(super) const PENINSULAR_PREFIX: &[&str] = &[
+    "A", "A", "B", "C", "D", "F", "J", "J", "K", "M", "N", "P", "P", "R", "T", "V", "W", "W", "W",
+    "W", "W", "W",
+];
+pub(super) const SARAWAK_PREFIX: &[&str] =
+    &["QA", "QK", "QB", "QC", "QL", "QM", "QP", "QR", "QS", "QT"];
+pub(super) const SABAH_PREFIX: &[&str] = &[
+    "SA", "SAA", "SAB", "SAC", "SB", "SD", "SG", "SK", "SL", "SS", "SSA", "ST", "STA", "SU",
+];
+pub(super) const SPECIAL_PREFIX: &[&str] = &[
+    "1M4U",
+    "A1M",
+    "BAMbee",
+    "Chancellor",
+    "G",
+    "G1M",
+    "GP",
+    "GT",
+    "Jaguh",
+    "K1M",
+    "KRISS",
+    "LOTUS",
+    "NAAM",
+    "NAZA",
+    "NBOS",
+    "PATRIOT",
+    "Perdana",
+    "PERFECT",
+    "Perodua",
+    "Persona",
+    "Proton",
+    "Putra",
+    "PUTRAJAYA",
+    "RIMAU",
+    "SAM",
+    "SAS",
+    "Satria",
+    "SMS",
+    "SUKOM",
+    "T1M",
+    "Tiara",
+    "TTB",
+    "U",
+    "US",
+    "VIP",
+    "WAJA",
+    "XIIINAM",
+    "XOIC",
+    "XXVIASEAN",
+    "XXXIDB",
+    "Y",
+];
+pub(super) const VALID_ALPHABETS: &[&str] = &[
+    "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U",
+    "V", "W", "X", "Y", "",
+];
