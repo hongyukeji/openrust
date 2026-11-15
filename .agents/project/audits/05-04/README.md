@@ -1932,3 +1932,15 @@ PHP 8.5 启用 mbstring 运行固定提供器。六个目录各取样 32 次，�
 隔离基线 `b77ce3f0`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、67 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异仅在隔离副本调整。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并按序回读样本 locale、`STRASSE` 和定值 7。反向区间返回范围错误及退出状态 1。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，MySQL 容器已回收，清理隔离 Cargo 产物 2.4 GiB 及独占站点产物和依赖。提交前周额度剩余 29%，项目卷可用 53 GiB。后续复核捷克日期、时区配置与剩余扩展的具名契约。
+
+## Faker 地区日期具名调用与生成器时区
+
+对应固定 Laravel 的[工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。固定 Goravel 类型化工厂继续作为编译装配参考。v0.x 同名工厂和测试面向查询构造。按 FakerPHP v1.24.1 的[地区 DateTime 提供器](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/DateTime.php)、[捷克提供器](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/cs_CZ/DateTime.php)及[Core DateTime](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/DateTime.php)，接通 24 个无扩展前缀的具名入口。
+
+无前缀调用使用既有地区字段和旧提供器的日期周期，显式 DateTimeExtension 沿用自身的英语字段与日历周期。捷克具名 formattedDate 解析三个字段的模板，因此应用可以覆盖组件。Rust 用 RFC 3339 文本表示日期时间结果。设置时区时解析 IANA 名称，格式错误保留原覆盖值。时区覆盖只写入当前 Faker 实例。PHP 的旧提供器在静态属性中保存覆盖，Rust 沿用项目现有的实例隔离。同一个 Rust 实例的具名日期、核心扩展和类型化入口继续共用该覆盖。
+
+PHP 8.5 实跑固定地区提供器及 Core DateTime，验证纪元日的四个捷克字段、核心英语字段、模板覆盖、Tokyo 渲染、清除时区和滚动月份。Rust 回归另验收实例隔离、无效时区原子性、单次调用覆盖、等端点与地区错误。
+
+隔离基线 `0080c754`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、68 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异只在隔离副本调整。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并回读捷克月份属格、组合日期及东京时区纪元。无效时区报告错误并以状态 1 退出。`./artisan inspire`、VitePress 和 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 29%，项目卷可用 53 GiB。按无前缀与显式扩展分开扫描，下一批复核 Color 的 10 个无前缀入口、地区词表与核心扩展契约，再核定 05-04 整体验收范围。

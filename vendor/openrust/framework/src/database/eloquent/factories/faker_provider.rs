@@ -522,9 +522,87 @@ fn defaults(name: &str) -> Option<Builtin> {
             return named_text::formatter(name)
                 .or_else(|| named_regional::formatter(name))
                 .or_else(|| named_identity::formatter(name))
-                .or_else(|| named_phone::formatter(name));
+                .or_else(|| named_phone::formatter(name))
+                .or_else(|| legacy_date_formatter(name));
         }
     })
+}
+
+fn legacy_date_formatter(name: &str) -> Option<Builtin> {
+    Some(match name {
+        "ampm" => |faker, args| legacy_date_component(faker, args, Faker::amPm),
+        "dayofmonth" => |faker, args| legacy_date_component(faker, args, Faker::dayOfMonth),
+        "dayofweek" => |faker, args| legacy_date_component(faker, args, Faker::dayOfWeek),
+        "monthname" => |faker, args| legacy_date_component(faker, args, Faker::monthName),
+        "monthnamegenitive" => |faker, args| {
+            let [until] = arguments(args)?;
+            faker
+                .monthNameGenitive(date_max(faker, until)?)
+                .map(Value::from)
+        },
+        "formatteddate" => |faker, args| {
+            let [] = arguments(args)?;
+            if faker.locale() != "cs_CZ" {
+                return Err(DatabaseError::InvalidQuery(
+                    "unsupported Faker formatted date locale",
+                ));
+            }
+            faker
+                .parse("{{dayOfMonth}}. {{monthNameGenitive}} {{year}}")
+                .map(Value::from)
+        },
+        "getdefaulttimezone" => |faker, args| {
+            let [] = arguments(args)?;
+            Ok(faker
+                .getDefaultTimezone()
+                .map_or(Value::Null, |zone| zone.name().into()))
+        },
+        "setdefaulttimezone" => |faker, args| {
+            let [zone] = arguments(args)?;
+            faker.setDefaultTimezone(date_zone(zone)?);
+            Ok(Value::Null)
+        },
+        "datetimethismonth" => {
+            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisMonth)
+        }
+        "datetimethisyear" => {
+            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisYear)
+        }
+        "datetimethisdecade" => {
+            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisDecade)
+        }
+        "datetimethiscentury" => {
+            |faker, args| legacy_date_period(faker, args, Faker::dateTimeThisCentury)
+        }
+        "date" | "time" | "unixtime" | "datetime" | "datetimead" | "datetimebetween"
+        | "datetimeininterval" | "iso8601" | "month" | "year" | "century" | "timezone" => {
+            return extension_method(DATE_TIME, name);
+        }
+        _ => return None,
+    })
+}
+
+fn legacy_date_component(
+    faker: &Faker,
+    args: &[Value],
+    sample: fn(&Faker, Option<DateTime<Utc>>) -> String,
+) -> DatabaseResult<Value> {
+    let [until] = arguments(args)?;
+    Ok(sample(faker, date_max(faker, until)?).into())
+}
+
+fn legacy_date_period(
+    faker: &Faker,
+    args: &[Value],
+    sample: impl FnOnce(&Faker, Option<DateTime<Utc>>) -> DatabaseResult<DateTime<Utc>>,
+) -> DatabaseResult<Value> {
+    let [until, zone] = arguments(args)?;
+    let zone = date_zone(zone)?;
+    let instant = sample(faker, date_max(faker, until)?)?;
+    Ok(faker
+        .zoned_date(instant, zone)
+        .to_rfc3339_opts(SecondsFormat::Secs, false)
+        .into())
 }
 
 fn arguments<const N: usize>(args: &[Value]) -> DatabaseResult<[Option<&Value>; N]> {

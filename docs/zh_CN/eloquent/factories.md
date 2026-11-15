@@ -164,7 +164,7 @@ fn php_date_sample() -> DatabaseResult<String> {
 
 用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 按实际使用的时区格式化随机日期的各个部分。数字月份补零，数字日期除 `cs-CZ` 外也补零。捷克语、土耳其语、简体中文、繁体中文和格鲁吉亚语使用对应的星期和月份名称。土耳其语和两种中文还会本地化 `amPm`。`dateTimeAD(max)` 从上游 Faker 的 64 位公元日期下界开始取样。这些方法在 `max` 为 `None` 时使用当前时间。`century()` 随机返回 I 至 XXI 的罗马数字。所有方法均支持 `unique`。
 
-在 `cs-CZ` 中，`monthNameGenitive(max)` 返回月份属格，`formattedDate()` 生成 `16. listopadu 2003` 这样的显示文本。日、月、年独立抽样，结果可能超出有效日期范围。两种方法均支持 `unique`，在其他地区调用时返回错误。
+在 `cs-CZ` 中，`monthNameGenitive(max)` 返回月份属格，`formattedDate()` 生成 `16. listopadu 2003` 这样的显示文本。日、月、年独立抽样，结果可能超出有效日期范围。两种方法均支持 `unique`，在其他地区调用时返回错误。 捷克日期的具名调用沿用地区日期字段。`format("formattedDate", &[])` 展开三个字段格式化器，也会调用应用注册的覆盖项。显式调用 `DateTimeExtension` 保留核心英语日期字段和日历周期默认值。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -176,7 +176,21 @@ fn regional_date_sample() -> DatabaseResult<String> {
 
 用 `timezone(countryCode)` 随机获取 IANA 时区标识。传入 `None` 从完整列表取样，也可传入 `Some("TW")` 等国家或地区代码来限定范围。代码区分大小写，未知代码返回 `None`。框架内置与 `chrono-tz` 同版的 IANA 数据。该方法支持 `unique`。返回的标识可用于将 UTC 日期转换到目标时区。
 
-日期字符串优先使用 `setDefaultTimezone(Some(zone))` 为当前生成器指定的时区，其次读取应用或工厂连接所属应用的 `app.timezone`，缺省为 UTC。传入 `None` 可清除覆盖，`getDefaultTimezone()` 可查看覆盖值。`dateTimeInTimezone(max, timezone)` 返回带时区的日期时间，传入 `Some(zone)` 可覆盖本次调用。日期时间方法仍返回 UTC 时刻。生成器的时区覆盖用于输出格式化，日历边界继续按应用时区计算。
+日期字符串优先使用 `setDefaultTimezone(Some(zone))` 为当前生成器指定的时区，其次读取应用或工厂连接所属应用的 `app.timezone`，缺省为 UTC。传入 `None` 可清除覆盖，`getDefaultTimezone()` 可查看覆盖值。`dateTimeInTimezone(max, timezone)` 返回带时区的日期时间，传入 `Some(zone)` 可覆盖本次调用。日期时间方法仍返回 UTC 时刻。生成器的时区覆盖用于输出格式化，日历边界继续按应用时区计算。 通过 `format("setDefaultTimezone", &[zone])` 接收 IANA 时区文本，传入 null 清除覆盖。`format("getDefaultTimezone", &[])` 返回时区文本或 null。两者只操作当前生成器。具名日期时间结果使用 RFC 3339。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_date_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("cs-CZ")?;
+    faker.format("setDefaultTimezone", &["Asia/Tokyo".into()])?;
+    Ok([
+        faker.format("monthNameGenitive", &[0_i64.into()])?,
+        faker.format("formattedDate", &[])?,
+        faker.format("dateTime", &[0_i64.into()])?,
+    ])
+}
+```
 
 需要让结果携带输出时区时，使用 `dateTimeAD`、`dateTimeBetween`、`dateTimeInInterval` 和四个 `dateTimeThis…` 方法的 `InTimezone` 变体。两个日期表达式区间方法也有带时区的版本。显式时区只作用于返回值。相对表达式沿用应用时区，也可在表达式内指定时区。原方法返回 UTC。`unique` 按对应方法共享历史，并区分名称不同但 UTC 偏移相同的时区。夏令时回拨时，同一时区重复出现的本地时间按重复值处理。
 

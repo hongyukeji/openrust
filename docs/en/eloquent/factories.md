@@ -164,7 +164,7 @@ Use `dateTimeInInterval(date, interval)` to sample whole seconds between a UTC i
 
 Use `amPm(max)`, `dayOfMonth(max)`, `dayOfWeek(max)`, `month(max)`, `monthName(max)`, and `year(max)` to format parts of a sampled date in the effective time zone. The numeric month is zero-padded. The numeric day is also zero-padded except in `cs-CZ`. Czech, Turkish, Simplified Chinese, Traditional Chinese, and Georgian use local weekday and month names. Turkish and both Chinese locales also localize `amPm`. `dateTimeAD(max)` samples from upstream Faker’s 64-bit AD lower bound. These methods use the current time when `max` is `None`. `century()` samples Roman numerals from I through XXI. All support `unique`.
 
-With `cs-CZ`, use `monthNameGenitive(max)` for the genitive month and `formattedDate()` for a display string such as `16. listopadu 2003`. The day, month, and year are sampled independently, so the result may fall outside the calendar. Both methods support `unique` and return an error in other locales.
+With `cs-CZ`, use `monthNameGenitive(max)` for the genitive month and `formattedDate()` for a display string such as `16. listopadu 2003`. The day, month, and year are sampled independently, so the result may fall outside the calendar. Both methods support `unique` and return an error in other locales. Named Czech date calls use the same local date parts. `format("formattedDate", &[])` expands the three component formatters, including application overrides. The qualified `DateTimeExtension` retains its core English date parts and calendar-period defaults.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -176,7 +176,21 @@ fn regional_date_sample() -> DatabaseResult<String> {
 
 Use `timezone(countryCode)` to sample an IANA time-zone identifier. Pass `None` for the full list, or a country code such as `Some("TW")` to restrict the candidates. Country codes are case-sensitive. Unknown codes return `None`. The data is bundled with the framework and matches the IANA version used by `chrono-tz`. The formatter also supports `unique`. You can parse the returned identifier and use it to convert a UTC date.
 
-Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect.
+Date strings use the generator’s `setDefaultTimezone(Some(zone))` override, then `app.timezone` from the application or factory connection, then UTC. Pass `None` to clear the override and use `getDefaultTimezone()` to inspect it. Use `dateTimeInTimezone(max, timezone)` for a typed zoned result, with `Some(zone)` taking precedence for that call. The date-time methods continue to return UTC instants. The generator override controls output formatting and leaves the application’s calendar boundaries in effect. Use `format("setDefaultTimezone", &[zone])` with IANA text or null to clear it. `format("getDefaultTimezone", &[])` returns the override as text or null. Both operate on the current generator. Named date-time results use RFC 3339.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_date_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("cs-CZ")?;
+    faker.format("setDefaultTimezone", &["Asia/Tokyo".into()])?;
+    Ok([
+        faker.format("monthNameGenitive", &[0_i64.into()])?,
+        faker.format("formattedDate", &[])?,
+        faker.format("dateTime", &[0_i64.into()])?,
+    ])
+}
+```
 
 Use the `InTimezone` variants of `dateTimeAD`, `dateTimeBetween`, `dateTimeInInterval`, and the four `dateTimeThis…` methods when the result needs to retain its output zone. The two expression-based range methods have zoned variants too. An explicit zone controls the result only. Relative expressions keep using the application time zone unless the expression specifies its own. Zoneless calls return UTC. `unique` shares history by formatter and distinguishes named output zones, even when their UTC offsets match. A repeated local time in the same zone during a daylight-saving rollback counts as a repeat.
 

@@ -164,7 +164,7 @@ fn php_date_sample() -> DatabaseResult<String> {
 
 用 `amPm(max)`、`dayOfMonth(max)`、`dayOfWeek(max)`、`month(max)`、`monthName(max)` 和 `year(max)` 依實際使用的時區格式化隨機日期的各個部分。數字月份補零，數字日期除 `cs-CZ` 外也補零。捷克語、土耳其語、簡體中文、繁體中文和喬治亞語使用對應的星期和月份名稱。土耳其語和兩種中文還會在地化 `amPm`。`dateTimeAD(max)` 從上游 Faker 的 64 位元公元日期下界開始取樣。這些方法在 `max` 為 `None` 時使用目前時間。`century()` 隨機回傳 I 至 XXI 的羅馬數字。所有方法皆支援 `unique`。
 
-在 `cs-CZ` 中，`monthNameGenitive(max)` 回傳月份屬格，`formattedDate()` 產生 `16. listopadu 2003` 這類顯示文字。日、月、年獨立取樣，結果可能超出有效日期範圍。兩種方法皆支援 `unique`，在其他地區呼叫時回傳錯誤。
+在 `cs-CZ` 中，`monthNameGenitive(max)` 回傳月份屬格，`formattedDate()` 產生 `16. listopadu 2003` 這類顯示文字。日、月、年獨立取樣，結果可能超出有效日期範圍。兩種方法皆支援 `unique`，在其他地區呼叫時回傳錯誤。 捷克日期的具名呼叫沿用地區日期欄位。`format("formattedDate", &[])` 展開三個欄位格式化器，也會呼叫應用程式註冊的覆寫項目。明確呼叫 `DateTimeExtension` 保留核心英語日期欄位與日曆週期預設值。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -176,7 +176,21 @@ fn regional_date_sample() -> DatabaseResult<String> {
 
 用 `timezone(countryCode)` 隨機取得 IANA 時區識別碼。傳入 `None` 從完整清單取樣，也可傳入 `Some("TW")` 等國家或地區代碼來限定範圍。代碼區分大小寫，未知代碼回傳 `None`。框架內建與 `chrono-tz` 同版的 IANA 資料。此方法支援 `unique`。回傳的識別碼可用於將 UTC 日期轉換到目標時區。
 
-日期字串優先使用 `setDefaultTimezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`getDefaultTimezone()` 可查看覆寫值。`dateTimeInTimezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。
+日期字串優先使用 `setDefaultTimezone(Some(zone))` 為目前產生器指定的時區，其次讀取應用程式或工廠連線所屬應用程式的 `app.timezone`，預設為 UTC。傳入 `None` 可清除覆寫，`getDefaultTimezone()` 可查看覆寫值。`dateTimeInTimezone(max, timezone)` 回傳帶時區的日期時間，傳入 `Some(zone)` 可覆寫本次呼叫。日期時間方法仍回傳 UTC 時刻。產生器的時區覆寫用於輸出格式化，日曆邊界繼續依應用程式時區計算。 以 `format("setDefaultTimezone", &[zone])` 接收 IANA 時區文字，傳入 null 清除覆寫。`format("getDefaultTimezone", &[])` 回傳時區文字或 null。兩者只操作目前產生器。具名日期時間結果使用 RFC 3339。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_date_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("cs-CZ")?;
+    faker.format("setDefaultTimezone", &["Asia/Tokyo".into()])?;
+    Ok([
+        faker.format("monthNameGenitive", &[0_i64.into()])?,
+        faker.format("formattedDate", &[])?,
+        faker.format("dateTime", &[0_i64.into()])?,
+    ])
+}
+```
 
 需要讓結果攜帶輸出時區時，使用 `dateTimeAD`、`dateTimeBetween`、`dateTimeInInterval` 和四個 `dateTimeThis…` 方法的 `InTimezone` 變體。兩個日期運算式區間方法也有帶時區的版本。明確指定的時區只作用於回傳值。相對運算式沿用應用程式時區，也可在運算式內指定時區。原方法回傳 UTC。`unique` 依對應方法共用歷史，並區分名稱不同但 UTC 偏移相同的時區。夏令時間回撥時，同一時區重複出現的當地時間視為重複值。
 

@@ -5829,6 +5829,65 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_dates_preserve_provider_locales_and_instance_zones() -> DatabaseResult<()> {
+    let epoch = [0_i64.into()];
+    let czech = Faker::new("cs-CZ")?;
+    let other = Faker::new("en-US")?;
+    assert_eq!(czech.format("getDefaultTimezone", &[])?, Value::Null);
+    assert_eq!(czech.format("monthNameGenitive", &epoch)?, "ledna".into());
+    assert_eq!(czech.format("monthName", &epoch)?, "leden".into());
+    assert_eq!(czech.format("dayOfMonth", &epoch)?, "1".into());
+    assert_eq!(czech.format("dayOfWeek", &epoch)?, "čtvrtek".into());
+    assert_eq!(other.format("dayOfWeek", &epoch)?, "Thursday".into());
+    let core = czech.ext(r"Faker\Extension\DateTimeExtension")?;
+    assert_eq!(core.format("monthName", &epoch)?, "January".into());
+    assert_eq!(core.format("dayOfMonth", &epoch)?, "01".into());
+    assert!(other.format("formattedDate", &[]).is_err());
+
+    czech.addProvider(FakerProvider::new().formatter("dayOfMonth", |_, _| Ok("7".into())));
+    assert!(
+        matches!(czech.format("formattedDate", &[])?, Value::Text(value) if value.starts_with("7. "))
+    );
+    assert_eq!(
+        czech.format("setDefaultTimezone", &["Asia/Tokyo".into()])?,
+        Value::Null
+    );
+    assert_eq!(
+        czech.format("getDefaultTimezone", &[])?,
+        "Asia/Tokyo".into()
+    );
+    assert_eq!(other.format("getDefaultTimezone", &[])?, Value::Null);
+    assert_eq!(
+        czech.format("dateTime", &epoch)?,
+        "1970-01-01T09:00:00+09:00".into()
+    );
+    assert_eq!(
+        czech.format("dateTime", &[0_i64.into(), "UTC".into()])?,
+        "1970-01-01T00:00:00+00:00".into()
+    );
+    assert!(
+        czech
+            .format("setDefaultTimezone", &["No/Zone".into()])
+            .is_err()
+    );
+    assert_eq!(
+        czech.format("getDefaultTimezone", &[])?,
+        "Asia/Tokyo".into()
+    );
+    czech.format("setDefaultTimezone", &[Value::Null])?;
+    assert_eq!(czech.format("getDefaultTimezone", &[])?, Value::Null);
+    assert_eq!(
+        czech.format("dateTimeBetween", &[0_i64.into(), 0_i64.into()])?,
+        "1970-01-01T00:00:00+00:00".into()
+    );
+
+    let now = chrono::Utc::now();
+    let old = (now - chrono::TimeDelta::days(20)).timestamp();
+    assert!(other.format("dateTimeThisMonth", &[old.into()]).is_ok());
+    Ok(())
+}
+
+#[test]
 fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     for (method, sample) in [
