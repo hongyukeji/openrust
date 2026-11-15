@@ -2,7 +2,7 @@ use crate::view::{View, ViewData, ViewResult};
 
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
-use super::Links;
+use super::{Links, PaginationResult, PaginatorOptions, page_offset, page_size};
 
 /// An offset-based page that checks for one extra row.
 #[derive(Debug)]
@@ -16,11 +16,23 @@ pub struct Paginator<T> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Paginator API")]
 impl<T> Paginator<T> {
-    pub(crate) fn new(mut items: Vec<T>, page: u64, per_page: u64, links: Links) -> Self {
+    /// Creates a paginator from the current slice plus one look-ahead item.
+    pub fn new(
+        items: Vec<T>,
+        per_page: u64,
+        page: Option<u64>,
+        options: PaginatorOptions<'_>,
+    ) -> PaginationResult<Self> {
+        let size = page_size(Some(per_page))?;
+        let links = Links::manual(options.pageName.unwrap_or("page"), options);
+        let page = links.current_page(page);
+        page_offset(page, size)?;
+        Ok(Self::from_query(items, page, size, links))
+    }
+
+    pub(crate) fn from_query(mut items: Vec<T>, page: u64, per_page: u64, links: Links) -> Self {
         let more = items.len() as u64 > per_page;
-        if more {
-            items.pop();
-        }
+        items.truncate(usize::try_from(per_page).unwrap_or(usize::MAX));
         Self {
             items,
             page,
@@ -71,6 +83,52 @@ impl<T> Paginator<T> {
         self.page > 1 || self.more
     }
 
+    pub fn count(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn isEmpty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn isNotEmpty(&self) -> bool {
+        !self.isEmpty()
+    }
+
+    pub fn onFirstPage(&self) -> bool {
+        self.currentPage() == 1
+    }
+
+    pub fn onLastPage(&self) -> bool {
+        !self.hasMorePages()
+    }
+
+    pub fn getOptions(&self) -> PaginatorOptions<'_> {
+        self.links.options(false)
+    }
+
+    pub fn getPageName(&self) -> &str {
+        &self.links.name
+    }
+
+    pub fn setPageName(&mut self, name: impl Into<String>) -> &mut Self {
+        self.links.name = name.into();
+        self
+    }
+
+    pub fn path(&self) -> &str {
+        &self.links.path
+    }
+
+    pub fn withPath(&mut self, path: impl Into<String>) -> &mut Self {
+        self.links.path = path.into();
+        self
+    }
+
+    pub fn getUrlRange(&self, start: u64, end: u64) -> impl Iterator<Item = (u64, String)> + '_ {
+        (start..=end).map(|page| (page, self.url(page)))
+    }
+
     pub fn firstItem(&self) -> Option<u64> {
         (!self.items.is_empty()).then(|| (self.page - 1) * self.per_page + 1)
     }
@@ -103,6 +161,10 @@ impl<T> Paginator<T> {
     pub fn map<U>(self, map: impl FnMut(T) -> U) -> Paginator<U> {
         self.map_items(|items| items.into_iter().map(map).collect())
     }
+    pub fn through<U>(self, transform: impl FnMut(T) -> U) -> Paginator<U> {
+        self.map(transform)
+    }
+
     pub(crate) fn map_items<U>(self, map: impl FnOnce(Vec<T>) -> Vec<U>) -> Paginator<U> {
         Paginator {
             items: map(self.items),

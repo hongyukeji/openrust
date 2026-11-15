@@ -4,13 +4,11 @@ use crate::{
     database::{DatabaseError, DatabaseResult, Row, Value},
     pagination::{
         Cursor, CursorOptions, CursorPaginator, LengthAwarePaginator, Links, PageOptions,
-        PaginationError, Paginator,
+        PaginationError, Paginator, page_offset, page_size,
     },
 };
 
 use super::{Builder, Column, Conditions, Order};
-
-const DEFAULT_SIZE: u64 = 15;
 
 #[allow(non_snake_case, reason = "Matches Laravel's Query Builder API")]
 impl Builder<'_> {
@@ -34,7 +32,9 @@ impl Builder<'_> {
         } else {
             self.limit(size).offset(offset).get().await?
         };
-        Ok(LengthAwarePaginator::new(items, total, page, size, links))
+        Ok(LengthAwarePaginator::from_query(
+            items, total, page, size, links,
+        ))
     }
 
     pub async fn simplePaginate(self, per_page: u64) -> DatabaseResult<Paginator<Row>> {
@@ -56,7 +56,7 @@ impl Builder<'_> {
             .offset(offset)
             .get()
             .await?;
-        Ok(Paginator::new(items, page, size, links))
+        Ok(Paginator::from_query(items, page, size, links))
     }
 
     pub async fn cursorPaginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<Row>> {
@@ -74,11 +74,7 @@ impl Builder<'_> {
         let size = page_size(options.perPage)?;
         let links = Links::current(options.cursorName);
         // Laravel starts at the first page when an incoming token cannot be decoded.
-        let cursor = options.cursor.cloned().or_else(|| {
-            links
-                .incoming()
-                .and_then(|token| Cursor::fromEncoded(token).ok())
-        });
+        let cursor = links.current_cursor(options.cursor);
         if !self.unions.is_empty()
             || !self.groups.is_empty()
             || !self.havings.is_empty()
@@ -109,48 +105,27 @@ impl Builder<'_> {
                 }
             }
         }
-        let mut items = self.limit(size + 1).offset(0).get().await?;
-        let more = items.len() as u64 > size;
-        if more {
-            items.pop();
-        }
-        if backwards {
-            items.reverse();
-        }
+        let items = self.limit(size + 1).offset(0).get().await?;
 
-        // Validate cursor columns even when the page has no next link.
-        if items.iter().any(|row| {
-            names
-                .iter()
-                .any(|name| !row.get(name).is_some_and(valid_key))
-        }) {
+        // Validate returned cursor columns even when the page has no next link.
+        if items
+            .iter()
+            .take(usize::try_from(size).unwrap_or(usize::MAX))
+            .any(|row| {
+                names
+                    .iter()
+                    .any(|name| !row.get(name).is_some_and(valid_key))
+            })
+        {
             return Err(PaginationError::InvalidCursor.into());
         }
-        let next = if backwards || more {
-            items
-                .last()
-                .map(|row| make_cursor(row, &names, true))
-                .transpose()?
-        } else {
-            None
-        };
-        let has_previous = if backwards { more } else { cursor.is_some() };
-        let previous = if has_previous {
-            items
-                .first()
-                .map(|row| make_cursor(row, &names, false))
-                .transpose()?
-        } else {
-            None
-        };
-        Ok(CursorPaginator {
+        Ok(CursorPaginator::from_ordered(
             items,
-            per_page: size,
+            size,
             links,
             cursor,
-            next,
-            previous,
-        })
+            |row, next| make_cursor(row, &names, next),
+        )?)
     }
 
     pub(in crate::database) fn order_for_pagination(self, column: &str) -> Self {
@@ -242,25 +217,10 @@ impl Builder<'_> {
 
 fn offset_page(options: &PageOptions<'_>) -> DatabaseResult<(Links, u64, u64, u64)> {
     let links = Links::current(options.pageName);
-    let page = options
-        .page
-        .or_else(|| links.incoming().and_then(|value| value.parse().ok()))
-        .unwrap_or(1)
-        .max(1);
+    let page = links.current_page(options.page);
     let size = page_size(options.perPage)?;
-    let offset = (page - 1)
-        .checked_mul(size)
-        .filter(|offset| *offset <= i64::MAX as u64)
-        .ok_or(PaginationError::OffsetOverflow)?;
+    let offset = page_offset(page, size)?;
     Ok((links, page, size, offset))
-}
-
-fn page_size(size: Option<u64>) -> Result<u64, PaginationError> {
-    let size = size.unwrap_or(DEFAULT_SIZE);
-    if size == 0 || size >= i64::MAX as u64 {
-        return Err(PaginationError::InvalidPerPage);
-    }
-    Ok(size)
 }
 
 struct CursorOrder {

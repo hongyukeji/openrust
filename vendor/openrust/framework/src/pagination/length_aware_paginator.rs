@@ -2,7 +2,7 @@ use crate::view::{View, ViewData, ViewResult};
 
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
-use super::{Links, Paginator};
+use super::{Links, PaginationResult, Paginator, PaginatorOptions, page_offset, page_size};
 
 /// An offset-based page with a total result count.
 #[derive(Debug)]
@@ -14,11 +14,36 @@ pub struct LengthAwarePaginator<T> {
 
 #[allow(non_snake_case, reason = "Matches Laravel's LengthAwarePaginator API")]
 impl<T> LengthAwarePaginator<T> {
-    pub(crate) fn new(items: Vec<T>, total: u64, page: u64, per_page: u64, links: Links) -> Self {
-        let mut inner = Paginator::new(items, page, per_page, links);
-        inner.more = page < total.div_ceil(per_page);
+    /// Creates a paginator from an already sliced page and the unsliced total.
+    pub fn new(
+        items: Vec<T>,
+        total: u64,
+        per_page: u64,
+        page: Option<u64>,
+        options: PaginatorOptions<'_>,
+    ) -> PaginationResult<Self> {
+        let size = page_size(Some(per_page))?;
+        let links = Links::manual(options.pageName.unwrap_or("page"), options);
+        let page = links.current_page(page);
+        page_offset(page, size)?;
+        Ok(Self::from_query(items, total, page, size, links))
+    }
+
+    pub(crate) fn from_query(
+        items: Vec<T>,
+        total: u64,
+        page: u64,
+        per_page: u64,
+        links: Links,
+    ) -> Self {
         Self {
-            inner,
+            inner: Paginator {
+                items,
+                page,
+                per_page,
+                links,
+                more: page < total.div_ceil(per_page),
+            },
             total,
             on_each_side: 3,
         }
@@ -66,9 +91,6 @@ impl<T> LengthAwarePaginator<T> {
     pub fn lastPage(&self) -> u64 {
         self.total.div_ceil(self.inner.perPage()).max(1)
     }
-    pub fn getUrlRange(&self, start: u64, end: u64) -> impl Iterator<Item = (u64, String)> + '_ {
-        (start..=end).map(|page| (page, self.inner.url(page)))
-    }
     pub fn map<U>(self, map: impl FnMut(T) -> U) -> LengthAwarePaginator<U> {
         LengthAwarePaginator {
             inner: self.inner.map(map),
@@ -76,6 +98,10 @@ impl<T> LengthAwarePaginator<T> {
             on_each_side: self.on_each_side,
         }
     }
+    pub fn through<U>(self, transform: impl FnMut(T) -> U) -> LengthAwarePaginator<U> {
+        self.map(transform)
+    }
+
     pub(crate) fn map_items<U>(
         self,
         map: impl FnOnce(Vec<T>) -> Vec<U>,

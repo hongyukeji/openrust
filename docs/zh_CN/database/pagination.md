@@ -10,6 +10,41 @@
 
 `cursorPaginate(15)` 比较排序列的值，并多读一行判断后续记录。下次请求传入返回的 `next_cursor` 或 `prev_cursor`。Query Builder 需按已查询、非空的标量列排序，最后使用唯一列打破并列。Eloquent 在未声明排序时使用主键。分组查询、联合查询和原始排序表达式使用偏移分页。
 
+## 手工创建分页器 {#manually-creating-a-paginator}
+
+数据已在内存时，将当前页切片和切片前的总数传给 `LengthAwarePaginator::new`。使用 `Paginator::new` 时，有下一页就额外传入一条记录。`CursorPaginator::new` 同样接收带预读记录的有序切片，还需要一个回调提取边界记录的命名排序键。请求上一页时，按反向查询顺序传入记录，分页器会恢复显示顺序。
+
+```rust
+use openrust::{
+    database::Value,
+    pagination::{Cursor, CursorPaginator, PaginationResult, PaginatorOptions},
+};
+
+fn manual_cursor_page(
+    ordered: Vec<i64>,
+    current: Option<&Cursor>,
+) -> PaginationResult<CursorPaginator<String>> {
+    let mut page = CursorPaginator::new(
+        ordered,
+        2,
+        current,
+        PaginatorOptions {
+            cursorName: Some("position"),
+            ..Default::default()
+        },
+        |id| [("id", Value::Integer(*id))],
+    )?;
+    page.withQueryString();
+    Ok(page.through(|id| id.to_string()))
+}
+```
+
+## 分页器实例方法 {#paginator-instance-methods}
+
+用 `count()`、`onFirstPage()` 和 `onLastPage()` 获取页面状态。`through` 消耗原分页器并转换记录类型，同时保留分页元数据。游标仍使用转换前的排序键。
+
+用 `withPath` 修改链接路径，`setPageName` 或 `setCursorName` 修改查询参数名，`withQueryString` 保留请求筛选条件，`fragment` 添加锚点。`getOptions()` 返回当前生效的链接选项。
+
 ## 关联模型分页 {#paginating-related-models}
 
 在 `HasMany` 或 `MorphMany` 描述符上调用 `paginate`、`simplePaginate` 或 `cursorPaginate`，传入父模型和每页数量。带 `With` 的变体接受与 Eloquent 查询相同的选项。查询保留父键、适用的多态类型、已配置的筛选和模型作用域。父模型没有键时返回空页。

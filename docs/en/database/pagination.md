@@ -10,6 +10,41 @@ Use `paginateWith` or `simplePaginateWith` with `PageOptions` to change the page
 
 `cursorPaginate(15)` compares the values of ordered columns and fetches one extra row. Pass the returned `next_cursor` or `prev_cursor` in the request. In Query Builder, order by selected, non-null scalar columns with a unique final tie-breaker. An Eloquent query without an explicit order uses the primary key. Grouped queries, unions and raw order expressions use offset pagination.
 
+## Manually Creating a Paginator {#manually-creating-a-paginator}
+
+When the records are already in memory, pass the current slice to `LengthAwarePaginator::new` along with the total before slicing. For `Paginator::new`, include one extra item when another page exists. For `CursorPaginator::new`, supply the ordered slice with the same look-ahead item, plus a callback that extracts each boundary item’s named sort keys. For a previous-page cursor, supply items in reverse fetch order. The paginator restores display order.
+
+```rust
+use openrust::{
+    database::Value,
+    pagination::{Cursor, CursorPaginator, PaginationResult, PaginatorOptions},
+};
+
+fn manual_cursor_page(
+    ordered: Vec<i64>,
+    current: Option<&Cursor>,
+) -> PaginationResult<CursorPaginator<String>> {
+    let mut page = CursorPaginator::new(
+        ordered,
+        2,
+        current,
+        PaginatorOptions {
+            cursorName: Some("position"),
+            ..Default::default()
+        },
+        |id| [("id", Value::Integer(*id))],
+    )?;
+    page.withQueryString();
+    Ok(page.through(|id| id.to_string()))
+}
+```
+
+## Paginator Instance Methods {#paginator-instance-methods}
+
+Use `count()`, `onFirstPage()` and `onLastPage()` for page state. `through` consumes the paginator, transforms the items and preserves the pagination metadata even when the item type changes. The cursor keeps the original sort keys for navigation.
+
+Use `withPath` to change the URL base, `setPageName` or `setCursorName` to change the query parameter name, `withQueryString` to retain request filters and `fragment` to append an anchor. `getOptions()` exposes the effective link settings.
+
 ## Paginating Related Models {#paginating-related-models}
 
 Call `paginate`, `simplePaginate`, or `cursorPaginate` on a `HasMany` or `MorphMany` descriptor with the parent model and page size. The `With` variants accept the same options as Eloquent queries. The related query retains the parent key, the morph type where applicable, configured filters, and model scopes. A parent without a key yields an empty page.

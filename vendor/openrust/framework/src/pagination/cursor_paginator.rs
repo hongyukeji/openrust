@@ -1,22 +1,78 @@
-use crate::view::{View, ViewData, ViewResult};
+use crate::{
+    database::Value,
+    view::{View, ViewData, ViewResult},
+};
 
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
-use super::{Cursor, Links, PaginationResult};
+use super::{Cursor, Links, PaginationResult, PaginatorOptions, page_size};
 
 /// A page positioned by ordered column values.
 #[derive(Debug)]
 pub struct CursorPaginator<T> {
-    pub(crate) items: Vec<T>,
-    pub(crate) per_page: u64,
-    pub(crate) links: Links,
-    pub(crate) cursor: Option<Cursor>,
-    pub(crate) next: Option<Cursor>,
-    pub(crate) previous: Option<Cursor>,
+    items: Vec<T>,
+    per_page: u64,
+    links: Links,
+    cursor: Option<Cursor>,
+    next: Option<Cursor>,
+    previous: Option<Cursor>,
+    more: bool,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's CursorPaginator API")]
 impl<T> CursorPaginator<T> {
+    /// Creates a page from ordered items and one optional look-ahead item.
+    /// Supply items in reverse fetch order for a previous-page cursor.
+    pub fn new<K: AsRef<str>, I: IntoIterator<Item = (K, Value)>>(
+        items: Vec<T>,
+        per_page: u64,
+        cursor: Option<&Cursor>,
+        options: PaginatorOptions<'_>,
+        mut keys: impl FnMut(&T) -> I,
+    ) -> PaginationResult<Self> {
+        let size = page_size(Some(per_page))?;
+        let links = Links::manual(options.cursorName.unwrap_or("cursor"), options);
+        let cursor = links.current_cursor(cursor);
+        Self::from_ordered(items, size, links, cursor, |item, next| {
+            Cursor::new(keys(item), next)
+        })
+    }
+
+    pub(crate) fn from_ordered(
+        mut items: Vec<T>,
+        size: u64,
+        links: Links,
+        cursor: Option<Cursor>,
+        mut key: impl FnMut(&T, bool) -> PaginationResult<Cursor>,
+    ) -> PaginationResult<Self> {
+        let more = items.len() as u64 > size;
+        let backwards = cursor.as_ref().is_some_and(Cursor::pointsToPreviousItems);
+        items.truncate(usize::try_from(size).unwrap_or(usize::MAX));
+        if backwards {
+            items.reverse();
+        }
+        let next = if backwards || more {
+            items.last().map(|item| key(item, true)).transpose()?
+        } else {
+            None
+        };
+        let has_previous = if backwards { more } else { cursor.is_some() };
+        let previous = if has_previous {
+            items.first().map(|item| key(item, false)).transpose()?
+        } else {
+            None
+        };
+        Ok(Self {
+            items,
+            per_page: size,
+            links,
+            cursor,
+            next,
+            previous,
+            more,
+        })
+    }
+
     pub(crate) fn items_mut(&mut self) -> &mut [T] {
         &mut self.items
     }
@@ -60,10 +116,58 @@ impl<T> CursorPaginator<T> {
         self.previous.as_ref()
     }
     pub fn hasMorePages(&self) -> bool {
-        self.next.is_some()
+        self.more
+            || self
+                .cursor
+                .as_ref()
+                .is_some_and(Cursor::pointsToPreviousItems)
     }
     pub fn hasPages(&self) -> bool {
-        self.cursor.is_some() || self.hasMorePages()
+        !self.onFirstPage() || self.hasMorePages()
+    }
+
+    pub fn count(&self) -> usize {
+        self.items.len()
+    }
+
+    pub fn isEmpty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    pub fn isNotEmpty(&self) -> bool {
+        !self.isEmpty()
+    }
+
+    pub fn onFirstPage(&self) -> bool {
+        self.cursor
+            .as_ref()
+            .is_none_or(|cursor| cursor.pointsToPreviousItems() && !self.more)
+    }
+
+    pub fn onLastPage(&self) -> bool {
+        !self.hasMorePages()
+    }
+
+    pub fn getOptions(&self) -> PaginatorOptions<'_> {
+        self.links.options(true)
+    }
+
+    pub fn getCursorName(&self) -> &str {
+        &self.links.name
+    }
+
+    pub fn setCursorName(&mut self, name: impl Into<String>) -> &mut Self {
+        self.links.name = name.into();
+        self
+    }
+
+    pub fn path(&self) -> &str {
+        &self.links.path
+    }
+
+    pub fn withPath(&mut self, path: impl Into<String>) -> &mut Self {
+        self.links.path = path.into();
+        self
     }
 
     pub fn url(&self, cursor: Option<&Cursor>) -> PaginationResult<String> {
@@ -95,6 +199,10 @@ impl<T> CursorPaginator<T> {
     pub fn map<U>(self, map: impl FnMut(T) -> U) -> CursorPaginator<U> {
         self.map_items(|items| items.into_iter().map(map).collect())
     }
+    pub fn through<U>(self, transform: impl FnMut(T) -> U) -> CursorPaginator<U> {
+        self.map(transform)
+    }
+
     pub(crate) fn map_items<U>(self, map: impl FnOnce(Vec<T>) -> Vec<U>) -> CursorPaginator<U> {
         CursorPaginator {
             items: map(self.items),
@@ -103,6 +211,7 @@ impl<T> CursorPaginator<T> {
             cursor: self.cursor,
             next: self.next,
             previous: self.previous,
+            more: self.more,
         }
     }
 }

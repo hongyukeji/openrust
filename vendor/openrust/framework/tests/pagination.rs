@@ -15,7 +15,10 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    pagination::{Cursor, CursorOptions, PageOptions, Paginator},
+    pagination::{
+        Cursor, CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, PaginationError,
+        Paginator, PaginatorOptions,
+    },
     routing::RoutingError,
     support::facades::{Lang, Route},
     support::{ProviderResult, ServiceProvider},
@@ -151,6 +154,9 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
     Route::get("/links", pagination_links)?;
+    Route::get("/manual", manual_length)?;
+    Route::get("/manual-simple", manual_simple)?;
+    Route::get("/manual-cursor", manual_cursor)?;
     Route::get("/related-length", related_length_page)?;
     Route::get("/related-cursor", related_cursor_page)?;
     Route::get("/through", through_page)?;
@@ -454,6 +460,113 @@ fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
     })
 }
 
+fn manual_length(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let current = request
+            .query(Some("entries"))?
+            .and_then(|v| v.as_str().and_then(|v| v.parse::<usize>().ok()))
+            .unwrap_or(1)
+            .max(1);
+        let items = (1_i64..=5)
+            .skip((current - 1).saturating_mul(2))
+            .take(2)
+            .collect();
+        let mut page = LengthAwarePaginator::new(
+            items,
+            5,
+            2,
+            None,
+            PaginatorOptions {
+                pageName: Some("entries"),
+                ..Default::default()
+            },
+        )
+        .map_err(manual_error)?;
+        assert_eq!(page.currentPage(), current as u64);
+        page.withQueryString()
+            .withPath("/api/manual?fixed=1")
+            .fragment(Some("results"));
+        assert_eq!(page.getOptions().path, Some("/api/manual?fixed=1"));
+        assert_eq!(page.getOptions().fragment, Some("results"));
+        assert_eq!(page.getPageName(), "entries");
+        let urls: Vec<_> = page.getUrlRange(1, 2).collect();
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "count": page.count(),
+                "first": page.onFirstPage(),
+                "last": page.onLastPage(),
+                "range": urls,
+                "page": page.through(|item| item.to_string()),
+            }),
+        )
+    })
+}
+
+fn manual_simple(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mut page = Paginator::new(vec![1, 2, 3, 4, 5], 2, Some(1), PaginatorOptions::default())
+            .map_err(manual_error)?;
+        page.setPageName("after");
+        assert_eq!(page.getOptions().pageName, Some("after"));
+        Response::json(StatusCode::OK, page.through(|item| item * 10))
+    })
+}
+
+fn manual_cursor(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let input = request.query(Some("position"))?;
+        let cursor = input
+            .as_ref()
+            .and_then(|v| v.as_str())
+            .and_then(|v| Cursor::fromEncoded(v).ok());
+        let anchor = cursor
+            .as_ref()
+            .map(|cursor| cursor.parameter("id"))
+            .transpose()
+            .map_err(manual_error)?;
+        let ordered: Vec<i64> = match anchor {
+            Some(Value::Integer(anchor))
+                if cursor.as_ref().is_some_and(Cursor::pointsToPreviousItems) =>
+            {
+                (1..=5).rev().filter(|i| *i < anchor).take(3).collect()
+            }
+            Some(Value::Integer(anchor)) => (1..=5).filter(|i| *i > anchor).take(3).collect(),
+            _ => vec![1, 2, 3],
+        };
+        let mut page = CursorPaginator::new(
+            ordered,
+            2,
+            cursor.as_ref(),
+            PaginatorOptions {
+                cursorName: Some("position"),
+                ..Default::default()
+            },
+            |item| [("id", Value::Integer(*item))],
+        )
+        .map_err(manual_error)?;
+        page.withQueryString();
+        assert_eq!(page.getCursorName(), "position");
+        assert_eq!(page.getOptions().cursorName, Some("position"));
+        page.setCursorName("position");
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "count": page.count(),
+                "first": page.onFirstPage(),
+                "last": page.onLastPage(),
+                "page": page.through(|item| item.to_string()),
+            }),
+        )
+    })
+}
+
+fn manual_error(source: PaginationError) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(source),
+    }
+}
+
 fn view_error(source: ViewError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -733,6 +846,37 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(latest.total(), 1);
     assert_eq!(id(latest.items()[0].getKey()), 103);
     let (address, server) = serve(app).await;
+    let manual = request(address, "/api/manual?entries=2&filter=active").await;
+    assert_eq!(manual["count"], 2);
+    assert_eq!(manual["first"], false);
+    assert_eq!(manual["last"], false);
+    assert_eq!(manual["page"]["data"], json!(["3", "4"]));
+    assert_eq!(manual["page"]["total"], 5);
+    assert_eq!(manual["page"]["from"], 3);
+    assert_eq!(manual["page"]["to"], 4);
+    assert_eq!(
+        manual["range"][0][1],
+        "/api/manual?fixed=1&filter=active&entries=1#results"
+    );
+
+    let manual = request(address, "/api/manual-simple").await;
+    assert_eq!(manual["data"], json!([10, 20]));
+    assert_eq!(manual["next_page_url"], "/api/manual-simple?after=2");
+    let first = request(address, "/api/manual-cursor?state=open").await;
+    assert_eq!(first["first"], true);
+    assert_eq!(first["page"]["data"], json!(["1", "2"]));
+    let second = request(address, first["page"]["next_page_url"].as_str().unwrap()).await;
+    assert_eq!(second["count"], 2);
+    assert_eq!(second["first"], false);
+    assert_eq!(second["page"]["data"], json!(["3", "4"]));
+    let last = request(address, second["page"]["next_page_url"].as_str().unwrap()).await;
+    assert_eq!(last["last"], true);
+    assert_eq!(last["page"]["data"], json!(["5"]));
+    let first_again = request(address, second["page"]["prev_page_url"].as_str().unwrap()).await;
+    assert_eq!(first_again["first"], true);
+    assert_eq!(first_again["page"]["data"], first["page"]["data"]);
+    assert!(first_again["page"]["prev_page_url"].is_null());
+
     let (length, simple) = tokio::join!(
         request(address, "/api/length?articles=2&state=in+review",),
         request(address, "/api/simple?page=3",),
@@ -1033,4 +1177,38 @@ async fn pagination_default_styles_are_scoped_to_the_application() {
     ] {
         server.abort();
     }
+}
+
+#[test]
+fn rejects_invalid_manual_page_sizes_and_cursor_parameters() {
+    assert!(matches!(
+        Paginator::new(Vec::<i64>::new(), 0, None, PaginatorOptions::default()),
+        Err(PaginationError::InvalidPerPage)
+    ));
+    assert!(matches!(
+        LengthAwarePaginator::new(vec![1], 1, 2, Some(u64::MAX), PaginatorOptions::default()),
+        Err(PaginationError::OffsetOverflow)
+    ));
+    assert!(matches!(
+        Cursor::new([("id", Value::Null)], true),
+        Err(PaginationError::InvalidCursor)
+    ));
+    assert!(matches!(
+        Cursor::new([("id", Value::Integer(1)), ("id", Value::Integer(2))], true),
+        Err(PaginationError::InvalidCursor)
+    ));
+    let cursor = Cursor::new(
+        [
+            ("id", Value::Integer(1)),
+            ("slug", Value::Text("entry".into())),
+        ],
+        false,
+    )
+    .unwrap();
+    let restored = Cursor::fromEncoded(&cursor.encode().unwrap()).unwrap();
+    assert!(restored.pointsToPreviousItems());
+    assert_eq!(
+        restored.parameters(&["slug", "id"]).unwrap(),
+        [Value::Text("entry".into()), Value::Integer(1)]
+    );
 }

@@ -59,6 +59,32 @@ impl Default for CursorOptions<'_> {
     }
 }
 
+/// Link options for in-memory pagination. Omitted values use the current request.
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(non_snake_case, reason = "Matches Laravel's pagination options")]
+pub struct PaginatorOptions<'a> {
+    pub path: Option<&'a str>,
+    pub query: &'a [(String, String)],
+    pub fragment: Option<&'a str>,
+    pub pageName: Option<&'a str>,
+    pub cursorName: Option<&'a str>,
+}
+
+pub(crate) fn page_size(size: Option<u64>) -> PaginationResult<u64> {
+    let size = size.unwrap_or(15);
+    if size == 0 || size >= i64::MAX as u64 {
+        return Err(PaginationError::InvalidPerPage);
+    }
+    Ok(size)
+}
+
+pub(crate) fn page_offset(page: u64, size: u64) -> PaginationResult<u64> {
+    (page - 1)
+        .checked_mul(size)
+        .filter(|offset| *offset <= i64::MAX as u64)
+        .ok_or(PaginationError::OffsetOverflow)
+}
+
 pub type PaginationResult<T> = Result<T, PaginationError>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,8 +111,8 @@ impl std::error::Error for PaginationError {}
 
 #[derive(Debug)]
 pub(crate) struct Links {
-    path: String,
-    name: String,
+    pub(super) path: String,
+    pub(super) name: String,
     incoming: Vec<(String, String)>,
     query: Vec<(String, String)>,
     fragment: Option<String>,
@@ -113,6 +139,40 @@ impl Links {
         })
     }
 
+    fn manual(name: &str, options: PaginatorOptions<'_>) -> Self {
+        let mut links = Self::current(name);
+        if let Some(path) = options.path {
+            let path = path.trim_end_matches('/');
+            links.path = if path.is_empty() { "/" } else { path }.into();
+        }
+        links.appends(options.query);
+        links.fragment = options.fragment.map(str::to_owned);
+        links
+    }
+
+    pub(crate) fn current_page(&self, page: Option<u64>) -> u64 {
+        page.or_else(|| self.incoming().and_then(|value| value.parse().ok()))
+            .unwrap_or(1)
+            .max(1)
+    }
+
+    pub(crate) fn current_cursor(&self, cursor: Option<&Cursor>) -> Option<Cursor> {
+        cursor.cloned().or_else(|| {
+            self.incoming()
+                .and_then(|value| Cursor::fromEncoded(value).ok())
+        })
+    }
+
+    fn options(&self, cursor: bool) -> PaginatorOptions<'_> {
+        PaginatorOptions {
+            path: Some(&self.path),
+            query: &self.query,
+            fragment: self.fragment.as_deref(),
+            pageName: (!cursor).then_some(self.name.as_str()),
+            cursorName: cursor.then_some(self.name.as_str()),
+        }
+    }
+
     pub(crate) fn incoming(&self) -> Option<&str> {
         self.incoming
             .iter()
@@ -130,7 +190,7 @@ impl Links {
         let query = query.finish();
         let mut url = self.path.clone();
         if !query.is_empty() {
-            url.push('?');
+            url.push(if url.contains('?') { '&' } else { '?' });
             url.push_str(&query);
         }
         if let Some(fragment) = &self.fragment {

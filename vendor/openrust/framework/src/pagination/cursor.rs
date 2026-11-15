@@ -17,6 +17,29 @@ pub struct Cursor {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Cursor API")]
 impl Cursor {
+    pub fn new<K: AsRef<str>>(
+        parameters: impl IntoIterator<Item = (K, Value)>,
+        points_to_next_items: bool,
+    ) -> PaginationResult<Self> {
+        let parameters = parameters.into_iter();
+        let mut values = Map::new();
+        for (name, value) in parameters {
+            insert_key(&mut values, name.as_ref(), &value)?;
+        }
+        Self::from_values(values, points_to_next_items)
+    }
+
+    pub fn parameter(&self, name: &str) -> PaginationResult<Value> {
+        self.values
+            .get(name)
+            .and_then(scalar)
+            .ok_or(PaginationError::InvalidCursor)
+    }
+
+    pub fn parameters(&self, names: &[&str]) -> PaginationResult<Vec<Value>> {
+        names.iter().map(|name| self.parameter(name)).collect()
+    }
+
     pub fn fromEncoded(encoded: &str) -> PaginationResult<Self> {
         if encoded.len() > MAX_ENCODED {
             return Err(PaginationError::InvalidCursor);
@@ -61,12 +84,7 @@ impl Cursor {
         }
         columns
             .iter()
-            .map(|column| {
-                self.values
-                    .get(column)
-                    .and_then(scalar)
-                    .ok_or(PaginationError::InvalidCursor)
-            })
+            .map(|column| self.parameter(column))
             .collect()
     }
 
@@ -76,20 +94,32 @@ impl Cursor {
     ) -> PaginationResult<Self> {
         let mut values = Map::new();
         for (name, key) in keys {
-            let value = match key {
-                Value::Bool(value) => Json::from(*value),
-                Value::Integer(value) => Json::from(*value),
-                Value::Unsigned(value) => Json::from(*value),
-                Value::Real(value) if value.is_finite() => Json::from(*value),
-                Value::Text(value) => Json::from(value.as_str()),
-                _ => return Err(PaginationError::InvalidCursor),
-            };
-            if name == DIRECTION || values.insert(name.into(), value).is_some() {
-                return Err(PaginationError::InvalidCursor);
-            }
+            insert_key(&mut values, name, key)?;
+        }
+        Self::from_values(values, next)
+    }
+
+    fn from_values(values: Map<String, Json>, next: bool) -> PaginationResult<Self> {
+        if values.is_empty() {
+            return Err(PaginationError::InvalidCursor);
         }
         Ok(Self { values, next })
     }
+}
+
+fn insert_key(values: &mut Map<String, Json>, name: &str, key: &Value) -> PaginationResult<()> {
+    let value = match key {
+        Value::Bool(value) => Json::from(*value),
+        Value::Integer(value) => Json::from(*value),
+        Value::Unsigned(value) => Json::from(*value),
+        Value::Real(value) if value.is_finite() => Json::from(*value),
+        Value::Text(value) => Json::from(value.as_str()),
+        _ => return Err(PaginationError::InvalidCursor),
+    };
+    if name == DIRECTION || values.insert(name.into(), value).is_some() {
+        return Err(PaginationError::InvalidCursor);
+    }
+    Ok(())
 }
 
 fn scalar(value: &Json) -> Option<Value> {
