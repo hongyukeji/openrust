@@ -1729,3 +1729,15 @@ Rust 通过 `FakerProvider::formatter` 注册线程安全的 Rust 回调，`addP
 隔离基线 `fbf00650`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、52 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。固定版 Sanctum 测试格式差异仅在隔离副本处理。两次独立应用的 Artisan 测试复核同一应用的语言别名共享注册，其他应用及语言独立。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并运行三语共用示例，回读一行 `account-demo`。替换为返回错误的姓氏回调后，同一二进制报告原错误并以状态 1 退出。`./artisan inspire`、三语 VitePress 和 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，测试容器回收，清理隔离 Cargo 产物 5.0 GiB 和独占站点产物及依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。具名入口当前支持三语文档列出的内置项和已注册回调。其余内置 formatter 的具名参数适配、动态查找与修饰器组合及 PHP 扩展名解析仍待核对。
+
+## Faker 具名 formatter 的去重与修饰器
+
+对照固定 Laravel [工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)和 FakerPHP v1.24.1 的 [UniqueGenerator](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/UniqueGenerator.php#L63)、[ChanceGenerator](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/ChanceGenerator.php#L48)及 [ValidGenerator](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/ValidGenerator.php#L59)。PHP 8.5 探针验证了按调用拼写保存历史、值的类型差异、重置、跳过 optional 的方法解析，以及 unique 和 valid 到达上限时的取样次数。v0.x 的同名工厂属于查询构造，固定 Goravel 工厂实现继续作为编译式装配参考。
+
+Rust 复用现有的重试循环，按调用拼写维护具名历史，并用带类型的样本键保留整数、文本、字节及 JSON 结构。参数变化和重新注册提供器继续使用同一拼写的历史。查找和生成在去重锁外执行，结果在锁内登记。类型化调用继续使用自己的历史，重置同时清空两类历史。具名调用可通过已有的闭包式 `optional` 和 `valid` 传入，回调错误直接传播。
+
+隔离基线 `161446a7`。Rust 1.94.0 格式及全工作区全目标严格 Clippy、54 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。并行调用竞争固定 JSON 值时仅一次登记成功。基线既有 Sanctum 测试排版差异只在隔离副本处理。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并执行三语共用示例，按主键回读 `demo`、`skip`、`demo`。重复样本耗尽后以状态 1 退出，保留错误。另通过 `./artisan inspire`、VitePress 构建和 18 项浏览器检查。临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 5.0 GiB 与独占文档构建产物及依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。
+
+05-04 待接具名内置函数的参数适配，以及 FakerPHP 命名空间扩展解析和修饰器调用。

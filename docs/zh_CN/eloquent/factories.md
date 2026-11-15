@@ -279,6 +279,31 @@ fn sample_provider() -> DatabaseResult<String> {
 }
 ```
 
+用 `unique(reset).format(name, arguments)` 取得不重复的结果。与 FakerPHP 一样，去重历史按调用时的拼写区分。`code` 和 `Code` 可解析到同一个 formatter，各自保留历史。更换参数或提供器会沿用同一拼写的历史。结果保留 Rust 类型，整数 `7` 与文本 `"7"` 可分别返回。按名称调用和类型化调用各有独立历史，`unique(true)` 会清空当前生成器的两类历史。通过已有的 `optional` 和 `valid` 闭包调用 `format`，可提供默认值或校验条件。`optional` 决定返回默认值时跳过 formatter 查找。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::{Faker, FakerProvider},
+};
+
+fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
+
+    let distinct = faker.unique(true).format("code", &[])?;
+    let fallback = faker.optional(Some(0.0), Some("skip".into()), |faker| {
+        faker.format("code", &[])
+    })?;
+    let valid = faker.valid(
+        |value| matches!(value, Value::Text(text) if text.starts_with('d')),
+        Some(2),
+        |faker| faker.format("code", &[]),
+    )?;
+    Ok((distinct, fallback, valid))
+}
+```
+
 
 ### 文本生成 {#text-generation}
 

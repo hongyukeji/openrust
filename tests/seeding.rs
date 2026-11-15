@@ -5629,6 +5629,81 @@ fn faker_taiwanese_company_resolves_provider_and_propagates_errors() -> Database
     Ok(())
 }
 
+#[test]
+fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    faker.addProvider(
+        FakerProvider::new().formatter("constant", move |_, arguments| {
+            counter.fetch_add(1, Ordering::Relaxed);
+            Ok(arguments.first().cloned().unwrap_or_else(|| 7.into()))
+        }),
+    );
+    let unique = faker.uniqueWithRetries(false, 2);
+    assert_eq!(unique.format("constant", &[])?, 7.into());
+    assert_eq!(unique.format("constant", &["7".into()])?, "7".into());
+    assert_eq!(unique.format("Constant", &[])?, 7.into());
+    assert!(matches!(
+        unique.format("constant", &[7.into()]),
+        Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+    ));
+    assert_eq!(calls.load(Ordering::Relaxed), 6);
+
+    faker.addProvider(FakerProvider::new().formatter("constant", |_, _| Ok(7.into())));
+    assert!(unique.format("constant", &[]).is_err());
+    assert_eq!(faker.unique(true).format("constant", &[])?, 7.into());
+    assert!(matches!(
+        unique.format("unknown", &[]),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "unknown"
+    ));
+    assert_eq!(
+        faker.optional(Some(0.0), Some(Value::from("skip")), |faker| faker
+            .format("unknown", &[]))?,
+        Some("skip".into())
+    );
+    assert!(matches!(
+        faker.optional(Some(1.0), None, |faker| faker.format("unknown", &[])),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "unknown"
+    ));
+
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counter = Arc::clone(&calls);
+    faker.addProvider(FakerProvider::new().formatter("sequence", move |_, _| {
+        Ok((counter.fetch_add(1, Ordering::Relaxed) as i64).into())
+    }));
+    assert_eq!(
+        faker.valid(
+            |value| value == &Value::Integer(1),
+            Some(2),
+            |faker| faker.format("sequence", &[])
+        )?,
+        1.into()
+    );
+    assert!(matches!(
+        faker.valid(|_| false, Some(2), |faker| faker.format("sequence", &[])),
+        Err(DatabaseError::InvalidQuery("Faker valid values exhausted"))
+    ));
+    assert_eq!(calls.load(Ordering::Relaxed), 5);
+    Ok(())
+}
+
+#[test]
+fn faker_named_uniqueness_claims_results_across_threads() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(
+        FakerProvider::new().formatter("fixed", |_, _| Ok(Value::Json(json!({"ok":true})))),
+    );
+    let (first, second) = std::thread::scope(|scope| {
+        let first = scope.spawn(|| faker.uniqueWithRetries(false, 1).format("fixed", &[]));
+        let second = scope.spawn(|| faker.uniqueWithRetries(false, 1).format("fixed", &[]));
+        (first.join().unwrap(), second.join().unwrap())
+    });
+    assert_ne!(first.is_ok(), second.is_ok());
+    assert!(matches!(first.or(second)?, Value::Json(value) if value == json!({"ok":true})));
+    Ok(())
+}
+
 static FAKER_SEEDER_GENERATOR: std::sync::Mutex<Option<Arc<Faker>>> = std::sync::Mutex::new(None);
 
 struct FakerApplicationScope;

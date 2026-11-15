@@ -11,7 +11,7 @@ use super::{
     regex_pattern::RegexPattern,
 };
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::Write as _,
     fs::{self, File, OpenOptions},
     io,
@@ -20,6 +20,8 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock, RwLock},
 };
+
+use self::modifiers::UniqueHistory;
 
 use crate::{
     container::Container,
@@ -223,7 +225,7 @@ pub struct Faker {
     default_timezone: RwLock<Option<Tz>>,
     pub(super) random: FakerRandom,
     pub(super) formatters: RwLock<Formatters>,
-    unique: Mutex<HashMap<&'static str, HashSet<String>>>,
+    unique: Mutex<UniqueHistory>,
 }
 
 const DATE_RANGE_ERROR: DatabaseError =
@@ -582,7 +584,7 @@ impl Faker {
     /// Uses a custom attempt limit with the shared formatter history.
     pub fn uniqueWithRetries(&self, reset: bool, maxRetries: usize) -> UniqueFaker<'_> {
         if reset {
-            self.unique.lock().unwrap().clear();
+            *self.unique.lock().unwrap() = UniqueHistory::default();
         }
         UniqueFaker(self, maxRetries)
     }
@@ -6592,24 +6594,34 @@ impl UniqueFaker<'_> {
     fn generate_keyed<T>(
         &self,
         formatter: &'static str,
-        mut value: impl FnMut() -> DatabaseResult<T>,
+        value: impl FnMut() -> DatabaseResult<T>,
         key: impl Fn(&T) -> DatabaseResult<String>,
     ) -> DatabaseResult<T> {
-        for attempt in 0..=self.1 {
-            let value = value()?;
-            if attempt == self.1 {
-                break;
-            }
-            let key = key(&value)?;
-            if self
+        self.try_unique(value, |value| {
+            let key = key(value)?;
+            Ok(self
                 .0
                 .unique
                 .lock()
                 .unwrap()
+                .typed
                 .entry(formatter)
                 .or_default()
-                .insert(key)
-            {
+                .insert(key))
+        })
+    }
+
+    fn try_unique<T>(
+        &self,
+        mut generate: impl FnMut() -> DatabaseResult<T>,
+        mut accept: impl FnMut(&T) -> DatabaseResult<bool>,
+    ) -> DatabaseResult<T> {
+        for attempt in 0..=self.1 {
+            let value = generate()?;
+            if attempt == self.1 {
+                break;
+            }
+            if accept(&value)? {
                 return Ok(value);
             }
         }

@@ -279,6 +279,31 @@ fn sample_provider() -> DatabaseResult<String> {
 }
 ```
 
+Use `unique(reset).format(name, arguments)` to require a distinct result. As in FakerPHP, the caller’s spelling identifies the history, so `code` and `Code` have separate histories even when both resolve to the same formatter. Changing arguments or replacing the provider keeps the history for that spelling. Values retain their Rust types, so the integer `7` and the text `"7"` are distinct. Named and typed calls keep separate histories. `unique(true)` clears both on that generator. Use the existing `optional` and `valid` closures to call `format` with a default or a predicate. A skipped optional call does not look up the formatter.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::{Faker, FakerProvider},
+};
+
+fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("demo".into())));
+
+    let distinct = faker.unique(true).format("code", &[])?;
+    let fallback = faker.optional(Some(0.0), Some("skip".into()), |faker| {
+        faker.format("code", &[])
+    })?;
+    let valid = faker.valid(
+        |value| matches!(value, Value::Text(text) if text.starts_with('d')),
+        Some(2),
+        |faker| faker.format("code", &[]),
+    )?;
+    Ok((distinct, fallback, valid))
+}
+```
+
 
 ### Text Generation {#text-generation}
 

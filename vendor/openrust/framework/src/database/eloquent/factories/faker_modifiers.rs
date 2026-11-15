@@ -1,4 +1,42 @@
+use std::collections::{HashMap, HashSet};
+
+use crate::database::Value;
+
 use super::{DatabaseError, DatabaseResult, Faker, UniqueFaker};
+
+#[derive(Default)]
+pub(super) struct UniqueHistory {
+    pub(super) typed: HashMap<&'static str, HashSet<String>>,
+    named: HashMap<String, HashSet<Sample>>,
+}
+
+#[derive(Eq, Hash, PartialEq)]
+enum Sample {
+    Null,
+    Bool(bool),
+    Integer(i64),
+    Unsigned(u64),
+    Real(u64),
+    Text(String),
+    Bytes(Vec<u8>),
+    Json(serde_json::Value),
+}
+
+impl From<&Value> for Sample {
+    fn from(value: &Value) -> Self {
+        match value {
+            Value::Null => Self::Null,
+            Value::Bool(value) => Self::Bool(*value),
+            Value::Integer(value) => Self::Integer(*value),
+            Value::Unsigned(value) => Self::Unsigned(*value),
+            Value::Real(value) if value.is_nan() => Self::Real(f64::NAN.to_bits()),
+            Value::Real(value) => Self::Real(value.to_bits()),
+            Value::Text(value) => Self::Text(value.clone()),
+            Value::Bytes(value) => Self::Bytes(value.clone()),
+            Value::Json(value) => Self::Json(value.clone()),
+        }
+    }
+}
 
 const DEFAULT_RETRIES: usize = 10_000;
 
@@ -76,6 +114,26 @@ impl Faker {
 
 #[allow(non_snake_case, reason = "Matches Faker formatter names")]
 impl UniqueFaker<'_> {
+    /// Generates a distinct result for a named formatter.
+    ///
+    /// As in FakerPHP, the supplied spelling identifies the history even though
+    /// formatter lookup ignores ASCII case. Arguments and provider replacements
+    /// do not start a new history.
+    pub fn format(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
+        self.try_unique(
+            || self.0.format(name, arguments),
+            |value| {
+                let sample = Sample::from(value);
+                let mut history = self.0.unique.lock().unwrap();
+                let samples = match history.named.get_mut(name) {
+                    Some(samples) => samples,
+                    None => history.named.entry(name.to_owned()).or_default(),
+                };
+                Ok(samples.insert(sample))
+            },
+        )
+    }
+
     pub fn biasedNumberBetween(
         &self,
         min: Option<i64>,
