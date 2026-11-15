@@ -6,12 +6,66 @@ use crate::database::{
     query,
 };
 
+use crate::pagination::{
+    CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator,
+};
+
 use super::RelatedValues;
 
 use super::{ExistenceRelation, HasMany, MorphOne, Relation};
 
 /// Links a parent model to many related records tagged with a morph alias.
 pub struct MorphMany<P: Model, R: Model>(pub(super) HasMany<P, R>);
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's relationship pagination API"
+)]
+impl<P: Model, R: Model> MorphMany<P, R> {
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.0.paginate(parent, per_page).await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.0.paginateWith(parent, options).await
+    }
+
+    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.0.simplePaginate(parent, per_page).await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<R>> {
+        self.0.simplePaginateWith(parent, options).await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.0.cursorPaginate(parent, per_page).await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.0.cursorPaginateWith(parent, options).await
+    }
+}
 
 impl<P: Model, R: Model> MorphMany<P, R> {
     /// Builds the descriptor using the parent's application morph map.

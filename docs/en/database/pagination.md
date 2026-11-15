@@ -10,6 +10,28 @@ Use `paginateWith` or `simplePaginateWith` with `PageOptions` to change the page
 
 `cursorPaginate(15)` compares the values of ordered columns and fetches one extra row. Pass the returned `next_cursor` or `prev_cursor` in the request. In Query Builder, order by selected, non-null scalar columns with a unique final tie-breaker. An Eloquent query without an explicit order uses the primary key. Grouped queries, unions and raw order expressions use offset pagination.
 
+## Paginating Related Models {#paginating-related-models}
+
+Call `paginate`, `simplePaginate`, or `cursorPaginate` on a `HasMany` or `MorphMany` descriptor with the parent model and page size. The `With` variants accept the same options as Eloquent queries. The related query retains the parent key, the morph type where applicable, configured filters, and model scopes. A parent without a key yields an empty page.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::HasMany}},
+    pagination::{LengthAwarePaginator, PageOptions},
+};
+
+async fn related_comments<P: Model, R: Model>(
+    article: &P,
+    comments: &HasMany<P, R>,
+) -> DatabaseResult<LengthAwarePaginator<R>> {
+    comments.paginateWith(article, PageOptions {
+        perPage: Some(15),
+        pageName: "comments",
+        ..Default::default()
+    }).await
+}
+```
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.

@@ -8,7 +8,10 @@ use openrust::{
     },
     database::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
-        eloquent::{Model, ModelMetadata, ModelState},
+        eloquent::{
+            Attributes, Model, ModelMetadata, ModelState,
+            relations::{HasMany, MorphMany},
+        },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
@@ -43,6 +46,28 @@ impl Model for Article {
     }
 }
 
+struct Comment(ModelState);
+
+impl Model for Comment {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata =
+            ModelMetadata::new("pagination_comments").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
 fn ids(rows: &[Row]) -> Vec<i64> {
     rows.iter().map(|row| id(row.get("id"))).collect()
 }
@@ -59,6 +84,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/length", length_page)?;
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
+    Route::get("/related-length", related_length_page)?;
+    Route::get("/related-cursor", related_cursor_page)?;
     Ok(())
 }
 
@@ -101,6 +128,59 @@ fn cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
             .map_err(internal)?;
         page.withQueryString();
         Response::json(StatusCode::OK, page.map(|article| id(article.getKey())))
+    })
+}
+
+fn related_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let mut page = HasMany::<Article, Comment>::new("id", "article_id")
+            .constrain(|mut query| {
+                query.r#where("visible", "=", 1).orWhere("id", "=", 12);
+                query
+            })
+            .paginateWith(
+                &parent,
+                PageOptions {
+                    perPage: Some(2),
+                    pageName: "comments",
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(internal)?;
+        page.withQueryString();
+        Response::json(StatusCode::OK, page.map(|comment| id(comment.getKey())))
+    })
+}
+
+fn related_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let mut page =
+            MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                .cursorPaginateWith(
+                    &parent,
+                    CursorOptions {
+                        perPage: Some(2),
+                        cursorName: "comments",
+                        ..Default::default()
+                    },
+                )
+                .await
+                .map_err(internal)?;
+        page.withQueryString();
+        Response::json(StatusCode::OK, page.map(|comment| id(comment.getKey())))
     })
 }
 
@@ -159,9 +239,12 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         .unwrap()
         .connection(None)?;
     for sql in [
+        "DROP TABLE IF EXISTS pagination_comments",
         "DROP TABLE IF EXISTS pagination_articles",
         "CREATE TABLE pagination_articles (id BIGINT PRIMARY KEY, rank_number INTEGER, category VARCHAR(30))",
         "INSERT INTO pagination_articles VALUES (1, 1, 'a'), (2, 1, 'a'), (3, 2, 'b'), (4, 2, 'b'), (5, 3, 'b')",
+        "CREATE TABLE pagination_comments (id BIGINT PRIMARY KEY, article_id BIGINT, subject_type VARCHAR(30), visible INTEGER)",
+        "INSERT INTO pagination_comments VALUES (11, 1, 'article', 1), (12, 1, 'article', 0), (13, 1, 'article', 1), (14, 2, 'article', 1), (15, 1, 'article', 0), (16, 1, 'image', 0), (17, NULL, 'article', 1)",
     ] {
         connection.statement(sql, &[]).await?;
     }
@@ -263,6 +346,23 @@ async fn verify(config: Json) -> DatabaseResult<()> {
             .is_err()
     );
 
+    let parent = Article::queryOn(&connection).find(1).await?.unwrap();
+    let comments = HasMany::<Article, Comment>::new("id", "article_id");
+    let simple = comments.simplePaginate(&parent, 1).await?;
+    assert_eq!(
+        simple
+            .items()
+            .iter()
+            .map(|comment| id(comment.getKey()))
+            .collect::<Vec<_>>(),
+        [11]
+    );
+    assert!(simple.nextPageUrl().is_some());
+    let unsaved = Article::newInstanceOn(&connection, Attributes::new())?;
+    let empty = comments.paginate(&unsaved, 2).await?;
+    assert_eq!(empty.total(), 0);
+    assert!(empty.items().is_empty());
+
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -301,7 +401,25 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         request(address, second["prev_page_url"].as_str().unwrap()).await["data"],
         json!([2, 1])
     );
+    let related = request(address, "/api/related-length?comments=2&visible=yes").await;
+    assert_eq!(related["total"], 3);
+    assert_eq!(related["data"], json!([13]));
+    let previous = related["prev_page_url"].as_str().unwrap();
+    assert!(previous.contains("visible=yes"));
+    assert_eq!(request(address, previous).await["data"], json!([11, 12]));
+    let first = request(address, "/api/related-cursor?filter=all").await;
+    assert_eq!(first["data"], json!([11, 12]));
+    let next = first["next_page_url"].as_str().unwrap();
+    assert!(next.contains("comments=") && next.contains("filter=all"));
+    let second = request(address, next).await;
+    assert_eq!(second["data"], json!([13, 15]));
+    assert!(second["next_page_url"].is_null());
+    let previous = second["prev_page_url"].as_str().unwrap();
+    assert_eq!(request(address, previous).await["data"], json!([11, 12]));
     server.abort();
+    connection
+        .statement("DROP TABLE pagination_comments", &[])
+        .await?;
     connection
         .statement("DROP TABLE pagination_articles", &[])
         .await?;

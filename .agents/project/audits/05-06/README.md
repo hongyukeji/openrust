@@ -5,3 +5,11 @@
 - Rust 用 `PageOptions`、`CursorOptions` 表示可选命名参数，分页器按 Serde 序列化，链接采用请求相对路径。游标支持已选出的非空标量列，分组、联合和原始排序使用偏移分页。链接窗口输出 JSON，命名路由链接按计划在 06-01 补验。Blade 分页视图和本地化导航标签仍未接入。
 - 以 `f3f6bd8a` 为隔离基线。Rust 1.94.0 格式、453 项锁定离线工作区测试、全目标严格 Clippy、`./artisan inspire` 通过。实际 SQLite 和 MySQL HTTP 验证自定义页名、并行请求、JSON 链接、筛选参数、空页、游标往返和非法输入。MySQL 在同一事务连接测得普通、简易、游标分别执行 2、1、1 次 SELECT。
 - 三语文档同一示例分别在 SQLite 和 MySQL 经 HTTP 执行。VitePress 构建和 12 项通用浏览器组合通过，分页正文和链接在根路径及子路径共 6 项通过。
+
+## 05-02 依赖复核：直接一对多关系分页
+
+固定 Laravel [Relation](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php) 将普通一对多关系的分页调用转发到受约束的 Eloquent Builder，多态一对多附加类型条件。Rust 显式借用父模型，由 HasMany 和 MorphMany 提供三类分页及其选项入口，继续使用模型查询的作用域和水合。父键为空时使用空匹配。父键和多态类型保留在基础谓词内，调用者追加的 OR 条件仍由现有模型查询分组。旧版关系没有分页入口，沿用当前已从 v0.x 核对的查询分页策略。固定 [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go) 作为查询层分页参考。
+
+以 `56f3d215` 为隔离基线。MySQL 8.4.13 与 SQLite 的真实 HTTP 请求验证 HasMany 的总数、定制页名、筛选参数、普通回翻和父键筛选，MorphMany 的类型隔离与游标来回翻页。数据库回归另验证简易分页有下一页，以及无键父模型不会读到外键为 NULL 的行。关系套件 6 项、分页套件 2 项通过。Rust 1.94.0 格式、工作区全目标严格 Clippy 和 `./artisan inspire` 通过。既有 Sanctum 格式差异仅在隔离副本调整。三语示例独立编译，VitePress 和根路径／子路径 18 项浏览器检查通过。
+
+临时数据库和容器已回收。清理隔离 Cargo 产物 1.8 GiB 及独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批核对穿透关系和多对多 Pagination，其中多对多要保留当前页的 Pivot 数据。Blade 链接和本地化导航标签继续在 05-06 跟踪。

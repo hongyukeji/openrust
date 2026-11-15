@@ -8,12 +8,82 @@ use crate::database::{
 
 use crate::{http::HttpError, routing::BindingContext};
 
+use crate::pagination::{
+    CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator,
+};
+
 use super::RelatedValues;
 
 use super::{ExistenceRelation, HasOne, Relation, relation::RelationKeys};
 
 /// Links a parent key to a foreign key on many related models.
 pub struct HasMany<P: Model, R: Model>(pub(super) RelationKeys<P, R>);
+
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's relationship pagination API"
+)]
+impl<P: Model, R: Model> HasMany<P, R> {
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.pagination_query(parent)?.paginate(per_page).await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.pagination_query(parent)?.paginateWith(options).await
+    }
+
+    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.pagination_query(parent)?
+            .simplePaginate(per_page)
+            .await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<R>> {
+        self.pagination_query(parent)?
+            .simplePaginateWith(options)
+            .await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.pagination_query(parent)?
+            .cursorPaginate(per_page)
+            .await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.pagination_query(parent)?
+            .cursorPaginateWith(options)
+            .await
+    }
+
+    fn pagination_query(&self, parent: &P) -> DatabaseResult<Builder<'static, R>> {
+        let connection = self.0.connection(parent)?;
+        let query = self.0.configure(R::queryOn(&connection))?;
+        let foreign = query.qualifyColumn(self.0.related);
+        let parents = super::relation::ParentKeys::new(&[parent], self.0.parent)?;
+        Ok(query.restrict_relation(&foreign, &parents.bindings))
+    }
+}
 
 impl<P: Model, R: Model> HasMany<P, R> {
     pub const fn new(local_key: &'static str, foreign_key: &'static str) -> Self {
