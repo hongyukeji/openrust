@@ -1520,3 +1520,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、104 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、105 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对希腊和塞浦路斯希腊语 Address。
+
+## 希腊和塞浦路斯希腊语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [希腊](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/el_GR/Address.php) 和 [塞浦路斯希腊语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/el_CY/Address.php) Address。希腊保留两种邮编、连字符门牌、地区词表与男女姓氏街道模板。塞浦路斯希腊语地址使用四位邮编和四个城市，保留当地姓氏模板。Rust 共享现有姓氏词表，沿用返回 Result 的 prefecture 和 UniqueFaker。塞浦路斯希腊语的空街道后缀以空字符串表示。v0.x 无等价 Faker 地址代码，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `d3af419e`。按 PHP 反射逐项核对 17 份地址词表和模板及三份复用的姓氏词表。256 个固定 PHP 样本通过格式与字段核验。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖两种希腊邮编、连字符门牌、地区字段、塞浦路斯城市和空街道后缀。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、106 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对罗马尼亚和摩尔多瓦罗马尼亚语 Address。

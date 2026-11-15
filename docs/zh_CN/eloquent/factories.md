@@ -1069,6 +1069,16 @@ fn italian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+希腊地址保留两种邮编格式、可带连字符的门牌号，以及可通过 `prefecture()` 获取的地区词表。街道名称抽取男性或女性姓氏形式。塞浦路斯希腊语地址使用四位邮编及四个城市之一。上游没有街道后缀，Rust 以空字符串表示。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn greek_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("el-GR"))?.address(), fake(Some("el-CY"))?.address()])
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

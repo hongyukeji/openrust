@@ -4594,3 +4594,30 @@ fn italian_address_providers_keep_their_own_layouts_and_swiss_cantons() {
     assert!(unique.canton().is_err());
     assert!(italy.canton().is_err());
 }
+
+#[test]
+fn greek_addresses_keep_regional_postcodes_and_prefectures() {
+    let greece = fake(Some("el-GR")).unwrap();
+    let cyprus = fake(Some("el-CY")).unwrap();
+    let greek_address = Regex::new(
+        r"^(?:Όδος|Λεωφόρος) [^,]+, [1-9][0-9]{0,2}(?:-[0-9]{1,3})?, [0-9]{3} ?[0-9]{2}, .+$",
+    )
+    .unwrap();
+    let cypriot_address = Regex::new(
+        r"^(?:Όδος|Οδός|Λεωφόρος) [^,]+, [1-9][0-9]? [0-9]{4} (?:Λευκωσία|Λεμεσός|Λάρνακα|Πάφος)$",
+    )
+    .unwrap();
+    let mut greek_postcodes = [false; 2];
+    let mut greek_ranges = [false; 2];
+    for _ in 0..128 {
+        assert!(greek_address.is_match(&greece.address()));
+        assert!(cypriot_address.is_match(&cyprus.address()));
+        greek_postcodes[usize::from(greece.postcode().contains(' '))] = true;
+        greek_ranges[usize::from(greece.buildingNumber().contains('-'))] = true;
+    }
+    assert_eq!(greek_postcodes, [true; 2]);
+    assert_eq!(greek_ranges, [true; 2]);
+    assert!(greece.unique(true).prefecture().is_ok());
+    assert!(cyprus.prefecture().is_err());
+    assert!(cyprus.streetSuffix().is_empty());
+}
