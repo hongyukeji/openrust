@@ -680,3 +680,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 隔离基线 `c7df2ade`。MySQL 8.4.13 及 SQLite 实际 HTTP 验证匹配主键、作用域过滤、其他父模型、软删除、草稿默认值、穿透与 Pivot。回读四张表的行数确认草稿没有写入。6 项关系和 6 项分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本调整。已回收容器，清理本批隔离 Cargo 产物 1.8 GiB 和站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
 
 05-02 仍待核对关系查询的唯一结果与回调入口（如 `findSole`、`findOr`），以及与 02-09 的流式关系查询边界。05-06 保持前置依赖待关闭。
+
+## 关系唯一结果与回调查询
+
+对照固定 Laravel 的 [BelongsToMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php#L760) 和 [HasOneOrManyThrough](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L405)。直接、多态、穿透和多对多关系提供标量主键 `find`、`findOrFail`、`findSole`、`findOr` 及关系查询 `sole`、`firstOr`。复用既有约束、软删除、预加载及 Pivot 水合。唯一查询最多读取两条记录，分别以 `ModelNotFound` 和 `MultipleModelsFound` 表示两种错误。Rust 回调是返回同一模型类型的 Future，查询成功且为空时才调用。Goravel 固定 ORM 作为查询入口参考，v0.x 未找到对应唯一查询和关系回调入口。
+
+隔离基线 `4de6816d`。MySQL 8.4.13 和 SQLite 实际 HTTP 验证唯一命中、关系范围、404、重复 Pivot、修复重复后重试、回调返回值及错误传播。重复 Pivot 的 409 由验收路由映射。SQLite 首轮的未限定列名被解析成文字，改用带表名的无效列后双库验证查询错误不会调用回调。12 项关系与分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本调整。临时 MySQL 已回收，清理隔离 Cargo 产物 1.8 GiB 及独占文档产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
+
+继续核对关系批量按键查询和流式读取，区分 05-02 的关系约束和 02-09 的惰性集合接线。05-06 的前置依赖保持待关闭。

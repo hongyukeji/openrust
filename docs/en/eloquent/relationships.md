@@ -1174,6 +1174,25 @@ async fn find_or_draft<P: Model, R: Model>(
 }
 ```
 
+Use `find`, `findOrFail` or `findSole` to read a related primary key. Use `sole` to require exactly one result for the relationship. Both unique-result methods read at most two candidates and distinguish a missing model from multiple matches. `findOr` and `firstOr` run an async fallback only if the query succeeds without a match. The fallback returns the same model type.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Attributes, Model, relations::HasMany},
+};
+
+async fn find_or_prepare<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    id: Value,
+) -> DatabaseResult<R> {
+    children.findOr(parent, id, || async {
+        children.make(parent, Attributes::new()).await
+    }).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

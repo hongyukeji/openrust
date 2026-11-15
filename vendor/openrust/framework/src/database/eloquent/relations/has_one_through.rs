@@ -134,6 +134,8 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.findOrNew(parent, key).await
     }
 
+    super::lookup::relation_lookup!(.0);
+
     pub async fn firstOrNew(
         &self,
         parent: &P,

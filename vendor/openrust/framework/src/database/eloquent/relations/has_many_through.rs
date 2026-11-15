@@ -21,6 +21,16 @@ use super::{
     relation::{ParentKeys, RelationKeys, dictionary_key},
 };
 
+struct ThroughLookup<'a> {
+    attributes: &'a Attributes,
+    limit: u64,
+    include_trashed: bool,
+}
+
+fn owned_model<R: Model>(model: Arc<R>) -> R {
+    Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()))
+}
+
 /// Links a parent to related models through an intermediate model.
 pub struct HasManyThrough<P: Model, I: Model, R: Model> {
     pub(super) keys: RelationKeys<P, R>,
@@ -291,11 +301,32 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
 
     /// Finds the related primary key through the join or returns an unsaved model.
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
-        match self.first_match(parent, &keys, false).await? {
+        match self.find(parent, key).await? {
             Some(model) => Ok(model),
             None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
         }
+    }
+
+    super::lookup::relation_lookup!();
+
+    pub(super) async fn lookup_models(
+        &self,
+        parent: &P,
+        keys: &Attributes,
+        limit: u64,
+    ) -> DatabaseResult<Vec<R>> {
+        let lookup = ThroughLookup {
+            attributes: keys,
+            limit,
+            include_trashed: false,
+        };
+        let mut groups = self.match_many(&[parent], None, Some(lookup)).await?;
+        Ok(groups
+            .pop()
+            .unwrap_or_default()
+            .into_iter()
+            .map(owned_model)
+            .collect())
     }
 
     /// Finds a related row or makes an unsaved model using the supplied attributes.
@@ -459,20 +490,26 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         include_trashed: bool,
     ) -> DatabaseResult<Option<R>> {
         Ok(self
-            .match_many(&[parent], None, Some((attributes, include_trashed)))
+            .match_many(
+                &[parent],
+                None,
+                Some(ThroughLookup {
+                    attributes,
+                    limit: 1,
+                    include_trashed,
+                }),
+            )
             .await?
             .pop()
             .and_then(|matches| matches.into_iter().next())
-            .map(|model| {
-                Arc::try_unwrap(model).unwrap_or_else(|model| R::from_state(model.state().clone()))
-            }))
+            .map(owned_model))
     }
 
     async fn match_many(
         &self,
         parents: &[&P],
         mut transaction: Option<&mut Transaction>,
-        lookup: Option<(&Attributes, bool)>,
+        lookup: Option<ThroughLookup<'_>>,
     ) -> DatabaseResult<Vec<Vec<Arc<R>>>> {
         let keys = ParentKeys::new(parents, self.keys.parent)?;
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
@@ -486,7 +523,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                         R::queryOn(&connection).select_relation_columns([projection.as_str()]),
                     )?
                     .apply_default_counts()?;
-                let query = if lookup.is_some_and(|(_, include_trashed)| include_trashed) {
+                let query = if lookup.as_ref().is_some_and(|lookup| lookup.include_trashed) {
                     query.withTrashed()
                 } else {
                     query
@@ -494,8 +531,10 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let join = self.join(&query, None, &connection)?;
                 let query = self.select_one(query, &join, &connection)?;
                 let mut query = query.restrict_relation(&join.match_key, batch);
-                if let Some((attributes, _)) = lookup {
-                    query = query.restrict_relation_attributes(attributes).limit(1);
+                if let Some(lookup) = &lookup {
+                    query = query
+                        .restrict_relation_attributes(lookup.attributes)
+                        .limit(lookup.limit);
                 }
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();

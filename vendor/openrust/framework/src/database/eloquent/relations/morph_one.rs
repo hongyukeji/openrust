@@ -160,6 +160,8 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.findOrNew(parent, key).await
     }
 
+    super::lookup::relation_lookup!(.0.0);
+
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,

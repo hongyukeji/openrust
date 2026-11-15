@@ -185,6 +185,8 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         self.0.findOrNew(parent, key).await
     }
 
+    super::lookup::relation_lookup!(.0);
+
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn firstOrNew<'a>(
         &self,

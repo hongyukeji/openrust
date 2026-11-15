@@ -174,11 +174,22 @@ impl<P: Model, R: Model> HasMany<P, R> {
     /// Finds the related primary key or prepares an unsaved child for this parent.
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
-        match self.lookup(parent, &keys, false)?.first().await? {
+        match self.find(parent, key).await? {
             Some(model) => Ok(model),
             None => self.make(parent, Attributes::new()).await,
         }
+    }
+
+    super::lookup::relation_lookup!();
+
+    pub(super) async fn lookup_models(
+        &self,
+        parent: &P,
+        keys: &Attributes,
+        limit: u64,
+    ) -> DatabaseResult<Vec<R>> {
+        let collection = self.lookup(parent, keys, false)?.limit(limit).get().await?;
+        Ok(collection.into_parts().0)
     }
 
     /// Creates a child with an initial counter or increments a matching child.

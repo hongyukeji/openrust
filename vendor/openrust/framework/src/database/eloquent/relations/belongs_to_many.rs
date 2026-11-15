@@ -74,6 +74,7 @@ impl From<Attributes> for RelatedValues<'_> {
 #[derive(Clone, Copy)]
 struct RelatedLookup<'a> {
     attributes: &'a Attributes,
+    limit: u64,
     use_writer: bool,
     include_trashed: bool,
 }
@@ -511,16 +512,33 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
     /// Finds an attached primary key or returns an unsaved model.
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
-        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
+        match self.find(parent, key).await? {
+            Some(model) => Ok(model),
+            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
+        }
+    }
+
+    super::lookup::relation_lookup!();
+
+    async fn lookup_models(
+        &self,
+        parent: &P,
+        keys: &Attributes,
+        limit: u64,
+    ) -> DatabaseResult<Vec<R>> {
         let lookup = RelatedLookup {
-            attributes: &keys,
+            attributes: keys,
+            limit,
             use_writer: false,
             include_trashed: false,
         };
-        match self.find_attached(parent, lookup).await? {
-            Some(model) => Ok(owned_model(model)),
-            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
-        }
+        let mut groups = self.match_many(&[parent], None, Some(lookup)).await?;
+        Ok(groups
+            .pop()
+            .unwrap_or_default()
+            .into_iter()
+            .map(owned_model)
+            .collect())
     }
 
     /// Finds an attached model, attaches an existing match, or creates a new model.
@@ -632,6 +650,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         self.owner(parent)?;
         let lookup = RelatedLookup {
             attributes: &attributes,
+            limit: 1,
             use_writer: false,
             include_trashed,
         };
@@ -716,6 +735,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
 
         let lookup = RelatedLookup {
             attributes: &attributes,
+            limit: 1,
             use_writer: true,
             include_trashed,
         };
@@ -1875,7 +1895,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                 if let Some(lookup) = lookup {
                     query = query
                         .restrict_relation_attributes(lookup.attributes)
-                        .limit(1);
+                        .limit(lookup.limit);
                     if lookup.include_trashed {
                         query = query.withTrashed();
                     }

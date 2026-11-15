@@ -219,6 +219,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/keyed", keyed_page)?;
     Route::get("/keyed-pivot", keyed_pivot_page)?;
     Route::get("/relation-find", find_related_or_new)?;
+    Route::get("/relation-lookup", relation_lookup)?;
     Ok(())
 }
 
@@ -597,6 +598,123 @@ fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
                 "through": id(through.getKey()),
                 "attached": id(attached.getKey()),
                 "pivot_owner": id(pivot.getAttribute("owner_id")),
+            }),
+        )
+    })
+}
+
+fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.query(Some("mode"))?.unwrap_or_default();
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let children = HasMany::<Article, Comment>::new("id", "article_id");
+        let labels = labels();
+        match mode.as_str() {
+            Some("missing") => {
+                return match labels.findSole(&parent, 4_i64).await {
+                    Err(openrust::database::DatabaseError::ModelNotFound("pagination_labels")) => {
+                        Err(HttpError::NotFound)
+                    }
+                    outcome => panic!("expected not found, found a model: {}", outcome.is_ok()),
+                };
+            }
+            Some("duplicate") => {
+                return match labels.findSole(&parent, 2_i64).await {
+                    Err(openrust::database::DatabaseError::MultipleModelsFound {
+                        table: "pagination_labels",
+                        count: 2,
+                    }) => Response::json(StatusCode::CONFLICT, json!({"matches":2})),
+                    outcome => panic!(
+                        "expected duplicate rows, found a model: {}",
+                        outcome.is_ok()
+                    ),
+                };
+            }
+            _ => {}
+        }
+
+        let hit = children
+            .findOr(&parent, 11_i64, || async {
+                panic!("matching row must suppress fallback");
+            })
+            .await
+            .map_err(internal)?;
+        let draft = children
+            .findOr(&parent, 14_i64, || async {
+                children.make(&parent, Attributes::new()).await
+            })
+            .await
+            .map_err(internal)?;
+        assert!(!draft.state().exists());
+        assert_eq!(id(draft.getAttribute("article_id")), 1);
+        assert!(
+            children
+                .find(&parent, 14_i64)
+                .await
+                .map_err(internal)?
+                .is_none()
+        );
+        assert!(matches!(
+            children.findOrFail(&parent, 14_i64).await,
+            Err(openrust::database::DatabaseError::ModelNotFound(_))
+        ));
+        assert!(matches!(
+            children.sole(&parent).await,
+            Err(openrust::database::DatabaseError::MultipleModelsFound { count: 2, .. })
+        ));
+        let first = children
+            .firstOr(&parent, || async {
+                panic!("nonempty relation must suppress fallback");
+            })
+            .await
+            .map_err(internal)?;
+        assert_eq!(id(first.getAttribute("article_id")), 1);
+        let broken = HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
+            query.r#where("pagination_comments.does_not_exist", "=", 1);
+            query
+        });
+        assert!(
+            broken
+                .findOr(&parent, 11_i64, || async {
+                    panic!("query failure must suppress fallback");
+                })
+                .await
+                .is_err()
+        );
+        let through = REACTIONS
+            .findSole(&parent, 103_i64)
+            .await
+            .map_err(internal)?;
+        let attached = labels.findSole(&parent, 2_i64).await.map_err(internal)?;
+        assert!(attached.getRelation::<Pivot>("pivot").is_some());
+        let empty = children.constrain(|mut query| {
+            query.r#where("id", "<", 0);
+            query
+        });
+        let no_rows = empty
+            .firstOr(&parent, || async {
+                Err(openrust::database::DatabaseError::InvalidQuery(
+                    "fallback error",
+                ))
+            })
+            .await;
+        assert!(matches!(
+            no_rows,
+            Err(openrust::database::DatabaseError::InvalidQuery(
+                "fallback error"
+            ))
+        ));
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "hit": id(hit.getKey()),
+                "through": id(through.getKey()),
+                "attached": id(attached.getKey()),
             }),
         )
     })
@@ -1273,6 +1391,25 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     ] {
         assert_eq!(connection.table(table).count("*").await?, count);
     }
+
+    let selected = request(address, "/api/relation-lookup").await;
+    assert_eq!(selected, json!({"hit": 11, "through": 103, "attached": 2}));
+    request_with_status(address, "/api/relation-lookup?mode=missing", 404).await;
+    connection
+        .statement(
+            "INSERT INTO pagination_memberships VALUES (206, 1, 2, 'article', 'duplicate', 4)",
+            &[],
+        )
+        .await?;
+    let duplicate = request_with_status(address, "/api/relation-lookup?mode=duplicate", 409).await;
+    assert_eq!(
+        serde_json::from_str::<Json>(&duplicate).unwrap(),
+        json!({"matches":2})
+    );
+    connection
+        .statement("DELETE FROM pagination_memberships WHERE id = 206", &[])
+        .await?;
+    assert_eq!(request(address, "/api/relation-lookup").await, selected);
 
     let length = request(address, "/api/keyed").await;
     assert_eq!(length["total"], 5);
