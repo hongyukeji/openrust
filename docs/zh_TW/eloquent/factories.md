@@ -1049,6 +1049,16 @@ fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+巴西地址以郵遞區號開頭，第二行包含州縮寫。可用 `region()` 和 `regionAbbr()` 抽取巴西五大區及其縮寫，也支援 `unique()`。葡萄牙地址使用固定城市詞表，郵遞區號有四位和七位兩種格式，門牌和樓層可選。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("pt-BR"))?.address(), fake(Some("pt-PT"))?.address()])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

@@ -1500,3 +1500,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、102 项 Faker、49 项 Se
 隔离基线 `752513dc`。PHP 反射逐项核对 47 份有序词表及模板。按同一规则匹配 512 个固定 PHP 样本及真实 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读的 516 行，含三语共用示例。回归覆盖地区专用布局、自治区唯一值耗尽和无效地区。对照固定 Laravel Factory 及其测试复验 `makeOne`、`makeMany` 和 `lazy`。工厂预构造保持零写入，默认批次数量取用后重置，延迟创建随异步执行写入。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L365)
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、103 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、根路径及 /docs/ 下的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对葡萄牙语 Address。
+
+## 巴西和葡萄牙地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [巴西](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_BR/Address.php) 和 [葡萄牙](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_PT/Address.php) Address。巴西保留地址首行邮编、第二行州缩写、五大区及其缩写。葡萄牙保留完整城市词表、两种邮编长度和三种街道布局。Rust 复用固定模板展开逻辑，按原序抽样，regionAbbr 返回 Result 并支持 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `61fb010f`。PHP 反射核对 26 份有序词表和模板，256 个固定 PHP 样本均符合预期。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖葡萄牙两种邮编、三种街道布局及巴西大区缩写唯一值耗尽。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、104 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对意大利和瑞士意大利语 Address。

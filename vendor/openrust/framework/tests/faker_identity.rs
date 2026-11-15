@@ -4534,3 +4534,33 @@ fn spanish_address_providers_keep_inherited_fields_and_local_layouts() {
     }
     assert!(fake(Some("en-US")).unwrap().community().is_err());
 }
+
+#[test]
+fn portuguese_address_providers_keep_local_postcodes_and_regions() {
+    let br = fake(Some("pt-BR")).unwrap();
+    let pt = fake(Some("pt-PT")).unwrap();
+    let brazil = Regex::new(
+        r"^[0-9]{5}-[0-9]{3}, [^\n]+, [1-9][0-9]{0,4}(?:\. [^\n]+)?\n[^\n]+ - [A-Z]{2}$",
+    )
+    .unwrap();
+    let portugal = Regex::new(r"^[1-9][0-9]{2}[01459](?:-[0-9]{3})?$").unwrap();
+    let mut portugal_postcodes = [false; 2];
+    let mut portugal_streets = [false; 3];
+    for _ in 0..128 {
+        assert!(brazil.is_match(&br.address()));
+        let postcode = pt.postcode();
+        assert!(portugal.is_match(&postcode));
+        portugal_postcodes[usize::from(postcode.contains('-'))] = true;
+        let street = pt.streetAddress();
+        portugal_streets[street.matches(", ").count()] = true;
+    }
+    assert_eq!(portugal_postcodes, [true; 2]);
+    assert_eq!(portugal_streets, [true; 3]);
+    let abbreviations = ["N", "NE", "CO", "SE", "S"];
+    let unique = br.unique(true);
+    for _ in abbreviations {
+        assert!(abbreviations.contains(&unique.regionAbbr().unwrap()));
+    }
+    assert!(unique.regionAbbr().is_err());
+    assert!(pt.regionAbbr().is_err());
+}

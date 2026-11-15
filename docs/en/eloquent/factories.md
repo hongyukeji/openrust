@@ -1049,6 +1049,16 @@ fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+Brazilian addresses place the postcode first and include the state abbreviation on the second line. Use `region()` and `regionAbbr()` for the five Brazilian regions, including through `unique()`. Portuguese addresses use the pinned city list, four- or seven-digit postcodes, and optional building and floor details.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("pt-BR"))?.address(), fake(Some("pt-PT"))?.address()])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
