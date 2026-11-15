@@ -1900,6 +1900,40 @@ async fn contextual_sequence<M: Model, P: Model>(
 }
 ```
 
+用 `sequenceEntries` 在同一循環中混合屬性映射和 `FactorySequence::resolve` 回呼。選中的回呼接收從零累計的 `position.index`、項目數 `position.count`、目前屬性及選用的型別化父模型。`forEachSequenceEntries` 將批次數量設為項目數，`sequenceEntries` 保留原數量。空清單不會加入狀態，傳給 `forEachSequenceEntries` 時批次數量為零。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult, Value,
+    eloquent::{Attributes, Model, factories::{Factory, FactorySequence}},
+};
+
+async fn mixed_sequence<M: Model, P: Model>(
+    connection: &Connection,
+    parent: &P,
+) -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(Attributes::new)
+        .set("label", "earlier")
+        .forEachSequenceEntries(vec![
+            Attributes::from([("label".into(), "fixed".into())]).into(),
+            FactorySequence::resolve::<P>(|position, attributes, parent| {
+                assert_eq!(position.count, 2);
+                assert_eq!(attributes["label"], Value::from("earlier"));
+                let suffix = if parent.is_some() { "parent" } else { "standalone" };
+                Attributes::from([(
+                    "label".into(),
+                    format!("{}-{suffix}", position.index).into(),
+                )])
+            }),
+        ]);
+    let models = batch.createWithParentOn(connection, parent, Attributes::new()).await?;
+    assert_eq!(models.len(), 2);
+    assert_eq!(models[0].getAttribute("label"), Some(&"fixed".into()));
+    assert_eq!(models[1].getAttribute("label"), Some(&"1-parent".into()));
+    Ok(())
+}
+```
+
 在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insertOn(connection, attributes)` 指定連線。工廠會執行 `afterMaking` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `afterCreating`。寫入前，工廠透過讀取存取器和序列化轉換投影屬性，仍依可見清單篩選，包含符合條件的隱藏欄位並略過追加欄位。插入建構器接著重新套用修改器與寫入轉換。Rust 投影保留資料庫值型別，包含二進位資料。
 
 ```rust

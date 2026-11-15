@@ -313,6 +313,51 @@ impl<M: Model> From<Vec<Attributes>> for FactoryPivot<M> {
     }
 }
 
+/// The position and length seen by an entry in a factory sequence.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FactorySequencePosition {
+    pub index: usize,
+    pub count: usize,
+}
+
+type SequenceResolver = dyn Fn(FactorySequencePosition, &Attributes, Option<&FactoryParentModel>) -> Attributes
+    + Send
+    + Sync;
+
+/// An attribute map or a contextual callback in a factory sequence.
+pub struct FactorySequence(SequenceEntry);
+
+enum SequenceEntry {
+    Attributes(Attributes),
+    Resolve(Box<SequenceResolver>),
+}
+
+impl FactorySequence {
+    /// Creates an entry that can read the sequence, current attributes and typed parent.
+    pub fn resolve<P: Model>(
+        callback: impl Fn(FactorySequencePosition, &Attributes, Option<&P>) -> Attributes
+        + Send
+        + Sync
+        + 'static,
+    ) -> Self {
+        Self(SequenceEntry::Resolve(Box::new(
+            move |position, attributes, parent| {
+                callback(
+                    position,
+                    attributes,
+                    parent.and_then(|parent| parent.downcast_ref::<P>()),
+                )
+            },
+        )))
+    }
+}
+
+impl From<Attributes> for FactorySequence {
+    fn from(attributes: Attributes) -> Self {
+        Self(SequenceEntry::Attributes(attributes))
+    }
+}
+
 /// Selects the records to create with an Eloquent factory.
 #[derive(Default)]
 pub enum FactoryRecords {
@@ -613,16 +658,35 @@ impl<M: Model> Factory<M> {
         })
     }
 
+    /// Cycles through attribute maps and contextual callbacks in declaration order.
+    #[must_use]
+    pub fn sequenceEntries(mut self, entries: Vec<FactorySequence>) -> Self {
+        let count = entries.len();
+        if count == 0 {
+            return self;
+        }
+        let index = AtomicUsize::new(0);
+        self.states.push(Box::new(move |attributes, _, parent| {
+            let index = index.fetch_add(1, Ordering::Relaxed);
+            Ok(match &entries[index % count].0 {
+                SequenceEntry::Attributes(values) => values.clone(),
+                SequenceEntry::Resolve(callback) => {
+                    callback(FactorySequencePosition { index, count }, attributes, parent)
+                }
+            })
+        }));
+        self
+    }
+
+    /// Sets the pending batch size to the number of mixed sequence entries.
+    pub fn forEachSequenceEntries(self, entries: Vec<FactorySequence>) -> FactoryBatch<M> {
+        let count = entries.len();
+        self.sequenceEntries(entries).count(count)
+    }
+
     /// Sets a sequence of attribute maps and makes the batch as long as the sequence.
     pub fn forEachSequence(self, states: Vec<Attributes>) -> FactoryBatch<M> {
-        let count = states.len();
-        self.sequence(move |index| {
-            index
-                .checked_rem(count)
-                .map(|offset| states[offset].clone())
-                .unwrap_or_default()
-        })
-        .count(count)
+        self.forEachSequenceEntries(states.into_iter().map(FactorySequence::from).collect())
     }
 
     /// Cycles through combinations in declaration order without allocating the product.
@@ -1977,6 +2041,18 @@ impl<M: Model> FactoryBatch<M> {
         sequence: impl Fn(usize, &Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         self.map_factory(|factory| factory.sequenceWithParent(sequence))
+    }
+
+    /// Appends a mixed sequence without changing the pending count.
+    #[must_use]
+    pub fn sequenceEntries(self, entries: Vec<FactorySequence>) -> Self {
+        self.map_factory(|factory| factory.sequenceEntries(entries))
+    }
+
+    /// Replaces the pending batch size with the number of mixed entries.
+    #[must_use]
+    pub fn forEachSequenceEntries(self, entries: Vec<FactorySequence>) -> Self {
+        self.factory.forEachSequenceEntries(entries)
     }
 
     /// Sets the pending batch size to the sequence length.

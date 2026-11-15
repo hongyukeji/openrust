@@ -1775,3 +1775,15 @@ Rust 以 sequenceWithState 和 sequenceWithParent 延续类型化闭包接口。
 隔离基线 `eb3f1ae8`。56 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归和全工作区全目标严格 Clippy 通过。双库验证直接父模型、HasMany 和 BelongsToMany 上下文、前序属性、后续覆盖、连续索引及批次数量。Rust 1.94.0 格式检查通过，基线 Sanctum 格式差异仅在隔离副本处理。
 
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并执行三语共用示例，按主键回读 `owner`、`item-0-parent`、`item-1-parent`。Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 与独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 继续对账剩余 Faker 扩展和工厂序列条目组合。
+
+## 工厂混合序列条目
+
+对照固定 Laravel Sequence::__invoke 和 Factory::forEachSequence。PHP 8.5 探针运行固定 Sequence，读取混合映射和闭包，并核对重复周期、递增索引、父模型和条目计数。v0.x 的查询工厂没有此机制，固定 Goravel 继续作为编译式装配参考。
+
+Rust 以 FactorySequence 表达静态映射和类型化闭包。sequenceEntries 保留原批次设置，forEachSequenceEntries 按条目数设置批次。回调读取绝对索引、条目数、当前属性和相应类型的可选父模型。条目在原状态顺序点执行，计数工厂复用同一状态。空条目不追加状态，计数入口产生零条；这沿用 Rust 现有空映射序列的行为。Laravel 的序列对象由回调接收，Rust 提供只读的位置与条目数量，并在并行运行前分配索引。
+
+固定源码 https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Sequence.php#L55 和 https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L636 。
+
+隔离基线 `7bd5a0b0`。MySQL 与 SQLite 验证预构造、持久化和原始属性调用连续推进，静态与回调条目轮换，空列表保留或清零批次。Rust 1.94.0 格式和工作区全目标严格 Clippy、56 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，按主键回读 `owner`、`fixed`、`1-parent`。Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 5.0 GiB 和独占站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 下一批回到 Faker DateTime、Version、File 扩展及具名 formatter 剩余对账。

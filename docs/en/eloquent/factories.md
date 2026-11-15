@@ -1900,6 +1900,40 @@ async fn contextual_sequence<M: Model, P: Model>(
 }
 ```
 
+Use `sequenceEntries` to mix attribute maps and `FactorySequence::resolve` callbacks in one cycle. The selected callback receives the absolute zero-based `position.index`, the entry count as `position.count`, the current attributes, and the optional typed parent. `forEachSequenceEntries` sets the batch size to the number of entries. `sequenceEntries` keeps the existing size. An empty list leaves the states unchanged and sets the size to zero only when passed to `forEachSequenceEntries`.
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult, Value,
+    eloquent::{Attributes, Model, factories::{Factory, FactorySequence}},
+};
+
+async fn mixed_sequence<M: Model, P: Model>(
+    connection: &Connection,
+    parent: &P,
+) -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(Attributes::new)
+        .set("label", "earlier")
+        .forEachSequenceEntries(vec![
+            Attributes::from([("label".into(), "fixed".into())]).into(),
+            FactorySequence::resolve::<P>(|position, attributes, parent| {
+                assert_eq!(position.count, 2);
+                assert_eq!(attributes["label"], Value::from("earlier"));
+                let suffix = if parent.is_some() { "parent" } else { "standalone" };
+                Attributes::from([(
+                    "label".into(),
+                    format!("{}-{suffix}", position.index).into(),
+                )])
+            }),
+        ]);
+    let models = batch.createWithParentOn(connection, parent, Attributes::new()).await?;
+    assert_eq!(models.len(), 2);
+    assert_eq!(models[0].getAttribute("label"), Some(&"fixed".into()));
+    assert_eq!(models[1].getAttribute("label"), Some(&"1-parent".into()));
+    Ok(())
+}
+```
+
 Use `insert(attributes)` on a single or counted factory to bulk-insert the generated rows, or `insertOn(connection, attributes)` to select the connection explicitly. The factory runs `afterMaking` and resolves any required parent keys. The bulk write skips target model persistence events, child creation and `afterCreating`. Before writing, the factory projects attributes through read accessors and serialization casts, includes hidden attributes subject to the visible allowlist, and skips appended attributes. The insert builder then reapplies setters and write casts. Rust keeps typed database values during this projection, including binary data.
 
 ```rust

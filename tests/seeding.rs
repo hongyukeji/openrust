@@ -21,7 +21,7 @@ use openrust::{
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             factories::{
                 Factory, FactoryDefinition, FactoryParentSelector, FactoryPivot, FactoryRecords,
-                Faker, FakerProvider, HasFactory, fake,
+                FactorySequence, Faker, FakerProvider, HasFactory, fake,
             },
             relations::{BelongsTo, MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
@@ -4384,6 +4384,51 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
         Some(&"step-4-none".into())
     );
 
+    let mixed = Factory::<ExpansionChild>::new(move || label("earlier"))
+        .count(9)
+        .forEachSequenceEntries(vec![
+            label("fixed").into(),
+            FactorySequence::resolve::<ExpansionOwner>(|position, attributes, parent| {
+                assert_eq!(position.count, 2);
+                assert_eq!(attributes["label"], "earlier".into());
+                let owner = if parent.is_some_and(|model| model.state().exists()) {
+                    "saved"
+                } else {
+                    "none"
+                };
+                Attributes::from([(
+                    "label".into(),
+                    format!("mixed-{}-{owner}", position.index).into(),
+                )])
+            }),
+        ])
+        .sequenceEntries(vec![]);
+    assert_eq!(
+        mixed
+            .makeOneOn(connection, Attributes::new())
+            .await?
+            .getAttribute("label"),
+        Some(&"fixed".into())
+    );
+    let models = mixed
+        .createWithParentOn(connection, &parent, Attributes::new())
+        .await?;
+    assert_eq!(models.len(), 2);
+    assert_eq!(
+        models[0].getAttribute("label"),
+        Some(&"mixed-1-saved".into())
+    );
+    assert_eq!(models[1].getAttribute("label"), Some(&"fixed".into()));
+    let rows = mixed.rawOn(connection).await?;
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0]["label"], "mixed-3-none".into());
+    assert_eq!(rows[1]["label"], "fixed".into());
+
+    let empty = Factory::<ExpansionChild>::new(|| panic!("zero count evaluated the definition"))
+        .count(3)
+        .forEachSequenceEntries(vec![]);
+    assert!(empty.rawOn(connection).await?.is_empty());
+
     let relation = openrust::database::eloquent::relations::BelongsToMany::<
         ExpansionOwner,
         ExpansionChild,
@@ -4416,6 +4461,8 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
             "6".into(),
             "step-1-saved".into(),
             "step-2-saved".into(),
+            "mixed-1-saved".into(),
+            "fixed".into(),
             Value::Null,
             Value::Null
         ]
