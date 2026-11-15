@@ -2097,4 +2097,29 @@ fn attach_with_pivot_count<P: Model, R: Model>(
 }
 ```
 
+中介資料表的屬性映射可以包含結構化值。JSON 欄位可在共用映射或逐筆映射中傳入 `Value::Json`。透過自訂 Pivot 模型讀取此欄位時，在 `withPivot` 中選取該欄，並為它宣告 JSON 轉換。
+
+```rust
+use openrust::database::{
+    Value,
+    eloquent::{Attributes, Model, factories::Factory, relations::BelongsToMany},
+};
+use serde_json::json;
+
+fn attach_json_pivots<P: Model, R: Model>(
+    owners: Factory<P>,
+    members: Factory<R>,
+    relation: BelongsToMany<P, R>,
+) -> Factory<P> {
+    owners.hasAttached(
+        relation.withPivot(["meta"]),
+        members,
+        vec![
+            Attributes::from([("meta".into(), Value::Null)]),
+            Attributes::from([("meta".into(), Value::Json(json!({"roles": ["editor"]})))]),
+        ],
+    )
+}
+```
+
 可傳入既有模型、模型清單或 Eloquent 集合，直接附加這些模型。模型必須已持久化、具有關聯所需的鍵，並屬於該關聯使用的連線。目標無效時，會在寫入這次附加的中介資料表記錄前回傳錯誤。

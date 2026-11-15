@@ -2097,4 +2097,29 @@ fn attach_with_pivot_count<P: Model, R: Model>(
 }
 ```
 
+中间表属性映射可以包含结构化值。JSON 字段可在共享映射或逐条映射中传入 `Value::Json`。通过自定义 Pivot 模型读取此字段时，在 `withPivot` 中选择该列，并为它声明 JSON 转换。
+
+```rust
+use openrust::database::{
+    Value,
+    eloquent::{Attributes, Model, factories::Factory, relations::BelongsToMany},
+};
+use serde_json::json;
+
+fn attach_json_pivots<P: Model, R: Model>(
+    owners: Factory<P>,
+    members: Factory<R>,
+    relation: BelongsToMany<P, R>,
+) -> Factory<P> {
+    owners.hasAttached(
+        relation.withPivot(["meta"]),
+        members,
+        vec![
+            Attributes::from([("meta".into(), Value::Null)]),
+            Attributes::from([("meta".into(), Value::Json(json!({"roles": ["editor"]})))]),
+        ],
+    )
+}
+```
+
 可以传入已有模型、模型列表或 Eloquent 集合，直接附加这些模型。模型必须已持久化、具有关系所需的键，并属于该关系使用的连接。目标无效时，在写入本次附加的中间表记录前返回错误。

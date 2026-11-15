@@ -11,7 +11,7 @@ use openrust::{
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState, NamedRelations,
             factories::{Factory, FactoryRecords},
-            relations::{BelongsTo, BelongsToMany, HasMany, HasOne, Pivot, Relation},
+            relations::{BelongsTo, BelongsToMany, HasMany, HasOne, MorphMany, Pivot, Relation},
         },
     },
 };
@@ -122,7 +122,7 @@ async fn verify(config: Json, id: &str) {
     for query in [
         format!("CREATE TABLE factory_authors (id {id}, name VARCHAR(80) NOT NULL)"),
         format!(
-            "CREATE TABLE factory_entries (id {id}, author_id BIGINT NOT NULL, name VARCHAR(80) NOT NULL)"
+            "CREATE TABLE factory_entries (id {id}, author_id BIGINT NOT NULL, name VARCHAR(80) NOT NULL, owner_type VARCHAR(40) NULL)"
         ),
     ] {
         connection.statement(&query, &[]).await.unwrap();
@@ -447,12 +447,78 @@ async fn verify(config: Json, id: &str) {
     assert!(opted_in[0].relationLoaded("all_entries"));
 
     verify_final_state(&connection).await;
+    verify_child_relation_defaults(&connection).await;
 
     for table in ["factory_links", "factory_entries", "factory_authors"] {
         connection
             .statement(&format!("DROP TABLE {table}"), &[])
             .await
             .unwrap();
+    }
+}
+
+async fn verify_child_relation_defaults(connection: &Connection) {
+    let named = |name: &str| Attributes::from([("name".into(), name.into())]);
+    let one = || {
+        HasOne::<Author, Entry>::new("id", "author_id")
+            .constrain(move |query| query.withAttributes(named("one default"), false))
+    };
+    let morph = || {
+        MorphMany::<Author, Entry>::new("id", "author_id", "owner_type", "author")
+            .constrain(move |query| query.withAttributes(named("morph default"), false))
+    };
+
+    for overridden in [false, true] {
+        let owner = authors()
+            .has(
+                one(),
+                if overridden {
+                    entries().state(move |attributes| {
+                        assert_eq!(attributes["name"], "one default".into());
+                        named("one override")
+                    })
+                } else {
+                    entries()
+                },
+            )
+            .has(
+                morph(),
+                if overridden {
+                    entries().state(move |attributes| {
+                        assert_eq!(attributes["name"], "morph default".into());
+                        named("morph override")
+                    })
+                } else {
+                    entries()
+                }
+                .count(2),
+            )
+            .createOn(connection)
+            .await
+            .unwrap();
+        let rows = connection
+            .table("factory_entries")
+            .r#where("author_id", "=", owner.getKey().unwrap().clone())
+            .orderBy("id", "asc")
+            .get()
+            .await
+            .unwrap();
+        let names = if overridden {
+            ["one override", "morph override", "morph override"]
+        } else {
+            ["one default", "morph default", "morph default"]
+        };
+        assert_eq!(rows.len(), 3);
+        for (row, (name, kind)) in
+            rows.iter().zip(
+                names
+                    .into_iter()
+                    .zip([Value::Null, "author".into(), "author".into()]),
+            )
+        {
+            assert_eq!(row.get("name"), Some(&name.into()));
+            assert_eq!(row.get("owner_type"), Some(&kind));
+        }
     }
 }
 

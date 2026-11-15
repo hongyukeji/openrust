@@ -5342,7 +5342,7 @@ macro_rules! pivot_model {
 fn pivot_members() -> PivotMembers {
     PivotMembers::new("factory_touch_pivot", "owner_id", "member_id", "id", "id")
         .using::<CustomFactoryPivot>()
-        .withPivot(["label"])
+        .withPivot(["label", "meta"])
 }
 
 pivot_model!(
@@ -5364,10 +5364,13 @@ pivot_model!(
     ModelMetadata::new("unused_factory_pivot")
         .incrementing(false)
         .timestamps(None, None),
+    fn casts() -> &'static [(&'static str, AttributeCast)] {
+        &[("meta", AttributeCast::Json)]
+    }
 );
 
 async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
-    use openrust::database::eloquent::RelatedCollection;
+    use openrust::database::eloquent::{RelatedCollection, relations::Relation as _};
 
     const OLD: &str = "2000-01-01 00:00:00";
     let mut schema = db.getSchemaBuilder();
@@ -5387,6 +5390,7 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
             table.unsignedBigInteger("owner_id");
             table.unsignedBigInteger("member_id");
             table.string("label", 32);
+            table.json("meta").nullable();
         })
         .await?;
     let member = || Factory::<PivotMember>::new(Attributes::new).set("updated_at", OLD);
@@ -5441,7 +5445,10 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
         .hasAttachedNamed::<PivotMember, PivotMembers>(
             "members",
             member(),
-            Attributes::from([("label".into(), "new".into())]),
+            Attributes::from([
+                ("label".into(), "new".into()),
+                ("meta".into(), Value::Json(json!({"shared": true}))),
+            ]),
         )
         .createOn(db)
         .await?;
@@ -5450,7 +5457,50 @@ async fn verify_factory_pivot_touch(db: &Connection) -> DatabaseResult<()> {
         .unwrap();
     assert_eq!(members.len(), 1);
     assert_ne!(members[0].getAttribute("updated_at"), Some(&OLD.into()));
-    assert_eq!(db.table("factory_touch_pivot").count("*").await?, 3);
+    let pivot = members[0]
+        .getRelation::<CustomFactoryPivot>("pivot")
+        .unwrap();
+    assert_eq!(
+        pivot.getAttributeValue("meta")?,
+        Some(Value::Json(json!({"shared": true})))
+    );
+    let before = db.table("factory_touch_members").count("*").await?;
+    let generated = Factory::<PivotOwner>::new(Attributes::new)
+        .hasAttachedNamed::<PivotMember, PivotMembers>(
+            "members",
+            member(),
+            vec![
+                Attributes::from([
+                    ("label".into(), "plain".into()),
+                    ("meta".into(), Value::Null),
+                ]),
+                Attributes::from([
+                    ("label".into(), "nested".into()),
+                    ("meta".into(), Value::Json(json!({"foo": ["bar", 2]}))),
+                ]),
+            ],
+        )
+        .createOn(db)
+        .await?;
+    let members = pivot_members().getResults(&generated).await?;
+    let mut meta = BTreeMap::new();
+    for member in members.iter() {
+        let pivot = member.getRelation::<CustomFactoryPivot>("pivot").unwrap();
+        let Some(Value::Text(label)) = pivot.getAttribute("label") else {
+            panic!("expected a pivot label");
+        };
+        meta.insert(label.clone(), pivot.getAttributeValue("meta")?);
+    }
+    assert_eq!(meta["plain"], Some(Value::Null));
+    assert_eq!(
+        meta["nested"],
+        Some(Value::Json(json!({"foo": ["bar", 2]})))
+    );
+    assert_eq!(
+        db.table("factory_touch_members").count("*").await?,
+        before + 2
+    );
+    assert_eq!(db.table("factory_touch_pivot").count("*").await?, 5);
     Ok(())
 }
 

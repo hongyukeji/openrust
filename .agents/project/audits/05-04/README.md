@@ -1681,3 +1681,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 生成器定向用例、49 项 Seeder、2 项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式及工作区严格 Clippy、`./artisan inspire`、三语站点构建和 18 项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。生成与装配探针保留在隔离目录，临时应用接线已恢复，测试容器和独占缓存已清理。
 
 05-04 仍待补验表中列出的组合，先用实际 MySQL 与固定上游验证 JSON Pivot 的共享和逐条映射，再核对关系默认属性及覆盖顺序。
+
+## JSON Pivot 与子关系默认属性
+
+对照固定 Laravel [JSON Pivot 用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L568)、[关系默认属性用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L1067)及[多对多工厂关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#many-to-many-relationships)。Rust 用 `Value::Json` 传递结构化值，`Value::Null` 表达 SQL NULL，自定义 Pivot 由 `withPivot` 选择属性并声明转换。通过 `FactoryChild` 和具名关系装配继续复用现有默认属性、显式状态和关系键的顺序。旧版 `pivot_writes.rs` 已有类型化中间表写入，工厂仍属查询构造。Goravel 的[类型化工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)作为装配参考。
+
+隔离基线 `6e029173`。MySQL 8.4.13 回归验证共享 JSON、逐条属性推断数量、嵌套 JSON、SQL NULL、自定义 Pivot 转换和重新加载。MySQL 与 SQLite 工厂回归新增 HasOne 和 MorphMany 各自的默认值与覆盖路径，核对最终外键及多态标识。49 项 Seeder、两项双库工厂回归、Rust 1.94.0 格式及全工作区全目标严格 Clippy 通过。既有 Sanctum 格式差异仅在隔离副本处理。
+
+实际 `main artisan db:seed --database=mysql --force` 编译并运行三语共用示例。MySQL 按关联键回读四条中间表行，第一组使用逐条映射得到 SQL NULL 和 editor，第二组两条均为 reader。自定义 Pivot 回读与 SQL 一致。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器与本批缓存已清理，磁盘可用 78 GiB。
+
+[用例对照表](test-matrix.md)已更新。下一批核对具名工厂配置回调的移除、推断子关系配合逐条工厂状态，以及回收池不重绑已有子模型。

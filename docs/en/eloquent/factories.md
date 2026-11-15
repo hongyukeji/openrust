@@ -2097,4 +2097,29 @@ fn attach_with_pivot_count<P: Model, R: Model>(
 }
 ```
 
+Pivot maps can include structured values. For JSON columns, pass `Value::Json` in the shared map or in the maps for individual attachments. To read the column through a custom Pivot model, include it in `withPivot` and declare its JSON cast.
+
+```rust
+use openrust::database::{
+    Value,
+    eloquent::{Attributes, Model, factories::Factory, relations::BelongsToMany},
+};
+use serde_json::json;
+
+fn attach_json_pivots<P: Model, R: Model>(
+    owners: Factory<P>,
+    members: Factory<R>,
+    relation: BelongsToMany<P, R>,
+) -> Factory<P> {
+    owners.hasAttached(
+        relation.withPivot(["meta"]),
+        members,
+        vec![
+            Attributes::from([("meta".into(), Value::Null)]),
+            Attributes::from([("meta".into(), Value::Json(json!({"roles": ["editor"]})))]),
+        ],
+    )
+}
+```
+
 Pass an existing model, a vector of models, or an Eloquent collection to attach them without creating new related rows. The models must be persisted, have the related key, and belong to the connection used by the relationship. Invalid targets fail before any pivot row for that attachment is written.
