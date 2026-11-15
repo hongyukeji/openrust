@@ -15,15 +15,17 @@ use openrust::{
     },
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
-    pagination::{Cursor, CursorOptions, PageOptions},
+    pagination::{Cursor, CursorOptions, PageOptions, Paginator},
     routing::RoutingError,
     support::facades::{Lang, Route},
-    view::{ViewData, ViewError},
+    support::{ProviderResult, ServiceProvider},
+    view::{ViewData, ViewError, ViewResult},
 };
 use serde_json::{Value as Json, json};
 use tokio::{
     io::{AsyncReadExt as _, AsyncWriteExt as _},
     net::{TcpListener, TcpStream},
+    task::JoinHandle,
     time::timeout,
 };
 
@@ -414,6 +416,11 @@ fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, Ht
                     page.withQueryString();
                     page.links()
                 }
+                Some("semantic") => query
+                    .paginate(2)
+                    .await
+                    .map_err(internal)?
+                    .linksWith("pagination::semantic-ui", ViewData::new()),
                 Some("custom") => {
                     let page = query.paginate(2).await.map_err(internal)?;
                     page.linksWith(
@@ -725,18 +732,7 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         .await?;
     assert_eq!(latest.total(), 1);
     assert_eq!(id(latest.items()[0].getKey()), 103);
-    let mut kernel = Kernel::new(app);
-    kernel.bootstrap().await.unwrap();
-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let address = listener.local_addr().unwrap();
-    let server = tokio::spawn(async move {
-        axum::serve(
-            listener,
-            transport.with_state(Arc::new(kernel)).into_make_service(),
-        )
-        .await
-        .unwrap();
-    });
+    let (address, server) = serve(app).await;
     let (length, simple) = tokio::join!(
         request(address, "/api/length?articles=2&state=in+review",),
         request(address, "/api/simple?page=3",),
@@ -891,5 +887,150 @@ async fn pagination_on_mysql_and_http() {
     assert!(url.is_some() || std::env::var_os("OPENRUST_REQUIRE_ELOQUENT_MYSQL").is_none());
     if let Some(url) = url {
         verify(json!({"url":url})).await.unwrap();
+    }
+}
+
+async fn serve(app: Application) -> (SocketAddr, JoinHandle<()>) {
+    let mut kernel = Kernel::new(app);
+    kernel.bootstrap().await.unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            transport.with_state(Arc::new(kernel)).into_make_service(),
+        )
+        .await
+        .unwrap();
+    });
+    (address, server)
+}
+
+struct StyleProvider(fn() -> ViewResult<()>);
+
+impl ServiceProvider for StyleProvider {
+    fn boot(&mut self, _: &Application) -> HttpFuture<'_, ProviderResult> {
+        Box::pin(async { Ok(self.0()?) })
+    }
+}
+
+async fn styled_server(
+    style: fn() -> ViewResult<()>,
+) -> (tempfile::TempDir, SocketAddr, JoinHandle<()>) {
+    let base = tempfile::tempdir().unwrap();
+    let views = base.path().join("resources/views");
+    std::fs::create_dir_all(&views).unwrap();
+    std::fs::write(
+        views.join("numbered.blade.html"),
+        "numbered {{ $paginator->total }}",
+    )
+    .unwrap();
+    std::fs::write(
+        views.join("simple.blade.html"),
+        "simple {{ $paginator->next }}",
+    )
+    .unwrap();
+    let mut app = Application::configure(base.path().to_path_buf())
+        .withProviders(vec![Box::new(StyleProvider(style))])
+        .withRouting(Routing::default().api(routes))
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let repository = app.container().get::<dyn Repository>("config").unwrap();
+    repository
+        .set("database.default", json!("pagination"))
+        .unwrap();
+    repository
+        .set(
+            "database.connections.pagination",
+            json!({
+                "driver": "sqlite", "database": ":memory:"
+            }),
+        )
+        .unwrap();
+    let connection = app
+        .make::<DatabaseManager>()
+        .await
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    connection
+        .statement(
+            "CREATE TABLE pagination_articles (id INTEGER PRIMARY KEY)",
+            &[],
+        )
+        .await
+        .unwrap();
+    connection
+        .statement("INSERT INTO pagination_articles VALUES (1), (2), (3)", &[])
+        .await
+        .unwrap();
+    let (address, server) = serve(app).await;
+    (base, address, server)
+}
+
+#[tokio::test]
+async fn pagination_default_styles_are_scoped_to_the_application() {
+    let (_root_v3, v3, server_v3) = styled_server(Paginator::useBootstrapThree).await;
+    let (_root_v4, v4, server_v4) = styled_server(Paginator::useBootstrap).await;
+    let (_root_v5, v5, server_v5) = styled_server(Paginator::useBootstrapFive).await;
+    let (_root_tailwind, tailwind, server_tailwind) = styled_server(|| {
+        Paginator::useBootstrapFour()?;
+        Paginator::useTailwind()
+    })
+    .await;
+    let (_root_custom, custom, server_custom) = styled_server(|| {
+        Paginator::defaultView("numbered")?;
+        Paginator::defaultSimpleView("simple")
+    })
+    .await;
+
+    let (three, four, five, tail, own) = tokio::join!(
+        request_body(v3, "/api/links"),
+        request_body(v4, "/api/links"),
+        request_body(v5, "/api/links"),
+        request_body(tailwind, "/api/links"),
+        request_body(custom, "/api/links"),
+    );
+    assert!(three.contains(r#"class="pagination""#));
+    assert!(three.contains(r#"class="active" aria-current="page""#));
+    assert!(!three.contains("page-link"));
+    assert!(four.contains(r#"class="page-item active" aria-current="page""#));
+    assert!(!four.contains("d-sm-none"));
+    assert!(five.contains("d-sm-none") && five.contains("fw-semibold"));
+    assert!(five.contains(r#"class="page-item active" aria-current="page""#));
+    assert!(tail.contains("rounded-md shadow-sm"));
+    assert_eq!(own, "numbered 3");
+
+    for address in [v3, v4, v5] {
+        let (simple, cursor) = tokio::join!(
+            request_body(address, "/api/links?mode=simple"),
+            request_body(address, "/api/links?mode=cursor"),
+        );
+        assert!(simple.contains(r#"class="pagination""#) && simple.contains("Next »"));
+        assert!(cursor.contains(r#"class="pagination""#) && cursor.contains("cursor="));
+        assert!(!simple.contains("aria-current") && !cursor.contains("aria-current"));
+    }
+    assert_eq!(
+        request_body(custom, "/api/links?mode=simple").await,
+        "simple Next »"
+    );
+    assert_eq!(
+        request_body(custom, "/api/links?mode=cursor").await,
+        "simple Next »"
+    );
+
+    let semantic = request_body(v5, "/api/links?mode=semantic").await;
+    assert!(semantic.contains("ui pagination menu") && semantic.contains("right chevron icon"));
+    assert!(semantic.contains(r#"aria-current="page""#));
+
+    for server in [
+        server_v3,
+        server_v4,
+        server_v5,
+        server_tailwind,
+        server_custom,
+    ] {
+        server.abort();
     }
 }

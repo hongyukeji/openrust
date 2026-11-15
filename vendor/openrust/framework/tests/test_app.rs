@@ -470,3 +470,39 @@ async fn artisan_publishes_directories_and_dispatches_registered_paths()
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn publishes_pagination_templates_and_preserves_overrides()
+-> Result<(), Box<dyn Error + Send + Sync>> {
+    let mut app = TestApp::create(|builder| builder)?;
+    let destination = app.root().join("resources/views/vendor/pagination");
+    app.artisan(["vendor:publish", "--tag=laravel-pagination"])
+        .await
+        .assertSuccessful();
+    for name in [
+        "tailwind",
+        "simple-tailwind",
+        "bootstrap-3",
+        "simple-bootstrap-3",
+        "bootstrap-4",
+        "simple-bootstrap-4",
+        "bootstrap-5",
+        "simple-bootstrap-5",
+        "semantic-ui",
+    ] {
+        let file = destination.join(format!("{name}.blade.html"));
+        assert!(fs::read_to_string(file)?.contains("$paginator->has_pages"));
+    }
+    let file = destination.join("bootstrap-5.blade.html");
+    let original = fs::read(&file)?;
+    fs::write(&file, "my pagination view")?;
+    app.artisan(["vendor:publish", "--tag=laravel-pagination"])
+        .await
+        .assertSuccessful();
+    assert_eq!(fs::read_to_string(&file)?, "my pagination view");
+    app.artisan(["vendor:publish", "--tag=laravel-pagination", "--force"])
+        .await
+        .assertSuccessful();
+    assert_eq!(fs::read(file)?, original);
+    Ok(())
+}

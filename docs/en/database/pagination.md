@@ -91,6 +91,38 @@ fn pagination_navigation<T>(page: &LengthAwarePaginator<T>) -> ViewResult<String
 
 Use `linksWith("articles.navigation", data)` for a custom view, or override the default at `resources/views/vendor/pagination/tailwind.blade.html` or `simple-tailwind.blade.html` in the same directory. Custom views receive `paginator` metadata and, for length-aware pagination, the numbered `elements`. Add `previous` and `next` to `lang/{locale}/pagination.json` to localize navigation and JSON link labels.
 
+## Customizing the Pagination View {#customizing-the-pagination-view}
+
+Set `Paginator::defaultView("articles.navigation")` for numbered pagination and `Paginator::defaultSimpleView("articles.simple-navigation")` for simple and cursor pagination in your application service provider’s `boot` hook. The view defaults apply to the current application. A named view passed to `linksWith` takes precedence.
+
+Use `Paginator::useBootstrapFive()`, `useBootstrapFour()` or `useBootstrapThree()` to select both templates. `useBootstrap()` selects Bootstrap 4, and `useTailwind()` restores the Tailwind defaults. Include the corresponding CSS in your application.
+
+```rust
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    pagination::Paginator,
+    support::{ProviderResult, ServiceProvider},
+};
+
+struct AppServiceProvider;
+
+impl ServiceProvider for AppServiceProvider {
+    fn boot(&mut self, _: &Application) -> HttpFuture<'_, ProviderResult> {
+        Box::pin(async {
+            Paginator::useBootstrapFive()?;
+            Ok(())
+        })
+    }
+}
+```
+
+Select `pagination::semantic-ui` explicitly for numbered Semantic UI links. All nine built-in templates are published to `resources/views/vendor/pagination`. Edit a published template to override the built-in version. Add `--force` to replace existing files.
+
+```bash
+./artisan vendor:publish --tag=laravel-pagination
+```
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.

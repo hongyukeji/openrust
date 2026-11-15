@@ -1,0 +1,16 @@
+@if ($paginator->has_pages)
+<nav aria-label="{{ $paginator->navigation }}">
+<ul class="pagination">
+    @if ($paginator->prev_page_url)
+    <li><a href="{{ $paginator->prev_page_url }}" rel="prev">{{ $paginator->previous }}</a></li>
+    @else
+    <li class="disabled" aria-disabled="true"><span>{{ $paginator->previous }}</span></li>
+    @endif
+    @if ($paginator->next_page_url)
+    <li><a href="{{ $paginator->next_page_url }}" rel="next">{{ $paginator->next }}</a></li>
+    @else
+    <li class="disabled" aria-disabled="true"><span>{{ $paginator->next }}</span></li>
+    @endif
+</ul>
+</nav>
+@endif

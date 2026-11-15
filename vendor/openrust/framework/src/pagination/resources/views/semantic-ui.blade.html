@@ -1,0 +1,23 @@
+@if ($paginator->has_pages)
+<nav class="ui pagination menu" aria-label="{{ $paginator->navigation }}">
+    @if ($paginator->prev_page_url)
+        <a class="icon item" href="{{ $paginator->prev_page_url }}" rel="prev" aria-label="{{ $paginator->previous }}"><i class="left chevron icon" aria-hidden="true"></i></a>
+    @else
+        <span class="icon item disabled" aria-disabled="true" aria-label="{{ $paginator->previous }}"><i class="left chevron icon" aria-hidden="true"></i></span>
+    @endif
+    @foreach ($elements as $element)
+        @if ($element->active)
+            <a class="item active" href="{{ $element->url }}" aria-current="page">{{ $element->label }}</a>
+        @elseif ($element->url)
+            <a class="item" href="{{ $element->url }}">{{ $element->label }}</a>
+        @else
+            <span class="icon item disabled" aria-disabled="true">{{ $element->label }}</span>
+        @endif
+    @endforeach
+    @if ($paginator->next_page_url)
+        <a class="icon item" href="{{ $paginator->next_page_url }}" rel="next" aria-label="{{ $paginator->next }}"><i class="right chevron icon" aria-hidden="true"></i></a>
+    @else
+        <span class="icon item disabled" aria-disabled="true" aria-label="{{ $paginator->next }}"><i class="right chevron icon" aria-hidden="true"></i></span>
+    @endif
+</nav>
+@endif

@@ -91,6 +91,38 @@ fn pagination_navigation<T>(page: &LengthAwarePaginator<T>) -> ViewResult<String
 
 使用 `linksWith("articles.navigation", data)` 指定自訂視圖，也可以在 `resources/views/vendor/pagination/` 下放置 `tailwind.blade.html` 或 `simple-tailwind.blade.html` 覆寫預設視圖。自訂視圖會收到 `paginator` 中繼資料，含總數的分頁還會傳入頁碼 `elements`。在 `lang/{locale}/pagination.json` 設定 `previous` 和 `next`，即可本地化導覽和 JSON 連結標籤。
 
+## 自訂分頁視圖 {#customizing-the-pagination-view}
+
+在應用程式服務提供者的 `boot` 中，用 `Paginator::defaultView("articles.navigation")` 指定帶頁碼的視圖，用 `Paginator::defaultSimpleView("articles.simple-navigation")` 指定簡易和游標分頁的視圖。設定只套用於目前的應用程式。呼叫 `linksWith` 時指定的視圖優先。
+
+用 `Paginator::useBootstrapFive()`、`useBootstrapFour()` 或 `useBootstrapThree()` 同時設定兩類視圖。`useBootstrap()` 選擇 Bootstrap 4，`useTailwind()` 恢復 Tailwind 預設視圖。應用程式需要載入對應的 CSS。
+
+```rust
+use openrust::{
+    foundation::Application,
+    http::HttpFuture,
+    pagination::Paginator,
+    support::{ProviderResult, ServiceProvider},
+};
+
+struct AppServiceProvider;
+
+impl ServiceProvider for AppServiceProvider {
+    fn boot(&mut self, _: &Application) -> HttpFuture<'_, ProviderResult> {
+        Box::pin(async {
+            Paginator::useBootstrapFive()?;
+            Ok(())
+        })
+    }
+}
+```
+
+使用 `pagination::semantic-ui` 可指定 Semantic UI 頁碼視圖。命令將九個內建範本發佈到 `resources/views/vendor/pagination`。修改已發佈的範本即可覆寫內建視圖。加上 `--force` 可覆寫現有檔案。
+
+```bash
+./artisan vendor:publish --tag=laravel-pagination
+```
+
 ## JSON 和分頁連結
 
 當分頁項目實作 Serde 的 `Serialize` 時，可直接序列化分頁器。用 `map` 將資料庫列或 Eloquent 模型轉換為回應項目，保留分頁中繼資料。`withQueryString` 保留篩選條件，`appends` 加入選定參數。連結使用請求相對路徑。

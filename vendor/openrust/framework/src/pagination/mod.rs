@@ -3,6 +3,7 @@
 mod cursor;
 mod cursor_paginator;
 mod length_aware_paginator;
+mod pagination_service_provider;
 mod paginator;
 mod views;
 
@@ -11,6 +12,7 @@ use std::fmt;
 pub use cursor::Cursor;
 pub use cursor_paginator::CursorPaginator;
 pub use length_aware_paginator::LengthAwarePaginator;
+pub(crate) use pagination_service_provider::PaginationServiceProvider;
 pub use paginator::Paginator;
 pub(crate) use views::VIEWS;
 

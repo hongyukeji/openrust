@@ -1,0 +1,25 @@
+@if ($paginator->has_pages)
+<nav aria-label="{{ $paginator->navigation }}">
+<ul class="pagination">
+    @if ($paginator->prev_page_url)
+    <li class="page-item"><a class="page-link" href="{{ $paginator->prev_page_url }}" rel="prev" aria-label="{{ $paginator->previous }}">&lsaquo;</a></li>
+    @else
+    <li class="page-item disabled" aria-disabled="true" aria-label="{{ $paginator->previous }}"><span class="page-link" aria-hidden="true">&lsaquo;</span></li>
+    @endif
+    @foreach ($elements as $element)
+        @if ($element->active)
+            <li class="page-item active" aria-current="page"><span class="page-link">{{ $element->label }}</span></li>
+        @elseif ($element->url)
+            <li class="page-item"><a class="page-link" href="{{ $element->url }}">{{ $element->label }}</a></li>
+        @else
+            <li class="page-item disabled" aria-disabled="true"><span class="page-link">{{ $element->label }}</span></li>
+        @endif
+    @endforeach
+    @if ($paginator->next_page_url)
+    <li class="page-item"><a class="page-link" href="{{ $paginator->next_page_url }}" rel="next" aria-label="{{ $paginator->next }}">&rsaquo;</a></li>
+    @else
+    <li class="page-item disabled" aria-disabled="true" aria-label="{{ $paginator->next }}"><span class="page-link" aria-hidden="true">&rsaquo;</span></li>
+    @endif
+</ul>
+</nav>
+@endif

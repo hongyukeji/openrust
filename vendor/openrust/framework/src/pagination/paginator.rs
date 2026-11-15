@@ -43,7 +43,7 @@ impl<T> Paginator<T> {
     }
 
     pub fn render(&self) -> ViewResult<View> {
-        self.renderWith(super::views::DEFAULT_SIMPLE_VIEW, ViewData::new())
+        self.renderWith(&super::views::DefaultViews::get(true)?, ViewData::new())
     }
 
     pub fn renderWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
@@ -124,6 +124,48 @@ impl<T> Paginator<T> {
         fields.serialize_entry("per_page", &self.perPage())?;
         fields.serialize_entry("prev_page_url", &self.previousPageUrl())?;
         fields.serialize_entry("to", &self.lastItem())
+    }
+}
+
+/// Application-wide view defaults shared by all three paginator types.
+#[allow(
+    non_snake_case,
+    reason = "Matches Laravel's paginator configuration API"
+)]
+impl Paginator<()> {
+    pub fn defaultView(view: impl Into<String>) -> ViewResult<()> {
+        super::views::DefaultViews::configure(Some(view.into()), None)
+    }
+
+    pub fn defaultSimpleView(view: impl Into<String>) -> ViewResult<()> {
+        super::views::DefaultViews::configure(None, Some(view.into()))
+    }
+
+    pub fn useTailwind() -> ViewResult<()> {
+        Self::use_views(
+            super::views::DEFAULT_VIEW,
+            super::views::DEFAULT_SIMPLE_VIEW,
+        )
+    }
+
+    pub fn useBootstrap() -> ViewResult<()> {
+        Self::useBootstrapFour()
+    }
+
+    pub fn useBootstrapThree() -> ViewResult<()> {
+        Self::use_views("pagination::bootstrap-3", "pagination::simple-bootstrap-3")
+    }
+
+    pub fn useBootstrapFour() -> ViewResult<()> {
+        Self::use_views("pagination::bootstrap-4", "pagination::simple-bootstrap-4")
+    }
+
+    pub fn useBootstrapFive() -> ViewResult<()> {
+        Self::use_views("pagination::bootstrap-5", "pagination::simple-bootstrap-5")
+    }
+
+    fn use_views(view: &str, simple: &str) -> ViewResult<()> {
+        super::views::DefaultViews::configure(Some(view.into()), Some(simple.into()))
     }
 }
 

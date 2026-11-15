@@ -37,3 +37,11 @@
 隔离基线 `3eb00e65`。MySQL 8.4.13 与 SQLite 的真实 HTTP 分别验证普通、简易及游标导航、跟随游标链接、单页输出、页码窗口和省略号、带查询参数和片段的链接、并发英文和繁体中文、JSON 标签、模板覆盖及转义。2 项分页、5 项 View、4 项翻译回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。VitePress 有既有体积提示。容器已回收并清理隔离 Cargo 产物 2.4 GiB 和任务专用站点产物。提交前周额度剩余 27%，项目卷可用 53 GiB。
 
 后续对照 Laravel 的 Customizing the Pagination View，补齐内置 Bootstrap 视图、应用级默认视图选择与发布。命名路由链接仍按计划在 06-01 补验。
+
+## 自定义分页视图、样式和发布
+
+对照固定 Laravel [Customizing the Pagination View](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pagination.md#customizing-the-pagination-view)、[AbstractPaginator](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pagination/AbstractPaginator.php#L555) 和[九个内置视图](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pagination/resources/views)。OpenRust 保留应用服务提供者中的命名与配置入口，用应用容器持有默认视图。简易和游标分页共用简易视图设置。内置模板使用 Blade 结构化数据，沿用应用覆盖优先和 HTML 转义，复用发布注册表将同一个嵌入资产表发布到应用路径。固定 Goravel 的 ORM 分页仅作为查询层参考。v0.x 未找到样式选择或分页模板发布。
+
+隔离基线 `427dda3f`。五个同时运行的 SQLite HTTP 应用覆盖 Bootstrap 3／4／5、切回 Tailwind、两个独立自定义默认名，以及显式 Semantic UI 覆盖。简易和游标共享所选模板。MySQL 8.4.13 与 SQLite 重跑真实分页 HTTP。3 项分页、5 项 View、7 项 TestApp 回归通过。实际 `./artisan vendor:publish --tag=laravel-pagination` 发布九个模板，核对与嵌入源逐字节一致，重复发布保留已有编辑，`--force` 恢复源文件。Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异在隔离副本处理，VitePress 仍有既有体积提示。
+
+临时 MySQL 已回收，清理独占 Cargo 产物 1.9 GiB 和站点产物。提交前周额度剩余 27%，项目卷可用 53 GiB。继续核对手工创建分页器和实例方法。命名路由链接按计划在 06-01 验证。

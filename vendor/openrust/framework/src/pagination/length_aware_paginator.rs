@@ -38,7 +38,7 @@ impl<T> LengthAwarePaginator<T> {
     }
 
     pub fn render(&self) -> ViewResult<View> {
-        self.renderWith(super::views::DEFAULT_VIEW, ViewData::new())
+        self.renderWith(&super::views::DefaultViews::get(false)?, ViewData::new())
     }
 
     pub fn renderWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
