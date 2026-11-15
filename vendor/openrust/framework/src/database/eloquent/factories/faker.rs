@@ -4755,9 +4755,12 @@ impl Faker {
             None => self.random.usize(1..=size),
         };
         if allowDuplicates {
-            return Ok((0..count)
-                .map(|_| &values[self.random.usize(..size)])
-                .collect());
+            let mut selected = Vec::new();
+            selected.try_reserve_exact(count).map_err(|_| {
+                DatabaseError::InvalidQuery("Faker sample count exceeds allocation capacity")
+            })?;
+            selected.extend((0..count).map(|_| &values[self.random.usize(..size)]));
+            return Ok(selected);
         }
         if count > size {
             return Err(DatabaseError::InvalidQuery(

@@ -403,6 +403,21 @@ Use `randomElement(values)` to borrow one item or get `None` from an empty slice
 
 Use `shuffleArray(values)` to return a shuffled clone and `shuffleString(value)` to shuffle Unicode scalar values. `boolean(None)` uses a 50% chance of true. Pass `Some(75)` for a 75% chance. These methods support `unique`, which compares JSON-serialized values for generic samples and shuffled arrays.
 
+Named `randomElement`, `randomElements`, `randomKey`, `shuffle`, `shuffleArray`, and `shuffleString` accept runtime values through `format`. Supply `Value::Json` arrays or objects for collections. Sampling values and shuffling collections return JSON arrays for multi-value results. `randomKey` returns a numeric array index or a JSON object’s key as text. An empty `randomElement` or `randomKey` returns null. Omitting the count for `randomElements` selects one element, while an explicit null selects a random positive count from a nonempty collection. `shuffleString` uses UTF-8 code points. `passthrough` returns the supplied `Value` with its type intact.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let input = Value::Json(json!({"score": 9}));
+    let key = faker.format("randomKey", std::slice::from_ref(&input))?;
+    let values = faker.format("randomElements", &[input, 2.into(), true.into()])?;
+    Ok((key, values))
+}
+```
+
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
 Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.

@@ -5829,6 +5829,91 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_collection_formatters_keep_keys_types_and_bounds() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    faker.seed(123);
+    assert!(matches!(
+        faker.format("randomElement", &[])?,
+        Value::Text(value) if matches!(value.as_str(), "a" | "b" | "c")
+    ));
+    assert_eq!(
+        faker.format("randomElement", &[Value::Json(json!([]))])?,
+        Value::Null
+    );
+    assert_eq!(
+        faker.format("randomElement", &[Value::Json(json!({"one":true}))])?,
+        true.into()
+    );
+    assert_eq!(
+        faker.format("randomKey", &[Value::Json(json!({"named":9}))])?,
+        "named".into()
+    );
+    assert_eq!(
+        faker.format("randomKey", &[Value::Json(json!([99]))])?,
+        0.into()
+    );
+    assert_eq!(faker.format("randomKey", &[])?, Value::Null);
+    assert_eq!(
+        faker.format("randomElements", &[Value::Json(json!([9]))])?,
+        Value::Json(json!([9]))
+    );
+    assert_eq!(
+        faker.format(
+            "randomElements",
+            &[Value::Json(json!([9])), 3.into(), true.into()]
+        )?,
+        Value::Json(json!([9, 9, 9]))
+    );
+    assert_eq!(
+        faker.format("randomElements", &[Value::Json(json!([9])), Value::Null])?,
+        Value::Json(json!([9]))
+    );
+    assert!(
+        faker
+            .format("randomElements", &[Value::Json(json!([9])), 2.into()])
+            .is_err()
+    );
+    assert!(
+        faker
+            .format(
+                "randomElements",
+                &[Value::Json(json!([9])), i64::MAX.into(), true.into()]
+            )
+            .is_err()
+    );
+    assert_eq!(
+        faker.format("randomElements", &[Value::Json(json!([])), 0.into()])?,
+        Value::Json(json!([]))
+    );
+    assert_eq!(
+        faker.format("shuffle", &[Value::Json(json!({"named":{"x":1}}))])?,
+        Value::Json(json!([{"x":1}]))
+    );
+    assert_eq!(faker.format("shuffleArray", &[])?, Value::Json(json!([])));
+    assert_eq!(faker.format("shuffle", &[])?, "".into());
+    let Value::Text(text) = faker.format("shuffleString", &["繁體🙂é".into(), "UTF-8".into()])?
+    else {
+        panic!("expected Unicode text");
+    };
+    let mut characters: Vec<_> = text.chars().collect();
+    characters.sort_unstable();
+    let mut expected: Vec<_> = "繁體🙂é".chars().collect();
+    expected.sort_unstable();
+    assert_eq!(characters, expected);
+    assert!(
+        faker
+            .format("shuffleString", &["文字".into(), "UTF-16".into()])
+            .is_err()
+    );
+    let bytes = Value::Bytes(vec![0xff, 0x00]);
+    assert_eq!(
+        faker.format("passthrough", std::slice::from_ref(&bytes))?,
+        bytes
+    );
+    Ok(())
+}
+
+#[test]
 fn faker_qualified_date_ranges_match_extension_boundaries() -> DatabaseResult<()> {
     use chrono::{DateTime, Datelike as _, Utc};
 

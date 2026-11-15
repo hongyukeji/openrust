@@ -403,6 +403,21 @@ fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
 
 用 `shuffleArray(values)` 返回打乱后的副本，或用 `shuffleString(value)` 按 Unicode 标量值打乱字符串。`boolean(None)` 有 50% 的概率返回 true，传入 `Some(75)` 可设为 75%。这些方法均支持 `unique`，泛型采样和数组打乱按 JSON 序列化结果判断重复。
 
+具名 `randomElement`、`randomElements`、`randomKey`、`shuffle`、`shuffleArray` 和 `shuffleString` 通过 `format` 接收运行时参数。集合使用 `Value::Json` 数组或对象。多项抽样和集合洗牌返回 JSON 数组。`randomKey` 返回数组的数字索引或 JSON 对象的文本键。空集合的 `randomElement` 与 `randomKey` 返回空值。`randomElements` 省略数量时取一项，显式传入空值时从非空集合随机决定正数数量。`shuffleString` 按 UTF-8 码点洗牌。`passthrough` 保留传入的 `Value` 和类型。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let input = Value::Json(json!({"score": 9}));
+    let key = faker.format("randomKey", std::slice::from_ref(&input))?;
+    let values = faker.format("randomElements", &[input, 2.into(), true.into()])?;
+    Ok((key, values))
+}
+```
+
 ### 语言、国家和货币样本 {#locale-and-code-samples}
 
 用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定上游 Faker 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应上游 Faker 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。

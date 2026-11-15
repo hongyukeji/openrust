@@ -1811,3 +1811,15 @@ Rust 复用现有 PHP 日期格式化、时间上界解析和时区能力。新�
 隔离基线 `4241f60f`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、58 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读 `1970-01-01T08:00:00+08:00` 和 `1970-01-01T00:00:00+00:00`。反向端点报告错误并以状态 1 退出。Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 及站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 后续继续核对集合等剩余具名 formatter 与整单元账本。
+
+## Faker 集合抽样和洗牌的具名参数
+
+固定 Laravel 的工厂数据生成使用上游 Faker。对照固定 v1.24.1 Base 的 randomElement、randomElements、randomKey、shuffle、shuffleArray、shuffleString 和 passthrough。PHP 8.5 探针用实际 Base 验证默认和空集合、关联键、重复项、超量错误及带 mbstring 的 UTF-8 洗牌。v0.x 的工厂属于查询构造，固定 Goravel 继续作为编译装配参考。
+
+Rust 在已有类型化生成器上接入具名 Value 参数。JSON 对象保留文本键，数组索引以整数返回，多项抽样和洗牌返回 JSON 列表。文本洗牌按 Unicode 码点工作，Rust 字符串输入为 UTF-8。具名调用不接受 PHP 枚举类名或 Traversable 对象，调用方先提供 JSON 元素。重复抽样的分配容量错误转为 DatabaseResult。整单元仍需核对尚未接入的具名方法和剩余兼容边界。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L193 。
+
+隔离基线 `cbb575da`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、59 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读文本键 `score` 和 JSON `[9,9]`。不允许重复时超量抽样报告错误并以状态 1 退出。
+
+Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.4 GiB 与独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。闭环账本保留 05-04 待完成状态，下一批按上游接口与 Rust 生成器对照补齐剩余具名 formatter。

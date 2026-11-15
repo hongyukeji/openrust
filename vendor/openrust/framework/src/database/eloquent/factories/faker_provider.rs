@@ -6,6 +6,7 @@ use std::{
 use chrono::{DateTime, SecondsFormat, Utc};
 use chrono_tz::Tz;
 use regex::Regex;
+use serde_json::Value as Json;
 
 use super::Faker;
 use crate::database::{DatabaseError, DatabaseResult, Value};
@@ -407,6 +408,64 @@ fn defaults(name: &str) -> Option<Builtin> {
         },
         "latitude" => |faker, args| coordinate(faker, args, 90.0),
         "longitude" => |faker, args| coordinate(faker, args, 180.0),
+        "randomelement" => |faker, args| {
+            let [input] = arguments(args)?;
+            let values = collection_values(input, default_elements())?;
+            Ok(faker
+                .randomElement(&values)
+                .map_or(Value::Null, |value| json_value(value)))
+        },
+        "randomelements" => |faker, args| {
+            let [input, count, duplicates] = arguments(args)?;
+            let values = collection_values(input, default_elements())?;
+            let count = match count {
+                None => Some(1),
+                Some(value) => integer(Some(value))?
+                    .map(|count| {
+                        usize::try_from(count.max(0)).map_err(|_| {
+                            DatabaseError::InvalidQuery("Faker sample count is out of range")
+                        })
+                    })
+                    .transpose()?,
+            };
+            let selected = faker.randomElements(&values, count, flag(duplicates)?)?;
+            Ok(Value::Json(Json::Array(
+                selected.into_iter().map(|value| (*value).clone()).collect(),
+            )))
+        },
+        "randomkey" => random_key,
+        "shuffle" => |faker, args| {
+            let [input] = arguments(args)?;
+            match input {
+                None => Ok("".into()),
+                Some(Value::Text(text)) => Ok(faker.shuffleString(text).into()),
+                input => shuffle_collection(faker, input),
+            }
+        },
+        "shufflearray" => |faker, args| {
+            let [input] = arguments(args)?;
+            shuffle_collection(faker, input)
+        },
+        "shufflestring" => |faker, args| {
+            let [input, encoding] = arguments(args)?;
+            if let Some(encoding) = text(encoding)?
+                && !encoding.eq_ignore_ascii_case("UTF-8")
+                && !encoding.eq_ignore_ascii_case("UTF8")
+            {
+                return Err(DatabaseError::InvalidQuery(
+                    "Faker shuffleString requires UTF-8 text",
+                ));
+            }
+            Ok(faker.shuffleString(text(input)?.unwrap_or("")).into())
+        },
+        "passthrough" => |_, args| {
+            let [Some(value)] = arguments(args)? else {
+                return Err(DatabaseError::InvalidQuery(
+                    "Faker passthrough requires a value",
+                ));
+            };
+            Ok(value.clone())
+        },
         "randomletter" => |faker, _| Ok(faker.randomLetter().to_string().into()),
         "randomascii" => |faker, _| Ok(faker.randomAscii().to_string().into()),
         "numerify" => |faker, args| nullable_pattern(faker, args, Faker::numerify),
@@ -637,4 +696,66 @@ fn date_calendar_period(faker: &Faker, args: &[Value], years: i32) -> DatabaseRe
         .zoned_date(date, zone)
         .to_rfc3339_opts(SecondsFormat::Secs, false)
         .into())
+}
+
+fn default_elements() -> &'static [Json] {
+    static ELEMENTS: LazyLock<[Json; 3]> = LazyLock::new(|| ["a", "b", "c"].map(Json::from));
+    &*ELEMENTS
+}
+
+fn collection_values<'a>(
+    input: Option<&'a Value>,
+    default: &'a [Json],
+) -> DatabaseResult<Vec<&'a Json>> {
+    match input {
+        None => Ok(default.iter().collect()),
+        Some(Value::Json(Json::Array(values))) => Ok(values.iter().collect()),
+        Some(Value::Json(Json::Object(values))) => Ok(values.values().collect()),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects a JSON array or object",
+        )),
+    }
+}
+
+fn json_value(value: &Json) -> Value {
+    match value {
+        Json::Null => Value::Null,
+        Json::Bool(value) => Value::Bool(*value),
+        Json::String(value) => Value::Text(value.clone()),
+        Json::Number(value) => {
+            if let Some(value) = value.as_i64() {
+                Value::Integer(value)
+            } else if let Some(value) = value.as_u64() {
+                Value::Unsigned(value)
+            } else {
+                Value::Real(value.as_f64().expect("finite JSON number"))
+            }
+        }
+        value => Value::Json(value.clone()),
+    }
+}
+
+fn random_key(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [input] = arguments(args)?;
+    match input {
+        None | Some(Value::Null) => Ok(Value::Null),
+        Some(Value::Json(Json::Array(values))) => Ok(faker
+            .randomKey(values)
+            .map_or(Value::Null, |key| Value::Integer(key as i64))),
+        Some(Value::Json(Json::Object(values))) => {
+            let keys: Vec<_> = values.keys().collect();
+            Ok(faker
+                .randomElement(&keys)
+                .map_or(Value::Null, |key| Value::from(key.as_str())))
+        }
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects a JSON array or object",
+        )),
+    }
+}
+
+fn shuffle_collection(faker: &Faker, input: Option<&Value>) -> DatabaseResult<Value> {
+    let values = collection_values(input, &[])?;
+    let values = faker.shuffleArray(&values).into_iter().cloned().collect();
+    Ok(Value::Json(Json::Array(values)))
 }
