@@ -11,7 +11,8 @@ use openrust::{
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState,
             relations::{
-                BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphTo, MorphToMany, Pivot,
+                BelongsToMany, HasMany, HasManyThrough, HasOne, MorphMany, MorphOne, MorphTo,
+                MorphToMany, Pivot,
             },
         },
     },
@@ -217,6 +218,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/morph", morph_page)?;
     Route::get("/keyed", keyed_page)?;
     Route::get("/keyed-pivot", keyed_pivot_page)?;
+    Route::get("/relation-find", find_related_or_new)?;
     Ok(())
 }
 
@@ -501,6 +503,102 @@ fn keyed_pivot_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
         let page = relation.paginate(&parent, 2).await.map_err(internal)?;
         assert!(page.getByKey("pivot-1").is_some() && page.getByKey("label-1").is_none());
         Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
+    })
+}
+
+fn find_related_or_new(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let children = HasMany::<Article, Comment>::new("id", "article_id").constrain(|query| {
+            query.withAttributes(
+                Attributes::from([("visible".into(), Value::Integer(1))]),
+                true,
+            )
+        });
+        let found = children
+            .findOrNew(&parent, 11_i64)
+            .await
+            .map_err(internal)?;
+        let filtered = children
+            .findOrNew(&parent, 12_i64)
+            .await
+            .map_err(internal)?;
+        for key in [14_i64, 16] {
+            let draft = children.findOrNew(&parent, key).await.map_err(internal)?;
+            assert!(!draft.state().exists() && draft.getKey().is_none());
+            assert_eq!(id(draft.getAttribute("article_id")), 1);
+        }
+        assert!(found.state().exists());
+        assert!(!filtered.state().exists() && filtered.getKey().is_none());
+
+        let one = HasOne::<Article, Comment>::new("id", "article_id");
+        let direct = one.findOrNew(&parent, 13_i64).await.map_err(internal)?;
+        let morph_many =
+            MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article");
+        let morph_one =
+            MorphOne::<Article, Comment>::new("id", "article_id", "subject_type", "article");
+        let draft = morph_one
+            .findOrNew(&parent, 16_i64)
+            .await
+            .map_err(internal)?;
+        assert_eq!(
+            draft.getAttribute("subject_type"),
+            Some(&Value::Text("article".into()))
+        );
+        assert!(!draft.state().exists() && draft.getKey().is_none());
+        let polymorphic = morph_many
+            .findOrNew(&parent, 15_i64)
+            .await
+            .map_err(internal)?;
+
+        let through = REACTIONS
+            .findOrNew(&parent, 103_i64)
+            .await
+            .map_err(internal)?;
+        let draft = REACTIONS
+            .one()
+            .findOrNew(&parent, 104_i64)
+            .await
+            .map_err(internal)?;
+        assert!(!draft.state().exists() && draft.getKey().is_none());
+        assert!(draft.getAttribute("comment_id").is_none());
+
+        let attached = labels().findOrNew(&parent, 2_i64).await.map_err(internal)?;
+        let pivot = attached.getRelation::<Pivot>("pivot").unwrap();
+        let morph_to_many = MorphToMany::<Article, Label>::new(
+            "pagination_memberships",
+            "owner_id",
+            "label_id",
+            "id",
+            "id",
+            "subject_type",
+            "article",
+        );
+        let draft = morph_to_many
+            .findOrNew(&parent, 5_i64)
+            .await
+            .map_err(internal)?;
+        assert!(!draft.state().exists() && draft.getKey().is_none());
+        assert!(draft.getRelation::<Pivot>("pivot").is_none());
+
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "found": id(found.getKey()),
+                "draft_owner": id(filtered.getAttribute("article_id")),
+                "draft_default": id(filtered.getAttribute("visible")),
+                "direct": id(direct.getKey()),
+                "polymorphic": id(polymorphic.getKey()),
+                "through": id(through.getKey()),
+                "attached": id(attached.getKey()),
+                "pivot_owner": id(pivot.getAttribute("owner_id")),
+            }),
+        )
     })
 }
 
@@ -1159,6 +1257,23 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(window.matches(">...</span>").count(), 2);
     assert!(window.contains(r#"aria-current="page""#) && window.contains(">9</span>"));
     assert!(!window.contains(">8</a>") && !window.contains(">10</a>"));
+    let found = request(address, "/api/relation-find").await;
+    assert_eq!(
+        found,
+        json!({
+            "found": 11, "draft_owner": 1, "draft_default": 1, "direct": 13,
+            "polymorphic": 15, "through": 103, "attached": 2, "pivot_owner": 1
+        })
+    );
+    for (table, count) in [
+        ("pagination_comments", 7),
+        ("pagination_reactions", 5),
+        ("pagination_labels", 5),
+        ("pagination_memberships", 5),
+    ] {
+        assert_eq!(connection.table(table).count("*").await?, count);
+    }
+
     let length = request(address, "/api/keyed").await;
     assert_eq!(length["total"], 5);
     assert_eq!(length["data"], json!({"label-1": 1, "label-2": 2}));

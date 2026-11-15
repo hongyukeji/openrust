@@ -1155,6 +1155,25 @@ pub async fn count_view<P: Model, R: Model>(
 }
 ```
 
+### Finding or Making a Related Model {#finding-or-making-a-related-model}
+
+Use `findOrNew` to look up a related primary key under the relationship’s constraints. If the key is absent, the method returns an unsaved model without assigning the requested primary key. Direct and polymorphic child relations apply the parent key, morph discriminator and configured creation defaults. Through and many-to-many relations return an unattached model on the relevant connection. A matching many-to-many model includes its Pivot.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Model, relations::HasMany},
+};
+
+async fn find_or_draft<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    id: Value,
+) -> DatabaseResult<R> {
+    children.findOrNew(parent, id).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

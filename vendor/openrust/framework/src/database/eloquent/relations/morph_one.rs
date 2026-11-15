@@ -156,6 +156,10 @@ impl<P: Model, R: Model> MorphOne<P, R> {
         self.0.makeMany(parent, records).await
     }
 
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.findOrNew(parent, key).await
+    }
+
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,

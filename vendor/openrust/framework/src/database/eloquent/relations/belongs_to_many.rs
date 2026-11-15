@@ -509,6 +509,20 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
+    /// Finds an attached primary key or returns an unsaved model.
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
+        let lookup = RelatedLookup {
+            attributes: &keys,
+            use_writer: false,
+            include_trashed: false,
+        };
+        match self.find_attached(parent, lookup).await? {
+            Some(model) => Ok(owned_model(model)),
+            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
+        }
+    }
+
     /// Finds an attached model, attaches an existing match, or creates a new model.
     pub async fn firstOrCreate<'a>(
         &self,

@@ -130,6 +130,10 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         self.0.upsert(parent, rows, unique_by, update).await
     }
 
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.findOrNew(parent, key).await
+    }
+
     pub async fn firstOrNew(
         &self,
         parent: &P,

@@ -672,3 +672,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 以 `68006a8e` 为隔离基线。固定 Laravel 的 [Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 将模型集合交给分页器，简易分页切片保留自定义键，[游标分页](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pagination/CursorPaginator.php) 重新编号。Rust 在水合、事件与关系加载后调用 `Model::newCollection`。普通和简易分页保存集合键及自动加载绑定，支持 `getByKey`，转换后 JSON 仍保留键。游标页按列表呈现。Rust 先在查询层确定边界，仅将实际返回行交给模型工厂；简易和游标的预读行无需模型化。固定 Goravel ORM 仅作为查询分页参考，v0.x 未找到对应模型集合工厂。
 
 真实 MySQL 8.4.13 和 SQLite HTTP 验证普通及简易分页对象键、查键、翻页、`through` 转换、游标重新编号与往返。多对多的工厂以已加载 Pivot 计算自定义键。6 项分页、6 项关系回归、Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress、三语集合和分页正文的 12 个访问组合及 12 项通用浏览器检查通过。既有 Sanctum 格式仅在隔离副本调整。测试容器已回收，清理独占 Cargo 产物 1.8 GiB 和站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
+
+## 按主键查找或构造关联模型
+
+复核固定 Laravel 的 [HasOneOrMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php)、[HasOneOrManyThrough](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php) 和 [BelongsToMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) 的 `findOrNew`。复用现有关系查询、直接子模型 `make` 和 Pivot 水合。直接子关系继续沿用 Rust 无有效父键时的创建错误，正常父键下补齐外键、多态类型与创建默认值。穿透和多对多未命中时返回绑定连接的空模型，不赋联接键。固定 Goravel 的 ORM 用于核对编译型装配，v0.x 未找到同名关系入口。
+
+隔离基线 `c7df2ade`。MySQL 8.4.13 及 SQLite 实际 HTTP 验证匹配主键、作用域过滤、其他父模型、软删除、草稿默认值、穿透与 Pivot。回读四张表的行数确认草稿没有写入。6 项关系和 6 项分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本调整。已回收容器，清理本批隔离 Cargo 产物 1.8 GiB 和站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
+
+05-02 仍待核对关系查询的唯一结果与回调入口（如 `findSole`、`findOr`），以及与 02-09 的流式关系查询边界。05-06 保持前置依赖待关闭。

@@ -181,6 +181,11 @@ impl<P: Model, R: Model> MorphMany<P, R> {
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        self.0.findOrNew(parent, key).await
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn firstOrNew<'a>(
         &self,
         parent: &P,

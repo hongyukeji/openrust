@@ -171,6 +171,16 @@ impl<P: Model, R: Model> HasMany<P, R> {
             .map_err(http_error)
     }
 
+    /// Finds the related primary key or prepares an unsaved child for this parent.
+    #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
+        match self.lookup(parent, &keys, false)?.first().await? {
+            Some(model) => Ok(model),
+            None => self.make(parent, Attributes::new()).await,
+        }
+    }
+
     /// Creates a child with an initial counter or increments a matching child.
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn firstOrNew<'a>(

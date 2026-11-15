@@ -1155,6 +1155,25 @@ pub async fn count_view<P: Model, R: Model>(
 }
 ```
 
+### 按主键查找或构造关联模型 {#finding-or-making-a-related-model}
+
+用 `findOrNew` 在关系约束内按关联模型主键查找。找不到时返回未保存的模型，查找用的主键不会写入。直接及多态子关系补齐父键、多态标识和创建默认值。穿透和多对多关系返回绑定对应连接的未关联模型。多对多命中时保留 Pivot。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Model, relations::HasMany},
+};
+
+async fn find_or_draft<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    id: Value,
+) -> DatabaseResult<R> {
+    children.findOrNew(parent, id).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

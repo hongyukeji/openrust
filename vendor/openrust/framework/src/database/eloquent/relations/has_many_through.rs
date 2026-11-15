@@ -289,6 +289,15 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .await
     }
 
+    /// Finds the related primary key through the join or returns an unsaved model.
+    pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {
+        let keys = Attributes::from([(R::metadata().primary_key.into(), key.into())]);
+        match self.first_match(parent, &keys, false).await? {
+            Some(model) => Ok(model),
+            None => R::newInstanceOn(&self.keys.connection(parent)?, Attributes::new()),
+        }
+    }
+
     /// Finds a related row or makes an unsaved model using the supplied attributes.
     pub async fn firstOrNew(
         &self,

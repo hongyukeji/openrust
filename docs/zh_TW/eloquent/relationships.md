@@ -1155,6 +1155,25 @@ pub async fn count_view<P: Model, R: Model>(
 }
 ```
 
+### 依主鍵查找或建立關聯模型 {#finding-or-making-a-related-model}
+
+用 `findOrNew` 在關聯約束內依關聯模型主鍵查找。找不到時傳回尚未儲存的模型，查找所用的主鍵不會寫入。直接及多型子關聯補齊父鍵、多型識別和建立預設值。穿透和多對多關聯會傳回綁定對應連線的未關聯模型。多對多命中時保留 Pivot。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Model, relations::HasMany},
+};
+
+async fn find_or_draft<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    id: Value,
+) -> DatabaseResult<R> {
+    children.findOrNew(parent, id).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。
