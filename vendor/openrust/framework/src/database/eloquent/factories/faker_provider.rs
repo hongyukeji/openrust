@@ -13,6 +13,8 @@ use crate::database::{DatabaseError, DatabaseResult, Value};
 
 #[path = "faker_named_identity.rs"]
 mod named_identity;
+#[path = "faker_named_phone.rs"]
+mod named_phone;
 #[path = "faker_named_regional.rs"]
 mod named_regional;
 #[path = "faker_named_text.rs"]
@@ -494,7 +496,8 @@ fn defaults(name: &str) -> Option<Builtin> {
         _ => {
             return named_text::formatter(name)
                 .or_else(|| named_regional::formatter(name))
-                .or_else(|| named_identity::formatter(name));
+                .or_else(|| named_identity::formatter(name))
+                .or_else(|| named_phone::formatter(name));
         }
     })
 }

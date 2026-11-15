@@ -531,6 +531,21 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+透過 `format` 或 `unique().format` 使用相同的格式化器名稱。馬來西亞手機、市話與 VoIP 方法依序接受國家前綴與格式化兩個旗標，預設皆開啟。巴西手機、市話及用戶號碼方法接受一個格式化旗標。具名呼叫接受布林值，明確傳入 null 會關閉對應選項。地區可用範圍與對應的型別化方法一致。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
+    let malaysia = Faker::new("ms-MY")?;
+    let canada = Faker::new("en-CA")?;
+    Ok([
+        malaysia.format("mobileNumber", &[false.into(), false.into()])?,
+        canada.unique(false).format("phoneNumberWithExtension", &[])?,
+    ])
+}
+```
+
 ### 免付費電話、服務號碼與 VoIP 樣本 {#phone-service-samples}
 
 美國、加拿大、德國和羅馬尼亞使用 `tollFreePhoneNumber()`。沒有 PhoneNumber Provider 的地區繼承美國格式。希臘、紐西蘭、南非和西班牙使用 `tollFreeNumber()`。新加坡提供 `tollFreeLineNumber()`、`tollFreeInternationalNumber()` 和 `premiumPhoneNumber()`。法國提供 `serviceNumber()`，羅馬尼亞提供 `premiumRatePhoneNumber()`，希臘提供 `personalNumber()`、`sharedCostNumber()` 和 `premiumRateNumber()`。

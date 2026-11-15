@@ -5829,6 +5829,121 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_phone_formatters_preserve_regional_signatures() -> DatabaseResult<()> {
+    let malaysia = Faker::new("ms-MY")?;
+    for (name, default, with_options) in [
+        (
+            "mobileNumber",
+            Faker::mobileNumber as fn(&Faker) -> DatabaseResult<String>,
+            Faker::mobileNumberWithOptions as fn(&Faker, bool, bool) -> DatabaseResult<String>,
+        ),
+        (
+            "fixedLineNumber",
+            Faker::fixedLineNumber,
+            Faker::fixedLineNumberWithOptions,
+        ),
+        (
+            "voipNumber",
+            Faker::voipNumber,
+            Faker::voipNumberWithOptions,
+        ),
+    ] {
+        malaysia.seed(94);
+        let expected = default(&malaysia)?;
+        malaysia.seed(94);
+        assert_eq!(malaysia.format(name, &[])?, expected.into());
+
+        for (prefix, formatted) in [(false, false), (false, true), (true, false), (true, true)] {
+            malaysia.seed(94);
+            let expected = with_options(&malaysia, prefix, formatted)?;
+            malaysia.seed(94);
+            assert_eq!(
+                malaysia.format(name, &[prefix.into(), formatted.into()])?,
+                expected.into()
+            );
+        }
+        assert!(malaysia.format(name, &["false".into()]).is_err());
+        assert!(
+            malaysia
+                .format(name, &[true.into(), false.into(), false.into()])
+                .is_err()
+        );
+    }
+
+    let brazil = Faker::new("pt-BR")?;
+    for (name, generate) in [
+        (
+            "cellphoneNumber",
+            Faker::cellphoneNumber as fn(&Faker, Option<bool>) -> DatabaseResult<String>,
+        ),
+        ("landlineNumber", Faker::landlineNumber),
+        ("cellphone", Faker::cellphone),
+        ("landline", Faker::landline),
+        ("phone", Faker::phone),
+    ] {
+        brazil.seed(94);
+        let expected = generate(&brazil, Some(false))?;
+        assert!(expected.bytes().all(|byte| byte.is_ascii_digit()));
+        for argument in [false.into(), Value::Null] {
+            brazil.seed(94);
+            assert_eq!(brazil.format(name, &[argument])?, expected.clone().into());
+        }
+    }
+
+    for (locale, name, generate) in [
+        (
+            "en-CA",
+            "phoneNumberWithExtension",
+            Faker::phoneNumberWithExtension as fn(&Faker) -> DatabaseResult<String>,
+        ),
+        ("ko-KR", "CELLphoneNUMBER", Faker::cellPhoneNumber),
+        (
+            "fr-FR",
+            "phoneNumber06WithSeparator",
+            Faker::phoneNumber06WithSeparator,
+        ),
+        (
+            "en-SG",
+            "tollFreeInternationalNumber",
+            Faker::tollFreeInternationalNumber,
+        ),
+        ("el-GR", "premiumRateNumber", Faker::premiumRateNumber),
+        (
+            "fi-FI",
+            "e164MobileNetworkAreaCode",
+            Faker::e164MobileNetworkAreaCode,
+        ),
+        ("en-US", "areaCode", Faker::areaCode),
+    ] {
+        let faker = Faker::new(locale)?;
+        faker.seed(94);
+        let expected = generate(&faker)?;
+        faker.seed(94);
+        assert_eq!(faker.format(name, &[])?, expected.into());
+    }
+
+    let us = Faker::new("en-US")?;
+    assert!(us.format("phoneNumber06", &[]).is_err());
+    assert!(us.format("separator", &[]).is_err());
+    let singapore = Faker::new("en-SG")?;
+    assert!(singapore.format("mobileNumber", &[false.into()]).is_err());
+    singapore.seed(94);
+    for _ in 0..32 {
+        let Value::Text(number) = singapore.format("voipNumber", &[])? else {
+            panic!("expected a textual VoIP number");
+        };
+        let local = number
+            .strip_prefix("+65")
+            .or_else(|| number.strip_prefix("65"))
+            .unwrap_or(&number)
+            .trim_start();
+        assert!(local.starts_with('3'));
+        assert_eq!(local.bytes().filter(u8::is_ascii_digit).count(), 8);
+    }
+    Ok(())
+}
+
+#[test]
 fn faker_named_file_and_remaining_regional_arguments_preserve_contracts() -> DatabaseResult<()> {
     let root = Root::new();
     let source = root.0.join("copy-source");

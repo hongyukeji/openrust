@@ -531,6 +531,21 @@ fn regional_phone_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Use the same formatter names with `format` or `unique().format`. Malaysian mobile, fixed-line, and VoIP formatters accept the country-prefix and formatting flags in that order, both enabled by default. Brazilian cellphone, landline, and subscriber formatters accept one formatting flag. Named calls take booleans, and a supplied null disables that option. Provider availability follows the corresponding typed method.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_phone_samples() -> DatabaseResult<[Value; 2]> {
+    let malaysia = Faker::new("ms-MY")?;
+    let canada = Faker::new("en-CA")?;
+    Ok([
+        malaysia.format("mobileNumber", &[false.into(), false.into()])?,
+        canada.unique(false).format("phoneNumberWithExtension", &[])?,
+    ])
+}
+```
+
 ### Toll-free, service, and VoIP samples {#phone-service-samples}
 
 Use `tollFreePhoneNumber()` for US, Canadian, German, and Romanian formats. Locales without a PhoneNumber provider inherit the US formatter. Greece, New Zealand, South Africa, and Spain use `tollFreeNumber()`. Singapore provides `tollFreeLineNumber()`, `tollFreeInternationalNumber()`, and `premiumPhoneNumber()`. France provides `serviceNumber()`, Romania provides `premiumRatePhoneNumber()`, and Greece provides `personalNumber()`, `sharedCostNumber()`, and `premiumRateNumber()`.

@@ -1884,3 +1884,15 @@ Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已�
 实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`。验证 `makeOne` 保留配置数量，两次默认 `makeMany` 分别返回两条和一条，显式属性保留顺序且零数量返回空集合。预构造、丢弃未轮询的 Future，以及取得单条和批量 Future 后，目标表均为零行。两次批量和两次单条执行后，按主键读取四条批量与两条单条记录。三语共用示例在实际 Seeder 中再次运行并写入六条，合计十二条。
 
 Rust 1.94.0 全工作区全目标严格 Clippy、63 项 Seeder 测试、MySQL 和 SQLite 各一项工厂回归以及 `./artisan inspire` 通过。既有 Sanctum 测试的格式差异只在隔离副本调整，调整后格式检查通过。三份示例独立编译，VitePress 构建和 18 项浏览器检查通过。临时 Seeder 已恢复，MySQL 容器已回收。清理本批隔离 Cargo 产物 2.3 GiB 和独占站点产物及依赖。提交前周额度剩余 30%，项目卷可用 66 GiB。05-04 的剩余地区电话号码及具名 Faker 接口继续在本记录跟踪。
+
+## Faker 地区电话号码具名调度
+
+对应固定 Laravel 的[工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。FakerPHP v1.24.1 的 PhoneNumber 提供器共有 55 个不区分大小写的公开名称。逐项与具名调度表核对，本批新增 50 个入口，既有 5 个入口仍由原位置处理。固定 Goravel 工厂继续作为编译装配参考。v0.x 同名工厂及测试面向查询构造。
+
+具名入口复用现有地区生成器，涵盖移动电话、座机、分机、服务号码、区号及模板组件。马来西亚三类号码按固定上游顺序接收国家前缀和格式化两个布尔值，巴西五种入口接收一个格式化布尔值。显式 null 关闭选项。Rust 按地区签名验证这些参数的类型和数量，通过 `DatabaseResult` 报告错误。其他地区是否提供对应方法继续由已验收的类型化生成器决定。
+
+PHP 8.5 实跑固定 [马来西亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/PhoneNumber.php)、[巴西](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pt_BR/PhoneNumber.php)、[加拿大](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_CA/PhoneNumber.php)、[新加坡](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_SG/PhoneNumber.php)和韩国提供器，验证默认与显式选项、加拿大继承的分机、韩国方法大小写、新加坡三种前缀形式及缺少地区入口时的错误。
+
+隔离基线 `885f7dbf`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、64 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例并按插入顺序回读马来西亚紧凑手机号码、加拿大带分机号码。美国地区调用法国专用入口报告原错误并以状态 1 退出。`./artisan inspire`、VitePress 构建及根路径和 `/docs/` 的 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，测试容器已回收。清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 29%，项目卷可用 60 GiB。05-04 整单元继续核对地区地址和执照号码等其他具名接口。
