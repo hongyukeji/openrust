@@ -1,4 +1,8 @@
-use crate::database::{Connection, DatabaseError, DatabaseResult, Row, Transaction, Value};
+use futures_util::TryStreamExt as _;
+
+use crate::database::{
+    Connection, DatabaseCursor, DatabaseError, DatabaseResult, Row, Transaction, Value,
+};
 
 use super::{
     Conditions, Expression,
@@ -294,14 +298,41 @@ impl<'connection> Builder<'connection> {
     }
 
     pub async fn get(mut self) -> DatabaseResult<Vec<Row>> {
-        if let Some(partition) = self.group_limit.take() {
-            return self.get_group_limited(&partition).await;
+        let partition = self.group_limit.take();
+        let (sql, bindings) = self.compile_select(partition.as_deref())?;
+        let mut rows = self.execute(&sql, &bindings).await?;
+        if partition.is_some() {
+            for row in &mut rows {
+                row.remove_last_column();
+            }
         }
-        let (sql, bindings) = self.compile(None)?;
-        self.execute(&sql, &bindings).await
+        Ok(rows)
     }
 
-    async fn get_group_limited(mut self, partition: &str) -> DatabaseResult<Vec<Row>> {
+    /// Streams the query results without collecting them into a vector.
+    pub fn cursor(mut self) -> DatabaseCursor<'connection> {
+        Box::pin(async_stream::try_stream! {
+            let partition = self.group_limit.take();
+            let (sql, bindings) = self.compile_select(partition.as_deref())?;
+            let mut rows = match &mut self.executor {
+                Executor::Connection(connection) =>
+                    connection.cursor_with_mode(&sql, &bindings, self.use_write),
+                Executor::Transaction(transaction) => transaction.cursor(&sql, &bindings),
+                Executor::Detached(_) => Err(DatabaseError::InvalidQuery("detached subquery"))?,
+            };
+            while let Some(mut row) = rows.try_next().await? {
+                if partition.is_some() {
+                    row.remove_last_column();
+                }
+                yield row;
+            }
+        })
+    }
+
+    fn compile_select(&mut self, partition: Option<&str>) -> DatabaseResult<(String, Vec<Value>)> {
+        let Some(partition) = partition else {
+            return self.compile(None);
+        };
         let partition = self.grammar.column(partition)?;
         let rank = self.grammar.quote("laravel_row")?;
         let alias = self.grammar.quote("laravel_table")?;
@@ -310,7 +341,14 @@ impl<'connection> Builder<'connection> {
         self.compile_orders(&self.orders, &mut window, &mut window_bindings)?;
         use std::fmt::Write as _;
         write!(window, ") as {rank}").expect("writing to String");
-        self = self.select_default("*").selectRaw(&window, window_bindings);
+        if self.columns.is_empty() {
+            self.columns.push("*".into());
+        }
+        self.columns.push(
+            Expression::new(&window)
+                .with_bindings(window_bindings)
+                .into(),
+        );
         self.orders.clear();
         let offset = self.offset.take().unwrap_or(0);
         let limit = self.limit.take();
@@ -323,11 +361,7 @@ impl<'connection> Builder<'connection> {
             bindings.push(bound(offset.saturating_add(limit)));
         }
         write!(wrapped, " order by {rank}").expect("writing to String");
-        let mut rows = self.execute(&wrapped, &bindings).await?;
-        for row in &mut rows {
-            row.remove_last_column();
-        }
-        Ok(rows)
+        Ok((wrapped, bindings))
     }
 
     pub(crate) fn get_with_transaction<'a>(

@@ -1,3 +1,4 @@
+use futures_util::{Stream, TryStreamExt as _, future::Either};
 use sqlx::SqlSafeStr as _;
 use std::sync::{
     Arc, Mutex,
@@ -11,7 +12,7 @@ use sqlx::{
 
 use sqlx_core::transaction::TransactionManager;
 
-use super::{DatabaseError, DatabaseResult, Row, Value, value};
+use super::{DatabaseCursor, DatabaseError, DatabaseResult, Row, Value, value};
 
 #[derive(Clone)]
 pub(super) enum Pool {
@@ -207,8 +208,8 @@ fn validate_bindings(statement: &impl sqlx::Statement, actual: usize) -> Databas
     }
 }
 
-macro_rules! execute_query {
-    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal) => {{
+macro_rules! prepare_query {
+    ($lease:ident, $sql:ident, $bindings:ident) => {{
         $lease.start()?;
         let prepared = $lease
             .connection
@@ -218,6 +219,13 @@ macro_rules! execute_query {
             .finish(prepared)
             .map_err(DatabaseError::driver("prepare"))?;
         validate_bindings(&statement, $bindings.len())?;
+        statement
+    }};
+}
+
+macro_rules! execute_query {
+    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $method:ident, $operation:literal) => {{
+        let statement = prepare_query!($lease, $sql, $bindings);
         let query = bind!(statement.query(), $bindings, $unsigned);
         $lease.start()?;
         let result = query.$method(&mut *$lease.connection).await;
@@ -225,6 +233,29 @@ macro_rules! execute_query {
             .finish(result)
             .map_err(DatabaseError::driver($operation))?
     }};
+}
+
+macro_rules! cursor_rows {
+    ($lease:ident, $sql:ident, $bindings:ident, $unsigned:expr, $decode:path) => {
+        async_stream::try_stream! {
+            let statement = async {
+                Ok::<_, DatabaseError>(prepare_query!($lease, $sql, $bindings))
+            }.await?;
+            let query = (|| Ok::<_, DatabaseError>(bind!(statement.query(), $bindings, $unsigned)))()?;
+            $lease.start()?;
+            let result = {
+                let mut rows = query.fetch(&mut *$lease.connection);
+                loop {
+                    match rows.try_next().await {
+                        Ok(Some(row)) => yield $decode(row)?,
+                        Ok(None) => break Ok(()),
+                        Err(error) => break Err(error),
+                    }
+                }
+            };
+            $lease.finish(result).map_err(DatabaseError::driver("cursor"))?;
+        }
+    };
 }
 
 macro_rules! query {
@@ -278,6 +309,29 @@ impl PhysicalConnection {
         match self {
             Self::Sqlite(lease) => lease.dirty,
             Self::Mysql(lease) => lease.dirty,
+        }
+    }
+
+    pub(super) fn cursor<'a>(
+        &'a mut self,
+        sql: &'a str,
+        bindings: &'a [Value],
+    ) -> impl Stream<Item = DatabaseResult<Row>> + Send + 'a {
+        match self {
+            Self::Sqlite(lease) => Either::Left(cursor_rows!(
+                lease,
+                sql,
+                bindings,
+                sqlite_unsigned,
+                value::sqlite
+            )),
+            Self::Mysql(lease) => Either::Right(cursor_rows!(
+                lease,
+                sql,
+                bindings,
+                Ok::<u64, DatabaseError>,
+                value::mysql
+            )),
         }
     }
 
@@ -516,6 +570,27 @@ impl Connection {
             return &self.pool;
         }
         self.read_pool.as_ref().map_or(&self.pool, |(_, pool)| pool)
+    }
+
+    /// Executes the select on first poll and decodes one row at a time.
+    pub fn cursor<'a>(&'a self, sql: &'a str, bindings: &'a [Value]) -> DatabaseCursor<'a> {
+        self.cursor_with_mode(sql, bindings, false)
+    }
+
+    pub(super) fn cursor_with_mode<'a>(
+        &'a self,
+        sql: &'a str,
+        bindings: &'a [Value],
+        write: bool,
+    ) -> DatabaseCursor<'a> {
+        Box::pin(async_stream::try_stream! {
+            let pool = if write { &self.pool } else { self.read_pool() };
+            let mut physical = pool.acquire().await?;
+            let mut rows = std::pin::pin!(physical.cursor(sql, bindings));
+            while let Some(row) = rows.try_next().await? {
+                yield row;
+            }
+        })
     }
 
     pub async fn select(&self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {

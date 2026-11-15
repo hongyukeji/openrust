@@ -10,6 +10,22 @@
 
 使用 `count("*")`、`min("column")`、`max("column")`、`sum("column")` 或 `avg("column")`。计数返回无符号整数，其他聚合保留驱动返回的值类型。MySQL 的精确小数以文本返回。空集合求和返回零。
 
+## 流式读取结果 {#streaming-results}
+
+在查询上调用 `cursor()` 逐行读取结果。首次轮询时开始查询，`try_next` 读取并解码一行，错误会由流返回。连接和查询游标沿用已配置的读写路由。丢弃非事务游标会释放连接租约。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{Connection, DatabaseResult, Row};
+
+async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
+    let mut rows = db.table("reports").orderBy("id", "asc").cursor();
+    rows.try_next().await
+}
+```
+
+事务中应先读完游标，再执行下一条语句或提交。语句尚未执行完时丢弃游标会中断事务，丢弃该事务会回滚。
+
 ## SELECT 语句
 
 用 `select` 指定返回列，用 `addSelect` 追加列。列名支持 `as` 别名。`distinct()` 去除重复行。语法编译器引用标识符并应用连接的表前缀。用 `selectRaw` 或 `DB::raw` 显式传入可信表达式。值单独绑定，标识符从应用预先定义的名称中选择。

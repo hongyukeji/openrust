@@ -10,6 +10,22 @@
 
 使用 `count("*")`、`min("column")`、`max("column")`、`sum("column")` 或 `avg("column")`。計數傳回無號整數，其他彙總保留驅動程式傳回的值型別。MySQL 的精確小數以文字傳回。空集合加總傳回零。
 
+## 串流讀取結果 {#streaming-results}
+
+在查詢上呼叫 `cursor()` 逐列讀取結果。首次輪詢時開始查詢，`try_next` 讀取並解碼一列，錯誤由串流傳回。連線和查詢遊標沿用已設定的讀寫路由。捨棄非交易遊標會釋放連線租約。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{Connection, DatabaseResult, Row};
+
+async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
+    let mut rows = db.table("reports").orderBy("id", "asc").cursor();
+    rows.try_next().await
+}
+```
+
+交易中應先讀完遊標，再執行下一條陳述式或提交。陳述式尚未執行完畢時捨棄遊標會中斷交易，捨棄該交易會回滾。
+
 ## SELECT 陳述式
 
 用 `select` 指定傳回欄位，用 `addSelect` 附加欄位。欄名支援 `as` 別名。`distinct()` 去除重複資料列。語法編譯器引用識別字並套用連線的資料表前綴。用 `selectRaw` 或 `DB::raw` 明確傳入受信任的運算式。值個別繫結，識別字從應用程式預先定義的名稱中選擇。

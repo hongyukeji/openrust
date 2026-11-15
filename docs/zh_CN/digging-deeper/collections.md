@@ -33,6 +33,8 @@ fn main() {
 
 ## 惰性集合
 
+数据库行可通过查询构建器的 [cursor](../database/queries#streaming-results) 异步读取。该入口支持提前停止读取。
+
 ### 简介
 
 `LazyCollection` 按需从 Rust 迭代器读取条目，适合逐步处理大数据源。`take(2)` 只读取生成两个结果所需的条目。负数限制会遍历到末尾，仅保留指定大小的尾部。

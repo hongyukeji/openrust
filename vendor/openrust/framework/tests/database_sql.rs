@@ -1,3 +1,4 @@
+use futures_util::TryStreamExt as _;
 use std::{
     collections::BTreeMap,
     fs,
@@ -323,7 +324,12 @@ fn replica(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>>
             } else {
                 query
             };
-            query.value("id").await
+            let rows: Vec<_> = query.select(["id"]).cursor().try_collect().await?;
+            Ok(rows
+                .first()
+                .and_then(|row| row.get_at(0))
+                .cloned()
+                .unwrap_or(Value::Null))
         }
         let id = read(write, force_writer)
             .await

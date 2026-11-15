@@ -10,6 +10,22 @@ Start with `DB::table("users")?` in an application lifecycle or `connection.tabl
 
 Use `count("*")`, `min("column")`, `max("column")`, `sum("column")`, or `avg("column")`. A count is an unsigned integer. Other aggregates preserve the driver's value type. MySQL exact decimals are returned as text. An empty sum returns zero.
 
+## Streaming Results {#streaming-results}
+
+Call `cursor()` on a query to stream rows. The first poll starts the query. `try_next` reads and decodes one row, and errors are reported through the stream. Connection and query cursors use the configured read route or writer. Dropping a nontransactional cursor releases its lease.
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{Connection, DatabaseResult, Row};
+
+async fn first_streamed_row(db: &Connection) -> DatabaseResult<Option<Row>> {
+    let mut rows = db.table("reports").orderBy("id", "asc").cursor();
+    rows.try_next().await
+}
+```
+
+Inside a transaction, exhaust the cursor before issuing another statement or committing. Dropping it while the statement is in flight interrupts the transaction and dropping the transaction rolls back its work.
+
 ## Select Statements
 
 `select` sets the projection and `addSelect` extends it. Columns accept an `as` alias. Use `distinct()` to remove duplicate rows. The dialect quotes identifiers and applies the connection's table prefix. Pass a trusted expression explicitly with `selectRaw` or `DB::raw`. Bind values separately and select identifiers from application-defined names.

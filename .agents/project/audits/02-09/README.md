@@ -16,3 +16,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 与隔离副本逐文件核对本批实现、测试和文档。工作区锁定依赖解析及 `git diff --check` 通过。
 
 下一单元为 03-01 本地文件系统与公共磁盘，依赖 01-01 的配置和应用基础。
+
+## 异步数据库游标
+
+对照固定 Laravel 的 [Connection 游标](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L456) 和 [Query Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php)。Rust 的 Connection、Transaction 和 Query Builder 通过 `DatabaseCursor` 返回可失败的异步 Stream。首次轮询才编译 SQL 或取得连接，复用现有语句准备、绑定检查、驱动解码、读写路由和按组限额。SQLx `fetch` 逐行交付，`async-stream` 0.3.6 封装拥有局部状态的流，无需后台任务，新增宏包同为 MIT 且最低 Rust 1.65。提前停止释放非事务租约；事务内提前结束仍按现有不完整命令策略标记中断，丢弃事务触发回滚。旧版找到的 BatchCursor 是键集分批位置，未找到同契约的数据库行流。固定 Goravel 的连接与查询入口作为装配参考。
+
+隔离基线 `bfe3c3c1`。MySQL 8.4.13 和 SQLite 验证未轮询不占连接、绑定检查、单连接池提前结束后可继续查询、事务读完继续使用、提前结束中断和回滚。SQLite 验证先产出第一行再传播数据库错误。真实 SQLite HTTP 验证只读连接、写后粘滞、显式使用写库及跨应用隔离。9 项查询、7 项数据库、6 项分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版差异只在隔离副本处理。容器已回收，清理本批隔离 Cargo 产物 1.9 GiB 及站点产物。
+
+提交前周额度剩余 25%，项目卷可用 52 GiB。按当前交接记录收尾本批并等待恢复确认。下一批接 Eloquent 模型逐行水合与关系游标，再复核 05-02 和 05-06。同步惰性集合的其他差异仍按本单元跟踪。

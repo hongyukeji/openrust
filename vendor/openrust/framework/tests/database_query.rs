@@ -1,5 +1,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use futures_util::{StreamExt as _, TryStreamExt as _};
+
 use openrust::{
     config::Repository,
     database::{Connection, DatabaseError, DatabaseManager, Value},
@@ -606,4 +608,134 @@ async fn json_predicates_run_on_mysql_8_4() {
         return;
     };
     verify_json_predicates(connection(json!({"url":url,"prefix":"app_"})), true).await;
+}
+
+async fn verify_cursor(db: Connection) {
+    db.statement("DROP TABLE IF EXISTS cursor_records", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE cursor_records (id INTEGER PRIMARY KEY, payload VARCHAR(30))",
+        &[],
+    )
+    .await
+    .unwrap();
+    db.statement(
+        "INSERT INTO cursor_records VALUES (1, 'one'), (2, 'two'), (3, 'three')",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let mut unused = db.cursor("SELECT * FROM no_such_cursor_table", &[]);
+    assert_eq!(db.scalar("SELECT 2", &[]).await.unwrap(), Value::Integer(2));
+    // Errors are delivered by polling, never by creating the cursor.
+    assert!(matches!(
+        unused.next().await,
+        Some(Err(DatabaseError::Driver { .. }))
+    ));
+    assert!(unused.next().await.is_none());
+
+    let mut invalid = db.cursor("SELECT ?", &[]);
+    assert!(matches!(
+        invalid.next().await,
+        Some(Err(DatabaseError::InvalidBindings {
+            expected: 1,
+            actual: 0
+        }))
+    ));
+    assert!(invalid.next().await.is_none());
+    let mut rows = db.table("cursor_records").orderBy("id", "asc").cursor();
+    assert_eq!(
+        rows.try_next().await.unwrap().unwrap().get("id"),
+        Some(&Value::Integer(1))
+    );
+    drop(rows);
+    let count = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        db.table("cursor_records").count("*"),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(count, 3);
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction
+        .statement("INSERT INTO cursor_records VALUES (4, 'draft')", &[])
+        .await
+        .unwrap();
+    let rows: Vec<_> = transaction
+        .table("cursor_records")
+        .select(["id", "payload"])
+        .r#where("id", ">", 1_i64)
+        .orderBy("id", "asc")
+        .cursor()
+        .try_collect()
+        .await
+        .unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.get("id").unwrap().clone())
+            .collect::<Vec<_>>(),
+        [2, 3, 4].map(Value::Integer)
+    );
+    assert_eq!(rows[2].get("payload"), Some(&"draft".into()));
+    transaction.rollBack(None).await.unwrap();
+    assert_eq!(db.table("cursor_records").count("*").await.unwrap(), 3);
+
+    let mut transaction = db.beginTransaction().await.unwrap();
+    transaction
+        .statement("INSERT INTO cursor_records VALUES (4, 'cancelled')", &[])
+        .await
+        .unwrap();
+    let mut rows = transaction.cursor("SELECT id FROM cursor_records ORDER BY id", &[]);
+    assert!(rows.try_next().await.unwrap().is_some());
+    drop(rows);
+    assert!(matches!(
+        transaction.commit().await,
+        Err(DatabaseError::TransactionInterrupted)
+    ));
+    drop(transaction);
+    assert_eq!(db.table("cursor_records").count("*").await.unwrap(), 3);
+
+    db.statement("DROP TABLE cursor_records", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn cursors_stream_on_sqlite() {
+    verify_cursor(connection(
+        json!({"driver":"sqlite","database":":memory:","max_connections":1}),
+    ))
+    .await;
+}
+
+#[tokio::test]
+async fn sqlite_cursor_delivers_rows_before_a_later_query_error() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:","max_connections":1}));
+    let mut rows = db.cursor(
+        "SELECT json_extract(payload, '$.id') FROM (SELECT '{\"id\":1}' AS payload UNION ALL SELECT 'broken')",
+        &[],
+    );
+    assert_eq!(
+        rows.try_next().await.unwrap().unwrap().get_at(0),
+        Some(&Value::Integer(1))
+    );
+    assert!(matches!(
+        rows.next().await,
+        Some(Err(DatabaseError::Driver { .. }))
+    ));
+    assert!(rows.next().await.is_none());
+    assert_eq!(db.scalar("SELECT 2", &[]).await.unwrap(), Value::Integer(2));
+}
+
+#[tokio::test]
+async fn cursors_stream_on_mysql() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_cursor(connection(json!({"url":url,"max_connections":1}))).await;
 }

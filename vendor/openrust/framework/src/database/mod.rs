@@ -37,6 +37,10 @@ pub use migration_service_provider::MigrationServiceProvider;
 /// An asynchronous database operation that may borrow its connection.
 pub type DatabaseFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
+/// A fallible asynchronous database row stream.
+pub type DatabaseCursor<'a, T = Row> =
+    Pin<Box<dyn futures_util::Stream<Item = DatabaseResult<T>> + Send + 'a>>;
+
 /// The result of a database operation.
 pub type DatabaseResult<T> = Result<T, DatabaseError>;
 

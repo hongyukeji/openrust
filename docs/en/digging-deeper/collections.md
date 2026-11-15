@@ -33,6 +33,8 @@ A collection serializes as a JSON array when its keys are consecutive from zero 
 
 ## Lazy Collections
 
+Database rows can be consumed asynchronously with Query Builder’s [cursor](../database/queries#streaming-results). The cursor supports stopping early.
+
 ### Introduction
 
 `LazyCollection` processes items from a Rust iterator as they are requested. Use it to process a large source incrementally. `take(2)` reads only the items needed to produce two results. A negative limit reads to the end and keeps a bounded tail.

@@ -1,8 +1,9 @@
+use futures_util::TryStreamExt as _;
 use sqlx::error::DatabaseError as _;
 
 use super::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, DatabaseTransactionsManager, Row,
-    Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult,
+    DatabaseTransactionsManager, Row, Value,
     connection::{PhysicalConnection, TransactionCommand},
 };
 
@@ -285,6 +286,17 @@ impl Transaction {
     {
         self.beginTransaction().await?;
         self.run(callback).await
+    }
+
+    /// Reads on this transaction's connection. Exhaust the cursor to continue using the transaction.
+    pub fn cursor<'a>(&'a mut self, sql: &'a str, bindings: &'a [Value]) -> DatabaseCursor<'a> {
+        Box::pin(async_stream::try_stream! {
+            let physical = self.physical()?;
+            let mut rows = std::pin::pin!(physical.cursor(sql, bindings));
+            while let Some(row) = rows.try_next().await? {
+                yield row;
+            }
+        })
     }
 
     pub async fn select(&mut self, sql: &str, bindings: &[Value]) -> DatabaseResult<Vec<Row>> {
