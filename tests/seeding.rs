@@ -82,6 +82,61 @@ impl Seeder for DatabaseSeeder {
     }
 }
 
+struct SeederCalls;
+
+impl Seeder for SeederCalls {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        Box::pin(async {
+            let params = |name: &str| Record::from([("name".into(), name.into())]);
+            context
+                .callWithMany(&["FirstSeeder", "SecondSeeder"], params("shared"))
+                .await?;
+            context
+                .callSilentWith(&["SilentSeeder"], params("quiet"))
+                .await?;
+            context
+                .callOnceWith(
+                    &[
+                        "SilentSeeder",
+                        "ParameterSeeder",
+                        "Database\\Seeders\\ParameterSeeder",
+                    ],
+                    true,
+                    params("once"),
+                )
+                .await?;
+
+            assert!(
+                context
+                    .callOnceWith(&["RetrySeeder", "UnreachedSeeder"], true, params("fail"))
+                    .await
+                    .is_err()
+            );
+            context
+                .callOnceWith(&["RetrySeeder"], false, params("recovered"))
+                .await?;
+            context.call(&["FirstSeeder"]).await
+        })
+    }
+}
+
+struct RetrySeeder;
+
+impl Seeder for RetrySeeder {
+    fn run<'a>(
+        &'a self,
+        context: &'a mut SeederContext<'_>,
+    ) -> DatabaseFuture<'a, DatabaseResult<()>> {
+        if context.parameters().get("name") == Some(&Value::from("fail")) {
+            return Box::pin(async { Err(DatabaseError::InvalidSeeder("retry probe")) });
+        }
+        Insert("missing parameter").run(context)
+    }
+}
+
 struct SeedItem(ModelState);
 
 struct Insert(&'static str);
@@ -1707,6 +1762,9 @@ impl ServiceProvider for Provider {
             )];
             static SEEDERS: &[SeederEntry] = &[
                 SeederEntry::new("DatabaseSeeder", &DatabaseSeeder),
+                SeederEntry::new("SeederCalls", &SeederCalls),
+                SeederEntry::new("RetrySeeder", &RetrySeeder),
+                SeederEntry::new("UnreachedSeeder", &Insert("unreached")),
                 SeederEntry::new("FirstSeeder", &Insert("first")),
                 SeederEntry::new("SecondSeeder", &Insert("second")),
                 SeederEntry::new("SilentSeeder", &Insert("silent")),
@@ -1910,6 +1968,24 @@ async fn verify(mysql: Option<&str>, allow_fresh: bool) {
         let output = run(&["db:seed", "--database=alternate", "--class", name]);
         assert_eq!(output.status.code(), Some(1));
         assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
+    }
+
+    let expected = ["shared", "shared", "quiet", "once", "recovered", "first"];
+    for invocation in 0..2 {
+        let output = success(run(&[
+            "db:seed",
+            "--database=alternate",
+            "--class=SeederCalls",
+        ]));
+        assert!(
+            output.find("FirstSeeder DONE").unwrap() < output.find("SecondSeeder DONE").unwrap()
+        );
+        assert!(!output.contains("SilentSeeder") && !output.contains("ParameterSeeder"));
+        assert_eq!(output.matches("RetrySeeder RUNNING").count(), 1);
+        assert_eq!(output.matches("RetrySeeder DONE").count(), 1);
+        let written = rows().pluck("name").await.unwrap();
+        let offset = 5 + invocation * expected.len();
+        assert_eq!(&written[offset..], &expected.map(Value::from));
     }
 
     success(run(&[

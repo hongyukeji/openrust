@@ -14,6 +14,8 @@ Artisan temporarily disables Eloquent mass-assignment protection while a seeder 
 
 `DatabaseSeeder` is the default entry point. Use `call` to run child seeders in order. `callSilent` suppresses child progress output. `callOnce` skips a seeder that already completed in the current invocation. Use `callWith` to pass values that the child reads from `parameters()`.
 
+Use `callWithMany(names, parameters)` to pass the same values to multiple seeders in order. Use `callSilentWith(names, parameters)` to suppress their progress lines, or `callOnceWith(names, silent, parameters)` to skip previously successful seeders and choose whether to show progress. Each seeder reads the values with `parameters()`. An error stops the list. A failed seeder can be retried because it has yet to complete successfully.
+
 The following seeder assumes a `plans` table with a unique `code` column and a `label` column. Its upsert makes repeat execution update the same row.
 
 ```rust
@@ -30,9 +32,11 @@ impl Seeder for CatalogSeeder {
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
+            let label = context.parameters().get("label").cloned()
+                .unwrap_or_else(|| "Standard".into());
             let row = Record::from([
                 ("code".into(), "standard".into()),
-                ("label".into(), "Standard plan".into()),
+                ("label".into(), label),
             ]);
             context.connection().table("plans")
                 .upsert(&[row], &["code"], Some(&["label"]))
@@ -49,7 +53,11 @@ impl Seeder for DatabaseSeeder {
         &'a self,
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(context.call(&["CatalogSeeder"]))
+        Box::pin(context.callOnceWith(
+            &["CatalogSeeder"],
+            true,
+            Record::from([("label".into(), "Standard plan".into())]),
+        ))
     }
 }
 

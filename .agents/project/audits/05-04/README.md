@@ -1641,3 +1641,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 对照固定 [工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php)及 [Seeder 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php)。模型选择和依赖获取分别由 `HasFactory` 的静态绑定与 `SeederContext` 的应用容器承接。下一批补齐 Seeder 多类共享参数、静默或仅一次执行时同时传参的语义，并继续核对工厂剩余公开契约。05-04 保持在途。
 
 临时 Seeder 已恢复，测试容器已回收。清理本批独占 Cargo 产物及站点、文档和浏览器测试依赖，磁盘可用恢复至 79 GiB。
+
+## Seeder 共享参数与调用模式
+
+对照固定 [Laravel Seeder 调用实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Seeder.php#L43)、[Seeder 参数测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php#L77)及[调用其他 Seeder](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/seeding.md#calling-additional-seeders)。Laravel 接受单个类或类列表，并将参数传给每个类，成功后才记入已调用集合。Rust 通过 `callWithMany`、`callSilentWith` 和 `callOnceWith` 表达可选参数组合，保留原有签名。每个子上下文借用同一个只读 Record。调用历史仍属于单次命令，避免独立应用和并发命令共享状态。旧版仅注册单个编译种子函数。固定 [Goravel Seeder](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/seeder/seeder.go) 用于参考编译注册与顺序调用。
+
+隔离基线 `96a404c8`。用 PHP 8.5 运行固定 Seeder 类的调用探针，验证共享参数、仅一次调用跳过已成功类、失败停止余项和重试。同一场景经 OpenRust Artisan 分别在 MySQL 8.4.13 和 SQLite 验证，覆盖静默输出、同类两个名称只调用一次、失败后重试、普通调用仍可再次执行及命令间历史隔离。49 项 Seeder、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式和工作区全目标严格 Clippy 通过。隔离副本处理已有 Sanctum 排版差异。
+
+三语共用示例编译进实际应用二进制。MySQL 上两次运行 `main artisan db:seed --database=mysql --force` 均无子 Seeder 进度行，回读一条 `standard:Standard plan`。显式指定 `--class=CatalogSeeder` 显示进度，回读同一行更新为 `standard:Standard`。`./artisan inspire`、三语 VitePress 构建及 18 项浏览器检查通过。临时应用代码已恢复，测试容器已回收。清理本批 Cargo 编译产物、文档站和浏览器测试依赖，磁盘可用 78 GiB。
+
+05-04 继续核对工厂操作的临时属性。固定 Laravel 的 `make`、`create`、`createQuietly` 接受映射或回调作为本次操作的末尾状态，`lazy` 接受映射并在调用时保存。OpenRust 已有 `rawWithState` 和显式父模型入口，仍需核对无父模型时的成批覆盖和普通延迟入口。

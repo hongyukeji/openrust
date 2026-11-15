@@ -14,6 +14,8 @@ Artisan 執行 Seeder 及其子 Seeder 時會暫時停用 Eloquent 的批次賦�
 
 `DatabaseSeeder` 是預設入口。用 `call` 依序執行子 Seeder。`callSilent` 隱藏子項的進度輸出。`callOnce` 跳過本次執行中已成功的 Seeder。`callWith` 可傳入參數，子項用 `parameters()` 讀取。
 
+用 `callWithMany(names, parameters)` 依序傳入相同的值給多個 Seeder。用 `callSilentWith(names, parameters)` 隱藏這些 Seeder 的進度行，或用 `callOnceWith(names, silent, parameters)` 跳過已成功的 Seeder 並選擇是否顯示進度。各 Seeder 透過 `parameters()` 讀取參數。發生錯誤時停止執行清單，失敗的 Seeder 可以重試。
+
 下列範例需要 `plans` 資料表具有唯一的 `code` 欄位和一個 `label` 欄位。重複執行時，upsert 更新同一筆資料列。
 
 ```rust
@@ -30,9 +32,11 @@ impl Seeder for CatalogSeeder {
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
         Box::pin(async move {
+            let label = context.parameters().get("label").cloned()
+                .unwrap_or_else(|| "Standard".into());
             let row = Record::from([
                 ("code".into(), "standard".into()),
-                ("label".into(), "Standard plan".into()),
+                ("label".into(), label),
             ]);
             context.connection().table("plans")
                 .upsert(&[row], &["code"], Some(&["label"]))
@@ -49,7 +53,11 @@ impl Seeder for DatabaseSeeder {
         &'a self,
         context: &'a mut SeederContext<'_>,
     ) -> DatabaseFuture<'a, DatabaseResult<()>> {
-        Box::pin(context.call(&["CatalogSeeder"]))
+        Box::pin(context.callOnceWith(
+            &["CatalogSeeder"],
+            true,
+            Record::from([("label".into(), "Standard plan".into())]),
+        ))
     }
 }
 

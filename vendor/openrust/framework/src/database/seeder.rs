@@ -76,7 +76,7 @@ pub struct SeederContext<'a> {
     output: &'a mut Output,
     called: &'a mut BTreeSet<&'static str>,
     stack: Vec<&'static str>,
-    parameters: Record,
+    parameters: &'a Record,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Seeder API")]
@@ -90,38 +90,66 @@ impl SeederContext<'_> {
     }
 
     pub fn parameters(&self) -> &Record {
-        &self.parameters
+        self.parameters
     }
 
     pub async fn call(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        for name in names {
-            self.invoke(name, Record::new(), false, false).await?;
-        }
-        Ok(())
+        self.callWithMany(names, Record::new()).await
     }
 
     pub async fn callSilent(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        for name in names {
-            self.invoke(name, Record::new(), true, false).await?;
-        }
-        Ok(())
+        self.callSilentWith(names, Record::new()).await
     }
 
     pub async fn callOnce(&mut self, names: &[&str]) -> DatabaseResult<()> {
-        for name in names {
-            self.invoke(name, Record::new(), false, true).await?;
-        }
-        Ok(())
+        self.callOnceWith(names, false, Record::new()).await
     }
 
     pub async fn callWith(&mut self, name: &str, parameters: Record) -> DatabaseResult<()> {
-        self.invoke(name, parameters, false, false).await
+        self.callWithMany(&[name], parameters).await
+    }
+
+    /// Runs the seeders in order with the same arguments for each.
+    pub async fn callWithMany(&mut self, names: &[&str], parameters: Record) -> DatabaseResult<()> {
+        self.call_seeders(names, &parameters, false, false).await
+    }
+
+    /// Passes arguments to each seeder while suppressing its progress lines.
+    pub async fn callSilentWith(
+        &mut self,
+        names: &[&str],
+        parameters: Record,
+    ) -> DatabaseResult<()> {
+        self.call_seeders(names, &parameters, true, false).await
+    }
+
+    /// Passes arguments to each seeder that has yet to complete in this invocation.
+    pub async fn callOnceWith(
+        &mut self,
+        names: &[&str],
+        silent: bool,
+        parameters: Record,
+    ) -> DatabaseResult<()> {
+        self.call_seeders(names, &parameters, silent, true).await
+    }
+
+    async fn call_seeders(
+        &mut self,
+        names: &[&str],
+        parameters: &Record,
+        silent: bool,
+        once: bool,
+    ) -> DatabaseResult<()> {
+        for name in names {
+            self.invoke(name, parameters, silent, once).await?;
+        }
+        Ok(())
     }
 
     async fn invoke(
         &mut self,
         name: &str,
-        parameters: Record,
+        parameters: &Record,
         silent: bool,
         once: bool,
     ) -> DatabaseResult<()> {
@@ -188,6 +216,7 @@ pub(crate) async fn run(
     let connection = manager.connection(Some(&selected))?;
     output.info("Seeding database.");
     let mut called = BTreeSet::new();
+    let parameters = Record::new();
     let mut context = SeederContext {
         application,
         registry: Arc::as_ref(&registry),
@@ -195,14 +224,14 @@ pub(crate) async fn run(
         output,
         called: &mut called,
         stack: Vec::new(),
-        parameters: Record::new(),
+        parameters: &parameters,
     };
     manager
         .usingConnection(
             &selected,
             super::eloquent::concerns::unguarded(context.invoke(
                 name,
-                Record::new(),
+                &parameters,
                 normalize(name) == DEFAULT,
                 false,
             )),
