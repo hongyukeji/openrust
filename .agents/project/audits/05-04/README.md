@@ -1876,3 +1876,11 @@ Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已�
 隔离基线 `af6513da`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、63 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，比对复制的二进制内容与生成扩展名，读回保存的文件名。同目录报错并以状态 1 退出。
 
 Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.1 GiB 和站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 下一批复核地区联系电话和其他仍只有类型化入口的公共 formatter。
+
+## 05-04 预构造与延迟写入复验（2026-11-15）
+
+隔离基线 `db39007a`。沿用固定 [Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L357)及[使用工厂创建模型](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#creating-models-using-factories)。固定 [Goravel 工厂](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)用于参考编译式装配。v0.x 同名工厂用于构造数据库查询。Laravel 的 `lazy` 闭包在调用时同步保存，Rust 在返回的 Future 开始轮询时运行异步创建。三语示例补上直接丢弃未轮询 Future 的用法。
+
+实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`。验证 `makeOne` 保留配置数量，两次默认 `makeMany` 分别返回两条和一条，显式属性保留顺序且零数量返回空集合。预构造、丢弃未轮询的 Future，以及取得单条和批量 Future 后，目标表均为零行。两次批量和两次单条执行后，按主键读取四条批量与两条单条记录。三语共用示例在实际 Seeder 中再次运行并写入六条，合计十二条。
+
+Rust 1.94.0 全工作区全目标严格 Clippy、63 项 Seeder 测试、MySQL 和 SQLite 各一项工厂回归以及 `./artisan inspire` 通过。既有 Sanctum 测试的格式差异只在隔离副本调整，调整后格式检查通过。三份示例独立编译，VitePress 构建和 18 项浏览器检查通过。临时 Seeder 已恢复，MySQL 容器已回收。清理本批隔离 Cargo 产物 2.3 GiB 和独占站点产物及依赖。提交前周额度剩余 30%，项目卷可用 66 GiB。05-04 的剩余地区电话号码及具名 Faker 接口继续在本记录跟踪。

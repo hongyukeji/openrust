@@ -1899,7 +1899,7 @@ async fn consume_factory_count<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
-`makeOne` 保留已配置的批量数量，供下一次 `makeMany` 使用。示例中的两次默认批量调用依次返回两个模型和一个模型。预构造消耗数量后，用独立的批量工厂配置 `lazy` 的写入数量。创建或调用回调后，目标表在等待返回的 Future 前没有写入。下面每次调用并等待都会写入两个新模型。未设置批量数量的工厂返回的 `lazy` 回调，每次成功执行会创建并返回一个模型。示例验证逐条覆盖保留输入顺序，并检查两种回调返回的模型均已保存。
+`makeOne` 保留已配置的批量数量，供下一次 `makeMany` 使用。示例中的两次默认批量调用依次返回两个模型和一个模型。预构造消耗数量后，用独立的批量工厂配置 `lazy` 的写入数量。创建或调用回调后，目标表在等待返回的 Future 前没有写入。下面每次调用并等待都会写入两个新模型。未设置批量数量的工厂返回的 `lazy` 回调，每次成功执行会创建并返回一个模型。示例验证逐条覆盖保留输入顺序，并检查两种回调返回的模型均已保存。 直接丢弃还未开始轮询的 Future，目标表不会写入记录。
 
 ```rust
 use openrust::database::{
@@ -1936,6 +1936,7 @@ async fn preview_and_seed<M: Model>() -> DatabaseResult<()> {
 
     let batch = factory().count(2);
     let seed = batch.lazy(Attributes::new());
+    drop(seed());
     let pending_batch = seed();
 
     let single = factory();
