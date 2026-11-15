@@ -1,4 +1,8 @@
-use crate::view::{View, ViewData, ViewResult};
+use crate::{
+    database::eloquent::Model,
+    support::{ArrayKey, Collection},
+    view::{View, ViewData, ViewResult},
+};
 
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
@@ -8,6 +12,7 @@ use super::{Links, PaginationResult, PaginatorOptions, page_offset, page_size};
 #[derive(Debug)]
 pub struct Paginator<T> {
     pub(super) items: Vec<T>,
+    pub(super) keys: Option<Vec<ArrayKey>>,
     pub(super) page: u64,
     pub(super) per_page: u64,
     pub(super) links: Links,
@@ -35,6 +40,7 @@ impl<T> Paginator<T> {
         items.truncate(usize::try_from(per_page).unwrap_or(usize::MAX));
         Self {
             items,
+            keys: None,
             page,
             per_page,
             links,
@@ -70,6 +76,23 @@ impl<T> Paginator<T> {
     pub fn items(&self) -> &[T] {
         &self.items
     }
+    /// Looks up the collection key for an item on the current page.
+    pub fn getByKey(&self, key: impl Into<ArrayKey>) -> Option<&T> {
+        let key = key.into().normalized();
+        if let Some(keys) = &self.keys {
+            return keys
+                .iter()
+                .position(|candidate| *candidate == key)
+                .map(|index| &self.items[index]);
+        }
+        match key {
+            ArrayKey::Integer(index) => usize::try_from(index)
+                .ok()
+                .and_then(|index| self.items.get(index)),
+            ArrayKey::String(_) => None,
+        }
+    }
+
     pub fn perPage(&self) -> u64 {
         self.per_page
     }
@@ -172,6 +195,7 @@ impl<T> Paginator<T> {
     pub(crate) fn map_items<U>(self, map: impl FnOnce(Vec<T>) -> Vec<U>) -> Paginator<U> {
         Paginator {
             items: map(self.items),
+            keys: self.keys,
             page: self.page,
             per_page: self.per_page,
             links: self.links,
@@ -190,6 +214,27 @@ impl<T> Paginator<T> {
         fields.serialize_entry("per_page", &self.perPage())?;
         fields.serialize_entry("prev_page_url", &self.previousPageUrl())?;
         fields.serialize_entry("to", &self.lastItem())
+    }
+}
+
+impl<M: Model> Paginator<M> {
+    pub(crate) fn apply_model_collection(&mut self) {
+        (self.items, self.keys) = M::newCollection(std::mem::take(&mut self.items)).into_parts();
+    }
+}
+
+impl<T: Serialize> Paginator<T> {
+    pub(super) fn serialize_items<S: serde::ser::SerializeMap>(
+        &self,
+        fields: &mut S,
+    ) -> Result<(), S::Error> {
+        match &self.keys {
+            Some(keys) => fields.serialize_entry(
+                "data",
+                &Collection::fromEntries(keys.iter().zip(&self.items)),
+            ),
+            None => fields.serialize_entry("data", &self.items),
+        }
     }
 }
 
@@ -241,7 +286,7 @@ impl<T: Serialize> Serialize for Paginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(9))?;
         self.serialize_metadata(&mut fields)?;
-        fields.serialize_entry("data", &self.items)?;
+        self.serialize_items(&mut fields)?;
         fields.end()
     }
 }

@@ -45,6 +45,7 @@ impl<T> LengthAwarePaginator<T> {
         Self {
             inner: Paginator {
                 items,
+                keys: None,
                 page,
                 per_page,
                 links,
@@ -143,7 +144,7 @@ impl<T: Serialize> Serialize for LengthAwarePaginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(13))?;
         self.serialize_metadata(&mut fields)?;
-        fields.serialize_entry("data", self.items())?;
+        self.inner.serialize_items(&mut fields)?;
         fields.end()
     }
 }

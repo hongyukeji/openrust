@@ -204,6 +204,8 @@ pub fn queued_ids<M: Model>(models: &Collection<M>) -> DatabaseResult<Vec<Value>
 
 Override `Model::newCollection` to customize how query results are assembled. The hook receives hydrated models after eager loading and also runs when `makeMany` constructs unsaved related models. Keep the supplied models in order when assigning collection keys. Rust returns `Collection<Self>` and supports adding domain methods with extension traits.
 
+Numbered and simple pages preserve your collection keys, including after `through` transforms the items. Cursor pagination reindexes page results.
+
 Counted factories apply the same hook to the result of `make()` and `create()`. Queue restoration applies the hook after assembling the final model list. Ordinary models follow payload order, including repeated IDs, and missing rows are omitted. The queue payload carries model identifiers, and the receiving application supplies the collection keys through the model hook.
 
 ```rust

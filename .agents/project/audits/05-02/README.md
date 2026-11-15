@@ -666,3 +666,9 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 对照固定 Laravel 的 HasMany、HasOneOrMany 及关联测试。直接读取、延迟加载和预加载为每个父模型构造多值结果。HasMany、MorphMany、BelongsToMany、MorphToMany 与 HasManyThrough 调用关联模型的 `newCollection`。Rust 用 `RelatedCollection<M>` 保留键和 `Arc<M>` 快照。显式赋值可用 `fromShared`，递归保存和嵌套加载替换快照时保留键。列表键序列化为数组，自定义非列表键序列化为对象。工厂可为不同父模型生成独立快照，PHP 对象引用身份仍有差异。旧版多值缓存使用 `Vec<Arc<M>>`，沿用共享快照契约。Goravel 仅用于核对编译型装配，本批无启动变更。 [Laravel 多值匹配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrMany.php) · [Laravel 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentHasManyTest.php)
 
 隔离 MySQL 8.4.13 验证直接读取、延迟加载、预加载、自定义键、JSON、空结果、反向缓存和查询计数。模型事件、递归保存、模型工厂、实际 TCP Resource 和真实队列 Worker 的 MySQL 定向验收通过。Rust 1.94.0 格式、全目标严格 Clippy、实际 Artisan、三语示例编译、VitePress 构建及 18 项浏览器检查通过。
+
+## Eloquent 分页的集合工厂和键
+
+以 `68006a8e` 为隔离基线。固定 Laravel 的 [Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 将模型集合交给分页器，简易分页切片保留自定义键，[游标分页](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pagination/CursorPaginator.php) 重新编号。Rust 在水合、事件与关系加载后调用 `Model::newCollection`。普通和简易分页保存集合键及自动加载绑定，支持 `getByKey`，转换后 JSON 仍保留键。游标页按列表呈现。Rust 先在查询层确定边界，仅将实际返回行交给模型工厂；简易和游标的预读行无需模型化。固定 Goravel ORM 仅作为查询分页参考，v0.x 未找到对应模型集合工厂。
+
+真实 MySQL 8.4.13 和 SQLite HTTP 验证普通及简易分页对象键、查键、翻页、`through` 转换、游标重新编号与往返。多对多的工厂以已加载 Pivot 计算自定义键。6 项分页、6 项关系回归、Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress、三语集合和分页正文的 12 个访问组合及 12 项通用浏览器检查通过。既有 Sanctum 格式仅在隔离副本调整。测试容器已回收，清理独占 Cargo 产物 1.8 GiB 和站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。

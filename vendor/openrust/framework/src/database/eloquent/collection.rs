@@ -472,9 +472,16 @@ impl<M: Model> Collection<M> {
         }
     }
 
-    pub(super) fn into_shared_parts(mut self) -> (Vec<Arc<M>>, Option<Vec<ArrayKey>>) {
-        let keys = self.keys.take();
-        (self.into_iter().map(Arc::new).collect(), keys)
+    pub(crate) fn into_parts(mut self) -> (Vec<M>, Option<Vec<ArrayKey>>) {
+        if self.autoload {
+            super::detached_autoload::attach(&mut self.models);
+        }
+        (self.models, self.keys)
+    }
+
+    pub(super) fn into_shared_parts(self) -> (Vec<Arc<M>>, Option<Vec<ArrayKey>>) {
+        let (models, keys) = self.into_parts();
+        (models.into_iter().map(Arc::new).collect(), keys)
     }
 
     /// Builds an Eloquent collection with explicit collection keys.
@@ -1641,10 +1648,7 @@ impl<M: Model> IntoIterator for Collection<M> {
     type Item = M;
     type IntoIter = std::vec::IntoIter<M>;
 
-    fn into_iter(mut self) -> Self::IntoIter {
-        if self.autoload {
-            super::detached_autoload::attach(&mut self.models);
-        }
-        self.models.into_iter()
+    fn into_iter(self) -> Self::IntoIter {
+        self.into_parts().0.into_iter()
     }
 }

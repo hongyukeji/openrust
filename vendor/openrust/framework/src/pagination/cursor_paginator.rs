@@ -1,5 +1,5 @@
 use crate::{
-    database::Value,
+    database::{Value, eloquent::Model},
     view::{View, ViewData, ViewResult},
 };
 
@@ -217,6 +217,14 @@ impl<T> CursorPaginator<T> {
             previous: self.previous,
             more: self.more,
         }
+    }
+}
+
+impl<M: Model> CursorPaginator<M> {
+    pub(crate) fn apply_model_collection(&mut self) {
+        // Cursor results are indexed sequentially, even for explicitly keyed model collections.
+        let (items, _) = M::newCollection(std::mem::take(&mut self.items)).into_parts();
+        self.items = items;
     }
 }
 

@@ -108,6 +108,24 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+### Collection Keys on Eloquent Pages {#collection-keys-on-eloquent-pages}
+
+Eloquent calls `Model::newCollection` after hydrating the current page and loading its relations. Numbered and simple pages preserve customized keys in JSON and expose `getByKey`. Cursor pages reindex to a list. `items()` always supports ordered iteration.
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    pagination::LengthAwarePaginator,
+};
+
+fn find_on_page<'a, M: Model>(
+    page: &'a LengthAwarePaginator<M>,
+    key: &str,
+) -> Option<&'a M> {
+    page.getByKey(key)
+}
+```
+
 ### Loading Polymorphic Relations on the Current Page {#loading-polymorphic-relations-on-the-current-page}
 
 Use `loadMorph` or `loadMorphCount` on an Eloquent paginator to load a nested relation or its count for one registered morph target. The methods update only the current page and return the same paginator for chaining.

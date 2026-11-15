@@ -1539,6 +1539,7 @@ impl<M: Model> Builder<'static, M> {
         hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
+        page.apply_model_collection();
         Ok(page)
     }
 
@@ -1572,6 +1573,7 @@ impl<M: Model> Builder<'static, M> {
         hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
+        page.apply_model_collection();
         Ok(page)
     }
 
@@ -1605,6 +1607,7 @@ impl<M: Model> Builder<'static, M> {
         hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
+        page.apply_model_collection();
         Ok(page)
     }
 

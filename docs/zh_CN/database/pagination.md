@@ -108,6 +108,24 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+### Eloquent 分页的集合键 {#collection-keys-on-eloquent-pages}
+
+Eloquent 在水合当前页并加载关系后调用 `Model::newCollection`。普通和简易分页保留自定义键，并可通过 `getByKey` 查找记录。游标分页按位置重新编号为列表。`items()` 都支持按序遍历。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    pagination::LengthAwarePaginator,
+};
+
+fn find_on_page<'a, M: Model>(
+    page: &'a LengthAwarePaginator<M>,
+    key: &str,
+) -> Option<&'a M> {
+    page.getByKey(key)
+}
+```
+
 ### 加载当前页的多态关系 {#loading-polymorphic-relations-on-the-current-page}
 
 在 Eloquent 分页器上调用 `loadMorph` 或 `loadMorphCount`，可为指定的多态目标加载下级关系或关系计数。方法只处理当前页，并返回同一个分页器供链式调用。

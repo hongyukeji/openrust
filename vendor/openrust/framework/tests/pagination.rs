@@ -9,7 +9,7 @@ use openrust::{
     database::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
         eloquent::{
-            Attributes, Model, ModelMetadata, ModelState,
+            Attributes, Collection, Model, ModelMetadata, ModelState,
             relations::{
                 BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphTo, MorphToMany, Pivot,
             },
@@ -136,6 +136,36 @@ impl Model for Label {
     }
 }
 
+struct KeyedLabel(ModelState);
+
+impl Model for KeyedLabel {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("pagination_labels").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+    #[allow(non_snake_case, reason = "Matches the Eloquent model factory")]
+    fn newCollection(models: Vec<Self>) -> Collection<Self> {
+        Collection::fromEntries(models.into_iter().map(|label| {
+            let prefix = if label.getRelation::<Pivot>("pivot").is_some() {
+                "pivot"
+            } else {
+                "label"
+            };
+            (format!("{prefix}-{}", id(label.getKey())), label)
+        }))
+    }
+}
+
 struct PageMembership(ModelState);
 
 impl Model for PageMembership {
@@ -185,6 +215,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/pivot-length", pivot_length_page)?;
     Route::get("/pivot-cursor", pivot_cursor_page)?;
     Route::get("/morph", morph_page)?;
+    Route::get("/keyed", keyed_page)?;
+    Route::get("/keyed-pivot", keyed_pivot_page)?;
     Ok(())
 }
 
@@ -415,6 +447,60 @@ fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                 json!([id(label.getKey()), id(pivot.getKey()), color])
             }),
         )
+    })
+}
+
+fn keyed_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.query(Some("mode"))?.unwrap_or_default();
+        let query = KeyedLabel::query().map_err(internal)?.orderBy("id", "asc");
+        match mode.as_str() {
+            Some("simple") => {
+                let mut page = query.simplePaginate(2).await.map_err(internal)?;
+                page.withQueryString();
+                if let Some(label) = page.items().first() {
+                    let key = format!("label-{}", id(label.getKey()));
+                    assert!(page.getByKey(key).is_some() && page.getByKey(0_i64).is_none());
+                }
+                Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
+            }
+            Some("cursor") => {
+                let mut page = query.cursorPaginate(2).await.map_err(internal)?;
+                page.withQueryString();
+                Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
+            }
+            _ => {
+                let mut page = query.paginate(2).await.map_err(internal)?;
+                page.withQueryString();
+                if let Some(label) = page.items().first() {
+                    let key = format!("label-{}", id(label.getKey()));
+                    assert!(page.getByKey(key).is_some() && page.getByKey(0_i64).is_none());
+                }
+                Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
+            }
+        }
+    })
+}
+
+fn keyed_pivot_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let relation = BelongsToMany::<Article, KeyedLabel>::new(
+            "pagination_memberships",
+            "owner_id",
+            "label_id",
+            "id",
+            "id",
+        )
+        .wherePivot("subject_type", "=", "article");
+        let page = relation.paginate(&parent, 2).await.map_err(internal)?;
+        assert!(page.getByKey("pivot-1").is_some() && page.getByKey("label-1").is_none());
+        Response::json(StatusCode::OK, page.through(|label| id(label.getKey())))
     })
 }
 
@@ -1073,6 +1159,23 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(window.matches(">...</span>").count(), 2);
     assert!(window.contains(r#"aria-current="page""#) && window.contains(">9</span>"));
     assert!(!window.contains(">8</a>") && !window.contains(">10</a>"));
+    let length = request(address, "/api/keyed").await;
+    assert_eq!(length["total"], 5);
+    assert_eq!(length["data"], json!({"label-1": 1, "label-2": 2}));
+    let simple = request(address, "/api/keyed?mode=simple").await;
+    assert_eq!(simple["data"], length["data"]);
+    assert_eq!(simple["next_page_url"], "/api/keyed?mode=simple&page=2");
+    let second = request(address, simple["next_page_url"].as_str().unwrap()).await;
+    assert_eq!(second["data"], json!({"label-3": 3, "label-4": 4}));
+    let cursor = request(address, "/api/keyed?mode=cursor").await;
+    assert_eq!(cursor["data"], json!([1, 2]));
+    let next = request(address, cursor["next_page_url"].as_str().unwrap()).await;
+    assert_eq!(next["data"], json!([3, 4]));
+    let previous = request(address, next["prev_page_url"].as_str().unwrap()).await;
+    assert_eq!(previous["data"], cursor["data"]);
+    let pivot = request(address, "/api/keyed-pivot").await;
+    assert_eq!(pivot["data"], json!({"pivot-1": 1, "pivot-2": 2}));
+
     for path in [
         "/api/morph",
         "/api/morph?mode=simple",

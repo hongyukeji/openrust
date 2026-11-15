@@ -108,6 +108,24 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+### Eloquent 分頁的集合鍵 {#collection-keys-on-eloquent-pages}
+
+Eloquent 在水合目前頁面並載入關聯後呼叫 `Model::newCollection`。一般和簡易分頁會保留自訂鍵，可透過 `getByKey` 尋找記錄。遊標分頁依位置重新編號為清單。`items()` 都支援依序遍歷。
+
+```rust
+use openrust::{
+    database::eloquent::Model,
+    pagination::LengthAwarePaginator,
+};
+
+fn find_on_page<'a, M: Model>(
+    page: &'a LengthAwarePaginator<M>,
+    key: &str,
+) -> Option<&'a M> {
+    page.getByKey(key)
+}
+```
+
 ### 載入目前頁面的多型關聯 {#loading-polymorphic-relations-on-the-current-page}
 
 在 Eloquent 分頁器上呼叫 `loadMorph` 或 `loadMorphCount`，可為指定的多型目標載入下一層關聯或關聯計數。這些方法只處理目前頁面，並傳回同一個分頁器供鏈式呼叫。
