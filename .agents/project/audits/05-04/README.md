@@ -1476,3 +1476,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、99 项 Faker、49 项 See
 隔离基线 `490c438e`。PHP 反射核对 10 份独立词表和门牌模板，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 258 行，含三语共用示例。回归覆盖不同邮编格式、荷兰字母门牌、比利时前导空格和荷兰省名唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、100 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对北欧地区 Address。
+
+## 挪威语和瑞典语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [挪威语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/nb_NO/Address.php) 和 [瑞典语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sv_SE/Address.php) Address。两地共用有权重的街名结构和门牌模板，独立采样当地词表，门牌字母转为大写。挪威保留四位邮编及前导零模板，瑞典保留五位和带空格模板。streetSuffixWord 返回 Result 并支持 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `556a3f3c`。PHP 反射核对 13 份词表、门牌与邮编模板及共同街名权重，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 258 行，含三语共用示例。回归覆盖大写字母门牌、各邮编格式和瑞典后缀唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、101 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对丹麦语、芬兰语及冰岛语 Address。

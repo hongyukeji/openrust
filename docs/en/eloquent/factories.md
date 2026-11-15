@@ -1014,6 +1014,16 @@ fn dutch_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Norwegian and Swedish addresses put the building number after the street name. Letter suffixes on building numbers are uppercase. Norwegian postcodes use four digits and may start with zero. Swedish postcodes use five digits with an optional space after the third digit. `streetSuffixWord()` samples each locale’s standalone street suffix and supports `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("nb-NO"))?.address(), fake(Some("sv-SE"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

@@ -4416,3 +4416,37 @@ fn dutch_addresses_keep_country_specific_postcodes_and_whitespace() {
     }
     assert!(unique.state().is_err());
 }
+
+#[test]
+fn norwegian_and_swedish_addresses_keep_postcode_shapes_and_uppercase_buildings() {
+    let no = fake(Some("nb-NO")).unwrap();
+    let se = fake(Some("sv-SE")).unwrap();
+    let building = Regex::new(r"^[1-9](?:[0-9]{0,3}|[0-9]?[A-Z])$").unwrap();
+    let no_postcode = Regex::new(r"^[0-9]{4}$").unwrap();
+    let se_postcode = Regex::new(r"^[1-9][0-9]{2} ?[0-9]{2}$").unwrap();
+    let mut se_spacing = [false; 2];
+    let mut no_leading_zero = false;
+    for _ in 0..128 {
+        for (faker, postcode) in [(&no, &no_postcode), (&se, &se_postcode)] {
+            let addr = faker.address();
+            let (street, place) = addr.split_once('\n').unwrap();
+            assert!(building.is_match(street.rsplit_once(' ').unwrap().1));
+            let postal = faker.postcode();
+            assert!(postcode.is_match(&postal));
+            assert!(!place.starts_with(' '));
+            if faker.locale() == "sv_SE" {
+                se_spacing[usize::from(postal.contains(' '))] = true;
+            } else {
+                no_leading_zero |= postal.starts_with('0');
+            }
+        }
+    }
+    assert_eq!(se_spacing, [true; 2]);
+    assert!(no_leading_zero);
+    let unique = se.unique(true);
+    for _ in 0..4 {
+        assert!(unique.streetSuffixWord().is_ok());
+    }
+    assert!(unique.streetSuffixWord().is_err());
+    assert!(fake(Some("en-US")).unwrap().streetSuffixWord().is_err());
+}

@@ -1014,6 +1014,16 @@ fn dutch_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+挪威语和瑞典语地址把门牌号放在街名之后，门牌末尾的字母使用大写。挪威邮编为四位，可用零开头。瑞典邮编为五位，可在第三位后加空格。`streetSuffixWord()` 从当地独立街道后缀词表抽样，并支持 `unique()`。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("nb-NO"))?.address(), fake(Some("sv-SE"))?.address()))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。
