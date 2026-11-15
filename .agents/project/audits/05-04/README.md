@@ -1590,3 +1590,16 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、111 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 35%，磁盘可用 79 GiB。下一批核对全部 Address 提供器的公开字段和行为，汇总 05-04 剩余差异。
+
+## Address 提供器公开接口与格式总验收
+
+以 `41df93cb` 为隔离基线，复核固定 [Laravel 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)、[FakerPHP v1.24.1 Address 源码](https://github.com/FakerPHP/Faker/tree/v1.24.1/src/Faker/Provider)及其 [Factory 回退](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Factory.php#L36)。v0.x 没有等价 Faker 提供器。固定 Goravel 的编译式装配仍由现有 Artisan Seeder 入口覆盖。
+
+- PHP 反射枚举 71 个本地 Address 提供器的 104 种公开方法，去重前共 1,184 个地区与方法组合。Rust 逐项调用均成功。埃及 governorateId 已由身份格式化模块提供，复用地址词表。沙特独立 cityPrefix 在 PHP 因未声明静态属性而报错，OpenRust 保留已记录的回退；完整地址不依赖该入口。
+- 对 472 组可从 PHP 的随机单值词表直接提取的字段各抽样 256 次。所有 Rust 值均在对应词表范围内，空词表的 Rust 字符串约定仍适用。
+- 格式检查覆盖 446 个地区与核心字段组合。每组先用 64 条固定 PHP 样本验证匹配规则，再检查 128 条 Rust 样本。其中 443 组展开可解析的内部字段，马来西亚的 streetName、streetAddress、address 三组以外层格式核对，内部城镇、州及邮编关联沿用独立验收。随机流及样本权重的全量统计不在本次核对范围内。
+- 05-04 后续先补 PhoneNumber 仍缺少的地区辅助方法，再复查 Payment 和其他提供器。公开方法名清单只提供后续核对线索，方法已存在的地区行为继续以契约和运行证据验证。
+
+真实 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 572 行。覆盖 71 个本地提供器各八行及四个文档示例，其中三条验证回退路径。113 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、Rust 1.94.0 全目标严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建及两个站点路径共 18 项浏览器检查通过。工作区格式检查在隔离副本补齐既有 Sanctum 排版后通过。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 35%，磁盘可用 79 GiB。

@@ -1149,6 +1149,8 @@ fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+OpenRust exercises all 71 local Address providers from the pinned FakerPHP version. Address samples follow the local format and catalogs. Rust and PHP use independent random streams, so the same seed can produce different sample values.
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

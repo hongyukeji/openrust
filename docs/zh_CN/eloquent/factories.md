@@ -1149,6 +1149,8 @@ fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+OpenRust 已验证固定 FakerPHP 版本的全部 71 个本地 Address 提供器。地址样本遵循当地格式和词表。Rust 和 PHP 使用独立的随机序列，因此相同种子可能生成不同的样本值。
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。
