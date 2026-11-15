@@ -1119,6 +1119,21 @@ fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+塞尔维亚地址在 `sr-RS` 和 `sr-Cyrl-RS` 使用西里尔字母，在 `sr-Latn-RS` 使用拉丁字母。黑山地址使用当地城市和街道词表。黑山的街道前缀为空，选中带前缀的模板时保留前导空格。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("sr-RS"))?.address(),
+        fake(Some("sr-Cyrl-RS"))?.address(),
+        fake(Some("sr-Latn-RS"))?.address(),
+        fake(Some("me-ME"))?.address(),
+    ])
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

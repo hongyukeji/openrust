@@ -1119,6 +1119,21 @@ fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+Serbian addresses use Cyrillic for `sr-RS` and `sr-Cyrl-RS`, and Latin for `sr-Latn-RS`. Montenegrin addresses use their own city and street catalogs. The Montenegrin street prefix is empty, so the prefixed street template preserves a leading space.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("sr-RS"))?.address(),
+        fake(Some("sr-Cyrl-RS"))?.address(),
+        fake(Some("sr-Latn-RS"))?.address(),
+        fake(Some("me-ME"))?.address(),
+    ])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

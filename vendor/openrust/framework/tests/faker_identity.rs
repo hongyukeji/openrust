@@ -4741,3 +4741,35 @@ fn armenian_and_georgian_addresses_keep_local_layouts_and_region_forms() {
     assert!(unique.regionGenitiveForm().is_err());
     assert!(armenian.regionGenitiveForm().is_err());
 }
+
+#[test]
+fn serbian_address_scripts_and_montenegrin_spacing_match_their_providers() {
+    let serbian = fake(Some("sr-RS")).unwrap();
+    let cyrillic = fake(Some("sr-Cyrl-RS")).unwrap();
+    let latin = fake(Some("sr-Latn-RS")).unwrap();
+    let montenegrin = fake(Some("me-ME")).unwrap();
+    let cyrillic_city = Regex::new(r"^[\p{Cyrillic} -]+$").unwrap();
+    let latin_city = Regex::new(r"^[\p{Latin} -]+$").unwrap();
+    let address = Regex::new(r"^.+ [1-9][0-9] [0-9]{5} .+$").unwrap();
+    for (faker, script, prefix) in [
+        (&serbian, &cyrillic_city, "Булевар"),
+        (&cyrillic, &cyrillic_city, "Булевар"),
+        (&latin, &latin_city, "Bulevar"),
+    ] {
+        assert_eq!(faker.streetPrefix().unwrap(), prefix);
+        for _ in 0..32 {
+            assert!(script.is_match(faker.cityName().unwrap()));
+            assert!(address.is_match(&faker.address()));
+        }
+    }
+    assert!(montenegrin.streetPrefix().unwrap().is_empty());
+    let mut leading_spaces = [false; 2];
+    for _ in 0..128 {
+        leading_spaces[usize::from(montenegrin.streetName().starts_with(' '))] = true;
+        assert!(address.is_match(&montenegrin.address()));
+    }
+    assert_eq!(leading_spaces, [true; 2]);
+    let coordinates = montenegrin.localCoordinates().unwrap();
+    assert!((42.43..=42.45).contains(&coordinates.latitude));
+    assert!((19.16..=19.27).contains(&coordinates.longitude));
+}

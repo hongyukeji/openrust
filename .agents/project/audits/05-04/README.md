@@ -1570,3 +1570,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、109 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、110 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对塞尔维亚和黑山 Address。
+
+## 塞尔维亚和黑山地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [塞尔维亚默认](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sr_RS/Address.php)、[西里尔](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sr_Cyrl_RS/Address.php)、[拉丁](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sr_Latn_RS/Address.php) 和[黑山](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/me_ME/Address.php) Address。逐项相同的词表和模板共享，保留两种塞尔维亚文字、黑山本地词表与带空前缀模板的前导空格。黑山本地坐标沿用已实现的 Coordinates 结构和范围。v0.x 无等价 Faker 地址实现，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `e0962e0b`。按 PHP 反射逐项核对 19 份词表和模板，验证四个地区标识的 512 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 516 行，含三语共用示例。回归覆盖默认和显式西里尔、显式拉丁、五位邮编、黑山前导空格及本地坐标范围。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、111 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对匈牙利 Address，并继续核对地区回退行为。

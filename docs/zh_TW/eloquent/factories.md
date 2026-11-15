@@ -1119,6 +1119,21 @@ fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+塞爾維亞地址在 `sr-RS` 和 `sr-Cyrl-RS` 使用西里爾字母，在 `sr-Latn-RS` 使用拉丁字母。蒙特內哥羅地址使用當地城市和街道詞表。蒙特內哥羅的街道前綴為空，選中帶前綴的模板時保留前導空格。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("sr-RS"))?.address(),
+        fake(Some("sr-Cyrl-RS"))?.address(),
+        fake(Some("sr-Latn-RS"))?.address(),
+        fake(Some("me-ME"))?.address(),
+    ])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
