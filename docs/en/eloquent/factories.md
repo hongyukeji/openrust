@@ -951,6 +951,20 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### Postal Addresses and Titles {#address-and-title-samples}
 
+Named address, person, and payment formatters use the generator’s locale. For example, use `prefecture` with Japanese, `postcode` with a Malaysian state key, or `lastName` with a gender on a provider that supports it. Region-specific methods return an error when their provider is unavailable. `creditCardNumber` accepts type, formatting flag, and separator. `creditCardDetails` returns a JSON object. `creditCardExpirationDateString` accepts PHP format tokens, and `iban` accepts a country code, account prefix, and account length.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_regional() -> DatabaseResult<(Value, Value)> {
+    let japanese = Faker::new("ja-JP")?;
+    let prefecture = japanese.format("prefecture", &[])?;
+    let iban = japanese.format("iban", &["DE".into(), "123".into(), 18.into()])?;
+    Ok((prefecture, iban))
+}
+```
+
+
 Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned upstream Faker city and street templates and address catalogs. Other locales may still use fake-rs components. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
 
 Use `area()` with Simplified Chinese to sample a district, and `street()` with Traditional Chinese to sample the street stem. Taiwanese city samples combine a county or municipality with one of its own districts. Both direct formatters support `unique`.

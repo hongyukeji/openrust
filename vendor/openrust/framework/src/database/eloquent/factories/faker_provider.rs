@@ -11,6 +11,8 @@ use serde_json::Value as Json;
 use super::Faker;
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
+#[path = "faker_named_regional.rs"]
+mod named_regional;
 #[path = "faker_named_text.rs"]
 mod named_text;
 
@@ -393,12 +395,8 @@ fn defaults(name: &str) -> Option<Builtin> {
         "company" => |faker, _| Ok(faker.company().into()),
         "companyen" => |faker, _| faker.companyEn().map(Value::from),
         "email" => |faker, _| faker.email().map(Value::from),
-        "firstname" => |faker, _| Ok(faker.firstName().into()),
         "freeemail" => |faker, _| Ok(faker.freeEmail().into()),
-        "lastname" => |faker, _| Ok(faker.lastName().into()),
-        "name" => |faker, _| Ok(faker.name().into()),
         "phonenumber" => |faker, _| Ok(faker.phoneNumber().into()),
-        "postcode" => |faker, _| Ok(faker.postcode().into()),
         "safeemail" => |faker, _| Ok(faker.safeEmail().into()),
         "username" => |faker, _| Ok(faker.userName().into()),
         "uuid" => |faker, _| Ok(faker.uuid().to_string().into()),
@@ -480,7 +478,7 @@ fn defaults(name: &str) -> Option<Builtin> {
                 .regexify(pattern(args)?.unwrap_or(""))
                 .map(Value::from)
         },
-        _ => return named_text::formatter(name),
+        _ => return named_text::formatter(name).or_else(|| named_regional::formatter(name)),
     })
 }
 

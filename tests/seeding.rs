@@ -5829,6 +5829,76 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_regional_address_person_and_payment_follow_the_locale() -> DatabaseResult<()> {
+    let ru = Faker::new("ru-RU")?;
+    ru.seed(331);
+    let surname = ru.lastNameWithGender(Some("female"));
+    ru.seed(331);
+    assert_eq!(ru.format("lastName", &["female".into()])?, surname.into());
+    let ja = Faker::new("ja-JP")?;
+    ja.seed(332);
+    let prefecture = ja.prefecture()?;
+    ja.seed(332);
+    assert_eq!(ja.format("prefecture", &[])?, prefecture.into());
+    let my = Faker::new("ms-MY")?;
+    assert!(matches!(
+        my.format("postcode", &["perlis".into()])?,
+        Value::Text(code) if code.len() == 5
+    ));
+    assert!(my.format("postcode", &["missing-state".into()]).is_err());
+    let fr = Faker::new("fr-FR")?;
+    assert!(matches!(
+        fr.format("siren", &[])?,
+        Value::Text(number) if number.split_whitespace().count() == 3
+    ));
+    assert!(matches!(
+        fr.format("siren", &[false.into()])?,
+        Value::Text(number) if number.len() == 9 && number.bytes().all(|byte| byte.is_ascii_digit())
+    ));
+    assert!(matches!(
+        fr.format("department", &[])?,
+        Value::Json(serde_json::Value::Array(parts)) if parts.len() == 2
+    ));
+
+    let en = Faker::new("en-US")?;
+    assert!(en.format("prefecture", &[]).is_err());
+    assert!(
+        en.format("creditCardNumber", &["missing-type".into()])
+            .is_err()
+    );
+    let Value::Text(card) = en.format(
+        "creditCardNumber",
+        &["Visa".into(), true.into(), ":".into()],
+    )?
+    else {
+        panic!("expected a card number");
+    };
+    assert_eq!(card.split(':').count(), 4);
+    let Value::Json(details) = en.format("creditCardDetails", &[])? else {
+        panic!("expected credit card details");
+    };
+    for key in ["type", "number", "name", "expirationDate"] {
+        assert!(details[key].is_string());
+    }
+    assert!(matches!(
+        en.format("creditCardExpirationDateString", &[true.into(), "Y-m".into()])?,
+        Value::Text(date) if date.len() == 7 && date.as_bytes()[4] == b'-'
+    ));
+    assert!(matches!(
+        en.format("iban", &["DE".into(), "123".into(), 18.into()])?,
+        Value::Text(code) if code.len() == 22 && code.starts_with("DE") && &code[4..7] == "123"
+    ));
+    let uk = Faker::new("en-GB")?;
+    assert!(matches!(
+        uk.format("vat", &["gov".into()])?,
+        Value::Text(value) if value.starts_with("GBGD")
+    ));
+    ja.addProvider(FakerProvider::new().formatter("prefecture", |_, _| Ok("override".into())));
+    assert_eq!(ja.format("PREFECTURE", &[])?, "override".into());
+    Ok(())
+}
+
+#[test]
 fn faker_named_text_and_internet_reuse_typed_generators() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     faker.seed(91);

@@ -951,6 +951,20 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### 邮寄地址和称谓 {#address-and-title-samples}
 
+具名地址、姓名和支付方法沿用当前生成器的语言。例如日语可用 `prefecture`，马来西亚 `postcode` 可传入州键，支持性别后缀的地区可向 `lastName` 传入性别。缺少地区提供器时返回错误。`creditCardNumber` 接收卡种、格式化开关和分隔符。`creditCardDetails` 返回 JSON 对象。`creditCardExpirationDateString` 接收 PHP 格式标记，`iban` 接收国家代码、账户前缀和账户长度。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_regional() -> DatabaseResult<(Value, Value)> {
+    let japanese = Faker::new("ja-JP")?;
+    let prefecture = japanese.format("prefecture", &[])?;
+    let iban = japanese.format("iban", &["DE".into(), "123".into(), 18.into()])?;
+    Ok((prefecture, iban))
+}
+```
+
+
 用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的上游 Faker 排列规则。美国英语、简体中文和繁体中文使用固定 上游 Faker 的城市、街道模板和地址词表。其他地区仍可能使用 fake-rs 组件。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。
 
 简体中文可用 `area()` 抽取区名，繁体中文可用 `street()` 抽取街道词干。台湾城市样本先抽取县市，再从该县市的区乡镇词表取样。两个入口均支持 `unique`。

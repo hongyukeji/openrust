@@ -1840,3 +1840,15 @@ Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已�
 隔离基线 `963339f4`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、60 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，回读两个单词的句子和 slug。短文本报错并以状态 1 退出。
 
 Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.4 GiB 及站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。
+
+## Faker 地址、姓名和支付的地区具名调度
+
+对照固定 Laravel 工厂数据生成及上游 Faker v1.24.1 的 Address、Person、Payment 和地区提供器。PHP 8.5 实跑日本都道府县、马来西亚州邮编、俄语女性姓氏、信用卡分隔符、德国 IBAN 账户前缀及英国政府 VAT。固定法国 Company 的 SIREN 默认格式保留分组空格。v0.x 同名工厂为查询构造，编译式装配仍参考固定 Goravel。
+
+本批维护 151 项地区具名映射，其中 147 项新增，姓名、名字、姓氏和邮编四项接入已有的具名入口并识别对应参数。Rust 复用类型化地区和回退规则，复杂结果用 JSON 表达，日期对象为 RFC 3339 文本，具名到期日期字符串沿用 PHP 格式标记。只有具名调用增加参数适配，已公开的类型化方法继续使用原契约。自定义提供器仍可覆盖具名默认方法。地区方法的缺少、参数校验和原生成器错误通过 DatabaseResult 传播。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Address.php 、https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Person.php 和 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Payment.php 。
+
+隔离基线 `17c4f1e6`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、61 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，回读日本都道府县和德国 IBAN。不具备对应地址提供器时报告原错误并以状态 1 退出。
+
+Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 7.7 GiB 及站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 下一批继续图像、身份校验及地区方法参数差异的具名对账。
