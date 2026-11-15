@@ -1034,6 +1034,21 @@ fn nordic_address_samples() -> DatabaseResult<(String, String, String)> {
 }
 ```
 
+西語地址提供器涵蓋西班牙、阿根廷、秘魯與委內瑞拉。阿根廷完整地址使用省級縮寫。秘魯門牌號碼前保留字面值 ` # `，無補充地址時保留結尾空格。委內瑞拉完整地址可省略郵遞區號。四個地區共用自西班牙繼承的國家和自治區詞表。使用 `community()` 抽取自治區，也支援透過 `unique()` 呼叫。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("es-ES"))?.address(),
+        fake(Some("es-AR"))?.address(),
+        fake(Some("es-PE"))?.address(),
+        fake(Some("es-VE"))?.address(),
+    ])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

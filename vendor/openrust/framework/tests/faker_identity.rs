@@ -4491,3 +4491,46 @@ fn danish_finnish_and_icelandic_addresses_keep_local_formatters() {
     assert!(unique.buildingSide().is_err());
     assert!(fi.kommune().is_err());
 }
+
+#[test]
+fn spanish_address_providers_keep_inherited_fields_and_local_layouts() {
+    let es = fake(Some("es-ES")).unwrap();
+    let ar = fake(Some("es-AR")).unwrap();
+    let pe = fake(Some("es-PE")).unwrap();
+    let ve = fake(Some("es-VE")).unwrap();
+    let es_unit =
+        Regex::new(r"^(?:Bajos|(?:Ático |Entre suelo |Bajo )?[0-9]{1,2}º(?: [A-F]| [0-9]º)?)$")
+            .unwrap();
+    let ar_address = Regex::new(r"^.+\n.+, AR-[A-Z] [0-9]{4,5}$").unwrap();
+    let ve_address = Regex::new(r"^.+, .+ Edo\. [^,]+(?:, [0-9]{4})?$").unwrap();
+    let mut peru_layouts = [false; 2];
+    let mut venezuela_layouts = [false; 2];
+    for _ in 0..128 {
+        let address = es.address();
+        let fields: Vec<_> = address.split(", ").collect();
+        assert_eq!(fields.len(), 5);
+        assert!(es_unit.is_match(fields[2]));
+        assert_eq!(fields[3].len(), 5);
+        assert!(fields[3].bytes().all(|byte| byte.is_ascii_digit()));
+        assert!(ar_address.is_match(&ar.address()));
+        assert!(ar.streetSuffix().is_empty());
+        let street = pe.streetAddress();
+        assert!(street.contains(" # "));
+        peru_layouts[usize::from(street.ends_with(' '))] = true;
+        assert!(pe.postcode().starts_with("LIMA "));
+        let address = ve.address();
+        assert!(ve_address.is_match(&address));
+        venezuela_layouts[usize::from(address.rsplit_once(", ").unwrap().1.len() == 4)] = true;
+    }
+    assert_eq!(peru_layouts, [true; 2]);
+    assert_eq!(venezuela_layouts, [true; 2]);
+    for faker in [&es, &ar, &pe, &ve] {
+        assert!(faker.streetPrefix().is_ok());
+        let unique = faker.unique(true);
+        for _ in 0..19 {
+            assert!(unique.community().is_ok());
+        }
+        assert!(unique.community().is_err());
+    }
+    assert!(fake(Some("en-US")).unwrap().community().is_err());
+}

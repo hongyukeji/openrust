@@ -1492,3 +1492,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、101 项 Faker、49 项 Se
 隔离基线 `00797e7a`。PHP 反射核对 25 份词表和模板，按同一规则验证 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，含三语共用示例。回归覆盖丹麦三种布局、方位唯一值耗尽、芬兰可选地区、冰岛三位邮编和非法地区。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、102 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对西班牙语地区 Address。
+
+## 西班牙、阿根廷、秘鲁和委内瑞拉地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [西班牙](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_ES/Address.php)、[阿根廷](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_AR/Address.php)、[秘鲁](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_PE/Address.php) 和 [委内瑞拉](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/es_VE/Address.php) Address。保留四地的城市、街名、地址布局和补充地址，包含阿根廷省级缩写、秘鲁字面门牌符号及尾随空格、委内瑞拉可省略邮编。国家和自治区按上游继承关系共用词表。Rust 用固定标记展开现有字段方法，无需运行 PHP，community 返回 Result 并支持 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `752513dc`。PHP 反射逐项核对 47 份有序词表及模板。按同一规则匹配 512 个固定 PHP 样本及真实 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读的 516 行，含三语共用示例。回归覆盖地区专用布局、自治区唯一值耗尽和无效地区。对照固定 Laravel Factory 及其测试复验 `makeOne`、`makeMany` 和 `lazy`。工厂预构造保持零写入，默认批次数量取用后重置，延迟创建随异步执行写入。 [固定 Laravel Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L365)
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、103 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、根路径及 /docs/ 下的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对葡萄牙语 Address。

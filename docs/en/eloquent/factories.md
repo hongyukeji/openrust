@@ -1034,6 +1034,21 @@ fn nordic_address_samples() -> DatabaseResult<(String, String, String)> {
 }
 ```
 
+The Spanish Address providers cover Spain, Argentina, Peru, and Venezuela. Argentina uses province abbreviations in complete addresses. Peru preserves the literal ` # ` before the building number and the final space when the secondary address is absent. Venezuela can omit the postcode. The four locales share the country and autonomous community catalogs inherited from Spain. Use `community()` to sample a community, including through `unique()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn spanish_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("es-ES"))?.address(),
+        fake(Some("es-AR"))?.address(),
+        fake(Some("es-PE"))?.address(),
+        fake(Some("es-VE"))?.address(),
+    ])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
