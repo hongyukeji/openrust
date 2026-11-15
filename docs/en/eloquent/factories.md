@@ -1079,6 +1079,16 @@ fn greek_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+Romanian and Moldovan Romanian addresses preserve four street layouts, including optional block, stairwell, floor, and apartment fields. Romanian addresses include a county and a six-digit postcode. Moldovan Romanian addresses use a four-digit postcode. The numeric floor and apartment fields can contain a leading zero. Use `block()`, `blockSegment()`, `floor()`, and `apartmentNumber()` to sample these fields individually. `streetPlainName()` returns a street name without its prefix, and `county()` samples a Romanian county.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("ro-RO"))?.address(), fake(Some("ro-MD"))?.address()])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

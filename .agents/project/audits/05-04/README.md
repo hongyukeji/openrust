@@ -1530,3 +1530,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、105 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、106 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对罗马尼亚和摩尔多瓦罗马尼亚语 Address。
+
+## 罗马尼亚和摩尔多瓦罗马尼亚语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [罗马尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ro_RO/Address.php) 和 [摩尔多瓦罗马尼亚语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ro_MD/Address.php) Address。保留六项加权模板中的四种街道布局，地区词表、县名和邮编按各提供器取值。Rust 用静态数字词表保留 apartmentNumber 的借用返回类型及前导零，先等概率选择一位或两位，再抽数字。楼栋、楼梯单元、楼层及无前缀街名支持 UniqueFaker。v0.x 无等价 Faker 地址代码，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `db6a6fc5`。按 PHP 反射逐项核对 20 份共用及独立词表和模板，并核对数字池覆盖一位和两位模板。256 个固定 PHP 样本通过格式与字段核验。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖四种布局、六位和四位邮编、县字段适用范围、楼梯单元唯一值耗尽及新加坡既有公寓号入口。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、107 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对克罗地亚和斯洛文尼亚 Address。

@@ -1079,6 +1079,16 @@ fn greek_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+羅馬尼亞與摩爾多瓦羅馬尼亞語地址保留四種街道配置，可包含樓棟、樓梯單元、樓層及公寓號碼。羅馬尼亞地址包含縣名與六位郵遞區號。摩爾多瓦羅馬尼亞語地址使用四位郵遞區號。樓層和公寓號碼可帶前導零。可用 `block()`、`blockSegment()`、`floor()` 和 `apartmentNumber()` 分別抽取這些欄位。`streetPlainName()` 回傳省略前綴的街名，`county()` 抽取羅馬尼亞縣名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("ro-RO"))?.address(), fake(Some("ro-MD"))?.address()])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

@@ -4621,3 +4621,45 @@ fn greek_addresses_keep_regional_postcodes_and_prefectures() {
     assert!(cyprus.prefecture().is_err());
     assert!(cyprus.streetSuffix().is_empty());
 }
+
+#[test]
+fn romanian_addresses_keep_weighted_layouts_and_local_postcodes() {
+    let romanian = fake(Some("ro-RO")).unwrap();
+    let moldovan = fake(Some("ro-MD")).unwrap();
+    let floor = Regex::new(r"^[0-9]{1,2}$").unwrap();
+    for (faker, postal_length) in [(&romanian, 6), (&moldovan, 4)] {
+        let mut layouts_seen = [false; 4];
+        for _ in 0..128 {
+            let address = faker.address();
+            let (street_and_city, postcode) = address.rsplit_once(", CP ").unwrap();
+            assert_eq!(postcode.len(), postal_length);
+            assert!(postcode.bytes().all(|byte| byte.is_ascii_digit()));
+            assert_eq!(
+                street_and_city.contains(", bl. "),
+                address.contains(" nr. ")
+            );
+            let street = faker.streetAddress();
+            let layout = if street.contains(" sc. ") {
+                3
+            } else if street.contains(" et. ") {
+                2
+            } else {
+                usize::from(street.contains(" bl. "))
+            };
+            layouts_seen[layout] = true;
+            assert!(floor.is_match(faker.floor().unwrap()));
+            assert!(floor.is_match(faker.apartmentNumber().unwrap()));
+        }
+        assert_eq!(layouts_seen, [true; 4]);
+        let unique = faker.unique(true);
+        for _ in 0..4 {
+            assert!(["A", "B", "C", "D"].contains(&unique.blockSegment().unwrap()));
+        }
+        assert!(unique.blockSegment().is_err());
+    }
+    assert!(romanian.county().is_ok());
+    assert!(moldovan.county().is_err());
+    let singapore = fake(Some("en-SG")).unwrap();
+    assert!(singapore.apartmentNumber().is_ok());
+    assert!(singapore.floor().is_err());
+}
