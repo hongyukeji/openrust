@@ -5829,6 +5829,94 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_datetime_version_and_file_extensions_use_seeded_and_real_outputs() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    assert_eq!(
+        date.format("date", &[Value::Null, 0.into()])?,
+        "1970-01-01".into()
+    );
+    assert_eq!(
+        date.format("time", &["H:i:s".into(), 0.into()])?,
+        "00:00:00".into()
+    );
+    assert_eq!(date.format("unixTime", &["@0".into()])?, 0.into());
+    assert_eq!(
+        date.format("iso8601", &[0.into()])?,
+        "1970-01-01T00:00:00+0000".into()
+    );
+    assert_eq!(date.format("dayOfWeek", &[0.into()])?, "Thursday".into());
+    assert_eq!(
+        date.format("dateTime", &[0.into(), "Asia/Shanghai".into()])?,
+        "1970-01-01T08:00:00+08:00".into()
+    );
+    assert!(
+        date.format("dateTime", &[0.into(), "No/Zone".into()])
+            .is_err()
+    );
+
+    let version = faker.ext(r"Faker\Extension\VersionExtension")?;
+    faker.seed(81);
+    let expected = faker.semver(false, false)?;
+    faker.seed(81);
+    assert_eq!(version.format("semver", &[])?, expected.into());
+    let mut seen_prerelease = false;
+    let mut seen_build = false;
+    for _ in 0..75 {
+        let Value::Text(version) = faker.format("semver", &[true.into(), true.into()])? else {
+            panic!("version must be text");
+        };
+        let (main, build) = version
+            .split_once('+')
+            .map_or((version.as_str(), None), |(main, build)| {
+                (main, Some(build))
+            });
+        let (base, pre) = main
+            .split_once('-')
+            .map_or((main, None), |(base, pre)| (base, Some(pre)));
+        let numbers = base
+            .split('.')
+            .map(str::parse::<u8>)
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(numbers.len(), 3);
+        assert!(numbers[0] <= 9 && numbers[1] <= 99 && numbers[2] <= 99);
+        if let Some(pre) = pre {
+            seen_prerelease = true;
+            let (stage, number) = pre
+                .split_once('.')
+                .map_or((pre, None), |(stage, number)| (stage, Some(number)));
+            assert!(matches!(stage, "alpha" | "beta" | "rc"));
+            if let Some(number) = number {
+                assert!((1..=99).contains(&number.parse::<u8>().unwrap()));
+            }
+        }
+        if let Some(build) = build {
+            seen_build = true;
+            assert!(
+                (build.len() == 7 && build.bytes().all(|c| c.is_ascii_hexdigit()))
+                    || (build.len() == 14 && build.bytes().all(|c| c.is_ascii_digit()))
+            );
+        }
+    }
+    assert!(seen_prerelease && seen_build);
+    assert!(version.format("semver", &["true".into()]).is_err());
+
+    let Value::Text(path) = faker.format(r"Faker\Extension\FileExtension->filePath", &[])? else {
+        panic!("file path must be text");
+    };
+    let typed = faker.filePath().unwrap();
+    let metadata = fs::metadata(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+    fs::remove_file(&typed).unwrap();
+    assert!(metadata.is_file());
+    assert_eq!(metadata.len(), 0);
+    assert_ne!(Path::new(&path), typed);
+    assert!(faker.format("filePath", &[1.into()]).is_err());
+    Ok(())
+}
+
+#[test]
 fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseResult<()> {
     const NUMBER: &str = r"Faker\Extension\NumberExtension";
     const CUSTOM: &str = r"App\Faker\Code";

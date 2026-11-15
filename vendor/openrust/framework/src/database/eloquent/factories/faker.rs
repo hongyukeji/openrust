@@ -4599,6 +4599,44 @@ impl Faker {
         extensions[self.random.usize(..extensions.len())]
     }
 
+    /// Creates an empty temporary file. The caller owns the persisted path.
+    pub fn filePath(&self) -> io::Result<PathBuf> {
+        let (_, path) = self.create_temporary_file()?.keep()?;
+        Ok(path)
+    }
+
+    pub(super) fn create_temporary_file(&self) -> io::Result<tempfile::NamedTempFile> {
+        tempfile::Builder::new().prefix("faker").tempfile()
+    }
+
+    /// Generates a semantic version with optional prerelease and build metadata.
+    pub fn semver(&self, preRelease: bool, build: bool) -> DatabaseResult<String> {
+        let mut version = format!(
+            "{}.{}.{}",
+            self.numberBetween(0, 9),
+            self.numberBetween(0, 99),
+            self.numberBetween(0, 99),
+        );
+        if preRelease && self.random.bool() {
+            version.push('-');
+            version.push_str(self.random.sample(&["alpha", "beta", "rc"]));
+            if self.random.bool() {
+                write!(version, ".{}", self.numberBetween(1, 99)).expect("writing to String");
+            }
+        }
+        if build && self.random.bool() {
+            version.push('+');
+            if self.random.bool() {
+                let letters = self.lexify(Some("??????"));
+                let digest = digest::digest(&digest::SHA1_FOR_LEGACY_USE_ONLY, letters.as_bytes());
+                version.push_str(&digest_hex(digest.as_ref())[..7]);
+            } else {
+                version.push_str(&self.dateWithPhpFormat("YmdHis", None)?);
+            }
+        }
+        Ok(version)
+    }
+
     /// Generates the version 3 sample UUID used by the FakerPHP file provider.
     pub fn uuid(&self) -> uuid::Uuid {
         let seed = format!(
@@ -6281,6 +6319,10 @@ impl UniqueFaker<'_> {
 
     pub fn fileExtension(&self) -> DatabaseResult<&'static str> {
         self.generate("fileExtension", || self.0.fileExtension())
+    }
+
+    pub fn semver(&self, preRelease: bool, build: bool) -> DatabaseResult<String> {
+        self.try_generate("semver", || self.0.semver(preRelease, build))
     }
 
     pub fn uuid(&self) -> DatabaseResult<uuid::Uuid> {

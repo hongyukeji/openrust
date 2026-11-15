@@ -327,7 +327,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 用 `addExtension` 註冊擴充方法，再透過 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。擴充識別碼區分大小寫，方法查找忽略 ASCII 大小寫。限定名稱直接查找擴充。未知擴充回傳 `UnknownFakerExtension`，已註冊擴充缺少方法時回傳 `UnknownFakerFormatter`。
 
-`Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType` 和 `extension`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
+`Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType`、`extension` 和 `filePath`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
 
 限定名稱也可用於 `parse` 和 `unique(false).format(name, args)`，或在既有 `optional` 與 `valid` 回呼中傳給 `format`。
 
@@ -346,6 +346,27 @@ fn sample_extension() -> DatabaseResult<(Value, String)> {
     let value = faker.unique(true).format(r"App\Faker\Code->value", &[])?;
     let label = faker.parse(r"account-{{ App\Faker\Code->value }}")?;
     Ok((value, label))
+}
+```
+
+### 日期、版本與暫存檔擴充 {#date-version-file-extensions}
+
+用 `DateTimeExtension` 呼叫 `date`、`time`、`unixTime`、`dateTime`、`dateTimeAD`、`iso8601`、`amPm`、`dayOfMonth`、`dayOfWeek`、`month`、`monthName`、`year`、`century` 和 `timezone`。日期與時間採用 PHP 格式標記，時間上限可用 Unix 秒或支援的日期運算式。具名 `dateTime` 和 `dateTimeAD` 回傳帶指定 IANA 時區偏移的 RFC 3339 文字，無效時區回傳錯誤。
+
+`VersionExtension` 提供 `semver(preRelease, build)`，兩個開關預設關閉。開啟對應開關後，有機率附加預發行或建置標記。預發行標記可包含數字識別碼，建置標記使用七字元雜湊或時間戳記。`FileExtension->filePath` 和 `filePath()` 建立空暫存檔並回傳路徑，呼叫者使用後刪除。檔案由作業系統隨機命名，獨立於 Faker 的種子。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::Faker,
+};
+
+fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    let epoch = date.format("date", &[Value::Null, 0.into()])?;
+    let version = faker.format(r"Faker\Extension\VersionExtension->semver", &[])?;
+    Ok((epoch, version))
 }
 ```
 

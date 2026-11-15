@@ -327,7 +327,7 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
 
 Register extension methods with `addExtension` and resolve them with `ext(id)` or `format("Vendor\Package->method", args)`. Extension identifiers are case-sensitive. Method lookup ignores ASCII case. Qualified lookup goes directly to the extension. An unknown extension returns `UnknownFakerExtension`. A missing method on a registered extension returns `UnknownFakerFormatter`.
 
-Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mimeType` and `extension`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
+Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mimeType`, `extension`, and `filePath`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
 
 The qualified name also works in `parse` and `unique(false).format(name, args)`. Pass it to `format` inside the existing `optional` and `valid` closures.
 
@@ -346,6 +346,27 @@ fn sample_extension() -> DatabaseResult<(Value, String)> {
     let value = faker.unique(true).format(r"App\Faker\Code->value", &[])?;
     let label = faker.parse(r"account-{{ App\Faker\Code->value }}")?;
     Ok((value, label))
+}
+```
+
+### Date, Version, and Temporary File Extensions {#date-version-file-extensions}
+
+Use `DateTimeExtension` for `date`, `time`, `unixTime`, `dateTime`, `dateTimeAD`, `iso8601`, `amPm`, `dayOfMonth`, `dayOfWeek`, `month`, `monthName`, `year`, `century`, and `timezone`. Date and time formats use PHP tokens. Bounds accept Unix seconds or supported date expressions. The named `dateTime` and `dateTimeAD` methods return RFC 3339 text with the chosen IANA time zone offset. Invalid zones return an error.
+
+`VersionExtension` supports `semver(preRelease, build)`. Both flags default to false. Each true flag enables optional metadata. The prerelease label may include a numeric identifier. Build metadata uses a seven-character hash or a timestamp. `FileExtension->filePath` and `filePath()` create an empty temporary file and return its path. The caller removes the file when finished. File creation uses OS randomness and remains independent of the Faker seed.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::Faker,
+};
+
+fn sample_core_extensions() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let date = faker.ext(r"Faker\Extension\DateTimeExtension")?;
+    let epoch = date.format("date", &[Value::Null, 0.into()])?;
+    let version = faker.format(r"Faker\Extension\VersionExtension->semver", &[])?;
+    Ok((epoch, version))
 }
 ```
 

@@ -52,6 +52,7 @@ pub enum DatabaseError {
     UnknownSeeder(String),
     UnknownFakerFormatter(String),
     UnknownFakerExtension(String),
+    FakerIo(std::io::Error),
     InvalidSeeder(&'static str),
     SeederFailed {
         seeder: String,
@@ -123,6 +124,7 @@ impl std::fmt::Display for DatabaseError {
             Self::UnknownFakerExtension(id) => {
                 write!(formatter, "No Faker extension with id {id:?} was loaded.")
             }
+            Self::FakerIo(error) => write!(formatter, "Faker file operation failed: {error}"),
             Self::UnknownFakerFormatter(name) => write!(formatter, "Unknown format {name:?}"),
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
             Self::AttributeEncryption(_) => {
@@ -189,6 +191,7 @@ impl std::error::Error for DatabaseError {
                 Some(source.as_ref())
             }
             Self::Driver { source, .. } => Some(source),
+            Self::FakerIo(source) => Some(source),
             Self::AfterCommit { source } => Some(source.as_ref()),
             Self::ModelEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),

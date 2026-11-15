@@ -17,10 +17,14 @@ pub(super) type Extensions = HashMap<String, Arc<Formatters>>;
 const BARCODE: &str = r"Faker\Extension\BarcodeExtension";
 const BLOOD: &str = r"Faker\Extension\BloodExtension";
 const COLOR: &str = r"Faker\Extension\ColorExtension";
+const DATE_TIME: &str = r"Faker\Extension\DateTimeExtension";
+const VERSION: &str = r"Faker\Extension\VersionExtension";
 const FILE: &str = r"Faker\Extension\FileExtension";
 const NUMBER: &str = r"Faker\Extension\NumberExtension";
 const UUID: &str = r"Faker\Extension\UuidExtension";
-const BUILTIN_EXTENSIONS: &[&str] = &[BARCODE, BLOOD, COLOR, FILE, NUMBER, UUID];
+const BUILTIN_EXTENSIONS: &[&str] = &[
+    BARCODE, BLOOD, COLOR, DATE_TIME, FILE, NUMBER, UUID, VERSION,
+];
 
 /// A resolved extension bound to its generator.
 pub struct FakerExtension<'a> {
@@ -202,7 +206,8 @@ fn qualified(name: &str) -> Option<(&str, &str)> {
 
 fn generator_extension(name: &str) -> Option<(&'static str, &str)> {
     Some(match name {
-        "mimetype" => (FILE, name),
+        "mimetype" | "filepath" => (FILE, name),
+        "semver" => (VERSION, name),
         "fileextension" => (FILE, "extension"),
         "bloodtype" | "bloodrh" | "bloodgroup" => (BLOOD, name),
         "ean13" | "ean8" | "isbn10" | "isbn13" => (BARCODE, name),
@@ -244,6 +249,56 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
         (COLOR, "hslcolorasarray") => {
             |faker, _| Ok(Value::Json(serde_json::json!(faker.hslColorAsArray())))
         }
+        (DATE_TIME, "date") => |faker, args| php_date(faker, args, "Y-m-d"),
+        (DATE_TIME, "time") => |faker, args| php_date(faker, args, "H:i:s"),
+        (DATE_TIME, "unixtime") => |faker, args| {
+            let [until] = arguments(args)?;
+            match until {
+                Some(Value::Text(expression)) => {
+                    faker.unixTimeExpression(expression).map(Value::from)
+                }
+                _ => Ok(faker.unixTime(date_max(faker, until)?).into()),
+            }
+        },
+        (DATE_TIME, "datetime") => |faker, args| date_time(faker, args, false),
+        (DATE_TIME, "datetimead") => |faker, args| date_time(faker, args, true),
+        (DATE_TIME, "iso8601") => |faker, args| date_component(faker, args, "Y-m-d\\TH:i:sO"),
+        (DATE_TIME, "ampm") => |faker, args| date_component(faker, args, "a"),
+        (DATE_TIME, "dayofmonth") => |faker, args| date_component(faker, args, "d"),
+        (DATE_TIME, "dayofweek") => |faker, args| date_component(faker, args, "l"),
+        (DATE_TIME, "month") => |faker, args| date_component(faker, args, "m"),
+        (DATE_TIME, "monthname") => |faker, args| date_component(faker, args, "F"),
+        (DATE_TIME, "year") => |faker, args| date_component(faker, args, "Y"),
+        (DATE_TIME, "century") => |faker, _| Ok(faker.century().into()),
+        (DATE_TIME, "timezone") => |faker, args| {
+            let [country] = arguments(args)?;
+            faker
+                .timezone(text(country)?.filter(|country| !country.is_empty()))
+                .map(Value::from)
+                .ok_or(DatabaseError::InvalidQuery(
+                    "Faker time zone country has no matches",
+                ))
+        },
+        (VERSION, "semver") => |faker, args| {
+            let [pre_release, build] = arguments(args)?;
+            faker
+                .semver(flag(pre_release)?, flag(build)?)
+                .map(Value::from)
+        },
+        (FILE, "filepath") => |faker, args| {
+            let [] = arguments(args)?;
+            let file = faker
+                .create_temporary_file()
+                .map_err(DatabaseError::FakerIo)?;
+            let path = file
+                .path()
+                .to_str()
+                .ok_or(DatabaseError::InvalidQuery("Faker file path is not UTF-8"))?
+                .to_owned();
+            file.keep()
+                .map_err(|error| DatabaseError::FakerIo(error.error))?;
+            Ok(path.into())
+        },
         (FILE, "mimetype") => |faker, _| Ok(faker.mimeType().into()),
         (FILE, "extension") => |faker, _| Ok(faker.fileExtension().into()),
         (UUID, "uuid3") => |faker, _| Ok(faker.uuid().to_string().into()),
@@ -413,4 +468,70 @@ fn coordinate(faker: &Faker, args: &[Value], bound: f64) -> DatabaseResult<Value
         real(max)?
     };
     faker.randomFloat(Some(6), min, max).map(Value::Real)
+}
+
+fn flag(value: Option<&Value>) -> DatabaseResult<bool> {
+    match value {
+        None | Some(Value::Null) => Ok(false),
+        Some(Value::Bool(value)) => Ok(*value),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects a boolean",
+        )),
+    }
+}
+
+fn text(value: Option<&Value>) -> DatabaseResult<Option<&str>> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Text(value)) => Ok(Some(value)),
+        _ => Err(DatabaseError::InvalidQuery("Faker formatter expects text")),
+    }
+}
+
+fn date_max(
+    faker: &Faker,
+    value: Option<&Value>,
+) -> DatabaseResult<Option<chrono::DateTime<chrono::Utc>>> {
+    let timestamp = match value {
+        Some(Value::Text(expression)) => return faker.resolveDateMax(expression).map(Some),
+        value => integer(value)?,
+    };
+    timestamp
+        .map(|timestamp| {
+            chrono::DateTime::from_timestamp(timestamp, 0).ok_or(DatabaseError::InvalidQuery(
+                "Faker timestamp is out of range",
+            ))
+        })
+        .transpose()
+}
+
+fn php_date(faker: &Faker, args: &[Value], default: &str) -> DatabaseResult<Value> {
+    let [format, until] = arguments(args)?;
+    faker
+        .dateWithPhpFormat(text(format)?.unwrap_or(default), date_max(faker, until)?)
+        .map(Value::from)
+}
+
+fn date_component(faker: &Faker, args: &[Value], format: &str) -> DatabaseResult<Value> {
+    let [until] = arguments(args)?;
+    faker
+        .dateWithPhpFormat(format, date_max(faker, until)?)
+        .map(Value::from)
+}
+
+fn date_time(faker: &Faker, args: &[Value], ad: bool) -> DatabaseResult<Value> {
+    let [until, zone] = arguments(args)?;
+    let zone = text(zone)?
+        .map(str::parse)
+        .transpose()
+        .map_err(|_| DatabaseError::InvalidQuery("invalid Faker time zone"))?;
+    let until = date_max(faker, until)?;
+    let date = if ad {
+        faker.dateTimeADInTimezone(until, zone)
+    } else {
+        faker.dateTimeInTimezone(until, zone)
+    };
+    Ok(date
+        .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+        .into())
 }

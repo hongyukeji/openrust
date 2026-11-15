@@ -1787,3 +1787,15 @@ Rust 以 FactorySequence 表达静态映射和类型化闭包。sequenceEntries 
 隔离基线 `7bd5a0b0`。MySQL 与 SQLite 验证预构造、持久化和原始属性调用连续推进，静态与回调条目轮换，空列表保留或清零批次。Rust 1.94.0 格式和工作区全目标严格 Clippy、56 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。
 
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，按主键回读 `owner`、`fixed`、`1-parent`。Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 5.0 GiB 和独占站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 下一批回到 Faker DateTime、Version、File 扩展及具名 formatter 剩余对账。
+
+## Faker 日期、版本与临时文件扩展
+
+对照固定 Laravel 的工厂数据生成和上游 Faker v1.24.1 的 DateTimeExtension、Core/Version 和 Core/File。PHP 8.5 探针使用实际固定类，确认纪元日期、格式标记、显式时区、版本号边界及两类元数据形状和空临时文件生命周期。v0.x 只有查询工厂，固定 Goravel 仍作为编译装配参考。
+
+Rust 复用现有 PHP 日期格式化、时间上界解析和时区能力。新增具名日期与时间、Unix 秒、日期部件和时区调用。具名 dateTime 与 dateTimeAD 使用 RFC 3339 文本承载时间及偏移。SemVer 根据两个布尔标记选择是否生成预发行与构建信息，沿用当前生成器的 RNG。filePath 用已有 tempfile 原子创建空文件，成功后将路径交给调用方，路径保留至调用方删除，文件系统错误保留原因。具名方法只返回可表示为 UTF-8 的路径。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/DateTime.php 、https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/Version.php 和 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/File.php 。
+
+隔离基线 `387bac4e`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、57 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。以固定种子验收版本形状和标记、纪元日期和显式时区、真实空文件及参数错误。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译运行三语共用示例，回读纪元日期和版本号，并验证空文件创建和删除。无效时区报错且状态为 1。`./artisan inspire`、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已移除，清理隔离 Cargo 产物 5.0 GiB 和站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。DateTimeExtension 的日期区间、相对周期以及其他具名 formatter 待继续对账。
