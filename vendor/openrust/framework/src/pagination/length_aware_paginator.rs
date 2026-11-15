@@ -1,3 +1,5 @@
+use crate::view::{View, ViewData, ViewResult};
+
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
 use super::{Links, Paginator};
@@ -25,6 +27,37 @@ impl<T> LengthAwarePaginator<T> {
     pub fn onEachSide(&mut self, pages: u8) -> &mut Self {
         self.on_each_side = pages;
         self
+    }
+
+    pub fn links(&self) -> ViewResult<View> {
+        self.render()
+    }
+
+    pub fn linksWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
+        self.renderWith(view, data)
+    }
+
+    pub fn render(&self) -> ViewResult<View> {
+        self.renderWith(super::views::DEFAULT_VIEW, ViewData::new())
+    }
+
+    pub fn renderWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
+        let mut paginator = super::views::paginator_data(
+            self.hasPages(),
+            self.previousPageUrl(),
+            self.nextPageUrl(),
+        );
+        paginator["first_item"] = serde_json::json!(self.firstItem());
+        paginator["last_item"] = serde_json::json!(self.lastItem());
+        paginator["total"] = serde_json::json!(self.total());
+        paginator["current_page"] = serde_json::json!(self.currentPage());
+        paginator["last_page"] = serde_json::json!(self.lastPage());
+        super::views::make(
+            view,
+            data,
+            paginator,
+            Some(serde_json::Value::Array(self.elements())),
+        )
     }
 
     pub fn total(&self) -> u64 {
@@ -93,13 +126,25 @@ impl<T> LengthAwarePaginator<T> {
     fn link_window(&self) -> Vec<serde_json::Value> {
         use serde_json::json;
         let page = self.currentPage();
+        let mut links = vec![json!({
+            "url":self.previousPageUrl(),"label":super::views::navigation_label(true),
+            "page":page.checked_sub(1).filter(|previous| *previous > 0),"active":false
+        })];
+        links.extend(self.elements());
+        links.push(json!({
+            "url":self.nextPageUrl(),"label":super::views::navigation_label(false),
+            "page":self.hasMorePages().then(|| page + 1),"active":false
+        }));
+        links
+    }
+
+    fn elements(&self) -> Vec<serde_json::Value> {
+        use serde_json::json;
+        let page = self.currentPage();
         let last = self.lastPage();
         let side = u64::from(self.on_each_side);
         let window = side + 4;
-        let mut links = vec![json!({
-            "url":self.previousPageUrl(),"label":"Previous",
-            "page":page.checked_sub(1).filter(|previous| *previous > 0),"active":false
-        })];
+        let mut links = Vec::new();
         let pages = if last < side * 2 + 8 {
             vec![1..=last]
         } else if page <= window {
@@ -117,10 +162,6 @@ impl<T> LengthAwarePaginator<T> {
                 "url":self.url(current),"label":current.to_string(),"page":current,"active":current == page
             })));
         }
-        links.push(json!({
-            "url":self.nextPageUrl(),"label":"Next",
-            "page":self.hasMorePages().then(|| page + 1),"active":false
-        }));
         links
     }
 }

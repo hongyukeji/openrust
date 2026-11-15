@@ -1,3 +1,5 @@
+use crate::view::{View, ViewData, ViewResult};
+
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
 use super::{Cursor, Links, PaginationResult};
@@ -17,6 +19,29 @@ pub struct CursorPaginator<T> {
 impl<T> CursorPaginator<T> {
     pub(crate) fn items_mut(&mut self) -> &mut [T] {
         &mut self.items
+    }
+
+    pub fn links(&self) -> ViewResult<View> {
+        self.render()
+    }
+
+    pub fn linksWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
+        self.renderWith(view, data)
+    }
+
+    pub fn render(&self) -> ViewResult<View> {
+        self.renderWith(super::views::DEFAULT_SIMPLE_VIEW, ViewData::new())
+    }
+
+    pub fn renderWith(&self, view: &str, data: ViewData) -> ViewResult<View> {
+        let paginator = super::views::paginator_data(
+            self.hasPages(),
+            self.previousPageUrl()
+                .map_err(|error| crate::view::ViewError::RenderFailed(Box::new(error)))?,
+            self.nextPageUrl()
+                .map_err(|error| crate::view::ViewError::RenderFailed(Box::new(error)))?,
+        );
+        super::views::make(view, data, paginator, None)
     }
 
     pub fn items(&self) -> &[T] {

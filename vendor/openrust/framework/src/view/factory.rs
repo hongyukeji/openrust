@@ -23,6 +23,12 @@ pub struct Factory {
     finder: Arc<FileViewFinder>,
     engines: Arc<EngineResolver>,
     events: Arc<RwLock<ViewEvents>>,
+    embedded: HashMap<String, &'static str>,
+}
+
+enum ResolvedSource<'a> {
+    File(ViewSource),
+    Embedded { name: &'a str, source: &'static str },
 }
 
 type ComponentRenderer = Arc<dyn Fn(&ViewData) -> ViewResult<ComponentOutput> + Send + Sync>;
@@ -46,6 +52,42 @@ impl Factory {
             finder: Arc::new(finder),
             engines: Arc::new(EngineResolver::new(compiled)),
             events: Arc::default(),
+            embedded: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn with_embedded_namespace(
+        mut self,
+        namespace: &str,
+        views: &[(&str, &'static str)],
+    ) -> Self {
+        let paths: Vec<_> = self
+            .finder
+            .paths()
+            .iter()
+            .map(|root| root.join("vendor").join(namespace))
+            .collect();
+        let hints: Vec<_> = paths.iter().map(PathBuf::as_path).collect();
+        self.finder
+            .append_hints(namespace, &hints)
+            .expect("valid embedded namespace");
+        self.embedded.extend(
+            views
+                .iter()
+                .map(|(name, source)| (format!("{namespace}::{name}"), *source)),
+        );
+        self
+    }
+
+    fn source(&self, name: &str) -> ViewResult<ResolvedSource<'_>> {
+        match self.finder.source(name) {
+            Ok(source) => Ok(ResolvedSource::File(source)),
+            Err(ViewError::NotFound) => self
+                .embedded
+                .get_key_value(name.trim())
+                .map(|(name, &source)| ResolvedSource::Embedded { name, source })
+                .ok_or(ViewError::NotFound),
+            Err(error) => Err(error),
         }
     }
 
@@ -56,7 +98,7 @@ impl Factory {
 
     pub fn first(&self, names: &[&str], data: ViewData) -> ViewResult<View> {
         for name in names {
-            match self.finder.find(name) {
+            match self.source(name) {
                 Ok(_) => return self.create((*name).to_owned().into(), data),
                 Err(ViewError::NotFound) => {}
                 Err(error) => return Err(error),
@@ -66,7 +108,7 @@ impl Factory {
     }
 
     pub fn exists(&self, name: &str) -> bool {
-        self.finder.find(name).is_ok()
+        self.source(name).is_ok()
     }
 
     pub fn share(&self, key: impl Into<String>, value: impl Into<ViewValue>) {
@@ -224,24 +266,35 @@ impl Factory {
         Ok(data)
     }
 
-    fn view_source(&self, view: &View) -> ViewResult<ViewSource> {
+    fn view_source(&self, view: &View) -> ViewResult<ResolvedSource<'_>> {
         if let Some(path) = view
             .binding
             .as_ref()
             .and_then(|binding| binding.file.as_deref())
         {
-            self.finder.source_file(path)
+            self.finder.source_file(path).map(ResolvedSource::File)
         } else {
-            self.finder.source(&view.name)
+            self.source(&view.name)
         }
     }
 
     fn render_contents(
         &self,
-        source: ViewSource,
+        source: ResolvedSource<'_>,
         data: &ViewData,
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
+        let source = match source {
+            ResolvedSource::File(source) => source,
+            ResolvedSource::Embedded { name, source } => {
+                return self.compiler().render_with(
+                    &Path::new("embedded").join(name),
+                    source,
+                    data,
+                    context,
+                );
+            }
+        };
         let engine = if is_blade_path(&source.path) {
             "blade"
         } else {

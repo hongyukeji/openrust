@@ -73,6 +73,24 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+## 顯示分頁結果 {#displaying-pagination-results}
+
+用分頁器的 `links()` 建立 Blade 視圖。預設 Tailwind 視圖為 `paginate` 顯示記錄範圍和頁碼連結。`simplePaginate` 和 `cursorPaginate` 顯示上一頁和下一頁。結果只有一頁時不輸出導覽。`onEachSide` 可調整頁碼視窗。
+
+```rust
+use openrust::{
+    contracts::view::View as _,
+    pagination::LengthAwarePaginator,
+    view::ViewResult,
+};
+
+fn pagination_navigation<T>(page: &LengthAwarePaginator<T>) -> ViewResult<String> {
+    page.links()?.render()
+}
+```
+
+使用 `linksWith("articles.navigation", data)` 指定自訂視圖，也可以在 `resources/views/vendor/pagination/` 下放置 `tailwind.blade.html` 或 `simple-tailwind.blade.html` 覆寫預設視圖。自訂視圖會收到 `paginator` 中繼資料，含總數的分頁還會傳入頁碼 `elements`。在 `lang/{locale}/pagination.json` 設定 `previous` 和 `next`，即可本地化導覽和 JSON 連結標籤。
+
 ## JSON 和分頁連結
 
 當分頁項目實作 Serde 的 `Serialize` 時，可直接序列化分頁器。用 `map` 將資料庫列或 Eloquent 模型轉換為回應項目，保留分頁中繼資料。`withQueryString` 保留篩選條件，`appends` 加入選定參數。連結使用請求相對路徑。

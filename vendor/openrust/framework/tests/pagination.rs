@@ -4,7 +4,7 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     contracts::{
         config::Repository, container::Container as _, foundation::Application as _,
-        http::Kernel as _,
+        http::Kernel as _, view::View as _,
     },
     database::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
@@ -17,7 +17,8 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     pagination::{Cursor, CursorOptions, PageOptions},
     routing::RoutingError,
-    support::facades::Route,
+    support::facades::{Lang, Route},
+    view::{ViewData, ViewError},
 };
 use serde_json::{Value as Json, json};
 use tokio::{
@@ -147,6 +148,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/length", length_page)?;
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
+    Route::get("/links", pagination_links)?;
     Route::get("/related-length", related_length_page)?;
     Route::get("/related-cursor", related_cursor_page)?;
     Route::get("/through", through_page)?;
@@ -385,6 +387,72 @@ fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
     })
 }
 
+fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.query(Some("mode"))?.unwrap_or_default();
+        let locale = request.query(Some("locale"))?.unwrap_or_default();
+        let locale = locale.as_str().unwrap_or("en");
+        Lang::withLocale(locale, async {
+            let query = Article::query().map_err(internal)?.orderBy("id", "asc");
+            let mut view = match mode.as_str() {
+                Some("json") => {
+                    let page = query.paginate(2).await.map_err(internal)?;
+                    return Response::json(StatusCode::OK, page.map(|_| ()));
+                }
+                Some("window") => {
+                    let mut page = query.paginate(1).await.map_err(internal)?;
+                    page.onEachSide(0);
+                    page.links()
+                }
+                Some("simple") => {
+                    let mut page = query.simplePaginate(2).await.map_err(internal)?;
+                    page.withQueryString();
+                    page.links()
+                }
+                Some("cursor") => {
+                    let mut page = query.cursorPaginate(2).await.map_err(internal)?;
+                    page.withQueryString();
+                    page.links()
+                }
+                Some("custom") => {
+                    let page = query.paginate(2).await.map_err(internal)?;
+                    page.linksWith(
+                        "pagination::custom",
+                        ViewData::from_iter([
+                            ("title".into(), json!("<Custom>")),
+                            ("paginator".into(), Json::Null),
+                        ]),
+                    )
+                }
+                Some("single") => query.paginate(20).await.map_err(internal)?.links(),
+                _ => {
+                    let mut page = query.paginate(2).await.map_err(internal)?;
+                    page.withQueryString().fragment(Some("results"));
+                    page.links()
+                }
+            }
+            .map_err(view_error)?;
+            let html = view.render().map_err(view_error)?;
+            let mut response = Response::new(StatusCode::OK, html.into());
+            response
+                .parts_mut()
+                .headers
+                .insert("content-type", "text/html; charset=utf-8".parse().unwrap());
+            Ok(response)
+        })
+        .await
+        .map_err(|source| HttpError::Internal {
+            source: Box::new(source),
+        })?
+    })
+}
+
+fn view_error(source: ViewError) -> HttpError {
+    HttpError::Internal {
+        source: Box::new(source),
+    }
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -399,13 +467,17 @@ async fn transport(
 }
 
 async fn request(address: SocketAddr, path: &str) -> Json {
+    serde_json::from_str(&request_body(address, path).await).unwrap()
+}
+
+async fn request_body(address: SocketAddr, path: &str) -> String {
     timeout(Duration::from_secs(5), async {
         let mut stream = TcpStream::connect(address).await.unwrap();
         stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with("HTTP/1.1 200 "), "{path} {response}");
-        serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap()
+        response.split_once("\r\n\r\n").unwrap().1.to_owned()
     }).await.unwrap()
 }
 
@@ -422,7 +494,20 @@ async fn select_count(connection: &mut Transaction) -> DatabaseResult<u64> {
 
 async fn verify(config: Json) -> DatabaseResult<()> {
     let mysql = config.get("url").is_some();
-    let mut app = Application::configure(std::env::temp_dir())
+    let base = tempfile::tempdir().unwrap();
+    let lang = base.path().join("lang/zh_TW");
+    std::fs::create_dir_all(&lang).unwrap();
+    std::fs::write(
+        lang.join("pagination.json"),
+        r#"{"previous":"上一頁","next":"下一頁 <more>"}"#,
+    )
+    .unwrap();
+    let views = base.path().join("resources/views/vendor/pagination");
+    std::fs::create_dir_all(&views).unwrap();
+    std::fs::write(views.join("custom.blade.html"),
+        r#"{{ $title }}:{{ $paginator->total }} @foreach ($elements as $element){{ $element->label }}@endforeach"#
+    ).unwrap();
+    let mut app = Application::configure(base.path().to_path_buf())
         .withRouting(Routing::default().api(routes))
         .create()
         .unwrap();
@@ -718,6 +803,62 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert!(second["next_page_url"].is_null());
     let previous = second["prev_page_url"].as_str().unwrap();
     assert_eq!(request(address, previous).await["data"], first["data"]);
+    let (chinese, english) = tokio::join!(
+        request_body(address, "/api/links?locale=zh-TW&filter=all"),
+        request_body(address, "/api/links?filter=all"),
+    );
+    assert!(chinese.contains("上一頁"));
+    assert!(chinese.contains("下一頁 &lt;more&gt;"));
+    assert!(english.contains("« Previous"));
+    assert!(english.contains("Next »"));
+    assert!(english.contains("aria-current=\"page\""));
+    assert!(english.contains("aria-disabled=\"true\""));
+    assert!(english.contains("filter=all&amp;page=2#results"));
+    let last = request_body(address, "/api/links?page=3").await;
+    assert!(last.contains("rel=\"prev\""));
+    assert!(!last.contains("rel=\"next\""));
+    let simple = request_body(address, "/api/links?mode=simple&page=2").await;
+    assert!(simple.contains("rel=\"prev\"") && simple.contains("rel=\"next\""));
+    assert!(!simple.contains("aria-current"));
+    let cursor = request_body(address, "/api/links?mode=cursor").await;
+    assert!(cursor.contains("rel=\"next\"") && cursor.contains("cursor="));
+    assert!(!cursor.contains("aria-current"));
+    let (_, next) = cursor.split_once(r#"rel="next" href=""#).unwrap();
+    let (next, _) = next.split_once('"').unwrap();
+    let following = request_body(address, &next.replace("&amp;", "&")).await;
+    assert!(following.contains(r#"rel="prev""#));
+
+    let json_links = request(address, "/api/links?mode=json&locale=zh-TW").await;
+    assert_eq!(json_links["links"][0]["label"], "上一頁");
+    assert_eq!(json_links["links"][4]["label"], "下一頁 <more>");
+    assert!(
+        request_body(address, "/api/links?mode=single")
+            .await
+            .trim()
+            .is_empty()
+    );
+    let custom = request_body(address, "/api/links?mode=custom").await;
+    assert!(custom.contains("&lt;Custom&gt;:5 123"));
+    std::fs::write(
+        views.join("simple-tailwind.blade.html"),
+        "Override {{ $paginator->next }}",
+    )
+    .unwrap();
+    let overridden = request_body(address, "/api/links?mode=simple").await;
+    assert!(overridden.contains("Override Next »"));
+
+    for id in 6..=17 {
+        connection
+            .statement(
+                "INSERT INTO pagination_articles VALUES (?, 0, 'window')",
+                &[Value::Integer(id)],
+            )
+            .await?;
+    }
+    let window = request_body(address, "/api/links?mode=window&page=9").await;
+    assert_eq!(window.matches(">...</span>").count(), 2);
+    assert!(window.contains(r#"aria-current="page""#) && window.contains(">9</span>"));
+    assert!(!window.contains(">8</a>") && !window.contains(">10</a>"));
     server.abort();
     connection
         .statement("DROP TABLE pagination_memberships", &[])

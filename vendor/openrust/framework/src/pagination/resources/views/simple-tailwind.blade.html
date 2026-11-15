@@ -1,0 +1,14 @@
+@if ($paginator->has_pages)
+<nav role="navigation" aria-label="{{ $paginator->navigation }}" class="flex justify-between">
+    @if ($paginator->prev_page_url)
+        <a rel="prev" href="{{ $paginator->prev_page_url }}" class="relative inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium">{{ $paginator->previous }}</a>
+    @else
+        <span aria-disabled="true" class="relative inline-flex cursor-default items-center rounded-md border px-4 py-2 text-sm">{{ $paginator->previous }}</span>
+    @endif
+    @if ($paginator->next_page_url)
+        <a rel="next" href="{{ $paginator->next_page_url }}" class="relative inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium">{{ $paginator->next }}</a>
+    @else
+        <span aria-disabled="true" class="relative inline-flex cursor-default items-center rounded-md border px-4 py-2 text-sm">{{ $paginator->next }}</span>
+    @endif
+</nav>
+@endif

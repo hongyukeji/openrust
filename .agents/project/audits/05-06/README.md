@@ -29,3 +29,11 @@
 以 `6fe44db2` 为隔离基线。在真实 MySQL 8.4.13 和 SQLite 上分别经 HTTP 验证父键和多态类型隔离、普通分页总数和回翻、自定义页名和筛选参数、游标来回翻页、自定义 Pivot 主键和访问器，以及内部投影从模型属性及其原始快照移除。双库直接验证简易分页的下一页和无键父模型空页。6 项关系、2 项分页回归、Rust 1.94.0 格式、工作区全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。VitePress 构建有既有的 bundle 体积提示。
 
 临时 MySQL 容器已回收，清理本批独占 Cargo 产物 1.8 GiB 和独占文档构建产物及依赖。提交前周额度剩余 28%，项目卷可用 53 GiB。接下来核对 Blade 分页链接和本地化导航标签。
+
+## 显示分页结果与翻译标签
+
+对照固定 Laravel [Displaying Pagination Results](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/pagination.md#displaying-pagination-results) 和 [PaginationServiceProvider](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pagination/PaginationServiceProvider.php)。三类分页器提供 `links`、`render` 及带显式视图和数据的 Rust 入口。默认的 Tailwind 与 Simple Tailwind 模板随二进制嵌入，优先解析应用的 `resources/views/vendor/pagination`。Blade 接收结构化分页元数据，复用 JSON 页码窗口。导航标签按当前应用和请求翻译，HTML 经 Blade 转义，JSON 保留翻译原文。Goravel 固定版 ORM 只作为数据分页参考，旧版未找到分页模板或对应翻译入口。
+
+隔离基线 `3eb00e65`。MySQL 8.4.13 与 SQLite 的真实 HTTP 分别验证普通、简易及游标导航、跟随游标链接、单页输出、页码窗口和省略号、带查询参数和片段的链接、并发英文和繁体中文、JSON 标签、模板覆盖及转义。2 项分页、5 项 View、4 项翻译回归、全目标严格 Clippy、`./artisan inspire`、三语示例编译、VitePress 与 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。VitePress 有既有体积提示。容器已回收并清理隔离 Cargo 产物 2.4 GiB 和任务专用站点产物。提交前周额度剩余 27%，项目卷可用 53 GiB。
+
+后续对照 Laravel 的 Customizing the Pagination View，补齐内置 Bootstrap 视图、应用级默认视图选择与发布。命名路由链接仍按计划在 06-01 补验。

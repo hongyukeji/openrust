@@ -81,5 +81,6 @@ fn configured_factory(base: &Path, config: &dyn Repository) -> Result<Factory, C
         ),
         None => base.join("storage/framework/views"),
     };
-    Ok(Factory::new(FileViewFinder::new(paths), compiled))
+    Ok(Factory::new(FileViewFinder::new(paths), compiled)
+        .with_embedded_namespace("pagination", crate::pagination::VIEWS))
 }

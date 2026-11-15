@@ -1,0 +1,35 @@
+@if ($paginator->has_pages)
+<nav role="navigation" aria-label="{{ $paginator->navigation }}" class="flex flex-wrap items-center justify-between gap-2">
+    <p class="text-sm leading-5">
+        {{ $paginator->showing }}
+        @if ($paginator->first_item)
+            <span class="font-medium">{{ $paginator->first_item }}</span>
+            {{ $paginator->to }}
+            <span class="font-medium">{{ $paginator->last_item }}</span>
+            {{ $paginator->of }}
+        @endif
+        <span class="font-medium">{{ $paginator->total }}</span> {{ $paginator->results }}
+    </p>
+    <span class="inline-flex flex-wrap rounded-md shadow-sm">
+        @if ($paginator->prev_page_url)
+            <a rel="prev" href="{{ $paginator->prev_page_url }}" class="relative inline-flex items-center rounded-l-md border px-3 py-2 text-sm">{{ $paginator->previous }}</a>
+        @else
+            <span aria-disabled="true" class="relative inline-flex cursor-default items-center rounded-l-md border px-3 py-2 text-sm">{{ $paginator->previous }}</span>
+        @endif
+        @foreach ($elements as $element)
+            @if ($element->active)
+                <span aria-current="page" class="relative inline-flex cursor-default items-center border px-4 py-2 text-sm font-semibold">{{ $element->label }}</span>
+            @elseif ($element->url)
+                <a href="{{ $element->url }}" class="relative inline-flex items-center border px-4 py-2 text-sm">{{ $element->label }}</a>
+            @else
+                <span aria-disabled="true" class="relative inline-flex cursor-default items-center border px-4 py-2 text-sm">{{ $element->label }}</span>
+            @endif
+        @endforeach
+        @if ($paginator->next_page_url)
+            <a rel="next" href="{{ $paginator->next_page_url }}" class="relative inline-flex items-center rounded-r-md border px-3 py-2 text-sm">{{ $paginator->next }}</a>
+        @else
+            <span aria-disabled="true" class="relative inline-flex cursor-default items-center rounded-r-md border px-3 py-2 text-sm">{{ $paginator->next }}</span>
+        @endif
+    </span>
+</nav>
+@endif

@@ -4,6 +4,7 @@ mod cursor;
 mod cursor_paginator;
 mod length_aware_paginator;
 mod paginator;
+mod views;
 
 use std::fmt;
 
@@ -11,6 +12,7 @@ pub use cursor::Cursor;
 pub use cursor_paginator::CursorPaginator;
 pub use length_aware_paginator::LengthAwarePaginator;
 pub use paginator::Paginator;
+pub(crate) use views::VIEWS;
 
 use crate::http::request_context;
 

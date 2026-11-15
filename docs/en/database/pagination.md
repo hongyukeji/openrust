@@ -73,6 +73,24 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+## Displaying Pagination Results {#displaying-pagination-results}
+
+Use the paginator’s `links()` to create a Blade view. The default Tailwind view shows the result range and numbered links for `paginate`. Both `simplePaginate` and `cursorPaginate` show previous and next links. Navigation is empty when all results fit on one page. `onEachSide` adjusts the numbered window.
+
+```rust
+use openrust::{
+    contracts::view::View as _,
+    pagination::LengthAwarePaginator,
+    view::ViewResult,
+};
+
+fn pagination_navigation<T>(page: &LengthAwarePaginator<T>) -> ViewResult<String> {
+    page.links()?.render()
+}
+```
+
+Use `linksWith("articles.navigation", data)` for a custom view, or override the default at `resources/views/vendor/pagination/tailwind.blade.html` or `simple-tailwind.blade.html` in the same directory. Custom views receive `paginator` metadata and, for length-aware pagination, the numbered `elements`. Add `previous` and `next` to `lang/{locale}/pagination.json` to localize navigation and JSON link labels.
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.
