@@ -1025,7 +1025,7 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
-`fr-FR` 使用固定的城市與街道範本及國家詞表。`streetPrefix()` 和 `region()` 從法國詞表取樣。`department()` 回傳行政區編號與名稱的字串組，保留前導零和 `2A` 等編號。`departmentNumber()` 和 `departmentName()` 分別獨立取樣。對 `zh-Hant-TW`，`randomChineseNumber()` 回傳一至九的漢字，`randomNumber2()` 和 `randomNumber3()` 分別回傳 1 到 100、1 到 1000 的整數，含端點。以上入口皆支援 `unique`。
+`fr-FR` 使用固定的城市與街道範本及國家詞表。`streetPrefix()` 和 `region()` 從法國詞表取樣。`department()` 回傳行政區編號與名稱的字串組，保留前導零和 `2A` 等編號。`departmentNumber()` 和 `departmentName()` 分別獨立取樣。對 `zh-Hant-TW`，`randomChineseNumber()` 回傳一至九的漢字，`randomNumber2()` 和 `randomNumber3()` 分別回傳 1 到 100、1 到 1000 的整數，含端點。以上入口皆支援 `unique`。 這三個臺灣數字組成也可用對應方法名稱透過 `format` 呼叫，無須傳入參數。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1765,6 +1765,28 @@ fn polish_plate_sample() -> DatabaseResult<String> {
 }
 ```
 
+使用 `format("licensePlate", args)` 呼叫波蘭提供器，依序傳入布林值與兩個由文字名稱組成的 JSON 集合。任一篩選可省略或傳入 null，此時使用所有可用項目。JSON 陣列與物件都按值讀取名稱。馬來西亞車牌及其組成也支援無參數的 `format` 呼叫。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn named_regional_plate_samples() -> DatabaseResult<[Value; 3]> {
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    let malaysia = Faker::new("ms-MY")?;
+    let poland = Faker::new("pl-PL")?;
+    Ok([
+        taiwan.format("localLatitude", &[])?,
+        malaysia.format("jpjNumberPlate", &[])?,
+        poland.format("licensePlate", &[
+            false.into(),
+            Value::Json(json!(["dolnośląskie"])),
+            Value::Json(json!(["Wrocław"])),
+        ])?,
+    ])
+}
+```
+
 ### Person 地區回退 {#person-locale-fallback}
 
 當指定地區沒有 Person provider 時，姓名介面、`suffix()` 和 `ssn()` 使用 `en-US` Person provider。已有 Person provider 的地區使用自身和繼承的介面。例如，`en-CA` 會回退到美國英語 Person，`en-SG` 有自己的 Person provider，呼叫 `ssn()` 回傳不支援錯誤。此回退僅適用於 Person 介面。
@@ -1795,7 +1817,7 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
 
 ### 座標 {#coordinate-samples}
 
-用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 產生帶正負號的十進位度數，四捨五入至小數點後六位。任一邊界可傳入 `Some(value)`，預設範圍分別為 −90 到 90 和 −180 到 180。接受反向邊界，非有限邊界回傳錯誤。`localCoordinates()?` 回傳含 `latitude` 和 `longitude` 欄位的可序列化 `Coordinates`。匈牙利和蒙特內哥羅採用固定上游地區範圍，其他地區採用全球範圍。臺灣範圍在 `zh_TW` 下由獨立的 `localLatitude()?` 和 `localLongitude()?` 提供。五個方法均支援 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 呼叫臺灣座標格式化器。
 
 ### 軟刪除狀態 {#trashed-state}
 

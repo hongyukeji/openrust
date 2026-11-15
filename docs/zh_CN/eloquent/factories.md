@@ -1025,7 +1025,7 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
-`fr-FR` 使用固定的城市和街道模板及国家词表。`streetPrefix()` 和 `region()` 从法国词表取样。`department()` 返回行政区编号与名称的字符串对，保留前导零和 `2A` 等编号。`departmentNumber()` 和 `departmentName()` 分别独立抽样。对 `zh-Hant-TW`，`randomChineseNumber()` 返回一至九的汉字，`randomNumber2()` 和 `randomNumber3()` 分别返回 1 到 100、1 到 1000 的整数，含端点。以上入口均支持 `unique`。
+`fr-FR` 使用固定的城市和街道模板及国家词表。`streetPrefix()` 和 `region()` 从法国词表取样。`department()` 返回行政区编号与名称的字符串对，保留前导零和 `2A` 等编号。`departmentNumber()` 和 `departmentName()` 分别独立抽样。对 `zh-Hant-TW`，`randomChineseNumber()` 返回一至九的汉字，`randomNumber2()` 和 `randomNumber3()` 分别返回 1 到 100、1 到 1000 的整数，含端点。以上入口均支持 `unique`。 这三个台湾数字组件也可用对应方法名通过 `format` 调用，无需传入参数。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1765,6 +1765,28 @@ fn polish_plate_sample() -> DatabaseResult<String> {
 }
 ```
 
+使用 `format("licensePlate", args)` 调用波兰提供器，依次传入布尔值和两个由文本名称组成的 JSON 集合。任一筛选可省略或传入 null，此时使用全部可用项。JSON 数组和对象都按值读取名称。马来西亚车牌及组件也支持无参 `format` 调用。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn named_regional_plate_samples() -> DatabaseResult<[Value; 3]> {
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    let malaysia = Faker::new("ms-MY")?;
+    let poland = Faker::new("pl-PL")?;
+    Ok([
+        taiwan.format("localLatitude", &[])?,
+        malaysia.format("jpjNumberPlate", &[])?,
+        poland.format("licensePlate", &[
+            false.into(),
+            Value::Json(json!(["dolnośląskie"])),
+            Value::Json(json!(["Wrocław"])),
+        ])?,
+    ])
+}
+```
+
 ### Person 地区回退 {#person-locale-fallback}
 
 当指定地区没有 Person provider 时，姓名接口、`suffix()` 和 `ssn()` 使用 `en-US` Person provider。已有 Person provider 的地区使用自身和继承的接口。例如，`en-CA` 会回退到美国英语 Person，`en-SG` 有自己的 Person provider，调用 `ssn()` 返回不支持错误。此回退仅适用于 Person 接口。
@@ -1795,7 +1817,7 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
 
 ### 坐标 {#coordinate-samples}
 
-用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。
+用 `latitude(None, None)?` 和 `longitude(None, None)?` 生成有符号十进制度数，舍入到小数点后六位。任一边界可传入 `Some(value)`，默认范围分别为 −90 到 90 和 −180 到 180。接受反向边界，非有限边界返回错误。`localCoordinates()?` 返回含 `latitude` 和 `longitude` 字段的可序列化 `Coordinates`。匈牙利和黑山采用固定上游地区范围，其他地区采用全球范围。台湾范围在 `zh_TW` 下由独立的 `localLatitude()?` 和 `localLongitude()?` 提供。五个方法均支持 `unique`。 在 `zh-Hant-TW` 下，可用 `format("localLatitude", &[])` 和 `format("localLongitude", &[])` 调用台湾坐标格式化器。
 
 ### 软删除状态 {#trashed-state}
 

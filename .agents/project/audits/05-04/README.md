@@ -1896,3 +1896,15 @@ PHP 8.5 实跑固定 [马来西亚](https://github.com/FakerPHP/Faker/blob/v1.24
 隔离基线 `885f7dbf`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、64 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例并按插入顺序回读马来西亚紧凑手机号码、加拿大带分机号码。美国地区调用法国专用入口报告原错误并以状态 1 退出。`./artisan inspire`、VitePress 构建及根路径和 `/docs/` 的 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，测试容器已回收。清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 29%，项目卷可用 60 GiB。05-04 整单元继续核对地区地址和执照号码等其他具名接口。
+
+## Faker 台湾地址组件与地区车牌具名调度
+
+对应固定 Laravel [工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。固定 Goravel 工厂继续作为编译装配参考。v0.x 同名工厂及测试用于构造数据库查询。对照 FakerPHP v1.24.1 的[台湾 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Address.php)、[马来西亚 Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Miscellaneous.php)与[波兰 LicensePlate](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/LicensePlate.php)，补齐 13 个具名入口。
+
+Rust 复用已有类型化生成器。台湾具名坐标只按对应地区提供器开放，保留原类型化坐标方法的行为。波兰车牌通过 locale 选择提供器，PHP 需额外注册 LicensePlate。三个位置参数依次为布尔值和两个可空的名称集合。JSON 数组或对象均按值读取，Rust 要求名称是字符串。未给筛选或匹配为空时使用该层全部可用项。马来西亚 JPJ 的主入口和六个编号或前缀等组件均可按名称调用。
+
+PHP 8.5 用固定提供器分别验证 32 轮台湾坐标与数字范围、JPJ 生成与数字序列、波兰省县筛选、军用选项、无匹配回退和布尔参数错误。
+
+隔离基线 `cb373e0c`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、65 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 排版差异只在隔离副本调整。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，按插入顺序回读台湾纬度、马来西亚车牌和波兰指定县车牌。非字符串筛选项报告参数错误并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，MySQL 容器已回收，清理本批隔离 Cargo 产物 2.4 GiB 及独占站点产物和依赖。提交前周额度剩余 29%，项目卷可用 54 GiB。05-04 仍需核对地区 Person、Company 等具名入口。

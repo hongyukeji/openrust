@@ -1,4 +1,4 @@
-use super::{Builtin, Faker, arguments, flag, integer, text};
+use super::{Builtin, Faker, arguments, collection_values, flag, integer, text};
 use crate::{
     database::{DatabaseError, DatabaseResult, Value},
     support::calendar,
@@ -161,6 +161,19 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
                 None => Ok(faker.postcode().into()),
             }
         },
+        "randomchinesenumber" => |faker, _| faker.randomChineseNumber().map(Value::from),
+        "randomnumber2" => |faker, _| faker.randomNumber2().map(|number| i64::from(number).into()),
+        "randomnumber3" => |faker, _| faker.randomNumber3().map(|number| i64::from(number).into()),
+        "locallatitude" => |faker, _| taiwan_coordinate(faker, Faker::localLatitude),
+        "locallongitude" => |faker, _| taiwan_coordinate(faker, Faker::localLongitude),
+        "licenseplate" => license_plate,
+        "jpjnumberplate" => |faker, _| faker.jpjNumberPlate().map(Value::from),
+        "peninsularprefix" => |faker, _| faker.peninsularPrefix().map(Value::from),
+        "sarawakprefix" => |faker, _| faker.sarawakPrefix().map(Value::from),
+        "sabahprefix" => |faker, _| faker.sabahPrefix().map(Value::from),
+        "specialprefix" => |faker, _| faker.specialPrefix().map(Value::from),
+        "validalphabet" => |faker, _| faker.validAlphabet().map(Value::from),
+        "numbersequence" => |faker, _| faker.numberSequence().map(Value::from),
         "localcoordinates" => |faker, _| {
             let coordinates = faker.localCoordinates()?;
             Ok(Value::Json(serde_json::json!(coordinates)))
@@ -262,4 +275,48 @@ fn account_length(value: Option<&Value>) -> DatabaseResult<Option<usize>> {
                 .map_err(|_| DatabaseError::InvalidQuery("Faker account length is out of range"))
         })
         .transpose()
+}
+
+fn taiwan_coordinate(
+    faker: &Faker,
+    generate: fn(&Faker) -> DatabaseResult<f64>,
+) -> DatabaseResult<Value> {
+    if faker.locale() != "zh_TW" {
+        return Err(DatabaseError::InvalidQuery(
+            "unsupported Faker Taiwanese coordinates locale",
+        ));
+    }
+    generate(faker).map(Value::Real)
+}
+
+fn license_plate(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [special, provinces, counties] = arguments(args)?;
+    let special = match special {
+        None => false,
+        Some(Value::Bool(value)) => *value,
+        _ => {
+            return Err(DatabaseError::InvalidQuery(
+                "Faker formatter expects a boolean",
+            ));
+        }
+    };
+    let provinces = plate_area_names(provinces)?;
+    let counties = plate_area_names(counties)?;
+    faker
+        .licensePlateWithOptions(special, Some(&provinces), Some(&counties))
+        .map(Value::from)
+}
+
+fn plate_area_names(input: Option<&Value>) -> DatabaseResult<Vec<&str>> {
+    if matches!(input, None | Some(Value::Null)) {
+        return Ok(Vec::new());
+    }
+    collection_values(input, &[])?
+        .into_iter()
+        .map(|name| {
+            name.as_str().ok_or(DatabaseError::InvalidQuery(
+                "Faker plate area names must be text",
+            ))
+        })
+        .collect()
 }

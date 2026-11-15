@@ -5829,6 +5829,109 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_address_and_plate_components_follow_provider_contracts() -> DatabaseResult<()> {
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    assert!(
+        matches!(taiwan.format("localLatitude", &[])?, Value::Real(value) if (22.0..=25.0).contains(&value))
+    );
+    assert!(
+        matches!(taiwan.format("localLongitude", &[])?, Value::Real(value) if (120.0..=122.0).contains(&value))
+    );
+    assert!(matches!(
+        taiwan.format("randomNumber2", &[])?,
+        Value::Integer(1..=100)
+    ));
+    assert!(matches!(
+        taiwan.format("randomNumber3", &[])?,
+        Value::Integer(1..=1000)
+    ));
+    let Value::Text(digit) = taiwan.format("randomChineseNumber", &[])? else {
+        panic!("expected a textual digit");
+    };
+    assert_eq!(digit.chars().count(), 1);
+    assert!("一二三四五六七八九".contains(&digit));
+
+    let poland = Faker::new("pl-PL")?;
+    poland.seed(94);
+    let default = poland.licensePlate()?;
+    poland.seed(94);
+    assert_eq!(poland.format("licensePlate", &[])?, default.clone().into());
+    poland.seed(94);
+    assert_eq!(
+        poland.format(
+            "licensePlate",
+            &[false.into(), Value::Null, Value::Json(json!(["missing"]))]
+        )?,
+        default.into()
+    );
+
+    for province in [json!(["dolnośląskie"]), json!({"region":"dolnośląskie"})] {
+        let args = [
+            false.into(),
+            Value::Json(province),
+            Value::Json(json!(["Wrocław"])),
+        ];
+        let Value::Text(plate) = poland.format("licensePlate", &args)? else {
+            panic!("expected a textual plate");
+        };
+        let (prefix, _) = plate.split_once(' ').expect("plate separator");
+        assert!(matches!(prefix, "DW" | "DX" | "VW" | "VX"));
+    }
+    let army = [true.into(), Value::Json(json!(["army"]))];
+    assert!(
+        matches!(poland.unique(false).format("licensePlate", &army)?, Value::Text(plate) if plate.starts_with('U'))
+    );
+    assert!(poland.format("licensePlate", &[Value::Null]).is_err());
+    assert!(
+        poland
+            .format("licensePlate", &[false.into(), "army".into()])
+            .is_err()
+    );
+    assert!(
+        poland
+            .format("licensePlate", &[false.into(), Value::Json(json!([42]))])
+            .is_err()
+    );
+
+    let malaysia = Faker::new("ms-MY")?;
+    for (name, generate) in [
+        (
+            "peninsularPrefix",
+            Faker::peninsularPrefix as fn(&Faker) -> DatabaseResult<&'static str>,
+        ),
+        ("sabahPrefix", Faker::sabahPrefix),
+        ("sarawakPrefix", Faker::sarawakPrefix),
+        ("specialPrefix", Faker::specialPrefix),
+        ("validAlphabet", Faker::validAlphabet),
+    ] {
+        malaysia.seed(94);
+        let expected = generate(&malaysia)?;
+        malaysia.seed(94);
+        assert_eq!(malaysia.format(name, &[])?, expected.into());
+    }
+    malaysia.seed(94);
+    let expected = malaysia.jpjNumberPlate()?;
+    malaysia.seed(94);
+    assert_eq!(malaysia.format("jpjNumberPlate", &[])?, expected.into());
+    assert!(matches!(
+        malaysia.format("numberSequence", &[])?,
+        Value::Integer(1..=9999)
+    ));
+
+    let us = Faker::new("en-US")?;
+    for name in [
+        "localLatitude",
+        "localLongitude",
+        "randomChineseNumber",
+        "licensePlate",
+        "jpjNumberPlate",
+    ] {
+        assert!(us.format(name, &[]).is_err());
+    }
+    Ok(())
+}
+
+#[test]
 fn faker_named_phone_formatters_preserve_regional_signatures() -> DatabaseResult<()> {
     let malaysia = Faker::new("ms-MY")?;
     for (name, default, with_options) in [

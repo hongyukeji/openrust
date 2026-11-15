@@ -1025,7 +1025,7 @@ fn taiwan_address_sample() -> DatabaseResult<String> {
 }
 ```
 
-The `fr-FR` formatter uses the pinned city and street templates and country vocabulary. `streetPrefix()` and `region()` sample the French catalogs. `department()` returns a pair of strings for the code and name, preserving leading zeroes and codes such as `2A`. `departmentNumber()` and `departmentName()` sample the corresponding field independently. For `zh-Hant-TW`, `randomChineseNumber()` returns a digit from 一 to 九, and `randomNumber2()` and `randomNumber3()` return integers in the inclusive ranges 1–100 and 1–1000. All these methods support `unique`.
+The `fr-FR` formatter uses the pinned city and street templates and country vocabulary. `streetPrefix()` and `region()` sample the French catalogs. `department()` returns a pair of strings for the code and name, preserving leading zeroes and codes such as `2A`. `departmentNumber()` and `departmentName()` sample the corresponding field independently. For `zh-Hant-TW`, `randomChineseNumber()` returns a digit from 一 to 九, and `randomNumber2()` and `randomNumber3()` return integers in the inclusive ranges 1–100 and 1–1000. All these methods support `unique`. The three Taiwanese number components also accept their method names through `format` and need no arguments.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1765,6 +1765,28 @@ fn polish_plate_sample() -> DatabaseResult<String> {
 }
 ```
 
+Use `format("licensePlate", args)` for the Polish provider. The positional arguments are a boolean followed by two JSON collections of text names. Omit either filter or pass null to use all available choices. JSON arrays and objects both use their values as names. The Malaysian plate and component names use `format` without arguments.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+use serde_json::json;
+
+fn named_regional_plate_samples() -> DatabaseResult<[Value; 3]> {
+    let taiwan = Faker::new("zh-Hant-TW")?;
+    let malaysia = Faker::new("ms-MY")?;
+    let poland = Faker::new("pl-PL")?;
+    Ok([
+        taiwan.format("localLatitude", &[])?,
+        malaysia.format("jpjNumberPlate", &[])?,
+        poland.format("licensePlate", &[
+            false.into(),
+            Value::Json(json!(["dolnośląskie"])),
+            Value::Json(json!(["Wrocław"])),
+        ])?,
+    ])
+}
+```
+
 ### Person Locale Fallback {#person-locale-fallback}
 
 When a locale has no Person provider, name formatters, `suffix()`, and `ssn()` use the `en-US` Person provider. A locale with its own Person provider uses that provider’s formatters, including the ones it inherits. For example, `en-CA` falls back to the US Person provider, while `en-SG` has its own provider and returns an unsupported-locale error for `ssn()`. The Person fallback applies only to Person formatters.
@@ -1795,7 +1817,7 @@ fn company_phrase_sample() -> DatabaseResult<(String, String)> {
 
 ### Coordinates {#coordinate-samples}
 
-Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`.
+Use `latitude(None, None)?` and `longitude(None, None)?` for signed decimal degrees, rounded to six decimal places. Pass `Some(value)` for either bound. The defaults are −90 to 90 and −180 to 180, respectively. Reversed bounds are accepted and non-finite bounds return an error. `localCoordinates()?` returns a serializable `Coordinates` with `latitude` and `longitude` fields. It uses the pinned Hungarian and Montenegrin ranges, with global ranges elsewhere. For Taiwan bounds, use the separate `localLatitude()?` and `localLongitude()?` methods with `zh_TW`. All five methods support `unique`. Use `format("localLatitude", &[])` and `format("localLongitude", &[])` with `zh-Hant-TW` for the two Taiwanese coordinate formatters.
 
 ### Soft-deleted State {#trashed-state}
 
