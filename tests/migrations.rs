@@ -79,11 +79,24 @@ fn success(output: Output) -> String {
 
 #[cfg(feature = "sanctum")]
 const SANCTUM_PATH: &str =
-    "database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs";
+    "database/migrations/0001_01_01_000012_create_personal_access_tokens_table.rs";
 
 #[cfg(feature = "sanctum")]
 async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
     let run = |args: &[&str]| success(root.run("local", mysql, args));
+    let migration_name = std::path::Path::new(SANCTUM_PATH)
+        .file_stem()
+        .unwrap()
+        .to_str()
+        .unwrap();
+    let ledger = || {
+        db.table("migrations")
+            .r#where("migration", "like", "%create_personal_access_tokens_table")
+    };
+    assert_eq!(
+        ledger().pluck("migration").await.unwrap(),
+        [migration_name.into()]
+    );
     let mut schema = db.getSchemaBuilder();
     let columns = schema.getColumns("personal_access_tokens").await.unwrap();
     assert_eq!(
@@ -157,7 +170,12 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
     );
     assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
     assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
+    assert_eq!(ledger().count("*").await.unwrap(), 0);
     assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
+    assert_eq!(
+        ledger().pluck("migration").await.unwrap(),
+        [migration_name.into()]
+    );
     assert!(schema.hasTable("personal_access_tokens").await.unwrap());
     assert_eq!(
         db.table("personal_access_tokens").count("*").await.unwrap(),
@@ -263,7 +281,8 @@ async fn verify_token_storage(db: &Connection) {
         assert_eq!(token.expires_at, Some(expiry));
         assert!(token.can("read") && token.cant("write"));
         assert!(!token.isExpired(expiry - chrono::TimeDelta::seconds(1), None));
-        assert!(token.isExpired(expiry, None));
+        assert!(!token.isExpired(expiry, None));
+        assert!(token.isExpired(expiry + chrono::TimeDelta::seconds(1), None));
         assert!(token.isExpired(
             token.created_at.unwrap() + chrono::TimeDelta::minutes(1),
             Some(chrono::TimeDelta::minutes(1))

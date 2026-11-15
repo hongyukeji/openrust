@@ -73,7 +73,7 @@ pub(crate) fn register_publishable_resources(
         app,
         PROVIDER,
         &[(
-            "database/migrations/2019_12_14_000001_create_personal_access_tokens_table.rs",
+            "database/migrations/0001_01_01_000012_create_personal_access_tokens_table.rs",
             include_bytes!("stubs/personal_access_tokens.stub"),
         )],
         "sanctum-migrations",

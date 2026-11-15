@@ -1576,14 +1576,35 @@ async fn publishes_sanctum_resources_by_tag_without_overwriting_customizations()
     assert_eq!(published.len(), 1);
     let name = published[0].file_name().into_string().unwrap();
     assert!(name.ends_with("_create_personal_access_tokens_table.rs"));
-    assert!(!name.starts_with("2019_12_14_000001"));
+    let bundled = "0001_01_01_000012_create_personal_access_tokens_table.rs";
+    assert_ne!(name, bundled);
     assert_eq!(
         app.artisan(["vendor:publish", "--tag=sanctum-migrations"])
             .await
             .status,
         0
     );
-    assert_eq!(std::fs::read_dir(migrations).unwrap().count(), 1);
+    assert_eq!(std::fs::read_dir(&migrations).unwrap().count(), 1);
+    std::fs::rename(migrations.join(name), migrations.join(bundled)).unwrap();
+    let result = app
+        .artisan(["vendor:publish", "--tag=sanctum-migrations", "--force"])
+        .await;
+    result.assertSuccessful();
+    assert!(migrations.join(bundled).is_file());
+    assert_eq!(std::fs::read_dir(&migrations).unwrap().count(), 1);
+
+    let mut without_retiming = TestApp::create(|builder| builder).unwrap();
+    without_retiming
+        .artisan(["vendor:publish", "--tag=sanctum-migrations"])
+        .await
+        .assertSuccessful();
+    assert!(
+        without_retiming
+            .root()
+            .join("database/migrations")
+            .join(bundled)
+            .is_file()
+    );
     assert_eq!(
         app.artisan(["vendor:publish", "--force", "--tag=sanctum-config"])
             .await
