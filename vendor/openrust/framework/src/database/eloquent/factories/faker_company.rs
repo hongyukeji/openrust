@@ -4078,9 +4078,20 @@ impl Faker {
     /// Generates an English company name with the default Taiwanese provider.
     pub fn companyEn(&self) -> DatabaseResult<String> {
         self.companyEnWithLastName(|| {
-            Err(DatabaseError::InvalidQuery(
-                "unknown Faker formatter lastNameEn",
-            ))
+            let formatter = self
+                .getFormatter("lastNameEn")
+                .map_err(|error| match error {
+                    DatabaseError::UnknownFakerFormatter(_) => {
+                        DatabaseError::InvalidQuery("unknown Faker formatter lastNameEn")
+                    }
+                    error => error,
+                })?;
+            match formatter(&[])? {
+                crate::database::Value::Text(name) => Ok(name),
+                _ => Err(DatabaseError::InvalidQuery(
+                    "Faker lastNameEn must return text",
+                )),
+            }
         })
     }
 

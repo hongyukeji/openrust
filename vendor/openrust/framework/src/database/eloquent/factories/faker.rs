@@ -6,6 +6,7 @@ use super::{
         CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
         card_masks_pt_br, uses_us_payment_provider,
     },
+    faker_provider::Formatters,
     faker_rng::FakerRandom,
     regex_pattern::RegexPattern,
 };
@@ -221,6 +222,7 @@ pub struct Faker {
     application_timezone: Tz,
     default_timezone: RwLock<Option<Tz>>,
     pub(super) random: FakerRandom,
+    pub(super) formatters: RwLock<Formatters>,
     unique: Mutex<HashMap<&'static str, HashSet<String>>>,
 }
 
@@ -496,6 +498,7 @@ impl Faker {
             application_timezone,
             default_timezone: RwLock::default(),
             random: FakerRandom::new(),
+            formatters: RwLock::default(),
             unique: Mutex::default(),
         }
     }

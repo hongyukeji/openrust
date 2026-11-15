@@ -50,6 +50,7 @@ pub enum DatabaseError {
     UnsupportedDriver,
     InvalidConfiguration(&'static str),
     UnknownSeeder(String),
+    UnknownFakerFormatter(String),
     InvalidSeeder(&'static str),
     SeederFailed {
         seeder: String,
@@ -118,6 +119,7 @@ impl std::fmt::Display for DatabaseError {
             Self::UnsupportedSchema(operation) => {
                 write!(formatter, "unsupported schema operation: {operation}")
             }
+            Self::UnknownFakerFormatter(name) => write!(formatter, "Unknown format {name:?}"),
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),
             Self::AttributeEncryption(_) => {
                 formatter.write_str("could not encrypt model attribute")

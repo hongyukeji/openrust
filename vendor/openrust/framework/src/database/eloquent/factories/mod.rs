@@ -67,12 +67,14 @@ mod faker_image;
 mod faker_institutions;
 mod faker_miscellaneous;
 mod faker_payment;
+mod faker_provider;
 mod faker_rng;
 mod regex_pattern;
 mod relationships;
 
 pub use faker::{Coordinates, CreditCardDetails, Faker, UniqueFaker, fake};
 pub use faker_image::ImageOptions;
+pub use faker_provider::FakerProvider;
 
 pub use relationships::{FactoryChild, FactoryParent};
 

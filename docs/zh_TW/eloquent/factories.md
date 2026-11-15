@@ -140,7 +140,6 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
     Ok((0..3).map(|_| faker.name()).collect())
 }
 ```
-
 內建產生方法還包括 `firstName`、`lastName`、`freeEmail`、`userName`、`streetName`、`postcode`、`phoneNumber`、`company` 和 `word`。這些方法也可透過 `unique` 呼叫。樣本取自 fake-rs 中對應語言的資料集。
 
 用 `numberBetween(first, second)` 產生整數，包含兩個端點，端點可以任意排序。`randomDigit()` 回傳 0 至 9，`randomDigitNotNull()` 回傳 1 至 9。`dateTimeBetween(start, end)` 接收明確的 UTC 日期時間，以整秒取樣並包含兩端，起始秒晚於結束秒時回傳錯誤。四種方法均支援 `unique`。
@@ -262,6 +261,24 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
     })
 }
 ```
+
+### 自訂 Faker 提供器 {#custom-faker-providers}
+
+以具名 Rust 回呼建立 `FakerProvider`，再用 `addProvider` 安裝到目前的產生器。名稱依 ASCII 大小寫不敏感的方式匹配，同名時後註冊者優先。`getFormatter` 回傳此次找到的回呼，後續 `format` 會重新查找。回呼接收目前的產生器與 `Value` 參數切片，回傳的錯誤會直接傳遞。
+
+用 `parse` 展開 `{{ code }}` 等標記，呼叫無參數且回傳純量的 formatter。未知名稱回傳 `UnknownFakerFormatter`。依名稱可呼叫自訂 formatter 和內建的 `address`、`city`、`company`、`companyEn`、`email`、`firstName`、`freeEmail`、`lastName`、`name`、`phoneNumber`、`postcode`、`randomDigit`、`safeEmail`、`userName`、`uuid`。產生器本身的 `parse`、`mimeType`、`fileExtension`、`bloodType`、`bloodRh` 優先。型別化呼叫如 `faker.name()` 繼續使用內建實作。`fake()` 與工廠定義各自使用獨立的產生器，註冊時選用需要擴充的實例。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
+
+fn sample_provider() -> DatabaseResult<String> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
+    faker.addProvider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
+    faker.parse("account-{{ code }}")
+}
+```
+
 
 ### 文字產生 {#text-generation}
 
@@ -610,7 +627,7 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
 
 ### 台灣英文公司名稱 {#taiwanese-english-company-names}
 
-使用 `zh-TW` 或 `zh-Hant` 時，`companyEn()` 沿用固定上游預設裝配缺少 `lastNameEn` 的錯誤。透過 `companyEnWithLastName` 傳入可回傳錯誤的 Rust 閉包，範本每需要一個姓氏就呼叫一次。兩個方法的 `unique` 版本共用 `companyEn` 歷史。
+使用 `zh-TW` 或 `zh-Hant` 時，`companyEn()` 在同一產生器查找 `lastNameEn`。註冊回傳文字的 formatter 即可啟用。未註冊時沿用預設的缺少錯誤。透過 `companyEnWithLastName` 傳入可回傳錯誤的 Rust 閉包，範本每需要一個姓氏就呼叫一次。兩個方法的 `unique` 版本共用 `companyEn` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

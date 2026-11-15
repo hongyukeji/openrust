@@ -140,7 +140,6 @@ fn seeded_names() -> DatabaseResult<Vec<String>> {
     Ok((0..3).map(|_| faker.name()).collect())
 }
 ```
-
 Other built-in formatters include `firstName`, `lastName`, `freeEmail`, `userName`, `streetName`, `postcode`, `phoneNumber`, `company`, and `word`. The same methods are available through `unique`. The selected locale supplies sample data where fake-rs has it.
 
 Use `numberBetween(first, second)` for an inclusive integer range in either order. `randomDigit()` returns 0 through 9, and `randomDigitNotNull()` returns 1 through 9. `dateTimeBetween(start, end)` takes explicit UTC date-times, samples at whole-second precision including both endpoints, and returns an error when the start second follows the end second. All four formatters support `unique`.
@@ -262,6 +261,24 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
     })
 }
 ```
+
+### Custom Faker Providers {#custom-faker-providers}
+
+Build a `FakerProvider` with named Rust callbacks and install it with `addProvider`. Registration applies to that generator. A newer provider wins for a matching name regardless of ASCII case. `getFormatter` returns the callback resolved at the time of lookup. Later calls to `format` resolve again. Custom callbacks receive the active generator and a slice of `Value` arguments, and any error they return propagates to the caller.
+
+Use `parse` to expand tokens such as `{{ code }}` from zero-argument scalar formatters. Unknown names return `UnknownFakerFormatter`. The named call supports registered formatters and the built-in defaults `address`, `city`, `company`, `companyEn`, `email`, `firstName`, `freeEmail`, `lastName`, `name`, `phoneNumber`, `postcode`, `randomDigit`, `safeEmail`, `userName`, and `uuid`. The generator methods `parse`, `mimeType`, `fileExtension`, `bloodType`, and `bloodRh` take precedence over providers in named calls. Typed calls such as `faker.name()` continue to use the built-in implementation. Use the generator you intend to customize, since `fake()` and factory definitions use separate generators.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
+
+fn sample_provider() -> DatabaseResult<String> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(FakerProvider::new().formatter("code", |_, _| Ok("sample".into())));
+    faker.addProvider(FakerProvider::new().formatter("Code", |_, _| Ok("demo".into())));
+    faker.parse("account-{{ code }}")
+}
+```
+
 
 ### Text Generation {#text-generation}
 
@@ -610,7 +627,7 @@ fn identity_samples() -> DatabaseResult<[String; 73]> {
 
 ### Taiwanese English Company Names {#taiwanese-english-company-names}
 
-With `zh-TW` or `zh-Hant`, `companyEn()` returns the missing `lastNameEn` formatter error from the pinned provider’s default setup. Use `companyEnWithLastName` to supply a fallible Rust closure for the surname formatter. The closure runs once per surname in the selected template. The `unique` variants share the `companyEn` history.
+With `zh-TW` or `zh-Hant`, `companyEn()` looks up `lastNameEn` on the same generator. Register a formatter that returns text to enable it. Without a registration, the default missing formatter error is preserved. Use `companyEnWithLastName` to supply a fallible Rust closure for the surname formatter. The closure runs once per surname in the selected template. The `unique` variants share the `companyEn` history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

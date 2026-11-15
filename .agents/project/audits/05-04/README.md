@@ -1719,3 +1719,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 验证预构造不写入目标表，`makeOne` 保留批量数量，两次默认 `makeMany` 依次返回两条和一条，逐条覆盖保留顺序，显式零数量返回空集合。调用两种 `lazy` 回调并取得 Future 后仍为零行。两次批量与两次单条执行后按主键核对四条批量与两条单条记录。三语共享示例在同一真实 Seeder 内运行，再新增六条。
 
 Rust 1.94.0 全工作区全目标严格 Clippy、50 项 Seeder、MySQL 和 SQLite 各一项工厂回归、`./artisan inspire`、三语示例独立编译、VitePress 构建及 18 项浏览器检查通过。基线既有 Sanctum 测试格式差异仅在隔离副本处理后通过格式检查。临时 Seeder 已恢复，临时 MySQL 容器已回收。清理隔离 Cargo 产物 4.9 GiB、站点产物及独占文档依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。Faker 自定义 provider、同名格式化器覆盖及错误路径继续在 05-04 跟踪。
+
+## Faker 自定义提供器和具名格式化
+
+对照固定 Laravel [模型工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)和 FakerPHP v1.24.1 [Generator](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php#L600)。PHP 8.5 探针验证后注册提供器优先、大小写无关、旧回调保留、生成器方法优先、参数传递、模板展开及未知名称。旧版查询工厂没有 Faker 提供器。固定 Goravel 继续作为编译式装配参考。
+
+Rust 通过 `FakerProvider::formatter` 注册线程安全的 Rust 回调，`addProvider` 将一组回调写入当前生成器。调用在释放注册表读锁后执行，可继续调用同一生成器。具名 `format` 和 `parse` 共用解析路径，回调接收类型化 `Value` 参数，错误经 `DatabaseResult` 传播。已有类型化内置方法保留直接调用。其中台湾英语公司模板会从同一生成器查找 `lastNameEn`，无提供器时保持原有错误，回调失败或返回非文本时返回错误。
+
+隔离基线 `fbf00650`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、52 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。固定版 Sanctum 测试格式差异仅在隔离副本处理。两次独立应用的 Artisan 测试复核同一应用的语言别名共享注册，其他应用及语言独立。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并运行三语共用示例，回读一行 `account-demo`。替换为返回错误的姓氏回调后，同一二进制报告原错误并以状态 1 退出。`./artisan inspire`、三语 VitePress 和 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，测试容器回收，清理隔离 Cargo 产物 5.0 GiB 和独占站点产物及依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。具名入口当前支持三语文档列出的内置项和已注册回调。其余内置 formatter 的具名参数适配、动态查找与修饰器组合及 PHP 扩展名解析仍待核对。

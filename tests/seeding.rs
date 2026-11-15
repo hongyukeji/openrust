@@ -21,7 +21,7 @@ use openrust::{
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             factories::{
                 Factory, FactoryDefinition, FactoryParentSelector, FactoryPivot, FactoryRecords,
-                Faker, HasFactory, fake,
+                Faker, FakerProvider, HasFactory, fake,
             },
             relations::{BelongsTo, MorphMany, MorphMap, MorphMapEntry, MorphTo, MorphToMany},
         },
@@ -5557,6 +5557,78 @@ fn faker_seed_restarts_formats_without_touching_other_generators() -> DatabaseRe
     Ok(())
 }
 
+#[test]
+fn faker_providers_resolve_latest_case_insensitive_callbacks() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    let independent = Faker::new("en-US")?;
+    faker.seed(42);
+    independent.seed(42);
+    assert_eq!(faker.format("name", &[])?, Value::from(independent.name()));
+
+    faker.addProvider(
+        FakerProvider::new()
+            .formatter("name", |_, _| Ok("initial".into()))
+            .formatter("reference", |faker, arguments| {
+                let [Value::Integer(sequence)] = arguments else {
+                    return Err(DatabaseError::InvalidQuery("reference expects an integer"));
+                };
+                Ok(format!("{sequence}:{}", faker.parse("{{ NaMe }}")?).into())
+            })
+            .formatter("mimeType", |_, _| Ok("overridden".into())),
+    );
+    let resolved = faker.getFormatter("NAME")?;
+    faker.addProvider(FakerProvider::new().formatter("NaMe", |_, _| Ok("latest".into())));
+    assert_eq!(resolved(&[])?, Value::from("initial"));
+    assert_eq!(faker.format("name", &[])?, Value::from("latest"));
+    assert_ne!(faker.format("mimeType", &[])?, Value::from("overridden"));
+    assert_eq!(
+        faker.format("REFERENCE", &[7.into()])?,
+        Value::from("7:latest")
+    );
+    assert!(matches!(
+        faker.format("reference", &["seven".into()]),
+        Err(DatabaseError::InvalidQuery("reference expects an integer"))
+    ));
+    assert!(matches!(
+        independent.format("reference", &[]),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "reference"
+    ));
+    assert!(matches!(
+        faker.parse("before {{ unknown }} after"),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "unknown"
+    ));
+    assert_eq!(
+        faker.parse("left {{  name  }} / {{name}} right")?,
+        "left {{  name  }} / latest right"
+    );
+    Ok(())
+}
+
+#[test]
+fn faker_taiwanese_company_resolves_provider_and_propagates_errors() -> DatabaseResult<()> {
+    let faker = Faker::new("zh-TW")?;
+    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok("Lin".into())));
+    assert!(faker.companyEn()?.starts_with("Lin"));
+    assert!(
+        matches!(faker.format("companyEn", &[])?, Value::Text(name) if name.starts_with("Lin"))
+    );
+    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| Ok(false.into())));
+    assert!(matches!(
+        faker.companyEn(),
+        Err(DatabaseError::InvalidQuery(
+            "Faker lastNameEn must return text"
+        ))
+    ));
+    faker.addProvider(FakerProvider::new().formatter("lastNameEn", |_, _| {
+        Err(DatabaseError::UnknownFakerFormatter("upstreamName".into()))
+    }));
+    assert!(matches!(
+        faker.companyEn(),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "upstreamName"
+    ));
+    Ok(())
+}
+
 static FAKER_SEEDER_GENERATOR: std::sync::Mutex<Option<Arc<Faker>>> = std::sync::Mutex::new(None);
 
 struct FakerApplicationScope;
@@ -5571,6 +5643,15 @@ impl Seeder for FakerApplicationScope {
             let alias = fake(Some("zh-Hant-TW"))?;
             let independent = openrust::database::eloquent::factories::Faker::new("zh-TW")?;
             assert!(Arc::ptr_eq(&default, &alias));
+            assert!(matches!(
+                default.format("registeredHere", &[]),
+                Err(DatabaseError::UnknownFakerFormatter(_))
+            ));
+            default.addProvider(
+                FakerProvider::new().formatter("registeredHere", |_, _| Ok(21.into())),
+            );
+            assert_eq!(alias.format("registeredHere", &[])?, Value::from(21));
+            assert!(fake(Some("en-US"))?.format("registeredHere", &[]).is_err());
             default.seed(813);
             independent.seed(813);
             assert_eq!(default.address(), independent.address());
