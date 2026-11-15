@@ -1560,3 +1560,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、108 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、109 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对亚美尼亚和格鲁吉亚 Address。
+
+## 亚美尼亚和格鲁吉亚地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [亚美尼亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hy_AM/Address.php) 和 [格鲁吉亚](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ka_GE/Address.php) Address。保留亚美尼亚以地区开头、以 00 开头的邮编结束的布局，以及格鲁吉亚八种布局、独立城市名和地区属格。Rust 复用地址模板、现有地区及街道方法，regionGenitiveForm 返回 Result 并支持 UniqueFaker。v0.x 无等价 Faker 地址实现，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `443571a8`。按 PHP 反射逐项核对 26 份词表和模板，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖亚美尼亚邮编、格鲁吉亚八种布局、地区属格唯一值耗尽及地区边界。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、110 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对塞尔维亚和黑山 Address。

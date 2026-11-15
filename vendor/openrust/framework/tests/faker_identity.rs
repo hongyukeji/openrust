@@ -4709,3 +4709,35 @@ fn lithuanian_and_latvian_addresses_keep_local_postcodes_and_region_fields() {
     assert_eq!(unique.regionSuffix().unwrap(), "reģions");
     assert!(unique.regionSuffix().is_err());
 }
+
+#[test]
+fn armenian_and_georgian_addresses_keep_local_layouts_and_region_forms() {
+    let armenian = fake(Some("hy-AM")).unwrap();
+    let georgian = fake(Some("ka-GE")).unwrap();
+    let armenian_address =
+        Regex::new(r"^.+ մարզ, (?:քաղաք|գյուղ) .+, .+ [1-9][0-9] փողոց, 00[0-9]{2}$").unwrap();
+    let georgian_street = Regex::new(r"^.+ #[1-9][0-9]$").unwrap();
+    let mut georgian_layouts = std::collections::HashSet::new();
+    for _ in 0..256 {
+        assert!(armenian_address.is_match(&armenian.address()));
+        assert!(georgian_street.is_match(&georgian.streetAddress()));
+        let address = georgian.address();
+        georgian_layouts.insert((
+            address.starts_with("საქართველო, "),
+            address.ends_with(", საქართველო"),
+            address.contains("რაიონი"),
+            address
+                .split(", ")
+                .find(|part| *part != "საქართველო")
+                .unwrap()
+                .contains(" #"),
+        ));
+    }
+    assert_eq!(georgian_layouts.len(), 8);
+    let unique = georgian.unique(true);
+    for _ in 0..11 {
+        assert!(unique.regionGenitiveForm().is_ok());
+    }
+    assert!(unique.regionGenitiveForm().is_err());
+    assert!(armenian.regionGenitiveForm().is_err());
+}

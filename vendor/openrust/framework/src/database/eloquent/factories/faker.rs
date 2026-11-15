@@ -629,6 +629,8 @@ impl Faker {
 
     pub fn city(&self) -> String {
         match self.locale() {
+            "hy_AM" => address_sample(faker_address::CITY_HY_AM).into(),
+            "ka_GE" => self.regional_address_format(faker_address::CITY_FORMATS_KA_GE),
             "lt_LT" => address_sample(faker_address::CITY_LT_LT).into(),
             "lv_LV" => address_sample(faker_address::CITY_LV_LV).into(),
             "hr_HR" => address_sample(faker_address::CITY_NAMES_HR_HR).into(),
@@ -738,6 +740,9 @@ impl Faker {
 
     pub fn streetName(&self) -> String {
         match self.locale() {
+            "hy_AM" | "ka_GE" => {
+                self.regional_address_format(faker_address::STREET_NAME_FORMATS_HY_AM)
+            }
             "lt_LT" | "lv_LV" => {
                 self.regional_address_format(faker_address::STREET_NAME_FORMATS_LT_LT)
             }
@@ -937,6 +942,10 @@ impl Faker {
                 ),
                 "firstName" => result.push_str(&self.firstName()),
                 "lastName" => result.push_str(&self.lastName()),
+                "regionGenitiveForm" => result.push_str(
+                    self.regionGenitiveForm()
+                        .expect("region genitive form supported by address template locale"),
+                ),
                 "regionSuffix" => result.push_str(
                     self.regionSuffix()
                         .expect("regionSuffix supported by address template locale"),
@@ -1013,6 +1022,8 @@ impl Faker {
 
     pub fn cityPrefix(&self) -> String {
         match self.locale() {
+            "hy_AM" => address_sample(faker_address::CITY_PREFIX_HY_AM).into(),
+            "ka_GE" => address_sample(faker_address::CITY_PREFIX_KA_GE).into(),
             "lv_LV" => address_sample(faker_address::CITY_PREFIX_LV_LV).into(),
             "it_IT" | "it_CH" => address_sample(faker_address::CITY_PREFIX_IT_IT).into(),
             "pt_BR" => address_sample(faker_address::CITY_PREFIX_PT_BR).into(),
@@ -1040,6 +1051,7 @@ impl Faker {
 
     pub fn citySuffix(&self) -> String {
         match self.locale() {
+            "hy_AM" | "ka_GE" => address_sample(faker_address::CITY_SUFFIX_HY_AM).into(),
             "lt_LT" | "lv_LV" => address_sample(faker_address::CITY_SUFFIX_LT_LT).into(),
             "hr_HR" | "sl_SI" => address_sample(faker_address::CITY_SUFFIX_HR_HR).into(),
             "ro_RO" | "ro_MD" => address_sample(faker_address::CITY_SUFFIX_RO_RO).into(),
@@ -1079,6 +1091,8 @@ impl Faker {
 
     pub fn streetSuffix(&self) -> String {
         match self.locale() {
+            "hy_AM" => address_sample(faker_address::STREET_SUFFIX_HY_AM).into(),
+            "ka_GE" => address_sample(faker_address::STREET_SUFFIX_KA_GE).into(),
             "lt_LT" => address_sample(faker_address::STREET_SUFFIX_LT_LT).into(),
             "lv_LV" => address_sample(faker_address::STREET_SUFFIX_LV_LV).into(),
             "hr_HR" | "sl_SI" => address_sample(faker_address::STREET_SUFFIX_HR_HR).into(),
@@ -1125,6 +1139,8 @@ impl Faker {
 
     pub fn country(&self) -> String {
         match self.locale() {
+            "hy_AM" => address_sample(faker_address::COUNTRY_HY_AM).into(),
+            "ka_GE" => address_sample(faker_address::COUNTRY_KA_GE).into(),
             "lt_LT" => address_sample(faker_address::COUNTRY_LT_LT).into(),
             "lv_LV" => address_sample(faker_address::COUNTRY_LV_LV).into(),
             "hr_HR" => address_sample(faker_address::COUNTRY_HR_HR).into(),
@@ -1238,6 +1254,8 @@ impl Faker {
     /// Returns a street stem from the supported regional catalogs.
     pub fn street(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
+            "hy_AM" => faker_address::STREET_HY_AM,
+            "ka_GE" => faker_address::STREET_KA_GE,
             "lt_LT" => faker_address::STREET_LT_LT,
             "lv_LV" => faker_address::STREET_LV_LV,
             "hr_HR" => faker_address::STREETS_HR_HR,
@@ -1266,6 +1284,7 @@ impl Faker {
 
     pub fn streetPrefix(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
+            "hy_AM" => faker_address::STREET_PREFIX_HY_AM,
             "lv_LV" => faker_address::STREET_PREFIX_LV_LV,
             "ro_RO" => faker_address::STREET_PREFIX_RO_RO,
             "ro_MD" => faker_address::STREET_PREFIX_RO_MD,
@@ -1801,8 +1820,16 @@ impl Faker {
         name
     }
 
+    /// Samples a Georgian region name in the genitive form.
+    pub fn regionGenitiveForm(&self) -> DatabaseResult<&'static str> {
+        self.require_address_locale("ka_GE")?;
+        Ok(address_sample(faker_address::REGION_GENITIVE_FORM_KA_GE))
+    }
+
     pub fn regionSuffix(&self) -> DatabaseResult<&'static str> {
         match self.locale() {
+            "hy_AM" => Ok(address_sample(faker_address::REGION_SUFFIX_HY_AM)),
+            "ka_GE" => Ok(address_sample(faker_address::REGION_SUFFIX_KA_GE)),
             "lt_LT" => Ok(address_sample(faker_address::REGION_SUFFIX_LT_LT)),
             "lv_LV" => Ok(address_sample(faker_address::REGION_SUFFIX_LV_LV)),
             "ru_RU" | "uk_UA" => Ok("область"),
@@ -1920,6 +1947,7 @@ impl Faker {
 
     pub fn cityName(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
+            "ka_GE" => faker_address::CITY_KA_GE,
             "hr_HR" => faker_address::CITY_NAMES_HR_HR,
             "sl_SI" => faker_address::CITY_SL_SI,
             "ro_RO" => faker_address::CITY_NAMES_RO_RO,
@@ -2061,6 +2089,8 @@ impl Faker {
 
     pub fn region(&self) -> DatabaseResult<&'static str> {
         let values = match self.locale() {
+            "hy_AM" => Some(faker_address::REGION_HY_AM),
+            "ka_GE" => Some(faker_address::REGION_KA_GE),
             "lt_LT" => Some(faker_address::REGION_LT_LT),
             "lv_LV" => Some(faker_address::REGION_LV_LV),
             "pt_BR" => Some(faker_address::REGION_PT_BR),
@@ -2134,6 +2164,8 @@ impl Faker {
 
     pub fn postcode(&self) -> String {
         match self.locale() {
+            "hy_AM" => self.numerify(Some(address_sample(faker_address::POSTCODE_HY_AM))),
+            "ka_GE" => self.numerify(Some(address_sample(faker_address::POSTCODE_KA_GE))),
             "lt_LT" => self.numerify(Some(address_sample(faker_address::POSTCODE_LT_LT))),
             "lv_LV" => self.numerify(Some(address_sample(faker_address::POSTCODE_LV_LV))),
             "hr_HR" => self.numerify(Some(address_sample(faker_address::POSTCODE_HR_HR))),
@@ -2224,6 +2256,7 @@ impl Faker {
 
     pub fn buildingNumber(&self) -> String {
         let formats: &[&str] = match self.locale() {
+            "hy_AM" | "ka_GE" => faker_address::BUILDING_NUMBER_HY_AM,
             "lt_LT" | "lv_LV" => faker_address::BUILDING_NUMBER_LT_LT,
             "hr_HR" => faker_address::BUILDING_NUMBER_HR_HR,
             "sl_SI" => faker_address::BUILDING_NUMBER_SL_SI,
@@ -2328,6 +2361,12 @@ impl Faker {
 
     pub fn streetAddress(&self) -> String {
         match self.locale() {
+            "hy_AM" => {
+                return self.regional_address_format(faker_address::STREET_ADDRESS_FORMATS_HY_AM);
+            }
+            "ka_GE" => {
+                return self.regional_address_format(faker_address::STREET_ADDRESS_FORMATS_KA_GE);
+            }
             "lt_LT" | "lv_LV" => {
                 return self.regional_address_format(faker_address::STREET_ADDRESS_FORMATS_LT_LT);
             }
@@ -2535,6 +2574,8 @@ impl Faker {
 
     pub fn address(&self) -> String {
         match self.locale() {
+            "hy_AM" => self.regional_address_format(faker_address::ADDRESS_FORMATS_HY_AM),
+            "ka_GE" => self.regional_address_format(faker_address::ADDRESS_FORMATS_KA_GE),
             "lt_LT" => self.regional_address_format(faker_address::ADDRESS_FORMATS_LT_LT),
             "lv_LV" => self.regional_address_format(faker_address::ADDRESS_FORMATS_LV_LV),
             "hr_HR" => self.regional_address_format(faker_address::ADDRESS_FORMATS_HR_HR),
@@ -5320,6 +5361,10 @@ impl UniqueFaker<'_> {
 
     pub fn building(&self) -> DatabaseResult<String> {
         self.try_generate("building", || self.0.building())
+    }
+
+    pub fn regionGenitiveForm(&self) -> DatabaseResult<&'static str> {
+        self.try_generate("regionGenitiveForm", || self.0.regionGenitiveForm())
     }
 
     pub fn regionSuffix(&self) -> DatabaseResult<&'static str> {

@@ -1109,6 +1109,16 @@ fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+Armenian addresses place the region first and end with a four-digit postcode beginning with `00`. Georgian addresses preserve eight layouts with optional country and region fields. Use `regionGenitiveForm()` to sample the Georgian region name used with the region suffix.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("hy-AM"))?.address(), fake(Some("ka-GE"))?.address()])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

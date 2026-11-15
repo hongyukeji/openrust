@@ -1109,6 +1109,16 @@ fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+亞美尼亞地址以地區開頭，以 `00` 開頭的四位郵遞區號結尾。喬治亞地址保留八種配置，國家和地區欄位可選。可用 `regionGenitiveForm()` 抽取與地區後綴連用的喬治亞語屬格地區名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn armenian_georgian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("hy-AM"))?.address(), fake(Some("ka-GE"))?.address()])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
