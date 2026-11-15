@@ -983,6 +983,16 @@ fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+波蘭語郵遞區號由兩位數字、連字號和三位數字組成。捷克語地址可另含一列地區或國家，也可能省略門牌號碼。斯洛伐克語郵遞區號在前三位後加空格，固定版完整地址以字面字元 `\n` 分隔。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn central_european_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("pl-PL"))?.address(), fake(Some("cs-CZ"))?.address(), fake(Some("sk-SK"))?.address()))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

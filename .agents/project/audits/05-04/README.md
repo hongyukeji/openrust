@@ -1452,3 +1452,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、96 项 Faker、49 项 See
 隔离基线 `3a0a38ea`。PHP 反射核对 13 份独立词表与 24 组城市和州的配对，逐项核对 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，含三语共用示例。回归覆盖地区格式、无效地区和 24 组配对唯一抽样耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、97 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对波兰语、捷克语及斯洛伐克语 Address。
+
+## 波兰语、捷克语和斯洛伐克语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [波兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/Address.php)、[捷克语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/cs_CZ/Address.php) 和 [斯洛伐克语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/sk_SK/Address.php) Address。波兰语保留连字符邮编、门牌字母和省名。捷克语保留三种加权地址布局、可选门牌与两种邮编。斯洛伐克语保留字面反斜杠和 n、空格邮编及与美国相同的街道后缀词表。地区方法沿用 Result 和 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 参考下的编译式装配沿用现有路径。
+
+隔离基线 `b1fcddfb`。PHP 反射核对 15 份词表与模板，按同一规则核对 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 387 行，含三语共用示例。Rust 回归检查连字符邮编、字面分隔符、捷克地址三种布局和 14 个地区唯一值耗尽。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、98 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对德语地区 Address。

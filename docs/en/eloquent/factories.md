@@ -983,6 +983,16 @@ fn ukrainian_address_sample() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Polish postcodes use two digits, a hyphen, and three digits. Czech addresses may include a region line or a country line, and the building number can be omitted. Slovak postcodes use a space after the first three digits. The fixed Slovak address template emits the literal characters `\n` as separators.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn central_european_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("pl-PL"))?.address(), fake(Some("cs-CZ"))?.address(), fake(Some("sk-SK"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

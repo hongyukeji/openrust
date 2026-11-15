@@ -4332,3 +4332,34 @@ fn russian_ukrainian_and_kazakh_addresses_preserve_regional_layouts() {
     assert!(pairs.contains("Львівська область, місто Львів"));
     assert!(unique.cityAndRegion().is_err());
 }
+
+#[test]
+fn polish_czech_and_slovak_addresses_preserve_punctuation_and_postcodes() {
+    let pl = fake(Some("pl-PL")).unwrap();
+    let cz = fake(Some("cs-CZ")).unwrap();
+    let sk = fake(Some("sk-SK")).unwrap();
+    let polish =
+        Regex::new(r"^.+ (?:[0-9]{2}A|[1-9][0-9])(?:/[1-9][0-9])?, [0-9]{2}-[0-9]{3} .+$").unwrap();
+    let slovak = Regex::new(r"^.+ [1-9][0-9]{2,4}\\n [0-9]{3} [0-9]{2}\\n .+$").unwrap();
+    let czech_postcode = Regex::new(r"^(?:[0-9]{5}|[0-9]{3} [0-9]{2})$").unwrap();
+    let mut czech_layouts = [false; 3];
+    for _ in 0..192 {
+        assert!(polish.is_match(&pl.address()));
+        assert!(slovak.is_match(&sk.address()));
+        assert!(czech_postcode.is_match(&cz.postcode()));
+        let address = cz.address();
+        let index = match address.lines().count() {
+            2 => 0,
+            3 if address.ends_with("\nČeská republika") => 1,
+            3 => 2,
+            _ => panic!("unexpected Czech address {address:?}"),
+        };
+        czech_layouts[index] = true;
+    }
+    assert_eq!(czech_layouts, [true; 3]);
+    let regions = cz.unique(true);
+    for _ in 0..14 {
+        assert!(regions.region().is_ok());
+    }
+    assert!(regions.region().is_err());
+}
