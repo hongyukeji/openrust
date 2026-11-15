@@ -1099,6 +1099,16 @@ fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+Lithuanian addresses use the `LT-` postcode prefix and three address layouts, including one with a hyphenated building and unit number. Use `municipality()` to sample a Lithuanian municipality. Latvian addresses begin with an `LV-` postcode followed by the region and city. Both locales expose their local region label through `regionSuffix()`.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("lt-LT"))?.address(), fake(Some("lv-LV"))?.address()])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

@@ -4680,3 +4680,32 @@ fn croatian_and_slovenian_addresses_keep_local_layouts_and_postcodes() {
     assert!(slovenian.street().is_err());
     assert!(slovenian.unique(true).cityName().is_ok());
 }
+
+#[test]
+fn lithuanian_and_latvian_addresses_keep_local_postcodes_and_region_fields() {
+    let lithuanian = fake(Some("lt-LT")).unwrap();
+    let latvian = fake(Some("lv-LV")).unwrap();
+    let latvian_address =
+        Regex::new(r"^LV-[0-9]{4}, .+ reģions, .+ pilsēta, .+, [1-9][0-9]$").unwrap();
+    let mut layouts = [false; 3];
+    for _ in 0..128 {
+        let address = lithuanian.address();
+        let (street, city) = address.split_once(", ").unwrap();
+        let layout = if city.contains(" LT-") {
+            2
+        } else {
+            usize::from(street.contains('-'))
+        };
+        layouts[layout] = true;
+        assert!(latvian_address.is_match(&latvian.address()));
+        assert_eq!(lithuanian.regionSuffix().unwrap(), "regionas");
+        assert_eq!(latvian.regionSuffix().unwrap(), "reģions");
+    }
+    assert_eq!(layouts, [true; 3]);
+    assert!(lithuanian.unique(true).municipality().is_ok());
+    assert!(latvian.municipality().is_err());
+    assert!(fake(Some("en-PH")).unwrap().municipality().is_ok());
+    let unique = latvian.unique(true);
+    assert_eq!(unique.regionSuffix().unwrap(), "reģions");
+    assert!(unique.regionSuffix().is_err());
+}

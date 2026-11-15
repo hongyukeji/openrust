@@ -1099,6 +1099,16 @@ fn croatian_slovenian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+立陶宛郵遞區號使用 `LT-` 前綴，地址有三種配置，其中一種以連字號連接門牌與單元號碼。可用 `municipality()` 抽取立陶宛市鎮。拉脫維亞地址以 `LV-` 郵遞區號開頭，接著是地區和城市。兩地均可用 `regionSuffix()` 取得當地的地區後綴。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn lithuanian_latvian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("lt-LT"))?.address(), fake(Some("lv-LV"))?.address()])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。
