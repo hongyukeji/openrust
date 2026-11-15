@@ -32,6 +32,26 @@ async fn related_comments<P: Model, R: Model>(
 }
 ```
 
+`HasManyThrough` 和 `HasOneThrough` 也支援這三種分頁方法。查詢使用中間資料表連接，預設排除已軟刪除的中間模型。呼叫 `withTrashedParents()` 可包含這些模型。預設只選取關聯模型的欄位。連接的資料表有同名欄位時，自訂排序應加上資料表名稱。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::HasManyThrough}},
+    pagination::{CursorOptions, CursorPaginator},
+};
+
+async fn through_page<P: Model, I: Model, R: Model>(
+    parent: &P,
+    relation: &HasManyThrough<P, I, R>,
+) -> DatabaseResult<CursorPaginator<R>> {
+    relation.cursorPaginateWith(parent, CursorOptions {
+        perPage: Some(15),
+        cursorName: "reactions",
+        ..Default::default()
+    }).await
+}
+```
+
 ## JSON 和分頁連結
 
 當分頁項目實作 Serde 的 `Serialize` 時，可直接序列化分頁器。用 `map` 將資料庫列或 Eloquent 模型轉換為回應項目，保留分頁中繼資料。`withQueryString` 保留篩選條件，`appends` 加入選定參數。連結使用請求相對路徑。

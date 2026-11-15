@@ -13,3 +13,11 @@
 以 `56f3d215` 为隔离基线。MySQL 8.4.13 与 SQLite 的真实 HTTP 请求验证 HasMany 的总数、定制页名、筛选参数、普通回翻和父键筛选，MorphMany 的类型隔离与游标来回翻页。数据库回归另验证简易分页有下一页，以及无键父模型不会读到外键为 NULL 的行。关系套件 6 项、分页套件 2 项通过。Rust 1.94.0 格式、工作区全目标严格 Clippy 和 `./artisan inspire` 通过。既有 Sanctum 格式差异仅在隔离副本调整。三语示例独立编译，VitePress 和根路径／子路径 18 项浏览器检查通过。
 
 临时数据库和容器已回收。清理隔离 Cargo 产物 1.8 GiB 及独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批核对穿透关系和多对多 Pagination，其中多对多要保留当前页的 Pivot 数据。Blade 链接和本地化导航标签继续在 05-06 跟踪。
+
+## 穿透关系分页与中间模型筛选
+
+固定 Laravel [HasOneOrManyThrough](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L572) 在加入穿透关系选列后调用 Eloquent 分页。Rust 为 HasManyThrough 和 HasOneThrough 提供同样三类分页，显式接收父模型。复用既有穿透联接、软删除范围、多态条件和单选关系选择。默认选列限定为关联表，显式选列可避免同名字段冲突。单父模型的分页不需要向模型公开用于批量匹配的内部键。旧版关系未提供对应入口，沿用已核对的 v0.x 底层查询分页。固定 [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go) 继续作为查询分页参考。
+
+隔离基线 `b85a5b51`。MySQL 8.4.13 与 SQLite 的真实 HTTP 验证穿透分页总数、选列、母键隔离、筛选参数与上一页链接。双库直接验证游标跨页、无键父模型返回空页、`withTrashedParents()` 重新纳入软删除中间模型，以及 `latestOfMany` 分页只返回所选模型。6 项关系和 2 项分页回归通过。Rust 1.94.0 格式、全工作区全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 构建与 18 项浏览器检查通过。既有 Sanctum 格式只在隔离副本调整。
+
+临时容器已回收，清理隔离 Cargo 产物 1.8 GiB 与独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批补多对多分页的 Pivot 水合，Blade 分页链接和多语言导航仍待接入。

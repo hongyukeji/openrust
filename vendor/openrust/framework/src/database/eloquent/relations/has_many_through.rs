@@ -11,6 +11,10 @@ use crate::database::{
     query,
 };
 
+use crate::pagination::{
+    CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator,
+};
+
 use super::{
     ExistenceRelation, HasOneThrough, Relation,
     one_of_many::OneOfMany,
@@ -73,6 +77,103 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
     ) -> Self {
         self.keys.constrain(configure);
         self
+    }
+
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.paginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..PageOptions::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.pagination_query(parent, options.columns)?
+            .paginateWith(options)
+            .await
+    }
+
+    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.simplePaginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..PageOptions::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<R>> {
+        self.pagination_query(parent, options.columns)?
+            .simplePaginateWith(options)
+            .await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.cursorPaginateWith(
+            parent,
+            CursorOptions {
+                perPage: Some(per_page),
+                ..CursorOptions::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.pagination_query(parent, options.columns)?
+            .cursorPaginateWith(options)
+            .await
+    }
+
+    fn pagination_query(
+        &self,
+        parent: &P,
+        columns: &[&str],
+    ) -> DatabaseResult<Builder<'static, R>> {
+        let connection = self.keys.connection(parent)?;
+        let query = R::queryOn(&connection);
+        let projection = query.qualifyColumn("*");
+        let query = if columns.is_empty() || columns == ["*"] {
+            query.select_relation_columns([projection.as_str()])
+        } else {
+            let columns: Vec<_> = columns
+                .iter()
+                .map(|column| query.qualifyColumn(column))
+                .collect();
+            query.select_relation_columns(columns.iter().map(String::as_str))
+        };
+        let query = self.keys.configure(query)?;
+        let join = self.join(&query, None, &connection)?;
+        let query = self.select_one(query, &join, &connection)?;
+        let keys = ParentKeys::new(&[parent], self.keys.parent)?;
+        Ok(query
+            .restrict_relation(&join.match_key, &keys.bindings)
+            .map_relation_query(|query| join.apply(query)))
     }
 
     fn join(

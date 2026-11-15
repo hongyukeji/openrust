@@ -32,6 +32,26 @@ async fn related_comments<P: Model, R: Model>(
 }
 ```
 
+`HasManyThrough` and `HasOneThrough` also accept these pagination methods. The query applies the intermediate join and excludes soft-deleted intermediate models by default. Call `withTrashedParents()` to include them. The default projection contains only columns from the related model. Qualify custom sort columns when the joined tables share the same column name.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::HasManyThrough}},
+    pagination::{CursorOptions, CursorPaginator},
+};
+
+async fn through_page<P: Model, I: Model, R: Model>(
+    parent: &P,
+    relation: &HasManyThrough<P, I, R>,
+) -> DatabaseResult<CursorPaginator<R>> {
+    relation.cursorPaginateWith(parent, CursorOptions {
+        perPage: Some(15),
+        cursorName: "reactions",
+        ..Default::default()
+    }).await
+}
+```
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.

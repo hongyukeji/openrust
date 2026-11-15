@@ -6,6 +6,10 @@ use crate::database::{
     query,
 };
 
+use crate::pagination::{
+    CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator,
+};
+
 use super::{
     ExistenceRelation, HasManyThrough, OneOfManyAggregate, Relation,
     default_model::{ConfigureDefault, match_defaults},
@@ -58,6 +62,50 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
     ) -> Self {
         self.0 = self.0.constrain(configure);
         self
+    }
+
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.0.paginate(parent, per_page).await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.0.paginateWith(parent, options).await
+    }
+
+    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.0.simplePaginate(parent, per_page).await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<R>> {
+        self.0.simplePaginateWith(parent, options).await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.0.cursorPaginate(parent, per_page).await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.0.cursorPaginateWith(parent, options).await
     }
 
     pub async fn is(&self, parent: &P, related: Option<&R>) -> DatabaseResult<bool> {

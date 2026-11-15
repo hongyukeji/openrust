@@ -10,7 +10,7 @@ use openrust::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState,
-            relations::{HasMany, MorphMany},
+            relations::{HasMany, HasManyThrough, MorphMany},
         },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
@@ -50,8 +50,9 @@ struct Comment(ModelState);
 
 impl Model for Comment {
     fn metadata() -> &'static ModelMetadata {
-        static META: ModelMetadata =
-            ModelMetadata::new("pagination_comments").timestamps(None, None);
+        static META: ModelMetadata = ModelMetadata::new("pagination_comments")
+            .timestamps(None, None)
+            .softDeletes("deleted_at");
         &META
     }
 
@@ -67,6 +68,29 @@ impl Model for Comment {
         &mut self.0
     }
 }
+
+struct Reaction(ModelState);
+
+impl Model for Reaction {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata =
+            ModelMetadata::new("pagination_reactions").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+const REACTIONS: HasManyThrough<Article, Comment, Reaction> =
+    HasManyThrough::new("article_id", "comment_id", "id", "id");
 
 fn ids(rows: &[Row]) -> Vec<i64> {
     rows.iter().map(|row| id(row.get("id"))).collect()
@@ -86,6 +110,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/cursor", cursor_page)?;
     Route::get("/related-length", related_length_page)?;
     Route::get("/related-cursor", related_cursor_page)?;
+    Route::get("/through", through_page)?;
     Ok(())
 }
 
@@ -184,6 +209,37 @@ fn related_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpE
     })
 }
 
+fn through_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let mut page = REACTIONS
+            .paginateWith(
+                &parent,
+                PageOptions {
+                    perPage: Some(2),
+                    pageName: "reactions",
+                    columns: &["id"],
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(internal)?;
+        page.withQueryString();
+        Response::json(
+            StatusCode::OK,
+            page.map(|reaction| {
+                assert!(reaction.getAttribute("comment_id").is_none());
+                id(reaction.getKey())
+            }),
+        )
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -239,12 +295,16 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         .unwrap()
         .connection(None)?;
     for sql in [
+        "DROP TABLE IF EXISTS pagination_reactions",
         "DROP TABLE IF EXISTS pagination_comments",
         "DROP TABLE IF EXISTS pagination_articles",
         "CREATE TABLE pagination_articles (id BIGINT PRIMARY KEY, rank_number INTEGER, category VARCHAR(30))",
         "INSERT INTO pagination_articles VALUES (1, 1, 'a'), (2, 1, 'a'), (3, 2, 'b'), (4, 2, 'b'), (5, 3, 'b')",
-        "CREATE TABLE pagination_comments (id BIGINT PRIMARY KEY, article_id BIGINT, subject_type VARCHAR(30), visible INTEGER)",
-        "INSERT INTO pagination_comments VALUES (11, 1, 'article', 1), (12, 1, 'article', 0), (13, 1, 'article', 1), (14, 2, 'article', 1), (15, 1, 'article', 0), (16, 1, 'image', 0), (17, NULL, 'article', 1)",
+        "CREATE TABLE pagination_comments (id BIGINT PRIMARY KEY, article_id BIGINT, subject_type VARCHAR(30), visible INTEGER, deleted_at TIMESTAMP NULL)",
+        "INSERT INTO pagination_comments (id, article_id, subject_type, visible) VALUES (11, 1, 'article', 1), (12, 1, 'article', 0), (13, 1, 'article', 1), (14, 2, 'article', 1), (15, 1, 'article', 0), (16, 1, 'image', 0), (17, NULL, 'article', 1)",
+        "UPDATE pagination_comments SET deleted_at = '2025-01-01 00:00:00' WHERE id = 16",
+        "CREATE TABLE pagination_reactions (id BIGINT PRIMARY KEY, comment_id BIGINT)",
+        "INSERT INTO pagination_reactions VALUES (101, 11), (102, 11), (103, 12), (104, 14), (105, 16)",
     ] {
         connection.statement(sql, &[]).await?;
     }
@@ -363,6 +423,62 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(empty.total(), 0);
     assert!(empty.items().is_empty());
 
+    let through = REACTIONS
+        .cursorPaginateWith(
+            &parent,
+            CursorOptions {
+                perPage: Some(2),
+                columns: &["id"],
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(
+        through
+            .items()
+            .iter()
+            .map(|reaction| id(reaction.getKey()))
+            .collect::<Vec<_>>(),
+        [101, 102]
+    );
+    let following = REACTIONS
+        .cursorPaginateWith(
+            &parent,
+            CursorOptions {
+                perPage: Some(2),
+                cursor: through.nextCursor(),
+                ..Default::default()
+            },
+        )
+        .await?;
+    assert_eq!(
+        following
+            .items()
+            .iter()
+            .map(|reaction| id(reaction.getKey()))
+            .collect::<Vec<_>>(),
+        [103]
+    );
+    let all = REACTIONS
+        .withTrashedParents()
+        .simplePaginate(&parent, 10)
+        .await?;
+    assert_eq!(
+        all.items()
+            .iter()
+            .map(|reaction| id(reaction.getKey()))
+            .collect::<Vec<_>>(),
+        [101, 102, 103, 105]
+    );
+    assert_eq!(REACTIONS.paginate(&unsaved, 2).await?.total(), 0);
+
+    let latest = REACTIONS
+        .one()
+        .latestOfMany(None)
+        .paginate(&parent, 2)
+        .await?;
+    assert_eq!(latest.total(), 1);
+    assert_eq!(id(latest.items()[0].getKey()), 103);
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -416,7 +532,16 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert!(second["next_page_url"].is_null());
     let previous = second["prev_page_url"].as_str().unwrap();
     assert_eq!(request(address, previous).await["data"], json!([11, 12]));
+    let through = request(address, "/api/through?reactions=2&filter=all").await;
+    assert_eq!(through["total"], 3);
+    assert_eq!(through["data"], json!([103]));
+    let previous = through["prev_page_url"].as_str().unwrap();
+    assert!(previous.contains("filter=all"));
+    assert_eq!(request(address, previous).await["data"], json!([101, 102]));
     server.abort();
+    connection
+        .statement("DROP TABLE pagination_reactions", &[])
+        .await?;
     connection
         .statement("DROP TABLE pagination_comments", &[])
         .await?;

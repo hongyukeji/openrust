@@ -589,6 +589,14 @@ impl<M: Model> Builder<'static, M> {
         self
     }
 
+    pub(super) fn map_relation_query(
+        mut self,
+        configure: impl FnOnce(query::Builder<'static>) -> query::Builder<'static>,
+    ) -> Self {
+        self.query = configure(self.query);
+        self
+    }
+
     pub(super) fn restrict_relation(mut self, column: &str, keys: &[Value]) -> Self {
         // Keep relation keys in the base query so an OR inside a related
         // query constraint cannot admit a different parent's records.
