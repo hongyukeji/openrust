@@ -1428,3 +1428,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、93 项 Faker、49 项 See
 隔离基线 `b2ab5337`。PHP 反射核对 25 份词表和模板，按同一规则验收三地共 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，包含三语共用示例。Rust 回归覆盖可选房屋格式、不适用地区、埃及两位行政区编号及唯一值耗尽。身份号码既有回归继续通过。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、94 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对波斯语与希伯来语 Address。
+
+## 波斯语和希伯来语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 [波斯语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fa_IR/Address.php) 和 [希伯来语 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/he_IL/Address.php)。波斯语保留可选城市、楼栋编号与邮编前缀及十位邮编。希伯来语保留两行格式、五位或七位邮编、可选公寓或楼层。省略公寓或楼层时街道行保留尾空格。地区专用方法返回 Result 并支持 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `624ca94c`。PHP 反射核对 14 份词表与模板，执行并核对 320 个固定 PHP 样本。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 写入并按序回读 322 行，包含三语共用示例。回归验证前缀唯一值耗尽、无效地区、两种可选分支及希伯来语尾部空格。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、95 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 和独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对土耳其语及其他地区 Address。

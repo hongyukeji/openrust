@@ -4246,3 +4246,37 @@ fn arabic_addresses_keep_regional_city_and_secondary_address_formats() {
     }
     assert!(unique.governorateId().is_err());
 }
+
+#[test]
+fn persian_and_hebrew_addresses_preserve_optional_segments_and_spaces() {
+    let persian = fake(Some("fa-IR")).unwrap();
+    let hebrew = fake(Some("he-IL")).unwrap();
+    let hebrew_layout =
+        Regex::new(r"^.+ [1-9][0-9]{0,2} (?:(?:דירה|קומה) [0-9]{2})?\n.+, (?:[0-9]{5}|[0-9]{7})$")
+            .unwrap();
+    let persian_zip = Regex::new(r"^[0-9]{10}$").unwrap();
+    let mut persian_variants = [false; 2];
+    let mut hebrew_variants = [false; 2];
+    for _ in 0..128 {
+        let address = persian.address();
+        assert!(address.contains(" خیابان ") && address.contains(" ساختمان "));
+        let has_postcode = address.contains(" کد پستی ");
+        persian_variants[usize::from(has_postcode)] = true;
+        if has_postcode {
+            assert!(persian_zip.is_match(address.rsplit_once(' ').unwrap().1));
+        }
+        assert!(persian_zip.is_match(&persian.postcode()));
+
+        let address = hebrew.address();
+        assert!(hebrew_layout.is_match(&address), "{address:?}");
+        let street = address.split_once('\n').unwrap().0;
+        hebrew_variants[usize::from(street.ends_with(' '))] = true;
+        assert!(matches!(hebrew.postcode().len(), 5 | 7));
+    }
+    assert_eq!(persian_variants, [true; 2]);
+    assert_eq!(hebrew_variants, [true; 2]);
+    assert!(hebrew.building().is_err());
+    let unique = persian.unique(true);
+    assert_eq!(unique.postcodePrefix().unwrap(), "کد پستی");
+    assert!(unique.postcodePrefix().is_err());
+}

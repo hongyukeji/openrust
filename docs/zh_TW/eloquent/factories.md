@@ -951,6 +951,16 @@ fn arabic_address_samples() -> DatabaseResult<(String, String, String)> {
 }
 ```
 
+波斯語地址由城市、街道和大樓組成，末尾可加帶標籤的十位郵遞區號。大樓和郵遞區號的前綴可單獨呼叫，並支援 `unique()`。希伯來語地址分兩列，郵遞區號為五位或七位。沒有公寓或樓層時，街道列末尾保留一個空格。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn persian_and_hebrew_address_samples() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("fa-IR"))?.address(), fake(Some("he-IL"))?.address()))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

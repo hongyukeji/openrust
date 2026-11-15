@@ -951,6 +951,16 @@ fn arabic_address_samples() -> DatabaseResult<(String, String, String)> {
 }
 ```
 
+Persian addresses combine a city, street, and building name. A labeled ten-digit postcode can follow. Building and postcode prefix formatters can be called separately and support `unique()`. Hebrew addresses use two lines and five- or seven-digit postcodes. The street line ends with a space when the optional apartment or floor is absent.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn persian_and_hebrew_address_samples() -> DatabaseResult<(String, String)> {
+    Ok((fake(Some("fa-IR"))?.address(), fake(Some("he-IL"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
