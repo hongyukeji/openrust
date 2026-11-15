@@ -82,6 +82,8 @@ impl Seeder for DatabaseSeeder {
     }
 }
 
+struct SeedItem(ModelState);
+
 struct Insert(&'static str);
 impl Seeder for Insert {
     fn run<'a>(
@@ -98,9 +100,17 @@ impl Seeder for Insert {
                 DB::connection(None)?.getName(),
                 context.connection().getName()
             );
-            DB::table("seed_items")?
-                .insert(&[Record::from([("name".into(), name)])])
-                .await?;
+            let attributes = Attributes::from([("name".into(), name)]);
+            let guarded = attributes.clone();
+            tokio::spawn(async move {
+                assert!(matches!(
+                    SeedItem::newInstance(guarded),
+                    Err(DatabaseError::MassAssignment(name)) if name == "name"
+                ));
+            })
+            .await
+            .unwrap();
+            SeedItem::create(attributes).await?;
             Ok(())
         })
     }
@@ -117,6 +127,7 @@ impl Seeder for Failing {
                 DB::connection(None)?.getName(),
                 context.connection().getName()
             );
+            SeedItem::newInstance(Attributes::from([("name".into(), "unsaved".into())]))?;
             Err(DatabaseError::InvalidSeeder("fixture failure"))
         })
     }
@@ -159,6 +170,8 @@ macro_rules! factory_model {
         }
     };
 }
+
+factory_model!(SeedItem, "seed_items", NamedRelations::default());
 
 factory_model!(
     FactoryOwner,
@@ -1770,6 +1783,10 @@ async fn seeder_command_fixture() {
     app.boot().await.unwrap();
     let manager = app.container().get::<DatabaseManager>("db").unwrap();
     let status = app.handleCommand(&args).await.unwrap();
+    assert!(matches!(
+        SeedItem::newInstance(Attributes::from([("name".into(), "outside".into())])),
+        Err(DatabaseError::MassAssignment(name)) if name == "name"
+    ));
     assert_eq!(manager.getDefaultConnection().unwrap(), "sqlite");
     std::process::exit(status);
 }

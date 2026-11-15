@@ -10,4 +10,5 @@ pub(super) mod queries_relationships;
 pub use has_attributes::ModelState;
 pub use has_events::{ModelEvent, ModelEventListener, ModelEventResponse};
 
+pub(in crate::database) use guards_attributes::unguarded;
 pub(in crate::database) use has_events::without_events;

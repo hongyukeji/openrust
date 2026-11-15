@@ -198,10 +198,14 @@ pub(crate) async fn run(
         parameters: Record::new(),
     };
     manager
-        .usingConnection(&selected, async {
-            context
-                .invoke(name, Record::new(), normalize(name) == DEFAULT, false)
-                .await
-        })
+        .usingConnection(
+            &selected,
+            super::eloquent::concerns::unguarded(context.invoke(
+                name,
+                Record::new(),
+                normalize(name) == DEFAULT,
+                false,
+            )),
+        )
         .await
 }

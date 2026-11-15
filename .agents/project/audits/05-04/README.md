@@ -1631,3 +1631,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 隔离基线 `431fcf73`。固定 PHP 8.5 样本 384 组通过，涵盖美国、三个回退地区和两个奥地利标识。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 385 行，包含三语共用示例。验证账号长度、美国路由校验、奥地利 IBAN 模 97、VAT 格式、显式参数错误和无路由号的本地提供器。115 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建和 18 项浏览器检查通过。已有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。下一批按固定工厂测试、Seeder 和三语交付清单复核 05-04 尚未闭合的契约。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 34%，磁盘可用 79 GiB。
+
+## Seeder 批量赋值保护
+
+固定 Laravel 的 [Seeder 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/seeding.md)及 [SeedCommand::handle](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Seeds/SeedCommand.php#L88)要求填充期间停用模型批量赋值保护。此前 OpenRust 在普通 Seeder 中执行 Eloquent 写入时仍会拒绝受保护的属性。本批在共用 Seeder 入口进入任务局部作用域，子 Seeder 继承该作用域，属性修改器和类型转换照常运行。命令返回后保护恢复，独立启动的 Tokio 任务保留自身状态。核对旧版 `6d1a8192` 的 Seeder 和迁移用例，编译注册与顺序执行沿用现有接线，并参考固定 [Goravel Seeder](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/database/seeder/seeder.go)。
+
+隔离基线 `707c293c`。Rust 1.94.0 格式和全工作区全目标严格 Clippy 通过。49 项 Seeder 回归和两项 MySQL／SQLite 工厂回归通过，覆盖批量生成、关系、状态、回调、连接选择、子 Seeder、命令成功和失败后的保护恢复，以及独立任务仍拒绝受保护属性。实际 `main artisan db:seed --database=mysql --class=GuardedSeeder --force` 在 MySQL 8.4.13 写入子 Seeder 的受保护字段，回读 `GUARDED` 验证修改器生效。重复执行退出 1，原有记录仍为一条。实际编译并运行了三语共用 CatalogSeeder 示例，连续两次执行后回读一条预期记录。`./artisan inspire`、三语 VitePress 构建和根路径及 `/docs/` 的 18 项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。宿主默认 Rust 1.99.1 的附加尝试遇到两条既有 lint，库内验收采用规范指定的 Rust 1.94.0。
+
+对照固定 [工厂测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php)及 [Seeder 测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSeederTest.php)。模型选择和依赖获取分别由 `HasFactory` 的静态绑定与 `SeederContext` 的应用容器承接。下一批补齐 Seeder 多类共享参数、静默或仅一次执行时同时传参的语义，并继续核对工厂剩余公开契约。05-04 保持在途。
+
+临时 Seeder 已恢复，测试容器已回收。清理本批独占 Cargo 产物及站点、文档和浏览器测试依赖，磁盘可用恢复至 79 GiB。

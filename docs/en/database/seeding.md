@@ -4,6 +4,8 @@
 
 Use `make:seeder` to generate a Rust seeder in `database/seeders`. Register its `SeederEntry` in `database/seeders/mod.rs` and rebuild the application. The `run` method receives a `SeederContext` with the selected connection and access to application services.
 
+Artisan temporarily disables Eloquent mass-assignment protection while a seeder and its child seeders run. Methods such as `Model::create` and `fill` can assign guarded attributes and still apply setters and casts. The scope ends on success or failure. Independent Tokio tasks, including tasks started with `tokio::spawn`, keep their own protection.
+
 ```sh
 ./artisan make:seeder CatalogSeeder
 ```

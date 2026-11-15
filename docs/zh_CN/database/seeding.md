@@ -4,6 +4,8 @@
 
 用 `make:seeder` 在 `database/seeders` 生成 Rust Seeder。在 `database/seeders/mod.rs` 注册它的 `SeederEntry`，然后重新构建应用。`run` 接收 `SeederContext`，可以获取所选连接和应用服务。
 
+Artisan 执行 Seeder 及其子 Seeder 时会临时关闭 Eloquent 的批量赋值保护。`Model::create` 和 `fill` 等方法可以设置受保护的属性，仍会应用修改器和类型转换。命令成功或失败时都会恢复保护。独立的 Tokio 任务（包括通过 `tokio::spawn` 创建的任务）保留各自的保护。
+
 ```sh
 ./artisan make:seeder CatalogSeeder
 ```
