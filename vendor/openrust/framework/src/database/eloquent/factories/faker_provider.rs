@@ -422,6 +422,31 @@ fn defaults(name: &str) -> Option<Builtin> {
                 .boolean(integer(chance)?.or_else(|| chance.map(|_| 0)))
                 .into())
         },
+        "locale" => |faker, _| Ok(faker.randomLocale().into()),
+        "languagecode" => |faker, _| Ok(faker.languageCode().into()),
+        "countrycode" => |faker, _| Ok(faker.countryCode().into()),
+        "countryisoalpha3" => |faker, _| Ok(faker.countryISOAlpha3().into()),
+        "currencycode" => |faker, _| Ok(faker.currencyCode().into()),
+        "emoji" => |faker, _| Ok(faker.emoji().into()),
+        "tolower" => |_, args| {
+            let [input] = arguments(args)?;
+            Ok(text(input)?.unwrap_or_default().to_lowercase().into())
+        },
+        "toupper" => |_, args| {
+            let [input] = arguments(args)?;
+            Ok(text(input)?.unwrap_or_default().to_uppercase().into())
+        },
+        "biasednumberbetween" => |faker, args| {
+            let [min, max, curve] = arguments(args)?;
+            if !matches!(text(curve)?, None | Some("sqrt")) {
+                return Err(DatabaseError::InvalidQuery(
+                    "Faker named bias must be sqrt; use biasedNumberBetween for custom curves",
+                ));
+            }
+            faker
+                .biasedNumberBetween(integer(min)?, integer(max)?, None)
+                .map(Value::from)
+        },
         "latitude" => |faker, args| coordinate(faker, args, 90.0),
         "longitude" => |faker, args| coordinate(faker, args, 180.0),
         "randomelement" => |faker, args| {

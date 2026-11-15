@@ -5829,6 +5829,62 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_miscellaneous_and_base_match_typed_values() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    for (method, sample) in [
+        ("locale", Faker::randomLocale as fn(&Faker) -> &'static str),
+        ("languageCode", Faker::languageCode),
+        ("countryCode", Faker::countryCode),
+        ("countryISOAlpha3", Faker::countryISOAlpha3),
+        ("currencyCode", Faker::currencyCode),
+        ("emoji", Faker::emoji),
+    ] {
+        faker.seed(94);
+        let expected = sample(&faker);
+        faker.seed(94);
+        assert_eq!(faker.format(method, &[])?, expected.into());
+    }
+    assert_eq!(faker.locale(), "en_US");
+
+    assert_eq!(faker.format("toLower", &["ÉCOLE".into()])?, "école".into());
+    assert_eq!(
+        faker.format("toUpper", &["Straße".into()])?,
+        "STRASSE".into()
+    );
+    assert_eq!(faker.format("toLower", &[])?, "".into());
+    assert!(faker.format("toUpper", &[7_i64.into()]).is_err());
+
+    faker.seed(94);
+    let expected = faker.biasedNumberBetween(Some(-5), Some(5), None)?;
+    faker.seed(94);
+    assert_eq!(
+        faker.format(
+            "biasedNumberBetween",
+            &[(-5_i64).into(), 5_i64.into(), "sqrt".into()]
+        )?,
+        expected.into()
+    );
+    assert!(matches!(
+        faker.unique(false).format("biasedNumberBetween", &[])?,
+        Value::Integer(0..=100)
+    ));
+    assert!(
+        faker
+            .format("biasedNumberBetween", &[5_i64.into(), (-5_i64).into()])
+            .is_err()
+    );
+    assert!(
+        faker
+            .format(
+                "biasedNumberBetween",
+                &[Value::Null, Value::Null, "unknown".into()]
+            )
+            .is_err()
+    );
+    Ok(())
+}
+
+#[test]
 fn faker_named_company_and_person_reuse_regional_generators() -> DatabaseResult<()> {
     let malaysia = Faker::new("ms-MY")?;
     malaysia.seed(94);

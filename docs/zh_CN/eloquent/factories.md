@@ -433,7 +433,22 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### 语言、国家和货币样本 {#locale-and-code-samples}
 
-用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定上游 Faker 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应上游 Faker 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。
+用 `languageCode()`、`countryCode()`、`countryISOAlpha3()`、`currencyCode()` 和 `emoji()` 从固定上游 Faker 目录生成测试值。`randomLocale()` 抽取 `en_GB`、`zh_TW` 等语言环境标识，对应上游 Faker 的 `locale()` 生成器。OpenRust 已有的 `locale()` 读取当前生成器的配置。样本目录包含历史标识。六个生成器均支持 `unique`。 这些目录也可通过 `format` 按名称调用。名称 `locale` 抽取样本标识，`faker.locale()` 则读取生成器的配置。
+
+通过 `format` 调用 `toLower` 和 `toUpper`，按 Unicode 规则转换 UTF-8 文本的大小写。省略参数返回空字符串。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_miscellaneous_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("en-US")?;
+    Ok([
+        faker.format("locale", &[])?,
+        faker.format("toUpper", &["Straße".into()])?,
+        faker.format("biasedNumberBetween", &[7_i64.into(), 7_i64.into()])?,
+    ])
+}
+```
 
 ### 摘要样本 {#digest-samples}
 
@@ -836,7 +851,7 @@ fn job_title_sample() -> DatabaseResult<String> {
 
 ### 偏置采样与生成器修饰器 {#faker-biased-and-modifiers}
 
-用 `biasedNumberBetween(min, max, function)?` 在包含端点的整数范围内采样。传入 `None` 分别使用默认下限 0、上限 100 和平方根曲线。自定义曲线接收 [0, 1) 内的数并返回 0 至 1 的概率。范围反向、概率无效或采样耗尽时返回错误。该方法支持 `unique`。
+用 `biasedNumberBetween(min, max, function)?` 在包含端点的整数范围内采样。传入 `None` 分别使用默认下限 0、上限 100 和平方根曲线。自定义曲线接收 [0, 1) 内的数并返回 0 至 1 的概率。范围反向、概率无效或采样耗尽时返回错误。该方法支持 `unique`。 通过名称调用 `biasedNumberBetween` 时可传入下限、上限及可选字符串 `"sqrt"`。自定义曲线通过类型化方法接收 Rust 闭包。
 
 用 `optional(weight, default, generate)?` 按概率调用类型化生成闭包，或返回可选默认值。默认权重为 0.5，大于 1 时按 上游 Faker 的百分数规则解释。用 `valid(predicate, maxRetries, generate)?` 重试直到满足谓词，默认重试上限为 10,000。两者都会传播生成错误。用 `uniqueWithRetries(reset, maxRetries)` 为共享去重历史的句柄设置尝试上限。
 

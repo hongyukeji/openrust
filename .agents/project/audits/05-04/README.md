@@ -1920,3 +1920,15 @@ Rust 复用马来西亚姓名词表、蒙古初始字母、台湾姓名池、新
 隔离基线 `c87af4cf`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、66 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式仅在隔离副本处理。实际 MySQL 8.4.13 运行 `main artisan db:seed --database=mysql --force`，执行三语共用示例和新加坡参数示例，按序回读四项。无效民用日期返回错误及退出状态 1。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，MySQL 容器回收，清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 29%，项目卷可用 53 GiB。05-04 继续核对其余 Miscellaneous 和 Base 等提供器的具名调用与参数。
+
+## Faker Miscellaneous、Base 与 Biased 具名调度
+
+对应固定 Laravel [工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。固定 Goravel 继续作为类型化编译装配参考。v0.x 同名工厂及测试用于查询构造。对照固定 FakerPHP [Miscellaneous](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Miscellaneous.php)、[Base](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php)和[Biased](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Biased.php)，新增 9 个具名入口。
+
+`format("locale", &[])` 从固定上游测试目录取样。类型化 `locale()` 仍读取当前生成器配置。其余五项分别取样语言、两字母国家码、三字母国家码、货币和 Emoji。大小写转换采用 Rust UTF-8 Unicode 规则，对应 PHP 启用 mbstring 时的行为。具名偏置整数复用既有带上限重试的算法，可省略曲线或显式选择 `sqrt`。自定义曲线仍由类型化方法接收 Rust 闭包。Base 的 optional、valid 和 unique 使用现有类型化入口表达修饰或闭包调用。
+
+PHP 8.5 启用 mbstring 运行固定提供器。六个目录各取样 32 次，通过大小写转换、缺省输入、偏置区间和定值边界探针。
+
+隔离基线 `b77ce3f0`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、67 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异仅在隔离副本调整。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并按序回读样本 locale、`STRASSE` 和定值 7。反向区间返回范围错误及退出状态 1。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，MySQL 容器已回收，清理隔离 Cargo 产物 2.4 GiB 及独占站点产物和依赖。提交前周额度剩余 29%，项目卷可用 53 GiB。后续复核捷克日期、时区配置与剩余扩展的具名契约。

@@ -433,7 +433,22 @@ fn sample_named_collections() -> DatabaseResult<(Value, Value)> {
 
 ### Locale, Country and Currency Samples {#locale-and-code-samples}
 
-Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`.
+Use `languageCode()`, `countryCode()`, `countryISOAlpha3()`, `currencyCode()`, and `emoji()` for fixture values from the pinned upstream Faker catalog. `randomLocale()` samples a locale identifier such as `en_GB` or `zh_TW`. It corresponds to upstream Faker’s `locale()` formatter. OpenRust’s existing `locale()` reads the configured generator locale. The sample catalog includes historical identifiers. All six formatters support `unique`. Call these catalogs by name with `format`. The name `locale` samples fixture data and `faker.locale()` reads the configured generator locale.
+
+Use `toLower` and `toUpper` through `format` to convert UTF-8 text with Unicode case rules. An omitted argument yields an empty string.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_miscellaneous_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("en-US")?;
+    Ok([
+        faker.format("locale", &[])?,
+        faker.format("toUpper", &["Straße".into()])?,
+        faker.format("biasedNumberBetween", &[7_i64.into(), 7_i64.into()])?,
+    ])
+}
+```
 
 ### Digest Samples {#digest-samples}
 
@@ -836,7 +851,7 @@ fn job_title_sample() -> DatabaseResult<String> {
 
 ### Biased Sampling and Modifiers {#faker-biased-and-modifiers}
 
-Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`.
+Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`. For a named `biasedNumberBetween` call, supply the minimum and maximum and optionally the string `"sqrt"`. Pass custom curves as closures to the typed method.
 
 Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use upstream Faker percentage interpretation. Use `valid(predicate, maxRetries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `uniqueWithRetries(reset, maxRetries)` to set the attempt limit on a handle that shares the Faker formatter history.
 
