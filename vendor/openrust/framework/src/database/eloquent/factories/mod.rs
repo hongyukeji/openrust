@@ -588,15 +588,29 @@ impl<M: Model> Factory<M> {
     }
 
     #[must_use]
-    pub fn sequence(
-        mut self,
-        sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static,
+    pub fn sequence(self, sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static) -> Self {
+        self.sequenceWithState(move |index, _| sequence(index))
+    }
+
+    /// Appends a sequence that can read the attributes assembled by earlier states.
+    #[must_use]
+    pub fn sequenceWithState(
+        self,
+        sequence: impl Fn(usize, &Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.sequenceWithParent::<M>(move |index, attributes, _| sequence(index, attributes))
+    }
+
+    /// Appends a sequence that can read current attributes and a typed parent.
+    #[must_use]
+    pub fn sequenceWithParent<P: Model>(
+        self,
+        sequence: impl Fn(usize, &Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
     ) -> Self {
         let index = AtomicUsize::new(0);
-        self.states.push(Box::new(move |_, _, _| {
-            Ok(sequence(index.fetch_add(1, Ordering::Relaxed)))
-        }));
-        self
+        self.stateWithParent(move |attributes, parent| {
+            sequence(index.fetch_add(1, Ordering::Relaxed), attributes, parent)
+        })
     }
 
     /// Sets a sequence of attribute maps and makes the batch as long as the sequence.
@@ -1945,6 +1959,24 @@ impl<M: Model> FactoryBatch<M> {
     #[must_use]
     pub fn sequence(self, sequence: impl Fn(usize) -> Attributes + Send + Sync + 'static) -> Self {
         self.map_factory(|factory| factory.sequence(sequence))
+    }
+
+    /// Appends a context-aware sequence without changing the pending count.
+    #[must_use]
+    pub fn sequenceWithState(
+        self,
+        sequence: impl Fn(usize, &Attributes) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.sequenceWithState(sequence))
+    }
+
+    /// Appends a typed parent-aware sequence without changing the pending count.
+    #[must_use]
+    pub fn sequenceWithParent<P: Model>(
+        self,
+        sequence: impl Fn(usize, &Attributes, Option<&P>) -> Attributes + Send + Sync + 'static,
+    ) -> Self {
+        self.map_factory(|factory| factory.sequenceWithParent(sequence))
     }
 
     /// Sets the pending batch size to the sequence length.

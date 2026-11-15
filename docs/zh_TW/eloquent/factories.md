@@ -1863,6 +1863,43 @@ async fn sequence_lifecycle<M: Model>() -> DatabaseResult<()> {
 }
 ```
 
+用 `sequenceWithState` 讀取從零開始的索引與目前已合併的屬性。`sequenceWithParent` 也接收可選的型別化父模型借用，來源為外層關聯或明確指定父模型的入口。兩個方法依宣告位置執行，可讀取前序狀態，延遲屬性和呼叫端覆寫隨後處理。它們保留已設定的批次數量。同一工廠跨操作繼續推進各自的序列。明確指定的父模型提供上下文，需要關聯時另行設定外鍵。
+
+```rust
+use openrust::database::{
+    Connection, DatabaseResult, Value,
+    eloquent::{Attributes, Model, factories::Factory},
+};
+
+async fn contextual_sequence<M: Model, P: Model>(
+    connection: &Connection,
+    parent: &P,
+) -> DatabaseResult<()> {
+    let batch = Factory::<M>::new(Attributes::new)
+        .set("label", "earlier")
+        .count(2)
+        .sequenceWithState(|index, attributes| {
+            assert_eq!(attributes["label"], Value::from("earlier"));
+            Attributes::from([("label".into(), format!("item-{index}").into())])
+        })
+        .sequenceWithParent::<P>(|_, attributes, parent| {
+            let suffix = if parent.is_some() { "parent" } else { "standalone" };
+            let Value::Text(label) = &attributes["label"] else {
+                panic!("earlier sequence must set a label");
+            };
+            Attributes::from([("label".into(), format!("{label}-{suffix}").into())])
+        });
+
+    let models = batch
+        .createWithParentOn(connection, parent, Attributes::new())
+        .await?;
+    assert_eq!(models.len(), 2);
+    assert_eq!(models[0].getAttribute("label"), Some(&"item-0-parent".into()));
+    assert_eq!(models[1].getAttribute("label"), Some(&"item-1-parent".into()));
+    Ok(())
+}
+```
+
 在單一模型或批次工廠上使用 `insert(attributes)` 批次寫入產生的列，或用 `insertOn(connection, attributes)` 指定連線。工廠會執行 `afterMaking` 並解析所需的上層鍵。批次寫入略過目標模型的持久化事件、子關聯建立及 `afterCreating`。寫入前，工廠透過讀取存取器和序列化轉換投影屬性，仍依可見清單篩選，包含符合條件的隱藏欄位並略過追加欄位。插入建構器接著重新套用修改器與寫入轉換。Rust 投影保留資料庫值型別，包含二進位資料。
 
 ```rust

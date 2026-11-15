@@ -3143,6 +3143,13 @@ async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
                 assert_eq!(parent.getAttribute("name"), Some(&"owner".into()));
                 Attributes::from([("name".into(), name.into())])
             })
+            .sequenceWithParent::<ParentProbe>(|index, attributes, parent| {
+                assert!(parent.is_some_and(|model| model.state().exists()));
+                let Value::Text(name) = &attributes["name"] else {
+                    panic!("earlier state did not set the child name");
+                };
+                Attributes::from([("name".into(), format!("{name}-{index}").into())])
+            })
             .afterCreatingWithParent::<ParentProbe>(move |child, parent| {
                 let parent = parent.unwrap();
                 assert!(child.getAttribute("id").is_some());
@@ -3180,7 +3187,14 @@ async fn verify_relation_parent(db: &Connection) -> DatabaseResult<()> {
             .orderBy("id", "asc")
             .pluck("name")
             .await?,
-        ["standalone", "direct", "direct", "attached", "attached"].map(Value::from)
+        [
+            "standalone",
+            "direct-0",
+            "direct-1",
+            "attached-0",
+            "attached-1"
+        ]
+        .map(Value::from)
     );
     assert_eq!(db.table("factory_parent_links").count("*").await?, 2);
     for table in [
@@ -4326,6 +4340,50 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
     assert_eq!(product.rawOn(connection).await?["label"], "x".into());
     assert_eq!(product.rawOn(connection).await?["label"], "y".into());
 
+    let parent = Factory::<ExpansionOwner>::new(Attributes::new)
+        .createOn(connection)
+        .await?;
+    let contextual =
+        Factory::<ExpansionChild>::new(|| Attributes::from([("label".into(), "base".into())]))
+            .set("label", "earlier")
+            .count(2)
+            .sequenceWithState(|index, attributes| {
+                assert_eq!(attributes["label"], "earlier".into());
+                Attributes::from([("label".into(), format!("step-{index}").into())])
+            })
+            .sequenceWithParent::<ExpansionOwner>(|index, attributes, parent| {
+                assert_eq!(attributes["label"], format!("step-{index}").into());
+                let suffix = if parent.is_some_and(|model| model.state().exists()) {
+                    "saved"
+                } else {
+                    "none"
+                };
+                Attributes::from([("label".into(), format!("step-{index}-{suffix}").into())])
+            });
+    let draft = contextual.makeOneOn(connection, Attributes::new()).await?;
+    assert_eq!(draft.getAttribute("label"), Some(&"step-0-none".into()));
+    let created = contextual
+        .createWithParentOn(connection, &parent, Attributes::new())
+        .await?;
+    assert_eq!(created.len(), 2);
+    assert_eq!(
+        created[0].getAttribute("label"),
+        Some(&"step-1-saved".into())
+    );
+    assert_eq!(
+        created[1].getAttribute("label"),
+        Some(&"step-2-saved".into())
+    );
+    let preview = contextual.makeOneOn(connection, label("override")).await?;
+    assert_eq!(preview.getAttribute("label"), Some(&"override".into()));
+    assert_eq!(
+        contextual
+            .makeOneOn(connection, Attributes::new())
+            .await?
+            .getAttribute("label"),
+        Some(&"step-4-none".into())
+    );
+
     let relation = openrust::database::eloquent::relations::BelongsToMany::<
         ExpansionOwner,
         ExpansionChild,
@@ -4356,6 +4414,8 @@ async fn verify_sequence_lifecycle(connection: &Connection) -> DatabaseResult<()
             "4".into(),
             "5".into(),
             "6".into(),
+            "step-1-saved".into(),
+            "step-2-saved".into(),
             Value::Null,
             Value::Null
         ]

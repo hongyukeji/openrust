@@ -1763,3 +1763,15 @@ Rust 在生成器实例内注册扩展，由 ext 返回已绑定句柄。限定�
 隔离基线 `416f3b46`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、56 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读 `demo` 和 `account-demo`。未知扩展报告原标识并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。基线 Sanctum 格式差异只在隔离副本处理。
 
 临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 和独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。已接 Barcode、Blood、Color、Number、Uuid 及 File 的 MIME 和扩展名方法。DateTime、Version、File 的 filePath 及其他内置方法的具名适配仍待对账，05-04 先继续核对序列闭包的属性与父模型上下文。
+
+## 工厂序列读取当前属性与父模型
+
+固定 Laravel Sequence::__invoke 将当前索引和长度、状态累积属性及可选父模型传入所选闭包，成功返回后推进索引。PHP 8.5 探针运行固定 Sequence 源码，复验数组和闭包交替、当前属性、父模型、索引和序列长度。v0.x 同名工厂用于查询构造，既有编译式装配沿用固定 Goravel 工厂参考。
+
+Rust 以 sequenceWithState 和 sequenceWithParent 延续类型化闭包接口。序列在其状态声明位置读取已合并属性，后续状态、显式调用覆盖与延迟属性仍按各自阶段处理。父模型通过现有类型化借用传入，类型不匹配或缺失时为 None。闭包无可恢复错误返回，原子递增在调用前分配索引。普通序列、属性映射序列与交叉组合继续共用原来的索引和批次数量机制。PHP 可在一个序列中混合映射和闭包，Rust 的闭包按索引选择下一组属性，映射条目的批次长度由 forEachSequence 设定。
+
+固定源码 https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Sequence.php#L55 及 https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Factories/Factory.php#L518 。
+
+隔离基线 `eb3f1ae8`。56 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归和全工作区全目标严格 Clippy 通过。双库验证直接父模型、HasMany 和 BelongsToMany 上下文、前序属性、后续覆盖、连续索引及批次数量。Rust 1.94.0 格式检查通过，基线 Sanctum 格式差异仅在隔离副本处理。
+
+实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并执行三语共用示例，按主键回读 `owner`、`item-0-parent`、`item-1-parent`。Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 与独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。05-04 继续对账剩余 Faker 扩展和工厂序列条目组合。
