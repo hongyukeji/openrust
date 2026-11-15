@@ -75,12 +75,17 @@ fn factory_shortcuts() -> openrust::database::DatabaseResult<()> {
 
 產生 `Fleet/FlightFactory` 等巢狀工廠時，Artisan 會推斷對應的 `app::models::fleet` 模型。可用 `--model` 或 `-m` 選擇其他模型。編譯前宣告產生的模組，模型和工廠仍透過 `FactoryDefinition::Model` 與 `HasFactory` 明確繫結。
 
+編譯前宣告產生的模組。產生的工廠需要匯入模型模組時，應讓模組在 crate 內可見，例如在相應的模組檔案新增 `pub(crate) mod fleet;` 和 `pub(crate) mod flight;`。如果工廠模組只在 `database` 內可見，可以在產生的工廠檔案中撰寫模型的 `HasFactory` 實作。
+
 ### 工廠擴充 {#factory-extensions}
 
-用 Rust 擴充 trait 為工廠提供可重複使用的方法。呼叫端匯入 trait 後，可以用方法為建構器套用具名狀態。
+用擴充 trait 定義可複用的工廠方法，在建構工廠的位置匯入該 trait。Rust 在編譯期解析方法。這個範例先用 `scheduled()` 新增狀態，再用 `count(2)` 設定數量，模型透過 `HasFactory` 選擇工廠。對應的資料表需要 `status` 欄位。
 
 ```rust
-use openrust::database::eloquent::{Model, factories::Factory};
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::{Factory, HasFactory}},
+};
 
 trait FlightFactoryExt {
     fn scheduled(self) -> Self;
@@ -90,6 +95,11 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
     fn scheduled(self) -> Self {
         self.set("status", "scheduled")
     }
+}
+
+async fn seed_scheduled<M: HasFactory>() -> DatabaseResult<()> {
+    M::factory().scheduled().count(2).create().await?;
+    Ok(())
 }
 ```
 

@@ -75,12 +75,17 @@ Use `Factory::<Flight>::factoryForModel()` to obtain the factory bound by the mo
 
 For a nested factory such as `Fleet/FlightFactory`, Artisan infers the model in the corresponding `app::models::fleet` module. Pass `--model` or `-m` to choose another model. Declare the generated modules before compiling. The compiled association remains explicit through `FactoryDefinition::Model` and `HasFactory`.
 
+Declare the generated modules before compiling. Make the model modules visible within the crate when a generated factory imports them, for example with `pub(crate) mod fleet;` and `pub(crate) mod flight;` in the respective module files. Write the `HasFactory` implementation alongside the generated factory if its module is private to `database`.
+
 ### Factory Extensions {#factory-extensions}
 
-Use a Rust extension trait for reusable factory methods. The trait can be imported where needed and can return the original builder after applying a named state.
+Define an extension trait for reusable factory methods and import it where you build the factory. Rust resolves the method at compile time. In this example, `scheduled()` adds a state before `count(2)`, and the model chooses its factory through `HasFactory`. The table needs a `status` column.
 
 ```rust
-use openrust::database::eloquent::{Model, factories::Factory};
+use openrust::database::{
+    DatabaseResult,
+    eloquent::{Model, factories::{Factory, HasFactory}},
+};
 
 trait FlightFactoryExt {
     fn scheduled(self) -> Self;
@@ -90,6 +95,11 @@ impl<M: Model> FlightFactoryExt for Factory<M> {
     fn scheduled(self) -> Self {
         self.set("status", "scheduled")
     }
+}
+
+async fn seed_scheduled<M: HasFactory>() -> DatabaseResult<()> {
+    M::factory().scheduled().count(2).create().await?;
+    Ok(())
 }
 ```
 

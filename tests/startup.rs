@@ -2141,5 +2141,7 @@ fn artisan_factory_generator_binds_nested_models_and_accepts_model_alias() {
     let source = fs::read_to_string(flight).unwrap();
     assert!(source.contains("use crate::app::models::user::User;"));
     assert!(source.contains("type Model = User;"));
+    assert!(source.contains("pub(crate) struct FlightFactory;"));
+    assert!(source.contains("pub(crate) fn factory() -> Factory<User>"));
     assert!(!run(&["make:factory", "Fleet/Factory"]).status.success());
 }

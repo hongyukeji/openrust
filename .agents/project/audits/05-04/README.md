@@ -1671,3 +1671,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 三语共用示例编译进应用，通过实际 `main artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 按序回读四行。父记录一条，计算状态生成两条子记录且外键为空，显式输出外键生成一条关联记录。预览没有写入。`./artisan inspire`、三语文档构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，测试容器和独占缓存已清理，磁盘恢复至 78 GiB。
 
 下一步按固定 Laravel 的工厂与 Seeder 测试逐项归档对应的 OpenRust 证据，重点核对动态扩展与工厂发现的 Rust 等价入口，确认 05-04 的整单元边界。
+
+## 工厂发现、扩展和固定用例对照
+
+[用例对照表](test-matrix.md)覆盖固定 Factory 的 70 个命名用例和 Seeder 的五个命名用例，逐组列出 OpenRust 的相应入口、回归和待补组合。以固定 [Laravel 工厂发现与动态扩展](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L713) 为行为索引，Rust 用 `FactoryDefinition::Model` 和 `HasFactory` 在编译期绑定模型，用可导入的扩展 trait 定义可链式调用的方法。旧版 factory 负责查询构造，旧 Seeder 采用编译注册。固定 [Goravel 工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)也由代码提供类型化调用。
+
+隔离基线 `942819b2`。实编译发现 `make:factory --model=User` 生成的代码无法访问默认私有模型模块，且公开工厂会泄露 crate 内模型关联类型。将应用的 User 模块与生成工厂的可见性限定为 crate 内，使生成入口能直接使用应用默认模型。实际生成 `Fleet/Flight`、推断模型的 `Fleet/FlightFactory` 及显式绑定 User 的 `Fleet/RouteFactory`，编译后确认两种工厂模型分别绑定预期 Rust 类型。三语共用扩展示例随应用编译，用真实 `main artisan db:seed --database=mysql --force` 在 MySQL 8.4.13 回读两条 `scheduled`。
+
+生成器定向用例、49 项 Seeder、2 项 MySQL／SQLite 工厂回归、Rust 1.94.0 格式及工作区严格 Clippy、`./artisan inspire`、三语站点构建和 18 项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。生成与装配探针保留在隔离目录，临时应用接线已恢复，测试容器和独占缓存已清理。
+
+05-04 仍待补验表中列出的组合，先用实际 MySQL 与固定上游验证 JSON Pivot 的共享和逐条映射，再核对关系默认属性及覆盖顺序。

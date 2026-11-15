@@ -5,10 +5,10 @@ use openrust::database::eloquent::{
 
 use {{import}};
 
-pub struct {{class}};
+pub(crate) struct {{class}};
 
 impl {{class}} {
-    pub fn factory() -> Factory<{{model}}> {
+    pub(crate) fn factory() -> Factory<{{model}}> {
         <Self as FactoryDefinition>::factory()
     }
 }
