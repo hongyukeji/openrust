@@ -1024,6 +1024,16 @@ fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Danish addresses can append a floor and building side. Use `buildingLevel()`, `buildingSide()`, and `kommune()` for the individual fields, including through `unique()`. Finnish addresses can include a three-digit apartment number and a region. Icelandic addresses use a three-digit postcode and can put an uppercase letter after the building number.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn nordic_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("da-DK"))?.address(), fake(Some("fi-FI"))?.address(), fake(Some("is-IS"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

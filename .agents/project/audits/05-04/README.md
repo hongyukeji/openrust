@@ -1484,3 +1484,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、100 项 Faker、49 项 Se
 隔离基线 `556a3f3c`。PHP 反射核对 13 份词表、门牌与邮编模板及共同街名权重，验证 256 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 258 行，含三语共用示例。回归覆盖大写字母门牌、各邮编格式和瑞典后缀唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、101 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对丹麦语、芬兰语及冰岛语 Address。
+
+## 丹麦语、芬兰语和冰岛语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [丹麦语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/da_DK/Address.php)、[芬兰语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/fi_FI/Address.php) 和 [冰岛语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/is_IS/Address.php) Address。丹麦语保留可选楼层和方位以及 kommune。芬兰语保留连字符城市前缀、三位公寓编号与可选地区。冰岛语保留街名权重、三位邮编和地区。丹麦与冰岛共享逐项相同的门牌模板。新增地区专用方法返回 Result 并支持 unique。v0.x 无对应 Faker 地址模块，Goravel 式编译装配沿用现有路径。
+
+隔离基线 `00797e7a`。PHP 反射核对 25 份词表和模板，按同一规则验证 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，含三语共用示例。回归覆盖丹麦三种布局、方位唯一值耗尽、芬兰可选地区、冰岛三位邮编和非法地区。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、102 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对西班牙语地区 Address。

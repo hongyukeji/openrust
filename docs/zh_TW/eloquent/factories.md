@@ -1024,6 +1024,16 @@ fn norwegian_and_swedish_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+丹麥語地址可附樓層和住戶方位，也可用 `buildingLevel()`、`buildingSide()` 和 `kommune()` 單獨產生欄位，並透過 `unique()` 抽樣。芬蘭語地址可附三位公寓編號和地區名。冰島語地址使用三位郵遞區號，門牌號碼可附大寫字母。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn nordic_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("da-DK"))?.address(), fake(Some("fi-FI"))?.address(), fake(Some("is-IS"))?.address()))
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

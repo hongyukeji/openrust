@@ -4450,3 +4450,44 @@ fn norwegian_and_swedish_addresses_keep_postcode_shapes_and_uppercase_buildings(
     assert!(unique.streetSuffixWord().is_err());
     assert!(fake(Some("en-US")).unwrap().streetSuffixWord().is_err());
 }
+
+#[test]
+fn danish_finnish_and_icelandic_addresses_keep_local_formatters() {
+    let dk = fake(Some("da-DK")).unwrap();
+    let fi = fake(Some("fi-FI")).unwrap();
+    let is = fake(Some("is-IS")).unwrap();
+    let danish_level = Regex::new(r"^(?:st\.|[1-9]\.(?: sal\.)?)$").unwrap();
+    let finnish_unit = Regex::new(r"^[0-9]{3}$").unwrap();
+    let icelandic = Regex::new(r"^.+ [1-9](?:[0-9]{0,2}| ?[A-Z])\n[1-9][0-9]{2} .+$").unwrap();
+    let mut danish_layouts = [false; 3];
+    let mut finnish_regions = [false; 2];
+    for _ in 0..128 {
+        let address = dk.address();
+        let (street, _) = address.split_once('\n').unwrap();
+        let layout = match street.split_once(", ") {
+            None => 0,
+            Some((_, suffix)) if danish_level.is_match(suffix) => 1,
+            Some((_, suffix)) => {
+                let (level, side) = suffix.rsplit_once(' ').unwrap();
+                assert!(danish_level.is_match(level));
+                assert!(["tv.", "mf.", "th."].contains(&side));
+                2
+            }
+        };
+        danish_layouts[layout] = true;
+        assert!(danish_level.is_match(&dk.buildingLevel().unwrap()));
+        assert!(dk.kommune().is_ok());
+        let address = fi.address();
+        finnish_regions[usize::from(address.split_once('\n').unwrap().1.contains(", "))] = true;
+        assert!(finnish_unit.is_match(&fi.secondaryAddress()));
+        assert!(icelandic.is_match(&is.address()));
+    }
+    assert_eq!(danish_layouts, [true; 3]);
+    assert_eq!(finnish_regions, [true; 2]);
+    let unique = dk.unique(true);
+    for _ in 0..3 {
+        assert!(unique.buildingSide().is_ok());
+    }
+    assert!(unique.buildingSide().is_err());
+    assert!(fi.kommune().is_err());
+}
