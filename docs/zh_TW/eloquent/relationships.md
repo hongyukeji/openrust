@@ -1210,6 +1210,23 @@ async fn find_related_batch<P: Model, R: Model>(
 }
 ```
 
+要求每個請求主鍵都存在時，用 `findManyOrFail(parent, keys)`。若有鍵缺少，可以用 `findManyOr(parent, keys, fallback)` 提供傳回集合的非同步回呼。OpenRust 逐一核對主鍵，重複的 Pivot 列不會掩蓋缺少的鍵。查詢錯誤會直接傳回呼叫端。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+async fn require_related_batch<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    keys: &[Value],
+) -> DatabaseResult<Collection<R>> {
+    children.findManyOrFail(parent, keys).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

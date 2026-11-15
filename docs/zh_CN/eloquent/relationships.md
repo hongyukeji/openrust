@@ -1210,6 +1210,23 @@ async fn find_related_batch<P: Model, R: Model>(
 }
 ```
 
+要求每个请求主键都存在时，用 `findManyOrFail(parent, keys)`。如果有键缺失，可以用 `findManyOr(parent, keys, fallback)` 提供返回集合的异步回调。OpenRust 逐个核对主键，重复的 Pivot 行不会掩盖缺失的键。查询错误直接传播给调用方。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+async fn require_related_batch<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    keys: &[Value],
+) -> DatabaseResult<Collection<R>> {
+    children.findManyOrFail(parent, keys).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

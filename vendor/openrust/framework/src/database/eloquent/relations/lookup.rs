@@ -65,6 +65,37 @@ macro_rules! relation_lookup {
             self$($delegate)*.lookup_many(parent, keys).await
         }
 
+        /// Requires every requested primary key to match the relationship.
+        #[allow(non_snake_case, reason = "Rust entry point for Laravel's array findOrFail")]
+        pub async fn findManyOrFail(
+            &self,
+            parent: &P,
+            keys: &[crate::database::Value],
+        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
+            let models = self.findMany(parent, keys).await?;
+            models.findManyOrFail(keys)?;
+            Ok(models)
+        }
+
+        /// Runs the fallback if any requested primary key is missing.
+        #[allow(non_snake_case, reason = "Rust entry point for Laravel's array findOr")]
+        pub async fn findManyOr<Fut>(
+            &self,
+            parent: &P,
+            keys: &[crate::database::Value],
+            missing: impl FnOnce() -> Fut + Send,
+        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>
+        where
+            Fut: std::future::Future<Output = crate::database::DatabaseResult<crate::database::eloquent::Collection<R>>> + Send,
+        {
+            let models = self.findMany(parent, keys).await?;
+            match models.findManyOrFail(keys) {
+                Ok(_) => Ok(models),
+                Err(crate::database::DatabaseError::ModelNotFound(_)) => missing().await,
+                Err(error) => Err(error),
+            }
+        }
+
         /// Requires a related model by its primary key.
         #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
         pub async fn findOrFail(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<R> {

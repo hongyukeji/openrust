@@ -1210,6 +1210,23 @@ async fn find_related_batch<P: Model, R: Model>(
 }
 ```
 
+Use `findManyOrFail(parent, keys)` when every requested primary key is required. Use `findManyOr(parent, keys, fallback)` to supply an async fallback returning a collection when any key is missing. OpenRust checks coverage by primary key, so repeated Pivot rows cannot hide a missing key. Query errors propagate to the caller.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+async fn require_related_batch<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    keys: &[Value],
+) -> DatabaseResult<Collection<R>> {
+    children.findManyOrFail(parent, keys).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

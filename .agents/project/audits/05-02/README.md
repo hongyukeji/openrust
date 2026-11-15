@@ -696,3 +696,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 以 `c00b5572` 为隔离基线。MySQL 8.4.13 和 SQLite 实际 HTTP 验证重复输入、缺失行、其他父模型、软删除、多态和自定义集合键。故意配置无效查询，非空失败，空输入仍返回空集合。未保存父模型的直接批量查询返回空集合。12 项回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本调整。容器已回收，清理隔离编译产物 1.8 GiB 及站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
 
 后续核对关系流式查询与 02-09 的接线，再做 05-02 整体对账。批量入口目前直接返回匹配集合，Laravel 的数组 `findOrFail` 和 `findOr` 重载仍待核对。
+
+## 严格批量关系查询与回调
+
+对照固定 Laravel 的 [BelongsToMany 数组查询](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php#L827) 和 [HasOneOrManyThrough 数组回调](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L465)。Rust 通过 `findManyOrFail`、`findManyOr` 表达数组重载，后者接受返回同类型集合的异步回调。复用 Eloquent 集合的主键核对。固定 Laravel 比较返回行数和去重后的请求键数，OpenRust 判断每个请求键是否真有匹配。重复 Pivot 无法掩盖另一个缺键，确认全匹配后仍返回原集合。查询及前置加载错误直接返回。固定 Goravel ORM 用作查询参考，v0.x 未找到对应方法。
+
+隔离基线 `072e29d7`。MySQL 8.4.13 和 SQLite 实际 HTTP 验证重复输入、混合主键表示、重复 Pivot 保留、跨父模型缺失返回 404、回调、空输入和 SQL 错误传播。12 项关系与分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本调整。容器已回收，清理独占编译产物 1.8 GiB 及站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
+
+下一阶段先处理 02-09 已记录的异步数据库游标接线。当前 Connection 查询返回完整 Vec，关系层需复用可短路的数据库游标后才能正式提供流式读取。

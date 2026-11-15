@@ -221,6 +221,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/relation-find", find_related_or_new)?;
     Route::get("/relation-lookup", relation_lookup)?;
     Route::get("/relation-many", find_related_many)?;
+    Route::get("/relation-strict", find_strict_related_many)?;
     Ok(())
 }
 
@@ -814,6 +815,103 @@ fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
                 "through": related.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
                 "pivot": attached.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
                 "morph_pivot": morph_attached.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+            }),
+        )
+    })
+}
+
+fn find_strict_related_many(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.query(Some("mode"))?.unwrap_or_default();
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let labels = labels();
+        let missing_keys = [2_i64, 4].map(Value::Integer);
+        if mode.as_str() == Some("missing") {
+            return match labels.findManyOrFail(&parent, &missing_keys).await {
+                Err(openrust::database::DatabaseError::ModelNotFound("pagination_labels")) => {
+                    Err(HttpError::NotFound)
+                }
+                outcome => panic!("expected missing primary key: {}", outcome.is_ok()),
+            };
+        }
+        let found = labels
+            .findManyOr(&parent, &[Value::Integer(2), Value::Integer(2)], || async {
+                panic!("matched primary keys must suppress fallback");
+            })
+            .await
+            .map_err(internal)?;
+        let pivot_labels = found
+            .iter()
+            .map(|model| {
+                let pivot = model
+                    .getRelation::<Pivot>("pivot")
+                    .expect("pivot must be loaded");
+                let Some(Value::Text(label)) = pivot.getAttribute("label") else {
+                    panic!("pivot label must be loaded");
+                };
+                label
+            })
+            .collect::<Vec<_>>();
+        let fallback = labels
+            .findManyOr(&parent, &missing_keys, || async {
+                labels.findMany(&parent, &[Value::Integer(3)]).await
+            })
+            .await
+            .map_err(internal)?;
+
+        let children = HasMany::<Article, Comment>::new("id", "article_id")
+            .constrain(|query| query.orderBy("id", "asc"));
+        let direct = children
+            .findManyOrFail(
+                &parent,
+                &[
+                    Value::Integer(11),
+                    Value::Unsigned(11),
+                    Value::Text("15".into()),
+                ],
+            )
+            .await
+            .map_err(internal)?;
+        let bad_query =
+            HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
+                query.r#where("pagination_comments.does_not_exist", "=", 1);
+                query
+            });
+        assert!(
+            bad_query
+                .findManyOr(&parent, &[], || async {
+                    panic!("an empty key list must suppress fallback");
+                })
+                .await
+                .map_err(internal)?
+                .is_empty()
+        );
+        assert!(
+            bad_query
+                .findManyOr(&parent, &[Value::Integer(11)], || async {
+                    panic!("a query error must suppress fallback");
+                })
+                .await
+                .is_err()
+        );
+        assert!(matches!(
+            children.findManyOrFail(&parent, &[Value::Null]).await,
+            Err(openrust::database::DatabaseError::ModelNotFound(
+                "pagination_comments"
+            ))
+        ));
+
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "pivot_labels": pivot_labels,
+                "fallback": fallback.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "direct": direct.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
             }),
         )
     })
@@ -1514,6 +1612,18 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         serde_json::from_str::<Json>(&duplicate).unwrap(),
         json!({"matches":2})
     );
+    let strict = request(address, "/api/relation-strict").await;
+    let mut pivot_labels = strict["pivot_labels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|label| label.as_str().unwrap())
+        .collect::<Vec<_>>();
+    pivot_labels.sort_unstable();
+    assert_eq!(pivot_labels, ["blue", "duplicate"]);
+    assert_eq!(strict["fallback"], json!([3]));
+    assert_eq!(strict["direct"], json!([11, 15]));
+    request_with_status(address, "/api/relation-strict?mode=missing", 404).await;
     connection
         .statement("DELETE FROM pagination_memberships WHERE id = 206", &[])
         .await?;
