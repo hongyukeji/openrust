@@ -1828,7 +1828,7 @@ async fn insert_for_parent<M: Model, P: Model>(
 }
 ```
 
-在单模型或批量工厂上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除该工厂已登记的对应回调。随后可以重新登记回调。另一阶段的回调及 Eloquent 模型事件照常执行。
+在单模型或批量工厂上使用 `withoutAfterMaking()` 或 `withoutAfterCreating()`，清除该工厂已登记的对应回调。随后可以重新登记回调。另一阶段的回调及 Eloquent 模型事件照常执行。 这也适用于具名工厂在 `configure` 中添加的回调。
 
 在单模型或批量工厂上使用 `connection(Some("archive"))` 指定命名连接。`getConnectionName()` 返回工厂配置的覆盖值，`connection(None)` 清除该值。执行时依次查找工厂覆盖、模型连接和当前应用或 Seeder 的默认连接。`On` 方法对目标工厂使用显式传入的连接。嵌套工厂优先使用自身覆盖或模型连接，再继承外层连接。关系连接校验照常执行。
 
@@ -1972,10 +1972,12 @@ pub async fn seed_comments<C: Model, P: Model>(
 
 当关系遵循相关 Rust 模型的命名时，可用 `hasInferred`。它先查找小驼峰复数关系，模型未注册该复数名称时回退到单数。`hasAttachedInferred` 使用复数，`forInferred` 和 `forExistingInferred` 使用父模型的小驼峰名称。关系描述符仍显式指定。自定义关系名使用对应的命名方法。
 
+把配置了 `forEachSequence(child_states)` 的子工厂传给 `hasInferred`，即可按顺序为每条子记录应用一个状态。序列长度决定每个父模型创建的子记录数量。
+
 ```rust
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Model, factories::Factory, relations::HasMany},
+    eloquent::{Attributes, Model, factories::Factory, relations::HasMany},
     seeder::SeederContext,
 };
 
@@ -1983,10 +1985,11 @@ async fn seed_inferred_children<P: Model, C: Model>(
     context: &SeederContext<'_>,
     parents: Factory<P>,
     children: Factory<C>,
+    child_states: Vec<Attributes>,
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .hasInferred::<_, HasMany<P, C>>(children)
+        .hasInferred::<_, HasMany<P, C>>(children.forEachSequence(child_states))
         .createOn(context.connection())
         .await?;
     Ok(())
@@ -2048,6 +2051,8 @@ fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
 ### 复用已有模型 {#recycling-existing-models}
 
 用 `recycle` 传入一个已保存的模型，或用 `recycleMany` 传入同类型模型的迭代器。这两个方法可在 `count` 前后调用。模型池会传给嵌套关系工厂。解析上级时，工厂在同一连接和类型的候选模型中随机选取一个，缺少匹配项时创建新上级。
+
+可多次调用，把不同类型的模型加入同一个构建器的回收池。空集合不会加入候选项。`has` 声明的子模型仍会新建，池中已有的子模型保留原归属。
 
 单条或批量构建器都可用 `getRandomRecycledModel::<Owner>()` 按模型类型查询复用池，无需访问数据库。返回模型借用或 `None`。关系解析仍按上级模型的连接筛选候选。
 

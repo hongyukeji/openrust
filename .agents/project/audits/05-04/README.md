@@ -1691,3 +1691,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 实际 `main artisan db:seed --database=mysql --force` 编译并运行三语共用示例。MySQL 按关联键回读四条中间表行，第一组使用逐条映射得到 SQL NULL 和 editor，第二组两条均为 reader。自定义 Pivot 回读与 SQL 一致。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器与本批缓存已清理，磁盘可用 78 GiB。
 
 [用例对照表](test-matrix.md)已更新。下一批核对具名工厂配置回调的移除、推断子关系配合逐条工厂状态，以及回收池不重绑已有子模型。
+
+## 配置回调、推断关系序列及回收池
+
+对照固定 Laravel 的[配置回调移除](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L321)、[推断关系的逐条状态](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L791)、[回收池与子模型归属](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentFactoryTest.php#L881)，以及[工厂关系文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#factory-relationships)。Rust 以 `FactoryDefinition::configure` 装配回调，将类型化子工厂的 `forEachSequence` 交给 `hasInferred`，并通过按类型的 `recycle` 与 `recycleMany` 维护候选池。旧版同名工厂用于查询，固定 [Goravel 工厂契约](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/factory.go)作为编译期装配参考。
+
+隔离基线 `73575b78`。MySQL 8.4.13／SQLite 验证具名工厂移除所选阶段的回调、新构建器仍执行原配置、关系按输入顺序写入，以及回收池按类型选择和空池回退。父工厂新建子模型后，原有子模型继续指向原父键。49 项 Seeder、两项双库工厂、Rust 1.94.0 格式及全工作区全目标严格 Clippy 通过。既有 Sanctum 排版差异仅在隔离树处理。
+
+实际 `main artisan db:seed --database=mysql --force` 运行三语共用示例。MySQL 按键回读 4 条父记录和 8 条子记录。前两条子记录指向各自的父记录，后两个父模型各有按 alpha、beta、gamma 排列的子记录。父记录值验证移除指定阶段后的写入结果。`./artisan inspire`、三语站点构建及根路径和 `/docs/` 的 18 项浏览器检查通过。临时 Seeder 已恢复，容器和本批独占缓存已清理，磁盘可用 78 GiB。
+
+[用例对照表](test-matrix.md)中的工厂与 Seeder 待补组合已有对应证据。05-04 仍需核对 FakerPHP 兼容边界。其中固定 [FakerPHP Generator::seed](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php) 可重置随机序列，现有 Rust Faker 没有该公开入口。下一批验证同种子可复现、不同种子及独立应用的作用域，再更新 Faker 验收状态。

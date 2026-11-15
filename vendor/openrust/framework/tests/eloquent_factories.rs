@@ -10,7 +10,7 @@ use openrust::{
         Connection, DatabaseManager, Value,
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState, NamedRelations,
-            factories::{Factory, FactoryRecords},
+            factories::{Factory, FactoryDefinition, FactoryRecords},
             relations::{BelongsTo, BelongsToMany, HasMany, HasOne, MorphMany, Pivot, Relation},
         },
     },
@@ -368,9 +368,17 @@ async fn verify(config: Json, id: &str) {
         .count("*")
         .await
         .unwrap();
+    let titles = ["first entry", "second entry", "third entry"];
     let named = authors()
         .count(2)
-        .hasInferred::<_, HasMany<Author, Entry>>(entries())
+        .hasInferred::<_, HasMany<Author, Entry>>(
+            entries().forEachSequence(
+                titles
+                    .into_iter()
+                    .map(|name| Attributes::from([("name".into(), name.into())]))
+                    .collect(),
+            ),
+        )
         .createOn(&connection)
         .await
         .unwrap();
@@ -380,10 +388,11 @@ async fn verify(config: Json, id: &str) {
             connection
                 .table("factory_entries")
                 .r#where("author_id", "=", owner.getKey().unwrap().clone())
-                .count("*")
+                .orderBy("id", "asc")
+                .pluck("name")
                 .await
                 .unwrap(),
-            1,
+            titles.map(Value::from),
         );
     }
     let owner = authors()
@@ -402,7 +411,7 @@ async fn verify(config: Json, id: &str) {
             .count("*")
             .await
             .unwrap(),
-        entries_before + 2,
+        entries_before + 6,
     );
 
     let mut constructed = authors().count(2).createOn(&connection).await.unwrap();
@@ -448,6 +457,8 @@ async fn verify(config: Json, id: &str) {
 
     verify_final_state(&connection).await;
     verify_child_relation_defaults(&connection).await;
+    verify_configured_callbacks(&connection).await;
+    verify_recycled_children(&connection).await;
 
     for table in ["factory_links", "factory_entries", "factory_authors"] {
         connection
@@ -455,6 +466,122 @@ async fn verify(config: Json, id: &str) {
             .await
             .unwrap();
     }
+}
+
+struct ConfiguredAuthor;
+
+impl FactoryDefinition for ConfiguredAuthor {
+    type Model = Author;
+
+    fn definition() -> Attributes {
+        Attributes::from([("name".into(), "defined".into())])
+    }
+
+    fn configure(factory: Factory<Author>) -> Factory<Author> {
+        factory
+            .afterMaking(|author| {
+                author.setAttribute("name", "made");
+                Ok(())
+            })
+            .afterCreating(|author| {
+                assert!(author.state().exists());
+                author.setAttribute("name", "created");
+                Ok(())
+            })
+    }
+}
+
+async fn verify_configured_callbacks(connection: &Connection) {
+    let no_making = ConfiguredAuthor::factory()
+        .withoutAfterMaking()
+        .createOn(connection)
+        .await
+        .unwrap();
+    let no_creating = ConfiguredAuthor::times(2)
+        .withoutAfterCreating()
+        .createOn(connection)
+        .await
+        .unwrap();
+    assert_eq!(no_making.getAttribute("name"), Some(&"created".into()));
+    assert_eq!(no_creating.len(), 2);
+    assert!(
+        no_creating
+            .iter()
+            .all(|a| a.getAttribute("name") == Some(&"made".into()))
+    );
+    let persisted = Author::queryOn(connection)
+        .find(no_making.getKey().unwrap().clone())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted.getAttribute("name"), Some(&"defined".into()));
+    let fresh = ConfiguredAuthor::factory()
+        .createOn(connection)
+        .await
+        .unwrap();
+    assert_eq!(fresh.getAttribute("name"), Some(&"created".into()));
+    let persisted = Author::queryOn(connection)
+        .find(fresh.getKey().unwrap().clone())
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(persisted.getAttribute("name"), Some(&"made".into()));
+}
+
+async fn verify_recycled_children(connection: &Connection) {
+    let owner = authors().createOn(connection).await.unwrap();
+    let owner_key = owner.getKey().unwrap().clone();
+    let owned = entries()
+        .forExisting(BelongsTo::new("author_id", "id"), owner)
+        .createOn(connection)
+        .await
+        .unwrap();
+    let owned_key = owned.getKey().unwrap().clone();
+
+    let recycled = authors()
+        .recycleMany(std::iter::empty::<Entry>())
+        .recycle(owned)
+        .recycleMany([authors().createOn(connection).await.unwrap()])
+        .has(HasMany::new("id", "author_id"), entries());
+    assert_eq!(
+        recycled.getRandomRecycledModel::<Entry>().unwrap().getKey(),
+        Some(&owned_key)
+    );
+    assert!(recycled.getRandomRecycledModel::<Author>().is_some());
+
+    let parent = recycled.createOn(connection).await.unwrap();
+    let children = HasMany::<Author, Entry>::new("id", "author_id")
+        .getResults(&parent)
+        .await
+        .unwrap();
+    assert_eq!(children.len(), 1);
+    assert_ne!(children[0].getKey(), Some(&owned_key));
+    let prior = Entry::queryOn(connection)
+        .find(owned_key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(prior.getAttribute("author_id"), Some(&owner_key));
+
+    let before = connection
+        .table("factory_authors")
+        .count("*")
+        .await
+        .unwrap();
+    entries()
+        .recycleMany(std::iter::empty::<Author>())
+        .r#for(BelongsTo::new("author_id", "id"), authors())
+        .createOn(connection)
+        .await
+        .unwrap();
+    assert_eq!(
+        connection
+            .table("factory_authors")
+            .count("*")
+            .await
+            .unwrap(),
+        before + 1
+    );
 }
 
 async fn verify_child_relation_defaults(connection: &Connection) {

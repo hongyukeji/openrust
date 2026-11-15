@@ -1828,7 +1828,7 @@ async fn insert_for_parent<M: Model, P: Model>(
 }
 ```
 
-Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run.
+Use `withoutAfterMaking()` or `withoutAfterCreating()` on a single or counted factory to clear the corresponding callbacks already registered on that factory. You can register new callbacks afterward. The other callback phase and Eloquent model events still run. This includes callbacks added in the named factory’s `configure` hook.
 
 Use `connection(Some("archive"))` to select a named connection on a factory or counted batch. `getConnectionName()` returns the configured override, and `connection(None)` clears it. Operations resolve the override first, then the model connection, then the current application or Seeder default. The `On` methods use the connection supplied for the target factory. Nested factories use their own override or model connection before inheriting the enclosing connection. Relationship connection checks still apply.
 
@@ -1972,10 +1972,12 @@ Use `hasNamed`, `forNamed`, or `hasAttachedNamed` to resolve a relationship by n
 
 Use `hasInferred` when a relationship follows the related Rust model’s name. It tries the plural camel-case name first and falls back to the singular when the plural is absent from the model’s registered relationships. `hasAttachedInferred` uses the plural name. `forInferred` and `forExistingInferred` use the owner’s camel-case name. The descriptor type is explicit. For a custom relationship name, use the corresponding named method.
 
+Pass a child factory configured with `forEachSequence(child_states)` to `hasInferred` to apply one state per child. The sequence length determines how many children each parent creates, in the order supplied.
+
 ```rust
 use openrust::database::{
     DatabaseResult,
-    eloquent::{Model, factories::Factory, relations::HasMany},
+    eloquent::{Attributes, Model, factories::Factory, relations::HasMany},
     seeder::SeederContext,
 };
 
@@ -1983,10 +1985,11 @@ async fn seed_inferred_children<P: Model, C: Model>(
     context: &SeederContext<'_>,
     parents: Factory<P>,
     children: Factory<C>,
+    child_states: Vec<Attributes>,
 ) -> DatabaseResult<()> {
     parents
         .count(2)
-        .hasInferred::<_, HasMany<P, C>>(children)
+        .hasInferred::<_, HasMany<P, C>>(children.forEachSequence(child_states))
         .createOn(context.connection())
         .await?;
     Ok(())
@@ -2048,6 +2051,8 @@ fn attach_named<M: Model, R: Model>(related: R) -> Factory<M> {
 ### Recycling Existing Models {#recycling-existing-models}
 
 Call `recycle` with a saved model or `recycleMany` with an iterable of saved models of one type. Call either method before or after `count`. The pool follows nested factory relationships. For each generated owner, the factory randomly selects a matching model of the requested type on the same connection, or creates one if the pool has no match.
+
+Repeated calls can add models of different types to the same builder. An empty input adds no candidates. A declared `has` child still creates a new model and leaves any existing child in the pool with its original owner.
 
 Use `getRandomRecycledModel::<Owner>()` on a single or batch builder to inspect its pool by model type. It returns a borrowed model or `None` without querying the database. Relation resolution still filters candidates by the owner connection.
 
