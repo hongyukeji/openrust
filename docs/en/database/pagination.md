@@ -158,6 +158,20 @@ Select `pagination::semantic-ui` explicitly for numbered Semantic UI links. All 
 ./artisan vendor:publish --tag=laravel-pagination
 ```
 
+## Pagination Windows and JSON {#pagination-windows-and-json}
+
+Use `UrlWindow::make(&page)` to get the opening URLs, sliding window, and closing URLs selected by `onEachSide`. Each segment has ordered `(page, url)` pairs. `linkCollection()` gives the flattened numbered links, ellipses, and translated previous and next labels.
+
+```rust
+use openrust::pagination::{LengthAwarePaginator, UrlWindow, UrlWindowLinks};
+
+fn numbered_links<T>(page: &LengthAwarePaginator<T>) -> UrlWindowLinks {
+    UrlWindow::make(page)
+}
+```
+
+`toArray()` returns the JSON object. `toJson()` and `toPrettyJson()` encode the same metadata and records. Manual `LengthAwarePaginator::new` accepts a page size of zero and uses one as the divisor for `lastPage()`. Query pagination still requires a positive page size.
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.

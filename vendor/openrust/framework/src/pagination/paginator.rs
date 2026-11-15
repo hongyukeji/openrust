@@ -121,6 +121,10 @@ impl<T> Paginator<T> {
     }
 
     pub fn withPath(&mut self, path: impl Into<String>) -> &mut Self {
+        self.setPath(path)
+    }
+
+    pub fn setPath(&mut self, path: impl Into<String>) -> &mut Self {
         self.links.path = path.into();
         self
     }
@@ -230,6 +234,8 @@ impl Paginator<()> {
         super::views::DefaultViews::configure(Some(view.into()), Some(simple.into()))
     }
 }
+
+super::paginator_json!(Paginator);
 
 impl<T: Serialize> Serialize for Paginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

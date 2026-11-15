@@ -2,7 +2,9 @@ use crate::view::{View, ViewData, ViewResult};
 
 use serde::{Serialize, Serializer, ser::SerializeMap as _};
 
-use super::{Links, PaginationResult, Paginator, PaginatorOptions, page_offset, page_size};
+use super::{
+    Links, PaginationResult, Paginator, PaginatorOptions, UrlWindow, page_offset, page_size,
+};
 
 /// An offset-based page with a total result count.
 #[derive(Debug)]
@@ -22,7 +24,11 @@ impl<T> LengthAwarePaginator<T> {
         page: Option<u64>,
         options: PaginatorOptions<'_>,
     ) -> PaginationResult<Self> {
-        let size = page_size(Some(per_page))?;
+        let size = if per_page == 0 {
+            0
+        } else {
+            page_size(Some(per_page))?
+        };
         let links = Links::manual(options.pageName.unwrap_or("page"), options);
         let page = links.current_page(page);
         page_offset(page, size)?;
@@ -42,7 +48,7 @@ impl<T> LengthAwarePaginator<T> {
                 page,
                 per_page,
                 links,
-                more: page < total.div_ceil(per_page),
+                more: page < total.div_ceil(per_page.max(1)),
             },
             total,
             on_each_side: 3,
@@ -52,6 +58,10 @@ impl<T> LengthAwarePaginator<T> {
     pub fn onEachSide(&mut self, pages: u8) -> &mut Self {
         self.on_each_side = pages;
         self
+    }
+
+    pub(super) fn on_each_side(&self) -> u8 {
+        self.on_each_side
     }
 
     pub fn links(&self) -> ViewResult<View> {
@@ -89,7 +99,7 @@ impl<T> LengthAwarePaginator<T> {
         self.total
     }
     pub fn lastPage(&self) -> u64 {
-        self.total.div_ceil(self.inner.perPage()).max(1)
+        self.total.div_ceil(self.inner.perPage().max(1)).max(1)
     }
     pub fn map<U>(self, map: impl FnMut(T) -> U) -> LengthAwarePaginator<U> {
         LengthAwarePaginator {
@@ -127,6 +137,8 @@ impl<T> std::ops::DerefMut for LengthAwarePaginator<T> {
     }
 }
 
+super::paginator_json!(LengthAwarePaginator);
+
 impl<T: Serialize> Serialize for LengthAwarePaginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut fields = serializer.serialize_map(Some(13))?;
@@ -136,6 +148,7 @@ impl<T: Serialize> Serialize for LengthAwarePaginator<T> {
     }
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's pagination metadata API")]
 impl<T> LengthAwarePaginator<T> {
     pub(crate) fn serialize_metadata<S: serde::ser::SerializeMap>(
         &self,
@@ -145,11 +158,11 @@ impl<T> LengthAwarePaginator<T> {
         let last = self.lastPage();
         fields.serialize_entry("last_page", &last)?;
         fields.serialize_entry("last_page_url", &self.url(last))?;
-        fields.serialize_entry("links", &self.link_window())?;
+        fields.serialize_entry("links", &self.linkCollection())?;
         fields.serialize_entry("total", &self.total)
     }
 
-    fn link_window(&self) -> Vec<serde_json::Value> {
+    pub fn linkCollection(&self) -> Vec<serde_json::Value> {
         use serde_json::json;
         let page = self.currentPage();
         let mut links = vec![json!({
@@ -167,26 +180,21 @@ impl<T> LengthAwarePaginator<T> {
     fn elements(&self) -> Vec<serde_json::Value> {
         use serde_json::json;
         let page = self.currentPage();
-        let last = self.lastPage();
-        let side = u64::from(self.on_each_side);
-        let window = side + 4;
+        let window = UrlWindow::make(self);
         let mut links = Vec::new();
-        let pages = if last < side * 2 + 8 {
-            vec![1..=last]
-        } else if page <= window {
-            vec![1..=window + side, last - 1..=last]
-        } else if page > last - window {
-            vec![1..=2, last - (window + side - 1)..=last]
-        } else {
-            vec![1..=2, page - side..=page + side, last - 1..=last]
-        };
-        for (index, pages) in pages.into_iter().enumerate() {
+        for (index, pages) in [window.first, window.slider, window.last]
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
             if index > 0 {
                 links.push(json!({"url":null,"label":"...","active":false}));
             }
-            links.extend(pages.map(|current| json!({
-                "url":self.url(current),"label":current.to_string(),"page":current,"active":current == page
-            })));
+            links.extend(pages.into_iter().map(|(current, url)| {
+                json!({
+                    "url":url,"label":current.to_string(),"page":current,"active":current == page
+                })
+            }));
         }
         links
     }

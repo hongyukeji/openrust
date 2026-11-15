@@ -17,7 +17,7 @@ use openrust::{
     http::{HttpError, HttpFuture, Request, Response, StatusCode},
     pagination::{
         Cursor, CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, PaginationError,
-        Paginator, PaginatorOptions,
+        Paginator, PaginatorOptions, UrlWindow,
     },
     routing::RoutingError,
     support::facades::{Lang, Route},
@@ -1181,6 +1181,19 @@ async fn pagination_default_styles_are_scoped_to_the_application() {
 
 #[test]
 fn rejects_invalid_manual_page_sizes_and_cursor_parameters() {
+    use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+
+    for token in [
+        "%%",
+        &URL_SAFE_NO_PAD.encode("not JSON"),
+        &URL_SAFE_NO_PAD.encode("[1,2]"),
+        &URL_SAFE_NO_PAD.encode(r#"{"id":2}"#),
+    ] {
+        assert!(matches!(
+            Cursor::fromEncoded(token),
+            Err(PaginationError::InvalidCursor)
+        ));
+    }
     assert!(matches!(
         Paginator::new(Vec::<i64>::new(), 0, None, PaginatorOptions::default()),
         Err(PaginationError::InvalidPerPage)
@@ -1211,4 +1224,120 @@ fn rejects_invalid_manual_page_sizes_and_cursor_parameters() {
         restored.parameters(&["slug", "id"]).unwrap(),
         [Value::Text("entry".into()), Value::Integer(1)]
     );
+}
+
+#[test]
+fn length_aware_url_window_preserves_each_segment() {
+    fn numbers(segment: Option<Vec<(u64, String)>>) -> Vec<u64> {
+        segment
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(page, url)| {
+                assert_eq!(url, format!("/?page={page}"));
+                page
+            })
+            .collect()
+    }
+    let make = |total, current| {
+        LengthAwarePaginator::new(
+            vec!["item"],
+            total,
+            1,
+            Some(current),
+            PaginatorOptions::default(),
+        )
+        .unwrap()
+    };
+
+    let small = make(2, 1);
+    assert!(UrlWindow::new(&small).hasPages());
+    let window = UrlWindow::make(&small);
+    assert_eq!(numbers(window.first), [1, 2]);
+    assert!(window.slider.is_none() && window.last.is_none());
+
+    let opening = UrlWindow::make(&make(20, 3));
+    assert_eq!(numbers(opening.first), (1..=10).collect::<Vec<_>>());
+    assert!(opening.slider.is_none());
+    assert_eq!(numbers(opening.last), [19, 20]);
+
+    let mut page = make(20, 8);
+    page.onEachSide(1);
+    let middle = UrlWindow::new(&page).get();
+    assert_eq!(numbers(middle.first), [1, 2]);
+    assert_eq!(numbers(middle.slider), [7, 8, 9]);
+    assert_eq!(numbers(middle.last), [19, 20]);
+    assert_eq!(
+        page.linkCollection()
+            .iter()
+            .filter(|link| link["label"] == "...")
+            .count(),
+        2
+    );
+
+    let closing = UrlWindow::make(&make(20, 18));
+    assert_eq!(numbers(closing.first), [1, 2]);
+    assert!(closing.slider.is_none());
+    assert_eq!(numbers(closing.last), (11..=20).collect::<Vec<_>>());
+}
+
+#[test]
+fn manual_paginators_serialize_and_keep_link_boundaries() {
+    let options = PaginatorOptions {
+        path: Some("https://example.test/list///"),
+        ..Default::default()
+    };
+    macro_rules! assert_json {
+        ($page:expr) => {{
+            let object = $page.toArray().unwrap();
+            let compact = $page.toJson().unwrap();
+            let pretty = $page.toPrettyJson().unwrap();
+            assert_eq!(serde_json::from_str::<Json>(&compact).unwrap(), object);
+            assert_eq!(serde_json::from_str::<Json>(&pretty).unwrap(), object);
+            assert!(!compact.contains('\n') && pretty.contains("\n  "));
+        }};
+    }
+    let simple = Paginator::new(vec![1, 2], 1, None, options).unwrap();
+    assert_eq!(simple.path(), "https://example.test/list");
+    assert_eq!(
+        simple.nextPageUrl().as_deref(),
+        Some("https://example.test/list?page=2")
+    );
+    assert_json!(simple);
+
+    let mut length = LengthAwarePaginator::new(vec![1, 2, 3, 4], 4, 0, None, options).unwrap();
+    assert_eq!(length.perPage(), 0);
+    assert_eq!(length.lastPage(), 4);
+    assert_eq!(length.items(), [1, 2, 3, 4]);
+    length
+        .setPath("https://example.test?key=value%20with%20spaces")
+        .setPageName("foo");
+    assert_eq!(
+        length.url(2),
+        "https://example.test?key=value%20with%20spaces&foo=2"
+    );
+    assert_json!(length);
+
+    let empty = LengthAwarePaginator::<i32>::new(vec![], 0, 2, None, options).unwrap();
+    assert_eq!(empty.lastPage(), 1);
+    assert!(empty.isEmpty() && empty.onFirstPage() && empty.onLastPage() && !empty.hasPages());
+
+    let cursor = CursorPaginator::new(vec![1, 2], 1, None, options, |id| {
+        [("id", Value::Integer(*id))]
+    })
+    .unwrap();
+    assert!(cursor.onFirstPage() && !cursor.onLastPage());
+    assert_eq!(
+        cursor.nextCursor().unwrap().parameter("id").unwrap(),
+        Value::Integer(1)
+    );
+    assert_json!(cursor);
+
+    let previous = Cursor::new([("id", Value::Integer(1))], false).unwrap();
+    let empty = CursorPaginator::new(Vec::<i64>::new(), 2, Some(&previous), options, |id| {
+        [("id", Value::Integer(*id))]
+    })
+    .unwrap();
+    assert!(empty.nextPageUrl().unwrap().is_none());
+    assert!(empty.previousPageUrl().unwrap().is_none());
+    assert!(empty.isEmpty() && empty.onFirstPage());
 }

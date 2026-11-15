@@ -166,6 +166,10 @@ impl<T> CursorPaginator<T> {
     }
 
     pub fn withPath(&mut self, path: impl Into<String>) -> &mut Self {
+        self.setPath(path)
+    }
+
+    pub fn setPath(&mut self, path: impl Into<String>) -> &mut Self {
         self.links.path = path.into();
         self
     }
@@ -215,6 +219,8 @@ impl<T> CursorPaginator<T> {
         }
     }
 }
+
+super::paginator_json!(CursorPaginator);
 
 impl<T: Serialize> Serialize for CursorPaginator<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

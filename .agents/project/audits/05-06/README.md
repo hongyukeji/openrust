@@ -53,3 +53,11 @@
 以 `d7a28b7a` 为隔离基线。实际 MySQL 8.4.13 和 SQLite HTTP 回归同时覆盖手工总数、页码范围、简易预读、转换类型、带查询的路径、筛选和片段以及游标正反方向来回。用例验证零页容量、溢出偏移、空值及重复游标键、复合游标编解码。10 项关系与分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 与 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。测试容器已回收，清理隔离 Cargo 产物 1.8 GiB 和独占站点产物。提交前周额度剩余 27%，项目卷可用 53 GiB。
 
 下一批核对固定分页测试矩阵及 05-02 依赖的完成条件。命名路由链接按计划在 06-01 补验。
+
+## 固定测试矩阵、URL 窗口和 JSON
+
+基线 `444d5299`。固定 Laravel 分页目录的 11 个文件和 51 个用例按[矩阵](test-matrix.md)核对。抽出独立的 `UrlWindow`，Blade 与 JSON 使用同一份分段链接。Rust 通过有序数组表示每段，公开 `linkCollection`、`toArray`、`toJson` 和 `toPrettyJson`，都使用同一 Serde 结构。手工总数分页保留页容量零，使用 1 作末页除数，查询路径继续验证正数。已编码查询的路径由 `setPath` 原样保留。旧版的 `QueryPage/SimplePage` 与固定 Goravel 的 ORM 查询分页没有对应视图窗口服务。
+
+MySQL 8.4.13 与 SQLite 的实际 HTTP 分页、6 项关系回归、6 项分页回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 与 18 项浏览器检查通过。测试涵盖窗口分段、格式化和紧凑 JSON、非法游标及空页。既有 Sanctum 的格式差异只在隔离副本整理。容器已回收，清理隔离 Cargo 产物 1.8 GiB 及独占站点产物。提交前周额度剩余 27%，项目卷可用 52 GiB。
+
+下一批补齐分页器向 Eloquent Collection 转发的 `loadMorph` 和 `loadMorphCount`。Resource 转换在 05-07 验收，命名路由链接在 06-01 验收。

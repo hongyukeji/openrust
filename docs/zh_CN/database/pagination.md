@@ -158,6 +158,20 @@ impl ServiceProvider for AppServiceProvider {
 ./artisan vendor:publish --tag=laravel-pagination
 ```
 
+## 分页窗口和 JSON {#pagination-windows-and-json}
+
+用 `UrlWindow::make(&page)` 取得根据 `onEachSide` 算出的开头、滑动窗口和结尾链接。每段按顺序保存 `(页码, URL)`。`linkCollection()` 返回平铺的页码、省略号，以及已翻译的上一页和下一页标签。
+
+```rust
+use openrust::pagination::{LengthAwarePaginator, UrlWindow, UrlWindowLinks};
+
+fn numbered_links<T>(page: &LengthAwarePaginator<T>) -> UrlWindowLinks {
+    UrlWindow::make(page)
+}
+```
+
+`toArray()` 返回 JSON 对象。`toJson()` 和 `toPrettyJson()` 编码相同的元数据与记录。手工调用 `LengthAwarePaginator::new` 可传入页容量零，`lastPage()` 按每页一条计算。查询分页仍要求页容量为正。
+
 ## JSON 和分页链接
 
 当分页项实现 Serde 的 `Serialize` 时，可直接序列化分页器。用 `map` 将数据库行或 Eloquent 模型转换为响应项，保留分页元数据。`withQueryString` 保留筛选条件，`appends` 添加选定参数。链接使用请求相对路径。

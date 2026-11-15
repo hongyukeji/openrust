@@ -5,6 +5,7 @@ mod cursor_paginator;
 mod length_aware_paginator;
 mod pagination_service_provider;
 mod paginator;
+mod url_window;
 mod views;
 
 use std::fmt;
@@ -14,6 +15,7 @@ pub use cursor_paginator::CursorPaginator;
 pub use length_aware_paginator::LengthAwarePaginator;
 pub(crate) use pagination_service_provider::PaginationServiceProvider;
 pub use paginator::Paginator;
+pub use url_window::{UrlWindow, UrlWindowLinks};
 pub(crate) use views::VIEWS;
 
 use crate::http::request_context;
@@ -84,6 +86,27 @@ pub(crate) fn page_offset(page: u64, size: u64) -> PaginationResult<u64> {
         .filter(|offset| *offset <= i64::MAX as u64)
         .ok_or(PaginationError::OffsetOverflow)
 }
+
+macro_rules! paginator_json {
+    ($type:ident) => {
+        #[allow(non_snake_case, reason = "Matches Laravel's paginator JSON API")]
+        impl<T: serde::Serialize> $type<T> {
+            pub fn toArray(&self) -> serde_json::Result<serde_json::Value> {
+                serde_json::to_value(self)
+            }
+
+            pub fn toJson(&self) -> serde_json::Result<String> {
+                serde_json::to_string(self)
+            }
+
+            pub fn toPrettyJson(&self) -> serde_json::Result<String> {
+                serde_json::to_string_pretty(self)
+            }
+        }
+    };
+}
+
+pub(super) use paginator_json;
 
 pub type PaginationResult<T> = Result<T, PaginationError>;
 
