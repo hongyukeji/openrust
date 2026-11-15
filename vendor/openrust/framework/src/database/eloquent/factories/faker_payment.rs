@@ -206,7 +206,7 @@ pub(super) fn card_masks_pt_br(vendor: &str) -> Option<&'static [&'static str]> 
 
 pub(super) fn account_iban_defaults(locale: &str) -> Option<(&'static str, Option<usize>)> {
     Some(match locale {
-        "de_AT" => ("AT", None),
+        "at_AT" | "de_AT" => ("AT", None),
         "fr_BE" | "nl_BE" => ("BE", None),
         "bg_BG" => ("BG", None),
         "pt_BR" => ("BR", None),
@@ -244,4 +244,63 @@ pub(super) fn account_iban_defaults(locale: &str) -> Option<(&'static str, Optio
         "tr_TR" => ("TR", None),
         _ => return None,
     })
+}
+
+// Local Payment providers in FakerPHP v1.24.1, sorted for lookup.
+const PAYMENT_LOCALES: &[&str] = &[
+    "ar_EG",
+    "ar_SA",
+    "at_AT",
+    "bg_BG",
+    "cs_CZ",
+    "da_DK",
+    "de_AT",
+    "de_CH",
+    "de_DE",
+    "el_CY",
+    "el_GR",
+    "en_GB",
+    "en_US",
+    "es_ES",
+    "fi_FI",
+    "fr_BE",
+    "fr_CH",
+    "fr_FR",
+    "he_IL",
+    "hr_HR",
+    "hu_HU",
+    "is_IS",
+    "it_CH",
+    "it_IT",
+    "ka_GE",
+    "kk_KZ",
+    "lt_LT",
+    "lv_LV",
+    "me_ME",
+    "ms_MY",
+    "nb_NO",
+    "ne_NP",
+    "nl_BE",
+    "nl_NL",
+    "pl_PL",
+    "pt_BR",
+    "pt_PT",
+    "ro_MD",
+    "ro_RO",
+    "ru_RU",
+    "sk_SK",
+    "sl_SI",
+    "sr_Cyrl_RS",
+    "sr_Latn_RS",
+    "sr_RS",
+    "sv_SE",
+    "th_TH",
+    "tr_TR",
+    "uk_UA",
+    "zh_CN",
+    "zh_TW",
+];
+
+pub(super) fn uses_us_payment_provider(locale: &str) -> bool {
+    locale == "en_US" || PAYMENT_LOCALES.binary_search(&locale).is_err()
 }

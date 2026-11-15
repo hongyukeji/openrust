@@ -4631,6 +4631,7 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
         ("bg_BG", "BG"),
         ("cs_CZ", "CZ"),
         ("da_DK", "DK"),
+        ("at_AT", "AT"),
         ("de_AT", "AT"),
         ("de_CH", "CH"),
         ("de_DE", "DE"),
@@ -4728,6 +4729,20 @@ fn faker_regional_bank_accounts_and_routing_follow_provider_contract() -> Databa
     assert!(Faker::calculateRoutingNumberChecksum("0210000x").is_err());
     assert!(Faker::calculateRoutingNumberChecksum("123").is_err());
     assert!(usa.bankAccountNumber("00", None, None).is_err());
+    for locale in ["en-CA", "ja-JP", "zz-ZZ"] {
+        let fallback = fake(Some(locale))?;
+        let account = fallback.bankAccountNumber("", None, None)?;
+        assert!((5..=17).contains(&account.len()));
+        assert!(account.bytes().all(|byte| byte.is_ascii_digit()));
+        let route = fallback.unique(true).bankRoutingNumber()?;
+        let check = Faker::calculateRoutingNumberChecksum(&route)?;
+        assert_eq!(route.len(), 9);
+        assert_eq!(route.as_bytes()[8] - b'0', check);
+        assert!(fallback.bankAccountNumber("00", None, None).is_err());
+    }
+    let alias = fake(Some("at-AT"))?;
+    assert!(alias.vat(Some(false))?.starts_with("ATU"));
+    assert!(alias.bankRoutingNumber().is_err());
     assert!(uk.bankRoutingNumber().is_err());
     assert!(
         fake(Some("zh-Hant"))?

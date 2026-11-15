@@ -1621,3 +1621,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 隔离基线 `869b3b01`。按 PHP 反射核对全部地区、代码、县名和尾号模板的顺序及重复项。448 个固定 PHP 样本验证七组筛选。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 449 行，包含三语共用示例。覆盖普通号牌、两种县码长度、军用、警务、禁用特殊号牌、空筛选及无匹配回退。115 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建和 18 项浏览器检查通过。已有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。05-04 下一批复核 Payment 的实际地区入口与行为。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 34%，磁盘可用 79 GiB。
+
+## Payment 地区回退与奥地利旧别名
+
+对应固定 [Laravel 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)、[FakerPHP v1.24.1 提供器回退](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Factory.php#L36)、[美国 Payment](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/en_US/Payment.php)及 [at_AT 别名](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/at_AT/Payment.php)。缺少本地 Payment 时，普通账号和路由号选择 en_US 提供器。存在本地 Payment 时按其自身能力提供入口。旧版 at_AT 从 de_AT 继承账号和 VAT，Rust 保留原地区标识，复用相同格式。缺少本地提供器的账号沿用美国无参数契约，Rust 使用显式默认参数并拒绝不适用的覆盖值。v0.x 无等价实现，固定 Goravel 的编译式装配由现有 Seeder 入口覆盖。
+
+按 PHP 反射核对 51 个本地 Payment 提供器的 22 种公开生成方法，434 个地区和方法组合在 PHP、Rust 均可调用。Rust 另复验 en_CA、ja_JP、zz_ZZ 三个回退地区共 27 个组合。美国路由校验助手继续由已提交的 Seeder 回归单独核对。该矩阵验证默认参数的可调用性，信用卡和机构词表等沿用此前独立验收。
+
+隔离基线 `431fcf73`。固定 PHP 8.5 样本 384 组通过，涵盖美国、三个回退地区和两个奥地利标识。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 385 行，包含三语共用示例。验证账号长度、美国路由校验、奥地利 IBAN 模 97、VAT 格式、显式参数错误和无路由号的本地提供器。115 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建和 18 项浏览器检查通过。已有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。下一批按固定工厂测试、Seeder 和三语交付清单复核 05-04 尚未闭合的契约。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 34%，磁盘可用 79 GiB。

@@ -4,7 +4,7 @@ use super::{
     faker_institutions, faker_miscellaneous,
     faker_payment::{
         CARD_VENDORS, CARD_VENDORS_PT_BR, IBAN_FORMATS, account_iban_defaults, card_masks,
-        card_masks_pt_br,
+        card_masks_pt_br, uses_us_payment_provider,
     },
     regex_pattern::RegexPattern,
 };
@@ -3959,7 +3959,7 @@ impl Faker {
                 digits(5)?,
                 digits(fastrand::u32(4..=5))?
             )),
-            "de_AT" => Ok(format!("AT{separator}U{}", digits(8)?)),
+            "at_AT" | "de_AT" => Ok(format!("AT{separator}U{}", digits(8)?)),
             "es_ES" => {
                 const PREFIXES: &[u8] = b"ABCDEFGHJNPQRSUVW";
                 let prefix = char::from(PREFIXES[fastrand::usize(..PREFIXES.len())]);
@@ -4072,7 +4072,7 @@ impl Faker {
         self.vat(None)
     }
 
-    /// Generates the bank account format provided by this locale.
+    /// Generates the bank account format provided by the selected or fallback provider.
     pub fn bankAccountNumber(
         &self,
         prefix: &str,
@@ -4093,7 +4093,7 @@ impl Faker {
         }
         match self.locale() {
             "ar_EG" => self.iban(Some("EG"), "", Some(25)),
-            "en_US" => {
+            locale if uses_us_payment_provider(locale) => {
                 let length = 5 + (0..4).map(|_| fastrand::usize(0..=3)).sum::<usize>();
                 Ok(self.numerify(Some(&"#".repeat(length))))
             }
@@ -4109,9 +4109,9 @@ impl Faker {
         }
     }
 
-    /// Generates the routing-number sample provided by the US locale.
+    /// Generates a routing number when the US Payment provider is selected.
     pub fn bankRoutingNumber(&self) -> DatabaseResult<String> {
-        if self.locale() != "en_US" {
+        if !uses_us_payment_provider(self.locale()) {
             return Err(DatabaseError::InvalidQuery(
                 "unsupported Faker bank routing locale",
             ));

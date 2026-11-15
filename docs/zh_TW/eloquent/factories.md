@@ -712,14 +712,16 @@ fn bank_samples() -> DatabaseResult<(String, String)> {
 
 ### 地區銀行帳號 {#regional-bank-account-samples}
 
-用 `bankAccountNumber(prefix, countryCode, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bankRoutingNumber()` 為 `en_US` 產生九位路由號範例。`Faker::calculateRoutingNumberChecksum` 讀取前八位並回傳檢查碼。未支援的地區會回傳錯誤。兩種產生方法都支援 `unique`。
+用 `bankAccountNumber(prefix, countryCode, length)` 依 Faker 地區產生帳號。支援 IBAN 別名的地區預設使用本國代碼，可明確覆寫參數。埃及地區固定產生埃及 IBAN。美國英語、馬來西亞馬來語和尼泊爾語產生本地帳號。這四種地區傳入 `("", None, None)`。`bankRoutingNumber()` 為 `en_US` 產生九位路由號範例。`Faker::calculateRoutingNumberChecksum` 讀取前八位並回傳檢查碼。兩種產生方法都支援 `unique`。
+
+地區缺少本地 Payment 提供器時，美國提供器負責產生本地帳號和路由號。本地提供器缺少某項方法時，該方法回傳錯誤。回退帳號使用 `("", None, None)`。舊版 `at-AT` 別名使用奧地利帳號和 VAT 格式。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
 
 fn regional_bank_samples() -> DatabaseResult<(String, String)> {
     let uk = fake(Some("en-GB"))?;
-    let us = fake(Some("en-US"))?;
+    let us = fake(Some("en-CA"))?;
     Ok((
         uk.bankAccountNumber("BANK", None, None)?,
         us.unique(false).bankRoutingNumber()?,
