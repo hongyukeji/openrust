@@ -119,6 +119,60 @@ fn core(name: &str) -> Option<Builtin> {
         "fileextension" => |faker, _| Ok(faker.fileExtension().into()),
         "bloodtype" => |faker, _| Ok(faker.bloodType().into()),
         "bloodrh" => |faker, _| Ok(faker.bloodRh().into()),
+        "randomdigit" => |faker, _| Ok(i64::from(faker.randomDigit()).into()),
+        "randomdigitnotzero" => |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into()),
+        "numberbetween" => |faker, args| {
+            let [first, second] = arguments(args)?;
+            Ok(faker
+                .numberBetween(
+                    integer(first)?.unwrap_or(0),
+                    integer(second)?.unwrap_or(if second.is_none() {
+                        i64::from(i32::MAX)
+                    } else {
+                        0
+                    }),
+                )
+                .into())
+        },
+        "randomdigitnot" => |faker, args| {
+            let [Some(except)] = arguments(args)? else {
+                return Err(DatabaseError::InvalidQuery(
+                    "Faker randomDigitNot requires an integer",
+                ));
+            };
+            Ok(i64::from(faker.randomDigitNot(integer(Some(except))?.unwrap_or(0))).into())
+        },
+        "randomnumber" => |faker, args| {
+            let [digits, strict] = arguments(args)?;
+            let digits = integer(digits)?
+                .map(u32::try_from)
+                .transpose()
+                .map_err(|_| {
+                    DatabaseError::InvalidQuery("Faker random number exceeds digit limit")
+                })?;
+            let strict = match strict {
+                None | Some(Value::Null) => false,
+                Some(Value::Bool(value)) => *value,
+                _ => {
+                    return Err(DatabaseError::InvalidQuery(
+                        "Faker strict requires a boolean",
+                    ));
+                }
+            };
+            faker.randomNumber(digits, strict).map(Value::from)
+        },
+        "randomfloat" => |faker, args| {
+            let [decimals, min, max] = arguments(args)?;
+            let decimals = integer(decimals)?
+                .map(i32::try_from)
+                .transpose()
+                .map_err(|_| {
+                    DatabaseError::InvalidQuery("Faker decimal precision is out of range")
+                })?;
+            faker
+                .randomFloat(decimals, real(min)?.unwrap_or(0.0), real(max)?)
+                .map(Value::Real)
+        },
         "parse" => |faker, args| match args {
             [Value::Text(template)] => faker.parse(template).map(Value::from),
             _ => Err(DatabaseError::InvalidQuery(
@@ -142,10 +196,97 @@ fn defaults(name: &str) -> Option<Builtin> {
         "name" => |faker, _| Ok(faker.name().into()),
         "phonenumber" => |faker, _| Ok(faker.phoneNumber().into()),
         "postcode" => |faker, _| Ok(faker.postcode().into()),
-        "randomdigit" => |faker, _| Ok(i64::from(faker.randomDigit()).into()),
         "safeemail" => |faker, _| Ok(faker.safeEmail().into()),
         "username" => |faker, _| Ok(faker.userName().into()),
         "uuid" => |faker, _| Ok(faker.uuid().to_string().into()),
+        "randomdigitnotnull" => |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into()),
+        "boolean" => |faker, args| {
+            let [chance] = arguments(args)?;
+            Ok(faker
+                .boolean(integer(chance)?.or_else(|| chance.map(|_| 0)))
+                .into())
+        },
+        "latitude" => |faker, args| coordinate(faker, args, 90.0),
+        "longitude" => |faker, args| coordinate(faker, args, 180.0),
+        "randomletter" => |faker, _| Ok(faker.randomLetter().to_string().into()),
+        "randomascii" => |faker, _| Ok(faker.randomAscii().to_string().into()),
+        "numerify" => |faker, args| nullable_pattern(faker, args, Faker::numerify),
+        "lexify" => |faker, args| nullable_pattern(faker, args, Faker::lexify),
+        "bothify" => |faker, args| nullable_pattern(faker, args, Faker::bothify),
+        "asciify" => |faker, args| Ok(faker.asciify(pattern(args)?).into()),
+        "regexify" => |faker, args| {
+            faker
+                .regexify(pattern(args)?.unwrap_or(""))
+                .map(Value::from)
+        },
         _ => return None,
     })
+}
+
+fn arguments<const N: usize>(args: &[Value]) -> DatabaseResult<[Option<&Value>; N]> {
+    if args.len() > N {
+        return Err(DatabaseError::InvalidQuery(
+            "too many Faker formatter arguments",
+        ));
+    }
+    Ok(std::array::from_fn(|index| args.get(index)))
+}
+
+fn integer(value: Option<&Value>) -> DatabaseResult<Option<i64>> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Integer(value)) => Ok(Some(*value)),
+        Some(Value::Unsigned(value)) => i64::try_from(*value)
+            .map(Some)
+            .map_err(|_| DatabaseError::InvalidQuery("Faker integer argument is out of range")),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects an integer",
+        )),
+    }
+}
+
+fn real(value: Option<&Value>) -> DatabaseResult<Option<f64>> {
+    match value {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Real(value)) => Ok(Some(*value)),
+        Some(Value::Integer(value)) => Ok(Some(*value as f64)),
+        Some(Value::Unsigned(value)) => Ok(Some(*value as f64)),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects a number",
+        )),
+    }
+}
+
+fn pattern(args: &[Value]) -> DatabaseResult<Option<&str>> {
+    match arguments(args)? {
+        [None] => Ok(None),
+        [Some(Value::Null)] => Ok(Some("")),
+        [Some(Value::Text(value))] => Ok(Some(value)),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker formatter expects a text pattern",
+        )),
+    }
+}
+
+fn nullable_pattern(
+    faker: &Faker,
+    args: &[Value],
+    generate: impl FnOnce(&Faker, Option<&str>) -> String,
+) -> DatabaseResult<Value> {
+    let pattern = pattern(args)?;
+    if matches!(args, [Value::Null]) {
+        return Ok(Value::Null);
+    }
+    Ok(generate(faker, pattern).into())
+}
+
+fn coordinate(faker: &Faker, args: &[Value], bound: f64) -> DatabaseResult<Value> {
+    let [min, max] = arguments(args)?;
+    let min = real(min)?.unwrap_or(if min.is_none() { -bound } else { 0.0 });
+    let max = if max.is_none() {
+        Some(bound)
+    } else {
+        real(max)?
+    };
+    faker.randomFloat(Some(6), min, max).map(Value::Real)
 }

@@ -5630,6 +5630,98 @@ fn faker_taiwanese_company_resolves_provider_and_propagates_errors() -> Database
 }
 
 #[test]
+fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    faker.addProvider(
+        FakerProvider::new()
+            .formatter("numberBetween", |_, _| Ok((-1).into()))
+            .formatter("bothify", |_, _| Ok("custom".into())),
+    );
+    for _ in 0..16 {
+        assert!(
+            matches!(faker.format("numberBetween", &[])?, Value::Integer(n) if (0..=i64::from(i32::MAX)).contains(&n))
+        );
+        assert!(matches!(
+            faker.format("numberBetween", &[9.into(), 7.into()])?,
+            Value::Integer(7..=9)
+        ));
+        assert!(matches!(
+            faker.format("randomNumber", &[2.into(), true.into()])?,
+            Value::Integer(10..=99)
+        ));
+        assert!(matches!(
+            faker.format("randomDigitNot", &[0.into()])?,
+            Value::Integer(1..=9)
+        ));
+        assert!(matches!(
+            faker.format("randomDigitNotZero", &[])?,
+            Value::Integer(1..=9)
+        ));
+    }
+    assert_eq!(
+        faker.format("NUMBERBETWEEN", &[7.into(), 7.into()])?,
+        7.into()
+    );
+    assert_eq!(
+        faker.format("numberBetween", &[Value::Null, Value::Null])?,
+        0.into()
+    );
+    assert_eq!(
+        faker.format(
+            "randomFloat",
+            &[2.into(), Value::Real(1.25), Value::Real(1.25)]
+        )?,
+        Value::Real(1.25)
+    );
+    assert_eq!(
+        faker.format("latitude", &[Value::Null, 0.into()])?,
+        Value::Real(0.0)
+    );
+    assert_eq!(
+        faker.format("longitude", &[10.into(), 10.into()])?,
+        Value::Real(10.0)
+    );
+    assert_eq!(faker.format("boolean", &[Value::Null])?, false.into());
+    assert_eq!(faker.format("boolean", &[100.into()])?, true.into());
+    assert_eq!(faker.format("bothify", &["a##".into()])?, "custom".into());
+    assert_eq!(faker.format("numerify", &[Value::Null])?, Value::Null);
+    assert_eq!(
+        faker.format("lexify", &["literal".into()])?,
+        "literal".into()
+    );
+    assert_eq!(faker.format("asciify", &[Value::Null])?, "".into());
+    assert_eq!(faker.format("regexify", &["^X{2}$".into()])?, "XX".into());
+    assert_eq!(faker.format("regexify", &[])?, "".into());
+    let regex = faker.getFormatter("regexify")?;
+    assert_eq!(regex(&["^x$".into()])?, "x".into());
+
+    assert!(faker.format("randomDigitNot", &[]).is_err());
+    assert!(faker.format("numberBetween", &["5".into()]).is_err());
+    assert!(
+        faker
+            .format("numberBetween", &[Value::Unsigned(u64::MAX)])
+            .is_err()
+    );
+    assert!(
+        faker
+            .format("numberBetween", &[1.into(), 1.into(), 1.into()])
+            .is_err()
+    );
+    assert!(
+        faker
+            .format("randomFloat", &[0.into(), Value::Real(f64::NAN)])
+            .is_err()
+    );
+    assert!(
+        faker
+            .format("randomNumber", &[10.into(), true.into()])
+            .is_err()
+    );
+    assert!(faker.format("regexify", &["[".into()]).is_err());
+    Ok(())
+}
+
+#[test]
 fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     let calls = Arc::new(AtomicUsize::new(0));

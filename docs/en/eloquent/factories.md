@@ -266,7 +266,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 Build a `FakerProvider` with named Rust callbacks and install it with `addProvider`. Registration applies to that generator. A newer provider wins for a matching name regardless of ASCII case. `getFormatter` returns the callback resolved at the time of lookup. Later calls to `format` resolve again. Custom callbacks receive the active generator and a slice of `Value` arguments, and any error they return propagates to the caller.
 
-Use `parse` to expand tokens such as `{{ code }}` from zero-argument scalar formatters. Unknown names return `UnknownFakerFormatter`. The named call supports registered formatters and the built-in defaults `address`, `city`, `company`, `companyEn`, `email`, `firstName`, `freeEmail`, `lastName`, `name`, `phoneNumber`, `postcode`, `randomDigit`, `safeEmail`, `userName`, and `uuid`. The generator methods `parse`, `mimeType`, `fileExtension`, `bloodType`, and `bloodRh` take precedence over providers in named calls. Typed calls such as `faker.name()` continue to use the built-in implementation. Use the generator you intend to customize, since `fake()` and factory definitions use separate generators.
+Use `parse` to expand tokens such as `{{ code }}` from zero-argument scalar formatters. Unknown names return `UnknownFakerFormatter`. The named call supports registered formatters and the built-in defaults `address`, `city`, `company`, `companyEn`, `email`, `firstName`, `freeEmail`, `lastName`, `name`, `phoneNumber`, `postcode`, `safeEmail`, `userName`, and `uuid`. The generator methods `parse`, `mimeType`, `fileExtension`, `bloodType`, and `bloodRh` take precedence over providers in named calls. Typed calls such as `faker.name()` continue to use the built-in implementation. Use the generator you intend to customize, since `fake()` and factory definitions use separate generators.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
@@ -304,6 +304,24 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 }
 ```
 
+
+### Numeric and Pattern Formatter Arguments {#numeric-pattern-formatter-arguments}
+
+Pass positional arguments to `format` or a callback from `getFormatter`. The numeric generator methods `numberBetween`, `randomDigit`, `randomDigitNot`, `randomDigitNotZero`, `randomNumber`, and `randomFloat` take precedence over providers. `boolean`, `latitude`, `longitude`, `randomDigitNotNull`, `randomLetter`, `randomAscii`, `numerify`, `lexify`, `bothify`, `asciify`, and `regexify` are provider defaults.
+
+Omitted arguments use FakerPHP defaults. An explicit `Value::Null` retains the formatter’s null behavior where it differs from omission. For example, `numberBetween(7, null)` samples from zero through seven, and `numerify(null)` returns null. Use integer values for counts and percentages, boolean values for strict mode, numeric values for float bounds, and text values for patterns. Rust validates these types and rejects extra arguments for parameterized formatters.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let number = faker.format("numberBetween", &[7.into(), 7.into()])?;
+    let pattern = faker.getFormatter("regexify")?;
+    let code = pattern(&["^X{2}$".into()])?;
+    Ok((number, code))
+}
+```
 
 ### Text Generation {#text-generation}
 

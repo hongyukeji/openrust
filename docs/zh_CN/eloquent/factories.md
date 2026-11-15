@@ -266,7 +266,7 @@ pub fn activity_factory<M: Model>() -> Factory<M> {
 
 用具名 Rust 回调构建 `FakerProvider`，再用 `addProvider` 安装到当前生成器。名称按 ASCII 大小写无关的方式匹配，同名时后注册者优先。`getFormatter` 返回本次查到的回调，后续 `format` 会重新查找。回调接收当前生成器和 `Value` 参数切片，返回的错误直接传播。
 
-用 `parse` 展开 `{{ code }}` 等标记，调用无参且返回标量的 formatter。未知名称返回 `UnknownFakerFormatter`。按名称可调用自定义 formatter 和内置的 `address`、`city`、`company`、`companyEn`、`email`、`firstName`、`freeEmail`、`lastName`、`name`、`phoneNumber`、`postcode`、`randomDigit`、`safeEmail`、`userName`、`uuid`。生成器自身的 `parse`、`mimeType`、`fileExtension`、`bloodType`、`bloodRh` 优先。类型化调用如 `faker.name()` 继续使用内置实现。`fake()` 和工厂定义分别使用独立的生成器，注册时选用需要扩展的实例。
+用 `parse` 展开 `{{ code }}` 等标记，调用无参且返回标量的 formatter。未知名称返回 `UnknownFakerFormatter`。按名称可调用自定义 formatter 和内置的 `address`、`city`、`company`、`companyEn`、`email`、`firstName`、`freeEmail`、`lastName`、`name`、`phoneNumber`、`postcode`、`safeEmail`、`userName`、`uuid`。生成器自身的 `parse`、`mimeType`、`fileExtension`、`bloodType`、`bloodRh` 优先。类型化调用如 `faker.name()` 继续使用内置实现。`fake()` 和工厂定义分别使用独立的生成器，注册时选用需要扩展的实例。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{Faker, FakerProvider}};
@@ -304,6 +304,24 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 }
 ```
 
+
+### 数字与模式 formatter 参数 {#numeric-pattern-formatter-arguments}
+
+将位置参数传给 `format` 或 `getFormatter` 返回的回调。生成器的 `numberBetween`、`randomDigit`、`randomDigitNot`、`randomDigitNotZero`、`randomNumber` 和 `randomFloat` 优先于提供器。`boolean`、`latitude`、`longitude`、`randomDigitNotNull`、`randomLetter`、`randomAscii`、`numerify`、`lexify`、`bothify`、`asciify` 和 `regexify` 是提供器默认值。
+
+省略参数时沿用 FakerPHP 默认值。显式传入 `Value::Null` 时保留该 formatter 对空值的行为。例如 `numberBetween(7, null)` 从零至七取样，`numerify(null)` 返回空值。次数和概率百分比用整数，严格模式用布尔值，浮点上下界用数值，模式用文本。Rust 校验这些类型，并拒绝有参数的 formatter 收到多余参数。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let number = faker.format("numberBetween", &[7.into(), 7.into()])?;
+    let pattern = faker.getFormatter("regexify")?;
+    let code = pattern(&["^X{2}$".into()])?;
+    Ok((number, code))
+}
+```
 
 ### 文本生成 {#text-generation}
 

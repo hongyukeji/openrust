@@ -1741,3 +1741,13 @@ Rust 复用现有的重试循环，按调用拼写维护具名历史，并用带
 实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 编译并执行三语共用示例，按主键回读 `demo`、`skip`、`demo`。重复样本耗尽后以状态 1 退出，保留错误。另通过 `./artisan inspire`、VitePress 构建和 18 项浏览器检查。临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 5.0 GiB 与独占文档构建产物及依赖。提交前周额度剩余 32%，项目卷可用 78 GiB。
 
 05-04 待接具名内置函数的参数适配，以及 FakerPHP 命名空间扩展解析和修饰器调用。
+
+## Faker 数字与模式 formatter 的具名参数
+
+对应固定 Laravel [工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。对照 FakerPHP v1.24.1 的 [Generator 数字入口](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php#L869)、[Number](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/Number.php)、[基础模板提供器](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Base.php#L437)和 Address、Miscellaneous 提供器。v0.x 的同名实现用于查询构造，固定 Goravel 工厂契约继续作为编译装配参考。
+
+具名调度复用 Rust 的数字、坐标和替换模板实现。生成器自有数字方法优先于同名提供器，提供器默认方法仍可覆盖。`format` 和 `getFormatter` 使用同一套位置参数处理，省略值采用固定版默认值，显式空值按方法处理。Rust 校验参数类型、整数转换范围与有参数方法的最大参数数量，通过 `DatabaseResult` 返回失败。PHP 8.5 探针经固定 Generator 实际调用，核对反向区间、严格位数、非零数字、默认参数、空值、生成器优先级、格式模板与位数错误。
+
+隔离基线 `6e2f9d08`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、55 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并回读 `7`、`XX`。传入文本作为区间端点时报告类型错误并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
+
+临时 Seeder 已恢复，测试容器已回收，隔离 Cargo 产物 5.0 GiB 和独占文档构建产物及依赖已清理。提交前周额度剩余 32%，磁盘可用 78 GiB。05-04 下一批核对限定扩展解析、扩展修饰器以及尚未接入的其他具名内置 formatter。
