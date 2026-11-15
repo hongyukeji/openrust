@@ -4215,3 +4215,34 @@ fn bengali_and_nepali_addresses_follow_local_number_and_address_templates() {
     }
     assert!(unique.banglaStreetName().is_err());
 }
+
+#[test]
+fn arabic_addresses_keep_regional_city_and_secondary_address_formats() {
+    let eg = fake(Some("ar-EG")).unwrap();
+    let jo = fake(Some("ar-JO")).unwrap();
+    let sa = fake(Some("ar-SA")).unwrap();
+    let number = Regex::new(r"^[1-9][0-9](?:[0-9]{2,3})?$").unwrap();
+    let postcode = Regex::new(r"^[0-9]{5}(?:-[0-9]{4})?$").unwrap();
+    for faker in [&eg, &jo, &sa] {
+        let mut formats = [false; 2];
+        for _ in 0..128 {
+            let address = faker.address();
+            let (street, city) = address.split_once('\n').unwrap();
+            let (building, road) = street.split_once(' ').unwrap();
+            assert!(number.is_match(building) && !road.is_empty());
+            assert!(!city.is_empty() && !city.bytes().any(|value| value.is_ascii_digit()));
+            assert!(postcode.is_match(&faker.postcode()));
+            formats[usize::from(road.contains("رقم"))] = true;
+        }
+        assert_eq!(formats, [true; 2]);
+    }
+    assert_eq!(jo.streetPrefix().unwrap(), "شارع");
+    assert!(sa.subdivision().is_ok() && jo.governorate().is_err());
+    assert!(sa.governorateId().is_err());
+
+    let unique = eg.unique(true);
+    for _ in 0..26 {
+        assert_eq!(unique.governorateId().unwrap().len(), 2);
+    }
+    assert!(unique.governorateId().is_err());
+}

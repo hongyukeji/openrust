@@ -1,7 +1,8 @@
 use chrono::{Datelike as _, NaiveDate};
 
 use super::{
-    DatabaseError, DatabaseResult, Faker, UniqueFaker, ean_with_checksum, luhn_check_digit,
+    DatabaseError, DatabaseResult, Faker, UniqueFaker, address_sample, ean_with_checksum,
+    faker_address, luhn_check_digit,
 };
 
 const TAIWAN_BIRTHPLACES: &[(char, u32)] = &[
@@ -648,11 +649,7 @@ impl Faker {
                 "unsupported Faker governorate locale",
             ));
         }
-        const CODES: [&str; 26] = [
-            "02", "19", "28", "25", "29", "31", "18", "22", "03", "35", "01", "12", "11", "26",
-            "04", "13", "34", "16", "23", "14", "27", "15", "33", "17", "24", "32",
-        ];
-        Ok(CODES[fastrand::usize(..CODES.len())])
+        Ok(address_sample(faker_address::GOVERNORATES_AR_EG).1)
     }
 
     /// Samples a driving licence number using the Lithuanian or Latvian provider.

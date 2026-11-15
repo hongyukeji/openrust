@@ -941,6 +941,16 @@ fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+埃及、约旦和沙特的阿拉伯语地址将街道和城市分两行，可附公寓或楼栋信息。约旦城市名可带方位前缀，单独的州名和简称沿用固定版的美国词表。埃及提供 `governorate()` 和 `governorateId()`，沙特提供 `governorate()` 和 `subdivision()`。地区方法均支持 `unique()`。固定版沙特提供器缺少城市前缀词表，单独调用 `cityPrefix()` 时沿用 Rust 的现有回退。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn arabic_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("ar-EG"))?.address(), fake(Some("ar-JO"))?.address(), fake(Some("ar-SA"))?.address()))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

@@ -1420,3 +1420,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、92 项 Faker、49 项 See
 隔离基线 `66edac05`。PHP 反射核对 12 份词表与模板，按同一规则核对 320 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 322 行，包括三语共用示例。Rust 回归覆盖本地街号、两种选区编号长度、不适用地区和孟加拉语街名唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、93 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对阿拉伯语地区 Address。
+
+## 埃及、约旦和沙特阿拉伯语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [埃及](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_EG/Address.php)、[约旦](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_JO/Address.php) 和 [沙特](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ar_SA/Address.php) Address。三地保留两行结构和可选房屋信息，约旦市名可带方位前缀，独立州名及简称仍按上游美国州词表。埃及行政区编号复用现有身份格式化入口及唯一值历史，统一使用地址行政区词表。沙特独立 cityPrefix 上游缺少静态属性并报错，Rust 保留现有回退，完整地址生成只使用上游城市名。地区方法使用 Result 并支持 unique。v0.x 无对应 Faker 地址模块，编译式装配沿用现有路径。
+
+隔离基线 `b2ab5337`。PHP 反射核对 25 份词表和模板，按同一规则验收三地共 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，包含三语共用示例。Rust 回归覆盖可选房屋格式、不适用地区、埃及两位行政区编号及唯一值耗尽。身份号码既有回归继续通过。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、94 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 38%，磁盘可用 79 GiB。05-04 下一批核对波斯语与希伯来语 Address。

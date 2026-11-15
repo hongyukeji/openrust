@@ -941,6 +941,16 @@ fn bengali_and_nepali_address_samples() -> DatabaseResult<(String, String)> {
 }
 ```
 
+Egyptian, Jordanian, and Saudi Arabic addresses place the street and city on separate lines. An apartment or building detail is optional. Jordanian city names can have a directional prefix, and the independent state formatters use the pinned U.S. state names and abbreviations. Egypt provides `governorate()` and `governorateId()`, and Saudi Arabia provides `governorate()` and `subdivision()`. These regional formatters support `unique()`. The pinned Saudi provider has no city-prefix catalog, so a standalone `cityPrefix()` uses the existing Rust fallback.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn arabic_address_samples() -> DatabaseResult<(String, String, String)> {
+    Ok((fake(Some("ar-EG"))?.address(), fake(Some("ar-JO"))?.address(), fake(Some("ar-SA"))?.address()))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
