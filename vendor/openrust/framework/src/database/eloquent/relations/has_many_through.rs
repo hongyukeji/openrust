@@ -22,8 +22,7 @@ use super::{
 };
 
 struct ThroughLookup<'a> {
-    attributes: &'a Attributes,
-    limit: u64,
+    selection: super::lookup::LookupSelection<'a>,
     include_trashed: bool,
 }
 
@@ -316,8 +315,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         limit: u64,
     ) -> DatabaseResult<Vec<R>> {
         let lookup = ThroughLookup {
-            attributes: keys,
-            limit,
+            selection: super::lookup::LookupSelection::limited(keys, limit),
             include_trashed: false,
         };
         let mut groups = self.match_many(&[parent], None, Some(lookup)).await?;
@@ -327,6 +325,25 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
             .into_iter()
             .map(owned_model)
             .collect())
+    }
+
+    pub(super) async fn lookup_many(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        let lookup = ThroughLookup {
+            selection: super::lookup::LookupSelection::Keys(keys),
+            include_trashed: false,
+        };
+        let mut groups = self.match_many(&[parent], None, Some(lookup)).await?;
+        let models = groups
+            .pop()
+            .unwrap_or_default()
+            .into_iter()
+            .map(owned_model)
+            .collect();
+        Ok(R::newCollection(models))
     }
 
     /// Finds a related row or makes an unsaved model using the supplied attributes.
@@ -494,8 +511,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 &[parent],
                 None,
                 Some(ThroughLookup {
-                    attributes,
-                    limit: 1,
+                    selection: super::lookup::LookupSelection::limited(attributes, 1),
                     include_trashed,
                 }),
             )
@@ -532,9 +548,7 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
                 let query = self.select_one(query, &join, &connection)?;
                 let mut query = query.restrict_relation(&join.match_key, batch);
                 if let Some(lookup) = &lookup {
-                    query = query
-                        .restrict_relation_attributes(lookup.attributes)
-                        .limit(lookup.limit);
+                    query = lookup.selection.apply(query);
                 }
                 let eager_load = query.take_eager_load();
                 let existence = query.take_existence_attributes();

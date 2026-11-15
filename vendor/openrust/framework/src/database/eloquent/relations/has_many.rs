@@ -192,6 +192,23 @@ impl<P: Model, R: Model> HasMany<P, R> {
         Ok(collection.into_parts().0)
     }
 
+    pub(super) async fn lookup_many(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        if parent
+            .getAttribute(self.0.parent)
+            .is_none_or(|key| matches!(key, Value::Null))
+        {
+            return Ok(R::newCollection(Vec::new()));
+        }
+        super::lookup::LookupSelection::Keys(keys)
+            .apply(self.lookup(parent, &Attributes::new(), false)?)
+            .get()
+            .await
+    }
+
     /// Creates a child with an initial counter or increments a matching child.
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]
     pub async fn firstOrNew<'a>(

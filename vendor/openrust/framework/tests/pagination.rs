@@ -220,6 +220,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/keyed-pivot", keyed_pivot_page)?;
     Route::get("/relation-find", find_related_or_new)?;
     Route::get("/relation-lookup", relation_lookup)?;
+    Route::get("/relation-many", find_related_many)?;
     Ok(())
 }
 
@@ -715,6 +716,104 @@ fn relation_lookup(request: &mut Request) -> HttpFuture<'_, Result<Response, Htt
                 "hit": id(hit.getKey()),
                 "through": id(through.getKey()),
                 "attached": id(attached.getKey()),
+            }),
+        )
+    })
+}
+
+fn find_related_many(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let children =
+            HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
+                query.r#where("id", ">", 0).orWhere("article_id", "=", 2);
+                query.orderBy("id", "desc")
+            });
+        let keys = [15_i64, 11, 11, 14, 16, 999].map(Value::Integer);
+        let direct = children.findMany(&parent, &keys).await.map_err(internal)?;
+        let invalid =
+            HasMany::<Article, Comment>::new("id", "article_id").constrain(|mut query| {
+                query.r#where("pagination_comments.does_not_exist", "=", 1);
+                query
+            });
+        assert!(
+            invalid
+                .findMany(&parent, &[])
+                .await
+                .map_err(internal)?
+                .is_empty()
+        );
+        assert!(invalid.findMany(&parent, &keys).await.is_err());
+        let unsaved = Article::newInstance(Attributes::new()).map_err(internal)?;
+        assert!(
+            children
+                .findMany(&unsaved, &keys)
+                .await
+                .map_err(internal)?
+                .is_empty()
+        );
+
+        let morph =
+            MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                .constrain(|query| query.orderBy("id", "asc"));
+        let polymorphic = morph.findMany(&parent, &keys).await.map_err(internal)?;
+
+        let through_keys = [103_i64, 102, 102, 104, 105].map(Value::Integer);
+        let related = REACTIONS
+            .constrain(|query| query.orderBy("id", "asc"))
+            .findMany(&parent, &through_keys)
+            .await
+            .map_err(internal)?;
+
+        let pivot_keys = [3_i64, 1, 1, 4, 5].map(Value::Integer);
+        let labels = BelongsToMany::<Article, KeyedLabel>::new(
+            "pagination_memberships",
+            "owner_id",
+            "label_id",
+            "id",
+            "id",
+        )
+        .wherePivot("subject_type", "=", "article")
+        .orderByPivot("label_id", "asc")
+        .withPivot(["label"]);
+        let attached = labels
+            .findMany(&parent, &pivot_keys)
+            .await
+            .map_err(internal)?;
+        let red = attached
+            .getByKey("pivot-1")
+            .unwrap()
+            .getRelation::<Pivot>("pivot")
+            .unwrap();
+        assert_eq!(red.getAttribute("label"), Some(&Value::Text("red".into())));
+        assert!(attached.getByKey("pivot-3").is_some());
+        let morph_labels = MorphToMany::<Article, Label>::new(
+            "pagination_memberships",
+            "owner_id",
+            "label_id",
+            "id",
+            "id",
+            "subject_type",
+            "article",
+        )
+        .orderByPivot("label_id", "asc");
+        let morph_attached = morph_labels
+            .findMany(&parent, &pivot_keys)
+            .await
+            .map_err(internal)?;
+        Response::json(
+            StatusCode::OK,
+            json!({
+                "direct": direct.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "polymorphic": polymorphic.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "through": related.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "pivot": attached.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "morph_pivot": morph_attached.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
             }),
         )
     })
@@ -1391,6 +1490,15 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     ] {
         assert_eq!(connection.table(table).count("*").await?, count);
     }
+
+    let batch = request(address, "/api/relation-many").await;
+    assert_eq!(
+        batch,
+        json!({
+            "direct": [15, 11], "polymorphic": [11, 15], "through": [102, 103],
+            "pivot": [1, 3], "morph_pivot": [1, 3]
+        })
+    );
 
     let selected = request(address, "/api/relation-lookup").await;
     assert_eq!(selected, json!({"hit": 11, "through": 103, "attached": 2}));

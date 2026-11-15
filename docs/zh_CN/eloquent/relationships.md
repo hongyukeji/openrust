@@ -1193,6 +1193,23 @@ async fn find_or_prepare<P: Model, R: Model>(
 }
 ```
 
+用 `findMany(parent, keys)` 批量查找关联主键。结果沿用关系查询顺序，保留自定义集合键及已加载的 Pivot。输入中的重复键不会重复返回同一行。缺失、软删除和不在关系范围内的记录会被略过。空输入直接返回模型的空集合，无需查询。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+async fn find_related_batch<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    keys: &[Value],
+) -> DatabaseResult<Collection<R>> {
+    children.findMany(parent, keys).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

@@ -73,8 +73,7 @@ impl From<Attributes> for RelatedValues<'_> {
 
 #[derive(Clone, Copy)]
 struct RelatedLookup<'a> {
-    attributes: &'a Attributes,
-    limit: u64,
+    selection: super::lookup::LookupSelection<'a>,
     use_writer: bool,
     include_trashed: bool,
 }
@@ -527,8 +526,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         limit: u64,
     ) -> DatabaseResult<Vec<R>> {
         let lookup = RelatedLookup {
-            attributes: keys,
-            limit,
+            selection: super::lookup::LookupSelection::limited(keys, limit),
             use_writer: false,
             include_trashed: false,
         };
@@ -539,6 +537,26 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .into_iter()
             .map(owned_model)
             .collect())
+    }
+
+    async fn lookup_many(
+        &self,
+        parent: &P,
+        keys: &[Value],
+    ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
+        let lookup = RelatedLookup {
+            selection: super::lookup::LookupSelection::Keys(keys),
+            use_writer: false,
+            include_trashed: false,
+        };
+        let mut groups = self.match_many(&[parent], None, Some(lookup)).await?;
+        let models = groups
+            .pop()
+            .unwrap_or_default()
+            .into_iter()
+            .map(owned_model)
+            .collect();
+        Ok(R::newCollection(models))
     }
 
     /// Finds an attached model, attaches an existing match, or creates a new model.
@@ -649,8 +667,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> DatabaseResult<Arc<R>> {
         self.owner(parent)?;
         let lookup = RelatedLookup {
-            attributes: &attributes,
-            limit: 1,
+            selection: super::lookup::LookupSelection::limited(&attributes, 1),
             use_writer: false,
             include_trashed,
         };
@@ -671,11 +688,11 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         connection: &Connection,
         lookup: RelatedLookup<'_>,
     ) -> DatabaseResult<Option<R>> {
-        let query = self
-            .keys
-            .configure(R::queryOn(connection))?
-            .unconstrained_relation_query()
-            .restrict_relation_attributes(lookup.attributes);
+        let query = lookup.selection.apply(
+            self.keys
+                .configure(R::queryOn(connection))?
+                .unconstrained_relation_query(),
+        );
         let query = if lookup.include_trashed {
             query.withTrashed()
         } else {
@@ -734,8 +751,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         };
 
         let lookup = RelatedLookup {
-            attributes: &attributes,
-            limit: 1,
+            selection: super::lookup::LookupSelection::limited(&attributes, 1),
             use_writer: true,
             include_trashed,
         };
@@ -1893,9 +1909,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .apply_default_counts()?
                     .restrict_relation(&parent_column, batch);
                 if let Some(lookup) = lookup {
-                    query = query
-                        .restrict_relation_attributes(lookup.attributes)
-                        .limit(lookup.limit);
+                    query = lookup.selection.apply(query);
                     if lookup.include_trashed {
                         query = query.withTrashed();
                     }

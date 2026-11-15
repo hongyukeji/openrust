@@ -1,7 +1,34 @@
 use crate::database::{
     DatabaseError, DatabaseResult, Value,
-    eloquent::{Attributes, Model},
+    eloquent::{Attributes, Builder, Model},
 };
+
+#[derive(Clone, Copy)]
+pub(super) enum LookupSelection<'a> {
+    Limited {
+        attributes: &'a Attributes,
+        limit: u64,
+    },
+    Keys(&'a [Value]),
+}
+
+impl<'a> LookupSelection<'a> {
+    pub(super) fn limited(attributes: &'a Attributes, limit: u64) -> Self {
+        Self::Limited { attributes, limit }
+    }
+
+    pub(super) fn apply<M: Model>(self, query: Builder<'static, M>) -> Builder<'static, M> {
+        match self {
+            Self::Limited { attributes, limit } => {
+                query.restrict_relation_attributes(attributes).limit(limit)
+            }
+            Self::Keys(keys) => {
+                let key = query.qualifyColumn(M::metadata().primary_key);
+                query.map_relation_query(|query| query.whereIn(&key, keys.to_vec()))
+            }
+        }
+    }
+}
 
 pub(super) fn primary_key<M: Model>(key: Value) -> Attributes {
     Attributes::from([(M::metadata().primary_key.into(), key)])
@@ -25,6 +52,17 @@ macro_rules! relation_lookup {
         pub async fn find(&self, parent: &P, key: impl Into<crate::database::Value> + Send) -> crate::database::DatabaseResult<Option<R>> {
             let keys = super::lookup::primary_key::<R>(key.into());
             Ok(self$($delegate)*.lookup_models(parent, &keys, 1).await?.into_iter().next())
+        }
+
+        /// Finds the matching related primary keys in relationship query order.
+        #[allow(non_snake_case, reason = "Matches Laravel's relation API")]
+        pub async fn findMany(
+            &self, parent: &P, keys: &[crate::database::Value],
+        ) -> crate::database::DatabaseResult<crate::database::eloquent::Collection<R>> {
+            if keys.is_empty() {
+                return Ok(R::newCollection(Vec::new()));
+            }
+            self$($delegate)*.lookup_many(parent, keys).await
         }
 
         /// Requires a related model by its primary key.

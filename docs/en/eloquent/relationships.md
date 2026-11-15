@@ -1193,6 +1193,23 @@ async fn find_or_prepare<P: Model, R: Model>(
 }
 ```
 
+Use `findMany(parent, keys)` to find a batch of related primary keys. It returns the matching models in relationship query order, with any custom collection keys and loaded Pivot data. Repeated input keys do not repeat a matching row. Missing, soft-deleted, or out-of-scope records are omitted. An empty input returns the model’s empty collection without a query.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::{Collection, Model, relations::HasMany},
+};
+
+async fn find_related_batch<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+    keys: &[Value],
+) -> DatabaseResult<Collection<R>> {
+    children.findMany(parent, keys).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.
