@@ -10,7 +10,7 @@ use openrust::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState,
-            relations::{HasMany, HasManyThrough, MorphMany},
+            relations::{BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphToMany, Pivot},
         },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
@@ -89,6 +89,45 @@ impl Model for Reaction {
     }
 }
 
+struct Label(ModelState);
+
+impl Model for Label {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("pagination_labels").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct PageMembership(ModelState);
+
+impl Model for PageMembership {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata =
+            ModelMetadata::new("pagination_memberships").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
 const REACTIONS: HasManyThrough<Article, Comment, Reaction> =
     HasManyThrough::new("article_id", "comment_id", "id", "id");
 
@@ -111,6 +150,8 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/related-length", related_length_page)?;
     Route::get("/related-cursor", related_cursor_page)?;
     Route::get("/through", through_page)?;
+    Route::get("/pivot-length", pivot_length_page)?;
+    Route::get("/pivot-cursor", pivot_cursor_page)?;
     Ok(())
 }
 
@@ -240,6 +281,110 @@ fn through_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
     })
 }
 
+fn labels() -> BelongsToMany<Article, Label> {
+    BelongsToMany::new("pagination_memberships", "owner_id", "label_id", "id", "id")
+        .wherePivot("subject_type", "=", "article")
+        .withPivot(["label"])
+        .orderByPivot("label_id", "asc")
+}
+
+fn pivot_length_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let mut page = labels()
+            .paginateWith(
+                &parent,
+                PageOptions {
+                    perPage: Some(2),
+                    pageName: "labels",
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(internal)?;
+        page.withQueryString();
+        Response::json(
+            StatusCode::OK,
+            page.map(|label| {
+                let pivot = label.getRelation::<Pivot>("pivot").unwrap();
+                let Some(Value::Text(color)) = pivot.getAttribute("label") else {
+                    panic!("missing label in pivot");
+                };
+                json!([id(label.getKey()), color])
+            }),
+        )
+    })
+}
+
+fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let parent = Article::query()
+            .map_err(internal)?
+            .find(1)
+            .await
+            .map_err(internal)?
+            .unwrap();
+        let mut page = MorphToMany::<Article, Label>::new(
+            "pagination_memberships",
+            "owner_id",
+            "label_id",
+            "id",
+            "id",
+            "subject_type",
+            "article",
+        )
+        .using::<PageMembership>()
+        .r#as("membership")
+        .withPivot(["label"])
+        .orderByPivot("weight", "asc")
+        .orderByPivot("label_id", "asc")
+        .cursorPaginateWith(
+            &parent,
+            CursorOptions {
+                perPage: Some(2),
+                cursorName: "labels",
+                columns: &["id"],
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(internal)?;
+        page.withQueryString();
+        Response::json(
+            StatusCode::OK,
+            page.map(|label| {
+                assert!(
+                    label
+                        .state()
+                        .getAttributes()
+                        .keys()
+                        .all(|key| !key.starts_with("laravel_pivot_"))
+                );
+                assert!(
+                    label
+                        .state()
+                        .getOriginal()
+                        .keys()
+                        .all(|key| !key.starts_with("laravel_pivot_"))
+                );
+                let pivot = label.getRelation::<PageMembership>("membership").unwrap();
+                assert!(pivot.getAttribute("weight").is_none());
+                assert_eq!(id(pivot.getAttribute("owner_id")), 1);
+                assert_eq!(id(pivot.getAttribute("label_id")), id(label.getKey()));
+                let Some(Value::Text(color)) = pivot.getAttribute("label") else {
+                    panic!("missing label in custom pivot");
+                };
+                json!([id(label.getKey()), id(pivot.getKey()), color])
+            }),
+        )
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -295,6 +440,12 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         .unwrap()
         .connection(None)?;
     for sql in [
+        "DROP TABLE IF EXISTS pagination_memberships",
+        "DROP TABLE IF EXISTS pagination_labels",
+        "CREATE TABLE pagination_labels (id BIGINT PRIMARY KEY, name VARCHAR(30))",
+        "INSERT INTO pagination_labels VALUES (1, 'first'), (2, 'second'), (3, 'third'), (4, 'other'), (5, 'image')",
+        "CREATE TABLE pagination_memberships (id BIGINT PRIMARY KEY, owner_id BIGINT, label_id BIGINT, subject_type VARCHAR(30), label VARCHAR(30), weight INTEGER)",
+        "INSERT INTO pagination_memberships VALUES (201, 1, 1, 'article', 'red', 2), (202, 1, 2, 'article', 'blue', 1), (203, 1, 3, 'article', 'green', 3), (204, 2, 4, 'article', 'other', 0), (205, 1, 5, 'image', 'excluded', 0)",
         "DROP TABLE IF EXISTS pagination_reactions",
         "DROP TABLE IF EXISTS pagination_comments",
         "DROP TABLE IF EXISTS pagination_articles",
@@ -423,6 +574,16 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(empty.total(), 0);
     assert!(empty.items().is_empty());
 
+    let simple_labels = labels().simplePaginate(&parent, 1).await?;
+    assert_eq!(simple_labels.items().len(), 1);
+    assert!(
+        simple_labels.items()[0]
+            .getRelation::<Pivot>("pivot")
+            .is_some()
+    );
+    assert!(simple_labels.nextPageUrl().is_some());
+    assert_eq!(labels().paginate(&unsaved, 2).await?.total(), 0);
+
     let through = REACTIONS
         .cursorPaginateWith(
             &parent,
@@ -538,7 +699,32 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     let previous = through["prev_page_url"].as_str().unwrap();
     assert!(previous.contains("filter=all"));
     assert_eq!(request(address, previous).await["data"], json!([101, 102]));
+    let labels = request(address, "/api/pivot-length?labels=2&filter=all").await;
+    assert_eq!(labels["total"], 3);
+    assert_eq!(labels["data"], json!([[3, "green"]]));
+    let previous = labels["prev_page_url"].as_str().unwrap();
+    assert!(previous.contains("filter=all"));
+    assert_eq!(
+        request(address, previous).await["data"],
+        json!([[1, "red"], [2, "blue"]])
+    );
+
+    let first = request(address, "/api/pivot-cursor?filter=all").await;
+    assert_eq!(first["data"], json!([[2, 202, "blue"], [1, 201, "red"]]));
+    let next = first["next_page_url"].as_str().unwrap();
+    assert!(next.contains("labels=") && next.contains("filter=all"));
+    let second = request(address, next).await;
+    assert_eq!(second["data"], json!([[3, 203, "green"]]));
+    assert!(second["next_page_url"].is_null());
+    let previous = second["prev_page_url"].as_str().unwrap();
+    assert_eq!(request(address, previous).await["data"], first["data"]);
     server.abort();
+    connection
+        .statement("DROP TABLE pagination_memberships", &[])
+        .await?;
+    connection
+        .statement("DROP TABLE pagination_labels", &[])
+        .await?;
     connection
         .statement("DROP TABLE pagination_reactions", &[])
         .await?;

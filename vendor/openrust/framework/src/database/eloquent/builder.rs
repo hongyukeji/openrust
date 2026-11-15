@@ -1521,6 +1521,14 @@ impl<M: Model> Builder<'static, M> {
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<LengthAwarePaginator<M>> {
+        self.paginate_hydrated(options, |_, _| Ok(())).await
+    }
+
+    pub(super) async fn paginate_hydrated(
+        self,
+        options: PageOptions<'_>,
+        hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
+    ) -> DatabaseResult<LengthAwarePaginator<M>> {
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
@@ -1528,6 +1536,7 @@ impl<M: Model> Builder<'static, M> {
             .paginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)
@@ -1545,6 +1554,14 @@ impl<M: Model> Builder<'static, M> {
         self,
         options: PageOptions<'_>,
     ) -> DatabaseResult<Paginator<M>> {
+        self.simple_paginate_hydrated(options, |_, _| Ok(())).await
+    }
+
+    pub(super) async fn simple_paginate_hydrated(
+        self,
+        options: PageOptions<'_>,
+        hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
+    ) -> DatabaseResult<Paginator<M>> {
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
@@ -1552,6 +1569,7 @@ impl<M: Model> Builder<'static, M> {
             .simplePaginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)
@@ -1569,6 +1587,14 @@ impl<M: Model> Builder<'static, M> {
         self,
         options: CursorOptions<'_>,
     ) -> DatabaseResult<CursorPaginator<M>> {
+        self.cursor_paginate_hydrated(options, |_, _| Ok(())).await
+    }
+
+    pub(super) async fn cursor_paginate_hydrated(
+        self,
+        options: CursorOptions<'_>,
+        hydrate: impl FnOnce(&mut [M], &Connection) -> DatabaseResult<()>,
+    ) -> DatabaseResult<CursorPaginator<M>> {
         let key = self.qualifyColumn(M::metadata().primary_key);
         let (query, hydration) = self.hydration_query()?;
         let mut page = query
@@ -1576,6 +1602,7 @@ impl<M: Model> Builder<'static, M> {
             .cursorPaginateWith(options)
             .await?
             .map_items(|rows| hydration.rows(rows));
+        hydrate(page.items_mut(), &hydration.connection)?;
         super::concerns::has_events::retrieved(page.items_mut(), &hydration.connection).await?;
         load_eager(hydration.eager, page.items_mut()).await?;
         Ok(page)

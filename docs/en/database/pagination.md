@@ -52,6 +52,27 @@ async fn through_page<P: Model, I: Model, R: Model>(
 }
 ```
 
+`BelongsToMany` and `MorphToMany` support the same paginator methods. Each model on the current page carries its Pivot, including any custom model or accessor. Cursor pagination selects columns used by `orderByPivot` for cursor generation. Use `withPivot` to expose additional columns on the Pivot. The ordered columns together must uniquely identify each row.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::BelongsToMany}},
+    pagination::CursorPaginator,
+};
+
+async fn pivot_page<P: Model, R: Model>(
+    parent: &P,
+    relation: BelongsToMany<P, R>,
+) -> DatabaseResult<CursorPaginator<R>> {
+    relation
+        .withPivot(["label"])
+        .orderByPivot("weight", "asc")
+        .orderByPivot("label_id", "asc")
+        .cursorPaginate(parent, 15)
+        .await
+}
+```
+
 ## JSON and Links
 
 Paginators serialize when their items implement Serde’s `Serialize`. Use `map` to convert rows or Eloquent models into your response items without discarding page metadata. Call `withQueryString` to retain filters or `appends` to add selected parameters. Links use request-relative paths.

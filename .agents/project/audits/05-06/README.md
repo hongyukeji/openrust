@@ -21,3 +21,11 @@
 隔离基线 `b85a5b51`。MySQL 8.4.13 与 SQLite 的真实 HTTP 验证穿透分页总数、选列、母键隔离、筛选参数与上一页链接。双库直接验证游标跨页、无键父模型返回空页、`withTrashedParents()` 重新纳入软删除中间模型，以及 `latestOfMany` 分页只返回所选模型。6 项关系和 2 项分页回归通过。Rust 1.94.0 格式、全工作区全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 构建与 18 项浏览器检查通过。既有 Sanctum 格式只在隔离副本调整。
 
 临时容器已回收，清理隔离 Cargo 产物 1.8 GiB 与独占站点产物。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批补多对多分页的 Pivot 水合，Blade 分页链接和多语言导航仍待接入。
+
+## 多对多分页与 Pivot
+
+固定 [Laravel BelongsToMany](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php) 调用 Eloquent 分页后为当前页模型装配 Pivot。Rust 的 BelongsToMany 与 MorphToMany 提供三种分页及其选项入口，显式借用父模型。复用现有多态限制、Pivot 谓词、自定义模型、访问器及逆向快照。为游标选出的排序字段通过 SQL 别名保留给分页器，Pivot 仍按实际选列装配。旧版关系没有分页入口，沿用本单元已核对的 v0.x 查询分页。固定 [Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go) 用作查询层分页参考。
+
+以 `6fe44db2` 为隔离基线。在真实 MySQL 8.4.13 和 SQLite 上分别经 HTTP 验证父键和多态类型隔离、普通分页总数和回翻、自定义页名和筛选参数、游标来回翻页、自定义 Pivot 主键和访问器，以及内部投影从模型属性及其原始快照移除。双库直接验证简易分页的下一页和无键父模型空页。6 项关系、2 项分页回归、Rust 1.94.0 格式、工作区全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本调整。VitePress 构建有既有的 bundle 体积提示。
+
+临时 MySQL 容器已回收，清理本批独占 Cargo 产物 1.8 GiB 和独占文档构建产物及依赖。提交前周额度剩余 28%，项目卷可用 53 GiB。接下来核对 Blade 分页链接和本地化导航标签。

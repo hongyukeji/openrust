@@ -16,6 +16,10 @@ use crate::database::{
     query,
 };
 
+use crate::pagination::{
+    CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator,
+};
+
 use super::super::persistence::is_unique_violation;
 
 use super::{
@@ -1576,6 +1580,249 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .ok_or(DatabaseError::InvalidQuery("relationship parent key"))
     }
 
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        self.paginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<R>> {
+        let names = self.pivot_names();
+        let columns = self.page_pivot_columns(&names, false);
+        self.pagination_query(parent, options.columns, &columns)?
+            .paginate_hydrated(options, |models, connection| {
+                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+            })
+            .await
+    }
+
+    pub async fn simplePaginate(&self, parent: &P, per_page: u64) -> DatabaseResult<Paginator<R>> {
+        self.simplePaginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<R>> {
+        let names = self.pivot_names();
+        let columns = self.page_pivot_columns(&names, false);
+        self.pagination_query(parent, options.columns, &columns)?
+            .simple_paginate_hydrated(options, |models, connection| {
+                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+            })
+            .await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        self.cursorPaginateWith(
+            parent,
+            CursorOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<R>> {
+        let names = self.pivot_names();
+        let columns = self.page_pivot_columns(&names, true);
+        self.pagination_query(parent, options.columns, &columns)?
+            .cursor_paginate_hydrated(options, |models, connection| {
+                self.hydrate_page_pivots(parent, models, &columns, &names, connection)
+            })
+            .await
+    }
+
+    fn pagination_query(
+        &self,
+        parent: &P,
+        columns: &[&str],
+        pivot_columns: &[String],
+    ) -> DatabaseResult<Builder<'static, R>> {
+        let connection = self.keys.connection(parent)?;
+        let query = R::queryOn(&connection);
+        let columns = if columns.is_empty() || columns == ["*"] {
+            vec![query.qualifyColumn("*")]
+        } else {
+            columns
+                .iter()
+                .map(|column| query.qualifyColumn(column))
+                .collect()
+        };
+        let query = self
+            .keys
+            .configure(query.select_relation_columns(columns.iter().map(String::as_str)))?;
+        let related = query.qualifyColumn(self.keys.related);
+        let pivot_key = format!("{}.{}", self.pivot.table, self.pivot.related);
+        let owner = format!("{}.{}", self.pivot.table, self.pivot.foreign);
+        let keys = ParentKeys::new(&[parent], self.keys.parent)?;
+        Ok(query
+            .restrict_relation(&owner, &keys.bindings)
+            .map_relation_query(|query| {
+                let query = query.join(self.pivot.table, &related, "=", &pivot_key);
+                self.apply_pivot_query(query)
+                    .addSelect(pivot_columns.iter().map(String::as_str))
+            }))
+    }
+
+    fn apply_pivot_query(&self, query: query::Builder<'static>) -> query::Builder<'static> {
+        let query = self
+            .pivot_constraints
+            .apply(self.pivot.restrict_type(query, true));
+        self.pivot_orders
+            .iter()
+            .fold(query, |query, (column, direction)| {
+                query.orderBy(column, direction)
+            })
+    }
+
+    fn pivot_names(&self) -> Vec<&'static str> {
+        let mut names: Vec<_> = [self.pivot.foreign, self.pivot.related]
+            .into_iter()
+            .chain(self.pivot.morph.map(|(kind, _)| kind))
+            .chain(self.pivot_columns.iter().copied())
+            .collect();
+        if let Some((created, updated)) = self.pivot_timestamps {
+            for column in created.into_iter().chain(updated) {
+                if !names.contains(&column) {
+                    names.push(column);
+                }
+            }
+        }
+        if let Some(primary_key) = self.custom_pivot.and_then(|custom| custom.primary_key)
+            && !names.contains(&primary_key)
+        {
+            names.push(primary_key);
+        }
+        names
+    }
+
+    fn page_pivot_columns(&self, names: &[&str], cursor: bool) -> Vec<String> {
+        let mut columns = self.aliased_pivot_columns(names);
+        if cursor {
+            for (column, _) in &self.pivot_orders {
+                let already_selected = columns.iter().any(|selected| {
+                    selected
+                        .split_once(" as ")
+                        .is_some_and(|(source, _)| source == column)
+                });
+                if !already_selected {
+                    columns.push(format!("{column} as laravel_pivot_{}", columns.len()));
+                }
+            }
+        }
+        columns
+    }
+
+    fn aliased_pivot_columns(&self, names: &[&str]) -> Vec<String> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(index, column)| {
+                format!("{}.{column} as laravel_pivot_{index}", self.pivot.table)
+            })
+            .collect()
+    }
+
+    fn hydrate_page_pivots(
+        &self,
+        parent: &P,
+        models: &mut [R],
+        columns: &[String],
+        names: &[&str],
+        connection: &Connection,
+    ) -> DatabaseResult<()> {
+        let declaring = self
+            .pivot_inverses
+            .0
+            .as_ref()
+            .map(|_| Arc::new(P::from_state(parent.state().clone())));
+        for model in models {
+            let state = model.state_mut();
+            let mut pivot = Attributes::new();
+            for (index, column) in columns.iter().enumerate() {
+                let (_, alias) = column.split_once(" as ").expect("fixed pivot projection");
+                let value = state
+                    .attributes
+                    .remove(alias)
+                    .ok_or(DatabaseError::InvalidQuery("missing pivot column"))?;
+                state.original.remove(alias);
+                if let Some(&name) = names.get(index) {
+                    pivot.insert(name.into(), value);
+                }
+            }
+            self.attach_pivot(state, pivot, connection, declaring.clone())?;
+        }
+        Ok(())
+    }
+
+    fn attach_pivot(
+        &self,
+        state: &mut ModelState,
+        attributes: Attributes,
+        connection: &Connection,
+        declaring: Option<Arc<P>>,
+    ) -> DatabaseResult<()> {
+        if let Some(custom) = self.custom_pivot {
+            let mut defaults = self.pivot_constraints.defaults.clone();
+            defaults.extend(attributes);
+            let mut inverses = LoadedRelations::default();
+            if let Some(name) = &self.pivot_inverses.0 {
+                inverses.insert_inverse(name.clone(), declaring);
+            }
+            if let Some(name) = &self.pivot_inverses.1 {
+                // An owned snapshot avoids a strong reference cycle through the pivot.
+                let related = Arc::new(R::from_state(state.clone()));
+                inverses.insert_inverse(name.clone(), Some(related));
+            }
+            (custom.hydrate)(
+                &mut state.relations,
+                self.pivot_accessor,
+                defaults,
+                connection,
+                self.pivot.identity(self.timestamp_columns()),
+                inverses,
+            )?;
+        } else {
+            state.relations.insert(
+                self.pivot_accessor.into(),
+                Pivot::new(attributes),
+                Pivot::serialize,
+            );
+        }
+        Ok(())
+    }
+
     async fn match_many(
         &self,
         parents: &[&P],
@@ -1586,7 +1833,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         let mut dictionary: HashMap<_, Vec<_>> = HashMap::new();
         if !keys.bindings.is_empty() {
             let connection = self.keys.batch_connection(parents)?;
-            let (declaring_inverse, related_inverse) = &self.pivot_inverses;
+            let (declaring_inverse, _) = &self.pivot_inverses;
             let mut declaring_models = HashMap::new();
             if declaring_inverse.is_some() {
                 for parent in parents {
@@ -1601,30 +1848,8 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             let pivot_key = format!("{}.{}", self.pivot.table, self.pivot.related);
             let related_key = format!("{}.{}", R::metadata().table, self.keys.related);
             let related_columns = format!("{}.*", R::metadata().table);
-            let mut pivot_names: Vec<_> = [self.pivot.foreign, self.pivot.related]
-                .into_iter()
-                .chain(self.pivot.morph.map(|(kind, _)| kind))
-                .chain(self.pivot_columns.iter().copied())
-                .collect();
-            if let Some((created, updated)) = self.pivot_timestamps {
-                for column in created.into_iter().chain(updated) {
-                    if !pivot_names.contains(&column) {
-                        pivot_names.push(column);
-                    }
-                }
-            }
-            if let Some(primary_key) = self.custom_pivot.and_then(|custom| custom.primary_key)
-                && !pivot_names.contains(&primary_key)
-            {
-                pivot_names.push(primary_key);
-            }
-            let pivot_columns: Vec<_> = pivot_names
-                .iter()
-                .enumerate()
-                .map(|(index, column)| {
-                    format!("{}.{column} as laravel_pivot_{index}", self.pivot.table)
-                })
-                .collect();
+            let pivot_names = self.pivot_names();
+            let pivot_columns = self.aliased_pivot_columns(&pivot_names);
             for batch in keys.bindings.chunks(500) {
                 let mut query = self
                     .keys
@@ -1651,15 +1876,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                     .scoped()?
                     .0
                     .join(self.pivot.table, &related_key, "=", &pivot_key);
-                let query = self
-                    .pivot_constraints
-                    .apply(self.pivot.restrict_type(query, true));
-                let query = self
-                    .pivot_orders
-                    .iter()
-                    .fold(query, |query, (column, direction)| {
-                        query.orderBy(column, direction)
-                    });
+                let query = self.apply_pivot_query(query);
                 let rows = query
                     .addSelect(pivot_columns.iter().map(String::as_str))
                     .get_with_transaction(transaction.as_deref_mut())
@@ -1686,36 +1903,12 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
                             .zip(pivot)
                             .map(|(name, (_, value))| ((*name).into(), value))
                             .collect();
-                        if let Some(custom) = self.custom_pivot {
-                            let mut defaults = self.pivot_constraints.defaults.clone();
-                            defaults.extend(attributes);
-                            let mut inverses = LoadedRelations::default();
-                            if let Some(name) = declaring_inverse {
-                                inverses.insert_inverse(
-                                    name.clone(),
-                                    declaring_models.get(&owner).cloned(),
-                                );
-                            }
-                            if let Some(name) = related_inverse {
-                                // An owned snapshot avoids a strong reference cycle through the pivot.
-                                let related = Arc::new(R::from_state(state.clone()));
-                                inverses.insert_inverse(name.clone(), Some(related));
-                            }
-                            (custom.hydrate)(
-                                &mut state.relations,
-                                self.pivot_accessor,
-                                defaults,
-                                &connection,
-                                self.pivot.identity(self.timestamp_columns()),
-                                inverses,
-                            )?;
-                        } else {
-                            state.relations.insert(
-                                self.pivot_accessor.into(),
-                                Pivot::new(attributes),
-                                Pivot::serialize,
-                            );
-                        }
+                        self.attach_pivot(
+                            &mut state,
+                            attributes,
+                            &connection,
+                            declaring_models.get(&owner).cloned(),
+                        )?;
                         owners.push(owner);
                         models.push(R::from_state(state));
                     }

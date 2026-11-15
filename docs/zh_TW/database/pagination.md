@@ -52,6 +52,27 @@ async fn through_page<P: Model, I: Model, R: Model>(
 }
 ```
 
+`BelongsToMany` 和 `MorphToMany` 支援相同的分頁方法。目前頁面的每個模型都會載入 Pivot，支援自訂模型和存取器。游標分頁會查詢 `orderByPivot` 使用的欄位以產生游標。透過 `withPivot` 指定要在 Pivot 上公開的額外欄位。排序欄位的組合必須唯一識別每一列。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::BelongsToMany}},
+    pagination::CursorPaginator,
+};
+
+async fn pivot_page<P: Model, R: Model>(
+    parent: &P,
+    relation: BelongsToMany<P, R>,
+) -> DatabaseResult<CursorPaginator<R>> {
+    relation
+        .withPivot(["label"])
+        .orderByPivot("weight", "asc")
+        .orderByPivot("label_id", "asc")
+        .cursorPaginate(parent, 15)
+        .await
+}
+```
+
 ## JSON 和分頁連結
 
 當分頁項目實作 Serde 的 `Serialize` 時，可直接序列化分頁器。用 `map` 將資料庫列或 Eloquent 模型轉換為回應項目，保留分頁中繼資料。`withQueryString` 保留篩選條件，`appends` 加入選定參數。連結使用請求相對路徑。
