@@ -936,6 +936,22 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 }
 ```
 
+這十個名稱也可透過 `format` 依目前產生器的地區呼叫。明確呼叫內建 `ColorExtension` 時，顏色名稱使用預設英語詞表。具名 RGB 與 HSL 陣列方法回傳含三個整數分量的 JSON 陣列。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_color_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("zh-Hant-TW")?;
+    let colors = faker.ext(r"Faker\Extension\ColorExtension")?;
+    Ok([
+        faker.format("colorName", &[])?,
+        colors.format("colorName", &[])?,
+        faker.format("rgbColorAsArray", &[])?,
+    ])
+}
+```
+
 ### 瀏覽器 User-Agent {#browser-user-agent-samples}
 
 用 `userAgent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。

@@ -39,13 +39,21 @@ impl Faker {
     }
 
     pub fn safeColorName(&self) -> &'static str {
-        let (safe, _) = catalogs::names(self.locale());
-        safe[self.random.usize(..safe.len())]
+        self.sample_color_name(self.locale(), true)
     }
 
     pub fn colorName(&self) -> &'static str {
-        let (_, all) = catalogs::names(self.locale());
-        all[self.random.usize(..all.len())]
+        self.sample_color_name(self.locale(), false)
+    }
+
+    pub(in crate::database::eloquent::factories) fn sample_color_name(
+        &self,
+        locale: &str,
+        safe: bool,
+    ) -> &'static str {
+        let (safe_names, all_names) = catalogs::names(locale);
+        self.random
+            .sample(if safe { safe_names } else { all_names })
     }
 
     pub fn hslColorAsArray(&self) -> [u16; 3] {

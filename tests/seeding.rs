@@ -5829,6 +5829,60 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_colors_keep_local_provider_and_core_catalogs_distinct() -> DatabaseResult<()> {
+    const COLOR: &str = r"Faker\Extension\ColorExtension";
+    let chinese = Faker::new("zh-Hant-TW")?;
+    let english = Faker::new("en-US")?;
+    let core = chinese.ext(COLOR)?;
+    for (method, typed) in [
+        ("colorName", Faker::colorName as fn(&Faker) -> &'static str),
+        ("safeColorName", Faker::safeColorName),
+    ] {
+        chinese.seed(94);
+        let expected = typed(&chinese);
+        assert!(!expected.is_ascii());
+        chinese.seed(94);
+        assert_eq!(chinese.format(method, &[])?, expected.into());
+        english.seed(94);
+        let default = typed(&english);
+        assert!(default.is_ascii());
+        chinese.seed(94);
+        assert_eq!(core.format(method, &[])?, default.into());
+    }
+    for (method, typed) in [
+        ("hexColor", Faker::hexColor as fn(&Faker) -> String),
+        ("safeHexColor", Faker::safeHexColor),
+        ("rgbColor", Faker::rgbColor),
+        ("rgbCssColor", Faker::rgbCssColor),
+        ("rgbaCssColor", Faker::rgbaCssColor),
+        ("hslColor", Faker::hslColor),
+    ] {
+        chinese.seed(94);
+        let expected = typed(&chinese);
+        chinese.seed(94);
+        assert_eq!(chinese.format(method, &[])?, expected.clone().into());
+        chinese.seed(94);
+        assert_eq!(core.format(method, &[])?, expected.into());
+    }
+    chinese.seed(94);
+    let rgb = Value::Json(json!(chinese.rgbColorAsArray()));
+    chinese.seed(94);
+    assert_eq!(chinese.format("rgbColorAsArray", &[])?, rgb);
+    chinese.seed(94);
+    let hsl = Value::Json(json!(chinese.hslColorAsArray()));
+    chinese.seed(94);
+    assert_eq!(chinese.format("hslColorAsArray", &[])?, hsl);
+    chinese.seed(94);
+    assert_eq!(core.format("hslColorAsArray", &[])?, hsl);
+
+    chinese.addProvider(FakerProvider::new().formatter("colorName", |_, _| Ok("override".into())));
+    assert_eq!(chinese.parse("{{colorName}}")?, "override");
+    assert_ne!(core.format("colorName", &[])?, "override".into());
+    assert!(core.format("unknownColor", &[]).is_err());
+    Ok(())
+}
+
+#[test]
 fn faker_named_dates_preserve_provider_locales_and_instance_zones() -> DatabaseResult<()> {
     let epoch = [0_i64.into()];
     let czech = Faker::new("cs-CZ")?;

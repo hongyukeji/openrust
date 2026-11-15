@@ -1944,3 +1944,15 @@ PHP 8.5 实跑固定地区提供器及 Core DateTime，验证纪元日的四个�
 隔离基线 `0080c754`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、68 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异只在隔离副本调整。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并回读捷克月份属格、组合日期及东京时区纪元。无效时区报告错误并以状态 1 退出。`./artisan inspire`、VitePress 和 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，测试容器已回收，清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 29%，项目卷可用 53 GiB。按无前缀与显式扩展分开扫描，下一批复核 Color 的 10 个无前缀入口、地区词表与核心扩展契约，再核定 05-04 整体验收范围。
+
+## Faker 颜色具名调用与扩展词表
+
+对应固定 Laravel [工厂数据生成](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)。按固定 FakerPHP 的 [Color provider](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Color.php)、[繁体中文 Color](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/zh_TW/Color.php)和 [Core Color](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Core/Color.php)接通十个无前缀名称。v0.x 同名工厂及测试面向查询构造，固定 Goravel 类型化工厂继续作为编译装配参考。
+
+无前缀调用保留当前 Faker 的地区词表和自定义提供器优先级。内置 ColorExtension 显式调用颜色名称时使用默认英语词表。数值生成共享现有算法，具名 RGB 和 HSL 通道用 JSON 整数数组传递。固定 PHP 8.5 在地区和核心路径验证名称及数值输出，Rust 定种子核对十个方法及模板覆盖。
+
+以 [ContainerBuilder 默认注册](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Container/ContainerBuilder.php)为基准，八个内置扩展的公开方法名均有映射。对无前缀调度另行扫描固定 Provider 公开入口，剩余 Base 修饰器 optional、unique、valid 已用类型化接口表达。孟加拉 Utils::getBanglaNumber 是提供器内部工具，未由工厂注册为具名入口。此扫描供整单元验收对账使用。
+
+隔离基线 `c0c2ff3f`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、69 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。既有 Sanctum 格式差异仅在隔离副本调整。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，按序回读繁体中文名称、核心英语名称和序列化 RGB 数组。未知扩展方法报告原名称并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
+
+临时 Seeder 与原始文件一致，测试容器已回收。清理隔离 Cargo 产物 2.4 GiB 和独占站点产物及依赖。提交前周额度剩余 28%，项目卷可用 53 GiB。下一批依据计划与固定 Factory、Seeder 用例矩阵复核整单元证据，确认兼容边界和账本闭合条件。

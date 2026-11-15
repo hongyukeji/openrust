@@ -258,20 +258,7 @@ fn extension_method(id: &str, name: &str) -> Option<Builtin> {
         (BLOOD, "bloodtype") => |faker, _| Ok(faker.bloodType().into()),
         (BLOOD, "bloodrh") => |faker, _| Ok(faker.bloodRh().into()),
         (BLOOD, "bloodgroup") => |faker, _| Ok(faker.bloodGroup().into()),
-        (COLOR, "hexcolor") => |faker, _| Ok(faker.hexColor().into()),
-        (COLOR, "safehexcolor") => |faker, _| Ok(faker.safeHexColor().into()),
-        (COLOR, "rgbcolor") => |faker, _| Ok(faker.rgbColor().into()),
-        (COLOR, "rgbcsscolor") => |faker, _| Ok(faker.rgbCssColor().into()),
-        (COLOR, "rgbacsscolor") => |faker, _| Ok(faker.rgbaCssColor().into()),
-        (COLOR, "safecolorname") => |faker, _| Ok(faker.safeColorName().into()),
-        (COLOR, "colorname") => |faker, _| Ok(faker.colorName().into()),
-        (COLOR, "hslcolor") => |faker, _| Ok(faker.hslColor().into()),
-        (COLOR, "rgbcolorasarray") => {
-            |faker, _| Ok(Value::Json(serde_json::json!(faker.rgbColorAsArray())))
-        }
-        (COLOR, "hslcolorasarray") => {
-            |faker, _| Ok(Value::Json(serde_json::json!(faker.hslColorAsArray())))
-        }
+        (COLOR, name) => return color_formatter(name, true),
         (DATE_TIME, "date") => |faker, args| php_date(faker, args, "Y-m-d"),
         (DATE_TIME, "time") => |faker, args| php_date(faker, args, "H:i:s"),
         (DATE_TIME, "unixtime") => |faker, args| {
@@ -523,8 +510,27 @@ fn defaults(name: &str) -> Option<Builtin> {
                 .or_else(|| named_regional::formatter(name))
                 .or_else(|| named_identity::formatter(name))
                 .or_else(|| named_phone::formatter(name))
-                .or_else(|| legacy_date_formatter(name));
+                .or_else(|| legacy_date_formatter(name))
+                .or_else(|| color_formatter(name, false));
         }
+    })
+}
+
+fn color_formatter(name: &str, core: bool) -> Option<Builtin> {
+    Some(match name {
+        "safecolorname" if core => |faker, _| Ok(faker.sample_color_name("en_US", true).into()),
+        "colorname" if core => |faker, _| Ok(faker.sample_color_name("en_US", false).into()),
+        "hexcolor" => |faker, _| Ok(faker.hexColor().into()),
+        "safehexcolor" => |faker, _| Ok(faker.safeHexColor().into()),
+        "rgbcolor" => |faker, _| Ok(faker.rgbColor().into()),
+        "rgbcsscolor" => |faker, _| Ok(faker.rgbCssColor().into()),
+        "rgbacsscolor" => |faker, _| Ok(faker.rgbaCssColor().into()),
+        "safecolorname" => |faker, _| Ok(faker.safeColorName().into()),
+        "colorname" => |faker, _| Ok(faker.colorName().into()),
+        "hslcolor" => |faker, _| Ok(faker.hslColor().into()),
+        "rgbcolorasarray" => |faker, _| Ok(Value::Json(serde_json::json!(faker.rgbColorAsArray()))),
+        "hslcolorasarray" => |faker, _| Ok(Value::Json(serde_json::json!(faker.hslColorAsArray()))),
+        _ => return None,
     })
 }
 

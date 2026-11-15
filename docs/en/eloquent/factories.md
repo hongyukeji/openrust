@@ -936,6 +936,22 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 }
 ```
 
+The same ten names work through `format` with the generator’s locale. Calling the built-in `ColorExtension` explicitly uses the default English name catalogs. Named RGB and HSL array methods return JSON arrays with three integer channels.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn named_color_samples() -> DatabaseResult<[Value; 3]> {
+    let faker = Faker::new("zh-Hant-TW")?;
+    let colors = faker.ext(r"Faker\Extension\ColorExtension")?;
+    Ok([
+        faker.format("colorName", &[])?,
+        colors.format("colorName", &[])?,
+        faker.format("rgbColorAsArray", &[])?,
+    ])
+}
+```
+
 ### Browser User Agents {#browser-user-agent-samples}
 
 Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
