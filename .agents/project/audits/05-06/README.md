@@ -61,3 +61,11 @@
 MySQL 8.4.13 与 SQLite 的实际 HTTP 分页、6 项关系回归、6 项分页回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 与 18 项浏览器检查通过。测试涵盖窗口分段、格式化和紧凑 JSON、非法游标及空页。既有 Sanctum 的格式差异只在隔离副本整理。容器已回收，清理隔离 Cargo 产物 1.8 GiB 及独占站点产物。提交前周额度剩余 27%，项目卷可用 52 GiB。
 
 下一批补齐分页器向 Eloquent Collection 转发的 `loadMorph` 和 `loadMorphCount`。Resource 转换在 05-07 验收，命名路由链接在 06-01 验收。
+
+## 分页器多态加载和计数
+
+对照固定 Laravel 的 [PaginatorLoadMorph](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Pagination/PaginatorLoadMorphTest.php)、[CursorPaginatorLoadMorphCount](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Pagination/CursorPaginatorLoadMorphCountTest.php) 及同组四个用例。三种 Eloquent 分页器复用集合的批量加载与计数回填，处理当前页模型后返回同一个具体分页器。Rust 使用类型化目标别名及关系描述符。v0.x 未找到对应转发，固定 Goravel ORM 分页仅作为查询层参考。
+
+以 `1327cae9` 为隔离基线。MySQL 8.4.13 与 SQLite 实际 HTTP 各验证普通、简易和游标分页的混合类型、嵌套集合、计数、空页及链式返回。错误目标类型可返回错误后重试。后续页含非法多态类型时，前两页正常；翻到该页返回 500，删除非法记录后同一游标可重试。6 项分页和 6 项关系回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版差异只在隔离副本处理。容器已回收，清理 1.8 GiB 隔离编译产物及独占站点产物。提交前周额度剩余 27%，项目卷可用 52 GiB。
+
+分页矩阵的四项多态转发已验收。账本继续跟踪 05-02 关系与集合依赖整体验收。六项 Resource 转换随 05-07 验收，命名路由链接随 06-01 验收。

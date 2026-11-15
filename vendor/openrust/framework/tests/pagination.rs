@@ -10,7 +10,9 @@ use openrust::{
         DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
         eloquent::{
             Attributes, Model, ModelMetadata, ModelState,
-            relations::{BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphToMany, Pivot},
+            relations::{
+                BelongsToMany, HasMany, HasManyThrough, MorphMany, MorphTo, MorphToMany, Pivot,
+            },
         },
     },
     foundation::{Application, configuration::Routing, http::Kernel},
@@ -95,6 +97,26 @@ impl Model for Reaction {
     }
 }
 
+struct Activity(ModelState);
+
+impl Model for Activity {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata =
+            ModelMetadata::new("pagination_activities").timestamps(None, None);
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
 struct Label(ModelState);
 
 impl Model for Label {
@@ -162,6 +184,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/through", through_page)?;
     Route::get("/pivot-length", pivot_length_page)?;
     Route::get("/pivot-cursor", pivot_cursor_page)?;
+    Route::get("/morph", morph_page)?;
     Ok(())
 }
 
@@ -395,6 +418,50 @@ fn pivot_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
     })
 }
 
+fn morph_page(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let mode = request.query(Some("mode"))?.unwrap_or_default();
+        let query = Activity::query().map_err(internal)?.orderBy("id", "asc");
+        let subject = MorphTo::<Activity>::new("subject_type", "subject_id")
+            .target::<Article>("article", "id")
+            .target::<Label>("label", "id");
+        let comments = HasMany::<Article, Comment>::new("id", "article_id");
+        let memberships = HasMany::<Label, PageMembership>::new("id", "label_id");
+        macro_rules! respond {
+            ($page:expr) => {{
+                let mut page = $page.await.map_err(internal)?;
+                let identity = std::ptr::from_ref(&page).addr();
+                assert!(matches!(
+                    page.loadMorph("subject", &subject, "label", "comments", &comments)
+                        .await,
+                    Err(openrust::database::DatabaseError::InvalidQuery(_))
+                ));
+                let loaded = page
+                    .loadMorph("subject", &subject, "article", "comments", &comments)
+                    .await
+                    .map_err(internal)?
+                    .loadMorphCount("subject", &subject, "article", "comments", &comments)
+                    .await
+                    .map_err(internal)?
+                    .loadMorphCount("subject", &subject, "label", "memberships", &memberships)
+                    .await
+                    .map_err(internal)?
+                    .withQueryString();
+                assert_eq!(std::ptr::from_ref(loaded).addr(), identity);
+                Response::json(
+                    StatusCode::OK,
+                    page.map(|item| item.toArray().expect("activity serializes")),
+                )
+            }};
+        }
+        match mode.as_str() {
+            Some("simple") => respond!(query.simplePaginate(2)),
+            Some("cursor") => respond!(query.cursorPaginate(2)),
+            _ => respond!(query.paginate(2)),
+        }
+    })
+}
+
 fn pagination_links(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async move {
         let mode = request.query(Some("mode"))?.unwrap_or_default();
@@ -591,12 +658,16 @@ async fn request(address: SocketAddr, path: &str) -> Json {
 }
 
 async fn request_body(address: SocketAddr, path: &str) -> String {
+    request_with_status(address, path, 200).await
+}
+
+async fn request_with_status(address: SocketAddr, path: &str, status: u16) -> String {
     timeout(Duration::from_secs(5), async {
         let mut stream = TcpStream::connect(address).await.unwrap();
         stream.write_all(format!("GET {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
         let mut response = String::new();
         stream.read_to_string(&mut response).await.unwrap();
-        assert!(response.starts_with("HTTP/1.1 200 "), "{path} {response}");
+        assert!(response.starts_with(&format!("HTTP/1.1 {status} ")), "{path} {response}");
         response.split_once("\r\n\r\n").unwrap().1.to_owned()
     }).await.unwrap()
 }
@@ -651,6 +722,9 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         "INSERT INTO pagination_labels VALUES (1, 'first'), (2, 'second'), (3, 'third'), (4, 'other'), (5, 'image')",
         "CREATE TABLE pagination_memberships (id BIGINT PRIMARY KEY, owner_id BIGINT, label_id BIGINT, subject_type VARCHAR(30), label VARCHAR(30), weight INTEGER)",
         "INSERT INTO pagination_memberships VALUES (201, 1, 1, 'article', 'red', 2), (202, 1, 2, 'article', 'blue', 1), (203, 1, 3, 'article', 'green', 3), (204, 2, 4, 'article', 'other', 0), (205, 1, 5, 'image', 'excluded', 0)",
+        "DROP TABLE IF EXISTS pagination_activities",
+        "CREATE TABLE pagination_activities (id BIGINT PRIMARY KEY, subject_type VARCHAR(30), subject_id BIGINT)",
+        "INSERT INTO pagination_activities VALUES (1, 'article', 1), (2, 'label', 2), (3, 'article', 1), (4, 'article', 2), (5, NULL, NULL)",
         "DROP TABLE IF EXISTS pagination_reactions",
         "DROP TABLE IF EXISTS pagination_comments",
         "DROP TABLE IF EXISTS pagination_articles",
@@ -999,7 +1073,66 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(window.matches(">...</span>").count(), 2);
     assert!(window.contains(r#"aria-current="page""#) && window.contains(">9</span>"));
     assert!(!window.contains(">8</a>") && !window.contains(">10</a>"));
+    for path in [
+        "/api/morph",
+        "/api/morph?mode=simple",
+        "/api/morph?mode=cursor",
+    ] {
+        let first = request(address, path).await;
+        let subject = &first["data"][0]["subject"];
+        assert_eq!(first["data"][0]["id"], 1);
+        assert_eq!(subject["id"], 1);
+        assert_eq!(subject["comments_count"], 4);
+        let mut ids: Vec<_> = subject["comments"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|comment| comment["id"].as_i64().unwrap())
+            .collect();
+        ids.sort_unstable();
+        assert_eq!(ids, [11, 12, 13, 15]);
+        let label = &first["data"][1]["subject"];
+        assert_eq!(first["data"][1]["id"], 2);
+        assert_eq!(label["id"], 2);
+        assert_eq!(label["memberships_count"], 1);
+        assert!(label.get("comments").is_none());
+
+        let second = request(address, first["next_page_url"].as_str().unwrap()).await;
+        assert_eq!(second["data"][0]["id"], 3);
+        assert_eq!(second["data"][0]["subject"]["comments_count"], 4);
+        assert_eq!(second["data"][1]["id"], 4);
+        assert_eq!(second["data"][1]["subject"]["comments_count"], 1);
+        assert_eq!(second["data"][1]["subject"]["comments"][0]["id"], 14);
+        let last = request(address, second["next_page_url"].as_str().unwrap()).await;
+        assert_eq!(last["data"][0]["id"], 5);
+        assert!(last["data"][0]["subject"].is_null());
+        assert!(last["next_page_url"].is_null());
+    }
+    connection
+        .statement(
+            "INSERT INTO pagination_activities VALUES (6, 'unregistered', 1)",
+            &[],
+        )
+        .await?;
+    let clean = request(address, "/api/morph?mode=cursor").await;
+    assert_eq!(clean["data"][0]["subject"]["comments_count"], 4);
+    let clean = request(address, clean["next_page_url"].as_str().unwrap()).await;
+    let third = clean["next_page_url"].as_str().unwrap();
+    request_with_status(address, third, 500).await;
+    connection
+        .statement("DELETE FROM pagination_activities WHERE id = 6", &[])
+        .await?;
+    let recovered = request(address, third).await;
+    assert_eq!(recovered["data"][0]["id"], 5);
+
+    let empty = request(address, "/api/morph?page=99").await;
+    assert_eq!(empty["total"], 5);
+    assert_eq!(empty["data"], json!([]));
+
     server.abort();
+    connection
+        .statement("DROP TABLE pagination_activities", &[])
+        .await?;
     connection
         .statement("DROP TABLE pagination_memberships", &[])
         .await?;

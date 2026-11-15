@@ -108,6 +108,32 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+### Loading Polymorphic Relations on the Current Page {#loading-polymorphic-relations-on-the-current-page}
+
+Use `loadMorph` or `loadMorphCount` on an Eloquent paginator to load a nested relation or its count for one registered morph target. The methods update only the current page and return the same paginator for chaining.
+
+```rust
+use openrust::{
+    database::{
+        DatabaseResult,
+        eloquent::{Model, relations::{ExistenceRelation, MorphTo}},
+    },
+    pagination::LengthAwarePaginator,
+};
+
+async fn load_page_subjects<M: Model, T: Model>(
+    page: &mut LengthAwarePaginator<M>,
+    subject: &MorphTo<M>,
+    comments: &impl ExistenceRelation<Parent = T>,
+) -> DatabaseResult<()> {
+    page.loadMorph("subject", subject, "article", "comments", comments)
+        .await?
+        .loadMorphCount("subject", subject, "article", "comments", comments)
+        .await?;
+    Ok(())
+}
+```
+
 ## Displaying Pagination Results {#displaying-pagination-results}
 
 Use the paginator’s `links()` to create a Blade view. The default Tailwind view shows the result range and numbered links for `paginate`. Both `simplePaginate` and `cursorPaginate` show previous and next links. Navigation is empty when all results fit on one page. `onEachSide` adjusts the numbered window.

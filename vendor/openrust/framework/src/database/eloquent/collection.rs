@@ -1405,7 +1405,7 @@ impl<M: Model> Collection<M> {
     }
 }
 
-pub(super) async fn load_morph_relation<M: Model, T: Model>(
+pub(crate) async fn load_morph_relation<M: Model, T: Model>(
     models: &mut [M],
     name: &str,
     morph: &MorphTo<M>,
@@ -1436,7 +1436,7 @@ pub(super) async fn load_morph_paths<M: Model, T: Model>(
     Ok(())
 }
 
-pub(super) async fn load_morph_aggregates<M: Model, T: Model>(
+pub(crate) async fn load_morph_aggregates<M: Model, T: Model>(
     models: &mut [M],
     name: &str,
     morph: &MorphTo<M>,

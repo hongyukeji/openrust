@@ -108,6 +108,60 @@ macro_rules! paginator_json {
 
 pub(super) use paginator_json;
 
+macro_rules! paginator_morph {
+    ($paginator:ident) => {
+        #[allow(
+            non_snake_case,
+            reason = "Matches Laravel's paginator relationship API"
+        )]
+        impl<M: crate::database::eloquent::Model> $paginator<M> {
+            /// Loads a nested relation for a typed morph target on this page.
+            pub async fn loadMorph<T: crate::database::eloquent::Model>(
+                &mut self,
+                name: &str,
+                morph: &crate::database::eloquent::relations::MorphTo<M>,
+                alias: &str,
+                related_name: &str,
+                relation: &impl crate::database::eloquent::relations::Relation<Parent = T>,
+            ) -> crate::database::DatabaseResult<&mut Self> {
+                crate::database::eloquent::load_morph_relation(
+                    self.items_mut(),
+                    name,
+                    morph,
+                    alias,
+                    related_name,
+                    relation,
+                )
+                .await?;
+                Ok(self)
+            }
+
+            /// Loads a nested relation count for a typed morph target on this page.
+            pub async fn loadMorphCount<T: crate::database::eloquent::Model>(
+                &mut self,
+                name: &str,
+                morph: &crate::database::eloquent::relations::MorphTo<M>,
+                alias: &str,
+                related_name: &str,
+                relation: &impl crate::database::eloquent::relations::ExistenceRelation<Parent = T>,
+            ) -> crate::database::DatabaseResult<&mut Self> {
+                use crate::database::eloquent::{
+                    RelationAggregate, RelationAggregateQuery, load_morph_aggregates,
+                };
+
+                let count =
+                    RelationAggregateQuery::new(related_name, relation, RelationAggregate::Count);
+                load_morph_aggregates(self.items_mut(), name, morph, alias, &[count]).await?;
+                Ok(self)
+            }
+        }
+    };
+}
+
+paginator_morph!(Paginator);
+paginator_morph!(LengthAwarePaginator);
+paginator_morph!(CursorPaginator);
+
 pub type PaginationResult<T> = Result<T, PaginationError>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

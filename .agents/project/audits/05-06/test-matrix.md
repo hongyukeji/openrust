@@ -9,7 +9,7 @@
 | `LengthAwarePaginatorTest.php` | 10 | 双库 HTTP 验证页名、总数、范围与偏移。手工回归覆盖空集合、零页容量、首尾状态、尾部斜杠和已有编码查询的路径。手工零容量保留零值，末页除数保护与固定 Laravel 一致。 |
 | `CursorPaginatorTest.php` | 11 | 双库 HTTP 验证正向、逆向、回到首页和转换后继续导航。手工回归验证空页、尾斜杠、前后状态、紧凑及格式化 JSON。Rust 由键回调提供游标值，在类型转换前保留链接。 |
 | `UrlWindowTest.php` | 4 | `length_aware_url_window_preserves_each_segment` 覆盖短窗口、开头、中部、末尾和自定义相邻范围。实际 HTTP 验证两个省略号及当前页标记。 |
-| `{Paginator,CursorPaginator}LoadMorph{,Count}Test.php` | 4 | 当前 Eloquent Collection 已具备 `loadMorph`、`loadMorphCount`，分页器的同名调用及双库实际回归待 05-02／05-06 接线。 |
+| `{Paginator,CursorPaginator}LoadMorph{,Count}Test.php` | 4 | 三类分页器的同名入口直接复用集合批量加载与回填。双库 HTTP 验证同一分页器的链式返回、混合类型、计数、空页及非法类型到页才报错。 |
 | `{Paginator,Cursor}ResourceTest.php` | 6 | 显式 Resource、自动推断及找不到 Resource 的契约在 05-07 验收。 |
 
 上层关系分页、Blade 渲染、翻译和 Artisan 模板发布的实际入口验收见[本单元记录](README.md)。命名路由链接按计划在 06-01 验证。

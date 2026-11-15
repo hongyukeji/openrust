@@ -33,6 +33,7 @@ pub use builder::Builder;
 pub use collection::{
     BorrowedRelatedModel, Collection, CollectionModel, MorphCollectionModel, RelatedCollectionModel,
 };
+pub(crate) use collection::{load_morph_aggregates, load_morph_relation};
 pub(crate) use concerns::has_events::ModelEvents;
 pub use concerns::{
     ModelState,

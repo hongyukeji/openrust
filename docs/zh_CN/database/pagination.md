@@ -108,6 +108,32 @@ async fn pivot_page<P: Model, R: Model>(
 }
 ```
 
+### 加载当前页的多态关系 {#loading-polymorphic-relations-on-the-current-page}
+
+在 Eloquent 分页器上调用 `loadMorph` 或 `loadMorphCount`，可为指定的多态目标加载下级关系或关系计数。方法只处理当前页，并返回同一个分页器供链式调用。
+
+```rust
+use openrust::{
+    database::{
+        DatabaseResult,
+        eloquent::{Model, relations::{ExistenceRelation, MorphTo}},
+    },
+    pagination::LengthAwarePaginator,
+};
+
+async fn load_page_subjects<M: Model, T: Model>(
+    page: &mut LengthAwarePaginator<M>,
+    subject: &MorphTo<M>,
+    comments: &impl ExistenceRelation<Parent = T>,
+) -> DatabaseResult<()> {
+    page.loadMorph("subject", subject, "article", "comments", comments)
+        .await?
+        .loadMorphCount("subject", subject, "article", "comments", comments)
+        .await?;
+    Ok(())
+}
+```
+
 ## 显示分页结果 {#displaying-pagination-results}
 
 用分页器的 `links()` 创建 Blade 视图。默认 Tailwind 视图为 `paginate` 显示记录范围和页码链接。`simplePaginate` 和 `cursorPaginate` 显示上一页和下一页。结果只有一页时不输出导航。`onEachSide` 可调整页码窗口。
