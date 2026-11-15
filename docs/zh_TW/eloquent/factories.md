@@ -391,6 +391,19 @@ fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
 
 用 `words(count)`、`sentences(count)` 和 `paragraphs(count)` 產生指定數量的清單。對應的 `AsText` 方法用空格連接單字或句子，用空行分隔段落。`sentenceWithWordCount(count, variable)` 和 `paragraph(count, variable)` 支援固定數量或依上游 Faker 規則浮動。原有依範圍取樣的 `sentence(words)` 也可以繼續使用。`text(max)` 以 UTF-8 位元組為上限。上限不足五個位元組或無法容納產生項目時回傳錯誤。這些方法皆支援 `unique`。詞庫由 fake-rs 依語言提供。
 
+用 `format` 呼叫 `word`、`words`、`sentence`、`sentences`、`paragraph`、`paragraphs`、`text`、`realText` 和 `realTextBetween`。複數方法回傳 JSON 陣列，第二個參數為 true 時合併為文字。`sentence`、`paragraph` 和 `slug` 的第二個參數傳 false 時固定數量。`password` 接收最短和最長長度。網路和 User Agent 的具名方法沿用既有產生器。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_text() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let sentence = faker.format("sentence", &[2.into(), false.into()])?;
+    let slug = faker.format("slug", &[2.into(), false.into()])?;
+    Ok((sentence, slug))
+}
+```
+
 ### 預留字元格式化 {#pattern-formatters}
 
 用 `numerify(Some(pattern))` 將 `#` 替換為數字、將 `%` 替換為非零數字。`lexify` 將 `?` 替換為 ASCII 小寫字母。`bothify` 處理這三種預留字元，並以相同機率將每個 `*` 替換為數字或小寫字母。`asciify` 將 `*` 替換為 `!` 至 `~` 的可列印 ASCII 字元。其餘字元照原樣保留。傳入 `None` 使用上游 Faker 預設範本。`randomLetter()` 和 `randomAscii()` 回傳單一 Rust 字元。六個方法皆支援 `unique`。

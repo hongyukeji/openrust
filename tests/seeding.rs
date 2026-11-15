@@ -5829,6 +5829,61 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_named_text_and_internet_reuse_typed_generators() -> DatabaseResult<()> {
+    let faker = Faker::new("en-US")?;
+    faker.seed(91);
+    let expected = faker.sentenceWithWordCount(2, false);
+    faker.seed(91);
+    assert_eq!(
+        faker.format("sentence", &[2.into(), false.into()])?,
+        expected.into()
+    );
+    let Value::Json(serde_json::Value::Array(words)) = faker.format("words", &[])? else {
+        panic!("expected an array of words");
+    };
+    assert_eq!(words.len(), 3);
+    assert!(words.iter().all(serde_json::Value::is_string));
+    assert_eq!(
+        faker.format("words", &[Value::Null, true.into()])?,
+        "".into()
+    );
+    assert_eq!(
+        faker.format("sentences", &[0.into()])?,
+        Value::Json(json!([]))
+    );
+    assert_eq!(faker.format("paragraph", &[0.into()])?, "".into());
+    let Value::Text(paragraphs) = faker.format("paragraphs", &[2.into(), true.into()])? else {
+        panic!("expected joined paragraphs");
+    };
+    assert_eq!(paragraphs.split("\n\n").count(), 2);
+    assert!(faker.format("text", &[4.into()]).is_err());
+    assert!(faker.format("text", &[Value::Null]).is_err());
+    assert!(faker.format("words", &[i64::MAX.into()]).is_err());
+    assert!(faker.format("realText", &[200.into(), 0.into()]).is_err());
+
+    let Value::Text(password) = faker.format("password", &[8.into(), 8.into()])? else {
+        panic!("expected a password string");
+    };
+    assert_eq!(password.len(), 8);
+    assert!(password.bytes().all(|byte| byte.is_ascii_graphic()));
+    let Value::Text(slug) = faker.format("slug", &[2.into(), false.into()])? else {
+        panic!("expected a slug string");
+    };
+    assert_eq!(slug.split('-').count(), 2);
+    assert!(matches!(
+        faker.getFormatter("IPv4")?(&[])?,
+        Value::Text(ip) if ip.parse::<std::net::Ipv4Addr>().is_ok()
+    ));
+    assert!(matches!(
+        faker.format("userAgent", &[])?,
+        Value::Text(agent) if agent.contains('/')
+    ));
+    faker.addProvider(FakerProvider::new().formatter("word", |_, _| Ok("override".into())));
+    assert_eq!(faker.format("word", &[])?, "override".into());
+    Ok(())
+}
+
+#[test]
 fn faker_named_collection_formatters_keep_keys_types_and_bounds() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     faker.seed(123);

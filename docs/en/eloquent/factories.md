@@ -391,6 +391,19 @@ fn sample_date_ranges() -> DatabaseResult<(Value, Value)> {
 
 Use `words(count)`, `sentences(count)`, and `paragraphs(count)` for vectors of exactly that size. Their `AsText` variants join words or sentences with spaces and paragraphs with blank lines. Use `sentenceWithWordCount(count, variable)` and `paragraph(count, variable)` for a fixed count or the same count variation rule as upstream Faker. The range-based `sentence(words)` remains available. `text(max)` uses a UTF-8 byte limit. Values below five or a limit that cannot fit a generated unit return an error. These methods support `unique`. Vocabulary comes from fake-rs and varies by locale.
 
+Use `format` with `word`, `words`, `sentence`, `sentences`, `paragraph`, `paragraphs`, `text`, `realText`, and `realTextBetween`. The plural methods return JSON arrays, or join the samples as text when the second argument is true. Pass false as the second argument to `sentence`, `paragraph`, or `slug` to keep the count fixed. `password` accepts minimum and maximum lengths. Named Internet and user-agent methods reuse the existing generators.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_text() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("en-US")?;
+    let sentence = faker.format("sentence", &[2.into(), false.into()])?;
+    let slug = faker.format("slug", &[2.into(), false.into()])?;
+    Ok((sentence, slug))
+}
+```
+
 ### Pattern Formatters {#pattern-formatters}
 
 Use `numerify(Some(pattern))` to replace `#` with digits and `%` with nonzero digits. `lexify` replaces `?` with lowercase ASCII letters. `bothify` expands all three and replaces each `*` with a digit or lowercase letter, with equal probability for the two classes. `asciify` replaces `*` with printable ASCII from `!` through `~`. Other characters are preserved. Pass `None` to use the upstream Faker default pattern. `randomLetter()` and `randomAscii()` return individual Rust characters. All six methods support `unique`.

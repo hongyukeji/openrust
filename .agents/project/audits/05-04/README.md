@@ -1823,3 +1823,20 @@ Rust 在已有类型化生成器上接入具名 Value 参数。JSON 对象保留
 隔离基线 `cbb575da`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、59 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读文本键 `score` 和 JSON `[9,9]`。不允许重复时超量抽样报告错误并以状态 1 退出。
 
 Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.4 GiB 与独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。闭环账本保留 05-04 待完成状态，下一批按上游接口与 Rust 生成器对照补齐剩余具名 formatter。
+
+## Faker 文本、网络与 User Agent 的具名参数
+
+对照固定 Laravel 工厂数据生成章节和上游 Faker v1.24.1 的 Lorem、Text、Internet 与 UserAgent。PHP 8.5 探针实际运行固定 Lorem 和 Internet，核对省略和空值、固定词数、列表和文本形式、密码长度、IP 格式及短文本错误。v0.x 同名工厂仅用于查询构造，固定 Goravel 继续作为编译装配参考。
+
+| 接口组 | 本批具名接口 | 验收边界 |
+| --- | --- | --- |
+| Lorem 和 Text | word、words、sentence、sentences、paragraph、paragraphs、text、realText、realTextBetween | 复用类型化生成器，位置参数校验后传入。列表经 JSON 数组返回，短文本和不可分配的词数返回错误。 |
+| Internet | password、slug、companyEmail、safeEmailDomain、freeEmailDomain、domainWord、domainName、tld、url、ipv4、ipv6、localIpv4、macAddress | 复用经地区验收的生成器。固定长度和名称覆盖在具名入口复验。 |
+| UserAgent | userAgent、firefox、chrome、msedge、safari、opera、internetExplorer、macProcessor、linuxProcessor、windowsPlatformToken、macPlatformToken、linuxPlatformToken、iosMobileToken | 具名调度复用同一 RNG 和类型化生成逻辑。 |
+| 剩余接口 | 地址与姓名的地区专用方法、支付与身份、图像和其他方法 | 既有类型化证据不能代替具名调用证据，05-04 仍待逐组对账。 |
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Lorem.php 和 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Internet.php 。
+
+隔离基线 `963339f4`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、60 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，回读两个单词的句子和 slug。短文本报错并以状态 1 退出。
+
+Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.4 GiB 及站点构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。

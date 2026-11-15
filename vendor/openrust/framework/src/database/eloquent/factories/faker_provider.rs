@@ -11,6 +11,9 @@ use serde_json::Value as Json;
 use super::Faker;
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
+#[path = "faker_named_text.rs"]
+mod named_text;
+
 type Formatter = dyn Fn(&Faker, &[Value]) -> DatabaseResult<Value> + Send + Sync;
 type Builtin = fn(&Faker, &[Value]) -> DatabaseResult<Value>;
 pub(super) type Formatters = HashMap<String, Arc<Formatter>>;
@@ -477,7 +480,7 @@ fn defaults(name: &str) -> Option<Builtin> {
                 .regexify(pattern(args)?.unwrap_or(""))
                 .map(Value::from)
         },
-        _ => return None,
+        _ => return named_text::formatter(name),
     })
 }
 
