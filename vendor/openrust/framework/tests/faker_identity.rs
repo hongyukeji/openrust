@@ -4773,3 +4773,44 @@ fn serbian_address_scripts_and_montenegrin_spacing_match_their_providers() {
     assert!((42.43..=42.45).contains(&coordinates.latitude));
     assert!((19.16..=19.27).contains(&coordinates.longitude));
 }
+
+#[test]
+fn hungarian_addresses_preserve_city_tiers_and_secondary_addresses() {
+    let hungarian = fake(Some("hu-HU")).unwrap();
+    let address =
+        Regex::new(r"^[0-9]{4} .+, .+ [1-9][0-9]{0,2}\.(?: [0-9]{2}\. (?:emelet|ajtó))?$").unwrap();
+    let mut layouts = [false; 2];
+    for _ in 0..128 {
+        assert!(address.is_match(&hungarian.address()));
+        let street_address = hungarian.streetAddress();
+        layouts
+            [usize::from(street_address.ends_with("emelet") || street_address.ends_with("ajtó"))] =
+            true;
+    }
+    assert_eq!(layouts, [true; 2]);
+    let unique = hungarian.unique(true);
+    assert_eq!(unique.capital().unwrap(), "Budapest");
+    assert!(unique.capital().is_err());
+    assert!(hungarian.bigCity().is_ok());
+    assert!(hungarian.smallerCity().is_ok());
+}
+
+#[test]
+fn absent_address_provider_uses_us_layout_without_switching_person_locale() {
+    let address = Regex::new(r"^[1-9][0-9]{2,4} .+\n.+, [A-Z]{2} [0-9]{5}(?:-[0-9]{4})?$").unwrap();
+    let cyrillic = Regex::new(r"\p{Cyrillic}").unwrap();
+    for locale in ["bg-BG", "cy-GB", "zz-ZZ"] {
+        let faker = fake(Some(locale)).unwrap();
+        let mut postcode_forms = [false; 2];
+        for _ in 0..128 {
+            let generated = faker.address();
+            assert!(address.is_match(&generated));
+            postcode_forms[usize::from(faker.postcode().contains('-'))] = true;
+            if locale == "bg-BG" {
+                assert!(cyrillic.is_match(&generated));
+            }
+        }
+        assert_eq!(postcode_forms, [true; 2]);
+        assert!(faker.capital().is_err());
+    }
+}

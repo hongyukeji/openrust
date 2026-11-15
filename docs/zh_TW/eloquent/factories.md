@@ -1134,6 +1134,21 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+匈牙利地址以四位郵遞區號開頭，按權重抽取首都、大城市及小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市類別。地區缺少 FakerPHP Address 提供器時，`address()` 使用美國地址配置和地址詞表。地址中的人名仍採用指定地區現有的 Person 提供器。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("hu-HU"))?.address(),
+        fake(Some("bg-BG"))?.address(),
+        fake(Some("cy-GB"))?.address(),
+        fake(Some("zz-ZZ"))?.address(),
+    ])
+}
+```
+
 ### 依性別產生名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 從對應的上游 Faker 名字清單取樣。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 明確選擇分組。傳入 `None` 或未識別的分組會從兩組取樣。全名依地區範本組合現有姓氏資料，繁體中文名字由一個或兩個抽取字元組成。缺少地區清單時使用英文名字和範本。

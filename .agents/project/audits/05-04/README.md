@@ -1580,3 +1580,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、110 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、111 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对匈牙利 Address，并继续核对地区回退行为。
+
+## 匈牙利地址和地区回退
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [匈牙利 Address](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/hu_HU/Address.php) 与 [Factory 的提供器回退](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Factory.php#L36)。匈牙利保留城市权重 3:2:1、四位邮编、门牌尾随句点、补充地址和本地坐标。capital、bigCity、smallerCity 返回 Result 并支持 UniqueFaker。Rust 在构造 Faker 时核对固定 Address 地区列表。缺少本地 Address 时核心地址字段与布局回退 en_US，模板调用人名时仍按原地区选择 Person。v0.x 无等价 Faker 地址实现，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `367c0fa2`。PHP 反射核对 14 份匈牙利词表和模板，Address 提供器列表与固定版本目录逐项一致。匈牙利及保加利亚、威尔士、无提供器测试地区共 512 个固定 PHP 样本通过核验。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 516 行，含三语共用示例。回归覆盖城市分级、本地补充地址、回退的两种邮编、当地人名及 UniqueFaker 耗尽。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 35%，磁盘可用 79 GiB。下一批核对全部 Address 提供器的公开字段和行为，汇总 05-04 剩余差异。

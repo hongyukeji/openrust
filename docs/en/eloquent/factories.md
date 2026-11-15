@@ -1134,6 +1134,21 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
+Hungarian addresses begin with a four-digit postcode and use weighted capital, large city, and smaller city templates. Use `capital()`, `bigCity()`, or `smallerCity()` to select a tier explicitly. For locales without a FakerPHP Address provider, `address()` uses the US address layout and address catalogs. Person fields within the address still use the requested locale when its Person provider exists.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
+    Ok([
+        fake(Some("hu-HU"))?.address(),
+        fake(Some("bg-BG"))?.address(),
+        fake(Some("cy-GB"))?.address(),
+        fake(Some("zz-ZZ"))?.address(),
+    ])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.
