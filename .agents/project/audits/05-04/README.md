@@ -1460,3 +1460,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、97 项 Faker、49 项 See
 隔离基线 `b1fcddfb`。PHP 反射核对 15 份词表与模板，按同一规则核对 384 个固定 PHP 样本。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 387 行，含三语共用示例。Rust 回归检查连字符邮编、字面分隔符、捷克地址三种布局和 14 个地区唯一值耗尽。
 
 Rust 1.94.0 格式、工作区全目标严格 Clippy、98 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对德语地区 Address。
+
+## 德国、奥地利和瑞士德语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [德国](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/de_DE/Address.php)、[奥地利](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/de_AT/Address.php) 和 [瑞士德语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/de_CH/Address.php) Address。保留三地门牌模板、短长街道后缀、州与邮编。奥地利从 223 个完整邮编抽样，瑞士德语另支持城市词干及 26 组州简称和州名。Rust 直接抽取门牌字母类中的 a、b、c，州和后缀继续使用 Result，瑞士州沿用元组和 unique。v0.x 无对应 Faker 地址模块，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `7e8c4574`。PHP 反射核对 19 份词表和门牌模板及 26 组州数据，三地共 384 个固定 PHP 样本通过。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force`，写入并按序回读 387 行，包含三语共用示例。回归覆盖地区门牌、瑞士德语州名、唯一值耗尽和无效地区。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、99 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例可编译，VitePress 构建、根路径及 /docs/ 的 12 项浏览器检查和六项工厂页面示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收，清理独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与独占文档依赖。提交前周额度剩余 37%，磁盘可用 79 GiB。05-04 下一批核对荷兰语地区 Address。

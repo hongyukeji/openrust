@@ -993,6 +993,17 @@ fn central_european_address_samples() -> DatabaseResult<(String, String, String)
 }
 ```
 
+German, Austrian, and Swiss German addresses put the building number after the street name and the postcode before the city on the second line. Austria samples complete postcodes from its catalog. Swiss German street names can use a city stem. Use `streetSuffixShort()` and `streetSuffixLong()` for the regional suffixes. Swiss German `canton()` returns the abbreviation and German name from the same entry.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_german_address_sample() -> DatabaseResult<(String, (&'static str, &'static str))> {
+    let faker = fake(Some("de-CH"))?;
+    Ok((faker.address(), faker.unique(false).canton()?))
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

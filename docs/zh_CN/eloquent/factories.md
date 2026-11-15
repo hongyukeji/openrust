@@ -993,6 +993,17 @@ fn central_european_address_samples() -> DatabaseResult<(String, String, String)
 }
 ```
 
+德国、奥地利和瑞士的德语地址把门牌号放在街名后，第二行先写邮编再写城市。奥地利从词表抽取完整邮编，瑞士德语街名可以用城市名作为词干。`streetSuffixShort()` 和 `streetSuffixLong()` 提供当地街道后缀。瑞士德语的 `canton()` 返回同一条记录中的州简称和德语州名。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn swiss_german_address_sample() -> DatabaseResult<(String, (&'static str, &'static str))> {
+    let faker = fake(Some("de-CH"))?;
+    Ok((faker.address(), faker.unique(false).canton()?))
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

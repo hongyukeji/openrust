@@ -4363,3 +4363,28 @@ fn polish_czech_and_slovak_addresses_preserve_punctuation_and_postcodes() {
     }
     assert!(regions.region().is_err());
 }
+
+#[test]
+fn german_address_building_numbers_and_swiss_cantons_use_local_catalogs() {
+    let germany = fake(Some("de-DE")).unwrap();
+    let austria = fake(Some("de-AT")).unwrap();
+    let swiss = fake(Some("de-CH")).unwrap();
+    let german_number = Regex::new(r"^(?:[1-9][0-9]{0,2}|[1-9]/[1-9]|[1-9][0-9]?[abc])$").unwrap();
+    let austrian_number = Regex::new(r"^(?:[1-9][0-9]{0,2}|[0-9]{1,2}[abc])$").unwrap();
+    for _ in 0..128 {
+        assert!(german_number.is_match(&germany.buildingNumber()));
+        assert!(austrian_number.is_match(&austria.buildingNumber()));
+        assert!(austrian_number.is_match(&swiss.buildingNumber()));
+        assert_eq!(germany.postcode().len(), 5);
+        assert_eq!(austria.postcode().len(), 4);
+        let address = swiss.address();
+        let (_, place) = address.split_once('\n').unwrap();
+        assert_eq!(place.split_once(' ').unwrap().0.len(), 4);
+    }
+    let cantons = swiss.unique(true);
+    let values: std::collections::HashSet<_> = (0..26).map(|_| cantons.canton().unwrap()).collect();
+    assert!(values.contains(&("ZH", "Zürich")) && values.contains(&("GE", "Genf")));
+    assert!(cantons.canton().is_err());
+    assert!(germany.canton().is_err());
+    assert!(fake(Some("en-US")).unwrap().streetSuffixShort().is_err());
+}
