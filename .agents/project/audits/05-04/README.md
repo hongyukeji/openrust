@@ -1613,3 +1613,11 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、113 项 Faker、49 项 Se
 隔离基线 `64adf162`。逐项核对六份 JPJ 词表和模板，验证 256 个固定 PHP 样本。真实 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 257 行，包含一条三语共用示例。回归覆盖号牌格式、空字母和尾随空格、大小写、唯一值耗尽及地区错误。114 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、工作区全目标严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建及 18 项浏览器检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。下一批补齐波兰 LicensePlate 的地区及特殊号牌筛选，之后复核 Payment。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 35%，磁盘可用 79 GiB。
+
+## 波兰车牌及地区筛选
+
+对应固定 [Laravel 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)与 [FakerPHP v1.24.1 波兰 LicensePlate](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/LicensePlate.php)。保留 16 个常规省级区域、两类特殊号牌、390 条县及机构条目、重复代码权重和两组尾号正则。先筛选省级区域，再在选定区域筛县。筛选为空或没有匹配时从该级可用项抽取。默认排除特殊号牌，两个 Rust 入口共享 unique 历史。Rust 通过专用 WithOptions 方法及借用切片表达 PHP 可选参数，缓存固定尾号正则。PHP Fixture 显式注册 LicensePlate，Rust 由 pl-PL 选择已编译的提供器。v0.x 无相同实现，固定 Goravel 式应用装配由现有 Artisan 入口验收。
+
+隔离基线 `869b3b01`。按 PHP 反射核对全部地区、代码、县名和尾号模板的顺序及重复项。448 个固定 PHP 样本验证七组筛选。实际 MySQL 8.4.13 用 `main artisan db:seed --database=mysql --force` 写入并按序回读 449 行，包含三语共用示例。覆盖普通号牌、两种县码长度、军用、警务、禁用特殊号牌、空筛选及无匹配回退。115 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归、严格 Clippy 和 `./artisan inspire` 通过。三语示例编译、VitePress 构建和 18 项浏览器检查通过。已有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。05-04 下一批复核 Payment 的实际地区入口与行为。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 及文档依赖。提交前周额度剩余 34%，磁盘可用 79 GiB。

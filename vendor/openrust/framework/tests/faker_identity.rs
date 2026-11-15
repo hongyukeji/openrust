@@ -4840,3 +4840,60 @@ fn malaysian_jpj_plates_preserve_empty_letters_and_special_prefix_case() {
     assert!(prefixes.contains(&"BAMbee"));
     assert!(fake(Some("en-US")).unwrap().jpjNumberPlate().is_err());
 }
+
+#[test]
+fn polish_license_plate_filters_use_the_selected_region_and_fall_back() {
+    let faker = fake(Some("pl-PL")).unwrap();
+    let wroclaw = Regex::new(r"^[DV][WX] [0-9A-PR-Z][0-9A-PR-Z]{4}$").unwrap();
+    let county = Regex::new(r"^[DV]BL [0-9A-PR-Z]{4,5}$").unwrap();
+    let police = Regex::new(r"^HP[ABCDEFGHJKLMNPSTUWZ] [0-9A-PR-Z]{4,5}$").unwrap();
+    let unique = faker.unique(true);
+    for _ in 0..128 {
+        assert!(
+            wroclaw.is_match(
+                &unique
+                    .licensePlateWithOptions(
+                        false,
+                        Some(&["unknown", "dolnośląskie"]),
+                        Some(&["Wrocław", "unknown"]),
+                    )
+                    .unwrap(),
+            )
+        );
+        assert!(
+            county.is_match(
+                &faker
+                    .licensePlateWithOptions(
+                        false,
+                        Some(&["dolnośląskie"]),
+                        Some(&["bolesławiecki"])
+                    )
+                    .unwrap(),
+            )
+        );
+        assert!(
+            police.is_match(
+                &faker
+                    .licensePlateWithOptions(true, Some(&["services"]), Some(&["Policja"]))
+                    .unwrap(),
+            )
+        );
+        let army = faker
+            .licensePlateWithOptions(true, Some(&["army"]), None)
+            .unwrap();
+        assert!(army.starts_with('U'));
+        let fallback = faker
+            .licensePlateWithOptions(false, Some(&["army"]), Some(&[]))
+            .unwrap();
+        assert!(!fallback.starts_with(['H', 'U']));
+        assert!(!faker.licensePlate().unwrap().starts_with(['H', 'U']));
+    }
+    let english = fake(Some("en-US")).unwrap();
+    assert!(english.licensePlate().is_err());
+    assert!(
+        english
+            .unique(true)
+            .licensePlateWithOptions(true, None, None)
+            .is_err()
+    );
+}

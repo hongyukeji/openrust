@@ -1511,6 +1511,20 @@ fn malaysian_plate_sample() -> DatabaseResult<String> {
 }
 ```
 
+### Polish registration plates {#polish-registration-plates}
+
+Use `licensePlate()` with `pl-PL` for ordinary Polish plates. `licensePlateWithOptions(special, voivodeships, counties)` also accepts province and county names. When you enable special plates, include `army` or `services` in the province filter to select military or agency plates. A filter that matches no available name falls back to the available choices at that level. OpenRust selects the provider by locale. FakerPHP requires registering the Polish LicensePlate provider explicitly. Both Rust methods share the same `unique()` history.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn polish_plate_sample() -> DatabaseResult<String> {
+    fake(Some("pl-PL"))?.unique(false).licensePlateWithOptions(
+        false, Some(&["dolnośląskie"]), Some(&["Wrocław"]),
+    )
+}
+```
+
 ### Person Locale Fallback {#person-locale-fallback}
 
 When a locale has no Person provider, name formatters, `suffix()`, and `ssn()` use the `en-US` Person provider. A locale with its own Person provider uses that provider’s formatters, including the ones it inherits. For example, `en-CA` falls back to the US Person provider, while `en-SG` has its own provider and returns an unsupported-locale error for `ssn()`. The Person fallback applies only to Person formatters.

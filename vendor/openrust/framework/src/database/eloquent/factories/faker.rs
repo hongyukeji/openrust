@@ -44,6 +44,9 @@ mod html_lorem;
 #[path = "faker_identity.rs"]
 mod identity;
 
+#[path = "faker_license_plate.rs"]
+mod license_plate;
+
 #[path = "faker_modifiers.rs"]
 mod modifiers;
 

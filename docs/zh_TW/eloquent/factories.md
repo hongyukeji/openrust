@@ -1511,6 +1511,20 @@ fn malaysian_plate_sample() -> DatabaseResult<String> {
 }
 ```
 
+### 波蘭車牌 {#polish-registration-plates}
+
+使用 `pl-PL` 的 `licensePlate()` 產生一般波蘭車牌。`licensePlateWithOptions(special, voivodeships, counties)` 可依省和縣名篩選。啟用特殊車牌後，可在省級篩選中指定 `army` 或 `services` 產生軍用或機構車牌。篩選沒有符合項目時，從該級可用項目中抽取。OpenRust 依地區選擇提供器，FakerPHP 需顯式註冊波蘭 LicensePlate 提供器。兩個 Rust 方法共用 `unique()` 歷史。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn polish_plate_sample() -> DatabaseResult<String> {
+    fake(Some("pl-PL"))?.unique(false).licensePlateWithOptions(
+        false, Some(&["dolnośląskie"]), Some(&["Wrocław"]),
+    )
+}
+```
+
 ### Person 地區回退 {#person-locale-fallback}
 
 當指定地區沒有 Person provider 時，姓名介面、`suffix()` 和 `ssn()` 使用 `en-US` Person provider。已有 Person provider 的地區使用自身和繼承的介面。例如，`en-CA` 會回退到美國英語 Person，`en-SG` 有自己的 Person provider，呼叫 `ssn()` 回傳不支援錯誤。此回退僅適用於 Person 介面。
