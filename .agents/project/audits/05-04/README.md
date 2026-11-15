@@ -1751,3 +1751,15 @@ Rust 复用现有的重试循环，按调用拼写维护具名历史，并用带
 隔离基线 `6e2f9d08`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、55 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例并回读 `7`、`XX`。传入文本作为区间端点时报告类型错误并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。
 
 临时 Seeder 已恢复，测试容器已回收，隔离 Cargo 产物 5.0 GiB 和独占文档构建产物及依赖已清理。提交前周额度剩余 32%，磁盘可用 78 GiB。05-04 下一批核对限定扩展解析、扩展修饰器以及尚未接入的其他具名内置 formatter。
+
+## Faker 限定扩展名及修饰器组合
+
+对照固定 Laravel 的工厂数据生成章节及固定上游 Faker 的 Generator::getFormatter、Generator::ext 和 ContainerBuilder 默认扩展映射。v0.x 查询工厂没有 Faker 扩展，编译式装配沿用固定 Goravel 工厂契约。PHP 8.5 探针运行固定 Generator 和数字扩展，验证限定名参数、方法大小写、扩展 ID 区分大小写、未知扩展和缺少方法。使用固定修饰器复验限定名称的 unique、optional 和 valid 路径。
+
+Rust 在生成器实例内注册扩展，由 ext 返回已绑定句柄。限定名称直接查扩展，未知扩展和未知方法分别通过 DatabaseResult 返回。具名生成器方法调用对应扩展，已有类型化方法保留直接调用。已解析回调和扩展句柄保留取得时的实现，下一次按名称调用可看到新注册。Rust 的具名去重继续按完整名称保存历史，上游 PHP 代理按被调用的方法名称保存历史。三语正文统一上游称谓，保留来源链接。
+
+固定上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Generator.php#L715 和 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Container/ContainerBuilder.php 。
+
+隔离基线 `416f3b46`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、56 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 执行三语共用示例，回读 `demo` 和 `account-demo`。未知扩展报告原标识并以状态 1 退出。`./artisan inspire`、VitePress 构建和 18 项浏览器检查通过。基线 Sanctum 格式差异只在隔离副本处理。
+
+临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.0 GiB 和独占文档构建产物。提交前周额度剩余 31%，磁盘可用 78 GiB。已接 Barcode、Blood、Color、Number、Uuid 及 File 的 MIME 和扩展名方法。DateTime、Version、File 的 filePath 及其他内置方法的具名适配仍待对账，05-04 先继续核对序列闭包的属性与父模型上下文。

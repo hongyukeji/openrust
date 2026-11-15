@@ -12,6 +12,45 @@ type Formatter = dyn Fn(&Faker, &[Value]) -> DatabaseResult<Value> + Send + Sync
 type Builtin = fn(&Faker, &[Value]) -> DatabaseResult<Value>;
 pub(super) type Formatters = HashMap<String, Arc<Formatter>>;
 
+pub(super) type Extensions = HashMap<String, Arc<Formatters>>;
+
+const BARCODE: &str = r"Faker\Extension\BarcodeExtension";
+const BLOOD: &str = r"Faker\Extension\BloodExtension";
+const COLOR: &str = r"Faker\Extension\ColorExtension";
+const FILE: &str = r"Faker\Extension\FileExtension";
+const NUMBER: &str = r"Faker\Extension\NumberExtension";
+const UUID: &str = r"Faker\Extension\UuidExtension";
+const BUILTIN_EXTENSIONS: &[&str] = &[BARCODE, BLOOD, COLOR, FILE, NUMBER, UUID];
+
+/// A resolved extension bound to its generator.
+pub struct FakerExtension<'a> {
+    faker: &'a Faker,
+    methods: ExtensionMethods,
+}
+
+enum ExtensionMethods {
+    Builtin(&'static str),
+    Custom(Arc<Formatters>),
+}
+
+impl FakerExtension<'_> {
+    fn method(&self, name: &str) -> Option<Resolved> {
+        let name = name.to_ascii_lowercase();
+        match &self.methods {
+            ExtensionMethods::Builtin(id) => extension_method(id, &name).map(Resolved::Builtin),
+            ExtensionMethods::Custom(methods) => methods.get(&name).cloned().map(Resolved::Custom),
+        }
+    }
+
+    /// Invokes a method of this extension with positional arguments.
+    pub fn format(&self, method: &str, arguments: &[Value]) -> DatabaseResult<Value> {
+        let formatter = self
+            .method(method)
+            .ok_or_else(|| DatabaseError::UnknownFakerFormatter(method.to_owned()))?;
+        formatter.call(self.faker, arguments)
+    }
+}
+
 /// A set of named formatters that can be added to a Faker generator.
 #[derive(Default)]
 pub struct FakerProvider {
@@ -40,6 +79,15 @@ enum Resolved {
     Custom(Arc<Formatter>),
 }
 
+impl Resolved {
+    fn call(&self, faker: &Faker, arguments: &[Value]) -> DatabaseResult<Value> {
+        match self {
+            Self::Builtin(callback) => callback(faker, arguments),
+            Self::Custom(callback) => callback(faker, arguments),
+        }
+    }
+}
+
 #[allow(non_snake_case, reason = "Matches Faker generator methods")]
 impl Faker {
     /// Installs every formatter on this generator. The latest provider wins.
@@ -56,26 +104,54 @@ impl Faker {
         drop(replaced);
     }
 
+    /// Registers an extension under a case-sensitive container identifier.
+    pub fn addExtension(&self, id: &str, provider: FakerProvider) {
+        let replaced = self
+            .extensions
+            .write()
+            .unwrap()
+            .insert(id.to_owned(), Arc::new(provider.formatters));
+        drop(replaced);
+    }
+
+    /// Resolves an extension without invoking any of its methods.
+    pub fn ext(&self, id: &str) -> DatabaseResult<FakerExtension<'_>> {
+        let custom = self.extensions.read().unwrap().get(id).cloned();
+        let methods = if let Some(methods) = custom {
+            ExtensionMethods::Custom(methods)
+        } else if let Some(&builtin) = BUILTIN_EXTENSIONS.iter().find(|&&builtin| builtin == id) {
+            ExtensionMethods::Builtin(builtin)
+        } else {
+            return Err(DatabaseError::UnknownFakerExtension(id.to_owned()));
+        };
+        Ok(FakerExtension {
+            faker: self,
+            methods,
+        })
+    }
+
     /// Resolves a formatter by name. The returned callback retains the resolved provider.
     pub fn getFormatter<'a>(
         &'a self,
         name: &str,
     ) -> DatabaseResult<impl Fn(&[Value]) -> DatabaseResult<Value> + 'a + use<'a>> {
         let key = name.to_ascii_lowercase();
-        let formatter = if let Some(builtin) = core(&key) {
-            Resolved::Builtin(builtin)
-        } else if let Some(callback) = self.formatters.read().unwrap().get(&key).cloned() {
-            Resolved::Custom(callback)
-        } else if let Some(builtin) = defaults(&key) {
-            Resolved::Builtin(builtin)
-        } else {
-            return Err(DatabaseError::UnknownFakerFormatter(name.to_owned()));
-        };
+        let formatter =
+            if let Some((id, method)) = qualified(name).or_else(|| generator_extension(&key)) {
+                self.ext(id)?
+                    .method(method)
+                    .ok_or_else(|| DatabaseError::UnknownFakerFormatter(name.to_owned()))?
+            } else if key == "parse" {
+                Resolved::Builtin(parse_formatter)
+            } else if let Some(callback) = self.formatters.read().unwrap().get(&key).cloned() {
+                Resolved::Custom(callback)
+            } else if let Some(builtin) = defaults(&key) {
+                Resolved::Builtin(builtin)
+            } else {
+                return Err(DatabaseError::UnknownFakerFormatter(name.to_owned()));
+            };
 
-        Ok(move |arguments: &[Value]| match &formatter {
-            Resolved::Builtin(callback) => callback(self, arguments),
-            Resolved::Custom(callback) => callback(self, arguments),
-        })
+        Ok(move |arguments: &[Value]| formatter.call(self, arguments))
     }
 
     pub fn format(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
@@ -113,15 +189,69 @@ impl Faker {
     }
 }
 
-fn core(name: &str) -> Option<Builtin> {
+fn qualified(name: &str) -> Option<(&str, &str)> {
+    let (id, method) = name.split_once("->")?;
+    (!id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'\\')
+        && !method.is_empty()
+        && method.bytes().all(|byte| byte.is_ascii_alphanumeric()))
+    .then_some((id, method))
+}
+
+fn generator_extension(name: &str) -> Option<(&'static str, &str)> {
     Some(match name {
-        "mimetype" => |faker, _| Ok(faker.mimeType().into()),
-        "fileextension" => |faker, _| Ok(faker.fileExtension().into()),
-        "bloodtype" => |faker, _| Ok(faker.bloodType().into()),
-        "bloodrh" => |faker, _| Ok(faker.bloodRh().into()),
-        "randomdigit" => |faker, _| Ok(i64::from(faker.randomDigit()).into()),
-        "randomdigitnotzero" => |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into()),
-        "numberbetween" => |faker, args| {
+        "mimetype" => (FILE, name),
+        "fileextension" => (FILE, "extension"),
+        "bloodtype" | "bloodrh" | "bloodgroup" => (BLOOD, name),
+        "ean13" | "ean8" | "isbn10" | "isbn13" => (BARCODE, name),
+        "randomdigit" | "randomdigitnotzero" | "numberbetween" | "randomdigitnot"
+        | "randomnumber" | "randomfloat" => (NUMBER, name),
+        _ => return None,
+    })
+}
+
+fn parse_formatter(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    match args {
+        [Value::Text(template)] => faker.parse(template).map(Value::from),
+        _ => Err(DatabaseError::InvalidQuery(
+            "Faker parse expects a template",
+        )),
+    }
+}
+
+fn extension_method(id: &str, name: &str) -> Option<Builtin> {
+    Some(match (id, name) {
+        (BARCODE, "ean13") => |faker, _| Ok(faker.ean13().into()),
+        (BARCODE, "ean8") => |faker, _| Ok(faker.ean8().into()),
+        (BARCODE, "isbn10") => |faker, _| Ok(faker.isbn10().into()),
+        (BARCODE, "isbn13") => |faker, _| Ok(faker.isbn13().into()),
+        (BLOOD, "bloodtype") => |faker, _| Ok(faker.bloodType().into()),
+        (BLOOD, "bloodrh") => |faker, _| Ok(faker.bloodRh().into()),
+        (BLOOD, "bloodgroup") => |faker, _| Ok(faker.bloodGroup().into()),
+        (COLOR, "hexcolor") => |faker, _| Ok(faker.hexColor().into()),
+        (COLOR, "safehexcolor") => |faker, _| Ok(faker.safeHexColor().into()),
+        (COLOR, "rgbcolor") => |faker, _| Ok(faker.rgbColor().into()),
+        (COLOR, "rgbcsscolor") => |faker, _| Ok(faker.rgbCssColor().into()),
+        (COLOR, "rgbacsscolor") => |faker, _| Ok(faker.rgbaCssColor().into()),
+        (COLOR, "safecolorname") => |faker, _| Ok(faker.safeColorName().into()),
+        (COLOR, "colorname") => |faker, _| Ok(faker.colorName().into()),
+        (COLOR, "hslcolor") => |faker, _| Ok(faker.hslColor().into()),
+        (COLOR, "rgbcolorasarray") => {
+            |faker, _| Ok(Value::Json(serde_json::json!(faker.rgbColorAsArray())))
+        }
+        (COLOR, "hslcolorasarray") => {
+            |faker, _| Ok(Value::Json(serde_json::json!(faker.hslColorAsArray())))
+        }
+        (FILE, "mimetype") => |faker, _| Ok(faker.mimeType().into()),
+        (FILE, "extension") => |faker, _| Ok(faker.fileExtension().into()),
+        (UUID, "uuid3") => |faker, _| Ok(faker.uuid().to_string().into()),
+        (NUMBER, "randomdigit") => |faker, _| Ok(i64::from(faker.randomDigit()).into()),
+        (NUMBER, "randomdigitnotzero") => {
+            |faker, _| Ok(i64::from(faker.randomDigitNotNull()).into())
+        }
+        (NUMBER, "numberbetween") => |faker, args| {
             let [first, second] = arguments(args)?;
             Ok(faker
                 .numberBetween(
@@ -134,7 +264,7 @@ fn core(name: &str) -> Option<Builtin> {
                 )
                 .into())
         },
-        "randomdigitnot" => |faker, args| {
+        (NUMBER, "randomdigitnot") => |faker, args| {
             let [Some(except)] = arguments(args)? else {
                 return Err(DatabaseError::InvalidQuery(
                     "Faker randomDigitNot requires an integer",
@@ -142,7 +272,7 @@ fn core(name: &str) -> Option<Builtin> {
             };
             Ok(i64::from(faker.randomDigitNot(integer(Some(except))?.unwrap_or(0))).into())
         },
-        "randomnumber" => |faker, args| {
+        (NUMBER, "randomnumber") => |faker, args| {
             let [digits, strict] = arguments(args)?;
             let digits = integer(digits)?
                 .map(u32::try_from)
@@ -161,7 +291,7 @@ fn core(name: &str) -> Option<Builtin> {
             };
             faker.randomNumber(digits, strict).map(Value::from)
         },
-        "randomfloat" => |faker, args| {
+        (NUMBER, "randomfloat") => |faker, args| {
             let [decimals, min, max] = arguments(args)?;
             let decimals = integer(decimals)?
                 .map(i32::try_from)
@@ -172,12 +302,6 @@ fn core(name: &str) -> Option<Builtin> {
             faker
                 .randomFloat(decimals, real(min)?.unwrap_or(0.0), real(max)?)
                 .map(Value::Real)
-        },
-        "parse" => |faker, args| match args {
-            [Value::Text(template)] => faker.parse(template).map(Value::from),
-            _ => Err(DatabaseError::InvalidQuery(
-                "Faker parse expects a template",
-            )),
         },
         _ => return None,
     })

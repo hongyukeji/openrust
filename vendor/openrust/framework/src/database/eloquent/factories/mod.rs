@@ -74,7 +74,7 @@ mod relationships;
 
 pub use faker::{Coordinates, CreditCardDetails, Faker, UniqueFaker, fake};
 pub use faker_image::ImageOptions;
-pub use faker_provider::FakerProvider;
+pub use faker_provider::{FakerExtension, FakerProvider};
 
 pub use relationships::{FactoryChild, FactoryParent};
 

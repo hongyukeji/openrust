@@ -5722,6 +5722,107 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
 }
 
 #[test]
+fn faker_qualified_extensions_resolve_and_compose_with_modifiers() -> DatabaseResult<()> {
+    const NUMBER: &str = r"Faker\Extension\NumberExtension";
+    const CUSTOM: &str = r"App\Faker\Code";
+    const CODE: &str = r"App\Faker\Code->value";
+    let faker = Faker::new("en-US")?;
+    let previous = faker.getFormatter("numberBetween")?;
+    assert_eq!(
+        faker
+            .ext(NUMBER)?
+            .format("NUMBERBETWEEN", &[7.into(), 7.into()])?,
+        7.into()
+    );
+    assert_eq!(
+        faker.format(
+            r"Faker\Extension\NumberExtension->numberBetween",
+            &[8.into(), 8.into()]
+        )?,
+        8.into()
+    );
+    assert!(matches!(
+        faker.format(r"Faker\Extension\BarcodeExtension->ean13", &[])?,
+        Value::Text(code) if code.len() == 13
+    ));
+    assert!(matches!(
+        faker.format(r"Faker\Extension\ColorExtension->rgbColorAsArray", &[])?,
+        Value::Json(serde_json::Value::Array(channels)) if channels.len() == 3
+    ));
+    faker.addExtension(
+        NUMBER,
+        FakerProvider::new().formatter("numberBetween", |_, _| Ok(12.into())),
+    );
+    assert_eq!(
+        faker.format("numberBetween", &[3.into(), 3.into()])?,
+        12.into()
+    );
+    assert_eq!(previous(&[3.into(), 3.into()])?, 3.into());
+    assert_eq!(faker.numberBetween(3, 3), 3);
+    assert!(matches!(
+        faker.format("randomDigit", &[]),
+        Err(DatabaseError::UnknownFakerFormatter(name)) if name == "randomDigit"
+    ));
+
+    faker.addProvider(FakerProvider::new().formatter(CODE, |_, _| Ok("provider".into())));
+    assert!(
+        matches!(faker.format(CODE, &[]), Err(DatabaseError::UnknownFakerExtension(id)) if id == CUSTOM)
+    );
+    faker.addExtension(
+        CUSTOM,
+        FakerProvider::new()
+            .formatter("Value", |_, _| Ok("extension".into()))
+            .formatter("failure", |_, _| {
+                Err(DatabaseError::InvalidQuery("extension failed"))
+            }),
+    );
+    assert_eq!(faker.parse(r"{{ App\Faker\Code->VALUE }}")?, "extension");
+    assert!(matches!(
+        faker.format(r"app\Faker\Code->value", &[]),
+        Err(DatabaseError::UnknownFakerExtension(_))
+    ));
+    assert!(matches!(
+        faker.format(r"App\Faker\Code->missing", &[]),
+        Err(DatabaseError::UnknownFakerFormatter(_))
+    ));
+    assert_eq!(
+        faker.uniqueWithRetries(false, 1).format(CODE, &[])?,
+        "extension".into()
+    );
+    assert!(matches!(
+        faker.uniqueWithRetries(false, 1).format(CODE, &[]),
+        Err(DatabaseError::InvalidQuery("unique Faker values exhausted"))
+    ));
+    assert_eq!(
+        faker.optional(Some(0.0), Some("fallback".into()), |f| f
+            .format("Absent->value", &[]))?,
+        Some("fallback".into())
+    );
+    assert_eq!(
+        faker.valid(
+            |v| v == &Value::from("extension"),
+            Some(1),
+            |f| f.format(CODE, &[])
+        )?,
+        "extension".into()
+    );
+    assert!(matches!(
+        faker.valid(
+            |_| true,
+            Some(1),
+            |f| f.format(r"App\Faker\Code->failure", &[])
+        ),
+        Err(DatabaseError::InvalidQuery("extension failed"))
+    ));
+    let isolated = Faker::new("en-US")?;
+    assert!(matches!(
+        isolated.format(CODE, &[]),
+        Err(DatabaseError::UnknownFakerExtension(_))
+    ));
+    Ok(())
+}
+
+#[test]
 fn faker_named_modifiers_keep_upstream_retry_and_history_rules() -> DatabaseResult<()> {
     let faker = Faker::new("en-US")?;
     let calls = Arc::new(AtomicUsize::new(0));

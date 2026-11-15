@@ -279,7 +279,7 @@ fn sample_provider() -> DatabaseResult<String> {
 }
 ```
 
-用 `unique(reset).format(name, arguments)` 取得不重複的結果。與 FakerPHP 一樣，去重歷史依呼叫時的拼寫區分。`code` 與 `Code` 可解析到同一個 formatter，各自保留歷史。更換參數或提供器會沿用同一拼寫的歷史。結果保留 Rust 型別，整數 `7` 與文字 `"7"` 可分別回傳。依名稱呼叫與型別化呼叫各有獨立歷史，`unique(true)` 會清除目前產生器的兩類歷史。透過既有的 `optional` 與 `valid` 閉包呼叫 `format`，可提供預設值或驗證條件。`optional` 決定回傳預設值時會跳過 formatter 查找。
+用 `unique(reset).format(name, arguments)` 取得不重複的結果。與 上游 Faker 一樣，去重歷史依呼叫時的拼寫區分。`code` 與 `Code` 可解析到同一個 formatter，各自保留歷史。更換參數或提供器會沿用同一拼寫的歷史。結果保留 Rust 型別，整數 `7` 與文字 `"7"` 可分別回傳。依名稱呼叫與型別化呼叫各有獨立歷史，`unique(true)` 會清除目前產生器的兩類歷史。透過既有的 `optional` 與 `valid` 閉包呼叫 `format`，可提供預設值或驗證條件。`optional` 決定回傳預設值時會跳過 formatter 查找。
 
 ```rust
 use openrust::database::{
@@ -309,7 +309,7 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 
 將位置參數傳給 `format` 或 `getFormatter` 回傳的回呼。產生器的 `numberBetween`、`randomDigit`、`randomDigitNot`、`randomDigitNotZero`、`randomNumber` 和 `randomFloat` 優先於提供器。`boolean`、`latitude`、`longitude`、`randomDigitNotNull`、`randomLetter`、`randomAscii`、`numerify`、`lexify`、`bothify`、`asciify` 和 `regexify` 是提供器預設值。
 
-省略參數時沿用 FakerPHP 預設值。明確傳入 `Value::Null` 時保留該 formatter 對空值的行為。例如 `numberBetween(7, null)` 從零至七取樣，`numerify(null)` 回傳空值。次數和機率百分比用整數，嚴格模式用布林值，浮點上下界用數值，模式用文字。Rust 驗證這些型別，並拒絕有參數的 formatter 收到多餘參數。
+省略參數時沿用 上游 Faker 預設值。明確傳入 `Value::Null` 時保留該 formatter 對空值的行為。例如 `numberBetween(7, null)` 從零至七取樣，`numerify(null)` 回傳空值。次數和機率百分比用整數，嚴格模式用布林值，浮點上下界用數值，模式用文字。Rust 驗證這些型別，並拒絕有參數的 formatter 收到多餘參數。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -320,6 +320,32 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
     let pattern = faker.getFormatter("regexify")?;
     let code = pattern(&["^X{2}$".into()])?;
     Ok((number, code))
+}
+```
+
+### Formatter 擴充 {#formatter-extensions}
+
+用 `addExtension` 註冊擴充方法，再透過 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。擴充識別碼區分大小寫，方法查找忽略 ASCII 大小寫。限定名稱直接查找擴充。未知擴充回傳 `UnknownFakerExtension`，已註冊擴充缺少方法時回傳 `UnknownFakerFormatter`。
+
+`Faker\Extension\` 下的內建識別碼包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType` 和 `extension`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次註冊同一識別碼會取代其方法集。數字、條碼、血型和檔案的產生器具名方法使用已註冊擴充。Rust 型別化方法繼續使用內建實作。取代前取得的擴充控制代碼或 formatter 保留已解析的回呼。
+
+限定名稱也可用於 `parse` 和 `unique(false).format(name, args)`，或在既有 `optional` 與 `valid` 回呼中傳給 `format`。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::{Faker, FakerProvider},
+};
+
+fn sample_extension() -> DatabaseResult<(Value, String)> {
+    let faker = Faker::new("en-US")?;
+    faker.addExtension(
+        r"App\Faker\Code",
+        FakerProvider::new().formatter("value", |_, _| Ok("demo".into())),
+    );
+    let value = faker.unique(true).format(r"App\Faker\Code->value", &[])?;
+    let label = faker.parse(r"account-{{ App\Faker\Code->value }}")?;
+    Ok((value, label))
 }
 ```
 
@@ -385,7 +411,7 @@ fn regional_email_sample() -> DatabaseResult<String> {
 
 ### 地區使用者名稱 {#regional-usernames}
 
-`userName()` 在沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本使用固定 FakerPHP 羅馬字姓名詞表。立陶宛範本從相同性別群組取名字與姓氏。簡體中文使用固定 Lorem 詞表和含底線的範本。`safeEmail()` 和 `freeEmail()` 共用此產生器作為信箱本地部分。通用路徑使用 Rust 音譯，音譯後只剩分隔符時產生一個字母，保留使用者名稱與信箱的無錯誤簽名。
+`userName()` 在沙烏地阿拉伯、約旦、埃及、伊朗、韓國和日本使用固定 上游 Faker 羅馬字姓名詞表。立陶宛範本從相同性別群組取名字與姓氏。簡體中文使用固定 Lorem 詞表和含底線的範本。`safeEmail()` 和 `freeEmail()` 共用此產生器作為信箱本地部分。通用路徑使用 Rust 音譯，音譯後只剩分隔符時產生一個字母，保留使用者名稱與信箱的無錯誤簽名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -408,7 +434,7 @@ fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
 
 ### 電話號碼和 IMEI 樣本 {#phone-and-imei-samples}
 
-用 `phoneNumber()` 產生固定 FakerPHP 地區 Provider 的顯示號碼。地區沒有 PhoneNumber Provider 時使用美國顯示範本。孟加拉使用孟加拉數字，越南依所選區碼決定用戶號碼長度。巴西也提供僅含數字的 `phoneNumberCleared()`，支援 `unique()`。 `e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
+用 `phoneNumber()` 產生固定 上游 Faker 地區 Provider 的顯示號碼。地區沒有 PhoneNumber Provider 時使用美國顯示範本。孟加拉使用孟加拉數字，越南依所選區碼決定用戶號碼長度。巴西也提供僅含數字的 `phoneNumberCleared()`，支援 `unique()`。 `e164PhoneNumber()` 使用固定的國際號碼範本及地區覆寫，回傳以加號開頭的數字字串。`imei()` 回傳 15 位數字，含 Luhn 檢查碼。三個方法均支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -486,7 +512,7 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 
 ### 檔案範例 {#file-samples}
 
-`mimeType()` 從固定 FakerPHP 目錄選擇 MIME 類型。`fileExtension()` 先選 MIME 群組，再回傳不含點的副檔名。兩個方法與版本 3 的 `uuid()` 都支援 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 從既有目錄的頂層選取可讀檔案，再複製到另一個既有目錄，產生的檔名保留來源副檔名。Rust 使用明確路徑，失敗時回傳 I/O 錯誤。
+`mimeType()` 從固定 上游 Faker 目錄選擇 MIME 類型。`fileExtension()` 先選 MIME 群組，再回傳不含點的副檔名。兩個方法與版本 3 的 `uuid()` 都支援 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 從既有目錄的頂層選取可讀檔案，再複製到另一個既有目錄，產生的檔名保留來源副檔名。Rust 使用明確路徑，失敗時回傳 I/O 錯誤。
 
 ```rust
 use std::{io, path::{Path, PathBuf}};
@@ -499,7 +525,7 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 
 ### 預留圖片 {#placeholder-images}
 
-用 `imageUrl(&ImageOptions)` 產生 FakerPHP 預留圖片 URL。預設是 640 × 480 的 PNG，隨機產生文字和背景，也支援 JPG 和 JPEG。`image(directory, fullPath, options).await` 下載圖片，省略目錄時使用系統暫存目錄。HTTP 請求失敗或回應中斷時回傳空路徑，無效選項與本機寫入失敗會回傳 I/O 錯誤。
+用 `imageUrl(&ImageOptions)` 產生 上游 Faker 預留圖片 URL。預設是 640 × 480 的 PNG，隨機產生文字和背景，也支援 JPG 和 JPEG。`image(directory, fullPath, options).await` 下載圖片，省略目錄時使用系統暫存目錄。HTTP 請求失敗或回應中斷時回傳空路徑，無效選項與本機寫入失敗會回傳 I/O 錯誤。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
@@ -517,13 +543,13 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 ### 地區身分編號樣本 {#regional-identity-samples}
 
-使用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 產生測試資料。美國與英國編號沿用固定 FakerPHP 的範圍和前綴規則。臺灣編號會計算檢查碼，性別可傳入 `Some("male")`、`Some("female")` 或 `None` 隨機產生。三個方法都支援 `unique`，遇到未支援的語言會回傳錯誤。
+使用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 產生測試資料。美國與英國編號沿用固定 上游 Faker 的範圍和前綴規則。臺灣編號會計算檢查碼，性別可傳入 `Some("male")`、`Some("female")` 或 `None` 隨機產生。三個方法都支援 `unique`，遇到未支援的語言會回傳錯誤。
 
-`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 FakerPHP 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssnWithBirthdate(Some(date))` 傳入 `chrono::NaiveDate`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
+`ssn()` 也支援 `th-TH`、`de-AT` 與 `is-IS`。泰語使用與美式英語相同的 上游 Faker 格式。奧地利和冰島格式從最近 100 年內取樣日期並計算檢查碼。使用 `de-AT` 時，可呼叫 `ssnWithBirthdate(Some(date))` 傳入 `chrono::NaiveDate`，或用 `None` 取樣日期。兩個 SSN 方法共用 `unique` 歷史。
 
 `personalIdentityNumber(gender)` 也支援 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五種可透過 `personalIdentityNumberWithBirthdate(birthdate, gender)` 指定出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序號前綴。波蘭採用身分證格式。固定版挪威 provider 的末兩位隨機產生。
 
-使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `chrono::NaiveDate`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 FakerPHP 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
+使用 `pl-PL` 時，`pesel(birthdate, sex)` 產生 11 位 PESEL。可傳入 1800 至 2299 年的 `chrono::NaiveDate`，或傳入 `None` 取樣出生日期。`Some("F")` 使用偶數性別位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇數性別位。`taxpayerIdentificationNumber()` 產生 10 位 NIP。兩個方法都計算檢查碼並支援 `unique`。
 
 使用 `pt-BR` 時，可使用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。傳入 `None` 使用預設標點，傳入 `Some(false)` 只傳回數字。RG 沿用固定的聖保羅 provider，檢查碼為數字。CNPJ 使用分支號 `0001`。三個方法都支援 `unique`。
 
@@ -545,9 +571,9 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hant` 的 `VAT()` 傳回八位臺灣稅號樣本，型別為整數。現有 `vat(...)` 在此地區傳回相同格式的數字字串，不加國家前綴。`el-GR` 的 `doy()` 從 21 個稅務機關抽樣，`object()` 從 19 種營業項目抽樣。每個方法都支援 `unique`。
 
-`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 FakerPHP 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區使用固定 Person 姓氏詞表。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 採用 上游 Faker 公司名稱範本，`companySuffix()` 從對應的後綴清單抽樣。波蘭公司名稱也使用固定版上游的波蘭姓氏與機構前綴，另外三個地區使用固定 Person 姓氏詞表。沒有固定公司範本的地區沿用 fake-rs 的公司資料與回退規則。兩個方法都支援 `unique`。
 
-`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 FakerPHP 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱使用固定日本姓氏詞表，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
+`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用對應的 上游 Faker 範本。這四個地區及 `pl-PL` 可用 `companyPrefix()` 抽樣機構前綴。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽樣名稱修飾詞或英文後綴。這三個方法對不支援的地區傳回錯誤，並支援 `unique`。日本公司名稱使用固定日本姓氏詞表，`companySuffix()` 傳回繼承的 `Ltd`，公司名稱範本使用前綴。
 
 `ar-EG`、`ar-JO` 和 `ar-SA` 的公司名稱使用固定上游的阿拉伯語前綴、地區姓氏與後綴。埃及範本也會使用城市名稱。產生器保留後綴詞表中的空格。三個地區的 `companyPrefix()` 和 `companySuffix()` 都支援 `unique`。
 
@@ -698,7 +724,7 @@ fn job_title_sample() -> DatabaseResult<String> {
 
 用 `biasedNumberBetween(min, max, function)?` 在包含端點的整數範圍內取樣。傳入 `None` 分別採用預設下限 0、上限 100 與平方根曲線。自訂曲線接收 [0, 1) 內的數並傳回 0 至 1 的機率。範圍反向、機率無效或取樣耗盡時回傳錯誤。此方法支援 `unique`。
 
-用 `optional(weight, default, generate)?` 依機率呼叫具型別的產生閉包，或傳回選用的預設值。預設權重為 0.5，大於 1 時依 FakerPHP 的百分比規則解讀。用 `valid(predicate, maxRetries, generate)?` 重試直到符合述詞，預設重試上限為 10,000。兩者都會傳遞產生錯誤。用 `uniqueWithRetries(reset, maxRetries)` 設定共用去重歷史的控制代碼可嘗試的次數。
+用 `optional(weight, default, generate)?` 依機率呼叫具型別的產生閉包，或傳回選用的預設值。預設權重為 0.5，大於 1 時依 上游 Faker 的百分比規則解讀。用 `valid(predicate, maxRetries, generate)?` 重試直到符合述詞，預設重試上限為 10,000。兩者都會傳遞產生錯誤。用 `uniqueWithRetries(reset, maxRetries)` 設定共用去重歷史的控制代碼可嘗試的次數。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -717,7 +743,7 @@ fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
 
 ### 語料文字 {#corpus-text-samples}
 
-用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 從固定 FakerPHP 語料以加權 Markov 鏈產生文字。各參數可傳入 `None`，採用預設最大長度 200、最小長度 160 或上下文長度 2。上下文長度支援 1 至 5。 `realTextBetween` 的 Unicode 字元數大於最小值，且不超過最大值。簡體中文等缺少上游語料的語言會回退至英語。繁體中文與日語以字元取樣。波斯語 `realText` 沿用上游的位元組長度。該語料沒有以大寫開頭的詞，`realTextBetween` 會回傳重試耗盡錯誤。兩個方法都支援 `unique`。
+用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 從固定 上游 Faker 語料以加權 Markov 鏈產生文字。各參數可傳入 `None`，採用預設最大長度 200、最小長度 160 或上下文長度 2。上下文長度支援 1 至 5。 `realTextBetween` 的 Unicode 字元數大於最小值，且不超過最大值。簡體中文等缺少上游語料的語言會回退至英語。繁體中文與日語以字元取樣。波斯語 `realText` 沿用上游的位元組長度。該語料沒有以大寫開頭的詞，`realTextBetween` 會回傳重試耗盡錯誤。兩個方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -755,7 +781,7 @@ fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
 
 ### 色彩樣本 {#color-samples}
 
-用 `hexColor()` 產生六位 RGB 十六進位色碼。 `safeHexColor()` 沿用固定 FakerPHP 的範圍 `#000000` 至 `#00ffff`，每一對十六進位數字相同。 `rgbColor()` 與 `hslColor()` 傳回逗號分隔值，對應的 `AsArray` 方法傳回三個整數。 `rgbCssColor()` 與 `rgbaCssColor()` 產生 CSS 字串。 `safeColorName()` 與 `colorName()` 依解析後的語言選用 FakerPHP 詞表，缺少對應詞表時使用預設詞表。十個方法都支援 `unique`。
+用 `hexColor()` 產生六位 RGB 十六進位色碼。 `safeHexColor()` 沿用固定 上游 Faker 的範圍 `#000000` 至 `#00ffff`，每一對十六進位數字相同。 `rgbColor()` 與 `hslColor()` 傳回逗號分隔值，對應的 `AsArray` 方法傳回三個整數。 `rgbCssColor()` 與 `rgbaCssColor()` 產生 CSS 字串。 `safeColorName()` 與 `colorName()` 依解析後的語言選用 上游 Faker 詞表，缺少對應詞表時使用預設詞表。十個方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -769,7 +795,7 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 
 ### 瀏覽器 User-Agent {#browser-user-agent-samples}
 
-用 `userAgent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 FakerPHP 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
+用 `userAgent()?` 隨機產生瀏覽器樣本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。樣本沿用固定 上游 Faker 的瀏覽器版本與平台識別字串。Firefox 依應用程式時區取樣 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 單獨產生識別字串。以上格式化方法都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -782,7 +808,7 @@ fn browser_samples() -> DatabaseResult<(String, String)> {
 
 ### 銀行識別碼 {#bank-identifier-samples}
 
-用 `iban(countryCode, prefix, length)` 產生帶模 97 檢查碼的 IBAN 範例。傳入 `None` 隨機選擇國家，或指定兩字母代碼。已收錄國家使用固定 FakerPHP 格式，未收錄代碼使用指定長度的數字帳號，預設 24 位。前綴取代帳號開頭並保留前導零。Rust 接受由 ASCII 大寫字母和數字組成的前綴，帳號部分最長 30 個字元。`swiftBicNumber()` 產生 8 或 11 個字元的範例，兩者都支援 `unique`。
+用 `iban(countryCode, prefix, length)` 產生帶模 97 檢查碼的 IBAN 範例。傳入 `None` 隨機選擇國家，或指定兩字母代碼。已收錄國家使用固定 上游 Faker 格式，未收錄代碼使用指定長度的數字帳號，預設 24 位。前綴取代帳號開頭並保留前導零。Rust 接受由 ASCII 大寫字母和數字組成的前綴，帳號部分最長 30 個字元。`swiftBicNumber()` 產生 8 或 11 個字元的範例，兩者都支援 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -859,7 +885,7 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### 郵寄地址和稱謂 {#address-and-title-samples}
 
-用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。美國英語、簡體中文和繁體中文使用固定 FakerPHP 的城市、街道範本和地址詞表。其他地區仍可能使用 fake-rs 元件。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
+用 `streetAddress()` 產生街道行，或用 `address()` 產生完整地址樣本。美國、法國、簡體中文和繁體中文使用各自的上游 Faker 排列規則。美國英語、簡體中文和繁體中文使用固定 上游 Faker 的城市、街道範本和地址詞表。其他地區仍可能使用 fake-rs 元件。個別欄位可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定稱謂組，`title(None)` 在兩組中隨機選取，也可直接呼叫 `titleMale()` 和 `titleFemale()`。這些方法均支援 `unique`。
 
 簡體中文可用 `area()` 抽取區名，繁體中文可用 `street()` 抽取街道詞幹。臺灣城市樣本先抽取縣市，再從該縣市的區鄉鎮詞表取樣。兩個入口皆支援 `unique`。
 
@@ -925,7 +951,7 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-新加坡英語沿用以姓氏組成的街名，並使用當地街道後綴與六位郵遞區號。完整地址可使用門牌號碼，也可使用棟號和單元列。固定版 FakerPHP 的 `floorNumber()` 與 `apartmentNumber()` 傳回原始範本字串，完整地址也保留這些字串。地區方法支援 `unique()`。
+新加坡英語沿用以姓氏組成的街名，並使用當地街道後綴與六位郵遞區號。完整地址可使用門牌號碼，也可使用棟號和單元列。固定版 上游 Faker 的 `floorNumber()` 與 `apartmentNumber()` 傳回原始範本字串，完整地址也保留這些字串。地區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1003,7 +1029,7 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-印尼語地址在門牌號碼前加 `No.`，五位郵遞區號首位非零，末尾使用州名簡稱。馬來語地址的城鎮、郵遞區號和州名取自同一地區。可用 `postcodeWithState("perlis")` 按 FakerPHP 的州鍵產生郵遞區號。`postcode()` 隨機選擇地區，郵遞區號保留前導零。馬來語大樓和社區方法支援 `unique()`。
+印尼語地址在門牌號碼前加 `No.`，五位郵遞區號首位非零，末尾使用州名簡稱。馬來語地址的城鎮、郵遞區號和州名取自同一地區。可用 `postcodeWithState("perlis")` 按 上游 Faker 的州鍵產生郵遞區號。`postcode()` 隨機選擇地區，郵遞區號保留前導零。馬來語大樓和社區方法支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1145,7 +1171,7 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-義大利地址包含五位郵遞區號及省級欄位。省名和縮寫依照 FakerPHP 的行為獨立抽樣。瑞士義大利語地址使用四位郵遞區號、固定城市詞表，門牌號碼可以帶小寫字母。`canton()` 回傳州縮寫和義大利語州名組成的元組。
+義大利地址包含五位郵遞區號及省級欄位。省名和縮寫依照 上游 Faker 的行為獨立抽樣。瑞士義大利語地址使用四位郵遞區號、固定城市詞表，門牌號碼可以帶小寫字母。`canton()` 回傳州縮寫和義大利語州名組成的元組。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1175,7 +1201,7 @@ fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-克羅埃西亞地址自當地詞表抽取街名和城市，使用五位郵遞區號，也可透過 `street()` 單獨抽取街名。斯洛維尼亞郵遞區號為四位，末位固定為零。斯洛維尼亞完整地址保留 FakerPHP 中兩處字面的 `\n` 分隔符。
+克羅埃西亞地址自當地詞表抽取街名和城市，使用五位郵遞區號，也可透過 `street()` 單獨抽取街名。斯洛維尼亞郵遞區號為四位，末位固定為零。斯洛維尼亞完整地址保留 上游 Faker 中兩處字面的 `\n` 分隔符。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1220,7 +1246,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-匈牙利地址以四位郵遞區號開頭，按權重抽取首都、大城市及小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市類別。地區缺少 FakerPHP Address 提供器時，`address()` 使用美國地址配置和地址詞表。地址中的人名仍採用指定地區現有的 Person 提供器。
+匈牙利地址以四位郵遞區號開頭，按權重抽取首都、大城市及小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市類別。地區缺少 上游 Faker Address 提供器時，`address()` 使用美國地址配置和地址詞表。地址中的人名仍採用指定地區現有的 Person 提供器。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1235,7 +1261,7 @@ fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-OpenRust 已驗證固定 FakerPHP 版本的全部 71 個本地 Address 提供器。地址樣本遵循當地格式和詞表。Rust 和 PHP 使用獨立的亂數序列，因此相同種子可能產生不同的樣本值。
+OpenRust 已驗證固定 上游 Faker 版本的全部 71 個本地 Address 提供器。地址樣本遵循當地格式和詞表。Rust 和 PHP 使用獨立的亂數序列，因此相同種子可能產生不同的樣本值。
 
 ### 依性別產生名字 {#given-names-by-gender}
 
@@ -1512,7 +1538,7 @@ fn czech_birth_number() -> DatabaseResult<String> {
 
 ### 法國 NIR 和義大利稅號樣本 {#french-nir-and-italian-tax-id-samples}
 
-在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 選擇首位，或用 `None` 隨機選擇。NIR 使用法國省級行政區代碼和模 97 校驗位。緊湊格式有 15 個字元，含空格格式按 1–2–2–2–3–3–2 分組。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 產生 FakerPHP 的 16 位大寫稅號樣本。兩個介面皆支援 `unique()`。
+在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 選擇首位，或用 `None` 隨機選擇。NIR 使用法國省級行政區代碼和模 97 校驗位。緊湊格式有 15 個字元，含空格格式按 1–2–2–2–3–3–2 分組。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 產生 上游 Faker 的 16 位大寫稅號樣本。兩個介面皆支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1587,7 +1613,7 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 
 ### 馬來西亞車牌 {#malaysian-registration-plates}
 
-使用 `ms-MY` 的 `jpjNumberPlate()` 產生馬來西亞車牌。帶權重的前綴、特殊前綴的大小寫及可為空的字母均沿用固定版 FakerPHP。也可個別呼叫 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。這些方法均支援 `unique()`。
+使用 `ms-MY` 的 `jpjNumberPlate()` 產生馬來西亞車牌。帶權重的前綴、特殊前綴的大小寫及可為空的字母均沿用固定版 上游 Faker。也可個別呼叫 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。這些方法均支援 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1599,7 +1625,7 @@ fn malaysian_plate_sample() -> DatabaseResult<String> {
 
 ### 波蘭車牌 {#polish-registration-plates}
 
-使用 `pl-PL` 的 `licensePlate()` 產生一般波蘭車牌。`licensePlateWithOptions(special, voivodeships, counties)` 可依省和縣名篩選。啟用特殊車牌後，可在省級篩選中指定 `army` 或 `services` 產生軍用或機構車牌。篩選沒有符合項目時，從該級可用項目中抽取。OpenRust 依地區選擇提供器，FakerPHP 需顯式註冊波蘭 LicensePlate 提供器。兩個 Rust 方法共用 `unique()` 歷史。
+使用 `pl-PL` 的 `licensePlate()` 產生一般波蘭車牌。`licensePlateWithOptions(special, voivodeships, counties)` 可依省和縣名篩選。啟用特殊車牌後，可在省級篩選中指定 `army` 或 `services` 產生軍用或機構車牌。篩選沒有符合項目時，從該級可用項目中抽取。OpenRust 依地區選擇提供器，上游 Faker 需顯式註冊波蘭 LicensePlate 提供器。兩個 Rust 方法共用 `unique()` 歷史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

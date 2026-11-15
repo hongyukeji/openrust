@@ -51,6 +51,7 @@ pub enum DatabaseError {
     InvalidConfiguration(&'static str),
     UnknownSeeder(String),
     UnknownFakerFormatter(String),
+    UnknownFakerExtension(String),
     InvalidSeeder(&'static str),
     SeederFailed {
         seeder: String,
@@ -118,6 +119,9 @@ impl std::fmt::Display for DatabaseError {
             Self::InvalidSchema(part) => write!(formatter, "invalid schema {part}"),
             Self::UnsupportedSchema(operation) => {
                 write!(formatter, "unsupported schema operation: {operation}")
+            }
+            Self::UnknownFakerExtension(id) => {
+                write!(formatter, "No Faker extension with id {id:?} was loaded.")
             }
             Self::UnknownFakerFormatter(name) => write!(formatter, "Unknown format {name:?}"),
             Self::InvalidQuery(part) => write!(formatter, "invalid query {part}"),

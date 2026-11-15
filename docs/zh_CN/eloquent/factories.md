@@ -279,7 +279,7 @@ fn sample_provider() -> DatabaseResult<String> {
 }
 ```
 
-用 `unique(reset).format(name, arguments)` 取得不重复的结果。与 FakerPHP 一样，去重历史按调用时的拼写区分。`code` 和 `Code` 可解析到同一个 formatter，各自保留历史。更换参数或提供器会沿用同一拼写的历史。结果保留 Rust 类型，整数 `7` 与文本 `"7"` 可分别返回。按名称调用和类型化调用各有独立历史，`unique(true)` 会清空当前生成器的两类历史。通过已有的 `optional` 和 `valid` 闭包调用 `format`，可提供默认值或校验条件。`optional` 决定返回默认值时跳过 formatter 查找。
+用 `unique(reset).format(name, arguments)` 取得不重复的结果。与 上游 Faker 一样，去重历史按调用时的拼写区分。`code` 和 `Code` 可解析到同一个 formatter，各自保留历史。更换参数或提供器会沿用同一拼写的历史。结果保留 Rust 类型，整数 `7` 与文本 `"7"` 可分别返回。按名称调用和类型化调用各有独立历史，`unique(true)` 会清空当前生成器的两类历史。通过已有的 `optional` 和 `valid` 闭包调用 `format`，可提供默认值或校验条件。`optional` 决定返回默认值时跳过 formatter 查找。
 
 ```rust
 use openrust::database::{
@@ -309,7 +309,7 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 
 将位置参数传给 `format` 或 `getFormatter` 返回的回调。生成器的 `numberBetween`、`randomDigit`、`randomDigitNot`、`randomDigitNotZero`、`randomNumber` 和 `randomFloat` 优先于提供器。`boolean`、`latitude`、`longitude`、`randomDigitNotNull`、`randomLetter`、`randomAscii`、`numerify`、`lexify`、`bothify`、`asciify` 和 `regexify` 是提供器默认值。
 
-省略参数时沿用 FakerPHP 默认值。显式传入 `Value::Null` 时保留该 formatter 对空值的行为。例如 `numberBetween(7, null)` 从零至七取样，`numerify(null)` 返回空值。次数和概率百分比用整数，严格模式用布尔值，浮点上下界用数值，模式用文本。Rust 校验这些类型，并拒绝有参数的 formatter 收到多余参数。
+省略参数时沿用 上游 Faker 默认值。显式传入 `Value::Null` 时保留该 formatter 对空值的行为。例如 `numberBetween(7, null)` 从零至七取样，`numerify(null)` 返回空值。次数和概率百分比用整数，严格模式用布尔值，浮点上下界用数值，模式用文本。Rust 校验这些类型，并拒绝有参数的 formatter 收到多余参数。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -320,6 +320,32 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
     let pattern = faker.getFormatter("regexify")?;
     let code = pattern(&["^X{2}$".into()])?;
     Ok((number, code))
+}
+```
+
+### Formatter 扩展 {#formatter-extensions}
+
+用 `addExtension` 注册扩展方法，再通过 `ext(id)` 或 `format("Vendor\Package->method", args)` 查找。扩展标识区分大小写，方法查找忽略 ASCII 大小写。限定名直接查找扩展。未知扩展返回 `UnknownFakerExtension`，已注册扩展缺少方法时返回 `UnknownFakerFormatter`。
+
+`Faker\Extension\` 下的内置标识包括 `BarcodeExtension`、`BloodExtension`、`ColorExtension`、`FileExtension`（`mimeType` 和 `extension`）、`NumberExtension` 以及 `UuidExtension`（`uuid3`）。再次注册同一标识会替换其方法集。数字、条码、血型和文件的生成器具名方法使用已注册扩展。Rust 类型化方法继续使用内置实现。替换前取得的扩展句柄或 formatter 保留已解析的回调。
+
+限定名也可用于 `parse` 和 `unique(false).format(name, args)`，或在现有 `optional` 和 `valid` 闭包中传给 `format`。
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::{Faker, FakerProvider},
+};
+
+fn sample_extension() -> DatabaseResult<(Value, String)> {
+    let faker = Faker::new("en-US")?;
+    faker.addExtension(
+        r"App\Faker\Code",
+        FakerProvider::new().formatter("value", |_, _| Ok("demo".into())),
+    );
+    let value = faker.unique(true).format(r"App\Faker\Code->value", &[])?;
+    let label = faker.parse(r"account-{{ App\Faker\Code->value }}")?;
+    Ok((value, label))
 }
 ```
 
@@ -385,7 +411,7 @@ fn regional_email_sample() -> DatabaseResult<String> {
 
 ### 地区用户名 {#regional-usernames}
 
-`userName()` 在沙特、约旦、埃及、伊朗、韩国和日本使用固定 FakerPHP 罗马字姓名词表。立陶宛模板从同一性别分组取名字和姓氏。简体中文使用固定 Lorem 词表和含下划线的模板。`safeEmail()` 和 `freeEmail()` 共用此生成器作为邮箱本地部分。通用路径使用 Rust 音译，音译后只剩分隔符时生成一个字母，保留用户名和邮箱的无错误签名。
+`userName()` 在沙特、约旦、埃及、伊朗、韩国和日本使用固定 上游 Faker 罗马字姓名词表。立陶宛模板从同一性别分组取名字和姓氏。简体中文使用固定 Lorem 词表和含下划线的模板。`safeEmail()` 和 `freeEmail()` 共用此生成器作为邮箱本地部分。通用路径使用 Rust 音译，音译后只剩分隔符时生成一个字母，保留用户名和邮箱的无错误签名。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -408,7 +434,7 @@ fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
 
 ### 电话号码和 IMEI 样本 {#phone-and-imei-samples}
 
-用 `phoneNumber()` 生成固定 FakerPHP 地区 Provider 的展示号码。地区没有 PhoneNumber Provider 时使用美国展示模板。孟加拉国使用孟加拉数字，越南按所选区号决定用户号码长度。巴西另提供仅含数字的 `phoneNumberCleared()`，支持 `unique()`。 `e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
+用 `phoneNumber()` 生成固定 上游 Faker 地区 Provider 的展示号码。地区没有 PhoneNumber Provider 时使用美国展示模板。孟加拉国使用孟加拉数字，越南按所选区号决定用户号码长度。巴西另提供仅含数字的 `phoneNumberCleared()`，支持 `unique()`。 `e164PhoneNumber()` 使用固定的国际号模板及地区覆盖，返回以加号开头的数字字符串。`imei()` 返回 15 位数字，含 Luhn 校验位。三个方法均支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -486,7 +512,7 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 
 ### 文件样本 {#file-samples}
 
-`mimeType()` 从固定 FakerPHP 目录选择 MIME 类型。`fileExtension()` 先选 MIME 分组，再返回不带点的扩展名。两种方法及版本 3 的 `uuid()` 均支持 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 从现有目录的顶层选取可读文件，复制到另一个现有目录，生成的文件名保留源扩展名。Rust 使用显式路径，失败时返回 I/O 错误。
+`mimeType()` 从固定 上游 Faker 目录选择 MIME 类型。`fileExtension()` 先选 MIME 分组，再返回不带点的扩展名。两种方法及版本 3 的 `uuid()` 均支持 `unique`。`file(sourceDirectory, targetDirectory, fullPath)` 从现有目录的顶层选取可读文件，复制到另一个现有目录，生成的文件名保留源扩展名。Rust 使用显式路径，失败时返回 I/O 错误。
 
 ```rust
 use std::{io, path::{Path, PathBuf}};
@@ -499,7 +525,7 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 
 ### 占位图片 {#placeholder-images}
 
-用 `imageUrl(&ImageOptions)` 生成 FakerPHP 占位图片 URL。默认是 640 × 480 的 PNG，随机生成文字和背景，也支持 JPG 和 JPEG。`image(directory, fullPath, options).await` 下载图片，省略目录时使用系统临时目录。HTTP 请求失败或响应中断时返回空路径，无效选项及本地写入失败返回 I/O 错误。
+用 `imageUrl(&ImageOptions)` 生成 上游 Faker 占位图片 URL。默认是 640 × 480 的 PNG，随机生成文字和背景，也支持 JPG 和 JPEG。`image(directory, fullPath, options).await` 下载图片，省略目录时使用系统临时目录。HTTP 请求失败或响应中断时返回空路径，无效选项及本地写入失败返回 I/O 错误。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
@@ -517,13 +543,13 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 ### 地区身份编号样本 {#regional-identity-samples}
 
-用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 生成测试数据。美国和英国编号沿用固定 FakerPHP 的范围与前缀规则。台湾编号计算校验位，性别可传 `Some("male")`、`Some("female")` 或 `None` 随机生成。三个方法均支持 `unique`，不支持的语言会返回错误。
+用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 生成测试数据。美国和英国编号沿用固定 上游 Faker 的范围与前缀规则。台湾编号计算校验位，性别可传 `Some("male")`、`Some("female")` 或 `None` 随机生成。三个方法均支持 `unique`，不支持的语言会返回错误。
 
-`ssn()` 也支持 `th-TH`、`de-AT` 与 `is-IS`。泰语使用和美国英语相同的 FakerPHP 格式。奥地利和冰岛格式从最近 100 年内采样日期并计算校验位。使用 `de-AT` 时，可调用 `ssnWithBirthdate(Some(date))` 传入 `chrono::NaiveDate`，或用 `None` 采样日期。两个 SSN 方法共用 `unique` 历史。
+`ssn()` 也支持 `th-TH`、`de-AT` 与 `is-IS`。泰语使用和美国英语相同的 上游 Faker 格式。奥地利和冰岛格式从最近 100 年内采样日期并计算校验位。使用 `de-AT` 时，可调用 `ssnWithBirthdate(Some(date))` 传入 `chrono::NaiveDate`，或用 `None` 采样日期。两个 SSN 方法共用 `unique` 历史。
 
 `personalIdentityNumber(gender)` 也支持 `lt-LT`、`lv-LV`、`fi-FI`、`nb-NO`、`sv-SE` 和 `pl-PL`。前五种可通过 `personalIdentityNumberWithBirthdate(birthdate, gender)` 传入出生日期。立陶宛可用 `personalIdentityNumberWithSerial(birthdate, gender, serial)` 指定序号前缀。波兰采用身份证格式。固定版挪威 provider 的最后两位随机生成。
 
-使用 `pl-PL` 时，`pesel(birthdate, sex)` 生成 11 位 PESEL。可传入 1800 至 2299 年的 `chrono::NaiveDate`，或传入 `None` 采样出生日期。`Some("F")` 使用偶数性别位，`Some("M")` 和 `None` 沿用 FakerPHP 的奇数性别位。`taxpayerIdentificationNumber()` 生成 10 位 NIP。两个方法均计算校验位并支持 `unique`。
+使用 `pl-PL` 时，`pesel(birthdate, sex)` 生成 11 位 PESEL。可传入 1800 至 2299 年的 `chrono::NaiveDate`，或传入 `None` 采样出生日期。`Some("F")` 使用偶数性别位，`Some("M")` 和 `None` 沿用 上游 Faker 的奇数性别位。`taxpayerIdentificationNumber()` 生成 10 位 NIP。两个方法均计算校验位并支持 `unique`。
 
 使用 `pt-BR` 时，可用 `cpf(formatted)`、`rg(formatted)` 和 `cnpj(formatted)`。传入 `None` 使用默认标点，传入 `Some(false)` 只返回数字。RG 沿用固定的圣保罗 provider，校验位为数字。CNPJ 使用分支号 `0001`。三个方法均支持 `unique`。
 
@@ -545,9 +571,9 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 `zh-Hant` 的 `VAT()` 返回八位台湾税号样本，类型为整数。现有 `vat(...)` 在该地区返回相同格式的数字字符串，不加国家前缀。`el-GR` 的 `doy()` 从 21 个税务办公室抽样，`object()` 从 19 种经营类别抽样。每个方法均支持 `unique`。
 
-`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 采用 FakerPHP 公司名称模板，`companySuffix()` 从相应的后缀列表抽样。波兰公司名称还使用固定版上游的波兰姓氏和机构前缀，其余三个地区使用固定 Person 姓氏词表。没有固定公司模板的地区沿用 fake-rs 的公司数据和回退规则。两个方法均支持 `unique`。
+`en-US`、`fr-FR`、`it-IT` 和 `pl-PL` 的 `company()` 采用 上游 Faker 公司名称模板，`companySuffix()` 从相应的后缀列表抽样。波兰公司名称还使用固定版上游的波兰姓氏和机构前缀，其余三个地区使用固定 Person 姓氏词表。没有固定公司模板的地区沿用 fake-rs 的公司数据和回退规则。两个方法均支持 `unique`。
 
-`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用对应的 FakerPHP 模板。这四个地区及 `pl-PL` 可用 `companyPrefix()` 抽样机构前缀。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽样名称修饰词或英文后缀。这三个方法对不支持的地区返回错误，并支持 `unique`。日本公司名使用固定日本姓氏词表，`companySuffix()` 返回继承的 `Ltd`，公司名称模板使用前缀。
+`zh-Hans`、`zh-Hant`、`ja-JP` 和 `ko-KR` 的 `company()` 使用对应的 上游 Faker 模板。这四个地区及 `pl-PL` 可用 `companyPrefix()` 抽样机构前缀。用 `zh-Hant` 的 `companyModifier()` 或 `companyEnSuffix()` 抽样名称修饰词或英文后缀。这三个方法对不支持的地区返回错误，并支持 `unique`。日本公司名使用固定日本姓氏词表，`companySuffix()` 返回继承的 `Ltd`，公司名称模板使用前缀。
 
 `ar-EG`、`ar-JO` 和 `ar-SA` 的公司名称使用固定上游的阿拉伯语前缀、地区姓氏与后缀。埃及模板还会使用城市名称。生成器保留后缀词表中的空格。三个地区的 `companyPrefix()` 和 `companySuffix()` 均支持 `unique`。
 
@@ -698,7 +724,7 @@ fn job_title_sample() -> DatabaseResult<String> {
 
 用 `biasedNumberBetween(min, max, function)?` 在包含端点的整数范围内采样。传入 `None` 分别使用默认下限 0、上限 100 和平方根曲线。自定义曲线接收 [0, 1) 内的数并返回 0 至 1 的概率。范围反向、概率无效或采样耗尽时返回错误。该方法支持 `unique`。
 
-用 `optional(weight, default, generate)?` 按概率调用类型化生成闭包，或返回可选默认值。默认权重为 0.5，大于 1 时按 FakerPHP 的百分数规则解释。用 `valid(predicate, maxRetries, generate)?` 重试直到满足谓词，默认重试上限为 10,000。两者都会传播生成错误。用 `uniqueWithRetries(reset, maxRetries)` 为共享去重历史的句柄设置尝试上限。
+用 `optional(weight, default, generate)?` 按概率调用类型化生成闭包，或返回可选默认值。默认权重为 0.5，大于 1 时按 上游 Faker 的百分数规则解释。用 `valid(predicate, maxRetries, generate)?` 重试直到满足谓词，默认重试上限为 10,000。两者都会传播生成错误。用 `uniqueWithRetries(reset, maxRetries)` 为共享去重历史的句柄设置尝试上限。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -717,7 +743,7 @@ fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
 
 ### 基于语料的文本 {#corpus-text-samples}
 
-用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 从固定 FakerPHP 语料按加权 Markov 链生成文本。分别传入 `None` 可使用默认最大长度 200、最小长度 160 或上下文长度 2。上下文长度支持 1 至 5。 `realTextBetween` 的 Unicode 字符数大于最小值，且不超过最大值。简体中文等未提供上游词库的语言回退至英语。繁体中文和日语按字符采样。波斯语 `realText` 使用上游的字节长度。该语料没有大写开头的词，`realTextBetween` 会返回重试耗尽错误。两个方法均支持 `unique`。
+用 `realText(maxNbChars, indexSize)?` 或 `realTextBetween(minNbChars, maxNbChars, indexSize)?` 从固定 上游 Faker 语料按加权 Markov 链生成文本。分别传入 `None` 可使用默认最大长度 200、最小长度 160 或上下文长度 2。上下文长度支持 1 至 5。 `realTextBetween` 的 Unicode 字符数大于最小值，且不超过最大值。简体中文等未提供上游词库的语言回退至英语。繁体中文和日语按字符采样。波斯语 `realText` 使用上游的字节长度。该语料没有大写开头的词，`realTextBetween` 会返回重试耗尽错误。两个方法均支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -755,7 +781,7 @@ fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
 
 ### 颜色样本 {#color-samples}
 
-用 `hexColor()` 生成六位 RGB 十六进制颜色。 `safeHexColor()` 沿用固定 FakerPHP 的范围 `#000000` 至 `#00ffff`，每一对十六进制数字相同。 `rgbColor()` 和 `hslColor()` 返回逗号分隔值，对应的 `AsArray` 方法返回三个整数。 `rgbCssColor()` 和 `rgbaCssColor()` 生成 CSS 字符串。 `safeColorName()` 和 `colorName()` 按解析后的语言选择 FakerPHP 词表，缺少对应词表时使用默认词表。十个方法均支持 `unique`。
+用 `hexColor()` 生成六位 RGB 十六进制颜色。 `safeHexColor()` 沿用固定 上游 Faker 的范围 `#000000` 至 `#00ffff`，每一对十六进制数字相同。 `rgbColor()` 和 `hslColor()` 返回逗号分隔值，对应的 `AsArray` 方法返回三个整数。 `rgbCssColor()` 和 `rgbaCssColor()` 生成 CSS 字符串。 `safeColorName()` 和 `colorName()` 按解析后的语言选择 上游 Faker 词表，缺少对应词表时使用默认词表。十个方法均支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -769,7 +795,7 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 
 ### 浏览器 User-Agent {#browser-user-agent-samples}
 
-用 `userAgent()?` 随机生成浏览器样本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。样本沿用固定 FakerPHP 的浏览器版本和平台标识。Firefox 按应用时区采样 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 单独生成标识。以上格式化方法均支持 `unique`。
+用 `userAgent()?` 随机生成浏览器样本，也可用 `firefox()?`、`chrome()`、`internetExplorer()`、`opera()`、`safari()` 或 `msedge()` 指定格式。样本沿用固定 上游 Faker 的浏览器版本和平台标识。Firefox 按应用时区采样 Gecko 日期。用 `macProcessor()`、`linuxProcessor()`、`windowsPlatformToken()`、`macPlatformToken()`、`linuxPlatformToken()` 和 `iosMobileToken()` 单独生成标识。以上格式化方法均支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -782,7 +808,7 @@ fn browser_samples() -> DatabaseResult<(String, String)> {
 
 ### 银行标识 {#bank-identifier-samples}
 
-用 `iban(countryCode, prefix, length)` 生成带模 97 校验位的 IBAN 样本。传入 `None` 随机选择国家，或指定两字母代码。已收录国家使用固定 FakerPHP 格式，未收录代码使用指定长度的数字账号，默认 24 位。前缀替换账号开头并保留前导零。Rust 接受由 ASCII 大写字母和数字组成的前缀，账号部分最长 30 个字符。`swiftBicNumber()` 生成 8 或 11 个字符的样本，两者均支持 `unique`。
+用 `iban(countryCode, prefix, length)` 生成带模 97 校验位的 IBAN 样本。传入 `None` 随机选择国家，或指定两字母代码。已收录国家使用固定 上游 Faker 格式，未收录代码使用指定长度的数字账号，默认 24 位。前缀替换账号开头并保留前导零。Rust 接受由 ASCII 大写字母和数字组成的前缀，账号部分最长 30 个字符。`swiftBicNumber()` 生成 8 或 11 个字符的样本，两者均支持 `unique`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -859,7 +885,7 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### 邮寄地址和称谓 {#address-and-title-samples}
 
-用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的上游 Faker 排列规则。美国英语、简体中文和繁体中文使用固定 FakerPHP 的城市、街道模板和地址词表。其他地区仍可能使用 fake-rs 组件。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。
+用 `streetAddress()` 生成街道行，或用 `address()` 生成完整地址样本。美国、法国、简体中文和繁体中文使用各自的上游 Faker 排列规则。美国英语、简体中文和繁体中文使用固定 上游 Faker 的城市、街道模板和地址词表。其他地区仍可能使用 fake-rs 组件。单独字段可用 `buildingNumber()`、`secondaryAddress()`、`postcode()`、`state()` 和 `stateAbbr()`。`title(Some("male"))` 和 `title(Some("female"))` 指定称谓组，`title(None)` 在两组中随机选择，也可直接调用 `titleMale()` 和 `titleFemale()`。这些方法均支持 `unique`。
 
 简体中文可用 `area()` 抽取区名，繁体中文可用 `street()` 抽取街道词干。台湾城市样本先抽取县市，再从该县市的区乡镇词表取样。两个入口均支持 `unique`。
 
@@ -925,7 +951,7 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-新加坡英语沿用基于姓氏的街名，并使用当地街道后缀与六位邮编。完整地址可使用门牌号，也可使用楼栋号和单元行。固定版 FakerPHP 的 `floorNumber()` 和 `apartmentNumber()` 返回原始模板字符串，完整地址也保留这些字符串。地区方法支持 `unique()`。
+新加坡英语沿用基于姓氏的街名，并使用当地街道后缀与六位邮编。完整地址可使用门牌号，也可使用楼栋号和单元行。固定版 上游 Faker 的 `floorNumber()` 和 `apartmentNumber()` 返回原始模板字符串，完整地址也保留这些字符串。地区方法支持 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1003,7 +1029,7 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-印尼语地址在门牌号前加 `No.`，五位邮编首位非零，末尾使用州名简称。马来语地址的城镇、邮编和州名取自同一地区。可用 `postcodeWithState("perlis")` 按 FakerPHP 的州键生成邮编。`postcode()` 随机选择地区，邮编保留前导零。马来语楼栋和社区方法支持 `unique()`。
+印尼语地址在门牌号前加 `No.`，五位邮编首位非零，末尾使用州名简称。马来语地址的城镇、邮编和州名取自同一地区。可用 `postcodeWithState("perlis")` 按 上游 Faker 的州键生成邮编。`postcode()` 随机选择地区，邮编保留前导零。马来语楼栋和社区方法支持 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1145,7 +1171,7 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-意大利地址包含五位邮编及省级字段。省名和缩写按 FakerPHP 的行为独立抽样。瑞士意大利语地址使用四位邮编、固定城市词表，门牌号码可以带小写字母。`canton()` 返回州缩写和意大利语州名组成的元组。
+意大利地址包含五位邮编及省级字段。省名和缩写按 上游 Faker 的行为独立抽样。瑞士意大利语地址使用四位邮编、固定城市词表，门牌号码可以带小写字母。`canton()` 返回州缩写和意大利语州名组成的元组。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1175,7 +1201,7 @@ fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-克罗地亚地址从当地词表抽取街名和城市，使用五位邮编，也可通过 `street()` 单独抽取街名。斯洛文尼亚邮编为四位，末位固定为零。斯洛文尼亚完整地址保留 FakerPHP 中两处字面的 `\n` 分隔符。
+克罗地亚地址从当地词表抽取街名和城市，使用五位邮编，也可通过 `street()` 单独抽取街名。斯洛文尼亚邮编为四位，末位固定为零。斯洛文尼亚完整地址保留 上游 Faker 中两处字面的 `\n` 分隔符。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1220,7 +1246,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-匈牙利地址以四位邮编开头，按权重抽取首都、大城市和小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市类别。地区缺少 FakerPHP Address 提供器时，`address()` 使用美国地址布局和地址词表。地址中的人名仍采用请求地区已有的 Person 提供器。
+匈牙利地址以四位邮编开头，按权重抽取首都、大城市和小城市模板。可用 `capital()`、`bigCity()` 或 `smallerCity()` 指定城市类别。地区缺少 上游 Faker Address 提供器时，`address()` 使用美国地址布局和地址词表。地址中的人名仍采用请求地区已有的 Person 提供器。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1235,7 +1261,7 @@ fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-OpenRust 已验证固定 FakerPHP 版本的全部 71 个本地 Address 提供器。地址样本遵循当地格式和词表。Rust 和 PHP 使用独立的随机序列，因此相同种子可能生成不同的样本值。
+OpenRust 已验证固定 上游 Faker 版本的全部 71 个本地 Address 提供器。地址样本遵循当地格式和词表。Rust 和 PHP 使用独立的随机序列，因此相同种子可能生成不同的样本值。
 
 ### 按性别生成名字 {#given-names-by-gender}
 
@@ -1512,7 +1538,7 @@ fn czech_birth_number() -> DatabaseResult<String> {
 
 ### 法国 NIR 和意大利税号样本 {#french-nir-and-italian-tax-id-samples}
 
-在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 选择首位，或用 `None` 随机选择。NIR 使用法国省级行政区代码和模 97 校验位。紧凑格式有 15 个字符，带空格格式按 1–2–2–2–3–3–2 分组。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 生成 FakerPHP 的 16 位大写税号样本。两个接口均支持 `unique()`。
+在 `fr-FR` 或 `fr-CH` 中使用 `nir(gender, formatted)`。用 `Some("male")` 或 `Some("female")` 选择首位，或用 `None` 随机选择。NIR 使用法国省级行政区代码和模 97 校验位。紧凑格式有 15 个字符，带空格格式按 1–2–2–2–3–3–2 分组。在 `it-IT` 或 `it-CH` 中使用 `taxId()` 生成 上游 Faker 的 16 位大写税号样本。两个接口均支持 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1587,7 +1613,7 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 
 ### 马来西亚车牌 {#malaysian-registration-plates}
 
-使用 `ms-MY` 的 `jpjNumberPlate()` 生成马来西亚车牌。带权重的前缀、特殊前缀的大小写及可为空的字母均沿用固定版 FakerPHP。也可单独调用 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。这些方法均支持 `unique()`。
+使用 `ms-MY` 的 `jpjNumberPlate()` 生成马来西亚车牌。带权重的前缀、特殊前缀的大小写及可为空的字母均沿用固定版 上游 Faker。也可单独调用 `peninsularPrefix()`、`sarawakPrefix()`、`sabahPrefix()`、`specialPrefix()`、`validAlphabet()` 和 `numberSequence()`。这些方法均支持 `unique()`。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1599,7 +1625,7 @@ fn malaysian_plate_sample() -> DatabaseResult<String> {
 
 ### 波兰车牌 {#polish-registration-plates}
 
-使用 `pl-PL` 的 `licensePlate()` 生成普通波兰车牌。`licensePlateWithOptions(special, voivodeships, counties)` 可按省和县名称筛选。启用特殊车牌后，可在省级筛选中指定 `army` 或 `services` 生成军用或机构车牌。筛选没有匹配项时，从该级可用项中抽取。OpenRust 按地区选择提供器，FakerPHP 需显式注册波兰 LicensePlate 提供器。两个 Rust 方法共用 `unique()` 历史。
+使用 `pl-PL` 的 `licensePlate()` 生成普通波兰车牌。`licensePlateWithOptions(special, voivodeships, counties)` 可按省和县名称筛选。启用特殊车牌后，可在省级筛选中指定 `army` 或 `services` 生成军用或机构车牌。筛选没有匹配项时，从该级可用项中抽取。OpenRust 按地区选择提供器，上游 Faker 需显式注册波兰 LicensePlate 提供器。两个 Rust 方法共用 `unique()` 历史。
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};

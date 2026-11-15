@@ -279,7 +279,7 @@ fn sample_provider() -> DatabaseResult<String> {
 }
 ```
 
-Use `unique(reset).format(name, arguments)` to require a distinct result. As in FakerPHP, the caller’s spelling identifies the history, so `code` and `Code` have separate histories even when both resolve to the same formatter. Changing arguments or replacing the provider keeps the history for that spelling. Values retain their Rust types, so the integer `7` and the text `"7"` are distinct. Named and typed calls keep separate histories. `unique(true)` clears both on that generator. Use the existing `optional` and `valid` closures to call `format` with a default or a predicate. A skipped optional call does not look up the formatter.
+Use `unique(reset).format(name, arguments)` to require a distinct result. As in upstream Faker, the caller’s spelling identifies the history, so `code` and `Code` have separate histories even when both resolve to the same formatter. Changing arguments or replacing the provider keeps the history for that spelling. Values retain their Rust types, so the integer `7` and the text `"7"` are distinct. Named and typed calls keep separate histories. `unique(true)` clears both on that generator. Use the existing `optional` and `valid` closures to call `format` with a default or a predicate. A skipped optional call does not look up the formatter.
 
 ```rust
 use openrust::database::{
@@ -309,7 +309,7 @@ fn sample_named_modifiers() -> DatabaseResult<(Value, Option<Value>, Value)> {
 
 Pass positional arguments to `format` or a callback from `getFormatter`. The numeric generator methods `numberBetween`, `randomDigit`, `randomDigitNot`, `randomDigitNotZero`, `randomNumber`, and `randomFloat` take precedence over providers. `boolean`, `latitude`, `longitude`, `randomDigitNotNull`, `randomLetter`, `randomAscii`, `numerify`, `lexify`, `bothify`, `asciify`, and `regexify` are provider defaults.
 
-Omitted arguments use FakerPHP defaults. An explicit `Value::Null` retains the formatter’s null behavior where it differs from omission. For example, `numberBetween(7, null)` samples from zero through seven, and `numerify(null)` returns null. Use integer values for counts and percentages, boolean values for strict mode, numeric values for float bounds, and text values for patterns. Rust validates these types and rejects extra arguments for parameterized formatters.
+Omitted arguments use upstream Faker defaults. An explicit `Value::Null` retains the formatter’s null behavior where it differs from omission. For example, `numberBetween(7, null)` samples from zero through seven, and `numerify(null)` returns null. Use integer values for counts and percentages, boolean values for strict mode, numeric values for float bounds, and text values for patterns. Rust validates these types and rejects extra arguments for parameterized formatters.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
@@ -320,6 +320,32 @@ fn sample_named_arguments() -> DatabaseResult<(Value, Value)> {
     let pattern = faker.getFormatter("regexify")?;
     let code = pattern(&["^X{2}$".into()])?;
     Ok((number, code))
+}
+```
+
+### Formatter Extensions {#formatter-extensions}
+
+Register extension methods with `addExtension` and resolve them with `ext(id)` or `format("Vendor\Package->method", args)`. Extension identifiers are case-sensitive. Method lookup ignores ASCII case. Qualified lookup goes directly to the extension. An unknown extension returns `UnknownFakerExtension`. A missing method on a registered extension returns `UnknownFakerFormatter`.
+
+Built-in identifiers under `Faker\Extension\` cover `BarcodeExtension`, `BloodExtension`, `ColorExtension`, `FileExtension` (`mimeType` and `extension`), `NumberExtension`, and `UuidExtension` (`uuid3`). Replacing an identifier replaces its method set. The named generator methods for numbers, barcodes, blood groups, and files use the registered extension. Typed Rust methods continue to use their built-in implementations. A handle or formatter obtained before replacement retains its resolved callbacks.
+
+The qualified name also works in `parse` and `unique(false).format(name, args)`. Pass it to `format` inside the existing `optional` and `valid` closures.
+
+```rust
+use openrust::database::{
+    DatabaseResult, Value,
+    eloquent::factories::{Faker, FakerProvider},
+};
+
+fn sample_extension() -> DatabaseResult<(Value, String)> {
+    let faker = Faker::new("en-US")?;
+    faker.addExtension(
+        r"App\Faker\Code",
+        FakerProvider::new().formatter("value", |_, _| Ok("demo".into())),
+    );
+    let value = faker.unique(true).format(r"App\Faker\Code->value", &[])?;
+    let label = faker.parse(r"account-{{ App\Faker\Code->value }}")?;
+    Ok((value, label))
 }
 ```
 
@@ -385,7 +411,7 @@ fn regional_email_sample() -> DatabaseResult<String> {
 
 ### Regional Usernames {#regional-usernames}
 
-`userName()` uses FakerPHP’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safeEmail()` and `freeEmail()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.
+`userName()` uses upstream Faker’s romanized name catalogs in Saudi Arabia, Jordan, Egypt, Iran, Korea, and Japan. Lithuanian templates pair names and surnames from the same gender group. Simplified Chinese uses the pinned Lorem word list and includes an underscore template. The same generator supplies the local part for `safeEmail()` and `freeEmail()`. The general path uses Rust transliteration. When transliteration leaves only separators, it generates a letter so the username and email APIs remain infallible.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -408,7 +434,7 @@ fn ascii_name_sample() -> DatabaseResult<(&'static str, &'static str)> {
 
 ### Phone and IMEI Samples {#phone-and-imei-samples}
 
-Use `phoneNumber()` for display numbers from the pinned FakerPHP regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phoneNumberCleared()` for digits-only numbers and supports `unique()`. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
+Use `phoneNumber()` for display numbers from the pinned upstream Faker regional providers. Where a locale has no PhoneNumber provider, it uses the US display templates. Bangladesh uses Bangla digits, while Vietnamese subscriber length follows the selected area code. Brazil also provides `phoneNumberCleared()` for digits-only numbers and supports `unique()`. `e164PhoneNumber()` uses the pinned international templates and available regional overrides. It returns a plus sign followed by digits for test data. `imei()` returns 15 digits, including the Luhn check digit. All three support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -486,7 +512,7 @@ fn catalog_codes() -> DatabaseResult<(String, String)> {
 
 ### File Samples {#file-samples}
 
-`mimeType()` samples a MIME type from the fixed FakerPHP catalog. `fileExtension()` samples a MIME group and returns one of its extensions without a dot. Both support `unique`, as does the version 3 `uuid()` formatter. `file(sourceDirectory, targetDirectory, fullPath)` copies a readable file from the top level of an existing directory to another existing directory. Its generated name retains the source extension. Rust uses explicit paths and returns an I/O error if copying fails.
+`mimeType()` samples a MIME type from the fixed upstream Faker catalog. `fileExtension()` samples a MIME group and returns one of its extensions without a dot. Both support `unique`, as does the version 3 `uuid()` formatter. `file(sourceDirectory, targetDirectory, fullPath)` copies a readable file from the top level of an existing directory to another existing directory. Its generated name retains the source extension. Rust uses explicit paths and returns an I/O error if copying fails.
 
 ```rust
 use std::{io, path::{Path, PathBuf}};
@@ -499,7 +525,7 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 
 ### Placeholder Images {#placeholder-images}
 
-Use `imageUrl(&ImageOptions)` to build a FakerPHP placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, fullPath, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
+Use `imageUrl(&ImageOptions)` to build a upstream Faker placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, fullPath, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::{ImageOptions, fake}};
@@ -517,13 +543,13 @@ fn placeholder_sample() -> DatabaseResult<String> {
 
 ### Regional Identity Samples {#regional-identity-samples}
 
-Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed FakerPHP ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
+Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed upstream Faker ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
 
-The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same FakerPHP format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `chrono::NaiveDate`, or `None` to sample a date. Both SSN methods share the `unique` history.
+The `ssn()` formatter also supports `th-TH`, `de-AT`, and `is-IS`. Thai uses the same upstream Faker format as US English. Austria and Iceland generate a date within the past 100 years and calculate the check digit. With `de-AT`, use `ssnWithBirthdate(Some(date))` to pass a `chrono::NaiveDate`, or `None` to sample a date. Both SSN methods share the `unique` history.
 
 `personalIdentityNumber(gender)` also supports `lt-LT`, `lv-LV`, `fi-FI`, `nb-NO`, `sv-SE` and `pl-PL`. The first five accept a civil date through `personalIdentityNumberWithBirthdate(birthdate, gender)`. Lithuania accepts a serial prefix through `personalIdentityNumberWithSerial(birthdate, gender, serial)`. Poland uses the identity card format. The pinned Norwegian provider generates two random trailing digits.
 
-For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::NaiveDate` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in FakerPHP. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
+For `pl-PL`, use `pesel(birthdate, sex)` for an 11-digit PESEL. Pass a `chrono::NaiveDate` from 1800 through 2299, or `None` to sample a birth date. `Some("F")` selects an even sex digit. `Some("M")` and `None` select an odd digit as in upstream Faker. `taxpayerIdentificationNumber()` generates a 10-digit NIP. Both methods calculate check digits and support `unique`.
 
 For `pt-BR`, use `cpf(formatted)`, `rg(formatted)`, and `cnpj(formatted)`. Pass `None` for the default punctuation or `Some(false)` for digits only. RG follows the pinned São Paulo provider, with a numeric check digit. CNPJ uses branch `0001`. All three methods support `unique`.
 
@@ -545,9 +571,9 @@ With `kk-KZ`, `businessIdentificationNumber(date)` returns a twelve-digit BIN. P
 
 With `zh-Hant`, `VAT()` returns the Taiwanese eight-digit sample as an integer. The existing `vat(...)` interface also accepts this locale and returns those digits as a string, without a country prefix. With `el-GR`, `doy()` samples one of 21 tax offices and `object()` samples one of 19 business activities. Each formatter supports `unique`.
 
-For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the FakerPHP name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the pinned Person surname catalogs. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
+For `en-US`, `fr-FR`, `it-IT`, and `pl-PL`, `company()` follows the upstream Faker name templates and `companySuffix()` samples the corresponding suffix list. Polish company names also use the pinned Polish surname lists and organization prefixes. The other three use the pinned Person surname catalogs. Locales without a pinned company template use the existing fake-rs company data and fallback. Both methods support `unique`.
 
-For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding FakerPHP templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the pinned Japanese surname catalog. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
+For `zh-Hans`, `zh-Hant`, `ja-JP`, and `ko-KR`, `company()` follows the corresponding upstream Faker templates. `companyPrefix()` samples a prefix in these four locales and `pl-PL`. Use `companyModifier()` or `companyEnSuffix()` with `zh-Hant` to sample a Taiwanese company modifier or English suffix. These three methods return an error for unsupported locales and support `unique`. Japanese company names use the pinned Japanese surname catalog. Japanese `companySuffix()` returns the inherited `Ltd`, while the company name template uses a prefix.
 
 With `ar-EG`, `ar-JO`, and `ar-SA`, company names use the pinned Arabic prefixes, regional surnames and suffixes. The Egyptian templates also use city names. The generators preserve spaces in the suffix catalog. All three locales support `companyPrefix()` and `companySuffix()` with `unique`.
 
@@ -698,7 +724,7 @@ fn job_title_sample() -> DatabaseResult<String> {
 
 Use `biasedNumberBetween(min, max, function)?` to sample an inclusive integer range. Pass `None` for the defaults of 0, 100, and a square-root curve. A custom curve takes a number in [0, 1) and returns a probability between 0 and 1. Reversed ranges, invalid probabilities, and exhausted sampling return errors. The formatter supports `unique`.
 
-Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use FakerPHP percentage interpretation. Use `valid(predicate, maxRetries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `uniqueWithRetries(reset, maxRetries)` to set the attempt limit on a handle that shares the Faker formatter history.
+Use `optional(weight, default, generate)?` to call a typed formatter or return the optional default. The default weight is 0.5. Values above one use upstream Faker percentage interpretation. Use `valid(predicate, maxRetries, generate)?` to reject samples until the predicate passes. The default retry limit is 10,000. Both closures propagate formatter errors. Use `uniqueWithRetries(reset, maxRetries)` to set the attempt limit on a handle that shares the Faker formatter history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -717,7 +743,7 @@ fn modified_samples() -> DatabaseResult<(Option<i64>, i64)> {
 
 ### Corpus-Based Text {#corpus-text-samples}
 
-Use `realText(maxNbChars, indexSize)?` or `realTextBetween(minNbChars, maxNbChars, indexSize)?` to generate text from the fixed FakerPHP corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `realTextBetween`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `realText` uses the upstream byte limit. Its `realTextBetween` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.
+Use `realText(maxNbChars, indexSize)?` or `realTextBetween(minNbChars, maxNbChars, indexSize)?` to generate text from the fixed upstream Faker corpus with a weighted Markov chain. Use `None` for the default maximum of 200, minimum of 160, or context size of two, respectively. The context size accepts one through five. For `realTextBetween`, the output has more than the minimum and at most the maximum number of Unicode characters. Unsupported locales, including Simplified Chinese, use the upstream English fallback. Traditional Chinese and Japanese sample by character. Persian `realText` uses the upstream byte limit. Its `realTextBetween` returns a retry error because the corpus has no uppercase starting words. Both methods support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -755,7 +781,7 @@ fn blood_samples() -> DatabaseResult<(&'static str, &'static str, String)> {
 
 ### Color Samples {#color-samples}
 
-Use `hexColor()` for six-digit RGB hex, or `safeHexColor()` for the fixed FakerPHP range `#000000` through `#00ffff` with paired hex digits. `rgbColor()` and `hslColor()` return comma-separated values, and their `AsArray` variants return three integers. `rgbCssColor()` and `rgbaCssColor()` produce CSS strings. `safeColorName()` and `colorName()` use the FakerPHP catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.
+Use `hexColor()` for six-digit RGB hex, or `safeHexColor()` for the fixed upstream Faker range `#000000` through `#00ffff` with paired hex digits. `rgbColor()` and `hslColor()` return comma-separated values, and their `AsArray` variants return three integers. `rgbCssColor()` and `rgbaCssColor()` produce CSS strings. `safeColorName()` and `colorName()` use the upstream Faker catalog for the resolved locale when available and fall back to the default catalog. All ten formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -769,7 +795,7 @@ fn color_samples() -> DatabaseResult<(String, [u8; 3], &'static str)> {
 
 ### Browser User Agents {#browser-user-agent-samples}
 
-Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed FakerPHP browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
+Use `userAgent()?` for a random browser sample. Select a specific format with `firefox()?`, `chrome()`, `internetExplorer()`, `opera()`, `safari()` or `msedge()`. The samples use the fixed upstream Faker browser versions and platform tokens. Firefox samples a Gecko date in the application time zone. Use `macProcessor()`, `linuxProcessor()`, `windowsPlatformToken()`, `macPlatformToken()`, `linuxPlatformToken()` and `iosMobileToken()` for individual tokens. All formatters support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -782,7 +808,7 @@ fn browser_samples() -> DatabaseResult<(String, String)> {
 
 ### Bank Identifiers {#bank-identifier-samples}
 
-Use `iban(countryCode, prefix, length)` for IBAN samples with a modulo 97 checksum. Pass `None` for a random country or supply a two-letter code. Known countries use the fixed FakerPHP layouts. An unlisted code uses a numeric account body with the requested length, defaulting to 24 digits. The prefix replaces the beginning of that body and preserves leading zeros. Rust accepts uppercase ASCII letters and digits in the prefix and caps the account body at 30 characters. `swiftBicNumber()` returns an 8- or 11-character sample. Both methods support `unique`.
+Use `iban(countryCode, prefix, length)` for IBAN samples with a modulo 97 checksum. Pass `None` for a random country or supply a two-letter code. Known countries use the fixed upstream Faker layouts. An unlisted code uses a numeric account body with the requested length, defaulting to 24 digits. The prefix replaces the beginning of that body and preserves leading zeros. Rust accepts uppercase ASCII letters and digits in the prefix and caps the account body at 30 characters. `swiftBicNumber()` returns an 8- or 11-character sample. Both methods support `unique`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -859,7 +885,7 @@ fn card_samples() -> DatabaseResult<(CreditCardDetails, String)> {
 
 ### Postal Addresses and Titles {#address-and-title-samples}
 
-Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned FakerPHP city and street templates and address catalogs. Other locales may still use fake-rs components. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
+Use `streetAddress()` for a street line and `address()` for a complete address sample. The US, French, simplified Chinese and traditional Chinese forms follow their respective upstream Faker layouts. US English, Simplified Chinese, and Traditional Chinese use the pinned upstream Faker city and street templates and address catalogs. Other locales may still use fake-rs components. Use `buildingNumber()`, `secondaryAddress()`, `postcode()`, `state()`, and `stateAbbr()` for individual fields. `title(Some("male"))` and `title(Some("female"))` select an honorific group. Use `title(None)` to sample either group. `titleMale()` and `titleFemale()` select directly. These methods support `unique`.
 
 Use `area()` with Simplified Chinese to sample a district, and `street()` with Traditional Chinese to sample the street stem. Taiwanese city samples combine a county or municipality with one of its own districts. Both direct formatters support `unique`.
 
@@ -925,7 +951,7 @@ fn ugandan_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-Singapore English uses inherited surname-based street names, local street suffixes, and six-digit postcodes. Full addresses use a street number or a block number and unit line. The pinned FakerPHP provider returns literal patterns from `floorNumber()` and `apartmentNumber()`, including in the full address. The regional formatters support `unique()`.
+Singapore English uses inherited surname-based street names, local street suffixes, and six-digit postcodes. Full addresses use a street number or a block number and unit line. The pinned upstream Faker provider returns literal patterns from `floorNumber()` and `apartmentNumber()`, including in the full address. The regional formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1003,7 +1029,7 @@ fn thai_address_sample() -> DatabaseResult<(String, &'static str)> {
 }
 ```
 
-Indonesian addresses place `No.` before the building number, use a five-digit postcode with a nonzero first digit, and end with a state abbreviation. Malaysian addresses keep the town, postcode, and state in the same region. Use `postcodeWithState("perlis")` for a specific FakerPHP state key. `postcode()` samples a region, and postcodes preserve leading zeroes. Malaysian building and township formatters support `unique()`.
+Indonesian addresses place `No.` before the building number, use a five-digit postcode with a nonzero first digit, and end with a state abbreviation. Malaysian addresses keep the town, postcode, and state in the same region. Use `postcodeWithState("perlis")` for a specific upstream Faker state key. `postcode()` samples a region, and postcodes preserve leading zeroes. Malaysian building and township formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1145,7 +1171,7 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-Italian addresses include a five-digit postcode and province fields. The province name and abbreviation are sampled independently, as in FakerPHP. Swiss Italian addresses use four-digit postcodes, a fixed city list, and may use a lowercase letter in the building number. `canton()` returns the canton abbreviation and Italian name as a pair.
+Italian addresses include a five-digit postcode and province fields. The province name and abbreviation are sampled independently, as in upstream Faker. Swiss Italian addresses use four-digit postcodes, a fixed city list, and may use a lowercase letter in the building number. `canton()` returns the canton abbreviation and Italian name as a pair.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1175,7 +1201,7 @@ fn romanian_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
-Croatian addresses sample street and city names from local catalogs and use five-digit postcodes. The Croatian `street()` formatter also exposes the street catalog. Slovenian postcodes have four digits and end in zero. Slovenian full addresses preserve the two literal `\n` separators from FakerPHP.
+Croatian addresses sample street and city names from local catalogs and use five-digit postcodes. The Croatian `street()` formatter also exposes the street catalog. Slovenian postcodes have four digits and end in zero. Slovenian full addresses preserve the two literal `\n` separators from upstream Faker.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1220,7 +1246,7 @@ fn serbian_montenegrin_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-Hungarian addresses begin with a four-digit postcode and use weighted capital, large city, and smaller city templates. Use `capital()`, `bigCity()`, or `smallerCity()` to select a tier explicitly. For locales without a FakerPHP Address provider, `address()` uses the US address layout and address catalogs. Person fields within the address still use the requested locale when its Person provider exists.
+Hungarian addresses begin with a four-digit postcode and use weighted capital, large city, and smaller city templates. Use `capital()`, `bigCity()`, or `smallerCity()` to select a tier explicitly. For locales without a upstream Faker Address provider, `address()` uses the US address layout and address catalogs. Person fields within the address still use the requested locale when its Person provider exists.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1235,7 +1261,7 @@ fn hungarian_and_fallback_address_samples() -> DatabaseResult<[String; 4]> {
 }
 ```
 
-OpenRust exercises all 71 local Address providers from the pinned FakerPHP version. Address samples follow the local format and catalogs. Rust and PHP use independent random streams, so the same seed can produce different sample values.
+OpenRust exercises all 71 local Address providers from the pinned upstream Faker version. Address samples follow the local format and catalogs. Rust and PHP use independent random streams, so the same seed can produce different sample values.
 
 ### Given Names by Gender {#given-names-by-gender}
 
@@ -1512,7 +1538,7 @@ fn czech_birth_number() -> DatabaseResult<String> {
 
 ### French NIR and Italian Tax ID Samples {#french-nir-and-italian-tax-id-samples}
 
-Use `nir(gender, formatted)` with `fr-FR` or `fr-CH`. Pass `Some("male")` or `Some("female")` to select the first digit, or `None` to sample it. The NIR uses the French department catalog and a modulo-97 check key. The compact form has 15 characters. The formatted form separates the same characters as 1–2–2–2–3–3–2. Use `taxId()` with `it-IT` or `it-CH` for the uppercase 16-character sample mask used by FakerPHP. Both formatters support `unique()`.
+Use `nir(gender, formatted)` with `fr-FR` or `fr-CH`. Pass `Some("male")` or `Some("female")` to select the first digit, or `None` to sample it. The NIR uses the French department catalog and a modulo-97 check key. The compact form has 15 characters. The formatted form separates the same characters as 1–2–2–2–3–3–2. Use `taxId()` with `it-IT` or `it-CH` for the uppercase 16-character sample mask used by upstream Faker. Both formatters support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1587,7 +1613,7 @@ fn baltic_driver_licence() -> DatabaseResult<String> {
 
 ### Malaysian registration plates {#malaysian-registration-plates}
 
-Use `jpjNumberPlate()` with `ms-MY` to sample Malaysian registration plates. The weighted prefix catalogs, mixed-case special prefixes, and optional empty letters follow the pinned FakerPHP provider. The provider also exposes `peninsularPrefix()`, `sarawakPrefix()`, `sabahPrefix()`, `specialPrefix()`, `validAlphabet()`, and `numberSequence()`. All support `unique()`.
+Use `jpjNumberPlate()` with `ms-MY` to sample Malaysian registration plates. The weighted prefix catalogs, mixed-case special prefixes, and optional empty letters follow the pinned upstream Faker provider. The provider also exposes `peninsularPrefix()`, `sarawakPrefix()`, `sabahPrefix()`, `specialPrefix()`, `validAlphabet()`, and `numberSequence()`. All support `unique()`.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
@@ -1599,7 +1625,7 @@ fn malaysian_plate_sample() -> DatabaseResult<String> {
 
 ### Polish registration plates {#polish-registration-plates}
 
-Use `licensePlate()` with `pl-PL` for ordinary Polish plates. `licensePlateWithOptions(special, voivodeships, counties)` also accepts province and county names. When you enable special plates, include `army` or `services` in the province filter to select military or agency plates. A filter that matches no available name falls back to the available choices at that level. OpenRust selects the provider by locale. FakerPHP requires registering the Polish LicensePlate provider explicitly. Both Rust methods share the same `unique()` history.
+Use `licensePlate()` with `pl-PL` for ordinary Polish plates. `licensePlateWithOptions(special, voivodeships, counties)` also accepts province and county names. When you enable special plates, include `army` or `services` in the province filter to select military or agency plates. A filter that matches no available name falls back to the available choices at that level. OpenRust selects the provider by locale. upstream Faker requires registering the Polish LicensePlate provider explicitly. Both Rust methods share the same `unique()` history.
 
 ```rust
 use openrust::database::{DatabaseResult, eloquent::factories::fake};
