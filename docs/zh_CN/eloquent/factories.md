@@ -591,6 +591,9 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 
 ### 占位图片 {#placeholder-images}
 
+`format("imageUrl", arguments)` 依次接收宽、高、类别、随机文字开关、指定文字、灰度开关和格式。`getFormats` 和 `getFormatConstants` 返回 JSON。下载使用 `formatAsync("image", arguments).await`，参数依次为目录、宽、高、类别、是否返回完整路径、随机文字开关、指定文字、灰度开关和格式。远端请求失败返回空值，本地 I/O 失败返回错误。
+
+
 用 `imageUrl(&ImageOptions)` 生成 上游 Faker 占位图片 URL。默认是 640 × 480 的 PNG，随机生成文字和背景，也支持 JPG 和 JPEG。`image(directory, fullPath, options).await` 下载图片，省略目录时使用系统临时目录。HTTP 请求失败或响应中断时返回空路径，无效选项及本地写入失败返回 I/O 错误。
 
 ```rust
@@ -608,6 +611,23 @@ fn placeholder_sample() -> DatabaseResult<String> {
 ```
 
 ### 地区身份编号样本 {#regional-identity-samples}
+
+具名身份标识方法接受 `YYYY-MM-DD` 文本日期，参数顺序按地区提供器确定。例如 `pesel` 先接收出生日期再接收性别，`nik` 先接收性别再接收出生日期。`tcNoIsValid` 等具名校验方法接收文本标识。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("pl-PL")?;
+    let identity = faker.format("pesel", &["2000-02-29".into(), "F".into()])?;
+    let url = faker.format(
+        "imageUrl",
+        &[64.into(), 48.into(), Value::Null, false.into(), "demo".into(), true.into()],
+    )?;
+    Ok((identity, url))
+}
+```
+
 
 用 `en-US` 的 `ssn()`、`en-GB` 的 `nino()`，以及 `zh-TW` 或 `zh-Hant` 的 `personalIdentityNumber(gender)` 生成测试数据。美国和英国编号沿用固定 上游 Faker 的范围与前缀规则。台湾编号计算校验位，性别可传 `Some("male")`、`Some("female")` 或 `None` 随机生成。三个方法均支持 `unique`，不支持的语言会返回错误。
 

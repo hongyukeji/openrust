@@ -5828,6 +5828,68 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
     Ok(())
 }
 
+#[tokio::test]
+async fn faker_named_identity_checks_and_image_parameters_are_typed() -> DatabaseResult<()> {
+    let cz = Faker::new("cs-CZ")?;
+    assert!(matches!(
+        cz.format("birthNumber", &["female".into(), 21.into(), 21.into(), 100.into()])?,
+        Value::Text(number) if number.contains('/')
+    ));
+    let pl = Faker::new("pl-PL")?;
+    assert!(matches!(
+        pl.format("pesel", &["2000-02-29".into(), "F".into()])?,
+        Value::Text(number) if number.starts_with("002229") && number.len() == 11
+    ));
+    assert!(pl.format("pesel", &["2001-02-29".into()]).is_err());
+    let sa = Faker::new("ar-SA")?;
+    assert!(matches!(
+        sa.format("nationalIdNumber", &[])?,
+        Value::Text(number) if number.starts_with('1') && number.len() == 10
+    ));
+    let tr = Faker::new("tr-TR")?;
+    let identity = tr.format("tcNo", &[])?;
+    assert_eq!(tr.format("tcNoIsValid", &[identity])?, true.into());
+
+    let faker = Faker::new("en-US")?;
+    assert_eq!(
+        faker.format(
+            "imageUrl",
+            &[
+                64.into(),
+                48.into(),
+                "樣圖".into(),
+                false.into(),
+                "demo".into(),
+                true.into(),
+                "jpeg".into()
+            ]
+        )?,
+        "https://via.placeholder.com/64x48.jpeg/CCCCCC?text=%E6%A8%A3%E5%9C%96+demo".into()
+    );
+    assert_eq!(
+        faker.format("getFormatConstants", &[])?,
+        Value::Json(json!({"jpg":2,"jpeg":2,"png":3}))
+    );
+    assert!(faker.format("imageUrl", &[(-1).into()]).is_err());
+    let invalid = [
+        Value::Null,
+        64.into(),
+        48.into(),
+        Value::Null,
+        true.into(),
+        false.into(),
+        Value::Null,
+        true.into(),
+        "bmp".into(),
+    ];
+    assert!(
+        matches!(faker.formatAsync("image", &invalid).await, Err(DatabaseError::FakerIo(error)) if error.kind() == std::io::ErrorKind::InvalidInput)
+    );
+    faker.addProvider(FakerProvider::new().formatter("image", |_, _| Ok("custom.png".into())));
+    assert_eq!(faker.formatAsync("IMAGE", &[]).await?, "custom.png".into());
+    Ok(())
+}
+
 #[test]
 fn faker_named_regional_address_person_and_payment_follow_the_locale() -> DatabaseResult<()> {
     let ru = Faker::new("ru-RU")?;

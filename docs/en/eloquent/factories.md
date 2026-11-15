@@ -591,6 +591,9 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 
 ### Placeholder Images {#placeholder-images}
 
+`format("imageUrl", arguments)` accepts width, height, category, randomize, word, grayscale, and format in that order. `getFormats` and `getFormatConstants` return JSON. Use `formatAsync("image", arguments).await` to download. It accepts directory, width, height, category, full path, randomize, word, grayscale, and format. A remote failure returns null, and a local I/O failure returns an error.
+
+
 Use `imageUrl(&ImageOptions)` to build a upstream Faker placeholder URL. The defaults are 640 × 480 PNG with randomized text and background. JPG and JPEG are also supported. `image(directory, fullPath, options).await` downloads from the provider, using the system temporary directory when omitted. A failed HTTP request or interrupted response returns no path. Invalid options and local write failures return an I/O error.
 
 ```rust
@@ -608,6 +611,23 @@ fn placeholder_sample() -> DatabaseResult<String> {
 ```
 
 ### Regional Identity Samples {#regional-identity-samples}
+
+Named identity methods accept civil dates as `YYYY-MM-DD` text and keep the locale-specific argument order. For example, `pesel` accepts a birth date followed by sex, and `nik` accepts gender followed by a birth date. Named checks such as `tcNoIsValid` accept the identifier as text.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn sample_named_identity_and_image() -> DatabaseResult<(Value, Value)> {
+    let faker = Faker::new("pl-PL")?;
+    let identity = faker.format("pesel", &["2000-02-29".into(), "F".into()])?;
+    let url = faker.format(
+        "imageUrl",
+        &[64.into(), 48.into(), Value::Null, false.into(), "demo".into(), true.into()],
+    )?;
+    Ok((identity, url))
+}
+```
+
 
 Use `ssn()` with `en-US`, `nino()` with `en-GB`, and `personalIdentityNumber(gender)` with `zh-TW` or `zh-Hant`. The US and British methods use the fixed upstream Faker ranges and prefix rules. The Taiwanese method computes the check digit and accepts `Some("male")`, `Some("female")`, or `None` for a random gender code. These methods generate test data, return an error for unsupported locales, and support `unique`.
 

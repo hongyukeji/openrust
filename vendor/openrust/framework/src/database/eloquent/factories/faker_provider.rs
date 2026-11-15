@@ -11,6 +11,8 @@ use serde_json::Value as Json;
 use super::Faker;
 use crate::database::{DatabaseError, DatabaseResult, Value};
 
+#[path = "faker_named_identity.rs"]
+mod named_identity;
 #[path = "faker_named_regional.rs"]
 mod named_regional;
 #[path = "faker_named_text.rs"]
@@ -168,6 +170,17 @@ impl Faker {
 
     pub fn format(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
         self.getFormatter(name)?(arguments)
+    }
+
+    /// Invokes a named formatter, awaiting I/O when the formatter downloads an image.
+    pub async fn formatAsync(&self, name: &str, arguments: &[Value]) -> DatabaseResult<Value> {
+        match self.getFormatter(name) {
+            Ok(formatter) => formatter(arguments),
+            Err(DatabaseError::UnknownFakerFormatter(_)) if name.eq_ignore_ascii_case("image") => {
+                named_identity::image(self, arguments).await
+            }
+            Err(error) => Err(error),
+        }
     }
 
     /// Replaces named formatter tokens with their scalar results.
@@ -478,7 +491,11 @@ fn defaults(name: &str) -> Option<Builtin> {
                 .regexify(pattern(args)?.unwrap_or(""))
                 .map(Value::from)
         },
-        _ => return named_text::formatter(name).or_else(|| named_regional::formatter(name)),
+        _ => {
+            return named_text::formatter(name)
+                .or_else(|| named_regional::formatter(name))
+                .or_else(|| named_identity::formatter(name));
+        }
     })
 }
 

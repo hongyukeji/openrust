@@ -1852,3 +1852,15 @@ Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已�
 隔离基线 `17c4f1e6`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、61 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。实际 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，回读日本都道府县和德国 IBAN。不具备对应地址提供器时报告原错误并以状态 1 退出。
 
 Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 7.7 GiB 及站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 下一批继续图像、身份校验及地区方法参数差异的具名对账。
+
+## Faker 具名图像与身份校验
+
+对照固定 Laravel 的工厂数据生成和上游 Faker v1.24.1 的 Image、捷克 Person、波兰 Person 等地区提供器。PHP 8.5 运行固定提供器，核对 PESEL 闰日编码、捷克出生号分隔符、图像参数、UTF-8 URL、格式码和非法格式。v0.x 同名工厂用于查询构造，应用编译装配继续参考固定 Goravel。
+
+具名入口接入 60 项同步映射以及异步 image 下载。身份方法复用已有地区实现和校验，使用文本表达民用日期，拒绝非法日期，保留各地区参数顺序。图像 URL 和格式目录保持同步。formatAsync 复用既有 HTTP 下载实现，保留自定义提供器覆盖。远端失败返回空值，本地 I/O 错误保留原错误。图像 URL 验收使用固定上游字符串，本地 HTTP 传输成功和中断由下载回归验证。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/Image.php 和 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/pl_PL/Person.php 。
+
+隔离基线 `066f2650`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、62 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归和一项本地 HTTP 图像下载回归通过。基线 Sanctum 排版差异仅在隔离副本处理。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 运行三语共用示例并回读样本身份号及占位 URL。实际异步入口拒绝不支持的图像格式并以状态 1 退出。外部占位站点的实时可用性未纳入验收。
+
+Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.7 GiB 及站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 继续审计地区专用入口的参数矩阵，以及非图像的文件复制等具名接口。
