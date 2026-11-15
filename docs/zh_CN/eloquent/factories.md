@@ -1059,6 +1059,16 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+意大利地址包含五位邮编及省级字段。省名和缩写按 FakerPHP 的行为独立抽样。瑞士意大利语地址使用四位邮编、固定城市词表，门牌号码可以带小写字母。`canton()` 返回州缩写和意大利语州名组成的元组。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn italian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("it-IT"))?.address(), fake(Some("it-CH"))?.address()])
+}
+```
+
 ### 按性别生成名字 {#given-names-by-gender}
 
 用 `firstNameMale()` 或 `firstNameFemale()` 从对应的上游 Faker 词库抽取名字。`firstNameWithGender(Some("male"))` 和 `nameWithGender(Some("female"))` 显式选择分组。传入 `None` 或未识别的分组会在两组抽样。全名按地区模板组合现有姓氏数据，繁体中文名字由一个或两个抽取字符组成。缺少地区词库时使用英文名字及模板。

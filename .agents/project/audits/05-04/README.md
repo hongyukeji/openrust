@@ -1510,3 +1510,13 @@ Rust 1.94.0 格式、工作区全目标严格 Clippy、103 项 Faker、49 项 Se
 Rust 1.94.0 格式、工作区全目标严格 Clippy、104 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
 
 清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对意大利和瑞士意大利语 Address。
+
+## 意大利和瑞士意大利语地址
+
+对应固定 Laravel 的 [Eloquent 工厂定义](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/eloquent-factories.md#defining-model-factories)，对照 FakerPHP v1.24.1 的 [意大利](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/it_IT/Address.php) 和 [瑞士意大利语](https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/it_CH/Address.php) Address。意大利保留五位邮编和可选补充地址，省名与缩写按上游独立采样。瑞士意大利语保留四位邮编、固定城市词表和带小写字母的门牌，独立街道前缀继续通过 streetPrefix 获取。canton 沿用 Rust 元组接口并支持 unique。v0.x 无等价 Faker 地址代码，固定 Goravel 的编译式装配沿用现有路径。
+
+隔离基线 `366ff450`。按 PHP 反射逐项核对 19 份词表和模板及 26 组州缩写和州名。256 个固定 PHP 样本通过格式核验。实际 MySQL 8.4.13 执行 `main artisan db:seed --database=mysql --force` 写入并按序回读 258 行，含三语共用示例。回归覆盖意大利两种街道布局、瑞士字母门牌、州数据和唯一值耗尽。Seeder 测试复验 `makeOne`、`makeMany` 和 `lazy`。
+
+Rust 1.94.0 格式、工作区全目标严格 Clippy、105 项 Faker、49 项 Seeder、两项 MySQL／SQLite 工厂回归及 `./artisan inspire` 通过。三语示例编译、VitePress 构建、站点根路径和 /docs/ 的 12 项浏览器检查及六项工厂示例检查通过。既有 Sanctum 排版差异仅在隔离副本处理。临时 Seeder 已恢复，测试容器已回收。
+
+清理本批独占 Cargo 产物 2.3 GiB、站点产物 41 MiB 与文档依赖。提交前周额度剩余 36%，磁盘可用 79 GiB。05-04 下一批核对希腊和塞浦路斯希腊语 Address。

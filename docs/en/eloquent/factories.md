@@ -1059,6 +1059,16 @@ fn portuguese_address_samples() -> DatabaseResult<[String; 2]> {
 }
 ```
 
+Italian addresses include a five-digit postcode and province fields. The province name and abbreviation are sampled independently, as in FakerPHP. Swiss Italian addresses use four-digit postcodes, a fixed city list, and may use a lowercase letter in the building number. `canton()` returns the canton abbreviation and Italian name as a pair.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::factories::fake};
+
+fn italian_address_samples() -> DatabaseResult<[String; 2]> {
+    Ok([fake(Some("it-IT"))?.address(), fake(Some("it-CH"))?.address()])
+}
+```
+
 ### Given Names by Gender {#given-names-by-gender}
 
 Use `firstNameMale()` or `firstNameFemale()` to draw from the corresponding upstream Faker catalog. `firstNameWithGender(Some("male"))` and `nameWithGender(Some("female"))` select a catalog explicitly. Pass `None` to sample both groups. Unrecognized group strings follow the same rule. Full names use the regional templates and existing surname data. Traditional Chinese given names combine one or two sampled characters. Missing region catalogs use English given names and templates.

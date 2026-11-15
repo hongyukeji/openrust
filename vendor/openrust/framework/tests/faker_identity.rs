@@ -4564,3 +4564,33 @@ fn portuguese_address_providers_keep_local_postcodes_and_regions() {
     assert!(unique.regionAbbr().is_err());
     assert!(pt.regionAbbr().is_err());
 }
+
+#[test]
+fn italian_address_providers_keep_their_own_layouts_and_swiss_cantons() {
+    let italy = fake(Some("it-IT")).unwrap();
+    let swiss = fake(Some("it-CH")).unwrap();
+    let italian_address = Regex::new(r"^[^\n]+\n[^\n]+, [0-9]{5} .+ \([A-Z]{2}\)$").unwrap();
+    let swiss_address =
+        Regex::new(r"^[^\n]+ (?:[1-9][0-9]{0,2}|[0-9][abc])\n[0-9]{4} .+$").unwrap();
+    let swiss_letter = Regex::new(r"^[0-9][abc]$").unwrap();
+    let mut italian_layouts = [false; 2];
+    let mut swiss_letter_seen = false;
+    for _ in 0..128 {
+        assert!(italian_address.is_match(&italy.address()));
+        let street = italy.streetAddress();
+        italian_layouts
+            [usize::from(street.contains(" Appartamento ") || street.contains(" Piano "))] = true;
+        assert!(swiss_address.is_match(&swiss.address()));
+        swiss_letter_seen |= swiss_letter.is_match(&swiss.buildingNumber());
+    }
+    assert_eq!(italian_layouts, [true; 2]);
+    assert!(swiss_letter_seen);
+    let unique = swiss.unique(true);
+    let pairs = (0..26)
+        .map(|_| unique.canton().unwrap())
+        .collect::<Vec<_>>();
+    assert!(pairs.contains(&("TI", "Ticino")));
+    assert!(pairs.contains(&("GE", "Ginevra")));
+    assert!(unique.canton().is_err());
+    assert!(italy.canton().is_err());
+}
