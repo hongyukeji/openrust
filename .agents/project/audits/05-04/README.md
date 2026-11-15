@@ -1864,3 +1864,15 @@ Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已�
 隔离基线 `066f2650`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、62 项 Seeder、115 项 Faker、MySQL／SQLite 各一项工厂回归和一项本地 HTTP 图像下载回归通过。基线 Sanctum 排版差异仅在隔离副本处理。MySQL 8.4.13 实际 `main artisan db:seed --database=mysql --force` 运行三语共用示例并回读样本身份号及占位 URL。实际异步入口拒绝不支持的图像格式并以状态 1 退出。外部占位站点的实时可用性未纳入验收。
 
 Artisan inspire、VitePress 和 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 6.7 GiB 及站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 继续审计地区专用入口的参数矩阵，以及非图像的文件复制等具名接口。
+
+## Faker 具名文件复制与地区参数对账
+
+对照固定 Laravel 模型工厂数据生成和上游 Faker v1.24.1 的 File、马来西亚 Person、罗马尼亚 Person、台湾 Company、英国 Company 和美国 Payment。PHP 8.5 运行固定类，核对文件内容、扩展名、完整路径与文件名、同目录拒绝、MyKad 字符分隔符、CNP 地区参数、台湾 VAT 返回类型及两个支付校验值。v0.x 同名工厂用于查询，继续参考固定 Goravel 的编译式装配。
+
+具名 file 复用既有的可读文件选择与复制，省略目录时使用系统临时目录。源和目标通过规范路径判定，经 FakerIo 传播 I/O 原因。路径对外使用 UTF-8。复制后的文件名无法转换时移除该副本。保留既有的 UUID v3 名称与排他创建，固定种子重放时遇到已有目标会选择另一个文件名。新增 MyKad、CNP、电话号码国家前缀、校验值、摘要和 HTML 生成的具名入口。台湾 VAT 的具名结果与上游一样为整数。英国 modulus 97 的具名结果保留两位字符串，既有类型化方法继续返回数值。
+
+上游参考 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/File.php#L576 及 https://github.com/FakerPHP/Faker/blob/v1.24.1/src/Faker/Provider/ms_MY/Person.php#L775 。
+
+隔离基线 `af6513da`。Rust 1.94.0 格式、全工作区全目标严格 Clippy、63 项 Seeder、115 项 Faker 和 MySQL／SQLite 各一项工厂回归通过。基线 Sanctum 排版差异仅在隔离副本处理。真实 MySQL 8.4.13 `main artisan db:seed --database=mysql --force` 运行三语共用示例，比对复制的二进制内容与生成扩展名，读回保存的文件名。同目录报错并以状态 1 退出。
+
+Artisan inspire、VitePress 及 18 项浏览器检查通过。临时 Seeder 已恢复，容器已回收，清理隔离 Cargo 产物 5.1 GiB 和站点构建产物。提交前周额度剩余 30%，磁盘可用 78 GiB。05-04 下一批复核地区联系电话和其他仍只有类型化入口的公共 formatter。

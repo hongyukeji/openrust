@@ -589,6 +589,17 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 }
 ```
 
+也可用 `format("file", arguments)` 复制文件。参数依次为源目录、目标目录、是否返回含目标目录的路径。路径使用 UTF-8 文本，省略目录时使用系统临时目录。源和目标必须解析到不同的现有目录。文件错误通过 `DatabaseResult` 返回。
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn copy_named_sample(source: &str, target: &str) -> DatabaseResult<Value> {
+    let faker = Faker::new("en-US")?;
+    faker.format("file", &[source.into(), target.into(), false.into()])
+}
+```
+
 ### 占位图片 {#placeholder-images}
 
 `format("imageUrl", arguments)` 依次接收宽、高、类别、随机文字开关、指定文字、灰度开关和格式。`getFormats` 和 `getFormatConstants` 返回 JSON。下载使用 `formatAsync("image", arguments).await`，参数依次为目录、宽、高、类别、是否返回完整路径、随机文字开关、指定文字、灰度开关和格式。远端请求失败返回空值，本地 I/O 失败返回错误。
@@ -613,6 +624,8 @@ fn placeholder_sample() -> DatabaseResult<String> {
 ### 地区身份编号样本 {#regional-identity-samples}
 
 具名身份标识方法接受 `YYYY-MM-DD` 文本日期，参数顺序按地区提供器确定。例如 `pesel` 先接收出生日期再接收性别，`nik` 先接收性别再接收出生日期。`tcNoIsValid` 等具名校验方法接收文本标识。
+
+具名 `cnp` 接收性别、完整或部分出生日期、县代码和是否为居民。`myKadNumber` 的第二个参数可传格式化开关或自定义分隔符。台湾 `vat` 返回整数，`calculateModulus97` 返回两位文本。
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};

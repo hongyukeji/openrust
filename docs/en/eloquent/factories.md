@@ -589,6 +589,17 @@ fn copy_sample(faker: &Faker, source: &Path, target: &Path) -> io::Result<PathBu
 }
 ```
 
+Use `format("file", arguments)` for the same copy through named dispatch. Pass source path, target path, and whether to return the target path or just the basename. Paths are UTF-8 text. Omitted paths use the system temporary directory. The source and target must resolve to different existing directories. File errors propagate through `DatabaseResult`.
+
+```rust
+use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};
+
+fn copy_named_sample(source: &str, target: &str) -> DatabaseResult<Value> {
+    let faker = Faker::new("en-US")?;
+    faker.format("file", &[source.into(), target.into(), false.into()])
+}
+```
+
 ### Placeholder Images {#placeholder-images}
 
 `format("imageUrl", arguments)` accepts width, height, category, randomize, word, grayscale, and format in that order. `getFormats` and `getFormatConstants` return JSON. Use `formatAsync("image", arguments).await` to download. It accepts directory, width, height, category, full path, randomize, word, grayscale, and format. A remote failure returns null, and a local I/O failure returns an error.
@@ -613,6 +624,8 @@ fn placeholder_sample() -> DatabaseResult<String> {
 ### Regional Identity Samples {#regional-identity-samples}
 
 Named identity methods accept civil dates as `YYYY-MM-DD` text and keep the locale-specific argument order. For example, `pesel` accepts a birth date followed by sex, and `nik` accepts gender followed by a birth date. Named checks such as `tcNoIsValid` accept the identifier as text.
+
+Named `cnp` accepts gender, a full or partial birth date, county, and residency. The second `myKadNumber` argument accepts a formatting flag or a custom separator. Taiwanese `vat` returns an integer, and `calculateModulus97` returns a two-digit string.
 
 ```rust
 use openrust::database::{DatabaseResult, Value, eloquent::factories::Faker};

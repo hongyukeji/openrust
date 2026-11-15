@@ -38,6 +38,39 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "ein" => |faker, _| faker.ein().map(Value::from),
         "dni" => |faker, _| faker.dni().map(Value::from),
         "licencecode" => |faker, _| faker.licenceCode().map(Value::from),
+        "file" => copy_file,
+        "cnp" => |faker, args| {
+            let [gender, birth, county, resident] = arguments(args)?;
+            let resident = resident.map_or(Ok(true), |value| flag(Some(value)))?;
+            faker
+                .cnp(text(gender)?, text(birth)?, text(county)?, resident)
+                .map(Value::from)
+        },
+        "mykadnumber" => |faker, args| {
+            let [gender, hyphen] = arguments(args)?;
+            let (formatted, separator) = match hyphen {
+                Some(Value::Text(separator)) => (true, Some(separator.as_str())),
+                value => (flag(value)?, None),
+            };
+            faker
+                .myKadNumber(text(gender)?, formatted, separator)
+                .map(Value::from)
+        },
+        "countrycodeprefix" => |faker, args| {
+            let [formatting] = arguments(args)?;
+            let formatting = formatting.map_or(Ok(true), |value| flag(Some(value)))?;
+            faker.countryCodePrefix(formatting).map(Value::from)
+        },
+        "calculateroutingnumberchecksum" => |_, args| {
+            Ok(i64::from(Faker::calculateRoutingNumberChecksum(required_text(args)?)?).into())
+        },
+        "calculatemodulus97" => |_, args| {
+            let [input, use_9755] = arguments(args)?;
+            let input =
+                text(input)?.ok_or(DatabaseError::InvalidQuery("Faker formatter requires text"))?;
+            let use_9755 = use_9755.map_or(Ok(true), |value| flag(Some(value)))?;
+            Ok(format!("{:02}", Faker::calculateModulus97(input, use_9755)?).into())
+        },
         "imageurl" => |faker, args| {
             faker
                 .imageUrl(&image_options(arguments(args)?)?)
@@ -181,6 +214,33 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         "dvcalcmod11" => |_, args| Ok(i64::from(Faker::dvCalcMod11(required_text(args)?)?).into()),
         _ => return None,
     })
+}
+
+fn copy_file(faker: &Faker, args: &[Value]) -> DatabaseResult<Value> {
+    let [source, target, full] = arguments(args)?;
+    let source = text(source)?.map(Path::new);
+    let target = text(target)?.map(Path::new);
+    let default_directory = std::env::temp_dir();
+    let source = source.unwrap_or(&default_directory);
+    let target = target.unwrap_or(&default_directory);
+    let full = full.map_or(Ok(true), |value| flag(Some(value)))?;
+    if full && target.to_str().is_none() {
+        return Err(DatabaseError::InvalidQuery(
+            "Faker file target is not UTF-8",
+        ));
+    }
+    let path = faker
+        .file(source, target, full)
+        .map_err(DatabaseError::FakerIo)?;
+    match path.into_os_string().into_string() {
+        Ok(path) => Ok(path.into()),
+        Err(path) => {
+            let path = PathBuf::from(path);
+            let copied = if full { path } else { target.join(path) };
+            std::fs::remove_file(copied).map_err(DatabaseError::FakerIo)?;
+            Err(DatabaseError::InvalidQuery("Faker file path is not UTF-8"))
+        }
+    }
 }
 
 fn required_text(args: &[Value]) -> DatabaseResult<&str> {

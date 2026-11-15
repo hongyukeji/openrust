@@ -228,7 +228,9 @@ pub(super) fn formatter(name: &str) -> Option<Builtin> {
         },
         "vat" => |faker, args| {
             let [kind] = arguments(args)?;
-            if faker.locale() == "en_GB" {
+            if faker.locale() == "zh_TW" {
+                faker.VAT().map(Value::from)
+            } else if faker.locale() == "en_GB" {
                 faker.vatWithType(text(kind)?).map(Value::from)
             } else {
                 faker

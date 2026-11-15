@@ -5828,6 +5828,90 @@ fn faker_named_numeric_and_pattern_arguments_use_builtin_contracts() -> Database
     Ok(())
 }
 
+#[test]
+fn faker_named_file_and_remaining_regional_arguments_preserve_contracts() -> DatabaseResult<()> {
+    let root = Root::new();
+    let source = root.0.join("copy-source");
+    let target = root.0.join("copy-target");
+    fs::create_dir_all(source.join("nested")).unwrap();
+    fs::create_dir_all(&target).unwrap();
+    fs::write(source.join("nested/ignored.txt"), b"ignored").unwrap();
+    let paths: [Value; 2] = [
+        source.to_str().unwrap().into(),
+        target.to_str().unwrap().into(),
+    ];
+    let faker = Faker::new("en-US")?;
+    assert!(
+        matches!(faker.format("file", &paths), Err(DatabaseError::FakerIo(error)) if error.kind() == std::io::ErrorKind::NotFound)
+    );
+    fs::write(source.join("binary.gz"), b"\0\xffpayload").unwrap();
+    faker.seed(94);
+    let Value::Text(first) = faker.format("file", &paths)? else {
+        panic!("expected a full path");
+    };
+    faker.seed(94);
+    let Value::Text(second) =
+        faker.format("file", &[paths[0].clone(), paths[1].clone(), false.into()])?
+    else {
+        panic!("expected a basename");
+    };
+    assert_eq!(Path::new(&first).parent(), Some(target.as_path()));
+    assert_eq!(Path::new(&second).components().count(), 1);
+    assert!(second.ends_with(".gz"));
+    assert_ne!(Path::new(&first), target.join(&second));
+    assert_eq!(fs::read(&first).unwrap(), b"\0\xffpayload");
+    assert_eq!(fs::read(target.join(second)).unwrap(), b"\0\xffpayload");
+    assert!(matches!(
+        faker.format("file", &[paths[0].clone(), source.join("nested/..").to_str().unwrap().into()]),
+        Err(DatabaseError::FakerIo(error)) if error.kind() == std::io::ErrorKind::InvalidInput
+    ));
+    assert!(matches!(
+        faker.format("file", &[]),
+        Err(DatabaseError::FakerIo(_))
+    ));
+
+    let malaysia = Faker::new("ms-MY")?;
+    let Value::Text(id) = malaysia.format("myKadNumber", &["female".into(), ":".into()])? else {
+        panic!("expected MyKad text");
+    };
+    assert_eq!(id.matches(':').count(), 2);
+    assert!(matches!(
+        id.as_bytes().last(),
+        Some(b'0' | b'2' | b'4' | b'6' | b'8')
+    ));
+    assert_eq!(malaysia.format("countryCodePrefix", &[])?, "+6".into());
+    let romania = Faker::new("ro-RO")?;
+    assert!(matches!(
+        romania.format("cnp", &["female".into(), "1981-06-16".into(), "B1".into()])?,
+        Value::Text(number) if number.starts_with("2810616") && number.len() == 13
+    ));
+    assert!(
+        romania
+            .format(
+                "cnp",
+                &["female".into(), "1981-06-16".into(), "missing".into()]
+            )
+            .is_err()
+    );
+    let taiwan = Faker::new("zh-TW")?;
+    assert!(matches!(
+        taiwan.format("VAT", &[])?,
+        Value::Integer(10_000_000..=99_999_999)
+    ));
+    assert_eq!(
+        faker.format("calculateRoutingNumberChecksum", &["02100002".into()])?,
+        1.into()
+    );
+    assert!(
+        matches!(faker.format("calculateModulus97", &["1234567".into()])?, Value::Text(code) if code.len() == 2)
+    );
+    assert!(matches!(faker.format("sha256", &[])?, Value::Text(hash) if hash.len() == 64));
+    assert!(
+        matches!(faker.format("randomHtml", &[1.into(), 1.into()])?, Value::Text(html) if html.starts_with("<html>"))
+    );
+    Ok(())
+}
+
 #[tokio::test]
 async fn faker_named_identity_checks_and_image_parameters_are_typed() -> DatabaseResult<()> {
     let cz = Faker::new("cs-CZ")?;

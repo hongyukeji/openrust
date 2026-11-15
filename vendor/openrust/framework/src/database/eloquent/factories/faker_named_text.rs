@@ -3,6 +3,15 @@ use crate::database::{DatabaseError, DatabaseResult, Value};
 
 pub(super) fn formatter(name: &str) -> Option<Builtin> {
     Some(match name {
+        "md5" => |faker, _| Ok(faker.md5().into()),
+        "sha1" => |faker, _| Ok(faker.sha1().into()),
+        "sha256" => |faker, _| Ok(faker.sha256().into()),
+        "randomhtml" => |faker, args| {
+            let [depth, width] = arguments(args)?;
+            faker
+                .randomHtml(html_limit(depth)?, html_limit(width)?)
+                .map(Value::from)
+        },
         "word" => |faker, _| Ok(faker.word().into()),
         "words" => |faker, args| series(faker, args, " ", Faker::words),
         "sentences" => |faker, args| series(faker, args, " ", Faker::sentences),
@@ -121,4 +130,13 @@ fn series(
     } else {
         Value::Json(Json::Array(sample.into_iter().map(Json::from).collect()))
     })
+}
+
+fn html_limit(value: Option<&Value>) -> DatabaseResult<Option<i32>> {
+    integer(value)?
+        .map(|limit| {
+            i32::try_from(limit)
+                .map_err(|_| DatabaseError::InvalidQuery("Faker HTML limit is out of range"))
+        })
+        .transpose()
 }
