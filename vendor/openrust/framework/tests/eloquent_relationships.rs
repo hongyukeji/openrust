@@ -9,7 +9,7 @@ use openrust::{
             Attributes, Builder, Collection, DynamicRelation, EagerLoads, MissingRelation, Model,
             ModelMetadata, ModelState, NamedRelations, RelationAggregate, RelationAggregateQuery,
             Touches,
-            casts::{AttributeCast, CastableEnum},
+            casts::{AttributeCast, CastableEnum, EnumCast},
             relations::{
                 BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, HasOneThrough,
                 MorphMany, MorphOne, MorphPivot, MorphTarget, MorphTo, MorphToMany,
@@ -967,6 +967,132 @@ async fn verify_belongs_to_cache(
             .getAttribute("author_id"),
         first.getKey()
     );
+}
+
+async fn verify_belongs_to_owner_keys(
+    db: &Connection,
+    mysql: bool,
+    post: &Post,
+    first: &Author,
+    second: &Author,
+) {
+    let first_key = first.getKey().unwrap();
+    let second_key = second.getKey().unwrap();
+    db.statement(
+        "UPDATE relation_authors SET mentor_id = 0 WHERE id IN (?, ?)",
+        &[first_key.clone(), second_key.clone()],
+    )
+    .await
+    .unwrap();
+
+    let mut zero = Post::from_state(post.state().clone());
+    zero.setAttribute("score", 0);
+    let owner = BelongsTo::<Post, Author>::new("score", "mentor_id")
+        .constrain(|query| query.orderBy("id", "asc"));
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    assert_eq!(
+        owner.getResults(&zero).await.unwrap().unwrap().getKey(),
+        Some(first_key)
+    );
+    assert_eq!(
+        zero.getRelationOrLoad("owner", &owner)
+            .await
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        Some(first_key)
+    );
+    assert_eq!(
+        zero.getRelationOrLoad("owner", &owner)
+            .await
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        Some(first_key)
+    );
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let eager = owner.matchResults(&[&zero, &zero]).await.unwrap();
+    assert_eq!(eager[0].as_ref().unwrap().getKey(), Some(second_key));
+    assert!(Arc::ptr_eq(
+        eager[0].as_ref().unwrap(),
+        eager[1].as_ref().unwrap()
+    ));
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+
+    let fallback =
+        BelongsTo::<Post, Author>::new("score", "mentor_id").withDefault(|author, child| {
+            author.setAttribute("name", child.getAttribute("title").unwrap().clone());
+        });
+    let mut missing = Post::from_state(post.state().clone());
+    missing.setAttribute("score", Value::Null);
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let default = fallback.getResults(&missing).await.unwrap().unwrap();
+    assert!(!default.state().exists());
+    assert_eq!(default.getAttribute("name"), post.getAttribute("title"));
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 0);
+    }
+    missing.setAttribute("score", -1);
+    assert!(
+        !fallback
+            .getResults(&missing)
+            .await
+            .unwrap()
+            .unwrap()
+            .state()
+            .exists()
+    );
+
+    let mut typed = Post::queryOn(db)
+        .withCasts([("score", AttributeCast::Enum(EnumCast::of::<PostLinkKey>()))])
+        .findOrFail(post.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    typed.setEnum("score", PostLinkKey::Editor).unwrap();
+    assert!(matches!(
+        typed.getEnum("score").unwrap(),
+        Some(PostLinkKey::Editor)
+    ));
+    let enum_owner = BelongsTo::<Post, Author>::new("score", "id");
+    assert_eq!(
+        enum_owner
+            .getResults(&typed)
+            .await
+            .unwrap()
+            .unwrap()
+            .getKey(),
+        Some(first_key)
+    );
+    assert_eq!(
+        enum_owner.matchResults(&[&typed]).await.unwrap()[0]
+            .as_ref()
+            .unwrap()
+            .getKey(),
+        Some(first_key)
+    );
+
+    for author in [first, second] {
+        db.statement(
+            "UPDATE relation_authors SET mentor_id = ? WHERE id = ?",
+            &[
+                author
+                    .getAttribute("mentor_id")
+                    .unwrap_or(&Value::Null)
+                    .clone(),
+                author.getKey().unwrap().clone(),
+            ],
+        )
+        .await
+        .unwrap();
+    }
 }
 
 async fn verify_morph_association(
@@ -7785,6 +7911,10 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     verify_collection_keys(&db, &other).await;
 
     Box::pin(verify_belongs_to_cache(&db, mysql, &p1, &first, &second)).await;
+    Box::pin(verify_belongs_to_owner_keys(
+        &db, mysql, &p1, &first, &second,
+    ))
+    .await;
 
     p1.load("author", &AUTHOR).await.unwrap();
     let related = p1.getRelation::<Option<Arc<Author>>>("author").unwrap();

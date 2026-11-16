@@ -334,7 +334,12 @@ where
             relation: name.to_owned(),
         })?;
     }
-    model.load(name, relation).await
+    let output = relation.getResults(model).await?;
+    model
+        .state_mut()
+        .relations
+        .insert_relation::<R>(name.to_owned(), output);
+    Ok(())
 }
 
 pub(in crate::database::eloquent) trait EagerLoad<M: Model>:

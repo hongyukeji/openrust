@@ -4,6 +4,8 @@
 
 用显式键声明 `HasOne`、`HasMany` 或 `BelongsTo`。例如 `HasMany::<Author, Post>::new("id", "author_id")` 将作者的主键与文章的外键关联，`BelongsTo::<Post, Author>::new("author_id", "id")` 描述反向关系。用 `getResults` 查询单个模型的关联结果。
 
+`BelongsTo` 的所有者键可使用主键之外的列。所有者键应唯一，才能让两种加载方式解析到同一行。若有多行匹配，单模型懒加载或 `getResults` 取查询的首行，批量预加载则为每个所有者键保留末行。外键为零时正常查询；外键为 NULL 时直接返回已配置的默认模型，无需查询。对已声明枚举转换的列，使用 `setEnum` 可存储类型化枚举外键的底层值。
+
 `BelongsToMany` 接收中间表、父模型与关联模型在中间表的外键，以及两个模型键。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
 ### 在子模型上自动加载父模型 {#automatically-hydrating-parent-models-on-children}

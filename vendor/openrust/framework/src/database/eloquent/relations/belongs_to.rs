@@ -11,7 +11,7 @@ use super::super::concerns::has_relationships::update_association_cache;
 
 use super::{
     ExistenceRelation, Relation,
-    default_model::{ConfigureDefault, match_defaults},
+    default_model::{ConfigureDefault, match_defaults, new_default},
     relation::RelationKeys,
 };
 
@@ -285,6 +285,20 @@ impl<P: Model, R: Model> Relation for BelongsTo<P, R> {
         output
             .as_deref()
             .map_or_else(Vec::new, Model::getQueueableRelations)
+    }
+
+    fn getResults<'a>(&'a self, parent: &'a P) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
+        Box::pin(async move {
+            if let Some(query) = self.0.owner_query(parent)?
+                && let Some(owner) = query.first().await?
+            {
+                return Ok(Some(Arc::new(owner)));
+            }
+            self.1
+                .as_deref()
+                .map(|configure| new_default(parent, configure, &self.0, Attributes::new()))
+                .transpose()
+        })
     }
 
     fn matchResults<'a>(

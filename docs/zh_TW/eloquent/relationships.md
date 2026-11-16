@@ -4,6 +4,8 @@
 
 用明確的鍵宣告 `HasOne`、`HasMany` 或 `BelongsTo`。例如 `HasMany::<Author, Post>::new("id", "author_id")` 將作者主鍵與文章外鍵關聯，`BelongsTo::<Post, Author>::new("author_id", "id")` 描述反向關聯。用 `getResults` 查詢單一模型的關聯結果。
 
+`BelongsTo` 的所屬鍵可使用主鍵以外的欄位。所屬鍵應具唯一性，才能讓兩種載入方式解析到同一筆。若有多筆符合，單一模型延遲載入或 `getResults` 取查詢的第一筆，批次預先載入則為每個所屬鍵保留最後一筆。外鍵為零時正常查詢；外鍵為 NULL 時直接回傳已設定的預設模型，無須查詢。對已宣告列舉轉換的欄位，使用 `setEnum` 可儲存型別化列舉外鍵的底層值。
+
 `BelongsToMany` 接收中介資料表、父模型與關聯模型在中介表的外鍵，以及兩個模型鍵。例如 `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`。
 
 ### 在子模型上自動載入父模型 {#automatically-hydrating-parent-models-on-children}

@@ -4,6 +4,8 @@
 
 Declare `HasOne`, `HasMany`, or `BelongsTo` with explicit keys. For example, `HasMany::<Author, Post>::new("id", "author_id")` joins an author's key to the post's foreign key. `BelongsTo::<Post, Author>::new("author_id", "id")` describes the inverse. Use `getResults` to fetch the relation for a single model.
 
+For `BelongsTo`, the owner key may be a column other than the primary key. Use a unique owner key so both loading modes resolve the same row. If several rows match, a single lazy access or `getResults` takes the first query result, while eager loading keeps the last row for each owner key. A foreign key of zero is valid. A null foreign key returns the default, when configured, without issuing a query. For an enum-cast column, use `setEnum` to store the backing value of a typed enum foreign key.
+
 `BelongsToMany` takes the intermediate table, its parent and related foreign keys, and the two model keys. For an `author_post` table, use `BelongsToMany::<Author, Post>::new("author_post", "author_id", "post_id", "id", "id")`.
 
 ### Automatically Hydrating Parent Models on Children {#automatically-hydrating-parent-models-on-children}
