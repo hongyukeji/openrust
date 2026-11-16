@@ -91,6 +91,20 @@ pub async fn reload_locked<M: Model>(
 }
 ```
 
+### 游标 {#cursors}
+
+调用 `cursor()` 可在轮询时逐行水合模型。模型作用域、属性转换与 `Retrieved` 事件仍然生效。需要预加载关系时，请使用分批查询。读取期间游标占用一个数据库连接。如果读取事件监听器还要查询，需要另一个可用连接。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+async fn first_model<M: Model>() -> DatabaseResult<Option<M>> {
+    let mut models = M::query()?.cursor();
+    models.try_next().await
+}
+```
+
 ## 插入和更新模型
 
 `create` 按批量赋值规则保存新模型。`setAttribute` 设置单个属性，`save` 用原主键写入已变更的属性。写入成功后同步模型快照。构造器的 `update` 和 `delete` 返回受影响行数。

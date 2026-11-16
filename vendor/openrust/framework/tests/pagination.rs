@@ -1,15 +1,18 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use axum::{extract::State, handler::Handler as _};
+use futures_util::TryStreamExt as _;
 use openrust::{
     contracts::{
         config::Repository, container::Container as _, foundation::Application as _,
         http::Kernel as _, view::View as _,
     },
     database::{
-        DB, DatabaseManager, DatabaseResult, Row, Transaction, Value,
+        Connection, DB, DatabaseFuture, DatabaseManager, DatabaseResult, Row, Transaction, Value,
         eloquent::{
             Attributes, Collection, Model, ModelMetadata, ModelState,
+            casts::AttributeCast,
+            concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             relations::{
                 BelongsToMany, HasMany, HasManyThrough, HasOne, MorphMany, MorphOne, MorphTo,
                 MorphToMany, Pivot,
@@ -75,6 +78,50 @@ impl Model for Comment {
 
     fn state_mut(&mut self) -> &mut ModelState {
         &mut self.0
+    }
+}
+
+struct StreamedComment(ModelState);
+
+impl Model for StreamedComment {
+    fn metadata() -> &'static ModelMetadata {
+        static META: ModelMetadata = ModelMetadata::new("pagination_comments")
+            .timestamps(None, None)
+            .softDeletes("deleted_at");
+        &META
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+}
+
+struct RejectThirdComment;
+
+impl ModelEventListener<StreamedComment> for RejectThirdComment {
+    fn handle<'a>(
+        &'a self,
+        _: ModelEvent,
+        model: &'a mut StreamedComment,
+        _: &'a Connection,
+    ) -> DatabaseFuture<'a, DatabaseResult<ModelEventResponse>> {
+        Box::pin(async move {
+            if id(model.getKey()) == 13 {
+                return Err(openrust::database::DatabaseError::InvalidQuery(
+                    "cursor observer",
+                ));
+            }
+            model.setAttribute("retrieved", Value::Bool(true));
+            Ok(ModelEventResponse::Continue)
+        })
     }
 }
 
@@ -206,6 +253,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/length", length_page)?;
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
+    Route::get("/model-cursor", model_cursor_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1139,6 +1187,41 @@ fn view_error(source: ViewError) -> HttpError {
     }
 }
 
+fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let mut rows = StreamedComment::query()
+            .map_err(internal)?
+            .withCasts([("id", AttributeCast::String)])
+            .orderBy("pagination_comments.id", "desc")
+            .with(
+                "article",
+                openrust::database::eloquent::relations::BelongsTo::<StreamedComment, Article>::new(
+                    "article_id",
+                    "id",
+                ),
+            )
+            .cursor();
+        let first = rows.try_next().await.map_err(internal)?.unwrap();
+        assert!(!first.relationLoaded("article"));
+        assert_eq!(first.getAttribute("retrieved"), Some(&Value::Bool(true)));
+        drop(rows);
+
+        let mut rows = StreamedComment::query()
+            .map_err(internal)?
+            .orderBy("id", "asc")
+            .cursor();
+        for expected in [11, 12] {
+            assert_eq!(
+                id(rows.try_next().await.map_err(internal)?.unwrap().getKey()),
+                expected
+            );
+        }
+        assert!(rows.try_next().await.is_err());
+        assert!(rows.try_next().await.map_err(internal)?.is_none());
+        Response::json(StatusCode::OK, first.toArray().map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -1202,6 +1285,7 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         .create()
         .unwrap();
     app.boot().await.unwrap();
+    StreamedComment::registerModelEvent(&app, ModelEvent::Retrieved, RejectThirdComment)?;
     let repository = app.container().get::<dyn Repository>("config").unwrap();
     repository
         .set("database.default", json!("pagination_test"))
@@ -1701,6 +1785,19 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     let empty = request(address, "/api/morph?page=99").await;
     assert_eq!(empty["total"], 5);
     assert_eq!(empty["data"], json!([]));
+
+    let model = request(address, "/api/model-cursor").await;
+    assert_eq!(model["id"], "17");
+    assert_eq!(model["retrieved"], true);
+    assert!(model.get("article").is_none());
+    let soft_scoped = StreamedComment::queryOn(&connection)
+        .orderBy("id", "desc")
+        .limit(2);
+    let keys: Vec<_> = soft_scoped.cursor().try_collect().await?;
+    assert_eq!(
+        keys.iter().map(|row| id(row.getKey())).collect::<Vec<_>>(),
+        [17, 15]
+    );
 
     server.abort();
     connection

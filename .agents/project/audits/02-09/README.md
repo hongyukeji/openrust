@@ -24,3 +24,9 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 隔离基线 `bfe3c3c1`。MySQL 8.4.13 和 SQLite 验证未轮询不占连接、绑定检查、单连接池提前结束后可继续查询、事务读完继续使用、提前结束中断和回滚。SQLite 验证先产出第一行再传播数据库错误。真实 SQLite HTTP 验证只读连接、写后粘滞、显式使用写库及跨应用隔离。9 项查询、7 项数据库、6 项分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版差异只在隔离副本处理。容器已回收，清理本批隔离 Cargo 产物 1.9 GiB 及站点产物。
 
 提交前周额度剩余 25%，项目卷可用 52 GiB。按当前交接记录收尾本批并等待恢复确认。下一批接 Eloquent 模型逐行水合与关系游标，再复核 05-02 和 05-06。同步惰性集合的其他差异仍按本单元跟踪。
+
+## Eloquent 模型游标
+
+固定 [Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 的 `cursor` 应用查询作用域，逐行构造模型并经过模型集合，再返回单条结果。Rust 复用数据库行流和现有模型水合、属性转换与读取事件。游标不执行关系预加载，读取事件内查询需要另一个可用连接。v0.x 的 BatchCursor 表达键集分页位置，固定 Goravel 的 ORM 查询接口作为装配参考。
+
+隔离基线 `38d96054`。MySQL 8.4.13 与 SQLite 通过 TCP 请求验证转换、读取事件、关系预加载边界、提前结束和读取到第三行时传播事件错误。另验证软删除作用域。夹具先启动应用再注册读取事件，以确保数据库管理器已绑定。21 项查询、关系和分页回归，Rust 1.94.0 严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版仅在隔离副本处理。清理本批 1.9 GiB Cargo 产物及文档构建产物。提交前周额度剩余 99%，项目卷约 119 GiB。关系游标接线仍待验收。

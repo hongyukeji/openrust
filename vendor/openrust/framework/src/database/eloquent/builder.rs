@@ -1,9 +1,10 @@
 use std::{collections::HashSet, marker::PhantomData, mem};
 
+use futures_util::TryStreamExt as _;
 use indexmap::IndexMap;
 
 use crate::{
-    database::{Connection, DatabaseError, DatabaseResult, Row, Value, query},
+    database::{Connection, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value, query},
     pagination::{CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator},
 };
 
@@ -1577,6 +1578,24 @@ impl<M: Model> Builder<'static, M> {
         Ok(page)
     }
 
+    /// Hydrates models as the query yields rows. Eager relations require a batched query.
+    pub fn cursor(self) -> DatabaseCursor<'static, M> {
+        Box::pin(async_stream::try_stream! {
+            let (query, hydration) = self.hydration_query()?;
+            let mut rows = query.cursor();
+            while let Some(row) = rows.try_next().await? {
+                let mut model = hydration.row(row);
+                super::concerns::has_events::retrieved(
+                    std::slice::from_mut(&mut model),
+                    &hydration.connection,
+                ).await?;
+                if let Some(model) = M::newCollection(vec![model]).into_iter().next() {
+                    yield model;
+                }
+            }
+        })
+    }
+
     pub async fn cursorPaginate(self, per_page: u64) -> DatabaseResult<CursorPaginator<M>> {
         self.cursorPaginateWith(CursorOptions {
             perPage: Some(per_page),
@@ -1801,18 +1820,18 @@ struct Hydration<M: Model> {
 
 impl<M: Model> Hydration<M> {
     fn rows(&self, rows: Vec<Row>) -> Vec<M> {
-        rows.into_iter()
-            .map(|row| {
-                let mut attributes = row.into_columns().into_iter().collect();
-                cast_existence(&mut attributes, &self.existence);
-                let mut state = ModelState::hydrated_attributes(
-                    attributes,
-                    self.connection.clone(),
-                    self.casts.clone(),
-                );
-                state.pivot_identity = self.pivot;
-                M::from_state(state)
-            })
-            .collect()
+        rows.into_iter().map(|row| self.row(row)).collect()
+    }
+
+    fn row(&self, row: Row) -> M {
+        let mut attributes = row.into_columns().into_iter().collect();
+        cast_existence(&mut attributes, &self.existence);
+        let mut state = ModelState::hydrated_attributes(
+            attributes,
+            self.connection.clone(),
+            self.casts.clone(),
+        );
+        state.pivot_identity = self.pivot;
+        M::from_state(state)
     }
 }

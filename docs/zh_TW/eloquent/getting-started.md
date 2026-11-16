@@ -91,6 +91,20 @@ pub async fn reload_locked<M: Model>(
 }
 ```
 
+### 游標 {#cursors}
+
+呼叫 `cursor()` 可在輪詢時逐列水合模型。模型作用域、屬性轉換與 `Retrieved` 事件仍然生效。需要預先載入關聯時，請使用分批查詢。讀取期間游標會占用一個資料庫連線。如果讀取事件監聽器也要查詢，需要另一個可用連線。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+async fn first_model<M: Model>() -> DatabaseResult<Option<M>> {
+    let mut models = M::query()?.cursor();
+    models.try_next().await
+}
+```
+
 ## 插入和更新模型
 
 `create` 依批次賦值規則儲存新模型。`setAttribute` 設定單一屬性，`save` 以原主鍵寫入已變更的屬性。寫入成功後同步模型快照。建構器的 `update` 和 `delete` 回傳受影響列數。

@@ -91,6 +91,20 @@ pub async fn reload_locked<M: Model>(
 }
 ```
 
+### Cursors {#cursors}
+
+Call `cursor()` to hydrate one model per row as the stream is polled. Model scopes, casts and the `Retrieved` event still apply. For eager-loaded relations, use a batched query. The cursor holds a database connection while it is being read. If a retrieved listener makes a query, it needs a separate available connection.
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::Model};
+
+async fn first_model<M: Model>() -> DatabaseResult<Option<M>> {
+    let mut models = M::query()?.cursor();
+    models.try_next().await
+}
+```
+
 ## Inserting and Updating Models
 
 `create` applies mass-assignment rules and saves a new model. `setAttribute` updates an individual attribute and `save` writes dirty attributes using the original primary key. A successful write updates the model snapshot. Builder `update` and `delete` return affected-row counts.
