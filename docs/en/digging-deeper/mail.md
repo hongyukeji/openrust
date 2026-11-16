@@ -63,6 +63,10 @@ let content = Content {
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.
 
+## Mail transport extensions and events
+
+Register a Rust transport factory with `MailManager::extend` in an application provider. Select it with the mailer’s `transport` config key. The dispatcher emits `MessageSending` before the transport runs and `MessageSent` after the transport accepts the message. A `MessageSending` listener can return `false` to cancel delivery. `send` returns `None` for a cancelled send, and `sendNow` returns `MailError::Cancelled`.
+
 ## Testing mail
 
 Install `Mail::fake()` within the test application to inspect mail without contacting a transport or pushing a queue job. Assertions distinguish immediate mail from queued mail. Use `Mailable::kind()` to select records, and use a matching assertion to inspect the envelope or queue options.

@@ -11,6 +11,7 @@ use crate::{
         container::Container as _,
         mail::{Factory, Mailer as Contract},
     },
+    events::Dispatcher,
     log::LogManager,
     view,
 };
@@ -27,12 +28,15 @@ use super::{
 
 type ResolvedTransport = (Arc<dyn Transport>, Option<Arc<ArrayTransport>>);
 
+type TransportCreator = dyn Fn(&serde_json::Value) -> MailResult<Arc<dyn Transport>> + Send + Sync;
+
 /// Resolves application-local mailers by name.
 pub struct MailManager {
     config: Arc<dyn Repository>,
     owner: Weak<Container>,
     mailers: Mutex<HashMap<String, Arc<Mailer>>>,
     fake: FakeState,
+    creators: Mutex<HashMap<String, Arc<TransportCreator>>>,
 }
 
 impl MailManager {
@@ -42,6 +46,7 @@ impl MailManager {
             owner,
             mailers: Mutex::default(),
             fake: FakeState::default(),
+            creators: Mutex::default(),
         }
     }
 
@@ -51,14 +56,30 @@ impl MailManager {
         fake
     }
 
+    /// Registers a transport factory for the corresponding `transport` config value.
+    pub fn extend(
+        &self,
+        name: impl Into<String>,
+        creator: impl Fn(&serde_json::Value) -> MailResult<Arc<dyn Transport>> + Send + Sync + 'static,
+    ) {
+        self.creators
+            .lock()
+            .expect("mail transport factories lock poisoned")
+            .insert(name.into(), Arc::new(creator));
+    }
+
     pub fn mailer(&self, name: Option<&str>) -> MailResult<Arc<Mailer>> {
         let default = self.config.get("mail.default");
         let name = name
             .filter(|name| !name.is_empty())
             .or_else(|| default.as_ref().and_then(serde_json::Value::as_str))
             .unwrap_or("log");
-        let mut mailers = self.mailers.lock().expect("mail manager lock poisoned");
-        if let Some(mailer) = mailers.get(name) {
+        if let Some(mailer) = self
+            .mailers
+            .lock()
+            .expect("mail manager lock poisoned")
+            .get(name)
+        {
             return Ok(mailer.clone());
         }
         let container = self
@@ -85,14 +106,21 @@ impl MailManager {
             from,
             views,
             markdown: Markdown::from_config(&self.config.get("mail.markdown").unwrap_or_default()),
+            events: container.make::<Dispatcher>().map_err(super::composition)?,
             transport,
             captured,
             fake: self.fake.clone(),
         });
-        if !faking {
-            mailers.insert(name.into(), mailer.clone());
+        if faking {
+            return Ok(mailer);
         }
-        Ok(mailer)
+        Ok(self
+            .mailers
+            .lock()
+            .expect("mail manager lock poisoned")
+            .entry(name.into())
+            .or_insert(mailer)
+            .clone())
     }
 
     fn resolve_transport(
@@ -109,8 +137,19 @@ impl MailManager {
             .get(&format!("mail.mailers.{name}"))
             .or_else(|| (name == "log").then(|| serde_json::json!({"transport":"log"})))
             .ok_or_else(|| MailError::UnknownMailer { name: name.into() })?;
+        let kind = config["transport"].as_str();
+        let creator = kind.and_then(|kind| {
+            self.creators
+                .lock()
+                .expect("mail transport factories lock poisoned")
+                .get(kind)
+                .cloned()
+        });
+        if let Some(creator) = creator {
+            return Ok((creator(&config)?, None));
+        }
         let mut captured = None;
-        let transport: Arc<dyn Transport> = match config["transport"].as_str() {
+        let transport: Arc<dyn Transport> = match kind {
             Some("smtp") => Arc::new(SmtpTransport::new(
                 serde_json::from_value(config)
                     .map_err(|_| super::transport("Invalid SMTP configuration."))?,

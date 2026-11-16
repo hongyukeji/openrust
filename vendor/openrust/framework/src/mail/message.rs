@@ -26,6 +26,10 @@ impl Message {
         self.0.formatted()
     }
 
+    pub fn envelope(&self) -> &Envelope {
+        &self.1.envelope
+    }
+
     pub fn recipients(&self) -> Vec<String> {
         self.0
             .envelope()

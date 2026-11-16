@@ -1,5 +1,6 @@
 use std::{
     ffi::OsString,
+    io::Write as _,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -10,7 +11,9 @@ use openrust::{
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     container::Callback,
     contracts::{
+        config::Repository,
         container::Container as _,
+        events::Dispatcher as _,
         events::{Event as PayloadEvent, Listener},
         foundation::Application as _,
         http::Kernel as _,
@@ -20,16 +23,19 @@ use openrust::{
     foundation::{Application, configuration::Routing, http::Kernel},
     http::{HttpError, HttpFuture, Request, Response},
     mail::{
-        MailResult, Mailable,
+        MailFuture, MailResult, Mailable, Message, SentMessage,
+        events::{MessageSending, MessageSent},
         mailables::{Attachment, Content, Envelope, Headers},
+        transport::Transport,
     },
     notifications::{
         ChannelManager, DatabaseKey, DatabaseNotification, DatabaseRoute, Notifiable,
         Notification as Notice, NotificationError, NotificationEvent, NotificationFuture,
         NotificationQueueGuard, NotificationResult, NotificationRoute, NotificationTarget,
+        SendQueuedNotifications,
         messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage},
     },
-    queue::{DispatchOptions, QueueManager},
+    queue::{DispatchOptions, JobOptions, Payload, QueueManager, middleware::Skip},
     support::{
         ProviderResult, ServiceProvider,
         facades::{Artisan, Config, Event, Facade, Lang, Mail, Notification, Route},
@@ -261,6 +267,17 @@ impl Notice for GuardedNotice {
         self.flag.is_file()
     }
 
+    fn queue_middleware(&self, _: &dyn Notifiable, _: &str) -> Option<&str> {
+        (self.id == SKIP_NOTICE).then_some("skip")
+    }
+
+    fn queue_job_options(&self, _: &dyn Notifiable, _: &str) -> JobOptions {
+        JobOptions {
+            max_tries: Some(2),
+            ..Default::default()
+        }
+    }
+
     fn queue_guard(
         &self,
         _: &dyn Notifiable,
@@ -275,11 +292,16 @@ impl Notice for GuardedNotice {
 
 const ALLOW_NOTICE: &str = "e6ed5cc9-ce3a-45cc-9010-c2f77a23f289";
 const DENY_NOTICE: &str = "16ee6ea2-59b9-424f-9cab-2ea7bab6026a";
+const SKIP_NOTICE: &str = "a308ce32-a693-4367-ab13-bd99cc4179b0";
 
 fn guarded_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
     Box::pin(async {
         let root = PathBuf::from(Config::string("fixture.guard_path").unwrap());
-        for (file, id) in [("allow", ALLOW_NOTICE), ("deny", DENY_NOTICE)] {
+        for (file, id) in [
+            ("allow", ALLOW_NOTICE),
+            ("deny", DENY_NOTICE),
+            ("allow", SKIP_NOTICE),
+        ] {
             user()
                 .notify(&GuardedNotice {
                     flag: root.join(file),
@@ -314,9 +336,112 @@ impl ServiceProvider for FixtureGuardProvider {
             app.container()
                 .make::<ChannelManager>()?
                 .extendQueueGuard("fixture.delivery-flag", guard_file);
+            let queue = app.container().make::<QueueManager>()?;
+            SendQueuedNotifications::registerMiddleware(
+                &queue,
+                "skip",
+                vec![Arc::new(Skip::when(true))],
+            )?;
             Ok(())
         })
     }
+}
+
+struct FixtureMailTransport(PathBuf);
+
+fn record_mail(path: &Path, stage: &str, message: &Message) {
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+    writeln!(file, "{stage} {}", message.recipients()[0]).unwrap();
+}
+
+impl Transport for FixtureMailTransport {
+    fn send<'a>(&'a self, message: &'a Message) -> MailFuture<'a, MailResult<SentMessage>> {
+        Box::pin(async move {
+            record_mail(&self.0, "transport", message);
+            Ok(SentMessage {
+                message: message.clone(),
+            })
+        })
+    }
+}
+
+struct MailLifecycleProbe(PathBuf);
+
+impl Listener for MailLifecycleProbe {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn PayloadEvent,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            if let Some(sending) = event.downcast_ref::<MessageSending>() {
+                assert_eq!(sending.mailer, "fixture");
+                record_mail(&self.0, "sending", &sending.message);
+                let blocked = sending.message.recipients()[0] == "blocked@example.test";
+                return Ok(blocked.then_some(ListenerResponse::Value(Box::new(false))));
+            }
+            let received = event.downcast_ref::<MessageSent>().unwrap();
+            assert_eq!(received.mailer, "fixture");
+            record_mail(&self.0, "sent", &received.sent.message);
+            Ok(None)
+        })
+    }
+}
+
+struct FixtureMailProvider;
+
+impl ServiceProvider for FixtureMailProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let container = app.container();
+            let configuration = container.make::<dyn Repository>()?;
+            let Some(log) = configuration.get("fixture.mail_events_path") else {
+                return Ok(());
+            };
+            let path = PathBuf::from(log.as_str().unwrap());
+            let dispatcher = container.make::<openrust::events::Dispatcher>()?;
+            let listener = Arc::new(MailLifecycleProbe(path));
+            dispatcher.listen("MessageSending", listener.clone(), Delivery::Sync)?;
+            dispatcher.listen("MessageSent", listener, Delivery::Sync)?;
+            container
+                .make::<openrust::mail::MailManager>()?
+                .extend("fixture", |config| {
+                    Ok(Arc::new(FixtureMailTransport(PathBuf::from(
+                        config["path"].as_str().unwrap(),
+                    ))))
+                });
+            Ok(())
+        })
+    }
+}
+
+fn mail_events_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let send = |recipient: &'static str| async move {
+            Mail::to(recipient)
+                .unwrap()
+                .send(&NamedReceipt("fixture"))
+                .await
+                .map_err(|error| HttpError::Internal {
+                    source: Box::new(error),
+                })
+        };
+        let delivered = send("http@example.test").await?.is_some();
+        let blocked = send("blocked@example.test").await?.is_none();
+        let forced = Mail::to("blocked@example.test")
+            .unwrap()
+            .sendNow(&NamedReceipt("fixture"))
+            .await;
+        let forced_blocked = matches!(forced, Err(openrust::mail::MailError::Cancelled));
+        Response::json(
+            http::StatusCode::OK,
+            json!({"delivered":delivered,"blocked":blocked,"forced_blocked":forced_blocked}),
+        )
+    })
 }
 
 type EventRecord = (String, String, String);
@@ -554,9 +679,13 @@ fn app(root: &Path) -> Application {
         })
         .withRouting(Routing::default().commands(mail_routes).web(|| {
             Route::get("/notify", notify_from_http)?;
-            Route::get("/guarded-notify", guarded_from_http)
+            Route::get("/guarded-notify", guarded_from_http)?;
+            Route::get("/mail-events", mail_events_from_http)
         }))
-        .withProviders(vec![Box::new(FixtureGuardProvider)])
+        .withProviders(vec![
+            Box::new(FixtureGuardProvider),
+            Box::new(FixtureMailProvider),
+        ])
         .create()
         .unwrap()
 }
@@ -1310,7 +1439,7 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
     }
 }
 
-async fn serve_notify(
+async fn serve_fixture_http(
     kernel: Kernel,
     route: &str,
 ) -> (String, tokio::task::JoinHandle<Result<(), std::io::Error>>) {
@@ -1373,7 +1502,7 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
         .mailer(None)
         .unwrap();
 
-    let (url, server) = serve_notify(kernel, "notify").await;
+    let (url, server) = serve_fixture_http(kernel, "notify").await;
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     assert_eq!(
@@ -1441,7 +1570,7 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
         .make::<openrust::notifications::ChannelManager>()
         .unwrap()
         .fake();
-    let (url, server) = serve_notify(kernel, "notify").await;
+    let (url, server) = serve_fixture_http(kernel, "notify").await;
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     notifications
@@ -1498,9 +1627,14 @@ async fn artisan_checks_live_notification_guard_after_http_dispatch() {
         .unwrap()
         .connection(None)
         .unwrap();
-    let (url, server) = serve_notify(kernel, "guarded-notify").await;
+    let (url, server) = serve_fixture_http(kernel, "guarded-notify").await;
     assert_eq!(reqwest::get(url).await.unwrap().status(), 202);
-    assert_eq!(queue.size(Some("guarded")).await.unwrap(), 2);
+    assert_eq!(queue.size(Some("guarded")).await.unwrap(), 3);
+    let Value::Text(payload) = db.table("jobs").value("payload").await.unwrap() else {
+        panic!("expected serialized job payload");
+    };
+    let payload: Payload = serde_json::from_str(&payload).unwrap();
+    assert_eq!(payload.options().max_tries, Some(2));
     assert_eq!(db.table("notifications").count("*").await.unwrap(), 0);
 
     std::fs::remove_file(&deny).unwrap();
@@ -1525,6 +1659,43 @@ async fn artisan_checks_live_notification_guard_after_http_dispatch() {
     assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
 
     drop_delivery_tables(&db).await;
+    server.abort();
+}
+
+#[tokio::test]
+async fn http_and_artisan_use_custom_mailers_and_dispatch_delivery_events() {
+    let root = fixture(None, None, None);
+    let config_path = root.0.join("config.json");
+    let trace_path = root.0.join("trace.log");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["mail"]["mailers"]["fixture"] = json!({"transport":"fixture","path":trace_path});
+    config["fixture"] = json!({"mail_events_path":trace_path});
+    std::fs::write(config_path, config.to_string()).unwrap();
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let (url, server) = serve_fixture_http(kernel, "mail-events").await;
+    let response = reqwest::get(url).await.unwrap().error_for_status().unwrap();
+    assert_eq!(
+        response.json::<Json>().await.unwrap(),
+        json!({"delivered":true,"blocked":true,"forced_blocked":true})
+    );
+
+    let output = artisan(&root.0, &["fixture:send-mail", "fixture"]).await;
+    assert!(output.contains("accepted"));
+    let trace = std::fs::read_to_string(trace_path).unwrap();
+    assert_eq!(
+        trace.lines().collect::<Vec<_>>(),
+        [
+            "sending http@example.test",
+            "transport http@example.test",
+            "sent http@example.test",
+            "sending blocked@example.test",
+            "sending blocked@example.test",
+            "sending to@example.test",
+            "transport to@example.test",
+            "sent to@example.test",
+        ]
+    );
     server.abort();
 }
 

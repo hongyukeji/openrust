@@ -1,10 +1,15 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::{
     contracts::queue::JobHandler,
     database::Transaction,
-    queue::{DispatchOptions, JobContext, Payload, QueueError, QueueFuture, QueueResult},
+    queue::{
+        DispatchOptions, JobContext, JobOptions, Payload, QueueError, QueueFuture, QueueManager,
+        QueueResult, middleware::JobMiddleware,
+    },
     support::facades::{Facade, Queue},
 };
 
@@ -24,14 +29,56 @@ struct Job<T> {
 impl SendQueuedNotifications {
     pub(crate) const NAME: &str = "notifications.send_queued_notifications";
 
+    /// Registers a middleware chain for notifications selecting this name.
+    #[allow(non_snake_case, reason = "Uses Laravel's queue API naming")]
+    pub fn registerMiddleware(
+        queue: &QueueManager,
+        name: &str,
+        middleware: Vec<Arc<dyn JobMiddleware>>,
+    ) -> QueueResult<()> {
+        queue.register(
+            &Self::middleware_job(name)?,
+            Arc::new(MiddlewareDelivery(middleware)),
+        )
+    }
+
+    fn middleware_job(name: &str) -> QueueResult<String> {
+        if name.is_empty()
+            || !name
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'_'))
+        {
+            return Err(QueueError::InvalidConfiguration);
+        }
+        Ok(format!("{}.{name}", Self::NAME))
+    }
+
     pub(super) async fn dispatch(
         delivery: &Delivery,
         payload: Value,
         options: DispatchOptions,
+        job_options: JobOptions,
+        middleware: Option<&str>,
         transaction: Option<&mut Transaction>,
     ) -> NotificationResult<()> {
-        let payload = Payload::new(Self::NAME, Job { delivery, payload })
+        let name = middleware
+            .map(Self::middleware_job)
+            .transpose()
             .map_err(NotificationError::Queue)?;
+        if let Some(name) = &name {
+            let queue = Queue::getFacadeRoot().map_err(super::delivery)?;
+            if queue.command_handler(name).is_none() {
+                return Err(NotificationError::Queue(QueueError::UnknownJob(
+                    name.clone(),
+                )));
+            }
+        }
+        let payload = Payload::new(
+            name.as_deref().unwrap_or(Self::NAME),
+            Job { delivery, payload },
+        )
+        .map_err(NotificationError::Queue)?
+        .with_options(job_options);
         Queue::dispatch(payload, options, transaction)
             .await
             .map_err(NotificationError::Queue)?;
@@ -68,5 +115,21 @@ impl JobHandler for SendQueuedNotifications {
                 source: Box::new(source),
             })
         })
+    }
+}
+
+struct MiddlewareDelivery(Vec<Arc<dyn JobMiddleware>>);
+
+impl JobHandler for MiddlewareDelivery {
+    fn middleware(&self) -> Vec<Arc<dyn JobMiddleware>> {
+        self.0.clone()
+    }
+
+    fn handle<'a>(
+        &'a self,
+        context: &'a mut JobContext<'_>,
+        payload: &'a Payload,
+    ) -> QueueFuture<'a, QueueResult<()>> {
+        SendQueuedNotifications.handle(context, payload)
     }
 }

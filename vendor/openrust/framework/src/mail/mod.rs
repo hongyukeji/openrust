@@ -1,5 +1,6 @@
 //! Mail composition, mailer selection, and delivery.
 
+pub mod events;
 mod facade;
 mod mail_fake;
 mod mail_manager;
@@ -36,6 +37,7 @@ pub type MailResult<T> = Result<T, MailError>;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum MailError {
+    Cancelled,
     UnknownMailer {
         name: String,
     },
@@ -51,6 +53,7 @@ pub enum MailError {
 impl std::fmt::Display for MailError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Cancelled => f.write_str("Mail delivery was cancelled by a listener."),
             Self::UnknownMailer { name } => write!(f, "Mailer [{name}] is not defined."),
             Self::Composition { source } => write!(f, "Mail composition failed: {source}"),
             Self::Transport { source } => write!(f, "Mail transport failed: {source}"),
@@ -62,7 +65,7 @@ impl std::fmt::Display for MailError {
 impl Error for MailError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::UnknownMailer { .. } => None,
+            Self::Cancelled | Self::UnknownMailer { .. } => None,
             Self::Composition { source } | Self::Transport { source } => Some(source.as_ref()),
             Self::Queue(source) => Some(source),
         }

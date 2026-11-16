@@ -4,7 +4,7 @@
 
 MailManager 解析默认或命名邮件器并在应用内缓存。SMTP、log 和 array 共用 MIME 组装。密送只进入投递信封。认证 SMTP 要求 TLS。通知由 ChannelManager 选择邮件或数据库渠道，支持显式立即发送、语言作用域、取消和投递事件。数据库通知保存关联键、数据及已读状态。Artisan 生成编译型通知迁移，应用登记后运行。
 
-Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker 重新解析传输和视图。自定义通知内容及 `should_send` 在分派时求值，Worker 的 `NotificationSending` 仍可取消投递。队列采用至少一次投递语义。工作器失败记录沿用队列通用错误，SMTP 直发可见脱敏的阶段或状态码。独立 Markdown 主题及 Laravel 测试 Fake 的断言 API 仍单独跟踪。生产 SMTP 和真实供应商投递的状态见下方专项验收。
+Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker 重新解析传输和视图。通知可登记命名 guard，在 Worker 执行时以当前状态决定投递，`NotificationSending` 仍可取消投递。队列采用至少一次投递语义。工作器失败记录沿用队列通用错误，SMTP 直发可见脱敏的阶段或状态码。Markdown 主题、测试 Fake 和部署环境验收范围见下方记录。
 
 ## 验收
 
@@ -62,3 +62,24 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 对照固定 [NotificationSender](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/NotificationSender.php) 的 Worker 时点判定。Rust 编译型 Provider 登记命名 async guard，队列只保存 guard 名称和值，不序列化闭包或 trait 对象。无 guard 的既有载荷仍按原策略兼容，立即发送继续使用 `should_send`。旧版通知任务已有 Worker 查应用服务的惯例，沿用同样的服务装配。
 - 真实 HTTP 请求将两条数据库通知提交到独立 MySQL 8.4.13。入队后交换两项实时状态，由独立 Artisan `queue:work` 判定，只有 Worker 执行时允许的通知落库，拒绝项没有失败记录。验证 guard 在收件人语言作用域执行。
 - 隔离副本以 `e3df2a317` 为基线，整组 13 项通过、2 个夹具标注忽略，Rust 1.94.0 工作区全目标严格 Clippy 通过。三语文档构建与 12 项浏览器检查通过。共享工作树并行日志改动的递归泛型实例化错误由隔离验证绕开。
+
+## 邮件投递事件、扩展传输和通知队列中间件
+
+- 对照固定 [Mailer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/Mailer.php)、[MailManager](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Mail/MailManager.php) 和 [SendQueuedNotifications](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/SendQueuedNotifications.php)。旧版 `MailDriver` 和 `Notifier` 只有传输及队列入口，现行实现在保留 Rust trait 边界的同时复用应用事件派发器和 Worker 中间件链。
+- 按应用注册传输工厂，由命名邮件器配置选择。对实际投递派发 `MessageSending` 和 `MessageSent`。监听器否决时 `send` 返回 `None`，现有 `sendNow` 返回契约使用 `MailError::Cancelled` 表达取消。队列遇到取消会正常确认任务。
+- 通知可按收件人和渠道选择 Worker 限制和已登记的中间件链。Rust 在队列中保留编译型链的名称；Worker 沿用常规任务中间件管道。没有指定中间件的既有通知继续使用原有任务名称。
+- 真实回环 HTTP 和独立 Artisan 发送命令验证命名自定义传输、投递前后顺序及取消时不调用传输。HTTP 提交三条数据库队列通知，核对序列化重试上限。独立 Worker 验证实时 guard 和普通队列 `Skip` 中间件，只有允许且未被中间件跳过的通知写入 MySQL。
+
+## 06-06 整单元验收
+
+| 范围 | 整单元证据 |
+| --- | --- |
+| 邮件器、传输和 MIME | SMTP 真实投递至 Mailpit，实际 Sendmail 进程及供应商回环协议覆盖信封、密送、附件、认证、回执和故障切换 |
+| 模板和发送生命周期 | Blade 与纯 Rust Markdown 邮件经过实际 Artisan 和 SMTP，HTTP 核对 Mailpit 收件内容、双 MIME、主题内联与转义，实际 HTTP 和 Artisan 验证发送前后事件 |
+| 通知 | 按需邮件、数据库通知、本地化、广播、失败与跳过通过 HTTP、MySQL 8.4 和独立 Artisan Worker 验证 |
+| 队列 | MySQL 8.4 与 Redis 覆盖事务提交及回滚、Worker 队列拆分、重试、终态失败、动态 guard 和中间件 |
+| Fake | HTTP 路由和 Artisan 子进程验证邮件发送与入队断言、通知收件人及渠道断言、应用隔离和无实际副作用 |
+
+最终批次按提交 `48af9dfe0` 的隔离副本验收。Rust 1.94.0 的 `mail_notifications` 整组 14 项通过，2 项为单独启动的夹具。独立服务为 MySQL 8.4.13、Redis 8.10.3 和 Mailpit 1.33.1。工作区全目标严格 Clippy、本批格式、差异空白检查和三语构建通过。浏览器检查在 `/` 和 `/docs/` 共 12 项通过。全仓格式检查仍只有既有 Sanctum 测试断言换行差异。
+
+按项目交付计划的核心范围闭合 06-06。受信 SMTP 证书、认证及真实邮箱，以及真实供应商账户投递留待有目标环境和凭据时验证。纯 Rust Markdown 使用 Blade 与内置 CommonMark 解析，Laravel 的 PHP CommonMark 扩展、邮件专属组件及 `vendor:publish` 邮件资源发布属于后续适配。

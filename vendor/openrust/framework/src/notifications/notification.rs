@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     broadcasting::{BroadcastChannel, BroadcastPayload},
-    queue::DispatchOptions,
+    queue::{DispatchOptions, JobOptions},
 };
 
 use super::{
@@ -81,6 +81,16 @@ pub trait Notification: Send + Sync {
         _channel: &str,
     ) -> NotificationResult<Option<NotificationQueueGuard>> {
         Ok(None)
+    }
+
+    /// Chooses an application-registered middleware chain for this queued channel.
+    fn queue_middleware(&self, _recipient: &dyn Notifiable, _channel: &str) -> Option<&str> {
+        None
+    }
+
+    /// Configures worker limits for the queued notification job.
+    fn queue_job_options(&self, _recipient: &dyn Notifiable, _channel: &str) -> JobOptions {
+        JobOptions::default()
     }
 
     /// Selects queue delivery and options for this recipient and channel.

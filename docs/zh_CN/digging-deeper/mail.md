@@ -63,6 +63,10 @@ let content = Content {
 
 让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。
 
+## 扩展邮件传输和投递事件
+
+在应用服务提供者中用 `MailManager::extend` 注册 Rust 传输工厂，通过邮件器的 `transport` 配置选择它。派发器在调用传输前发出 `MessageSending`，在传输接受邮件后发出 `MessageSent`。监听器返回 `false` 可以取消投递。取消时，`send` 返回 `None`，`sendNow` 返回 `MailError::Cancelled`。
+
 ## 测试邮件
 
 在测试应用中调用 `Mail::fake()`，可以检查邮件并跳过传输和入队。断言区分即时发送和排队发送。用 `Mailable::kind()` 选择邮件记录，用匹配断言检查信封或队列选项。

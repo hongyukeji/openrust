@@ -24,6 +24,19 @@ impl Mail {
         Ok(Self::getFacadeRoot().map_err(super::transport)?.fake())
     }
 
+    pub fn extend(
+        name: impl Into<String>,
+        creator: impl Fn(&serde_json::Value) -> MailResult<Arc<dyn super::transport::Transport>>
+        + Send
+        + Sync
+        + 'static,
+    ) -> MailResult<()> {
+        Self::getFacadeRoot()
+            .map_err(super::transport)?
+            .extend(name, creator);
+        Ok(())
+    }
+
     pub fn mailer(name: Option<&str>) -> MailResult<Arc<Mailer>> {
         Self::getFacadeRoot()
             .map_err(super::transport)?

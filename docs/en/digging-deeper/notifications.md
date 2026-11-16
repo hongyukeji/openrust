@@ -43,6 +43,8 @@ Return `DispatchOptions` from `Notification::queue_options` for each recipient a
 
 Use `Notification::queue_guard` when a queued delivery depends on state that can change before the worker runs. Return a `NotificationQueueGuard` with a registered name and JSON context. Register the named async decision with `ChannelManager::extendQueueGuard` in a provider loaded by the worker. A false result skips the channel and emits `NotificationSkipped`. For immediate delivery and queued notifications without a guard, the sender uses `should_send`.
 
+For per-channel worker limits, return `JobOptions` from `queue_job_options`. To apply queue middleware, register a named chain with `SendQueuedNotifications::registerMiddleware` in a provider loaded by both the dispatcher and worker, then return the chain’s name from `queue_middleware`. The queue worker runs the normal middleware pipeline for that job.
+
 ## On-demand notifications
 
 Use `Notifications::route` to send to an address without loading a model. In this example, `PaymentReceived` is a notification whose `via` includes `mail`. Chain `route` to supply additional channel addresses. The database channel requires a persisted recipient.

@@ -54,7 +54,7 @@ impl Channel for MailChannel {
                 return Ok(None);
             };
             let sent = message.send().await.map_err(NotificationError::Mail)?;
-            Ok(Some(ChannelResponse::Mail(sent)))
+            Ok(sent.map(ChannelResponse::Mail))
         })
     }
 
@@ -79,7 +79,7 @@ impl Channel for MailChannel {
         Box::pin(async move {
             let message: PreparedMail = serde_json::from_value(payload).map_err(delivery)?;
             let sent = message.send().await.map_err(NotificationError::Mail)?;
-            Ok(Some(ChannelResponse::Mail(sent)))
+            Ok(sent.map(ChannelResponse::Mail))
         })
     }
 }

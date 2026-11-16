@@ -63,6 +63,10 @@ let content = Content {
 
 讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。
 
+## 擴充郵件傳輸和投遞事件
+
+在應用程式服務提供者中用 `MailManager::extend` 註冊 Rust 傳輸工廠，透過郵件器的 `transport` 設定選擇它。派發器在呼叫傳輸前發出 `MessageSending`，在傳輸接受郵件後發出 `MessageSent`。監聽器回傳 `false` 可以取消投遞。取消時，`send` 回傳 `None`，`sendNow` 回傳 `MailError::Cancelled`。
+
 ## 測試郵件
 
 在測試應用程式中呼叫 `Mail::fake()`，即可檢查郵件並跳過傳輸和加入佇列。斷言區分即時傳送與排隊傳送。用 `Mailable::kind()` 選擇郵件記錄，用比對斷言檢查信封或佇列選項。

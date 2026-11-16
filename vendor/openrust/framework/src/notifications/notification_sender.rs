@@ -271,8 +271,15 @@ impl<'a> NotificationSender<'a> {
                     delivery.skipped().await?;
                 } else if let Some(options) = options {
                     if let Some(payload) = driver.queue_payload(recipient, notification).await? {
-                        SendQueuedNotifications::dispatch(&delivery, payload, options, transaction)
-                            .await?;
+                        SendQueuedNotifications::dispatch(
+                            &delivery,
+                            payload,
+                            options,
+                            notification.inner.queue_job_options(recipient, channel),
+                            notification.inner.queue_middleware(recipient, channel),
+                            transaction,
+                        )
+                        .await?;
                     }
                 } else {
                     delivery.send(driver.send(recipient, notification)).await?;

@@ -1,15 +1,19 @@
 use std::sync::Arc;
 
 use crate::{
-    contracts::mail::{MailQueue, Mailer as Contract},
+    contracts::{
+        events::Dispatcher as _,
+        mail::{MailQueue, Mailer as Contract},
+    },
     database::Transaction,
+    events::{Dispatcher, EventContext, ListenerResponse},
     queue::{Delay, DispatchOptions},
     support::facades::Lang,
     view,
 };
 
 use super::{
-    MailFuture, MailResult, Mailable, Message, SendQueuedMailable, SentMessage,
+    MailError, MailFuture, MailResult, Mailable, Message, SendQueuedMailable, SentMessage,
     mailables::Address,
     pending_mail::Recipients,
     transport::{ArrayTransport, Transport},
@@ -21,6 +25,7 @@ pub struct Mailer {
     pub(super) from: Option<Address>,
     pub(super) views: Arc<view::Factory>,
     pub(super) markdown: super::Markdown,
+    pub(super) events: Arc<Dispatcher>,
     pub(super) transport: Arc<dyn Transport>,
     pub(super) captured: Option<Arc<ArrayTransport>>,
     pub(super) fake: super::mail_fake::FakeState,
@@ -59,7 +64,7 @@ impl Mailer {
             self.enqueue(mailable, recipients, options, None).await?;
             return Ok(None);
         }
-        self.send_now_to(mailable, recipients).await.map(Some)
+        self.send_immediately(mailable, recipients).await
     }
 
     pub(super) async fn send_now_to(
@@ -67,6 +72,16 @@ impl Mailer {
         mailable: &dyn Mailable,
         recipients: Recipients,
     ) -> MailResult<SentMessage> {
+        self.send_immediately(mailable, recipients)
+            .await?
+            .ok_or(MailError::Cancelled)
+    }
+
+    pub(super) async fn send_immediately(
+        &self,
+        mailable: &dyn Mailable,
+        recipients: Recipients,
+    ) -> MailResult<Option<SentMessage>> {
         let locale = recipients.locale.as_deref().or_else(|| mailable.locale());
         let message = match locale {
             Some(locale) => Lang::withLocale(locale, async { self.compose(mailable, &recipients) })
@@ -85,9 +100,36 @@ impl Mailer {
                 message: Some(sent.clone()),
                 queue: None,
             });
-            return Ok(sent);
+            return Ok(Some(sent));
         }
-        self.transport.send(&message).await
+        let before = self
+            .events
+            .until(
+                Arc::new(super::events::MessageSending {
+                    mailer: self.name.clone(),
+                    message: message.clone(),
+                }),
+                &mut EventContext::new(),
+            )
+            .await
+            .map_err(super::composition)?;
+        if matches!(before, Some(ListenerResponse::Stop))
+            || matches!(before, Some(ListenerResponse::Value(value)) if value.downcast_ref::<bool>() == Some(&false))
+        {
+            return Ok(None);
+        }
+        let sent = self.transport.send(&message).await?;
+        self.events
+            .dispatch(
+                Arc::new(super::events::MessageSent {
+                    mailer: self.name.clone(),
+                    sent: sent.clone(),
+                }),
+                &mut EventContext::new(),
+            )
+            .await
+            .map_err(super::composition)?;
+        Ok(Some(sent))
     }
 
     fn compose(&self, mailable: &dyn Mailable, recipients: &Recipients) -> MailResult<Message> {
@@ -142,7 +184,7 @@ impl Contract for Mailer {
         &'a self,
         mailable: &'a dyn Mailable,
     ) -> MailFuture<'a, MailResult<Option<SentMessage>>> {
-        Box::pin(async move { self.sendNow(mailable).await.map(Some) })
+        Box::pin(self.send_immediately(mailable, Recipients::default()))
     }
 }
 

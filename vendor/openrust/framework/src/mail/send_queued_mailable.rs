@@ -55,8 +55,10 @@ impl PreparedMail {
         }
     }
 
-    pub(crate) async fn send(&self) -> MailResult<SentMessage> {
-        Mail::mailer(Some(&self.mailer))?.sendNow(self).await
+    pub(crate) async fn send(&self) -> MailResult<Option<SentMessage>> {
+        Mail::mailer(Some(&self.mailer))?
+            .send_immediately(self, Recipients::default())
+            .await
     }
 }
 
