@@ -10,10 +10,16 @@ use crate::{
         Output,
     },
     contracts::foundation::Application as _,
-    foundation::Application,
+    foundation::{Application, events::VendorTagPublished},
+    support::facades::Event,
 };
 
-use super::source_edit::{file_error, insert_before, lock_manifest, read, replace};
+use super::{
+    source_edit::{file_error, insert_before, lock_manifest, read, replace},
+    vendor_publish_command::{
+        migration_publication_timestamp, publish_package_if_migration_missing,
+    },
+};
 
 struct InstallSpec {
     command: &'static str,
@@ -114,14 +120,24 @@ impl Command for InstallRoutesCommand {
             let spec = self.spec;
             let api = spec.command == "install:api";
             let force = api && input.matches().get_flag("force");
-            let (existing, warnings) =
-                tokio::task::spawn_blocking(move || install(&root, spec, force))
+            let timestamp = if api {
+                migration_publication_timestamp(app)?
+            } else {
+                None
+            };
+            let result =
+                tokio::task::spawn_blocking(move || install(&root, spec, force, timestamp))
                     .await
                     .map_err(|error| ConsoleError::new(error.to_string()))??;
-            if api && existing && !force {
+            if let Some(event) = result.publication {
+                Event::dispatch(event)
+                    .await
+                    .map_err(|error| ConsoleError::new(error.to_string()))?;
+            }
+            if api && result.existing_routes && !force {
                 output.stderr.push_str("API routes file already exists.\n");
             }
-            for warning in warnings {
+            for warning in result.warnings {
                 output.stderr.push_str(&format!("Warning: {warning}\n"));
             }
             output.info(&format!(
@@ -136,21 +152,24 @@ impl Command for InstallRoutesCommand {
                     .await
                     .map_err(|error| ConsoleError::new(error.to_string()))??
             {
-                if cfg!(feature = "sanctum") {
-                    app.share().run_console(&["migrate".into()], output).await;
-                } else {
-                    let root = app.base_path().to_owned();
-                    tokio::task::spawn_blocking(move || migrate_after_rebuild(&root))
-                        .await
-                        .map_err(|error| ConsoleError::new(error.to_string()))??;
-                }
+                let root = app.base_path().to_owned();
+                let environment = input
+                    .matches()
+                    .get_many::<String>("env")
+                    .and_then(|mut values| values.next_back())
+                    .cloned();
+                tokio::task::spawn_blocking(move || {
+                    migrate_after_rebuild(&root, environment.as_deref())
+                })
+                .await
+                .map_err(|error| ConsoleError::new(error.to_string()))??;
             }
             Ok(0)
         })
     }
 }
 
-fn migrate_after_rebuild(root: &Path) -> Result<(), ConsoleError> {
+fn migrate_after_rebuild(root: &Path, environment: Option<&str>) -> Result<(), ConsoleError> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = std::process::Command::new(cargo);
     command
@@ -217,9 +236,12 @@ fn migrate_after_rebuild(root: &Path) -> Result<(), ConsoleError> {
             "Could not identify the application binary. Set package.default-run in Cargo.toml.",
         ));
     };
-    std::process::Command::new(executable)
-        .current_dir(root)
-        .args(["artisan", "migrate"])
+    let mut command = std::process::Command::new(executable);
+    command.current_dir(root).args(["artisan", "migrate"]);
+    if let Some(environment) = environment {
+        command.args(["--env", environment]);
+    }
+    command
         .status()
         .map_err(|error| ConsoleError::new(format!("Could not run pending migrations: {error}")))?;
     Ok(())
@@ -247,11 +269,18 @@ fn confirm_migrations() -> Result<bool, ConsoleError> {
         ))
 }
 
+struct InstallResult {
+    existing_routes: bool,
+    warnings: Vec<ConsoleError>,
+    publication: Option<VendorTagPublished>,
+}
+
 fn install(
     root: &Path,
     spec: &InstallSpec,
     force: bool,
-) -> Result<(bool, Vec<ConsoleError>), ConsoleError> {
+    timestamp: Option<chrono::NaiveDateTime>,
+) -> Result<InstallResult, ConsoleError> {
     let _manifest = lock_manifest(root)?;
     let routes_module = root.join("routes/mod.rs");
     let bootstrap = root.join("bootstrap/app.rs");
@@ -315,6 +344,16 @@ fn install(
         }
     };
 
+    let publication = if spec.command == "install:api" {
+        publish_package_if_migration_missing(
+            root,
+            crate::sanctum_service_provider::publishable_resources(),
+            timestamp,
+        )
+        .map_err(|error| ConsoleError::new(error.to_string()))?
+    } else {
+        None
+    };
     let existing = !create_routes(&routes, spec.stub)?;
     if existing && force {
         let previous = read(&routes)?;
@@ -330,7 +369,11 @@ fn install(
     if let Some((previous, updated)) = manifest_update {
         replace(&manifest_path, &previous, &updated)?;
     }
-    Ok((existing, warnings))
+    Ok(InstallResult {
+        existing_routes: existing,
+        warnings,
+        publication,
+    })
 }
 
 fn registration_update(

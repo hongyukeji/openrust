@@ -58,7 +58,10 @@ impl ServiceProvider for AuthServiceProvider {
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
             #[cfg(feature = "sanctum")]
-            crate::sanctum::register_publishable_resources(app)?;
+            app.publishable()
+                .lock()
+                .expect("publish registry lock")
+                .extend(crate::sanctum_service_provider::publishable_resources());
             app.container().make::<Dispatcher>()?.listen(
                 "Registered",
                 Arc::new(super::listeners::SendEmailVerificationNotification),

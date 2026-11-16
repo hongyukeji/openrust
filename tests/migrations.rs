@@ -77,14 +77,24 @@ fn success(output: Output) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
-#[cfg(feature = "sanctum")]
-const SANCTUM_PATH: &str =
-    "database/migrations/0001_01_01_000012_create_personal_access_tokens_table.rs";
+#[path = "../database/migrations/mod.rs"]
+mod application_migrations;
+
+fn sanctum_migration() -> Option<&'static str> {
+    application_migrations::entries()
+        .iter()
+        .find(|entry| {
+            entry
+                .path
+                .ends_with("_create_personal_access_tokens_table.rs")
+        })
+        .map(|entry| entry.path)
+}
 
 #[cfg(feature = "sanctum")]
-async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
+async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection, path: &str) {
     let run = |args: &[&str]| success(root.run("local", mysql, args));
-    let migration_name = std::path::Path::new(SANCTUM_PATH)
+    let migration_name = std::path::Path::new(path)
         .file_stem()
         .unwrap()
         .to_str()
@@ -163,15 +173,15 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
         .await
         .is_err()
     );
-    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("Nothing to migrate"));
+    assert!(run(&["migrate", "--path", path]).contains("Nothing to migrate"));
     assert_eq!(
         db.table("personal_access_tokens").count("*").await.unwrap(),
         1
     );
-    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+    assert!(run(&["migrate:rollback", "--path", path, "--step=1"]).contains("DONE"));
     assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
     assert_eq!(ledger().count("*").await.unwrap(), 0);
-    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
+    assert!(run(&["migrate", "--path", path]).contains("DONE"));
     assert_eq!(
         ledger().pluck("migration").await.unwrap(),
         [migration_name.into()]
@@ -181,10 +191,10 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
         db.table("personal_access_tokens").count("*").await.unwrap(),
         0
     );
-    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+    assert!(run(&["migrate:rollback", "--path", path, "--step=1"]).contains("DONE"));
     assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
     assert!(schema.hasTable("users").await.unwrap());
-    assert!(run(&["migrate", "--path", SANCTUM_PATH]).contains("DONE"));
+    assert!(run(&["migrate", "--path", path]).contains("DONE"));
     verify_token_storage(db).await;
     db.table("personal_access_tokens").delete().await.unwrap();
     let now = chrono::Utc::now();
@@ -225,7 +235,7 @@ async fn verify_sanctum(root: &Root, mysql: Option<&str>, db: &Connection) {
         1
     );
     std::fs::remove_file(root.0.join(".env")).unwrap();
-    assert!(run(&["migrate:rollback", "--path", SANCTUM_PATH, "--step=1"]).contains("DONE"));
+    assert!(run(&["migrate:rollback", "--path", path, "--step=1"]).contains("DONE"));
 }
 
 #[cfg(feature = "sanctum")]
@@ -391,16 +401,22 @@ async fn verify(mysql: Option<&str>) {
     assert!(success(run(&["migrate"])).contains("Nothing to migrate"));
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        12 + u64::from(cfg!(feature = "sanctum"))
+        12 + u64::from(sanctum_migration().is_some())
     );
     assert!(
         success(run(&["migrate:rollback", "--pretend", "--batch", "1"])).contains("drop table")
     );
     assert!(schema.hasTable("users").await.unwrap());
-    #[cfg(feature = "sanctum")]
-    verify_sanctum(&root, mysql, &db).await;
-    #[cfg(not(feature = "sanctum"))]
-    assert!(!schema.hasTable("personal_access_tokens").await.unwrap());
+    assert_eq!(
+        schema.hasTable("personal_access_tokens").await.unwrap(),
+        sanctum_migration().is_some()
+    );
+    if let Some(path) = sanctum_migration() {
+        #[cfg(feature = "sanctum")]
+        verify_sanctum(&root, mysql, &db, path).await;
+        #[cfg(not(feature = "sanctum"))]
+        assert!(success(run(&["migrate:rollback", "--path", path, "--step=1"])).contains("DONE"));
+    }
     assert!(success(run(&["migrate:rollback", "--step=1"])).contains("DONE"));
     assert!(
         !schema
@@ -424,7 +440,7 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
-    if cfg!(feature = "sanctum") {
+    if sanctum_migration().is_some() {
         assert!(
             success(run(&["migrate:rollback", "--step=1"]))
                 .contains("create_personal_access_tokens_table")
@@ -477,7 +493,7 @@ async fn verify(mysql: Option<&str>) {
             .unwrap(),
         1
     );
-    if cfg!(feature = "sanctum") {
+    if sanctum_migration().is_some() {
         assert!(
             success(run(&["migrate:rollback", "--step=1"]))
                 .contains("create_personal_access_tokens_table")
@@ -509,7 +525,7 @@ async fn verify(mysql: Option<&str>) {
     assert!(upgrade.contains("add_acknowledged_at_to_job_chain_deliveries"));
     assert!(!upgrade.contains("create_failed_jobs_table"));
     assert!(schema.hasTable("job_batches").await.unwrap());
-    if cfg!(feature = "sanctum") {
+    if sanctum_migration().is_some() {
         assert!(
             success(run(&["migrate:rollback", "--step=1"]))
                 .contains("create_personal_access_tokens_table")
@@ -698,7 +714,7 @@ async fn mysql_fresh_wipes_the_selected_schema() {
     assert!(schema.hasTable("job_batches").await.unwrap());
     assert_eq!(
         db.table("migrations").count("*").await.unwrap(),
-        12 + u64::from(cfg!(feature = "sanctum"))
+        12 + u64::from(sanctum_migration().is_some())
     );
     success(run(&["db:wipe", "--drop-views"]));
     assert!(schema.getTables(None).await.unwrap().is_empty());

@@ -2,20 +2,20 @@
 
 ## Installing API routes {#installation}
 
-Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept on the first installation, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file. If the installer cannot update a custom bootstrap, it preserves the generated route and prints the manual registration instruction. The route returns the registered authenticated model’s visible attributes. If an optional migration fails, the installer displays the error and retains the API scaffolding. Run `./artisan migrate` separately when automation needs the migration exit code.
+Run `./artisan install:api` to create and register `routes/api.rs` and enable Sanctum in the application’s default Cargo features. The installer offers to run pending migrations in an interactive terminal. If you accept, it rebuilds the application before migrating. For CI, use `--without-migration-prompt` and run `./artisan migrate` separately. Use `--force` to replace an existing API routes file. If the installer cannot update a custom bootstrap, it preserves the generated route and prints the manual registration instruction. The route returns the registered authenticated model’s visible attributes. If an optional migration fails, the installer displays the error and retains the API scaffolding. Run `./artisan migrate` separately when automation needs the migration exit code.
 
-Artisan can publish Rust resources with `vendor:publish --tag=sanctum-config` or `vendor:publish --tag=sanctum-migrations`. The default source tree already includes these files.
+On a fresh application, `install:api` publishes the token-table migration. If you enable the `sanctum` Cargo feature manually, use `vendor:publish --tag=sanctum-migrations` to publish it, or `vendor:publish --tag=sanctum-config` to publish the package configuration.
 
 Run `vendor:publish` in a terminal to choose a provider or tag. Package providers register compiled files in `boot` with `publishes` or `publishesMigrations`. A new migration gets a fresh timestamp when `database.migrations.update_date_on_publish` is enabled. Disable it or call `VendorPublishCommand::dontUpdateMigrationDates` in a provider to preserve source dates. Republishing reuses the existing filename, so the migration ledger stays stable. Rebuild the application after publishing a migration to `database/migrations/` to include it in the compiled list.
 
 ## Token table migration {#token-table-migration}
 
-Build the application with the `sanctum` Cargo feature to register the compiled `personal_access_tokens` migration. Use the resulting binary for migration and rollback.
+Once published, the migration is part of the application. The next build includes it in the migration registry even when the `sanctum` Cargo feature is disabled. Keep the original file and name if it already appears in the database ledger. If updating an older checkout removed that file, restore it from the previous revision before installing the API or rebuilding.
 
 ```sh
-cargo build --features sanctum
-./target/debug/main artisan migrate
-./target/debug/main artisan migrate:status
+./artisan install:api --without-migration-prompt
+./artisan migrate
+./artisan migrate:status
 ```
 
 The migration creates a polymorphic owner, a unique 64-character token hash column, nullable abilities and timestamps, and an expiration index. The feature also registers the Sanctum guard and CSRF cookie route.

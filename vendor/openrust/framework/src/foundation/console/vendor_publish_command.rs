@@ -123,19 +123,7 @@ impl Command for VendorPublishCommand {
             } else {
                 tags.into_iter().map(Some).collect()
             };
-            let mut timestamp = app
-                .config()
-                .map_err(console_error)?
-                .get("database.migrations.update_date_on_publish")
-                .and_then(|value| value.as_bool())
-                .filter(|enabled| {
-                    *enabled
-                        && !app
-                            .shared
-                            .keep_published_migration_dates
-                            .load(Ordering::Relaxed)
-                })
-                .map(|_| Utc::now().naive_utc());
+            let mut timestamp = migration_publication_timestamp(app)?;
             for tag in tags {
                 let selected = paths_to_publish(&resources, provider.as_deref(), tag.as_deref());
                 if selected.is_empty() {
@@ -192,6 +180,24 @@ impl Command for VendorPublishCommand {
             Ok(0)
         })
     }
+}
+
+pub(super) fn migration_publication_timestamp(
+    app: &Application,
+) -> Result<Option<NaiveDateTime>, ConsoleError> {
+    Ok(app
+        .config()
+        .map_err(console_error)?
+        .get("database.migrations.update_date_on_publish")
+        .and_then(|value| value.as_bool())
+        .filter(|enabled| {
+            *enabled
+                && !app
+                    .shared
+                    .keep_published_migration_dates
+                    .load(Ordering::Relaxed)
+        })
+        .map(|_| Utc::now().naive_utc()))
 }
 
 fn paths_to_publish(
@@ -369,6 +375,35 @@ fn publish(
     } else {
         None
     };
+    publish_locked(root, resources, existing, force, timestamp)
+}
+
+pub(super) fn publish_package_if_migration_missing(
+    root: &Path,
+    resources: impl IntoIterator<Item = PublishableResource>,
+    mut timestamp: Option<NaiveDateTime>,
+) -> io::Result<Option<VendorTagPublished>> {
+    let resources: Vec<_> = resources.into_iter().collect();
+    for asset in &resources {
+        if asset.migration && published_migration(&root.join(&asset.path))?.is_some() {
+            return Ok(None);
+        }
+    }
+    let paths = resources
+        .iter()
+        .map(|asset| (asset.source_path(), root.join(&asset.path)))
+        .collect();
+    publish_locked(root, resources, false, false, &mut timestamp)?;
+    Ok(Some(VendorTagPublished { tag: None, paths }))
+}
+
+fn publish_locked(
+    root: &Path,
+    resources: impl IntoIterator<Item = PublishableResource>,
+    existing: bool,
+    force: bool,
+    timestamp: &mut Option<NaiveDateTime>,
+) -> io::Result<Publication> {
     let mut publication = Publication::default();
     for resource in resources {
         let mut target = root.join(&resource.path);
@@ -496,9 +531,28 @@ fn migration_destination(
     else {
         return Ok(original);
     };
-    if original.try_exists()? {
-        return Ok(original);
+    if let Some(path) = published_migration(&original)? {
+        return Ok(path);
     }
+    let parent = original.parent().expect("publication path has a parent");
+    let Some(timestamp) = timestamp else {
+        return Ok(original);
+    };
+    *timestamp += TimeDelta::seconds(1);
+    let path = parent.join(format!("{}_{suffix}", timestamp.format("%Y_%m_%d_%H%M%S")));
+    Ok(path)
+}
+
+fn published_migration(original: &Path) -> io::Result<Option<PathBuf>> {
+    let Some((_, suffix)) = original
+        .file_name()
+        .and_then(|name| name.to_str())
+        .and_then(migration_name)
+    else {
+        return original
+            .try_exists()
+            .map(|exists| exists.then(|| original.to_owned()));
+    };
     let parent = original.parent().expect("publication path has a parent");
     let mut existing = BTreeSet::new();
     match fs::read_dir(parent) {
@@ -524,15 +578,7 @@ fn migration_destination(
             format!("multiple published migrations match {suffix}"),
         ));
     }
-    if let Some(path) = existing.pop_first() {
-        return Ok(path);
-    }
-    let Some(timestamp) = timestamp else {
-        return Ok(original);
-    };
-    *timestamp += TimeDelta::seconds(1);
-    let path = parent.join(format!("{}_{suffix}", timestamp.format("%Y_%m_%d_%H%M%S")));
-    Ok(path)
+    Ok(existing.pop_first())
 }
 
 fn migration_name(name: &str) -> Option<(NaiveDateTime, &str)> {

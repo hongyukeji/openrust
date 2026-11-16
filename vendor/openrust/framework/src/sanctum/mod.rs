@@ -57,30 +57,6 @@ pub mod http {
     }
 }
 
-pub(crate) fn register_publishable_resources(
-    app: &crate::foundation::Application,
-) -> crate::support::ProviderResult {
-    use crate::support::publishing::register;
-    const PROVIDER: &str = "OpenRust\\Sanctum\\SanctumServiceProvider";
-    register(
-        app,
-        PROVIDER,
-        &[("config/sanctum.rs", include_bytes!("stubs/sanctum.stub"))],
-        "sanctum-config",
-        false,
-    )?;
-    register(
-        app,
-        PROVIDER,
-        &[(
-            "database/migrations/0001_01_01_000012_create_personal_access_tokens_table.rs",
-            include_bytes!("stubs/personal_access_tokens.stub"),
-        )],
-        "sanctum-migrations",
-        true,
-    )
-}
-
 use crate::{contracts::events::Event, http::Request};
 use std::{collections::HashMap, sync::Arc};
 

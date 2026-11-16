@@ -8,7 +8,6 @@ use std::{
 const FACTORIES: &str = "database/factories";
 const MIGRATIONS: &str = "database/migrations";
 const SEEDERS: &str = "database/seeders";
-const SANCTUM_MIGRATION: &str = "0001_01_01_000012_create_personal_access_tokens_table";
 
 fn main() -> io::Result<()> {
     println!("cargo:rerun-if-changed={FACTORIES}");
@@ -32,8 +31,7 @@ fn generate_migrations(root: &Path, output: &Path) -> io::Result<()> {
         let Some(stem) = migration_stem(&path) else {
             continue;
         };
-        if !file.file_type()?.is_file() || (stem == SANCTUM_MIGRATION && !cfg!(feature = "sanctum"))
-        {
+        if !file.file_type()?.is_file() {
             continue;
         }
 

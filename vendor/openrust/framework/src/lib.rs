@@ -29,6 +29,8 @@ pub mod redis;
 pub mod routing;
 #[cfg(feature = "sanctum")]
 pub mod sanctum;
+#[path = "sanctum/service_provider.rs"]
+mod sanctum_service_provider;
 pub mod session;
 pub mod support;
 pub mod testing;

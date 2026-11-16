@@ -2,20 +2,20 @@
 
 ## 安装 API 路由 {#installation}
 
-运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，首次安装确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。 安装器无法修改自定义启动文件时，会保留生成的路由并提示手动接线。生成的路由返回已注册认证模型的可见属性。可选迁移失败时，安装器显示错误并保留脚手架。自动化需要迁移退出码时，单独运行 `./artisan migrate`。
+运行 `./artisan install:api`，创建并注册 `routes/api.rs`，同时把 Sanctum 加入应用的 Cargo 默认功能。交互终端会询问是否执行待运行的迁移，确认后会先重新构建再迁移。CI 可使用 `--without-migration-prompt`，再单独运行 `./artisan migrate`。使用 `--force` 覆盖已有 API 路由。 安装器无法修改自定义启动文件时，会保留生成的路由并提示手动接线。生成的路由返回已注册认证模型的可见属性。可选迁移失败时，安装器显示错误并保留脚手架。自动化需要迁移退出码时，单独运行 `./artisan migrate`。
 
-Artisan 可用 `vendor:publish --tag=sanctum-config` 或 `vendor:publish --tag=sanctum-migrations` 发布 Rust 资源。默认应用源码已包含这些文件。
+新应用通过 `install:api` 发布令牌表迁移。手动启用 Cargo 的 `sanctum` 功能时，可用 `vendor:publish --tag=sanctum-migrations` 发布迁移，或用 `vendor:publish --tag=sanctum-config` 发布包配置。
 
 在终端运行 `vendor:publish` 可交互选择服务提供者或标签。第三方包在服务提供者的 `boot` 中调用 `publishes` 或 `publishesMigrations` 注册编译进程序的资源。启用 `database.migrations.update_date_on_publish` 时，新迁移会使用新的时间戳。关闭配置，或在服务提供者中调用 `VendorPublishCommand::dontUpdateMigrationDates`，可保留源文件日期。重复发布沿用已有文件名，保持迁移账本稳定。迁移发布到 `database/migrations/` 后，重新构建即可将其纳入编译清单。
 
 ## 令牌表迁移 {#token-table-migration}
 
-使用 Cargo 的 `sanctum` 功能编译应用，注册 `personal_access_tokens` 迁移。迁移和回滚都使用带有该功能的二进制。
+发布后的迁移属于应用。重新构建会将它纳入迁移清单，即使关闭 Cargo 的 `sanctum` 功能也能执行或回滚。已记入数据库迁移账本的文件应保留原文件和文件名。如果更新旧版检出目录时移除了该文件，请先从上一版恢复，再安装 API 或重新构建。
 
 ```sh
-cargo build --features sanctum
-./target/debug/main artisan migrate
-./target/debug/main artisan migrate:status
+./artisan install:api --without-migration-prompt
+./artisan migrate
+./artisan migrate:status
 ```
 
 迁移创建多态归属字段、唯一的 64 字符令牌哈希列、可空的能力和时间字段，以及过期时间索引。该功能同时注册 Sanctum 守卫和 CSRF Cookie 路由。

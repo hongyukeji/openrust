@@ -68,6 +68,24 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
             .unwrap()
             .contains("\"sanctum\"")
     );
+    let migrations = root.0.join("database/migrations");
+    let migration = fs::read_dir(&migrations)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    assert!(
+        migration
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .ends_with("_create_personal_access_tokens_table.rs")
+    );
+    assert!(root.0.join("config/sanctum.rs").is_file());
+    let custom = "// Keep the application's published migration.\n";
+    fs::write(&migration, custom).unwrap();
     fs::remove_file(root.0.join("routes/api.rs")).unwrap();
 
     let default_bootstrap = include_str!("../bootstrap/app.rs");
@@ -121,6 +139,8 @@ fn artisan_installs_optional_routes_without_overwriting_or_duplication() {
     assert!(forced.status.success());
     assert!(fs::read_to_string(&api).unwrap().contains("auth:sanctum"));
     assert!(!String::from_utf8_lossy(&forced.stdout).contains("pending database migrations"));
+    assert_eq!(fs::read_dir(&migrations).unwrap().count(), 1);
+    assert_eq!(fs::read_to_string(&migration).unwrap(), custom);
     assert_eq!(
         fs::read_to_string(manifest).unwrap(),
         original.replace("[\"other\"]", "[\"other\", \"sanctum\"]")
