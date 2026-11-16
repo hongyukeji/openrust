@@ -903,6 +903,8 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 自訂 Pivot 新列先由模型的 `newInstance` 初始化預設屬性，再寫入關聯鍵、Pivot 預設值及明確指定的值，隨後觸發 `Saving` 和 `Creating`。更新時，原始屬性取自資料庫既有列，髒屬性記錄本次待寫入的變更。
 
+自訂 Pivot 水合時，已選取的資料庫欄位會覆寫模型預設值，包括 SQL NULL。未選取的一般屬性可保留模型預設值。關聯識別取自資料庫列，水合後的值用於原始屬性快照、變更追蹤及 JSON 輸出。
+
 關聯寫入採用自訂模型的生命週期與屬性轉換。透過關聯的 `withTimestamps` 或 `withTimestampColumns` 設定時間戳記。需要軟刪除時，將中介資料列定義為一般 Eloquent 模型。
 
 ```rust

@@ -903,6 +903,8 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 自定义 Pivot 新行先由模型的 `newInstance` 初始化默认属性，再写入关系键、Pivot 默认值及显式值，随后触发 `Saving` 和 `Creating`。更新时，原始属性取自数据库已有行，脏属性记录本次待写入的变更。
 
+自定义 Pivot 水合时，已选择的数据库列覆盖模型默认值，包括 SQL NULL。未选的普通属性可保留模型默认值。关系标识取自数据库行，水合后的值用于原始属性快照、变更跟踪和 JSON 输出。
+
 关系写入采用自定义模型的生命周期和属性转换。通过关系的 `withTimestamps` 或 `withTimestampColumns` 配置时间戳。需要软删除时，将中间行建模为普通 Eloquent 模型。
 
 ```rust

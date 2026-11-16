@@ -7097,6 +7097,7 @@ impl Model for DefaultMembership {
     fn newInstance(attributes: Attributes) -> DatabaseResult<Self> {
         let mut model = Self::from_state(ModelState::default());
         model.setAttribute("label", 7);
+        model.setAttribute("note", "model fallback");
         model.fill(attributes)?;
         Ok(model)
     }
@@ -7179,8 +7180,8 @@ async fn verify_default_pivot_events(
     db.statement("DROP TABLE IF EXISTS relation_default_memberships", &[])
         .await
         .unwrap();
-    db.statement("CREATE TABLE relation_default_memberships (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label BIGINT NOT NULL, PRIMARY KEY (author_id, post_id))", &[]).await.unwrap();
-    let relation = || {
+    db.statement("CREATE TABLE relation_default_memberships (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label BIGINT NOT NULL, note VARCHAR(80), PRIMARY KEY (author_id, post_id))", &[]).await.unwrap();
+    let base = || {
         BelongsToMany::<Author, Post>::new(
             "relation_default_memberships",
             "author_id",
@@ -7189,8 +7190,8 @@ async fn verify_default_pivot_events(
             "id",
         )
         .using::<DefaultMembership>()
-        .withPivot(["label"])
     };
+    let relation = || base().withPivot(["label", "note"]);
     let label = |value: i64| Attributes::from([("label".into(), value.into())]);
     relation()
         .attachOrFail(owner, &[1.into()], Attributes::new())
@@ -7216,6 +7217,38 @@ async fn verify_default_pivot_events(
     );
     assert_eq!(drain(), [Saving, Updating, Updated, Saved]);
     assert_eq!(scoped.detachOrFail(owner, None).await.unwrap(), 0);
+    assert!(drain().is_empty());
+
+    db.statement(
+        "UPDATE relation_default_memberships SET note = NULL WHERE author_id = ? AND post_id = ?",
+        &[owner.getKey().unwrap().clone(), 1.into()],
+    )
+    .await
+    .unwrap();
+    let projected = base().getResults(owner).await.unwrap();
+    let pivot = projected[0]
+        .getRelation::<DefaultMembership>("pivot")
+        .unwrap();
+    assert_eq!(pivot.getRawOriginal("label"), Some(&7.into()));
+    assert_eq!(pivot.getRawOriginal("note"), Some(&"model fallback".into()));
+    assert!(!pivot.state().isDirty());
+    assert_eq!(
+        projected[0].toArray().unwrap()["pivot"]["note"],
+        "model fallback"
+    );
+    let selected = relation().getResults(owner).await.unwrap();
+    let pivot = selected[0]
+        .getRelation::<DefaultMembership>("pivot")
+        .unwrap();
+    assert_eq!(pivot.getRawOriginal("label"), Some(&8.into()));
+    assert_eq!(pivot.getRawOriginal("note"), Some(&Value::Null));
+    assert_eq!(pivot.getRawOriginal("author_id"), owner.getKey());
+    assert!(!pivot.state().isDirty());
+    assert_eq!(selected[0].toArray().unwrap()["pivot"]["label"], 8);
+    assert_eq!(
+        selected[0].toArray().unwrap()["pivot"].get("note"),
+        Some(&Json::Null)
+    );
     assert!(drain().is_empty());
 
     let committed_events = db

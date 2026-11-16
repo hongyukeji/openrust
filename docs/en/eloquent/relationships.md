@@ -903,6 +903,8 @@ Use `using::<Membership>()` on a many-to-many relationship to load and write int
 
 New custom pivot rows start with the model’s `newInstance` defaults. Relationship keys, pivot defaults, and explicit values are then applied before `Saving` and `Creating` run. On update, the original attributes come from the existing row and the dirty set reflects the pending changes.
 
+When a custom pivot is hydrated, selected database values override model defaults, including SQL NULL. Unselected non-key fields can keep their model defaults. Relationship identity comes from the database row, and the hydrated values form the original snapshot used for change tracking and JSON output.
+
 Relationship writes use the custom model’s lifecycle and cast rules. Use the relationship’s `withTimestamps` or `withTimestampColumns` to configure pivot timestamps. For soft deletes, promote the intermediate row to an ordinary Eloquent model.
 
 ```rust

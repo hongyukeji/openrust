@@ -830,3 +830,11 @@ MySQL 8.4.13／SQLite 实测读取及嵌套 OR、同名列限定、命中与未�
 以 `6c43a0d0` 为隔离基线。固定 Laravel 的 `AsPivot::fromAttributes` 先创建模型、填入关联属性并同步原始值，再保存。OpenRust 的自定义 Pivot 插入通过 `newInstanceOn` 保留模型默认值，按已有顺序应用关系键、时间戳、关系默认值和显式属性，随后同步原始值并进入事务内的模型事件。更新继续取数据库旧行作为基线。固定 Laravel 的 `OrFail` 对抛出的异常回滚，普通事件否决取消对应行。Rust 分别以 `Err` 和 `Cancel` 表达，变动报告沿用实际写入结果。v0.x 的自定义 Pivot 通过反序列化中间行后交给保存，当前复用模型生命周期。固定 Goravel ORM 提供关联写入和观察者合同。 [Laravel 固定 AsPivot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/AsPivot.php) · [固定 Pivot 事件用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentPivotEventsTest.php) · [固定 OrFail 用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyOrFailTest.php) · [固定 Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
 
 MySQL 8.4.13／SQLite 实测必填属性取模型默认值、创建与更新事件顺序、更新原始值和脏属性、筛选范围外解除关联无事件。带闭包的同步在成功删除旧记录及写入新记录后由监听器抛错，旧记录恢复，新记录和事务内事件记录回滚。Creating 取消时对应行不创建。关系及实际 HTTP 分页共 12 项回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+
+## 自定义 Pivot 原始行和序列化
+
+以 `8c03e6ca` 为隔离基线。固定 Laravel 的 `AsPivot::fromRawAttributes` 将原始数据库值覆盖到模型的初始属性中，再同步原始快照。OpenRust 在自定义 Pivot 水合时沿用插入阶段的类型构造逻辑，合并普通属性默认值与 SQL 原值。关系键和模型主键只来自数据库行，避免模型默认值冒充已持久化标识。v0.x 的 `from_raw_pivot` 提供以原始记录构建 Pivot 的参考。固定 Goravel ORM 以显式关联和观察者接口提供对照。 [固定 Laravel AsPivot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Concerns/AsPivot.php) · [固定 Pivot 序列化用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentPivotSerializationTest.php) · [固定 Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+
+MySQL 8.4.13 和 SQLite 验证只选择默认 Pivot 键时可见普通属性的模型默认值，显式选列时数据库数值与 NULL 覆盖默认值。核对原始快照、无脏属性和 JSON 输出。12 项关系与实际 HTTP 分页回归通过。严格 Clippy、`./artisan inspire`、三语示例编译、VitePress、12 项通用浏览器及三语关系页检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
+
+实际 SQLite 和 MySQL `queue:work` 专项各通过 1 项，覆盖自定义普通与多态 Pivot 的单模型及集合恢复、身份键和回填后的写入。Worker 使用 Rust JSON 标识重新读取数据库记录。

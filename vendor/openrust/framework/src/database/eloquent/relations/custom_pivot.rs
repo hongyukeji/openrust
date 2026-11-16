@@ -1,6 +1,6 @@
 use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
-    eloquent::{Attributes, Model, ModelState, concerns::has_relationships::LoadedRelations},
+    eloquent::{Attributes, Model, concerns::has_relationships::LoadedRelations},
 };
 
 /// The relationship identity carried by a hydrated intermediate model.
@@ -89,9 +89,7 @@ impl CustomPivot {
             },
             insert: |transaction, connection, identity, attributes| {
                 Box::pin(async move {
-                    validate_pivot_model::<M>()?;
-                    let mut model = M::newInstanceOn(connection, Attributes::new())?;
-                    model.state_mut().pivot_identity = Some(identity);
+                    let mut model = new_pivot::<M>(connection, identity)?;
                     for (column, value) in attributes {
                         if identity.columns().any(|key| key == column) {
                             model.state_mut().setAttribute(column, value);
@@ -130,18 +128,28 @@ fn hydrated<M: Model>(
     connection: &Connection,
     identity: PivotIdentity,
 ) -> DatabaseResult<M> {
-    validate_pivot_model::<M>()?;
-    let mut state =
-        ModelState::hydrated_attributes(attributes, connection.clone(), Default::default());
-    state.pivot_identity = Some(identity);
-    Ok(M::from_state(state))
+    let mut model = new_pivot::<M>(connection, identity)?;
+    let state = model.state_mut();
+    // A model default cannot identify an existing pivot row.
+    for column in identity
+        .columns()
+        .chain(std::iter::once(M::metadata().primary_key))
+    {
+        state.attributes.remove(column);
+    }
+    state.apply_attributes(attributes);
+    state.original = state.attributes.clone();
+    state.exists = true;
+    Ok(model)
 }
 
-fn validate_pivot_model<M: Model>() -> DatabaseResult<()> {
+fn new_pivot<M: Model>(connection: &Connection, identity: PivotIdentity) -> DatabaseResult<M> {
     if M::metadata().deleted_at.is_some() {
         return Err(DatabaseError::InvalidQuery(
             "custom pivot models cannot use soft deletes",
         ));
     }
-    Ok(())
+    let mut model = M::newInstanceOn(connection, Attributes::new())?;
+    model.state_mut().pivot_identity = Some(identity);
+    Ok(model)
 }
