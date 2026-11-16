@@ -24,8 +24,8 @@ use openrust::{
     database::{
         Bindings, Connection, DatabaseError, DatabaseManager, Value,
         events::{
-            ConnectionEstablished, TransactionBeginning, TransactionCommitted,
-            TransactionCommitting, TransactionRolledBack,
+            ConnectionEstablished, QueryBindings, QueryExecuted, QueryRole, TransactionBeginning,
+            TransactionCommitted, TransactionCommitting, TransactionRolledBack,
         },
     },
     events::{
@@ -519,6 +519,7 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
         let established = establishment_listener(&app, false, false);
         assert_eq!(app.handleCommand(&["db:probe".into()]).await.unwrap(), 0);
         assert_eq!(established.calls.load(Ordering::SeqCst), 1);
+        assert!(recorder.query_calls.load(Ordering::SeqCst) >= 2);
         assert_eq!(
             recorder.take(),
             [
@@ -548,6 +549,8 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     send(a, "/replica/primary", "18").await;
     assert_eq!(established_a.calls.load(Ordering::SeqCst), 1);
     assert_eq!(established_b.calls.load(Ordering::SeqCst), 1);
+    assert!(events_a.query_calls.load(Ordering::SeqCst) >= 4);
+    assert!(events_b.query_calls.load(Ordering::SeqCst) >= 2);
     let mut observed = events_a.take();
     observed.sort_unstable();
     assert_eq!(
@@ -1203,6 +1206,7 @@ async fn mysql_tls_distinguishes_ca_and_server_identity() {
 
 #[derive(Default)]
 struct TransactionRecorder {
+    query_calls: AtomicUsize,
     calls: Mutex<Vec<(&'static str, u32)>>,
     fail: Mutex<Option<&'static str>>,
 }
@@ -1220,6 +1224,10 @@ impl Listener for TransactionRecorder {
         context: &'a mut EventContext<'_>,
     ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
         Box::pin(async move {
+            if event.downcast_ref::<QueryExecuted>().is_some() {
+                self.query_calls.fetch_add(1, Ordering::SeqCst);
+                return Ok(None);
+            }
             macro_rules! payload {
                 ($kind:ty) => {
                     event
@@ -1259,6 +1267,9 @@ fn transaction_recorder(app: &Application) -> Arc<TransactionRecorder> {
             recorder.clone(),
             Delivery::Sync,
         )
+        .unwrap();
+    dispatcher
+        .listen(QueryExecuted::NAME, recorder.clone(), Delivery::Sync)
         .unwrap();
     recorder
 }
@@ -1643,4 +1654,164 @@ async fn canceled_establishment_allows_the_next_operation_to_dispatch() {
     assert_eq!(listener.0.load(Ordering::SeqCst), 1);
     assert_eq!(connection.scalar("SELECT 1", &[]).await.unwrap(), 1.into());
     assert_eq!(listener.0.load(Ordering::SeqCst), 2);
+}
+
+#[derive(Default)]
+struct QueryRecorder {
+    records: Mutex<Vec<(String, QueryRole, bool, Duration)>>,
+}
+
+impl Listener for QueryRecorder {
+    fn handle<'a>(
+        &'a self,
+        payload: &'a dyn EventPayload,
+        context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = payload
+                .downcast_ref::<QueryExecuted>()
+                .ok_or(EventError::InvalidPayload)?;
+            if event.sql == "SELECT :number AS n" {
+                let QueryBindings::Named(values) = &event.bindings else {
+                    return Err(EventError::InvalidPayload);
+                };
+                assert_eq!(values, &[("number".to_owned(), 11.into())]);
+            }
+            if event.sql == "SELECT 23 AS reentrant" {
+                assert_eq!(
+                    event
+                        .connection
+                        .scalar("SELECT 42", &[])
+                        .await
+                        .map_err(EventError::Transaction)?,
+                    42.into()
+                );
+            }
+            self.records.lock().unwrap().push((
+                event.sql.clone(),
+                event.read_write_type,
+                context.transaction().is_some(),
+                event.time,
+            ));
+            Ok(None)
+        })
+    }
+}
+
+async fn verify_query_observation(mut app: Application) {
+    app.boot().await.unwrap();
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let db = manager.connection(None).unwrap();
+    let read_alias = manager.connection(Some("main::read")).unwrap();
+    let records = Arc::new(QueryRecorder::default());
+    let threshold = Arc::new(QueryRecorder::default());
+    db.listen(records.clone()).unwrap();
+    db.whenQueryingForLongerThan(Duration::ZERO, threshold.clone())
+        .unwrap();
+
+    let named = Bindings::Named(&[("number", 11.into())]);
+    let measured = async {
+        assert_eq!(
+            db.scalar("SELECT :number AS n", named).await.unwrap(),
+            11.into()
+        );
+        assert_eq!(
+            db.scalar("SELECT 23 AS reentrant", &[]).await.unwrap(),
+            23.into()
+        );
+    };
+    tokio::time::timeout(Duration::from_secs(5), measured)
+        .await
+        .unwrap();
+    assert_eq!(threshold.records.lock().unwrap().len(), 1);
+    let before_error = db.totalQueryDuration();
+    assert!(
+        db.scalar("SELECT unknown_column_from_query_probe", &[])
+            .await
+            .is_err()
+    );
+    assert_eq!(db.totalQueryDuration(), before_error);
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    assert_eq!(tx.scalar("SELECT 7", &[]).await.unwrap(), 7.into());
+    tx.commit().await.unwrap();
+    assert_eq!(
+        read_alias
+            .selectFromWriteConnection("SELECT 8", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&8.into())
+    );
+
+    let mut cursor = db.cursor("SELECT 9", &[]);
+    assert_eq!(
+        cursor.try_next().await.unwrap().unwrap().get_at(0),
+        Some(&9.into())
+    );
+    assert_eq!(records.records.lock().unwrap().len(), 5);
+    assert!(cursor.try_next().await.unwrap().is_none());
+    drop(cursor);
+
+    {
+        let seen = records.records.lock().unwrap();
+        let actual: Vec<_> = seen
+            .iter()
+            .map(|(sql, role, transaction, _)| (sql.as_str(), *role, *transaction))
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                ("SELECT :number AS n", QueryRole::Read, false),
+                ("SELECT 42", QueryRole::Read, false),
+                ("SELECT 23 AS reentrant", QueryRole::Read, false),
+                ("SELECT 7", QueryRole::Write, true),
+                ("SELECT 8", QueryRole::Read, false),
+                ("SELECT 9", QueryRole::Read, false),
+            ]
+        );
+        let duration: Duration = seen
+            .iter()
+            .filter(|(sql, _, _, _)| sql != "SELECT 8")
+            .map(|(_, _, _, time)| *time)
+            .sum();
+        assert_eq!(db.totalQueryDuration(), duration);
+    }
+    assert_eq!(threshold.records.lock().unwrap().len(), 1);
+    db.resetTotalQueryDuration();
+    assert_eq!(db.totalQueryDuration(), Duration::ZERO);
+    db.allowQueryDurationHandlersToRunAgain();
+    let (a, b) = tokio::join!(db.scalar("SELECT 10", &[]), db.scalar("SELECT 11", &[]));
+    assert_eq!(a.unwrap(), 10.into());
+    assert_eq!(b.unwrap(), 11.into());
+    assert_eq!(threshold.records.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn sqlite_reports_query_bindings_pool_role_and_cumulative_duration() {
+    let root = Root::new();
+    let app = Application::configure(root.0.clone()).withConfig(|_, _| {
+        Ok([("database".into(), json!({
+            "default":"main","connections":{"main":{
+                "driver":"sqlite","database":":memory:","read":{"database":":memory:"},"max_connections":1
+            }}
+        }))].into())
+    }).create().unwrap();
+    verify_query_observation(app).await;
+}
+
+#[tokio::test]
+async fn mysql_reports_query_bindings_pool_role_and_cumulative_duration() {
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    let root = Root::new();
+    let app = Application::configure(root.0.clone()).withConfig(|_, _| {
+        let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+        Ok([("database".into(), json!({
+            "default":"main","connections":{"main":{"url":url,"read":{"url":url},"max_connections":1}}
+        }))].into())
+    }).create().unwrap();
+    verify_query_observation(app).await;
 }

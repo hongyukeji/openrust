@@ -1,8 +1,11 @@
 use futures_util::{Stream, TryStreamExt as _, future::Either};
 use sqlx::SqlSafeStr as _;
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+    time::{Duration, Instant},
 };
 
 use sqlx::{
@@ -14,14 +17,22 @@ use sqlx_core::transaction::TransactionManager;
 use tokio::sync::OnceCell;
 
 use crate::{
-    contracts::{container::Container as _, events::Dispatcher as _},
-    events::{Dispatcher, EventContext},
+    contracts::{
+        container::Container as _,
+        events::{Dispatcher as _, Listener},
+    },
+    events::{Delivery, Dispatcher, EventContext},
     support::facades::application_scope,
 };
 
 use super::{
     Bindings, DatabaseCursor, DatabaseError, DatabaseResult, Row, Value,
-    bindings::PreparedBindings, events::ConnectionEstablished, value,
+    bindings::PreparedBindings,
+    events::{
+        ConnectionEstablished, QueryDuration, QueryDurationHandler, QueryExecuted,
+        QueryNotification, QueryRole,
+    },
+    value,
 };
 
 #[derive(Clone)]
@@ -44,6 +55,8 @@ pub struct Connection {
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) routing: Arc<ReadRouting>,
     pub(super) established: Arc<OnceCell<()>>,
+    pub(super) query_duration: Arc<QueryDuration>,
+    pub(super) query_role: Option<QueryRole>,
 }
 
 tokio::task_local! {
@@ -478,6 +491,25 @@ impl PhysicalConnection {
     }
 }
 
+macro_rules! observed_query {
+    ($connection:ident, $sql:ident, $bindings:expr, $read:expr, $operation:ident, $before:expr, $after:expr) => {{
+        let bindings: Bindings<'_> = $bindings.into();
+        $connection.establish().await?;
+        let start = Instant::now();
+        let (pool, role) = $connection.query_pool($read);
+        let mut physical = pool.acquire().await?;
+        $before();
+        let result = physical.$operation($sql, bindings).await?;
+        let time = start.elapsed();
+        drop(physical);
+        $after(&result);
+        $connection
+            .dispatch_query($sql, bindings, time, role)
+            .await?;
+        Ok::<_, DatabaseError>(result)
+    }};
+}
+
 #[allow(non_snake_case, reason = "Matches Laravel's Connection API")]
 impl Connection {
     pub(super) fn model_container(
@@ -542,8 +574,103 @@ impl Connection {
 
     pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
         self.establish().await?;
+        self.query_pool(read).0.acquire().await
+    }
+
+    pub(super) fn write_query_role(&self) -> QueryRole {
+        self.query_role.unwrap_or(QueryRole::Write)
+    }
+
+    fn query_pool(&self, read: bool) -> (&Pool, QueryRole) {
         let pool = if read { self.read_pool() } else { &self.pool };
-        pool.acquire().await
+        let role = if std::ptr::eq(pool, &self.pool) {
+            self.write_query_role()
+        } else {
+            QueryRole::Read
+        };
+        (pool, role)
+    }
+
+    /// Subscribes to queries on this application's database connections.
+    pub fn listen(&self, listener: Arc<dyn Listener>) -> DatabaseResult<()> {
+        let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events"))
+        else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(DatabaseError::Unavailable)?;
+        dispatcher
+            .listen(QueryExecuted::NAME, listener, Delivery::Sync)
+            .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))
+    }
+
+    pub fn totalQueryDuration(&self) -> Duration {
+        self.query_duration.total()
+    }
+
+    pub fn resetTotalQueryDuration(&self) {
+        self.query_duration.reset();
+    }
+
+    pub fn allowQueryDurationHandlersToRunAgain(&self) {
+        self.query_duration.rearm();
+    }
+
+    /// Runs the listener once when this connection's cumulative query time exceeds the threshold.
+    pub fn whenQueryingForLongerThan(
+        &self,
+        threshold: Duration,
+        listener: Arc<dyn Listener>,
+    ) -> DatabaseResult<()> {
+        self.listen(Arc::new(QueryDurationHandler::new(
+            &self.query_duration,
+            threshold,
+            listener,
+        )))
+    }
+
+    pub(super) fn observe_query(
+        &self,
+        sql: &str,
+        bindings: Bindings<'_>,
+        time: Duration,
+        read_write_type: QueryRole,
+    ) -> DatabaseResult<Option<QueryNotification>> {
+        self.query_duration.add(time);
+        let Some(owner) = Self::model_container(Some(self)).filter(|owner| owner.has("events"))
+        else {
+            return Ok(None);
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(DatabaseError::Unavailable)?;
+        Ok(dispatcher
+            .observes(QueryExecuted::NAME)
+            .then(|| QueryNotification {
+                owner,
+                dispatcher,
+                event: Arc::new(QueryExecuted {
+                    connection: self.clone(),
+                    sql: sql.into(),
+                    bindings: bindings.into(),
+                    time,
+                    read_write_type,
+                }),
+            }))
+    }
+
+    async fn dispatch_query(
+        &self,
+        sql: &str,
+        bindings: Bindings<'_>,
+        time: Duration,
+        role: QueryRole,
+    ) -> DatabaseResult<()> {
+        if let Some(notification) = self.observe_query(sql, bindings, time, role)? {
+            notification.dispatch(&mut EventContext::new()).await?;
+        }
+        Ok(())
     }
 
     pub fn getSchemaBuilder(&self) -> super::schema::Builder<'static> {
@@ -571,12 +698,16 @@ impl Connection {
         sql: &str,
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
-        let mut connection = self.acquire(false).await?;
-        self.setRecordModificationState(true);
-        connection
-            .execute_statement(sql, bindings)
-            .await
-            .map(|result| result.insert_id)
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            false,
+            execute_statement,
+            || self.setRecordModificationState(true),
+            |_| ()
+        )
+        .map(|result| result.insert_id)
     }
 
     pub(super) async fn wipe_mysql_schema(&self, drop_views: bool) -> DatabaseResult<()> {
@@ -701,12 +832,24 @@ impl Connection {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
-            let mut physical = self.acquire(!write).await?;
-            let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
-            let mut rows = std::pin::pin!(physical.cursor(&prepared));
-            while let Some(row) = rows.try_next().await? {
-                yield row;
+            self.establish().await?;
+            let start = Instant::now();
+            let (pool, role) = self.query_pool(!write);
+            let mut physical = pool.acquire().await?;
+            let mut elapsed = start.elapsed();
+            {
+                let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+                let mut rows = std::pin::pin!(physical.cursor(&prepared));
+                loop {
+                    let start = Instant::now();
+                    let next = rows.try_next().await?;
+                    elapsed += start.elapsed();
+                    let Some(row) = next else { break };
+                    yield row;
+                }
             }
+            drop(physical);
+            self.dispatch_query(sql, bindings, elapsed, role).await?;
         })
     }
 
@@ -715,7 +858,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        self.acquire(true).await?.select(sql, bindings).await
+        observed_query!(self, sql, bindings, true, select, || (), |_| ())
     }
 
     pub async fn selectFromWriteConnection<'a>(
@@ -723,7 +866,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        self.acquire(false).await?.select(sql, bindings).await
+        observed_query!(self, sql, bindings, false, select, || (), |_| ())
     }
 
     /// Returns the ordered rowsets of a single prepared MySQL statement.
@@ -733,10 +876,15 @@ impl Connection {
         bindings: impl Into<Bindings<'a>>,
         use_read: bool,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
-        self.acquire(use_read)
-            .await?
-            .select_result_sets(sql, bindings)
-            .await
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            use_read,
+            select_result_sets,
+            || (),
+            |_| ()
+        )
     }
 
     pub async fn selectOne<'a>(
@@ -744,7 +892,7 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
-        self.acquire(true).await?.select_one(sql, bindings).await
+        observed_query!(self, sql, bindings, true, select_one, || (), |_| ())
     }
 
     pub async fn scalar<'a>(
@@ -762,12 +910,16 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<bool> {
-        let mut connection = self.acquire(false).await?;
-        self.setRecordModificationState(true);
-        connection
-            .affecting_statement(sql, bindings)
-            .await
-            .map(|_| true)
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            false,
+            affecting_statement,
+            || self.setRecordModificationState(true),
+            |_| ()
+        )
+        .map(|_| true)
     }
 
     pub async fn insert<'a>(
@@ -799,21 +951,30 @@ impl Connection {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        let count = self
-            .acquire(false)
-            .await?
-            .affecting_statement(sql, bindings)
-            .await?;
-        if count > 0 {
-            self.setRecordModificationState(true);
-        }
-        Ok(count)
+        observed_query!(
+            self,
+            sql,
+            bindings,
+            false,
+            affecting_statement,
+            || (),
+            |count: &u64| {
+                if *count > 0 {
+                    self.setRecordModificationState(true);
+                }
+            }
+        )
     }
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        let result = self.acquire(false).await?.unprepared(sql).await?;
+        self.establish().await?;
+        let start = Instant::now();
+        let result = self.pool.acquire().await?.unprepared(sql).await?;
+        let elapsed = start.elapsed();
         self.setRecordModificationState(true);
+        self.dispatch_query(sql, (&[]).into(), elapsed, self.write_query_role())
+            .await?;
         Ok(result)
     }
 }

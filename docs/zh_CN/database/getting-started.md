@@ -116,6 +116,44 @@ async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
 }
 ```
 
+### 监听查询事件 {#listening-for-query-events}
+
+使用 `DB::listen` 监听应用连接的成功查询。`QueryExecuted` 包含原始 SQL、绑定参数、读写角色、连接和 `Duration` 耗时。游标在成功耗尽后派发，计时排除调用方在两行之间处理数据的时间。
+
+### 监控累计查询耗时 {#monitoring-cumulative-query-time}
+
+使用 `DB::whenQueryingForLongerThan` 监控默认连接，也可在具名连接上注册。累计耗时超过阈值后，每个处理器执行一次。`resetTotalQueryDuration` 清零耗时。`allowQueryDurationHandlersToRunAgain` 允许处理器再次执行。
+
+```rust
+use std::{sync::Arc, time::Duration};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::{DatabaseResult, events::QueryExecuted},
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::DB,
+};
+
+fn report_query<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let query = payload.downcast_ref::<QueryExecuted>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Query on {} took {:?}", query.connection.getName(), query.time);
+        Ok(None)
+    })
+}
+
+fn subscribe() -> DatabaseResult<()> {
+    DB::listen(Arc::new(report_query))
+}
+
+fn monitor_cumulative_time() -> DatabaseResult<()> {
+    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+}
+```
+
 ## 数据库事务
 
 默认连接使用 `DB::transaction`，具名连接直接调用 `transaction`。在回调中通过传入的事务句柄执行 SQL。该句柄独占一条写库物理连接，直到提交或回滚。Rust 用装箱的 Future 在异步查询期间借用事务句柄。第二个参数是总尝试次数，传 `1` 表示执行一次。并发错误可能重跑整个回调，把外部副作用放在事务之外，或保证可以安全重复执行。

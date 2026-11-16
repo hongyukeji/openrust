@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use crate::{
     contracts::{container::Container as _, events::Dispatcher as _},
@@ -166,6 +169,18 @@ impl Connection {
     }
 }
 
+macro_rules! observed_transaction_query {
+    ($transaction:ident, $sql:ident, $bindings:expr, $operation:ident, $after:expr) => {{
+        let bindings: Bindings<'_> = $bindings.into();
+        let start = Instant::now();
+        let result = $transaction.physical()?.$operation($sql, bindings).await?;
+        let elapsed = start.elapsed();
+        $after(&result);
+        $transaction.dispatch_query($sql, bindings, elapsed).await?;
+        Ok::<_, DatabaseError>(result)
+    }};
+}
+
 #[allow(non_snake_case, reason = "Matches Laravel's transaction API")]
 impl Transaction {
     pub fn getSchemaBuilder(&mut self) -> super::schema::Builder<'_> {
@@ -191,9 +206,7 @@ impl Transaction {
         bindings: &[Value],
     ) -> DatabaseResult<Value> {
         self.connection.setRecordModificationState(true);
-        self.physical()?
-            .execute_statement(sql, bindings)
-            .await
+        observed_transaction_query!(self, sql, bindings, execute_statement, |_| ())
             .map(|result| result.insert_id)
     }
 
@@ -345,6 +358,25 @@ impl Transaction {
         self.run(callback).await
     }
 
+    async fn dispatch_query(
+        &mut self,
+        sql: &str,
+        bindings: Bindings<'_>,
+        time: Duration,
+    ) -> DatabaseResult<()> {
+        if let Some(notification) = self.connection.observe_query(
+            sql,
+            bindings,
+            time,
+            self.connection.write_query_role(),
+        )? {
+            notification
+                .dispatch(&mut EventContext::in_transaction(self))
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Reads on this transaction's connection. Exhaust the cursor to continue using the transaction.
     pub fn cursor<'a>(
         &'a mut self,
@@ -353,12 +385,20 @@ impl Transaction {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
-            let physical = self.physical()?;
-            let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
-            let mut rows = std::pin::pin!(physical.cursor(&prepared));
-            while let Some(row) = rows.try_next().await? {
-                yield row;
+            let mut elapsed = Duration::ZERO;
+            {
+                let physical = self.physical()?;
+                let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
+                let mut rows = std::pin::pin!(physical.cursor(&prepared));
+                loop {
+                    let start = Instant::now();
+                    let next = rows.try_next().await?;
+                    elapsed += start.elapsed();
+                    let Some(row) = next else { break };
+                    yield row;
+                }
             }
+            self.dispatch_query(sql, bindings, elapsed).await?;
         })
     }
 
@@ -367,7 +407,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Row>> {
-        self.physical()?.select(sql, bindings).await
+        observed_transaction_query!(self, sql, bindings, select, |_| ())
     }
 
     /// Returns all rowsets on the transaction's pinned connection.
@@ -376,7 +416,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Vec<Vec<Row>>> {
-        self.physical()?.select_result_sets(sql, bindings).await
+        observed_transaction_query!(self, sql, bindings, select_result_sets, |_| ())
     }
 
     pub async fn selectOne<'a>(
@@ -384,7 +424,7 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<Option<Row>> {
-        self.physical()?.select_one(sql, bindings).await
+        observed_transaction_query!(self, sql, bindings, select_one, |_| ())
     }
 
     pub async fn scalar<'a>(
@@ -427,10 +467,7 @@ impl Transaction {
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<bool> {
         self.connection.setRecordModificationState(true);
-        self.physical()?
-            .affecting_statement(sql, bindings)
-            .await
-            .map(|_| true)
+        observed_transaction_query!(self, sql, bindings, affecting_statement, |_| ()).map(|_| true)
     }
 
     pub async fn affectingStatement<'a>(
@@ -438,16 +475,19 @@ impl Transaction {
         sql: &str,
         bindings: impl Into<Bindings<'a>>,
     ) -> DatabaseResult<u64> {
-        let count = self.physical()?.affecting_statement(sql, bindings).await?;
-        if count > 0 {
-            self.connection.setRecordModificationState(true);
-        }
-        Ok(count)
+        observed_transaction_query!(self, sql, bindings, affecting_statement, |count: &u64| {
+            if *count > 0 {
+                self.connection.setRecordModificationState(true);
+            }
+        })
     }
 
     pub async fn unprepared(&mut self, sql: &str) -> DatabaseResult<bool> {
+        let start = Instant::now();
         let result = self.physical()?.unprepared(sql).await?;
+        let elapsed = start.elapsed();
         self.connection.setRecordModificationState(true);
+        self.dispatch_query(sql, (&[]).into(), elapsed).await?;
         Ok(result)
     }
 }

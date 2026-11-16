@@ -50,6 +50,8 @@ impl ConnectionFactory {
             model_container: std::sync::Weak::new(),
             routing: Arc::default(),
             established: Arc::default(),
+            query_duration: Arc::default(),
+            query_role: None,
         })
     }
 }

@@ -116,6 +116,44 @@ async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
 }
 ```
 
+### 監聽查詢事件 {#listening-for-query-events}
+
+使用 `DB::listen` 監聽應用程式連線的成功查詢。`QueryExecuted` 包含原始 SQL、繫結參數、讀寫角色、連線和 `Duration` 耗時。資料游標在成功耗盡後派送，計時排除呼叫端在兩列之間處理資料的時間。
+
+### 監控累計查詢耗時 {#monitoring-cumulative-query-time}
+
+使用 `DB::whenQueryingForLongerThan` 監控預設連線，也可在具名連線上註冊。累計耗時超過門檻後，每個處理器執行一次。`resetTotalQueryDuration` 清除耗時。`allowQueryDurationHandlersToRunAgain` 允許處理器再次執行。
+
+```rust
+use std::{sync::Arc, time::Duration};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::{DatabaseResult, events::QueryExecuted},
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::DB,
+};
+
+fn report_query<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let query = payload.downcast_ref::<QueryExecuted>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Query on {} took {:?}", query.connection.getName(), query.time);
+        Ok(None)
+    })
+}
+
+fn subscribe() -> DatabaseResult<()> {
+    DB::listen(Arc::new(report_query))
+}
+
+fn monitor_cumulative_time() -> DatabaseResult<()> {
+    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+}
+```
+
 ## 資料庫交易
 
 預設連線使用 `DB::transaction`，具名連線直接呼叫 `transaction`。在回呼中透過傳入的交易控制代碼執行 SQL。該控制代碼獨占一條寫庫實體連線，直到提交或復原。Rust 用裝箱的 Future 在非同步查詢期間借用交易控制代碼。第二個參數是總嘗試次數，傳 `1` 表示執行一次。並行錯誤可能重跑整個回呼，請將外部副作用放在交易之外，或確保可安全重複執行。

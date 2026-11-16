@@ -11,7 +11,7 @@ use crate::{container::Container, contracts::config::Repository};
 
 use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
-    connectors::ConnectionFactory,
+    connectors::ConnectionFactory, events::QueryRole,
 };
 
 tokio::task_local! {
@@ -124,12 +124,16 @@ impl DatabaseManager {
         };
         match role {
             Some("read") => {
+                connection.query_role = Some(QueryRole::Read);
                 if let Some((database, read)) = connection.read_pool.take() {
                     connection.database = database;
                     connection.pool = read;
                 }
             }
-            Some("write") => connection.read_pool = None,
+            Some("write") => {
+                connection.query_role = Some(QueryRole::Write);
+                connection.read_pool = None;
+            }
             _ => {}
         }
         connections.insert(name.to_owned(), connection.clone());

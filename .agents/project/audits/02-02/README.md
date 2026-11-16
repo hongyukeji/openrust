@@ -37,4 +37,15 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - 已完成的派发只执行一次。监听器返回的错误交给发起操作，后续操作继续使用已缓存的连接。派发被取消时，后续异步操作重新初始化。连接池替换物理会话沿用现有机制。
 - 隔离 SQLite 与 MySQL 8.4.13 实测首次并发查询、监听器同连接初始化、应用隔离、派发错误及取消后的恢复。两套实际 HTTP 应用和 Artisan 子进程实测各自只收到一次。42 项定向回归通过，1 个现有子进程夹具按设计由父测试启动。工作区严格 Clippy 与变更文件格式检查通过。
 - 三语文档示例均通过实际 Artisan 分别在 SQLite 和 MySQL 运行。实际 `main artisan inspire` 退出成功。VitePress 构建、12 项站点浏览器组合和 6 项连接事件小节检查通过。全工作区测试的既有 `stub:publish` 断言问题见上批。
-- 02-02 继续处理查询事件、累计查询耗时、显式重连及事务前置与回滚回调。
+- 查询事件与累计耗时见下方续批。02-02 继续处理显式重连及事务前置与回滚回调。
+
+## 查询事件与累计耗时
+
+对照固定 Laravel 的[查询监听](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#listening-for-query-events)和[累计查询耗时](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database.md#monitoring-cumulative-query-time)。旧版无同名查询事件或累计回调可直接复用。沿用已有应用事件分发器、绑定参数、读写路由和事务上下文。
+
+- `DB::listen` 与 `Connection::listen` 订阅应用的 `QueryExecuted`。事件记录成功 SQL 的原始文本和绑定、执行耗时、实际读写角色及逻辑连接。事务内回调通过上下文访问当前事务。池化查询先归还借用连接，回调可在单连接池继续查询。SQL 驱动失败时无查询事件和计时增量。
+- 使用 Rust `Duration` 和单调时钟；时间覆盖池等待及 SQL 执行，排除连接建立监听与查询监听耗时。流式游标在成功耗尽后派发，计时排除调用方处理行的时间。这是 SQLx 继续向调用方流式交付并释放行流借用所需的时序调整。未耗尽或失败游标没有成功事件。
+- `whenQueryingForLongerThan` 在逻辑连接的累计用时超过阈值时调用一次处理器，支持 `totalQueryDuration`、`resetTotalQueryDuration` 和 `allowQueryDurationHandlersToRunAgain`。并发或监听器重入共享该处理器的执行状态。
+- Rust 1.94.0、实际 SQLite 与 MySQL 8.4.13。44 项定向回归验证命名绑定、读写池和具名读连接、失败 SQL、流式游标、监听器重入、事务上下文、累计与重置、并发重新启用、真实 HTTP 以及 Artisan 子进程。1 个现有夹具由父测试启动。工作区严格 Clippy、变更文件格式检查通过。
+- 三语 Artisan 示例在两种数据库上用实际连接池等待触发 500 毫秒累计阈值。原生 `main artisan inspire` 通过。VitePress 构建、12 项站点浏览器组合和 6 项小节检查通过。
+- 02-02 仍需 `QueryExecuted::toRawSql` 等查询诊断接口核对、显式重连与剩余事务回调验收。

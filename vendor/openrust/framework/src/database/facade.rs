@@ -40,6 +40,19 @@ impl DB {
             .connection(name)
     }
 
+    pub fn listen(
+        listener: std::sync::Arc<dyn crate::contracts::events::Listener>,
+    ) -> DatabaseResult<()> {
+        Self::connection(None)?.listen(listener)
+    }
+
+    pub fn whenQueryingForLongerThan(
+        threshold: std::time::Duration,
+        listener: std::sync::Arc<dyn crate::contracts::events::Listener>,
+    ) -> DatabaseResult<()> {
+        Self::connection(None)?.whenQueryingForLongerThan(threshold, listener)
+    }
+
     pub async fn selectFromWriteConnection<'a>(
         sql: &str,
         bindings: impl Into<Bindings<'a>>,

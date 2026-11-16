@@ -116,6 +116,44 @@ async fn subscribe() -> Result<(), Box<dyn Error + Send + Sync>> {
 }
 ```
 
+### Listening for Query Events {#listening-for-query-events}
+
+Use `DB::listen` to observe successful queries on the application's connections. `QueryExecuted` carries the original SQL and bindings, the read or write role, the connection and the elapsed `Duration`. A cursor emits after successful exhaustion and excludes time spent by the caller between rows.
+
+### Monitoring Cumulative Query Time {#monitoring-cumulative-query-time}
+
+Use `DB::whenQueryingForLongerThan` to monitor the default connection, or register on a named connection. Each handler runs once after the connection's cumulative query time exceeds the threshold. `resetTotalQueryDuration` clears the elapsed time. `allowQueryDurationHandlersToRunAgain` rearms the handlers.
+
+```rust
+use std::{sync::Arc, time::Duration};
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::{DatabaseResult, events::QueryExecuted},
+    events::{EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::DB,
+};
+
+fn report_query<'a>(
+    payload: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        let query = payload.downcast_ref::<QueryExecuted>()
+            .ok_or(EventError::InvalidPayload)?;
+        println!("Query on {} took {:?}", query.connection.getName(), query.time);
+        Ok(None)
+    })
+}
+
+fn subscribe() -> DatabaseResult<()> {
+    DB::listen(Arc::new(report_query))
+}
+
+fn monitor_cumulative_time() -> DatabaseResult<()> {
+    DB::whenQueryingForLongerThan(Duration::from_millis(500), Arc::new(report_query))
+}
+```
+
 ## Database Transactions
 
 Use `DB::transaction` for the default connection or call `transaction` on a named connection. Execute SQL through the transaction handle passed to the callback. The handle holds one write connection through the final commit or rollback. The boxed future lets Rust borrow that handle across asynchronous queries. The second argument specifies total attempts. Use `1` for a single attempt. Concurrency failures can rerun the whole callback, so keep side effects outside it or make them safe to repeat.
