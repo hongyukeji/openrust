@@ -291,6 +291,29 @@ Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashb
 
 `fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. OpenRust evaluates the view once per response, including when selecting multiple fragments.
 
+## Service Injection {#service-injection}
+
+Register a typed service with `Factory::registerViewService` and return the data the template needs. Put `@inject` at the start of the template to bind a registered service alias to a variable.
+
+```rust
+use openrust::view::{Factory, ViewResult};
+
+struct ReportSummary {
+    total: u64,
+}
+
+fn expose_summary(factory: &Factory) -> ViewResult<()> {
+    factory.registerViewService("report.summary", |summary: &ReportSummary| {
+        Ok(summary.total.into())
+    })
+}
+```
+
+```html
+@inject('total', 'report.summary')
+<p>{{ $total }}</p>
+```
+
 ## Rendering Inline Blade Templates {#rendering-inline-blade-templates}
 
 `Factory::renderInline(source, &data)` renders trusted template text in memory. Nested views resolve through that factory.

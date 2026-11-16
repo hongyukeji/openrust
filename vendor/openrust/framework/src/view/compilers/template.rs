@@ -29,13 +29,14 @@ use loops::{CountedLoop, Jump, JumpKind};
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
     nodes: Vec<Node>,
-    declarations: Vec<ComponentDeclaration>,
+    declarations: Vec<Declaration>,
 }
 
 #[derive(Serialize, Deserialize)]
-enum ComponentDeclaration {
+enum Declaration {
     Props(Props),
     Aware(Props),
+    Inject(String, Expression),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -167,13 +168,23 @@ impl Template {
             let trimmed = original.trim_start();
             parser.remaining = trimmed;
             if parser.directive("props") {
-                declarations.push(ComponentDeclaration::Props(parse_props(
-                    parser.arguments()?,
-                )?));
+                declarations.push(Declaration::Props(parse_props(parser.arguments()?)?));
             } else if parser.directive("aware") {
-                declarations.push(ComponentDeclaration::Aware(parse_props(
-                    parser.arguments()?,
-                )?));
+                declarations.push(Declaration::Aware(parse_props(parser.arguments()?)?));
+            } else if parser.directive("inject") {
+                let (variable, service) = parser.named_argument()?;
+                let Expression::Value(ViewValue::String(variable)) = variable else {
+                    return Err(invalid("Blade @inject requires a literal variable name."));
+                };
+                if !identifier(&variable) {
+                    return Err(invalid("Invalid Blade @inject variable name."));
+                }
+                declarations.push(Declaration::Inject(
+                    variable,
+                    service.ok_or_else(|| {
+                        invalid("Blade @inject requires a registered service name.")
+                    })?,
+                ));
             } else if trimmed.starts_with("{{--") {
                 parser.delimited(4, "--}}")?;
             } else {
@@ -203,10 +214,13 @@ impl Template {
         let mut data = Cow::Borrowed(data);
         for declaration in &self.declarations {
             match declaration {
-                ComponentDeclaration::Props(props) => {
-                    data = Cow::Owned(apply_props(&data, props, context))
+                Declaration::Props(props) => data = Cow::Owned(apply_props(&data, props, context)),
+                Declaration::Aware(aware) => apply_aware(data.to_mut(), aware, context),
+                Declaration::Inject(variable, service) => {
+                    let service = name_value(value(service, &data, &[]))?;
+                    let exposed = context.view_service(service)?;
+                    data.to_mut().insert(variable.clone(), exposed);
                 }
-                ComponentDeclaration::Aware(aware) => apply_aware(data.to_mut(), aware, context),
             }
         }
         let mut output = String::new();
@@ -524,6 +538,8 @@ impl<'a> Parser<'a> {
             return Err(invalid("Place @props at the start of the Blade template."));
         } else if self.directive("aware") {
             return Err(invalid("Place @aware at the start of the Blade template."));
+        } else if self.directive("inject") {
+            return Err(invalid("Place @inject at the start of the Blade template."));
         } else if self.directive("parent") {
             Node::Parent
         } else if self.directive("extends") {

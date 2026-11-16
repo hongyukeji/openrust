@@ -291,6 +291,29 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 
 `fragments(["summary", "details"])` 依參數順序回傳指定片段。`allFragments()` 回傳全部已擷取片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在條件為假時傳送完整範本。OpenRust 每次回應只呈現一次視圖，選擇多個片段時也是如此。
 
+## 服務注入 {#service-injection}
+
+透過 `Factory::registerViewService` 註冊具型別的服務，並回傳範本所需的資料。在範本開頭用 `@inject` 將已註冊的服務別名繫結到變數。
+
+```rust
+use openrust::view::{Factory, ViewResult};
+
+struct ReportSummary {
+    total: u64,
+}
+
+fn expose_summary(factory: &Factory) -> ViewResult<()> {
+    factory.registerViewService("report.summary", |summary: &ReportSummary| {
+        Ok(summary.total.into())
+    })
+}
+```
+
+```html
+@inject('total', 'report.summary')
+<p>{{ $total }}</p>
+```
+
 ## 呈現內嵌 Blade 範本 {#rendering-inline-blade-templates}
 
 `Factory::renderInline(source, &data)` 在記憶體中呈現受信任的範本文字。子視圖由同一個工廠解析。

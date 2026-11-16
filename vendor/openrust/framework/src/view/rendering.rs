@@ -112,6 +112,12 @@ impl<'a> RenderContext<'a> {
         !matches!(section.trim(), "" | "0")
     }
 
+    pub(super) fn view_service(&self, name: &str) -> ViewResult<ViewValue> {
+        self.factory
+            .ok_or_else(|| render_error("Blade service injection requires a view factory."))?
+            .view_service(name)
+    }
+
     pub(super) fn environment_matches(&self, patterns: &[&str]) -> ViewResult<bool> {
         let Some(container) = current_container() else {
             return Ok(false);

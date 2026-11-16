@@ -7,8 +7,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::contracts::view::{
-    Factory as ContractFactory, View as ContractView, ViewCallback as ContractCallback,
+use crate::{
+    contracts::{
+        container::Container as _,
+        view::{
+            Factory as ContractFactory, View as ContractView, ViewCallback as ContractCallback,
+        },
+    },
+    support::facades::current_container,
 };
 
 use super::{
@@ -18,7 +24,7 @@ use super::{
     component::ResolvedComponent,
     engines::EngineResolver,
     file_view_finder::{ViewSource, relative_name, valid_segment},
-    rendering::RenderContext,
+    rendering::{RenderContext, render_error},
     request_data::ViewRequestData,
 };
 
@@ -39,6 +45,7 @@ enum ResolvedSource<'a> {
 type ComponentResolver = Arc<dyn Fn(&ViewData) -> ViewResult<ResolvedComponent> + Send + Sync>;
 
 type ViewCallback = Arc<dyn Fn(&mut View) -> ViewResult<()> + Send + Sync>;
+type ViewService = Arc<dyn Fn() -> ViewResult<ViewValue> + Send + Sync>;
 
 #[derive(Default)]
 struct ViewEvents {
@@ -48,9 +55,49 @@ struct ViewEvents {
     components: HashMap<String, ComponentResolver>,
     anonymous_namespaces: HashMap<String, String>,
     anonymous_paths: HashMap<Option<String>, Vec<String>>,
+    services: HashMap<String, ViewService>,
 }
 
 impl Factory {
+    /// Exposes a typed application service as template data.
+    pub fn registerViewService<T>(
+        &self,
+        name: &str,
+        expose: impl Fn(&T) -> ViewResult<ViewValue> + Send + Sync + 'static,
+    ) -> ViewResult<()>
+    where
+        T: ?Sized + Send + Sync + 'static,
+    {
+        if name.trim().is_empty() {
+            return Err(ViewError::InvalidName);
+        }
+        self.events.write().unwrap().services.insert(
+            name.to_owned(),
+            Arc::new(move || {
+                let container = current_container().ok_or_else(|| {
+                    render_error("Blade service injection requires an application container.")
+                })?;
+                let service = container
+                    .make::<T>()
+                    .map_err(|error| ViewError::RenderFailed(Box::new(error)))?;
+                expose(service.as_ref())
+            }),
+        );
+        Ok(())
+    }
+
+    pub(super) fn view_service(&self, name: &str) -> ViewResult<ViewValue> {
+        let service = self
+            .events
+            .read()
+            .unwrap()
+            .services
+            .get(name)
+            .cloned()
+            .ok_or_else(|| render_error("Blade view service was not registered."))?;
+        service()
+    }
+
     pub fn new(mut finder: FileViewFinder, compiled: PathBuf) -> Self {
         finder
             .addExtension("blade.html")

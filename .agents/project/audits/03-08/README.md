@@ -96,3 +96,8 @@
 
 - 对照固定 `CompilesLayouts`、`ManagesLayouts` 和 `CompilesConditionals`。布局候选共用现有 Finder 和显式视图数据，区段可追加、覆盖或结束。条件栈支持 `@pushIf` 和 `@elsePushIf`。Rust 视图值的 `==` / `!=` 复用 Switch 的宽松比较，保留 `===` / `!==` 的严格行为。
 - macOS ARM64、Rust 1.94.0。共享工作区的并行 Mail 改动触发 `CompositeTransport` 与 `SendmailTransport` 私有重导出错误。隔离基线的 8 项定向测试通过，真实 HTTP 覆盖布局回退、优先数据、区段追加和覆盖、条件栈、比较运算优先级与缺失结束标签 500。隔离副本全工作区格式和严格 Clippy、实际 Artisan 缓存与清理、三语构建与 12 项浏览器组合通过。
+
+## 视图服务注入
+
+- 对照固定 Blade Service Injection 章节。Rust Factory 在装配时注册服务类型、模板别名与数据投影，`@inject` 声明在模板开头从当前应用容器解析服务。Rust 适配保留模板变量查找，服务方法在 Rust 侧计算。未注册服务返回渲染错误。
+- macOS ARM64、Rust 1.94.0。隔离基线 8 项定向测试通过，真实 HTTP 验证双应用各自容器、对象属性、转义和缺失服务 500。隔离副本全工作区格式与严格 Clippy 通过。用三语共用 Rust 示例装配 Provider 后运行实际 Artisan，三个示例编译和清理成功。三语构建和 12 项浏览器组合通过。

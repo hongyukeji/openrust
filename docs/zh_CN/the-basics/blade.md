@@ -291,6 +291,29 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 
 `fragments(["summary", "details"])` 按参数顺序返回指定片段。`allFragments()` 返回全部已捕获片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在条件为假时发送完整模板。OpenRust 每次响应只渲染一次视图，选择多个片段时也一样。
 
+## 服务注入 {#service-injection}
+
+通过 `Factory::registerViewService` 注册类型化服务，并返回模板所需的数据。在模板开头用 `@inject` 将已注册的服务别名绑定到变量。
+
+```rust
+use openrust::view::{Factory, ViewResult};
+
+struct ReportSummary {
+    total: u64,
+}
+
+fn expose_summary(factory: &Factory) -> ViewResult<()> {
+    factory.registerViewService("report.summary", |summary: &ReportSummary| {
+        Ok(summary.total.into())
+    })
+}
+```
+
+```html
+@inject('total', 'report.summary')
+<p>{{ $total }}</p>
+```
+
 ## 渲染内联 Blade 模板 {#rendering-inline-blade-templates}
 
 `Factory::renderInline(source, &data)` 在内存中渲染受信任的模板文本。子视图由同一个工厂解析。

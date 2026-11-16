@@ -344,6 +344,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
     struct ViewIdentity;
+    struct ViewSummary(&'static str);
 
     impl Authenticatable for ViewIdentity {
         fn get_auth_identifier_name(&self) -> &str {
@@ -530,6 +531,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     view("layout_fallback").with("site", "parent")
                 })?;
                 Route::get("/bad-push", || view("bad_push"))?;
+                Route::get("/view-injection", || view("view_injection"))?;
+                Route::get("/missing-view-service", || view("missing_view_service"))?;
                 Route::get("/scoped-slot", || {
                     view("scoped_slot").with("component", "outside")
                 })?;
@@ -545,6 +548,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .unwrap();
         let mut kernel = Kernel::new(application);
         kernel.bootstrap().await.unwrap();
+        kernel
+            .get_application()
+            .container()
+            .instance(Arc::new(ViewSummary(app)))
+            .unwrap();
         let auth = kernel
             .get_application()
             .container()
@@ -567,6 +575,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .get_application()
             .container()
             .get::<Factory>(ServiceKey::typed::<Factory>())
+            .unwrap();
+        factory
+            .registerViewService("blade.summary", |summary: &ViewSummary| {
+                Ok(serde_json::json!({"label": format!("<{}>", summary.0)}))
+            })
             .unwrap();
         let contract = kernel
             .get_application()
@@ -930,6 +943,11 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_push", "@pushIf(true, 'scripts')missing end"),
         (
+            "view_injection",
+            "@inject('summary', 'blade.summary')<b>{{ $summary->label }}</b>",
+        ),
+        ("missing_view_service", "@inject('summary', 'missing')"),
+        (
             "scoped_slot",
             concat!(
                 "<x-scoped-panel><x-slot:heading>{{ $component->caption }}</x-slot:heading>",
@@ -1131,6 +1149,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "override:firstsecond:new:chosen"
     );
     assert!(send(first, "/bad-push", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/view-injection", 200),
+        send(second, "/view-injection", 200)
+    );
+    assert_eq!(a, "<b>&lt;A&gt;</b>");
+    assert_eq!(b, "<b>&lt;B&gt;</b>");
+    assert!(
+        send(first, "/missing-view-service", 500)
+            .await
+            .contains("500")
+    );
     let (a, b) = tokio::join!(
         send(first, "/scoped-slot", 200),
         send(second, "/scoped-slot", 200)
