@@ -2,13 +2,26 @@ use std::collections::BTreeMap;
 
 use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
-use super::Builder;
+use super::{Builder, Executor};
 use crate::database::schema::{
     Column, ColumnGeneration, ForeignKey, GenerationType, Index, TableInfo, grammars::Table,
 };
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
 impl Builder<'_> {
+    fn catalog_table(&self, name: &str) -> DatabaseResult<Table> {
+        let table = self.resolve_table(name)?;
+        if self.grammar.mysql()
+            && let Executor::Session(session) = &self.executor
+            && session.temporary_index(&table).is_some()
+        {
+            return Err(DatabaseError::UnsupportedSchema(
+                "MySQL temporary table metadata",
+            ));
+        }
+        Ok(table)
+    }
+
     fn catalog_parameters(&self, table: &Table) -> [Value; 2] {
         [
             self.grammar.catalog_schema(table).into(),
@@ -17,7 +30,12 @@ impl Builder<'_> {
     }
 
     pub async fn hasTable(&mut self, table: &str) -> DatabaseResult<bool> {
-        let table = self.grammar.table(table)?;
+        let table = self.resolve_table(table)?;
+        if let Executor::Session(session) = &self.executor
+            && session.temporary_index(&table).is_some()
+        {
+            return Ok(true);
+        }
         let parameters = self.catalog_parameters(&table);
         let sql = if self.grammar.mysql() {
             "select 1 from information_schema.tables where table_schema = coalesce(nullif(?, ''), database()) and table_name = ? and table_type = 'BASE TABLE' limit 1"
@@ -52,7 +70,7 @@ impl Builder<'_> {
     }
 
     pub async fn getColumns(&mut self, table: &str) -> DatabaseResult<Vec<Column>> {
-        let table = self.grammar.table(table)?;
+        let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
             (
@@ -174,7 +192,7 @@ impl Builder<'_> {
     }
 
     pub async fn getIndexes(&mut self, table: &str) -> DatabaseResult<Vec<Index>> {
-        let identifier = self.grammar.table(table)?;
+        let identifier = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&identifier);
         let (sql, parameters) = if self.grammar.mysql() {
             (
@@ -244,7 +262,7 @@ impl Builder<'_> {
     }
 
     pub async fn getForeignKeys(&mut self, table: &str) -> DatabaseResult<Vec<ForeignKey>> {
-        let table = self.grammar.table(table)?;
+        let table = self.catalog_table(table)?;
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
             (

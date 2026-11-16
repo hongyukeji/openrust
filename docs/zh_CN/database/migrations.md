@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### 临时表 {#temporary-tables}
+
+使用 `Blueprint::temporary()` 前先借用 Schema 会话。用会话的 Schema Builder 建表，再通过同一会话执行 SQL。`close().await?` 会先清理受管理的临时表，再归还连接。会话被丢弃时，清理操作持有原物理连接，直到可以安全归还。
+
+```rust
+use openrust::database::{DatabaseResult, Value, schema::Schema};
+
+async fn staged_code() -> DatabaseResult<Value> {
+    let mut session = Schema::session().await?;
+    session.getSchemaBuilder().create("import_codes", |table| {
+        table.temporary();
+        table.string("code", 20);
+    }).await?;
+    session.statement("INSERT INTO import_codes (code) VALUES (?)", &["pending".into()]).await?;
+    let rows = session.select("SELECT code FROM import_codes", &[]).await?;
+    session.close().await?;
+    Ok(rows[0].get_at(0).cloned().unwrap_or(Value::Null))
+}
+```
+
+SQLite 的同一会话可读取临时表元数据。MySQL 的 `hasTable()` 可检查会话管理的临时表，详细列信息可通过会话执行 `SHOW COLUMNS` 查看。
+
 ## 列
 
 定义闭包接收可变的 `Blueprint`。列修饰符接在列定义后，例如 `table.string("isbn", 20).nullable()`。`id()` 创建自增主键，`timestamps()` 创建允许为空的创建时间和更新时间。长度、精度和小数位数由 Rust 参数显式指定。

@@ -4,7 +4,10 @@ use crate::database::{
     Connection, DatabaseError, DatabaseFuture, DatabaseResult, Row, Transaction, Value,
 };
 
-use super::{Blueprint, MorphKeyType, SchemaSession, grammars::Grammar};
+use super::{
+    Blueprint, MorphKeyType, SchemaSession,
+    grammars::{Grammar, Table},
+};
 
 mod catalog;
 mod sqlite;
@@ -122,11 +125,60 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
-        let table = self.grammar.table(table)?;
+        let mut table = self.grammar.table(table)?;
         let mut blueprint = self.blueprint();
         configure(&mut blueprint);
+        if blueprint.temporary {
+            if !matches!(self.executor, Executor::Session(_) | Executor::Pretend(_)) {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "temporary table requires a schema session",
+                ));
+            }
+            self.temporary_schema(&mut table)?;
+            let sql = self.grammar.create(&table, blueprint)?;
+            let cleanup = self.temporary_drop(&table, true)?;
+            if let Executor::Session(session) = &mut self.executor {
+                return session.create_temporary(table, cleanup, sql).await;
+            }
+            return self.execute(sql).await;
+        }
         let sql = self.grammar.create(&table, blueprint)?;
         self.execute(sql).await
+    }
+
+    fn resolve_table(&self, name: &str) -> DatabaseResult<Table> {
+        let table = self.grammar.table(name)?;
+        Ok(match &self.executor {
+            Executor::Session(session) => session.temporary_table(&table).cloned().unwrap_or(table),
+            _ => table,
+        })
+    }
+
+    fn temporary_schema(&self, table: &mut Table) -> DatabaseResult<()> {
+        if !self.grammar.mysql() {
+            if table
+                .schema
+                .as_deref()
+                .is_some_and(|schema| !schema.eq_ignore_ascii_case("temp"))
+            {
+                return Err(DatabaseError::UnsupportedSchema(
+                    "SQLite temporary table schema",
+                ));
+            }
+            table.schema = Some("temp".into());
+        }
+        Ok(())
+    }
+
+    fn temporary_drop(&self, table: &Table, if_exists: bool) -> DatabaseResult<String> {
+        let table = self.grammar.qualified(table)?;
+        let temporary = if self.grammar.mysql() {
+            " temporary"
+        } else {
+            ""
+        };
+        let guard = if if_exists { " if exists" } else { "" };
+        Ok(format!("drop{temporary} table{guard} {table}"))
     }
 
     pub async fn table(
@@ -134,7 +186,7 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
-        let table = self.grammar.table(table)?;
+        let table = self.resolve_table(table)?;
         let mut blueprint = self.blueprint();
         configure(&mut blueprint);
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
@@ -174,15 +226,29 @@ impl<'connection> Builder<'connection> {
     }
 
     async fn drop_table(&mut self, table: &str, if_exists: bool) -> DatabaseResult<()> {
-        let table = self.grammar.qualified(&self.grammar.table(table)?)?;
+        let table = self.resolve_table(table)?;
+        let temporary = self.temporary_drop(&table, if_exists)?;
+        if let Executor::Session(session) = &mut self.executor
+            && let Some(index) = session.temporary_index(&table)
+        {
+            return session.drop_temporary(index, &temporary).await;
+        }
+        let table = self.grammar.qualified(&table)?;
         let guard = if if_exists { " if exists" } else { "" };
         self.execute(vec![format!("drop table{guard} {table}")])
             .await
     }
 
     pub async fn rename(&mut self, from: &str, to: &str) -> DatabaseResult<()> {
-        let from = self.grammar.table(from)?;
-        let to = self.grammar.table(to)?;
+        let from = self.resolve_table(from)?;
+        let mut to = self.grammar.table(to)?;
+        let temporary = match &self.executor {
+            Executor::Session(session) => session.temporary_index(&from),
+            _ => None,
+        };
+        if temporary.is_some() {
+            self.temporary_schema(&mut to)?;
+        }
         let target = if self.grammar.mysql() {
             self.grammar.qualified(&to)?
         } else {
@@ -194,8 +260,14 @@ impl<'connection> Builder<'connection> {
             self.grammar.identifier(&to.name)?
         };
         let source = self.grammar.qualified(&from)?;
-        self.execute(vec![format!("alter table {source} rename to {target}")])
-            .await
+        let sql = format!("alter table {source} rename to {target}");
+        if let Some(index) = temporary {
+            let cleanup = self.temporary_drop(&to, true)?;
+            if let Executor::Session(session) = &mut self.executor {
+                return session.rename_temporary(index, to, cleanup, &sql).await;
+            }
+        }
+        self.execute(vec![sql]).await
     }
 
     async fn execute(&mut self, statements: Vec<String>) -> DatabaseResult<()> {

@@ -1469,3 +1469,210 @@ async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
         data
     );
 }
+
+async fn verify_temporary_tables(db: Connection, mysql: bool) {
+    db.unprepared("DROP TABLE IF EXISTS temp_scope_items; CREATE TABLE temp_scope_items (id BIGINT PRIMARY KEY); INSERT INTO temp_scope_items VALUES (41)").await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    assert!(matches!(
+        schema
+            .create("unleased_temporary_table", |table| {
+                table.temporary();
+                table.id();
+            })
+            .await,
+        Err(DatabaseError::UnsupportedSchema(
+            "temporary table requires a schema session"
+        ))
+    ));
+
+    let mut session = schema.session().await.unwrap();
+    let id = if mysql {
+        Some(
+            session.select("select connection_id()", &[]).await.unwrap()[0]
+                .get_at(0)
+                .unwrap()
+                .clone(),
+        )
+    } else {
+        None
+    };
+    let mut builder = session.getSchemaBuilder();
+    builder
+        .create("temp_scope_items", |table| {
+            table.temporary();
+            table.id();
+            table.string("label", 20).index();
+        })
+        .await
+        .unwrap();
+    assert!(builder.hasTable("temp_scope_items").await.unwrap());
+    if !mysql {
+        assert!(
+            builder
+                .hasColumn("temp_scope_items", "label")
+                .await
+                .unwrap()
+        );
+        assert!(
+            builder
+                .hasIndex("temp_scope_items", "temp_temp_scope_items_label_index")
+                .await
+                .unwrap()
+        );
+    }
+    session
+        .statement(
+            "insert into temp_scope_items (id, label) values (?, ?)",
+            &[2.into(), "temporary".into()],
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        session
+            .select("select id from temp_scope_items", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&if mysql { Value::Unsigned(2) } else { 2.into() })
+    );
+    let mut builder = session.getSchemaBuilder();
+    builder
+        .rename("temp_scope_items", "temp_scope_renamed")
+        .await
+        .unwrap();
+    assert!(builder.hasTable("temp_scope_renamed").await.unwrap());
+    assert!(builder.hasTable("temp_scope_items").await.unwrap());
+    assert_eq!(
+        session
+            .select("select label from temp_scope_renamed", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&"temporary".into())
+    );
+    assert_eq!(
+        session
+            .select("select id from temp_scope_items", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&41.into())
+    );
+    session.close().await.unwrap();
+
+    let mut session = schema.session().await.unwrap();
+    if let Some(id) = id {
+        assert_eq!(
+            session.select("select connection_id()", &[]).await.unwrap()[0].get_at(0),
+            Some(&id)
+        );
+    }
+    assert!(
+        session
+            .select("select * from temp_scope_renamed", &[])
+            .await
+            .is_err()
+    );
+    let mut builder = session.getSchemaBuilder();
+    assert!(
+        builder
+            .create("temp_scope_failed", |table| {
+                table.temporary();
+                table.id();
+                table.index(&["id"], Some("temp_scope_duplicate"));
+                table.index(&["id"], Some("temp_scope_duplicate"));
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        session
+            .select("select * from temp_scope_failed", &[])
+            .await
+            .is_err()
+    );
+
+    session
+        .getSchemaBuilder()
+        .create("temp_scope_items", |table| {
+            table.temporary();
+            table.id();
+        })
+        .await
+        .unwrap();
+    session
+        .getSchemaBuilder()
+        .drop("temp_scope_items")
+        .await
+        .unwrap();
+    assert_eq!(
+        session
+            .select("select id from temp_scope_items", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&41.into())
+    );
+    session.close().await.unwrap();
+
+    let ready = Arc::new(tokio::sync::Notify::new());
+    let started = ready.clone();
+    let owned = db.clone();
+    let job = tokio::spawn(async move {
+        let schema = owned.getSchemaBuilder();
+        let mut session = schema.session().await.unwrap();
+        session
+            .getSchemaBuilder()
+            .create("temp_scope_cancelled", |table| {
+                table.temporary();
+                table.id();
+            })
+            .await
+            .unwrap();
+        started.notify_one();
+        std::future::pending::<()>().await;
+    });
+    tokio::time::timeout(std::time::Duration::from_secs(5), ready.notified())
+        .await
+        .unwrap();
+    job.abort();
+    assert!(job.await.unwrap_err().is_cancelled());
+    let mut session = tokio::time::timeout(std::time::Duration::from_secs(5), schema.session())
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        session
+            .select("select * from temp_scope_cancelled", &[])
+            .await
+            .is_err()
+    );
+    assert_eq!(
+        session
+            .select("select id from temp_scope_items", &[])
+            .await
+            .unwrap()[0]
+            .get_at(0),
+        Some(&41.into())
+    );
+    session.close().await.unwrap();
+    schema.drop("temp_scope_items").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_temporary_tables_stay_on_the_leased_session_and_are_cleaned() {
+    verify_temporary_tables(
+        connection(json!({"driver":"sqlite","database":":memory:"})),
+        false,
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn mysql_temporary_tables_stay_on_the_leased_session_and_are_cleaned() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    verify_temporary_tables(connection(json!({"url":url,"max_connections":1})), true).await;
+}

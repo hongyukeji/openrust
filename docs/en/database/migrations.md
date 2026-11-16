@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### Temporary Tables {#temporary-tables}
+
+Acquire a schema session before using `Blueprint::temporary()`. Create the table through the session’s Schema Builder and run SQL through the same session. `close().await?` drops the managed temporary tables before returning the connection to the pool. If the session is dropped, cleanup retains the physical connection until it can be safely released.
+
+```rust
+use openrust::database::{DatabaseResult, Value, schema::Schema};
+
+async fn staged_code() -> DatabaseResult<Value> {
+    let mut session = Schema::session().await?;
+    session.getSchemaBuilder().create("import_codes", |table| {
+        table.temporary();
+        table.string("code", 20);
+    }).await?;
+    session.statement("INSERT INTO import_codes (code) VALUES (?)", &["pending".into()]).await?;
+    let rows = session.select("SELECT code FROM import_codes", &[]).await?;
+    session.close().await?;
+    Ok(rows[0].get_at(0).cloned().unwrap_or(Value::Null))
+}
+```
+
+SQLite exposes its temporary table metadata on the same session. In MySQL, `hasTable()` checks the session’s managed temporary tables. Use a session SQL statement such as `SHOW COLUMNS` to inspect them.
+
 ## Columns
 
 A blueprint closure receives a mutable `Blueprint`. Column modifiers follow the column definition, such as `table.string("isbn", 20).nullable()`. Use `id()` for a generated primary key and `timestamps()` for nullable creation and update timestamps. Length, precision and scale are explicit Rust arguments.

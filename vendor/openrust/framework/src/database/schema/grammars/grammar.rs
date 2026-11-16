@@ -18,6 +18,7 @@ pub(in crate::database::schema) struct Grammar {
     database: Arc<str>,
 }
 
+#[derive(Clone)]
 pub(in crate::database::schema) struct Table {
     pub schema: Option<String>,
     pub name: String,
@@ -113,11 +114,11 @@ impl Grammar {
     }
 
     pub fn create(&self, table: &Table, blueprint: Blueprint) -> DatabaseResult<Vec<String>> {
-        if blueprint.temporary {
-            return Err(DatabaseError::UnsupportedSchema(
-                "temporary table on a pooled connection",
-            ));
-        }
+        let temporary = if blueprint.temporary {
+            " temporary"
+        } else {
+            ""
+        };
         let mut definitions = Vec::new();
         let mut constraints = Vec::new();
         let mut indexes = Vec::new();
@@ -156,7 +157,7 @@ impl Grammar {
         }
         definitions.extend(constraints);
         let mut sql = vec![format!(
-            "create table {qualified} ({})",
+            "create{temporary} table {qualified} ({})",
             definitions.join(", ")
         )];
         sql.extend(indexes);

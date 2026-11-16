@@ -108,6 +108,28 @@ pub async fn create_catalog(connection: &Connection) -> DatabaseResult<()> {
 }
 ```
 
+### 暫存資料表 {#temporary-tables}
+
+使用 `Blueprint::temporary()` 前先借用 Schema 工作階段。用該工作階段的 Schema Builder 建立資料表，再透過同一工作階段執行 SQL。`close().await?` 會先清理受管理的暫存資料表，再歸還連線。工作階段被捨棄時，清理操作會持有原實體連線，直到可以安全歸還。
+
+```rust
+use openrust::database::{DatabaseResult, Value, schema::Schema};
+
+async fn staged_code() -> DatabaseResult<Value> {
+    let mut session = Schema::session().await?;
+    session.getSchemaBuilder().create("import_codes", |table| {
+        table.temporary();
+        table.string("code", 20);
+    }).await?;
+    session.statement("INSERT INTO import_codes (code) VALUES (?)", &["pending".into()]).await?;
+    let rows = session.select("SELECT code FROM import_codes", &[]).await?;
+    session.close().await?;
+    Ok(rows[0].get_at(0).cloned().unwrap_or(Value::Null))
+}
+```
+
+SQLite 的同一工作階段可讀取暫存資料表的中繼資料。MySQL 的 `hasTable()` 可檢查工作階段管理的暫存資料表，詳細欄位資訊可透過工作階段執行 `SHOW COLUMNS` 查看。
+
 ## 欄位
 
 定義閉包接收可變的 `Blueprint`。欄位修飾詞接在欄位定義後，例如 `table.string("isbn", 20).nullable()`。`id()` 建立自動遞增主鍵，`timestamps()` 建立允許為空值的建立與更新時間。長度、精確度和小數位數由 Rust 參數明確指定。

@@ -8,13 +8,15 @@ use crate::{
     events::EventContext,
 };
 
-use super::Builder;
+use super::{Builder, grammars::Table};
 
 /// A leased write session for connection-local schema settings and operations.
 pub struct SchemaSession {
     connection: Connection,
     physical: Option<PhysicalConnection>,
     restore_foreign_keys: Option<bool>,
+    temporary_tables: Vec<(Table, String)>,
+    mysql_case_insensitive: Option<bool>,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Schema Builder API")]
@@ -25,11 +27,127 @@ impl SchemaSession {
             connection,
             physical: Some(physical),
             restore_foreign_keys: None,
+            temporary_tables: Vec::new(),
+            mysql_case_insensitive: None,
         })
     }
 
     pub(super) fn connection(&self) -> &Connection {
         &self.connection
+    }
+
+    pub(super) fn temporary_index(&self, table: &Table) -> Option<usize> {
+        let sqlite = self.connection.is_sqlite();
+        let database = self.connection.getDatabaseName();
+        self.temporary_tables.iter().position(|(existing, _)| {
+            if sqlite {
+                table
+                    .schema
+                    .as_deref()
+                    .is_none_or(|schema| schema.eq_ignore_ascii_case("temp"))
+                    && existing.name.eq_ignore_ascii_case(&table.name)
+            } else {
+                let matches = |left: &str, right: &str| {
+                    if self.mysql_case_insensitive == Some(true) {
+                        left.eq_ignore_ascii_case(right)
+                    } else {
+                        left == right
+                    }
+                };
+                matches(
+                    existing.schema.as_deref().unwrap_or(database),
+                    table.schema.as_deref().unwrap_or(database),
+                ) && matches(&existing.name, &table.name)
+            }
+        })
+    }
+
+    pub(super) fn temporary_table(&self, table: &Table) -> Option<&Table> {
+        self.temporary_index(table)
+            .map(|index| &self.temporary_tables[index].0)
+    }
+
+    pub(super) async fn create_temporary(
+        &mut self,
+        table: Table,
+        cleanup: String,
+        statements: Vec<String>,
+    ) -> DatabaseResult<()> {
+        let mut statements = statements.into_iter();
+        let sql = statements
+            .next()
+            .ok_or(DatabaseError::InvalidSchema("temporary table definition"))?;
+        self.before_query(&sql, (&[]).into()).await?;
+        if !self.connection.is_sqlite() && self.mysql_case_insensitive.is_none() {
+            let value = self
+                .physical()?
+                .select_one("select @@lower_case_table_names", &[])
+                .await?
+                .and_then(|row| row.get_at(0).cloned());
+            self.mysql_case_insensitive = Some(match value {
+                Some(Value::Integer(0) | Value::Unsigned(0)) => false,
+                Some(Value::Integer(1 | 2) | Value::Unsigned(1 | 2)) => true,
+                _ => return Err(DatabaseError::InvalidSchema("MySQL identifier case mode")),
+            });
+        }
+        self.physical()?.retire_on_drop(true);
+        let result = self.execute_statement(&sql, (&[]).into()).await;
+        let started = match result {
+            Ok(start) => start,
+            Err(error) => {
+                self.release_clean_lease();
+                return Err(error);
+            }
+        };
+        self.temporary_tables.push((table, cleanup));
+        let result = async {
+            self.after_query(&sql, (&[]).into(), started).await?;
+            for sql in statements {
+                self.statement(&sql, &[]).await?;
+            }
+            Ok(())
+        }
+        .await;
+        if result.is_err() {
+            let index = self.temporary_tables.len() - 1;
+            let drop = self.temporary_tables[index].1.clone();
+            if self.physical()?.unprepared(&drop).await.is_ok() {
+                self.temporary_tables.pop();
+                self.release_clean_lease();
+            }
+        }
+        result
+    }
+
+    pub(super) async fn drop_temporary(&mut self, index: usize, sql: &str) -> DatabaseResult<()> {
+        self.before_query(sql, (&[]).into()).await?;
+        let started = self.execute_statement(sql, (&[]).into()).await?;
+        self.temporary_tables.remove(index);
+        self.release_clean_lease();
+        self.after_query(sql, (&[]).into(), started).await
+    }
+
+    pub(super) async fn rename_temporary(
+        &mut self,
+        index: usize,
+        target: Table,
+        cleanup: String,
+        sql: &str,
+    ) -> DatabaseResult<()> {
+        self.before_query(sql, (&[]).into()).await?;
+        let started = self.execute_statement(sql, (&[]).into()).await?;
+        self.temporary_tables[index] = (target, cleanup);
+        self.after_query(sql, (&[]).into(), started).await
+    }
+
+    fn release_clean_lease(&mut self) {
+        if self.temporary_tables.is_empty()
+            && self.restore_foreign_keys.is_none()
+            && let Some(physical) = &mut self.physical
+            && !physical.interrupted()
+        {
+            physical.retire_on_drop(false);
+        }
     }
 
     pub fn getSchemaBuilder(&mut self) -> Builder<'_> {
@@ -59,13 +177,25 @@ impl SchemaSession {
         Ok(true)
     }
 
-    /// Restores the original constraint setting before releasing the write session.
+    /// Drops managed temporary tables and restores the session settings before release.
     pub async fn close(mut self) -> DatabaseResult<()> {
-        if let Some(original) = self.restore_foreign_keys {
-            let sqlite = self.connection.is_sqlite();
-            restore(self.physical()?, sqlite, original).await?;
-            self.restore_foreign_keys = None;
+        if self.temporary_tables.is_empty() && self.restore_foreign_keys.is_none() {
+            return Ok(());
         }
+        let sqlite = self.connection.is_sqlite();
+        let physical = self
+            .physical
+            .as_mut()
+            .ok_or(DatabaseError::TransactionClosed)?;
+        cleanup(
+            physical,
+            sqlite,
+            &self.temporary_tables,
+            self.restore_foreign_keys,
+        )
+        .await?;
+        self.temporary_tables.clear();
+        self.restore_foreign_keys = None;
         Ok(())
     }
 
@@ -89,11 +219,20 @@ impl SchemaSession {
     ) -> DatabaseResult<bool> {
         let bindings = bindings.into();
         self.before_query(sql, bindings).await?;
+        let start = self.execute_statement(sql, bindings).await?;
+        self.after_query(sql, bindings, start).await?;
+        Ok(true)
+    }
+
+    async fn execute_statement(
+        &mut self,
+        sql: &str,
+        bindings: Bindings<'_>,
+    ) -> DatabaseResult<Instant> {
         let start = Instant::now();
         self.physical()?.affecting_statement(sql, bindings).await?;
         self.connection.setRecordModificationState(true);
-        self.after_query(sql, bindings, start).await?;
-        Ok(true)
+        Ok(start)
     }
 
     pub(super) async fn execute_schema(&mut self, statements: Vec<String>) -> DatabaseResult<()> {
@@ -154,14 +293,17 @@ impl SchemaSession {
 
 impl Drop for SchemaSession {
     fn drop(&mut self) {
-        if let (Some(original), Some(mut physical), Ok(runtime)) = (
-            self.restore_foreign_keys.take(),
-            self.physical.take(),
-            tokio::runtime::Handle::try_current(),
-        ) {
+        if self.temporary_tables.is_empty() && self.restore_foreign_keys.is_none() {
+            return;
+        }
+        if let (Some(mut physical), Ok(runtime)) =
+            (self.physical.take(), tokio::runtime::Handle::try_current())
+        {
             let sqlite = self.connection.is_sqlite();
+            let tables = std::mem::take(&mut self.temporary_tables);
+            let original = self.restore_foreign_keys.take();
             runtime.spawn(async move {
-                let _ = restore(&mut physical, sqlite, original).await;
+                let _ = cleanup(&mut physical, sqlite, &tables, original).await;
             });
         }
     }
@@ -176,17 +318,23 @@ fn foreign_key_sql(sqlite: bool, enabled: bool) -> &'static str {
     }
 }
 
-async fn restore(
+async fn cleanup(
     physical: &mut PhysicalConnection,
     sqlite: bool,
-    enabled: bool,
+    tables: &[(Table, String)],
+    foreign_keys: Option<bool>,
 ) -> DatabaseResult<()> {
     if sqlite && physical.in_transaction() {
         physical
             .control("roll back schema", TransactionCommand::RollBack)
             .await?;
     }
-    apply_foreign_keys(physical, sqlite, enabled).await?;
+    for (_, statement) in tables.iter().rev() {
+        physical.unprepared(statement).await?;
+    }
+    if let Some(enabled) = foreign_keys {
+        apply_foreign_keys(physical, sqlite, enabled).await?;
+    }
     physical.retire_on_drop(false);
     Ok(())
 }

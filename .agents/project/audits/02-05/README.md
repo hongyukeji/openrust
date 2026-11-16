@@ -4,7 +4,7 @@
 
 - 接通应用内 Schema Facade、具名连接及事务 Schema Builder。回调定义表、列、索引和外键，语法编译器负责表前缀、标识符和驱动差异。目录读取走写库，返回结构化表、列、索引与外键。Rust 显式传入字符串长度、精度等参数，使用 `constrainedOn` 表达 PHP 的可选目标参数。
 - 支持创建、重命名和删除表，新增、修改、重命名和删除列，创建、改名和删除索引，以及创建和删除表级外键。MySQL 通过原生 DDL 执行。SQLite 原生 DDL 可在已有事务中运行。需要重建时在独占写会话中暂停外键检查，使用事务复制数据并恢复索引、触发器和序列，提交前检查外键，最后恢复会话设置。调用方取消等待后，由拥有连接的任务完成收尾。SQLite 失败时回滚整次变更。
-- 剩余范围包括剩余类型与修饰符、池化临时表、额外数据库方言，以及 SQLite 已有内联约束列的变更。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite 目录无法读取外键名称，按列可移除表级外键。
+- 剩余范围包括剩余类型与修饰符、额外数据库方言，以及 SQLite 已有内联约束列的变更。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite 目录无法读取外键名称，按列可移除表级外键。
 
 ## 验收
 
@@ -53,3 +53,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 列级 `spatialIndex()` 沿用现有的空间索引命名。SQLite 声明 GEOMETRY 并接受 BLOB，声明空间索引返回不支持，创建或变更失败时保留表原状态。
 - Rust 1.94.0、MySQL 8.4.13 和 SQLite。验证原生子类型、默认及自定义 SRID、错误 SRID 和子类型拒绝、空间索引创建与删除、几何二进制返回、SQLite 的 BLOB 和索引边界。73 项定向回归、严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
 - 实际 Artisan 运行三语共用示例，MySQL 建表与写入通过，SQLite 返回预期方言错误。原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合及 6 项空间列小节检查通过。
+
+## 会话临时表
+
+对照固定 Laravel [MySQL CREATE TABLE](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L242)、[SQLite CREATE TABLE](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L231)。旧版未找到框架临时表生命周期实现，本批复用 Schema 写会话与驱动 DDL。
+
+- `Blueprint::temporary()` 由写会话的 Schema Builder 生成原生 TEMPORARY TABLE。会话持有同一物理租约供建表、索引、运行 SQL、改名和删除。迁移预演复用同一语法。SQLite 将临时表放在 temp schema。
+- 显式关闭或取消后，清理完受管理的临时表才归还连接。清理使用 SQLite temp schema 或 MySQL DROP TEMPORARY TABLE，保留同名永久表。失败的创建或索引装配收回已创建对象，无法确认清理的会话退役。MySQL `hasTable` 能识别受管理对象，临时表详细信息需在会话中用 SHOW 查询。
+- Rust 1.94.0、真实 MySQL 8.4.13 和 SQLite。验证临时表遮蔽同名永久表、原连接复用、改名及删除、重复索引失败后的清理、取消后重新借用、SQLite 临时表列及索引元数据。75 项定向回归、严格 Clippy 与变更文件格式检查通过。1 个子进程夹具由父测试启动。
+- 三语共用示例在真实 MySQL 和 SQLite 的 Artisan 命令中运行。原生 `main artisan inspire`、VitePress 构建、12 项站点浏览器组合及 6 项临时表小节检查通过。
