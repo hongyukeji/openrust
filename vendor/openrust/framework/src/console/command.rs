@@ -8,13 +8,32 @@ use super::{ConsoleError, ConsoleFuture, Input, Output};
 #[derive(Clone)]
 pub struct CommandDefinition {
     pub(super) syntax: Arc<clap::Command>,
+    pub(super) isolated: bool,
 }
 
 impl CommandDefinition {
     pub fn new(syntax: clap::Command) -> Self {
         Self {
             syntax: Arc::new(syntax),
+            isolated: false,
         }
+    }
+
+    /// Enables the optional `--isolated` switch for this command.
+    pub fn isolatable(mut self) -> Self {
+        if !self.isolated {
+            let syntax = Arc::make_mut(&mut self.syntax);
+            *syntax = std::mem::take(syntax).arg(
+                clap::Arg::new("isolated")
+                    .long("isolated")
+                    .num_args(0..=1)
+                    .default_missing_value("0")
+                    .value_parser(clap::value_parser!(i32))
+                    .help("Do not run the command if another instance is already running"),
+            );
+            self.isolated = true;
+        }
+        self
     }
 
     pub fn name(&self) -> &str {

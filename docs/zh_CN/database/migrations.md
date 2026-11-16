@@ -61,6 +61,17 @@ impl Migration for Definition {
 
 生产环境中改变结构的命令会要求确认。部署流程已确认变更时可传 `--force`。MySQL 和 SQLite 的单项迁移可能包含多条 DDL，其中一条失败时，先前成功的语句可能已生效。重试前先检查失败的迁移。
 
+### 隔离迁移执行 {#isolating-migration-execution}
+
+用 `--isolated` 在迁移前通过默认缓存获取原子锁。参与部署的进程需共享缓存后端和键前缀。首次迁移可用 Redis 提供锁。使用数据库缓存时，锁表须已存在。
+
+```sh
+CACHE_STORE=redis ./artisan migrate --isolated
+CACHE_STORE=redis ./artisan migrate --isolated=12
+```
+
+其他进程持锁时，命令会提示迁移已在执行，并以状态码 0 退出。可用 `--isolated=12` 将竞争时的状态码设为 12，参数接受整数。锁或缓存出错时命令会停止。执行结束后释放锁，进程异常退出时锁在一小时后过期。
+
 ## 回滚迁移
 
 `migrate:rollback` 按逆序撤销最近一批迁移。用 `--step` 指定条数，或用 `--batch` 指定批次。

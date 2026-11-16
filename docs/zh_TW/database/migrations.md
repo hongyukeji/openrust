@@ -61,6 +61,17 @@ impl Migration for Definition {
 
 正式環境中改變結構的命令會要求確認。部署流程已確認變更時可傳入 `--force`。MySQL 和 SQLite 的單項遷移可能包含多條 DDL，其中一條失敗時，先前成功的陳述式可能已生效。重試前先檢查失敗的遷移。
 
+### 隔離遷移執行 {#isolating-migration-execution}
+
+用 `--isolated` 在遷移前透過預設快取取得原子鎖。參與部署的程序須共用快取後端與鍵前置詞。首次遷移可用 Redis 提供鎖。使用資料庫快取時，鎖表須已存在。
+
+```sh
+CACHE_STORE=redis ./artisan migrate --isolated
+CACHE_STORE=redis ./artisan migrate --isolated=12
+```
+
+其他程序持鎖時，指令會提示遷移已在執行，並以狀態碼 0 結束。可用 `--isolated=12` 將競爭時的狀態碼設為 12，參數接受整數。鎖或快取出錯時指令會停止。執行結束後釋放鎖，程序異常結束時鎖在一小時後到期。
+
 ## 回復遷移
 
 `migrate:rollback` 按反向順序撤銷最近一批遷移。用 `--step` 指定筆數，或用 `--batch` 指定批次。

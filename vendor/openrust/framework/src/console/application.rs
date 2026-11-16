@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, ffi::OsString, sync::Arc};
+use std::{collections::BTreeMap, ffi::OsString, sync::Arc, time::Duration};
 
 use clap::{Arg, ArgAction, Command as Syntax};
 
-use crate::foundation::Application as FoundationApplication;
+use crate::{cache::Cache, foundation::Application as FoundationApplication};
 
 use super::{
     ClosureCommand, Command, CommandDefinition, ConsoleError, Input, Output, descriptor,
@@ -401,7 +401,26 @@ impl Application {
             matches: matches.clone(),
             shutdown,
         };
-        command.handle(application, &input, output).await
+        let definition = command.definition();
+        let Some(code) = definition
+            .isolated
+            .then(|| matches.get_one::<i32>("isolated").copied())
+            .flatten()
+        else {
+            return command.handle(application, &input, output).await;
+        };
+
+        let name = definition.name();
+        let key = format!("framework/command-{name}");
+        let lock_error = |error| ConsoleError::new(format!("Command isolation lock: {error}"));
+        let mut lock = Cache::lock(&key, Some(Duration::from_secs(3600))).map_err(lock_error)?;
+        if !lock.get().await.map_err(lock_error)? {
+            output.comment(&format!("The [{name}] command is already running."));
+            return Ok(code);
+        }
+        let result = command.handle(application, &input, output).await;
+        let released = lock.release().await.map_err(lock_error);
+        result.and_then(|status| released.map(|_| status))
     }
 }
 

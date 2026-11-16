@@ -30,6 +30,10 @@ impl Root {
     }
 
     fn run(&self, environment: &str, mysql: Option<&str>, args: &[&str]) -> Output {
+        self.command(environment, mysql, args).output().unwrap()
+    }
+
+    fn command(&self, environment: &str, mysql: Option<&str>, args: &[&str]) -> Command {
         let mut command = Command::new(env!("CARGO_BIN_EXE_main"));
         command
             .current_dir(&self.0)
@@ -43,7 +47,8 @@ impl Root {
                 .env_remove("DB_URL")
                 .env("DB_DATABASE", self.0.join("database/database.sqlite"));
         }
-        command.arg("artisan").args(args).output().unwrap()
+        command.arg("artisan").args(args);
+        command
     }
 
     fn connection(&self, mysql: Option<&str>) -> Connection {
@@ -724,4 +729,114 @@ async fn mysql_fresh_wipes_the_selected_schema() {
             .unwrap()
             .is_empty()
     );
+}
+
+#[tokio::test]
+async fn mysql_artisan_migrate_isolated_coordinates_two_real_processes() {
+    use openrust::redis::RedisManager;
+    use std::{process::Stdio, time::Duration};
+
+    let Ok(redis_url) = std::env::var("OPENRUST_ACCEPTANCE_REDIS_URL") else {
+        return;
+    };
+    let Ok(mysql) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = root.connection(Some(&mysql));
+    let prefix = format!("migration-isolation-{}:", std::process::id());
+    let key = format!("{prefix}framework/command-migrate");
+    let redis = RedisManager::new(Arc::new(Repository::new(BTreeMap::from([(
+        "database".into(),
+        json!({"redis":{"default":{"url":redis_url}}}),
+    )]))))
+    .connection(None)
+    .unwrap();
+
+    let command = |args: &[&str]| {
+        let mut command = root.command("local", Some(&mysql), args);
+        command
+            .env("CACHE_STORE", "redis")
+            .env("CACHE_PREFIX", &prefix)
+            .env("REDIS_PREFIX", "")
+            .env("REDIS_URL", &redis_url)
+            .env("REDIS_CACHE_LOCK_CONNECTION", "default");
+        command
+    };
+    let run = |args: &[&str]| command(args).output().unwrap();
+    success(run(&["migrate:install"]));
+    let unavailable = command(&["migrate", "--isolated"])
+        .env("CACHE_STORE", "missing")
+        .output()
+        .unwrap();
+    assert_eq!(unavailable.status.code(), Some(1));
+    assert!(
+        String::from_utf8(unavailable.stderr)
+            .unwrap()
+            .contains("Command isolation lock")
+    );
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), 0);
+
+    let mut gate = db.beginTransaction().await.unwrap();
+    // The empty InnoDB ledger range prevents the first process from recording a migration.
+    gate.select("select id from migrations where id >= 0 for update", &[])
+        .await
+        .unwrap();
+    let mut holder = tokio::process::Command::from(command(&["migrate", "--isolated"]))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .unwrap();
+    let owner = tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            assert!(
+                holder.try_wait().unwrap().is_none(),
+                "migration holder exited early"
+            );
+            if let Some(owner) = redis.get(&key).await.unwrap() {
+                break owner;
+            }
+            tokio::time::sleep(Duration::from_millis(30)).await;
+        }
+    })
+    .await
+    .expect("migration holder acquired the cache lock");
+    let ttl = redis.command("TTL", &[key.as_bytes()]).await.unwrap();
+    assert!(matches!(ttl, openrust::redis::Value::Int(3500..=3600)));
+    assert!(
+        success(run(&["migrate", "--isolated"]))
+            .contains("The [migrate] command is already running.")
+    );
+    let skipped = run(&["migrate", "--isolated=19", "--database=mysql"]);
+    assert_eq!(skipped.status.code(), Some(19));
+    assert!(
+        String::from_utf8(skipped.stdout)
+            .unwrap()
+            .contains("The [migrate] command is already running.")
+    );
+    assert_eq!(redis.get(&key).await.unwrap(), Some(owner));
+
+    gate.rollBack(None).await.unwrap();
+    let output = tokio::time::timeout(Duration::from_secs(15), holder.wait_with_output())
+        .await
+        .expect("migration holder finished after releasing the ledger")
+        .unwrap();
+    success(output);
+    assert!(redis.get(&key).await.unwrap().is_none());
+    assert!(db.table("migrations").count("*").await.unwrap() > 0);
+    let failed = run(&["migrate", "--isolated", "--database=missing"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(redis.get(&key).await.unwrap().is_none());
+    assert!(success(run(&["migrate", "--isolated"])).contains("Nothing to migrate."));
+
+    let database_cache = root
+        .command("local", Some(&mysql), &["migrate", "--isolated"])
+        .env("CACHE_STORE", "database")
+        .env("CACHE_PREFIX", &prefix)
+        .output()
+        .unwrap();
+    assert!(success(database_cache).contains("Nothing to migrate."));
+    assert_eq!(db.table("cache_locks").count("*").await.unwrap(), 0);
 }

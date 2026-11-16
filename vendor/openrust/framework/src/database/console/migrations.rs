@@ -133,10 +133,13 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
                 syntax = syntax.arg(flag("pending"));
             }
         }
-        artisan.add_command(Box::new(MigrationCommand {
-            definition: CommandDefinition::new(syntax),
-            kind,
-        }))?;
+        let definition = CommandDefinition::new(syntax);
+        let definition = if kind == Kind::Run {
+            definition.isolatable()
+        } else {
+            definition
+        };
+        artisan.add_command(Box::new(MigrationCommand { definition, kind }))?;
     }
     Ok(())
 }

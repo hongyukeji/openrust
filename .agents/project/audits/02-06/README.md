@@ -5,7 +5,7 @@
 - 迁移 Provider 注册应用自己的迁移清单和账本。初始应用迁移编译到二进制，包含用户、重置令牌和会话表。`main.rs` 增加根应用数据库模块声明。生成器创建带时间戳的 Rust 文件，手动加入 `MigrationEntry` 后重新构建。
 - 接通 `make:migration`、`migrate`、`migrate:install`、`migrate:status`、`migrate:rollback`、`migrate:reset`、`migrate:refresh`、`migrate:fresh` 和 `db:wipe`。按文件名和批次维护账本，支持指定连接、已编译路径、step、batch 和生产确认。账本只记录成功的迁移。MySQL 清库独占物理会话并恢复外键设置，SQLite 清库复用事务化 Schema 会话。
 - Rust 用 `MigrationContext` 显式传递连接与预演输出。空库预演会准备账本，迁移 SQL 和迁移记录保持未执行。绑定值以占位符显示。SQLite 依赖目录的表重建在预演中返回错误。与固定版的 SQLite/MySQL 语法一致，迁移器不在整个迁移外自动包事务，先成功的语句和批次记录在失败后可见。
-- 未闭合的迁移功能包括依赖缓存原子锁的跨进程 `--isolated`、Schema dump/load、迁移事件、空文件自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
+- 未闭合的迁移功能包括Schema dump/load、迁移事件、空文件自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
 
 ## 验收
 
@@ -33,3 +33,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 ## 清单访问接口复验
 
 生成的迁移清单改由 `database::migrations::entries()` 提供，应用启动和 Job Batch 测试均使用该入口。MySQL 8.4.13 实际 Artisan 复验手写与生成迁移在重建后可发现、可执行及可逆序回滚，移除文件重建后清单同步更新。
+
+## 跨进程迁移隔离
+
+对照固定 Laravel [MigrateCommand 的隔离声明](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/MigrateCommand.php#L21)、[Console Command 的竞争退出与释放](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/Command.php#L278) 和 [CacheCommandMutex 的一小时租期与键名](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/CacheCommandMutex.php#L45)。旧版 `migration_lock.rs` 使用数据库会话上的 advisory lock 和等待重试，保留其真实子进程验收思路。主线沿 Laravel 使用共享缓存及竞争时立即退出。
+
+- `CommandDefinition::isolatable()` 声明命令支持隔离，Artisan 在处理器之前获取默认缓存的原子锁。迁移命令用同一个 `framework/command-migrate` 键，具名数据库和迁移路径不改变锁名。统一使用斜杠，使不同操作系统上的部署进程共享同一个锁。退出码可省略或提供整数。
+- Rust 使用缓存的所有者检查释放，避免旧执行者删除新持有者的锁。缓存不提供原子锁或锁操作失败时返回命令错误。数据库缓存需要已创建的锁表，首次迁移可使用 Redis。租期为一小时，正常返回、迁移错误和非零状态都走释放。
+- `docker/accept.py --mysql --redis` 使用临时 MySQL 8.4.13 与 Redis 8.10.3。实际首进程持 Redis 锁并阻塞在 MySQL 迁移账本写入。两个竞争调用分别以 0 和 19 退出，锁所有者保持不变。验证约一小时的 Redis TTL、成功及失败后锁消失、随后重试成功、缓存不可用时账本无变更，以及数据库缓存的锁表无残留。
+- 原有真实 MySQL 迁移账本回归通过。隔离副本从 `3d2641c0f` 取 Docker 验收入口，实际执行三语示例的 `./artisan migrate --isolated`、`./artisan migrate --isolated=12`、`./artisan inspire`。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

@@ -61,6 +61,17 @@ Use `--database` to select the ledger connection and `--step` to give each migra
 
 Production commands that change schema prompt for confirmation. Use `--force` for a deployment that has already approved those changes. MySQL and SQLite migrations can contain multiple DDL statements. If one fails, earlier successful statements may still be present. Inspect the failing migration before retrying.
 
+### Isolating Migration Execution {#isolating-migration-execution}
+
+Use `--isolated` to acquire an atomic lock in the default cache before running migrations. All deployment processes must share the cache backend and its key prefix. Redis can provide the lock before the first migration. The database cache driver requires its lock table to exist.
+
+```sh
+CACHE_STORE=redis ./artisan migrate --isolated
+CACHE_STORE=redis ./artisan migrate --isolated=12
+```
+
+If another process holds the lock, the command reports that it is already running and exits with status 0. Pass `--isolated=12` to use status 12 on contention. The option takes an integer exit status. Lock or cache errors stop the command. The lock is released after execution and expires after one hour if the process terminates abruptly.
+
 ## Rolling Back Migrations
 
 `migrate:rollback` rolls back the latest batch in reverse order. Use `--step` to select a number of migrations, or `--batch` to select a specific batch.
