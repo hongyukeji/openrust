@@ -137,3 +137,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `value` 在第一个包含路径的条目处停止，匹配 null 时保留该值。`dot` 与 `undot` 在首次取值时转换。`join` 与 `implode` 使用实体集合的可显示类型与键规则。
 - PHP 8.5.12 固定源码对照、56 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 2026-11-17 01:58（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 2.7 GiB Cargo 产物及文档缓存。项目卷可用 73,804,060 KiB（75.58 GB／70.39 GiB）。证据目录 /private/tmp/openrust-lazy-serialization.V5dKzjLK。02-09 接续其余公开入口。
+
+## 惰性来源构造
+
+对照固定 Laravel 的 [range](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L98) 和 [wrap、unwrap 与 times](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L132)。旧版未发现同契约的惰性来源构造，复用实体集合的类型定义和键规则。
+
+- `range` 按端点决定方向，步长可达到终点时包含终点。Rust 的 `i64` 和 `NonZeroUsize` 在类型层约束整数范围与正步长，整数边界无需构建中间列表。
+- `times` 每次遍历从 1 开始调用回调，结果键从 0 开始且按需生成。`wrap` 以 `Option` 表达单值或空来源。`fromValue` 复用 JSON 键规则，`unwrap` 实体化条目并传播读取错误。
+- PHP 8.5.12 固定源码对照、59 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 2026-11-17 02:02（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 71,768,020 KiB（73.49 GB／68.44 GiB）。证据目录 /private/tmp/openrust-lazy-sources.krgaXiZU。02-09 接续流程控制和其余公开入口。

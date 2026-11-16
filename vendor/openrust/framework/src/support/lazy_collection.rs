@@ -15,6 +15,7 @@ mod partition;
 mod projection;
 mod serialization;
 mod sets;
+mod sources;
 mod timing;
 
 type Entry<T> = (ArrayKey, T);

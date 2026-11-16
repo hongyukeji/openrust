@@ -379,6 +379,29 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Generating and Wrapping Sources {#lazy-generating-sources}
+
+`range` generates integers from the first endpoint toward the second, including the endpoint if the step reaches it. Pass a positive `NonZeroUsize` step. `times` calls the callback with one-based positions and assigns zero-based keys. Calling `take` limits generation. `wrap(Some(item))` yields one item and `wrap(None)` yields none. `fromValue` accepts JSON values, and `unwrap` materializes keyed entries.
+
+```rust
+use std::num::NonZeroUsize;
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::range(9, 1, NonZeroUsize::new(2).unwrap());
+    assert_eq!(numbers.take(3).toJson()?, "[9,7,5]");
+
+    let readings = LazyCollection::times(10_000, |index| index * 5);
+    assert_eq!(readings.take(2).toJson()?, "[5,10]");
+    assert_eq!(
+        LazyCollection::wrap(Some("ready")).toJson()?,
+        r#"["ready"]"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

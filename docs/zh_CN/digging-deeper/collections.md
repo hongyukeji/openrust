@@ -379,6 +379,29 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 生成和包装来源 {#lazy-generating-sources}
+
+`range` 从起点向终点生成整数。步长恰好到达终点时包含终点。步长用正数 `NonZeroUsize` 表示。`times` 将从 1 开始的位置传给回调，结果键从 0 开始。`take` 可限制生成数量。`wrap(Some(item))` 产出一项，`wrap(None)` 产生空来源。`fromValue` 接收 JSON 值，`unwrap` 实体化为带键条目。
+
+```rust
+use std::num::NonZeroUsize;
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let numbers = LazyCollection::range(9, 1, NonZeroUsize::new(2).unwrap());
+    assert_eq!(numbers.take(3).toJson()?, "[9,7,5]");
+
+    let readings = LazyCollection::times(10_000, |index| index * 5);
+    assert_eq!(readings.take(2).toJson()?, "[5,10]");
+    assert_eq!(
+        LazyCollection::wrap(Some("ready")).toJson()?,
+        r#"["ready"]"#
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

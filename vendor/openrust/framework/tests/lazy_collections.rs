@@ -1392,3 +1392,98 @@ fn lazy_json_paths_and_join_follow_materialization_boundaries() {
     assert_eq!(names.join(", ", " and ").unwrap(), "new, second and third");
     assert_eq!(names.implode("/").unwrap(), "new/second/third");
 }
+
+#[test]
+fn lazy_times_invokes_callbacks_only_for_requested_one_based_positions() {
+    let calls = RefCell::new(Vec::new());
+    let source = LazyCollection::times(usize::MAX, |index| {
+        calls.borrow_mut().push(index);
+        index * 3
+    });
+    let first = source.clone().take(2);
+    let mut iterator = first.getIterator();
+    assert!(calls.borrow().is_empty());
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 3));
+    assert_eq!(iterator.next().unwrap().unwrap(), (1.into(), 6));
+    assert!(iterator.next().is_none());
+    assert_eq!(calls.borrow().as_slice(), &[1, 2]);
+    assert_eq!(source.first().unwrap(), Some(3));
+    assert_eq!(calls.borrow().as_slice(), &[1, 2, 1]);
+    assert_eq!(LazyCollection::times(0, |index| index).count().unwrap(), 0);
+}
+
+#[test]
+fn lazy_range_is_inclusive_in_both_directions_and_handles_integer_limits() {
+    use std::num::NonZeroUsize;
+    let two = NonZeroUsize::new(2).unwrap();
+    let one = NonZeroUsize::MIN;
+    assert_eq!(
+        LazyCollection::range(2, 6, two).toJson().unwrap(),
+        "[2,4,6]"
+    );
+    assert_eq!(
+        LazyCollection::range(6, 1, two).toJson().unwrap(),
+        "[6,4,2]"
+    );
+    assert_eq!(LazyCollection::range(9, 9, two).toJson().unwrap(), "[9]");
+    assert_eq!(
+        LazyCollection::range(i64::MIN, i64::MAX, one)
+            .take(3)
+            .unwrap()
+            .unwrap(),
+        vec![
+            (0.into(), i64::MIN),
+            (1.into(), i64::MIN + 1),
+            (2.into(), i64::MIN + 2)
+        ]
+    );
+    assert_eq!(
+        LazyCollection::range(i64::MAX, i64::MIN, two)
+            .take(2)
+            .unwrap()
+            .unwrap(),
+        vec![(0.into(), i64::MAX), (1.into(), i64::MAX - 2)]
+    );
+    assert_eq!(
+        LazyCollection::range(i64::MAX, i64::MAX, one)
+            .count()
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        LazyCollection::range(i64::MIN, i64::MIN + 1, two)
+            .count()
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn lazy_wrapping_replays_values_and_unwrap_propagates_errors() {
+    use serde_json::json;
+    assert_eq!(
+        LazyCollection::wrap(Some("entry")).unwrap().unwrap(),
+        vec![(0.into(), "entry")]
+    );
+    assert!(
+        LazyCollection::<i32>::wrap(None)
+            .unwrap()
+            .unwrap()
+            .is_empty()
+    );
+    let json = LazyCollection::fromValue(json!({"08":2,"8":3}));
+    assert_eq!(json.toJson().unwrap(), r#"{"08":2,"8":3}"#);
+    assert_eq!(
+        json.clone().unwrap().unwrap(),
+        vec![("08".into(), json!(2)), (8.into(), json!(3))]
+    );
+    assert_eq!(
+        LazyCollection::fromValue(json!(42)).toJson().unwrap(),
+        "[42]"
+    );
+    assert_eq!(LazyCollection::fromValue(json!(null)).count().unwrap(), 0);
+    assert!(matches!(
+        LazyCollection::tryMake(|| [Ok(1), Err(source_error())]).unwrap(),
+        Err(CollectionError::Source(_))
+    ));
+}
