@@ -40,6 +40,25 @@ impl DB {
             .connection(name)
     }
 
+    pub fn disconnect(name: Option<&str>) -> DatabaseResult<()> {
+        Self::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .disconnect(name)
+    }
+
+    pub fn purge(name: Option<&str>) -> DatabaseResult<()> {
+        Self::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .purge(name)
+    }
+
+    pub async fn reconnect(name: Option<&str>) -> DatabaseResult<Connection> {
+        Self::getFacadeRoot()
+            .map_err(DatabaseError::Unavailable)?
+            .reconnect(name)
+            .await
+    }
+
     pub fn listen(
         listener: std::sync::Arc<dyn crate::contracts::events::Listener>,
     ) -> DatabaseResult<()> {

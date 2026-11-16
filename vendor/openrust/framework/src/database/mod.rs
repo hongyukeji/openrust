@@ -6,6 +6,7 @@ mod bindings;
 mod configuration_url_parser;
 mod connection;
 mod connection_interface;
+mod connection_pools;
 mod connection_resolver_interface;
 pub mod connectors;
 pub(crate) mod console;

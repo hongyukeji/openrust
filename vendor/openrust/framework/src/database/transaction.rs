@@ -82,11 +82,10 @@ impl Connection {
         + Send
         + 'static,
     ) -> DatabaseResult<()> {
-        self.establish().await?;
+        let mut physical = self.acquire(false).await?;
         let connection = self.clone();
         // Let the owning task restore its session state even when the caller is cancelled.
         let result = tokio::spawn(async move {
-            let mut physical = connection.pool.acquire().await?;
             let foreign_keys = sqlite_pragma(&mut physical, "pragma foreign_keys").await?;
             let legacy_alter = sqlite_pragma(&mut physical, "pragma legacy_alter_table").await?;
             physical.retire_on_drop(true);

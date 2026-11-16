@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     future::Future,
     path::PathBuf,
@@ -78,42 +79,48 @@ impl DatabaseManager {
             .map_err(|_| DatabaseError::InvalidConfiguration("database.default"))
     }
 
+    fn connections(&self) -> std::sync::MutexGuard<'_, HashMap<String, Connection>> {
+        self.connections
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn resolve_name<'a>(&self, name: Option<&'a str>) -> DatabaseResult<Cow<'a, str>> {
+        match name {
+            Some(name) => Ok(Cow::Borrowed(name)),
+            None => self.getDefaultConnection().map(Cow::Owned),
+        }
+    }
+
     pub fn connection(&self, name: Option<&str>) -> DatabaseResult<Connection> {
-        let default;
-        let name = match name {
-            Some(name) => name,
-            None => {
-                default = self.getDefaultConnection()?;
-                &default
-            }
-        };
-        let lock = || {
-            self.connections
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-        };
-        if let Some(connection) = lock().get(name).cloned() {
+        let name = self.resolve_name(name)?;
+        self.connection_named(&name)
+    }
+
+    fn connection_named(&self, name: &str) -> DatabaseResult<Connection> {
+        if let Some(connection) = self.connections().get(name).cloned() {
             return Ok(connection);
         }
         let (base, role) = if let Some(base) = name.strip_suffix("::read") {
-            (base, Some("read"))
+            (base, Some(QueryRole::Read))
         } else if let Some(base) = name.strip_suffix("::write") {
-            (base, Some("write"))
+            (base, Some(QueryRole::Write))
         } else {
             (name, None)
         };
-        let config = match self.config.get("database.connections") {
-            Some(Value::Object(connections)) => connections.get(base).cloned(),
-            None if base == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),
-            None => None,
-            _ => return Err(DatabaseError::InvalidConfiguration("database.connections")),
-        }
-        .ok_or_else(|| DatabaseError::UnknownConnection(name.to_owned()))?;
-        let mut connections = lock();
-        if let Some(connection) = connections.get(name) {
-            return Ok(connection.clone());
-        }
-        let mut connection = ConnectionFactory.make(base, config, &self.root)?;
+        let config = self.config.clone();
+        let base_name = base.to_owned();
+        let resolved_name = name.to_owned();
+        let mut connection =
+            ConnectionFactory.make_for_role(base, &self.root, role, move || {
+                match config.get("database.connections") {
+                    Some(Value::Object(connections)) => connections.get(&base_name).cloned(),
+                    None if base_name == "sqlite" => Some(serde_json::json!({"driver":"sqlite"})),
+                    None => None,
+                    _ => return Err(DatabaseError::InvalidConfiguration("database.connections")),
+                }
+                .ok_or_else(|| DatabaseError::UnknownConnection(resolved_name.clone()))
+            })?;
         connection.model_container.clone_from(&self.container);
         connection.model_timezone = match self.config.get("app.timezone") {
             None => chrono_tz::UTC,
@@ -122,21 +129,39 @@ impl DatabaseManager {
                 .map_err(|_| DatabaseError::InvalidConfiguration("app.timezone"))?,
             _ => return Err(DatabaseError::InvalidConfiguration("app.timezone")),
         };
-        match role {
-            Some("read") => {
-                connection.query_role = Some(QueryRole::Read);
-                if let Some((database, read)) = connection.read_pool.take() {
-                    connection.database = database;
-                    connection.pool = read;
-                }
-            }
-            Some("write") => {
-                connection.query_role = Some(QueryRole::Write);
-                connection.read_pool = None;
-            }
-            _ => {}
+        Ok(self
+            .connections()
+            .entry(name.to_owned())
+            .or_insert(connection)
+            .clone())
+    }
+
+    /// Retires the cached connection's current physical pools.
+    pub fn disconnect(&self, name: Option<&str>) -> DatabaseResult<()> {
+        let name = self.resolve_name(name)?;
+        let connection = self.connections().get(name.as_ref()).cloned();
+        if let Some(connection) = connection {
+            connection.disconnect();
         }
-        connections.insert(name.to_owned(), connection.clone());
+        Ok(())
+    }
+
+    /// Retires the current pools and removes the connection from the manager's cache.
+    pub fn purge(&self, name: Option<&str>) -> DatabaseResult<()> {
+        let name = self.resolve_name(name)?;
+        let connection = self.connections().remove(name.as_ref());
+        if let Some(connection) = connection {
+            connection.disconnect();
+        }
+        Ok(())
+    }
+
+    /// Rebuilds the named connection's physical pools with the current configuration.
+    pub async fn reconnect(&self, name: Option<&str>) -> DatabaseResult<Connection> {
+        let name = self.resolve_name(name)?;
+        self.disconnect(Some(&name))?;
+        let connection = self.connection_named(&name)?;
+        connection.establish().await?;
         Ok(connection)
     }
 }

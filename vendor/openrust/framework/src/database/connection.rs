@@ -14,7 +14,6 @@ use sqlx::{
 };
 
 use sqlx_core::transaction::TransactionManager;
-use tokio::sync::OnceCell;
 
 use crate::{
     contracts::{
@@ -29,6 +28,7 @@ use super::{
     Bindings, DatabaseCursor, DatabaseError, DatabaseResult, QueryLogEntry, RawQueryLogEntry, Row,
     Value,
     bindings::{PreparedBindings, render_query},
+    connection_pools::{ConnectionPools, PoolGeneration},
     events::{
         ConnectionEstablished, QueryDuration, QueryDurationHandler, QueryExecuted,
         QueryNotification, QueryRole,
@@ -50,13 +50,12 @@ pub struct Connection {
     pub(super) prefix_indexes: bool,
     pub(super) grammar: super::query::grammars::Grammar,
     pub(super) database: Arc<str>,
-    pub(super) pool: Pool,
-    pub(super) read_pool: Option<(Arc<str>, Pool)>,
+    pub(super) pools: Arc<ConnectionPools>,
+    pub(super) sqlite: bool,
     pub(super) sticky: bool,
     pub(super) model_timezone: chrono_tz::Tz,
     pub(super) model_container: std::sync::Weak<crate::container::Container>,
     pub(super) routing: Arc<ReadRouting>,
-    pub(super) established: Arc<OnceCell<()>>,
     pub(super) query_duration: Arc<QueryDuration>,
     pub(super) query_role: Option<QueryRole>,
     pub(super) query_log: Arc<QueryLog>,
@@ -184,6 +183,21 @@ pub(super) enum TransactionCommand {
 }
 
 impl Pool {
+    pub(super) fn retire(&self) {
+        fn retire<D: Database>(pool: &sqlx::Pool<D>) {
+            // close() marks the pool closed immediately. Awaiting it would wait for active leases.
+            drop(pool.close());
+            if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+                let pool = pool.clone();
+                runtime.spawn(async move { pool.close().await });
+            }
+        }
+        match self {
+            Self::Sqlite(pool) => retire(pool),
+            Self::Mysql(pools) => pools.iter().for_each(retire),
+        }
+    }
+
     pub(super) async fn acquire(&self) -> DatabaseResult<PhysicalConnection> {
         match self {
             Self::Sqlite(pool) => Ok(PhysicalConnection::Sqlite(Lease::acquire(pool).await?)),
@@ -497,13 +511,11 @@ impl PhysicalConnection {
 macro_rules! observed_query {
     ($connection:ident, $sql:ident, $bindings:expr, $read:expr, $operation:ident, $before:expr, $after:expr) => {{
         let bindings: Bindings<'_> = $bindings.into();
-        $connection.establish().await?;
+        let (mut physical, role, wait) = $connection.acquire_query($read).await?;
         let start = Instant::now();
-        let (pool, role) = $connection.query_pool($read);
-        let mut physical = pool.acquire().await?;
         $before();
         let result = physical.$operation($sql, bindings).await?;
-        let time = start.elapsed();
+        let time = wait + start.elapsed();
         drop(physical);
         $after(&result);
         $connection
@@ -524,15 +536,23 @@ impl Connection {
         }
     }
 
-    /// Delivers `ConnectionEstablished` once for this logical connection.
-    ///
-    /// SQL operations call this before acquiring a physical connection.
+    /// Retires the current pools while leaving the logical connection intact.
+    pub fn disconnect(&self) {
+        self.pools.disconnect();
+    }
+
+    /// Delivers `ConnectionEstablished` once for the current pool generation.
     pub async fn establish(&self) -> DatabaseResult<()> {
-        if self.established.initialized() {
+        let generation = self.pools.generation()?;
+        self.establish_generation(&generation).await
+    }
+
+    async fn establish_generation(&self, generation: &Arc<PoolGeneration>) -> DatabaseResult<()> {
+        if generation.established.initialized() {
             return Ok(());
         }
 
-        let identity = Arc::as_ptr(&self.established).addr();
+        let identity = Arc::as_ptr(generation).addr();
         if ESTABLISHING_CONNECTIONS
             .try_with(|connections| connections.contains(&identity))
             .unwrap_or(false)
@@ -541,7 +561,8 @@ impl Connection {
         }
 
         let mut result = Ok(());
-        self.established
+        generation
+            .established
             .get_or_init(|| async {
                 let mut connections = ESTABLISHING_CONNECTIONS
                     .try_with(Clone::clone)
@@ -576,22 +597,35 @@ impl Connection {
     }
 
     pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
-        self.establish().await?;
-        self.query_pool(read).0.acquire().await
+        self.acquire_query(read)
+            .await
+            .map(|(connection, _, _)| connection)
     }
 
     pub(super) fn write_query_role(&self) -> QueryRole {
         self.query_role.unwrap_or(QueryRole::Write)
     }
 
-    fn query_pool(&self, read: bool) -> (&Pool, QueryRole) {
-        let pool = if read { self.read_pool() } else { &self.pool };
-        let role = if std::ptr::eq(pool, &self.pool) {
-            self.write_query_role()
-        } else {
-            QueryRole::Read
-        };
-        (pool, role)
+    async fn acquire_query(
+        &self,
+        read: bool,
+    ) -> DatabaseResult<(PhysicalConnection, QueryRole, Duration)> {
+        loop {
+            let generation = self.pools.generation()?;
+            self.establish_generation(&generation).await?;
+            let (pool, role) = match &generation.reader {
+                Some(reader) if read && !self.reads_from_writer() => (reader, QueryRole::Read),
+                _ => (&generation.writer, self.write_query_role()),
+            };
+            let start = Instant::now();
+            match pool.acquire().await {
+                Err(DatabaseError::Driver {
+                    source: sqlx::Error::PoolClosed,
+                    ..
+                }) => continue,
+                result => return result.map(|physical| (physical, role, start.elapsed())),
+            }
+        }
     }
 
     /// Subscribes to queries on this application's database connections.
@@ -727,7 +761,7 @@ impl Connection {
     }
 
     pub(crate) fn is_sqlite(&self) -> bool {
-        matches!(self.pool, Pool::Sqlite(_))
+        self.sqlite
     }
 
     pub(crate) fn queue_table(&self, table: &str) -> DatabaseResult<String> {
@@ -752,10 +786,9 @@ impl Connection {
     }
 
     pub(super) async fn wipe_mysql_schema(&self, drop_views: bool) -> DatabaseResult<()> {
-        self.establish().await?;
+        let mut physical = self.acquire(false).await?;
         let connection = self.clone();
         let result = tokio::spawn(async move {
-            let mut physical = connection.pool.acquire().await?;
             let checks = physical.select_one("select @@foreign_key_checks", &[]).await?
                 .and_then(|row| row.get_at(0).cloned());
             let checks = match checks {
@@ -847,13 +880,10 @@ impl Connection {
         self.routing().read_on_write.store(value, Ordering::Relaxed);
     }
 
-    fn read_pool(&self) -> &Pool {
-        if self.routing().read_on_write.load(Ordering::Relaxed)
-            || (self.sticky && self.hasModifiedRecords())
-        {
-            return &self.pool;
-        }
-        self.read_pool.as_ref().map_or(&self.pool, |(_, pool)| pool)
+    fn reads_from_writer(&self) -> bool {
+        let routing = self.routing();
+        routing.read_on_write.load(Ordering::Relaxed)
+            || (self.sticky && routing.records_modified.load(Ordering::Relaxed))
     }
 
     /// Executes the select on first poll and decodes one row at a time.
@@ -873,11 +903,7 @@ impl Connection {
     ) -> DatabaseCursor<'a> {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
-            self.establish().await?;
-            let start = Instant::now();
-            let (pool, role) = self.query_pool(!write);
-            let mut physical = pool.acquire().await?;
-            let mut elapsed = start.elapsed();
+            let (mut physical, role, mut elapsed) = self.acquire_query(!write).await?;
             {
                 let prepared = bindings.prepare(sql, matches!(physical, PhysicalConnection::Mysql(_)))?;
                 let mut rows = std::pin::pin!(physical.cursor(&prepared));
@@ -1009,12 +1035,13 @@ impl Connection {
 
     /// Executes raw SQL without parameter binding. Use only application-controlled SQL.
     pub async fn unprepared(&self, sql: &str) -> DatabaseResult<bool> {
-        self.establish().await?;
+        let (mut physical, role, wait) = self.acquire_query(false).await?;
         let start = Instant::now();
-        let result = self.pool.acquire().await?.unprepared(sql).await?;
-        let elapsed = start.elapsed();
+        let result = physical.unprepared(sql).await?;
+        let elapsed = wait + start.elapsed();
+        drop(physical);
         self.setRecordModificationState(true);
-        self.dispatch_query(sql, (&[]).into(), elapsed, self.write_query_role())
+        self.dispatch_query(sql, (&[]).into(), elapsed, role)
             .await?;
         Ok(result)
     }

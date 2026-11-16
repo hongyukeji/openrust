@@ -84,9 +84,27 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 Use `DB::connection(Some("reporting"))` to select a configured connection by name. The `::read` and `::write` suffixes select the corresponding physical role, such as `DB::connection(Some("reporting::read"))`.
 
+#### Reconnecting and Purging Connections {#reconnecting-database-connections}
+
+`DB::disconnect` retires the current read and write pools. The next asynchronous operation opens fresh pools. `DB::reconnect` refreshes them immediately from the current configuration, preserving the logical connection and its query log. `DB::purge` also removes the cached connection. The next lookup creates a new logical connection.
+
+An in-flight transaction remains on its original session until it ends. Connections that already hold a session can finish their work while new operations use the replacement pools.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+async fn refresh_database() -> DatabaseResult<()> {
+    DB::disconnect(None)?;
+    let connection = DB::reconnect(None).await?;
+    assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
+    DB::purge(None)?;
+    Ok(())
+}
+```
+
 ### Connection Established Event {#connection-established}
 
-Register for `ConnectionEstablished` to initialize an application connection. Resolving a connection returns a lazy handle. Its first asynchronous operation awaits the event before using the database pool. Use `establish().await` to deliver it explicitly. Each named connection delivers the event once per application. A listener can await SQL on the event's connection directly. If dispatch returns a listener error, the initiating operation receives that error. If the dispatch is canceled while a listener is running, the next operation retries it.
+Register for `ConnectionEstablished` to initialize an application connection. Resolving a connection returns a lazy handle. Its first asynchronous operation awaits the event before using the database pool. Use `establish().await` to deliver it explicitly. Each named connection delivers the event once per pool generation. A listener can await SQL on the event's connection directly. If dispatch returns a listener error, the initiating operation receives that error. If the dispatch is canceled while a listener is running, the next operation retries it.
 
 ```rust
 use std::{error::Error, sync::Arc};

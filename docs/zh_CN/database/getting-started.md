@@ -84,9 +84,27 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 用 `DB::connection(Some("reporting"))` 按名称选择连接。用 `::read` 和 `::write` 后缀直接选择对应角色，例如 `DB::connection(Some("reporting::read"))`。
 
+#### 断开、重连及清除连接 {#reconnecting-database-connections}
+
+`DB::disconnect` 退役当前读写连接池，下一次异步操作按当前配置建立新池。`DB::reconnect` 立即刷新连接池，保留逻辑连接和查询日志。`DB::purge` 同时清除缓存的连接，下次解析会创建新的逻辑连接。
+
+进行中的事务继续使用原会话直到结束。已取得会话的操作可以完成，新操作使用替换后的连接池。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+async fn refresh_database() -> DatabaseResult<()> {
+    DB::disconnect(None)?;
+    let connection = DB::reconnect(None).await?;
+    assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
+    DB::purge(None)?;
+    Ok(())
+}
+```
+
 ### 连接建立事件 {#connection-established}
 
-通过 `ConnectionEstablished` 初始化应用连接。连接解析返回惰性句柄，首次异步操作会在使用连接池前等待事件完成。也可通过 `establish().await` 显式触发。每个应用的具名连接各派发一次。监听器可直接在事件携带的连接上等待 SQL 执行。 派发返回监听器错误时，由发起操作接收该错误。如果派发在监听器执行期间被取消，下一次操作会重试派发。
+通过 `ConnectionEstablished` 初始化应用连接。连接解析返回惰性句柄，首次异步操作会在使用连接池前等待事件完成。也可通过 `establish().await` 显式触发。每个具名连接在每次创建连接池时派发一次。监听器可直接在事件携带的连接上等待 SQL 执行。 派发返回监听器错误时，由发起操作接收该错误。如果派发在监听器执行期间被取消，下一次操作会重试派发。
 
 ```rust
 use std::{error::Error, sync::Arc};

@@ -84,9 +84,27 @@ async fn find_user(id: i64) -> DatabaseResult<Option<Row>> {
 
 用 `DB::connection(Some("reporting"))` 按名稱選擇連線。用 `::read` 和 `::write` 後綴直接選擇對應角色，例如 `DB::connection(Some("reporting::read"))`。
 
+#### 中斷、重連及清除連線 {#reconnecting-database-connections}
+
+`DB::disconnect` 退役目前的讀寫連線池，下一次非同步操作依目前設定建立新池。`DB::reconnect` 立即更新連線池，保留邏輯連線與查詢日誌。`DB::purge` 同時清除快取的連線，下次解析會建立新的邏輯連線。
+
+進行中的交易繼續使用原工作階段直到結束。已取得工作階段的操作可以完成，新操作使用替換後的連線池。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::DB};
+
+async fn refresh_database() -> DatabaseResult<()> {
+    DB::disconnect(None)?;
+    let connection = DB::reconnect(None).await?;
+    assert_eq!(connection.scalar("SELECT 1", &[]).await?, 1.into());
+    DB::purge(None)?;
+    Ok(())
+}
+```
+
 ### 連線建立事件 {#connection-established}
 
-透過 `ConnectionEstablished` 初始化應用程式連線。連線解析傳回延遲開啟的控制代碼，第一次非同步操作會在使用連線池前等待事件完成。也可透過 `establish().await` 明確觸發。每個應用程式的具名連線各派發一次。監聽器可直接在事件提供的連線上等待 SQL 執行。 派送傳回監聽器錯誤時，由發起操作接收該錯誤。如果派送在監聽器執行期間被取消，下一次操作會重試派送。
+透過 `ConnectionEstablished` 初始化應用程式連線。連線解析傳回延遲開啟的控制代碼，第一次非同步操作會在使用連線池前等待事件完成。也可透過 `establish().await` 明確觸發。每個具名連線在每次建立連線池時派發一次。監聽器可直接在事件提供的連線上等待 SQL 執行。 派送傳回監聽器錯誤時，由發起操作接收該錯誤。如果派送在監聽器執行期間被取消，下一次操作會重試派送。
 
 ```rust
 use std::{error::Error, sync::Arc};

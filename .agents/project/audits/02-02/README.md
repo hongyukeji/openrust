@@ -5,7 +5,7 @@
 - `ConnectionFactory` 合并 `read`、`write` 与公共配置，MySQL 接受主机列表。读操作优先使用读池，具名连接允许 `::read` 和 `::write`。`selectFromWriteConnection` 强制单次查询走写库。`sticky` 和强制走写库状态以逻辑连接为单位，由当前 HTTP/Artisan 作用域保管。独立管理器以逻辑连接的克隆共享状态。
 - 事务借用一个写库物理连接，支持回调、手动提交和回滚、任意层级保存点回退及并发错误重试。参考旧版 `6d1a8192` 的 `src/database/mod.rs` 中事务回调显式传入句柄，以及 `src/database/sqlite/provider_tests.rs` 的保存点隔离回归。SQLx 的事务管理器跟踪物理层级。MySQL 中断或死锁的租约关闭后重新取连接，SQLite 通过 worker 排队回滚，并校验归还后的事务深度。
 - Rust 的回调通过借用 `Transaction` 独占会话，异步返回 `DatabaseFuture`。调用方显式设置总尝试次数，零次返回配置错误。上层仍以 `Result` 传播驱动错误。
-- 读库空闲连接丢失时池可换用新物理连接。运行中连接断开后的自动语句重放、显式连接刷新、`::direct`、查询事件及跨 Query Builder/Schema 的 `ConnectionInterface` 仍待接通。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
+- 读库空闲连接丢失时池可换用新物理连接。运行中连接断开后的自动语句重放、`::direct`、查询事件及跨 Query Builder/Schema 的 `ConnectionInterface` 仍待接通。事务中的 SQL 必须通过事务句柄发送。MySQL 隐式提交语句沿用数据库本身的行为。
 
 ## 验收
 
@@ -58,4 +58,14 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - 查询日志默认关闭，按逻辑连接保存。支持经 Connection 或 DB 开启、读取、关闭和清空，关闭后仍可读取已记录条目。成功事件监听完毕后记录当前查询。失败查询不增加条目。诊断渲染保持在应用主动调用的路径，SQL 执行仍使用预处理绑定。
 - Rust 1.94.0，实际 SQLite 与 MySQL 8.4.13。46 项定向回归通过，1 个现有子进程夹具由父测试启动。真实数据库对照了原始绑定和诊断结果、SQLite 编号及混合参数、逻辑连接隔离、启停清空与监听顺序。工作区严格 Clippy、变更文件格式检查通过。
 - 六次三语示例执行覆盖两种驱动，经实际 Artisan 校验读取和清空。原生 `main artisan inspire` 成功。三语 VitePress 构建、12 项站点浏览器组合与 6 项查询日志小节检查通过。
-- 通用 `pretend`、查询前回调、显式重连与剩余事务回调待按固定 Laravel 验收。当前迁移的 Schema 预演继续使用独立路径。
+- 显式重连见下方续批。通用 `pretend`、查询前回调与剩余事务回调待按固定 Laravel 验收。当前迁移的 Schema 预演继续使用独立路径。
+
+## 断开、重连及清除缓存
+
+核对固定 Laravel [DatabaseManager 的连接生命周期](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/DatabaseManager.php#L307)。旧版未找到可直接复用的同名入口。本批复用连接配置解析、读写池构建及既有连接建立事件。
+
+- `disconnect` 退役已缓存连接的当前读写池，保留逻辑连接。`reconnect` 用当前配置刷新池，旧句柄仍共享同一逻辑连接、查询日志及耗时。`purge` 再清除缓存，下一次解析创建新逻辑连接。驱动变化通过 `purge` 重新建立相应的逻辑方言。
+- SQLx 按池管理物理会话。等待旧池的查询在实际执行 SQL 前切换到新池。已经借出的会话仍可完成原操作或事务，并在归还后关闭。每次建立替换池时派发一次 `ConnectionEstablished`。
+- Rust 1.94.0，实际 SQLite 与 MySQL 8.4.13。SQLite 用两个数据库文件验收重读配置、旧句柄及日志保留、原事务提交和清除缓存。MySQL 通过会话 ID 验证读写池刷新、单连接池等待切换、事务留在原会话、租约归还后服务端会话关闭和事件计数。50 项定向回归通过，含真实 HTTP 的模型绑定回归。1 个现有子进程夹具由父测试启动。工作区严格 Clippy 和变更文件格式检查通过。
+- 两种驱动分别通过实际 Artisan 运行三语示例，原生 `main artisan inspire` 成功。VitePress 构建、12 项站点浏览器组合与 6 项重连小节检查通过。
+- 02-02 仍需核对运行中连接丢失的语句重放、`::direct`、通用查询预演、查询前回调和剩余事务回调。

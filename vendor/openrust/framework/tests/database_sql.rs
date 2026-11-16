@@ -2018,3 +2018,166 @@ async fn mysql_renders_the_original_bindings_in_opt_in_query_diagnostics() {
         .unwrap();
     verify_query_diagnostics(app, true).await;
 }
+
+#[tokio::test]
+async fn sqlite_reconnect_reloads_pools_and_purge_replaces_the_logical_connection() {
+    use openrust::contracts::config::Repository as _;
+
+    let root = Root::new();
+    let original = root.0.join("database/database.sqlite");
+    let replacement = root.0.join("database/replacement.sqlite");
+    fs::File::create(&replacement).unwrap();
+    let repository = Arc::new(Repository::new(
+        [(
+            "database".into(),
+            json!({
+                "default":"main",
+                "connections":{"main":{"driver":"sqlite","database":"database/database.sqlite"}}
+            }),
+        )]
+        .into(),
+    ));
+    let manager = DatabaseManager::new(repository.clone(), &root.0);
+    let connection = manager.connection(None).unwrap();
+    connection.enableQueryLog();
+    connection
+        .unprepared("PRAGMA user_version = 17")
+        .await
+        .unwrap();
+    let mut active = connection.beginTransaction().await.unwrap();
+    active.unprepared("PRAGMA user_version = 19").await.unwrap();
+
+    repository
+        .set(
+            "database.connections.main.database",
+            "database/replacement.sqlite".into(),
+        )
+        .unwrap();
+    let reconnected = manager.reconnect(None).await.unwrap();
+    assert!(reconnected.logging());
+    assert_eq!(connection.getDatabaseName(), original.to_string_lossy());
+    let (a, b) = tokio::join!(
+        connection.scalar("PRAGMA user_version", &[]),
+        reconnected.scalar("PRAGMA user_version", &[]),
+    );
+    assert_eq!(a.unwrap(), 0.into());
+    assert_eq!(b.unwrap(), 0.into());
+    assert_eq!(
+        active.scalar("PRAGMA user_version", &[]).await.unwrap(),
+        19.into()
+    );
+    active.commit().await.unwrap();
+
+    let legacy = self::manager(
+        &root,
+        json!({"default":"legacy","connections":{"legacy":{
+            "driver":"sqlite","database":"database/database.sqlite"
+        }}}),
+    )
+    .connection(None)
+    .unwrap();
+    assert_eq!(
+        legacy.scalar("PRAGMA user_version", &[]).await.unwrap(),
+        19.into()
+    );
+    assert_eq!(
+        connection.getQueryLog().len(),
+        reconnected.getQueryLog().len()
+    );
+
+    manager.disconnect(None).unwrap();
+    assert_eq!(
+        connection.scalar("PRAGMA user_version", &[]).await.unwrap(),
+        0.into()
+    );
+    manager.purge(None).unwrap();
+    let fresh = manager.connection(None).unwrap();
+    assert_eq!(fresh.getDatabaseName(), replacement.to_string_lossy());
+    assert!(!fresh.logging());
+    assert!(fresh.getQueryLog().is_empty());
+    assert!(connection.logging());
+    assert_eq!(connection.scalar("SELECT 5", &[]).await.unwrap(), 5.into());
+    assert!(fresh.getQueryLog().is_empty());
+
+    manager.disconnect(Some("unknown")).unwrap();
+    manager.purge(Some("unknown")).unwrap();
+    assert!(matches!(
+        manager.reconnect(Some("unknown")).await,
+        Err(DatabaseError::UnknownConnection(_))
+    ));
+}
+
+#[tokio::test]
+async fn mysql_reconnect_replaces_read_write_sessions_with_an_active_transaction() {
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    let root = Root::new();
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(|_, _| {
+            let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+            Ok([("database".into(), json!({
+            "default":"main",
+            "connections":{
+                "main":{"url":url, "read":{"url":url}, "max_connections":1, "acquire_timeout":5}
+            }
+        }))].into())
+        })
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let observer = establishment_listener(&app, false, false);
+    let manager = app.container().make::<DatabaseManager>().unwrap();
+    let connection = manager.connection(None).unwrap();
+    let id = "SELECT CONNECTION_ID()";
+    let read_id = connection.scalar(id, &[]).await.unwrap();
+    let mut old_tx = connection.beginTransaction().await.unwrap();
+    let old_writer = old_tx.scalar(id, &[]).await.unwrap();
+    assert_ne!(read_id, old_writer);
+    assert_eq!(observer.calls.load(Ordering::SeqCst), 1);
+
+    let mut pending = Box::pin(connection.selectFromWriteConnection(id, &[]));
+    tokio::select! {
+        _ = &mut pending => panic!("the original single-connection write pool must be busy"),
+        () = tokio::time::sleep(Duration::from_millis(50)) => {},
+    }
+    manager.disconnect(None).unwrap();
+    let new_writer = tokio::time::timeout(Duration::from_secs(3), pending)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_ne!(new_writer[0].get_at(0), Some(&old_writer));
+    assert_eq!(old_tx.scalar(id, &[]).await.unwrap(), old_writer);
+    let new_read = connection.scalar(id, &[]).await.unwrap();
+    assert_ne!(new_read, read_id);
+    assert_eq!(observer.calls.load(Ordering::SeqCst), 2);
+
+    let reconnect = manager.reconnect(None).await.unwrap();
+    assert_ne!(reconnect.scalar(id, &[]).await.unwrap(), new_read);
+    assert_eq!(observer.calls.load(Ordering::SeqCst), 3);
+    old_tx.rollBack(None).await.unwrap();
+    let old_ids = [old_writer, read_id];
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            let remaining = reconnect
+                .scalar(
+                    "SELECT count(*) FROM information_schema.processlist WHERE ID IN (?, ?)",
+                    &old_ids,
+                )
+                .await
+                .unwrap();
+            if remaining == 0.into() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("retired physical MySQL sessions must close after their leases return");
+    let before = connection.scalar(id, &[]).await.unwrap();
+    manager.purge(None).unwrap();
+    let fresh = manager.connection(None).unwrap();
+    assert_ne!(fresh.scalar(id, &[]).await.unwrap(), before);
+    assert_eq!(observer.calls.load(Ordering::SeqCst), 4);
+}

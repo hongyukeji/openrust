@@ -8,7 +8,10 @@ use sqlx::{
 };
 
 use super::super::{
-    Connection, DatabaseError, DatabaseResult, configuration_url_parser, connection::Pool,
+    Connection, DatabaseError, DatabaseResult, configuration_url_parser,
+    connection::Pool,
+    connection_pools::{ConnectionPools, PoolGeneration},
+    events::QueryRole,
     query::grammars::Grammar,
 };
 
@@ -17,44 +20,96 @@ pub struct ConnectionFactory;
 
 impl ConnectionFactory {
     pub fn make(&self, name: &str, config: Value, root: &Path) -> DatabaseResult<Connection> {
-        tokio::runtime::Handle::try_current().map_err(|_| invalid("Tokio runtime"))?;
-        let mut base = configuration_url_parser::parse(config)?;
-        let read = base.remove("read");
-        let write = base.remove("write");
-        let sticky = Options(base.clone()).boolean("sticky", false)?;
-        let write_options = merge(&base, write, "write")?;
-        let (database, pool) = make_pool(&write_options, root)?;
-        let read_pool = read
-            .filter(|value| !value.is_null())
-            .map(|read| {
-                let options = merge(&base, Some(read), "read")?;
-                make_pool(&options, root).map(|(name, pool)| (name.into(), pool))
-            })
-            .transpose()?;
-        let prefix = write_options.string("prefix", "")?;
-        let grammar = match &pool {
-            Pool::Mysql(_) => {
-                Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?)
-            }
-            Pool::Sqlite(_) => Grammar::sqlite(prefix),
-        };
+        self.make_for_role(name, root, None, move || Ok(config.clone()))
+    }
+
+    pub(in crate::database) fn make_for_role(
+        &self,
+        name: &str,
+        root: &Path,
+        role: Option<QueryRole>,
+        reload: impl Fn() -> DatabaseResult<Value> + Send + Sync + 'static,
+    ) -> DatabaseResult<Connection> {
+        let options = resolve(reload()?, root, role)?;
+        let sqlite = matches!(options.pools.writer, Pool::Sqlite(_));
+        let root = root.to_owned();
         Ok(Connection {
-            name: Arc::from(name),
-            prefix_indexes: write_options.boolean("prefix_indexes", false)?,
-            grammar,
-            database: database.into(),
-            pool,
-            read_pool,
-            sticky,
+            name: name.into(),
+            prefix_indexes: options.prefix_indexes,
+            grammar: options.grammar,
+            database: options.database,
+            pools: Arc::new(ConnectionPools::new(options.pools, move || {
+                let fresh = resolve(reload()?, &root, role)?.pools;
+                if matches!(fresh.writer, Pool::Sqlite(_)) != sqlite {
+                    return Err(invalid("reconnecting with a different database driver"));
+                }
+                Ok(fresh)
+            })),
+            sqlite,
+            sticky: options.sticky,
             model_timezone: chrono_tz::UTC,
             model_container: std::sync::Weak::new(),
             routing: Arc::default(),
-            established: Arc::default(),
             query_duration: Arc::default(),
-            query_role: None,
+            query_role: role,
             query_log: Arc::default(),
         })
     }
+}
+
+struct ConnectionOptions {
+    database: Arc<str>,
+    grammar: Grammar,
+    prefix_indexes: bool,
+    sticky: bool,
+    pools: PoolGeneration,
+}
+
+fn resolve(
+    config: Value,
+    root: &Path,
+    role: Option<QueryRole>,
+) -> DatabaseResult<ConnectionOptions> {
+    tokio::runtime::Handle::try_current().map_err(|_| invalid("Tokio runtime"))?;
+    let mut base = configuration_url_parser::parse(config)?;
+    let read = base.remove("read");
+    let write = base.remove("write");
+    let sticky = Options(base.clone()).boolean("sticky", false)?;
+    let write_options = merge(&base, write, "write")?;
+    let (mut database, mut writer) = make_pool(&write_options, root)?;
+    let mut reader = read
+        .filter(|value| !value.is_null())
+        .map(|read| {
+            let options = merge(&base, Some(read), "read")?;
+            make_pool(&options, root)
+        })
+        .transpose()?;
+    let prefix = write_options.string("prefix", "")?;
+    let grammar = match &writer {
+        Pool::Mysql(_) => Grammar::mysql(prefix, write_options.boolean("use_upsert_alias", false)?),
+        Pool::Sqlite(_) => Grammar::sqlite(prefix),
+    };
+    match role {
+        Some(QueryRole::Read) => {
+            if let Some((read_database, read_pool)) = reader.take() {
+                database = read_database;
+                writer = read_pool;
+            }
+        }
+        Some(QueryRole::Write) => reader = None,
+        None => {}
+    }
+    Ok(ConnectionOptions {
+        database: database.into(),
+        grammar,
+        prefix_indexes: write_options.boolean("prefix_indexes", false)?,
+        sticky,
+        pools: PoolGeneration {
+            writer,
+            reader: reader.map(|(_, pool)| pool),
+            established: Default::default(),
+        },
+    })
 }
 
 fn merge(

@@ -1,6 +1,6 @@
 use crate::{
     contracts::routing::UrlRoutable,
-    database::{DatabaseError, DatabaseResult, Value, connection::Pool},
+    database::{DatabaseError, DatabaseResult, Value},
     http::{HttpError, HttpFuture},
     routing::{BindingContext, UrlError, UrlResult, UrlValue},
 };
@@ -56,7 +56,7 @@ pub(super) async fn lookup<M: Model>(
         return Ok(None);
     };
     if matches!(value, Value::Unsigned(value) if i64::try_from(value).is_err())
-        && matches!(query.connection.pool, Pool::Sqlite(_))
+        && query.connection.is_sqlite()
     {
         return Ok(None);
     }
