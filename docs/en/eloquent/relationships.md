@@ -172,13 +172,17 @@ pub async fn authors_with_latest_comment(connection: &Connection) -> DatabaseRes
 
 Use `MorphOne` or `MorphMany` to query children using both an ID and a type alias. Use `MorphTo` to resolve the inverse relation, and register each alias with its model type. Eager loading queries each distinct type in a batch. Read the loaded value using `getRelation::<Option<MorphTarget>>("subject")` and use `downcast_ref::<Post>()` on the target.
 
+Each registered alias can specify its own owner key. An empty type column has no target and can use the configured default. The text alias `"0"` is resolved like any other registered alias. For a non-unique owner key, direct or single-model lazy lookup uses the first query row, and eager loading keeps the last row for each key within each alias.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::MorphTo},
 };
 
-pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<Collection<Comment>> {
+pub async fn comments_with_subjects<Comment: Model, Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Comment>> {
     let subjects = MorphTo::<Comment>::new("subject_type", "subject_id")
         .target::<Author>("author", "id")
         .target::<Post>("post", "id");

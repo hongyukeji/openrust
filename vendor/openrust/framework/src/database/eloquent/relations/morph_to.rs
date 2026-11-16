@@ -891,9 +891,7 @@ impl<P: Model> MorphTo<P> {
         }
         match parent.getAttribute(self.type_column) {
             None | Some(Value::Null) => Ok(None),
-            Some(Value::Text(alias)) if alias.is_empty() && self.untyped_default.is_some() => {
-                Ok(None)
-            }
+            Some(Value::Text(alias)) if alias.is_empty() => Ok(None),
             Some(Value::Text(alias)) => Ok(Some(alias)),
             _ => Err(DatabaseError::InvalidQuery("morph type column")),
         }
@@ -933,33 +931,36 @@ impl<P: Model> MorphTo<P> {
         }
         if !self.defaults.is_empty() {
             for (parent, matched) in parents.iter().zip(&mut matches) {
-                if matched.is_some() {
-                    continue;
-                }
-                let alias = match parent.getAttribute(self.type_column) {
-                    None | Some(Value::Null) => self.untyped_default,
-                    Some(Value::Text(alias)) if alias.is_empty() => self.untyped_default,
-                    Some(Value::Text(alias)) => Some(alias.as_str()),
-                    _ => None,
-                };
-                if let Some((alias, create)) =
-                    alias.and_then(|alias| self.defaults.get_key_value(alias))
-                {
-                    if self
-                        .path_aliases
-                        .as_ref()
-                        .is_some_and(|aliases| !aliases.contains(alias))
-                    {
-                        continue;
-                    }
-                    *matched = Some(MorphTarget {
-                        alias,
-                        model: create(parent)?,
-                    });
+                if matched.is_none() {
+                    *matched = self.default_target(parent)?;
                 }
             }
         }
         Ok(matches)
+    }
+
+    fn default_target(&self, parent: &P) -> DatabaseResult<Option<MorphTarget>> {
+        let alias = match parent.getAttribute(self.type_column) {
+            None | Some(Value::Null) => self.untyped_default,
+            Some(Value::Text(alias)) if alias.is_empty() => self.untyped_default,
+            Some(Value::Text(alias)) => Some(alias.as_str()),
+            _ => None,
+        };
+        let Some((alias, create)) = alias.and_then(|alias| self.defaults.get_key_value(alias))
+        else {
+            return Ok(None);
+        };
+        if self
+            .path_aliases
+            .as_ref()
+            .is_some_and(|aliases| !aliases.contains(alias))
+        {
+            return Ok(None);
+        }
+        Ok(Some(MorphTarget {
+            alias,
+            model: create(parent)?,
+        }))
     }
 }
 
@@ -1095,6 +1096,11 @@ trait Target<P: Model>: Send + Sync {
         key: Option<(Option<&'a str>, Option<&'a str>, bool)>,
         lazy: bool,
     ) -> DatabaseCursor<'a, Collection<MorphTarget>>;
+    fn load_first<'a>(
+        &'a self,
+        parent: &'a P,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<ErasedModel>>>;
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
@@ -1362,6 +1368,23 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
         })
     }
 
+    fn load_first<'a>(
+        &'a self,
+        parent: &'a P,
+        soft_deletes: SoftDeleteMacros,
+    ) -> DatabaseFuture<'a, DatabaseResult<Option<ErasedModel>>> {
+        Box::pin(async move {
+            let Some(query) = self.owner_query(parent)? else {
+                return Ok(None);
+            };
+            Ok(soft_deletes
+                .apply(query)
+                .first()
+                .await?
+                .map(|model| Arc::new(model) as ErasedModel))
+        })
+    }
+
     fn load<'a>(
         &'a self,
         parents: &'a [&'a P],
@@ -1429,6 +1452,17 @@ impl<P: Model> Relation for MorphTo<P> {
         output
             .as_ref()
             .map_or_else(Vec::new, |target| target.model.queueable_relations())
+    }
+
+    fn getResults<'a>(&'a self, parent: &'a P) -> DatabaseFuture<'a, DatabaseResult<Self::Output>> {
+        Box::pin(async move {
+            if let Some((alias, target)) = self.selected_target(parent)?
+                && let Some(model) = target.load_first(parent, self.soft_deletes).await?
+            {
+                return Ok(Some(MorphTarget { alias, model }));
+            }
+            self.default_target(parent)
+        })
     }
 
     fn matchResults<'a>(

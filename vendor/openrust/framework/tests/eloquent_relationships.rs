@@ -369,6 +369,31 @@ async fn verify_through_and_morph(
             .await
             .unwrap()
     );
+    let title = post.getAttribute("title").unwrap().clone();
+    let mut custom_child = POST_COMMENTS
+        .create(post, Attributes::from([("body".into(), title.clone())]))
+        .await
+        .unwrap();
+    let mut custom_parent = Author::from_state(author.state().clone());
+    custom_parent.setAttribute("name", title);
+    let custom_keys =
+        || HasManyThrough::<Author, Post, Comment>::new("title", "body", "name", "title");
+    let direct = custom_keys()
+        .one()
+        .getResults(&custom_parent)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(direct.getKey(), custom_child.getKey());
+    let matched = custom_keys()
+        .matchResults(&[&custom_parent, author])
+        .await
+        .unwrap();
+    assert_eq!(matched[0].len(), 1);
+    assert_eq!(matched[0][0].getKey(), custom_child.getKey());
+    assert!(matched[1].is_empty());
+    custom_child.forceDelete().await.unwrap();
+
     let mut newer = POST_COMMENTS
         .create(post, Attributes::from([("body".into(), "visible".into())]))
         .await
@@ -1078,6 +1103,59 @@ async fn verify_belongs_to_owner_keys(
             .getKey(),
         Some(first_key)
     );
+
+    let subjects = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .constrain::<Author>("0", "mentor_id", |query| query.orderBy("id", "asc"))
+        .constrain::<Author>("author", "mentor_id", |query| query.orderBy("id", "desc"));
+    let mut numeric_alias = Comment::queryOn(db).make(Attributes::new()).unwrap();
+    numeric_alias.setAttribute("subject_type", "0");
+    numeric_alias.setAttribute("subject_id", 0);
+    let mut named_alias = Comment::from_state(numeric_alias.state().clone());
+    named_alias.setAttribute("subject_type", "author");
+    let mut empty_alias = Comment::from_state(numeric_alias.state().clone());
+    empty_alias.setAttribute("subject_type", "");
+
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let owner = numeric_alias
+        .getRelationOrLoad("subject", &subjects)
+        .await
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert_eq!(owner.alias(), "0");
+    assert_eq!(
+        owner.downcast_ref::<Author>().unwrap().getKey(),
+        Some(first_key)
+    );
+    let owner = subjects.getResults(&named_alias).await.unwrap().unwrap();
+    assert_eq!(owner.alias(), "author");
+    assert_eq!(
+        owner.downcast_ref::<Author>().unwrap().getKey(),
+        Some(second_key)
+    );
+    assert!(subjects.getResults(&empty_alias).await.unwrap().is_none());
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
+
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let batch = subjects
+        .matchResults(&[&numeric_alias, &named_alias, &empty_alias])
+        .await
+        .unwrap();
+    for ((loaded, alias), key) in batch
+        .iter()
+        .zip(["0", "author"])
+        .zip([second_key, first_key])
+    {
+        let loaded = loaded.as_ref().unwrap();
+        assert_eq!(loaded.alias(), alias);
+        assert_eq!(loaded.downcast_ref::<Author>().unwrap().getKey(), Some(key));
+    }
+    assert!(batch[2].is_none());
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 2);
+    }
 
     for author in [first, second] {
         db.statement(

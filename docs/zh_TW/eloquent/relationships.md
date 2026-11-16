@@ -172,13 +172,17 @@ pub async fn authors_with_latest_comment(connection: &Connection) -> DatabaseRes
 
 用 `MorphOne` 或 `MorphMany` 依 ID 和類型別名查詢子模型。用 `MorphTo` 解析反向關聯，並明確登錄每個別名對應的模型類型。預先載入依類型分組查詢。用 `getRelation::<Option<MorphTarget>>("subject")` 讀取載入結果，再對目標呼叫 `downcast_ref::<Post>()`。
 
+每個已登錄別名可指定自己的所屬鍵。空字串類型沒有目標，可使用已設定的預設模型。文字別名 `"0"` 與其他已登錄別名一樣可正常解析。所屬鍵有重複值時，直接讀取或單一模型延遲載入使用查詢第一筆，預先載入在各別名內依鍵保留最後一筆。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::MorphTo},
 };
 
-pub async fn comments_with_subjects(connection: &Connection) -> DatabaseResult<Collection<Comment>> {
+pub async fn comments_with_subjects<Comment: Model, Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Comment>> {
     let subjects = MorphTo::<Comment>::new("subject_type", "subject_id")
         .target::<Author>("author", "id")
         .target::<Post>("post", "id");
