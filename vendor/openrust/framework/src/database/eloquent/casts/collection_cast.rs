@@ -71,34 +71,48 @@ impl JsonCollectionCast {
         })
     }
 
-    pub(super) fn collection(self, value: &Value) -> DatabaseResult<Option<Collection>> {
-        let Some(values) = decode_collection(value) else {
+    pub(super) fn collection(
+        self,
+        value: &Value,
+        codec: &super::Json,
+    ) -> DatabaseResult<Option<Collection>> {
+        let Some(values) = decode_collection(value, codec)? else {
             return Ok(None);
         };
         project_collection(values, self.factory, self.mapper).map(Some)
     }
 
-    pub(super) fn read(self, value: &Value) -> DatabaseResult<Value> {
-        self.collection(value)?.map_or(Ok(Value::Null), |values| {
-            values.toArray().map(Value::Json).map_err(|_| invalid())
-        })
+    pub(super) fn read(self, value: &Value, codec: &super::Json) -> DatabaseResult<Value> {
+        self.collection(value, codec)?
+            .map_or(Ok(Value::Null), |values| {
+                values.toArray().map(Value::Json).map_err(|_| invalid())
+            })
     }
 
-    pub(super) fn write(self, value: Value) -> DatabaseResult<Value> {
+    pub(super) fn write(self, value: Value, codec: &super::Json) -> DatabaseResult<Value> {
         if self.nullable && matches!(value, Value::Null) {
             return Ok(Value::Null);
         }
-        serde_json::to_string(&super::json_value(value)?)
-            .map(Value::Text)
-            .map_err(|_| invalid())
+        codec.encode(&super::json_value(value)?).map(Value::Text)
     }
 
-    pub(super) fn equivalent(current: &Value, original: &Value) -> bool {
-        match (decode_collection(current), decode_collection(original)) {
-            (Some(current), Some(original)) => current == original,
-            (None, None) => decode_scalar(current) == decode_scalar(original),
-            _ => false,
-        }
+    pub(super) fn equivalent(
+        current: &Value,
+        original: &Value,
+        codec: &super::Json,
+    ) -> DatabaseResult<bool> {
+        let current = codec.decode_value(current)?;
+        let original = codec.decode_value(original)?;
+        Ok(
+            match (
+                as_collection(current.as_ref()),
+                as_collection(original.as_ref()),
+            ) {
+                (Some(current), Some(original)) => current == original,
+                (None, None) => current == original,
+                _ => false,
+            },
+        )
     }
 }
 
@@ -124,20 +138,17 @@ pub(super) fn project_item<T: DeserializeOwned + Serialize>(
     serde_json::to_value(value).map_err(|_| invalid())
 }
 
-pub(super) fn decode_collection(value: &Value) -> Option<Collection<Json>> {
-    match value {
-        Value::Text(text) => serde_json::from_str(text).ok(),
-        Value::Json(json) => Collection::deserialize(json).ok(),
-        _ => None,
-    }
+pub(super) fn decode_collection(
+    value: &Value,
+    codec: &super::Json,
+) -> DatabaseResult<Option<Collection<Json>>> {
+    Ok(codec.decode_value(value)?.and_then(|value| {
+        (value.is_array() || value.is_object()).then(|| Collection::fromValue(value))
+    }))
 }
 
-fn decode_scalar(value: &Value) -> Option<Json> {
-    match value {
-        Value::Text(text) => serde_json::from_str(text).ok(),
-        Value::Json(json) => Some(json.clone()),
-        _ => None,
-    }
+fn as_collection(value: Option<&Json>) -> Option<Collection<Json>> {
+    value.and_then(|document| Collection::deserialize(document).ok())
 }
 
 pub(super) fn invalid() -> DatabaseError {

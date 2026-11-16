@@ -259,6 +259,34 @@ pub async fn enable_notifications(record: &mut impl Model) -> DatabaseResult<boo
 }
 ```
 
+### Custom JSON Codecs {#custom-json-codecs}
+
+Register `Json` in the application's container before using models. Set the encoder with `encodeUsing` and the decoder with `decodeUsing`. The codec applies to stored JSON attributes, collections, enums, `AsFluent`, and JSON values inside encrypted attributes. It also applies to nested JSON updates. SQL `NULL` retains its usual cast behavior. Model `toJson()` and HTTP responses serialize the decoded values with the regular JSON serializer.
+
+Callbacks receive a Serde JSON value or UTF-8 text. A custom encoder must produce valid JSON for a native JSON column. The database may normalize that text before the decoder reads it.
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    container::Container,
+    contracts::container::{BindingResolutionError, Container as _},
+    database::{DatabaseError, eloquent::casts::Json},
+};
+
+pub fn configure_json(container: &Container) -> Result<(), BindingResolutionError> {
+    let codec = Json::default()
+        .encodeUsing(|value| {
+            serde_json::to_string_pretty(value)
+                .map_err(|_| DatabaseError::InvalidQuery("model JSON encoding"))
+        })
+        .decodeUsing(|text| Json::default().decode(text));
+
+    container.instance(Arc::new(codec))?;
+    Ok(())
+}
+```
+
 ### Castables
 
 Implement `Castable::castUsing` to construct the caster from typed arguments. Register `ClassCast::of::<C>(&ARGUMENTS)` for a two-way cast or `ClassCast::inbound::<C>(&ARGUMENTS)` for assignment only. The arguments are static model declarations and can also be selected with `withCasts` or `mergeCasts`.

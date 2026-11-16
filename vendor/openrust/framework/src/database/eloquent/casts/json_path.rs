@@ -18,11 +18,13 @@ pub(super) fn write(
         return Err(invalid());
     }
     let encrypted = matches!(cast, Some(AttributeCast::Encrypted(_)));
+    let codec = super::Json::for_model(connection)?;
     let root = match raw {
         None | Some(Value::Null) => Json::Null,
         Some(raw) if encrypted => super::encrypted::read_json(raw, connection)?,
-        Some(Value::Json(json)) => json.clone(),
-        Some(Value::Text(text)) => serde_json::from_str(text).map_err(|_| invalid())?,
+        Some(raw @ (Value::Json(_) | Value::Text(_))) => {
+            codec.decode_value(raw)?.ok_or_else(invalid)?
+        }
         _ => return Err(invalid()),
     };
     let updated = match root {
@@ -35,11 +37,10 @@ pub(super) fn write(
         _ => return Err(invalid()),
     };
     check_depth(&updated)?;
-    let updated = Value::Json(updated);
     if encrypted {
-        return EncryptedCast::Json.write(updated, connection);
+        return EncryptedCast::Json.write(Value::Json(updated), connection);
     }
-    Ok(updated)
+    codec.store(updated)
 }
 
 fn write_string_offset(text: String, offset: &str, replacement: &str) -> DatabaseResult<Json> {

@@ -1,8 +1,8 @@
-use crate::database::{DatabaseError, DatabaseResult, Value};
+use crate::database::{Connection, DatabaseError, DatabaseResult, Value};
 
 use super::{
     BinaryFormat, CastsAttributes, CastsInboundAttributes, ClassCast, EncryptedCast, EnumCast,
-    EnumCollectionCast, JsonCollectionCast, ValueObjectCast,
+    EnumCollectionCast, Json, JsonCollectionCast, ValueObjectCast,
 };
 
 /// A declared conversion of an Eloquent attribute.
@@ -41,7 +41,11 @@ impl AttributeCast {
         }
     }
 
-    pub(super) fn read(self, value: &Value) -> DatabaseResult<Value> {
+    pub(super) fn read(
+        self,
+        value: &Value,
+        connection: Option<&Connection>,
+    ) -> DatabaseResult<Value> {
         if matches!(value, Value::Null) {
             return Ok(Value::Null);
         }
@@ -51,12 +55,11 @@ impl AttributeCast {
             (Self::Enum(cast), value) => cast.normalize(value),
             (Self::Binary(format), value) => format.read(value),
             (Self::Vector, value) => super::vector::read(value),
-            (Self::EnumCollection(cast), value) => cast.read(value),
-            (Self::JsonCollection(cast), value) => cast.read(value),
+            (Self::EnumCollection(cast), value) => cast.read(value, &Json::for_model(connection)?),
+            (Self::JsonCollection(cast), value) => cast.read(value, &Json::for_model(connection)?),
             (Self::Boolean, Value::Bool(_))
             | (Self::Integer, Value::Integer(_))
-            | (Self::String, Value::Text(_))
-            | (Self::Json, Value::Json(_)) => Ok(value.clone()),
+            | (Self::String, Value::Text(_)) => Ok(value.clone()),
             (Self::Boolean, Value::Integer(n)) => Ok(Value::Bool(*n != 0)),
             (Self::Boolean, Value::Unsigned(n)) => Ok(Value::Bool(*n != 0)),
             (Self::Boolean, Value::Real(n)) => Ok(Value::Bool(*n != 0.0)),
@@ -89,15 +92,23 @@ impl AttributeCast {
             (Self::Decimal(scale), _) => {
                 super::decimal::read(&scalar_string(value)?, scale).map(Value::Text)
             }
-            (Self::Json, Value::Text(text)) => {
-                Ok(serde_json::from_str(text).map_or(Value::Null, Value::Json))
-            }
+            (Self::Json, Value::Text(_) | Value::Json(_)) => Json::for_model(connection)?
+                .decode_value(value)
+                .map(|value| value.map_or(Value::Null, Value::Json)),
             _ => Err(invalid()),
         }
     }
 
-    pub(super) fn equivalent(self, current: &Value, original: &Value) -> DatabaseResult<bool> {
-        match (self.read(current)?, self.read(original)?) {
+    pub(super) fn equivalent(
+        self,
+        current: &Value,
+        original: &Value,
+        connection: Option<&Connection>,
+    ) -> DatabaseResult<bool> {
+        match (
+            self.read(current, connection)?,
+            self.read(original, connection)?,
+        ) {
             (Value::Real(current), Value::Real(original)) if matches!(self, Self::Float) => {
                 Ok((current - original).abs() < f64::EPSILON * 4.0)
             }
@@ -105,7 +116,11 @@ impl AttributeCast {
         }
     }
 
-    pub(super) fn write(self, value: Value) -> DatabaseResult<Value> {
+    pub(super) fn write(
+        self,
+        value: Value,
+        connection: Option<&Connection>,
+    ) -> DatabaseResult<Value> {
         if let Self::Binary(format) = self {
             return format.write(value);
         }
@@ -113,16 +128,16 @@ impl AttributeCast {
             return super::vector::write(value);
         }
         if let Self::JsonCollection(cast) = self {
-            return cast.write(value);
+            return cast.write(value, &Json::for_model(connection)?);
         }
         if let Self::Enum(cast) = self {
             return cast.normalize(&value);
         }
         if let Self::EnumCollection(cast) = self {
-            return cast.write(value);
+            return cast.write(value, &Json::for_model(connection)?);
         }
-        if matches!(self, Self::Json) && !matches!(value, Value::Null | Value::Json(_)) {
-            return json_value(value).map(Value::Json);
+        if matches!(self, Self::Json) && !matches!(value, Value::Null) {
+            return Json::for_model(connection)?.store(json_value(value)?);
         }
         Ok(value)
     }

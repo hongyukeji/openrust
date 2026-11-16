@@ -556,10 +556,13 @@ pub trait Model: Sized + Send + Sync + 'static {
         let state = self.state();
         casts::check_object::<Self, T>(state, column)?;
         if T::WITHOUT_OBJECT_CACHING {
-            return T::fromAttributes(column, &state.attributes).map(|value| value.map(Cow::Owned));
+            return casts::read_object::<T>(column, &state.attributes, state.connection.as_ref())
+                .map(|value| value.map(Cow::Owned));
         }
         if state.value_objects().get::<T>(column).is_none() {
-            let Some(value) = T::fromAttributes(column, &state.attributes)? else {
+            let Some(value) =
+                casts::read_object::<T>(column, &state.attributes, state.connection.as_ref())?
+            else {
                 return Ok(None);
             };
             self.state_mut().value_objects_mut().insert(column, value);
@@ -575,7 +578,12 @@ pub trait Model: Sized + Send + Sync + 'static {
     ) -> DatabaseResult<&mut Self> {
         let state = self.state();
         casts::check_object::<Self, T>(state, column)?;
-        let patch = T::toAttributes(value.as_ref(), column, &state.attributes)?;
+        let patch = casts::write_object(
+            value.as_ref(),
+            column,
+            &state.attributes,
+            state.connection.as_ref(),
+        )?;
         let state = self.state_mut();
         state.invalidate_value_objects();
         patch.apply(&mut state.attributes, column.into());

@@ -39,8 +39,8 @@ pub struct EnumCollectionCast {
 }
 
 impl EnumCollectionCast {
-    pub(super) fn read(self, value: &Value) -> DatabaseResult<Value> {
-        let Some(values) = decode_collection(value) else {
+    pub(super) fn read(self, value: &Value, codec: &super::Json) -> DatabaseResult<Value> {
+        let Some(values) = decode_collection(value, codec)? else {
             return Ok(Value::Null);
         };
         let canonical = values.tryMap(|value, _| {
@@ -53,9 +53,10 @@ impl EnumCollectionCast {
     pub(super) fn read_typed<E: CastableEnum>(
         self,
         value: &Value,
+        codec: &super::Json,
     ) -> DatabaseResult<Option<Collection<E>>> {
         self.cases.check_type::<E>()?;
-        decode_collection(value)
+        decode_collection(value, codec)?
             .map(|values| values.tryMap(|value, _| E::fromValue(&backing(value)?)))
             .transpose()
     }
@@ -72,7 +73,7 @@ impl EnumCollectionCast {
             .map(Collection::fromEntries)
     }
 
-    pub(super) fn write(self, value: Value) -> DatabaseResult<Value> {
+    pub(super) fn write(self, value: Value, codec: &super::Json) -> DatabaseResult<Value> {
         if matches!(value, Value::Null) {
             return Ok(Value::Null);
         }
@@ -80,20 +81,22 @@ impl EnumCollectionCast {
         if self.reindex && !json.is_array() && !json.is_object() {
             return Err(invalid());
         }
-        self.encode(Collection::fromValue(json))
+        self.encode(Collection::fromValue(json), codec)
     }
 
-    pub(super) fn encode(self, values: Collection<Json>) -> DatabaseResult<Value> {
+    pub(super) fn encode(
+        self,
+        values: Collection<Json>,
+        codec: &super::Json,
+    ) -> DatabaseResult<Value> {
         let values = if self.reindex {
             values.values()
         } else {
             values
         };
-        values.toJson().map(Value::Text).map_err(|_| invalid())
-    }
-
-    pub(super) fn equivalent(current: &Value, original: &Value) -> bool {
-        super::JsonCollectionCast::equivalent(current, original)
+        codec
+            .encode(&values.toArray().map_err(|_| invalid())?)
+            .map(Value::Text)
     }
 }
 

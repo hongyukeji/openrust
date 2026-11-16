@@ -89,7 +89,9 @@ impl EncryptedCast {
                 .map(|value| Value::Text(value.to_owned()))
                 .map_err(|_| DatabaseError::InvalidQuery("encrypted attribute UTF-8"));
         }
-        let json = decode_json(&plain);
+        let json = super::Json::for_model(connection)?
+            .decode_bytes_lossy(&plain)?
+            .unwrap_or(Json::Null);
         if let Self::CollectionWith { factory, mapper } = self {
             return collection_cast::project_collection(
                 Collection::fromValue(json),
@@ -128,8 +130,9 @@ impl EncryptedCast {
         let plain = Zeroizing::new(if matches!(self, Self::String) {
             scalar_string(&value)?.into_bytes()
         } else {
-            serde_json::to_vec(&json_value(value)?)
-                .map_err(|_| DatabaseError::InvalidQuery("encrypted JSON attribute"))?
+            super::Json::for_model(connection)?
+                .encode(&json_value(value)?)?
+                .into_bytes()
         });
         encrypter
             .encryptString(&plain)
@@ -154,7 +157,11 @@ impl EncryptedCast {
             | Self::ArrayObject
             | Self::CollectionObject
             | Self::CollectionWith { .. } => current.as_slice() == original.as_slice(),
-            _ => decode_json(&current) == decode_json(&original),
+            _ => {
+                let codec = super::Json::for_model(connection)?;
+                codec.decode_bytes_lossy(&current)?.unwrap_or(Json::Null)
+                    == codec.decode_bytes_lossy(&original)?.unwrap_or(Json::Null)
+            }
         })
     }
 }
@@ -162,7 +169,8 @@ impl EncryptedCast {
 pub(super) fn read_json(raw: &Value, connection: Option<&Connection>) -> DatabaseResult<Json> {
     let encrypter = encrypter(connection).map_err(decryption_unavailable)?;
     let plain = decrypt(raw, encrypter.as_ref())?;
-    serde_json::from_slice(&plain).map_err(|_| super::json_path::invalid())
+    let text = std::str::from_utf8(&plain).map_err(|_| super::json_path::invalid())?;
+    super::Json::for_model(connection)?.decode(text)
 }
 
 fn decrypt(raw: &Value, encrypter: &dyn Encrypter) -> DatabaseResult<Zeroizing<Vec<u8>>> {
@@ -175,10 +183,6 @@ fn decrypt(raw: &Value, encrypter: &dyn Encrypter) -> DatabaseResult<Zeroizing<V
         .decryptString(raw)
         .map(Zeroizing::new)
         .map_err(DatabaseError::AttributeDecryption)
-}
-
-fn decode_json(plain: &[u8]) -> Json {
-    serde_json::from_slice(plain).unwrap_or(Json::Null)
 }
 
 fn encrypter(

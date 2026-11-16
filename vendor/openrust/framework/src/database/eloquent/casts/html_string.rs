@@ -10,7 +10,7 @@ pub struct AsHtmlString;
 
 impl AsHtmlString {
     pub const fn cast() -> AttributeCast {
-        ValueObjectCast::with_assignment::<HtmlString>(|value| match value {
+        ValueObjectCast::with_assignment::<HtmlString>(|value, _| match value {
             Value::Null | Value::Text(_) => Ok(value),
             other => scalar_string(&other).map(Value::Text),
         })

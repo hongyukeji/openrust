@@ -12,6 +12,7 @@ mod enum_collection;
 mod fluent;
 mod hashed;
 mod html_string;
+mod json;
 mod json_path;
 mod primitive;
 mod stringable;
@@ -30,11 +31,13 @@ pub use enum_cast::{CastableEnum, EnumCast};
 pub use enum_collection::{AsEnumArrayObject, AsEnumCollection, EnumCollectionCast};
 pub use fluent::AsFluent;
 pub use html_string::AsHtmlString;
+pub use json::Json;
 pub use primitive::AttributeCast;
 pub use stringable::AsStringable;
 pub use uri::AsUri;
 pub(super) use value_object::ValueObjects;
 pub use value_object::{CastableObject, ValueObjectCast};
+pub(super) use value_object::{read_object, write_object};
 pub use vector::AsVector;
 
 use std::{collections::BTreeMap, sync::Arc};
@@ -78,7 +81,7 @@ impl CastOverrides {
 pub(super) fn cast_pivot_key<M: Model>(name: &str, value: Value) -> DatabaseResult<Value> {
     match cast_for::<M>(name, &CastOverrides::default()) {
         Some(cast @ (AttributeCast::Integer | AttributeCast::String | AttributeCast::Enum(_))) => {
-            cast.read(&value)
+            cast.read(&value, None)
         }
         _ => Ok(value),
     }
@@ -191,9 +194,12 @@ pub(super) fn read_enum_collection<M: Model, E: CastableEnum>(
     let cast = enum_collection_for::<M>(name, &state.casts)?;
     let raw = state.attributes.get(name);
     if let Some(getter) = M::attribute(name).and_then(|attribute| attribute.get) {
-        return cast.read_typed(&getter(raw, &state.attributes)?);
+        return cast.read_typed(&getter(raw, &state.attributes)?, &Json::DEFAULT);
     }
-    cast.read_typed(raw.unwrap_or(&Value::Null))
+    cast.read_typed(
+        raw.unwrap_or(&Value::Null),
+        &Json::for_model(state.connection.as_ref())?,
+    )
 }
 
 pub(super) fn write_enum_collection<M: Model, E: CastableEnum>(
@@ -212,7 +218,8 @@ pub(super) fn write_enum_collection<M: Model, E: CastableEnum>(
             .map_err(|_| DatabaseError::InvalidQuery("enum collection attribute"))?;
         model.setAttributeValue(name, Value::Json(values))?;
     } else {
-        model.setAttribute(name, cast.encode(values)?);
+        let codec = Json::for_model(model.state().connection.as_ref())?;
+        model.setAttribute(name, cast.encode(values, &codec)?);
     }
     Ok(())
 }
@@ -235,12 +242,15 @@ pub(super) fn read_json_collection<M: Model>(
     let cast = json_collection_for::<M>(name, &state.casts)?;
     let raw = state.attributes.get(name);
     if let Some(getter) = M::attribute(name).and_then(|attribute| attribute.get) {
-        return Ok(collection_cast::decode_collection(&getter(
-            raw,
-            &state.attributes,
-        )?));
+        return collection_cast::decode_collection(
+            &getter(raw, &state.attributes)?,
+            &Json::DEFAULT,
+        );
     }
-    cast.collection(raw.unwrap_or(&Value::Null))
+    cast.collection(
+        raw.unwrap_or(&Value::Null),
+        &Json::for_model(state.connection.as_ref())?,
+    )
 }
 
 pub(super) fn write_json_collection<M: Model, T: serde::Serialize>(
@@ -249,16 +259,8 @@ pub(super) fn write_json_collection<M: Model, T: serde::Serialize>(
     values: Collection<T>,
 ) -> DatabaseResult<()> {
     json_collection_for::<M>(name, &model.state().casts)?;
-    if M::attribute(name)
-        .and_then(|attribute| attribute.set)
-        .is_some()
-    {
-        let value = values.toArray().map_err(|_| collection_cast::invalid())?;
-        model.setAttributeValue(name, Value::Json(value))?;
-    } else {
-        let value = values.toJson().map_err(|_| collection_cast::invalid())?;
-        model.setAttribute(name, Value::Text(value));
-    }
+    let value = values.toArray().map_err(|_| collection_cast::invalid())?;
+    model.setAttributeValue(name, Value::Json(value))?;
     Ok(())
 }
 
@@ -270,9 +272,9 @@ pub(super) fn read<M: Model>(state: &ModelState, name: &str) -> DatabaseResult<O
         return accessor(raw, attributes).map(Some);
     }
     match (raw, cast_for::<M>(name, &state.casts)) {
-        (_, Some(AttributeCast::Object(cast))) => {
-            cast.read(name, attributes, state.value_objects()).map(Some)
-        }
+        (_, Some(AttributeCast::Object(cast))) => cast
+            .read(name, attributes, state.value_objects(), connection)
+            .map(Some),
         (raw, Some(AttributeCast::Custom(caster))) => caster.get(name, raw, attributes).map(Some),
         (raw, Some(AttributeCast::Class(cast))) => cast.resolve()?.read(name, raw, attributes),
         (raw, Some(AttributeCast::Inbound(_))) => Ok(raw.cloned()),
@@ -287,7 +289,7 @@ pub(super) fn read<M: Model>(state: &ModelState, name: &str) -> DatabaseResult<O
                 | AttributeCast::Timestamp),
             ),
         ) => date::read(cast, raw, timezone(connection), M::metadata().date_format).map(Some),
-        (Some(raw), Some(cast)) => cast.read(raw).map(Some),
+        (Some(raw), Some(cast)) => cast.read(raw, connection).map(Some),
         _ => Ok(raw.cloned()),
     }
 }
@@ -400,16 +402,13 @@ pub(super) fn equivalent<M: Model>(
                 == date::read(cast, original, timezone, format)?)
         }
         Some(AttributeCast::Enum(_)) | None => Ok(primitive::numeric_equivalent(current, original)),
-        Some(AttributeCast::EnumCollection(_)) => {
-            Ok(EnumCollectionCast::equivalent(current, original))
-        }
-        Some(AttributeCast::JsonCollection(_)) => {
-            Ok(JsonCollectionCast::equivalent(current, original))
+        Some(AttributeCast::EnumCollection(_) | AttributeCast::JsonCollection(_)) => {
+            JsonCollectionCast::equivalent(current, original, &Json::for_model(connection)?)
         }
         Some(AttributeCast::Object(_) | AttributeCast::Binary(_) | AttributeCast::Vector) => {
             Ok(false)
         }
-        Some(cast) => cast.equivalent(current, original),
+        Some(cast) => cast.equivalent(current, original, connection),
     }
 }
 
@@ -441,7 +440,7 @@ pub(super) fn write<M: Model>(
             return write_json_path::<M>(attributes, &name, value, connection, overrides);
         }
         let value = match cast {
-            Some(AttributeCast::Object(cast)) => cast.assign(value)?,
+            Some(AttributeCast::Object(cast)) => cast.assign(value, connection)?,
             Some(AttributeCast::Encrypted(cast)) => cast.write(value, connection)?,
             Some(AttributeCast::Hashed) => hashed::write(value, connection)?,
             Some(
@@ -450,7 +449,7 @@ pub(super) fn write<M: Model>(
                 | AttributeCast::DateWithFormat(_)
                 | AttributeCast::DateTimeWithFormat(_),
             ) => date::store(value, timezone(connection), M::metadata().date_format)?,
-            Some(cast) => cast.write(value)?,
+            Some(cast) => cast.write(value, connection)?,
             None => value,
         };
         attributes.insert(name, value);

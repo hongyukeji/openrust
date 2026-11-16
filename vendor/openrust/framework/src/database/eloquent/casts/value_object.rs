@@ -3,9 +3,9 @@ use std::{
     collections::BTreeMap,
 };
 
-use crate::database::{DatabaseError, DatabaseResult, Value, eloquent::Attributes};
+use crate::database::{Connection, DatabaseError, DatabaseResult, Value, eloquent::Attributes};
 
-use super::{AttributeCast, CastWrite};
+use super::{AttributeCast, CastWrite, Json};
 
 /// Maps a Rust value object to model columns and a serializable value.
 ///
@@ -13,6 +13,8 @@ use super::{AttributeCast, CastWrite};
 #[allow(non_snake_case, reason = "Matches Laravel's Eloquent naming")]
 pub trait CastableObject: Clone + Send + Sync + 'static {
     const WITHOUT_OBJECT_CACHING: bool = false;
+    /// Resolves the application's codec for the JSON-specific read and write methods.
+    const USES_JSON_CODEC: bool = false;
 
     fn fromAttributes(name: &str, raw: &Attributes) -> DatabaseResult<Option<Self>>;
     fn toAttributes(
@@ -21,11 +23,28 @@ pub trait CastableObject: Clone + Send + Sync + 'static {
         raw: &Attributes,
     ) -> DatabaseResult<CastWrite>;
     fn serialize(&self) -> DatabaseResult<Value>;
+
+    fn fromAttributesWithJson(
+        name: &str,
+        raw: &Attributes,
+        _codec: &Json,
+    ) -> DatabaseResult<Option<Self>> {
+        Self::fromAttributes(name, raw)
+    }
+
+    fn toAttributesWithJson(
+        value: Option<&Self>,
+        name: &str,
+        raw: &Attributes,
+        _codec: &Json,
+    ) -> DatabaseResult<CastWrite> {
+        Self::toAttributes(value, name, raw)
+    }
 }
 
 type Object = dyn Any + Send + Sync;
-type Read = fn(&str, &Attributes) -> DatabaseResult<Value>;
-type Assign = fn(Value) -> DatabaseResult<Value>;
+type Read = fn(&str, &Attributes, Option<&Connection>) -> DatabaseResult<Value>;
+type Assign = fn(Value, Option<&Connection>) -> DatabaseResult<Value>;
 
 /// Registers a typed value object in the model cast declarations.
 #[derive(Clone, Copy)]
@@ -48,16 +67,21 @@ impl ValueObjectCast {
     const fn build<T: CastableObject>(assign: Option<Assign>) -> AttributeCast {
         AttributeCast::Object(Self {
             object_type: TypeId::of::<T>,
-            read: |name, raw| {
-                T::fromAttributes(name, raw)?.map_or(Ok(Value::Null), |value| value.serialize())
+            read: |name, raw, connection| {
+                read_object::<T>(name, raw, connection)?
+                    .map_or(Ok(Value::Null), |value| value.serialize())
             },
             project: |value| value.downcast_ref::<T>().ok_or_else(invalid)?.serialize(),
             assign,
         })
     }
 
-    pub(super) fn assign(self, value: Value) -> DatabaseResult<Value> {
-        self.assign.ok_or_else(invalid)?(value)
+    pub(super) fn assign(
+        self,
+        value: Value,
+        connection: Option<&Connection>,
+    ) -> DatabaseResult<Value> {
+        self.assign.ok_or_else(invalid)?(value, connection)
     }
 
     pub(super) fn check<T: CastableObject>(self) -> DatabaseResult<()> {
@@ -73,11 +97,37 @@ impl ValueObjectCast {
         name: &str,
         attributes: &Attributes,
         cache: &ValueObjects,
+        connection: Option<&Connection>,
     ) -> DatabaseResult<Value> {
         match cache.entries.get(name) {
             Some(value) => (self.project)(value.value.as_ref()),
-            None => (self.read)(name, attributes),
+            None => (self.read)(name, attributes, connection),
         }
+    }
+}
+
+pub(in crate::database::eloquent) fn read_object<T: CastableObject>(
+    name: &str,
+    raw: &Attributes,
+    connection: Option<&Connection>,
+) -> DatabaseResult<Option<T>> {
+    if T::USES_JSON_CODEC {
+        T::fromAttributesWithJson(name, raw, &Json::for_model(connection)?)
+    } else {
+        T::fromAttributes(name, raw)
+    }
+}
+
+pub(in crate::database::eloquent) fn write_object<T: CastableObject>(
+    value: Option<&T>,
+    name: &str,
+    raw: &Attributes,
+    connection: Option<&Connection>,
+) -> DatabaseResult<CastWrite> {
+    if T::USES_JSON_CODEC {
+        T::toAttributesWithJson(value, name, raw, &Json::for_model(connection)?)
+    } else {
+        T::toAttributes(value, name, raw)
     }
 }
 

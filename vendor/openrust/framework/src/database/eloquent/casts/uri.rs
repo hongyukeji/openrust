@@ -10,7 +10,7 @@ pub struct AsUri;
 
 impl AsUri {
     pub const fn cast() -> AttributeCast {
-        ValueObjectCast::with_assignment::<Uri>(|value| match value {
+        ValueObjectCast::with_assignment::<Uri>(|value, _| match value {
             Value::Null | Value::Text(_) => Ok(value),
             other => scalar_string(&other).map(Value::Text),
         })

@@ -135,3 +135,9 @@
 - 对照固定 Laravel `AsEncryptedCollection` 的先解密、再构造集合并逐项映射的顺序，复用旧版 `6d1a8192` 的应用加密器和集合工厂契约。Rust 使用现有类型化 Serde 转换、集合工厂及带键回调，公开 `of`、`using` 和 `map`。映射结果用于读取和模型 JSON，直接赋值仍加密传入的值。 [固定 Laravel 实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Casts/AsEncryptedCollection.php)
 - SQLite 及真实 MySQL 8.4.13 核对键顺序、工厂先于映射执行、标量包装、SQL NULL、映射失败保留属性、相同原始明文不触发写入、密钥轮换、JSON 路径改写和新密钥直接解密后的完整原文。9 项数据库及实际 HTTP 回归、严格 Clippy、实际 `./artisan inspire`、三语示例编译及 15 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 - 核心账本仍待审计 JSON 编解码定制接口及应用隔离。
+
+## 05-03 整单元验收
+
+- 对照固定 Laravel 的 `Casts\Json`、`HasAttributes` 以及数组、集合、枚举、Fluent 和加密类转换，复用旧版 `6d1a8192` 的独立编码、解码回调契约。Rust 注册应用级 `Json`，已绑定连接以连接所属应用为准。回调处理 Serde 值及 UTF-8 文本，Laravel 的 PHP 数组模式及编码 flags 由类型和回调表达。模型输出 JSON 沿用原有序列化入口。 [固定 Laravel 源码](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Casts/Json.php)
+- SQLite 和 MySQL 8.4.13 同库三应用运行两种自定义格式和默认格式，覆盖并发创建及读取、跨应用解码失败、MySQL 原生 JSON、嵌套路径、类型化集合和 Fluent 写入、失败保留原值及模型 JSON 输出。完成 19 项双库及真实 HTTP 回归、Rust 1.94.0 格式及全目标全特性严格 Clippy、实际 `./artisan inspire`、三语编解码示例执行、站点构建及 18 项浏览器检查。既有 Sanctum 格式差异仅在隔离副本处理。
+- 依据 05-03 的交付矩阵，前置 05-01 已闭合。两种数据库的综合模型测试复验访问器、修改器、声明和查询级转换、值对象及缓存、日期格式、隐藏及追加字段、集合与模型 JSON。HTTP 回归复验序列化、编码失败和恢复。类型化 Rust 对象取代 PHP 动态对象引用；应用容器绑定承担 Laravel 静态加密器与 JSON 回调的职责。MariaDB 和 PostgreSQL 原生向量列由相应驱动发布矩阵跟踪，URI 修改工具由 Support 单元覆盖。05-03 核心闭合。
