@@ -153,6 +153,35 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 展开嵌套条目 {#lazy-expanding-nested-items}
+
+`collapse` 展开一层嵌套的惰性集合、实体集合、向量或数组，并重新编号。`collapseWithKeys` 保留内部键，实体化时同键的最后一个值生效。`flatMap` 将每个条目映射成一组，再展开。对于 JSON 值，`flatten(Some(depth))` 按指定深度展开数组和对象并保留标量。用 `None` 展开全部层级。
+
+```rust
+use openrust::support::{Collection, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let groups = LazyCollection::make(|| {
+        [
+            Collection::fromEntries([("first", 1)]),
+            Collection::fromEntries([("second", 2)]),
+        ]
+    });
+    assert_eq!(
+        groups.collapseWithKeys().collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+
+    let doubled = LazyCollection::make(|| [1, 3]).flatMap(|value, _| [*value, value * 2]);
+    assert_eq!(doubled.collect()?.toJson()?, "[1,2,3,6]");
+
+    let nested = LazyCollection::make(|| [json!([1, [2]]), json!(3)]);
+    assert_eq!(nested.flatten(None).collect()?.toJson()?, "[1,2,3]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

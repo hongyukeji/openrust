@@ -153,6 +153,35 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 展開巢狀項目 {#lazy-expanding-nested-items}
+
+`collapse` 展開一層巢狀的惰性集合、實體集合、向量或陣列，並重新編號。`collapseWithKeys` 保留內部鍵，實體化時同鍵的最後一個值生效。`flatMap` 將每個項目映射成一組，再展開。對於 JSON 值，`flatten(Some(depth))` 按指定深度展開陣列與物件並保留純量。用 `None` 展開所有層級。
+
+```rust
+use openrust::support::{Collection, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let groups = LazyCollection::make(|| {
+        [
+            Collection::fromEntries([("first", 1)]),
+            Collection::fromEntries([("second", 2)]),
+        ]
+    });
+    assert_eq!(
+        groups.collapseWithKeys().collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+
+    let doubled = LazyCollection::make(|| [1, 3]).flatMap(|value, _| [*value, value * 2]);
+    assert_eq!(doubled.collect()?.toJson()?, "[1,2,3,6]");
+
+    let nested = LazyCollection::make(|| [json!([1, [2]]), json!(3)]);
+    assert_eq!(nested.flatten(None).collect()?.toJson()?, "[1,2,3]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

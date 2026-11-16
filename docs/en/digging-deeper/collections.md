@@ -153,6 +153,35 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Expanding Nested Items {#lazy-expanding-nested-items}
+
+`collapse` expands one level of nested lazy collections, materialized collections, vectors, or arrays and reindexes the values. `collapseWithKeys` keeps inner keys, and the last value for a repeated key wins on materialization. `flatMap` maps each item to a group and then collapses it. For JSON values, `flatten(Some(depth))` expands arrays and objects to the given depth and keeps scalars. Use `None` to expand all levels.
+
+```rust
+use openrust::support::{Collection, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let groups = LazyCollection::make(|| {
+        [
+            Collection::fromEntries([("first", 1)]),
+            Collection::fromEntries([("second", 2)]),
+        ]
+    });
+    assert_eq!(
+        groups.collapseWithKeys().collect()?.toJson()?,
+        r#"{"first":1,"second":2}"#
+    );
+
+    let doubled = LazyCollection::make(|| [1, 3]).flatMap(|value, _| [*value, value * 2]);
+    assert_eq!(doubled.collect()?.toJson()?, "[1,2,3,6]");
+
+    let nested = LazyCollection::make(|| [json!([1, [2]]), json!(3)]);
+    assert_eq!(nested.flatten(None).collect()?.toJson()?, "[1,2,3]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

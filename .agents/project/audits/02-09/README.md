@@ -47,3 +47,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 正向 `slice` 保留键并按需读取。负偏移或负长度按 Laravel 先实体化并去重，再按位置切片。`nth` 禁止零步长，选取结果重新编号，选取间隔中的来源错误依然传播。
 - `keys` 产出原键并保留重复项。`concat` 接受另一个同值类型的惰性集合，读完第一来源才打开第二来源，合并结果重新编号。Rust 的 `chunkBy` 使用回调提取待比较的值，保留组内原键。PHP 字符串字段路径由 Rust 回调表达。
 - PHP 8.5.12 固定源码对照、23 项集合测试、三语共用 Rust 示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性嵌套集合展开
+
+对照固定 Laravel 的 [collapse 与 collapseWithKeys](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L206)、[flatten](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L497) 和 [flatMap](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L464)。旧版未发现同契约，沿用当前实体集合到惰性集合的转换。
+
+- `collapse` 展开一层，重排索引。`collapseWithKeys` 保留内部键和顺序，重复键在实体化前可逐项读取。`flatMap` 先映射到分组，再展开。Rust 用类型约束接受惰性集合、实体集合、向量和数组。
+- `flatten` 对 JSON 按指定层级展开数组和对象，对标量直接产出。每次遍历复用一个栈，逐项移动已拥有的 JSON 值。嵌套来源按需打开，错误立即结束遍历。
+- PHP 8.5.12 固定源码对照、26 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

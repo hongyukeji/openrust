@@ -384,3 +384,92 @@ fn chunk_by_projects_typed_values_and_keys() {
     assert_eq!(groups[0].1.toJson().unwrap(), r#"{"a":4,"b":7}"#);
     assert_eq!(groups[1].1.toJson().unwrap(), r#"{"c":11}"#);
 }
+
+#[test]
+fn lazy_collapse_preserves_or_reindexes_keys_without_opening_later_groups() {
+    let opened = Cell::new(0);
+    let groups = LazyCollection::make(|| {
+        [
+            LazyCollection::fromEntries(|| [("same", 1), ("first", 2)]),
+            LazyCollection::fromEntries(|| {
+                opened.set(opened.get() + 1);
+                [("same", 3), ("last", 4)]
+            }),
+        ]
+    });
+    let keyed = groups.clone().collapseWithKeys();
+    let mut iterator = keyed.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), ("same".into(), 1));
+    assert_eq!(iterator.next().unwrap().unwrap(), ("first".into(), 2));
+    assert_eq!(opened.get(), 0);
+    assert_eq!(iterator.next().unwrap().unwrap(), ("same".into(), 3));
+    assert_eq!(opened.get(), 1);
+    assert_eq!(
+        keyed.collect().unwrap().toJson().unwrap(),
+        r#"{"same":3,"first":2,"last":4}"#
+    );
+    assert_eq!(
+        groups.collapse().collect().unwrap().toJson().unwrap(),
+        "[1,2,3,4]"
+    );
+}
+
+#[test]
+fn lazy_flat_map_flattens_one_level_and_propagates_nested_failures() {
+    let calls = Cell::new(0);
+    let mapped = LazyCollection::make(|| [1, 2]).flatMap(|value, _| {
+        calls.set(calls.get() + 1);
+        Collection::fromEntries([("single", *value), ("double", value * 2)])
+    });
+    assert_eq!(mapped.clone().take(1).all().unwrap(), vec![(0.into(), 1)]);
+    assert_eq!(calls.get(), 1);
+    assert_eq!(mapped.collect().unwrap().toJson().unwrap(), "[1,2,2,4]");
+    assert_eq!(
+        LazyCollection::make(|| [[1, 2], [3, 4]])
+            .collapse()
+            .count()
+            .unwrap(),
+        4
+    );
+    let nested = LazyCollection::make(|| {
+        [LazyCollection::tryMake(|| {
+            [Ok(1), Err(source_error()), Ok(3)]
+        })]
+    });
+    let flattened = nested.collapse();
+    let mut iterator = flattened.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), 1));
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+}
+
+#[test]
+fn lazy_flatten_respects_depth_and_keeps_scalar_values() {
+    use serde_json::json;
+
+    let read = Cell::new(0);
+    let source = LazyCollection::make(|| {
+        [json!({"a": [1, [2]], "b": 3}), json!(null)]
+            .into_iter()
+            .inspect(|_| read.set(read.get() + 1))
+    });
+    let one = source.clone().flatten(Some(1));
+    assert_eq!(one.clone().take(1).first().unwrap(), Some(json!([1, [2]])));
+    assert_eq!(read.get(), 1);
+    assert_eq!(one.collect().unwrap().toJson().unwrap(), "[[1,[2]],3,null]");
+    assert_eq!(
+        source.flatten(None).collect().unwrap().toJson().unwrap(),
+        "[1,2,3,null]"
+    );
+
+    let failed = LazyCollection::tryMake(|| [Ok(json!([1])), Err(source_error())]).flatten(None);
+    let mut iterator = failed.getIterator();
+    assert_eq!(iterator.next().unwrap().unwrap(), (0.into(), json!(1)));
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+}
