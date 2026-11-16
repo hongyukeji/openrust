@@ -45,7 +45,7 @@
 
 ## 尚未验收的范围
 
-- Strings 仍需逐项核对 多语言词形及 COMB 标识符。
+- Strings 的 COMB 标识符待验收。
 - Helpers 的运行时适配边界见各批验收记录。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
@@ -88,3 +88,8 @@
 
 - 对照固定 Pipeline 的阶段替换与追加、进入和退出顺序、短路、目的回调、原输入清理和事务。类型化 Rust 阶段接收一次性 `Next`，选择显式调用或提前返回。事务复用现有连接及回滚机制，阶段通过 `next.context()` 借用同一事务。服务与方法通过类型化回调显式绑定，PHP 类名字符串及方法反射属适配差异。旧版未找到通用 Pipeline 实现。 [固定 Pipeline](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Pipeline/Pipeline.php)
 - 固定 PHP 对照嵌套顺序、短路和原输入清理。Rust 1.94.0 锁定离线定向测试与严格 Clippy 通过。真实 Artisan 和回环 HTTP 各验证一个 SQLite 提交与回滚，事务结束后只剩已提交行。三语示例实际运行，VitePress 构建通过。
+
+## 多语言词形变化
+
+- 按固定 Laravel Pluralizer 和其声明兼容的 Doctrine Inflector 2.1.0 核对词形规则。规则数据保留原顺序、不可变项及不规则替换，附 MIT 许可。通过 `InflectionLanguage` 逐次显式选用语言，默认英语。Rust 使用 Unicode 正则，英语 regatta 的后向例外按后缀判断。旧版未发现多语言规则实现。 [固定 Pluralizer](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Pluralizer.php) [Doctrine 2.1.0 规则](https://github.com/doctrine/inflector/tree/2.1.0/src/Rules)
+- PHP 8.5.12 运行固定 Laravel 的八语言 46 词矩阵，核对复数、回转单数和计数边界。10 项 Rust 定向测试及严格 Clippy 通过。真实 Artisan、回环 HTTP 和三语 VitePress 构建通过。

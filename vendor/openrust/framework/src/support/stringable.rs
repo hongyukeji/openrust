@@ -228,6 +228,26 @@ impl Stringable {
         Self(super::Str::pluralPascal(&self.0, count))
     }
 
+    pub fn pluralIn(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::pluralIn(&self.0, count, language))
+    }
+
+    pub fn singularIn(self, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::singularIn(&self.0, language))
+    }
+
+    pub fn pluralStudlyIn(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::pluralStudlyIn(&self.0, count, language))
+    }
+
+    pub fn pluralPascalIn(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::pluralPascalIn(&self.0, count, language))
+    }
+
+    pub fn countedIn(self, count: i64, language: super::InflectionLanguage) -> Self {
+        Self(super::Str::countedIn(&self.0, count, language))
+    }
+
     pub fn counted(self, count: i64) -> Self {
         Self(super::Str::counted(&self.0, count))
     }

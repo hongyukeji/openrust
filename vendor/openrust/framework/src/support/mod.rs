@@ -47,7 +47,7 @@ pub use number::{Number, NumberError, NumberValue};
 pub use service_provider::{ProviderFactory, ProviderResult, ServiceProvider};
 pub use sleep::{Sleep, SleepFake};
 pub use stringable::Stringable;
-pub use strings::{EmptyPasswordAlphabet, PasswordOptions, Str, WordWrapError};
+pub use strings::{EmptyPasswordAlphabet, InflectionLanguage, PasswordOptions, Str, WordWrapError};
 pub use timebox::Timebox;
 pub use uri::{InvalidUri, Uri, UriQueryString};
 pub use view_error_bag::ViewErrorBag;

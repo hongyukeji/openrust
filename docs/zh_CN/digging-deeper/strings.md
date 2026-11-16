@@ -19,7 +19,7 @@ assert_eq!(Str::transliterate("München"), "Munchen");
 
 `Str::markdown` 渲染 GitHub 风格 Markdown，支持表格、删除线和任务列表。用 `inlineMarkdown` 渲染行内文本并省去段落标签。默认转义输入 HTML，并清除不安全的链接和图片 URL。`markdownWith` 和 `inlineMarkdownWith` 接收 `MarkdownOptions`，可移除 HTML 或允许可信来源的 HTML。
 
-`plural`、`singular`、`pluralStudly` 和 `pluralPascal` 使用英语词形。`counted` 加上按英语分组的整数数量。Rust 使用 pulldown-cmark 与 pluralizer，Laravel 使用 PHP CommonMark 扩展，并支持按语言环境格式化和 Doctrine 词形变化。
+`plural`、`singular`、`pluralStudly` 和 `pluralPascal` 使用英语词形。`counted` 加上按英语分组的整数数量。Rust 渲染使用 pulldown-cmark。词形变化采用 Doctrine 规则，默认使用英语。
 
 ```rust
 use openrust::support::Str;
@@ -86,4 +86,18 @@ assert_eq!(
         .to_string(),
     "Privet ni hao"
 );
+```
+
+## 按语言转换词形 {#word-inflection}
+
+`pluralIn`、`singularIn`、`pluralStudlyIn`、`pluralPascalIn` 和 `countedIn` 接收 `InflectionLanguage`。规则覆盖英语、世界语、法语、意大利语、书面挪威语、葡萄牙语、西班牙语和土耳其语。`Str` 和 `Stringable` 均可逐次指定语言。
+
+```rust
+use openrust::support::{InflectionLanguage, Str};
+
+let french = Str::of("cheval").pluralIn(2, InflectionLanguage::French).to_string();
+let turkish = Str::pluralIn("araba", 2, InflectionLanguage::Turkish);
+assert_eq!(french, "chevaux");
+assert_eq!(turkish, "arabalar");
+assert_eq!(Str::plural("child", 2), "children");
 ```

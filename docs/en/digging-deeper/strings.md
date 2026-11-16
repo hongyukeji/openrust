@@ -19,7 +19,7 @@ assert_eq!(Str::transliterate("München"), "Munchen");
 
 `Str::markdown` renders GitHub-flavored Markdown, including tables, strikethrough and task lists. For inline text, use `inlineMarkdown` to omit paragraph wrappers. The default escapes input HTML and clears unsafe link and image URLs. `markdownWith` and `inlineMarkdownWith` take `MarkdownOptions` to strip HTML or allow HTML from a trusted source.
 
-`plural`, `singular`, `pluralStudly` and `pluralPascal` use English inflection. `counted` adds an integer count with English digit grouping. The Rust renderer uses pulldown-cmark and the inflector uses pluralizer. Laravel uses PHP CommonMark extensions and supports locale selection and Doctrine inflection.
+`plural`, `singular`, `pluralStudly` and `pluralPascal` use English inflection. `counted` adds an integer count with English digit grouping. The Rust renderer uses pulldown-cmark. Word inflection uses Doctrine rules and defaults to English.
 
 ```rust
 use openrust::support::Str;
@@ -86,4 +86,18 @@ assert_eq!(
         .to_string(),
     "Privet ni hao"
 );
+```
+
+## Word inflection by language {#word-inflection}
+
+Pass an `InflectionLanguage` to `pluralIn`, `singularIn`, `pluralStudlyIn`, `pluralPascalIn`, or `countedIn`. Rules cover English, Esperanto, French, Italian, Norwegian Bokmål, Portuguese, Spanish, and Turkish. Both `Str` and `Stringable` accept the language per call.
+
+```rust
+use openrust::support::{InflectionLanguage, Str};
+
+let french = Str::of("cheval").pluralIn(2, InflectionLanguage::French).to_string();
+let turkish = Str::pluralIn("araba", 2, InflectionLanguage::Turkish);
+assert_eq!(french, "chevaux");
+assert_eq!(turkish, "arabalar");
+assert_eq!(Str::plural("child", 2), "children");
 ```

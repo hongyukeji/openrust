@@ -4,12 +4,14 @@ use std::{collections::BTreeMap, sync::OnceLock};
 use super::{MarkdownOptions, Stringable, markdown};
 
 mod display_width;
+mod inflection;
 mod pattern;
 mod random;
 mod slug;
 mod strict_transliteration;
 mod text_layout;
 
+pub use inflection::InflectionLanguage;
 pub use random::{EmptyPasswordAlphabet, PasswordOptions};
 pub use text_layout::WordWrapError;
 
@@ -558,38 +560,49 @@ impl Str {
 
     /// Inflects an English noun unless the count is 1 or -1.
     pub fn plural(value: &str, count: i64) -> String {
-        if count.unsigned_abs() == 1
-            || value.eq_ignore_ascii_case("recommended")
-            || value.eq_ignore_ascii_case("related")
-            || !value.chars().next_back().is_some_and(|end| {
-                end.is_ascii_alphanumeric() || ('\u{80}'..='\u{ffff}').contains(&end)
-            })
-        {
-            return value.to_owned();
-        }
-        pluralizer::pluralize(value, 2, false)
+        Self::pluralIn(value, count, InflectionLanguage::English)
+    }
+
+    pub fn pluralIn(value: &str, count: i64, language: InflectionLanguage) -> String {
+        language.plural(value, count)
     }
 
     pub fn singular(value: &str) -> String {
-        pluralizer::pluralize(value, 1, false)
+        Self::singularIn(value, InflectionLanguage::English)
+    }
+
+    pub fn singularIn(value: &str, language: InflectionLanguage) -> String {
+        language.singular(value)
     }
 
     pub fn pluralStudly(value: &str, count: i64) -> String {
+        Self::pluralStudlyIn(value, count, InflectionLanguage::English)
+    }
+
+    pub fn pluralStudlyIn(value: &str, count: i64, language: InflectionLanguage) -> String {
         let start = value
             .char_indices()
             .rev()
             .find(|(_, char)| char.is_ascii_uppercase())
             .map_or(0, |(start, _)| start);
         let (prefix, last) = value.split_at(start);
-        format!("{prefix}{}", Self::plural(last, count))
+        format!("{prefix}{}", Self::pluralIn(last, count, language))
     }
 
     pub fn pluralPascal(value: &str, count: i64) -> String {
         Self::pluralStudly(value, count)
     }
 
+    pub fn pluralPascalIn(value: &str, count: i64, language: InflectionLanguage) -> String {
+        Self::pluralStudlyIn(value, count, language)
+    }
+
     /// Formats a counted English noun with English digit grouping.
     pub fn counted(value: &str, count: i64) -> String {
+        Self::countedIn(value, count, InflectionLanguage::English)
+    }
+
+    pub fn countedIn(value: &str, count: i64, language: InflectionLanguage) -> String {
         let digits = count.unsigned_abs().to_string();
         let mut output = String::new();
         if count.is_negative() {
@@ -602,7 +615,7 @@ impl Str {
             output.push(char::from(digit));
         }
         output.push(' ');
-        output.push_str(&Self::plural(value, count));
+        output.push_str(&Self::pluralIn(value, count, language));
         output
     }
 
