@@ -1037,6 +1037,24 @@ fn main() {
 
 自訂屬性可以實作 `resolveAsync` 來等待相依服務。透過 `whenHasAttribute` 登記的覆寫解析器在同步和非同步路徑中均優先使用。
 
+### 服務管理器屬性 {#service-manager-attributes}
+
+建構函式或方法參數可宣告 `Cache`、`Database` 或 `DB`、`Log` 和 `Storage`。屬性從目前容器解析管理器，使用預設服務或傳入 `new` 的名稱。
+
+注入型別依序為 `Arc<cache::Repository>`、`Arc<database::Connection>`、`Arc<log::Logger>` 與 `Arc<filesystem::FilesystemAdapter>`。`Cache::memoized()` 在目前作用域共用快取讀取結果。`Log::named()` 修改注入記錄器的名稱，同時沿用頻道的處理器。
+
+```rust
+use openrust::{
+    container::{ClassAttribute, ConstructorParam, attributes::Storage},
+    filesystem::FilesystemAdapter,
+};
+
+pub fn private_disk_parameter() -> ConstructorParam {
+    ConstructorParam::class::<FilesystemAdapter>("disk")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Storage::new("private"))))
+}
+```
+
 ### 請求屬性與路由參數
 
 使用 `RequestAttribute::new("principal")` 注入伺服器透過 `request.attributes().insert("principal", ParameterValue::new(value))` 寫入的值。名稱精確比對。請求標頭、查詢參數與表單欄位分別讀取。

@@ -1037,6 +1037,24 @@ fn main() {
 
 Custom attributes can implement `resolveAsync` when they need to await a dependency. An existing `whenHasAttribute` override retains precedence in both resolution modes.
 
+### Service Manager Attributes {#service-manager-attributes}
+
+Use `Cache`, `Database` or `DB`, `Log`, and `Storage` on constructor or method parameters. Each attribute resolves the manager in the current container and selects its default service or the name passed to `new`.
+
+The injected types are `Arc<cache::Repository>`, `Arc<database::Connection>`, `Arc<log::Logger>`, and `Arc<filesystem::FilesystemAdapter>`. `Cache::memoized()` shares memoized reads within the current scope. `Log::named()` changes the injected logger name while reusing the channel handlers.
+
+```rust
+use openrust::{
+    container::{ClassAttribute, ConstructorParam, attributes::Storage},
+    filesystem::FilesystemAdapter,
+};
+
+pub fn private_disk_parameter() -> ConstructorParam {
+    ConstructorParam::class::<FilesystemAdapter>("disk")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Storage::new("private"))))
+}
+```
+
 ### Request and Route Parameters
 
 Use `RequestAttribute::new("principal")` to inject a value that server-side code stored with `request.attributes().insert("principal", ParameterValue::new(value))`. Names match exactly. Headers, query parameters, and form fields are separate sources.

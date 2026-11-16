@@ -1037,6 +1037,24 @@ fn main() {
 
 自定义属性可以实现 `resolveAsync` 来等待依赖。通过 `whenHasAttribute` 登记的覆盖解析器在同步和异步路径中均优先使用。
 
+### 服务管理器属性 {#service-manager-attributes}
+
+构造函数或方法参数可声明 `Cache`、`Database` 或 `DB`、`Log` 和 `Storage`。属性从当前容器解析管理器，使用默认服务或传入 `new` 的名称。
+
+注入类型分别为 `Arc<cache::Repository>`、`Arc<database::Connection>`、`Arc<log::Logger>` 和 `Arc<filesystem::FilesystemAdapter>`。`Cache::memoized()` 在当前作用域共享缓存读取结果。`Log::named()` 修改注入日志器的名称，同时沿用频道的处理器。
+
+```rust
+use openrust::{
+    container::{ClassAttribute, ConstructorParam, attributes::Storage},
+    filesystem::FilesystemAdapter,
+};
+
+pub fn private_disk_parameter() -> ConstructorParam {
+    ConstructorParam::class::<FilesystemAdapter>("disk")
+        .withAttribute(ClassAttribute::contextual(|| Ok(Storage::new("private"))))
+}
+```
+
 ### 请求属性与路由参数
 
 使用 `RequestAttribute::new("principal")` 注入服务端通过 `request.attributes().insert("principal", ParameterValue::new(value))` 写入的值。名称精确匹配。请求头、查询参数和表单字段分别读取。

@@ -57,6 +57,19 @@ impl Logger {
         &self.name
     }
 
+    /// Returns a logger with the same handlers and context under a different name.
+    #[allow(non_snake_case, reason = "Matches Laravel's logger naming API")]
+    #[must_use]
+    pub fn withName(&self, name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            handlers: self.handlers.clone(),
+            replace_placeholders: self.replace_placeholders,
+            emergency: self.emergency.clone(),
+            context_owner: self.context_owner.clone(),
+        }
+    }
+
     pub fn log(&self, level: Level, message: &str, context: &LogContext) -> LogResult<()> {
         let extra = self
             .context_owner
