@@ -112,6 +112,31 @@ When the driver reports a lost connection while executing a statement outside a 
 
 An active transaction reports a disconnect to its caller. A streaming cursor can retry until it yields its first row. A write may execute twice if the server applied it before the response was lost.
 
+### Previewing Queries {#previewing-queries}
+
+Use `DB::pretend` or a named connection’s `pretend` to collect SQL without sending it to the server. Reads return an empty result, writes report success or zero affected rows according to the method, and query hooks and events still run. The returned entries contain rendered SQL and the original bindings. The preview keeps its own log and leaves the ordinary query log available for live operations.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, QueryLogEntry},
+    support::facades::DB,
+};
+
+async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
+    DB::pretend(|connection| {
+        Box::pin(async move {
+            connection
+                .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+The preview applies to the connection in the current async scope. Independently spawned tasks start outside that scope. Use `pretending()` to inspect the active mode, and `withoutPretending` to explicitly run live operations within a preview. Transaction lifecycle operations require a live scope.
+
 ### Callbacks Before Query Execution {#before-executing}
 
 Register `DB::beforeExecuting` on the default connection or call `beforeExecuting` on a named connection. The hooks receive the original SQL and bindings. They run in registration order before the database operation. An error stops the operation and the remaining hooks. A cursor calls the hooks on its first poll. Driver-level replay of the same query skips them.

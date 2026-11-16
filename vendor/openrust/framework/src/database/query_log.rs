@@ -1,6 +1,7 @@
 use std::{
+    future::Future,
     sync::{
-        Mutex,
+        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -8,7 +9,7 @@ use std::{
 
 use super::events::{QueryBindings, QueryRole};
 
-/// A successful query captured by a connection's optional query log.
+/// A query captured by a connection log or a preview.
 #[derive(Clone)]
 pub struct QueryLogEntry {
     pub query: String,
@@ -66,5 +67,37 @@ impl QueryLog {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clear();
+    }
+}
+
+#[derive(Clone)]
+pub(super) struct PreviewScope {
+    pub(super) connection: usize,
+    pub(super) dry: bool,
+    pub(super) log: Arc<QueryLog>,
+}
+
+tokio::task_local! {
+    static QUERY_PREVIEWS: Vec<PreviewScope>;
+}
+
+impl PreviewScope {
+    pub(super) fn current(connection: usize) -> Option<Self> {
+        QUERY_PREVIEWS
+            .try_with(|scopes| {
+                scopes
+                    .iter()
+                    .rev()
+                    .find(|scope| scope.connection == connection)
+                    .cloned()
+            })
+            .ok()
+            .flatten()
+    }
+
+    pub(super) async fn run<T>(self, work: impl Future<Output = T>) -> T {
+        let mut scopes = QUERY_PREVIEWS.try_with(Clone::clone).unwrap_or_default();
+        scopes.push(self);
+        QUERY_PREVIEWS.scope(scopes, work).await
     }
 }

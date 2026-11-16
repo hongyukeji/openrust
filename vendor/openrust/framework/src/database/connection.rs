@@ -1,6 +1,7 @@
 use futures_util::{Stream, TryStreamExt as _, future::Either};
 use sqlx::SqlSafeStr as _;
 use std::{
+    future::Future,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -34,7 +35,7 @@ use super::{
         ConnectionEstablished, QueryDuration, QueryDurationHandler, QueryExecuted,
         QueryNotification, QueryRole,
     },
-    query_log::QueryLog,
+    query_log::{PreviewScope, QueryLog},
     transaction::BeginCallback,
     value,
 };
@@ -541,11 +542,15 @@ impl PhysicalConnection {
 
 macro_rules! observed_query {
     ($connection:ident, $sql:ident, $bindings:expr, $read:expr,
-      |$physical:ident, $values:ident| $operation:expr, $before:expr, $after:expr) => {{
+      |$physical:ident, $values:ident| $operation:expr, $preview:expr, $before:expr, $after:expr) => {{
         let $values: Bindings<'_> = $bindings.into();
         $connection
             .run_before_executing($sql, $values, None)
             .await?;
+        if $connection.pretending() {
+            $connection.preview_query($sql, $values, $read).await?;
+            return Ok($preview);
+        }
         let mut replayed = false;
         let mut elapsed = Duration::ZERO;
         loop {
@@ -691,7 +696,17 @@ impl Connection {
     }
 
     pub(super) async fn acquire(&self, read: bool) -> DatabaseResult<PhysicalConnection> {
+        self.ensure_real_operation()?;
         self.acquire_query(read).await.map(|lease| lease.physical)
+    }
+
+    pub(super) fn ensure_real_operation(&self) -> DatabaseResult<()> {
+        if self.pretending() {
+            return Err(DatabaseError::UnsupportedOperation(
+                "this database operation requires a live session",
+            ));
+        }
+        Ok(())
     }
 
     pub(super) fn write_query_role(&self) -> QueryRole {
@@ -818,6 +833,79 @@ impl Connection {
             .collect()
     }
 
+    /// Collects queries within this future without executing them.
+    pub async fn pretend(
+        &self,
+        callback: impl for<'a> FnOnce(&'a Self) -> DatabaseFuture<'a, DatabaseResult<()>> + Send,
+    ) -> DatabaseResult<Vec<QueryLogEntry>> {
+        let log = Arc::new(QueryLog::default());
+        log.set_enabled(true);
+        PreviewScope {
+            connection: self.preview_identity(),
+            dry: true,
+            log: log.clone(),
+        }
+        .run(async { callback(self).await })
+        .await?;
+        Ok(log.snapshot())
+    }
+
+    /// Allows real queries in the given future while retaining the preview log.
+    pub async fn withoutPretending<T>(&self, callback: impl Future<Output = T>) -> T {
+        match PreviewScope::current(self.preview_identity()) {
+            Some(scope) if scope.dry => {
+                PreviewScope {
+                    dry: false,
+                    ..scope
+                }
+                .run(callback)
+                .await
+            }
+            _ => callback.await,
+        }
+    }
+
+    pub fn pretending(&self) -> bool {
+        PreviewScope::current(self.preview_identity()).is_some_and(|scope| scope.dry)
+    }
+
+    fn preview_identity(&self) -> usize {
+        Arc::as_ptr(&self.routing).addr()
+    }
+
+    /// Records a completed query after its event has been delivered.
+    pub(super) fn record_query(&self, entry: impl FnOnce() -> QueryLogEntry) {
+        if let Some(scope) = PreviewScope::current(self.preview_identity()) {
+            let mut entry = entry();
+            if scope.dry {
+                if let Ok(raw) = render_query(&entry.query, &entry.bindings, !self.is_sqlite()) {
+                    entry.query = raw;
+                }
+                scope.log.push(|| entry);
+            } else {
+                self.query_log.push(|| entry.clone());
+                scope.log.push(|| entry);
+            }
+        } else {
+            self.query_log.push(entry);
+        }
+    }
+
+    async fn preview_query(
+        &self,
+        sql: &str,
+        bindings: Bindings<'_>,
+        read: bool,
+    ) -> DatabaseResult<()> {
+        let role = if read && !self.reads_from_writer() && self.pools.has_reader() {
+            QueryRole::Read
+        } else {
+            self.write_query_role()
+        };
+        self.dispatch_query(sql, bindings, Duration::ZERO, role)
+            .await
+    }
+
     pub(super) fn observe_query(
         &self,
         sql: &str,
@@ -844,7 +932,7 @@ impl Connection {
                 }));
             }
         }
-        self.query_log.push(|| QueryLogEntry {
+        self.record_query(|| QueryLogEntry {
             query: sql.into(),
             bindings: bindings.into(),
             time,
@@ -897,6 +985,7 @@ impl Connection {
             bindings,
             false,
             |physical, values| physical.execute_statement(sql, values),
+            Value::Null,
             || self.setRecordModificationState(true),
             |_| ()
         )
@@ -1022,6 +1111,10 @@ impl Connection {
         let bindings = bindings.into();
         Box::pin(async_stream::try_stream! {
             self.run_before_executing(sql, bindings, None).await?;
+            if self.pretending() {
+                self.preview_query(sql, bindings, !write).await?;
+                return;
+            }
             let mut replayed = false;
             let mut elapsed = Duration::ZERO;
             let mut delivered = false;
@@ -1069,6 +1162,7 @@ impl Connection {
             bindings,
             true,
             |physical, values| physical.select(sql, values),
+            Vec::new(),
             || (),
             |_| ()
         )
@@ -1085,6 +1179,7 @@ impl Connection {
             bindings,
             false,
             |physical, values| physical.select(sql, values),
+            Vec::new(),
             || (),
             |_| ()
         )
@@ -1103,6 +1198,7 @@ impl Connection {
             bindings,
             use_read,
             |physical, values| physical.select_result_sets(sql, values),
+            Vec::new(),
             || (),
             |_| ()
         )
@@ -1119,6 +1215,7 @@ impl Connection {
             bindings,
             true,
             |physical, values| physical.select_one(sql, values),
+            None,
             || (),
             |_| ()
         )
@@ -1145,6 +1242,7 @@ impl Connection {
             bindings,
             false,
             |physical, values| physical.affecting_statement(sql, values),
+            true,
             || self.setRecordModificationState(true),
             |_| ()
         )
@@ -1186,6 +1284,7 @@ impl Connection {
             bindings,
             false,
             |physical, values| physical.affecting_statement(sql, values),
+            0,
             || (),
             |count: &u64| {
                 if *count > 0 {
@@ -1203,6 +1302,7 @@ impl Connection {
             &[],
             false,
             |physical, _bindings| physical.unprepared(sql),
+            true,
             || (),
             |_| self.setRecordModificationState(true)
         )

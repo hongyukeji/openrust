@@ -112,6 +112,31 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 作用中交易的斷線錯誤交給呼叫端。串流游標可在傳回第一列前重試。如果伺服器在回應遺失前已完成寫入，重試可能再次執行該寫入。
 
+### 預演查詢 {#previewing-queries}
+
+用 `DB::pretend` 或指定連線的 `pretend` 收集 SQL。預演只記錄 SQL，讀取操作傳回空結果，寫入操作依方法傳回成功或零影響列。查詢前回呼和查詢事件仍會執行。傳回的項目包含轉換後的 SQL 和原始繫結值，預演記錄獨立於即時查詢記錄。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, QueryLogEntry},
+    support::facades::DB,
+};
+
+async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
+    DB::pretend(|connection| {
+        Box::pin(async move {
+            connection
+                .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+預演作用於目前非同步範圍中的指定連線。獨立啟動的工作會進入自己的範圍。用 `pretending()` 檢查目前是否在預演，用 `withoutPretending` 在預演中明確執行實際操作。交易的開始、提交及回復需要實際執行範圍。
+
 ### 查詢執行前回呼 {#before-executing}
 
 用 `DB::beforeExecuting` 向預設連線註冊，也可以在指定連線上呼叫 `beforeExecuting`。回呼依註冊順序、在資料庫操作之前收到原始 SQL 和繫結值。回呼傳回錯誤會中止本次操作及後續回呼。游標第一次輪詢時執行回呼。驅動程式重播同一次查詢時會略過回呼。

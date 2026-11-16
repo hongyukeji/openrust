@@ -50,6 +50,14 @@ impl ConnectionPools {
         Ok(generation)
     }
 
+    pub(super) fn has_reader(&self) -> bool {
+        self.current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .is_some_and(|generation| generation.reader.is_some())
+    }
+
     pub(super) fn retire_if_current(&self, failed: &Arc<PoolGeneration>) {
         let mut current = self
             .current

@@ -112,6 +112,31 @@ async fn refresh_database() -> DatabaseResult<()> {
 
 活动事务的断线错误交给调用方。流式游标可在返回首行前重试。如果服务器在响应丢失前已完成写入，重试可能再次执行该写入。
 
+### 预演查询 {#previewing-queries}
+
+用 `DB::pretend` 或指定连接的 `pretend` 收集 SQL。预演只记录 SQL，读操作返回空结果，写操作按方法返回成功或零影响行。查询前回调和查询事件照常运行。返回的条目包含渲染后的 SQL 和原始绑定值，预演日志独立于实时查询日志。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, QueryLogEntry},
+    support::facades::DB,
+};
+
+async fn preview_settings_update() -> DatabaseResult<Vec<QueryLogEntry>> {
+    DB::pretend(|connection| {
+        Box::pin(async move {
+            connection
+                .update("UPDATE settings SET enabled = ? WHERE id = ?", &[1.into(), 42.into()])
+                .await?;
+            Ok(())
+        })
+    })
+    .await
+}
+```
+
+预演作用于当前异步作用域中的指定连接。独立启动的任务进入自己的作用域。用 `pretending()` 检查当前是否在预演，用 `withoutPretending` 在预演中显式执行真实操作。事务的开始、提交和回滚需要真实执行作用域。
+
 ### 查询执行前回调 {#before-executing}
 
 用 `DB::beforeExecuting` 向默认连接注册，也可以在指定连接上调用 `beforeExecuting`。回调按注册顺序、在数据库操作之前收到原始 SQL 和绑定值。回调返回错误会中止本次操作及后续回调。游标首次轮询时运行回调。驱动层重放同一次查询时跳过回调。

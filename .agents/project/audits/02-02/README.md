@@ -109,3 +109,13 @@ macOS arm64、Rust 1.94.0。候选目录 `/private/tmp/openrust-02-01.mS5Z18` �
 - Rust 1.94.0，真实 MySQL 8.4.13 与 SQLite 共 58 项定向回归通过。覆盖原始命名绑定、注册顺序、回调拒绝写入、不写成功日志、游标懒执行、单连接池事务内重入与回滚、MySQL 实际断线后同一查询只调用一次，以及既有 HTTP 和事件回归。1 个子进程夹具由父测试启动。严格 Clippy 与变更文件格式检查通过。
 - 三语文档共用的代码示例由实际 Artisan 命令分别在 SQLite 和 MySQL 运行，原生 `main artisan inspire` 通过。三语 VitePress 构建、12 项站点浏览器组合和 6 项回调小节检查通过。
 - 02-02 继续处理通用查询预演，PostgreSQL 独立直连随驱动接入验收。
+
+## 通用查询预演
+
+对照固定 Laravel [Connection::pretend、withoutPretending 与 withFreshQueryLog](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Connection.php#L682) 及 [DatabaseConnectionTest](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseConnectionTest.php#L685)。旧版数据库代码未发现可复用的通用预演。既有迁移预演可记录 Schema 语句，本批覆盖通用连接、Facade、查询构建器和显式事务里的 SQL 执行入口。
+
+- 预演收集渲染后的 SQL、原始绑定、读写角色与零执行耗时，保留查询前回调和查询事件。读取返回空结果，语句写入返回成功，影响行数为零，生成 ID 为无值。预演 SQL 不进入实时查询日志。
+- Rust 将状态绑定到逻辑连接与当前异步作用域。嵌套预演有独立日志，错误或取消后恢复原状态。显式 `withoutPretending` 允许真实查询写入实时日志，并将同一查询纳入本次预演报告。事务的开始、提交、回滚与需要物理会话的 Schema 操作在实时作用域执行。
+- Rust 1.94.0，真实 MySQL 8.4.13 与 SQLite 共 61 项定向回归通过。覆盖同一任务内并发隔离、写入不落库、预演事件、嵌套、错误和取消、原始绑定、游标、事务内预演、不可用 SQLite 数据库预演，以及既有 HTTP、迁移和事件相关回归。1 个子进程夹具由父测试启动。严格 Clippy 和变更文件格式检查通过。
+- 两种驱动均通过实际 Artisan 执行三语共用示例并核对更新前后状态和查询事件。原生 `main artisan inspire`、VitePress 构建、12 项站点浏览器组合和 6 项预演小节检查通过。
+- 02-02 继续跟踪 PostgreSQL 独立直连及池化路由，随该驱动接入验收。本批保留该单元待闭合状态。

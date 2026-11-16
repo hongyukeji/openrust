@@ -1748,6 +1748,206 @@ async fn canceled_establishment_allows_the_next_operation_to_dispatch() {
     assert_eq!(listener.0.load(Ordering::SeqCst), 2);
 }
 
+async fn verify_query_preview(connection: Connection) {
+    connection
+        .unprepared("CREATE TABLE query_preview_probe (n BIGINT)")
+        .await
+        .unwrap();
+    connection.forgetRecordModificationState();
+    connection.enableQueryLog();
+    connection.scalar("SELECT 1", &[]).await.unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let seen = calls.clone();
+    connection.beforeExecuting(move |sql, _, _, _| {
+        let seen = seen.clone();
+        Box::pin(async move {
+            if sql.starts_with("INSERT INTO query_preview_probe") {
+                seen.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(())
+        })
+    });
+
+    let (preview, real) = tokio::join!(
+        connection.pretend(|db| Box::pin(async move {
+            assert!(db.clone().pretending());
+            tokio::task::yield_now().await;
+            assert!(
+                db.statement("INSERT INTO query_preview_probe VALUES (?)", &[8.into()])
+                    .await?
+            );
+            assert!(!db.hasModifiedRecords());
+            assert_eq!(
+                db.affectingStatement("DELETE FROM query_preview_probe", &[])
+                    .await?,
+                0
+            );
+            assert_eq!(db.scalar("SELECT ? AS n", &[16.into()]).await?, Value::Null);
+            assert!(
+                db.cursor("SELECT 26", &[])
+                    .try_collect::<Vec<_>>()
+                    .await?
+                    .is_empty()
+            );
+            assert!(matches!(
+                db.beginTransaction().await,
+                Err(DatabaseError::UnsupportedOperation(_))
+            ));
+            let nested = db
+                .pretend(|db| {
+                    Box::pin(async move {
+                        db.unprepared("INSERT INTO query_preview_probe VALUES (100)")
+                            .await?;
+                        Ok(())
+                    })
+                })
+                .await?;
+            assert_eq!(nested.len(), 1);
+            assert!(db.pretending());
+            assert_eq!(
+                db.withoutPretending(async {
+                    assert!(!db.pretending());
+                    db.scalar("SELECT 12", &[]).await
+                })
+                .await?,
+                12.into()
+            );
+            assert!(db.pretending());
+            Ok(())
+        })),
+        async {
+            assert!(!connection.pretending());
+            connection.scalar("SELECT 7", &[]).await
+        }
+    );
+    assert_eq!(real.unwrap(), 7.into());
+    let preview = preview.unwrap();
+    assert_eq!(
+        preview
+            .iter()
+            .map(|entry| entry.query.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "INSERT INTO query_preview_probe VALUES (8)",
+            "DELETE FROM query_preview_probe",
+            "SELECT 16 AS n",
+            "SELECT 26",
+            "SELECT 12",
+        ]
+    );
+    assert!(
+        matches!(&preview[0].bindings, QueryBindings::Positional(values) if values == &[8.into()])
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(!connection.pretending());
+    assert_eq!(
+        connection
+            .getQueryLog()
+            .iter()
+            .map(|entry| entry.query.as_str())
+            .collect::<Vec<_>>(),
+        ["SELECT 1", "SELECT 7", "SELECT 12"]
+    );
+    assert_eq!(
+        connection
+            .scalar("SELECT COUNT(*) FROM query_preview_probe", &[])
+            .await
+            .unwrap(),
+        0.into()
+    );
+
+    assert!(matches!(
+        connection
+            .pretend(|_| Box::pin(async {
+                Err(DatabaseError::InvalidConfiguration("preview interrupted"))
+            }))
+            .await,
+        Err(DatabaseError::InvalidConfiguration("preview interrupted"))
+    ));
+    let mut preview = std::pin::pin!(connection.pretend(|_| Box::pin(std::future::pending())));
+    assert!(futures_util::poll!(&mut preview).is_pending());
+    assert!(!connection.pretending());
+
+    let mut transaction = connection.beginTransaction().await.unwrap();
+    let held = connection
+        .pretend(move |_| {
+            Box::pin(async move {
+                transaction
+                    .statement("INSERT INTO query_preview_probe VALUES (99)", &[])
+                    .await?;
+                assert!(
+                    transaction
+                        .cursor("SELECT 2", &[])
+                        .try_collect::<Vec<_>>()
+                        .await?
+                        .is_empty()
+                );
+                assert!(matches!(
+                    transaction.commit().await,
+                    Err(DatabaseError::UnsupportedOperation(_))
+                ));
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(held.len(), 2);
+    connection
+        .unprepared("DROP TABLE query_preview_probe")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_query_preview_scopes_capture_to_the_current_future() {
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"fixture","connections":{
+            "fixture":{"driver":"sqlite","max_connections":1},
+            "missing":{"driver":"sqlite","database":"missing.sqlite"}
+        }}),
+    );
+    verify_query_preview(db.connection(None).unwrap()).await;
+    let missing = db.connection(Some("missing")).unwrap();
+    let preview = missing
+        .pretend(|db| {
+            Box::pin(async move {
+                assert!(
+                    db.select("SELECT * FROM missing_table", &[])
+                        .await?
+                        .is_empty()
+                );
+                Ok(())
+            })
+        })
+        .await
+        .unwrap();
+    assert_eq!(preview.len(), 1);
+    assert!(
+        missing
+            .select("SELECT * FROM missing_table", &[])
+            .await
+            .is_err()
+    );
+}
+
+#[tokio::test]
+async fn mysql_query_preview_scopes_capture_to_the_current_future() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let root = Root::new();
+    let db = manager(
+        &root,
+        json!({"default":"fixture","connections":{
+            "fixture":{"url":url,"max_connections":1}
+        }}),
+    );
+    verify_query_preview(db.connection(None).unwrap()).await;
+}
+
 async fn verify_before_executing(connection: Connection) {
     connection
         .unprepared("CREATE TABLE query_hook_probe (n BIGINT)")

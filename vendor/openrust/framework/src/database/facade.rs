@@ -1,3 +1,5 @@
+use std::future::Future;
+
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
@@ -116,6 +118,22 @@ impl DB {
         Self::connection(None)?
             .selectResultSets(sql, bindings, use_read)
             .await
+    }
+
+    pub async fn pretend(
+        callback: impl for<'a> FnOnce(&'a Connection) -> DatabaseFuture<'a, DatabaseResult<()>> + Send,
+    ) -> DatabaseResult<Vec<QueryLogEntry>> {
+        Self::connection(None)?.pretend(callback).await
+    }
+
+    pub async fn withoutPretending<T>(
+        callback: impl Future<Output = DatabaseResult<T>>,
+    ) -> DatabaseResult<T> {
+        Self::connection(None)?.withoutPretending(callback).await
+    }
+
+    pub fn pretending() -> DatabaseResult<bool> {
+        Ok(Self::connection(None)?.pretending())
     }
 
     pub fn beforeExecuting(

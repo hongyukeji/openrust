@@ -103,7 +103,7 @@ impl QueryNotification {
         )
         .await
         .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))?;
-        self.event.connection.query_log.push(|| QueryLogEntry {
+        self.event.connection.record_query(|| QueryLogEntry {
             query: self.event.sql.clone(),
             bindings: self.event.bindings.clone(),
             time: self.event.time,
