@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Expression, ViewData, ViewResult, ViewValue, argument_separator,
+    Expression, RenderContext, ViewData, ViewResult, ViewValue, argument_separator,
     attributes::{array_entries, array_entry, literal_name},
-    expression_value, identifier, invalid, name_value, render_error, value,
+    expression_value, identifier, invalid, name_value, render_error, separators, value,
 };
 
 #[derive(Serialize, Deserialize)]
@@ -16,6 +16,101 @@ pub(super) struct Include {
 pub(super) struct IncludeFirst {
     candidates: Candidates,
     data: Option<Arguments>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) struct RenderEach {
+    view: Expression,
+    collection: Expression,
+    item: Expression,
+    empty: Option<Expression>,
+}
+
+impl RenderEach {
+    pub(super) fn parse(source: &str) -> ViewResult<Self> {
+        let mut start = 0;
+        let mut arguments = separators(source, ",")
+            .chain(std::iter::once(source.len()))
+            .map(|end| {
+                let argument = &source[start..end];
+                start = end + 1;
+                expression_value(argument)
+            });
+        let mut required = || {
+            arguments
+                .next()
+                .transpose()?
+                .ok_or_else(|| invalid("Blade @each requires a view, collection, and item name."))
+        };
+        let view = required()?;
+        let collection = required()?;
+        let item = required()?;
+        let empty = arguments.next().transpose()?;
+        if arguments.next().is_some() {
+            return Err(invalid("Blade @each accepts at most four arguments."));
+        }
+        Ok(Self {
+            view,
+            collection,
+            item,
+            empty,
+        })
+    }
+
+    pub(super) fn render(
+        &self,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+        output: &mut String,
+        context: &RenderContext<'_>,
+    ) -> ViewResult<()> {
+        let collection = value(&self.collection, data, bindings);
+        if !collection.is_array() && !collection.is_object() {
+            return Err(render_error("Blade @each requires an array or object."));
+        }
+        let mut entries = collection_entries(collection).peekable();
+        if entries.peek().is_none() {
+            if let Some(empty) = &self.empty {
+                let empty = name_value(value(empty, data, bindings))?;
+                if let Some(raw) = empty.strip_prefix("raw|") {
+                    output.push_str(raw);
+                } else {
+                    output.push_str(&context.include_isolated(empty, &ViewData::new())?);
+                }
+            }
+            return Ok(());
+        }
+
+        let view = name_value(value(&self.view, data, bindings))?;
+        let item = name_value(value(&self.item, data, bindings))?;
+        if !identifier(item) {
+            return Err(render_error("Invalid Blade @each item name."));
+        }
+        for (key, value) in entries {
+            let mut row = ViewData::new();
+            row.insert("key".to_owned(), key);
+            row.insert(item.to_owned(), value.clone());
+            output.push_str(&context.include_isolated(view, &row)?);
+        }
+        Ok(())
+    }
+}
+
+pub(super) fn collection_entries(
+    collection: &ViewValue,
+) -> impl Iterator<Item = (ViewValue, &ViewValue)> {
+    let arrays = collection
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .map(|(index, value)| (ViewValue::from(index), value));
+    let objects = collection
+        .as_object()
+        .into_iter()
+        .flatten()
+        .map(|(key, value)| (ViewValue::from(key.as_str()), value));
+    arrays.chain(objects)
 }
 
 #[derive(Serialize, Deserialize)]

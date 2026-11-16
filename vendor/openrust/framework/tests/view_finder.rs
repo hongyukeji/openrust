@@ -440,6 +440,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         .with("values", serde_json::json!({"label":"<map>"}))
                 })?;
                 Route::get("/bad-includes", || view("bad_includes"))?;
+                Route::get("/each", || view("each").with("caller", "private"))?;
+                Route::get("/bad-each", || view("bad_each").with("items", false))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -667,6 +669,22 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("include_row", "[{{ $app }}:{{ $label }}:{{ $caller }}]"),
         ("bad_includes", "@includeFirst(['no_such_view'])"),
+        (
+            "each",
+            concat!(
+                r#"@each('each_row', ["<&"], 'item')"#,
+                r#"@each('each_row', {"name":"map"}, 'item')"#,
+                "@each('missing', [], 'item')",
+                "@each('missing', [], 'item', 'each_empty')",
+                "@each('missing', [], 'item', 'raw|<em>empty</em>')",
+            ),
+        ),
+        (
+            "each_row",
+            "[{{ $app }}:{{ $key }}:{{ $item }}:{{ $caller }}]",
+        ),
+        ("each_empty", "{{ $app }}:{{ $caller }}"),
+        ("bad_each", "@each('each_row', $items, 'item')"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -781,6 +799,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         "[B:&lt;&amp;:caller][B:&lt;map&gt;:caller][B:isolated:]"
     );
     assert!(send(first, "/bad-includes", 500).await.contains("500"));
+    let (a, b) = tokio::join!(send(first, "/each", 200), send(second, "/each", 200));
+    assert_eq!(a, "[A:0:&lt;&amp;:][A:name:map:]A:<em>empty</em>");
+    assert_eq!(b, "[B:0:&lt;&amp;:][B:name:map:]B:<em>empty</em>");
+    assert!(send(first, "/bad-each", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

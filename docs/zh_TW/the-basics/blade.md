@@ -33,6 +33,12 @@ Blade 範本使用 `.blade.html` 副檔名。一般 `.html` 視圖以 UTF-8 HTML
 @includeIsolated('partials.notice', ['label' => 'Opening soon'])
 ```
 
+`@each` 為每個項目呈現一個子視圖。子視圖可讀取 `$key`、指定名稱的項目和視圖共用資料。第四個參數可指定空集合視圖，也可用 `raw|` 前綴傳入可信的常值。
+
+```html
+@each('partials.job', $jobs, 'job', 'partials.empty')
+```
+
 ### 運算式與條件屬性 {#conditional-attributes}
 
 條件和輸出運算式可使用括號、`!`、`&&`、`||`、`===`、`!==` 和 `??`。嚴格比較保留純量型別。PHP 的物件身分和寬鬆型別轉換超出視圖資料模型的範圍。

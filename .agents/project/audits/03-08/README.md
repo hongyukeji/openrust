@@ -58,3 +58,9 @@
 - 对照固定 [CompilesIncludes](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Compilers/Concerns/CompilesIncludes.php) 和 [Factory](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Factory.php)。子视图参数可以用具名列表或映射对象给出，显式数据覆盖继承值。`@includeFirst` 通过既有 Factory 查找顺序选出第一个存在的视图。`@includeIsolated` 继承应用共享值和渲染树状态，调用方的普通数据、插槽和组件属性各自隔离。旧版 `6d1a8192` 的查找及视图数据优先级已在已有 Factory 中复用。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 验证显式数据覆盖、条件选择、缺页回退、共享数据与调用者变量隔离、无候选 500 及默认转义。按当时 HEAD 重建隔离副本后通过全工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项子视图检查通过。
+
+## 集合子视图
+
+- 对照固定 Laravel Factory 的 `renderEach`。使用现有命名视图渲染与局部数据隔离，逐条传入原始键、指定变量和应用共享值。空集合支持缺省空串、命名模板和 `raw|` 字面量。旧版 MiniJinja 可参考数据边界，沿用已有视图查找和请求隔离实现。
+- macOS ARM64、Rust 1.94.0。真实 HTTP 验证数组索引、对象键、应用数据隔离、默认转义及非法集合返回 500，8 项定向测试通过。隔离副本的工作区格式和严格 Clippy 通过，既有 Sanctum 格式差异仅在副本整理。
+- 实际 Artisan `view:cache` 预编译三语示例，`view:clear` 清理三个产物。三语 VitePress 构建通过。

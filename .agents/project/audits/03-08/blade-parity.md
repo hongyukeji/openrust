@@ -10,7 +10,7 @@
 | If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`，逻辑、严格比较与空值回退。 | Auth、Environment、Section、Session、Context 专用指令及 PHP 宽松比较。 |
 | Switch Statements、Loops、The Loop Variable | `@foreach`、`@forelse`、键与值、计数及父循环。 | Switch、`@for`、`@while`、`@break`、`@continue`，流式集合长度语义。 |
 | Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 更广的 PHP 数组构造表达式。 |
-| Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst` 的有序回退与 `@includeIsolated` 的局部数据隔离。 | `@each` 的独立集合渲染。 |
+| Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst`、`@includeIsolated` 与 `@each` 的独立集合渲染。 | 集合由物化的 Rust 视图数据提供。 |
 | The Once Directive、Raw PHP、Fonts | `@once` 及显式渲染树标识。 | `@php` 由调用方 Rust 代码替代。Fonts 仍待明确资产接线。 |
 | Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引与动态组件。 | PHP 类自动发现由 Rust 工厂替代。包组件命名空间、匿名目录追加和其他发布接线。 |
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态和绑定属性、kebab-case 到 camelCase、`@props` 默认值、属性输出与 `merge`。 | 短绑定、双冒号字面量、属性筛选、`class` / `style` 链式方法、保留名称与任意类型对象。依赖通过 Rust 工厂显式装配。 |

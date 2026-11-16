@@ -33,6 +33,12 @@ Pass a map to override inherited data. `@includeFirst` renders the first existin
 @includeIsolated('partials.notice', ['label' => 'Opening soon'])
 ```
 
+Render one partial per entry with `@each`. The partial gets `$key`, the named item, and shared view data. A fourth argument can name an empty-state view. Use the `raw|` prefix for a trusted literal fallback.
+
+```html
+@each('partials.job', $jobs, 'job', 'partials.empty')
+```
+
 ### Expressions and Conditional Attributes {#conditional-attributes}
 
 Use parentheses, `!`, `&&`, `||`, `===`, `!==`, and `??` in conditions and echoes. Strict comparison preserves scalar types. PHP object identity and loose coercion have no corresponding operation in the view data model.

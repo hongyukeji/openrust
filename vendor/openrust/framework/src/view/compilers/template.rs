@@ -19,7 +19,7 @@ use attributes::{
 };
 
 use expressions::{Expression, expression_value, truthy, value};
-use includes::{Include, IncludeFirst};
+use includes::{Include, IncludeFirst, RenderEach, collection_entries};
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct Template {
@@ -58,6 +58,7 @@ enum Node {
     IncludeWhen(Expression, Include, bool),
     IncludeFirst(IncludeFirst),
     IncludeIsolated(Include),
+    RenderEach(RenderEach),
     Component {
         name: ComponentName,
         attributes: Vec<(String, Expression)>,
@@ -402,6 +403,8 @@ impl<'a> Parser<'a> {
             Node::IncludeFirst(IncludeFirst::parse(self.arguments()?)?)
         } else if self.directive("includeIsolated") {
             Node::IncludeIsolated(Include::parse(self.arguments()?)?)
+        } else if self.directive("each") {
+            Node::RenderEach(RenderEach::parse(self.arguments()?)?)
         } else if self.directive("yield") {
             let (name, default) = self.named_argument()?;
             Node::Yield(name, default)
@@ -856,17 +859,6 @@ fn render_nodes<'a>(
                 alternative,
             } => {
                 let collection = value(expression, data, bindings);
-                let arrays = collection
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .enumerate()
-                    .map(|(index, value)| (ViewValue::from(index), value));
-                let objects = collection
-                    .as_object()
-                    .into_iter()
-                    .flatten()
-                    .map(|(key, value)| (ViewValue::from(key.as_str()), value));
                 let count = collection
                     .as_array()
                     .map_or_else(|| collection.as_object().map_or(0, ViewData::len), Vec::len);
@@ -879,7 +871,7 @@ fn render_nodes<'a>(
                     .and_then(|metadata| metadata["depth"].as_u64())
                     .unwrap_or(0)
                     + 1;
-                for (index, (key_value, item_value)) in arrays.chain(objects).enumerate() {
+                for (index, (key_value, item_value)) in collection_entries(collection).enumerate() {
                     let iteration = index + 1;
                     let even = iteration.is_multiple_of(2);
                     let metadata = Arc::new(json!({
@@ -1038,6 +1030,7 @@ fn render_nodes<'a>(
                     &context.include_isolated(name, &include.data(data, bindings, false)?)?,
                 );
             }
+            Node::RenderEach(each) => each.render(data, bindings, output, context)?,
             Node::Component {
                 name,
                 attributes,
