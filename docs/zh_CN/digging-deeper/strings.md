@@ -40,3 +40,16 @@ assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
 assert_eq!(Str::of("你好世界🙂").mask("*#", -4, Some(-1)).value(), "你*#*🙂");
 assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
 ```
+
+## 随机字符串与标识符 {#random-and-identifiers}
+
+`Str::random` 使用系统熵种子的随机生成器创建字母数字串。`Str::password` 接收显式字符池，长度足够时包含各启用字符池中的字符。`uuid`、`uuid7` 和 `ulid` 返回类型化标识符。用 `isUuid` 配合可选的数字版本，或用 `isUlid` 验证文本。UUID 和 ULID 使用 Rust 随机源及当前时钟。
+
+```rust
+use openrust::support::{PasswordOptions, Str};
+
+let password = Str::password(24, PasswordOptions::default())?;
+assert_eq!(password.len(), 24);
+assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
+assert!(Str::isUlid(&Str::ulid().to_string()));
+```

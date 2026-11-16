@@ -40,3 +40,16 @@ assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
 assert_eq!(Str::of("你好世界🙂").mask("*#", -4, Some(-1)).value(), "你*#*🙂");
 assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
 ```
+
+## 隨機字串與識別碼 {#random-and-identifiers}
+
+`Str::random` 使用系統熵種子的隨機產生器建立英數字串。`Str::password` 接收明確的字元池，長度足夠時包含各啟用字元池的字元。`uuid`、`uuid7` 和 `ulid` 傳回型別化識別碼。用 `isUuid` 搭配選用的數字版本，或用 `isUlid` 驗證文字。UUID 和 ULID 使用 Rust 隨機來源及目前時鐘。
+
+```rust
+use openrust::support::{PasswordOptions, Str};
+
+let password = Str::password(24, PasswordOptions::default())?;
+assert_eq!(password.len(), 24);
+assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
+assert!(Str::isUlid(&Str::ulid().to_string()));
+```

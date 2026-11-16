@@ -40,3 +40,16 @@ assert_eq!(Str::position("你🙂好🙂", "🙂", -2), Some(3));
 assert_eq!(Str::of("你好世界🙂").mask("*#", -4, Some(-1)).value(), "你*#*🙂");
 assert_eq!(Str::of("  你好   🙂 ").squish().value(), "你好 🙂");
 ```
+
+## Random strings and identifiers {#random-and-identifiers}
+
+`Str::random` generates an alphanumeric string using the system-seeded random generator. `Str::password` accepts explicit character pools and includes one character from each enabled pool when the requested length permits. `uuid`, `uuid7`, and `ulid` return typed identifiers. Use `isUuid` with an optional numeric version, or `isUlid`, to validate text. UUID and ULID generation uses Rust randomness and the current clock.
+
+```rust
+use openrust::support::{PasswordOptions, Str};
+
+let password = Str::password(24, PasswordOptions::default())?;
+assert_eq!(password.len(), 24);
+assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
+assert!(Str::isUlid(&Str::ulid().to_string()));
+```

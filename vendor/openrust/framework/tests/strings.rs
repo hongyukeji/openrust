@@ -164,3 +164,43 @@ fn literal_and_unicode_editing_respects_scalar_offsets() {
         "你好 🙂"
     );
 }
+
+#[test]
+fn generated_strings_and_ids_respect_their_requested_formats() {
+    use openrust::support::{EmptyPasswordAlphabet, PasswordOptions};
+
+    assert!(Str::random(0).is_empty());
+    let random = Str::random(64);
+    assert_eq!(random.len(), 64);
+    assert!(random.bytes().all(|byte| byte.is_ascii_alphanumeric()));
+    let password = Str::password(20, PasswordOptions::default()).unwrap();
+    assert_eq!(password.len(), 20);
+    assert!(password.bytes().any(|byte| byte.is_ascii_alphabetic()));
+    assert!(password.bytes().any(|byte| byte.is_ascii_digit()));
+    assert!(password.bytes().any(|byte| byte.is_ascii_punctuation()));
+    let spaces = PasswordOptions {
+        letters: false,
+        numbers: false,
+        symbols: false,
+        spaces: true,
+    };
+    assert_eq!(Str::password(3, spaces).unwrap(), "   ");
+    assert_eq!(
+        Str::password(
+            3,
+            PasswordOptions {
+                spaces: false,
+                ..spaces
+            }
+        ),
+        Err(EmptyPasswordAlphabet)
+    );
+    assert!(Str::isUuid(&Str::uuid().unwrap().to_string(), Some(4)));
+    let ordered = Str::uuid7().to_string();
+    assert!(Str::of(ordered.as_str()).isUuid(Some(7)));
+    assert!(!Str::isUuid(&ordered, Some(4)));
+    assert!(Str::isUuid("00000000-0000-0000-0000-000000000000", Some(0)));
+    assert!(!Str::isUuid("00000000000000000000000000000000", None));
+    assert!(Str::of(Str::ulid().to_string()).isUlid());
+    assert!(!Str::isUlid("80000000000000000000000000"));
+}

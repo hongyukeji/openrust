@@ -27,10 +27,6 @@
 
 轮转、临时渠道、工厂错误、格式化器、processor、tap、配置型 handler、缓冲、Unix syslog 与 JSON 异常路径有实际验收。Windows ARM64 原生完成 Application 事件日志、双应用 HTTP 和 Artisan 回归，关闭 01-04。 [验收](01-04/windows-syslog.md)
 
-## 07-01 Helpers 与 Strings
-
-06 阶段复核为 8/8，06-06 的真实供应商账户和证书场景继续在邮件验收中跟踪。07-01 已验收 Markdown、英语词形、链式 URI、查询修改、Unicode 编辑和 Arr 类型读取，继续核对其余 Helpers／Strings 家族及 02-08 依赖。 [07-01 验收](07-01/README.md#markdown-与英语词形变化)
-
 ## 05-01 模型生命周期
 
 SQLite 和 MySQL 8.4 已验证模型持久化、读取和软删除事件，以及静默和取消。显式事务写入、提交和回滚已用 SQLite／MySQL 验收，为事务后 Observer 提供执行边界。事件映射已用 SQLite 和 MySQL 8.4 验证取消写入、普通监听器回退、事务提交与回滚。模型复制及静默复制已通过 SQLite 和 MySQL 8.4 验证。自动 UUIDv7、ULID 及复制和路由绑定已在 SQLite 和 MySQL 8.4 验收。数据库生成列刷新已在 SQLite 和 MySQL 8.4 验证。单模型写连接回读、原位刷新、命名关系重载和事务锁定回读已通过双库验收。MySQL 行锁在提交和回滚时的释放已实测。05-01 核心闭合。 [验收](05-01/README.md#模型生命周期派发)
@@ -70,6 +66,10 @@ SQLite 记住登录测试使用密文子串判断明文是否泄露，随机密�
 ## 06-05 调度收尾
 
 账本登记的四类缺口已验收。覆盖写、追加写、输出钩子、URL 探测与后台完成事件均通过真实 `schedule:run`，共享缓存的重叠锁在完成与失败后均可重新取得。输出邮件、清锁和手工测试命令随后通过实际 Artisan 验收，06-05 核心主线闭合。 [调度验收](06-05/scheduler-output-background.md)
+
+## 07-01 Helpers 与 Strings
+
+06 阶段复核为 8/8，06-06 的真实供应商账户和证书场景继续在邮件验收中跟踪。07-01 已验收 Markdown、英语词形、链式 URI、Unicode 编辑、Arr 类型读取和随机标识符。其余 Helpers／Strings 家族和 02-08 依赖见验收记录。 [07-01 验收](07-01/README.md)
 
 ## 本轮已验收的增量
 

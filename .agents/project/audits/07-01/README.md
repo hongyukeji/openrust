@@ -9,15 +9,13 @@
 | 字符串 | 切片借用输入，长度和负索引以 Unicode 标量为单位。保留 Stringable 链式操作。Base64 解码严格校验并返回字节。 |
 | 应用服务 | 通过应用的类型化接口和 Facade 获取。URI 和概率判定沿用 Uri 与 Lottery。 |
 
-本单元覆盖数据路径、基础 Arr、字符串匹配、截取、转换和默认转写。PHP 动态对象访问、ICU 严格转写、Markdown、单复数和其他 Laravel 字符串扩展尚无对应验收。
+初批覆盖数据路径、基础 Arr、字符串匹配、截取、转换和默认转写。各后续批次和剩余范围见下文。
 
 ## 验收
 
 - Rust 1.94.0 锁定离线构建。格式、严格 Clippy 和并行工作区测试通过，495 项通过，3 个忽略项为集成测试启动的子进程入口。并行回归包含 Redis 限流及调度验收。
 - 新增 5 项定向测试，覆盖通配与首末路径、显式空值、稀疏数组、深度失败不修改数据、Unicode 负边界和旧版 PHP 转写夹具。
 - 六份三语文档 Rust 示例实际编译运行。三语站点构建通过，12 项通用浏览器检查及 6 项 Helpers 至 Strings 导航通过。
-
-下一单元 07-02 HTTP Client，前置 01-01 已提交。
 
 ## Markdown 与英语词形变化
 
@@ -39,3 +37,14 @@
 
 - 核对固定 Arr 的类型读取、缺失与 null、精确键优先、`add`、`forget`、`pull`、`wrap` 及 RFC 3986 查询编码。复用 Rust 数据路径、旧版迁移的精确键规则和 URI 编码器。通过同一移除入口修复 URI 按字面量带点键删除。类型读取以明确的 `Result` 表达异常，调用方可选择缺失时的默认值。 [固定 Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
 - 定向数据、URI、请求查询与字符串回归共 12 项通过，定向严格 Clippy 通过。实际 Artisan 编译并运行三语示例，实际回环 HTTP 验证布尔值读取、删除和 Unicode 查询编码。三语 VitePress 构建通过。
+
+## 随机字符串与标识符
+
+- 对照固定 Str 的随机字母数字、密码字符池、UUID v4／v7、ULID 和格式检查。随机字符使用锁定依赖的系统熵种子生成器，UUID v4 使用现有 AWS-LC 随机源并设置版本和变体位。复用项目既有 UUID／ULID 依赖。Rust 采用类型化返回值和显式字符池。PHP 全局生成器替换、可传入时间、COMB orderedUuid 和字符串版本别名仍有差异。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
+- 6 项字符串定向测试和严格 Clippy 通过。实际 Artisan 执行三语示例，回环 HTTP 核对 UUID 版本、ULID 格式和密码长度。验收响应只返回布尔结果和长度。三语 VitePress 构建、五个新章节锚点及 12 项浏览器检查通过。
+
+## 尚未验收的范围
+
+- Strings 仍需逐项核对正则捕获和替换、展示宽度及换行、slug 和 ICU 严格转写、多语言词形及 COMB 标识符。
+- Helpers 仍有 Arr 余下方法、Number 语言环境格式、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
+- 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。

@@ -3,6 +3,10 @@ use std::{collections::BTreeMap, sync::OnceLock};
 
 use super::{MarkdownOptions, Stringable, markdown};
 
+mod random;
+
+pub use random::{EmptyPasswordAlphabet, PasswordOptions};
+
 /// Unicode string helpers with Laravel-compatible names.
 pub struct Str;
 
@@ -428,6 +432,58 @@ impl Str {
             .filter(|part| !part.is_empty())
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    pub fn random(length: usize) -> String {
+        random::alphanumeric(length)
+    }
+
+    pub fn password(
+        length: usize,
+        options: PasswordOptions,
+    ) -> Result<String, EmptyPasswordAlphabet> {
+        random::password(length, options)
+    }
+
+    pub fn uuid() -> Result<uuid::Uuid, aws_lc_rs::error::Unspecified> {
+        let mut bytes = [0u8; 16];
+        aws_lc_rs::rand::fill(&mut bytes)?;
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        Ok(uuid::Uuid::from_bytes(bytes))
+    }
+
+    pub fn uuid7() -> uuid::Uuid {
+        uuid::Uuid::now_v7()
+    }
+
+    pub fn ulid() -> ulid::Ulid {
+        ulid::Ulid::new()
+    }
+
+    pub fn isUuid(value: &str, version: Option<u8>) -> bool {
+        if value.len() != 36 {
+            return false;
+        }
+        let Ok(value) = uuid::Uuid::parse_str(value) else {
+            return false;
+        };
+        match version {
+            None => true,
+            Some(0) => value.is_nil(),
+            Some(version) => {
+                value.get_variant() == uuid::Variant::RFC4122
+                    && value.get_version_num() == usize::from(version)
+            }
+        }
+    }
+
+    pub fn isUlid(value: &str) -> bool {
+        value
+            .as_bytes()
+            .first()
+            .is_some_and(|byte| matches!(byte, b'0'..=b'7'))
+            && ulid::Ulid::from_string(value).is_ok()
     }
 
     /// Renders GFM with HTML escaping and safe link schemes by default.

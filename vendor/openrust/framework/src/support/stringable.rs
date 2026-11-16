@@ -120,6 +120,14 @@ impl Stringable {
         Self(super::Str::squish(&self.0))
     }
 
+    pub fn isUuid(&self, version: Option<u8>) -> bool {
+        super::Str::isUuid(&self.0, version)
+    }
+
+    pub fn isUlid(&self) -> bool {
+        super::Str::isUlid(&self.0)
+    }
+
     pub fn markdown(self) -> Self {
         Self(super::Str::markdown(&self.0))
     }
