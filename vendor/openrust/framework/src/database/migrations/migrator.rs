@@ -55,6 +55,12 @@ pub struct MigrationStatus {
     pub batch: Option<u64>,
 }
 
+pub(crate) struct RefreshOutcome {
+    pub down: Vec<MigrationOutcome>,
+    pub up: Vec<MigrationOutcome>,
+    pub loaded: bool,
+}
+
 impl Migrator {
     pub fn new(
         manager: Arc<DatabaseManager>,
@@ -484,7 +490,19 @@ impl Migrator {
         paths: &[PathBuf],
         step: Option<u64>,
     ) -> DatabaseResult<(Vec<MigrationOutcome>, Vec<MigrationOutcome>)> {
+        self.refresh_with_schema(database, paths, step)
+            .await
+            .map(|result| (result.down, result.up))
+    }
+
+    pub(crate) async fn refresh_with_schema(
+        &self,
+        database: Option<&str>,
+        paths: &[PathBuf],
+        step: Option<u64>,
+    ) -> DatabaseResult<RefreshOutcome> {
         let _guard = self.execution.lock().await;
+        let step = step.filter(|step| *step > 0);
         let down = self
             .rollback_records(
                 database,
@@ -496,11 +514,10 @@ impl Migrator {
                 step.is_none(),
             )
             .await?;
-        let up = self
+        let (up, loaded) = self
             .run_pending(database, paths, RunOptions::default(), None, None)
-            .await?
-            .0;
-        Ok((down, up))
+            .await?;
+        Ok(RefreshOutcome { down, up, loaded })
     }
 
     async fn rollback_records(

@@ -78,3 +78,11 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - `--schema-path` 指定输入快照。加载后按账本跳过已记录迁移，续跑编译期清单。公开 Rust Migrator 的 `fresh` 继续沿用原有调用参数。
 - 用 `python3 -B tests/mysql_acceptance.py` 在 MySQL 8.4.13 上通过真实 Artisan 缺库与快照回归。覆盖生产拒绝、无账本保留独立表、显式快照恢复、历史保留，`sh tests/table_catalog.sh` 复验限定库清理。
 - 三语共用 `./artisan migrate:fresh --database=mysql --schema-path=database/schema/custom.sql`、`./artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版，非 MySQL 的建库和快照待发布矩阵。
+
+## MySQL migrate:refresh 回滚与默认快照
+
+对照固定 Laravel [刷新命令](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/RefreshCommand.php#L39)和[回滚后重跑文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#roll-back-migrate-using-a-single-command)。旧版未找到对应 Artisan 入口。本批复用当前回滚和默认快照加载路径，公开 Rust `Migrator::refresh` 保留原签名与返回类型。
+
+- `migrate:refresh` 先回滚，后运行迁移。正数 `--step` 限定回滚范围，零和省略都回滚全部。回滚阶段要求能够连接目标库，MySQL 缺库错误直接传播。
+- 迁移账本为空时加载该连接的默认快照，Artisan 显示加载提示，并按恢复的账本跳过已有迁移。
+- 临时 MySQL 8.4.13 上通过真实二进制账本和快照回归。覆盖缺库失败、默认快照恢复、`--step=1` 保留早期表数据及 `--step=0` 完整重跑。三语 `./artisan migrate:refresh --database=mysql --step=1`、`./artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

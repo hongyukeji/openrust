@@ -307,16 +307,16 @@ impl Command for MigrationCommand {
                     report(output, rows, pretend, "Nothing to rollback.");
                 }
                 Kind::Refresh => {
-                    let step = matches
-                        .get_one::<u64>("step")
-                        .copied()
-                        .filter(|step| *step > 0);
-                    let (down, up) = migrator
-                        .refresh(database, &paths, step)
+                    let step = matches.get_one::<u64>("step").copied();
+                    let result = migrator
+                        .refresh_with_schema(database, &paths, step)
                         .await
                         .map_err(console_error)?;
-                    report(output, down, false, "Nothing to rollback.");
-                    report(output, up, false, "Nothing to migrate.");
+                    report(output, result.down, false, "Nothing to rollback.");
+                    if result.loaded {
+                        output.info("Loading stored database schemas.");
+                    }
+                    report(output, result.up, false, "Nothing to migrate.");
                 }
                 Kind::Fresh => {
                     if matches.get_flag("drop-types") {

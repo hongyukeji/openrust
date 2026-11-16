@@ -559,6 +559,27 @@ async fn verify(mysql: Option<&str>) {
 
     success(run(&["migrate:refresh"]));
     assert!(schema.hasTable("users").await.unwrap());
+    db.statement(
+        "insert into users (name, email, password) values ('Hold', 'hold@example.test', 'example')",
+        &[],
+    )
+    .await
+    .unwrap();
+    let before = db.table("migrations").count("*").await.unwrap();
+    let output = success(run(&["migrate:refresh", "--step=1"]));
+    assert_eq!(
+        output
+            .lines()
+            .filter(|line| line.ends_with(" DONE"))
+            .count(),
+        2
+    );
+    assert!(!output.contains("create_users_table DONE"));
+    assert_eq!(db.table("users").count("*").await.unwrap(), 1);
+    assert_eq!(db.table("migrations").count("*").await.unwrap(), before);
+    let output = success(run(&["migrate:refresh", "--step=0"]));
+    assert!(output.contains("create_users_table DONE"));
+    assert_eq!(db.table("users").count("*").await.unwrap(), 0);
     if mysql.is_none() {
         db.unprepared(
             "create table extra (id integer); create view extra_view as select id from extra",
@@ -958,7 +979,7 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     assert!(output.contains("Nothing to migrate."));
     assert!(!output.contains("Loading stored database schemas."));
     let custom = root.0.join("database/schema/custom.sql");
-    fs::rename(snapshot, &custom).unwrap();
+    fs::rename(&snapshot, &custom).unwrap();
     let output = success(run(&[
         "migrate:fresh",
         "--drop-views",
@@ -968,6 +989,28 @@ async fn mysql_artisan_dumps_and_restores_schema_and_migration_history() {
     assert!(!output.contains(&format!("{name} DONE")));
     assert!(schema.hasView("snapshot_view").await.unwrap());
     assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
+
+    let (endpoint, _) = url.rsplit_once('/').unwrap();
+    let missing_name = "openrust-refresh-missing";
+    let missing = format!("{endpoint}/{missing_name}");
+    let failed = root.run("local", Some(&missing), &["migrate:refresh", "--force"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(
+        !db.table("information_schema.schemata")
+            .r#where("schema_name", "=", missing_name)
+            .exists()
+            .await
+            .unwrap()
+    );
+
+    fs::rename(custom, snapshot).unwrap();
+    success(run(&["db:wipe", "--drop-views"]));
+    let output = success(run(&["migrate:refresh", "--no-interaction"]));
+    assert!(output.contains("Loading stored database schemas."));
+    assert!(!output.contains(&format!("{name} DONE")));
+    assert!(schema.hasView("snapshot_view").await.unwrap());
+    assert_eq!(db.table("snapshot_rows").count("*").await.unwrap(), 0);
+    assert!(db.table("migrations").count("*").await.unwrap() > 1);
 }
 
 #[tokio::test]

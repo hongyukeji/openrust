@@ -104,6 +104,14 @@ CACHE_STORE=redis ./artisan migrate --isolated=12
 
 用 `migrate:reset` 回復全部遷移，用 `migrate:refresh` 回復後重新執行。帳本存在時，`migrate:fresh` 刪除所選資料庫中的所有資料表，包括使用其他前綴的資料表，然後重新遷移。傳入 `--drop-views` 可同時刪除檢視表。
 
+### 重新執行 MySQL 遷移 {#refreshing-mysql-migrations}
+
+執行 `migrate:refresh` 可回滾已執行的遷移並重新執行。正整數 `--step` 限定回滾的遷移數。遷移帳本為空時，遷移階段會載入所選連線既有的預設 Schema 快照。開始回滾前，資料庫必須可連線。
+
+```sh
+./artisan migrate:refresh --database=mysql --step=1
+```
+
 ### 重建 MySQL 資料庫 {#rebuilding-mysql-with-fresh}
 
 通過正式環境確認後，`migrate:fresh` 可以用選定的寫入帳號建立缺少的 MySQL 資料庫。資料庫已存在且沒有遷移帳本時，指令直接執行遷移，保留既有資料表。用 `--schema-path` 選擇要還原的快照。
