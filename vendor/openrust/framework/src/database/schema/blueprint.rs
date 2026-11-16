@@ -31,6 +31,8 @@ pub(in crate::database) struct TableOptions {
 #[derive(Default)]
 pub struct Blueprint {
     pub(super) commands: Vec<Command>,
+    pub(super) table: String,
+    pub(super) creating: bool,
     pub(super) temporary: bool,
     pub(super) table_options: TableOptions,
     pub(super) defaults: SchemaDefaults,
@@ -68,6 +70,32 @@ impl Blueprint {
         (tinyText, TinyText), (text, Text), (mediumText, MediumText), (longText, LongText), (boolean, Boolean),
         (double, Double), (binary, Binary), (json, Json), (jsonb, Jsonb),
         (date, Date), (year, Year), (ipAddress, IpAddress), (macAddress, MacAddress),
+    }
+
+    /// Returns the logical table reference supplied to the schema builder.
+    pub fn getTable(&self) -> &str {
+        &self.table
+    }
+
+    /// Returns whether this blueprint describes a new table.
+    pub fn creating(&self) -> bool {
+        self.creating
+    }
+
+    /// Iterates over pending column definitions in declaration order.
+    pub fn getColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+        self.commands.iter().filter_map(|command| match command {
+            Command::Column(column) => Some(column),
+            _ => None,
+        })
+    }
+
+    pub fn getAddedColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+        self.getColumns().filter(|column| !column.change)
+    }
+
+    pub fn getChangedColumns(&self) -> impl Iterator<Item = &ColumnDefinition> {
+        self.getColumns().filter(|column| column.change)
     }
 
     pub fn id(&mut self) -> &mut ColumnDefinition {

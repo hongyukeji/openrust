@@ -4433,3 +4433,95 @@ async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema()
         .unwrap();
     session.close().await.unwrap();
 }
+
+async fn verify_blueprint_context(db: Connection, table_ref: &str) {
+    use openrust::database::schema::ColumnDefinition;
+
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists(table_ref).await.unwrap();
+    schema
+        .create(table_ref, |table| {
+            assert_eq!(table.getTable(), table_ref);
+            assert!(table.creating());
+            assert_eq!(table.getColumns().count(), 0);
+            table.id();
+            table.string("code", 16);
+            table.string("transient", 20);
+            table.removeColumn("transient");
+            table.index(&["code"], Some("blueprint_context_code"));
+            assert_eq!(
+                table
+                    .getAddedColumns()
+                    .map(ColumnDefinition::getName)
+                    .collect::<Vec<_>>(),
+                ["id", "code"]
+            );
+            assert_eq!(table.getChangedColumns().count(), 0);
+        })
+        .await
+        .unwrap();
+    schema
+        .whenTableHasColumn(table_ref, "code", |table| {
+            assert_eq!(table.getTable(), table_ref);
+            assert!(!table.creating());
+            table.string("code", 32).nullable().change();
+            table.integer("quantity").default(0);
+            assert_eq!(
+                table
+                    .getColumns()
+                    .map(ColumnDefinition::getName)
+                    .collect::<Vec<_>>(),
+                ["code", "quantity"]
+            );
+            assert!(
+                table
+                    .getChangedColumns()
+                    .map(ColumnDefinition::getName)
+                    .eq(["code"])
+            );
+            assert!(
+                table
+                    .getAddedColumns()
+                    .map(ColumnDefinition::getName)
+                    .eq(["quantity"])
+            );
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumnListing(table_ref).await.unwrap(),
+        ["id", "code", "quantity"]
+    );
+    assert!(
+        schema
+            .getColumn(table_ref, "code")
+            .await
+            .unwrap()
+            .unwrap()
+            .nullable
+    );
+    assert!(
+        schema
+            .hasIndex(table_ref, "blueprint_context_code")
+            .await
+            .unwrap()
+    );
+    schema.drop(table_ref).await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_exposes_blueprint_context_for_creation_and_conditional_alter() {
+    let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
+    verify_blueprint_context(db, "main.blueprint_context").await;
+}
+
+#[tokio::test]
+async fn mysql_exposes_blueprint_context_for_creation_and_conditional_alter() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url, "prefix": "app_"}));
+    let table = format!("{}.blueprint_context", db.getDatabaseName());
+    verify_blueprint_context(db, &table).await;
+}

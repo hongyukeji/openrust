@@ -267,6 +267,29 @@ async fn create_imports() -> DatabaseResult<()> {
 
 Use `removeColumn()` inside a blueprint callback to discard a pending column addition or change. It removes modifiers declared on that column. Explicit indexes and constraints remain in the blueprint. Use `dropColumn()` to drop an existing database column.
 
+### Inspecting a Blueprint {#inspecting-a-blueprint}
+
+In a schema callback, `getTable()` returns the supplied table reference before the framework applies the connection prefix. `creating()` distinguishes `Schema::create` from `Schema::table` and conditional alterations.
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn prepare_status(table: &mut Blueprint) {
+    if table.creating() {
+        table.id();
+    }
+
+    if !table
+        .getColumns()
+        .any(|column| column.getName() == "status")
+    {
+        table.string("status", 24).default("pending");
+    }
+}
+```
+
+Use `getColumns()`, `getAddedColumns()`, and `getChangedColumns()` to read pending definitions in declaration order. These iterators borrow the blueprint. Use the Schema facade’s catalog methods to inspect columns already in the database.
+
 ### JSON Columns {#json-columns}
 
 On MySQL, `json()` and `jsonb()` both declare `JSON`. On SQLite, both default to `TEXT`. Set `use_native_json` or `use_native_jsonb` to `true` in the SQLite connection configuration to declare `JSON` or `JSONB` respectively. The options are independent.

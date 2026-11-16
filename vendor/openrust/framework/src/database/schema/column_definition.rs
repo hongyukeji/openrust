@@ -123,6 +123,11 @@ impl ColumnDefinition {
         }
     }
 
+    /// Returns the column name in the blueprint, before any pending rename.
+    pub fn getName(&self) -> &str {
+        &self.name
+    }
+
     pub fn nullable(&mut self) -> &mut Self {
         self.nullable = true;
         self

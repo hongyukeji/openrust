@@ -94,8 +94,10 @@ impl<'connection> Builder<'connection> {
         Ok(output)
     }
 
-    fn blueprint(&self) -> Blueprint {
+    fn blueprint(&self, table: &str, creating: bool) -> Blueprint {
         Blueprint {
+            table: table.to_owned(),
+            creating,
             defaults: *self
                 .schema_defaults
                 .read()
@@ -156,8 +158,8 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
+        let mut blueprint = self.blueprint(table, true);
         let mut table = self.grammar.table(table)?;
-        let mut blueprint = self.blueprint();
         configure(&mut blueprint);
         if blueprint.temporary {
             if !matches!(self.executor, Executor::Session(_) | Executor::Pretend(_)) {
@@ -217,8 +219,8 @@ impl<'connection> Builder<'connection> {
         table: &str,
         configure: impl FnOnce(&mut Blueprint),
     ) -> DatabaseResult<()> {
+        let mut blueprint = self.blueprint(table, false);
         let table = self.resolve_table(table)?;
-        let mut blueprint = self.blueprint();
         configure(&mut blueprint);
         if !self.grammar.mysql() && blueprint.commands.iter().any(sqlite::requires_catalog) {
             if matches!(self.executor, Executor::Pretend(_)) {

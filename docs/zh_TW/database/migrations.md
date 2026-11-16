@@ -267,6 +267,29 @@ async fn create_imports() -> DatabaseResult<()> {
 
 在 Blueprint 回呼裡用 `removeColumn()` 撤銷待執行的新增欄位或修改欄位，欄位層級修飾符也會一併移除。明確宣告的索引和約束仍留在 Blueprint。刪除資料庫現有欄位時使用 `dropColumn()`。
 
+### 檢查 Blueprint {#inspecting-a-blueprint}
+
+在 Schema 回呼中，`getTable()` 回傳傳給建構器的邏輯表名，連線資料表前綴會在後續產生 SQL 時套用。`creating()` 區分 `Schema::create` 與 `Schema::table` 或條件式改表。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn prepare_status(table: &mut Blueprint) {
+    if table.creating() {
+        table.id();
+    }
+
+    if !table
+        .getColumns()
+        .any(|column| column.getName() == "status")
+    {
+        table.string("status", 24).default("pending");
+    }
+}
+```
+
+用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按宣告順序讀取待執行的欄位定義。這些迭代器借用 Blueprint。檢查資料庫現有欄位時，請使用 Schema 門面的目錄方法。
+
 ### JSON 欄位 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都宣告為 `JSON`。SQLite 預設都宣告為 `TEXT`。在 SQLite 連線設定中分別將 `use_native_json` 或 `use_native_jsonb` 設為 `true`，即可宣告 `JSON` 或 `JSONB`。兩個選項獨立生效。

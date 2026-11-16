@@ -293,3 +293,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `815689dc7`。SQLite 25 项和 MySQL 8.4.13 的 24 项 Schema 测试通过。新增回归用同一写会话实际附加 SQLite 库，验证 13 个外键在超过一位数时的顺序、带前缀的表名、复合引用、正确写入及无效值拒绝。MySQL 的表目录、限定 Schema 清库及旁库标记行保留通过。
 - 三语共用示例在 SQLite 和 MySQL 的实际 Artisan 中运行，`main artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅报告既有 Sanctum 排版差异。临时 MySQL 验收入口从 `3d2641c0f` 提取到隔离副本。
 - 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.31 GB（66.42 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-foreign.pWfq2qkS`。
+
+## Blueprint 回调上下文
+
+对照固定 Laravel [Blueprint::creating](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L327)、[表名及待执行列入口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1945)和 [Builder::create](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L538)。旧版未找到对应读取入口，复用当前 Blueprint 命令列表和条件式改表回调。
+
+- `getTable()` 返回原始逻辑表引用，包括传入的 Schema 限定名。`creating()` 反映构建器进入回调时的创建或改表状态。`getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按声明顺序借用现有待执行列，`ColumnDefinition::getName()` 提供类型明确的列名读取入口。
+- 隔离基线 `ec4ed2aa8`。SQLite 26 项和 MySQL 8.4.13 的 25 项 Schema 回归通过。新增回归覆盖带前缀的限定表名、普通建表、条件式改表、已撤销的待执行列和独立索引。跨驱动测试以修改列的可空性作为共同断言，避免依赖 SQLite 是否保留 VARCHAR 长度或 MySQL 是否允许对 TEXT 建无前缀索引。
+- 两种驱动的实际 Artisan 均跑通三语共用示例。`main artisan inspire`、`sh tests/table_catalog.sh` 中的表目录与限定清库、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
+- 三轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 69.75 GB（64.96 GiB）。证据目录为 `/private/tmp/openrust-02-05-blueprint-context.xCmiOb12`。

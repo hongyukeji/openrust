@@ -267,6 +267,29 @@ async fn create_imports() -> DatabaseResult<()> {
 
 在 Blueprint 回调里用 `removeColumn()` 撤销待执行的新增列或修改列，列级修饰符随之移除。显式声明的索引和约束仍留在 Blueprint。删除数据库中已有的列时使用 `dropColumn()`。
 
+### 检查 Blueprint {#inspecting-a-blueprint}
+
+在 Schema 回调中，`getTable()` 返回传给构建器的逻辑表名，连接表前缀在后续生成 SQL 时应用。`creating()` 区分 `Schema::create` 与 `Schema::table` 或条件式改表。
+
+```rust
+use openrust::database::schema::Blueprint;
+
+fn prepare_status(table: &mut Blueprint) {
+    if table.creating() {
+        table.id();
+    }
+
+    if !table
+        .getColumns()
+        .any(|column| column.getName() == "status")
+    {
+        table.string("status", 24).default("pending");
+    }
+}
+```
+
+用 `getColumns()`、`getAddedColumns()` 和 `getChangedColumns()` 按声明顺序读取待执行的列定义。这些迭代器借用 Blueprint。检查数据库已有列时，使用 Schema 门面的目录方法。
+
 ### JSON 列 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都声明为 `JSON`。SQLite 默认都声明为 `TEXT`。在 SQLite 连接配置中分别将 `use_native_json` 或 `use_native_jsonb` 设为 `true`，即可声明 `JSON` 或 `JSONB`。两个选项独立生效。
