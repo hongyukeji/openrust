@@ -25,7 +25,6 @@ use clap::ArgMatches;
 use regex::Regex;
 
 pub use application::Application;
-pub(crate) use application::command_position;
 pub use command::{ClosureCommand, Command, CommandDefinition};
 pub use generator_command::GeneratorCommand;
 

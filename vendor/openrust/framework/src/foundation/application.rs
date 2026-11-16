@@ -12,7 +12,7 @@ use std::{
 
 use super::{
     BootstrapError, Runner,
-    bootstrap::{ConfigLoader, LoadConfiguration, LoadEnvironmentVariables},
+    bootstrap::{ConfigLoader, LoadConfiguration},
     configuration::{ApplicationBuilder, CommandRoutes, Exceptions, Middleware, Routing},
     console::Kernel,
     environment_detector,
@@ -20,7 +20,7 @@ use super::{
     http,
 };
 use crate::{
-    config::{ConfigError, Repository, Value},
+    config::{ConfigError, Repository, Value, cache::ConfigurationCache},
     console::{Application as Artisan, ConsoleError, Output},
     container::{Container, EnvironmentQuery, EnvironmentResult, ServiceKey},
     contracts::{
@@ -40,14 +40,6 @@ pub(super) type CommandRegistrar = fn(&mut Artisan) -> Result<(), ConsoleError>;
 pub(crate) type PackageRoutes = fn() -> Result<(), crate::routing::RoutingError>;
 pub(crate) type PackageCommands = fn() -> Result<(), ConsoleError>;
 pub(super) type MiddlewareConfigurator = Box<dyn FnOnce(&mut Middleware) + Send + Sync>;
-
-#[derive(Clone, Copy, Default)]
-pub(super) enum ConfigurationCacheMode {
-    #[default]
-    Use,
-    Refresh,
-    Clear,
-}
 
 /// Owns the application root, service container, and provider lifecycle.
 #[allow(non_snake_case, reason = "Retains Laravel's basePath property name")]
@@ -585,19 +577,18 @@ impl Application {
     ) -> Result<(), BootstrapError> {
         crate::support::facades::scope(
             self.shared.container.clone(),
-            self.boot_application(selected, configuration_ready, ConfigurationCacheMode::Use),
+            self.boot_application(selected, configuration_ready, true),
         )
         .await
     }
 
-    pub(super) async fn boot_for_configuration_command(
+    pub(super) async fn boot_without_config_cache(
         &mut self,
         selected: Option<&str>,
-        mode: ConfigurationCacheMode,
     ) -> Result<(), BootstrapError> {
         crate::support::facades::scope(
             self.shared.container.clone(),
-            self.boot_application(selected, None, mode),
+            self.boot_application(selected, None, false),
         )
         .await
     }
@@ -606,7 +597,7 @@ impl Application {
         &mut self,
         selected: Option<&str>,
         configuration_ready: Option<tokio::sync::oneshot::Sender<()>>,
-        cache_mode: ConfigurationCacheMode,
+        use_cache: bool,
     ) -> Result<(), BootstrapError> {
         match self.shared.state.compare_exchange(
             PENDING,
@@ -620,31 +611,27 @@ impl Application {
         }
 
         let configuration_failed = |source| BootstrapError::ConfigurationFailed { source };
-        let cache_path =
-            crate::config::cache::path(&self.shared.basePath).map_err(configuration_failed)?;
-        let cached = match cache_mode {
-            ConfigurationCacheMode::Refresh => None,
-            ConfigurationCacheMode::Use | ConfigurationCacheMode::Clear => {
-                match crate::config::cache::load(&cache_path) {
-                    Err(ConfigError::InvalidCache { .. })
-                        if matches!(cache_mode, ConfigurationCacheMode::Clear) =>
-                    {
-                        None
-                    }
-                    result => result.map_err(configuration_failed)?,
-                }
-            }
-        };
-        let environment =
-            LoadEnvironmentVariables::snapshot(&self.shared.basePath, selected, cached.is_none())
-                .map_err(configuration_failed)?;
+        let ConfigurationCache {
+            path: cache_path,
+            environment,
+            values: cached,
+        } = ConfigurationCache::bootstrap(&self.shared.basePath, selected, use_cache)
+            .map_err(configuration_failed)?;
+        self.shared
+            .container
+            .instanceNamed("config.cache.path", Arc::new(cache_path))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        self.shared
+            .container
+            .instanceNamed("config_loaded_from_cache", Arc::new(cached.is_some()))
+            .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let config = Arc::new(Repository::new(Default::default()));
         self.shared
             .container
             .instanceNamed::<dyn config::Repository>("config", config.clone())
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let loaded = match cached {
-            Some(loaded) => loaded,
+            Some(values) => Repository::new(values),
             None => LoadConfiguration::bootstrap(
                 &self.shared.basePath,
                 &environment,
@@ -656,10 +643,6 @@ impl Application {
         self.shared
             .container
             .instanceNamed("env.file", Arc::new(environment.file))
-            .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        self.shared
-            .container
-            .instanceNamed("config.cache.path", Arc::new(cache_path))
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
         let name = match selected {
             Some(name) => Arc::from(name),

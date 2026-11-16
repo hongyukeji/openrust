@@ -36,15 +36,20 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 ## 配置缓存 {#configuration-caching}
 
+用 `config:cache` 保存应用重新启动后的配置，包括服务提供者设置的值。后续 HTTP 和 Artisan 启动会读取这份快照。更新配置后，用 `config:clear` 移除快照，再重启应用。
+
 ```sh
-./artisan config:show app.name
 ./artisan config:cache
 ./artisan config:clear
 ```
 
-`config:show` 接受配置分区或点分键，显示可能含有凭据的生效值。找不到键时以状态码 1 退出。
+刷新时先移除所选的旧快照，再引导新应用。若新应用引导失败，缓存保持为空。
 
-`config:cache` 重新加载配置，将最终仓储保存到 `bootstrap/cache/config.json`。后续 HTTP 和 Artisan 进程使用快照，跳过环境文件。部署配置变更后重新生成缓存，或执行 `config:clear`，再重启常驻进程以读取未缓存的配置。刷新失败时保留现有缓存。在进程环境中设置 `APP_CONFIG_CACHE` 可指定绝对路径或相对于应用根目录的路径。缓存文件应保持私有。
+默认路径为 `storage/framework/config.json`。可用 `APP_CONFIG_CACHE` 指定绝对路径或相对于应用根目录的文件路径。将它设置在进程环境中，可以在读取 `.env` 前选定路径。不同部署环境请使用各自的缓存文件。
+
+如果在加载 dotenv 前命中缓存，应用会跳过 dotenv 解析。缓存包含生效配置，可能含有密钥等秘密，应与私有部署数据一起保管。无效 JSON 会中止启动。缓存损坏时，先移除该文件再重建。
+
+用 `./artisan config:show app.name` 查看单个键，或用 `./artisan config:show app` 查看配置节。命令显示当前生效的值，其中可能包含凭据。
 
 ## 环境文件加密 {#environment-file-encryption}
 

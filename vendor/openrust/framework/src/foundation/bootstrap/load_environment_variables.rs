@@ -10,13 +10,12 @@ impl LoadEnvironmentVariables {
         base_path: &Path,
         selected_env: Option<&str>,
     ) -> Result<Environment, ConfigError> {
-        Self::snapshot(base_path, selected_env, true)
+        Self::load(Self::snapshot(base_path, selected_env)?)
     }
 
     pub(crate) fn snapshot(
         base_path: &Path,
         selected_env: Option<&str>,
-        read_file: bool,
     ) -> Result<Environment, ConfigError> {
         let mut environment = Environment {
             file: base_path.join(".env"),
@@ -53,18 +52,20 @@ impl LoadEnvironmentVariables {
             }
         }
 
-        environment.file = path.clone();
-        if !read_file {
-            return Ok(environment);
-        }
-        let entries = match dotenvy::from_path_iter(&path) {
+        environment.file = path;
+        Ok(environment)
+    }
+
+    pub(crate) fn load(mut environment: Environment) -> Result<Environment, ConfigError> {
+        let path = &environment.file;
+        let entries = match dotenvy::from_path_iter(path) {
             Ok(entries) => entries,
             Err(error) if error.not_found() => return Ok(environment),
-            Err(error) => return Err(file_error(&path, error)),
+            Err(error) => return Err(file_error(path, error)),
         };
         let file_values = entries
             .collect::<Result<std::collections::HashMap<_, _>, _>>()
-            .map_err(|error| file_error(&path, error))?;
+            .map_err(|error| file_error(path, error))?;
         for (key, value) in file_values {
             environment
                 .values

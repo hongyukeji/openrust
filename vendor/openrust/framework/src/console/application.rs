@@ -405,7 +405,7 @@ impl Application {
     }
 }
 
-pub(crate) fn command_position(arguments: &[OsString]) -> Option<usize> {
+fn command_position(arguments: &[OsString]) -> Option<usize> {
     let mut arguments = arguments.iter().enumerate();
     while let Some((index, argument)) = arguments.next() {
         if argument == "--" {

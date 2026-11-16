@@ -1,6 +1,14 @@
-use std::{env, error::Error, ffi::OsStr, path::Path, process::ExitCode};
+use std::{env, error::Error, ffi::OsStr, path::Path, process::ExitCode, sync::Arc};
 
-use super::Application;
+use crate::{
+    console::ConsoleError,
+    contracts::{container::Container as _, foundation::Application as _},
+};
+
+use super::{
+    Application,
+    console::config_cache_command::{ExecutableEntry, WRITE_COMMAND, write_fresh},
+};
 
 /// Selects the process entry point before creating the application.
 #[allow(non_snake_case, reason = "Matches the public application entry naming")]
@@ -39,12 +47,35 @@ pub async fn runApplication(
             return ExitCode::FAILURE;
         }
     };
+    app.container()
+        .instance(Arc::new(ExecutableEntry))
+        .expect("compiled entry is initially unbound");
     let (result, error_context) = if artisan {
         let arguments: Vec<_> = arguments.collect();
         if isolated_job {
             let result =
                 crate::queue::isolated_job::serve(app, arguments.get(1).map(Path::new)).await;
             (result.map(|()| 0), "Queue job execution process failed")
+        } else if arguments
+            .first()
+            .is_some_and(|argument| argument == WRITE_COMMAND)
+        {
+            let result = async {
+                let destination = arguments.get(1).map(Path::new).ok_or_else(|| {
+                    ConsoleError::new("Missing configuration cache staging path.")
+                })?;
+                let selected = arguments
+                    .get(2)
+                    .map(|argument| {
+                        argument
+                            .to_str()
+                            .ok_or_else(|| ConsoleError::new("Invalid environment name."))
+                    })
+                    .transpose()?;
+                write_fresh(app, destination, selected).await
+            }
+            .await;
+            (result.map(|()| 0), "Configuration cache build failed")
         } else {
             (app.handleCommand(&arguments).await, "Artisan failed")
         }

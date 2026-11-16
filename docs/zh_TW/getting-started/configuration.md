@@ -36,15 +36,20 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 ## 設定快取 {#configuration-caching}
 
+以 `config:cache` 儲存應用程式重新啟動後的設定，包含服務提供者設定的值。後續 HTTP 與 Artisan 啟動會讀取這份快照。更新設定後，用 `config:clear` 移除快照，再重新啟動應用程式。
+
 ```sh
-./artisan config:show app.name
 ./artisan config:cache
 ./artisan config:clear
 ```
 
-`config:show` 接受設定區段或以點分隔的鍵，顯示可能包含憑證的生效值。找不到鍵時以狀態碼 1 結束。
+更新時先移除所選的舊快照，再引導新應用程式。若引導失敗，快取仍為空。
 
-`config:cache` 重新載入設定，將最終儲存庫儲存到 `bootstrap/cache/config.json`。後續 HTTP 和 Artisan 程序會使用快照，跳過環境檔。部署設定變更後重新產生快取，或執行 `config:clear`，再重新啟動常駐程序以讀取未快取的設定。重新產生失敗時會保留目前快取。在程序環境中設定 `APP_CONFIG_CACHE` 可指定絕對路徑或相對於應用根目錄的路徑。快取檔應保持私有。
+預設路徑為 `storage/framework/config.json`。可用 `APP_CONFIG_CACHE` 指定絕對路徑或相對於應用程式根目錄的檔案路徑。將它設定在程序環境中，可在讀取 `.env` 前選定路徑。不同部署環境請使用各自的快取檔案。
+
+若在載入 dotenv 前命中快取，應用程式會略過 dotenv 解析。快取包含生效設定，可能含有金鑰等秘密，請與私有部署資料一起保管。無效的 JSON 會中止啟動。快取損壞時，請先移除檔案再重建。
+
+以 `./artisan config:show app.name` 查看單一鍵，或以 `./artisan config:show app` 查看設定區段。指令會顯示目前生效的值，其中可能包含憑證。
 
 ## 環境檔案加密 {#environment-file-encryption}
 

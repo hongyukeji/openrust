@@ -120,7 +120,7 @@ fn real_artisan_and_http_share_the_cached_snapshot() {
     let root = TestRoot::new();
     let base = &root.0;
     let environment = base.join(".env");
-    let cache = base.join("bootstrap/cache/config.json");
+    let cache = base.join("storage/framework/config.json");
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let addr = listener.local_addr().unwrap();
     drop(listener);
@@ -158,14 +158,9 @@ fn real_artisan_and_http_share_the_cached_snapshot() {
     fs::write(&environment, "APP_NAME=\"unterminated\n").unwrap();
     assert!(success(artisan(base, &["config:show", "app"])).contains("Second"));
     assert!(health(base, addr).contains("Second"));
-    let previous = fs::read(&cache).unwrap();
     assert!(!artisan(base, &["config:cache"]).status.success());
-    assert_eq!(fs::read(&cache).unwrap(), previous);
-    assert!(
-        success(artisan(base, &["config:clear"]))
-            .contains("Configuration cache cleared successfully.")
-    );
     assert!(!cache.exists());
+    assert!(!artisan(base, &["config:clear"]).status.success());
     assert!(!artisan(base, &["config:show", "app.name"]).status.success());
 
     write_environment("Third");
@@ -173,6 +168,7 @@ fn real_artisan_and_http_share_the_cached_snapshot() {
         success(artisan(base, &["config:clear"]))
             .contains("Configuration cache cleared successfully.")
     );
+    assert!(!cache.exists());
     assert!(success(artisan(base, &["config:show", "app.name"])).contains("Third"));
     assert!(health(base, addr).contains("Third"));
 
@@ -182,8 +178,9 @@ fn real_artisan_and_http_share_the_cached_snapshot() {
     let diagnostic = String::from_utf8_lossy(&failed.stderr);
     assert!(diagnostic.contains("invalid configuration cache"));
     assert!(!diagnostic.contains("fixture-private-broken-cache"));
-    success(artisan(base, &["config:clear"]));
-    assert!(!cache.exists());
+    assert!(!artisan(base, &["config:clear"]).status.success());
+    assert!(cache.exists());
+    fs::remove_file(&cache).unwrap();
 
     let missing = artisan(base, &["config:show", "app.nonexistent"]);
     assert_eq!(missing.status.code(), Some(1));
