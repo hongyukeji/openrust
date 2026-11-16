@@ -23,3 +23,9 @@ MySQL 8.4 镜像的数据目录会生成匿名卷。临时容器按旧规则删�
 当前工作树只发现 Reverb 脚本在验收入口之外直接调用 Docker。它此前允许按调用方提供的容器名重启 Redis。现在由 `docker/accept.py --mysql --redis` 创建测试服务，Reverb 核对本次容器名和归属标签后，按容器 ID 重启。Docker Desktop 实测会在重启时更换自动发布的端口，因此入口为本批 Redis 显式发布一个空闲回环端口。
 
 在隔离 Cargo 目标目录用 Rust 1.94.0 编译带 `reverb` 特性的应用，完整运行 `tests/reverb_runtime.py` 通过。覆盖 HTTP/WebSocket、Redis 跨进程投递、共享 MySQL 和 Redis 的三节点集群、Redis 重启后重新订阅。定向检查验证现有 Redis 的重启请求被拒绝，临时 Redis 重启后原端口和测试数据仍可用，正常退出、失败和 SIGTERM 均回收本批卷。复查归属标签下的容器和卷均为零。现有 MySQL、PostgreSQL、Redis 的启动时间和数据挂载一致，连接检查仍通过。
+
+## 表目录验收入口
+
+表目录批次曾在临时工作目录中直接运行 `docker run`，结束时删除容器并留下 MySQL 匿名卷。现在由 `sh tests/table_catalog.sh` 通过验收入口创建并回收带本次标签的容器和卷。跨库 DDL 权限只在本批临时 MySQL 内授予测试账号。
+
+在表目录提交 `5940a04c7` 的隔离副本上运行新入口，真实 MySQL 8.4 的 Schema 回归、限定库清库用例和另一库的标记检查均通过。另验证测试命令退出 37 时保留退出码并回收本批资源。其他容器、卷和数据库挂载按原状态管理。

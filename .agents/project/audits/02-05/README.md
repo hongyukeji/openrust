@@ -159,6 +159,8 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 实际测试连接 `SELECT VERSION()` 为 MySQL 8.4.13。Rust 1.94.0 的 `cargo test -p openrust-framework --test database_schema --locked --offline -j 5 mysql -- --skip sqlite_` 通过 15 项，覆盖同名跨库表、读写分离、系统库与视图排除、限定名、可读大小及元数据。另运行根应用 `cargo test --test migrations --locked --offline -j 5 mysql_fresh_wipes_the_selected_schema -- --exact`，实际 `migrate:fresh` 与 `db:wipe` 通过，另一库的标记表仍可查询。
 - 三语共用例经实际 MySQL Artisan 验证，原生 `main artisan inspire` 通过。严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。SQLite 本批通过工作区编译，运行验收留在发布前。全工作区格式仍有既有 Sanctum 排版差异。
 
+复验表目录和限定 Schema 清库时，从仓库根目录执行 `sh tests/table_catalog.sh`。入口通过 Docker 验收脚本创建本批 MySQL 8.4 实例和带归属标签的数据卷，在实例内运行目录用例、清库用例及跨库标记检查。测试退出后由验收脚本回收本批容器和卷。
+
 ## 默认列长度与时间精度
 
 对照固定 Laravel [Builder 默认值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L35)、[Blueprint 字符串](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L786) 与 [时间列组](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1222)。旧版未找到对应公开入口，复用现有多态键默认值的应用隔离机制与方言编译。

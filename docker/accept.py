@@ -48,6 +48,7 @@ def run_env(base, directory):
         OPENRUST_ACCEPTANCE_IMAGE=f"openrust/acceptance:{name}",
     )
     env.pop("OPENRUST_ACCEPTANCE_MYSQL_URL", None)
+    env.pop("OPENRUST_ACCEPTANCE_MYSQL_CONTAINER", None)
     env.pop("OPENRUST_ACCEPTANCE_REDIS_URL", None)
     env.pop("OPENRUST_ACCEPTANCE_REDIS_CONTAINER", None)
     return env
@@ -76,7 +77,7 @@ def fixture_address(call, container, port, cancellation):
         raise RuntimeError(f"{container}: 启动超时")
 
 
-def start_mysql(env, lease, cancellation):
+def start_mysql(env, lease, cancellation, *, schema_admin):
     call = partial(docker, env, lease=lease)
     volume = fixture_volume(call, env, "mysql")
     container = f"{env['OPENRUST_ACCEPTANCE_RUN']}-mysql"
@@ -85,23 +86,33 @@ def start_mysql(env, lease, cancellation):
         "MYSQL_USER": "acceptance",
         "MYSQL_PASSWORD": uuid.uuid4().hex,
     }
-    docker(
+    if schema_admin:
+        mysql_env["MYSQL_ROOT_PASSWORD"] = uuid.uuid4().hex
+    container_id, = docker(
         dict(env, **mysql_env),
         "run", "--detach", "--pull", "missing", "--name", container,
         "--label", env["OPENRUST_ACCEPTANCE_LABEL"], "--publish", "127.0.0.1::3306",
         "--mount", f"type=volume,src={volume},dst=/var/lib/mysql",
-        "--env", "MYSQL_RANDOM_ROOT_PASSWORD=yes",
+        "--env", "MYSQL_ROOT_PASSWORD" if schema_admin else "MYSQL_RANDOM_ROOT_PASSWORD=yes",
         "--env", "MYSQL_DATABASE", "--env", "MYSQL_USER", "--env", "MYSQL_PASSWORD",
         "--health-cmd", 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --protocol=TCP -h 127.0.0.1 -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT 1"',
         "--health-interval", "1s", "--health-timeout", "3s", "--health-retries", "90",
         "mysql:8.4", lease=lease,
     )
     if address := fixture_address(call, container, 3306, cancellation):
+        if schema_admin:
+            call(
+                "exec", container_id, "sh", "-ec",
+                'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "$1"',
+                "grant-fixture-schema-access",
+                "GRANT ALL PRIVILEGES ON *.* TO 'acceptance'@'%'",
+            )
         env["OPENRUST_TEST_MYSQL_URL"] = (
             f"mysql://{mysql_env['MYSQL_USER']}:{mysql_env['MYSQL_PASSWORD']}"
             f"@{address}/{mysql_env['MYSQL_DATABASE']}"
         )
         env["OPENRUST_ACCEPTANCE_MYSQL_URL"] = env["OPENRUST_TEST_MYSQL_URL"]
+        env["OPENRUST_ACCEPTANCE_MYSQL_CONTAINER"] = container_id
         env["OPENRUST_REQUIRE_MYSQL"] = "1"
 
 
@@ -213,9 +224,13 @@ def run_workload(command, env, lease, cancellation):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mysql", action="store_true", help="start a disposable MySQL 8.4 fixture")
+    parser.add_argument("--mysql-schema-admin", action="store_true",
+                        help="allow cross-schema DDL in the disposable MySQL fixture")
     parser.add_argument("--redis", action="store_true", help="start a disposable Redis 8 fixture")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
+    if args.mysql_schema_admin and not args.mysql:
+        parser.error("--mysql-schema-admin requires --mysql")
     command = args.command
     if command[:1] == ["--"]:
         command = command[1:]
@@ -251,7 +266,7 @@ def main():
         status = 1
         try:
             if args.mysql:
-                start_mysql(env, lease, cancellation)
+                start_mysql(env, lease, cancellation, schema_admin=args.mysql_schema_admin)
             if args.redis and not cancellation:
                 start_redis(env, lease, cancellation)
             if not (args.mysql or args.redis):
