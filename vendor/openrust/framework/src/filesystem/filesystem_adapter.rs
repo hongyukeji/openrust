@@ -530,6 +530,7 @@ impl FilesystemAdapter {
         }
         match &self.driver {
             Driver::Local(disk) => disk.list(path.to_owned(), recursive, directories).await,
+            Driver::S3(disk) if recursive && !directories => disk.all_files(path).await,
             Driver::S3(_) => Err(FilesystemError::UnsupportedOperation),
         }
     }

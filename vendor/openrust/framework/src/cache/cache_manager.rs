@@ -15,12 +15,13 @@ use crate::{
         container::Container as _,
     },
     database::DatabaseManager,
+    filesystem::FilesystemManager,
     redis::RedisManager,
 };
 
 use super::{
     ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, NullStore,
-    RedisStore, Repository, backend,
+    RedisStore, Repository, StorageStore, backend,
     memoized_store::{MemoizedRepositories, MemoizedStore},
     store_registry::StoreRegistry,
 };
@@ -38,6 +39,7 @@ pub(super) struct CacheManagerState {
     base: PathBuf,
     redis: Arc<RedisManager>,
     stores: StoreRegistry,
+    filesystem: Arc<FilesystemManager>,
     factories: Mutex<HashMap<String, Arc<DriverFactory>>>,
     owner: Weak<Container>,
 }
@@ -49,6 +51,10 @@ enum Options {
     Null,
     Failover {
         stores: Vec<String>,
+    },
+    Storage {
+        disk: Option<String>,
+        path: Option<String>,
     },
     File {
         path: PathBuf,
@@ -70,9 +76,11 @@ enum Options {
 impl CacheManager {
     pub fn new(config: Arc<dyn Config>, database: Arc<DatabaseManager>, base: PathBuf) -> Self {
         let redis = Arc::new(RedisManager::new(config.clone()));
+        let filesystem = Arc::new(FilesystemManager::new(config.clone(), base.clone()));
         Self {
             inner: Arc::new(CacheManagerState {
                 redis,
+                filesystem,
                 config,
                 database,
                 base,
@@ -87,6 +95,13 @@ impl CacheManager {
         Arc::get_mut(&mut self.inner)
             .expect("unshared cache manager")
             .redis = redis;
+        self
+    }
+
+    pub(super) fn with_filesystem(mut self, filesystem: Arc<FilesystemManager>) -> Self {
+        Arc::get_mut(&mut self.inner)
+            .expect("unshared cache manager")
+            .filesystem = filesystem;
         self
     }
 
@@ -238,7 +253,7 @@ impl CacheManager {
         }
         if !matches!(
             driver,
-            "array" | "file" | "database" | "redis" | "failover" | "null"
+            "array" | "file" | "database" | "redis" | "failover" | "null" | "storage"
         ) {
             return Err(CacheError::UnsupportedDriver);
         }
@@ -253,6 +268,18 @@ impl CacheManager {
                 stores,
                 self.prefix(&config)?,
             )?),
+            Options::Storage { disk, path } => {
+                let disk = self
+                    .inner
+                    .filesystem
+                    .disk(disk.as_deref())
+                    .map_err(backend)?;
+                Arc::new(StorageStore::new(
+                    disk,
+                    path.as_deref().unwrap_or_default(),
+                    self.prefix(&config)?,
+                )?)
+            }
             Options::File { path, lock_path } => {
                 if path.as_os_str().is_empty()
                     || lock_path

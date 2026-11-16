@@ -1121,3 +1121,185 @@ async fn null_results_end_failover_and_emit_laravel_event_payloads() {
     assert_eq!(miss.key, "two");
     events.assertDispatchedTimes(KeyWriteFailed::NAME, 1);
 }
+
+#[tokio::test]
+async fn storage_cache_reuses_disk_and_preserves_files_outside_its_directory() {
+    use openrust::filesystem::FilesystemManager;
+
+    let root = Sandbox::new(
+        "storage-cache",
+        "CACHE_STORE=storage\nCACHE_STORAGE_DISK=local\nCACHE_STORAGE_PATH=/framework/cache/items/\nCACHE_PREFIX=fixture-\n",
+    );
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().make::<CacheManager>().unwrap();
+    let disk = app
+        .container()
+        .make::<FilesystemManager>()
+        .unwrap()
+        .disk(None)
+        .unwrap();
+    let cache = manager.store(None).unwrap();
+    assert!(!cache.supportsTags());
+    assert!(!cache.supportsFlushingLocks());
+    assert!(matches!(
+        cache.lock("outside", None, None),
+        Err(CacheError::LocksUnsupported)
+    ));
+    assert_eq!(cache.get_store().get_prefix(), "fixture-");
+
+    assert!(
+        disk.put("framework/cache/items-other/keep.txt", b"keep")
+            .await
+            .unwrap()
+    );
+    assert!(disk.put("ordinary.txt", b"keep").await.unwrap());
+    let key = "../../a/b";
+    let content = Value::Bytes(vec![0, 255, 1]);
+    assert!(
+        cache
+            .put(key, &content, Some(Ttl::Seconds(2)))
+            .await
+            .unwrap()
+    );
+    let hashed = disk.allFiles(Some("framework/cache/items")).await.unwrap();
+    assert_eq!(hashed.len(), 1);
+    assert_eq!(
+        hashed[0],
+        "framework/cache/items/6a/d5/6ad532da2efe59a63b70cd7ed5bfac2233576b4d"
+    );
+    assert!(!cache.add(key, &1.into(), None).await.unwrap());
+    assert!(cache.touch(key, Ttl::Seconds(1)).await.unwrap());
+    assert_eq!(
+        cache.many(&[key, "missing"]).await.unwrap(),
+        [Some(content), None]
+    );
+
+    assert_eq!(cache.increment("counter", 9).await.unwrap(), 9);
+    assert_eq!(cache.decrement("counter", 5).await.unwrap(), 4);
+    assert_eq!(cache.pull("counter").await.unwrap(), Some(4.into()));
+    assert_eq!(cache.get("counter").await.unwrap(), None);
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert_eq!(cache.get(key).await.unwrap(), None);
+    assert!(disk.fileExists(&hashed[0]).await.unwrap());
+    assert!(disk.put(&hashed[0], b"invalid cache record").await.unwrap());
+    assert_eq!(cache.get(key).await.unwrap(), None);
+    assert!(cache.forever(key, &"fresh".into()).await.unwrap());
+    assert_eq!(
+        root.cache(None).await.get(key).await.unwrap(),
+        Some("fresh".into())
+    );
+    root.success(&["cache:forget", key, "storage"]);
+    assert_eq!(cache.get(key).await.unwrap(), None);
+    assert!(cache.forever(key, &"fresh".into()).await.unwrap());
+    root.success(&["cache:clear", "storage"]);
+    assert!(disk.directoryExists("framework/cache/items").await.unwrap());
+    assert!(
+        disk.allFiles(Some("framework/cache/items"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        disk.get("framework/cache/items-other/keep.txt")
+            .await
+            .unwrap()
+            .unwrap(),
+        b"keep"
+    );
+    assert_eq!(disk.get("ordinary.txt").await.unwrap().unwrap(), b"keep");
+
+    let public = app
+        .container()
+        .make::<FilesystemManager>()
+        .unwrap()
+        .disk(Some("public"))
+        .unwrap();
+    assert!(public.put("keep.txt", b"separate disk").await.unwrap());
+    let entire_disk = manager
+        .build(serde_json::json!({"driver": "storage", "path": ""}))
+        .unwrap();
+    assert!(entire_disk.flush().await.unwrap());
+    assert!(disk.allFiles(None).await.unwrap().is_empty());
+    assert_eq!(
+        public.get("keep.txt").await.unwrap().unwrap(),
+        b"separate disk"
+    );
+}
+
+#[tokio::test]
+async fn storage_cache_s3_flush_keeps_adjacent_prefixes() {
+    use openrust::filesystem::FilesystemManager;
+
+    let (Ok(endpoint), Ok(bucket)) = (
+        std::env::var("OPENRUST_TEST_CACHE_S3_ENDPOINT"),
+        std::env::var("OPENRUST_TEST_CACHE_S3_BUCKET"),
+    ) else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_S3").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "s3-storage-cache",
+        &format!(
+            "CACHE_STORE=storage\nCACHE_STORAGE_DISK=s3\nCACHE_STORAGE_PATH=tenant/cache\nAWS_ENDPOINT={endpoint}\nAWS_BUCKET={bucket}\nAWS_ACCESS_KEY_ID=cache-fixture\nAWS_SECRET_ACCESS_KEY=local-cache-fixture\nAWS_USE_PATH_STYLE_ENDPOINT=true\n"
+        ),
+    );
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().make::<CacheManager>().unwrap();
+    let disks = app.container().make::<FilesystemManager>().unwrap();
+    let disk = disks.disk(Some("s3")).unwrap();
+    let cache = manager.store(None).unwrap();
+    if std::env::var_os("OPENRUST_TEST_CACHE_S3_PAGED").is_some() {
+        let objects = disk.allFiles(Some("paginated")).await.unwrap();
+        assert_eq!(objects.len(), 1002);
+        assert_eq!(objects.first().unwrap(), "paginated/0000");
+        assert_eq!(objects.last().unwrap(), "paginated/1001");
+    }
+
+    assert!(
+        disk.put("tenant/cache-other/keep.txt", b"adjacent")
+            .await
+            .unwrap()
+    );
+    assert!(
+        disk.put("tenant-b/keep.txt", b"different tenant")
+            .await
+            .unwrap()
+    );
+    assert!(cache.add("one", &"first".into(), None).await.unwrap());
+    assert!(!cache.add("one", &"second".into(), None).await.unwrap());
+    assert!(cache.forever("two", &vec![1, 0, 255].into()).await.unwrap());
+    assert_eq!(cache.get("one").await.unwrap(), Some("first".into()));
+    assert_eq!(
+        cache.get("two").await.unwrap(),
+        Some(vec![1, 0, 255].into())
+    );
+    assert_eq!(disk.allFiles(Some("tenant/cache")).await.unwrap().len(), 2);
+    root.success(&["cache:clear", "storage"]);
+    assert_eq!(cache.get("one").await.unwrap(), None);
+    assert_eq!(cache.get("two").await.unwrap(), None);
+    assert!(
+        disk.allFiles(Some("tenant/cache"))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        disk.get("tenant/cache-other/keep.txt")
+            .await
+            .unwrap()
+            .unwrap(),
+        b"adjacent"
+    );
+    assert_eq!(
+        disk.get("tenant-b/keep.txt").await.unwrap().unwrap(),
+        b"different tenant"
+    );
+}

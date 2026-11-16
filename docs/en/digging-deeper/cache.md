@@ -8,6 +8,20 @@ The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array`
 ./artisan migrate
 ```
 
+## Storage Cache {#storage-cache}
+
+Set `CACHE_STORE=storage` to store cache records on a configured filesystem disk. `CACHE_STORAGE_DISK` selects the disk and uses the application's default disk when omitted. `CACHE_STORAGE_PATH` selects the cache directory relative to that disk.
+
+```dotenv
+CACHE_STORE=storage
+CACHE_STORAGE_DISK=local
+CACHE_STORAGE_PATH=framework/cache/items
+```
+
+Local and S3 disks use the same cache API. Expired or unreadable records are cache misses. Expired files can be overwritten by a later write or removed by a clear. Like Laravel's storage driver, read-modify-write operations do not provide cross-process atomicity. This driver has no cache locks or tags.
+
+`./artisan cache:clear storage` clears all cache-directory files across cache prefixes. An empty cache path clears files across the selected disk. Use a dedicated cache directory on a disk shared with ordinary files.
+
 ## Null Store {#null-store}
 
 Set `CACHE_STORE=null` to select the `null` store, or use `Cache::store(Some("null"))` for a single operation. The cache manager also uses `null` when the application has no configured default store. Reads always miss. Writes and TTL changes return `false`, and counter operations return `CacheError::MissingCounter`. Forgetting keys, clearing values and clearing locks succeed without keeping state. Both handles for the same lock name can acquire it, so the `null` store provides no mutual exclusion.

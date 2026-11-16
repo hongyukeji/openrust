@@ -8,6 +8,20 @@
 ./artisan migrate
 ```
 
+## 磁碟快取 {#storage-cache}
+
+透過 `CACHE_STORE=storage` 將快取記錄寫入已設定的檔案系統磁碟。`CACHE_STORAGE_DISK` 指定磁碟，省略時使用應用程式預設磁碟。`CACHE_STORAGE_PATH` 是相對於該磁碟的快取目錄。
+
+```dotenv
+CACHE_STORE=storage
+CACHE_STORAGE_DISK=local
+CACHE_STORAGE_PATH=framework/cache/items
+```
+
+本機磁碟與 S3 共用相同的快取介面。到期或無法讀取的記錄視為未命中，後續寫入可以覆蓋到期檔案，清除也可刪除這些檔案。和 Laravel 的磁碟驅動程式相同，讀取後修改並寫回的操作沒有跨程序原子性。此驅動程式沒有鎖與標籤。
+
+`./artisan cache:clear storage` 會清除快取目錄中所有前綴的檔案。快取路徑為空時，會清除所選磁碟內的檔案。磁碟同時保存一般檔案時，請使用專用快取目錄。
+
 ## 空快取儲存 {#null-store}
 
 設定 `CACHE_STORE=null` 即可選擇 `null` 儲存，也可在單次操作用 `Cache::store(Some("null"))` 指定。應用程式未設定預設儲存時，快取管理器也會使用 `null`。讀取一律未命中，寫入及修改 TTL 回傳 `false`，計數回傳 `CacheError::MissingCounter`。刪除、清除項目與清鎖會回傳成功。兩個同名鎖控制代碼都能取得鎖，`null` 儲存沒有互斥能力。

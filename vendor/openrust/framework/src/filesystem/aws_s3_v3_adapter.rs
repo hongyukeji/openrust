@@ -171,6 +171,37 @@ impl AwsS3V3Adapter {
         }
     }
 
+    pub(super) async fn all_files(&self, directory: &str) -> FilesystemResult<Vec<String>> {
+        let root = self.key("");
+        let prefix = if directory.is_empty() {
+            root.clone()
+        } else {
+            format!("{root}{directory}/")
+        };
+        let mut pages = self
+            .client()
+            .await
+            .list_objects_v2()
+            .bucket(&self.config.bucket)
+            .prefix(&prefix)
+            .into_paginator()
+            .send();
+        let mut paths = Vec::new();
+        while let Some(page) = pages.next().await {
+            let page = page.map_err(|error| classify_error(&error))?;
+            for key in page.contents().iter().filter_map(|object| object.key()) {
+                if key.starts_with(&prefix)
+                    && !key.ends_with('/')
+                    && let Some(path) = key.strip_prefix(&root)
+                {
+                    paths.push(path.to_owned());
+                }
+            }
+        }
+        paths.sort_unstable();
+        Ok(paths)
+    }
+
     pub(super) async fn read(&self, path: &str) -> FilesystemResult<FilesystemReader> {
         Ok(self.open(path).await?.reader)
     }

@@ -6,6 +6,7 @@ use crate::{
         foundation::Application as _,
     },
     database::DatabaseManager,
+    filesystem::FilesystemManager,
     foundation::Application,
     http::HttpFuture,
     redis::RedisManager,
@@ -29,9 +30,11 @@ impl ServiceProvider for CacheServiceProvider {
                 let config = container.get::<dyn Config>("config")?;
                 let database = container.get::<DatabaseManager>("db")?;
                 let redis = container.get::<RedisManager>("redis")?;
+                let filesystem = container.get::<FilesystemManager>("filesystem")?;
                 Ok(Arc::new(
                     CacheManager::new(config, database, base.clone())
                         .with_redis(redis)
+                        .with_filesystem(filesystem)
                         .with_owner(owner.clone()),
                 ))
             })?;

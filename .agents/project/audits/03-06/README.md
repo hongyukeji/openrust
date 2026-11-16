@@ -80,3 +80,11 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 无状态锁遵循 Laravel `NoLock`，获取、等待、续期和释放成功，同名锁没有互斥。Rust 用类型化 `MissingCounter` 表达 PHP 计数失败的 `false`。故障切换把这类结果视为本次操作的终点，避免改动备用存储。空仓库事件的存储名为空，与固定 Laravel 一致。
 - 隔离基线 `feba1f463`。固定 Laravel PHP 对照通过普通、标签、锁及故障切换路径。Rust 使用真实 HTTP 验证写入返回 `false`、后续读取未命中及写入失败事件。独立 Artisan 二进制的 `cache:forget`、按标签清理和批量清锁通过。
 - Rust 1.94.0、macOS arm64，MySQL 8.4.13 与 Redis 8.10.3 下通过 25 项缓存、驱动、事件及 memo 回归，另有 1 项限流回归通过。工作区严格 Clippy、变更文件格式、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理 3.9 GiB 隔离 Cargo 产物和文档缓存后，磁盘可用 60.58 GB（56.42 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-null-cache.6XOGuKSd`。
+
+## 磁盘缓存驱动
+
+- 对照固定 Laravel [StorageStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/StorageStore.php) 和 CacheManager。openrust-v0.x 没有对应驱动，复用现有磁盘管理器、本地与 S3 适配器、TTL 和缓存值契约。
+- `storage` 使用具名或默认磁盘，按 SHA-1 哈希和 Laravel 的双层分片规则生成相对对象键。缓存范围由配置目录指定，指定空目录时清理所选磁盘的文件。S3 递归列表按磁盘根与目录前缀分页，本地非空目录清理后重建。
+- Rust 使用 JSON 记录和毫秒 TTL，按类型验证计数。读取过期或损坏记录时返回未命中，保留文件供覆盖或显式清理，避免读取过程中误删并发更新。符合 Laravel 的磁盘驱动边界，读改写没有跨进程原子性，此驱动不支持标签与锁。
+- 基线 `0301207c7`。固定 Laravel PHP 在受控磁盘和时钟上对照键形、TTL、计数和清理范围。Rust 使用真实本地磁盘、RustFS 1.0.5、MySQL 8.4.13 与 Redis 8.10.3 验收。S3 分页读取 1002 个对象并保留相邻前缀；实际 Artisan 清理测试覆盖本地、S3、删除单键与缓存范围。隔离二进制通过实际 HTTP 写入、读回及另一个 Artisan 进程清理。
+- macOS arm64、Rust 1.94.0，27 项缓存、驱动、事件和 memo 回归通过，本地空路径清理额外复验。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。临时容器已回收，清理 4.1 GiB 本批 Cargo 产物和文档缓存后，项目盘可用 60.11 GB（55.99 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-storage-cache.jLfFS5pO`。

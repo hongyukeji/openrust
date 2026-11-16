@@ -8,6 +8,20 @@
 ./artisan migrate
 ```
 
+## 磁盘缓存 {#storage-cache}
+
+通过 `CACHE_STORE=storage` 将缓存记录写入已配置的文件系统磁盘。`CACHE_STORAGE_DISK` 指定磁盘，省略时使用应用默认磁盘。`CACHE_STORAGE_PATH` 是相对于该磁盘的缓存目录。
+
+```dotenv
+CACHE_STORE=storage
+CACHE_STORAGE_DISK=local
+CACHE_STORAGE_PATH=framework/cache/items
+```
+
+本地磁盘与 S3 共享同一缓存接口。过期或无法读取的记录视为未命中，后续写入可覆盖过期文件，清理也可删除它们。与 Laravel 的磁盘驱动相同，读改写操作没有跨进程原子性。该驱动不提供锁和标签。
+
+`./artisan cache:clear storage` 会清理该缓存目录中所有前缀的文件。缓存路径为空时会清理所选磁盘中的文件。磁盘还保存普通文件时，请指定专用缓存目录。
+
 ## 空缓存存储 {#null-store}
 
 设置 `CACHE_STORE=null` 可选择 `null` 存储，单次操作可用 `Cache::store(Some("null"))` 指定。应用没有配置默认存储时，缓存管理器也会使用 `null`。读取总是未命中，写入与修改 TTL 返回 `false`，计数返回 `CacheError::MissingCounter`。删除、清理条目和清锁仍返回成功。两个同名锁句柄都能获取锁，`null` 存储没有互斥能力。
