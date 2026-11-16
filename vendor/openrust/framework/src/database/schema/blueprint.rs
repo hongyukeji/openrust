@@ -1,8 +1,8 @@
 use crate::database::eloquent::{Model, ModelKeyType, ModelState};
 
 use super::{
-    ColumnDefinition, ForeignIdColumnDefinition, ForeignKeyDefinition, IndexDefinition,
-    MorphKeyType, column_definition::ColumnType, index_definition::IndexType,
+    ColumnDefinition, DropColumnDefinition, ForeignIdColumnDefinition, ForeignKeyDefinition,
+    IndexDefinition, MorphKeyType, column_definition::ColumnType, index_definition::IndexType,
 };
 
 pub(super) enum Command {
@@ -11,7 +11,7 @@ pub(super) enum Command {
     Foreign(ForeignKeyDefinition),
     RenameColumn(String, String),
     TableComment(String),
-    DropColumn(String),
+    DropColumn(DropColumnDefinition),
     RenameIndex(String, String),
     DropIndex(IndexType, String),
     DropIndexColumns(Vec<String>),
@@ -453,12 +453,13 @@ impl Blueprint {
             .push(Command::RenameColumn(from.into(), to.into()));
     }
 
-    pub fn dropColumn(&mut self, columns: &[&str]) {
-        self.commands.extend(
-            columns
-                .iter()
-                .map(|column| Command::DropColumn((*column).into())),
-        );
+    pub fn dropColumn(&mut self, columns: &[&str]) -> &mut DropColumnDefinition {
+        self.commands
+            .push(Command::DropColumn(DropColumnDefinition::new(columns)));
+        let Some(Command::DropColumn(drop)) = self.commands.last_mut() else {
+            unreachable!("drop column command was just appended")
+        };
+        drop
     }
 
     pub fn dropMorphs(&mut self, name: &str, index: Option<&str>) {

@@ -335,6 +335,29 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 在 MySQL 上用 `from()` 或 `startingValue()` 設定自動遞增欄位的起始值。實際可用的下一個值由 MySQL 根據現有資料決定。SQLite 使用原生序列，使用 MySQL 線上 DDL 修飾符時會回傳方言錯誤。
 
+#### 索引方法與線上刪除欄位 {#index-methods-and-online-column-drops}
+
+在 MySQL 上，用 `algorithm("btree")` 或 `algorithm("hash")` 要求索引方法。`inplace()` 選擇目前操作的 DDL 演算法。MySQL 會根據儲存引擎判斷選項是否受支援。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn revise_imports() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.index(&["status"], Some("imports_status"))
+            .algorithm("btree")
+            .inplace()
+            .lock("none");
+        table.dropColumn(&["legacy_code", "legacy_note"])
+            .instant()
+            .lock("default");
+    })
+    .await
+}
+```
+
+將多個欄位名稱傳給 `dropColumn`，可在同一條 MySQL ALTER 陳述式中刪除。可鏈式呼叫 `instant()` 或 `lock()` 要求線上 DDL 選項。引擎拒絕該陳述式時，這條陳述式涉及的欄位會保留。同一個 Blueprint 中較早的陳述式可能已經執行。
+
 #### 從模型定義外鍵欄位 {#foreign-ids-from-models}
 
 使用 `foreignIdFor::<Model>(None)`，由 Eloquent 模型提供外鍵欄位名稱。`constrained()` 讀取模型的資料表和主鍵名稱，也支援自訂名稱。傳入 `Some(name)` 可指定引用端的欄位名稱。

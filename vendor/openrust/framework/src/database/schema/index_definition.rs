@@ -25,6 +25,7 @@ pub struct IndexDefinition {
     pub(super) kind: IndexType,
     pub(super) columns: Vec<String>,
     pub(super) name: Option<String>,
+    pub(super) algorithm: Option<String>,
     pub(super) inplace: bool,
     pub(super) lock: Option<String>,
 }
@@ -35,9 +36,16 @@ impl IndexDefinition {
             kind,
             columns: columns.iter().map(|column| (*column).to_owned()).collect(),
             name: name.map(str::to_owned),
+            algorithm: None,
             inplace: false,
             lock: None,
         }
+    }
+
+    /// Specifies the MySQL index method, independently of the DDL algorithm.
+    pub fn algorithm(&mut self, method: &str) -> &mut Self {
+        self.algorithm = Some(method.to_owned());
+        self
     }
 
     pub fn inplace(&mut self) -> &mut Self {

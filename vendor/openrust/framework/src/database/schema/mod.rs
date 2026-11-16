@@ -3,6 +3,7 @@
 mod blueprint;
 mod builder;
 mod column_definition;
+mod drop_column_definition;
 mod facade;
 mod foreign_id_column_definition;
 mod foreign_key_definition;
@@ -14,6 +15,7 @@ pub use blueprint::Blueprint;
 pub(super) use blueprint::TableOptions;
 pub use builder::Builder;
 pub use column_definition::{ColumnDefinition, DefaultValue};
+pub use drop_column_definition::DropColumnDefinition;
 pub use facade::Schema;
 pub use foreign_id_column_definition::ForeignIdColumnDefinition;
 pub use foreign_key_definition::ForeignKeyDefinition;

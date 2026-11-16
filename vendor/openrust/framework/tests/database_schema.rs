@@ -2811,3 +2811,125 @@ async fn sqlite_uses_float_affinity_and_rebuilds_raw_columns() {
     )
     .await;
 }
+
+#[tokio::test]
+async fn mysql_compiles_index_methods_and_atomic_online_column_drops() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("online_schema").await.unwrap();
+    schema
+        .create("online_schema", |table| {
+            table.unsignedBigInteger("id");
+            table.primary(&["id"], None).algorithm("BTREE");
+            table.integer("kept");
+            table.integer("first_old").nullable();
+            table.integer("second_old").nullable();
+        })
+        .await
+        .unwrap();
+    db.insert("insert into online_schema (id, kept) values (1, 42)", &[])
+        .await
+        .unwrap();
+    schema
+        .table("online_schema", |table| {
+            table
+                .index(&["kept"], Some("lookup"))
+                .algorithm("btree")
+                .inplace()
+                .lock("none");
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes("online_schema").await.unwrap();
+    for name in ["primary", "lookup"] {
+        assert!(indexes.iter().any(|index| {
+            index.name == name
+                && index
+                    .index_type
+                    .as_deref()
+                    .is_some_and(|kind| kind.eq_ignore_ascii_case("btree"))
+        }));
+    }
+
+    assert!(
+        schema
+            .table("online_schema", |table| {
+                table.dropColumn(&["first_old", "missing"]).instant();
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        schema
+            .hasColumn("online_schema", "first_old")
+            .await
+            .unwrap()
+    );
+
+    assert!(matches!(
+        schema
+            .table("online_schema", |table| {
+                table.integer("not_applied");
+                table.index(&["kept"], None).algorithm("invalid");
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("index method"))
+    ));
+    assert!(matches!(
+        schema
+            .table("online_schema", |table| {
+                table.integer("not_applied");
+                table.dropColumn(&["first_old"]).lock("invalid");
+            })
+            .await,
+        Err(DatabaseError::InvalidSchema("DDL lock mode"))
+    ));
+    assert!(
+        !schema
+            .hasColumn("online_schema", "not_applied")
+            .await
+            .unwrap()
+    );
+
+    schema
+        .table("online_schema", |table| {
+            table
+                .dropColumn(&["first_old", "second_old"])
+                .instant()
+                .lock("default");
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema.getColumnListing("online_schema").await.unwrap(),
+        ["id", "kept"]
+    );
+    assert_eq!(
+        db.table("online_schema").value("kept").await.unwrap(),
+        42.into()
+    );
+    schema.dropIfExists("hashed_schema").await.unwrap();
+    schema
+        .create("hashed_schema", |table| {
+            table.engine("MEMORY");
+            table.integer("key_value");
+            table
+                .index(&["key_value"], Some("memory_lookup"))
+                .algorithm("HASH");
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes("hashed_schema").await.unwrap();
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.name == "memory_lookup"
+                && index.index_type.as_deref() == Some("hash"))
+    );
+    schema.drop("hashed_schema").await.unwrap();
+    schema.drop("online_schema").await.unwrap();
+}

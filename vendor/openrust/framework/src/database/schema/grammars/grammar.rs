@@ -146,7 +146,11 @@ impl Grammar {
                             "primary key modifiers on create",
                         ));
                     }
-                    constraints.push(format!("primary key ({})", self.columns(&index.columns)?));
+                    constraints.push(format!(
+                        "primary key{} ({})",
+                        self.index_method(&index)?,
+                        self.columns(&index.columns)?
+                    ));
                 }
                 Command::Index(index) => indexes.push(self.add_index(table, &index)?),
                 Command::Foreign(foreign) if foreign.inplace || foreign.lock.is_some() => {
@@ -270,10 +274,31 @@ impl Grammar {
                     self.identifier(&from)?,
                     self.identifier(&to)?
                 )),
-                Command::DropColumn(column) => sql.push(format!(
-                    "alter table {qualified} drop column {}",
-                    self.identifier(&column)?
-                )),
+                Command::DropColumn(drop) => {
+                    let options =
+                        self.ddl_options(drop.instant.then_some("instant"), drop.lock.as_deref())?;
+                    if drop.columns.is_empty() {
+                        return Err(DatabaseError::InvalidSchema("empty column list"));
+                    }
+                    let clauses = drop
+                        .columns
+                        .iter()
+                        .map(|name| Ok(format!("drop column {}", self.identifier(name)?)))
+                        .collect::<DatabaseResult<Vec<_>>>()?;
+                    if self.mysql() {
+                        sql.push(format!(
+                            "alter table {qualified} {}{options}",
+                            clauses.join(", ")
+                        ));
+                    } else {
+                        sql.extend(
+                            clauses
+                                .into_iter()
+                                .map(|clause| format!("alter table {qualified} {clause}")),
+                        );
+                    }
+                }
+
                 Command::RenameIndex(from, to) if self.mysql() => sql.push(format!(
                     "alter table {qualified} rename index {} to {}",
                     self.identifier(&from)?,
@@ -353,6 +378,7 @@ impl Grammar {
 
     fn add_index(&self, table: &Table, index: &IndexDefinition) -> DatabaseResult<String> {
         let columns = self.columns(&index.columns)?;
+        let method = self.index_method(index)?;
         let default;
         let name = match &index.name {
             Some(name) => name,
@@ -364,7 +390,7 @@ impl Grammar {
         if self.mysql() {
             let table = self.qualified(table)?;
             let kind = match index.kind {
-                IndexType::Primary => format!("primary key ({columns})"),
+                IndexType::Primary => format!("primary key{method} ({columns})"),
                 kind => {
                     let verb = match kind {
                         IndexType::Unique => "unique",
@@ -372,7 +398,7 @@ impl Grammar {
                         IndexType::Spatial => "spatial index",
                         _ => "index",
                     };
-                    format!("{verb} {} ({columns})", self.identifier(name)?)
+                    format!("{verb} {}{method} ({columns})", self.identifier(name)?)
                 }
             };
             Ok(format!(
@@ -391,6 +417,18 @@ impl Grammar {
                 self.qualified_index(table, name)?,
                 self.identifier(&table.name)?
             ))
+        }
+    }
+
+    fn index_method(&self, index: &IndexDefinition) -> DatabaseResult<&'static str> {
+        match index.algorithm.as_deref() {
+            None => Ok(""),
+            Some(_) if !self.mysql() => {
+                Err(DatabaseError::UnsupportedSchema("SQLite index method"))
+            }
+            Some(method) if method.eq_ignore_ascii_case("btree") => Ok(" using btree"),
+            Some(method) if method.eq_ignore_ascii_case("hash") => Ok(" using hash"),
+            Some(_) => Err(DatabaseError::InvalidSchema("index method")),
         }
     }
 

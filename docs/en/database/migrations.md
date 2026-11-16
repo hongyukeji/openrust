@@ -335,6 +335,29 @@ async fn prepare_imports() -> DatabaseResult<()> {
 
 Use `from()` or `startingValue()` to set the starting value of an auto-increment column on MySQL. MySQL determines the next available value using the existing rows. SQLite uses its native sequence and rejects the MySQL online DDL modifiers.
 
+#### Index Methods and Online Column Drops {#index-methods-and-online-column-drops}
+
+On MySQL, use `algorithm("btree")` or `algorithm("hash")` to request an index method. `inplace()` selects the DDL algorithm for the operation. MySQL decides whether the specified options are supported by the storage engine.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn revise_imports() -> DatabaseResult<()> {
+    Schema::table("imports", |table| {
+        table.index(&["status"], Some("imports_status"))
+            .algorithm("btree")
+            .inplace()
+            .lock("none");
+        table.dropColumn(&["legacy_code", "legacy_note"])
+            .instant()
+            .lock("default");
+    })
+    .await
+}
+```
+
+Pass multiple names to `dropColumn` to drop them in one MySQL ALTER statement. Chain `instant()` or `lock()` to request an online DDL option. If the engine rejects the statement, the columns in that statement remain in place. Earlier statements in the same blueprint may already have completed.
+
 #### Foreign IDs from Models {#foreign-ids-from-models}
 
 Use `foreignIdFor::<Model>(None)` to let an Eloquent model supply the reference column name. `constrained()` uses the model’s table and primary key, including custom names. Pass `Some(name)` to use a different column name in the referencing table.

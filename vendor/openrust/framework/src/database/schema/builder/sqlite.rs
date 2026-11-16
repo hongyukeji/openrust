@@ -235,7 +235,7 @@ async fn rebuild_table(
                 remove_foreign(&mut columns, &mut constraints, None, &names)?;
             }
             Command::Index(index) => {
-                if index.inplace || index.lock.is_some() {
+                if index.algorithm.is_some() || index.inplace || index.lock.is_some() {
                     return Err(DatabaseError::UnsupportedSchema(
                         "SQLite primary key modifiers",
                     ));
