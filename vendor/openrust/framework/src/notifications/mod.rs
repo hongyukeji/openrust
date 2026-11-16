@@ -1,5 +1,6 @@
 //! Notification channel selection and delivery.
 
+mod anonymous_notifiable;
 mod channel_manager;
 pub mod channels;
 pub(crate) mod console;
@@ -14,6 +15,7 @@ mod send_queued_notifications;
 
 use std::{error::Error, future::Future, pin::Pin};
 
+pub use anonymous_notifiable::AnonymousNotifiable;
 pub use channel_manager::ChannelManager;
 pub use database_notification::{DatabaseKey, DatabaseNotification, DatabaseRoute};
 pub use facade::NotificationFacade;
@@ -45,9 +47,12 @@ pub enum NotificationError {
 }
 
 /// The address or model relation for a notification channel.
+#[derive(Clone)]
 pub enum NotificationRoute {
     Mail(Vec<crate::mail::mailables::Address>),
     Database(DatabaseRoute),
+    Broadcast(Vec<crate::broadcasting::BroadcastChannel>),
+    Custom(serde_json::Value),
 }
 
 impl std::fmt::Display for NotificationError {

@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    broadcasting::{BroadcastChannel, BroadcastPayload},
     contracts::events::Event,
     database::Transaction,
     events::ListenerResponse,
@@ -12,7 +13,7 @@ use super::{
     ChannelManager, Notifiable, Notification, NotificationResult, SendQueuedNotifications,
     channels::ChannelResponse,
     delivery,
-    messages::{DatabaseMessage, MailDelivery},
+    messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
     new_id,
 };
 
@@ -158,11 +159,11 @@ impl<'a> NotificationSender<'a> {
     ) -> NotificationResult<()> {
         for recipient in recipients {
             let channels = match channels {
-                Some(channels) => channels
+                Some(channels) if !channels.is_empty() => channels
                     .iter()
                     .map(|channel| (*channel).to_owned())
                     .collect(),
-                None => notification.via(*recipient)?,
+                _ => notification.via(*recipient)?,
             };
             let prepared = Prepared::new(notification)?;
             for channel in channels {
@@ -181,6 +182,9 @@ impl<'a> NotificationSender<'a> {
         options: Option<DispatchOptions>,
         transaction: Option<&mut Transaction>,
     ) -> NotificationResult<()> {
+        if channel == "database" && recipient.as_anonymous().is_some() {
+            return Ok(());
+        }
         let driver = self.manager.channel(Some(channel))?;
         let locale = notification
             .locale()
@@ -253,5 +257,24 @@ impl Notification for Prepared<'_> {
     }
     fn to_array(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<DatabaseMessage>> {
         self.inner.to_array(recipient)
+    }
+
+    fn to_broadcast(
+        &self,
+        recipient: &dyn Notifiable,
+    ) -> NotificationResult<Option<BroadcastMessage>> {
+        self.inner.to_broadcast(recipient)
+    }
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
+        self.inner.broadcast_on()
+    }
+    fn broadcast_with(&self) -> Option<BroadcastPayload> {
+        self.inner.broadcast_with()
+    }
+    fn broadcast_as(&self) -> Option<&str> {
+        self.inner.broadcast_as()
+    }
+    fn broadcast_type(&self) -> &str {
+        self.inner.broadcast_type()
     }
 }

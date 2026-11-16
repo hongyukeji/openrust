@@ -11,7 +11,7 @@ use crate::{
 use super::{
     Notifiable, Notification, NotificationError, NotificationFuture, NotificationResult,
     NotificationSender,
-    channels::{Channel, DatabaseChannel, MailChannel},
+    channels::{BroadcastChannel, Channel, DatabaseChannel, MailChannel},
 };
 
 /// Resolves notification channels and dispatches notifications.
@@ -25,6 +25,10 @@ impl Default for ChannelManager {
             channels: RwLock::new(
                 [
                     ("mail".into(), Arc::new(MailChannel) as Arc<dyn Channel>),
+                    (
+                        "broadcast".into(),
+                        Arc::new(BroadcastChannel) as Arc<dyn Channel>,
+                    ),
                     (
                         "database".into(),
                         Arc::new(DatabaseChannel) as Arc<dyn Channel>,

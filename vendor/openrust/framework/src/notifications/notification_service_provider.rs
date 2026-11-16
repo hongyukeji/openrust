@@ -6,13 +6,14 @@ use crate::{
         container::Container as _,
         notifications::{Dispatcher, Factory},
     },
+    events::Dispatcher as EventDispatcher,
     foundation::Application,
     http::HttpFuture,
     queue::QueueManager,
     support::{ProviderResult, ServiceProvider},
 };
 
-use super::{ChannelManager, SendQueuedNotifications};
+use super::{ChannelManager, SendQueuedNotifications, channels::BroadcastNotificationCreated};
 
 /// Registers the notification channel manager and queued delivery handler.
 pub struct NotificationServiceProvider;
@@ -35,7 +36,11 @@ impl ServiceProvider for NotificationServiceProvider {
 
     fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container_handle().make::<QueueManager>()?.register(
+            let container = app.container_handle();
+            container
+                .make::<EventDispatcher>()?
+                .registerBroadcast::<BroadcastNotificationCreated>();
+            container.make::<QueueManager>()?.register(
                 SendQueuedNotifications::NAME,
                 Arc::new(SendQueuedNotifications),
             )?;

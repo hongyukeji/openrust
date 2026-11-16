@@ -1,10 +1,12 @@
 //! Notification delivery channels.
 
+mod broadcast_channel;
 mod database_channel;
 mod mail_channel;
 
 use super::{Notifiable, Notification, NotificationFuture, NotificationResult};
 
+pub use broadcast_channel::{BroadcastChannel, BroadcastNotificationCreated};
 pub use database_channel::DatabaseChannel;
 pub use mail_channel::MailChannel;
 

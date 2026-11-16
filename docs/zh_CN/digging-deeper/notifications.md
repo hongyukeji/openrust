@@ -40,3 +40,25 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 ## 通知入队
 
 通过 `Notification::queue_options` 为每位收件人的每个渠道返回 `DispatchOptions`。每次投递有自己的队列任务。Worker 解析渠道并触发投递事件。在活动事务中，调用 `ChannelManager::sendInTransaction` 并启用 `after_commit`，使回滚时丢弃待入队通知。
+
+## 按需通知
+
+用 `Notifications::route` 直接向地址发送通知，无需加载模型。示例中的 `PaymentReceived` 是 `via` 包含 `mail` 的通知。可以链式调用 `route` 添加其他渠道地址。数据库渠道需要已持久化的收件人。
+
+```rust
+use openrust::{
+    notifications::{Notifiable, NotificationRoute},
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route(
+    "mail",
+    NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
+)?
+.notifyNow(&PaymentReceived, None)
+.await?;
+```
+
+## 广播通知
+
+在 `via` 中加入 `broadcast`。由 `to_broadcast` 返回 `BroadcastMessage`，或由 `to_array` 返回对象。用消息的 `connection` 和 `queue` 选择广播事件的队列连接和队列名。事件默认附加通知 ID 和类型。有数据库路由的模型默认在由模型类型和键组成的私有频道上接收事件。可以覆盖 `receives_broadcast_notifications_on` 自定义私有频道名，或用 `NotificationRoute::Broadcast` 为按需收件人指定频道。

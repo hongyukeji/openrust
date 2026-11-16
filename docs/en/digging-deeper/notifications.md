@@ -40,3 +40,25 @@ Return `NotificationRoute::Database` with the model type and key. The database c
 ## Queueing notifications
 
 Return `DispatchOptions` from `Notification::queue_options` for each recipient and channel that should be queued. Each delivery gets its own job. The worker resolves the channel and emits delivery events. When using an active transaction, call `ChannelManager::sendInTransaction` with `after_commit` enabled to discard queued deliveries on rollback.
+
+## On-demand notifications
+
+Use `Notifications::route` to send to an address without loading a model. In this example, `PaymentReceived` is a notification whose `via` includes `mail`. Chain `route` to supply additional channel addresses. The database channel requires a persisted recipient.
+
+```rust
+use openrust::{
+    notifications::{Notifiable, NotificationRoute},
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route(
+    "mail",
+    NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
+)?
+.notifyNow(&PaymentReceived, None)
+.await?;
+```
+
+## Broadcast notifications
+
+Include `broadcast` in `via`. Return a `BroadcastMessage` from `to_broadcast`, or return an object from `to_array`. Set the message's `connection` and `queue` to choose where the broadcast event runs. By default, the event adds the notification ID and type. A model with a database route receives these events on the private channel named for its model type and key. Override `receives_broadcast_notifications_on` to customize the private channel names, or use `NotificationRoute::Broadcast` to specify channels for an on-demand recipient.

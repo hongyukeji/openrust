@@ -56,3 +56,20 @@ impl DatabaseMessage {
         }
     }
 }
+
+/// Payload and queue selection for a broadcast notification.
+pub struct BroadcastMessage {
+    pub data: crate::broadcasting::BroadcastPayload,
+    pub connection: Option<String>,
+    pub queue: Option<String>,
+}
+
+impl BroadcastMessage {
+    pub fn new(data: crate::broadcasting::BroadcastPayload) -> Self {
+        Self {
+            data,
+            connection: None,
+            queue: None,
+        }
+    }
+}

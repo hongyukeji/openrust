@@ -6,16 +6,19 @@ use std::{
 };
 
 use openrust::{
+    broadcasting::{BroadcastChannel, PrivateChannel},
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
     container::Callback,
     contracts::{
         container::Container as _,
         events::{Event as PayloadEvent, Listener},
         foundation::Application as _,
+        http::Kernel as _,
     },
     database::{DB, DatabaseManager, Value},
     events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
-    foundation::{Application, configuration::Routing},
+    foundation::{Application, configuration::Routing, http::Kernel},
+    http::{HttpError, HttpFuture, Request, Response},
     mail::{
         MailResult, Mailable,
         mailables::{Attachment, Content, Envelope, Headers},
@@ -23,10 +26,10 @@ use openrust::{
     notifications::{
         DatabaseKey, DatabaseNotification, DatabaseRoute, Notifiable, Notification as Notice,
         NotificationEvent, NotificationResult, NotificationRoute,
-        messages::{DatabaseMessage, MailDelivery, MailMessage},
+        messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage},
     },
     queue::{DispatchOptions, QueueManager},
-    support::facades::{Artisan, Event, Facade, Lang, Mail, Notification},
+    support::facades::{Artisan, Event, Facade, Lang, Mail, Notification, Route},
 };
 use serde_json::{Value as Json, json};
 
@@ -140,6 +143,64 @@ impl Notice for Payment {
     }
 }
 
+struct RoutedNotice;
+
+impl Notice for RoutedNotice {
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["mail".into(), "database".into(), "broadcast".into()])
+    }
+
+    fn to_mail(&self, recipient: &dyn Notifiable) -> NotificationResult<Option<MailDelivery>> {
+        Payment { queued: false }.to_mail(recipient)
+    }
+
+    fn to_broadcast(&self, _: &dyn Notifiable) -> NotificationResult<Option<BroadcastMessage>> {
+        let mut message =
+            BroadcastMessage::new([("payment".into(), json!(42))].into_iter().collect());
+        message.connection = Some("database".into());
+        message.queue = Some("broadcast-notifications".into());
+        Ok(Some(message))
+    }
+
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
+        vec![BroadcastChannel::Private(PrivateChannel {
+            name: "notice-fallback".into(),
+        })]
+    }
+
+    fn broadcast_as(&self) -> Option<&str> {
+        Some("payment.notification")
+    }
+
+    fn broadcast_type(&self) -> &str {
+        "payment.accepted"
+    }
+}
+
+fn notify_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let target = Notification::route(
+            "mail",
+            NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
+        )
+        .unwrap()
+        .route(
+            "broadcast",
+            NotificationRoute::Broadcast(vec![BroadcastChannel::Private(PrivateChannel {
+                name: "payment.42".into(),
+            })]),
+        )
+        .unwrap();
+        target
+            .notifyNow(&RoutedNotice, None)
+            .await
+            .map_err(|error| HttpError::Internal {
+                source: Box::new(error),
+            })?;
+        Response::json(http::StatusCode::OK, json!({"accepted":true}))
+    })
+}
+
 type EventRecord = (String, String, String);
 
 struct ListenerProbe {
@@ -251,7 +312,11 @@ fn app(root: &Path) -> Application {
                 serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap();
             Ok(config.into_iter().collect())
         })
-        .withRouting(Routing::default().commands(mail_routes))
+        .withRouting(
+            Routing::default()
+                .commands(mail_routes)
+                .web(|| Route::get("/notify", notify_from_http)),
+        )
         .create()
         .unwrap()
 }
@@ -915,6 +980,109 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
             db.getSchemaBuilder().dropIfExists(table).await.unwrap();
         }
     }
+}
+
+#[tokio::test]
+async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
+    use axum::{Router, extract::State};
+
+    async fn transport(
+        State(kernel): State<Arc<Kernel>>,
+        request: axum::extract::Request,
+    ) -> axum::response::Response {
+        let (parts, body) = request.into_parts();
+        let (parts, body) = kernel
+            .handle(&mut Request::from_parts(parts, body))
+            .await
+            .into_parts();
+        axum::response::Response::from_parts(parts, body)
+    }
+
+    let Ok(mysql) = std::env::var("OPENRUST_TEST_DELIVERY_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(None, Some(&mysql), None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    let log_path = root.0.join("notification.log");
+    config["broadcasting"] = json!({"default":"log"});
+    config["logging"] = json!({"default":"single","channels":{"single":{"driver":"single","path":log_path,"level":"info"}}});
+    std::fs::write(config_path, config.to_string()).unwrap();
+
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let application = kernel.get_application();
+    let db = setup(application).await;
+    let queue = application
+        .container()
+        .make::<QueueManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let mailer = application
+        .container()
+        .make::<openrust::mail::MailManager>()
+        .unwrap()
+        .mailer(None)
+        .unwrap();
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/notify", listener.local_addr().unwrap());
+    let server = tokio::spawn(
+        axum::serve(
+            listener,
+            Router::new()
+                .fallback(transport)
+                .with_state(Arc::new(kernel)),
+        )
+        .into_future(),
+    );
+    let response = reqwest::get(url).await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        response.json::<Json>().await.unwrap(),
+        json!({"accepted":true})
+    );
+    let sent = mailer.sent().unwrap();
+    assert_eq!(sent[0].message.recipients(), ["ondemand@example.test"]);
+    assert_eq!(db.table("notifications").count("*").await.unwrap(), 0);
+    assert_eq!(
+        queue.size(Some("broadcast-notifications")).await.unwrap(),
+        1
+    );
+
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=broadcast-notifications",
+            "--stop-when-empty",
+            "--sleep=0",
+        ],
+    )
+    .await;
+    assert_eq!(
+        queue.size(Some("broadcast-notifications")).await.unwrap(),
+        0
+    );
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+    let log = std::fs::read_to_string(log_path).unwrap();
+    for expected in [
+        "payment.notification",
+        "private-payment.42",
+        "payment.accepted",
+        "\"id\"",
+    ] {
+        assert!(log.contains(expected), "{log}");
+    }
+    assert!(!log.contains("notice-fallback"));
+
+    for table in ["notifications", "jobs", "failed_jobs"] {
+        db.getSchemaBuilder().dropIfExists(table).await.unwrap();
+    }
+    server.abort();
 }
 
 #[tokio::test]

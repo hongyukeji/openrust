@@ -3,7 +3,8 @@ use std::sync::Arc;
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    ChannelManager, Notifiable, Notification, NotificationResult, channels::Channel, delivery,
+    AnonymousNotifiable, ChannelManager, Notifiable, Notification, NotificationResult,
+    NotificationRoute, channels::Channel, delivery,
 };
 
 /// Resolves notifications for the current application.
@@ -21,6 +22,13 @@ impl Facade for NotificationFacade {
 impl NotificationFacade {
     pub fn channel(name: Option<&str>) -> NotificationResult<Arc<dyn Channel>> {
         Self::getFacadeRoot().map_err(delivery)?.channel(name)
+    }
+
+    pub fn route(
+        channel: impl Into<String>,
+        route: NotificationRoute,
+    ) -> NotificationResult<AnonymousNotifiable> {
+        AnonymousNotifiable::default().route(channel, route)
     }
 
     pub async fn send(

@@ -40,3 +40,25 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 ## 通知加入佇列
 
 透過 `Notification::queue_options` 為每位收件人的每個管道回傳 `DispatchOptions`。每次投遞有自己的佇列任務。Worker 解析管道並觸發投遞事件。在使用中的交易裡，呼叫 `ChannelManager::sendInTransaction` 並啟用 `after_commit`，使交易回復時捨棄待加入佇列的通知。
+
+## 隨選通知
+
+用 `Notifications::route` 直接向地址傳送通知，無需載入模型。範例中的 `PaymentReceived` 是 `via` 包含 `mail` 的通知。可鏈式呼叫 `route` 加入其他管道地址。資料庫管道需要已持久化的收件人。
+
+```rust
+use openrust::{
+    notifications::{Notifiable, NotificationRoute},
+    support::facades::Notification as Notifications,
+};
+
+Notifications::route(
+    "mail",
+    NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
+)?
+.notifyNow(&PaymentReceived, None)
+.await?;
+```
+
+## 廣播通知
+
+在 `via` 中加入 `broadcast`。由 `to_broadcast` 回傳 `BroadcastMessage`，或由 `to_array` 回傳物件。用訊息的 `connection` 和 `queue` 選擇廣播事件的佇列連線和佇列名稱。事件預設附加通知 ID 和類型。有資料庫路由的模型預設在由模型類型和鍵組成的私人頻道上接收事件。可覆寫 `receives_broadcast_notifications_on` 自訂私人頻道名稱，或用 `NotificationRoute::Broadcast` 為隨選收件人指定頻道。

@@ -1,8 +1,11 @@
-use crate::queue::DispatchOptions;
+use crate::{
+    broadcasting::{BroadcastChannel, BroadcastPayload},
+    queue::DispatchOptions,
+};
 
 use super::{
     Notifiable, NotificationResult,
-    messages::{DatabaseMessage, MailDelivery},
+    messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
 };
 
 /// Describes the channels and content for a recipient.
@@ -22,6 +25,25 @@ pub trait Notification: Send + Sync {
 
     fn to_array(&self, _recipient: &dyn Notifiable) -> NotificationResult<Option<DatabaseMessage>> {
         Ok(None)
+    }
+
+    fn to_broadcast(
+        &self,
+        _recipient: &dyn Notifiable,
+    ) -> NotificationResult<Option<BroadcastMessage>> {
+        Ok(None)
+    }
+    fn broadcast_on(&self) -> Vec<BroadcastChannel> {
+        Vec::new()
+    }
+    fn broadcast_with(&self) -> Option<BroadcastPayload> {
+        None
+    }
+    fn broadcast_as(&self) -> Option<&str> {
+        None
+    }
+    fn broadcast_type(&self) -> &str {
+        self.kind()
     }
 
     fn locale(&self) -> Option<&str> {
