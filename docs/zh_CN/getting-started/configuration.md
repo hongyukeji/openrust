@@ -23,16 +23,16 @@ HTTP 视图渲染器按顺序查找 `view.paths` 中的目录，默认从 `resou
 ## 访问配置值 {#accessing-configuration-values}
 
 ```rust
-use openrust::{config::Value, contracts::container::BindingResolutionError, support::facades::Config};
+use openrust::support::facades::Config;
 
-pub fn application_name() -> Result<Value, BindingResolutionError> {
-    Ok(Config::get("app.name")?.unwrap_or_else(|| Value::from("My application")))
+pub fn application_name() -> String {
+    Config::stringOr("app.name", "App")
 }
 ```
 
 用 `Config::set` 更新当前应用的配置。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 检查值的类型。`array` 接受 JSON 列表和对象，`collection` 保留集合键。
 
-需要默认值时，可用 `Config::getOr("app.name", Value::from("App"))?` 读取原始值，或用 `Config::stringOr("app.name", "App")?` 直接读取字符串。默认值仅用于缺失键。原始读取保留显式空值，类型化读取遇到不匹配的值会报错。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
+用 `Config::stringOr("app.name", "App")` 直接取得字符串。键缺失、值为 `null` 或类型不符、配置仓储不可用时，均使用传入的默认值。需要严格读取并处理错误时，用 `Config::string("app.name")?`。原始值读取 `Config::getOr("app.name", Value::from("App"))?` 仅在缺键时使用默认值，并保留显式空值。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
 ## 配置缓存 {#configuration-caching}
 

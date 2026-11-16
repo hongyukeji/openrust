@@ -25,11 +25,13 @@ async fn config_reads_each_applications_canonical_repository() {
     };
     let mut first = make("First");
     let mut second = make("Second");
-    assert!(Config::get("app.name").is_err());
+    assert!(Config::string("app.name").is_err());
+    assert_eq!(Config::stringOr("app.name", "Fallback"), "Fallback");
     first
         .call(
             Callback::new(&[], |_| async {
-                assert!(Config::get("app.name").is_err());
+                assert!(Config::string("app.name").is_err());
+                assert_eq!(Config::stringOr("app.name", "Fallback"), "Fallback");
                 Ok(())
             }),
             Default::default(),
@@ -116,7 +118,7 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
                 ("mail".into(), json!({"host":"localhost","port":2525})),
                 (
                     "mixed".into(),
-                    json!({"nullable":null,"number":7,"list":["first"]}),
+                    json!({"nullable":null,"number":7,"list":["first"],"empty":""}),
                 ),
             ]
             .into())
@@ -141,9 +143,12 @@ async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values()
                     ("missing".into(), json!("fallback")),
                 ]
             );
-            assert_eq!(Config::stringOr("missing", "demo").unwrap(), "demo");
-            assert!(Config::stringOr("mixed.nullable", "demo").is_err());
-            assert!(Config::stringOr("mixed.number", "demo").is_err());
+            assert_eq!(Config::stringOr("mixed.list.0", "demo"), "first");
+            assert_eq!(Config::stringOr("mixed.empty", "demo"), "");
+            for key in ["missing", "mixed.nullable", "mixed.number"] {
+                assert_eq!(Config::stringOr(key, "demo"), "demo");
+                assert!(Config::string(key).is_err());
+            }
             assert_eq!(
                 Config::deserialize::<Mail>("mail").unwrap(),
                 Mail {

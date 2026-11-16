@@ -23,16 +23,16 @@ Process environment variables take precedence over values in the file. Set `APP_
 ## Accessing Configuration Values {#accessing-configuration-values}
 
 ```rust
-use openrust::{config::Value, contracts::container::BindingResolutionError, support::facades::Config};
+use openrust::support::facades::Config;
 
-pub fn application_name() -> Result<Value, BindingResolutionError> {
-    Ok(Config::get("app.name")?.unwrap_or_else(|| Value::from("My application")))
+pub fn application_name() -> String {
+    Config::stringOr("app.name", "App")
 }
 ```
 
 Use `Config::set` to change a value in the current application. The `string`, `integer`, `float`, `boolean`, `array`, and `collection` methods check the value type. `array` accepts JSON lists and objects, and `collection` preserves their keys.
 
-Use `Config::getOr("app.name", Value::from("App"))?` for a raw default, or `Config::stringOr("app.name", "App")?` for a typed string. Defaults apply to absent keys. An explicit null is retained by raw lookups, and typed lookups reject incompatible values. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
+Use `Config::stringOr("app.name", "App")` to get a `String` directly. It returns the default if the key is absent, the value is null or another type, or the repository is unavailable. Use `Config::string("app.name")?` for strict reads. Raw `Config::getOr("app.name", Value::from("App"))?` defaults only when the key is absent and preserves an explicit null. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
 ## Configuration Caching {#configuration-caching}
 

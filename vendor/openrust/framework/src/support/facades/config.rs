@@ -95,16 +95,9 @@ impl Config {
         })
     }
 
-    /// Reads a string, using the default only if the key is absent.
-    pub fn stringOr(key: &str, default: impl Into<String>) -> Result<String, ConfigError> {
-        match Self::get(key)? {
-            None => Ok(default.into()),
-            Some(Value::String(value)) => Ok(value),
-            Some(_) => Err(ConfigError::InvalidType {
-                key: key.to_owned(),
-                expected: "a string",
-            }),
-        }
+    /// Returns the configured string or the default if it cannot be read as a string.
+    pub fn stringOr(key: &str, default: impl Into<String>) -> String {
+        Self::string(key).unwrap_or_else(|_| default.into())
     }
 
     pub fn integer(key: &str) -> Result<i64, ConfigError> {
