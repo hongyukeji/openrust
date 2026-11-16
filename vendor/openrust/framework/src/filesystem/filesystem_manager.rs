@@ -10,7 +10,7 @@ use crate::contracts::config::Repository;
 
 use super::{
     AwsS3V3Adapter, FilesystemAdapter, FilesystemError, FilesystemResult, LocalFilesystemAdapter,
-    S3DiskConfig, Visibility,
+    LocalPermissions, S3DiskConfig, Visibility,
 };
 
 /// Resolves and caches named filesystem disks for one application.
@@ -71,11 +71,16 @@ impl FilesystemManager {
         };
         let serve = config.get("serve").and_then(serde_json::Value::as_bool) == Some(true);
         let disk = match config.get("driver").and_then(serde_json::Value::as_str) {
-            Some("local") => self.build_local(
-                serde_json::from_value(config)
-                    .map_err(|_| FilesystemError::InvalidConfiguration)?,
-                url,
-            )?,
+            Some("local") => {
+                let permissions =
+                    LocalPermissions::from_config(config.get("permissions").cloned())?;
+                self.build_local(
+                    serde_json::from_value(config)
+                        .map_err(|_| FilesystemError::InvalidConfiguration)?,
+                    permissions,
+                    url,
+                )?
+            }
             Some("s3") => self.build_s3(
                 serde_json::from_value(config)
                     .map_err(|_| FilesystemError::InvalidConfiguration)?,
@@ -105,12 +110,22 @@ impl FilesystemManager {
     }
 
     pub fn build(&self, config: LocalDiskConfig) -> FilesystemResult<Arc<FilesystemAdapter>> {
-        self.build_local(config, None)
+        self.build_local(config, LocalPermissions::default(), None)
+    }
+
+    pub fn buildWithPermissions(
+        &self,
+        config: LocalDiskConfig,
+        permissions: LocalPermissions,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        permissions.validate()?;
+        self.build_local(config, permissions, None)
     }
 
     fn build_local(
         &self,
         config: LocalDiskConfig,
+        permissions: LocalPermissions,
         url: Option<String>,
     ) -> FilesystemResult<Arc<FilesystemAdapter>> {
         if config.root.as_os_str().is_empty() {
@@ -120,6 +135,7 @@ impl FilesystemManager {
             self.base_path.join(config.root),
             config.visibility,
             config.directory_visibility.unwrap_or(config.visibility),
+            permissions,
         );
         Ok(Arc::new(FilesystemAdapter::local(
             local,

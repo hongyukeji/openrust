@@ -291,9 +291,10 @@ impl Router {
         &mut self,
         prefix: &str,
         directory: &Path,
+        permissions: crate::filesystem::LocalPermissions,
     ) -> Result<(), RoutingError> {
         self.static_mounts
-            .push(StaticMount::public_disk(prefix, directory)?);
+            .push(StaticMount::public_disk(prefix, directory, permissions)?);
         Ok(())
     }
 

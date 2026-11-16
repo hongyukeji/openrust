@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     FilesystemAdapter, FilesystemError, FilesystemManager, FilesystemResult, LocalDiskConfig,
-    S3DiskConfig, WriteOptions,
+    LocalPermissions, S3DiskConfig, WriteOptions,
 };
 
 /// Resolves storage disks in the current application scope.
@@ -33,6 +33,19 @@ impl Storage {
         Self::getFacadeRoot()
             .map_err(FilesystemError::Unavailable)?
             .build(config)
+    }
+
+    #[allow(
+        non_snake_case,
+        reason = "Typed counterpart of Laravel's Storage::build"
+    )]
+    pub fn buildWithPermissions(
+        config: LocalDiskConfig,
+        permissions: LocalPermissions,
+    ) -> FilesystemResult<Arc<FilesystemAdapter>> {
+        Self::getFacadeRoot()
+            .map_err(FilesystemError::Unavailable)?
+            .buildWithPermissions(config, permissions)
     }
 
     #[allow(

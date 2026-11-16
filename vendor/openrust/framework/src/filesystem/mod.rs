@@ -7,6 +7,7 @@ mod filesystem_adapter;
 mod filesystem_manager;
 mod filesystem_service_provider;
 mod local_filesystem_adapter;
+mod local_permissions;
 mod receive_file;
 mod serve_file;
 
@@ -17,6 +18,7 @@ pub use filesystem_adapter::FilesystemAdapter;
 pub use filesystem_manager::{FilesystemManager, LocalDiskConfig};
 pub use filesystem_service_provider::FilesystemServiceProvider;
 pub use local_filesystem_adapter::LocalFilesystemAdapter;
+pub use local_permissions::LocalPermissions;
 pub use receive_file::ReceiveFile;
 pub use serve_file::ServeFile;
 
@@ -134,23 +136,6 @@ impl From<std::io::Error> for FilesystemError {
             _ => Self::Backend {
                 source: Box::new(source),
             },
-        }
-    }
-}
-
-#[cfg(unix)]
-impl Visibility {
-    fn file_mode(self) -> u32 {
-        match self {
-            Self::Private => 0o600,
-            Self::Public => 0o644,
-        }
-    }
-
-    fn directory_mode(self) -> u32 {
-        match self {
-            Self::Private => 0o700,
-            Self::Public => 0o755,
         }
     }
 }

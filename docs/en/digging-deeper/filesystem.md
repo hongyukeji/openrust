@@ -145,6 +145,20 @@ On Unix, the public and private file modes are `0644` and `0600`. New subdirecto
 
 S3 visibility uses object ACLs. If no visibility is specified, the write leaves access control to the bucket. An explicit visibility request requires an ACL-capable bucket, and confirmation requires reading the ACL back. Bucket policies and the provider’s ACL enforcement determine whether an object is actually accessible anonymously.
 
+#### Custom Unix Permissions {#local-permissions}
+
+A named local disk can override the Unix mode for each visibility. Set `permissions.file.public`, `permissions.file.private`, `permissions.dir.public`, or `permissions.dir.private` in its configuration. Unspecified modes use the defaults. Use octal numbers such as `0o664` in Rust config.
+
+```rust
+use openrust::filesystem::{FilesystemResult, LocalPermissions};
+
+fn permissions() -> FilesystemResult<LocalPermissions> {
+    LocalPermissions::new(0o664, 0o640, 0o775, 0o750)
+}
+```
+
+For an on-demand disk, give these permissions to `Storage::buildWithPermissions` along with its `LocalDiskConfig`. Modes apply to newly created files and directories. `setVisibility` applies the configured file mode. Public disk mounts also require Unix public-read and directory-traverse permissions and respect modes mapped to `private`. Custom Unix modes are supported on Unix.
+
 ## Temporary file URLs
 
 Use `disk.temporaryUrl(path, expiration).await?` for a download or `disk.temporaryUploadUrl(path, expiration).await?` for an upload. Send the returned `headers` with the upload `url`. For a local disk, enable `serve` in the disk configuration. Its route uses the path in the disk's `url`, or `/storage` when no URL is set. The local upload link accepts PUT. The S3 adapter signs against the configured bucket endpoint. The client needs network access to that endpoint.

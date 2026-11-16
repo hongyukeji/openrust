@@ -145,6 +145,20 @@ Unix 上公開和私有檔案權限分別是 `0644` 和 `0600`。新子目錄使
 
 S3 可見性使用物件 ACL。未指定可見性時，寫入沿用儲存貯體的存取控制。明確設定可見性需要儲存貯體支援 ACL，確認設定結果還需要讀取 ACL 的權限。實際匿名存取取決於儲存貯體政策及服務是否執行 ACL。
 
+#### 自訂 Unix 權限 {#local-permissions}
+
+具名本機磁碟可覆寫每種可見性對應的 Unix 權限。可設定 `permissions.file.public`、`permissions.file.private`、`permissions.dir.public` 或 `permissions.dir.private`。未設定的項目沿用預設值。在 Rust 設定中使用 `0o664` 等八進位數值。
+
+```rust
+use openrust::filesystem::{FilesystemResult, LocalPermissions};
+
+fn permissions() -> FilesystemResult<LocalPermissions> {
+    LocalPermissions::new(0o664, 0o640, 0o775, 0o750)
+}
+```
+
+按需磁碟可用 `Storage::buildWithPermissions` 同時傳入 `LocalDiskConfig` 和權限表。新建檔案和目錄使用設定的權限，`setVisibility` 會為檔案套用對應模式。公開磁碟掛載也要求 Unix 的公開讀取和目錄走訪權限，並遵守映射為 `private` 的模式。自訂 Unix 模式適用於 Unix。
+
 ## 暫存檔案 URL
 
 使用 `disk.temporaryUrl(path, expiration).await?` 產生下載連結，或使用 `disk.temporaryUploadUrl(path, expiration).await?` 產生上傳連結。上傳時向傳回的 `url` 發出請求，並附上傳回的 `headers`。本機磁碟須在磁碟設定中啟用 `serve`，路由使用該磁碟 `url` 的路徑，省略時使用 `/storage`。本機上傳連結接收 PUT。S3 配接器依設定的儲存貯體端點簽名，用戶端必須能存取該端點。

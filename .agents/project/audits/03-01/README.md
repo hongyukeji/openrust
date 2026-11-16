@@ -36,3 +36,25 @@ macOS arm64、Rust 1.94.0。隔离副本位于 `/private/tmp/openrust-03-01.qtGw
 - 隔离基线 `7b29e9da9`。PHP 8.5.12 实际运行固定 Laravel 和 Flysystem 3.25.1 对照。八项本地文件系统测试通过，覆盖 600,000 字节校验和、时间与文件句柄、签名覆盖扩展名、缺失及链接错误。实际 HTTP 验证默认盘 Facade 元数据。Artisan 子进程回归验证 `storage:link` 和 `storage:unlink`。
 - 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。03-01 接续自定义 Unix 可见性模式及整单元复核。
 - PHP 容器已回收。清理本批 3.5 GiB Cargo 产物及站点缓存后，卷可用 60.91 GB（56.73 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-metadata.UCflKrn6`。
+
+## 自定义 Unix 可见性模式
+
+对照固定 Laravel 的[本地驱动装配与权限表](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Filesystem/FilesystemManager.php#L168)和 [File Visibility](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/filesystem.md#file-visibility)。旧版以目录句柄和 `fchmod` 写入固定权限，本批复用当前句柄及原子发布路径。
+
+- 具名磁盘支持 `permissions.file.{public,private}` 及 `permissions.dir.{public,private}`，各项独立覆盖默认值。按需磁盘通过 `LocalPermissions` 和 `buildWithPermissions` 配置。模式只接受 Unix 的九个读写执行权限位，其他平台沿用现有 ACL。
+- 新建根目录和子目录按配置应用对应模式，不重新设置既有目录。文件原子写入和 `setVisibility` 使用同一权限表。`getVisibility` 优先识别精确映射，再按原有的公共读位判断外部创建的文件。同一模式同时映射到两种可见性时，按私有模式处理。
+- `Route::staticDisk` 使用同一权限表，在现有 Unix 公共读与目录遍历检查之外拒绝私有模式。实际 HTTP 验证自定义公开文件可访问，即使私有文件和目录具备公共读或遍历位也返回 404。
+
+## 03-01 整单元验收
+
+隔离基线 `8844f3fc3`。固定 Laravel 和 Flysystem 3.25.1 在 PHP 8.5.12 进程中通过目录权限、公开写入、可见性切换及回读对照。macOS arm64 实际模式验证默认与自定义值、根目录、父目录、读写及配置边界。
+
+| 计划行为 | 工具与验收结果 |
+| --- | --- |
+| Local／public 文件读写、流式传输和磁盘作用域 | 九项 `filesystem_local` 通过，覆盖具名及按需磁盘、文件流、取消与失败后内容保留、两个独立应用和实际 HTTP。 |
+| 可见性、目录、元数据和路径边界 | 上述用例验证自定义与默认模式、递归目录操作、元数据、软硬链接及暂存过滤。三项 `startup` 的 `public_mount` 回归验证注册顺序、应用配置、GET／HEAD 和条件请求。 |
+| 实际 Artisan | `cargo test --test storage` 的真实子进程验证 `storage:link`、`storage:unlink`、相对链接、强制重建及保留普通文件。实际 `./artisan inspire` 正常。 |
+
+三语共用示例、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍报告既有 Sanctum 排版差异。Windows 实机和其他平台留待发布前统一复核，S3 的目录与元数据留待专项接入。03-01 核心闭合。
+
+PHP 容器及本批 3.7 GiB Cargo 产物和站点缓存已清理，卷可用 60.89 GB（56.71 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-03-01-permissions.gdnALXsy`。

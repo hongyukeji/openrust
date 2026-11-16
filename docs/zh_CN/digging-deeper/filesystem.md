@@ -145,6 +145,20 @@ Unix 上公开和私有文件权限分别是 `0644` 和 `0600`。新子目录使
 
 S3 可见性使用对象 ACL。未指定可见性时，写入沿用存储桶的访问控制。显式可见性需要存储桶支持 ACL，确认设置结果还需要读取 ACL 的权限。实际匿名可访问性取决于存储桶策略及服务是否执行 ACL。
 
+#### 自定义 Unix 权限 {#local-permissions}
+
+具名本地磁盘可以覆盖每种可见性对应的 Unix 权限。可设置 `permissions.file.public`、`permissions.file.private`、`permissions.dir.public` 或 `permissions.dir.private`。未指定的项沿用默认值。在 Rust 配置中使用 `0o664` 等八进制数值。
+
+```rust
+use openrust::filesystem::{FilesystemResult, LocalPermissions};
+
+fn permissions() -> FilesystemResult<LocalPermissions> {
+    LocalPermissions::new(0o664, 0o640, 0o775, 0o750)
+}
+```
+
+按需磁盘可用 `Storage::buildWithPermissions` 同时传入 `LocalDiskConfig` 和权限表。新建文件和目录采用配置的权限，`setVisibility` 会给文件应用对应模式。公开磁盘挂载还要求 Unix 的公共读权限和目录遍历权限，并遵守映射为 `private` 的模式。自定义 Unix 模式适用于 Unix。
+
 ## 临时文件 URL
 
 用 `disk.temporaryUrl(path, expiration).await?` 生成下载链接，或用 `disk.temporaryUploadUrl(path, expiration).await?` 生成上传链接。上传时向返回的 `url` 发送请求，并携带返回的 `headers`。本地磁盘须在磁盘配置中开启 `serve`，路由使用该磁盘 `url` 的路径，省略时使用 `/storage`。本地上传链接接收 PUT。S3 适配器按配置的桶端点签名，客户端需要能够访问该端点。

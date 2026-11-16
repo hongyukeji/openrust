@@ -12,6 +12,7 @@ use http::{
 use tokio::io::AsyncReadExt as _;
 use tokio_util::io::ReaderStream;
 
+use crate::filesystem::LocalPermissions;
 use crate::http::{Body, Method, Response, StatusCode};
 
 use super::RoutingError;
@@ -19,7 +20,7 @@ use super::RoutingError;
 pub(super) struct StaticMount {
     prefix: String,
     directory: Arc<Path>,
-    public_disk: bool,
+    public_disk: Option<LocalPermissions>,
 }
 
 impl StaticMount {
@@ -43,13 +44,17 @@ impl StaticMount {
         Ok(Self {
             prefix: prefix.trim_end_matches('/').into(),
             directory: Arc::from(directory),
-            public_disk: false,
+            public_disk: None,
         })
     }
 
-    pub(super) fn public_disk(prefix: &str, directory: &Path) -> Result<Self, RoutingError> {
+    pub(super) fn public_disk(
+        prefix: &str,
+        directory: &Path,
+        permissions: LocalPermissions,
+    ) -> Result<Self, RoutingError> {
         let mut mount = Self::new(prefix, directory)?;
-        mount.public_disk = true;
+        mount.public_disk = Some(permissions);
         Ok(mount)
     }
 
@@ -73,8 +78,8 @@ impl StaticMount {
         let public_disk = self.public_disk;
         let (file, length, modified) = tokio::task::spawn_blocking(move || {
             let root = Dir::open_ambient_dir(directory.as_ref(), ambient_authority()).ok()?;
-            let file = if public_disk {
-                crate::filesystem::open_public_file(&root, &relative).ok()?
+            let file = if let Some(permissions) = public_disk {
+                crate::filesystem::open_public_file(&root, &relative, permissions).ok()?
             } else {
                 if !root.is_file(&relative) {
                     return None;

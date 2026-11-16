@@ -247,7 +247,11 @@ async fn application_scope_and_public_mount_work_over_http() {
             json!({"default": "local", "disks": {
                 "local": {"driver":"local", "root":"private", "throw":true},
                 "public": {"driver":"local", "root":"public-files", "visibility":"public",
-                    "url":"/storage", "throw":true},
+                    "url":"/storage", "throw":true,
+                    "permissions":{
+                        "file":{"public":0o664,"private":0o604},
+                        "dir":{"public":0o775,"private":0o701},
+                    }},
             }}),
         )]))
     }
@@ -342,6 +346,12 @@ async fn application_scope_and_public_mount_work_over_http() {
                 .await
                 .unwrap()
             );
+            assert_eq!(
+                disk.getVisibility("nested/private.txt").await?,
+                Visibility::Private
+            );
+            disk.put("private-folder/readable.txt", b"private directory")
+                .await?;
             disk.put("nested/large.txt", vec![b'x'; 256 * 1024]).await?;
             Ok(Response::empty(StatusCode::NO_CONTENT))
         })
@@ -417,6 +427,36 @@ async fn application_scope_and_public_mount_work_over_http() {
     let response = get(address, "/storage/nested/public.txt").await;
     assert!(response.starts_with("HTTP/1.1 200"));
     assert!(response.ends_with("public content"));
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        for (path, mode) in [
+            ("public-files", 0o775),
+            ("public-files/nested", 0o775),
+            ("public-files/nested/public.txt", 0o664),
+            ("public-files/nested/private.txt", 0o604),
+        ] {
+            assert_eq!(
+                std::fs::metadata(first.0.join(path))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                mode
+            );
+        }
+        std::fs::set_permissions(
+            first.0.join("public-files/private-folder"),
+            std::fs::Permissions::from_mode(0o701),
+        )
+        .unwrap();
+    }
+    assert!(
+        get(address, "/storage/private-folder/readable.txt")
+            .await
+            .starts_with("HTTP/1.1 404")
+    );
+
     assert!(
         get(other, "/storage/nested/public.txt")
             .await
@@ -689,4 +729,55 @@ async fn local_metadata_rejects_symbolic_and_hard_links() {
         assert!(disk.mimeType(name).await.is_err());
         assert!(disk.checksum(name).await.is_err());
     }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn local_permission_maps_apply_to_writes_directories_and_visibility_reads() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    use openrust::filesystem::LocalPermissions;
+
+    let root = Sandbox::new();
+    let config = LocalDiskConfig {
+        root: "on-demand".into(),
+        visibility: Visibility::Private,
+        directory_visibility: Some(Visibility::Public),
+        throw: true,
+        report: false,
+    };
+    let permissions = LocalPermissions::new(0o640, 0o620, 0o775, 0o750).unwrap();
+    let disk = root
+        .manager(true)
+        .buildWithPermissions(config, permissions)
+        .unwrap();
+    assert!(disk.put("reports/example.txt", b"report").await.unwrap());
+    let mode = |path: &str| {
+        std::fs::metadata(root.0.join(path))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777
+    };
+    assert_eq!(mode("on-demand"), 0o775);
+    assert_eq!(mode("on-demand/reports"), 0o775);
+    assert_eq!(mode("on-demand/reports/example.txt"), 0o620);
+    assert_eq!(
+        disk.getVisibility("reports/example.txt").await.unwrap(),
+        Visibility::Private
+    );
+    assert!(
+        disk.setVisibility("reports/example.txt", Visibility::Public)
+            .await
+            .unwrap()
+    );
+    assert_eq!(mode("on-demand/reports/example.txt"), 0o640);
+    assert_eq!(
+        disk.getVisibility("reports/example.txt").await.unwrap(),
+        Visibility::Public
+    );
+    assert!(matches!(
+        LocalPermissions::new(0o4644, 0o600, 0o755, 0o700),
+        Err(FilesystemError::InvalidConfiguration)
+    ));
 }

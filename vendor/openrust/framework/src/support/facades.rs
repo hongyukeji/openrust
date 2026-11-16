@@ -332,10 +332,16 @@ impl Route {
                 let root = config_string(config, &root_key)?
                     .ok_or_else(|| static_config_error(&root_key, "a directory path"))?;
                 let prefix = disk_url_prefix(config, &format!("{key}.url"))?;
+                let permissions_key = format!("{key}.permissions");
+                let permissions =
+                    crate::filesystem::LocalPermissions::from_config(config.get(&permissions_key))
+                        .map_err(|_| {
+                            static_config_error(&permissions_key, "valid local permission modes")
+                        })?;
                 scope
                     .router
                     .borrow_mut()
-                    .mount_public_disk(&prefix, Path::new(&root))
+                    .mount_public_disk(&prefix, Path::new(&root), permissions)
             })
             .map_err(|_| RoutingError::NoRegistrationScope)?
     }

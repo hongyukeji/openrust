@@ -7,13 +7,17 @@ use std::{
 use cap_std::{ambient_authority, fs::Dir};
 use tokio::io::{AsyncRead, AsyncWriteExt as _};
 
-use super::{FilesystemError, FilesystemResult, Visibility, filesystem_adapter::validate_path};
+use super::{
+    FilesystemError, FilesystemResult, LocalPermissions, Visibility,
+    filesystem_adapter::validate_path,
+};
 
 /// Performs confined local operations relative to the disk root.
 pub struct LocalFilesystemAdapter {
     root: PathBuf,
     visibility: Visibility,
     directory_visibility: Visibility,
+    permissions: LocalPermissions,
 }
 
 impl LocalFilesystemAdapter {
@@ -21,11 +25,13 @@ impl LocalFilesystemAdapter {
         root: PathBuf,
         visibility: Visibility,
         directory_visibility: Visibility,
+        permissions: LocalPermissions,
     ) -> Self {
         Self {
             root,
             visibility,
             directory_visibility,
+            permissions,
         }
     }
 
@@ -34,24 +40,26 @@ impl LocalFilesystemAdapter {
     }
 
     fn open_directory(&self, path: &Path, create: bool) -> io::Result<Dir> {
-        if create {
-            let mut builder = std::fs::DirBuilder::new();
-            builder.recursive(true);
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt as _;
-                builder.mode(self.directory_visibility.directory_mode());
+        let mode = self.permissions.directory_mode(self.directory_visibility);
+        let mut dir = match Dir::open_ambient_dir(&self.root, ambient_authority()) {
+            Err(error) if create && error.kind() == io::ErrorKind::NotFound => {
+                let parent = self.root.parent().ok_or(io::ErrorKind::InvalidInput)?;
+                let name = self.root.file_name().ok_or(io::ErrorKind::InvalidInput)?;
+                let mut builder = std::fs::DirBuilder::new();
+                builder.recursive(true);
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::DirBuilderExt as _;
+                    builder.mode(mode);
+                }
+                builder.create(parent)?;
+                let parent = Dir::open_ambient_dir(parent, ambient_authority())?;
+                open_child(&parent, Path::new(name), true, mode)?
             }
-            builder.create(&self.root)?;
-        }
-        let mut dir = Dir::open_ambient_dir(&self.root, ambient_authority())?;
+            result => result?,
+        };
         for part in path.components() {
-            dir = open_child(
-                &dir,
-                Path::new(part.as_os_str()),
-                create,
-                self.directory_visibility,
-            )?;
+            dir = open_child(&dir, Path::new(part.as_os_str()), create, mode)?;
         }
         Ok(dir)
     }
@@ -134,7 +142,9 @@ impl LocalFilesystemAdapter {
             return Err(FilesystemError::UnsupportedOperation);
         }
         #[cfg(unix)]
-        let visibility = visibility.unwrap_or(self.visibility);
+        let mode = self
+            .permissions
+            .file_mode(visibility.unwrap_or(self.visibility));
         let disk = self.clone_for_task();
         let (stage, file) = blocking(move || {
             let (parent, destination) = disk.resolve(&path, true)?;
@@ -147,7 +157,7 @@ impl LocalFilesystemAdapter {
         let file = writer.into_std().await;
         blocking(move || {
             #[cfg(unix)]
-            set_visibility(&file, visibility)?;
+            set_mode(&file, mode)?;
             drop(file);
             stage.publish()
         })
@@ -212,12 +222,7 @@ impl LocalFilesystemAdapter {
                     format!("{prefix}/{name}")
                 };
                 let child = if recursive && kind.is_dir() {
-                    Some(open_child(
-                        parent,
-                        Path::new(name),
-                        false,
-                        disk.directory_visibility,
-                    )?)
+                    Some(open_child(parent, Path::new(name), false, 0)?)
                 } else {
                     None
                 };
@@ -275,12 +280,9 @@ impl LocalFilesystemAdapter {
     }
 
     pub(super) async fn get_visibility(&self, path: PathBuf) -> FilesystemResult<Visibility> {
-        let disk = self.clone_for_task();
-        blocking(move || {
-            let (parent, name) = disk.resolve(&path, false)?;
-            read_visibility(&open_regular(&parent, &name)?)
-        })
-        .await
+        let permissions = self.permissions;
+        self.with_file(path, move |file| read_visibility(&file, permissions))
+            .await
     }
 
     pub(super) async fn set_visibility(
@@ -288,12 +290,17 @@ impl LocalFilesystemAdapter {
         path: PathBuf,
         visibility: Visibility,
     ) -> FilesystemResult<()> {
-        let disk = self.clone_for_task();
-        blocking(move || {
-            let (parent, name) = disk.resolve(&path, false)?;
-            set_visibility(&open_regular(&parent, &name)?, visibility)
-        })
-        .await
+        #[cfg(unix)]
+        {
+            let mode = self.permissions.file_mode(visibility);
+            self.with_file(path, move |file| set_mode(&file, mode))
+                .await
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (path, visibility);
+            Err(FilesystemError::UnsupportedOperation)
+        }
     }
 
     fn clone_for_task(&self) -> Self {
@@ -301,6 +308,7 @@ impl LocalFilesystemAdapter {
             self.root.clone(),
             self.visibility,
             self.directory_visibility,
+            self.permissions,
         )
     }
 }
@@ -317,11 +325,11 @@ async fn blocking<T: Send + 'static>(
 }
 
 #[cfg(unix)]
-fn open_child(parent: &Dir, name: &Path, create: bool, visibility: Visibility) -> io::Result<Dir> {
+fn open_child(parent: &Dir, name: &Path, create: bool, mode: u32) -> io::Result<Dir> {
     use rustix::fs::{Mode, OFlags, fchmod, mkdirat, openat};
 
     let flags = OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC;
-    let mode = Mode::from_raw_mode(visibility.directory_mode() as _);
+    let mode = Mode::from_raw_mode(mode as _);
     let directory = match openat(parent, name, flags, Mode::empty()) {
         Ok(directory) => directory,
         Err(rustix::io::Errno::NOENT) if create => {
@@ -342,7 +350,7 @@ fn open_child(parent: &Dir, name: &Path, create: bool, visibility: Visibility) -
 }
 
 #[cfg(not(unix))]
-fn open_child(parent: &Dir, name: &Path, create: bool, _: Visibility) -> io::Result<Dir> {
+fn open_child(parent: &Dir, name: &Path, create: bool, _: u32) -> io::Result<Dir> {
     match parent.open_dir(name) {
         Err(error) if error.kind() == io::ErrorKind::NotFound && create => {
             if let Err(error) = parent.create_dir(name)
@@ -356,40 +364,43 @@ fn open_child(parent: &Dir, name: &Path, create: bool, _: Visibility) -> io::Res
     }
 }
 
-pub(crate) fn open_public_file(root: &Dir, path: &Path) -> io::Result<std::fs::File> {
+pub(crate) fn open_public_file(
+    root: &Dir,
+    path: &Path,
+    permissions: LocalPermissions,
+) -> io::Result<std::fs::File> {
     let mut directory = root.try_clone()?;
-    public_directory(&directory)?;
+    public_directory(&directory, permissions)?;
     for component in path.parent().into_iter().flat_map(Path::components) {
-        directory = open_child(
-            &directory,
-            Path::new(component.as_os_str()),
-            false,
-            Visibility::Public,
-        )?;
-        public_directory(&directory)?;
+        directory = open_child(&directory, Path::new(component.as_os_str()), false, 0)?;
+        public_directory(&directory, permissions)?;
     }
     let file = open_regular(
         &directory,
         Path::new(path.file_name().ok_or(io::ErrorKind::InvalidInput)?),
     )?;
     #[cfg(unix)]
-    if read_visibility(&file)? != Visibility::Public {
-        return Err(io::ErrorKind::PermissionDenied.into());
+    {
+        let mode = file_mode(&file)?;
+        if mode & 0o004 == 0 || permissions.file_visibility(mode) != Visibility::Public {
+            return Err(io::ErrorKind::PermissionDenied.into());
+        }
     }
     Ok(file)
 }
 
 #[cfg(unix)]
-fn public_directory(directory: &Dir) -> io::Result<()> {
+fn public_directory(directory: &Dir, permissions: LocalPermissions) -> io::Result<()> {
     use cap_std::fs::PermissionsExt as _;
-    if directory.dir_metadata()?.permissions().mode() & 0o001 == 0 {
+    let mode = directory.dir_metadata()?.permissions().mode() & 0o777;
+    if mode & 0o001 == 0 || mode == permissions.directory_mode(Visibility::Private) {
         return Err(io::ErrorKind::PermissionDenied.into());
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn public_directory(_: &Dir) -> io::Result<()> {
+fn public_directory(_: &Dir, _: LocalPermissions) -> io::Result<()> {
     Ok(())
 }
 
@@ -422,28 +433,24 @@ fn open_regular(parent: &Dir, name: &Path) -> io::Result<std::fs::File> {
 }
 
 #[cfg(unix)]
-fn set_visibility(file: &std::fs::File, visibility: Visibility) -> io::Result<()> {
+fn set_mode(file: &std::fs::File, mode: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt as _;
-    file.set_permissions(std::fs::Permissions::from_mode(visibility.file_mode()))
+    file.set_permissions(std::fs::Permissions::from_mode(mode))
 }
 
 #[cfg(unix)]
-fn read_visibility(file: &std::fs::File) -> io::Result<Visibility> {
+fn file_mode(file: &std::fs::File) -> io::Result<u32> {
     use std::os::unix::fs::PermissionsExt as _;
-    Ok(if file.metadata()?.permissions().mode() & 0o004 == 0 {
-        Visibility::Private
-    } else {
-        Visibility::Public
-    })
+    Ok(file.metadata()?.permissions().mode())
+}
+
+#[cfg(unix)]
+fn read_visibility(file: &std::fs::File, permissions: LocalPermissions) -> io::Result<Visibility> {
+    Ok(permissions.file_visibility(file_mode(file)?))
 }
 
 #[cfg(not(unix))]
-fn set_visibility(_: &std::fs::File, _: Visibility) -> io::Result<()> {
-    Err(io::ErrorKind::Unsupported.into())
-}
-
-#[cfg(not(unix))]
-fn read_visibility(_: &std::fs::File) -> io::Result<Visibility> {
+fn read_visibility(_: &std::fs::File, _: LocalPermissions) -> io::Result<Visibility> {
     Err(io::ErrorKind::Unsupported.into())
 }
 
