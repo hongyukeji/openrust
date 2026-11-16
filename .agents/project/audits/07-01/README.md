@@ -45,7 +45,7 @@
 
 ## 尚未验收的范围
 
-- Strings 仍需逐项核对 slug 和 ICU 严格转写、多语言词形及 COMB 标识符。
+- Strings 仍需逐项核对 多语言词形及 COMB 标识符。
 - Helpers 仍有 Arr 余下方法、Number 语言环境格式、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
 
@@ -54,3 +54,10 @@
 - 固定 Laravel Str 和 PHP 8.5.12 实测首捕获、可选捕获为空、替换次数、汉字和 emoji 的展示宽度、整词截断以及多字节换行。Rust 复用锁定的 regex，引入类型化无效模式错误和 Rust 回调。模式及替换采用 Rust 语法，PCRE 分隔符、后向查找和模式内反向引用属于语法差异。旧版字符串代码没有对应实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
 - 宽度数据由 PHP 8.5.12 的 `mb_strwidth` 对每个有效 Unicode 标量枚举，连续双宽标量合并为区间。换行使用标量长度和空格分隔，保留整词时处理基本 HTML 标签。 [PHP 宽度数据](https://github.com/php/php-src/blob/php-8.5.12/ext/mbstring/libmbfl/mbfl/eaw_table.h)
 - 8 项 Strings 定向测试、严格 Clippy 和三语 VitePress 构建通过。实际 Artisan 运行三语示例。实际回环 HTTP 核对可选捕获、CJK 截断和多字节换行。
+
+
+## Slug 与严格转写
+
+- 对照固定 Str 的 ASCII 映射、反向分隔符、按序字典替换和 Unicode 字符过滤。沿用旧版默认转写及其 portable-ascii 2.0.2 许可证，补入该固定版本的 locale 映射、覆盖表和多字序列长度。静态与 Stringable 共用实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
+- 严格路径使用 Rust ICU4X 0.7 的 CLDR 文字转换，依次执行 NFKC、非间距组合符清理、NFKC、按 Unicode 文字分段做拉丁转写、Latin-ASCII 与 portable-ascii 回退。ICU4C 的 Any-Latin 分段及 CLDR 规则版本可能产生不同输出。 [ICU4X](https://docs.rs/icu_experimental/0.7.0/icu_experimental/transliterate/index.html)
+- 固定 Laravel 的 slug 由 PHP 8.5.12 对照，严格模式规则由 ICU 77.1 对照。锁定离线测试及定向严格 Clippy 通过。实际 Artisan 执行三语示例，实际回环 HTTP 验收默认 slug、德国映射和混合文字转写。三语 VitePress 构建通过。

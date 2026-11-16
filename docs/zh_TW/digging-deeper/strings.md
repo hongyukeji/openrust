@@ -68,3 +68,22 @@ assert_eq!(Str::replaceMatches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[
 assert_eq!(Str::limit("中文🙂", 4, "…", false), "中文…");
 assert_eq!(Str::wordWrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
 ```
+
+## Slug 和嚴格轉寫 {#slug-and-transliteration}
+
+`Str::slug` 使用 portable-ascii 英語對映、連字號及預設的 `@` → `at` 字典。`slugWith` 可設定分隔符、用 `None` 保留 Unicode 字母與數字，也可按取代順序傳入字典。`ascii` 提供相同的語言對映。
+
+`transliterateWithOptions` 接收未知字元的取代文字和嚴格模式標記。嚴格模式先正規化文字並移除非間距組合記號，再套用 ICU4X 的文字轉拉丁及拉丁轉 ASCII 規則，最後回退到 portable-ascii。文字識別及 CLDR 資料版本會影響與 PHP Intl 的結果一致性。
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::slug("Über Café @ Home"), "uber-cafe-at-home");
+assert_eq!(Str::slugWith("Köln", "-", Some("de"), &[]), "koeln");
+assert_eq!(
+    Str::of("Привет 你好")
+        .transliterateWithOptions(Some("?"), true)
+        .to_string(),
+    "Privet ni hao"
+);
+```

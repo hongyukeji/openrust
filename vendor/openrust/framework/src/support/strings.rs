@@ -6,6 +6,8 @@ use super::{MarkdownOptions, Stringable, markdown};
 mod display_width;
 mod pattern;
 mod random;
+mod slug;
+mod strict_transliteration;
 mod text_layout;
 
 pub use random::{EmptyPasswordAlphabet, PasswordOptions};
@@ -604,18 +606,48 @@ impl Str {
         output
     }
 
+    pub fn ascii(value: &str, language: &str) -> String {
+        slug::ascii(value, language)
+    }
+
+    pub fn slug(value: &str) -> String {
+        Self::slugWith(value, "-", Some("en"), &[("@", "at")])
+    }
+
+    /// Converts a title with an ordered dictionary. `None` keeps Unicode letters and numbers.
+    pub fn slugWith(
+        value: &str,
+        separator: &str,
+        language: Option<&str>,
+        dictionary: &[(&str, &str)],
+    ) -> String {
+        slug::slug(value, separator, language, dictionary)
+    }
+
     pub fn transliterate(value: &str) -> String {
         Self::transliterateWithUnknown(value, Some("?"))
     }
 
     /// Selects a replacement for unknown characters or preserves them with `None`.
     pub fn transliterateWithUnknown(value: &str, unknown: Option<&str>) -> String {
+        Self::transliterateWithOptions(value, unknown, false)
+    }
+
+    pub fn transliterateWithOptions(value: &str, unknown: Option<&str>, strict: bool) -> String {
         if ascii_fast_path(value) {
             return value.into();
         }
         let data = data();
         let cleaned = clean(value, data);
         if cleaned != value && ascii_fast_path(&cleaned) {
+            return cleaned;
+        }
+        let cleaned = if strict {
+            strict_transliteration::transliterate(&cleaned)
+        } else {
+            cleaned
+        };
+        if ascii_fast_path(&cleaned) {
             return cleaned;
         }
         let mut output = String::with_capacity(cleaned.len());

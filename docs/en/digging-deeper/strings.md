@@ -68,3 +68,22 @@ assert_eq!(Str::replaceMatches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[
 assert_eq!(Str::limit("中文🙂", 4, "…", false), "中文…");
 assert_eq!(Str::wordWrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
 ```
+
+## Slug and strict transliteration {#slug-and-transliteration}
+
+`Str::slug` uses the English portable-ascii map, a hyphen separator and the default `@` → `at` dictionary. Use `slugWith` to select a separator, pass `None` to retain Unicode letters and numbers, or supply dictionary entries in replacement order. `ascii` exposes the same locale-specific mapping directly.
+
+`transliterateWithOptions` accepts the unknown-character replacement and a strict flag. Strict mode normalizes the text, removes nonspacing marks, then applies ICU4X script-to-Latin and Latin-to-ASCII rules before portable-ascii fallback. Script detection and the version of the CLDR data can affect results relative to PHP Intl.
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::slug("Über Café @ Home"), "uber-cafe-at-home");
+assert_eq!(Str::slugWith("Köln", "-", Some("de"), &[]), "koeln");
+assert_eq!(
+    Str::of("Привет 你好")
+        .transliterateWithOptions(Some("?"), true)
+        .to_string(),
+    "Privet ni hao"
+);
+```

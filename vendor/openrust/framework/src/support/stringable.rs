@@ -167,6 +167,35 @@ impl Stringable {
         super::Str::wordWrap(&self.0, columns, line_break, cut_long_words).map(Self)
     }
 
+    pub fn ascii(self, language: &str) -> Self {
+        Self(super::Str::ascii(&self.0, language))
+    }
+
+    pub fn slug(self) -> Self {
+        Self(super::Str::slug(&self.0))
+    }
+
+    pub fn slugWith(
+        self,
+        separator: &str,
+        language: Option<&str>,
+        dictionary: &[(&str, &str)],
+    ) -> Self {
+        Self(super::Str::slugWith(
+            &self.0, separator, language, dictionary,
+        ))
+    }
+
+    pub fn transliterate(self) -> Self {
+        Self(super::Str::transliterate(&self.0))
+    }
+
+    pub fn transliterateWithOptions(self, unknown: Option<&str>, strict: bool) -> Self {
+        Self(super::Str::transliterateWithOptions(
+            &self.0, unknown, strict,
+        ))
+    }
+
     pub fn isUuid(&self, version: Option<u8>) -> bool {
         super::Str::isUuid(&self.0, version)
     }
