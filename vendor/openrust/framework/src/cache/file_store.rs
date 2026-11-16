@@ -10,7 +10,7 @@ use cap_std::{
 };
 
 use super::{
-    CacheResult, backend,
+    CacheError, CacheResult, backend,
     engine::{Change, Engine, Record, key_digest, now},
     store::StoreCore,
 };
@@ -29,6 +29,7 @@ impl FileStore {
             Engine::File(locks),
             String::new(),
             false,
+            true,
         ))
     }
 }
@@ -106,6 +107,23 @@ impl FileBackend {
 
     pub(super) fn flush(&self) -> CacheResult<()> {
         let (root, _gate) = self.lock_root().map_err(backend)?;
+        Self::flush_records(&root)
+    }
+
+    pub(super) fn flush_distinct(&self, other: &Self) -> CacheResult<()> {
+        let (root, _gate) = self.lock_root().map_err(backend)?;
+        match std::fs::canonicalize(&other.0) {
+            Ok(path) if path == std::fs::canonicalize(&self.0).map_err(backend)? => {
+                return Err(CacheError::LockStoreNotSeparate);
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(backend(error)),
+        }
+        Self::flush_records(&root)
+    }
+
+    fn flush_records(root: &Dir) -> CacheResult<()> {
         for entry in root.entries().map_err(backend)? {
             let entry = entry.map_err(backend)?;
             let name = entry.file_name();

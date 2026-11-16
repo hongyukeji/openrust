@@ -1,6 +1,6 @@
 mod prune_stale_tags_command;
 
-use clap::Arg;
+use clap::{Arg, ArgAction};
 
 use crate::{
     cache::Cache,
@@ -30,26 +30,50 @@ impl Command for CacheCommand {
     ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
         Box::pin(async move {
             let input = input.matches();
+            let mut tags = Vec::new();
+            let mut locks = false;
+            if !self.forget {
+                locks = input.get_flag("locks");
+                if let Some(value) = input.get_one::<String>("tags") {
+                    tags = value
+                        .split(',')
+                        .filter(|tag| !tag.is_empty() && *tag != "0")
+                        .collect();
+                }
+                if locks && !tags.is_empty() {
+                    return Err(ConsoleError::new(
+                        "Cache tags cannot be used when clearing locks.",
+                    ));
+                }
+            }
             let store = Cache::store(input.get_one::<String>("store").map(String::as_str))
                 .map_err(console_error)?;
             let cleared = if self.forget {
                 let key = input.get_one::<String>("key").expect("required cache key");
                 store.forget(key).await
-            } else {
+            } else if locks {
+                store.flushLocks().await
+            } else if tags.is_empty() {
                 store.flush().await
+            } else {
+                store.tags(&tags).map_err(console_error)?.flush().await
             }
             .map_err(console_error)?;
             if cleared {
                 output.info(if self.forget {
                     "The key has been removed from the cache."
+                } else if locks {
+                    "Application cache locks cleared successfully."
                 } else {
                     "Application cache cleared successfully."
                 });
                 Ok(0)
             } else {
-                output
-                    .stderr
-                    .push_str("The cache entry could not be removed.\n");
+                output.stderr.push_str(if locks {
+                    "Failed to clear cache locks.\n"
+                } else {
+                    "The cache entry could not be removed.\n"
+                });
                 Ok(1)
             }
         })
@@ -69,6 +93,19 @@ pub(crate) fn register(artisan: &mut Artisan) -> Result<(), ConsoleError> {
         let mut command = clap::Command::new(name).about(about);
         if forget {
             command = command.arg(Arg::new("key").required(true));
+        } else {
+            command = command
+                .arg(
+                    Arg::new("tags")
+                        .long("tags")
+                        .help("The cache tags to clear"),
+                )
+                .arg(
+                    Arg::new("locks")
+                        .long("locks")
+                        .action(ArgAction::SetTrue)
+                        .help("Only clear cache locks"),
+                );
         }
         command = command.arg(Arg::new("store"));
         artisan.add_command(Box::new(CacheCommand {

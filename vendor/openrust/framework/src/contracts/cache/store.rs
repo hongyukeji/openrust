@@ -2,7 +2,7 @@ use std::{num::NonZeroU64, sync::Arc};
 
 use crate::cache::{CacheError, CacheFuture, CacheResult, TaggedCache, Value};
 
-use super::LockProvider;
+use super::{CanFlushLocks, LockProvider};
 
 /// Stores cache values using backend-level operations.
 pub trait Store: Send + Sync {
@@ -46,5 +46,8 @@ pub trait Store: Send + Sync {
     fn decrement<'a>(&'a self, key: &'a str, amount: i64) -> CacheFuture<'a, CacheResult<i64>>;
     fn flush(&self) -> CacheFuture<'_, CacheResult<bool>>;
     fn get_prefix(&self) -> &str;
+    fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
+        None
+    }
     fn lock_provider(&self) -> Option<&dyn LockProvider>;
 }

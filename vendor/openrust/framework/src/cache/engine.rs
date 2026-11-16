@@ -79,6 +79,17 @@ impl Engine {
         }
     }
 
+    pub(super) async fn flush_locks(&self, data: &Self) -> CacheResult<()> {
+        if let (Self::File(locks), Self::File(data)) = (self, data) {
+            let locks = Arc::clone(locks);
+            let data = Arc::clone(data);
+            return tokio::task::spawn_blocking(move || locks.flush_distinct(&data))
+                .await
+                .map_err(backend)?;
+        }
+        self.flush().await
+    }
+
     pub(super) async fn flush(&self) -> CacheResult<()> {
         match self {
             Self::Array(items) => {

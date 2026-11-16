@@ -1,6 +1,6 @@
 use std::{num::NonZeroU64, time::Duration};
 
-use crate::contracts::cache::{Lock as LockContract, LockProvider, Store};
+use crate::contracts::cache::{CanFlushLocks, Lock as LockContract, LockProvider, Store};
 
 use super::{
     CacheError, CacheFuture, CacheResult, Lock, Value,
@@ -12,15 +12,23 @@ pub(super) struct StoreCore {
     locks: Engine,
     prefix: String,
     database: bool,
+    separate_locks: bool,
 }
 
 impl StoreCore {
-    pub(super) fn new(data: Engine, locks: Engine, prefix: String, database: bool) -> Self {
+    pub(super) fn new(
+        data: Engine,
+        locks: Engine,
+        prefix: String,
+        database: bool,
+        separate_locks: bool,
+    ) -> Self {
         Self {
             data,
             locks,
             prefix,
             database,
+            separate_locks,
         }
     }
 
@@ -178,6 +186,22 @@ impl Store for StoreCore {
     }
 }
 
+impl CanFlushLocks for StoreCore {
+    fn hasSeparateLockStore(&self) -> bool {
+        self.separate_locks
+    }
+
+    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+        Box::pin(async move {
+            if !self.hasSeparateLockStore() {
+                return Err(CacheError::LockStoreNotSeparate);
+            }
+            self.locks.flush_locks(&self.data).await?;
+            Ok(true)
+        })
+    }
+}
+
 impl LockProvider for StoreCore {
     fn lock(
         &self,
@@ -305,6 +329,10 @@ macro_rules! impl_store {
 
             fn get_prefix(&self) -> &str {
                 $crate::contracts::cache::Store::get_prefix(&self.0)
+            }
+
+            fn lock_flusher(&self) -> Option<&dyn $crate::contracts::cache::CanFlushLocks> {
+                Some(&self.0)
             }
 
             fn lock_provider(&self) -> Option<&dyn $crate::contracts::cache::LockProvider> {

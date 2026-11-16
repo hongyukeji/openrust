@@ -5,7 +5,7 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-use crate::contracts::cache::{LockProvider, Repository as _, Store};
+use crate::contracts::cache::{CanFlushLocks, LockProvider, Repository as _, Store};
 
 use super::{CacheFuture, CacheResult, Repository, Value};
 
@@ -282,6 +282,10 @@ impl Store for MemoizedStore {
 
     fn get_prefix(&self) -> &str {
         self.backend().get_prefix()
+    }
+
+    fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
+        self.backend().lock_flusher()
     }
 
     fn lock_provider(&self) -> Option<&dyn LockProvider> {

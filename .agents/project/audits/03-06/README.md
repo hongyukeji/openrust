@@ -47,3 +47,12 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 基线 `359f28604`，Rust 1.94.0、macOS arm64。固定 Laravel 源码经 PHP 8.5、Predis 3.0.0 和独立 Redis 8.10.3，对照顺序、重复项、物理删除与普通键保留。OpenRust 在 MySQL 8.4.13 和 Redis 8.10.3 下通过 9 项缓存回归。直接 Redis 验证 133 个键的分批删除、错误索引中断后逻辑隔离和补清理、全库清空后的代际、过期索引、64 位计数，以及实际 HTTP 和 Artisan。
 - 三语文档示例走实际 Redis HTTP，Artisan 实际运行 `cache:prune-stale-tags redis`。VitePress 构建及 18 项浏览器检查通过。批量清锁和通用缓存事件仍待闭合。
 - 变更文件格式和工作区严格 Clippy 通过。全仓格式仅报告基线中已有的 `sanctum_authentication.rs:1412`。回收验收容器，清理本批 2.7 GiB Cargo 产物和文档缓存后，磁盘可用 60.74 GB（56.57 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-redis-tags.GfREnIkp`。
+
+## 批量清锁与按标签清理命令
+
+- 对照固定 Laravel [CanFlushLocks](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Contracts/Cache/CanFlushLocks.php)、[ClearCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/ClearCommand.php)、Repository 和四种存储。openrust-v0.x 只有通用清理，沿用所选 Redis 库的 `FLUSHDB` 和文件清理边界，补上独立批量清锁能力。
+- `Cache::flushLocks` 和具名 Repository 只清锁存储。数组锁和普通缓存独立，文件重用既有锁目录与文件门闩，并拒绝与条目目录解析到同一位置。MySQL 清空独立锁表，拒绝可能与条目表同名的配置。Redis 清空专用逻辑库。同编号不同地址时先用 `INFO SERVER` 比对实例标识，共享逻辑库或同实例别名均拒绝。Failover 遍历所有支持批量清锁的底层存储。
+- Artisan 支持 `cache:clear [store] --locks` 和 `cache:clear [store] --tags=first,second`，同时传入非空标签和清锁参数返回状态码 1。锁事件与通用缓存事件另行闭合。
+- 隔离基线 `fcec8adaf`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 8.5、Predis 和真实 Redis 8.10.3 的 ArrayStore 与 RedisStore 对照通过。MySQL 8.4.13 与两个独立 Redis 8.10.3 下 13 项缓存回归通过，覆盖文件门闩、清锁后重新获取、旧持有者释放保护、MySQL 锁表和数据隔离、Redis 独立库与地址别名、命令选项冲突、实际 HTTP 和 Artisan。实际清锁删除专用锁库中的标记键，普通值与标签值保留。
+- 三语文档中的清锁与标签清理命令实际运行通过。VitePress 构建与 18 项浏览器检查通过。
+- 变更文件格式和工作区严格 Clippy 通过。全仓格式仅报告基线中已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理本批 2.7 GiB Cargo 产物和文档缓存后，磁盘可用 60.71 GB（56.54 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-locks.OuLPjlei`。

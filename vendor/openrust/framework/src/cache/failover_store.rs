@@ -9,7 +9,7 @@ use std::{
 use crate::{
     container::Container,
     contracts::{
-        cache::{Lock, LockProvider, Repository as _, Store},
+        cache::{CanFlushLocks, Lock, LockProvider, Repository as _, Store},
         container::Container as _,
         events::Dispatcher as _,
     },
@@ -65,20 +65,24 @@ impl FailoverStore {
         std::ptr::from_ref(self) as usize
     }
 
+    fn enter(&self) -> CacheResult<RefCell<HashSet<usize>>> {
+        let mut active = ACTIVE_FAILOVERS
+            .try_with(|active| active.borrow().clone())
+            .unwrap_or_default();
+        if !active.insert(self.identity()) {
+            return Err(CacheError::FailoverCycle);
+        }
+        Ok(RefCell::new(active))
+    }
+
     fn attempt<'a, T: Send + 'a>(
         &'a self,
         operation: impl Fn(Arc<Repository>) -> CacheFuture<'a, CacheResult<T>> + Send + 'a,
     ) -> CacheFuture<'a, CacheResult<T>> {
         Box::pin(async move {
             // Each nested attempt receives the path taken by its caller, including across awaits.
-            let mut active = ACTIVE_FAILOVERS
-                .try_with(|active| active.borrow().clone())
-                .unwrap_or_default();
-            if !active.insert(self.identity()) {
-                return Err(CacheError::FailoverCycle);
-            }
             ACTIVE_FAILOVERS
-                .scope(RefCell::new(active), async move {
+                .scope(self.enter()?, async move {
                     let manager = self.manager()?;
                     let mut failed = Vec::new();
                     let mut outcome = Err(CacheError::InvalidConfiguration);
@@ -132,13 +136,7 @@ impl FailoverStore {
         &self,
         operation: impl Fn(&dyn LockProvider) -> CacheResult<Box<dyn Lock>>,
     ) -> CacheResult<Box<dyn Lock>> {
-        let mut active = ACTIVE_FAILOVERS
-            .try_with(|active| active.borrow().clone())
-            .unwrap_or_default();
-        if !active.insert(self.identity()) {
-            return Err(CacheError::FailoverCycle);
-        }
-        ACTIVE_FAILOVERS.sync_scope(RefCell::new(active), || {
+        ACTIVE_FAILOVERS.sync_scope(self.enter()?, || {
             let manager = self.manager()?;
             let mut last = CacheError::LocksUnsupported;
             for name in &self.stores {
@@ -198,8 +196,36 @@ impl Store for FailoverStore {
         &self.prefix
     }
 
+    fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
+        Some(self)
+    }
+
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
         Some(self)
+    }
+}
+
+impl CanFlushLocks for FailoverStore {
+    fn hasSeparateLockStore(&self) -> bool {
+        true
+    }
+
+    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+        Box::pin(async move {
+            ACTIVE_FAILOVERS
+                .scope(self.enter()?, async {
+                    let manager = self.manager()?;
+                    let mut flushed = true;
+                    for name in &self.stores {
+                        let store = manager.store(Some(name))?;
+                        if let Some(flusher) = store.get_store().lock_flusher() {
+                            flushed &= flusher.flushLocks().await?;
+                        }
+                    }
+                    Ok(flushed)
+                })
+                .await
+        })
     }
 }
 

@@ -82,6 +82,8 @@ pub enum CacheError {
     Unavailable(crate::contracts::container::BindingResolutionError),
     TagsUnsupported,
     LocksUnsupported,
+    LockFlushUnsupported,
+    LockStoreNotSeparate,
     LockTimeout,
     Backend {
         source: Box<dyn Error + Send + Sync>,
@@ -159,6 +161,12 @@ impl std::fmt::Display for CacheError {
             Self::InvalidOwner => f.write_str("Invalid cache lock owner."),
             Self::Unavailable(_) => f.write_str("The application cache is unavailable."),
             Self::TagsUnsupported => f.write_str("This cache store does not support tagging."),
+            Self::LockFlushUnsupported => {
+                f.write_str("This cache store does not support clearing locks.")
+            }
+            Self::LockStoreNotSeparate => {
+                f.write_str("Clearing locks requires a separate lock store.")
+            }
             Self::LocksUnsupported => f.write_str("The cache store does not support locks."),
             Self::LockTimeout => f.write_str("Timed out acquiring the cache lock."),
             Self::Backend { .. } => f.write_str("The cache backend operation failed."),

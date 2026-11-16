@@ -1,7 +1,7 @@
 use std::{num::NonZeroU64, sync::Arc, time::Duration};
 
 use crate::{
-    contracts::cache::{Lock, LockProvider, Store},
+    contracts::cache::{CanFlushLocks, Lock, LockProvider, Store},
     redis::connections::Connection,
 };
 
@@ -205,8 +205,40 @@ impl Store for RedisStore {
         &self.prefix
     }
 
+    fn lock_flusher(&self) -> Option<&dyn CanFlushLocks> {
+        Some(self)
+    }
+
     fn lock_provider(&self) -> Option<&dyn LockProvider> {
         Some(self)
+    }
+}
+
+impl CanFlushLocks for RedisStore {
+    fn hasSeparateLockStore(&self) -> bool {
+        self.data.database_index() != self.locks.database_index()
+            || self.data.address() != self.locks.address()
+    }
+
+    fn flushLocks(&self) -> CacheFuture<'_, CacheResult<bool>> {
+        Box::pin(async move {
+            if !self.hasSeparateLockStore() {
+                return Err(CacheError::LockStoreNotSeparate);
+            }
+            if self.data.database_index() == self.locks.database_index() {
+                // Different connection addresses can lead to the same Redis database.
+                let (data, locks) = tokio::try_join!(self.data.server_id(), self.locks.server_id())
+                    .map_err(backend)?;
+                if data == locks {
+                    return Err(CacheError::LockStoreNotSeparate);
+                }
+            }
+            self.locks
+                .query::<()>(&::redis::cmd("FLUSHDB"))
+                .await
+                .map_err(backend)?;
+            Ok(true)
+        })
     }
 }
 

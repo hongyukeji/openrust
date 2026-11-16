@@ -384,6 +384,8 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
                 "stores":{
                     "failover":{"driver":"failover","stores":["unconfigured","array"]},
                     "array":{"driver":"array"},
+                    "secondary-array":{"driver":"array"},
+                    "lock-failover":{"driver":"failover","stores":["array","secondary-array"]},
                     "isolated":{"driver":"failover","stores":["missing-one","missing-two"]},
                     "cycle-a":{"driver":"failover","stores":["cycle-b"]},
                     "cycle-b":{"driver":"failover","stores":["cycle-a"]},
@@ -426,6 +428,27 @@ async fn failover_resolves_named_stores_lazily_and_keeps_the_last_error() {
     assert!(matches!(
         manager.store(Some("empty")),
         Err(CacheError::InvalidConfiguration)
+    ));
+
+    let first = manager.store(Some("array")).unwrap();
+    let second = manager.store(Some("secondary-array")).unwrap();
+    let mut first_lock = first.lock("batch", None, None).unwrap();
+    let mut second_lock = second.lock("batch", None, None).unwrap();
+    assert!(first_lock.get().await.unwrap());
+    assert!(second_lock.get().await.unwrap());
+    assert!(
+        manager
+            .store(Some("lock-failover"))
+            .unwrap()
+            .flushLocks()
+            .await
+            .unwrap()
+    );
+    assert!(first_lock.get().await.unwrap());
+    assert!(second_lock.get().await.unwrap());
+    assert!(matches!(
+        manager.store(Some("cycle-a")).unwrap().flushLocks().await,
+        Err(CacheError::FailoverCycle)
     ));
 }
 
@@ -759,4 +782,193 @@ async fn redis_tags_physically_flush_values_and_prune_stale_indexes() {
             .unwrap(),
         before_clear
     );
+}
+
+#[tokio::test]
+async fn clearing_array_and_file_locks_preserves_data_and_gate() {
+    for store in ["array", "file"] {
+        let root = Sandbox::new("flush-locks", &format!("CACHE_STORE={store}\n"));
+        let cache = root.cache(None).await;
+        let lock = || cache.lock("shared", None, None).unwrap();
+        assert!(cache.supportsFlushingLocks());
+        assert!(cache.forever("shared", &"data".into()).await.unwrap());
+        let mut first = lock();
+        let mut second = lock();
+        assert!(first.get().await.unwrap());
+        assert!(!second.get().await.unwrap());
+        if store == "file" {
+            let locks = root.0.join("storage/framework/cache/data/locks");
+            fs::write(locks.join("other"), "keep").unwrap();
+            root.success(&["cache:clear", "file", "--locks"]);
+            assert!(locks.join(".gate").is_file());
+            assert_eq!(fs::read_to_string(locks.join("other")).unwrap(), "keep");
+        } else {
+            assert!(cache.flushLocks().await.unwrap());
+        }
+        assert!(second.get().await.unwrap());
+        assert!(!first.release().await.unwrap());
+        assert!(second.release().await.unwrap());
+        assert_eq!(cache.get("shared").await.unwrap(), Some("data".into()));
+    }
+}
+
+#[tokio::test]
+async fn artisan_clears_mysql_lock_table_and_rejects_shared_table() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_CACHE_MYSQL_URL") else {
+        return;
+    };
+    let root = Sandbox::new(
+        "mysql-flush-locks",
+        &format!("CACHE_STORE=database\nDB_CONNECTION=mysql\nDB_URL={url}\n"),
+    );
+    root.success(&["migrate"]);
+    let cache = root.cache(None).await;
+    cache.forever("shared", &"database".into()).await.unwrap();
+    let mut first = cache.lock("shared", None, None).unwrap();
+    let mut second = cache.lock("shared", None, None).unwrap();
+    assert!(first.get().await.unwrap());
+    assert!(!second.get().await.unwrap());
+    let conflict = root.artisan(&["cache:clear", "database", "--locks", "--tags=reports"]);
+    assert_eq!(conflict.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&conflict.stderr).contains("Cache tags cannot"));
+    assert!(!second.get().await.unwrap());
+    root.success(&["cache:clear", "database", "--locks"]);
+    assert!(second.get().await.unwrap());
+    assert_eq!(cache.get("shared").await.unwrap(), Some("database".into()));
+
+    let shared = Sandbox::new(
+        "mysql-shared-locks",
+        &format!(
+            "CACHE_STORE=database\nDB_CONNECTION=mysql\nDB_URL={url}\nDB_CACHE_LOCK_TABLE=cache\n"
+        ),
+    );
+    let result = shared.artisan(&["cache:clear", "--locks"]);
+    assert_eq!(result.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("requires a separate lock store"));
+    assert_eq!(cache.get("shared").await.unwrap(), Some("database".into()));
+    root.success(&["migrate:reset"]);
+}
+
+#[tokio::test]
+async fn artisan_redis_lock_flush_uses_selected_database_and_preserves_tagged_values() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_CACHE_FAILOVER").is_none());
+        return;
+    };
+    let settings = format!(
+        "CACHE_STORE=redis\nREDIS_URL={url}\nCACHE_PREFIX=redis-clear-locks-\nREDIS_CACHE_DB=2\n"
+    );
+    let root = Sandbox::new("redis-flush-locks", &format!("{settings}REDIS_DB=3\n"));
+    let same = Sandbox::new("redis-shared-locks", &format!("{settings}REDIS_DB=2\n"));
+    let cache = root.cache(None).await;
+    let tagged = cache.tags(&["keep"]).unwrap();
+    assert!(cache.forever("shared", &"redis".into()).await.unwrap());
+    assert!(tagged.forever("shared", &"tagged".into()).await.unwrap());
+
+    let shared = same.cache(None).await;
+    let mut shared_lock = shared.lock("data-db-lock", None, None).unwrap();
+    let mut shared_probe = shared.lock("data-db-lock", None, None).unwrap();
+    assert!(shared_lock.get().await.unwrap());
+    assert!(matches!(
+        shared.flushLocks().await,
+        Err(CacheError::LockStoreNotSeparate)
+    ));
+    let result = same.artisan(&["cache:clear", "redis", "--locks"]);
+    assert_eq!(result.status.code(), Some(1));
+    assert!(!shared_probe.get().await.unwrap());
+
+    let mut first = cache.lock("shared", None, None).unwrap();
+    let mut second = cache.lock("shared", None, None).unwrap();
+    assert!(first.get().await.unwrap());
+    assert!(!second.get().await.unwrap());
+    root.success(&["cache:clear", "redis", "--locks"]);
+    assert!(second.get().await.unwrap());
+    assert!(!first.release().await.unwrap());
+    assert!(!shared_probe.get().await.unwrap());
+    assert_eq!(cache.get("shared").await.unwrap(), Some("redis".into()));
+    assert_eq!(tagged.get("shared").await.unwrap(), Some("tagged".into()));
+
+    root.success(&["cache:clear", "redis", "--tags=keep"]);
+    assert_eq!(cache.get("shared").await.unwrap(), Some("redis".into()));
+    assert_eq!(tagged.get("shared").await.unwrap(), None);
+    assert!(second.release().await.unwrap());
+    assert!(shared_lock.release().await.unwrap());
+}
+
+#[tokio::test]
+async fn redis_lock_flush_distinguishes_servers_from_aliases() {
+    use openrust::redis::RedisManager;
+
+    fn configure(
+        base: &std::path::Path,
+        env: &openrust::config::Environment,
+    ) -> Result<std::collections::BTreeMap<String, serde_json::Value>, openrust::config::ConfigError>
+    {
+        let mut values = config::load(base, env)?;
+        let second = std::fs::read_to_string(base.join("redis-lock-url")).unwrap();
+        values.get_mut("database").unwrap()["redis"]["default"]["url"] = second.into();
+        Ok(values)
+    }
+
+    let (Ok(url), Ok(lock_url)) = (
+        std::env::var("OPENRUST_TEST_FAILOVER_REDIS_URL"),
+        std::env::var("OPENRUST_TEST_LOCK_REDIS_URL"),
+    ) else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_REDIS_LOCK_SERVERS").is_none());
+        return;
+    };
+    let env = format!("CACHE_STORE=redis\nREDIS_URL={url}\nREDIS_DB=4\n");
+    let separate = Sandbox::new("redis-two-lock-servers", &env);
+    let shared = Sandbox::new("redis-lock-alias", &env);
+    fs::write(separate.0.join("redis-lock-url"), lock_url).unwrap();
+    fs::write(
+        shared.0.join("redis-lock-url"),
+        url.replace("127.0.0.1", "localhost"),
+    )
+    .unwrap();
+
+    let mut separate_app = Application::configure(separate.0.clone())
+        .withConfig(configure)
+        .create()
+        .unwrap();
+    let mut shared_app = Application::configure(shared.0.clone())
+        .withConfig(configure)
+        .create()
+        .unwrap();
+    separate_app.boot().await.unwrap();
+    shared_app.boot().await.unwrap();
+    let cache = separate_app
+        .container()
+        .make::<CacheManager>()
+        .unwrap()
+        .store(None)
+        .unwrap();
+    let same = shared_app
+        .container()
+        .make::<CacheManager>()
+        .unwrap()
+        .store(None)
+        .unwrap();
+    let manager = separate_app.container().make::<RedisManager>().unwrap();
+    let backend = manager.connection(Some("default")).unwrap();
+    backend.set("locks-db-marker", b"dedicated").await.unwrap();
+
+    assert!(cache.forever("shared", &"data".into()).await.unwrap());
+    let mut alias = same.lock("alias", None, None).unwrap();
+    let mut probe = same.lock("alias", None, None).unwrap();
+    assert!(alias.get().await.unwrap());
+    assert!(matches!(
+        same.flushLocks().await,
+        Err(CacheError::LockStoreNotSeparate)
+    ));
+    assert!(!probe.get().await.unwrap());
+
+    let mut original = cache.lock("alias", None, None).unwrap();
+    let mut replacement = cache.lock("alias", None, None).unwrap();
+    assert!(original.get().await.unwrap());
+    assert!(cache.flushLocks().await.unwrap());
+    assert!(replacement.get().await.unwrap());
+    assert!(!probe.get().await.unwrap());
+    assert_eq!(backend.get("locks-db-marker").await.unwrap(), None);
+    assert_eq!(cache.get("shared").await.unwrap(), Some("data".into()));
 }

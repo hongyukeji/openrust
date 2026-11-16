@@ -85,6 +85,19 @@ pub async fn cache_report() -> CacheResult<bool> {
 }
 ```
 
+### 清除缓存锁 {#clearing-cache-locks}
+
+使用 `Cache::flushLocks().await?` 清除默认存储的锁，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定存储。Artisan 同样可以指定存储名。
+
+```sh
+./artisan cache:clear database --locks
+./artisan cache:clear redis --tags=reports,daily
+```
+
+清锁命令会清除所选锁存储中的所有锁，包括同一后端中其他前缀的锁。数组和文件存储分别保存锁与普通条目。数据库需要独立锁表。Redis 会清空整个专用锁库。同一 Redis 实例应使用不同的逻辑库编号。不同入口配置相同库编号时，OpenRust 会先核对 Redis 实例标识，连接需要允许 `INFO SERVER`。
+
+`--tags` 清理匹配的标签条目。非空 `--tags` 与 `--locks` 同时使用会失败。
+
 ## Redis 存储
 
 设置 `CACHE_STORE=redis` 使用 [Redis 连接](../database/redis.md)存储缓存。原子取出使用 Redis `GETDEL`，该操作要求 Redis 6.2 或更高版本。

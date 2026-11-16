@@ -85,6 +85,19 @@ pub async fn cache_report() -> CacheResult<bool> {
 }
 ```
 
+### Clearing cache locks {#clearing-cache-locks}
+
+Use `Cache::flushLocks().await?` for the default store, or `Cache::store(Some("database"))?.flushLocks().await?` for a named store. Artisan accepts the same optional store name.
+
+```sh
+./artisan cache:clear database --locks
+./artisan cache:clear redis --tags=reports,daily
+```
+
+The lock command clears all locks in the selected lock store, including locks from other prefixes that share that backend. Array and file stores keep lock records separate from value records. Database stores require a separate lock table. Redis clears the entire dedicated lock database. Use a different database number on a shared Redis server. For different addresses with the same database number, OpenRust checks the Redis server IDs before clearing. The connection must permit `INFO SERVER` in that case.
+
+`--tags` clears matching tagged values. Combining nonempty `--tags` with `--locks` fails.
+
 ## Redis Store
 
 Set `CACHE_STORE=redis` to use the [Redis connections](../database/redis.md) for caching. Cache pull uses the Redis `GETDEL` command. Redis 6.2 or later is required for that operation.

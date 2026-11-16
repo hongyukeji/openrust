@@ -24,6 +24,18 @@ impl DatabaseStore {
         if !valid_table(&table) || !valid_table(&lock_table) {
             return Err(CacheError::InvalidConfiguration);
         }
+        // A bare name and a schema-qualified name can refer to the same table.
+        let data_name = format!(
+            "{}{}",
+            connection.getTablePrefix(),
+            table.rsplit('.').next().unwrap_or(&table)
+        );
+        let lock_name = format!(
+            "{}{}",
+            lock_connection.getTablePrefix(),
+            lock_table.rsplit('.').next().unwrap_or(&lock_table)
+        );
+        let separate_locks = !data_name.eq_ignore_ascii_case(&lock_name);
         let data = DatabaseBackend {
             connection,
             table,
@@ -39,6 +51,7 @@ impl DatabaseStore {
             Engine::Database(Arc::new(locks)),
             prefix,
             true,
+            separate_locks,
         )))
     }
 }

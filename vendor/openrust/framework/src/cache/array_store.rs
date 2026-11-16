@@ -22,6 +22,7 @@ impl ArrayStore {
             Engine::array(),
             String::new(),
             false,
+            true,
         ))
     }
 }

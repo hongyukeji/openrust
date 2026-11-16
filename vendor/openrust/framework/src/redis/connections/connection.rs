@@ -9,7 +9,7 @@ use tokio::sync::OnceCell;
 use crate::contracts::redis::Connection as Contract;
 
 use super::Subscription;
-use crate::redis::{RedisFuture, RedisResult, Value, backend};
+use crate::redis::{RedisError, RedisFuture, RedisResult, Value, backend};
 
 /// A named Redis command connection with a shared reconnecting transport.
 pub struct Connection {
@@ -69,6 +69,22 @@ impl Connection {
             .await
             .cloned()
             .map_err(backend)
+    }
+
+    pub(crate) fn database_index(&self) -> i64 {
+        self.client.get_connection_info().redis_settings().db()
+    }
+
+    pub(crate) fn address(&self) -> &::redis::ConnectionAddr {
+        self.client.get_connection_info().addr()
+    }
+
+    pub(crate) async fn server_id(&self) -> RedisResult<String> {
+        let info: String = self.query(::redis::cmd("INFO").arg("server")).await?;
+        info.lines()
+            .find_map(|line| line.strip_prefix("run_id:").filter(|id| !id.is_empty()))
+            .map(str::to_owned)
+            .ok_or(RedisError::InvalidConfiguration)
     }
 
     /// Applies the connection prefix to a key used in a raw command.

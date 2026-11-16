@@ -48,6 +48,18 @@ impl Repository {
         Ok(value)
     }
 
+    pub fn supportsFlushingLocks(&self) -> bool {
+        self.0.lock_flusher().is_some()
+    }
+
+    pub async fn flushLocks(&self) -> CacheResult<bool> {
+        self.0
+            .lock_flusher()
+            .ok_or(CacheError::LockFlushUnsupported)?
+            .flushLocks()
+            .await
+    }
+
     pub async fn flush(&self) -> CacheResult<bool> {
         self.0.flush().await
     }

@@ -85,6 +85,19 @@ pub async fn cache_report() -> CacheResult<bool> {
 }
 ```
 
+### 清除快取鎖 {#clearing-cache-locks}
+
+使用 `Cache::flushLocks().await?` 清除預設儲存的鎖，或用 `Cache::store(Some("database"))?.flushLocks().await?` 指定儲存。Artisan 也可以指定儲存名稱。
+
+```sh
+./artisan cache:clear database --locks
+./artisan cache:clear redis --tags=reports,daily
+```
+
+清鎖命令會清除所選鎖儲存內的所有鎖，包括共用相同後端的其他前綴。陣列和檔案儲存分別保存鎖與一般項目。資料庫需要獨立的鎖資料表。Redis 會清空整個專用鎖資料庫。同一 Redis 執行個體應使用不同的邏輯資料庫編號。不同入口設定相同編號時，OpenRust 會先核對 Redis 執行個體識別碼，連線需允許 `INFO SERVER`。
+
+`--tags` 會清除符合標籤的項目。同時使用非空的 `--tags` 與 `--locks` 會失敗。
+
 ## Redis 儲存
 
 設定 `CACHE_STORE=redis`，使用 [Redis 連線](../database/redis.md)儲存快取。原子取出使用 Redis `GETDEL`，此操作需要 Redis 6.2 或更新版本。

@@ -94,6 +94,14 @@ impl Cache {
         Self::store(None)?.remember(key, ttl, resolve).await
     }
 
+    pub fn supportsFlushingLocks() -> CacheResult<bool> {
+        Ok(Self::store(None)?.supportsFlushingLocks())
+    }
+
+    pub async fn flushLocks() -> CacheResult<bool> {
+        Self::store(None)?.flushLocks().await
+    }
+
     pub async fn flush() -> CacheResult<bool> {
         Self::store(None)?.flush().await
     }
