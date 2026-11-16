@@ -704,3 +704,11 @@ Rust 1.94.0 格式、严格 Clippy、锁定工作区回归 624 项通过及 8 �
 隔离基线 `072e29d7`。MySQL 8.4.13 和 SQLite 实际 HTTP 验证重复输入、混合主键表示、重复 Pivot 保留、跨父模型缺失返回 404、回调、空输入和 SQL 错误传播。12 项关系与分页回归、全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本调整。容器已回收，清理独占编译产物 1.8 GiB 及站点产物。提交前周额度剩余 26%，项目卷可用 52 GiB。
 
 下一阶段先处理 02-09 已记录的异步数据库游标接线。当前 Connection 查询返回完整 Vec，关系层需复用可短路的数据库游标后才能正式提供流式读取。
+
+## 关系逐行游标
+
+以 `67d28aab` 为隔离基线。对照固定 Laravel 的 [Relation 查询转发](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php)、[穿透关系游标](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/HasOneOrManyThrough.php#L674) 和 [多对多游标](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/BelongsToMany.php#L1246)。Rust 在可静态确定关联模型的描述符上提供 `cursor(parent)`，共用模型行流、父键约束、穿透联接和 Pivot 水合。多对多在读取事件及集合工厂前装配 Pivot，与既有分页水合顺序一致；固定 Laravel 游标在 Eloquent 游标返回模型后追加 Pivot。v0.x 的 BatchCursor 是键集分批标记，固定 Goravel ORM 用于核对编译型查询装配。
+
+MySQL 8.4.13 及 SQLite 实际 HTTP 验证直接关系提前结束后继续查询、多态过滤、所属关系、穿透中间模型软删除、单条选择、自定义 Pivot 和空父键。12 项关系／分页回归、Rust 1.94.0 格式与严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 及 18 项浏览器检查通过。既有 Sanctum 排版仅在隔离副本整理。已回收测试容器，清理 1.9 GiB 编译产物及文档构建产物。周额度剩余 99%，项目卷约 119 GiB。
+
+关系分批读取、动态 MorphTo 目标的游标边界及 05-02／05-06 整体固定矩阵仍需核对。

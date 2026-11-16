@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -128,6 +128,10 @@ impl<P: Model, I: Model, R: Model> HasOneThrough<P, I, R> {
         update: Option<&[&str]>,
     ) -> DatabaseResult<u64> {
         self.0.upsert(parent, rows, unique_by, update).await
+    }
+
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
+        self.0.cursor(parent)
     }
 
     pub async fn findOrNew(&self, parent: &P, key: impl Into<Value> + Send) -> DatabaseResult<R> {

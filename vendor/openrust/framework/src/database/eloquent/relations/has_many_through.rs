@@ -1,7 +1,8 @@
+use futures_util::TryStreamExt as _;
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, Model, ModelState,
         concerns::{
@@ -157,6 +158,17 @@ impl<P: Model, I: Model, R: Model> HasManyThrough<P, I, R> {
         self.pagination_query(parent, options.columns)?
             .cursorPaginateWith(options)
             .await
+    }
+
+    /// Streams related models across the constrained intermediate join.
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            let query = self.pagination_query(parent, &["*"])?;
+            let mut models = query.cursor();
+            while let Some(model) = models.try_next().await? {
+                yield model;
+            }
+        })
     }
 
     fn pagination_query(

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -178,6 +178,10 @@ impl<P: Model, R: Model> MorphMany<P, R> {
         records: impl IntoIterator<Item = Attributes, IntoIter: Send> + Send,
     ) -> DatabaseResult<crate::database::eloquent::Collection<R>> {
         self.0.makeMany(parent, records).await
+    }
+
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
+        self.0.cursor(parent)
     }
 
     #[allow(non_snake_case, reason = "Matches Laravel's Eloquent relationship API")]

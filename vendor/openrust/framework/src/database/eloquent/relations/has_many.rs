@@ -1,7 +1,8 @@
+use futures_util::TryStreamExt as _;
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model},
     query,
 };
@@ -74,6 +75,17 @@ impl<P: Model, R: Model> HasMany<P, R> {
         self.pagination_query(parent)?
             .cursorPaginateWith(options)
             .await
+    }
+
+    /// Streams models constrained to this parent.
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            let query = self.pagination_query(parent)?;
+            let mut models = self.0.select_one(query)?.cursor();
+            while let Some(model) = models.try_next().await? {
+                yield model;
+            }
+        })
     }
 
     fn pagination_query(&self, parent: &P) -> DatabaseResult<Builder<'static, R>> {

@@ -1580,11 +1580,19 @@ impl<M: Model> Builder<'static, M> {
 
     /// Hydrates models as the query yields rows. Eager relations require a batched query.
     pub fn cursor(self) -> DatabaseCursor<'static, M> {
+        self.cursor_hydrated(|_, _| Ok(()))
+    }
+
+    pub(super) fn cursor_hydrated<'a>(
+        self,
+        mut hydrate: impl FnMut(&mut M, &Connection) -> DatabaseResult<()> + Send + 'a,
+    ) -> DatabaseCursor<'a, M> {
         Box::pin(async_stream::try_stream! {
             let (query, hydration) = self.hydration_query()?;
             let mut rows = query.cursor();
             while let Some(row) = rows.try_next().await? {
                 let mut model = hydration.row(row);
+                hydrate(&mut model, &hydration.connection)?;
                 super::concerns::has_events::retrieved(
                     std::slice::from_mut(&mut model),
                     &hydration.connection,

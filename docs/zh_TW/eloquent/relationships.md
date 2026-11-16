@@ -1227,6 +1227,23 @@ async fn require_related_batch<P: Model, R: Model>(
 }
 ```
 
+### 關聯遊標 {#relationship-cursors}
+
+在直接、穿透或多對多關聯上呼叫 `cursor(parent)` 可逐列讀取關聯模型。遊標沿用父鍵、多型類型及中介表條件。多對多遊標在傳回每個模型前為它載入 Pivot。連線占用、提早結束和預先載入遵循模型遊標的規則。
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn first_child<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<Option<R>> {
+    let mut models = children.cursor(parent);
+    models.try_next().await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

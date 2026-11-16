@@ -1,9 +1,10 @@
+use futures_util::TryStreamExt as _;
 use std::{any::TypeId, collections::HashMap, sync::Arc};
 
 use indexmap::IndexMap;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{
         Attributes, Builder, Model, ModelState,
         concerns::{
@@ -1713,6 +1714,22 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
             .await
     }
 
+    /// Streams related models with their intermediate-table attributes.
+    pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            let names = self.pivot_names();
+            let columns = self.aliased_pivot_columns(&names);
+            let query = self.pagination_query(parent, &["*"], &columns)?;
+            let declaring = self.pivot_parent_snapshot(parent);
+            let mut models = query.cursor_hydrated(|model, connection| {
+                self.hydrate_row_pivot(model, &columns, &names, connection, declaring.clone())
+            });
+            while let Some(model) = models.try_next().await? {
+                yield model;
+            }
+        })
+    }
+
     fn pagination_query(
         &self,
         parent: &P,
@@ -1812,28 +1829,42 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         names: &[&str],
         connection: &Connection,
     ) -> DatabaseResult<()> {
-        let declaring = self
-            .pivot_inverses
-            .0
-            .as_ref()
-            .map(|_| Arc::new(P::from_state(parent.state().clone())));
+        let declaring = self.pivot_parent_snapshot(parent);
         for model in models {
-            let state = model.state_mut();
-            let mut pivot = Attributes::new();
-            for (index, column) in columns.iter().enumerate() {
-                let (_, alias) = column.split_once(" as ").expect("fixed pivot projection");
-                let value = state
-                    .attributes
-                    .remove(alias)
-                    .ok_or(DatabaseError::InvalidQuery("missing pivot column"))?;
-                state.original.remove(alias);
-                if let Some(&name) = names.get(index) {
-                    pivot.insert(name.into(), value);
-                }
-            }
-            self.attach_pivot(state, pivot, connection, declaring.clone())?;
+            self.hydrate_row_pivot(model, columns, names, connection, declaring.clone())?;
         }
         Ok(())
+    }
+
+    fn pivot_parent_snapshot(&self, parent: &P) -> Option<Arc<P>> {
+        self.pivot_inverses
+            .0
+            .as_ref()
+            .map(|_| Arc::new(P::from_state(parent.state().clone())))
+    }
+
+    fn hydrate_row_pivot(
+        &self,
+        model: &mut R,
+        columns: &[String],
+        names: &[&str],
+        connection: &Connection,
+        declaring: Option<Arc<P>>,
+    ) -> DatabaseResult<()> {
+        let state = model.state_mut();
+        let mut pivot = Attributes::new();
+        for (index, column) in columns.iter().enumerate() {
+            let (_, alias) = column.split_once(" as ").expect("fixed pivot projection");
+            let value = state
+                .attributes
+                .remove(alias)
+                .ok_or(DatabaseError::InvalidQuery("missing pivot column"))?;
+            state.original.remove(alias);
+            if let Some(&name) = names.get(index) {
+                pivot.insert(name.into(), value);
+            }
+        }
+        self.attach_pivot(state, pivot, connection, declaring)
     }
 
     fn attach_pivot(

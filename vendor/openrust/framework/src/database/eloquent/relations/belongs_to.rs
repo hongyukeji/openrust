@@ -1,7 +1,8 @@
+use futures_util::TryStreamExt as _;
 use std::sync::Arc;
 
 use crate::database::{
-    Connection, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
+    Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
     eloquent::{Attributes, Builder, Model, touches::TouchedOwners},
     query,
 };
@@ -29,6 +30,22 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
 
     pub const fn new(foreign_key: &'static str, owner_key: &'static str) -> Self {
         Self(RelationKeys::new(foreign_key, owner_key), None, None)
+    }
+
+    /// Streams the persisted owner when a foreign key is present.
+    pub fn cursor<'a>(&'a self, child: &'a P) -> DatabaseCursor<'a, R> {
+        Box::pin(async_stream::try_stream! {
+            let keys = super::relation::ParentKeys::new(&[child], self.0.parent)?;
+            if !keys.bindings.is_empty() {
+                let connection = self.0.connection(child)?;
+                let query = self.0.configure(R::queryOn(&connection))?;
+                let owner = query.qualifyColumn(self.0.related);
+                let mut models = query.restrict_relation(&owner, &keys.bindings).cursor();
+                while let Some(model) = models.try_next().await? {
+                    yield model;
+                }
+            }
+        })
     }
 
     /// Names the relationship cache entry updated by association.

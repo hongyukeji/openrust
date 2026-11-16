@@ -1227,6 +1227,23 @@ async fn require_related_batch<P: Model, R: Model>(
 }
 ```
 
+### Relationship Cursors {#relationship-cursors}
+
+Call `cursor(parent)` on a direct, through, or many-to-many relationship to stream its models. The cursor applies the parent key, morph discriminator and intermediate-table conditions. Many-to-many cursors load the Pivot on each model before yielding it. Use the model cursor rules for connection lifetime, early termination and eager loading.
+
+```rust
+use futures_util::TryStreamExt as _;
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::HasMany}};
+
+async fn first_child<P: Model, R: Model>(
+    parent: &P,
+    children: &HasMany<P, R>,
+) -> DatabaseResult<Option<R>> {
+    let mut models = children.cursor(parent);
+    models.try_next().await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

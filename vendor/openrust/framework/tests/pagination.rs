@@ -14,8 +14,8 @@ use openrust::{
             casts::AttributeCast,
             concerns::{ModelEvent, ModelEventListener, ModelEventResponse},
             relations::{
-                BelongsToMany, HasMany, HasManyThrough, HasOne, MorphMany, MorphOne, MorphTo,
-                MorphToMany, Pivot,
+                BelongsTo, BelongsToMany, HasMany, HasManyThrough, HasOne, MorphMany, MorphOne,
+                MorphTo, MorphToMany, Pivot,
             },
         },
     },
@@ -254,6 +254,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/simple", simple_page)?;
     Route::get("/cursor", cursor_page)?;
     Route::get("/model-cursor", model_cursor_page)?;
+    Route::get("/relationship-cursor", relationship_cursor_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1222,6 +1223,82 @@ fn model_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErr
     })
 }
 
+fn relationship_cursor_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        async fn stream_relations() -> DatabaseResult<Json> {
+            let parent = Article::query()?.findOrFail(1).await?;
+            let direct = HasMany::<Article, StreamedComment>::new("id", "article_id")
+                .constrain(|query| query.orderBy("id", "asc"));
+            let mut rows = direct.cursor(&parent);
+            assert_eq!(id(rows.try_next().await?.unwrap().getKey()), 11);
+            drop(rows);
+
+            let morph =
+                MorphMany::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                    .constrain(|query| query.orderBy("id", "asc"));
+            let comments: Vec<_> = morph.cursor(&parent).try_collect().await?;
+            let owner = BelongsTo::<Comment, Article>::new("article_id", "id");
+            let owners: Vec<_> = owner.cursor(&comments[0]).try_collect().await?;
+
+            let through =
+                REACTIONS.constrain(|query| query.orderBy("pagination_reactions.id", "asc"));
+            let reactions: Vec<_> = through.cursor(&parent).try_collect().await?;
+
+            let labels = MorphToMany::<Article, KeyedLabel>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+                "subject_type",
+                "article",
+            )
+            .withPivot(["label"])
+            .orderByPivot("label_id", "asc");
+            let mut rows = labels.cursor(&parent);
+            let mut pivot_values = Vec::new();
+            while let Some(label) = rows.try_next().await? {
+                let pivot = label.getRelation::<Pivot>("pivot").unwrap();
+                let Some(Value::Text(value)) = pivot.getAttribute("label") else {
+                    panic!("missing pivot value");
+                };
+                assert!(label.getAttribute("laravel_pivot_0").is_none());
+                assert!(label.getRawOriginal("laravel_pivot_0").is_none());
+                pivot_values.push(value.clone());
+            }
+            let custom = BelongsToMany::<Article, Label>::new(
+                "pagination_memberships",
+                "owner_id",
+                "label_id",
+                "id",
+                "id",
+            )
+            .using::<PageMembership>()
+            .r#as("membership")
+            .withPivot(["label"]);
+            let mut rows = custom.cursor(&parent);
+            let label = rows.try_next().await?.unwrap();
+            assert!(label.getRelation::<PageMembership>("membership").is_some());
+            drop(rows);
+
+            let one = REACTIONS.one().latestOfMany(None);
+            let only: Vec<_> = one.cursor(&parent).try_collect().await?;
+            assert_eq!(only.len(), 1);
+            assert_eq!(id(only[0].getKey()), 103);
+
+            let unsaved = Article::newInstance(Attributes::new())?;
+            assert!(direct.cursor(&unsaved).try_next().await?.is_none());
+            Ok(json!({
+                "comments": comments.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "owner": id(owners[0].getKey()),
+                "through": reactions.iter().map(|model| id(model.getKey())).collect::<Vec<_>>(),
+                "pivot": pivot_values,
+            }))
+        }
+        Response::json(StatusCode::OK, stream_relations().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -1786,6 +1863,14 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     assert_eq!(empty["total"], 5);
     assert_eq!(empty["data"], json!([]));
 
+    let related = request(address, "/api/relationship-cursor").await;
+    assert_eq!(
+        related,
+        json!({
+            "comments": [11, 12, 13, 15], "owner": 1,
+            "through": [101, 102, 103], "pivot": ["red", "blue", "green"],
+        })
+    );
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);
