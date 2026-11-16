@@ -51,6 +51,7 @@ pub(super) fn load(
                 "driver": "dynamodb",
                 "key": get(env, "AWS_ACCESS_KEY_ID", Value::Null)?,
                 "secret": get(env, "AWS_SECRET_ACCESS_KEY", Value::Null)?,
+                "token": get(env, "AWS_SESSION_TOKEN", Value::Null)?,
                 "region": get(env, "AWS_DEFAULT_REGION", "us-east-1")?,
                 "table": get(env, "DYNAMODB_CACHE_TABLE", "cache")?,
                 "endpoint": get(env, "DYNAMODB_ENDPOINT", Value::Null)?,

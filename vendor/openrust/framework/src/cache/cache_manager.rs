@@ -20,9 +20,9 @@ use crate::{
 };
 
 use super::{
-    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, MemcachedStore,
-    NullStore, RedisStore, Repository, SessionStore, StorageStore, backend,
-    memcached_connector as memcached,
+    ArrayStore, CacheError, CacheResult, DatabaseStore, DynamoDbStore, FailoverStore, FileStore,
+    MemcachedStore, NullStore, RedisStore, Repository, SessionStore, StorageStore, backend,
+    dynamo_db_store, memcached_connector as memcached,
     memoized_store::{MemoizedRepositories, MemoizedStore},
     store_registry::StoreRegistry,
 };
@@ -63,6 +63,7 @@ enum Options {
         options: Option<memcached::Options>,
         servers: Vec<memcached::Server>,
     },
+    Dynamodb(dynamo_db_store::Options),
     Storage {
         disk: Option<String>,
         path: Option<String>,
@@ -274,6 +275,7 @@ impl CacheManager {
                 | "storage"
                 | "session"
                 | "memcached"
+                | "dynamodb"
         ) {
             return Err(CacheError::UnsupportedDriver);
         }
@@ -302,6 +304,9 @@ impl CacheManager {
                     memcached::Settings::new(servers, sasl, options.unwrap_or_default())?;
                 let client = self.inner.memcached.connect(persistent_id, settings)?;
                 Arc::new(MemcachedStore::new(client, self.prefix(&config)?))
+            }
+            Options::Dynamodb(options) => {
+                Arc::new(DynamoDbStore::configure(options, self.prefix(&config)?)?)
             }
             Options::Storage { disk, path } => {
                 let disk = self

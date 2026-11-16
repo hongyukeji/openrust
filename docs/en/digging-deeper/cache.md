@@ -24,6 +24,16 @@ Set `cache.stores.memcached.servers` in `config/cache.rs` to use multiple server
 
 Values use OpenRust encoding. A missing counter returns `CacheError::MissingCounter`, and decrement stops at zero. Tag invalidation and owner-checked locks are supported. Memcached may evict entries, including lock owners, under memory pressure. `./artisan cache:clear memcached` flushes every configured server across all cache prefixes. Use dedicated servers if this scope is too broad.
 
+## DynamoDB {#dynamodb}
+
+Set `CACHE_STORE=dynamodb` and create a DynamoDB table with a string partition key named `key`. The default table is `cache`. Enable DynamoDB TTL on the numeric `expires_at` attribute so the service can reclaim expired rows. Cache reads check expiry even while a row awaits DynamoDB cleanup.
+
+Set `DYNAMODB_CACHE_TABLE` to select the table and `AWS_DEFAULT_REGION` to select the region. Supply `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optional `AWS_SESSION_TOKEN`, or use the AWS SDK credential chain. Use `DYNAMODB_ENDPOINT` for a custom endpoint such as DynamoDB Local.
+
+The `attributes` configuration in `config/cache.rs` accepts `key`, `value`, and `expiration` names. Match the partition key and TTL configuration on the table. OpenRust stores JSON, bytes, and native DynamoDB numbers. The five-year expiry for `forever` also applies to an atomic `add` without a TTL.
+
+The driver supports owner-checked locks. Locks without a positive lease use 24 hours. Cache tags and whole-table flush are unavailable. Use `./artisan cache:forget <key> dynamodb` to remove a single entry.
+
 ## Storage Cache {#storage-cache}
 
 Set `CACHE_STORE=storage` to store cache records on a configured filesystem disk. `CACHE_STORAGE_DISK` selects the disk and uses the application's default disk when omitted. `CACHE_STORAGE_PATH` selects the cache directory relative to that disk.

@@ -24,6 +24,16 @@ MEMCACHED_PORT=11211
 
 缓存值使用 OpenRust 编码。计数器不存在时返回 `CacheError::MissingCounter`，递减最低到零。支持按标签失效和校验所有者的锁。Memcached 内存紧张时可能淘汰条目，包括锁的所有者记录。`./artisan cache:clear memcached` 会清空所有已配置节点上的数据，覆盖所有缓存前缀。需要限制清理范围时可使用专用节点。
 
+## DynamoDB {#dynamodb}
+
+设置 `CACHE_STORE=dynamodb`，并创建以字符串字段 `key` 为分区键的 DynamoDB 表。默认表名是 `cache`。为数字字段 `expires_at` 启用 DynamoDB TTL，服务端即可回收过期行。缓存读取会检查过期时间，即使 DynamoDB 尚未删除该行。
+
+用 `DYNAMODB_CACHE_TABLE` 指定表名，用 `AWS_DEFAULT_REGION` 指定区域。可以设置 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` 和可选的 `AWS_SESSION_TOKEN`，也可以使用 AWS SDK 凭据链。DynamoDB Local 等自定义端点使用 `DYNAMODB_ENDPOINT`。
+
+`config/cache.rs` 中的 `attributes` 支持自定义 `key`、`value` 和 `expiration` 字段名。分区键和 TTL 配置需要与表一致。OpenRust 使用 JSON、字节和 DynamoDB 原生数字存储缓存值。`forever` 和省略 TTL 的原子 `add` 将过期时间设为五年后。
+
+该驱动支持校验所有者的锁。省略锁租期或设为零时使用 24 小时。缓存标签和整表清空不可用。可通过 `./artisan cache:forget <key> dynamodb` 删除单个条目。
+
 ## 磁盘缓存 {#storage-cache}
 
 通过 `CACHE_STORE=storage` 将缓存记录写入已配置的文件系统磁盘。`CACHE_STORAGE_DISK` 指定磁盘，省略时使用应用默认磁盘。`CACHE_STORAGE_PATH` 是相对于该磁盘的缓存目录。

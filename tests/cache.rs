@@ -1581,3 +1581,228 @@ async fn memcached_unix_socket_works_with_the_configured_cache_and_artisan() {
     root.success(&["cache:forget", "local", "memcached"]);
     assert!(cache.get("local").await.unwrap().is_none());
 }
+
+#[tokio::test]
+async fn dynamodb_cache_batches_expiry_counters_and_locks_use_the_real_table() {
+    let Ok(endpoint) = std::env::var("DYNAMODB_FIXTURE_ENDPOINT") else {
+        assert!(std::env::var_os("DYNAMODB_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "dynamodb",
+        &format!(
+            "CACHE_STORE=dynamodb\nCACHE_PREFIX=verified:\nAWS_ACCESS_KEY_ID=fixture\nAWS_SECRET_ACCESS_KEY=localfixture\nAWS_SESSION_TOKEN=fixturetoken\nDYNAMODB_ENDPOINT={endpoint}\nDYNAMODB_CACHE_TABLE=cache\n",
+        ),
+    );
+    let first = root.cache(None).await;
+    let second = root.cache(None).await;
+    assert!(first.many(&[]).await.unwrap().is_empty());
+    assert!(!first.supportsTags() && !first.supportsFlushingLocks());
+    assert!(matches!(
+        first.flush().await,
+        Err(CacheError::FlushUnsupported)
+    ));
+
+    let mut entries: Vec<_> = (0..122)
+        .map(|value| (format!("key-{value}"), Value::from(value)))
+        .collect();
+    entries.push(("key-1".into(), 123.into()));
+    entries.push(("binary".into(), vec![0, 255].into()));
+    assert!(
+        first
+            .putMany(&entries, Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    let mut keys: Vec<_> = entries.iter().map(|(key, _)| key.as_str()).collect();
+    keys.push("missing");
+    let values = second.many(&keys).await.unwrap();
+    assert_eq!(values[1], Some(123.into()));
+    assert_eq!(values[122], Some(123.into()));
+    assert_eq!(values[123], Some(vec![0, 255].into()));
+    assert!(values[124].is_none());
+    assert_eq!(values[121], Some(121.into()));
+
+    let large = Value::from(serde_json::json!("\"".repeat(180_000)));
+    let large_batch: Vec<_> = (0..25)
+        .map(|index| (format!("escaped-{index}"), large.clone()))
+        .collect();
+    assert!(
+        first
+            .putMany(&large_batch, Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(second.get("escaped-24").await.unwrap(), Some(large));
+
+    let amount = Value::from(-2);
+    let (first_add, second_add) = tokio::join!(
+        first.add("race", &amount, None),
+        second.add("race", &amount, None),
+    );
+    assert_ne!(first_add.unwrap(), second_add.unwrap());
+    let (first_pull, second_pull) = tokio::join!(first.pull("race"), second.pull("race"));
+    assert_ne!(
+        first_pull.unwrap().is_some(),
+        second_pull.unwrap().is_some()
+    );
+
+    assert!(matches!(
+        first.increment("missing", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert!(first.forever("counter", &i64::MAX.into()).await.unwrap());
+    assert!(matches!(
+        second.increment("counter", 1).await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert_eq!(first.get("counter").await.unwrap(), Some(i64::MAX.into()));
+    assert_eq!(first.decrement("counter", i64::MAX).await.unwrap(), 0);
+    let (left, right) = tokio::join!(
+        first.increment("counter", 2),
+        second.decrement("counter", 5)
+    );
+    assert!(matches!(
+        (left.unwrap(), right.unwrap()),
+        (2, -3) | (-3, -5)
+    ));
+    assert_eq!(first.get("counter").await.unwrap(), Some((-3).into()));
+    assert!(
+        first
+            .forever("decimal", &Value::from(serde_json::json!(-1.75)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(first.increment("decimal", 1).await.unwrap(), 0);
+    assert_eq!(
+        first.get("decimal").await.unwrap(),
+        Some(Value::from(serde_json::json!(-0.75)))
+    );
+    assert!(first.forever("text", &"007".into()).await.unwrap());
+    assert!(matches!(
+        first.increment("text", 1).await,
+        Err(CacheError::InvalidValue)
+    ));
+    assert_eq!(first.get("text").await.unwrap(), Some("007".into()));
+
+    let ttl = Ttl::Seconds(1);
+    assert!(first.put("expiring", &1.into(), Some(ttl)).await.unwrap());
+    assert_eq!(first.increment("expiring", 2).await.unwrap(), 3);
+    assert!(first.touch("binary", Ttl::Seconds(60)).await.unwrap());
+    assert!(!first.touch("missing", ttl).await.unwrap());
+    let mut owner = first
+        .lock("guard", Some(Duration::from_secs(1)), Some("first"))
+        .unwrap();
+    let mut other = second.lock("guard", None, Some("second")).unwrap();
+    assert!(owner.get().await.unwrap());
+    assert!(!other.get().await.unwrap());
+    assert!(!other.refresh(None).await.unwrap());
+    assert!(!other.release().await.unwrap());
+    assert!(matches!(
+        other.block(Duration::from_millis(30)).await,
+        Err(CacheError::LockTimeout)
+    ));
+    let mut restored = second.restore_lock("guard", "first").unwrap();
+    assert!(
+        restored
+            .refresh(Some(Duration::from_secs(1)))
+            .await
+            .unwrap()
+    );
+    tokio::time::sleep(Duration::from_millis(2100)).await;
+    assert!(second.get("expiring").await.unwrap().is_none());
+    assert!(!first.touch("expiring", ttl).await.unwrap());
+    assert!(first.add("expiring", &7.into(), None).await.unwrap());
+    assert!(other.get().await.unwrap());
+    assert!(!restored.release().await.unwrap());
+    assert!(other.refresh(None).await.unwrap());
+    assert!(other.release().await.unwrap());
+    assert!(!other.release().await.unwrap());
+
+    root.success(&["cache:forget", "binary", "dynamodb"]);
+    assert!(first.get("binary").await.unwrap().is_none());
+    let clear = root.artisan(&["cache:clear", "dynamodb"]);
+    assert_eq!(clear.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&clear.stderr).contains("does not support clearing"));
+    assert_eq!(first.get("counter").await.unwrap(), Some((-3).into()));
+}
+
+#[tokio::test]
+async fn dynamodb_cache_uses_custom_attributes_for_conditions_and_batch_keys() {
+    let Ok(endpoint) = std::env::var("DYNAMODB_FIXTURE_ENDPOINT") else {
+        assert!(std::env::var_os("DYNAMODB_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new("dynamodb-attributes", "CACHE_STORE=array\n");
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config::load)
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let manager = app.container().get::<CacheManager>("cache").unwrap();
+    let config = serde_json::json!({
+        "driver":"dynamodb","prefix":"schema:","table":"custom_cache",
+        "attributes":{"key":"cache_id","value":"encoded","expiration":"retire_at"},
+        "region":"us-east-1","endpoint":endpoint,"key":"fixture","secret":"localfixture",
+    });
+    let cache = manager.build(config.clone()).unwrap();
+    let mut invalid = config;
+    invalid["attributes"]["expiration"] = "encoded".into();
+    assert!(matches!(
+        manager.build(invalid),
+        Err(CacheError::InvalidConfiguration)
+    ));
+    assert!(
+        cache
+            .putMany(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        cache.many(&["absent", "one"]).await.unwrap(),
+        vec![None, Some(1.into())]
+    );
+    assert!(!cache.add("one", &2.into(), None).await.unwrap());
+    assert!(cache.touch("one", Ttl::Seconds(25)).await.unwrap());
+    assert_eq!(cache.increment("one", 2).await.unwrap(), 3);
+    let mut lock = cache.lock("owner", None, None).unwrap();
+    assert!(lock.get().await.unwrap());
+    assert!(lock.refresh(None).await.unwrap());
+    assert!(lock.release().await.unwrap());
+    assert_eq!(cache.pull("one").await.unwrap(), Some(3.into()));
+}
+
+#[tokio::test]
+async fn dynamodb_cache_retries_partial_batches_and_reports_exhaustion() {
+    let Ok(endpoint) = std::env::var("DYNAMODB_RETRY_ENDPOINT") else {
+        assert!(std::env::var_os("DYNAMODB_FIXTURE_REQUIRED").is_none());
+        return;
+    };
+    let root = Sandbox::new(
+        "dynamodb-retry",
+        &format!(
+            "CACHE_STORE=dynamodb\nCACHE_PREFIX=retry:\nAWS_ACCESS_KEY_ID=fixture\nAWS_SECRET_ACCESS_KEY=localfixture\nDYNAMODB_ENDPOINT={endpoint}\nDYNAMODB_CACHE_TABLE=retry_cache\n",
+        ),
+    );
+    let cache = root.cache(None).await;
+    let ttl = Some(Ttl::Seconds(30));
+    assert!(
+        cache
+            .putMany(
+                &[("first".into(), 1.into()), ("second".into(), 2.into())],
+                ttl
+            )
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        cache.many(&["first", "second", "absent"]).await.unwrap(),
+        vec![Some(1.into()), Some(2.into()), None]
+    );
+    assert!(matches!(
+        cache
+            .putMany(&[("always-throttled".into(), 3.into())], ttl)
+            .await,
+        Err(CacheError::Backend { .. }),
+    ));
+}

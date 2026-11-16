@@ -107,3 +107,13 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 隔离工程的实际二进制通过 HTTP 写读、暂停 Memcached 时返回 500、恢复后的下一次请求读回、独立 Artisan 清理及再次 HTTP 未命中。实际 `main artisan inspire` 通过。MySQL 8.4.13 和 Redis 8.10.3 下通过缓存、驱动、事件及 memo 回归。双 Redis 锁服务器和 S3 条件回归本批未重跑。
 - 定向格式、工作区严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。Unix 夹具为本地构建的 Memcached 1.6.45，构建时绕过当前 SDK 已移除的 Darwin sandbox 探测，缓存协议和运行方式使用原版。
 - 临时容器和 Unix 夹具均已关闭，清理 4.3 GiB 本批隔离 Cargo 产物、文档缓存及本地 C 构建产物后，项目盘可用 58.77 GB（54.73 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-memcached.geg4c4Mp`。
+
+## DynamoDB 驱动
+
+- 对照固定 Laravel [DynamoDB 配置](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/cache.md#dynamodb)、[DynamoDbStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/DynamoDbStore.php) 和 [DynamoDbLock](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/DynamoDbLock.php)。openrust-v0.x 未找到对应实现。使用 Rust 1.94.0 可编译的 AWS SDK DynamoDB 1.116.0，现有共享 AWS 依赖版本保持不变。
+- 支持标准凭据链、会话令牌、自定义端点与属性名。以 Unix 秒处理 TTL，读取时过滤过期记录。锁默认 24 小时，续期和释放使用服务端所有者条件。原子条件删除的 `pull` 保证仅一个请求获得旧值，AWS SDK 不自动重放这类返回旧值的写操作与原子计数。
+- Rust 存储 JSON、原始字节及原生数字，保留数字字符串类型。计数的范围条件防止溢出后写坏记录。固定 Laravel 的 `forever` 会把五年后的绝对时间再次加到当前时间。OpenRust 直接使用五年后的到期时间，同样适用于无 TTL 的原子 `add`。不支持标签或整表清空。
+- 隔离基线 `32a41c761`。固定 Laravel PHP 通过 DynamoDB Local 3.3.2 实测批量读写、计数、缺失与续期、所有者操作、整表清理拒绝及上游 `forever` 时间计算。Rust 3 项专项覆盖默认与自定义键、批量件数和请求尺寸、并发条件更新、TTL、锁恢复、Artisan 删除和清理保护。故障夹具实测只重试未处理的批量项，以及限次耗尽错误。
+- 独立工程实际二进制通过 HTTP 写读、独立 `artisan cache:forget` 及 HTTP 未命中，`main artisan inspire` 通过。实际服务为 DynamoDB Local，AWS 托管服务和 IAM 角色部署凭据留待发布验收。
+- MySQL 8.4.13、Redis 8.10.3 的缓存、事件和 memo 回归通过。Memcached、双 Redis 锁服务器、S3 条件用例沿用之前的验收。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。
+- 临时进程和容器已回收。清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.67 GB（53.71 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-dynamodb.gBg0l79j`。

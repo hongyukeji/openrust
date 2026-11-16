@@ -24,6 +24,16 @@ MEMCACHED_PORT=11211
 
 快取值使用 OpenRust 編碼。計數器不存在時會回傳 `CacheError::MissingCounter`，遞減最低到零。支援標籤失效與驗證擁有者的鎖定。Memcached 記憶體吃緊時可能淘汰項目，包含鎖定的擁有者記錄。`./artisan cache:clear memcached` 會清空所有已設定節點的資料，涵蓋所有快取前綴。需要限制清除範圍時，可使用專用節點。
 
+## DynamoDB {#dynamodb}
+
+設定 `CACHE_STORE=dynamodb`，並建立以字串欄位 `key` 為分割區索引鍵的 DynamoDB 資料表。預設表名為 `cache`。為數值欄位 `expires_at` 啟用 DynamoDB TTL，服務端即可回收過期資料列。快取讀取會檢查到期時間，即使 DynamoDB 尚未刪除該列。
+
+用 `DYNAMODB_CACHE_TABLE` 指定表名，以 `AWS_DEFAULT_REGION` 指定區域。可以設定 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY` 和選用的 `AWS_SESSION_TOKEN`，也可使用 AWS SDK 憑證鏈。DynamoDB Local 等自訂端點使用 `DYNAMODB_ENDPOINT`。
+
+`config/cache.rs` 中的 `attributes` 支援自訂 `key`、`value` 和 `expiration` 欄位名稱。分割區索引鍵和 TTL 設定需要與資料表一致。OpenRust 使用 JSON、位元組和 DynamoDB 原生數值儲存快取值。`forever` 與省略 TTL 的原子 `add` 會將到期時間設在五年後。
+
+此驅動程式支援驗證擁有者的鎖定。省略租期或設定為零時使用 24 小時。快取標籤和整表清除不可用。可透過 `./artisan cache:forget <key> dynamodb` 刪除單一項目。
+
 ## 磁碟快取 {#storage-cache}
 
 透過 `CACHE_STORE=storage` 將快取記錄寫入已設定的檔案系統磁碟。`CACHE_STORAGE_DISK` 指定磁碟，省略時使用應用程式預設磁碟。`CACHE_STORAGE_PATH` 是相對於該磁碟的快取目錄。

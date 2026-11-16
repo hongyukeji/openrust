@@ -45,7 +45,7 @@ pub use cache_service_provider::CacheServiceProvider;
 pub use database_lock::DatabaseLock;
 pub use database_store::DatabaseStore;
 pub use dynamo_db_lock::DynamoDbLock;
-pub use dynamo_db_store::DynamoDbStore;
+pub use dynamo_db_store::{DynamoDbAttributes, DynamoDbStore};
 pub use facade::Cache;
 pub use failover_store::FailoverStore;
 pub use file_lock::FileLock;
@@ -89,6 +89,7 @@ pub enum CacheError {
     Unavailable(crate::contracts::container::BindingResolutionError),
     TagsUnsupported,
     LocksUnsupported,
+    FlushUnsupported,
     LockFlushUnsupported,
     LockStoreNotSeparate,
     LockTimeout,
@@ -179,6 +180,9 @@ impl std::fmt::Display for CacheError {
                 f.write_str("Clearing locks requires a separate lock store.")
             }
             Self::LocksUnsupported => f.write_str("The cache store does not support locks."),
+            Self::FlushUnsupported => {
+                f.write_str("The cache store does not support clearing the entire store.")
+            }
             Self::LockTimeout => f.write_str("Timed out acquiring the cache lock."),
             Self::Backend { .. } => f.write_str("The cache backend operation failed."),
         }

@@ -2828,3 +2828,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 06:52（北京时间）03-06 [会话缓存](audits/03-06/README.md#会话缓存)。按固定 Laravel 接通请求内会话缓存及具名仓库。真实 HTTP 的 8 项会话测试、27 项缓存回归、实际 Artisan、严格 Clippy 和三语站点及示例通过。临时夹具和本批隔离产物已回收，项目盘可用 60.05 GB（55.93 GiB），周额度剩余 69%。整单元待 Memcached、DynamoDB、缓存迁移生成与回调持锁。
 
 - 2026-11-17 07:11（北京时间）03-06 [Memcached 驱动](audits/03-06/README.md#memcached-驱动)。固定 Laravel 对照、真实 TCP、SASL 与 Unix 套接字、HTTP 超时恢复、实际 Artisan、严格 Clippy 和三语站点通过。夹具及本批隔离编译产物已回收，项目盘可用 58.77 GB（54.73 GiB），周额度剩余 69%。整单元待 DynamoDB、缓存迁移生成及回调持锁。
+
+- 2026-11-17 07:28（北京时间）03-06 [DynamoDB 驱动](audits/03-06/README.md#dynamodb-驱动)。固定 Laravel 对照、DynamoDB Local 的批量边界、重试、TTL、计数和锁、实际 HTTP 与 Artisan、严格 Clippy 和三语站点通过。夹具与本批隔离产物已回收，项目盘可用 57.67 GB（53.71 GiB），周额度剩余 69%。整单元待缓存迁移生成和回调持锁，AWS 托管服务留待发布验收。
