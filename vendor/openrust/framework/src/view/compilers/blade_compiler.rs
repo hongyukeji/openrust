@@ -24,12 +24,13 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 24;
+const COMPILER_VERSION: u32 = 25;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;
 type Stringable = Arc<dyn Fn(&dyn Any) -> ViewResult<String> + Send + Sync>;
 type IterableEcho = Arc<dyn Fn(&ViewValue) -> ViewResult<String> + Send + Sync>;
+type AttributeFilter = Arc<dyn Fn(&str, &ViewValue) -> bool + Send + Sync>;
 
 #[derive(Clone, Default)]
 pub(in crate::view) struct BladeExtensions {
@@ -38,6 +39,7 @@ pub(in crate::view) struct BladeExtensions {
     pub(in crate::view) preserve_html_entities: bool,
     stringables: BTreeMap<TypeId, Stringable>,
     pub(in crate::view) iterable_echo: Option<IterableEcho>,
+    pub(in crate::view) attribute_filters: BTreeMap<String, AttributeFilter>,
 }
 
 /// Output produced by a registered Rust Blade directive.
@@ -127,6 +129,21 @@ impl BladeCompiler {
                 render_error("A Blade echo formatter was not registered for this type.")
             })?;
         format(value)
+    }
+
+    /// Registers a predicate callable by name from a Blade attribute bag.
+    pub fn attributeFilter(
+        &self,
+        name: &str,
+        filter: impl Fn(&str, &ViewValue) -> bool + Send + Sync + 'static,
+    ) -> ViewResult<()> {
+        if !super::template::identifier(name) {
+            return Err(invalid_registration("Invalid Blade attribute filter name."));
+        }
+        Arc::make_mut(&mut self.extensions.write().unwrap())
+            .attribute_filters
+            .insert(name.to_owned(), Arc::new(filter));
+        Ok(())
     }
 
     /// Registers a Rust callback for a custom Blade directive name.

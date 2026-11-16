@@ -346,6 +346,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     struct ViewIdentity;
     struct ViewSummary(&'static str);
     struct Price(u16);
+    struct HiddenCard;
+
+    impl Component for HiddenCard {
+        fn shouldRender(&self) -> bool {
+            false
+        }
+
+        fn render(&self) -> ViewResult<ComponentOutput> {
+            panic!("a hidden component must not render")
+        }
+    }
 
     impl Authenticatable for ViewIdentity {
         fn get_auth_identifier_name(&self) -> &str {
@@ -518,6 +529,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 })?;
                 Route::get("/bad-component", || view("bad_component"))?;
                 Route::get("/bad-attributes", || view("bad_attributes"))?;
+                Route::get("/attribute-values", || view("attribute_values"))?;
+                Route::get("/unknown-filter", || view("unknown_filter"))?;
                 Route::get("/fonts", || view("fonts_all"))?;
                 Route::get("/font-aliases", || {
                     view("font_aliases").with("alias", "mono")
@@ -638,6 +651,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                 render_id: renders.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
             })
         });
+        factory.component("hidden-card", |_| Ok(HiddenCard));
         let openrust::view::engines::Engine::Blade(engine) =
             factory.getEngineResolver().resolve("blade").unwrap()
         else {
@@ -652,6 +666,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         engine
             .getCompiler()
             .stringable(move |price: &Price| Ok(format!("<{app}:{}>", price.0)));
+        engine
+            .getCompiler()
+            .attributeFilter("client", |name, value| {
+                name.starts_with("data-") && value.as_str().is_some_and(|text| text != "ignored")
+            })
+            .unwrap();
         if app == "A" {
             engine.getCompiler().stringableIterable(|items| {
                 Ok(items
@@ -918,6 +938,33 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         ),
         ("bad_component", "<x-demo::../panel/>"),
         ("bad_attributes", "{{ $attributes->only('id')->unknown() }}"),
+        (
+            "attribute_values",
+            concat!(
+                r#"<x-inspect data-controller="child" data-empty="" data-id="<x>" data-skip="ignored" id="absent">"#,
+                "<x-slot:title><!-- only a comment --></x-slot:title>",
+                "<x-slot:footer><br></x-slot:footer>",
+                "</x-inspect>",
+                "<x-hidden-card>@include('should-never-load')</x-hidden-card>",
+            ),
+        ),
+        (
+            "components/inspect",
+            concat!(
+                r#"<div {{ $attributes->filter('client')->merge(['data-controller' => $attributes->prepends('base'), 'data-empty' => $attributes->prepends('fallback')]) }}>"#,
+                "@if($attributes->has(['data-id', 'data-controller']))all@endif",
+                "@if($attributes->hasAny(['href','data-id']))any@endif",
+                "|{{ $attributes->whereStartsWith('data-id')->first() }}|{{ $attributes->get('missing', 'default') }}",
+                "@if($slot->isEmpty())|empty@endif@if($title->isNotEmpty())|comment@endif",
+                "@if($title->hasActualContent())|unexpected@elseif($footer->hasActualContent())|markup@endif",
+                "</div>",
+            ),
+        ),
+        ("unknown_filter", r#"<x-filter-probe id="visible"/>"#),
+        (
+            "components/filter-probe",
+            "{{ $attributes->filter('unknown') }}",
+        ),
         ("fonts_all", "<head>@fonts</head>"),
         (
             "font_aliases",
@@ -1223,6 +1270,17 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
     }
     assert!(send(first, "/bad-component", 500).await.contains("500"));
     assert!(send(first, "/bad-attributes", 500).await.contains("500"));
+    let (a, b) = tokio::join!(
+        send(first, "/attribute-values", 200),
+        send(second, "/attribute-values", 200)
+    );
+    for html in [a, b] {
+        assert_eq!(
+            html,
+            r#"<div data-controller="base child" data-empty="fallback" data-id="&lt;x&gt;">allany|&lt;x&gt;|default|empty|comment|markup</div>"#
+        );
+    }
+    assert!(send(first, "/unknown-filter", 500).await.contains("500"));
     let (a, b) = tokio::join!(
         send(first, "/custom-condition", 200),
         send(second, "/custom-condition", 200),

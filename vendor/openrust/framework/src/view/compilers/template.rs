@@ -19,9 +19,9 @@ mod javascript;
 mod loops;
 
 use attributes::{
-    AttributeList, AttributeOperation, Props, apply_aware, apply_props, array_entries,
-    attribute_list, attribute_name, parse_attribute_list, parse_echo, parse_props,
-    render_attributes,
+    AttributeChain, AttributeList, ComponentQuery, Props, apply_aware, apply_props, array_entries,
+    attribute_list, attribute_name, parse_attribute_list, parse_component_query, parse_echo,
+    parse_props, render_attributes,
 };
 
 use expressions::{Expression, expression_value, loose_equal, truthy, value};
@@ -46,9 +46,10 @@ enum Node {
     Text(String),
     Echo(Expression, bool),
     EscapedSectionValue(Expression),
-    Attributes(Vec<String>, Vec<AttributeOperation>),
+    Attributes(AttributeChain),
+    ComponentValue(ComponentQuery, bool),
     Fonts(fonts::Aliases),
-    Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
+    Conditional(ConditionalValue, Predicate, Vec<Node>, Vec<Node>),
     Each {
         expression: Expression,
         key: Option<String>,
@@ -144,6 +145,12 @@ enum Predicate {
     HasStack,
     HasSection,
     SectionMissing,
+}
+
+#[derive(Serialize, Deserialize)]
+enum ConditionalValue {
+    Expression(Expression),
+    Component(ComponentQuery),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -865,7 +872,7 @@ impl<'a> Parser<'a> {
             _ => return Err(invalid("Unclosed Blade conditional stack capture.")),
         };
         Ok(Node::Conditional(
-            condition,
+            ConditionalValue::Expression(condition),
             Predicate::Truthy,
             vec![Node::StackCapture(name, body, false)],
             alternative,
@@ -928,7 +935,12 @@ impl<'a> Parser<'a> {
         predicate: Predicate,
         end: Stop<'a>,
     ) -> ViewResult<Node> {
-        let expression = expression_value(self.arguments()?)?;
+        let arguments = self.arguments()?;
+        let expression = if let Some(query) = parse_component_query(arguments)? {
+            ConditionalValue::Component(query)
+        } else {
+            ConditionalValue::Expression(expression_value(arguments)?)
+        };
         let (yes, stop) = self.block(depth + 1)?;
         let (no, stop) = match stop {
             Some(Stop::Else) => self.block(depth + 1)?,
@@ -1341,18 +1353,29 @@ fn render_nodes<'a>(
             Node::EscapedSectionValue(expression) => {
                 echo(output, value(expression, data, bindings), true);
             }
-            Node::Attributes(path, operations) => {
-                let mut attributes = context
-                    .attributes(path)
-                    .cloned()
-                    .ok_or_else(|| render_error("A Blade component attribute bag is required."))?;
-                for operation in operations {
-                    attributes = operation.apply(attributes, data, bindings)?;
+            Node::Attributes(chain) => {
+                render_attributes(&chain.resolve(context, data, bindings)?, output)?;
+            }
+            Node::ComponentValue(query, escape) => {
+                let resolved = query.resolve(context, data, bindings)?;
+                if *escape
+                    && context.extensions.preserve_html_entities
+                    && let ViewValue::String(text) = &resolved
+                {
+                    html::escape_preserving_entities(output, text);
+                } else {
+                    echo(output, &resolved, *escape);
                 }
-                render_attributes(&attributes, output)?;
             }
             Node::Conditional(expression, predicate, yes, no) => {
-                let value = value(expression, data, bindings);
+                let resolved;
+                let value = match expression {
+                    ConditionalValue::Expression(expression) => value(expression, data, bindings),
+                    ConditionalValue::Component(query) => {
+                        resolved = query.resolve(context, data, bindings)?;
+                        &resolved
+                    }
+                };
                 let matches = match predicate {
                     Predicate::Truthy => truthy(value),
                     Predicate::Empty => !truthy(value),
@@ -1743,9 +1766,13 @@ fn render_nodes<'a>(
                         .collect::<ViewData>(),
                 );
                 let component = context.resolve_component(name, &properties)?;
-                let scope = component
-                    .as_ref()
-                    .map(|component| ViewValue::Object(component.data.clone()));
+                let scope = match &component {
+                    Some(crate::view::component::ResolvedComponent::Hidden) => continue,
+                    Some(crate::view::component::ResolvedComponent::Visible { data, .. }) => {
+                        Some(ViewValue::Object(data.clone()))
+                    }
+                    None => None,
+                };
                 let mut slot_bindings = bindings.to_vec();
                 if let Some(scope) = &scope {
                     slot_bindings.push(("component", scope));

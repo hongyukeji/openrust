@@ -8,6 +8,12 @@ pub enum ComponentOutput {
 
 /// A class-based component exposed to the template engine.
 pub trait Component: Send + Sync {
+    /// Controls whether the component and its slots render.
+    #[allow(non_snake_case, reason = "Matches the Laravel Component API")]
+    fn shouldRender(&self) -> bool {
+        true
+    }
+
     /// Data exposed to the component template and its scoped slots.
     fn data(&self) -> ViewData {
         ViewData::new()
@@ -16,7 +22,10 @@ pub trait Component: Send + Sync {
     fn render(&self) -> ViewResult<ComponentOutput>;
 }
 
-pub(super) struct ResolvedComponent {
-    pub output: ComponentOutput,
-    pub data: ViewData,
+pub(super) enum ResolvedComponent {
+    Hidden,
+    Visible {
+        output: Box<ComponentOutput>,
+        data: ViewData,
+    },
 }

@@ -208,9 +208,12 @@ impl Factory {
             name.into(),
             Arc::new(move |data| {
                 let component = resolve(data)?;
+                if !component.shouldRender() {
+                    return Ok(ResolvedComponent::Hidden);
+                }
                 let output = component.render()?;
-                Ok(ResolvedComponent {
-                    output,
+                Ok(ResolvedComponent::Visible {
+                    output: Box::new(output),
                     data: component.data(),
                 })
             }),
@@ -297,10 +300,13 @@ impl Factory {
         context: &mut RenderContext<'_>,
     ) -> ViewResult<String> {
         match component {
-            Some(component) => {
+            Some(ResolvedComponent::Visible {
+                output,
+                data: component_data,
+            }) => {
                 let mut data = properties.clone();
-                data.extend(component.data);
-                match component.output {
+                data.extend(component_data);
+                match *output {
                     ComponentOutput::View(mut view) => {
                         data.extend(std::mem::take(&mut view.data));
                         view.data = data;
@@ -311,6 +317,7 @@ impl Factory {
                     }
                 }
             }
+            Some(ResolvedComponent::Hidden) => Ok(String::new()),
             None => {
                 let candidates = self.anonymous_component_candidates(name);
                 let candidates: Vec<_> = candidates.iter().map(String::as_str).collect();

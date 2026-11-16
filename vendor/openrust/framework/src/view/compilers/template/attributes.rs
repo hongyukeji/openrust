@@ -13,8 +13,9 @@ pub(super) type Props = Vec<(String, Option<Expression>)>;
 pub(super) type AttributeList = Vec<(Expression, Option<Expression>)>;
 
 #[derive(Serialize, Deserialize)]
-pub(super) enum AttributeOperation {
-    Merge(Vec<(String, Expression)>),
+enum AttributeOperation {
+    Merge(Vec<DefaultAttribute>),
+    NamedFilter(String),
     Class(AttributeList),
     Style(AttributeList),
     Filter {
@@ -22,6 +23,39 @@ pub(super) enum AttributeOperation {
         prefix: bool,
         include: bool,
     },
+}
+
+#[derive(Serialize, Deserialize)]
+struct DefaultAttribute {
+    name: String,
+    value: Expression,
+    prepend: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) struct AttributeChain {
+    path: Vec<String>,
+    operations: Vec<AttributeOperation>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum ComponentQuery {
+    Attribute(AttributeChain, AttributeQuery),
+    Slot(String, SlotQuery),
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum AttributeQuery {
+    First(Option<Expression>),
+    Get(String, Option<Expression>),
+    Exists(Vec<String>, bool),
+}
+
+#[derive(Serialize, Deserialize)]
+pub(super) enum SlotQuery {
+    Empty,
+    NotEmpty,
+    HasActualContent,
 }
 
 pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
@@ -91,36 +125,118 @@ pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
     {
         return super::fonts::parse(arguments);
     }
-    if source.starts_with('$') {
-        let mut separators = separators(source, "->").peekable();
-        let mut path_end = source.len();
-        let mut operations = Vec::new();
-        while let Some(index) = separators.next() {
-            let end = separators.peek().copied().unwrap_or(source.len());
-            let segment = source[index + 2..end].trim();
-            if operations.is_empty() && !segment.contains('(') {
-                continue;
-            }
-            let (name, arguments) = segment
-                .split_once('(')
-                .and_then(|(name, arguments)| Some((name.trim(), arguments.strip_suffix(')')?)))
-                .ok_or_else(|| invalid("Expected a Blade attribute bag method call."))?;
-            path_end = path_end.min(index);
-            operations.push(parse_operation(name, arguments)?);
-        }
-        if !operations.is_empty() {
-            let Expression::Variable(path) = expression_value(&source[..path_end])? else {
-                return Err(invalid("A Blade attribute bag requires a variable."));
-            };
-            if !matches!(path.as_slice(), [name] | [_, name] if name == "attributes") {
-                return Err(invalid(
-                    "A Blade attribute bag requires an attributes property.",
-                ));
-            }
-            return Ok(Node::Attributes(path, operations));
-        }
+    if let Some((chain, query)) = parse_chain(source)? {
+        return Ok(match query {
+            Some(query) => Node::ComponentValue(ComponentQuery::Attribute(chain, query), escaped),
+            None => Node::Attributes(chain),
+        });
+    }
+    if let Some(query) = parse_slot_query(source)? {
+        return Ok(Node::ComponentValue(query, escaped));
     }
     Ok(Node::Echo(expression_value(source)?, escaped))
+}
+
+pub(super) fn parse_component_query(source: &str) -> ViewResult<Option<ComponentQuery>> {
+    if let Some((chain, Some(query))) = parse_chain(source)? {
+        return Ok(Some(ComponentQuery::Attribute(chain, query)));
+    }
+    parse_slot_query(source)
+}
+
+fn parse_chain(source: &str) -> ViewResult<Option<(AttributeChain, Option<AttributeQuery>)>> {
+    let source = source.trim();
+    if !source.starts_with('$') {
+        return Ok(None);
+    }
+    let mut separators = separators(source, "->").peekable();
+    let mut path = None;
+    let mut operations = Vec::new();
+    let mut query = None;
+    while let Some(index) = separators.next() {
+        let end = separators.peek().copied().unwrap_or(source.len());
+        let segment = source[index + 2..end].trim();
+        if path.is_none() && !segment.contains('(') {
+            continue;
+        }
+        if path.is_none() {
+            let Ok(Expression::Variable(target)) = expression_value(&source[..index]) else {
+                return Ok(None);
+            };
+            if !matches!(target.as_slice(), [name] | [_, name] if name == "attributes") {
+                return Ok(None);
+            }
+            path = Some(target);
+        }
+        let (name, arguments) = segment
+            .split_once('(')
+            .and_then(|(name, arguments)| Some((name.trim(), arguments.strip_suffix(')')?)))
+            .ok_or_else(|| invalid("Expected a Blade attribute bag method call."))?;
+        match parse_attribute_query(name, arguments)? {
+            Some(access) if separators.peek().is_none() => query = Some(access),
+            Some(_) => {
+                return Err(invalid(
+                    "A Blade attribute lookup must end the method chain.",
+                ));
+            }
+            None => operations.push(parse_operation(name, arguments)?),
+        }
+    }
+    Ok(path.map(|path| (AttributeChain { path, operations }, query)))
+}
+
+fn parse_attribute_query(name: &str, arguments: &str) -> ViewResult<Option<AttributeQuery>> {
+    let query = match name {
+        "first" => AttributeQuery::First(
+            (!arguments.trim().is_empty())
+                .then(|| expression_value(arguments))
+                .transpose()?,
+        ),
+        "get" => {
+            let (key, default) = match separators(arguments, ",").next() {
+                Some(index) => (
+                    &arguments[..index],
+                    Some(expression_value(&arguments[index + 1..])?),
+                ),
+                None => (arguments, None),
+            };
+            AttributeQuery::Get(literal_name(key, attribute_name)?, default)
+        }
+        "has" | "hasAny" => AttributeQuery::Exists(parse_keys(arguments)?, name == "hasAny"),
+        _ => return Ok(None),
+    };
+    Ok(Some(query))
+}
+
+fn parse_slot_query(source: &str) -> ViewResult<Option<ComponentQuery>> {
+    let Some((target, method)) = source.trim().rsplit_once("->") else {
+        return Ok(None);
+    };
+    let query = match method.trim() {
+        "isEmpty()" => SlotQuery::Empty,
+        "isNotEmpty()" => SlotQuery::NotEmpty,
+        "hasActualContent()" => SlotQuery::HasActualContent,
+        _ => return Ok(None),
+    };
+    match expression_value(target)? {
+        Expression::Variable(path) if path.len() == 1 => Ok(Some(ComponentQuery::Slot(
+            path.into_iter().next().unwrap(),
+            query,
+        ))),
+        _ => Err(invalid("A Blade slot query requires a slot variable.")),
+    }
+}
+
+fn parse_keys(arguments: &str) -> ViewResult<Vec<String>> {
+    let entries = if arguments.trim_start().starts_with('[') {
+        array_entries(arguments)?
+    } else {
+        vec![arguments]
+    };
+    entries
+        .into_iter()
+        .map(|entry| literal_name(entry, |_| true))
+        .collect()
 }
 
 fn parse_operation(name: &str, arguments: &str) -> ViewResult<AttributeOperation> {
@@ -132,30 +248,25 @@ fn parse_operation(name: &str, arguments: &str) -> ViewResult<AttributeOperation
                     let (key, value) = array_entry(entry);
                     let value =
                         value.ok_or_else(|| invalid("Expected an attribute default value."))?;
-                    Ok((literal_name(key, attribute_name)?, expression_value(value)?))
+                    let method = separators(value, "->")
+                        .last()
+                        .and_then(|index| value[index + 2..].trim().strip_prefix("prepends("))
+                        .and_then(|tail| tail.strip_suffix(')'));
+                    Ok(DefaultAttribute {
+                        name: literal_name(key, attribute_name)?,
+                        value: expression_value(method.unwrap_or(value))?,
+                        prepend: method.is_some(),
+                    })
                 })
                 .collect::<ViewResult<_>>()?;
             AttributeOperation::Merge(defaults)
         }
         "class" => AttributeOperation::Class(parse_attribute_list(arguments)?),
         "style" => AttributeOperation::Style(parse_attribute_list(arguments)?),
+        "filter" => AttributeOperation::NamedFilter(literal_name(arguments, identifier)?),
         "only" | "except" | "whereStartsWith" | "whereDoesntStartWith" | "thatStartWith" => {
-            let entries = if arguments.trim_start().starts_with('[') {
-                array_entries(arguments)?
-            } else {
-                vec![arguments]
-            };
-            let names = entries
-                .into_iter()
-                .map(|entry| match expression_value(entry)? {
-                    Expression::Value(ViewValue::String(text)) => Ok(text),
-                    _ => Err(invalid(
-                        "Expected a literal Blade attribute name or prefix.",
-                    )),
-                })
-                .collect::<ViewResult<_>>()?;
             AttributeOperation::Filter {
-                names,
+                names: parse_keys(arguments)?,
                 prefix: !matches!(name, "only" | "except"),
                 include: matches!(name, "only" | "whereStartsWith" | "thatStartWith"),
             }
@@ -269,18 +380,118 @@ pub(super) fn apply_aware(data: &mut ViewData, props: &Props, context: &RenderCo
     }
 }
 
-impl AttributeOperation {
-    pub(super) fn apply(
+impl AttributeChain {
+    pub(super) fn resolve(
         &self,
-        mut attributes: ViewData,
+        context: &RenderContext<'_>,
         data: &ViewData,
         bindings: &[(&str, &ViewValue)],
     ) -> ViewResult<ViewData> {
+        let mut bag = context
+            .attributes(&self.path)
+            .cloned()
+            .ok_or_else(|| render_error("A Blade component attribute bag is required."))?;
+        for operation in &self.operations {
+            bag = operation.apply(bag, context, data, bindings)?;
+        }
+        Ok(bag)
+    }
+}
+
+impl ComponentQuery {
+    pub(super) fn resolve(
+        &self,
+        context: &RenderContext<'_>,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+    ) -> ViewResult<ViewValue> {
+        match self {
+            Self::Slot(name, query) => {
+                let html = context.slot(name).unwrap_or_default();
+                let matches = match query {
+                    SlotQuery::Empty => html.is_empty(),
+                    SlotQuery::NotEmpty => !html.is_empty(),
+                    SlotQuery::HasActualContent => has_actual_content(html),
+                };
+                Ok(matches.into())
+            }
+            Self::Attribute(chain, access) => {
+                let attributes = chain.resolve(context, data, bindings)?;
+                let with_default = |entry: Option<&ViewValue>, default: &Option<Expression>| {
+                    entry
+                        .filter(|entry| !entry.is_null())
+                        .or_else(|| {
+                            default
+                                .as_ref()
+                                .map(|default| value(default, data, bindings))
+                        })
+                        .cloned()
+                        .unwrap_or_default()
+                };
+                Ok(match access {
+                    AttributeQuery::First(default) => {
+                        with_default(attributes.values().next(), default)
+                    }
+                    AttributeQuery::Get(key, default) => with_default(attributes.get(key), default),
+                    AttributeQuery::Exists(keys, any) => {
+                        let mut present = keys.iter().map(|key| attributes.contains_key(key));
+                        if *any {
+                            present.any(|found| found)
+                        } else {
+                            present.all(|found| found)
+                        }
+                        .into()
+                    }
+                })
+            }
+        }
+    }
+}
+
+fn has_actual_content(mut html: &str) -> bool {
+    loop {
+        html = html.trim_start();
+        let Some(comment) = html.strip_prefix("<!--") else {
+            return !html.is_empty();
+        };
+        let Some(end) = comment.find("-->") else {
+            return true;
+        };
+        html = &comment[end + 3..];
+    }
+}
+
+impl AttributeOperation {
+    fn apply(
+        &self,
+        mut attributes: ViewData,
+        context: &RenderContext<'_>,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+    ) -> ViewResult<ViewData> {
+        let mut append = Vec::new();
         let defaults = match self {
             Self::Merge(defaults) => defaults
                 .iter()
-                .map(|(key, default)| (key.clone(), value(default, data, bindings).clone()))
+                .map(|default| {
+                    if default.prepend {
+                        append.push(default.name.as_str());
+                    }
+                    (
+                        default.name.clone(),
+                        value(&default.value, data, bindings).clone(),
+                    )
+                })
                 .collect(),
+            Self::NamedFilter(name) => {
+                let callback = context
+                    .extensions
+                    .attribute_filters
+                    .get(name)
+                    .ok_or_else(|| render_error("A Blade attribute filter was not registered."))?;
+                attributes.retain(|key, value| callback(key, value));
+                return Ok(attributes);
+            }
             Self::Class(entries) => ViewData::from_iter([(
                 "class".to_owned(),
                 attribute_list(entries, data, bindings, false)?.into(),
@@ -307,18 +518,22 @@ impl AttributeOperation {
                 return Ok(attributes);
             }
         };
-        Ok(merge_attributes(&attributes, defaults))
+        Ok(merge_attributes(&attributes, defaults, &append))
     }
 }
 
-fn merge_attributes(attributes: &ViewData, mut merged: ViewData) -> ViewData {
+fn merge_attributes(attributes: &ViewData, mut merged: ViewData, append: &[&str]) -> ViewData {
     for (key, incoming) in attributes {
         let combined = match (key.as_str(), merged.get(key), incoming) {
-            ("class" | "style", Some(ViewValue::String(default)), ViewValue::String(value))
-                if !default.trim().is_empty() && !value.trim().is_empty() =>
+            (name, Some(ViewValue::String(default)), ViewValue::String(value))
+                if matches!(name, "class" | "style") || append.contains(&name) =>
             {
                 let (default, value) = (default.trim(), value.trim());
-                let text = if key == "style" {
+                let text = if default.is_empty() {
+                    value.to_owned()
+                } else if value.is_empty() {
+                    default.to_owned()
+                } else if key == "style" {
                     let default = default.trim_end_matches(';');
                     let value = value.trim_end_matches(';');
                     if default == value {
@@ -333,7 +548,9 @@ fn merge_attributes(attributes: &ViewData, mut merged: ViewData) -> ViewData {
                 };
                 ViewValue::String(text)
             }
-            ("class" | "style", Some(default), ViewValue::Null | ViewValue::Bool(false)) => {
+            (name, Some(default), ViewValue::Null | ViewValue::Bool(false))
+                if matches!(name, "class" | "style") || append.contains(&name) =>
+            {
                 default.clone()
             }
             _ => incoming.clone(),

@@ -111,3 +111,8 @@
 
 - 对照固定 [ComponentMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ComponentMakeCommand.php)。`make:component` 默认生成 Rust 类型和 Blade 视图，支持嵌套名称、`--inline`、`--view`、`--path`、`--force` 以及可发布的 Rust 源码 stub。沿用源码生成器的应用锁和文件写入，第二个文件创建失败时恢复第一个文件。Rust 类型按应用模块树和 Factory 显式注册。旧版无同名生成器。
 - macOS ARM64、Rust 1.94.0。实际 Artisan 从三语正文运行生成命令，并验证自定义目录、路径检查、重复、回滚、强制重建，以及每个应用的 `view:cache` 和 `view:clear`。隔离 HTTP 探针编译实际生成的两种 Rust 类型，三次真实回环请求均渲染具名、内联与匿名组件。8 项共享工作区定向测试、隔离格式和严格 Clippy、三语构建和 12 项浏览器组合通过。
+
+## 属性读取、插槽内容与组件可见性
+
+- 对照固定 [ComponentAttributeBag](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentAttributeBag.php)、[ComponentSlot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentSlot.php) 和 Blade 组件章节。属性包支持 `prepends`、`first`、`get`、`has`、`hasAny` 和 Rust 注册的 `filter`。插槽支持空值、非空值和忽略注释的内容判断。`Component::shouldRender` 在渲染组件或插槽之前判断可见性。旧版无相应 Blade 机制。
+- macOS ARM64、Rust 1.94.0。共享工作区 11 项定向测试通过，真实 HTTP 覆盖筛选回调、前缀默认值、属性读取和转义、插槽注释与标记、隐藏组件跳过子视图，以及未注册过滤器 500。隔离全工作区格式和严格 Clippy、实际 Artisan 缓存与清理三个三语示例、三语 VitePress 构建与 12 项浏览器组合通过。

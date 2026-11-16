@@ -156,6 +156,8 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `:$title` 是 `:title="$title"` 的簡寫。`::` 前綴保留 `:class` 等用戶端繫結。已註冊視圖命名空間的元件可用 `<x-demo::panel>` 存取。
 
+已註冊的 Rust 元件可透過 `Component::shouldRender` 控制元件與插槽是否呈現。
+
 ### 產生元件 {#generating-components}
 
 預設命令會在 `app/view/components` 產生 Rust 元件，在 `resources/views/components` 產生範本。`--inline` 將範本寫入 Rust 元件，`--view` 產生匿名元件。`--path` 可指定相對於 `resources/views` 的範本目錄。將產生的 Rust 元件加入應用程式的模組樹，並透過 `Factory::component` 註冊。
@@ -201,6 +203,21 @@ fn configure_encoding(compiler: &BladeCompiler) {
 <aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
     {{ $slot }}
 </aside>
+```
+
+#### 讀取屬性與插槽 {#filtering-attributes}
+
+使用 `first` 或 `get` 讀取屬性值，使用 `has` 或 `hasAny` 檢查屬性鍵。在 `merge` 中使用 `prepends` 可以將預設值置於屬性值開頭。應用程式可透過 `BladeCompiler::attributeFilter` 註冊 Rust 條件函式，並將註冊名稱傳給 `filter`。插槽支援 `isEmpty()`、`isNotEmpty()` 和 `hasActualContent()`。最後一種判斷會忽略 HTML 註解。Rust 元件透過 `Component::data` 明確提供屬性。`$attributes` 和 `$slot` 由範本保留給屬性袋與預設插槽。
+
+```html
+<div {{ $attributes->merge(['data-controller' => $attributes->prepends('profile')]) }}>
+    @if ($attributes->has('aria-label'))
+        {{ $attributes->get('aria-label') }}
+    @endif
+    @if ($slot->hasActualContent())
+        {{ $slot }}
+    @endif
+</div>
 ```
 
 #### 作用域插槽 {#scoped-slots}

@@ -156,6 +156,8 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `:$title` 是 `:title="$title"` 的简写。`::` 前缀保留 `:class` 等客户端绑定。已注册视图命名空间的组件可用 `<x-demo::panel>` 访问。
 
+已注册的 Rust 组件可通过 `Component::shouldRender` 控制组件和插槽是否渲染。
+
 ### 生成组件 {#generating-components}
 
 默认命令在 `app/view/components` 生成 Rust 组件，在 `resources/views/components` 生成模板。`--inline` 将模板写入 Rust 组件，`--view` 生成匿名组件。`--path` 可指定相对于 `resources/views` 的模板目录。将生成的 Rust 组件加入应用的模块树，并通过 `Factory::component` 注册。
@@ -201,6 +203,21 @@ fn configure_encoding(compiler: &BladeCompiler) {
 <aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
     {{ $slot }}
 </aside>
+```
+
+#### 读取属性与插槽 {#filtering-attributes}
+
+使用 `first` 或 `get` 读取属性值，使用 `has` 或 `hasAny` 检查属性键。在 `merge` 中使用 `prepends` 可将默认值加在属性值开头。应用可通过 `BladeCompiler::attributeFilter` 注册 Rust 谓词，并将注册名称传给 `filter`。插槽支持 `isEmpty()`、`isNotEmpty()` 和 `hasActualContent()`。最后一种判断会忽略 HTML 注释。Rust 组件通过 `Component::data` 显式提供属性。`$attributes` 和 `$slot` 由模板保留给属性包和默认插槽。
+
+```html
+<div {{ $attributes->merge(['data-controller' => $attributes->prepends('profile')]) }}>
+    @if ($attributes->has('aria-label'))
+        {{ $attributes->get('aria-label') }}
+    @endif
+    @if ($slot->hasActualContent())
+        {{ $slot }}
+    @endif
+</div>
 ```
 
 #### 作用域插槽 {#scoped-slots}

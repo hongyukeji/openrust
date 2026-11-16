@@ -156,6 +156,8 @@ Store an anonymous component such as `notice` in `resources/views/components/not
 
 Use `:$title` as shorthand for `:title="$title"`. A `::` prefix preserves a client-side binding such as `:class`. Components under a registered view namespace use tags such as `<x-demo::panel>`.
 
+A registered Rust component can override `Component::shouldRender` to hide itself and its slots.
+
 ### Generating Components {#generating-components}
 
 The default command creates a Rust component under `app/view/components` and a template under `resources/views/components`. Use `--inline` to store the template in the Rust component or `--view` to generate an anonymous component. For templates, `--path` selects a directory relative to `resources/views`. Add a generated Rust component to your module tree and register it with `Factory::component`.
@@ -201,6 +203,21 @@ Chain attribute bag methods from left to right. `whereStartsWith` and its alias 
 <aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
     {{ $slot }}
 </aside>
+```
+
+#### Reading Attributes and Slots {#filtering-attributes}
+
+Use `first` or `get` to read a value, and `has` or `hasAny` to check keys. Use `prepends` inside `merge` to prepend a default to an attribute. Register application-specific predicates with `BladeCompiler::attributeFilter` and pass the registered name to `filter`. A slot supports `isEmpty()`, `isNotEmpty()`, and `hasActualContent()`. The last method ignores HTML comments. Rust components expose properties through `Component::data`. The template reserves `$attributes` and `$slot` for the attribute bag and default slot.
+
+```html
+<div {{ $attributes->merge(['data-controller' => $attributes->prepends('profile')]) }}>
+    @if ($attributes->has('aria-label'))
+        {{ $attributes->get('aria-label') }}
+    @endif
+    @if ($slot->hasActualContent())
+        {{ $slot }}
+    @endif
+</div>
 ```
 
 #### Scoped Slots {#scoped-slots}
