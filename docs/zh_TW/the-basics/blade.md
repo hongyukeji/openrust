@@ -146,6 +146,16 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `:$title` 是 `:title="$title"` 的簡寫。`::` 前綴保留 `:class` 等用戶端繫結。已註冊視圖命名空間的元件可用 `<x-demo::panel>` 存取。
 
+### 產生元件 {#generating-components}
+
+預設命令會在 `app/view/components` 產生 Rust 元件，在 `resources/views/components` 產生範本。`--inline` 將範本寫入 Rust 元件，`--view` 產生匿名元件。`--path` 可指定相對於 `resources/views` 的範本目錄。將產生的 Rust 元件加入應用程式的模組樹，並透過 `Factory::component` 註冊。
+
+```shell
+./artisan make:component Forms/InputField
+./artisan make:component InlineNotice --inline
+./artisan make:component EmptyState --view
+```
+
 ### 插槽屬性 {#slot-attributes}
 
 可以用 `<x-slot:footer-actions>` 或 `<x-slot name="footerActions">` 宣告帶屬性的插槽。透過 `$footerActions->attributes` 讀取屬性袋，可呼叫 `merge`、`class`、`style`、`only` 和 `except`。

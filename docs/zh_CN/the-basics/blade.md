@@ -146,6 +146,16 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 `:$title` 是 `:title="$title"` 的简写。`::` 前缀保留 `:class` 等客户端绑定。已注册视图命名空间的组件可用 `<x-demo::panel>` 访问。
 
+### 生成组件 {#generating-components}
+
+默认命令在 `app/view/components` 生成 Rust 组件，在 `resources/views/components` 生成模板。`--inline` 将模板写入 Rust 组件，`--view` 生成匿名组件。`--path` 可指定相对于 `resources/views` 的模板目录。将生成的 Rust 组件加入应用的模块树，并通过 `Factory::component` 注册。
+
+```shell
+./artisan make:component Forms/InputField
+./artisan make:component InlineNotice --inline
+./artisan make:component EmptyState --view
+```
+
 ### 插槽属性 {#slot-attributes}
 
 可以用 `<x-slot:footer-actions>` 或 `<x-slot name="footerActions">` 声明带属性的插槽。通过 `$footerActions->attributes` 读取属性包，可调用 `merge`、`class`、`style`、`only` 和 `except`。

@@ -14,7 +14,7 @@
 | The Once Directive、Raw PHP、Fonts | `@once` 及显式渲染树标识。 | `@php` 由调用方 Rust 代码替代。Fonts 仍待明确资产接线。 |
 | Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引、动态组件、命名空间与额外路径。 | PHP 类自动发现由 Rust 工厂替代。包发布接线继续独立验收。 |
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态、绑定与简写属性、双冒号客户端绑定、`@props` 默认值、属性包的 `merge`、`class`、`style`、`only`、`except`、前缀筛选与链式调用。 | 自定义筛选回调、保留名称和任意类型对象。依赖通过 Rust 工厂显式装配。 |
-| Slots、Inline Component Views | 默认、具名与绑定名插槽、插槽属性包、Rust 内联组件视图和 `Component::data` 提供的作用域插槽。 | 组件生成器与方法发现。组件方法输出通过 Rust `data` 提供。 |
+| Slots、Inline Component Views | 默认、具名与绑定名插槽、插槽属性包、Rust 内联组件视图、`Component::data` 提供的作用域插槽，以及默认、内联和匿名组件生成。 | Rust 模块声明和工厂注册由应用完成。组件方法输出通过 Rust `data` 提供。 |
 | Anonymous Components、Accessing Parent Data | 匿名组件、默认属性、`@aware`、额外路径和命名空间注册，扩展路径纳入视图预编译。 | Rust 在视图工厂上注册组件位置。 |
 | Building Layouts | 组件布局、具名与候选继承、显式布局数据、区段追加与覆盖、`@parent`、`@yield`。 | Rust 使用视图数据映射。 |
 | Forms | `@csrf`、`@error`、默认与具名错误包、`@method` 字段与 POST 路由方法覆盖，已用真实会话 CSRF 验证。 | Rust 请求同时暴露有效方法和原始方法。 |

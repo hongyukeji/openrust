@@ -113,10 +113,11 @@ pub(crate) enum Stub {
     Seeder,
     Test,
     UnitTest,
+    ViewComponent,
 }
 
 impl Stub {
-    pub(crate) const ALL: [Self; 28] = [
+    pub(crate) const ALL: [Self; 29] = [
         Self::Job,
         Self::QueuedJob,
         Self::BatchedQueuedJob,
@@ -145,6 +146,7 @@ impl Stub {
         Self::Seeder,
         Self::Test,
         Self::UnitTest,
+        Self::ViewComponent,
     ];
 
     pub(crate) fn file(self) -> (&'static str, &'static str) {
@@ -252,6 +254,10 @@ impl Stub {
             Self::UnitTest => (
                 "test.unit.rs.stub",
                 include_str!("../foundation/console/stubs/test.unit.rs.stub"),
+            ),
+            Self::ViewComponent => (
+                "view-component.rs.stub",
+                include_str!("../foundation/console/stubs/view-component.rs.stub"),
             ),
         }
     }

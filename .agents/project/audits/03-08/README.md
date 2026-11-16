@@ -106,3 +106,8 @@
 
 - 对照固定 [ComponentAttributeBag](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentAttributeBag.php)。组件和插槽的属性包按书写顺序求值，支持 `whereStartsWith`、`thatStartWith` 和 `whereDoesntStartWith`。筛选接受单个字符串或字符串列表。链内筛选只影响当前输出，最终属性由统一例程转义。旧版 MiniJinja 无对应的 Blade 属性包。
 - macOS ARM64、Rust 1.94.0。隔离副本 8 项定向测试通过，真实 HTTP 验证组件及具名插槽链式筛选、调用顺序、嵌套字符串里的箭头、属性转义及未知方法 500。工作区格式与严格 Clippy 通过，实际 Artisan 预编译并清理三个三语示例产物，三语构建与 12 项浏览器组合通过。
+
+## Artisan 组件生成
+
+- 对照固定 [ComponentMakeCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/ComponentMakeCommand.php)。`make:component` 默认生成 Rust 类型和 Blade 视图，支持嵌套名称、`--inline`、`--view`、`--path`、`--force` 以及可发布的 Rust 源码 stub。沿用源码生成器的应用锁和文件写入，第二个文件创建失败时恢复第一个文件。Rust 类型按应用模块树和 Factory 显式注册。旧版无同名生成器。
+- macOS ARM64、Rust 1.94.0。实际 Artisan 从三语正文运行生成命令，并验证自定义目录、路径检查、重复、回滚、强制重建，以及每个应用的 `view:cache` 和 `view:clear`。隔离 HTTP 探针编译实际生成的两种 Rust 类型，三次真实回环请求均渲染具名、内联与匿名组件。8 项共享工作区定向测试、隔离格式和严格 Clippy、三语构建和 12 项浏览器组合通过。

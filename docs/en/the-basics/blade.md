@@ -146,6 +146,16 @@ Store an anonymous component such as `notice` in `resources/views/components/not
 
 Use `:$title` as shorthand for `:title="$title"`. A `::` prefix preserves a client-side binding such as `:class`. Components under a registered view namespace use tags such as `<x-demo::panel>`.
 
+### Generating Components {#generating-components}
+
+The default command creates a Rust component under `app/view/components` and a template under `resources/views/components`. Use `--inline` to store the template in the Rust component or `--view` to generate an anonymous component. For templates, `--path` selects a directory relative to `resources/views`. Add a generated Rust component to your module tree and register it with `Factory::component`.
+
+```shell
+./artisan make:component Forms/InputField
+./artisan make:component InlineNotice --inline
+./artisan make:component EmptyState --view
+```
+
 ### Slot Attributes {#slot-attributes}
 
 Use `<x-slot:footer-actions>` or `<x-slot name="footerActions">` for a slot with attributes. Read an attribute bag through `$footerActions->attributes`. The bag supports `merge`, `class`, `style`, `only`, and `except`.

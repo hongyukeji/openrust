@@ -24,6 +24,7 @@ mod test_command;
 mod test_make_command;
 mod type_make_command;
 mod vendor_publish_command;
+mod view_component_make_command;
 pub use vendor_publish_command::VendorPublishCommand;
 
 use std::{ffi::OsString, io::Write as _, sync::Arc};
@@ -118,6 +119,7 @@ impl Kernel {
                             crate::notifications::console::register(&mut self.artisan)?;
                             crate::concurrency::register(&mut self.artisan)?;
                             crate::view::console::register(&mut self.artisan)?;
+                            view_component_make_command::register(&mut self.artisan)?;
                             crate::routing::console::route_list_command::register(
                                 &mut self.artisan,
                             )?;

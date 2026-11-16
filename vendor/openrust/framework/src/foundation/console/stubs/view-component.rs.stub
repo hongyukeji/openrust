@@ -1,0 +1,9 @@
+use openrust::view::{Component, ComponentOutput, ViewResult{{imports}}};
+
+pub struct {{type}};
+
+impl Component for {{type}} {
+    fn render(&self) -> ViewResult<ComponentOutput> {
+        Ok({{render}})
+    }
+}
