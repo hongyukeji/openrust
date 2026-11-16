@@ -160,6 +160,25 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` exposes the generation mode and expression. MySQL and SQLite support both modes when creating tables. SQLite’s native ALTER can add a virtual column. Add a stored column when creating a table, or use a migration that explicitly rebuilds the table.
 
+### Spatial Columns {#spatial-columns}
+
+Use `geometry` or `geography` to declare a spatial column. The optional subtype selects a MySQL type such as `point` or `multipolygon`. The default SRID is 0 for `geometry` and 4326 for `geography`. Pass `Some(0)` to omit the SRID restriction.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_places() -> DatabaseResult<()> {
+    Schema::create("places", |table| {
+        table.id();
+        table.geography("location", Some("point"), None).spatialIndex();
+        table.geometry("outline", Some("polygon"), Some(4326)).nullable();
+    })
+    .await
+}
+```
+
+MySQL enforces the declared subtype and any nonzero SRID. A non-null spatial column can declare an index with `spatialIndex()`. SQLite declares a `geometry` column and supports storing binary values. Spatial functions and spatial indexes require a spatial-capable database.
+
 ### MySQL Column Modifiers
 
 Use `invisible()` to omit a column from `SELECT *` while keeping it available by name. `useCurrentOnUpdate()` updates a timestamp or datetime when another value in the row changes. Add `useCurrent()` if the insert default should also use the current time. Use `first()` or `after("column")` when adding or changing columns on an existing MySQL table. On table creation, declare columns in the desired order.

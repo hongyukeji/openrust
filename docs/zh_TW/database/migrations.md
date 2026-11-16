@@ -160,6 +160,25 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` 傳回生成模式和運算式。MySQL 和 SQLite 建立資料表時都支援這兩種模式。SQLite 原生 ALTER 可新增虛擬欄位。儲存型生成欄位可在建立資料表時定義，也可透過明確重建資料表的遷移新增。
 
+### 空間欄位 {#spatial-columns}
+
+用 `geometry` 或 `geography` 宣告空間欄位。選用的子型別對應 MySQL 的 `point`、`multipolygon` 等型別。`geometry` 的預設 SRID 為 0，`geography` 為 4326。傳入 `Some(0)` 時省略 SRID 限制。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_places() -> DatabaseResult<()> {
+    Schema::create("places", |table| {
+        table.id();
+        table.geography("location", Some("point"), None).spatialIndex();
+        table.geometry("outline", Some("polygon"), Some(4326)).nullable();
+    })
+    .await
+}
+```
+
+MySQL 驗證宣告的子型別和非零 SRID。對於不可為 NULL 的空間欄位，可用 `spatialIndex()` 宣告索引。SQLite 宣告 `geometry` 型別並支援存入二進位值，空間函式和空間索引需要具備空間能力的資料庫。
+
 ### MySQL 欄位修飾詞
 
 用 `invisible()` 讓 `SELECT *` 省略該欄位，仍可按名稱讀取。資料列中的其他值變更時，`useCurrentOnUpdate()` 會更新 timestamp 或 datetime 欄位。如果插入時也要預設使用目前時間，請同時呼叫 `useCurrent()`。在現有 MySQL 資料表中新增或修改欄位時，用 `first()` 或 `after("column")` 指定位置。建立資料表時依所需順序宣告欄位。

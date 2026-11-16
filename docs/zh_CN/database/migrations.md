@@ -160,6 +160,25 @@ async fn create_invoice_lines() -> DatabaseResult<()> {
 
 `getColumns()` 返回生成模式和表达式。MySQL 和 SQLite 建表时都支持这两种模式。SQLite 原生 ALTER 可追加虚拟列。存储型生成列可在建表时定义，也可通过显式重建表的迁移添加。
 
+### 空间列 {#spatial-columns}
+
+用 `geometry` 或 `geography` 声明空间列。可选子类型对应 MySQL 的 `point`、`multipolygon` 等类型。`geometry` 的默认 SRID 为 0，`geography` 为 4326。传入 `Some(0)` 时省略 SRID 限制。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn create_places() -> DatabaseResult<()> {
+    Schema::create("places", |table| {
+        table.id();
+        table.geography("location", Some("point"), None).spatialIndex();
+        table.geometry("outline", Some("polygon"), Some(4326)).nullable();
+    })
+    .await
+}
+```
+
+MySQL 校验声明的子类型和非零 SRID。非空空间列可以通过 `spatialIndex()` 声明索引。SQLite 声明 `geometry` 类型并支持存入二进制值，空间函数和空间索引需要具备空间能力的数据库。
+
 ### MySQL 列修饰符
 
 用 `invisible()` 让 `SELECT *` 省略该列，仍可按名称读取。行中的其他值发生变更时，`useCurrentOnUpdate()` 会更新 timestamp 或 datetime 列。如果插入时也要默认使用当前时间，请同时调用 `useCurrent()`。在已有 MySQL 表中添加或修改列时，用 `first()` 或 `after("column")` 指定位置。建表时按所需顺序声明列。

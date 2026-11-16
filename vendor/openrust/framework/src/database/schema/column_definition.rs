@@ -25,6 +25,7 @@ pub(super) enum ColumnType {
     IpAddress,
     MacAddress,
     Year,
+    Spatial(&'static str, u32),
     Date,
     DateTime(u8),
     Timestamp(u8),
@@ -61,6 +62,7 @@ pub struct ColumnDefinition {
     pub(super) primary: bool,
     pub(super) unique: bool,
     pub(super) indexed: bool,
+    pub(super) spatial_indexed: bool,
     pub(super) default: Option<DefaultValue>,
     pub(super) generated: Option<GeneratedColumn>,
     pub(super) change: bool,
@@ -82,6 +84,7 @@ impl ColumnDefinition {
             primary: false,
             unique: false,
             indexed: false,
+            spatial_indexed: false,
             default: None,
             generated: None,
             change: false,
@@ -120,6 +123,11 @@ impl ColumnDefinition {
 
     pub fn index(&mut self) -> &mut Self {
         self.indexed = true;
+        self
+    }
+
+    pub fn spatialIndex(&mut self) -> &mut Self {
+        self.spatial_indexed = true;
         self
     }
 

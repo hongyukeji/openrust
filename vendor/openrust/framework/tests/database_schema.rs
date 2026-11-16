@@ -1269,3 +1269,203 @@ async fn mysql_generated_columns_compute_and_update_real_rows() {
     };
     verify_generated_columns(connection(json!({"url":url})), true).await;
 }
+
+#[tokio::test]
+async fn mysql_spatial_columns_enforce_subtype_srid_and_index() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut schema = db.getSchemaBuilder();
+    schema.dropIfExists("spatial_sites").await.unwrap();
+    schema
+        .create("spatial_sites", |table| {
+            table.id();
+            table
+                .geography("wgs_point", Some("POINT"), None)
+                .spatialIndex();
+            table.geometry("cartesian", None, None).nullable();
+            table
+                .geography("no_srid", Some("unrecognized"), Some(0))
+                .nullable();
+            table
+                .geometry("projected", Some("point"), Some(3857))
+                .nullable();
+            for subtype in [
+                "linestring",
+                "polygon",
+                "geometrycollection",
+                "multipoint",
+                "multilinestring",
+                "multipolygon",
+            ] {
+                table
+                    .geometry(&format!("shape_{subtype}"), Some(subtype), None)
+                    .nullable();
+            }
+        })
+        .await
+        .unwrap_or_else(|error| match error {
+            DatabaseError::Driver { source, .. } => panic!("spatial DDL failed: {source}"),
+            _ => panic!("spatial DDL failed: {error}"),
+        });
+    let columns = schema.getColumns("spatial_sites").await.unwrap();
+    let kind = |name: &str| {
+        columns
+            .iter()
+            .find(|column| column.name == name)
+            .unwrap()
+            .type_name
+            .as_str()
+    };
+    assert_eq!(kind("wgs_point"), "point");
+    assert_eq!(kind("cartesian"), "geometry");
+    assert_eq!(kind("no_srid"), "geometry");
+    assert_eq!(kind("projected"), "point");
+    for subtype in [
+        "linestring",
+        "polygon",
+        "geometrycollection",
+        "multipoint",
+        "multilinestring",
+        "multipolygon",
+    ] {
+        let catalog = if subtype == "geometrycollection" {
+            "geomcollection"
+        } else {
+            subtype
+        };
+        assert_eq!(kind(&format!("shape_{subtype}")), catalog);
+    }
+    let declared_srid = "select cast(srs_id as signed) from information_schema.columns where table_schema = database() and table_name = 'spatial_sites' and column_name = ?";
+    assert_eq!(
+        db.scalar(declared_srid, &["wgs_point".into()])
+            .await
+            .unwrap(),
+        4326.into()
+    );
+    assert_eq!(
+        db.scalar(declared_srid, &["projected".into()])
+            .await
+            .unwrap(),
+        3857.into()
+    );
+    assert_eq!(
+        db.scalar(declared_srid, &["no_srid".into()]).await.unwrap(),
+        Value::Null
+    );
+    let index = schema
+        .getIndexes("spatial_sites")
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|index| index.name == "spatial_sites_wgs_point_spatialindex")
+        .unwrap();
+    assert_eq!(index.columns, [Some("wgs_point".into())]);
+    assert!(matches!(
+        index.index_type.as_deref(),
+        Some("spatial" | "rtree")
+    ));
+
+    db.insert("insert into spatial_sites (wgs_point, cartesian) values (st_geomfromtext(?, 4326), st_geomfromtext(?))", &["POINT(20 30)".into(), "POINT(1 2)".into()]).await.unwrap();
+    assert_eq!(
+        db.scalar("select st_astext(wgs_point) from spatial_sites", &[])
+            .await
+            .unwrap(),
+        "POINT(20 30)".into()
+    );
+    assert!(
+        db.insert(
+            "insert into spatial_sites (wgs_point) values (st_geomfromtext(?, 0))",
+            &["POINT(20 30)".into()]
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        db.insert(
+            "insert into spatial_sites (wgs_point) values (st_geomfromtext(?, 4326))",
+            &["LINESTRING(0 0, 1 1)".into()]
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        matches!(db.table("spatial_sites").value("wgs_point").await.unwrap(), Value::Bytes(data) if !data.is_empty())
+    );
+
+    schema
+        .table("spatial_sites", |table| {
+            table.dropSpatialIndex("spatial_sites_wgs_point_spatialindex");
+            table
+                .geometry("extra_shapes", Some("multipoint"), None)
+                .nullable();
+        })
+        .await
+        .unwrap();
+    assert!(
+        !schema
+            .hasIndex("spatial_sites", "spatial_sites_wgs_point_spatialindex")
+            .await
+            .unwrap()
+    );
+    assert_eq!(
+        schema
+            .getColumnType("spatial_sites", "extra_shapes", false)
+            .await
+            .unwrap(),
+        "multipoint"
+    );
+    schema.drop("spatial_sites").await.unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_spatial_columns_use_geometry_without_a_spatial_index() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("spatial_sites", |table| {
+            table.geometry("shape", Some("point"), Some(3857));
+            table
+                .geography("location", Some("polygon"), None)
+                .nullable();
+        })
+        .await
+        .unwrap();
+    let columns = schema.getColumns("spatial_sites").await.unwrap();
+    assert!(columns.iter().all(|column| column.type_name == "geometry"));
+    let data = Value::Bytes(vec![1, 2, 3]);
+    db.insert(
+        "insert into spatial_sites (shape) values (?)",
+        std::slice::from_ref(&data),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table("spatial_sites").value("shape").await.unwrap(),
+        data
+    );
+
+    assert!(matches!(
+        schema
+            .create("spatial_index_unsupported", |table| {
+                table.geometry("shape", None, None).spatialIndex();
+            })
+            .await,
+        Err(DatabaseError::UnsupportedSchema("SQLite index kind"))
+    ));
+    assert!(!schema.hasTable("spatial_index_unsupported").await.unwrap());
+    assert!(matches!(
+        schema
+            .table("spatial_sites", |table| {
+                table.geometry("shape", None, None).spatialIndex().change();
+            })
+            .await,
+        Err(DatabaseError::UnsupportedSchema("SQLite index kind"))
+    ));
+    assert_eq!(
+        db.table("spatial_sites").value("shape").await.unwrap(),
+        data
+    );
+}

@@ -4,7 +4,7 @@
 
 - 接通应用内 Schema Facade、具名连接及事务 Schema Builder。回调定义表、列、索引和外键，语法编译器负责表前缀、标识符和驱动差异。目录读取走写库，返回结构化表、列、索引与外键。Rust 显式传入字符串长度、精度等参数，使用 `constrainedOn` 表达 PHP 的可选目标参数。
 - 支持创建、重命名和删除表，新增、修改、重命名和删除列，创建、改名和删除索引，以及创建和删除表级外键。MySQL 通过原生 DDL 执行。SQLite 原生 DDL 可在已有事务中运行。需要重建时在独占写会话中暂停外键检查，使用事务复制数据并恢复索引、触发器和序列，提交前检查外键，最后恢复会话设置。调用方取消等待后，由拥有连接的任务完成收尾。SQLite 失败时回滚整次变更。
-- 剩余范围包括空间列等剩余类型与修饰符、池化临时表、额外数据库方言，以及 SQLite 已有内联约束列的变更。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite 目录无法读取外键名称，按列可移除表级外键。
+- 剩余范围包括剩余类型与修饰符、池化临时表、额外数据库方言，以及 SQLite 已有内联约束列的变更。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite 目录无法读取外键名称，按列可移除表级外键。
 
 ## 验收
 
@@ -44,3 +44,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - SQLx 0.9 的 SQLite 执行缓存可能在 DDL 后沿用旧列元数据并使工作线程崩溃。本批 SQLite 读取和游标执行采用非持久化语句，保留已有绑定校验及写入缓存。此修复未进行独立吞吐基准。
 - Rust 1.94.0，真实 MySQL 8.4.13 与 SQLite 共 71 项定向回归。覆盖计算值更新、JSON 对象键和数组、目录元数据、SQLite 原生添加虚拟列、相同查询与游标在 DDL 前后读取、索引保留及重建中的生成模式转换。严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
 - 两种驱动通过实际 Artisan 运行三语共用示例。原生 `main artisan inspire`、VitePress 构建、12 项站点浏览器组合与 6 项生成列小节检查通过。
+
+## 空间列
+
+对照固定 Laravel [Blueprint](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php)、[MySQL Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/MySqlGrammar.php#L1159) 及 [SQLite Grammar](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L1058)。旧版未找到框架空间列实现，沿用当前标识符、索引和二进制值处理。
+
+- `geometry` 默认 SRID 0，`geography` 默认 4326。MySQL 使用受支持的原生子类型，未知类型退回 GEOMETRY，非零 SRID 编入 DDL。两个可选参数以 `Option` 表达。
+- 列级 `spatialIndex()` 沿用现有的空间索引命名。SQLite 声明 GEOMETRY 并接受 BLOB，声明空间索引返回不支持，创建或变更失败时保留表原状态。
+- Rust 1.94.0、MySQL 8.4.13 和 SQLite。验证原生子类型、默认及自定义 SRID、错误 SRID 和子类型拒绝、空间索引创建与删除、几何二进制返回、SQLite 的 BLOB 和索引边界。73 项定向回归、严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
+- 实际 Artisan 运行三语共用示例，MySQL 建表与写入通过，SQLite 返回预期方言错误。原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合及 6 项空间列小节检查通过。

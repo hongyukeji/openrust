@@ -159,6 +159,7 @@ async fn rebuild_table(
                 for (enabled, kind) in [
                     (column.unique, IndexType::Unique),
                     (column.indexed, IndexType::Index),
+                    (column.spatial_indexed, IndexType::Spatial),
                 ] {
                     if enabled {
                         new_indexes.push(Command::Index(

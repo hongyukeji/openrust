@@ -257,6 +257,7 @@ impl Grammar {
         for (enabled, kind) in [
             (column.unique, IndexType::Unique),
             (column.indexed, IndexType::Index),
+            (column.spatial_indexed, IndexType::Spatial),
         ] {
             if enabled {
                 indexes.push(
@@ -586,6 +587,14 @@ impl Grammar {
             ColumnType::IpAddress if mysql => "varchar(45)",
             ColumnType::MacAddress if mysql => "varchar(17)",
             ColumnType::IpAddress | ColumnType::MacAddress => "varchar",
+            ColumnType::Spatial(subtype, srid) if mysql => {
+                return Ok(if *srid == 0 {
+                    (*subtype).into()
+                } else {
+                    format!("{subtype} srid {srid}")
+                });
+            }
+            ColumnType::Spatial(_, _) => "geometry",
             ColumnType::Year if mysql => "year",
             ColumnType::Year => "integer",
             ColumnType::Json if mysql => "json",

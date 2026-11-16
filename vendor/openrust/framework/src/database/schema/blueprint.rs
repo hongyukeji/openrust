@@ -123,6 +123,36 @@ impl Blueprint {
         self.column(name, ColumnType::SizedBinary(length, fixed))
     }
 
+    /// Adds a spatial geometry column. The default SRID is zero.
+    pub fn geometry(
+        &mut self,
+        name: &str,
+        subtype: Option<&str>,
+        srid: Option<u32>,
+    ) -> &mut ColumnDefinition {
+        let subtype = match subtype.map(str::to_ascii_lowercase).as_deref() {
+            Some("point") => "point",
+            Some("linestring") => "linestring",
+            Some("polygon") => "polygon",
+            Some("geometrycollection") => "geometrycollection",
+            Some("multipoint") => "multipoint",
+            Some("multilinestring") => "multilinestring",
+            Some("multipolygon") => "multipolygon",
+            _ => "geometry",
+        };
+        self.column(name, ColumnType::Spatial(subtype, srid.unwrap_or_default()))
+    }
+
+    /// Adds a spatial geography column. The default SRID is 4326.
+    pub fn geography(
+        &mut self,
+        name: &str,
+        subtype: Option<&str>,
+        srid: Option<u32>,
+    ) -> &mut ColumnDefinition {
+        self.geometry(name, subtype, Some(srid.unwrap_or(4326)))
+    }
+
     pub fn uuid(&mut self, name: &str) -> &mut ColumnDefinition {
         self.char(name, 36)
     }
