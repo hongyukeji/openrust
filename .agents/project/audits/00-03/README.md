@@ -1,5 +1,7 @@
 # 00-03 Artisan 基线与发布目录
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/00-03/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 按本单元条件验收通过。代码基线为 `197e7a0e`，依赖 00-01 和 00-02 候选。未暂存、提交或推送。
 
 ## 对照与实现
@@ -20,10 +22,11 @@ PHP 的独立 HTTP 和 Artisan 入口在 Rust 中共享 main 二进制；源码�
 
 ## 文件范围与复现
 
-[本批 8 文件 tree](changed-tree.txt)包含 2 个回归入口与三语的 artisan/deployment 共 6 页。加上前序必要运行配套，共 [415 个候选文件](commit-tree.txt)。[清单](commit-files.txt)、[校验值](candidate-sha256.json)和[排除补丁](scope-exclusions.patch)保留可复现边界，工作区其他 WIP 未被移除。候选的 Artisan 页面排除了可选路由安装器段落，当前工作区保留该段。
+本批 8 文件 tree（`changed-tree.txt`）包含 2 个回归入口与三语的 artisan/deployment 共 6 页。加上前序必要运行配套，共 415 个候选文件（`commit-tree.txt`）。清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）和[排除补丁](scope-exclusions.patch)保留可复现边界，工作区其他 WIP 未被移除。候选的 Artisan 页面排除了可选路由安装器段落，当前工作区保留该段。
 
 ```sh
-python3 .agents/project/audits/00-03/prepare_candidate.py /tmp/openrust-00-03-review
+git worktree add --detach /tmp/openrust-00-03-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-00-03-evidence/.agents/project/audits/00-03/prepare_candidate.py /tmp/openrust-00-03-review
 cd /tmp/openrust-00-03-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -36,14 +39,14 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 在根目录运行真实进程验收：
 
 ```sh
-python3 .agents/project/audits/00-03/verify_runtime.py /tmp/openrust-00-03-review
+python3 /tmp/openrust-00-03-evidence/.agents/project/audits/00-03/verify_runtime.py /tmp/openrust-00-03-review
 ```
 
-[40 次进程结果](runtime-results.json)全部满足预期状态，覆盖源码版、异地发布版、无命令等同 list、两种 help、inspire 普通/ANSI、文本/JSON/XML/Markdown 列表、未知命令、非法选项和参数、Planned 拒绝、错误模式先于应用创建、源码脚本与 Cargo 入口。HTTP 端口无效时仍可执行 Artisan。发布二进制位于包含空格的目录，从外部工作目录启动。
+40 次进程结果（`runtime-results.json`）全部满足预期状态，覆盖源码版、异地发布版、无命令等同 list、两种 help、inspire 普通/ANSI、文本/JSON/XML/Markdown 列表、未知命令、非法选项和参数、Planned 拒绝、错误模式先于应用创建、源码脚本与 Cargo 入口。HTTP 端口无效时仍可执行 Artisan。发布二进制位于包含空格的目录，从外部工作目录启动。
 
 三语文档构建与根路径、/docs/、三语桌面及移动的 12 项浏览器检查通过。HTTP 与磁盘的真实请求沿用前序 00-02 的 58 项验收，本批没有修改运行框架。
 
-目录清单复核补充：另有 [1 个必要删除路径](deleted-files.txt)，即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件内容及 SHA-256 未变，删除后重新构造核对通过。
+目录清单复核补充：另有 1 个必要删除路径（`deleted-files.txt`），即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件内容及 SHA-256 未变，删除后重新构造核对通过。
 
 ## 本地提交
 

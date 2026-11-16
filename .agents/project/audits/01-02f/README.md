@@ -1,5 +1,7 @@
 # 01-02 第六部分：重绑定、refresh 与配置一致性
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02f/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成重绑定通知、refresh、必要登记错误传播和当前配置读取的本批验收，关闭 CT-CONFIG-REBIND。01-02 仍需延迟 Provider；构造覆盖、属性投影及完整流式/终止作用域依后续单元推进，不标记整个容器或框架完成。
 
 ## 固定基线与旧版复用
@@ -30,7 +32,7 @@
 
 ## 实际验收
 
-macOS ARM64、Rust 1.94.0。工作区 140 项常规测试及 8 项子进程；排除其他模块 WIP 后，隔离副本 121 项常规测试及 8 项子进程通过。fmt、严格 Clippy、locked/offline standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 140 项常规测试及 8 项子进程；排除其他模块 WIP 后，隔离副本 121 项常规测试及 8 项子进程通过。fmt、严格 Clippy、locked/offline standalone release 通过。Rust 结果（`rust-results.json`）。
 
 新增 15 项重绑定单元回归，覆盖登记返回/触发时机、顺序、别名、refresh、错误/panic、类型不符、并发值与配方快照、作用域、别名循环修复及装饰链通知。tests/rebinding_lifecycle.rs 的 4 项入口回归验证：
 
@@ -38,16 +40,17 @@ macOS ARM64、Rust 1.94.0。工作区 140 项常规测试及 8 项子进程；�
 - 5 次 Artisan Kernel 调用：配置替换、错误退出 1、恢复，以及 swap 监听器失败后的门面/容器提交顺序。
 - 配置在 create 后未绑定；规范 typed 别名正确；先绑定新空仓储再加载，同一被观察 Arc 后续填入配置；回调失败阻止加载器执行并阻止重复 boot。
 
-runApplication 子进程新增 rebind:probe，输出必须为监听器收到的新值 2。[58 次 HTTP + 6 次 Artisan](http-results.json)、[40 次进程](command-results.json)回归通过。[21 个三语 Rust 示例](example-results.json)直接提取编译执行通过；三语站点构建及根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。
+runApplication 子进程新增 rebind:probe，输出必须为监听器收到的新值 2。58 次 HTTP + 6 次 Artisan（`http-results.json`）、40 次进程（`command-results.json`）回归通过。21 个三语 Rust 示例（`example-results.json`）直接提取编译执行通过；三语站点构建及根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。
 
 ## 最小范围与复现
 
-[38 文件 tree](changed-tree.txt)：16 个框架文件、16 个测试文件、6 个三语页面。[SHA-256](candidate-sha256.json)。大量测试改动仅为显式处理新 Result。根应用 config/、main.rs、bootstrap/、artisan 和依赖清单均不改。
+38 文件 tree（`changed-tree.txt`）：16 个框架文件、16 个测试文件、6 个三语页面。SHA-256（`candidate-sha256.json`）。大量测试改动仅为显式处理新 Result。根应用 config/、main.rs、bootstrap/、artisan 和依赖清单均不改。
 
-共享的 Application、BootstrapError、Routing、HTTP Server、RoutingError、Facade 与 startup 测试共 7 文件，只纳入本批必要差异；[范围说明](scope-notes.json)记录排除项。现有 gRPC/广播/安装器 WIP 保留，未混入候选。工作区广播控制器的一行错误传播及既有 gRPC 分支的配置返回适配保留在其 WIP 内，未引入新模块作为依赖。
+共享的 Application、BootstrapError、Routing、HTTP Server、RoutingError、Facade 与 startup 测试共 7 文件，只纳入本批必要差异；范围说明（`scope-notes.json`）记录排除项。现有 gRPC/广播/安装器 WIP 保留，未混入候选。工作区广播控制器的一行错误传播及既有 gRPC 分支的配置返回适配保留在其 WIP 内，未引入新模块作为依赖。
 
 ```sh
-python3 .agents/project/audits/01-02f/prepare_candidate.py /tmp/openrust-01-02f-review
+git worktree add --detach /tmp/openrust-01-02f-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02f-evidence/.agents/project/audits/01-02f/prepare_candidate.py /tmp/openrust-01-02f-review
 cd /tmp/openrust-01-02f-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -55,7 +58,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-在工作区运行本目录 verify_http.py、verify_commands.py、verify_examples.py，参数为该副本。构造器只读取 git-commit.txt 对应不可变提交并校验，不复制工作区 WIP。阶段结束清理独占 target，保留候选源码及 .artifacts/release。
+使用历史检出目录内的 `verify_http.py`、`verify_commands.py`、`verify_examples.py`，参数为该副本。构造器只读取 `git-commit.txt` 对应不可变提交并校验，不复制工作区 WIP。阶段结束清理独占 target，保留候选源码及 .artifacts/release。
 
 ## 尚未完成
 

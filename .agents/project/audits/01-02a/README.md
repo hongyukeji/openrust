@@ -1,5 +1,7 @@
 # 01-02 第一部分：条件绑定与实例状态
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02a/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本部分实现与验收。01-02 整体仍在推进，作用域、上下文、扩展/解析回调及延迟 Provider 尚未关闭。本部分不代表整个容器单元或页面全部完成。
 
 ## 对照与复用
@@ -20,16 +22,17 @@
 
 macOS ARM64，Rust 1.94.0。工作区 57 项常规测试及 3 项 CLI 子进程检查通过；隔离副本 38 项常规测试及 3 项子进程通过。两者 fmt 与严格 Clippy 通过，隔离 locked/offline standalone release 构建通过。
 
-framework/tests/unit/container.rs 现共 13 项回归，本部分新增 5 项，覆盖工厂恢复、别名原键、实例状态、8 线程条件登记竞争，以及拒绝工厂析构重入。Provider 的真实 HTTP/Artisan 回归改用条件绑定并核对 resolved/isShared；包含两应用 5 次真实 TCP 请求及真实进程入口。另有 [58 次 HTTP 和 6 次命令](http-results.json)、[40 次进程](command-results.json)通过预期结果。
+framework/tests/unit/container.rs 现共 13 项回归，本部分新增 5 项，覆盖工厂恢复、别名原键、实例状态、8 线程条件登记竞争，以及拒绝工厂析构重入。Provider 的真实 HTTP/Artisan 回归改用条件绑定并核对 resolved/isShared；包含两应用 5 次真实 TCP 请求及真实进程入口。另有 58 次 HTTP 和 6 次命令（`http-results.json`）、40 次进程（`command-results.json`）通过预期结果。
 
-三语 container 正文同步。[6 个 Rust 示例](example-results.json)直接从三语页面提取、编译并执行通过。三语站点构建与根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。
+三语 container 正文同步。6 个 Rust 示例（`example-results.json`）直接从三语页面提取、编译并执行通过。三语站点构建与根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。
 
 ## 范围与复现
 
-[8 个变更文件 tree](changed-tree.txt)，[SHA-256](candidate-sha256.json)。以已提交的 01-01 配套为基础，无需再次夹带其他模块 WIP。git-commit.txt 保存本部分代码提交，构造工具优先从不可变提交恢复，源工作区后续变化不影响已提交阶段的重现。
+8 个变更文件 tree（`changed-tree.txt`），SHA-256（`candidate-sha256.json`）。以已提交的 01-01 配套为基础，无需再次夹带其他模块 WIP。`git-commit.txt` 保存本部分代码提交，构造工具优先从不可变提交恢复，源工作区后续变化不影响已提交阶段的重现。
 
 ```sh
-python3 .agents/project/audits/01-02a/prepare_candidate.py /tmp/openrust-01-02a-review
+git worktree add --detach /tmp/openrust-01-02a-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02a-evidence/.agents/project/audits/01-02a/prepare_candidate.py /tmp/openrust-01-02a-review
 cd /tmp/openrust-01-02a-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -40,12 +43,12 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 在项目根目录执行：
 
 ```sh
-python3 .agents/project/audits/01-02a/verify_examples.py /tmp/openrust-01-02a-review
-python3 .agents/project/audits/01-02a/verify_http.py /tmp/openrust-01-02a-review
-python3 .agents/project/audits/01-02a/verify_commands.py /tmp/openrust-01-02a-review
+python3 /tmp/openrust-01-02a-evidence/.agents/project/audits/01-02a/verify_examples.py /tmp/openrust-01-02a-review
+python3 /tmp/openrust-01-02a-evidence/.agents/project/audits/01-02a/verify_http.py /tmp/openrust-01-02a-review
+python3 /tmp/openrust-01-02a-evidence/.agents/project/audits/01-02a/verify_commands.py /tmp/openrust-01-02a-review
 ```
 
-验收记录保存后，清理本部分独占 target，保留候选源码及 .artifacts/release。范围与清理后空间见 cleanup-results.json。根工作区历史共享缓存和下载缓存保留。下一步仍为 01-02 的 scoped 生命周期与其余待办，不进入 01-03。
+验收记录保存后，清理本部分独占 target，保留候选源码及 .artifacts/release。范围与清理后空间见 `cleanup-results.json`。根工作区历史共享缓存和下载缓存保留。下一步仍为 01-02 的 scoped 生命周期与其余待办，不进入 01-03。
 
 ## 本地提交与清理
 

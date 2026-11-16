@@ -1,5 +1,7 @@
 # 01-01 容器、Provider 与 Facade 基础
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-01/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 本单元指定的基础绑定、接口解析、别名、Provider 顺序、应用隔离及循环依赖验收通过。Git 基线 `197e7a0e`，承接 00-03 累计候选。未暂存、提交或推送。
 
 ## 固定对照与旧版复用
@@ -41,18 +43,19 @@ Goravel framework `a554ced468cada50a269780692a0491e5f9e3a11:contracts/foundation
 | 两应用 HTTP、门面缓存及清除/替换 | 同上，5 次真实 TCP 请求，包含并发交错及清理时析构重入 |
 | Artisan 作用域与生命周期隔离 | 同上，两个 Kernel 和重复命令作用域 |
 | 真实 Artisan 进程入口 | tests/container_process.rs，实际 runApplication 及 Provider，成功/未知命令/错误模式共 3 个子进程 |
-| 三语文档 Rust 示例 | verify_examples.py 直接提取 6 个代码块，Rust 1.94 编译并运行通过 |
+| 三语文档 Rust 示例 | `verify_examples.py` 直接提取 6 个代码块，Rust 1.94 编译并运行通过 |
 
 ## 验收与文件范围
 
 macOS ARM64、Rust 1.94.0。工作区 52 项常规测试和 3 项子进程检查通过；隔离候选 33 项常规测试和相同 3 项子进程检查通过。两者格式及严格 Clippy 通过。隔离 locked/offline standalone release 通过。
 
-在新候选上重新运行前序真实请求脚本，[58 次 HTTP 与 6 次命令结果](http-results.json)及 [40 次进程结果](command-results.json)通过。三语站点构建及根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。验收结果只关闭本批正文段落。
+在新候选上重新运行前序真实请求脚本，58 次 HTTP 与 6 次命令结果（`http-results.json`）及 40 次进程结果（`command-results.json`）通过。三语站点构建及根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。验收结果只关闭本批正文段落。
 
-[增量 26 文件 tree](changed-tree.txt)；[累计 428 个候选路径](commit-tree.txt)，另有 [1 个前序必要删除路径](deleted-files.txt)。[SHA-256](candidate-sha256.json)和[排除补丁](scope-exclusions.patch)保留工作区其他模块 WIP。独立重新构造，428 个选定文件校验一致。项目规范、计划、进度及本目录的审计记录作为项目管理文件单独审阅，不计入运行配套数。
+增量 26 文件 tree（`changed-tree.txt`）；累计 428 个候选路径（`commit-tree.txt`），另有 1 个前序必要删除路径（`deleted-files.txt`）。SHA-256（`candidate-sha256.json`）和[排除补丁](scope-exclusions.patch)保留工作区其他模块 WIP。独立重新构造，428 个选定文件校验一致。项目规范、计划、进度及本目录的审计记录作为项目管理文件单独审阅，不计入运行配套数。
 
 ```sh
-python3 .agents/project/audits/01-01/prepare_candidate.py /tmp/openrust-01-01-review
+git worktree add --detach /tmp/openrust-01-01-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-01-evidence/.agents/project/audits/01-01/prepare_candidate.py /tmp/openrust-01-01-review
 cd /tmp/openrust-01-01-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -63,7 +66,7 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 在项目根目录验证文档示例：
 
 ```sh
-python3 .agents/project/audits/01-01/verify_examples.py /tmp/openrust-01-01-review
+python3 /tmp/openrust-01-01-evidence/.agents/project/audits/01-01/verify_examples.py /tmp/openrust-01-01-review
 ```
 
 ## 未关闭的依赖
@@ -74,7 +77,7 @@ python3 .agents/project/audits/01-01/verify_examples.py /tmp/openrust-01-01-revi
 
 用户新增额度剩余 ≤25% 或磁盘可用 ≤50 GB 时收尾停工。本批检查额度剩余 99%、磁盘可用约 63.59 GB，未触发。每个新单元、大型构建前及持续开发过程中复查，无法读取额度时不假设充足。
 
-完成验收记录后清理本阶段独占且无运行任务使用的 target 和隔离构建缓存，保留候选源码与 `.artifacts/release/` 的必要二进制及欢迎页。目录和清理后空间见 cleanup-results.json。共享下载缓存不清理；根工作区 target 为共享历史缓存，不能准确区分归属，先保留。恢复时按上面的构建命令重新生成编译产物。
+完成验收记录后清理本阶段独占且无运行任务使用的 target 和隔离构建缓存，保留候选源码与 `.artifacts/release/` 的必要二进制及欢迎页。目录和清理后空间见 `cleanup-results.json`。共享下载缓存不清理；根工作区 target 为共享历史缓存，不能准确区分归属，先保留。恢复时按上面的构建命令重新生成编译产物。
 
 ## 本地提交
 

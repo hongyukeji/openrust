@@ -1,5 +1,7 @@
 # 00-01 启动骨架和配置验收
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/00-01/` 下查阅。复现命令使用独立的历史检出。
+
 2026 年 11 月 11 日完成实现核对与隔离验收，等待用户审阅提交范围。基线为 `197e7a0e`。
 
 ## 本批内容
@@ -14,18 +16,19 @@
 
 ## 文件范围和复现
 
-[逐文件 tree](commit-tree.txt)共 400 个候选路径。运行配套为 377 个路径，回归为 4 个路径，正文及根 README 为 19 个路径。与基线相比共新增 380 个文件、修改 20 个文件。已提交的 `main.rs`、路由、Artisan 脚本、环境模板及其他基线文件由 `git archive` 保留。
+逐文件 tree（`commit-tree.txt`）共 400 个候选路径。运行配套为 377 个路径，回归为 4 个路径，正文及根 README 为 19 个路径。与基线相比共新增 380 个文件、修改 20 个文件。已提交的 `main.rs`、路由、Artisan 脚本、环境模板及其他基线文件由 `git archive` 保留。
 
-- [runtime-files.txt](runtime-files.txt)记录运行配套。
-- [test-files.txt](test-files.txt)记录回归文件。
-- [doc-files.txt](doc-files.txt)记录正文文件，其中四个主题为本批直接交付，Provider 与异常页面提供已有链接和启动行为说明。
+- `runtime-files.txt`记录运行配套。
+- `test-files.txt`记录回归文件。
+- `doc-files.txt`记录正文文件，其中四个主题为本批直接交付，Provider 与异常页面提供已有链接和启动行为说明。
 - [scope-exclusions.patch](scope-exclusions.patch)记录从当前工作区到候选的差异，覆盖 27 个共享文件。候选排除了 gRPC、广播、限流、分页、集合、模板引擎骨架和可选路由安装器等接线，工作区保留原内容。
-- [candidate-sha256.json](candidate-sha256.json)记录候选的文件校验值。构造工具会检查校验值，源文件变更后需要重新核对候选。
+- `candidate-sha256.json`记录候选的文件校验值。构造工具会检查校验值，源文件变更后需要重新核对候选。
 
 在仓库根目录执行以下命令，目标目录须尚不存在。
 
 ```sh
-python3 .agents/project/audits/00-01/prepare_candidate.py /tmp/openrust-00-01-review
+git worktree add --detach /tmp/openrust-00-01-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-00-01-evidence/.agents/project/audits/00-01/prepare_candidate.py /tmp/openrust-00-01-review
 cd /tmp/openrust-00-01-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -35,10 +38,10 @@ cargo +1.94.0 build --release --locked --offline --features standalone
 
 离线构建要求本机已下载锁定依赖。构造工具从固定基线提取已提交文件，再应用经审阅的工作区候选。它不会暂存或提交文件。
 
-回到仓库根目录运行实际进程验收，结果写入 [runtime-results.json](runtime-results.json)。
+运行历史检出中的实际进程验收，结果写入 `runtime-results.json`。
 
 ```sh
-python3 .agents/project/audits/00-01/verify_runtime.py /tmp/openrust-00-01-review
+python3 /tmp/openrust-00-01-evidence/.agents/project/audits/00-01/verify_runtime.py /tmp/openrust-00-01-review
 ```
 
 ## 实际结果
@@ -59,7 +62,7 @@ Rust 用静态模块和配置加载函数表达 PHP 的文件载入，保留 `wi
 
 只读核对旧版 `6d1a8192` 的 `config/app.rs` 与 `vendor/openrust/framework/tests/unit/config/application_sources.rs`，沿用应用 URL 复用端口、配置来源优先级的契约和回归思路。当前入口采用新主线的配置仓库与根目录机制。
 
-目录清单复核补充：另有 [1 个必要删除路径](deleted-files.txt)，即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 git-commit.txt 从不可变提交恢复，源工作区变化不影响复现。
+目录清单复核补充：另有 1 个必要删除路径（`deleted-files.txt`），即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 `git-commit.txt` 从不可变提交恢复，源工作区变化不影响复现。
 
 ## 本地提交
 

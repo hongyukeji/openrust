@@ -1,5 +1,7 @@
 # 00-02 默认 HTTP、静态文件与错误格式
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/00-02/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 按本单元验收条件通过。Git 基线为 `197e7a0e`，在 00-01 候选上增量交付，未暂存、提交或推送。整个路由、文件系统及异常页面仍有后续单元，不据此标记整页完成。
 
 ## 对照与复用
@@ -25,10 +27,11 @@
 
 ## 文件范围
 
-本批增量为 [13 个代码、测试和文档文件](changed-tree.txt)。必须带上未提交的启动配套时，共 [407 个候选路径](commit-tree.txt)。[文件清单](commit-files.txt)、[校验值](candidate-sha256.json)与[工作区排除补丁](scope-exclusions.patch)可重新构造核对，保留其他模块 WIP。
+本批增量为 13 个代码、测试和文档文件（`changed-tree.txt`）。必须带上未提交的启动配套时，共 407 个候选路径（`commit-tree.txt`）。文件清单（`commit-files.txt`）、校验值（`candidate-sha256.json`）与[工作区排除补丁](scope-exclusions.patch)可重新构造核对，保留其他模块 WIP。
 
 ```sh
-python3 .agents/project/audits/00-02/prepare_candidate.py /tmp/openrust-00-02-review
+git worktree add --detach /tmp/openrust-00-02-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-00-02-evidence/.agents/project/audits/00-02/prepare_candidate.py /tmp/openrust-00-02-review
 cd /tmp/openrust-00-02-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -43,14 +46,14 @@ macOS ARM64，Rust 1.94.0。工作区 42 项测试通过；隔离副本 16 项�
 在根目录执行以下脚本，将隔离 release 二进制复制到新的临时发布目录，从不同工作目录启动。
 
 ```sh
-python3 .agents/project/audits/00-02/verify_runtime.py /tmp/openrust-00-02-review
+python3 /tmp/openrust-00-02-evidence/.agents/project/audits/00-02/verify_runtime.py /tmp/openrust-00-02-review
 ```
 
-[实际结果](runtime-results.json)共 58 次真实 HTTP 请求和 6 次 Artisan 调用通过。覆盖首页 GET/HEAD、运行时视图更新、缺失视图 500、健康 HTML/JSON、普通及 API 的 HTML/JSON 404、HEAD 空正文、两级 `/storage/tmp/` 前缀、同 URL 网站优先、磁盘回退、Last-Modified 条件请求 304、目录和穿越拒绝、越界符号链接拒绝、根路由 405，以及 inspire/list/help。两个前缀分别启动独立进程，不依赖源码路径或当前工作目录。
+实际结果（`runtime-results.json`）共 58 次真实 HTTP 请求和 6 次 Artisan 调用通过。覆盖首页 GET/HEAD、运行时视图更新、缺失视图 500、健康 HTML/JSON、普通及 API 的 HTML/JSON 404、HEAD 空正文、两级 `/storage/tmp/` 前缀、同 URL 网站优先、磁盘回退、Last-Modified 条件请求 304、目录和穿越拒绝、越界符号链接拒绝、根路由 405，以及 inspire/list/help。两个前缀分别启动独立进程，不依赖源码路径或当前工作目录。
 
 三语站点 `npm run build` 通过，`tests/check_browser.mjs` 的根路径和 `/docs/`、三语桌面与移动共 12 项浏览器检查通过。未做 Windows 实机验收。
 
-目录清单复核补充：另有 [1 个必要删除路径](deleted-files.txt)，即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 git-commit.txt 从不可变提交恢复，源工作区变化不影响复现。
+目录清单复核补充：另有 1 个必要删除路径（`deleted-files.txt`），即 `bootstrap/cache/.gitignore`。构造工具显式移除基线归档中的该文件及空目录；先前运行验收时文件仍在副本中，但不参与编译或启动。选定文件的历史 SHA-256 保留不变；删除规则已在累计 00-03 候选重新构造核对。已提交阶段的构造工具优先按 `git-commit.txt` 从不可变提交恢复，源工作区变化不影响复现。
 
 ## 本地提交
 

@@ -1,5 +1,7 @@
 # 01-02 第七部分：异步延迟 Provider 装载
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02g/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成按服务键装载的本批验收。01-02 整体仍未完成；下一部分关闭 CT-ASYNC-FACTORY-DEFERRED。事件触发装载和其他 Provider 生命周期回调随对应事件/生命周期单元推进。
 
 ## 固定参考与复用
@@ -21,20 +23,21 @@
 
 ## 验收
 
-macOS ARM64、Rust 1.94.0。工作区 159 项常规测试及 8 项子进程；排除其他模块 WIP 后，隔离副本 140 项常规测试及 8 项子进程通过。fmt、严格 Clippy、locked/offline standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 159 项常规测试及 8 项子进程；排除其他模块 WIP 后，隔离副本 140 项常规测试及 8 项子进程通过。fmt、严格 Clippy、locked/offline standalone release 通过。Rust 结果（`rust-results.json`）。
 
 - 新增 4 项容器异步门控测试，15 项实际应用/Provider/Kernel 回归。覆盖别名、显式实例、首访并发、注册/启动顺序、条件绑定、逐键消费、新实例重试、类型去重、失败、取消、panic、等待环、重复 Kernel 失败及门面缓存/swap。
-- 7 次真实 TCP HTTP 验证懒加载、三个应用隔离、500 脱敏和同请求并发门面保护；1 次 Artisan Kernel 命令读取就绪服务。原入口回归 [58 次 HTTP + 6 次 Artisan](http-results.json) 与 [40 次进程调用](command-results.json)通过。
-- [24 个三语 Rust 示例](example-results.json)提取编译执行通过。三语文档站构建、根路径及 /docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 7 次真实 TCP HTTP 验证懒加载、三个应用隔离、500 脱敏和同请求并发门面保护；1 次 Artisan Kernel 命令读取就绪服务。原入口回归 58 次 HTTP + 6 次 Artisan（`http-results.json`） 与 40 次进程调用（`command-results.json`）通过。
+- 24 个三语 Rust 示例（`example-results.json`）提取编译执行通过。三语文档站构建、根路径及 /docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围与复现
 
-[38 文件 tree](changed-tree.txt)：1 个应用 Provider、16 个框架/框架测试文件、9 个根测试及 12 个三语页面。[SHA-256](candidate-sha256.json)。必要的现有 Provider 测试/命令子进程示例同步改为异步 register。没有引入新依赖。
+38 文件 tree（`changed-tree.txt`）：1 个应用 Provider、16 个框架/框架测试文件、9 个根测试及 12 个三语页面。SHA-256（`candidate-sha256.json`）。必要的现有 Provider 测试/命令子进程示例同步改为异步 register。没有引入新依赖。
 
-6 个共享文件按候选内容纳入必要差异；排除已有 gRPC、广播/安装器及集合骨架。[范围说明](scope-notes.json)。工作区 gRPC 的 ApplicationBuilder、HTTP Server 共享状态适配保留在其 WIP，未混入候选。
+6 个共享文件按候选内容纳入必要差异；排除已有 gRPC、广播/安装器及集合骨架。范围说明（`scope-notes.json`）。工作区 gRPC 的 ApplicationBuilder、HTTP Server 共享状态适配保留在其 WIP，未混入候选。
 
 ```sh
-python3 .agents/project/audits/01-02g/prepare_candidate.py /tmp/openrust-01-02g-review
+git worktree add --detach /tmp/openrust-01-02g-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02g-evidence/.agents/project/audits/01-02g/prepare_candidate.py /tmp/openrust-01-02g-review
 cd /tmp/openrust-01-02g-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -42,7 +45,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-在工作区运行本目录 verify_http.py、verify_commands.py、verify_examples.py，参数为该副本。构造器只读取 git-commit.txt 对应不可变提交并校验，不复制工作区 WIP。
+使用历史检出目录内的 `verify_http.py`、`verify_commands.py`、`verify_examples.py`，参数为该副本。构造器只读取 `git-commit.txt` 对应不可变提交并校验，不复制工作区 WIP。
 
 ## 剩余边界
 

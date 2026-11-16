@@ -1,5 +1,7 @@
 # 01-02 第十部分：静态构造描述与自动注入
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02j/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收。普通具体类构造、默认值与可空参数已接通，01-02 整体未完成；下一部分为变参，再接方法调用、SelfBuilding/属性/投影及剩余公开契约核对。没有把手写绑定工厂当作最终自动注入的替代。
 
 ## 固定参考及旧版复用
@@ -22,19 +24,20 @@
 
 ## 验收
 
-macOS ARM64、Rust 1.94.0。工作区 214 项常规测试、隔离副本 195 项，另有 11 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 214 项常规测试、隔离副本 195 项，另有 11 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。Rust 结果（`rust-results.json`）。
 
 - 新增 17 项单元测试：元数据/绑定/历史区分、别名/类型校验、同步与异步嵌套注入、原始值上下文和覆盖、类默认优先级、可空规则、签名拒绝、build 及依赖事件、参数隔离、选参顺序、作用域共享、循环/失败重试、拒绝描述器捕获的锁外销毁、trait Arc、退役历史、默认惰性/新值、异步别名以及装饰/重绑定。
 - 新增实际 HTTP 测试的 5 次 TCP 请求，验证未绑定 Worker 的元数据构造、延迟 Client 首次加载、请求间门面重置、三个应用隔离、私有失败 500 脱敏和后续重试。启动时没有构造 Worker/Client。新增 construction:probe 真实 Artisan 子进程自动注入 Greeting，输出 constructed:from provider。
-- 原发布入口 [58 次 HTTP 与 6 次 Artisan](http-results.json)、[40 次命令进程](command-results.json)通过，含预期失败。
-- [36 个三语 Rust 示例](example-results.json)编译运行通过；三语文档构建与根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 原发布入口 58 次 HTTP 与 6 次 Artisan（`http-results.json`）、40 次命令进程（`command-results.json`）通过，含预期失败。
+- 36 个三语 Rust 示例（`example-results.json`）编译运行通过；三语文档构建与根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围与复现
 
-[16 文件 tree](changed-tree.txt)：6 个框架实现/契约文件、4 个测试文件、6 个三语页面。本批没有共享文件混合暂存；既有 gRPC、配置及其他模块 WIP 保留，不改依赖清单或锁文件。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+16 文件 tree（`changed-tree.txt`）：6 个框架实现/契约文件、4 个测试文件、6 个三语页面。本批没有共享文件混合暂存；既有 gRPC、配置及其他模块 WIP 保留，不改依赖清单或锁文件。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 ```sh
-python3 .agents/project/audits/01-02j/prepare_candidate.py /tmp/openrust-01-02j-review
+git worktree add --detach /tmp/openrust-01-02j-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02j-evidence/.agents/project/audits/01-02j/prepare_candidate.py /tmp/openrust-01-02j-review
 cd /tmp/openrust-01-02j-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -42,7 +45,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-三个 verify 脚本接收副本路径；prepare_candidate 从 git-commit.txt 指定不可变本地提交恢复并校验，不读取工作区 WIP。
+`verify_http.py`、`verify_commands.py`、`verify_examples.py`接收副本路径；`prepare_candidate.py` 从 `git-commit.txt` 指定不可变本地提交恢复并校验，不读取工作区 WIP。
 
 ## 剩余契约
 

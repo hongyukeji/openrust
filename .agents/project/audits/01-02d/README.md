@@ -1,5 +1,7 @@
 # 01-02 第四部分：解析回调与共享对象发布
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02d/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成 beforeResolving、resolving、afterResolving 的当前显式工厂入口、实际 HTTP/Artisan 与三语正文验收。同时纠正 01-02c 的 tagged 计数时机。extend、重绑定及延迟 Provider 继续留在 01-02，不标记整个交付单元完成。
 
 ## 基线和旧版复用
@@ -23,18 +25,19 @@
 
 ## 验收
 
-macOS ARM64、Rust 1.94.0。工作区 102 项常规测试和 6 项进程检查通过；隔离副本 83 项常规测试和 6 项进程检查通过。fmt、严格 Clippy 和 locked/offline standalone release 构建通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 102 项常规测试和 6 项进程检查通过；隔离副本 83 项常规测试和 6 项进程检查通过。fmt、严格 Clippy 和 locked/offline standalone release 构建通过。Rust 结果（`rust-results.json`）。
 
 新增 12 项回调单元回归，覆盖阶段顺序、别名、缺失服务、共享/显式实例缓存、共享回调重入、失败与 panic、重试、递归拒绝、阶段登记快照、输出类型匹配、并发等待和作用域隔离。tests/resolving_lifecycle.rs 通过两应用共 4 次实际 TCP 请求，验证正确输出、500 回退与下一请求重试；3 次 Artisan Kernel 调用验证失败退出 1、后续成功和新作用域。实际 runApplication 子进程新增 hooks:probe，输出必须由回调登记的 hook-result 服务取得。
 
-[58 次 HTTP + 6 次 Artisan](http-results.json)、[40 次进程](command-results.json)重验通过。[15 个三语 Rust 示例](example-results.json)直接提取编译执行通过，三语站点构建和 `/`、`/docs/` 的三语桌面/移动共 12 项浏览器检查通过。
+58 次 HTTP + 6 次 Artisan（`http-results.json`）、40 次进程（`command-results.json`）重验通过。15 个三语 Rust 示例（`example-results.json`）直接提取编译执行通过，三语站点构建和 `/`、`/docs/` 的三语桌面/移动共 12 项浏览器检查通过。
 
 ## 范围与复现
 
-[13 文件 tree](changed-tree.txt)、[SHA-256](candidate-sha256.json)。仅容器、作用域发布元数据、测试和三语容器正文，无共享依赖文件或应用模块混入。其他工作区改动保留。
+13 文件 tree（`changed-tree.txt`）、SHA-256（`candidate-sha256.json`）。仅容器、作用域发布元数据、测试和三语容器正文，无共享依赖文件或应用模块混入。其他工作区改动保留。
 
 ```sh
-python3 .agents/project/audits/01-02d/prepare_candidate.py /tmp/openrust-01-02d-review
+git worktree add --detach /tmp/openrust-01-02d-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02d-evidence/.agents/project/audits/01-02d/prepare_candidate.py /tmp/openrust-01-02d-review
 cd /tmp/openrust-01-02d-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -42,7 +45,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-在工作区运行本目录 verify_http.py、verify_commands.py、verify_examples.py，参数均为该副本。提交后从 git-commit.txt 对应不可变提交重建；阶段结束清理独占 target，保留候选源码和 .artifacts/release。
+使用历史检出目录内的 `verify_http.py`、`verify_commands.py`、`verify_examples.py`，参数均为该副本。提交后从 `git-commit.txt` 对应不可变提交重建；阶段结束清理独占 target，保留候选源码和 .artifacts/release。
 
 ## 后续
 
@@ -50,4 +53,4 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 
 ## 本地提交与清理
 
-代码提交 `e6cdc944f86df5408a68f56aceb2c9448caef065`，13 文件，未推送。不可变 Git 恢复及 SHA-256 校验通过。确认无编译进程后，清理独占 target 1,108,028 KiB，约 1.13 GB；候选源码及发布产物保留。清理后磁盘可用约 64.46 GB，最近额度剩余 97%。[清理结果](cleanup-results.json)。
+代码提交 `e6cdc944f86df5408a68f56aceb2c9448caef065`，13 文件，未推送。不可变 Git 恢复及 SHA-256 校验通过。确认无编译进程后，清理独占 target 1,108,028 KiB，约 1.13 GB；候选源码及发布产物保留。清理后磁盘可用约 64.46 GB，最近额度剩余 97%。清理结果（`cleanup-results.json`）。

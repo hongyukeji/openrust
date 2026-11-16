@@ -1,5 +1,7 @@
 # 01-02 第九部分：工厂参数覆盖
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02i/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收。完成 makeWith 工厂参数的底层契约；01-02 整体未完成。静态构造描述/自动依赖注入、默认值/变参、call/bindMethod、属性/多接口投影仍待后续，不能以手写工厂替代这些最终能力。
 
 ## 固定参考及旧版提取
@@ -20,19 +22,20 @@
 
 ## 验收
 
-macOS ARM64、Rust 1.94.0。工作区 196 项常规测试、隔离副本 177 项，另有 10 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 196 项常规测试、隔离副本 177 项，另有 10 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。Rust 结果（`rust-results.json`）。
 
 - 新增 13 项单元回归：顺序/快照/脱敏载荷、null 与类型错误、冷/热共享缓存及历史、原工厂与显式实例、别名、嵌套默认空帧/显式转交、before 事件、panic/错误恢复、并发 poll、scoped 隔离、取消清理、不同参数递归、普通挂起解析及参数析构重入隔离。
 - 新增实际 HTTP 集成测试，4 次 TCP 请求覆盖两个应用的延迟 Provider/app.makeWith、带参工厂、普通缓存保持、错误参数的 500 脱敏及后续成功请求。新增 parameters:probe 通过真实 Artisan 子进程，输出 12:0，验证应用命名入口与普通缓存分离。
-- 原发布入口 [58 次 HTTP 与 6 次 Artisan](http-results.json)、[40 次命令进程](command-results.json)通过，含预期失败。
-- [33 个三语 Rust 示例](example-results.json)编译运行通过，文档构建及根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 原发布入口 58 次 HTTP 与 6 次 Artisan（`http-results.json`）、40 次命令进程（`command-results.json`）通过，含预期失败。
+- 33 个三语 Rust 示例（`example-results.json`）编译运行通过，文档构建及根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围和复现
 
-[18 文件 tree](changed-tree.txt)：8 个框架实现/契约文件、4 个测试文件和 6 个三语页面。Application 共享文件只纳入两个新入口，既有 gRPC WIP 保留；未改依赖清单或锁文件。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+18 文件 tree（`changed-tree.txt`）：8 个框架实现/契约文件、4 个测试文件和 6 个三语页面。Application 共享文件只纳入两个新入口，既有 gRPC WIP 保留；未改依赖清单或锁文件。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 ```sh
-python3 .agents/project/audits/01-02i/prepare_candidate.py /tmp/openrust-01-02i-review
+git worktree add --detach /tmp/openrust-01-02i-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02i-evidence/.agents/project/audits/01-02i/prepare_candidate.py /tmp/openrust-01-02i-review
 cd /tmp/openrust-01-02i-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -40,6 +43,6 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-三个 verify 脚本接收该副本路径。prepare_candidate 从 git-commit.txt 对应不可变本地提交恢复，不复制工作区 WIP。Windows 实机未验收，未推送。
+`verify_http.py`、`verify_commands.py`、`verify_examples.py`接收该副本路径。`prepare_candidate.py` 从 `git-commit.txt` 对应不可变本地提交恢复，不复制工作区 WIP。Windows 实机未验收，未推送。
 
 本地代码提交 `27087b7ce050f464a5e38e6da6d4676e9397647e`，未推送。18 文件从不可变提交恢复校验通过。清理独占 target 1,524,852 KiB；磁盘可用约 58.34 GB，最近额度剩余 95%。保留候选源码、必要发布产物及共享缓存。

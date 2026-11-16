@@ -1,5 +1,7 @@
 # 01-02 第八部分：异步工厂组合
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02h/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收，关闭 CT-ASYNC-FACTORY-DEFERRED。01-02 整体仍未完成；下一部分核对静态构造描述、构造参数覆盖与方法调用，之后闭合属性/多接口投影等缺口。事件 when 及完整流式/终止作用域随既有依赖单元推进。
 
 ## 固定参考与旧版复用
@@ -19,19 +21,20 @@
 
 ## 实际验收
 
-macOS ARM64，Rust 1.94.0，locked/offline。工作区 182 项常规测试，隔离副本 163 项，另有 9 项子进程探针通过；fmt、严格 Clippy、独立 standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64，Rust 1.94.0，locked/offline。工作区 182 项常规测试，隔离副本 163 项，另有 9 项子进程探针通过；fmt、严格 Clippy、独立 standalone release 通过。Rust 结果（`rust-results.json`）。
 
 - 新增 18 项容器单元测试和 5 项应用生命周期测试。覆盖冷/热解析、同步与异步共享、失败原因、取消/panic 唤醒与重试、依赖环、逐 poll 上下文、条件/命名/类型检查、上下文/标签/配置、装饰和重绑定、退役历史、关闭缓存保留环及多应用隔离。
 - 本批 8 次真实 TCP HTTP 请求验证嵌套延迟依赖自动加载、三个应用隔离、每请求作用域、500 脱敏与重试、跨请求 Future 拒绝、关闭及存活上下文的清理；3 次 Console Kernel 命令验证错误退出与后续重试/作用域重置。新增 async:probe 实际子进程验证组合工厂输出 7。
-- 原发布入口 [58 次 HTTP 与 6 次 Artisan](http-results.json)、[40 次命令进程](command-results.json)通过，含预期失败。完整路径迁移部署、静态文件、JSON/Web 异常和 inspire 保持原行为。
-- [30 个三语 Rust 示例](example-results.json)全部提取编译并执行。三语站点构建和根路径、/docs/ 的桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。首次工作区示例检查发现共享缓存混有另一工具链的 rlib，改用独立 Rust 1.94.0 构建副本验证；未清理共享缓存。示例中的 Result 传播错误已修正后全量通过。
+- 原发布入口 58 次 HTTP 与 6 次 Artisan（`http-results.json`）、40 次命令进程（`command-results.json`）通过，含预期失败。完整路径迁移部署、静态文件、JSON/Web 异常和 inspire 保持原行为。
+- 30 个三语 Rust 示例（`example-results.json`）全部提取编译并执行。三语站点构建和根路径、/docs/ 的桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。首次工作区示例检查发现共享缓存混有另一工具链的 rlib，改用独立 Rust 1.94.0 构建副本验证；未清理共享缓存。示例中的 Result 传播错误已修正后全量通过。
 
 ## 最小范围与复现
 
-[25 文件 tree](changed-tree.txt)：12 个框架实现/契约文件、4 个测试文件及 9 个三语页面。两处共享文件只纳入本批接线，已有 gRPC/广播/其他门面 WIP 留在工作区；不改 Cargo.toml、Cargo.lock、config/、main.rs 或 bootstrap/。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+25 文件 tree（`changed-tree.txt`）：12 个框架实现/契约文件、4 个测试文件及 9 个三语页面。两处共享文件只纳入本批接线，已有 gRPC/广播/其他门面 WIP 留在工作区；不改 Cargo.toml、Cargo.lock、config/、main.rs 或 bootstrap/。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 ```sh
-python3 .agents/project/audits/01-02h/prepare_candidate.py /tmp/openrust-01-02h-review
+git worktree add --detach /tmp/openrust-01-02h-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02h-evidence/.agents/project/audits/01-02h/prepare_candidate.py /tmp/openrust-01-02h-review
 cd /tmp/openrust-01-02h-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -39,6 +42,6 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-验收脚本 verify_http.py、verify_commands.py、verify_examples.py 接收副本目录。构造器从 git-commit.txt 指向的不可变本地提交恢复并校验，不读取未提交工作区。Windows 实机未验收，未推送。
+验收脚本 `verify_http.py`、`verify_commands.py`、`verify_examples.py` 接收副本目录。构造器从 `git-commit.txt` 指向的不可变本地提交恢复并校验，不读取未提交工作区。Windows 实机未验收，未推送。
 
 本地代码提交 `a6b0edfb271d07f20aea40a02270a6f98a1b41e0`，未推送。25 文件从不可变提交恢复并校验通过。清理本阶段独占 target 1,468,000 KiB；磁盘可用约 59.08 GB，额度剩余 95%。保留候选源码、必要发布产物及共享缓存。

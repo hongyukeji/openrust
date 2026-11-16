@@ -1,5 +1,7 @@
 # 01-02 第十二部分：闭包与方法调用
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02l/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收。Container/Application.call、编译方法声明和方法替代绑定已接通；01-02 整体仍未完成。
 
 ## 固定参考与旧版提取
@@ -19,19 +21,20 @@
 
 ## 实际验收
 
-macOS ARM64、Rust 1.94.0。工作区 254 项常规测试、隔离副本 235 项，另有 13 项真实命令子进程通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。[Rust 结果](rust-results.json)。隔离构建关闭增量缓存以控制磁盘占用。
+macOS ARM64、Rust 1.94.0。工作区 254 项常规测试、隔离副本 235 项，另有 13 项真实命令子进程通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。Rust 结果（`rust-results.json`）。隔离构建关闭增量缓存以控制磁盘占用。
 
 - 新增 20 项单元测试：命名/类型键消费、剩余顺序、标量/default/nullable/变参差别、借用返回值、对象身份、构造后绑定、直接绑定上下文、__invoke 声明与默认名、静态两形式、错误返回契约、非 Sync 返回值、绑定/输入/接收者保活、嵌套递归、同容器并发、取消/关闭清理、业务失败重试及 panic 后恢复。
 - 新增 2 项应用集成测试，其中 5 次实际 TCP 请求验证延迟依赖、500 脱敏与重试、两应用绑定/Facade 隔离；并发 Application.call 和直接绑定入口通过。
-- 新增 method:probe 实际 Artisan 子进程，通过 Application.call 自动构造接收者并注入依赖。原发布 [58 HTTP 与 6 Artisan](http-results.json)、[40 命令进程](command-results.json)通过，包含预期失败。
-- [45 个三语 Rust 示例](example-results.json)编译执行通过，三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 新增 method:probe 实际 Artisan 子进程，通过 Application.call 自动构造接收者并注入依赖。原发布 58 HTTP 与 6 Artisan（`http-results.json`）、40 命令进程（`command-results.json`）通过，包含预期失败。
+- 45 个三语 Rust 示例（`example-results.json`）编译执行通过，三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围与复现
 
-[19 文件 tree](changed-tree.txt)：11 个框架实现/契约、5 个测试文件和 3 个三语页面。Application 共享文件只纳入 call 与直接绑定入口；排除既有 gRPC 接线、依赖清单及其他 WIP。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+19 文件 tree（`changed-tree.txt`）：11 个框架实现/契约、5 个测试文件和 3 个三语页面。Application 共享文件只纳入 call 与直接绑定入口；排除既有 gRPC 接线、依赖清单及其他 WIP。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 ```sh
-python3 .agents/project/audits/01-02l/prepare_candidate.py /tmp/openrust-01-02l-review
+git worktree add --detach /tmp/openrust-01-02l-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02l-evidence/.agents/project/audits/01-02l/prepare_candidate.py /tmp/openrust-01-02l-review
 cd /tmp/openrust-01-02l-review
 cargo +1.94.0 fmt --all --check
 CARGO_INCREMENTAL=0 cargo +1.94.0 test --workspace --locked --offline
@@ -39,7 +42,7 @@ CARGO_INCREMENTAL=0 cargo +1.94.0 clippy --workspace --all-targets --locked --of
 CARGO_INCREMENTAL=0 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-三个 verify 脚本接收副本路径；prepare_candidate 从 git-commit.txt 指定的不可变提交恢复并校验，不读取工作区 WIP。
+`verify_http.py`、`verify_commands.py`、`verify_examples.py`接收副本路径；`prepare_candidate.py` 从 `git-commit.txt` 指定的不可变提交恢复并校验，不读取工作区 WIP。
 
 ## 剩余边界
 

@@ -1,5 +1,7 @@
 # 01-02 第十六部分 · Application 环境检测
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02p/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成 Application 默认环境检测与 Artisan 环境选项验收。
 
 - 对照固定 Laravel [LoadEnvironmentVariables](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/LoadEnvironmentVariables.php)、[LoadConfiguration](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Bootstrap/LoadConfiguration.php)、[EnvironmentDetector](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/EnvironmentDetector.php)、[Application 环境查询测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Foundation/FoundationApplicationTest.php#L186)和 [EnvironmentCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Console/EnvironmentCommand.php)。文档对应[确定当前环境](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/configuration.md#determining-the-current-environment)。
@@ -12,16 +14,17 @@
 
 ## 验收与范围
 
-macOS ARM64，Rust 1.94.0。工作区 289 项测试，隔离副本 270 项测试，另有 16 项命令子进程探针。两套格式、严格 Clippy、锁定离线 standalone release 均通过。[Rust 验收结果](rust-results.json)
+macOS ARM64，Rust 1.94.0。工作区 289 项测试，隔离副本 270 项测试，另有 16 项命令子进程探针。两套格式、严格 Clippy、锁定离线 standalone release 均通过。Rust 验收结果（`rust-results.json`）
 
-两项新增集成测试覆盖 Provider 前置环境绑定、通配符、空切片、配置更新、无效配置类型与两个应用的并发真实 HTTP，以及 Artisan 两种参数形式、重复选项、文件回退、坏文件、无效参数和进程重试。发布回归通过 58 次 HTTP 与 6 次 Artisan。命令验收另通过 49 个进程，含文档中的 Artisan 调用。[HTTP 结果](http-results.json) · [命令结果](command-results.json)
+两项新增集成测试覆盖 Provider 前置环境绑定、通配符、空切片、配置更新、无效配置类型与两个应用的并发真实 HTTP，以及 Artisan 两种参数形式、重复选项、文件回退、坏文件、无效参数和进程重试。发布回归通过 58 次 HTTP 与 6 次 Artisan。命令验收另通过 49 个进程，含文档中的 Artisan 调用。HTTP 结果（`http-results.json`） · 命令结果（`command-results.json`）
 
-三语构建、57 个 Rust 示例及 12 项浏览器检查通过。[文档结果](docs-results.json) · [示例结果](example-results.json)
+三语构建、57 个 Rust 示例及 12 项浏览器检查通过。文档结果（`docs-results.json`） · 示例结果（`example-results.json`）
 
-16 个文件包括 9 个框架文件、1 个集成测试及 6 个三语页面。共享文件只提取环境相关差异。[文件 tree](changed-tree.txt) · [范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)
+16 个文件包括 9 个框架文件、1 个集成测试及 6 个三语页面。共享文件只提取环境相关差异。文件 tree（`changed-tree.txt`） · 范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）
 
 ```sh
-python3 .agents/project/audits/01-02p/prepare_candidate.py /tmp/openrust-01-02p-review
+git worktree add --detach /tmp/openrust-01-02p-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02p-evidence/.agents/project/audits/01-02p/prepare_candidate.py /tmp/openrust-01-02p-review
 cd /tmp/openrust-01-02p-review
 cargo +1.94.0 fmt --all --check
 CARGO_INCREMENTAL=0 cargo +1.94.0 test --workspace --locked --offline

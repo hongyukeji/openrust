@@ -1,5 +1,7 @@
 # 01-02 第十一部分：变参注入
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02k/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收。原始值、类、上下文数组及标签集合的变参已接通；下一部分为 call/bindMethod 等方法调用，01-02 整体仍未完成。
 
 ## 固定参考及旧版复用
@@ -21,21 +23,22 @@
 
 ## 实际验收
 
-macOS ARM64、Rust 1.94.0。工作区 232 项常规测试、隔离副本 213 项，另有 12 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。[Rust 结果](rust-results.json)。
+macOS ARM64、Rust 1.94.0。工作区 232 项常规测试、隔离副本 213 项，另有 12 项子进程探针通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。Rust 结果（`rust-results.json`）。
 
 - 新增 17 项单元回归：空列表/单项/多项、槽形状、顺序/重复、数组消费者与标签闭包差别、Arc/null/无 Clone 值/异构载体、显式数组不展开、非法签名、缺失与业务/类型/循环/关闭错误、异步等待与键快照、原始值直接求值、取消清理、动态配置数组。
 - 新增实际 HTTP 集成的 5 次 TCP 请求，验证变参数组自动加载延迟服务、业务错误 500 脱敏、重试、两个应用隔离和缺失依赖空列表响应。新增 variadic:probe 真实 Artisan 子进程验证有序服务列表，输出 first,second。
-- 原发布 [58 次 HTTP 与 6 次 Artisan](http-results.json)、[40 次命令进程](command-results.json)通过，包含预期失败。
-- [39 个三语 Rust 示例](example-results.json)编译执行通过，三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 原发布 58 次 HTTP 与 6 次 Artisan（`http-results.json`）、40 次命令进程（`command-results.json`）通过，包含预期失败。
+- 39 个三语 Rust 示例（`example-results.json`）编译执行通过，三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围和复现
 
-[15 文件 tree](changed-tree.txt)：7 个框架实现/契约文件、1 个依赖清单特性开关、4 个测试文件和 3 个三语页面。清单共享文件仅纳入 Serde rc，排除既有 gRPC/网络依赖改动；根 Cargo.lock 与其他 WIP 保留。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+15 文件 tree（`changed-tree.txt`）：7 个框架实现/契约文件、1 个依赖清单特性开关、4 个测试文件和 3 个三语页面。清单共享文件仅纳入 Serde rc，排除既有 gRPC/网络依赖改动；根 Cargo.lock 与其他 WIP 保留。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 隔离构建关闭增量缓存以减少本机磁盘占用，测试、优化和默认调试配置不变；工作区同时按普通命令验收。
 
 ```sh
-python3 .agents/project/audits/01-02k/prepare_candidate.py /tmp/openrust-01-02k-review
+git worktree add --detach /tmp/openrust-01-02k-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02k-evidence/.agents/project/audits/01-02k/prepare_candidate.py /tmp/openrust-01-02k-review
 cd /tmp/openrust-01-02k-review
 cargo +1.94.0 fmt --all --check
 CARGO_INCREMENTAL=0 cargo +1.94.0 test --workspace --locked --offline
@@ -43,7 +46,7 @@ CARGO_INCREMENTAL=0 cargo +1.94.0 clippy --workspace --all-targets --locked --of
 CARGO_INCREMENTAL=0 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-三个 verify 脚本接收副本路径，prepare_candidate 从 git-commit.txt 对应不可变提交恢复，不读取工作区 WIP。
+`verify_http.py`、`verify_commands.py`、`verify_examples.py`接收副本路径，`prepare_candidate.py` 从 `git-commit.txt` 对应不可变提交恢复，不读取工作区 WIP。
 
 ## 剩余边界
 

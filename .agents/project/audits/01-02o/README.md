@@ -1,5 +1,7 @@
 # 01-02 第十五部分：容器环境解析回调
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02o/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成本批验收。基础 Container.resolveEnvironmentUsing/currentEnvironmentIs 已接通；Application 默认环境检测另列 CT-ENV-APPLICATION，01-02 整体仍未完成。
 
 ## 固定参考及旧版核对
@@ -19,19 +21,20 @@
 
 ## 实际验收
 
-macOS ARM64、Rust 1.94.0。工作区 287 项常规测试、隔离副本 268 项，另有 16 项实际命令子进程通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。[Rust 结果](rust-results.json)。隔离构建关闭增量缓存以控制空间。
+macOS ARM64、Rust 1.94.0。工作区 287 项常规测试、隔离副本 268 项，另有 16 项实际命令子进程通过。fmt、严格 Clippy、locked/offline 独立 standalone release 通过。Rust 结果（`rust-results.json`）。隔离构建关闭增量缓存以控制空间。
 
 - 新增 9 项单元：无解析器、形状/顺序/重复/借用身份、两类结果和 PHP 字符串真值、缓存/事件不变、flush 保留、异常和 panic 后恢复、回调重入/自替换、锁外捕获析构、多容器隔离及真实线程并发替换/保活。
 - 新增实际 HTTP 集成，6 次 TCP 请求验证显式 Provider 安装的自定义策略、bool/string 返回、错误 500 脱敏、修复后重试及两应用配置/回调隔离。该策略刻意对空数组返回名称，不声称是 Application 默认匹配器。
-- 新增 environment:probe 真实 Artisan，安装并执行显式回调。原发布 [58 HTTP 与 6 Artisan](http-results.json)、[40 命令进程](command-results.json)通过，包含预期失败。
-- [54 个三语 Rust 示例](example-results.json)编译执行通过；三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。[文档结果](docs-results.json)。
+- 新增 environment:probe 真实 Artisan，安装并执行显式回调。原发布 58 HTTP 与 6 Artisan（`http-results.json`）、40 命令进程（`command-results.json`）通过，包含预期失败。
+- 54 个三语 Rust 示例（`example-results.json`）编译执行通过；三语构建和根路径、/docs/ 的三语桌面/移动共 12 项浏览器检查通过。文档结果（`docs-results.json`）。
 
 ## 最小范围与复现
 
-[10 文件 tree](changed-tree.txt)：3 个框架实现/契约、4 个测试文件和 3 个三语页面。其他 Application/gRPC、清单、配置和工作区 WIP 排除。[范围说明](scope-notes.json) · [SHA-256](candidate-sha256.json)。
+10 文件 tree（`changed-tree.txt`）：3 个框架实现/契约、4 个测试文件和 3 个三语页面。其他 Application/gRPC、清单、配置和工作区 WIP 排除。范围说明（`scope-notes.json`） · SHA-256（`candidate-sha256.json`）。
 
 ```sh
-python3 .agents/project/audits/01-02o/prepare_candidate.py /tmp/openrust-01-02o-review
+git worktree add --detach /tmp/openrust-01-02o-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02o-evidence/.agents/project/audits/01-02o/prepare_candidate.py /tmp/openrust-01-02o-review
 cd /tmp/openrust-01-02o-review
 cargo +1.94.0 fmt --all --check
 CARGO_INCREMENTAL=0 cargo +1.94.0 test --workspace --locked --offline
@@ -39,7 +42,7 @@ CARGO_INCREMENTAL=0 cargo +1.94.0 clippy --workspace --all-targets --locked --of
 CARGO_INCREMENTAL=0 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-三个 verify 脚本接收副本路径；prepare_candidate 从 git-commit.txt 的不可变提交恢复并核对，不读取工作区 WIP。
+`verify_http.py`、`verify_commands.py`、`verify_examples.py`接收副本路径；`prepare_candidate.py` 从 `git-commit.txt` 的不可变提交恢复并核对，不读取工作区 WIP。
 
 ## 剩余边界和下一批
 

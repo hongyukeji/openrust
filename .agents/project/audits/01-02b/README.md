@@ -1,5 +1,7 @@
 # 01-02 第二部分：作用域绑定
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02b/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成作用域绑定及 HTTP 处理器/Artisan 执行接线验收。01-02 的上下文绑定、扩展/回调及延迟 Provider 仍在推进，本记录不标记整个单元或页面完成。
 
 ## 固定基线与复用
@@ -25,14 +27,15 @@ macOS ARM64、Rust 1.94.0。工作区 74 项常规测试及 4 项 CLI 子进程�
 
 新增 scoped 单元回归 14 项、根单例缓存回归 1 项，以及 tests/scoped_lifecycle.rs 的 2 项入口回归。覆盖并发与嵌套、根清理不影响子生命周期、实例覆盖、别名删除、地址复用、重试/panic、取消释放及析构重入。两应用共 4 次真实 HTTP 请求核对同请求共享、跨请求不同及析构计数；同一 Artisan Kernel 连续 3 次命令核对各次独立及结束释放。实际进程入口包含 scope:probe。
 
-[58 次 HTTP 与 6 次命令](http-results.json)、[40 次进程](command-results.json)重验通过。[9 个 Rust 三语示例](example-results.json)提取编译运行通过。三语站点构建及根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。
+58 次 HTTP 与 6 次命令（`http-results.json`）、40 次进程（`command-results.json`）重验通过。9 个 Rust 三语示例（`example-results.json`）提取编译运行通过。三语站点构建及根路径、/docs/、三语桌面/移动共 12 项浏览器检查通过。
 
 ## 范围与复现
 
-[12 文件 tree](changed-tree.txt)和 [SHA-256](candidate-sha256.json)。仅接入必要容器、Facade 接线、测试及三语容器正文，其他模块 WIP 保留。
+12 文件 tree（`changed-tree.txt`）和 SHA-256（`candidate-sha256.json`）。仅接入必要容器、Facade 接线、测试及三语容器正文，其他模块 WIP 保留。
 
 ```sh
-python3 .agents/project/audits/01-02b/prepare_candidate.py /tmp/openrust-01-02b-review
+git worktree add --detach /tmp/openrust-01-02b-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02b-evidence/.agents/project/audits/01-02b/prepare_candidate.py /tmp/openrust-01-02b-review
 cd /tmp/openrust-01-02b-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -40,7 +43,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-在项目根目录执行 verify_examples.py、verify_http.py、verify_commands.py，参数均为上述副本目录。构造工具从 git-commit.txt 对应的不可变提交恢复并校验。验收记录保存后，清理本部分独占 target，候选源码与 .artifacts/release 保留；详见 cleanup-results.json。
+在项目根目录执行 `verify_examples.py`、`verify_http.py`、`verify_commands.py`，参数均为上述副本目录。构造工具从 `git-commit.txt` 对应的不可变提交恢复并校验。验收记录保存后，清理本部分独占 target，候选源码与 .artifacts/release 保留；详见 `cleanup-results.json`。
 
 ## 后续
 

@@ -1,5 +1,7 @@
 # 01-02 第三部分：上下文绑定与标签服务
 
+本批复现脚本、清单和结果可在 Git 提交 `67d28aab` 的 `.agents/project/audits/01-02c/` 下查阅。复现命令使用独立的历史检出。
+
 2026-11-11 完成上下文工厂、服务名实现、配置输入和标签集合的本批验收。01-02 的扩展/解析/重绑定回调及延迟 Provider 尚未完成，不标记整个容器章节或交付单元关闭。
 
 ## 固定基线与复用
@@ -23,14 +25,15 @@ macOS ARM64、Rust 1.94.0。工作区 88 项常规测试与 5 项真实 CLI 子�
 
 新增 12 项 contextual 单元回归，覆盖缓存优先级、同依赖默认委托、最近消费者、多个消费者、别名增改、类型前置拒绝、失败/panic 重试、作用域覆盖、配置默认/null/类型、标签惰性与重复迭代、析构重入及跨线程/嵌套应用隔离。tests/contextual_lifecycle.rs 通过两应用共 4 次并发真实 TCP 请求及 3 次 Artisan Kernel 调用；container_process 实际 runApplication 子进程新增 context:probe。
 
-[58 次 HTTP 和 6 次 Artisan 调用](http-results.json)、[40 次进程检查](command-results.json)通过；涵盖原首页、健康检查、静态优先级与安全边界、异常以及命令成功/失败契约。[三语 12 个完整 Rust 示例](example-results.json)提取编译运行通过；三语站点构建及 `/`、`/docs/` 的三语桌面/移动共 12 项浏览器检查通过。
+58 次 HTTP 和 6 次 Artisan 调用（`http-results.json`）、40 次进程检查（`command-results.json`）通过；涵盖原首页、健康检查、静态优先级与安全边界、异常以及命令成功/失败契约。三语 12 个完整 Rust 示例（`example-results.json`）提取编译运行通过；三语站点构建及 `/`、`/docs/` 的三语桌面/移动共 12 项浏览器检查通过。
 
 ## 最小范围与复现
 
-[13 文件 tree](changed-tree.txt)、[文件表](changed-files.txt)、[SHA-256](candidate-sha256.json)。共享 Cargo.toml 和 Cargo.lock 只纳入 serde 的必要差异；从不可变提交恢复候选，不读取共享依赖文件里的其他 WIP。其他模块和根应用的改动保留。
+13 文件 tree（`changed-tree.txt`）、文件表（`changed-files.txt`）、SHA-256（`candidate-sha256.json`）。共享 Cargo.toml 和 Cargo.lock 只纳入 serde 的必要差异；从不可变提交恢复候选，不读取共享依赖文件里的其他 WIP。其他模块和根应用的改动保留。
 
 ```sh
-python3 .agents/project/audits/01-02c/prepare_candidate.py /tmp/openrust-01-02c-review
+git worktree add --detach /tmp/openrust-01-02c-evidence 67d28aab1629ffc7364f0a8f8ebbe018cf14eecc
+python3 /tmp/openrust-01-02c-evidence/.agents/project/audits/01-02c/prepare_candidate.py /tmp/openrust-01-02c-review
 cd /tmp/openrust-01-02c-review
 cargo +1.94.0 fmt --all --check
 cargo +1.94.0 test --workspace --locked --offline
@@ -38,7 +41,7 @@ cargo +1.94.0 clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo +1.94.0 build --locked --offline --release --features standalone
 ```
 
-在工作区运行本目录 verify_http.py、verify_commands.py、verify_examples.py，参数为上述副本。提交后构造器从 git-commit.txt 对应的不可变提交恢复并校验，阶段完成清理独占 target；候选源码和 .artifacts/release 保留。
+使用历史检出目录内的 `verify_http.py`、`verify_commands.py`、`verify_examples.py`，参数为上述副本。提交后构造器从 `git-commit.txt` 对应的不可变提交恢复并校验，阶段完成清理独占 target；候选源码和 .artifacts/release 保留。
 
 ## 剩余边界
 
@@ -46,7 +49,7 @@ cargo +1.94.0 build --locked --offline --release --features standalone
 
 ## 本地提交与清理
 
-代码提交 `66937849eb46f5483627b6aba538cc44da954491`，13 文件，未推送。不可变提交重建和 SHA-256 校验通过。确认没有编译进程后清理本阶段独占 target 1,333,160 KiB，约 1.37 GB；源码及必要发布产物保留。清理后磁盘可用约 65.11 GB。最近额度剩余 98%，未触发停止条件。[清理记录](cleanup-results.json)。
+代码提交 `66937849eb46f5483627b6aba538cc44da954491`，13 文件，未推送。不可变提交重建和 SHA-256 校验通过。确认没有编译进程后清理本阶段独占 target 1,333,160 KiB，约 1.37 GB；源码及必要发布产物保留。清理后磁盘可用约 65.11 GB。最近额度剩余 98%，未触发停止条件。清理记录（`cleanup-results.json`）。
 
 ## 后续复核纠正
 
