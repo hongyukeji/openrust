@@ -111,3 +111,42 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 ```
 
 For manual control, call `beginTransaction().await?`, then call `commit` or `rollBack(None)` on the returned handle. Calling `beginTransaction` on the handle creates a savepoint. `rollBack(Some(level))` rolls back to the given nesting level. Level zero aborts the whole transaction. Dropping an active handle rolls back its pending work. MySQL statements such as DDL can implicitly commit, so keep them outside transactions that require atomicity.
+
+### Transaction Events {#transaction-events}
+
+Subscribe through the application event dispatcher. `TransactionBeginning` fires after a transaction or savepoint starts. `TransactionCommitting` fires immediately before the outer commit. `TransactionCommitted` fires after the transaction level decreases and the applicable commit callbacks have run. `TransactionRolledBack` fires once after an explicit rollback or the rollback of a failed transaction callback.
+
+A listener can use the transaction in its event context while a level is active. After an outer commit or rollback, the event carries the connection and level zero. A listener failure after the outer commit returns `DatabaseError::AfterCommit` and the committed data remains.
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::events::{Event as EventPayload, Listener},
+    database::events::TransactionCommitted,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::Event,
+};
+
+struct ReportCommit;
+
+impl Listener for ReportCommit {
+    fn handle<'a>(
+        &'a self,
+        payload: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = payload.downcast_ref::<TransactionCommitted>()
+                .ok_or(EventError::InvalidPayload)?;
+            if event.level == 0 {
+                println!("Committed on {}", event.connection.getName());
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn register() -> EventResult<()> {
+    Event::listen(TransactionCommitted::NAME, Arc::new(ReportCommit), Delivery::Sync)
+}
+```

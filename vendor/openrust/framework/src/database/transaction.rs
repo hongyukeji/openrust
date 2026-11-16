@@ -1,3 +1,11 @@
+use std::sync::Arc;
+
+use crate::{
+    contracts::{container::Container as _, events::Dispatcher as _},
+    events::{Dispatcher, EventContext},
+    support::facades::application_scope,
+};
+
 use futures_util::TryStreamExt as _;
 use sqlx::error::DatabaseError as _;
 
@@ -5,6 +13,10 @@ use super::{
     Bindings, Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult,
     DatabaseTransactionsManager, Row, Value,
     connection::{PhysicalConnection, TransactionCommand},
+    events::{
+        TransactionBeginning, TransactionCommitted, TransactionCommitting, TransactionEvent,
+        TransactionRolledBack,
+    },
 };
 
 /// An exclusive database transaction on the write connection.
@@ -86,19 +98,18 @@ impl Connection {
                 transactions: DatabaseTransactionsManager::default(),
             };
             let result = match transaction
-                .physical()?
-                .control(
+                .begin(
                     "begin schema transaction",
                     TransactionCommand::BeginImmediate,
                 )
                 .await
             {
                 Ok(()) => {
-                    transaction.level = 1;
                     transaction
                         .run(|transaction| callback(transaction, foreign_keys))
                         .await
                 }
+                Err(error) if transaction.level != 0 => transaction.abort(1, error).await,
                 Err(error) => Err(error),
             };
             if transaction.level == 0
@@ -196,10 +207,40 @@ impl Transaction {
     }
 
     pub async fn beginTransaction(&mut self) -> DatabaseResult<()> {
-        self.physical()?
-            .control("begin transaction", TransactionCommand::Begin)
-            .await?;
+        self.begin("begin transaction", TransactionCommand::Begin)
+            .await
+    }
+
+    async fn begin(
+        &mut self,
+        operation: &'static str,
+        command: TransactionCommand,
+    ) -> DatabaseResult<()> {
+        self.physical()?.control(operation, command).await?;
         self.level += 1;
+        self.fire::<TransactionBeginning>().await
+    }
+
+    async fn fire<E: TransactionEvent>(&mut self) -> DatabaseResult<()> {
+        let Some(owner) =
+            Connection::model_container(Some(&self.connection)).filter(|owner| owner.has("events"))
+        else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(DatabaseError::Unavailable)?;
+        if dispatcher.observes(E::NAME) {
+            let event = Arc::new(E::new(self.connection.clone(), self.level));
+            let mut context = if self.level == 0 {
+                EventContext::new()
+            } else {
+                EventContext::in_transaction(self)
+            };
+            application_scope(owner, dispatcher.dispatch(event, &mut context))
+                .await
+                .map_err(|source| DatabaseError::ConnectionEvent(Box::new(source)))?;
+        }
         Ok(())
     }
 
@@ -215,6 +256,9 @@ impl Transaction {
         if self.level == 0 {
             return Err(DatabaseError::TransactionClosed);
         }
+        if self.level == 1 {
+            self.fire::<TransactionCommitting>().await?;
+        }
         self.physical()?
             .control("commit", TransactionCommand::Commit)
             .await?;
@@ -222,11 +266,23 @@ impl Transaction {
         if self.level == 0 && !self.retain_physical {
             self.physical.take();
         }
-        self.transactions.commit(self.level + 1).await
+        self.transactions.commit(self.level + 1).await?;
+        self.fire::<TransactionCommitted>().await.map_err(|source| {
+            if self.level == 0 {
+                DatabaseError::AfterCommit {
+                    source: Box::new(source),
+                }
+            } else {
+                source
+            }
+        })
     }
 
     pub async fn rollBack(&mut self, toLevel: Option<u32>) -> DatabaseResult<()> {
         let toLevel = toLevel.unwrap_or_else(|| self.level.saturating_sub(1));
+        if self.level <= toLevel {
+            return Ok(());
+        }
         while self.level > toLevel {
             self.physical()?
                 .control("roll back", TransactionCommand::RollBack)
@@ -237,7 +293,7 @@ impl Transaction {
         if self.level == 0 && !self.retain_physical {
             self.physical.take();
         }
-        Ok(())
+        self.fire::<TransactionRolledBack>().await
     }
 
     async fn run<T>(

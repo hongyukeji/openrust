@@ -111,3 +111,42 @@ pub async fn add_note(connection: &Connection) -> DatabaseResult<Value> {
 ```
 
 手動控制時呼叫 `beginTransaction().await?`，然後在傳回的控制代碼上呼叫 `commit` 或 `rollBack(None)`。在控制代碼上再次呼叫 `beginTransaction` 會建立儲存點。`rollBack(Some(level))` 復原到指定層級，層級零復原整個交易。捨棄活動的控制代碼會復原尚未提交的操作。MySQL 的 DDL 等陳述式可能隱含提交，請放在要求不可分割性的交易之外。
+
+### 交易事件 {#transaction-events}
+
+透過應用程式事件分派器訂閱。`TransactionBeginning` 在交易或儲存點建立後觸發。`TransactionCommitting` 在最外層提交前觸發。`TransactionCommitted` 在交易層級下降並執行該層應執行的提交回呼後觸發。`TransactionRolledBack` 在明確復原或交易回呼失敗引發的復原完成後觸發一次。
+
+仍有作用中層級時，監聽器可透過事件上下文使用目前的交易。最外層提交或復原後，事件包含連線及層級 0。最外層提交後監聽失敗時傳回 `DatabaseError::AfterCommit`，已提交的資料保留。
+
+```rust
+use std::sync::Arc;
+use openrust::{
+    contracts::events::{Event as EventPayload, Listener},
+    database::events::TransactionCommitted,
+    events::{Delivery, EventContext, EventError, EventFuture, EventResult, ListenerResponse},
+    support::facades::Event,
+};
+
+struct ReportCommit;
+
+impl Listener for ReportCommit {
+    fn handle<'a>(
+        &'a self,
+        payload: &'a dyn EventPayload,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let event = payload.downcast_ref::<TransactionCommitted>()
+                .ok_or(EventError::InvalidPayload)?;
+            if event.level == 0 {
+                println!("Committed on {}", event.connection.getName());
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn register() -> EventResult<()> {
+    Event::listen(TransactionCommitted::NAME, Arc::new(ReportCommit), Delivery::Sync)
+}
+```

@@ -4,7 +4,7 @@ use std::{
     fs,
     io::{Read as _, Write as _},
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -12,9 +12,27 @@ use axum::{extract::State, handler::Handler as _};
 use openrust::{
     config::{ConfigError, Environment, Repository},
     console::{Command, CommandDefinition, ConsoleError, ConsoleFuture, Input, Output},
-    contracts::http::Kernel as _,
-    database::{Bindings, Connection, DatabaseError, DatabaseManager, Value},
-    foundation::{Application, configuration::Routing, http::Kernel},
+    contracts::{
+        container::Container as _,
+        events::{Dispatcher as _, Event as EventPayload, Listener},
+        foundation::Application as _,
+        http::Kernel as _,
+    },
+    database::{
+        Bindings, Connection, DatabaseError, DatabaseManager, Value,
+        events::{
+            TransactionBeginning, TransactionCommitted, TransactionCommitting,
+            TransactionRolledBack,
+        },
+    },
+    events::{
+        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerResponse,
+    },
+    foundation::{
+        Application,
+        configuration::{ApplicationBuilder, Routing},
+        http::Kernel,
+    },
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::{Router, RoutingError},
     support::facades::DB,
@@ -405,12 +423,20 @@ async fn prepare(root: &Root, id: i64) {
         .unwrap();
 }
 
-async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<()>) {
-    let app = Application::configure(root.0.clone())
+async fn server(
+    root: &Root,
+) -> (
+    std::net::SocketAddr,
+    tokio::task::JoinHandle<()>,
+    Arc<TransactionRecorder>,
+) {
+    let mut app = Application::configure(root.0.clone())
         .withConfig(config)
         .withRouting(Routing::new(routes))
         .create()
         .unwrap();
+    app.boot().await.unwrap();
+    let recorder = transaction_recorder(&app);
     let mut kernel = Kernel::new(app);
     kernel.bootstrap().await.unwrap();
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -419,6 +445,7 @@ async fn server(root: &Root) -> (std::net::SocketAddr, tokio::task::JoinHandle<(
     (
         address,
         tokio::spawn(async move { axum::serve(listener, service).await.unwrap() }),
+        recorder,
     )
 }
 
@@ -477,17 +504,27 @@ fn commands(artisan: &mut openrust::console::Application) -> Result<(), ConsoleE
 async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     const CHILD: &str = "OPENRUST_TEST_DATABASE_CHILD";
     if let Some(root) = std::env::var_os(CHILD) {
-        let app = Application::configure(root.into())
+        let mut app = Application::configure(root.into())
             .withCommands(commands)
             .create()
             .unwrap();
+        app.boot().await.unwrap();
+        let recorder = transaction_recorder(&app);
         assert_eq!(app.handleCommand(&["db:probe".into()]).await.unwrap(), 0);
+        assert_eq!(
+            recorder.take(),
+            [
+                (TransactionBeginning::NAME, 1),
+                (TransactionCommitting::NAME, 1),
+                (TransactionCommitted::NAME, 0),
+            ]
+        );
         return;
     }
     let first = Root::new();
     let second = Root::new();
     tokio::join!(prepare(&first, 17), prepare(&second, 42));
-    let ((a, x), (b, y)) = tokio::join!(server(&first), server(&second));
+    let ((a, x, events_a), (b, y, events_b)) = tokio::join!(server(&first), server(&second));
     tokio::join!(
         send(a, "/database", "17"),
         send(b, "/database", "42"),
@@ -500,6 +537,27 @@ async fn db_facade_reads_sqlite_through_real_http_and_artisan() {
     );
     send(a, "/replica/read", "170").await;
     send(a, "/replica/primary", "18").await;
+    let mut observed = events_a.take();
+    observed.sort_unstable();
+    assert_eq!(
+        observed,
+        [
+            (TransactionBeginning::NAME, 1),
+            (TransactionBeginning::NAME, 1),
+            (TransactionCommitted::NAME, 0),
+            (TransactionCommitted::NAME, 0),
+            (TransactionCommitting::NAME, 1),
+            (TransactionCommitting::NAME, 1),
+        ]
+    );
+    assert_eq!(
+        events_b.take(),
+        [
+            (TransactionBeginning::NAME, 1),
+            (TransactionCommitting::NAME, 1),
+            (TransactionCommitted::NAME, 0),
+        ]
+    );
     for server in [x, y] {
         server.abort();
         assert!(server.await.unwrap_err().is_cancelled());
@@ -622,7 +680,17 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
             "locker":{"url":url,"max_connections":1,"acquire_timeout":5}
         }}),
     );
-    let writer = db.connection(None).unwrap();
+    fn writer_config(
+        _: &Path,
+        _: &Environment,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+        let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+        Ok([("database".into(), json!({
+            "default":"writer","connections":{"writer":{"url":url,"max_connections":1,"acquire_timeout":5}}
+        }))].into())
+    }
+    let (_app, writer, events) =
+        record_transactions(Application::configure(root.0.clone()).withConfig(writer_config)).await;
     writer.unprepared("DROP TABLE IF EXISTS rust_txn; CREATE TABLE rust_txn (id INT PRIMARY KEY, n INT); INSERT INTO rust_txn VALUES (1, 0)").await.unwrap();
     let mut locker = db
         .connection(Some("locker"))
@@ -666,6 +734,16 @@ async fn real_mysql_transactions_retry_lock_failure_and_retire_cancelled_session
         .unwrap();
     locker.await.unwrap();
     assert_eq!(attempts.load(Ordering::SeqCst), 2);
+    assert_eq!(
+        events.take(),
+        [
+            (TransactionBeginning::NAME, 1),
+            (TransactionRolledBack::NAME, 0),
+            (TransactionBeginning::NAME, 1),
+            (TransactionCommitting::NAME, 1),
+            (TransactionCommitted::NAME, 0),
+        ]
+    );
     assert_eq!(
         writer
             .scalar("SELECT n FROM rust_txn WHERE id = 1", &[])
@@ -1110,4 +1188,257 @@ async fn mysql_tls_distinguishes_ca_and_server_identity() {
             .unwrap(),
         1.into()
     );
+}
+
+#[derive(Default)]
+struct TransactionRecorder {
+    calls: Mutex<Vec<(&'static str, u32)>>,
+    fail: Mutex<Option<&'static str>>,
+}
+
+impl TransactionRecorder {
+    fn take(&self) -> Vec<(&'static str, u32)> {
+        std::mem::take(&mut *self.calls.lock().unwrap())
+    }
+}
+
+impl Listener for TransactionRecorder {
+    fn handle<'a>(
+        &'a self,
+        event: &'a dyn EventPayload,
+        context: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            macro_rules! payload {
+                ($kind:ty) => {
+                    event
+                        .downcast_ref::<$kind>()
+                        .map(|event| (<$kind>::NAME, &event.connection, event.level))
+                };
+            }
+            let (name, connection, level) = payload!(TransactionBeginning)
+                .or_else(|| payload!(TransactionCommitting))
+                .or_else(|| payload!(TransactionCommitted))
+                .or_else(|| payload!(TransactionRolledBack))
+                .ok_or(EventError::InvalidPayload)?;
+            assert_eq!(
+                context.transaction().map(|tx| tx.transactionLevel()),
+                (level > 0).then_some(level)
+            );
+            let scoped = DB::connection(None).map_err(EventError::Transaction)?;
+            assert_eq!(connection.getName(), scoped.getName());
+            assert_eq!(connection.getDatabaseName(), scoped.getDatabaseName());
+            self.calls.lock().unwrap().push((name, level));
+            if *self.fail.lock().unwrap() == Some(name) {
+                return Err(EventError::Listener {
+                    source: std::io::Error::other("transaction event probe").into(),
+                });
+            }
+            Ok(None)
+        })
+    }
+}
+
+fn transaction_recorder(app: &Application) -> Arc<TransactionRecorder> {
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    let recorder = Arc::new(TransactionRecorder::default());
+    dispatcher
+        .listen(
+            r"OpenRust\Database\Events\Transaction*",
+            recorder.clone(),
+            Delivery::Sync,
+        )
+        .unwrap();
+    recorder
+}
+
+async fn record_transactions(
+    builder: ApplicationBuilder,
+) -> (Application, Connection, Arc<TransactionRecorder>) {
+    let mut app = builder.create().unwrap();
+    app.boot().await.unwrap();
+    let recorder = transaction_recorder(&app);
+    let connection = app
+        .container()
+        .make::<DatabaseManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    (app, connection, recorder)
+}
+
+async fn verify_transaction_lifecycle(db: &Connection, recorder: &Arc<TransactionRecorder>) {
+    use openrust::database::events::{
+        TransactionBeginning as Began, TransactionCommitted as Committed,
+        TransactionCommitting as Committing, TransactionRolledBack as RolledBack,
+    };
+    db.statement("DROP TABLE IF EXISTS transaction_event_records", &[])
+        .await
+        .unwrap();
+    db.statement(
+        "CREATE TABLE transaction_event_records (id INTEGER PRIMARY KEY)",
+        &[],
+    )
+    .await
+    .unwrap();
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    tx.beginTransaction().await.unwrap();
+    tx.insert("INSERT INTO transaction_event_records VALUES (1)", &[])
+        .await
+        .unwrap();
+    tx.commit().await.unwrap();
+    tx.beginTransaction().await.unwrap();
+    tx.beginTransaction().await.unwrap();
+    tx.insert("INSERT INTO transaction_event_records VALUES (2)", &[])
+        .await
+        .unwrap();
+    tx.rollBack(Some(1)).await.unwrap();
+    tx.rollBack(Some(1)).await.unwrap();
+    let callbacks = recorder.clone();
+    tx.afterCommit(move || {
+        Box::pin(async move {
+            callbacks.calls.lock().unwrap().push(("afterCommit", 0));
+            Ok(())
+        })
+    })
+    .unwrap();
+    tx.commit().await.unwrap();
+    assert_eq!(
+        recorder.take(),
+        [
+            (Began::NAME, 1),
+            (Began::NAME, 2),
+            (Committed::NAME, 1),
+            (Began::NAME, 2),
+            (Began::NAME, 3),
+            (RolledBack::NAME, 1),
+            (Committing::NAME, 1),
+            ("afterCommit", 0),
+            (Committed::NAME, 0),
+        ]
+    );
+    assert_eq!(
+        db.scalar("SELECT count(*) FROM transaction_event_records", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+
+    *recorder.fail.lock().unwrap() = Some(Committing::NAME);
+    let result = db
+        .transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.insert("INSERT INTO transaction_event_records VALUES (3)", &[])
+                        .await
+                })
+            },
+            2,
+        )
+        .await;
+    assert!(matches!(result, Err(DatabaseError::ConnectionEvent(_))));
+    assert_eq!(
+        recorder.take(),
+        [
+            (Began::NAME, 1),
+            (Committing::NAME, 1),
+            (RolledBack::NAME, 0)
+        ]
+    );
+    assert_eq!(
+        db.scalar("SELECT count(*) FROM transaction_event_records", &[])
+            .await
+            .unwrap(),
+        1.into()
+    );
+
+    *recorder.fail.lock().unwrap() = Some(Committed::NAME);
+    let result = db
+        .transaction(
+            |tx| {
+                Box::pin(async move {
+                    tx.insert("INSERT INTO transaction_event_records VALUES (4)", &[])
+                        .await
+                })
+            },
+            2,
+        )
+        .await;
+    assert!(matches!(result, Err(DatabaseError::AfterCommit { .. })));
+    assert_eq!(
+        recorder.take(),
+        [
+            (Began::NAME, 1),
+            (Committing::NAME, 1),
+            (Committed::NAME, 0)
+        ]
+    );
+    assert_eq!(
+        db.scalar("SELECT count(*) FROM transaction_event_records", &[])
+            .await
+            .unwrap(),
+        2.into()
+    );
+
+    db.statement("DROP TABLE transaction_event_records", &[])
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn sqlite_transaction_events_are_ordered_and_application_local() {
+    fn sqlite_config(
+        _: &Path,
+        _: &Environment,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+        Ok(BTreeMap::new())
+    }
+    let root = Root::new();
+    let other_root = Root::new();
+    let (_app, connection, events) =
+        record_transactions(Application::configure(root.0.clone()).withConfig(sqlite_config)).await;
+    let (_other_app, other, other_events) =
+        record_transactions(Application::configure(other_root.0.clone()).withConfig(sqlite_config))
+            .await;
+    verify_transaction_lifecycle(&connection, &events).await;
+    assert!(other_events.take().is_empty());
+    other
+        .beginTransaction()
+        .await
+        .unwrap()
+        .rollBack(None)
+        .await
+        .unwrap();
+    assert_eq!(
+        other_events.take(),
+        [
+            (TransactionBeginning::NAME, 1),
+            (TransactionRolledBack::NAME, 0)
+        ]
+    );
+    assert!(events.take().is_empty());
+}
+
+#[tokio::test]
+async fn mysql_transactions_deliver_events_after_confirmed_driver_operations() {
+    fn mysql_config(
+        _: &Path,
+        _: &Environment,
+    ) -> Result<BTreeMap<String, serde_json::Value>, ConfigError> {
+        let url = std::env::var("OPENRUST_TEST_MYSQL_URL").unwrap();
+        Ok([(
+            "database".into(),
+            json!({"default":"mysql","connections":{"mysql":{"url":url}}}),
+        )]
+        .into())
+    }
+    if std::env::var_os("OPENRUST_TEST_MYSQL_URL").is_none() {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    }
+    let root = Root::new();
+    let (_app, connection, events) =
+        record_transactions(Application::configure(root.0.clone()).withConfig(mysql_config)).await;
+    verify_transaction_lifecycle(&connection, &events).await;
 }

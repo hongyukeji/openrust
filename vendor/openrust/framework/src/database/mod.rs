@@ -13,6 +13,7 @@ mod database_manager;
 mod database_service_provider;
 mod database_transactions_manager;
 pub mod eloquent;
+pub mod events;
 mod facade;
 mod migration_service_provider;
 pub mod migrations;
@@ -79,6 +80,7 @@ pub enum DatabaseError {
         count: usize,
     },
     ModelEvent(Box<crate::events::EventError>),
+    ConnectionEvent(Box<crate::events::EventError>),
     LazyLoadingViolation {
         model: &'static str,
         relation: String,
@@ -169,6 +171,7 @@ impl std::fmt::Display for DatabaseError {
                     "expected one model for table {table:?}, found {count}"
                 )
             }
+            Self::ConnectionEvent(_) => formatter.write_str("database event listener failed"),
             Self::ModelEvent(_) => formatter.write_str("model event dispatch failed"),
             Self::LazyLoadingViolation { model, relation } => {
                 write!(
@@ -220,7 +223,7 @@ impl std::error::Error for DatabaseError {
             Self::Driver { source, .. } => Some(source),
             Self::FakerIo(source) => Some(source),
             Self::AfterCommit { source } => Some(source.as_ref()),
-            Self::ModelEvent(source) => Some(source.as_ref()),
+            Self::ModelEvent(source) | Self::ConnectionEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),
