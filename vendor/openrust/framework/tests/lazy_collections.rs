@@ -938,3 +938,92 @@ fn lazy_replace_applies_each_key_once_and_defers_reading_primary_entries() {
     ));
     assert_eq!(reads.get(), 6);
 }
+
+#[test]
+fn lazy_only_stops_after_first_match_for_every_key_but_except_materializes() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("a", 1), ("a", 2), ("b", 3), ("c", 4)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(
+        source.clone().only(["b", "a", "a"]).all().unwrap(),
+        vec![("a".into(), 1), ("b".into(), 3)]
+    );
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        source.except(["b"]).all().unwrap(),
+        vec![("a".into(), 2), ("c".into(), 4)]
+    );
+    assert_eq!(reads.get(), 7);
+    let failing = LazyCollection::tryFromEntries(|| [Ok(("a", 1)), Err(source_error())]);
+    assert_eq!(
+        failing.clone().only(["a"]).all().unwrap(),
+        vec![("a".into(), 1)]
+    );
+    assert!(matches!(
+        failing.only(["b"]).first(),
+        Err(CollectionError::Source(_))
+    ));
+}
+
+#[test]
+fn lazy_keyed_projections_preserve_occurrences_and_defer_the_next_source_item() {
+    let projected = Cell::new(0);
+    let source = LazyCollection::make(|| [("8", 1), ("8", 2), ("09", 3)]);
+    assert_eq!(
+        source
+            .clone()
+            .keyBy(|pair, _| pair.0)
+            .collect()
+            .unwrap()
+            .count(),
+        2
+    );
+    assert_eq!(
+        source.clone().pluck(|pair| pair.1).all().unwrap(),
+        vec![(0.into(), 1), (1.into(), 2), (2.into(), 3)]
+    );
+    assert_eq!(
+        source
+            .clone()
+            .pluckWithKeys(|pair| pair.0, |pair| pair.1)
+            .values()
+            .count()
+            .unwrap(),
+        3
+    );
+    let mapped = source.mapWithKeys(|pair, _| {
+        projected.set(projected.get() + 1);
+        [(pair.0, pair.1), ("extra", 2 * pair.1)]
+    });
+    assert_eq!(
+        mapped.clone().take(2).all().unwrap(),
+        vec![(8.into(), 1), ("extra".into(), 2)]
+    );
+    assert_eq!(projected.get(), 1);
+    assert_eq!(
+        mapped.all().unwrap(),
+        vec![(8.into(), 2), ("extra".into(), 6), ("09".into(), 3)]
+    );
+}
+
+#[test]
+fn lazy_groups_materialize_with_key_coalescing_before_projection() {
+    let source = LazyCollection::fromEntries(|| [("a", 1), ("a", 4), ("b", 2), ("c", 3)]);
+    let dictionary = source
+        .clone()
+        .mapToDictionary(|value, _| (value % 2, *value));
+    assert_eq!(
+        dictionary.all().unwrap(),
+        vec![(0.into(), vec![4, 2]), (1.into(), vec![3])]
+    );
+    let groups = source.clone().mapToGroups(|value, _| (value % 2, *value));
+    assert_eq!(groups.first().unwrap().unwrap().toJson().unwrap(), "[4,2]");
+    let keyed = source.groupBy(|value, _| value % 2, true);
+    assert_eq!(
+        keyed.first().unwrap().unwrap().toJson().unwrap(),
+        r#"{"a":4,"b":2}"#
+    );
+}

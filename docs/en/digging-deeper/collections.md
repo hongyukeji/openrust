@@ -283,6 +283,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Selecting Keys and Projecting Items {#lazy-keys-and-projection}
+
+`only` returns the first occurrence of each requested key in source order and stops when it has found them all. `except` materializes the source before excluding keys. `keyBy`, `pluckWithKeys`, and `mapWithKeys` can yield a key more than once. Materializing their result keeps the last value for each key. `groupBy`, `mapToDictionary`, and `mapToGroups` materialize the source on the first pull and return completed groups.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let records = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(records.clone().only(["a"]).first()?, Some(10));
+    assert_eq!(records.except(["b"]).first()?, Some(12));
+
+    let readings = LazyCollection::from([("a", 10), ("b", 7)]);
+    let mapped = readings.mapWithKeys(|record, _| [(record.0, record.1 * 2)]);
+    assert_eq!(mapped.collect()?.toJson()?, r#"{"a":20,"b":14}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

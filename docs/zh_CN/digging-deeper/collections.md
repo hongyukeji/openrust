@@ -283,6 +283,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 按键筛选和投影 {#lazy-keys-and-projection}
+
+`only` 按来源顺序返回每个请求键首次出现的条目，全部找到后停止。`except` 先实体化来源，再排除指定键。`keyBy`、`pluckWithKeys` 和 `mapWithKeys` 可多次产出同一键，结果实体化时以最后一个值为准。`groupBy`、`mapToDictionary` 和 `mapToGroups` 在首次取值时实体化来源，再返回完整分组。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let records = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(records.clone().only(["a"]).first()?, Some(10));
+    assert_eq!(records.except(["b"]).first()?, Some(12));
+
+    let readings = LazyCollection::from([("a", 10), ("b", 7)]);
+    let mapped = readings.mapWithKeys(|record, _| [(record.0, record.1 * 2)]);
+    assert_eq!(mapped.collect()?.toJson()?, r#"{"a":20,"b":14}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

@@ -283,6 +283,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 依鍵篩選與投影 {#lazy-keys-and-projection}
+
+`only` 按來源順序傳回每個指定鍵第一次出現的項目，全部找到後停止。`except` 先實體化來源，再排除指定鍵。`keyBy`、`pluckWithKeys` 和 `mapWithKeys` 可多次產出同一個鍵，結果實體化時以最後一個值為準。`groupBy`、`mapToDictionary` 和 `mapToGroups` 在第一次取值時實體化來源，再傳回完整分組。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let records = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(records.clone().only(["a"]).first()?, Some(10));
+    assert_eq!(records.except(["b"]).first()?, Some(12));
+
+    let readings = LazyCollection::from([("a", 10), ("b", 7)]);
+    let mapped = readings.mapWithKeys(|record, _| [(record.0, record.1 * 2)]);
+    assert_eq!(mapped.collect()?.toJson()?, r#"{"a":20,"b":14}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

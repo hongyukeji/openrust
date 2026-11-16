@@ -95,3 +95,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 差集、交集、关联、键及自定义比较变体在首次取值时实体化来源并复用实体集合的类型化比较。`merge` 重排数字键并覆盖同名字符串键，`union` 保留既有键值。
 - `replace` 先读完替换来源，在主来源中每个键第一次出现时替换，最后按顺序追加未用的替换项。每次取值最多推进一条主来源记录，来源错误按读取顺序传播。
 - PHP 8.5.12 固定源码对照、41 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性按键筛选与投影
+
+对照固定 Laravel 的 [only](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L951)、[except](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L435)、[keyBy](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L567) 和 [投影方法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L775)。旧版未发现同契约的惰性操作。
+
+- `only` 按来源顺序获取每个请求键的首项，匹配完后立即停止。`except` 在首次取值时按键实体化后排除。
+- `keyBy`、`pluckWithKeys` 与 `mapWithKeys` 保留产出时的重复键。实体化结果时最后一个值生效。Rust 用类型化回调表达 PHP 的字段路径，分组复用实体集合并返回已完成的组。
+- PHP 8.5.12 固定源码对照、44 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

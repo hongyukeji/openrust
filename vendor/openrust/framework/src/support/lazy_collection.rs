@@ -9,6 +9,7 @@ mod matching;
 mod nested;
 mod ordering;
 mod pairing;
+mod projection;
 mod sets;
 mod timing;
 
