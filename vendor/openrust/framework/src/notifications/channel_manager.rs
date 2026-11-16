@@ -10,20 +10,26 @@ use crate::{
 
 use super::{
     Notifiable, Notification, NotificationError, NotificationFake, NotificationFuture,
-    NotificationResult, NotificationSender,
+    NotificationQueueGuard, NotificationResult, NotificationSender,
     channels::{BroadcastChannel, Channel, DatabaseChannel, MailChannel},
 };
+
+type GuardHandler = dyn for<'a> Fn(&'a serde_json::Value) -> NotificationFuture<'a, NotificationResult<bool>>
+    + Send
+    + Sync;
 
 /// Resolves notification channels and dispatches notifications.
 pub struct ChannelManager {
     channels: RwLock<HashMap<String, Arc<dyn Channel>>>,
     fake: RwLock<Option<Arc<NotificationFake>>>,
+    queue_guards: RwLock<HashMap<String, Arc<GuardHandler>>>,
 }
 
 impl Default for ChannelManager {
     fn default() -> Self {
         Self {
             fake: RwLock::default(),
+            queue_guards: RwLock::default(),
             channels: RwLock::new(
                 [
                     ("mail".into(), Arc::new(MailChannel) as Arc<dyn Channel>),
@@ -55,6 +61,37 @@ impl ChannelManager {
             .read()
             .expect("notification fake lock poisoned")
             .clone()
+    }
+
+    /// Registers a delivery decision in applications that dispatch or work notification queues.
+    pub fn extendQueueGuard(
+        &self,
+        name: impl Into<String>,
+        handler: impl for<'a> Fn(
+            &'a serde_json::Value,
+        ) -> NotificationFuture<'a, NotificationResult<bool>>
+        + Send
+        + Sync
+        + 'static,
+    ) {
+        self.queue_guards
+            .write()
+            .expect("notification queue guard lock poisoned")
+            .insert(name.into(), Arc::new(handler));
+    }
+
+    pub(super) async fn allows_queued(
+        &self,
+        guard: &NotificationQueueGuard,
+    ) -> NotificationResult<bool> {
+        let handler = self
+            .queue_guards
+            .read()
+            .expect("notification queue guard lock poisoned")
+            .get(&guard.name)
+            .cloned()
+            .ok_or_else(|| super::delivery("Notification queue guard is not registered."))?;
+        handler(&guard.data).await
     }
 
     pub fn extend(&self, name: impl Into<String>, channel: Arc<dyn Channel>) {

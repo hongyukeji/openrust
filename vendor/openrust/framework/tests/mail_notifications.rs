@@ -24,12 +24,16 @@ use openrust::{
         mailables::{Attachment, Content, Envelope, Headers},
     },
     notifications::{
-        DatabaseKey, DatabaseNotification, DatabaseRoute, Notifiable, Notification as Notice,
-        NotificationEvent, NotificationResult, NotificationRoute, NotificationTarget,
+        ChannelManager, DatabaseKey, DatabaseNotification, DatabaseRoute, Notifiable,
+        Notification as Notice, NotificationError, NotificationEvent, NotificationFuture,
+        NotificationQueueGuard, NotificationResult, NotificationRoute, NotificationTarget,
         messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage},
     },
     queue::{DispatchOptions, QueueManager},
-    support::facades::{Artisan, Event, Facade, Lang, Mail, Notification, Route},
+    support::{
+        ProviderResult, ServiceProvider,
+        facades::{Artisan, Config, Event, Facade, Lang, Mail, Notification, Route},
+    },
 };
 use serde_json::{Value as Json, json};
 
@@ -226,6 +230,93 @@ fn notify_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpErro
             })?;
         Response::json(http::StatusCode::OK, json!({"accepted":true}))
     })
+}
+
+struct GuardedNotice {
+    flag: PathBuf,
+    id: &'static str,
+}
+
+impl Notice for GuardedNotice {
+    fn id(&self) -> Option<&str> {
+        Some(self.id)
+    }
+
+    fn via(&self, _: &dyn Notifiable) -> NotificationResult<Vec<String>> {
+        Ok(vec!["database".into()])
+    }
+
+    fn to_array(&self, _: &dyn Notifiable) -> NotificationResult<Option<DatabaseMessage>> {
+        Ok(Some(DatabaseMessage::new(json!({"paid":true}))))
+    }
+
+    fn queue_options(&self, _: &dyn Notifiable, _: &str) -> Option<DispatchOptions> {
+        Some(DispatchOptions {
+            queue: Some("guarded".into()),
+            ..Default::default()
+        })
+    }
+
+    fn should_send(&self, _: &dyn Notifiable, _: &str) -> bool {
+        self.flag.is_file()
+    }
+
+    fn queue_guard(
+        &self,
+        _: &dyn Notifiable,
+        _: &str,
+    ) -> NotificationResult<Option<NotificationQueueGuard>> {
+        Ok(Some(NotificationQueueGuard {
+            name: "fixture.delivery-flag".into(),
+            data: json!(self.flag),
+        }))
+    }
+}
+
+const ALLOW_NOTICE: &str = "e6ed5cc9-ce3a-45cc-9010-c2f77a23f289";
+const DENY_NOTICE: &str = "16ee6ea2-59b9-424f-9cab-2ea7bab6026a";
+
+fn guarded_from_http(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        let root = PathBuf::from(Config::string("fixture.guard_path").unwrap());
+        for (file, id) in [("allow", ALLOW_NOTICE), ("deny", DENY_NOTICE)] {
+            user()
+                .notify(&GuardedNotice {
+                    flag: root.join(file),
+                    id,
+                })
+                .await
+                .map_err(|error| HttpError::Internal {
+                    source: Box::new(error),
+                })?;
+        }
+        Response::json(http::StatusCode::ACCEPTED, json!({"queued":true}))
+    })
+}
+
+fn guard_file(data: &Json) -> NotificationFuture<'_, NotificationResult<bool>> {
+    Box::pin(async move {
+        let flag = data.as_str().expect("serialized flag path");
+        assert_eq!(Lang::getLocale().unwrap(), "fr");
+        tokio::fs::try_exists(flag)
+            .await
+            .map_err(|source| NotificationError::Delivery {
+                source: Box::new(source),
+            })
+    })
+}
+
+struct FixtureGuardProvider;
+
+impl ServiceProvider for FixtureGuardProvider {
+    fn boot<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            app.container()
+                .make::<ChannelManager>()?
+                .extendQueueGuard("fixture.delivery-flag", guard_file);
+            Ok(())
+        })
+    }
 }
 
 type EventRecord = (String, String, String);
@@ -461,11 +552,11 @@ fn app(root: &Path) -> Application {
                 serde_json::from_slice(&std::fs::read(base.join("config.json")).unwrap()).unwrap();
             Ok(config.into_iter().collect())
         })
-        .withRouting(
-            Routing::default()
-                .commands(mail_routes)
-                .web(|| Route::get("/notify", notify_from_http)),
-        )
+        .withRouting(Routing::default().commands(mail_routes).web(|| {
+            Route::get("/notify", notify_from_http)?;
+            Route::get("/guarded-notify", guarded_from_http)
+        }))
+        .withProviders(vec![Box::new(FixtureGuardProvider)])
         .create()
         .unwrap()
 }
@@ -1221,6 +1312,7 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
 
 async fn serve_notify(
     kernel: Kernel,
+    route: &str,
 ) -> (String, tokio::task::JoinHandle<Result<(), std::io::Error>>) {
     use axum::{Router, extract::State};
 
@@ -1237,7 +1329,7 @@ async fn serve_notify(
     }
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}/notify", listener.local_addr().unwrap());
+    let url = format!("http://{}/{}", listener.local_addr().unwrap(), route);
     let server = tokio::spawn(
         axum::serve(
             listener,
@@ -1281,7 +1373,7 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
         .mailer(None)
         .unwrap();
 
-    let (url, server) = serve_notify(kernel).await;
+    let (url, server) = serve_notify(kernel, "notify").await;
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     assert_eq!(
@@ -1349,7 +1441,7 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
         .make::<openrust::notifications::ChannelManager>()
         .unwrap()
         .fake();
-    let (url, server) = serve_notify(kernel).await;
+    let (url, server) = serve_notify(kernel, "notify").await;
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     notifications
@@ -1378,6 +1470,61 @@ async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan
         .await
         .unwrap();
     mail.assertNothingOutgoing();
+    server.abort();
+}
+
+#[tokio::test]
+async fn artisan_checks_live_notification_guard_after_http_dispatch() {
+    let Some(mysql) = delivery_mysql() else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
+        return;
+    };
+    let root = fixture(None, Some(&mysql), None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["fixture"] = json!({"guard_path": root.0});
+    std::fs::write(config_path, config.to_string()).unwrap();
+    let allow = root.0.join("allow");
+    let deny = root.0.join("deny");
+    std::fs::write(&deny, b"enabled").unwrap();
+
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let application = kernel.get_application();
+    let db = setup(application).await;
+    let queue = application
+        .container()
+        .make::<QueueManager>()
+        .unwrap()
+        .connection(None)
+        .unwrap();
+    let (url, server) = serve_notify(kernel, "guarded-notify").await;
+    assert_eq!(reqwest::get(url).await.unwrap().status(), 202);
+    assert_eq!(queue.size(Some("guarded")).await.unwrap(), 2);
+    assert_eq!(db.table("notifications").count("*").await.unwrap(), 0);
+
+    std::fs::remove_file(&deny).unwrap();
+    std::fs::write(&allow, b"enabled").unwrap();
+    artisan(
+        &root.0,
+        &[
+            "queue:work",
+            "database",
+            "--queue=guarded",
+            "--stop-when-empty",
+            "--sleep=0",
+        ],
+    )
+    .await;
+    assert_eq!(queue.size(Some("guarded")).await.unwrap(), 0);
+    assert_eq!(db.table("notifications").count("*").await.unwrap(), 1);
+    assert_eq!(
+        db.table("notifications").value("id").await.unwrap(),
+        Value::Text(ALLOW_NOTICE.into())
+    );
+    assert_eq!(db.table("failed_jobs").count("*").await.unwrap(), 0);
+
+    drop_delivery_tables(&db).await;
     server.abort();
 }
 

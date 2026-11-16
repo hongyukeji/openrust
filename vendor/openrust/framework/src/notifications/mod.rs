@@ -21,7 +21,7 @@ pub use channel_manager::ChannelManager;
 pub use database_notification::{DatabaseKey, DatabaseNotification, DatabaseRoute};
 pub use facade::NotificationFacade;
 pub use notifiable::Notifiable;
-pub use notification::Notification;
+pub use notification::{Notification, NotificationQueueGuard};
 pub use notification_fake::{NotificationFake, NotificationTarget, RecordedNotification};
 pub use notification_sender::{NotificationEvent, NotificationSender};
 pub use notification_service_provider::NotificationServiceProvider;

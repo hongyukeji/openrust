@@ -51,9 +51,16 @@ impl JobHandler for SendQueuedNotifications {
                     .map_err(|_| QueueError::InvalidPayload)?;
             let result = async {
                 let manager = NotificationFacade::getFacadeRoot().map_err(super::delivery)?;
-                let channel = manager.channel(Some(&delivery.channel))?;
                 delivery
-                    .localized(delivery.send(channel.send_queued(payload)))
+                    .localized(async {
+                        if let Some(guard) = &delivery.guard
+                            && !manager.allows_queued(guard).await?
+                        {
+                            return delivery.skipped().await;
+                        }
+                        let channel = manager.channel(Some(&delivery.channel))?;
+                        delivery.send(channel.send_queued(payload)).await
+                    })
                     .await
             }
             .await;

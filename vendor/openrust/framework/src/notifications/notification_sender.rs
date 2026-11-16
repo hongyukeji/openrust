@@ -10,8 +10,8 @@ use crate::{
 };
 
 use super::{
-    ChannelManager, Notifiable, Notification, NotificationResult, NotificationRoute,
-    NotificationTarget, RecordedNotification, SendQueuedNotifications,
+    ChannelManager, Notifiable, Notification, NotificationQueueGuard, NotificationResult,
+    NotificationRoute, NotificationTarget, RecordedNotification, SendQueuedNotifications,
     channels::ChannelResponse,
     delivery,
     messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
@@ -40,6 +40,8 @@ pub(super) struct Delivery {
     pub(super) kind: String,
     pub(super) channel: String,
     pub(super) locale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(super) guard: Option<NotificationQueueGuard>,
 }
 
 impl Delivery {
@@ -59,6 +61,13 @@ impl Delivery {
         }
     }
 
+    pub(super) async fn skipped(&self) -> NotificationResult<()> {
+        Events::dispatch(self.event("NotificationSkipped", None, None))
+            .await
+            .map_err(delivery)?;
+        Ok(())
+    }
+
     pub(super) async fn send(
         &self,
         operation: impl Future<Output = NotificationResult<Option<ChannelResponse>>>,
@@ -72,10 +81,7 @@ impl Delivery {
             None => false,
         };
         if denied {
-            Events::dispatch(self.event("NotificationSkipped", None, None))
-                .await
-                .map_err(delivery)?;
-            return Ok(());
+            return self.skipped().await;
         }
         match operation.await {
             Ok(response) => {
@@ -253,13 +259,16 @@ impl<'a> NotificationSender<'a> {
             kind: notification.kind().into(),
             channel: channel.into(),
             locale,
+            guard: if options.is_some() {
+                notification.inner.queue_guard(recipient, channel)?
+            } else {
+                None
+            },
         };
         delivery
             .localized(async {
-                if !notification.inner.should_send(recipient, channel) {
-                    Events::dispatch(delivery.event("NotificationSkipped", None, None))
-                        .await
-                        .map_err(super::delivery)?;
+                if delivery.guard.is_none() && !notification.inner.should_send(recipient, channel) {
+                    delivery.skipped().await?;
                 } else if let Some(options) = options {
                     if let Some(payload) = driver.queue_payload(recipient, notification).await? {
                         SendQueuedNotifications::dispatch(&delivery, payload, options, transaction)

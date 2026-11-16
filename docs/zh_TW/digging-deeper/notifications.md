@@ -41,6 +41,8 @@ pub async fn notify(customer: &dyn Notifiable) -> NotificationResult<()> {
 
 透過 `Notification::queue_options` 為每位收件人的每個管道回傳 `DispatchOptions`。每次投遞有自己的佇列任務。Worker 解析管道並觸發投遞事件。在使用中的交易裡，呼叫 `ChannelManager::sendInTransaction` 並啟用 `after_commit`，使交易回復時捨棄待加入佇列的通知。
 
+如果佇列通知依賴可能在 Worker 啟動前變動的狀態，透過 `Notification::queue_guard` 回傳帶名稱和 JSON 上下文的 `NotificationQueueGuard`。在 Worker 載入的服務提供者中，用 `ChannelManager::extendQueueGuard` 註冊非同步判定函式。結果為 false 時會跳過該管道並發出 `NotificationSkipped`。立即傳送和未設定 guard 的佇列通知沿用傳送端的 `should_send`。
+
 ## 隨選通知
 
 用 `Notifications::route` 直接向地址傳送通知，無需載入模型。範例中的 `PaymentReceived` 是 `via` 包含 `mail` 的通知。可鏈式呼叫 `route` 加入其他管道地址。資料庫管道需要已持久化的收件人。

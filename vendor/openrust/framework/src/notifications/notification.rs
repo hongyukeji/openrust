@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
     broadcasting::{BroadcastChannel, BroadcastPayload},
     queue::DispatchOptions,
@@ -7,6 +9,13 @@ use super::{
     Notifiable, NotificationResult,
     messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
 };
+
+/// The registered worker decision and its serializable context.
+#[derive(Deserialize, Serialize)]
+pub struct NotificationQueueGuard {
+    pub name: String,
+    pub data: serde_json::Value,
+}
 
 /// Describes the channels and content for a recipient.
 pub trait Notification: Send + Sync {
@@ -63,6 +72,15 @@ pub trait Notification: Send + Sync {
 
     fn should_send(&self, _recipient: &dyn Notifiable, _channel: &str) -> bool {
         true
+    }
+
+    /// Defers the delivery decision to a registered guard on the worker.
+    fn queue_guard(
+        &self,
+        _recipient: &dyn Notifiable,
+        _channel: &str,
+    ) -> NotificationResult<Option<NotificationQueueGuard>> {
+        Ok(None)
     }
 
     /// Selects queue delivery and options for this recipient and channel.

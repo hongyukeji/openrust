@@ -56,3 +56,9 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 实际 Artisan 通过 SMTP 向 Mailpit 1.33.1 发送主题邮件。通过记录的 HTTP API 检查纯文本、HTML 标题和表格、自定义主题颜色、变量转义和链接过滤。
 - 以独立 MySQL 8.4.13 运行数据库通知、数据库队列、重试及失败记录用例。迁移既有用例时核对 MySQL 无符号重试次数的返回类型。整组 12 项通过，两个夹具有各自入口。三语站点构建及 12 项浏览器检查通过。
 - Rust 1.94.0 工作区全目标严格 Clippy 通过。
+
+## 队列通知投递判定
+
+- 对照固定 [NotificationSender](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/NotificationSender.php) 的 Worker 时点判定。Rust 编译型 Provider 登记命名 async guard，队列只保存 guard 名称和值，不序列化闭包或 trait 对象。无 guard 的既有载荷仍按原策略兼容，立即发送继续使用 `should_send`。旧版通知任务已有 Worker 查应用服务的惯例，沿用同样的服务装配。
+- 真实 HTTP 请求将两条数据库通知提交到独立 MySQL 8.4.13。入队后交换两项实时状态，由独立 Artisan `queue:work` 判定，只有 Worker 执行时允许的通知落库，拒绝项没有失败记录。验证 guard 在收件人语言作用域执行。
+- 隔离副本以 `e3df2a317` 为基线，整组 13 项通过、2 个夹具标注忽略，Rust 1.94.0 工作区全目标严格 Clippy 通过。三语文档构建与 12 项浏览器检查通过。共享工作树并行日志改动的递归泛型实例化错误由隔离验证绕开。
