@@ -175,6 +175,14 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 使用 `{{ $attributes }}` 输出属性包。`merge` 添加默认值，普通属性以调用方的值为准，`class` 和 `style` 合并默认值与调用方的文本。HTML 属性值会转义，null 和 false 会省略。
 
+属性包方法从左到右执行。`whereStartsWith` 和别名 `thatStartWith` 保留名称匹配的属性，`whereDoesntStartWith` 排除匹配项。可以传入单个前缀或前缀列表。插槽属性包也支持这些方法。
+
+```html
+<aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
+    {{ $slot }}
+</aside>
+```
+
 #### 作用域插槽 {#scoped-slots}
 
 已注册的 Rust 组件可通过 `Component::data` 提供视图值。插槽通过 `$component` 读取这些值，组件模板通过普通变量读取同一份数据。组件方法的结果在 Rust 中计算后传入。

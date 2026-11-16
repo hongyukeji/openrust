@@ -516,6 +516,7 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         .with("namedSlot", "meta")
                 })?;
                 Route::get("/bad-component", || view("bad_component"))?;
+                Route::get("/bad-attributes", || view("bad_attributes"))?;
                 Route::get("/custom-condition", || view("custom_condition"))?;
                 Route::get("/bad-condition", || view("bad_condition"))?;
                 Route::get("/switch", || view("switch_cases"))?;
@@ -871,8 +872,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         (
             "slot_attributes",
             concat!(
-                r#"<x-demo::panel :$title ::class="active">"#,
-                r#"<x-slot:footer-actions :data-id="$id" class="extra"> action </x-slot>"#,
+                r#"<x-demo::panel :$title ::class="active" role="status">"#,
+                r#"<x-slot:footer-actions :data-id="$id" class="extra" title="remove"> action </x-slot>"#,
                 r#"<x-slot :name="$namedSlot" data-note="note"> meta </x-slot>"#,
                 " content </x-demo::panel>",
             ),
@@ -881,13 +882,14 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             "package/components/panel/index",
             concat!(
                 "@props(['title'])",
-                r#"<main {{ $attributes->only([':class']) }}>{{ $app }}:{{ $title }}"#,
-                r#"<footer {{ $footerActions->attributes->class(['base']) }}>{{ $footerActions }}</footer>"#,
-                r#"<i {{ $meta->attributes->except(['class']) }}>{{ $meta }}</i>"#,
+                r#"<main {{ $attributes->whereDoesntStartWith(['role', 'aria-'])->only(':class') }}>{{ $app }}:{{ $title }}"#,
+                r#"<footer {{ $footerActions->attributes->whereStartsWith(['class', 'data-'])->class(['base'])->merge(['aria-label' => 'a->b']) }}>{{ $footerActions }}</footer>"#,
+                r#"<i {{ $meta->attributes->thatStartWith('data-')->except('class') }}>{{ $meta }}</i>"#,
                 "{{ $slot }}</main>",
             ),
         ),
         ("bad_component", "<x-demo::../panel/>"),
+        ("bad_attributes", "{{ $attributes->only('id')->unknown() }}"),
         (
             "custom_condition",
             concat!(
@@ -1115,11 +1117,12 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         assert_eq!(
             html,
             format!(
-                r#"<main :class="active">{label}:&lt;Title&gt;<footer class="base extra" data-id="&lt;&amp;">action</footer><i data-note="note">meta</i>content</main>"#
+                r#"<main :class="active">{label}:&lt;Title&gt;<footer aria-label="a-&gt;b" class="base extra" data-id="&lt;&amp;">action</footer><i data-note="note">meta</i>content</main>"#
             )
         );
     }
     assert!(send(first, "/bad-component", 500).await.contains("500"));
+    assert!(send(first, "/bad-attributes", 500).await.contains("500"));
     let (a, b) = tokio::join!(
         send(first, "/custom-condition", 200),
         send(second, "/custom-condition", 200),

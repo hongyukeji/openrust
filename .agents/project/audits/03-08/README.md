@@ -101,3 +101,8 @@
 
 - 对照固定 Blade Service Injection 章节。Rust Factory 在装配时注册服务类型、模板别名与数据投影，`@inject` 声明在模板开头从当前应用容器解析服务。Rust 适配保留模板变量查找，服务方法在 Rust 侧计算。未注册服务返回渲染错误。
 - macOS ARM64、Rust 1.94.0。隔离基线 8 项定向测试通过，真实 HTTP 验证双应用各自容器、对象属性、转义和缺失服务 500。隔离副本全工作区格式与严格 Clippy 通过。用三语共用 Rust 示例装配 Provider 后运行实际 Artisan，三个示例编译和清理成功。三语构建和 12 项浏览器组合通过。
+
+## 属性包链式调用与前缀筛选
+
+- 对照固定 [ComponentAttributeBag](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/ComponentAttributeBag.php)。组件和插槽的属性包按书写顺序求值，支持 `whereStartsWith`、`thatStartWith` 和 `whereDoesntStartWith`。筛选接受单个字符串或字符串列表。链内筛选只影响当前输出，最终属性由统一例程转义。旧版 MiniJinja 无对应的 Blade 属性包。
+- macOS ARM64、Rust 1.94.0。隔离副本 8 项定向测试通过，真实 HTTP 验证组件及具名插槽链式筛选、调用顺序、嵌套字符串里的箭头、属性转义及未知方法 500。工作区格式与严格 Clippy 通过，实际 Artisan 预编译并清理三个三语示例产物，三语构建与 12 项浏览器组合通过。

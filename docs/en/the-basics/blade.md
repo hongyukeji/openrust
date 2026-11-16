@@ -175,6 +175,14 @@ Put `@props` at the start of the component template. The list can contain prop n
 
 Render `{{ $attributes }}` to emit the bag. `merge` adds defaults and preserves caller values for ordinary attributes. `class` and `style` combine their default and caller text. HTML attribute values are escaped. Null and false are omitted.
 
+Chain attribute bag methods from left to right. `whereStartsWith` and its alias `thatStartWith` keep matching attribute names. `whereDoesntStartWith` excludes them. Use a string or a list of prefixes. The same methods work with slot attribute bags.
+
+```html
+<aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
+    {{ $slot }}
+</aside>
+```
+
 #### Scoped Slots {#scoped-slots}
 
 A registered Rust component can expose view values through `Component::data`. A slot reads those values through `$component`, and the component template reads the same values as ordinary variables. Compute values from component methods in Rust before returning them.

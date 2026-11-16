@@ -17,7 +17,11 @@ pub(super) enum AttributeOperation {
     Merge(Vec<(String, Expression)>),
     Class(AttributeList),
     Style(AttributeList),
-    Filter(Vec<String>, bool),
+    Filter {
+        names: Vec<String>,
+        prefix: bool,
+        include: bool,
+    },
 }
 
 pub(super) fn array_entries(source: &str) -> ViewResult<Vec<&str>> {
@@ -81,48 +85,77 @@ pub(super) fn parse_echo(source: &str, escaped: bool) -> ViewResult<Node> {
     {
         return Ok(Node::JavaScript(expression_value(argument)?));
     }
-    if source.starts_with('$')
-        && let Some((operation, target, arguments)) = ["merge", "class", "style", "only", "except"]
-            .into_iter()
-            .find_map(|operation| {
-                let (target, arguments) = source.rsplit_once(&format!("->{operation}("))?;
-                Some((operation, target, arguments.strip_suffix(')')?))
-            })
-    {
-        let Expression::Variable(path) = expression_value(target)? else {
-            return Err(invalid("A Blade attribute bag requires a variable."));
-        };
-        if !matches!(path.as_slice(), [name] | [_, name] if name == "attributes") {
-            return Err(invalid(
-                "A Blade attribute bag requires an attributes property.",
-            ));
-        }
-        let operation = match operation {
-            "merge" => {
-                let defaults = array_entries(arguments)?
-                    .into_iter()
-                    .map(|entry| {
-                        let (key, value) = array_entry(entry);
-                        let value =
-                            value.ok_or_else(|| invalid("Expected an attribute default value."))?;
-                        Ok((literal_name(key, attribute_name)?, expression_value(value)?))
-                    })
-                    .collect::<ViewResult<_>>()?;
-                AttributeOperation::Merge(defaults)
+    if source.starts_with('$') {
+        let mut separators = separators(source, "->").peekable();
+        let mut path_end = source.len();
+        let mut operations = Vec::new();
+        while let Some(index) = separators.next() {
+            let end = separators.peek().copied().unwrap_or(source.len());
+            let segment = source[index + 2..end].trim();
+            if operations.is_empty() && !segment.contains('(') {
+                continue;
             }
-            "class" => AttributeOperation::Class(parse_attribute_list(arguments)?),
-            "style" => AttributeOperation::Style(parse_attribute_list(arguments)?),
-            _ => AttributeOperation::Filter(
-                array_entries(arguments)?
-                    .into_iter()
-                    .map(|key| literal_name(key, attribute_name))
-                    .collect::<ViewResult<_>>()?,
-                operation == "only",
-            ),
-        };
-        return Ok(Node::Attributes(path, operation));
+            let (name, arguments) = segment
+                .split_once('(')
+                .and_then(|(name, arguments)| Some((name.trim(), arguments.strip_suffix(')')?)))
+                .ok_or_else(|| invalid("Expected a Blade attribute bag method call."))?;
+            path_end = path_end.min(index);
+            operations.push(parse_operation(name, arguments)?);
+        }
+        if !operations.is_empty() {
+            let Expression::Variable(path) = expression_value(&source[..path_end])? else {
+                return Err(invalid("A Blade attribute bag requires a variable."));
+            };
+            if !matches!(path.as_slice(), [name] | [_, name] if name == "attributes") {
+                return Err(invalid(
+                    "A Blade attribute bag requires an attributes property.",
+                ));
+            }
+            return Ok(Node::Attributes(path, operations));
+        }
     }
     Ok(Node::Echo(expression_value(source)?, escaped))
+}
+
+fn parse_operation(name: &str, arguments: &str) -> ViewResult<AttributeOperation> {
+    Ok(match name {
+        "merge" => {
+            let defaults = array_entries(arguments)?
+                .into_iter()
+                .map(|entry| {
+                    let (key, value) = array_entry(entry);
+                    let value =
+                        value.ok_or_else(|| invalid("Expected an attribute default value."))?;
+                    Ok((literal_name(key, attribute_name)?, expression_value(value)?))
+                })
+                .collect::<ViewResult<_>>()?;
+            AttributeOperation::Merge(defaults)
+        }
+        "class" => AttributeOperation::Class(parse_attribute_list(arguments)?),
+        "style" => AttributeOperation::Style(parse_attribute_list(arguments)?),
+        "only" | "except" | "whereStartsWith" | "whereDoesntStartWith" | "thatStartWith" => {
+            let entries = if arguments.trim_start().starts_with('[') {
+                array_entries(arguments)?
+            } else {
+                vec![arguments]
+            };
+            let names = entries
+                .into_iter()
+                .map(|entry| match expression_value(entry)? {
+                    Expression::Value(ViewValue::String(text)) => Ok(text),
+                    _ => Err(invalid(
+                        "Expected a literal Blade attribute name or prefix.",
+                    )),
+                })
+                .collect::<ViewResult<_>>()?;
+            AttributeOperation::Filter {
+                names,
+                prefix: !matches!(name, "only" | "except"),
+                include: matches!(name, "only" | "whereStartsWith" | "thatStartWith"),
+            }
+        }
+        _ => return Err(invalid("Unknown Blade attribute bag method.")),
+    })
 }
 
 pub(super) fn parse_attribute_list(source: &str) -> ViewResult<AttributeList> {
@@ -231,13 +264,12 @@ pub(super) fn apply_aware(data: &mut ViewData, props: &Props, context: &RenderCo
 }
 
 impl AttributeOperation {
-    pub(super) fn render(
+    pub(super) fn apply(
         &self,
-        attributes: &ViewData,
+        mut attributes: ViewData,
         data: &ViewData,
         bindings: &[(&str, &ViewValue)],
-        output: &mut String,
-    ) -> ViewResult<()> {
+    ) -> ViewResult<ViewData> {
         let defaults = match self {
             Self::Merge(defaults) => defaults
                 .iter()
@@ -251,16 +283,25 @@ impl AttributeOperation {
                 "style".to_owned(),
                 attribute_list(entries, data, bindings, true)?.into(),
             )]),
-            Self::Filter(keys, include) => {
-                let selected = attributes
-                    .iter()
-                    .filter(|(key, _)| keys.contains(key) == *include)
-                    .map(|(key, value)| (key.clone(), value.clone()))
-                    .collect();
-                return render_attributes(&selected, output);
+            Self::Filter {
+                names,
+                prefix,
+                include,
+            } => {
+                attributes.retain(|key, _| {
+                    let matches = if *prefix {
+                        names
+                            .iter()
+                            .any(|name| !name.is_empty() && key.starts_with(name))
+                    } else {
+                        names.contains(key)
+                    };
+                    matches == *include
+                });
+                return Ok(attributes);
             }
         };
-        render_attributes(&merge_attributes(attributes, defaults), output)
+        Ok(merge_attributes(&attributes, defaults))
     }
 }
 

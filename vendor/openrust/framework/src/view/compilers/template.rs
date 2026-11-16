@@ -45,7 +45,7 @@ enum Node {
     Text(String),
     Echo(Expression, bool),
     EscapedSectionValue(Expression),
-    Attributes(Vec<String>, AttributeOperation),
+    Attributes(Vec<String>, Vec<AttributeOperation>),
     Conditional(Expression, Predicate, Vec<Node>, Vec<Node>),
     Each {
         expression: Expression,
@@ -1323,11 +1323,15 @@ fn render_nodes<'a>(
             Node::EscapedSectionValue(expression) => {
                 echo(output, value(expression, data, bindings), true);
             }
-            Node::Attributes(path, operation) => {
-                let attributes = context
+            Node::Attributes(path, operations) => {
+                let mut attributes = context
                     .attributes(path)
+                    .cloned()
                     .ok_or_else(|| render_error("A Blade component attribute bag is required."))?;
-                operation.render(attributes, data, bindings, output)?;
+                for operation in operations {
+                    attributes = operation.apply(attributes, data, bindings)?;
+                }
+                render_attributes(&attributes, output)?;
             }
             Node::Conditional(expression, predicate, yes, no) => {
                 let value = value(expression, data, bindings);

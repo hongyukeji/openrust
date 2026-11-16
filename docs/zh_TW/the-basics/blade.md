@@ -175,6 +175,14 @@ fn configure_encoding(compiler: &BladeCompiler) {
 
 使用 `{{ $attributes }}` 輸出屬性袋。`merge` 提供預設值，一般屬性以呼叫端的值為準，`class` 和 `style` 合併預設值與呼叫端的文字。HTML 屬性值會跳脫，null 和 false 會省略。
 
+屬性袋方法從左到右執行。`whereStartsWith` 和別名 `thatStartWith` 保留名稱相符的屬性，`whereDoesntStartWith` 排除相符項目。可以傳入單一前綴或前綴清單。插槽屬性袋也支援這些方法。
+
+```html
+<aside {{ $attributes->whereStartsWith(['data-', 'aria-'])->class(['panel']) }}>
+    {{ $slot }}
+</aside>
+```
+
 #### 作用域插槽 {#scoped-slots}
 
 已註冊的 Rust 元件可透過 `Component::data` 提供視圖值。插槽透過 `$component` 讀取這些值，元件範本透過一般變數讀取同一份資料。元件方法的結果在 Rust 中計算後傳入。
