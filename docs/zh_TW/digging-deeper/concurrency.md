@@ -4,7 +4,7 @@
 
 在應用程式內使用 `openrust::support::facades` 中的 `Concurrency`。在應用程式 Provider 註冊型別化工作，再用 `Task::new(name, input)` 提交。預設 `process` 驅動會為各項工作透過隱藏的 Artisan 命令啟動應用程式執行檔。HTTP 與 Artisan 入口需裝配同一個工作 Provider。
 
-`run` 依提交順序回傳。`runNamed` 接收 `IndexMap` 並保留鍵與順序。程序驅動可為每個子程序設定選用的 `Duration` 逾時。收齊子程序結果後回傳工作錯誤。捨棄仍在執行的程序呼叫會取消其子程序。`sync` 驅動在目前程序中依序執行工作。可透過 `concurrency.default` 選擇預設驅動。
+`run` 依提交順序回傳。`runNamed` 接收 `IndexMap` 並保留鍵與順序。程序驅動可為每個子程序設定選用的 `Duration` 逾時。收齊子程序結果後回傳工作錯誤。捨棄仍在執行的程序呼叫會取消其子程序。`sync` 驅動在目前程序中依序執行工作。可透過 `CONCURRENCY_DRIVER` 或 `config/concurrency.rs` 的 `default` 選擇預設驅動。程序工作沿用應用程式根目錄及 Artisan 的 `--env` 所選環境檔案。OpenRust 透過受管理的程序執行並行工作。Laravel 的 `fork` 驅動依賴 PHP CLI 和 `spatie/fork`。
 
 ```rust
 use openrust::{
@@ -42,4 +42,12 @@ assert_eq!(result, vec![serde_json::json!(42), serde_json::json!(12)]);
 
 ## 延後執行並行工作 {#deferring-concurrent-tasks}
 
-在 HTTP 處理器呼叫 `Concurrency::defer(tasks)?` 可將工作排在回應之後。狀態碼低於 400 時執行工作。若錯誤回應也需執行，呼叫傳回控制代碼的 `always()`。延後的工作會攜帶請求 Context，執行失敗由應用程式的例外處理器回報。
+呼叫 `Concurrency::defer(tasks)?` 可登記無需讀取回傳值的工作。應用程式在目前生命週期的結束階段執行這些工作。
+
+- **HTTP** 在送出狀態碼低於 400 的回應後執行。
+- **Artisan** 在命令以狀態碼 0 傳回後執行。
+- **佇列 worker** 在 `JobAttempted` 送出後執行，條件是本次嘗試未失敗且沒有未處理的例外。工作主動釋放且沒有例外時，本次嘗試也視為成功。`sync` 和 `deferred` 佇列連線中的工作沿用外層 HTTP 或 Artisan 生命週期。
+
+呼叫傳回控制代碼的 `always()` 可涵蓋錯誤回應、非零結束狀態，以及已到達結束階段的失敗佇列嘗試。工作子程序在交回結果前若遭終止，該程序內登記的工作會一併捨棄。硬逾時佇列工作交回結果後，由父 worker 執行延後工作，執行時間獨立於原工作的逾時預算。
+
+延後工作攜帶登記時的公開和隱藏 Context。應用程式透過例外處理器回報執行失敗，繼續執行後續回呼，並回收受管理的子程序。

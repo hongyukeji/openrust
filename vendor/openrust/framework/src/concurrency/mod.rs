@@ -10,7 +10,7 @@ mod registry;
 pub use deferred::DeferredCallback;
 pub(crate) use deferred::DeferredCallbacks;
 pub(crate) use deferred::enqueue as enqueue_deferred;
-pub(crate) use deferred::enqueue_with_skip;
+pub(crate) use deferred::{TransferredRun, enqueue_with_skip, restore as restore_deferred};
 pub(crate) use facade::ConcurrencyServiceProvider;
 pub use facade::{Concurrency, Driver, Manager};
 pub(crate) use invoke_serialized_closure::register;
@@ -64,7 +64,7 @@ impl fmt::Display for Error {
             Self::Io(error) => error.fmt(formatter),
             Self::Unavailable(error) => error.fmt(formatter),
             Self::OutsideRequest => {
-                formatter.write_str("deferred concurrency requires an active HTTP request")
+                formatter.write_str("deferred concurrency requires an active application lifecycle")
             }
         }
     }

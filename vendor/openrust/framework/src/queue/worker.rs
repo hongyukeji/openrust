@@ -639,7 +639,8 @@ impl Worker {
             isolated_scope(
                 self.app.clone(),
                 deferred.invoke_with(
-                    matches!(result, Ok(WorkResult::Processed)),
+                    matches!(result, Ok(WorkResult::Processed | WorkResult::Released))
+                        && attempt.cause.is_none(),
                     |error| async move {
                         if let Ok(handler) = self.app.make::<dyn ExceptionHandler>() {
                             let _ = handler.report(&Exception::Error(error.as_ref())).await;

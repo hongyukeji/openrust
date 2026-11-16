@@ -373,3 +373,81 @@ async fn defer_runs_after_the_actual_http_response_and_respects_failure() {
     release.notify_one();
     server.abort();
 }
+
+#[tokio::test]
+async fn artisan_calls_run_defers_after_the_command_and_gate_them_on_exit_status() {
+    use openrust::{
+        console::{
+            Application as Artisan, Command, CommandDefinition, ConsoleError, ConsoleFuture, Input,
+            Output,
+        },
+        contracts::console::Kernel as _,
+        foundation::console::Kernel,
+        support::facades::Concurrency,
+    };
+
+    struct DeferCommand {
+        definition: CommandDefinition,
+        marker: PathBuf,
+        status: i32,
+    }
+
+    impl Command for DeferCommand {
+        fn definition(&self) -> &CommandDefinition {
+            &self.definition
+        }
+
+        fn handle<'a>(
+            &'a self,
+            _app: &'a Application,
+            _input: &'a Input,
+            _output: &'a mut Output,
+        ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+            Box::pin(async {
+                let driver = Concurrency::driver(Some("sync")).unwrap();
+                let _ordinary = driver
+                    .defer([probe(
+                        "ordinary",
+                        0,
+                        Some(self.marker.with_extension("ordinary")),
+                    )])
+                    .unwrap();
+                let _always = driver
+                    .defer([probe(
+                        "always",
+                        0,
+                        Some(self.marker.with_extension("always")),
+                    )])
+                    .unwrap()
+                    .always();
+                assert!(!self.marker.with_extension("ordinary").exists());
+                assert!(!self.marker.with_extension("always").exists());
+                Ok(self.status)
+            })
+        }
+    }
+
+    let root = TestDirectory::new();
+    let app = Application::configure(root.0.clone())
+        .withProviders(vec![Box::new(Worker)])
+        .create()
+        .unwrap();
+    let mut kernel = Kernel::new(app, Artisan::new());
+
+    for (name, status) in [("fixture:success", 0), ("fixture:failure", 2)] {
+        let marker = root.0.join(name);
+        let definition = CommandDefinition::new(clap::Command::new(name));
+        let input = definition.parse(&[]).unwrap();
+        kernel
+            .register_command(Box::new(DeferCommand {
+                definition,
+                marker: marker.clone(),
+                status,
+            }))
+            .unwrap();
+
+        assert_eq!(kernel.call(name, &input, None).await.unwrap(), status);
+        assert_eq!(marker.with_extension("ordinary").is_file(), status == 0);
+        assert!(marker.with_extension("always").is_file());
+    }
+}

@@ -27,10 +27,26 @@ use crate::{
 
 use super::{DeferredCallback, Error, ProcessDriver, Registry, Result, Task, deferred};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 enum Kind {
     Process,
     Sync,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(super) struct DeferredRun {
+    kind: Kind,
+    tasks: Vec<Task>,
+    context: DehydratedContext,
+}
+
+impl Kind {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Process => "process",
+            Self::Sync => "sync",
+        }
+    }
 }
 
 /// Chooses the application's concurrency driver.
@@ -42,6 +58,12 @@ pub struct Manager {
 }
 
 impl Manager {
+    pub(super) async fn resume(&self, run: DeferredRun) -> Result<()> {
+        self.driver(Some(run.kind.name()))?
+            .execute_deferred(run)
+            .await
+    }
+
     pub fn driver(&self, name: Option<&str>) -> Result<Driver> {
         let configured = self.config.get("concurrency.default");
         let name = name
@@ -98,23 +120,32 @@ impl Driver {
 
     pub fn defer(&self, tasks: impl IntoIterator<Item = Task>) -> Result<DeferredCallback> {
         let driver = self.clone();
+        let run = DeferredRun {
+            kind: self.kind,
+            tasks: tasks.into_iter().collect(),
+            context: self.capture_context()?,
+        };
+        deferred::enqueue_run(run, move |run| {
+            Box::pin(async move { driver.execute_deferred(run).await })
+        })
+    }
+
+    async fn execute_deferred(&self, run: DeferredRun) -> Result<()> {
+        let DeferredRun { tasks, context, .. } = run;
         let tasks = numbered(tasks);
-        let context = self.capture_context()?;
-        deferred::enqueue(Box::pin(async move {
-            if let Kind::Sync = driver.kind
-                && let Some(owner) = driver.owner.upgrade()
-            {
-                return isolated_scope(owner, async move {
-                    let repository = Context::repository().map_err(context_error)?;
-                    Context::hooks()
-                        .map_err(context_error)?
-                        .hydrate(&context, &repository);
-                    driver.execute(tasks, None, context).await.map(|_| ())
-                })
-                .await;
-            }
-            driver.execute(tasks, None, context).await.map(|_| ())
-        }))
+        if let Kind::Sync = self.kind
+            && let Some(owner) = self.owner.upgrade()
+        {
+            return isolated_scope(owner, async move {
+                let repository = Context::repository().map_err(context_error)?;
+                Context::hooks()
+                    .map_err(context_error)?
+                    .hydrate(&context, &repository);
+                self.execute(tasks, None, context).await.map(|_| ())
+            })
+            .await;
+        }
+        self.execute(tasks, None, context).await.map(|_| ())
     }
 
     pub(crate) fn prepare_detached(
@@ -128,6 +159,15 @@ impl Driver {
         let context = self.capture_context()?;
         let process = self.process.clone();
         Ok(move || process.launch_detached(task, context, &environment))
+    }
+
+    fn selected_environment(&self) -> Option<String> {
+        let owner = self.owner.upgrade()?;
+        let file = owner.get::<PathBuf>("env.file").ok()?;
+        file.file_name()?
+            .to_str()?
+            .strip_prefix(".env.")
+            .map(str::to_owned)
     }
 
     fn capture_context(&self) -> Result<DehydratedContext> {
@@ -148,7 +188,16 @@ impl Driver {
         context: DehydratedContext,
     ) -> Result<IndexMap<String, Value>> {
         match self.kind {
-            Kind::Process => self.process.run_with_context(tasks, timeout, context).await,
+            Kind::Process => {
+                self.process
+                    .run_with_context(
+                        tasks,
+                        timeout,
+                        context,
+                        self.selected_environment().as_deref(),
+                    )
+                    .await
+            }
             Kind::Sync => {
                 let mut results = IndexMap::with_capacity(tasks.len());
                 for (key, task) in tasks {

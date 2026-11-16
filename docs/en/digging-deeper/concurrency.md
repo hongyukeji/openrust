@@ -4,7 +4,7 @@
 
 Use `Concurrency` from `openrust::support::facades` inside an application. Register typed handlers in an application provider and send tasks with `Task::new(name, input)`. The default `process` driver starts the application executable through a hidden Artisan command for each task. Register the same provider in the entry point that serves HTTP and Artisan.
 
-`run` returns results in submission order. `runNamed` takes an `IndexMap` and keeps its keys and order. The process driver accepts an optional `Duration` timeout for each child. Task errors are returned after the children are collected. Dropping an in-flight process run cancels its children. The `sync` driver runs tasks sequentially in the current process. Set `concurrency.default` to select the default driver.
+`run` returns results in submission order. `runNamed` takes an `IndexMap` and keeps its keys and order. The process driver accepts an optional `Duration` timeout for each child. Task errors are returned after the children are collected. Dropping an in-flight process run cancels its children. The `sync` driver runs tasks sequentially in the current process. Set `CONCURRENCY_DRIVER` or the `default` value in `config/concurrency.rs` to select the default driver. Process tasks use the application root and the environment file selected by Artisan's `--env` option. OpenRust uses managed processes for parallel execution. Laravel's `fork` driver depends on PHP CLI and `spatie/fork`.
 
 ```rust
 use openrust::{
@@ -42,4 +42,12 @@ assert_eq!(result, vec![serde_json::json!(42), serde_json::json!(12)]);
 
 ## Deferring concurrent tasks {#deferring-concurrent-tasks}
 
-Inside an HTTP handler, call `Concurrency::defer(tasks)?` to schedule work after the response. Responses below 400 execute the task list. Use `always()` on the returned handle to include error responses. Deferred tasks carry the request Context and failures are reported through the application exception handler.
+Call `Concurrency::defer(tasks)?` to register tasks whose results you do not need. The application runs them at the end of the current lifecycle:
+
+- **HTTP** runs deferred tasks after sending a response with a status below 400.
+- **Artisan** runs them after a command returns exit status zero.
+- **Queue workers** run them after `JobAttempted` when the attempt completes without failure or an unhandled exception. An explicit release without an exception counts as a successful attempt. Jobs on the `sync` and `deferred` queue connections follow the enclosing HTTP or Artisan lifecycle.
+
+Call `always()` on the returned handle to include error responses, unsuccessful commands and failed job attempts that reach their completion boundary. A job process killed before returning its outcome loses tasks registered in that process. Once a hard-timeout job returns its outcome, the parent worker runs the deferred tasks outside the job's time limit.
+
+Deferred tasks carry the public and hidden Context captured at registration. The application reports task failures through its exception handler, continues with later deferred callbacks, and reaps managed child processes.

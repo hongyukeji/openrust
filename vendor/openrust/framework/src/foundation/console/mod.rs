@@ -246,12 +246,16 @@ impl Runner for ManagedCommand {
                     .map(OsString::from)
                     .collect();
                 let mut output = Output::for_terminal();
-                let status = self
-                    .commands()
-                    .await?
-                    .artisan
-                    .handle_with_shutdown(&self.application, &arguments, &mut output, Some(context))
+                let deferred = crate::concurrency::DeferredCallbacks::default();
+                let status = deferred
+                    .scope(self.commands().await?.artisan.handle_with_shutdown(
+                        &self.application,
+                        &arguments,
+                        &mut output,
+                        Some(context),
+                    ))
                     .await;
+                deferred.invoke(&self.application, status == 0).await;
                 std::io::stdout().write_all(output.stdout.as_bytes())?;
                 std::io::stderr().write_all(output.stderr.as_bytes())?;
                 if status == 0 {
@@ -286,6 +290,7 @@ impl console::Kernel for Kernel {
         arguments: &'a [OsString],
         output: &'a mut Output,
     ) -> ConsoleFuture<'a, i32> {
+        self.deferred = Default::default();
         Box::pin(facades::scope(
             self.application.container_handle(),
             async move {
@@ -346,9 +351,23 @@ impl console::Kernel for Kernel {
                         &mut self.captured
                     }
                 };
-                self.artisan
-                    .call(&self.application, command, input, output)
-                    .await
+                if crate::http::request_context::with_uri(|_| ()).is_some() {
+                    return self
+                        .artisan
+                        .call(&self.application, command, input, output)
+                        .await;
+                }
+                let deferred = crate::concurrency::DeferredCallbacks::default();
+                let result = deferred
+                    .scope(self.artisan.call(&self.application, command, input, output))
+                    .await;
+                deferred
+                    .invoke(
+                        &self.application,
+                        result.as_ref().is_ok_and(|&status| status == 0),
+                    )
+                    .await;
+                result
             },
         ))
     }

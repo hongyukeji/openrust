@@ -1,8 +1,9 @@
-use std::{error::Error, io, path::Path, time::Duration};
+use std::{error::Error, io, path::Path, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    concurrency::{DeferredCallbacks, TransferredRun, restore_deferred},
     container::Container,
     contracts::debug::{Exception, ExceptionHandler},
     contracts::{container::Container as _, queue::Job},
@@ -36,6 +37,7 @@ struct Response {
     fail_immediately: bool,
     stop_retries: Option<bool>,
     chain_update: Option<ChainUpdate>,
+    deferred: Vec<TransferredRun>,
 }
 
 pub(crate) async fn serve(
@@ -79,11 +81,11 @@ pub(crate) async fn serve(
         }
         result
     });
-    let deferred = crate::concurrency::DeferredCallbacks::default();
+    let deferred = DeferredCallbacks::for_isolated_job();
     let result = deferred.scope(execution).await;
     isolated_scope(
         container,
-        deferred.invoke(&app, result.is_ok() && context.release_after.is_none()),
+        deferred.invoke(&app, result.is_ok() && !context.fail_immediately),
     )
     .await;
     let missing_model = match &result {
@@ -106,6 +108,7 @@ pub(crate) async fn serve(
         fail_immediately: context.fail_immediately,
         stop_retries: context.stop_retries,
         chain_update: context.chain_update,
+        deferred: deferred.take_transfers(),
     };
     tokio::fs::write(
         directory.join("response.json"),
@@ -117,7 +120,7 @@ pub(crate) async fn serve(
 
 #[cfg(any(unix, windows))]
 pub(super) async fn execute(
-    app: &Container,
+    app: &Arc<Container>,
     job: &mut dyn Job,
     context: &mut JobContext<'_>,
     timeout: Duration,
@@ -190,6 +193,13 @@ pub(super) async fn execute(
             .map_err(backend)?,
     )
     .map_err(backend)?;
+    for run in response.deferred {
+        if let Err(error) = restore_deferred(app.clone(), run)
+            && let Ok(handler) = app.make::<dyn ExceptionHandler>()
+        {
+            let _ = handler.report(&Exception::Error(&error)).await;
+        }
+    }
     context.release_after = response.release_after;
     context.fail_immediately = response.fail_immediately;
     context.stop_retries = response.stop_retries;
@@ -206,7 +216,7 @@ pub(super) async fn execute(
 
 #[cfg(not(any(unix, windows)))]
 pub(super) async fn execute(
-    _: &Container,
+    _: &Arc<Container>,
     _: &mut dyn Job,
     _: &mut JobContext<'_>,
     _: Duration,

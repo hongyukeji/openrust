@@ -3,23 +3,43 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use crate::{foundation::Application, http::HttpFuture};
+use crate::{
+    container::Container, contracts::container::Container as _, foundation::Application,
+    http::HttpFuture,
+};
 
-use super::{Error, Result};
+use super::{Error, Manager, Result, facade::DeferredRun};
 
 tokio::task_local! {
     static CURRENT: DeferredCallbacks;
 }
 
 #[derive(Clone, Default)]
-pub(crate) struct DeferredCallbacks(Arc<Mutex<Vec<Callback>>>);
+pub(crate) struct DeferredCallbacks {
+    callbacks: Arc<Mutex<Vec<Callback>>>,
+    transfer: bool,
+}
 
 struct Callback {
     always: Arc<AtomicBool>,
-    future: HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>,
-    skipped: Option<
-        HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>,
-    >,
+    action: Action,
+}
+
+type DeferredFuture =
+    HttpFuture<'static, std::result::Result<(), Box<dyn std::error::Error + Send + Sync>>>;
+
+enum Action {
+    Local {
+        future: DeferredFuture,
+        skipped: Option<DeferredFuture>,
+    },
+    Transfer(DeferredRun),
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct TransferredRun {
+    run: DeferredRun,
+    always: bool,
 }
 
 #[must_use]
@@ -33,12 +53,37 @@ impl DeferredCallback {
 }
 
 impl DeferredCallbacks {
+    pub(crate) fn for_isolated_job() -> Self {
+        Self {
+            transfer: true,
+            ..Self::default()
+        }
+    }
+
+    pub(crate) fn take_transfers(&self) -> Vec<TransferredRun> {
+        std::mem::take(
+            &mut *self
+                .callbacks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        )
+        .into_iter()
+        .filter_map(|callback| match callback.action {
+            Action::Transfer(run) => Some(TransferredRun {
+                run,
+                always: callback.always.load(Ordering::Acquire),
+            }),
+            Action::Local { .. } => None,
+        })
+        .collect()
+    }
+
     pub(crate) async fn scope<F: Future>(&self, future: F) -> F::Output {
         CURRENT.scope(self.clone(), future).await
     }
 
     pub(crate) fn is_empty(&self) -> bool {
-        self.0
+        self.callbacks
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .is_empty()
@@ -58,24 +103,40 @@ impl DeferredCallbacks {
     ) where
         F: Future<Output = ()>,
     {
-        let callbacks = std::mem::take(
-            &mut *self
-                .0
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner),
-        );
-        for callback in callbacks {
-            let future = if successful || callback.always.load(Ordering::Acquire) {
-                Some(callback.future)
-            } else {
-                callback.skipped
-            };
-            if let Some(future) = future
-                && let Err(error) = future.await
-            {
-                report(error).await;
+        self.scope(async {
+            loop {
+                let callbacks = {
+                    let mut pending = self
+                        .callbacks
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    pending
+                        .extract_if(.., |callback| {
+                            matches!(callback.action, Action::Local { .. })
+                        })
+                        .collect::<Vec<_>>()
+                };
+                if callbacks.is_empty() {
+                    break;
+                }
+                for callback in callbacks {
+                    let Action::Local { future, skipped } = callback.action else {
+                        continue;
+                    };
+                    let future = if successful || callback.always.load(Ordering::Acquire) {
+                        Some(future)
+                    } else {
+                        skipped
+                    };
+                    if let Some(future) = future
+                        && let Err(error) = future.await
+                    {
+                        report(error).await;
+                    }
+                }
             }
-        }
+        })
+        .await;
     }
 }
 
@@ -95,19 +156,59 @@ pub(crate) fn enqueue_with_skip<E>(
 where
     E: std::error::Error + Send + Sync + 'static,
 {
+    register(|_| Action::Local {
+        future: boxed(future),
+        skipped: skipped.map(boxed),
+    })
+}
+
+fn boxed<E>(future: HttpFuture<'static, std::result::Result<(), E>>) -> DeferredFuture
+where
+    E: std::error::Error + Send + Sync + 'static,
+{
+    Box::pin(async move { future.await.map_err(Into::into) })
+}
+
+pub(super) fn enqueue_run(
+    run: DeferredRun,
+    execute: impl FnOnce(DeferredRun) -> HttpFuture<'static, Result<()>>,
+) -> Result<DeferredCallback> {
+    register(|transfer| {
+        if transfer {
+            Action::Transfer(run)
+        } else {
+            Action::Local {
+                future: boxed(execute(run)),
+                skipped: None,
+            }
+        }
+    })
+}
+
+pub(crate) fn restore(owner: Arc<Container>, transferred: TransferredRun) -> Result<()> {
+    let TransferredRun { run, always } = transferred;
+    let callback = enqueue(Box::pin(async move {
+        let manager = owner.make::<Manager>().map_err(Error::Unavailable)?;
+        manager.resume(run).await
+    }))?;
+    if always {
+        let _ = callback.always();
+    }
+    Ok(())
+}
+
+fn register(action: impl FnOnce(bool) -> Action) -> Result<DeferredCallback> {
     CURRENT
         .try_with(|current| {
             let always = Arc::new(AtomicBool::new(false));
+            let action = action(current.transfer);
             current
-                .0
+                .callbacks
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(Callback {
                     always: always.clone(),
-                    future: Box::pin(async move { future.await.map_err(Into::into) }),
-                    skipped: skipped.map(|future| {
-                        Box::pin(async move { future.await.map_err(Into::into) }) as _
-                    }),
+                    action,
                 });
             DeferredCallback(always)
         })

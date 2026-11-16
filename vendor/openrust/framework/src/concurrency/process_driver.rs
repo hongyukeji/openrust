@@ -92,7 +92,7 @@ impl ProcessDriver {
         tasks: IndexMap<String, Task>,
         timeout: Option<Duration>,
     ) -> Result<IndexMap<String, Value>> {
-        self.run_with_context(tasks, timeout, DehydratedContext::default())
+        self.run_with_context(tasks, timeout, DehydratedContext::default(), None)
             .await
     }
 
@@ -101,6 +101,7 @@ impl ProcessDriver {
         tasks: IndexMap<String, Task>,
         timeout: Option<Duration>,
         context: DehydratedContext,
+        environment: Option<&str>,
     ) -> Result<IndexMap<String, Value>> {
         let mut payloads = Vec::with_capacity(tasks.len());
         for (name, task) in tasks {
@@ -120,13 +121,17 @@ impl ProcessDriver {
             }
             payloads.push((name, key, input));
         }
+        let mut worker = self.worker.clone();
+        if let (Command::Arguments(args), Some(environment)) = (&mut worker, environment) {
+            args.push(format!("--env={environment}").into());
+        }
         let mut keys = IndexMap::with_capacity(payloads.len());
         let results = self
             .processes
             .concurrently(|pool| {
                 for (name, key, input) in payloads {
                     keys.insert(name.clone(), key);
-                    pool.r#as(name, self.worker.clone(), |pending| {
+                    pool.r#as(name, worker.clone(), |pending| {
                         let pending = pending
                             .path(&self.base_path)
                             .env([("APP_BASE_PATH", self.base_path.as_os_str())])
