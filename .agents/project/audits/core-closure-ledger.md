@@ -85,7 +85,7 @@ SQLite 记住登录测试使用密文子串判断明文是否泄露，随机密�
 
 | 范围 | 基线状态 | 待验收或确认 |
 | --- | --- | --- |
-| [08-02 Reverb](08-02/README.md) | WebSocket 协议和 Redis 跨进程基础已有实测 | 全局在线成员、跨节点客户端事件及协议剩余接口 |
+| [08-02 Reverb](08-02/README.md) | WebSocket、跨节点签名发布／客户端事件、Redis 全局在线成员、节点退出清理和 Redis 重启恢复已实测 | Pusher 缓存频道、统计和批量事件接口、Artisan 的 `--hostname`／`--debug`，Echo 与外部托管 Pusher 验收 |
 | [08-03 gRPC](08-03/README.md) | 服务端已用真实 Tonic 客户端验收 | 命名客户端、凭据及拦截器 |
 | Sanctum 与 API 安装 | Sanctum-01 至 03 在计划范围内闭合。 | `install:api --passport` 归入 Passport。 |
 | `vendor:publish` | 命令范围闭合，包含发布、交互选择、迁移时间戳及控制台提示。 | 07-07 的包发现及完整的包开发验收继续跟踪。 |

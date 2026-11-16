@@ -1,4 +1,5 @@
 from pathlib import Path
+from contextlib import AsyncExitStack
 import asyncio
 import hashlib
 import hmac
@@ -9,10 +10,11 @@ import subprocess
 import tempfile
 import urllib.parse
 import urllib.request
+import uuid
 
 from websockets.asyncio.client import connect
 
-binary = Path("target/debug/main").resolve()
+binary = Path(os.environ.get("REVERB_TEST_BINARY", "target/debug/main")).resolve()
 
 
 def socket_port():
@@ -136,8 +138,199 @@ async def verify_redis(base, redis_url):
     print("Redis signed publication reached a different process once and excluded its source socket")
 
 
+async def frame(peer, event, timeout=3):
+    message = json.loads(await asyncio.wait_for(peer.recv(), timeout))
+    assert message["event"] == event, message
+    return message, json.loads(message["data"])
+
+
+async def quiet(*peers):
+    async def check(peer):
+        try:
+            message = await asyncio.wait_for(peer.recv(), 0.2)
+        except TimeoutError:
+            return
+        raise AssertionError(f"Unexpected frame: {message}")
+
+    await asyncio.gather(*(check(peer) for peer in peers))
+
+
+async def open_peer(stack, port, key):
+    peer = await stack.enter_async_context(connect(f"ws://127.0.0.1:{port}/app/{key}"))
+    _, greeting = await frame(peer, "pusher:connection_established")
+    return peer, greeting["socket_id"]
+
+
+async def subscribe(peer, socket_id, channel, key, user=None):
+    payload = {"channel": channel}
+    signature = f"{socket_id}:{channel}"
+    if user is not None:
+        # Include JSON shapes and a number that must not pass through Lua doubles.
+        details = {"user_id": user, "user_info": {"name": user, "nested": [], "serial": 9007199254740993}}
+        payload["channel_data"] = json.dumps(details, separators=(",", ":"))
+        signature += f":{payload['channel_data']}"
+    token = hmac.new(b"probe-secret", signature.encode(), hashlib.sha256).hexdigest()
+    payload["auth"] = f"{key}:{token}"
+    await peer.send(json.dumps({"event": "pusher:subscribe", "data": payload}))
+    _, data = await frame(peer, "pusher_internal:subscription_succeeded")
+    return data
+
+
+async def client_event(peer, channel, event):
+    await peer.send(json.dumps({
+        "event": event, "channel": channel, "user_id": "forged", "data": {"message": event}
+    }))
+
+
+async def verify_cluster(base, redis_url, mysql_url):
+    prefix = uuid.uuid4().hex
+    common = dict(os.environ, APP_HOST="127.0.0.1", CACHE_STORE="file",
+                  DB_CONNECTION="mysql", DB_URL=mysql_url,
+                  REVERB_ENABLED="true", REVERB_MODE="embedded",
+                  APP_DISABLED_RUNNERS="queue,schedule",
+                  REVERB_SERVER_HOST="127.0.0.1", REVERB_APP_SECRET="probe-secret",
+                  REVERB_SCALING_ENABLED="true", REVERB_SCALING_CHANNEL=f"accept-{prefix}",
+                  REDIS_URL=redis_url, REDIS_TIMEOUT="2")
+    environments, ports = [], []
+    for index in range(3):
+        root = base / f"node-{index}"
+        root.mkdir()
+        http, reverb = socket_port(), socket_port()
+        key, app_id = ("probe", "42") if index < 2 else ("other", "43")
+        environments.append(dict(common, APP_BASE_PATH=str(root), APP_PORT=str(http),
+                                 REVERB_SERVER_PORT=str(reverb), REVERB_APP_KEY=key,
+                                 REVERB_APP_ID=app_id))
+        ports.append((http, reverb))
+    migrate = command(environments[0], "migrate", "--force")
+    assert migrate.returncode == 0, (migrate.stdout, migrate.stderr)
+    status = command(environments[1], "migrate:status")
+    assert status.returncode == 0 and "create_users_table" in status.stdout, (status.stdout, status.stderr)
+
+    processes = []
+    async def start(index):
+        process = subprocess.Popen([binary], env=environments[index], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        processes.append(process)
+        http, reverb = ports[index]
+        await wait_port(http, process)
+        await wait_port(reverb, process)
+        with urllib.request.urlopen(f"http://127.0.0.1:{http}/up", timeout=3) as health:
+            assert health.status == 200
+        return process
+
+    room = "presence-room"
+    private = "private-room"
+    try:
+        first_node = await start(0)
+        await start(1)
+        await start(2)
+        first_port, second_port, other_port = [port for _, port in ports]
+        async with AsyncExitStack() as clients:
+            first, first_id = await open_peer(clients, first_port, "probe")
+            duplicate, duplicate_id = await open_peer(clients, second_port, "probe")
+            second, second_id = await open_peer(clients, second_port, "probe")
+            outsider, outsider_id = await open_peer(clients, first_port, "probe")
+            other, other_id = await open_peer(clients, other_port, "other")
+            presence = (await subscribe(first, first_id, room, "probe", "alice"))["presence"]
+            assert presence["ids"] == ["alice"] and presence["count"] == 1
+            assert presence["hash"]["alice"]["nested"] == []
+            assert presence["hash"]["alice"]["serial"] == 9007199254740993
+            presence = (await subscribe(duplicate, duplicate_id, room, "probe", "alice"))["presence"]
+            assert presence["ids"] == ["alice"] and presence["count"] == 1
+            await quiet(first)
+            presence = (await subscribe(second, second_id, room, "probe", "bob"))["presence"]
+            assert presence["ids"] == ["alice", "bob"] and presence["count"] == 2
+            for peer in (first, duplicate):
+                _, added = await frame(peer, "pusher_internal:member_added")
+                assert added["user_id"] == "bob"
+            presence = (await subscribe(other, other_id, room, "other", "eve"))["presence"]
+            assert presence["ids"] == ["eve"] and presence["count"] == 1
+            await quiet(first, duplicate, second)
+
+            for peer, peer_id, key in ((first, first_id, "probe"), (second, second_id, "probe"), (other, other_id, "other")):
+                await subscribe(peer, peer_id, private, key)
+            await subscribe(outsider, outsider_id, "private-other-room", "probe")
+            await outsider.send(json.dumps({
+                "event": "pusher:subscribe", "data": {"channel": private, "auth": "probe:invalid"}
+            }))
+            assert (await frame(outsider, "pusher:error"))[1]["code"] == 4009
+            await client_event(outsider, private, "client-denied")
+            _, denied = await frame(outsider, "pusher:error")
+            assert denied["code"] == 4009
+            await client_event(first, private, "client-private")
+            result, payload = await frame(second, "client-private")
+            assert "user_id" not in result and payload["message"] == "client-private"
+            await quiet(first, second, duplicate, outsider, other)
+
+            await client_event(first, room, "client-presence")
+            for peer in (duplicate, second):
+                result, payload = await frame(peer, "client-presence")
+                assert result["user_id"] == "alice" and payload["message"] == "client-presence"
+            await quiet(first, duplicate, second, outsider, other)
+
+            await duplicate.close()
+            await quiet(first, second)
+            await first.close()
+            _, removed = await frame(second, "pusher_internal:member_removed")
+            assert removed["user_id"] == "alice"
+            reconnected, socket_id = await open_peer(clients, first_port, "probe")
+            presence = (await subscribe(reconnected, socket_id, room, "probe", "alice"))["presence"]
+            assert presence["count"] == 2
+            assert (await frame(second, "pusher_internal:member_added"))[1]["user_id"] == "alice"
+
+            first_node.kill()
+            assert first_node.wait(timeout=5) != 0
+            _, expired = await frame(second, "pusher_internal:member_removed", timeout=16)
+            assert expired["user_id"] == "alice"
+            restarted_node = await start(0)
+            fresh, socket_id = await open_peer(clients, first_port, "probe")
+            presence = (await subscribe(fresh, socket_id, room, "probe", "carol"))["presence"]
+            assert presence["ids"] == ["bob", "carol"] and presence["count"] == 2
+            assert (await frame(second, "pusher_internal:member_added"))[1]["user_id"] == "carol"
+            await quiet(second, other)
+
+            if redis_container := os.environ.get("REVERB_TEST_RESTART_REDIS_CONTAINER"):
+                subprocess.run(["docker", "restart", redis_container], check=True, capture_output=True, timeout=15)
+                await asyncio.gather(*(asyncio.wait_for(peer.wait_closed(), 10) for peer in (fresh, second, other)))
+                loop = asyncio.get_running_loop()
+                deadline = loop.time() + 16
+                last_error = None
+                while loop.time() < deadline:
+                    recovered, socket_id = await open_peer(clients, first_port, "probe")
+                    try:
+                        presence = (await subscribe(recovered, socket_id, room, "probe", "recovered"))["presence"]
+                    except (AssertionError, TimeoutError) as error:
+                        last_error = error
+                    else:
+                        assert "recovered" in presence["ids"]
+                        if presence["ids"] == ["recovered"]:
+                            break
+                    await recovered.close()
+                    await asyncio.sleep(0.25)
+                else:
+                    raise AssertionError("Redis subscription did not recover with a clean roster") from last_error
+                print("Redis restart closed presence sockets, then fresh subscriptions recovered without stale users")
+                remaining, socket_id = await open_peer(clients, second_port, "probe")
+                assert (await subscribe(remaining, socket_id, room, "probe", "dana"))["presence"]["count"] == 2
+                assert (await frame(recovered, "pusher_internal:member_added"))[1]["user_id"] == "dana"
+            else:
+                remaining = second
+            restarted_node.terminate()
+            assert await asyncio.wait_for(asyncio.to_thread(restarted_node.wait), 5) == 0
+            expected = "recovered" if redis_container else "carol"
+            assert (await frame(remaining, "pusher_internal:member_removed"))[1]["user_id"] == expected
+            await quiet(remaining)
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.terminate()
+                assert process.wait(timeout=8) == 0, process.communicate()
+    print("Three applications shared isolated MySQL and Redis; global presence, client events, app isolation and lease expiry passed")
+
+
 if __name__ == "__main__":
     with tempfile.TemporaryDirectory(prefix="openrust-reverb-") as directory:
         asyncio.run(verify(Path(directory)))
         if redis_url := os.environ.get("REVERB_TEST_REDIS_URL"):
             asyncio.run(verify_redis(Path(directory), redis_url))
+            if mysql_url := os.environ.get("REVERB_TEST_MYSQL_URL"):
+                asyncio.run(verify_cluster(Path(directory), redis_url, mysql_url))

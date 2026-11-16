@@ -23,8 +23,12 @@ cargo build --features reverb
 
 重启命令向应用缓存写入信号。同一台主机上可使用 `CACHE_STORE=file` 共享信号。独立进程收到信号后关闭监听器和连接，可由进程管理器重新启动。内嵌进程随应用关停和重启。
 
-## 广播与扩展
+## 广播与扩展 {#broadcasting-and-scaling}
 
 设置 `BROADCAST_CONNECTION=reverb`，按[广播文档](../digging-deeper/broadcasting.md)启用私有和在线频道授权。Pusher 协议客户端连接配置前缀下的 `/app/{key}`。生产环境可在应用的 `allowed_origins` 设置受信任的主机名，由反向代理终止 TLS。
 
-在各实例设置 `REVERB_SCALING_ENABLED=true`，使用 Redis 跨进程投递签名的 HTTP 发布事件。各实例共用 `REVERB_SCALING_CHANNEL` 和 Redis 设置。可以使用 `REDIS_URL`，或分别配置 Redis 主机、凭据、端口和数据库。频道成员状态和客户端发起的事件由各自的监听器处理。
+在各实例设置 `REVERB_SCALING_ENABLED=true`。同一应用的节点共用 `REVERB_APP_ID`、`REVERB_APP_KEY`、`REVERB_APP_SECRET`、`REVERB_SCALING_CHANNEL` 和 Redis 连接配置。可以使用 `REDIS_URL` 或分别设置 Redis 参数。不同应用共用扩展频道时应使用不同的应用 ID。同一个扩展频道的节点应运行相同版本的 OpenRust Reverb。
+
+订阅在线频道时，客户端收到全局成员列表和人数。同一用户建立多条连接仍只计一人，其他订阅者只会看到该用户的首次加入和最后一次离开。Redis 可用时，节点正常退出会移除其连接。节点异常退出后，仍有订阅者的节点大约每 2 秒检查一次，清理 10 秒租期已到期的连接。新订阅返回成员列表前也会清理过期连接。
+
+Redis Pub/Sub 跨节点投递签名的 HTTP 发布和已授权的客户端事件。客户端事件只发给同一应用、同一频道的其他订阅连接，排除发送者的连接。节点失去 Redis 订阅时会关闭本节点的在线频道连接，由客户端在恢复后重连并重新订阅。事件尽力投递，断线期间错过的事件不会补发。

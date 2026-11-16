@@ -16,6 +16,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use futures_util::{StreamExt as _, stream};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::{
@@ -27,7 +28,7 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use super::{
     channels::{ChannelBroker, Frame, Member},
-    scaling::{Delivery, Publisher, Subscriber},
+    scaling::{Delivery, Message as ScalingMessage, PRESENCE_SWEEP, Publisher, Subscriber},
     signatures,
 };
 
@@ -159,8 +160,18 @@ impl Server {
         let stop_sockets = socket_shutdown.clone();
         let redis = self.subscriber.map(|subscriber| {
             let state = self.state.clone();
+            let presence = state.clone();
             let stop = stop_sockets.clone();
-            tokio::spawn(subscriber.run(stop, move |delivery| state.deliver(delivery)))
+            tokio::spawn(subscriber.run(
+                stop,
+                move |delivery| state.deliver_cluster(delivery),
+                move || presence.close_presence(),
+            ))
+        });
+        let presence = self.state.publisher.clone().map(|publisher| {
+            let state = self.state.clone();
+            let stop = stop_sockets.clone();
+            tokio::spawn(async move { state.refresh_presence(publisher, stop).await })
         });
         let router = Router::new()
             .route(&format!("{}/app/{{key}}", self.prefix), get(upgrade))
@@ -182,22 +193,84 @@ impl Server {
         if let Some(redis) = redis {
             redis.await.map_err(io::Error::other)?;
         }
+        if let Some(presence) = presence {
+            presence.await.map_err(io::Error::other)?;
+        }
         result
     }
 }
 
 impl ServerState {
+    fn close_presence(&self) {
+        for app in self.ids.values() {
+            app.broker.close_presence();
+        }
+    }
+
+    async fn refresh_presence(&self, publisher: Publisher, stop: CancellationToken) {
+        let mut tick = time::interval(PRESENCE_SWEEP);
+        tick.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+        loop {
+            let refresh = async {
+                tick.tick().await;
+                let channels = self.ids.iter().flat_map(|(id, app)| {
+                    app.broker
+                        .presence_connections()
+                        .into_iter()
+                        .map(move |(channel, sockets)| (id, app, channel, sockets))
+                });
+                stream::iter(channels)
+                    .for_each_concurrent(16, |(id, app, channel, sockets)| {
+                        let publisher = &publisher;
+                        async move {
+                            let stale = publisher
+                                .refresh(id, &channel, &sockets)
+                                .await
+                                .unwrap_or(sockets);
+                            for socket in stale {
+                                app.broker.close_stale_presence(&channel, &socket);
+                            }
+                        }
+                    })
+                    .await;
+            };
+            tokio::select! {
+                biased;
+                () = stop.cancelled() => break,
+                () = refresh => {}
+            }
+        }
+    }
+
+    fn deliver_cluster(&self, message: ScalingMessage) {
+        let delivery = match message {
+            ScalingMessage::Event(delivery) => return self.deliver(delivery),
+            ScalingMessage::Presence(delivery) => delivery,
+        };
+        let (Some(app), Some(channel)) = (
+            self.ids.get(&delivery.app_id),
+            delivery.frame.channel.as_deref(),
+        ) else {
+            return;
+        };
+        if let Some(recipient) = &delivery.recipient {
+            app.broker
+                .presence_subscribed(recipient, channel, &delivery.frame);
+        } else {
+            app.broker
+                .broadcast(channel, &delivery.frame, delivery.excluded.as_deref());
+        }
+    }
+
     fn deliver(&self, delivery: Delivery) {
         let Some(app) = self.ids.get(&delivery.app_id) else {
             return;
         };
         for channel in delivery.channels {
-            app.broker.publish(
-                &channel,
-                &delivery.event,
-                delivery.data.clone(),
-                delivery.excluded.as_deref(),
-            );
+            let mut frame = Frame::new(&delivery.event, delivery.data.clone(), Some(&channel));
+            frame.user_id.clone_from(&delivery.user_id);
+            app.broker
+                .broadcast(&channel, &frame, delivery.excluded.as_deref());
         }
     }
 }
@@ -222,7 +295,14 @@ async fn upgrade(
         .max_frame_size(app.configuration.max_message_size)
         .on_upgrade(move |socket| async move {
             let _active = active;
-            session(socket, app, allowed, state.shutdown.clone()).await;
+            session(
+                socket,
+                app,
+                allowed,
+                state.shutdown.clone(),
+                state.publisher.as_ref(),
+            )
+            .await;
         })
 }
 
@@ -259,6 +339,7 @@ async fn session(
     app: Arc<App>,
     allowed: bool,
     shutdown: CancellationToken,
+    publisher: Option<&Publisher>,
 ) {
     if !allowed {
         send_frame(&mut websocket, error(4009, "Origin not allowed")).await;
@@ -306,7 +387,11 @@ async fn session(
                     waiting = false;
                     deadline = Instant::now() + app.configuration.ping_interval;
                     match message {
-                        Message::Text(text) => client_message(&app, &socket, &text),
+                        Message::Text(text) => tokio::select! {
+                            biased;
+                            () = disconnected.cancelled() => break,
+                            frame = client_message(&app, &socket, &text, publisher) => frame,
+                        },
                         Message::Close(_) => break,
                         Message::Ping(_) | Message::Pong(_) => None,
                         Message::Binary(_) => Some(error(4200, "Invalid message format")),
@@ -324,7 +409,16 @@ async fn session(
             }
         }
     }
-    app.broker.disconnect(&socket);
+    let distributed = app.broker.remove_connection(&socket);
+    if let Some(publisher) = publisher {
+        let id = &app.configuration.id;
+        let socket = &socket;
+        stream::iter(distributed)
+            .for_each_concurrent(16, |channel| async move {
+                publisher.leave(id, &channel, socket).await;
+            })
+            .await;
+    }
     let _ = time::timeout(SEND_TIMEOUT, websocket.send(Message::Close(None))).await;
 }
 
@@ -353,7 +447,12 @@ struct Subscription {
     channel_data: Option<String>,
 }
 
-fn client_message(app: &App, socket: &str, input: &str) -> Option<Frame> {
+async fn client_message(
+    app: &App,
+    socket: &str,
+    input: &str,
+    publisher: Option<&Publisher>,
+) -> Option<Frame> {
     let Ok(message) = serde_json::from_str::<ClientMessage>(input) else {
         return Some(error(4200, "Invalid message format"));
     };
@@ -370,20 +469,35 @@ fn client_message(app: &App, socket: &str, input: &str) -> Option<Frame> {
             };
             if message.event == "pusher:unsubscribe" {
                 let subscription: Subscription = subscription;
-                app.broker.unsubscribe(socket, &subscription.channel);
+                if app
+                    .broker
+                    .remove_subscription(socket, &subscription.channel)
+                    && let Some(publisher) = publisher
+                {
+                    publisher
+                        .leave(&app.configuration.id, &subscription.channel, socket)
+                        .await;
+                }
                 None
             } else {
-                subscribe(app, socket, subscription).err()
+                subscribe(app, socket, subscription, publisher).await.err()
             }
         }
         event if event.starts_with("client-") => {
-            client_event(app, socket, event, message.channel, message.data).err()
+            client_event(app, socket, event, message.channel, message.data, publisher)
+                .await
+                .err()
         }
         _ => Some(error(4200, "Invalid message format")),
     }
 }
 
-fn subscribe(app: &App, socket: &str, subscription: Subscription) -> Result<(), Frame> {
+async fn subscribe(
+    app: &App,
+    socket: &str,
+    subscription: Subscription,
+    publisher: Option<&Publisher>,
+) -> Result<(), Frame> {
     let channel = subscription.channel.as_str();
     let data = subscription.channel_data.as_deref();
     if channel.starts_with("private-") || channel.starts_with("presence-") {
@@ -409,6 +523,21 @@ fn subscribe(app: &App, socket: &str, subscription: Subscription) -> Result<(), 
         let member = data
             .and_then(|data| serde_json::from_str::<Member>(data).ok())
             .ok_or_else(|| error(4200, "Invalid presence member"))?;
+        if let Some(publisher) = publisher {
+            let member = app
+                .broker
+                .begin_presence(socket, channel, member)
+                .map_err(|_| error(4200, "Invalid channel subscription"))?;
+            if publisher
+                .join(&app.configuration.id, channel, socket, &member)
+                .await
+                .is_err()
+            {
+                app.broker.remove_subscription(socket, channel);
+                return Err(error(4200, "Presence scaling is unavailable"));
+            }
+            return Ok(());
+        }
         Some(member)
     } else {
         None
@@ -418,12 +547,13 @@ fn subscribe(app: &App, socket: &str, subscription: Subscription) -> Result<(), 
         .map_err(|_| error(4200, "Invalid channel subscription"))
 }
 
-fn client_event(
+async fn client_event(
     app: &App,
     socket: &str,
     event: &str,
     channel: Option<String>,
     data: Value,
+    publisher: Option<&Publisher>,
 ) -> Result<(), Frame> {
     let channel = channel.ok_or_else(|| error(4200, "Invalid message format"))?;
     let members_only = match app.configuration.client_events {
@@ -440,14 +570,29 @@ fn client_event(
         Value::String(data) => data,
         data => data.to_string(),
     };
-    if !app
+    let Some(frame) = app
         .broker
-        .publish_client(socket, &channel, event, data, members_only)
-    {
+        .client_frame(socket, &channel, event, data, members_only)
+    else {
         return Err(error(
             4009,
             "The client is not a member of the specified channel.",
         ));
+    };
+    if let Some(publisher) = publisher {
+        publisher
+            .publish(&Delivery {
+                app_id: app.configuration.id.clone(),
+                channels: vec![channel],
+                event: frame.event,
+                data: frame.data,
+                excluded: Some(socket.to_owned()),
+                user_id: frame.user_id,
+            })
+            .await
+            .map_err(|_| error(4200, "Event scaling is unavailable"))?;
+    } else {
+        app.broker.broadcast(&channel, &frame, Some(socket));
     }
     Ok(())
 }
@@ -525,6 +670,7 @@ async fn publish(
         event: event.name,
         data: event.data,
         excluded: event.socket_id,
+        user_id: None,
     };
     if let Some(publisher) = &state.publisher {
         if publisher.publish(&delivery).await.is_err() {

@@ -8,14 +8,14 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Member {
     pub user_id: String,
     #[serde(default)]
     pub user_info: Value,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct Frame {
     pub event: String,
     pub data: String,
@@ -45,7 +45,13 @@ struct Connection {
     disconnect: CancellationToken,
 }
 
-type Subscribers = HashMap<String, Option<Member>>;
+struct Subscription {
+    member: Option<Member>,
+    ready: bool,
+    distributed: bool,
+}
+
+type Subscribers = HashMap<String, Subscription>;
 
 #[derive(Default)]
 struct State {
@@ -116,12 +122,16 @@ impl ChannelBroker {
                 !subscribers.contains_key(socket) && !has_member(subscribers, &member.user_id)
             })
             .cloned();
-        subscribers.entry(socket.into()).or_insert(member);
+        subscribers.entry(socket.into()).or_insert(Subscription {
+            member,
+            ready: true,
+            distributed: false,
+        });
 
         let data = if presence {
             let hash: BTreeMap<_, _> = subscribers
                 .values()
-                .flatten()
+                .filter_map(|subscription| subscription.member.as_ref())
                 .map(|member| (&member.user_id, &member.user_info))
                 .collect();
             let ids: Vec<_> = hash.keys().copied().collect();
@@ -147,6 +157,10 @@ impl ChannelBroker {
     }
 
     pub fn disconnect(&self, socket: &str) {
+        self.remove_connection(socket);
+    }
+
+    pub(crate) fn remove_connection(&self, socket: &str) -> Vec<String> {
         let mut state = self.state.lock().unwrap();
         state.connections.remove(socket);
         let channels: Vec<_> = state
@@ -155,53 +169,152 @@ impl ChannelBroker {
             .filter(|(_, subscribers)| subscribers.contains_key(socket))
             .map(|(name, _)| name.clone())
             .collect();
-        for channel in channels {
-            state.unsubscribe(socket, &channel);
+        channels
+            .into_iter()
+            .filter(|channel| state.unsubscribe(socket, channel))
+            .collect()
+    }
+
+    pub(crate) fn remove_subscription(&self, socket: &str, channel: &str) -> bool {
+        self.state.lock().unwrap().unsubscribe(socket, channel)
+    }
+
+    pub(crate) fn begin_presence(
+        &self,
+        socket: &str,
+        channel: &str,
+        member: Member,
+    ) -> Result<Member, SubscriptionError> {
+        if !valid_channel(channel) || !channel.starts_with("presence-") {
+            return Err(SubscriptionError::InvalidChannel);
+        }
+        if member.user_id.is_empty() {
+            return Err(SubscriptionError::InvalidMember);
+        }
+        let mut state = self.state.lock().unwrap();
+        if !state.connections.contains_key(socket) {
+            return Err(SubscriptionError::UnknownSocket);
+        }
+        let subscription = state
+            .channels
+            .entry(channel.into())
+            .or_default()
+            .entry(socket.into())
+            .or_insert(Subscription {
+                member: Some(member),
+                ready: false,
+                distributed: true,
+            });
+        Ok(subscription
+            .member
+            .clone()
+            .expect("distributed presence member"))
+    }
+
+    pub(crate) fn presence_subscribed(&self, socket: &str, channel: &str, frame: &Frame) {
+        let mut state = self.state.lock().unwrap();
+        if let Some(subscription) = state
+            .channels
+            .get_mut(channel)
+            .and_then(|sockets| sockets.get_mut(socket))
+            && subscription.distributed
+        {
+            subscription.ready = true;
+            state.send(socket, frame);
         }
     }
 
-    pub(crate) fn publish_client(
+    pub(crate) fn presence_connections(&self) -> Vec<(String, Vec<String>)> {
+        self.state
+            .lock()
+            .unwrap()
+            .channels
+            .iter()
+            .filter_map(|(channel, sockets)| {
+                let sockets: Vec<_> = sockets
+                    .iter()
+                    .filter(|(_, subscription)| subscription.distributed && subscription.ready)
+                    .map(|(socket, _)| socket.clone())
+                    .collect();
+                (!sockets.is_empty()).then(|| (channel.clone(), sockets))
+            })
+            .collect()
+    }
+
+    pub(crate) fn close_presence(&self) {
+        let state = self.state.lock().unwrap();
+        for sockets in state.channels.values() {
+            for (socket, subscription) in sockets {
+                if subscription.distributed
+                    && let Some(connection) = state.connections.get(socket)
+                {
+                    connection.disconnect.cancel();
+                }
+            }
+        }
+    }
+
+    pub(crate) fn close_stale_presence(&self, channel: &str, socket: &str) {
+        let state = self.state.lock().unwrap();
+        if state
+            .channels
+            .get(channel)
+            .and_then(|sockets| sockets.get(socket))
+            .is_some_and(|subscription| subscription.distributed && subscription.ready)
+            && let Some(connection) = state.connections.get(socket)
+        {
+            connection.disconnect.cancel();
+        }
+    }
+
+    pub(crate) fn client_frame(
         &self,
         socket: &str,
         channel: &str,
         event: &str,
         data: String,
         members_only: bool,
-    ) -> bool {
+    ) -> Option<Frame> {
         if !valid_channel(channel) {
-            return false;
+            return None;
         }
         let state = self.state.lock().unwrap();
         let subscriber = state
             .channels
             .get(channel)
-            .and_then(|sockets| sockets.get(socket));
+            .and_then(|sockets| sockets.get(socket))
+            .filter(|subscription| subscription.ready);
         if members_only && subscriber.is_none() {
-            return false;
+            return None;
         }
         let mut frame = Frame::new(event, data, Some(channel));
         frame.user_id = subscriber
-            .and_then(Option::as_ref)
+            .and_then(|subscription| subscription.member.as_ref())
             .map(|member| member.user_id.clone());
-        state.publish(channel, &frame, Some(socket));
-        true
+        Some(frame)
     }
 
     pub fn publish(&self, channel: &str, event: &str, data: String, excluded: Option<&str>) {
-        self.state.lock().unwrap().publish(
-            channel,
-            &Frame::new(event, data, Some(channel)),
-            excluded,
-        );
+        self.broadcast(channel, &Frame::new(event, data, Some(channel)), excluded);
+    }
+
+    pub(crate) fn broadcast(&self, channel: &str, frame: &Frame, excluded: Option<&str>) {
+        self.state.lock().unwrap().publish(channel, frame, excluded);
     }
 }
 
 impl State {
-    fn unsubscribe(&mut self, socket: &str, channel: &str) {
+    fn unsubscribe(&mut self, socket: &str, channel: &str) -> bool {
         let Some(subscribers) = self.channels.get_mut(channel) else {
-            return;
+            return false;
         };
-        let member = subscribers.remove(socket).flatten();
+        let subscription = subscribers.remove(socket);
+        let distributed = subscription
+            .as_ref()
+            .is_some_and(|subscription| subscription.distributed);
+        let member = subscription
+            .filter(|subscription| !subscription.distributed)
+            .and_then(|subscription| subscription.member);
         let departed = member.filter(|member| !has_member(subscribers, &member.user_id));
         if subscribers.is_empty() {
             self.channels.remove(channel);
@@ -214,6 +327,7 @@ impl State {
             );
             self.publish(channel, &removed, None);
         }
+        distributed
     }
 
     fn send(&self, socket: &str, frame: &Frame) {
@@ -226,8 +340,8 @@ impl State {
 
     fn publish(&self, channel: &str, frame: &Frame, excluded: Option<&str>) {
         if let Some(subscribers) = self.channels.get(channel) {
-            for socket in subscribers.keys() {
-                if Some(socket.as_str()) != excluded {
+            for (socket, subscription) in subscribers {
+                if subscription.ready && Some(socket.as_str()) != excluded {
                     self.send(socket, frame);
                 }
             }
@@ -238,7 +352,7 @@ impl State {
 fn has_member(subscribers: &Subscribers, user_id: &str) -> bool {
     subscribers
         .values()
-        .flatten()
+        .filter_map(|subscription| subscription.member.as_ref())
         .any(|member| member.user_id == user_id)
 }
 
