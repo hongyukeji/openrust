@@ -113,6 +113,14 @@ pub enum KeySelector<'a> {
     Columns(&'a [&'a str]),
 }
 
+/// Supplies a schema when an object reference contains only a table name.
+#[derive(Clone, Copy, Debug)]
+pub enum SchemaFallback<'a> {
+    None,
+    Current,
+    Named(&'a str),
+}
+
 /// An index read from the database catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Index {

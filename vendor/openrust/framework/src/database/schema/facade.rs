@@ -4,8 +4,8 @@ use crate::{
 };
 
 use super::{
-    Blueprint, Builder, Column, ForeignKey, Index, KeySelector, MorphKeyType, SchemaInfo,
-    SchemaSession, TableInfo, ViewInfo,
+    Blueprint, Builder, Column, ForeignKey, Index, KeySelector, MorphKeyType, SchemaFallback,
+    SchemaInfo, SchemaSession, TableInfo, ViewInfo,
 };
 
 /// Schema operations on the current application's default database connection.
@@ -121,6 +121,16 @@ impl Schema {
     /// Returns the default connection's schema lookup list.
     pub fn getCurrentSchemaListing() -> DatabaseResult<Vec<String>> {
         Ok(Self::default_builder()?.getCurrentSchemaListing())
+    }
+
+    /// Splits a logical table reference before the connection's table prefix is applied.
+    pub fn parseSchemaAndTable(
+        reference: &str,
+        fallback: SchemaFallback<'_>,
+    ) -> DatabaseResult<(Option<String>, String)> {
+        let builder = Self::default_builder()?;
+        let (schema, table) = builder.parseSchemaAndTable(reference, fallback)?;
+        Ok((schema.map(str::to_owned), table.to_owned()))
     }
 
     pub async fn getSchemas() -> DatabaseResult<Vec<SchemaInfo>> {

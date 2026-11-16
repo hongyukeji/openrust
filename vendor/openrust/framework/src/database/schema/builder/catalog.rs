@@ -4,8 +4,9 @@ use crate::database::{DatabaseError, DatabaseResult, Row, Value};
 
 use super::{Builder, Executor};
 use crate::database::schema::{
-    Column, ColumnGeneration, ForeignKey, GenerationType, Index, KeySelector, SchemaInfo,
-    TableInfo, ViewInfo, grammars::Table,
+    Column, ColumnGeneration, ForeignKey, GenerationType, Index, KeySelector, SchemaFallback,
+    SchemaInfo, TableInfo, ViewInfo,
+    grammars::{Grammar, Table},
 };
 
 const MYSQL_SYSTEM_SCHEMAS: &str =
@@ -41,6 +42,21 @@ impl Builder<'_> {
     /// Returns the connection's default schema lookup list.
     pub fn getCurrentSchemaListing(&self) -> Vec<String> {
         vec![self.getCurrentSchemaName().to_owned()]
+    }
+
+    /// Splits a logical table reference before the connection's table prefix is applied.
+    pub fn parseSchemaAndTable<'a>(
+        &'a self,
+        reference: &'a str,
+        fallback: SchemaFallback<'a>,
+    ) -> DatabaseResult<(Option<&'a str>, &'a str)> {
+        let (schema, table) = Grammar::parse_schema_and_table(reference)?;
+        let schema = schema.or_else(|| match fallback {
+            SchemaFallback::None => None,
+            SchemaFallback::Current => Some(self.getCurrentSchemaName()),
+            SchemaFallback::Named(schema) => Some(schema),
+        });
+        Ok((schema, table))
     }
 
     pub async fn getSchemas(&mut self) -> DatabaseResult<Vec<SchemaInfo>> {

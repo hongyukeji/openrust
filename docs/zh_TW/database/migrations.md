@@ -446,6 +446,22 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 
 `getTableListing` 回傳限定資料表名稱。需要不含 Schema 的名稱時，使用 `getTableListingWith(schema, false)`。資料表記錄回傳資料庫目錄中的名稱，並在資料庫提供時附上大小及儲存中繼資料。
 
+#### 解析資料表名稱參照 {#parsing-table-references}
+
+`parseSchemaAndTable(reference, fallback)` 在連線加入資料表前置詞之前分割邏輯資料表名稱。限定名稱優先採用明確指定的 Schema。僅傳資料表名稱時，可用 `SchemaFallback::None`、`SchemaFallback::Current` 或 `SchemaFallback::Named(name)`。用 `Schema::connection(name)` 選擇連線。資料表名稱參照最多包含兩個非空部分。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::SchemaFallback},
+    support::facades::Schema,
+};
+
+async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<String>> {
+    let (schema, _) = Schema::parseSchemaAndTable(reference, SchemaFallback::Current)?;
+    Schema::getTableListing(schema.as_deref()).await
+}
+```
+
 #### 檢查單欄 {#inspecting-a-column}
 
 `Schema::getColumn` 回傳指定欄位的中繼資料。比對欄位名稱時忽略大小寫。欄位不存在時 Rust 回傳 `None`，資料庫錯誤透過 `DatabaseResult` 傳遞。

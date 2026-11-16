@@ -446,6 +446,22 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 
 `getTableListing` 返回限定表名。需要不带 Schema 的表名时，用 `getTableListingWith(schema, false)`。表记录返回数据库目录中的名称，并在数据库提供时附带大小和存储元数据。
 
+#### 解析表名引用 {#parsing-table-references}
+
+`parseSchemaAndTable(reference, fallback)` 在连接添加表前缀之前拆分逻辑表名。限定名优先采用显式指定的 Schema。仅传表名时，可用 `SchemaFallback::None`、`SchemaFallback::Current` 或 `SchemaFallback::Named(name)`。用 `Schema::connection(name)` 选择连接。表名引用最多包含两个非空部分。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::SchemaFallback},
+    support::facades::Schema,
+};
+
+async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<String>> {
+    let (schema, _) = Schema::parseSchemaAndTable(reference, SchemaFallback::Current)?;
+    Schema::getTableListing(schema.as_deref()).await
+}
+```
+
 #### 检查单列 {#inspecting-a-column}
 
 `Schema::getColumn` 返回指定列的元数据。匹配列名时忽略大小写。列不存在时 Rust 返回 `None`，数据库错误通过 `DatabaseResult` 传播。

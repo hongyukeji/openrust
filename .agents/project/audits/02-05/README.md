@@ -228,3 +228,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - Laravel 的删除方法接受名称或数组。Rust 用 `dropIndexColumns`、`dropUniqueColumns`、`dropFullTextColumns`、`dropSpatialIndexColumns` 表达列列表，沿用 `dropForeignColumns` 的命名。默认索引名保留限定 Schema、表前缀配置、列顺序和索引类型后缀。空列表在执行 DDL 前报错。
 - `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 22 项 Schema 回归及 1 项限定库清理回归。验证普通、唯一、全文、空间索引删除，列顺序颠倒导致删除失败，具有相同列的自定义名称索引保留。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
 - `docker/accept.py --mysql` 运行三语共用的实际 Artisan 示例。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 已编译，实际运行留待发布前。
+
+## 解析限定表名
+
+对照固定 Laravel [Builder::parseSchemaAndTable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Builder.php#L772) 和 [SQLite 限定 Schema 索引语法测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseSQLiteSchemaGrammarTest.php#L233)。旧版未找到对应的独立解析入口。本批把现有目录与 DDL 的拆分逻辑共用于 Builder 和 Facade。
+
+- 固定 Laravel 用字符串、布尔值或 null 表达 Schema 回退。Rust 用 `SchemaFallback::{None, Current, Named}` 表达同样的三种选择。显式 Schema 优先。Builder 借用输入与配置，Facade 返回拥有所有权的值。表前缀仍由 DDL 和目录查询应用。
+- 三段式引用与 Laravel 一样报错。Rust 保留现有 Schema 路径对空表名或空限定段的预检，解析入口会提前报告这些输入。
+- `sh tests/table_catalog.sh` 在独立 MySQL 8.4.13 通过 22 项 Schema 回归及 1 项限定库清理回归。实测当前与显式回退、读写库分离、带前缀的跨 Schema 限定表名和无效引用预检。验收脚本仅从 `3d2641c0f` 提取到隔离副本。
+- `docker/accept.py --mysql` 运行三语共用 Artisan 示例，实际创建限定表并按解析结果读取其 Schema 下的表目录。原生 `main artisan inspire`、严格 Clippy、变更文件格式、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 附加库解析回归已编译，实跑留待发布前。

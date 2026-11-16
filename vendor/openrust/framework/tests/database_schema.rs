@@ -6,7 +6,7 @@ use openrust::{
     config::Repository,
     database::{
         Connection, DatabaseError, DatabaseManager, DatabaseResult, Value,
-        schema::{GenerationType, MorphKeyType, Schema},
+        schema::{GenerationType, MorphKeyType, Schema, SchemaFallback},
     },
     foundation::Application,
     http::HttpFuture,
@@ -3140,6 +3140,42 @@ async fn mysql_inspects_visible_schemas_tables_and_views_on_the_write_connection
     assert_eq!(read.get("name"), Some(&Value::Text(alternate.clone())));
     assert_eq!(schema.getCurrentSchemaName(), current);
     assert_eq!(schema.getCurrentSchemaListing(), [current]);
+    assert_eq!(
+        schema
+            .parseSchemaAndTable("catalog_entries", SchemaFallback::None)
+            .unwrap(),
+        (None, "catalog_entries")
+    );
+    assert_eq!(
+        schema
+            .parseSchemaAndTable("catalog_entries", SchemaFallback::Current)
+            .unwrap(),
+        (Some(current), "catalog_entries")
+    );
+    assert_eq!(
+        schema
+            .parseSchemaAndTable("catalog_entries", SchemaFallback::Named(&alternate))
+            .unwrap(),
+        (Some(alternate.as_str()), "catalog_entries")
+    );
+    let qualified_logical = format!("{alternate}.catalog_entries");
+    assert_eq!(
+        schema
+            .parseSchemaAndTable(&qualified_logical, SchemaFallback::Current)
+            .unwrap(),
+        (Some(alternate.as_str()), "catalog_entries")
+    );
+    assert!(schema.hasTable(&qualified_logical).await.unwrap());
+    for reference in ["", ".catalog_entries", "schema.", "connection.schema.table"] {
+        assert!(matches!(
+            schema.parseSchemaAndTable(reference, SchemaFallback::Current),
+            Err(DatabaseError::InvalidSchema("table name"))
+        ));
+        assert!(matches!(
+            schema.hasTable(reference).await,
+            Err(DatabaseError::InvalidSchema("table name"))
+        ));
+    }
     let other = connection(json!({"url": read_url.as_str()}));
     assert_eq!(
         other.getSchemaBuilder().getCurrentSchemaListing(),
@@ -3733,6 +3769,18 @@ async fn sqlite_bulk_drop_keeps_objects_in_other_schemas() {
         .unwrap();
     assert_eq!(schema.getCurrentSchemaName(), "main");
     assert_eq!(schema.getCurrentSchemaListing(), ["main"]);
+    assert_eq!(
+        schema
+            .parseSchemaAndTable("sentinel", SchemaFallback::Current)
+            .unwrap(),
+        (Some("main"), "sentinel")
+    );
+    assert_eq!(
+        schema
+            .parseSchemaAndTable("retained.sentinel", SchemaFallback::Current)
+            .unwrap(),
+        (Some("retained"), "sentinel")
+    );
     schema.dropAllTables().await.unwrap();
     assert!(!schema.hasTable("local_row").await.unwrap());
     assert!(schema.hasView("local_view").await.unwrap());

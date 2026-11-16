@@ -39,17 +39,20 @@ impl Grammar {
         self.grammar.is_mysql()
     }
 
-    pub fn table(&self, name: &str) -> DatabaseResult<Table> {
-        let (schema, name) = name
+    pub fn parse_schema_and_table(reference: &str) -> DatabaseResult<(Option<&str>, &str)> {
+        let (schema, name) = reference
             .split_once('.')
-            .map_or((None, name), |(schema, table)| {
-                (Some(schema.to_owned()), table)
-            });
-        if name.is_empty() || name.contains('.') || schema.as_deref() == Some("") {
+            .map_or((None, reference), |(schema, name)| (Some(schema), name));
+        if name.is_empty() || name.contains('.') || schema == Some("") {
             return Err(DatabaseError::InvalidSchema("table name"));
         }
+        Ok((schema, name))
+    }
+
+    pub fn table(&self, reference: &str) -> DatabaseResult<Table> {
+        let (schema, name) = Self::parse_schema_and_table(reference)?;
         let table = Table {
-            schema,
+            schema: schema.map(str::to_owned),
             name: format!("{}{name}", self.grammar.table_prefix()),
         };
         self.qualified(&table)?;

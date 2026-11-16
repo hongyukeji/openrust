@@ -446,6 +446,22 @@ async fn inspect_tables(schema: &str) -> DatabaseResult<()> {
 
 `getTableListing` returns qualified names. Use `getTableListingWith(schema, false)` for names without a schema prefix. Table entries contain catalog names and, when supplied by the database, size and storage metadata.
 
+#### Parsing Table References {#parsing-table-references}
+
+`parseSchemaAndTable(reference, fallback)` splits a logical table reference before the connection adds its table prefix. A qualified reference keeps its explicit schema. For a bare table name, use `SchemaFallback::None`, `SchemaFallback::Current`, or `SchemaFallback::Named(name)`. Use `Schema::connection(name)` to select a connection. Table references accept at most two nonempty parts.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, schema::SchemaFallback},
+    support::facades::Schema,
+};
+
+async fn list_tables_in_same_schema(reference: &str) -> DatabaseResult<Vec<String>> {
+    let (schema, _) = Schema::parseSchemaAndTable(reference, SchemaFallback::Current)?;
+    Schema::getTableListing(schema.as_deref()).await
+}
+```
+
 #### Inspecting a Column {#inspecting-a-column}
 
 `Schema::getColumn` returns the metadata for one column. Column names are compared case-insensitively. Rust returns `None` when the column is absent, and database errors propagate through `DatabaseResult`.
