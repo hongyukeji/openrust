@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use lettre::message::{Mailbox, MultiPart, SinglePart, header};
 
 use crate::view::Factory;
@@ -9,7 +11,15 @@ use super::{
 
 /// A composed email ready for transport.
 #[derive(Clone)]
-pub struct Message(pub(super) lettre::Message);
+pub struct Message(pub(super) lettre::Message, pub(super) Arc<ApiMessage>);
+
+pub(super) struct ApiMessage {
+    pub envelope: Envelope,
+    pub text: Option<String>,
+    pub html: Option<String>,
+    pub attachments: Vec<Attachment>,
+    pub headers: Headers,
+}
 
 impl Message {
     pub fn formatted(&self) -> Vec<u8> {
@@ -32,6 +42,8 @@ impl Message {
         headers: Headers,
         views: &Factory,
     ) -> MailResult<Self> {
+        let api_envelope = envelope.clone();
+        let api_headers = headers.clone();
         let mut builder = lettre::Message::builder().subject(header_text(envelope.subject)?);
         let from = envelope
             .from
@@ -84,7 +96,7 @@ impl Message {
             &content.with,
             views,
         )?;
-        let body = match (text, html) {
+        let body = match (text.clone(), html.clone()) {
             (Some(text), Some(html)) => {
                 Body::Multipart(MultiPart::alternative_plain_html(text, html))
             }
@@ -102,18 +114,29 @@ impl Message {
                 Body::Single(part) => MultiPart::mixed().singlepart(part),
                 Body::Multipart(part) => MultiPart::mixed().multipart(part),
             };
-            for attachment in attachments {
+            for attachment in &attachments {
                 let mime = header::ContentType::parse(&attachment.mime)
                     .map_err(|_| composition("Invalid attachment media type."))?;
                 mixed = mixed.singlepart(
-                    lettre::message::Attachment::new(header_text(attachment.name)?)
-                        .body(attachment.bytes, mime),
+                    lettre::message::Attachment::new(header_text(attachment.name.clone())?)
+                        .body(attachment.bytes.clone(), mime),
                 );
             }
             builder.multipart(mixed)
         };
         message
-            .map(Self)
+            .map(|message| {
+                Self(
+                    message,
+                    Arc::new(ApiMessage {
+                        envelope: api_envelope,
+                        headers: api_headers,
+                        text,
+                        html,
+                        attachments,
+                    }),
+                )
+            })
             .map_err(|_| composition("A valid sender and at least one recipient are required."))
     }
 }
@@ -144,7 +167,7 @@ fn header_text(value: String) -> MailResult<String> {
     Ok(value)
 }
 
-fn mailbox(address: Address) -> MailResult<Mailbox> {
+pub(super) fn mailbox(address: Address) -> MailResult<Mailbox> {
     let address_value = address
         .address
         .parse()

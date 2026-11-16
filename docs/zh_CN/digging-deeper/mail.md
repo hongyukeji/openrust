@@ -36,6 +36,12 @@ pub async fn send_order() -> MailResult<()> {
 
 使用 SMTP 时设置 `MAIL_MAILER=smtp`，再配置 `MAIL_HOST`、`MAIL_PORT` 或 `MAIL_URL`。URL 覆盖其提供的连接字段。`smtps` 使用隐式 TLS。`smtp` 在服务器支持时使用 STARTTLS，配置凭据时必须成功升级 TLS。
 
+选择 `sendmail` 可运行 `MAIL_SENDMAIL_PATH` 配置的程序，支持通过标准输入输出进行 SMTP 的 `-bs` 模式，以及从标准输入投递邮件的 `-t` 模式。
+
+选择 `ses`、`postmark` 或 `resend` 可调用供应商 API。在 `config/services.rs` 中配置对应服务。SES 使用配置的 AWS 凭据或 AWS SDK 凭据链，Postmark 使用 `POSTMARK_TOKEN`，Resend 使用 `RESEND_KEY`。
+
+在 `config/mail.rs` 中，`failover` 在当前邮件器发送失败时切换，`roundrobin` 轮流使用邮件器。两者均通过 `mailers` 指定邮件器列表，并在 `retry_after` 秒内跳过失败的传输。
+
 ## 邮件入队
 
 让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。

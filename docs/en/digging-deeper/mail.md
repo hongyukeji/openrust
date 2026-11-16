@@ -36,6 +36,12 @@ pub async fn send_order() -> MailResult<()> {
 
 For SMTP, set `MAIL_MAILER=smtp` and configure `MAIL_HOST` and `MAIL_PORT`, or set `MAIL_URL`. The URL overrides the connection fields it supplies. `smtps` uses implicit TLS. `smtp` upgrades with STARTTLS when offered, and credentials require a successful TLS upgrade.
 
+Select `sendmail` to run the program configured by `MAIL_SENDMAIL_PATH`. It supports SMTP over standard I/O with `-bs` and delivery through standard input with `-t`.
+
+Select `ses`, `postmark`, or `resend` to use a provider API. Configure the corresponding service in `config/services.rs`. SES uses AWS credentials or the AWS SDK credential chain. Postmark uses `POSTMARK_TOKEN`, and Resend uses `RESEND_KEY`.
+
+In `config/mail.rs`, `failover` keeps the active mailer while it succeeds and switches on failure. `roundrobin` rotates delivery across mailers. Both use the named `mailers` list and skip failed transports during the `retry_after` interval in seconds.
+
 ## Queueing mail
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.

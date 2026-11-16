@@ -198,6 +198,273 @@ fn app(root: &Path) -> Application {
 }
 
 #[tokio::test]
+async fn mail_provider_adapters_and_composites_use_the_configured_transports() {
+    use axum::{Router, extract::State, http::HeaderMap, response::IntoResponse, routing::post};
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
+
+    type Requests = Arc<Mutex<Vec<(String, HeaderMap, String)>>>;
+    async fn record(
+        State(requests): State<Requests>,
+        uri: http::Uri,
+        headers: HeaderMap,
+        body: String,
+    ) -> axum::response::Response {
+        let path = uri.path().to_owned();
+        requests.lock().unwrap().push((path.clone(), headers, body));
+        match path.as_str() {
+            "/postmark" => ([("Content-Type", "application/json")], r#"{"ErrorCode":0,"MessageID":"postmark-id"}"#).into_response(),
+            "/resend" => ([("Content-Type", "application/json")], r#"{"id":"resend-id"}"#).into_response(),
+            "/" => ([("Content-Type", "text/xml")],
+                r#"<SendRawEmailResponse xmlns="http://email.amazonaws.com/doc/2010-12-01/"><SendRawEmailResult><MessageId>ses-id</MessageId></SendRawEmailResult><ResponseMetadata><RequestId>request-1</RequestId></ResponseMetadata></SendRawEmailResponse>"#)
+                .into_response(),
+            _ => (http::StatusCode::UNAUTHORIZED, "fixture credential marker").into_response(),
+        }
+    }
+
+    let requests = Requests::default();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(
+        axum::serve(
+            listener,
+            Router::new()
+                .route("/", post(record))
+                .route("/{provider}", post(record))
+                .with_state(requests.clone()),
+        )
+        .into_future(),
+    );
+    let root = fixture(None, None, None);
+    let config_path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+    config["services"] = json!({"postmark":{"token":"test-postmark"},"resend":{"key":"test-resend"},
+        "ses":{"region":"us-east-1","key":"test-key","secret":"test-secret","token":"test-session"}});
+    config["mail"]["mailers"] = json!({
+        "postmark":{"transport":"postmark","endpoint":format!("{base}/postmark"),"message_stream_id":"transactional"},
+        "resend":{"transport":"resend","endpoint":format!("{base}/resend")},
+        "ses":{"transport":"ses","endpoint":base,"options":{"ConfigurationSetName":"fixture","Tags":[{"Name":"kind","Value":"test"}]}},
+        "reject":{"transport":"postmark","token":"fixture-override","endpoint":format!("{base}/reject")},
+        "failover":{"transport":"failover","mailers":["reject","resend"],"retry_after":60},
+        "roundrobin":{"transport":"roundrobin","mailers":["postmark","resend"]},
+        "cycle":{"transport":"failover","mailers":["cycle"]},
+    });
+    std::fs::write(config_path, config.to_string()).unwrap();
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], |_| async {
+                struct NamedReceipt(&'static str);
+                impl Mailable for NamedReceipt {
+                    fn mailer(&self) -> Option<&str> {
+                        Some(self.0)
+                    }
+                    fn envelope(&self) -> MailResult<Envelope> {
+                        Receipt.envelope()
+                    }
+                    fn content(&self) -> MailResult<Content> {
+                        Receipt.content()
+                    }
+                    fn headers(&self) -> MailResult<Headers> {
+                        Receipt.headers()
+                    }
+                    fn attachments(&self) -> MailResult<Vec<Attachment>> {
+                        Receipt.attachments()
+                    }
+                }
+                let send = |name: &'static str| async move {
+                    Mail::to("to@example.test")
+                        .unwrap()
+                        .bcc("blind@example.test")
+                        .sendNow(&NamedReceipt(name))
+                        .await
+                };
+                let ses = send("ses").await.unwrap();
+                assert!(
+                    String::from_utf8(ses.message.formatted())
+                        .unwrap()
+                        .contains("X-SES-Message-ID: ses-id")
+                );
+                for name in ["failover", "failover", "roundrobin", "roundrobin"] {
+                    send(name).await.unwrap();
+                }
+                let rejected = send("reject").await.err().unwrap().to_string();
+                assert!(rejected.contains("401") && !rejected.contains("marker"));
+                assert!(
+                    Mail::mailer(Some("cycle"))
+                        .err()
+                        .unwrap()
+                        .to_string()
+                        .contains("Circular")
+                );
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 7);
+    let paths: Vec<_> = requests.iter().map(|(path, _, _)| path.as_str()).collect();
+    assert_eq!(&paths[..4], ["/", "/reject", "/resend", "/resend"]);
+    assert!(matches!(
+        &paths[4..6],
+        ["/postmark", "/resend"] | ["/resend", "/postmark"]
+    ));
+    assert_eq!(paths[6], "/reject");
+    let (_, headers, ses) = &requests[0];
+    assert_eq!(headers["x-amz-security-token"], "test-session");
+    assert!(
+        headers["authorization"]
+            .to_str()
+            .unwrap()
+            .contains("Credential=test-key/")
+    );
+    let fields: std::collections::HashMap<_, _> = url::form_urlencoded::parse(ses.as_bytes())
+        .into_owned()
+        .collect();
+    assert_eq!(fields["Action"], "SendRawEmail");
+    assert_eq!(fields["ConfigurationSetName"], "fixture");
+    assert!(fields.values().any(|value| value == "blind@example.test"));
+    let mime = String::from_utf8(STANDARD.decode(&fields["RawMessage.Data"]).unwrap()).unwrap();
+    assert!(mime.contains("OpenRust receipt") && !mime.contains("blind@example.test"));
+    let (_, headers, resend) = &requests[2];
+    assert_eq!(headers["authorization"], "Bearer test-resend");
+    let resend: Json = serde_json::from_str(resend).unwrap();
+    assert_eq!(resend["bcc"], json!(["blind@example.test"]));
+    assert_eq!(
+        resend["attachments"][0]["content"],
+        STANDARD.encode(b"file receipt")
+    );
+    let (_, headers, postmark) = requests
+        .iter()
+        .find(|(path, _, _)| path == "/postmark")
+        .unwrap();
+    assert_eq!(headers["x-postmark-server-token"], "test-postmark");
+    let postmark: Json = serde_json::from_str(postmark).unwrap();
+    assert_eq!(postmark["MessageStream"], "transactional");
+    assert_eq!(postmark["Headers"][0]["Name"], "X-Receipt");
+    server.abort();
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn sendmail_uses_a_process_envelope_and_preserves_smtp_acceptance() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let root = fixture(None, None, None);
+    let script = root.0.join("send mail");
+    let transcript = root.0.join("transcript");
+    std::fs::write(
+        &script,
+        r#"#!/bin/sh
+transcript=$1
+shift
+if [ "$1" = "-bs" ]; then
+    printf '220 local ESMTP\r\n'
+    while IFS= read -r line; do
+        printf '%s\n' "$line" >> "$transcript"
+        case "$line" in
+            EHLO*) printf '250-local\r\n250 OK\r\n' ;;
+            'MAIL FROM:'*|'RCPT TO:'*) printf '250 OK\r\n' ;;
+            DATA*) printf '354 Start mail input\r\n' ;;
+            ".$(printf '\r')") printf '250 accepted\r\n' ;;
+            QUIT*) exit 0 ;;
+        esac
+    done
+else
+    printf '%s\n' "$@" > "$transcript"
+    cat >> "$transcript"
+fi
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+    let config_path = root.0.join("config.json");
+    for mode in ["-t", "-bs"] {
+        let mut config: Json =
+            serde_json::from_slice(&std::fs::read(&config_path).unwrap()).unwrap();
+        config["mail"]["default"] = json!("sendmail");
+        config["mail"]["mailers"]["sendmail"] = json!({
+            "transport":"sendmail",
+            "path": format!("\"{}\" \"{}\" {mode}", script.display(), transcript.display())
+        });
+        std::fs::write(&config_path, config.to_string()).unwrap();
+        let mut application = app(&root.0);
+        application.boot().await.unwrap();
+        application
+            .call(
+                Callback::new(&[], |_| async {
+                    Mail::to("to@example.test")
+                        .unwrap()
+                        .bcc("blind@example.test")
+                        .sendNow(&Receipt)
+                        .await
+                        .unwrap();
+                    Ok(())
+                }),
+                Default::default(),
+            )
+            .await
+            .unwrap();
+        let delivered = std::fs::read_to_string(&transcript).unwrap();
+        if mode == "-bs" {
+            let (_, mime) = delivered.split_once("DATA\r\n").unwrap();
+            assert!(delivered.contains("RCPT TO:<blind@example.test>"));
+            assert!(!mime.contains("blind@example.test"));
+        } else {
+            let (envelope, mime) = delivered.split_once("Subject:").unwrap();
+            assert!(envelope.contains("--\nto@example.test\nblind@example.test"));
+            assert!(!mime.contains("blind@example.test"));
+            std::fs::remove_file(&transcript).unwrap();
+        }
+        assert!(delivered.contains("OpenRust receipt"));
+    }
+}
+
+#[tokio::test]
+#[ignore = "Requires a dedicated SMTP server configured for this test"]
+async fn smtp_delivery_fixture() {
+    let url = std::env::var("OPENRUST_SMTP_FIXTURE_URL").expect("SMTP fixture URL");
+    let rejection = std::env::var_os("OPENRUST_SMTP_FIXTURE_REJECT").is_some();
+    let root = fixture(None, None, None);
+    let path = root.0.join("config.json");
+    let mut config: Json = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    config["mail"]["default"] = json!("smtp");
+    config["mail"]["mailers"]["smtp"] = json!({"transport":"smtp","url":url,"timeout":3});
+    std::fs::write(&path, config.to_string()).unwrap();
+    let mut application = app(&root.0);
+    application.boot().await.unwrap();
+    application
+        .call(
+            Callback::new(&[], move |_| async move {
+                let result = Mail::to("recipient@example.test")
+                    .unwrap()
+                    .sendNow(&Receipt)
+                    .await;
+                if rejection {
+                    let error = result
+                        .err()
+                        .expect("SMTP delivery must be rejected")
+                        .to_string();
+                    assert!(
+                        error.contains("SMTP connection or protocol failed"),
+                        "{error}"
+                    );
+                    assert!(!error.contains("fixture-secret"));
+                } else {
+                    result.unwrap();
+                }
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
 #[ignore = "Spawned by the notification queue tests"]
 async fn artisan_mail_fixture() {
     let root = PathBuf::from(std::env::var_os("OPENRUST_MAIL_TEST_ROOT").unwrap());

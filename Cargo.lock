@@ -405,6 +405,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-ses"
+version = "1.106.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ed0b2d7d86e2031a429070a9d5ec23947ebd9aafb3b592f8370f6b1c7f8528b"
+dependencies = [
+ "arc-swap",
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-observability",
+ "aws-smithy-query",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-smithy-xml",
+ "aws-types",
+ "fastrand",
+ "http 0.2.12",
+ "http 1.5.0",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-sqs"
 version = "1.101.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2660,6 +2686,7 @@ dependencies = [
  "aws-config",
  "aws-lc-rs",
  "aws-sdk-s3",
+ "aws-sdk-ses",
  "aws-sdk-sqs",
  "axum",
  "base64 0.22.1",
@@ -2699,6 +2726,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "shlex",
  "sqlx",
  "sqlx-core",
  "subtle",

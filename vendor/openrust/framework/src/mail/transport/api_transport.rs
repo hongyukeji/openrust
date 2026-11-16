@@ -1,0 +1,200 @@
+use std::time::Duration;
+
+use base64::{Engine as _, engine::general_purpose::STANDARD};
+use serde_json::{Map, Value, json};
+
+use crate::mail::{
+    MailFuture, MailResult, Message, SentMessage, mailables::Address, message::mailbox, transport,
+};
+
+use super::Transport;
+
+pub(in crate::mail) enum Provider {
+    Postmark { stream: Option<String> },
+    Resend,
+}
+
+pub(in crate::mail) struct ApiTransport {
+    provider: Provider,
+    endpoint: String,
+    key: reqwest::header::HeaderValue,
+    client: reqwest::Client,
+}
+
+impl ApiTransport {
+    pub(in crate::mail) fn new(
+        provider: Provider,
+        key: &str,
+        endpoint: Option<&str>,
+    ) -> MailResult<Self> {
+        let endpoint = endpoint.unwrap_or(match provider {
+            Provider::Postmark { .. } => "https://api.postmarkapp.com/email",
+            Provider::Resend => "https://api.resend.com/emails",
+        });
+        let endpoint_url =
+            reqwest::Url::parse(endpoint).map_err(|_| transport("Invalid mail API endpoint."))?;
+        let loopback = endpoint_url.host_str().is_some_and(|host| {
+            host.trim_matches(['[', ']'])
+                .parse::<std::net::IpAddr>()
+                .is_ok_and(|address| address.is_loopback())
+        });
+        if endpoint_url.host().is_none()
+            || !endpoint_url.username().is_empty()
+            || endpoint_url.password().is_some()
+            || !(endpoint_url.scheme() == "https" || endpoint_url.scheme() == "http" && loopback)
+        {
+            return Err(transport("Mail API endpoints require HTTPS."));
+        }
+        let mut key = reqwest::header::HeaderValue::from_str(&match provider {
+            Provider::Postmark { .. } => key.to_owned(),
+            Provider::Resend => format!("Bearer {key}"),
+        })
+        .map_err(|_| transport("Invalid mail API credential."))?;
+        key.set_sensitive(true);
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|_| transport("Could not configure the mail API client."))?;
+        Ok(Self {
+            provider,
+            endpoint: endpoint.into(),
+            key,
+            client,
+        })
+    }
+
+    fn request(&self, message: &Message) -> MailResult<reqwest::RequestBuilder> {
+        let data = &message.1;
+        let envelope = &data.envelope;
+        let from = envelope
+            .from
+            .as_ref()
+            .ok_or_else(|| transport("Mail API sender is missing."))?;
+        let (from, to, cc, bcc, reply_to) = (
+            mailbox(from.clone())?.to_string(),
+            addresses(&envelope.to)?,
+            addresses(&envelope.cc)?,
+            addresses(&envelope.bcc)?,
+            addresses(&envelope.reply_to)?,
+        );
+        let mut headers = data.headers.text.clone();
+        if let Some(id) = &data.headers.message_id {
+            headers.insert("Message-ID".into(), id.clone());
+        }
+        if !data.headers.references.is_empty() {
+            headers.insert("References".into(), data.headers.references.join(" "));
+        }
+        let request = self
+            .client
+            .post(&self.endpoint)
+            .header("Accept", "application/json");
+        let (mut payload, request) = match &self.provider {
+            Provider::Postmark { stream } => {
+                let mut payload = json!({
+                    "From": from, "To": to.join(", "), "Cc": cc.join(", "), "Bcc": bcc.join(", "),
+                    "ReplyTo": reply_to.join(", "), "Subject": envelope.subject,
+                    "Headers": headers.iter().map(|(name, value)| json!({"Name": name, "Value": value})).collect::<Vec<_>>(),
+                    "Attachments": data.attachments.iter().map(|attachment| json!({
+                        "Name": attachment.name, "ContentType": attachment.mime, "Content": STANDARD.encode(&attachment.bytes),
+                    })).collect::<Vec<_>>(),
+                });
+                let fields = payload.as_object_mut().expect("object payload");
+                insert_text(fields, "TextBody", data.text.as_deref());
+                insert_text(fields, "HtmlBody", data.html.as_deref());
+                insert_text(fields, "MessageStream", stream.as_deref());
+                for optional in ["To", "Cc", "Bcc", "ReplyTo"] {
+                    if fields[optional].as_str() == Some("") {
+                        fields.remove(optional);
+                    }
+                }
+                (
+                    payload,
+                    request.header("X-Postmark-Server-Token", self.key.clone()),
+                )
+            }
+            Provider::Resend => {
+                let mut payload = json!({
+                    "from": from, "to": to, "cc": cc, "bcc": bcc, "reply_to": reply_to,
+                    "subject": envelope.subject, "headers": headers,
+                    "attachments": data.attachments.iter().map(|attachment| json!({
+                        "filename": attachment.name, "content_type": attachment.mime, "content": STANDARD.encode(&attachment.bytes),
+                    })).collect::<Vec<_>>(),
+                });
+                let fields = payload.as_object_mut().expect("object payload");
+                insert_text(fields, "text", data.text.as_deref());
+                insert_text(fields, "html", data.html.as_deref());
+                (
+                    payload,
+                    request.header(reqwest::header::AUTHORIZATION, self.key.clone()),
+                )
+            }
+        };
+        payload
+            .as_object_mut()
+            .expect("object payload")
+            .retain(|_, value| {
+                !value.as_array().is_some_and(Vec::is_empty)
+                    && !value.as_object().is_some_and(Map::is_empty)
+            });
+        Ok(request.json(&payload))
+    }
+}
+
+impl Transport for ApiTransport {
+    fn send<'a>(&'a self, message: &'a Message) -> MailFuture<'a, MailResult<SentMessage>> {
+        Box::pin(async move {
+            let response = self
+                .request(message)?
+                .send()
+                .await
+                .map_err(|_| transport("Mail API connection or request failed."))?;
+            let status = response.status();
+            if !status.is_success() {
+                return Err(transport(format!(
+                    "Mail API rejected the request ({status})."
+                )));
+            }
+            let result: Value = response
+                .json()
+                .await
+                .map_err(|_| transport("Mail API returned an invalid receipt."))?;
+            let (id, header) = match self.provider {
+                Provider::Postmark { .. } if result["ErrorCode"].as_i64() == Some(0) => {
+                    (&result["MessageID"], "X-Postmark-Message-ID")
+                }
+                Provider::Postmark { .. } => {
+                    return Err(transport("Postmark rejected the request."));
+                }
+                Provider::Resend => (&result["id"], "X-Resend-Email-ID"),
+            };
+            let id = id
+                .as_str()
+                .filter(|id| !id.is_empty() && !id.chars().any(char::is_control))
+                .ok_or_else(|| transport("Mail API receipt did not contain a valid message ID."))?;
+            let mut sent = message.clone();
+            sent.0
+                .headers_mut()
+                .insert_raw(lettre::message::header::HeaderValue::new(
+                    lettre::message::header::HeaderName::new_from_ascii_str(header),
+                    id.into(),
+                ));
+            Ok(SentMessage { message: sent })
+        })
+    }
+}
+
+fn addresses(addresses: &[Address]) -> MailResult<Vec<String>> {
+    addresses
+        .iter()
+        .cloned()
+        .map(|address| mailbox(address).map(|mailbox| mailbox.to_string()))
+        .collect()
+}
+
+fn insert_text(fields: &mut Map<String, Value>, name: &str, value: Option<&str>) {
+    if let Some(value) = value {
+        fields.insert(name.into(), json!(value));
+    }
+}
