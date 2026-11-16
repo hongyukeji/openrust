@@ -1825,6 +1825,80 @@ async fn verify_eager_columns(db: &Connection, mysql: bool) {
             .all(|post| post.getAttribute("title").is_none())
     );
 
+    for paths in [
+        ["posts:id,author_id", "posts.comments:id,subject_id,body"],
+        ["posts.comments:id,subject_id,body", "posts:id,author_id"],
+    ] {
+        let mut query = Author::queryOn(db);
+        query.whereKey(1);
+        let mut authors = query.get().await.unwrap();
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        authors.loadMissingPaths(&paths).await.unwrap();
+        authors
+            .loadMissingPaths(&["posts.comments:id,subject_id"])
+            .await
+            .unwrap();
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 2);
+        }
+        let posts = authors[0]
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap();
+        assert!(!posts.is_empty());
+        let mut loaded_comments = 0;
+        for post in posts {
+            assert!(post.getAttribute("title").is_none());
+            for comment in post
+                .getRelation::<RelatedCollection<Comment>>("comments")
+                .unwrap()
+            {
+                assert!(comment.getAttribute("body").is_some());
+                loaded_comments += 1;
+            }
+        }
+        assert!(loaded_comments > 0);
+    }
+    let mut query = Author::queryOn(db).withPaths(&["posts"]).unwrap();
+    query.whereKey(1);
+    let mut authors = query.get().await.unwrap();
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    authors
+        .loadMissingPaths(&[
+            "posts.comments:id,subject_id",
+            "posts.comments:id,subject_id,body",
+        ])
+        .await
+        .unwrap();
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+    let loaded_posts = authors[0]
+        .getRelation::<RelatedCollection<Post>>("posts")
+        .unwrap();
+    assert!(
+        loaded_posts
+            .iter()
+            .flat_map(|post| {
+                post.getRelation::<RelatedCollection<Comment>>("comments")
+                    .unwrap()
+                    .iter()
+            })
+            .all(|comment| comment.getAttribute("body").is_none())
+    );
+
+    let mut query = Author::queryOn(db)
+        .withPaths(&["posts:id,author_id", "posts:id,author_id,title"])
+        .unwrap();
+    query.whereKey(1);
+    let eager = query.firstOrFail().await.unwrap();
+    assert!(
+        eager
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+            .iter()
+            .all(|post| post.getAttribute("title").is_none())
+    );
+
     let post_id = posts[0].getKey().unwrap().clone();
     FEATURED_POSTS
         .syncWithoutDetaching(&author, std::slice::from_ref(&post_id))
@@ -3815,6 +3889,7 @@ fn verify_collection_reload(
         let baseline = if mysql { select_count(db).await } else { 0 };
         refreshed
             .loadAggregates(&[
+                RelationAggregateQuery::new("posts", &POSTS, RelationAggregate::Count),
                 RelationAggregateQuery::new("posts", &POSTS, RelationAggregate::Exists),
                 RelationAggregateQuery::new("posts", &POSTS, RelationAggregate::Sum("score")),
                 RelationAggregateQuery::new("mentees", &MENTEES, RelationAggregate::Count),

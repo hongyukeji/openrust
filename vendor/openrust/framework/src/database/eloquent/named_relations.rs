@@ -455,7 +455,9 @@ fn group_paths<'a>(paths: &[&'a str]) -> DatabaseResult<IndexMap<&'a str, EagerP
                 {
                     return Err(DatabaseError::InvalidQuery("invalid relationship columns"));
                 }
-                entry.columns = Some(columns);
+                // A repeated projection is evaluated before the original Laravel constraint,
+                // so the first selection remains in effect.
+                entry.columns.get_or_insert(columns);
             }
         }
     }

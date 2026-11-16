@@ -577,6 +577,8 @@ async fn authors_with_comments(connection: &Connection) -> DatabaseResult<Collec
 
 Add a colon and comma-separated columns after the final relation in each path. Use a separate entry to select columns on an intermediate relation. Include the primary and foreign keys needed to match the models and to load any deeper relationships. For a polymorphic target, the listed columns must be available on each selected target. `loadMissingPaths` keeps existing relation values.
 
+An explicit selection for an intermediate relation applies even when it follows a nested path in the same call. If several entries select columns for the same relation path, the first explicit selection wins. For `loadMissingPaths`, an existing relation keeps the columns with which it was loaded.
+
 ```rust
 use openrust::database::{Connection, DatabaseResult, eloquent::{Collection, Model}};
 
@@ -586,6 +588,14 @@ pub async fn authors_with_selected_columns<A: Model>(
     A::queryOn(connection)
         .withPaths(&["posts:id,author_id,title", "posts.comments:id,subject_id,body"])?
         .get()
+        .await
+}
+
+pub async fn fill_missing_comments<A: Model>(
+    authors: &mut Collection<A>,
+) -> DatabaseResult<()> {
+    authors
+        .loadMissingPaths(&["posts:id,author_id", "posts.comments:id,subject_id,body"])
         .await
 }
 ```
