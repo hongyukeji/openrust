@@ -39,8 +39,13 @@
 - **测试范围。** 日常执行与改动相关的定向测试。数据库用例只运行 MySQL 8.4，筛选和连接验证见下文。SQLite、其他数据库及最低支持版本统一在发布前按 Laravel 兼容基线验收。
 - **文档。** 纯指引改动检查引用、路径和锚点。文档站改动按[文档 CI](../../.github/workflows/docs.yml)构建三语站点，并运行浏览器检查，覆盖 `/` 与 `/docs/`。
 - **记录。** 记录实际执行的命令、环境和结果，说明跳过项或外部服务限制。检查本批差异及空白错误，暂存、提交和推送遵循当次授权。
+- **验收收尾。** 每批验收保存记录后，确认产物归属本批、无人占用且可重建，再直接删除，跳过系统废纸篓或回收站。复查磁盘并记录实际释放和剩余空间，再开始下一批。保留源码、未提交改动、验收记录、数据库及数据卷、共享缓存和发布产物。清理容器时，`docker container rm` 和 `docker compose down` 均省略 `-v`／`--volumes`。操作前后核对数据卷，匿名数据库卷同样保留。
 
 ### 日常 MySQL 8.4 验收
+
+总控临时启动 MySQL 8.4 时，统一用 `python3 -B tests/mysql_acceptance.py -- <验收命令>`。本地 Docker 须已有 `mysql:8.4` 镜像。入口核对镜像声明的数据目录，以 1 GiB 的 `tmpfs` 承载数据，使用随机回环端口、临时凭据和当次专属标签。实际查询版本成功后，向验收命令提供 `OPENRUST_TEST_MYSQL_URL`、`OPENRUST_REQUIRE_MYSQL=1` 和 `OPENRUST_ACCEPTANCE_MYSQL_CONTAINER`。同批涉及多个 schema 时在该隔离实例上创建。
+
+入口在命令完成、失败或收到可捕获的取消信号后回收该标签的容器。若脚本被强制杀死或 Docker 不可用，按启动日志中的批次标签复核容器归属后收尾。表目录和 schema 范围复验运行 `sh tests/table_catalog.sh`。独立源码快照的 Cargo 构建产物须按快照隔离，应用生成的模块路径引用当前快照。夹具生命周期回归运行 `python3 -B tests/mysql_acceptance_lifecycle.py -v`。
 
 从仓库根目录执行。使用独立测试库，测试会建表、删表和写入数据。先用测试账号连接与测试 URL 相同的主机、端口及库名，执行 `SELECT VERSION()`，确认实际连接的是 MySQL 8.4.x，再运行测试。
 
@@ -76,4 +81,4 @@ cargo +1.94.0 test --locked -p openrust-framework --test eloquent_relationships 
 
 ## 持续开发交接
 
-本轮资源阈值、阶段缓存清理及 Git 授权见[持续开发交接记录](current-run.md)。
+本轮资源阈值、阶段缓存清理及 Git 授权见[持续开发交接记录](current.md)。

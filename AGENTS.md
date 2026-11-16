@@ -6,3 +6,4 @@
 - 应用代码放在根应用的对应目录，框架源码放在 `vendor/openrust/framework/`。测试代码放在所属应用或 crate 的 `tests/` 目录。
 - 按[文档规范](.agents/project/conventions.md#文档规范)维护三语文档，示例随功能验收。
 - 按[验收清单](.agents/project/conventions.md#验收清单)运行与改动相符的检查并记录结果。暂存、提交和推送遵循用户的当次授权。
+- 按验收收尾规则直接删除本批确认闲置、可重建的临时产物，跳过系统废纸篓或回收站。
