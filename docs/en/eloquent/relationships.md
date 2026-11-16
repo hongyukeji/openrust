@@ -901,6 +901,8 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 Use `using::<Membership>()` on a many-to-many relationship to load and write intermediate rows as a typed Eloquent model. Declare the model’s casts and fillable attributes as usual. Read the result with `getRelation::<Membership>("membership")` when the accessor is renamed. The relation supplies the table, connection, and original link keys, including the morph type for polymorphic links. Use `incrementing(false)` for a composite-key table. An incrementing pivot requires an actual primary key column.
 
+New custom pivot rows start with the model’s `newInstance` defaults. Relationship keys, pivot defaults, and explicit values are then applied before `Saving` and `Creating` run. On update, the original attributes come from the existing row and the dirty set reflects the pending changes.
+
 Relationship writes use the custom model’s lifecycle and cast rules. Use the relationship’s `withTimestamps` or `withTimestampColumns` to configure pivot timestamps. For soft deletes, promote the intermediate row to an ordinary Eloquent model.
 
 ```rust
@@ -1038,6 +1040,8 @@ Use `toggle` to remove existing links and insert missing links for the supplied 
 ### Transactional pivot writes {#transactional-pivot-writes}
 
 Use `attachOrFail`, `detachOrFail`, and `updateExistingPivotOrFail` to run the write, custom pivot events, and configured touches in one transaction. `syncOrFail`, `syncWithoutDetachingOrFail`, and `syncWithPivotValuesOrFail` share the transaction already used by the ordinary sync methods. The same methods work on polymorphic many-to-many relations.
+
+If a model listener returns an error, the transaction rolls back its database writes and the other changes in that operation. A listener returning `Cancel` skips the affected row. When cancellation must abort the whole operation, return an error.
 
 ```rust
 use openrust::database::{

@@ -89,9 +89,9 @@ impl CustomPivot {
             },
             insert: |transaction, connection, identity, attributes| {
                 Box::pin(async move {
-                    let mut model = hydrated::<M>(attributes.clone(), connection, identity)?;
-                    model.state_mut().exists = false;
-                    model.state_mut().attributes.clear();
+                    validate_pivot_model::<M>()?;
+                    let mut model = M::newInstanceOn(connection, Attributes::new())?;
+                    model.state_mut().pivot_identity = Some(identity);
                     for (column, value) in attributes {
                         if identity.columns().any(|key| key == column) {
                             model.state_mut().setAttribute(column, value);
@@ -99,6 +99,8 @@ impl CustomPivot {
                             model.setAttributeValueAsync(&column, value).await?;
                         }
                     }
+                    let state = model.state_mut();
+                    state.original = state.attributes.clone();
                     model.saveInTransaction(transaction).await
                 })
             },
@@ -128,13 +130,18 @@ fn hydrated<M: Model>(
     connection: &Connection,
     identity: PivotIdentity,
 ) -> DatabaseResult<M> {
+    validate_pivot_model::<M>()?;
+    let mut state =
+        ModelState::hydrated_attributes(attributes, connection.clone(), Default::default());
+    state.pivot_identity = Some(identity);
+    Ok(M::from_state(state))
+}
+
+fn validate_pivot_model<M: Model>() -> DatabaseResult<()> {
     if M::metadata().deleted_at.is_some() {
         return Err(DatabaseError::InvalidQuery(
             "custom pivot models cannot use soft deletes",
         ));
     }
-    let mut state =
-        ModelState::hydrated_attributes(attributes, connection.clone(), Default::default());
-    state.pivot_identity = Some(identity);
-    Ok(M::from_state(state))
+    Ok(())
 }

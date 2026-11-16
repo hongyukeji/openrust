@@ -901,6 +901,8 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 在多对多关系中调用 `using::<Membership>()`，用类型化 Eloquent 模型加载和写入中间行。模型可声明属性转换和批量赋值字段。重命名访问器后，用 `getRelation::<Membership>("membership")` 读取。关系提供表名、连接和原始关联键，多态关系还提供类型判别列。复合键表用 `incrementing(false)`，自增模型需要实际的主键列。
 
+自定义 Pivot 新行先由模型的 `newInstance` 初始化默认属性，再写入关系键、Pivot 默认值及显式值，随后触发 `Saving` 和 `Creating`。更新时，原始属性取自数据库已有行，脏属性记录本次待写入的变更。
+
 关系写入采用自定义模型的生命周期和属性转换。通过关系的 `withTimestamps` 或 `withTimestampColumns` 配置时间戳。需要软删除时，将中间行建模为普通 Eloquent 模型。
 
 ```rust
@@ -1038,6 +1040,8 @@ pub async fn create_roles<P: Model, R: Model>(
 ### 事务化 Pivot 写入 {#transactional-pivot-writes}
 
 使用 `attachOrFail`、`detachOrFail` 和 `updateExistingPivotOrFail`，在同一事务中执行写入、自定义 Pivot 事件和已配置的时间戳更新。`syncOrFail`、`syncWithoutDetachingOrFail` 和 `syncWithPivotValuesOrFail` 复用普通同步方法的事务。多态多对多关系也可以调用这些方法。
+
+模型监听器返回错误时，事务会回滚此操作中的关系写入和监听器通过同一事务产生的写入。返回 `Cancel` 会跳过对应行。需要中止整项操作时，返回错误。
 
 ```rust
 use openrust::database::{

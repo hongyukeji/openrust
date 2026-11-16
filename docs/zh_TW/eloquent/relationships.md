@@ -901,6 +901,8 @@ pub fn latest_roles<U: Model, R: Model>() -> BelongsToMany<U, R> {
 
 在多對多關聯呼叫 `using::<Membership>()`，以具型別的 Eloquent 模型載入及寫入中介資料列。模型可宣告屬性轉換與批次賦值欄位。重新命名存取器後，以 `getRelation::<Membership>("membership")` 讀取。關聯提供資料表、連線與原始關聯鍵，多型關聯也提供型別判別欄位。複合鍵資料表使用 `incrementing(false)`，自動遞增模型需要實際的主鍵欄位。
 
+自訂 Pivot 新列先由模型的 `newInstance` 初始化預設屬性，再寫入關聯鍵、Pivot 預設值及明確指定的值，隨後觸發 `Saving` 和 `Creating`。更新時，原始屬性取自資料庫既有列，髒屬性記錄本次待寫入的變更。
+
 關聯寫入採用自訂模型的生命週期與屬性轉換。透過關聯的 `withTimestamps` 或 `withTimestampColumns` 設定時間戳記。需要軟刪除時，將中介資料列定義為一般 Eloquent 模型。
 
 ```rust
@@ -1038,6 +1040,8 @@ pub async fn create_roles<P: Model, R: Model>(
 ### 交易式 Pivot 寫入 {#transactional-pivot-writes}
 
 使用 `attachOrFail`、`detachOrFail` 和 `updateExistingPivotOrFail`，在同一交易中執行寫入、自訂 Pivot 事件和已設定的時間戳記更新。`syncOrFail`、`syncWithoutDetachingOrFail` 和 `syncWithPivotValuesOrFail` 共用一般同步方法的交易。多型多對多關聯也可以呼叫這些方法。
+
+模型監聽器回傳錯誤時，交易會回復此操作中的關聯寫入與監聽器透過同一交易產生的寫入。回傳 `Cancel` 會略過對應列。需要中止整項操作時，請回傳錯誤。
 
 ```rust
 use openrust::database::{

@@ -7071,6 +7071,197 @@ async fn verify_counter_events(
         .unwrap();
 }
 
+struct DefaultMembership(ModelState);
+
+impl Model for DefaultMembership {
+    fn metadata() -> &'static ModelMetadata {
+        static METADATA: ModelMetadata = ModelMetadata::new("relation_default_memberships")
+            .incrementing(false)
+            .timestamps(None, None)
+            .fillable(&["label"]);
+        &METADATA
+    }
+
+    fn from_state(state: ModelState) -> Self {
+        Self(state)
+    }
+
+    fn state(&self) -> &ModelState {
+        &self.0
+    }
+
+    fn state_mut(&mut self) -> &mut ModelState {
+        &mut self.0
+    }
+
+    fn newInstance(attributes: Attributes) -> DatabaseResult<Self> {
+        let mut model = Self::from_state(ModelState::default());
+        model.setAttribute("label", 7);
+        model.fill(attributes)?;
+        Ok(model)
+    }
+}
+
+use openrust::database::eloquent::concerns::{
+    ModelEvent as PivotEvent, ModelEventResponse as PivotEventResponse,
+};
+
+#[derive(Clone)]
+struct DefaultMembershipEvents(Arc<std::sync::Mutex<Vec<PivotEvent>>>);
+
+impl openrust::database::eloquent::concerns::ModelEventListener<DefaultMembership>
+    for DefaultMembershipEvents
+{
+    fn handle<'a>(
+        &'a self,
+        _: PivotEvent,
+        _: &'a mut DefaultMembership,
+        _: &'a Connection,
+    ) -> openrust::database::DatabaseFuture<'a, DatabaseResult<PivotEventResponse>> {
+        Box::pin(async { panic!("expected a transactional pivot event") })
+    }
+
+    fn handleInTransaction<'a>(
+        &'a self,
+        event: PivotEvent,
+        model: &'a mut DefaultMembership,
+        transaction: &'a mut openrust::database::Transaction,
+    ) -> openrust::database::DatabaseFuture<'a, DatabaseResult<PivotEventResponse>> {
+        use PivotEvent::*;
+        use PivotEventResponse::*;
+        Box::pin(async move {
+            self.0.lock().unwrap().push(event);
+            let label = model.getAttribute("label").cloned();
+            if event == Creating {
+                assert_eq!(model.getRawOriginal("label"), label.as_ref());
+                assert!(model.getDirty()?.is_empty());
+                if label == Some(99.into()) {
+                    return Ok(Cancel);
+                }
+            }
+            if event == Updating {
+                assert_eq!(model.getRawOriginal("label"), Some(&7.into()));
+                assert_eq!(
+                    model.getDirty()?,
+                    Attributes::from([("label".into(), 8.into())])
+                );
+            }
+            transaction
+                .statement(
+                    "INSERT INTO relation_membership_events (event) VALUES (?)",
+                    &[format!("{event:?}").into()],
+                )
+                .await?;
+            if event == Created && label == Some(77.into()) {
+                return Err(DatabaseError::InvalidQuery(
+                    "reject grouped pivot insertion",
+                ));
+            }
+            Ok(Continue)
+        })
+    }
+}
+
+async fn verify_default_pivot_events(
+    app: &openrust::foundation::Application,
+    db: &Connection,
+    owner: &Author,
+) {
+    use PivotEvent::*;
+    let events = Arc::new(std::sync::Mutex::new(Vec::new()));
+    for event in [
+        Saving, Creating, Created, Updating, Updated, Saved, Deleting, Deleted,
+    ] {
+        DefaultMembership::registerModelEvent(app, event, DefaultMembershipEvents(events.clone()))
+            .unwrap();
+    }
+    let drain = || std::mem::take(&mut *events.lock().unwrap());
+    db.statement("DROP TABLE IF EXISTS relation_default_memberships", &[])
+        .await
+        .unwrap();
+    db.statement("CREATE TABLE relation_default_memberships (author_id BIGINT NOT NULL, post_id BIGINT NOT NULL, label BIGINT NOT NULL, PRIMARY KEY (author_id, post_id))", &[]).await.unwrap();
+    let relation = || {
+        BelongsToMany::<Author, Post>::new(
+            "relation_default_memberships",
+            "author_id",
+            "post_id",
+            "id",
+            "id",
+        )
+        .using::<DefaultMembership>()
+        .withPivot(["label"])
+    };
+    let label = |value: i64| Attributes::from([("label".into(), value.into())]);
+    relation()
+        .attachOrFail(owner, &[1.into()], Attributes::new())
+        .await
+        .unwrap();
+    assert_eq!(drain(), [Saving, Creating, Created, Saved]);
+    let linked = relation().getResults(owner).await.unwrap();
+    assert_eq!(
+        linked[0]
+            .getRelation::<DefaultMembership>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&7.into())
+    );
+
+    let scoped = relation().wherePivotWith(|q| q.r#where("label", "=", 7));
+    assert_eq!(
+        scoped
+            .updateExistingPivotOrFail(owner, &1.into(), label(8))
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(drain(), [Saving, Updating, Updated, Saved]);
+    assert_eq!(scoped.detachOrFail(owner, None).await.unwrap(), 0);
+    assert!(drain().is_empty());
+
+    let committed_events = db
+        .table("relation_membership_events")
+        .count("*")
+        .await
+        .unwrap();
+    let scoped = relation().wherePivotWith(|q| q.r#where("label", "=", 8));
+    assert!(matches!(
+        scoped
+            .syncWithPivotValuesOrFail(owner, &[2.into()], label(77), true)
+            .await,
+        Err(DatabaseError::InvalidQuery(
+            "reject grouped pivot insertion"
+        ))
+    ));
+    assert_eq!(drain(), [Deleting, Deleted, Saving, Creating, Created]);
+    assert_eq!(
+        db.table("relation_membership_events")
+            .count("*")
+            .await
+            .unwrap(),
+        committed_events
+    );
+    let linked = relation().getResults(owner).await.unwrap();
+    assert_eq!(linked.len(), 1);
+    assert_eq!(linked[0].getKey(), Some(&1.into()));
+    assert_eq!(
+        linked[0]
+            .getRelation::<DefaultMembership>("pivot")
+            .unwrap()
+            .getAttribute("label"),
+        Some(&8.into())
+    );
+
+    relation()
+        .attachOrFail(owner, &[2.into()], label(99))
+        .await
+        .unwrap();
+    assert_eq!(drain(), [Saving, Creating]);
+    assert_eq!(relation().getResults(owner).await.unwrap().len(), 1);
+    db.statement("DROP TABLE relation_default_memberships", &[])
+        .await
+        .unwrap();
+}
+
 async fn verify_custom_pivot(config: Json) {
     let mysql = config.get("url").is_some();
     use openrust::{
@@ -7380,6 +7571,7 @@ async fn verify_custom_pivot(config: Json) {
     db.statement("DROP TABLE relation_morph_memberships", &[])
         .await
         .unwrap();
+    Box::pin(verify_default_pivot_events(&app, &db, &owner)).await;
     for sql in [
         "DROP TABLE relation_membership_events",
         "DROP TABLE relation_featured_posts",
