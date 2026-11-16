@@ -8,7 +8,7 @@ Use Rust 1.94 or later and the checked-in lockfile. Build on the target operatin
 cargo +1.94.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
-cp resources/views/welcome.html release/resources/views/welcome.html
+cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ```
 
 Copy any website assets into `release/public` and public storage files into `release/storage/app/public`. The welcome page is read at runtime, so deploy it with the binary. Rust configuration and route declarations are compiled into `main`; changing their Rust source requires a rebuild. Runtime environment values and view files do not.

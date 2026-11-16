@@ -48,7 +48,7 @@ cargo run
 cargo build --release --locked --features standalone
 ```
 
-将构建产物放在发布应用的根目录，并按原路径随包提供 `resources/views/welcome.html`。直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。 [产物路径与应用根目录规则](docs/zh_CN/architecture-concepts/lifecycle.md)
+将构建产物放在发布应用的根目录，并按原路径随包提供 `resources/views/welcome.blade.html`。直接执行二进制即可启动服务，追加 `artisan list` 可查看命令。 [产物路径与应用根目录规则](docs/zh_CN/architecture-concepts/lifecycle.md)
 
 ## 文档
 

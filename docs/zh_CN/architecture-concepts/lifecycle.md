@@ -6,11 +6,11 @@ Tokio 入口将 `bootstrap::createApplication` 交给 `openrust::foundation::run
 
 进程环境中的绝对路径 `APP_BASE_PATH` 优先。未设置时，源码构建使用构建时记录的应用 crate 目录，`cargo run --release` 也采用这条规则。启用 `standalone` 特性的构建使用可执行文件所在目录。HTTP 和 Artisan 都从选定的应用根目录读取 `.env`，启动时的工作目录不影响选择。
 
-使用 `cargo build --release --locked --features standalone` 构建，把 `target/release/main`（Windows 上为 `target/release/main.exe`）与 `resources/views/welcome.html` 一并放入发布目录，保留视图文件的相对路径，即可整体迁移。二进制与应用分开部署时，将 `APP_BASE_PATH` 设为应用根目录的绝对路径。部署静态资源时，按原相对路径保留 `public/`。使用默认公共磁盘挂载时，将要公开的存储文件放在 `storage/app/public/` 或配置的目录中。
+使用 `cargo build --release --locked --features standalone` 构建，把 `target/release/main`（Windows 上为 `target/release/main.exe`）与 `resources/views/welcome.blade.html` 一并放入发布目录，保留视图文件的相对路径，即可整体迁移。二进制与应用分开部署时，将 `APP_BASE_PATH` 设为应用根目录的绝对路径。部署静态资源时，按原相对路径保留 `public/`。使用默认公共磁盘挂载时，将要公开的存储文件放在 `storage/app/public/` 或配置的目录中。
 
 HTTP Kernel 创建时应用中间件配置，引导后解析路由中间件栈，完成后才绑定监听端口。Console Kernel 引导同一个应用，随后注册命令。
 
-HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路由器](../the-basics/routing.md)分发请求。应用骨架在 `/` 调用 `view("welcome")`。框架将视图名解析为应用根目录下的 `resources/views/welcome.html`，并在请求时读取。修改 HTML 后，下次请求即可看到结果。`/up` 提供健康检查。
+HTTP 内核运行[中间件](../the-basics/middleware.md)，并通过框架[路由器](../the-basics/routing.md)分发请求。`/` 由 `WelcomeController::index` 处理，控制器调用 `view("welcome")`。框架将视图名解析为应用根目录下的 `resources/views/welcome.blade.html`，并在请求时读取。控制器向 Blade 视图传入应用配置中的名称和构建时记录的 Cargo 包版本。修改 HTML 后，下次请求即可看到结果。`/up` 提供健康检查。
 
 默认应用通过 `bootstrap/app.rs` 中的 `withRouting` 声明 Web 路由、控制台路由及健康路径。Web 路由使用[默认 Web 中间件组](../the-basics/middleware.md)，控制台路由在 Console Kernel 引导后登记。API、广播和 gRPC 使用各自的可选注册入口。应用引导完成后，`/up` 处理器返回 `200 OK`。
 

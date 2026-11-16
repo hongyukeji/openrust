@@ -19,6 +19,13 @@ use openrust::{
 };
 use serde_json::json;
 
+#[path = "../app/http/mod.rs"]
+mod http;
+
+mod app {
+    pub(crate) use crate::http;
+}
+
 #[path = "../routes/web.rs"]
 mod web;
 
@@ -1611,7 +1618,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     let custom_views = root.0.join("custom-views");
     fs::create_dir_all(&views).unwrap();
     fs::create_dir_all(&custom_views).unwrap();
-    let welcome = views.join("welcome.html");
+    let welcome = views.join("welcome.blade.html");
     let custom_welcome = custom_views.join("welcome.html");
     fs::write(&welcome, "default welcome").unwrap();
     fs::write(&custom_welcome, "custom welcome").unwrap();
@@ -1619,6 +1626,7 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     let application = Application::configure(root.0.clone())
         .withConfig(|base, env| {
             let mut config = web_config(base, env)?;
+            config.get_mut("app").unwrap()["name"] = json!("Startup Test");
             config.get_mut("view").unwrap()["paths"] = json!(["custom-views", "resources/views"]);
             Ok(config)
         })
@@ -1639,14 +1647,25 @@ async fn welcome_route_reads_the_named_view_from_the_application_root() {
     );
     fs::remove_file(custom_welcome).unwrap();
 
-    for html in ["<h1>Welcome</h1>", "<h1>Updated</h1>"] {
-        fs::write(&welcome, html).unwrap();
+    for heading in ["Welcome", "Updated"] {
+        fs::write(
+            &welcome,
+            format!("<h1>{heading} {{{{ $name }}}} {{{{ $version }}}}</h1>"),
+        )
+        .unwrap();
+        let html = format!(
+            "<h1>{heading} Startup Test {}</h1>",
+            env!("CARGO_PKG_VERSION")
+        );
         let (parts, body) = http_request().into_parts();
         let response = kernel.handle(&mut Request::from_parts(parts, body)).await;
         assert_eq!(response.status(), StatusCode::OK);
         let (parts, body) = response.into_parts();
         assert_eq!(parts.headers["content-type"], "text/html; charset=utf-8");
-        assert_eq!(axum::body::to_bytes(body, 1024).await.unwrap(), html);
+        assert_eq!(
+            axum::body::to_bytes(body, 1024).await.unwrap(),
+            html.as_str()
+        );
     }
 
     fs::remove_file(welcome).unwrap();

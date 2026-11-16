@@ -32,6 +32,6 @@ Windows 可用 `copy .env.example .env` 複製範本，再執行 `artisan.bat in
 cargo +1.94.0 build --release --locked --features standalone
 ```
 
-將 `target/release/main` 放在發佈根目錄，隨包提供 `resources/views/welcome.html`。網站檔案依原路徑放在 `public/`，公開磁碟檔案放在 `storage/app/public/`。可執行檔從所在目錄讀取 `.env`。應用程式根目錄位於其他位置時，透過處理程序環境設定絕對路徑 `APP_BASE_PATH`。在產物所在目錄執行 `./main artisan inspire`，也可以使用可執行檔的絕對路徑。原始碼和獨立產物的目錄解析規則見[請求生命週期](../architecture-concepts/lifecycle.md)。
+將 `target/release/main` 放在發佈根目錄，隨包提供 `resources/views/welcome.blade.html`。網站檔案依原路徑放在 `public/`，公開磁碟檔案放在 `storage/app/public/`。可執行檔從所在目錄讀取 `.env`。應用程式根目錄位於其他位置時，透過處理程序環境設定絕對路徑 `APP_BASE_PATH`。在產物所在目錄執行 `./main artisan inspire`，也可以使用可執行檔的絕對路徑。原始碼和獨立產物的目錄解析規則見[請求生命週期](../architecture-concepts/lifecycle.md)。
 
 下載相依套件後可加入 `--offline` 進行鎖定離線建置，建置仍需完整的應用程式及框架原始碼。

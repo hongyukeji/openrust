@@ -8,7 +8,7 @@
 cargo +1.94.0 build --locked --release --features standalone
 mkdir -p release/resources/views release/public release/storage/app/public
 cp target/release/main release/main
-cp resources/views/welcome.html release/resources/views/welcome.html
+cp resources/views/welcome.blade.html release/resources/views/welcome.blade.html
 ```
 
 將網站資源複製到 `release/public`，公共儲存檔案複製到 `release/storage/app/public`。歡迎頁在執行時讀取，必須隨二進位檔部署。Rust 設定和路由宣告編譯進 `main`，修改 Rust 原始碼需要重新建置；執行時環境值和視圖檔案不需要。

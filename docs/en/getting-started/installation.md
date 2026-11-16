@@ -32,6 +32,6 @@ On Windows, copy the template with `copy .env.example .env` and run `artisan.bat
 cargo +1.94.0 build --release --locked --features standalone
 ```
 
-Place `target/release/main` in the deployment root and include `resources/views/welcome.html`. Also include any website files in `public/` and public disk files in `storage/app/public/`. The executable reads `.env` from its own directory. Set the absolute process environment value `APP_BASE_PATH` when the application root is elsewhere. Run `./main artisan inspire` from that directory, or use an absolute executable path. See [request lifecycle](../architecture-concepts/lifecycle.md) for source and standalone root resolution.
+Place `target/release/main` in the deployment root and include `resources/views/welcome.blade.html`. Also include any website files in `public/` and public disk files in `storage/app/public/`. The executable reads `.env` from its own directory. Set the absolute process environment value `APP_BASE_PATH` when the application root is elsewhere. Run `./main artisan inspire` from that directory, or use an absolute executable path. See [request lifecycle](../architecture-concepts/lifecycle.md) for source and standalone root resolution.
 
 A locked offline build uses `--offline` after dependencies have been downloaded. It still requires the complete application and framework sources.

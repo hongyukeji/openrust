@@ -32,6 +32,6 @@ Windows 可用 `copy .env.example .env` 复制模板，再执行 `artisan.bat in
 cargo +1.94.0 build --release --locked --features standalone
 ```
 
-将 `target/release/main` 放在发布根目录，随包提供 `resources/views/welcome.html`。网站文件按原路径放在 `public/`，公共磁盘文件放在 `storage/app/public/`。可执行文件从所在目录读取 `.env`。应用根目录在其他位置时，通过进程环境设置绝对路径 `APP_BASE_PATH`。在产物所在目录运行 `./main artisan inspire`，也可以使用可执行文件的绝对路径。源码和独立产物的目录解析规则见[请求生命周期](../architecture-concepts/lifecycle.md)。
+将 `target/release/main` 放在发布根目录，随包提供 `resources/views/welcome.blade.html`。网站文件按原路径放在 `public/`，公共磁盘文件放在 `storage/app/public/`。可执行文件从所在目录读取 `.env`。应用根目录在其他位置时，通过进程环境设置绝对路径 `APP_BASE_PATH`。在产物所在目录运行 `./main artisan inspire`，也可以使用可执行文件的绝对路径。源码和独立产物的目录解析规则见[请求生命周期](../architecture-concepts/lifecycle.md)。
 
 依赖下载后可添加 `--offline` 进行锁定离线构建，构建仍需完整的应用和框架源码。

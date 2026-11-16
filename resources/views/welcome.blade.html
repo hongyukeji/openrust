@@ -1,0 +1,336 @@
+<!doctype html>
+<!--
+Welcome page adapted from the Laravel v13.11.0 application skeleton.
+https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/resources/views/welcome.blade.php
+
+The MIT License (MIT)
+
+Copyright (c) Taylor Otwell
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-->
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="color-scheme" content="light dark">
+        <title>{{ $name }}</title>
+        <style>
+            :root {
+                color-scheme: light dark;
+                --page: #fdfdfc;
+                --card: #fff;
+                --text: #1b1b18;
+                --muted: #706f6c;
+                --outline: #e3e3e0;
+                --art-outline: rgb(26 26 26 / 16%);
+                --dot: #dbdbd7;
+                --accent: #c72c09;
+                --button: #1b1b18;
+                --button-text: #fff;
+                --button-hover: #000;
+                --art: #fff2f2;
+                --wordmark: #f53003;
+                --stroke-color: #1b1b18;
+                --depth-front: #1b1b18;
+                --depth-rose: #f3bec7;
+                --depth-amber: #f8b803;
+                --depth-orange: #f3bec7;
+                font-family: "Instrument Sans", Arial, sans-serif;
+            }
+
+            @media (prefers-color-scheme: dark) {
+                :root {
+                    --page: #0a0a0a;
+                    --card: #161615;
+                    --text: #ededec;
+                    --muted: #a1a09a;
+                    --outline: #3e3e3a;
+                    --art-outline: rgb(255 250 237 / 18%);
+                    --dot: #3e3e3a;
+                    --accent: #ff6857;
+                    --button: #eeeeec;
+                    --button-text: #1c1c1a;
+                    --button-hover: #fff;
+                    --art: #1d0002;
+                    --wordmark: #f61500;
+                    --stroke-color: #ff750f;
+                    --depth-front: #000;
+                    --depth-rose: #4b0600;
+                    --depth-amber: #391800;
+                    --depth-orange: #733000;
+                }
+            }
+
+            *, *::before, *::after {
+                box-sizing: border-box;
+            }
+
+            body {
+                min-height: 100vh;
+                margin: 0;
+                padding: 24px;
+                display: flex;
+                justify-content: center;
+                align-items: flex-start;
+                background: var(--page);
+                color: var(--text);
+                font-size: 13px;
+                line-height: 20px;
+            }
+
+            main {
+                display: flex;
+                flex-direction: column-reverse;
+                width: 100%;
+                max-width: 335px;
+            }
+
+            .introduction {
+                flex: 1;
+                padding: 24px;
+                border: 1px solid var(--outline);
+                border-radius: 0 0 8px 8px;
+                background: var(--card);
+            }
+
+            h1 {
+                font-size: inherit;
+                font-weight: 600;
+                margin: 0 0 4px;
+            }
+
+            p {
+                color: var(--muted);
+                margin: 0 0 8px;
+            }
+
+            a {
+                color: var(--accent);
+                text-underline-offset: 4px;
+            }
+
+            a:focus-visible {
+                outline: 2px solid var(--accent);
+                outline-offset: 4px;
+            }
+
+            .steps {
+                list-style: none;
+                padding: 0;
+                margin: 0 0 16px;
+            }
+
+            .steps li {
+                position: relative;
+                display: flex;
+                align-items: center;
+                gap: 16px;
+                padding: 8px 0;
+            }
+
+            .steps li::before {
+                position: absolute;
+                left: 6.5px;
+                top: 0;
+                bottom: 50%;
+                border-left: 1px solid var(--outline);
+                content: "";
+            }
+
+            .steps li:first-child::before {
+                top: 50%;
+                bottom: 0;
+            }
+
+            .step-dot {
+                position: relative;
+                display: grid;
+                flex: 0 0 14px;
+                height: 14px;
+                place-items: center;
+                background: var(--card);
+                border: 1px solid var(--outline);
+                border-radius: 50%;
+                box-shadow: 0 0 1px 4px var(--card);
+            }
+
+            .step-dot::after {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--dot);
+                content: "";
+            }
+
+            .text-link {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font-weight: 600;
+            }
+
+            .arrow {
+                font-size: 12px;
+            }
+
+            .button {
+                display: inline-block;
+                padding: 5px 20px;
+                border: 1px solid var(--button);
+                border-radius: 4px;
+                background: var(--button);
+                color: var(--button-text);
+                font-size: 14px;
+                text-decoration: none;
+            }
+
+            .button:hover {
+                background: var(--button-hover);
+                border-color: var(--button-hover);
+            }
+
+            .release {
+                margin: 24px 0 0;
+            }
+
+            .artwork {
+                position: relative;
+                isolation: isolate;
+                overflow: hidden;
+                aspect-ratio: 335 / 364;
+                border-radius: 8px 8px 0 0;
+                background: var(--art);
+                box-shadow: inset 0 0 0 1px var(--art-outline);
+            }
+
+            .wordmark {
+                position: relative;
+                z-index: 1;
+                padding: 8px 16px 0;
+                color: var(--wordmark);
+                font-size: clamp(44px, 17vw, 65px);
+                font-weight: 800;
+                line-height: 1;
+                letter-spacing: -0.075em;
+            }
+
+            .illustration {
+                position: absolute;
+                inset: 24% 0 auto;
+                width: 100%;
+                font-size: 216px;
+                font-weight: 900;
+            }
+
+            .illustration use {
+                fill: currentColor;
+                stroke: var(--stroke-color);
+                stroke-width: 1.5;
+            }
+
+            .depth-front { color: var(--depth-front); mix-blend-mode: darken; }
+            .depth-rose { color: var(--depth-rose); }
+            .depth-amber { color: var(--depth-amber); mix-blend-mode: color; }
+            .depth-orange { color: var(--depth-orange); mix-blend-mode: multiply; }
+            .depth-back { color: var(--depth-rose); mix-blend-mode: hard-light; }
+
+            @media (prefers-color-scheme: dark) {
+                .depth-front, .depth-orange { mix-blend-mode: normal; }
+                .depth-amber { mix-blend-mode: hard-light; }
+            }
+
+            @media (min-width: 1024px) {
+                body {
+                    align-items: center;
+                    padding: 32px;
+                }
+
+                main {
+                    flex-direction: row;
+                    max-width: 896px;
+                }
+
+                .introduction {
+                    padding: 80px 79px 40px;
+                    border-radius: 8px 0 0 8px;
+                }
+
+                .steps {
+                    margin-bottom: 24px;
+                }
+
+                .release {
+                    margin-top: 40px;
+                }
+
+                .artwork {
+                    flex: 0 0 438px;
+                    margin-left: -1px;
+                    aspect-ratio: auto;
+                    border-radius: 0 8px 8px 0;
+                }
+
+                .wordmark {
+                    padding: 7px 18px 0;
+                    font-size: 84px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <section class="introduction" aria-labelledby="welcome-heading">
+                <h1 id="welcome-heading">Let’s get started</h1>
+                <p>This application follows Laravel’s structure and development workflow in Rust.</p>
+
+                <ul class="steps">
+                    <li>
+                        <span class="step-dot" aria-hidden="true"></span>
+                        <span>Read the <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/docs/en/README.md">Documentation <span class="arrow" aria-hidden="true">↗</span></a></span>
+                    </li>
+                    <li>
+                        <span class="step-dot" aria-hidden="true"></span>
+                        <span>Explore the <a class="text-link" href="https://github.com/hongyukeji/openrust">Source code <span class="arrow" aria-hidden="true">↗</span></a></span>
+                    </li>
+                </ul>
+
+                <a class="button" href="https://github.com/hongyukeji/openrust/blob/master/docs/en/getting-started/deployment.md">Deployment guide</a>
+
+                <p class="release">
+                    {{ $name }} v{{ $version }}
+                    <a class="text-link" href="https://github.com/hongyukeji/openrust/blob/master/CHANGELOG.md">View changelog <span class="arrow" aria-hidden="true">↗</span></a>
+                </p>
+            </section>
+            <div class="artwork" aria-hidden="true">
+                <div class="wordmark">{{ $name }}</div>
+                <svg class="illustration" focusable="false" viewBox="0 0 440 270" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <text id="welcome-version" x="14" y="206" textLength="360" lengthAdjust="spacingAndGlyphs">{{ $version }}</text>
+                    </defs>
+                    <use class="depth-front" href="#welcome-version"/>
+                    <use class="depth-rose" href="#welcome-version" x="13"/>
+                    <use class="depth-amber" href="#welcome-version" x="26"/>
+                    <use class="depth-orange" href="#welcome-version" x="39"/>
+                    <use class="depth-back" href="#welcome-version" x="52"/>
+                </svg>
+            </div>
+        </main>
+    </body>
+</html>

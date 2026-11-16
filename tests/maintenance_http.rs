@@ -128,10 +128,10 @@ fn artisan_maintenance_changes_live_http_and_isolates_application_roots() {
     let root = first.root();
     let views = root.join("resources/views");
     fs::create_dir_all(&views).unwrap();
-    fs::write(views.join("welcome.html"), "<p>Maintenance test</p>").unwrap();
+    fs::write(views.join("welcome.blade.html"), "<p>Maintenance test</p>").unwrap();
     fs::create_dir_all(second.root().join("resources/views")).unwrap();
     fs::write(
-        second.root().join("resources/views/welcome.html"),
+        second.root().join("resources/views/welcome.blade.html"),
         "<p>Second application</p>",
     )
     .unwrap();
