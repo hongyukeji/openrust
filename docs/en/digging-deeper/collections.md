@@ -106,7 +106,7 @@ Both `Collection` and `LazyCollection` implement `Enumerable` with `map`, `filte
 
 ### Lazy Collection Methods
 
-`tapEach` runs a side effect for each requested item. `throttle` sleeps on the calling thread for the remaining interval. `withHeartbeat` checks the interval during iteration.
+`tapEach` runs a side effect for each requested item.
 
 `chunk` emits one materialized `Collection` at a time and can preserve its keys. A lazy collection runs on the thread that owns it and can borrow local state.
 
@@ -144,6 +144,36 @@ fn main() -> Result<(), CollectionError> {
 ```
 
 With `takeUntilTimeoutWith`, an expired start calls the callback with `None`. When the deadline passes during iteration, the callback receives the last yielded value and key on the next pull. Normal exhaustion and source errors keep their own results.
+
+#### Pacing and Heartbeats {#lazy-pacing}
+
+`throttle` waits on the calling thread when iteration resumes. It subtracts time spent handling the previous item from the interval. Pulling to exhaustion resumes the iterator after the last item. Stopping early with `take` leaves that last wait unstarted.
+
+`withHeartbeat` checks elapsed time after a successful read and runs the callback before yielding that item. The interval starts over after each heartbeat, and each traversal starts its own clock. A zero interval runs the callback for every successful item.
+
+```rust
+use std::{
+    cell::Cell,
+    time::{Duration, Instant},
+};
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let beats = Cell::new(0);
+    let interval = Duration::from_millis(2);
+    let jobs = LazyCollection::make(|| ["import", "index"])
+        .withHeartbeat(Duration::ZERO, || beats.set(beats.get() + 1))
+        .throttle(interval);
+
+    assert_eq!(beats.get(), 0);
+    let started = Instant::now();
+    assert_eq!(jobs.count()?, 2);
+    assert!(started.elapsed() >= interval * 2);
+    assert_eq!(beats.get(), 2);
+    Ok(())
+}
+```
 
 #### Grouping and Sliding Windows {#lazy-grouping-and-sliding}
 

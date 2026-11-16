@@ -265,3 +265,21 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 固定 PHP 8.5.12 对照用受控时钟覆盖慢打开、初始截止、空来源与来源异常。87 项 Rust 集合用例通过，含 76 项惰性集合用例。Rust 新增实际慢来源回归，验证首项交付、继续迭代后仅通知一次、空来源耗尽和错误传播。
 - 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
 - 隔离基线 `e5b89aee4`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.04 GB（56.85 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-deadline.cFivIrja`。
+
+## 02-09 整单元验收
+
+按交付计划复核惰性开始、短路、重复遍历、错误传播和 `remember`，以及查询、模型与关系的异步游标接线。隔离基线为 `c1b55fcb2`。
+
+| 计划行为 | 当前主线的验收证据 |
+| --- | --- |
+| 惰性与短路 | `pipelines_open_only_when_polled_and_replay_without_overreading` 验证组装与创建迭代器时不读来源，过滤配合 `take` 只读必要条目。截止时间回归验证慢打开时交付首项，随后在继续迭代时结束及通知。 |
+| 重复遍历与 `remember` | 普通遍历重新打开来源。`remembered_runners_replay_positions_including_duplicate_keys` 验证交错消费、按位置重放和重复键。实体化按键保留最后一次出现的值。 |
+| 读取错误与资源释放 | 惰性集合回归验证来源错误终止、缓存重放错误、提前停止释放迭代器及 `remember` 保留共享来源直到丢弃。 |
+| 游标 | MySQL 8.4.13 的 `cursors_stream_on_mysql` 验证首次轮询、绑定错误、短路释放单连接池租约、事务完整读取及弃读回滚。`pagination_on_mysql_and_http` 经回环 HTTP 验证模型和关系的逐行水合、Pivot、多态目标、过滤、读取错误与后续查询。关系专项证据见 [05-02](../05-02/README.md#关系逐行游标)。 |
+| 节流与心跳 | PHP 8.5.12 在固定 Laravel 上用受控时钟对照短路前的等待次数、处理耗时扣减、最后一项后的等待、心跳顺序与重新计时。Rust 87 项集合回归及三语共用计时示例通过。 |
+
+固定 Laravel 的 [Lazy Collections](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/collections.md#lazy-collections) 及[节流和心跳测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportLazyCollectionTest.php#L218) 已核对。旧版无可复用的惰性集合节流和心跳实现。运行时 API 沿用 Rust 的类型化回调、显式错误、`Instant` 和 `Duration`。PHP 宏使用扩展 trait，动态高阶调用使用类型化代理。同步分块以实体分组持有结果，异步数据库读取用 `DatabaseCursor` 表达。162 个显式公开方法名匹配，具体签名适配及所覆盖行为见前面各小节。
+
+三语[英文](../../../../docs/en/digging-deeper/collections.md#lazy-pacing)、[简体中文](../../../../docs/zh_CN/digging-deeper/collections.md#lazy-pacing)及[繁體中文](../../../../docs/zh_TW/digging-deeper/collections.md#lazy-pacing)正文、实际示例、`./artisan inspire`、严格 Clippy、站点构建和 18 项浏览器检查通过。全仓格式检查仍只报告既有 Sanctum 排版差异。跨驱动及跨平台统一复核留到发布前。
+
+02-09 核心闭合。独立 PHP 和 MySQL 容器已回收。清理本批 3.4 GiB Cargo 产物及站点缓存后，卷可用 61.01 GB（56.82 GiB），周额度剩余 71%。证据保存在 `/private/tmp/openrust-02-09-close.dnNywUVm`。

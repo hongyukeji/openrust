@@ -106,7 +106,7 @@ fn main() -> Result<(), CollectionError> {
 
 ### 惰性集合方法
 
-`tapEach` 在讀取項目時執行副作用。`throttle` 在呼叫執行緒等待剩餘間隔。`withHeartbeat` 在迭代時檢查間隔。
+`tapEach` 在讀取項目時執行副作用。
 
 `chunk` 每次產生一個已收集的 `Collection`，可選擇保留組內鍵。惰性集合在擁有它的執行緒執行，可以借用執行緒內的區域狀態。
 
@@ -144,6 +144,36 @@ fn main() -> Result<(), CollectionError> {
 ```
 
 使用 `takeUntilTimeoutWith` 時，開始即逾時會用 `None` 呼叫回呼。走訪中達到截止時間時，下一次取值會把上一項的值和鍵傳給回呼。來源正常耗盡或讀取失敗時仍傳回各自的結果。
+
+#### 節流與心跳 {#lazy-pacing}
+
+`throttle` 在繼續迭代時讓呼叫執行緒等待，從間隔中扣除處理上一個項目已花費的時間。讀取到耗盡會在最後一個項目之後再推進一次迭代器。透過 `take` 提前停止時，最後一次等待尚未開始。
+
+`withHeartbeat` 在成功讀取後檢查經過的時間，並在產出該項目前執行回呼。每次心跳後重新計時，每輪走訪也獨立計時。間隔為零時，每個成功讀取的項目都會觸發回呼。
+
+```rust
+use std::{
+    cell::Cell,
+    time::{Duration, Instant},
+};
+
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let beats = Cell::new(0);
+    let interval = Duration::from_millis(2);
+    let jobs = LazyCollection::make(|| ["import", "index"])
+        .withHeartbeat(Duration::ZERO, || beats.set(beats.get() + 1))
+        .throttle(interval);
+
+    assert_eq!(beats.get(), 0);
+    let started = Instant::now();
+    assert_eq!(jobs.count()?, 2);
+    assert!(started.elapsed() >= interval * 2);
+    assert_eq!(beats.get(), 2);
+    Ok(())
+}
+```
 
 #### 分組與滑動視窗 {#lazy-grouping-and-sliding}
 
