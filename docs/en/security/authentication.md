@@ -31,6 +31,27 @@ async fn sign_in(
 
 Pass `true` for remember to issue an encrypted, HTTP-only cookie. The guard can restore a session using the persisted remember token and a fingerprint of the current password hash. `logout` removes the current guard and rotates the token. Use `logoutAndInvalidate` when the application also needs to discard the entire session and rotate its CSRF token.
 
+## HTTP Basic Authentication {#http-basic-authentication}
+
+Attach `auth.basic` to a web route to authenticate with a session guard. The default lookup field is `email`. Use `auth.basic:web,username` to select a guard and a different field. Invalid or missing credentials produce HTTP 401 with `WWW-Authenticate: Basic`. An existing valid session also satisfies the middleware.
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_basic_routes() -> Result<(), RoutingError> {
+    Route::getWith("/profile", || view("profile"), |route| {
+        route.middleware_name("auth.basic");
+        Ok(())
+    })?;
+    Route::getWith("/profile/by-name", || view("profile"), |route| {
+        route.middleware_name("auth.basic:web,username");
+        Ok(())
+    })
+}
+```
+
+Call `Auth::onceBasic(request, "email", &[]).await?` in an API handler for request-only authentication. Use HTTPS when sending Basic credentials.
+
 ## Custom Guards and Providers
 
 The default application registers its compiled Eloquent `User`. Register other models with `AuthManager::registerModel`, or configure a `database` provider with a table and column names. Register a provider implementation with `provider` and a stateless request resolver with `viaRequest`. The built-in `token` guard reads the Bearer header and supports hashing tokens before database lookup.

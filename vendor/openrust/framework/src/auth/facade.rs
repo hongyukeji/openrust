@@ -43,6 +43,16 @@ impl Auth {
         Self::manager()?.user(request).await
     }
 
+    pub async fn onceBasic(
+        request: &mut Request,
+        field: &str,
+        conditions: &[(String, crate::database::Value)],
+    ) -> AuthResult<()> {
+        Self::sessionGuard(request, None)?
+            .onceBasic(field, conditions)
+            .await
+    }
+
     pub fn shouldUse(request: &mut Request, name: &str) -> AuthResult<()> {
         Self::manager()?.shouldUse(request, name)
     }

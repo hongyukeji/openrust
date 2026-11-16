@@ -476,3 +476,6 @@ async fn session_authentication_on_mysql() {
         verify(json!({"url":url})).await;
     }
 }
+
+#[path = "session_authentication/extensions.rs"]
+mod extensions;

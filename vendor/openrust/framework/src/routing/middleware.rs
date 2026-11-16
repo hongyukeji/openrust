@@ -130,6 +130,9 @@ impl MiddlewareRegistry {
             "auth" => Arc::new(crate::auth::middleware::Authenticate::new(
                 parameters.split(','),
             )),
+            "auth.basic" => Arc::new(crate::auth::middleware::AuthenticateWithBasicAuth::parse(
+                parameters,
+            )?),
             #[cfg(feature = "sanctum")]
             "abilities" => Arc::new(crate::sanctum::CheckAbilities::new(parameters.split(','))),
             #[cfg(feature = "sanctum")]

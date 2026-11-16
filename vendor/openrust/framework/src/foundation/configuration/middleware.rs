@@ -48,12 +48,17 @@ impl Default for Middleware {
         middleware.group("api", [MiddlewareEntry::Instance(bindings)]);
         middleware.registry.priority.extend([
             TypeId::of::<crate::auth::middleware::Authenticate>(),
+            TypeId::of::<crate::auth::middleware::AuthenticateWithBasicAuth>(),
             TypeId::of::<SubstituteBindings>(),
             TypeId::of::<crate::auth::middleware::Authorize>(),
         ]);
         middleware.alias(
             "auth",
             Arc::new(crate::auth::middleware::Authenticate::default()),
+        );
+        middleware.alias(
+            "auth.basic",
+            Arc::new(crate::auth::middleware::AuthenticateWithBasicAuth::default()),
         );
         middleware.alias(
             "verified",

@@ -3,6 +3,7 @@
 pub mod access;
 mod auth_manager;
 mod auth_service_provider;
+mod basic;
 pub(crate) mod console;
 mod database_user_provider;
 mod eloquent_user_provider;

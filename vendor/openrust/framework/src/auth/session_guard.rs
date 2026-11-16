@@ -119,6 +119,39 @@ impl<'a> SessionGuard<'a> {
         &self.recaller
     }
 
+    /// Authenticates an HTTP Basic request and persists a new login in the session.
+    pub async fn basic(
+        &mut self,
+        field: &str,
+        conditions: &[(String, crate::database::Value)],
+    ) -> AuthResult<()> {
+        if self.check().await? {
+            return Ok(());
+        }
+        let credentials = super::basic::credentials(self.request, field, conditions)
+            .ok_or_else(super::basic::challenge)?;
+        if self.attempt(&credentials, false).await? {
+            Ok(())
+        } else {
+            Err(super::basic::challenge())
+        }
+    }
+
+    /// Authenticates an HTTP Basic request for the current request only.
+    pub async fn onceBasic(
+        &mut self,
+        field: &str,
+        conditions: &[(String, crate::database::Value)],
+    ) -> AuthResult<()> {
+        let credentials = super::basic::credentials(self.request, field, conditions)
+            .ok_or_else(super::basic::challenge)?;
+        if self.once(&credentials).await? {
+            Ok(())
+        } else {
+            Err(super::basic::challenge())
+        }
+    }
+
     fn state(&self) -> Option<&GuardState> {
         AuthContext::state(self.request, &self.name)
     }
@@ -411,9 +444,14 @@ impl StatefulGuard for SessionGuard<'_> {
 
     fn once<'a>(&'a mut self, credentials: &'a Credentials) -> AuthFuture<'a, AuthResult<bool>> {
         Box::pin(async move {
-            let Some(user) = self.validated(credentials).await? else {
+            let Some(mut user) = self.validated(credentials).await? else {
                 return Ok(false);
             };
+            if self.rehash {
+                self.provider
+                    .rehash_password_if_required(user.as_mut(), credentials, false)
+                    .await?;
+            }
             self.set_user(user);
             Ok(true)
         })

@@ -31,6 +31,27 @@ async fn sign_in(
 
 將 remember 參數設為 `true` 會簽發加密、HTTP-only 的 Cookie。Guard 使用持久化 remember 權杖和目前密碼雜湊的指紋恢復工作階段。`logout` 清除目前 Guard 並輪換權杖。若應用程式還需捨棄整個工作階段並輪換 CSRF 權杖，使用 `logoutAndInvalidate`。
 
+## HTTP Basic 驗證 {#http-basic-authentication}
+
+在 Web 路由上使用 `auth.basic`，透過工作階段 Guard 驗證。預設以 `email` 尋找使用者。可用 `auth.basic:web,username` 指定 Guard 和查找欄位。憑證缺少或無效時，回應為 HTTP 401，並附上 `WWW-Authenticate: Basic`。已有效的工作階段也可通過中介軟體。
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_basic_routes() -> Result<(), RoutingError> {
+    Route::getWith("/profile", || view("profile"), |route| {
+        route.middleware_name("auth.basic");
+        Ok(())
+    })?;
+    Route::getWith("/profile/by-name", || view("profile"), |route| {
+        route.middleware_name("auth.basic:web,username");
+        Ok(())
+    })
+}
+```
+
+在 API 處理常式中呼叫 `Auth::onceBasic(request, "email", &[]).await?` 可以只驗證目前請求。請透過 HTTPS 傳送 Basic 憑證。
+
 ## 自訂 Guard 和提供器
 
 預設應用程式註冊編譯後的 Eloquent `User`。用 `AuthManager::registerModel` 註冊其他模型，或為 `database` 提供器設定資料表與欄位。用 `provider` 註冊提供器，用 `viaRequest` 註冊無狀態請求解析器。內建 `token` Guard 讀取 Bearer 標頭，支援將權杖雜湊後再查詢資料庫。

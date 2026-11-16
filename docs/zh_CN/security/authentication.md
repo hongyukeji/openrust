@@ -31,6 +31,27 @@ async fn sign_in(
 
 将 remember 参数设为 `true` 会签发加密、HTTP-only 的 Cookie。Guard 使用持久化 remember 令牌和当前密码哈希的指纹恢复会话。`logout` 清除当前 Guard 并轮换令牌。若应用还需要丢弃整个会话并轮换 CSRF 令牌，使用 `logoutAndInvalidate`。
 
+## HTTP Basic 认证 {#http-basic-authentication}
+
+在 Web 路由上使用 `auth.basic`，通过会话 Guard 认证。默认按 `email` 查找用户。可用 `auth.basic:web,username` 指定 Guard 和查找字段。凭据缺失或无效时，响应为 HTTP 401，并带有 `WWW-Authenticate: Basic`。已有有效会话也可通过中间件。
+
+```rust
+use openrust::{routing::RoutingError, support::facades::Route, view::view};
+
+fn register_basic_routes() -> Result<(), RoutingError> {
+    Route::getWith("/profile", || view("profile"), |route| {
+        route.middleware_name("auth.basic");
+        Ok(())
+    })?;
+    Route::getWith("/profile/by-name", || view("profile"), |route| {
+        route.middleware_name("auth.basic:web,username");
+        Ok(())
+    })
+}
+```
+
+在 API 处理器中调用 `Auth::onceBasic(request, "email", &[]).await?` 可仅认证当前请求。请通过 HTTPS 传输 Basic 凭据。
+
 ## 自定义 Guard 和提供器
 
 默认应用注册编译后的 Eloquent `User`。用 `AuthManager::registerModel` 注册其他模型，或为 `database` 提供器配置表名和列名。用 `provider` 注册提供器，用 `viaRequest` 注册无状态请求解析器。内置 `token` Guard 读取 Bearer 请求头，支持对令牌哈希后再查库。
