@@ -101,6 +101,15 @@ impl Http {
             .await)
     }
 
+    pub async fn poolOrdered<'a>(
+        build: impl FnOnce(&mut Pool<'a>),
+    ) -> Result<indexmap::IndexMap<String, Result<Response>>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .poolOrdered(build)
+            .await)
+    }
+
     pub fn batch<'a>(build: impl FnOnce(&mut Batch<'a>)) -> Result<Batch<'a>> {
         Ok(Self::getFacadeRoot()
             .map_err(Error::Unavailable)?

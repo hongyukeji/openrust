@@ -168,7 +168,17 @@ impl Factory {
     ) -> indexmap::IndexMap<String, Result<Response>> {
         let mut pool = Pool::new(self.clone());
         build(&mut pool);
-        pool.run(concurrency).await
+        pool.run_with(concurrency, false, |_, _| {}).await
+    }
+
+    /// Starts all requests and returns their results in registration order.
+    pub async fn poolOrdered<'a>(
+        &self,
+        build: impl FnOnce(&mut Pool<'a>),
+    ) -> indexmap::IndexMap<String, Result<Response>> {
+        let mut pool = Pool::new(self.clone());
+        build(&mut pool);
+        pool.run_with(NonZeroUsize::MAX, true, |_, _| {}).await
     }
 
     pub fn fake(

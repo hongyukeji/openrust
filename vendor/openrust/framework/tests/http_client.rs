@@ -416,7 +416,7 @@ async fn named_pool_keeps_order_and_per_request_results() {
     );
     factory.preventStrayRequests(true);
     let results = factory
-        .pool(2.try_into().unwrap(), |pool| {
+        .poolOrdered(|pool| {
             pool.r#as("slow", |request| {
                 request
                     .retry(2, Duration::ZERO)
@@ -509,4 +509,130 @@ async fn facade_resolves_the_factory_for_each_serving_application() {
     assert_eq!(right.unwrap().json::<Value>().unwrap()["side"], "right");
     left_task.abort();
     right_task.abort();
+}
+
+#[tokio::test]
+async fn bounded_pool_releases_slots_and_yields_results_in_completion_order() {
+    use std::num::NonZeroUsize;
+    use tokio::sync::Notify;
+
+    let slow_started = Arc::new(Notify::new());
+    let release_slow = Arc::new(Notify::new());
+    let (base, server) = serve(
+        Router::new()
+            .route(
+                "/slow",
+                get({
+                    let slow_started = slow_started.clone();
+                    let release_slow = release_slow.clone();
+                    move || async move {
+                        slow_started.notify_one();
+                        release_slow.notified().await;
+                        "slow"
+                    }
+                }),
+            )
+            .route(
+                "/fast",
+                get(move || async move {
+                    slow_started.notified().await;
+                    "fast"
+                }),
+            )
+            .route("/next", get(|| async { "next" })),
+    )
+    .await;
+    let url = |suffix| format!("{base}/{suffix}");
+    let (slow, fast, next) = (url("slow"), url("fast"), url("next"));
+    let pending = Factory::new().unwrap().pendingRequest();
+    let results = pending.pool(NonZeroUsize::new(2).unwrap(), |pool| {
+        pool.r#as("4", |request| request.get(&slow))
+            .r#as("fast", |request| request.get(&fast))
+            .newRequest(|request| {
+                request
+                    .afterResponse(move |response| {
+                        release_slow.notify_one();
+                        Ok(response)
+                    })
+                    .get(&next)
+            });
+    });
+    let results = tokio::time::timeout(Duration::from_secs(5), results)
+        .await
+        .unwrap();
+    assert_eq!(
+        results.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["fast", "5", "4"]
+    );
+    assert!(results.values().all(Result::is_ok));
+    server.abort();
+}
+
+#[tokio::test]
+async fn batch_empty_redirect_and_conditional_http_errors_preserve_callback_boundaries() {
+    use std::sync::Mutex;
+
+    let (base, server) = serve(
+        Router::new()
+            .route("/redirect", get(|| async { StatusCode::FOUND }))
+            .route("/error", get(|| async { StatusCode::BAD_REQUEST })),
+    )
+    .await;
+    let redirect = format!("{base}/redirect");
+    let error = format!("{base}/error");
+    let factory = Factory::new().unwrap();
+    let phases = Mutex::new(Vec::new());
+    let results = factory
+        .batch(|batch| {
+            batch
+                .newRequest(|request| request.withoutRedirecting().get(&redirect))
+                .newRequest(|request| request.throwIf(|response| response.badRequest()).get(&error))
+                .progress(|_, _, _| panic!("neither response is successful"))
+                .catch(|counts, key, result| {
+                    assert_eq!(key, "1");
+                    assert_eq!(counts.failed_requests, 1);
+                    assert!(matches!(result, Err(Error::RequestFailed(response)) if response.badRequest()));
+                })
+                .then(|_, _| panic!("failed batch must skip then"))
+                .finally(|counts, results| {
+                    assert_eq!(counts.processedRequests(), 2);
+                    assert_eq!(results.keys().map(String::as_str).collect::<Vec<_>>(), ["0", "1"]);
+                });
+        })
+        .send()
+        .await;
+    assert!(results["0"].as_ref().unwrap().redirect());
+    assert!(
+        factory
+            .pendingRequest()
+            .throwIf(|_| false)
+            .get(&error)
+            .await
+            .unwrap()
+            .badRequest()
+    );
+    factory
+        .batch(|batch| {
+            batch
+                .before(|counts| {
+                    assert_eq!(counts.total_requests, 0);
+                    phases.lock().unwrap().push("before");
+                })
+                .then(|_, results| {
+                    assert!(results.is_empty());
+                    phases.lock().unwrap().push("then");
+                })
+                .finally(|_, results| {
+                    assert!(results.is_empty());
+                    phases.lock().unwrap().push("finally");
+                });
+        })
+        .send()
+        .await;
+    assert_eq!(*phases.lock().unwrap(), ["before", "then", "finally"]);
+    assert!(matches!(
+        factory.batch(|_| {}).defer(),
+        Err(Error::OutsideLifecycle)
+    ));
+    server.abort();
 }

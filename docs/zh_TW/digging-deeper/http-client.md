@@ -32,10 +32,41 @@ assert_eq!(response.json::<Value>()?["items"][0], "rust");
 factory.assertSentCount(2);
 ```
 
-用 `pool` 設定非零並行上限，透過 `Pool::r#as` 註冊具名請求。結果保留註冊順序及各個請求的成功或錯誤。
+用 `pool` 設定非零並行上限，或用 `NonZeroUsize::MAX` 同時啟動所有請求。結果依完成順序排列。`poolOrdered` 同時啟動所有請求，並依註冊順序傳回每項結果。用 `r#as` 為請求命名，或用 `newRequest` 分配字串形式的下一個數字鍵。
 
 ## 批次和事件 {#batches-and-events}
 
-用 `Http::batch` 註冊具名請求，再用 `send().await` 執行。用 `concurrency` 限制並行數。`before` 在請求開始前執行，`progress` 接收成功回應，`catch` 接收失敗。沒有失敗時執行 `then`。`finally` 按註冊順序接收所有結果。
+用 `Http::batch` 註冊請求，再呼叫 `send().await`。用 `concurrency` 設定同時執行的請求上限。`before` 在第一個請求前執行，`progress` 接收 2xx 回應，`catch` 接收 4xx、5xx 回應或單項錯誤。3xx 回應只增加已完成計數。沒有失敗時執行 `then`，`finally` 一律依註冊順序接收結果。
+
+在待傳送請求上呼叫 `throw()` 或 `throwIf`，可將符合條件的最終 4xx、5xx 回應轉成單項錯誤。`defer()?` 消費持有自有資料的批次，將它排在目前的 HTTP 請求、Artisan 命令或佇列任務結束時執行。預設在任務成功後執行。若要在任務失敗後也執行，可對延後回呼呼叫 `always()`。
+
+執行下例時，將 `HTTP_CLIENT_EXAMPLE_ORIGIN` 設為本機服務位址，讓 `GET /ok` 傳回 200、`GET /missing` 傳回 404。
+
+```rust
+use std::num::NonZeroUsize;
+use openrust::support::facades::Http;
+
+let origin = std::env::var("HTTP_CLIENT_EXAMPLE_ORIGIN")?;
+let ok = format!("{origin}/ok");
+let missing = format!("{origin}/missing");
+let pool = Http::pool(NonZeroUsize::MIN, |pool| {
+    pool.newRequest(|request| request.get(&ok))
+        .r#as("missing", |request| request.get(&missing));
+}).await?;
+assert!(pool["0"].as_ref().is_ok_and(|response| response.ok()));
+assert!(pool["missing"].as_ref().is_ok_and(|response| response.notFound()));
+
+let batch = Http::batch(|batch| {
+    batch
+        .r#as("ok", |request| request.get(&ok))
+        .r#as("missing", |request| request.throw().get(&missing))
+        .finally(|counts, results| {
+            assert_eq!(counts.failed_requests, 1);
+            assert_eq!(results.keys().map(String::as_str).collect::<Vec<_>>(), ["ok", "missing"]);
+        });
+})?;
+let results = batch.send().await;
+assert!(results["missing"].is_err());
+```
 
 從 `openrust::http::client::events` 匯入 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed` 註冊監聽。事件名稱使用 `OpenRust\Http\Client\Events\` 前綴。應用 HTTP 用戶端在每次請求嘗試時派發事件，包括重試。

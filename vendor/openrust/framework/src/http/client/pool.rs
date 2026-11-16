@@ -1,22 +1,25 @@
 use std::num::NonZeroUsize;
 
-use futures_util::{StreamExt as _, stream};
+use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use indexmap::IndexMap;
 
 use crate::http::HttpFuture;
 
 use super::{Factory, PendingRequest, Response, Result};
 
-/// Builds named requests which run together with a bounded concurrency.
+/// Builds requests which run together with a bounded concurrency.
 pub struct Pool<'a> {
     factory: Factory,
+    next_index: u128,
     requests: IndexMap<String, HttpFuture<'a, Result<Response>>>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's HTTP pool API")]
 impl<'a> Pool<'a> {
     pub(super) fn new(factory: Factory) -> Self {
         Self {
             factory,
+            next_index: 0,
             requests: IndexMap::new(),
         }
     }
@@ -29,13 +32,25 @@ impl<'a> Pool<'a> {
     where
         F: Future<Output = Result<Response>> + Send + 'a,
     {
+        let key = key.into();
+        if let Ok(index) = key.parse::<i64>()
+            && index >= 0
+            && index.to_string() == key
+        {
+            self.next_index = self.next_index.max(index as u128 + 1);
+        }
         self.requests
-            .insert(key.into(), Box::pin(build(self.factory.pendingRequest())));
+            .insert(key, Box::pin(build(self.factory.pendingRequest())));
         self
     }
 
-    pub(super) async fn run(self, concurrency: NonZeroUsize) -> IndexMap<String, Result<Response>> {
-        self.run_with(concurrency, |_, _| {}).await
+    pub fn newRequest<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
+    where
+        F: Future<Output = Result<Response>> + Send + 'a,
+    {
+        let key = self.next_index.to_string();
+        self.next_index += 1;
+        self.r#as(key, build)
     }
 
     pub(super) fn len(&self) -> usize {
@@ -45,18 +60,29 @@ impl<'a> Pool<'a> {
     pub(super) async fn run_with(
         self,
         concurrency: NonZeroUsize,
+        registration_order: bool,
         mut completed: impl FnMut(&str, &Result<Response>),
     ) -> IndexMap<String, Result<Response>> {
-        let mut responses = stream::iter(self.requests.into_iter().enumerate())
-            .map(|(index, (key, request))| async move { (index, key, request.await) })
-            .buffer_unordered(concurrency.get());
-        let mut ordered = Vec::new();
-        while let Some((index, key, result)) = responses.next().await {
+        let mut requests = self.requests.into_iter().enumerate();
+        let mut active = FuturesUnordered::new();
+        let mut responses = Vec::new();
+        loop {
+            while active.len() < concurrency.get() {
+                let Some((index, (key, request))) = requests.next() else {
+                    break;
+                };
+                active.push(async move { (index, key, request.await) });
+            }
+            let Some((index, key, result)) = active.next().await else {
+                break;
+            };
             completed(&key, &result);
-            ordered.push((index, key, result));
+            responses.push((index, key, result));
         }
-        ordered.sort_unstable_by_key(|(index, _, _)| *index);
-        ordered
+        if registration_order {
+            responses.sort_unstable_by_key(|(index, _, _)| *index);
+        }
+        responses
             .into_iter()
             .map(|(_, key, result)| (key, result))
             .collect()

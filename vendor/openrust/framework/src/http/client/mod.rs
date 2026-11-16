@@ -29,6 +29,7 @@ pub enum Error {
     BodyTooLarge,
     InvalidJson(serde_json::Error),
     UnreplayableRequest,
+    OutsideLifecycle,
     StrayRequest,
     SequenceExhausted,
     RequestFailed(Box<Response>),
@@ -54,6 +55,9 @@ impl fmt::Display for Error {
             }
             Self::SequenceExhausted => {
                 formatter.write_str("outgoing HTTP fake sequence is exhausted")
+            }
+            Self::OutsideLifecycle => {
+                formatter.write_str("deferred HTTP batch requires an active application task")
             }
             Self::StrayRequest => formatter.write_str("outgoing HTTP request has no matching fake"),
             Self::RequestFailed(response) => write!(

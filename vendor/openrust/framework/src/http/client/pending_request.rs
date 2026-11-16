@@ -1,13 +1,14 @@
-use std::{sync::Arc, time::Duration};
+use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use http::{HeaderMap, HeaderValue, Method, header};
 use serde::Serialize;
 
 use super::factory::{BODY_LIMIT, CONNECT_TIMEOUT, TIMEOUT, build_client};
-use super::{Error, Factory, Form, Response, Result};
+use super::{BatchResults, Error, Factory, Form, Pool, Response, Result};
 
 type RequestMiddleware = dyn Fn(&mut reqwest::Request) -> Result<()> + Send + Sync;
 type ResponseMiddleware = dyn Fn(Response) -> Result<Response> + Send + Sync;
+type ThrowCondition = dyn Fn(&Response) -> bool + Send + Sync;
 type RetryCondition = dyn Fn(&Error) -> bool + Send + Sync;
 
 #[derive(Default)]
@@ -69,6 +70,7 @@ pub struct PendingRequest {
     body_limit: usize,
     payload: Payload,
     retry: Retry,
+    throw_condition: Option<Box<ThrowCondition>>,
     before_sending: Vec<Box<RequestMiddleware>>,
     after_response: Vec<Box<ResponseMiddleware>>,
 }
@@ -88,6 +90,7 @@ impl PendingRequest {
             body_limit: BODY_LIMIT,
             payload: Payload::Json,
             retry: Retry::default(),
+            throw_condition: None,
             before_sending: Vec::new(),
             after_response: Vec::new(),
         }
@@ -238,6 +241,18 @@ impl PendingRequest {
         self
     }
 
+    pub fn throw(self) -> Self {
+        self.throwIf(|_| true)
+    }
+
+    pub fn throwIf(
+        mut self,
+        condition: impl Fn(&Response) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.throw_condition = Some(Box::new(condition));
+        self
+    }
+
     pub async fn get(self, url: &str) -> Result<Response> {
         self.send(Method::GET, url).await
     }
@@ -264,6 +279,18 @@ impl PendingRequest {
 
     pub async fn send(self, method: Method, url: &str) -> Result<Response> {
         self.execute(method, url, None::<&()>).await
+    }
+
+    pub async fn pool<'a>(
+        &self,
+        concurrency: NonZeroUsize,
+        build: impl FnOnce(&mut Pool<'a>),
+    ) -> BatchResults {
+        self.factory.pool(concurrency, build).await
+    }
+
+    pub async fn poolOrdered<'a>(&self, build: impl FnOnce(&mut Pool<'a>)) -> BatchResults {
+        self.factory.poolOrdered(build).await
     }
 
     pub fn batch<'a>(&self, build: impl FnOnce(&mut super::Batch<'a>)) -> super::Batch<'a> {
@@ -312,7 +339,7 @@ impl PendingRequest {
             when,
             throw,
         } = self.retry;
-        let should_throw = delays.len() > 0 && throw;
+        let throw_on_retry_failure = delays.len() > 0 && throw;
         let mut replay = if delays.len() == 0 {
             None
         } else {
@@ -371,7 +398,12 @@ impl PendingRequest {
                     .try_fold(response, |response, callback| callback(response))
             });
             let error = match result {
-                Ok(response) if response.failed() && (should_throw || delays.len() > 0) => {
+                Ok(response)
+                    if response.failed()
+                        && (throw_on_retry_failure
+                            || delays.len() > 0
+                            || self.throw_condition.is_some()) =>
+                {
                     Error::RequestFailed(Box::new(response))
                 }
                 Ok(response) => return Ok(response),
@@ -394,7 +426,15 @@ impl PendingRequest {
                 continue;
             }
             return match error {
-                Error::RequestFailed(response) if !should_throw => Ok(*response),
+                Error::RequestFailed(response)
+                    if !throw_on_retry_failure
+                        && !self
+                            .throw_condition
+                            .as_ref()
+                            .is_some_and(|test| test(&response)) =>
+                {
+                    Ok(*response)
+                }
                 error => Err(error),
             };
         }

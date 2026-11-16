@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use indexmap::IndexMap;
 
-use super::{Factory, PendingRequest, Pool, Response, Result};
+use super::{Error, Factory, PendingRequest, Pool, Response, Result};
 
 pub type BatchResults = IndexMap<String, Result<Response>>;
 
@@ -41,6 +41,7 @@ pub struct Batch<'a> {
     finally: Option<Finished<'a>>,
 }
 
+#[allow(non_snake_case, reason = "Matches Laravel's HTTP batch API")]
 impl<'a> Batch<'a> {
     pub(super) fn new(factory: Factory) -> Self {
         Self {
@@ -63,6 +64,14 @@ impl<'a> Batch<'a> {
         F: Future<Output = Result<Response>> + Send + 'a,
     {
         self.pool.r#as(key, build);
+        self
+    }
+
+    pub fn newRequest<F>(&mut self, build: impl FnOnce(PendingRequest) -> F) -> &mut Self
+    where
+        F: Future<Output = Result<Response>> + Send + 'a,
+    {
+        self.pool.newRequest(build);
         self
     }
 
@@ -127,7 +136,7 @@ impl<'a> Batch<'a> {
             before(counts);
         }
         let results = pool
-            .run_with(concurrency, |key, result| {
+            .run_with(concurrency, true, |key, result| {
                 counts.pending_requests -= 1;
                 match result {
                     Ok(response) if response.successful() => {
@@ -154,5 +163,15 @@ impl<'a> Batch<'a> {
             finally(counts, &results);
         }
         results
+    }
+}
+
+impl Batch<'static> {
+    pub fn defer(self) -> Result<crate::concurrency::DeferredCallback> {
+        crate::concurrency::enqueue_deferred(Box::pin(async move {
+            self.send().await;
+            Ok::<(), Error>(())
+        }))
+        .map_err(|_| Error::OutsideLifecycle)
     }
 }
