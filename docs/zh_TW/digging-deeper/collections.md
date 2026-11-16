@@ -396,6 +396,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 串接投影值 {#lazy-implode-by}
+
+用 `implode(glue)` 串接可顯示的值。對記錄使用 `implodeBy(project, glue)`，可選取欄位或格式化每一項，回呼也能讀取項目的鍵。傳入空分隔符可直接串接。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+struct Order {
+    product: &'static str,
+}
+
+fn main() -> Result<(), CollectionError> {
+    let orders = LazyCollection::fromEntries(|| {
+        [("a", "Desk"), ("b", "Lamp"), ("a", "Chair")]
+            .map(|(key, product)| (key, Order { product }))
+    });
+
+    assert_eq!(
+        orders.implodeBy(|order, _| order.product, ", ")?,
+        "Chair, Lamp"
+    );
+    assert_eq!(
+        orders.implodeBy(|order, key| format!("{key}:{}", order.product), " / ")?,
+        "a:Chair / b:Lamp"
+    );
+    Ok(())
+}
+```
+
+惰性集合先具體化，再呼叫投影。重複鍵最後一次出現的項目生效，鍵保留首次出現的位置。讀取來源時發生錯誤會在執行投影前傳回。
+
 #### 生成與包裝來源 {#lazy-generating-sources}
 
 `range` 從起點朝終點生成整數。步長恰好到達終點時包含終點。步長以正數 `NonZeroUsize` 表示。`times` 將從 1 開始的位置傳給回呼，結果鍵從 0 開始。`take` 可限制生成數量。`wrap(Some(item))` 產出一項，`wrap(None)` 產生空來源。`fromValue` 接收 JSON 值，`unwrap` 實體化為帶鍵項目。

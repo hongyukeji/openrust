@@ -2056,3 +2056,50 @@ fn higher_order_proxy_propagates_source_errors_without_projecting_them() {
     ));
     assert_eq!(projected.get(), 1);
 }
+
+#[test]
+fn lazy_implode_projects_only_the_materialized_entries() {
+    struct Task {
+        name: &'static str,
+    }
+
+    let projected = RefCell::new(Vec::new());
+    let tasks = LazyCollection::fromEntries(|| {
+        [("first", "draft"), ("next", "ship"), ("first", "review")]
+            .map(|(key, name)| (key, Task { name }))
+    });
+    assert_eq!(
+        tasks
+            .implodeBy(
+                |task, key| {
+                    projected.borrow_mut().push((key.clone(), task.name));
+                    task.name
+                },
+                " → ",
+            )
+            .unwrap(),
+        "review → ship"
+    );
+    assert_eq!(
+        projected.borrow().as_slice(),
+        &[("first".into(), "review"), ("next".into(), "ship")]
+    );
+    assert_eq!(
+        LazyCollection::<Task>::empty()
+            .implodeBy(
+                |_, _| -> &str { panic!("empty collection has no projection") },
+                "-"
+            )
+            .unwrap(),
+        ""
+    );
+
+    let tasks = LazyCollection::tryMake(|| [Ok(Task { name: "draft" }), Err(source_error())]);
+    assert!(matches!(
+        tasks.implodeBy(
+            |_, _| -> &str { panic!("source failed before projection") },
+            "-"
+        ),
+        Err(CollectionError::Source(_))
+    ));
+}

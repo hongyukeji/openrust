@@ -396,6 +396,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Joining Projected Values {#lazy-implode-by}
+
+Use `implode(glue)` for displayable items. For records, use `implodeBy(project, glue)` to select a field or format each item. The projection also receives the entry key. Pass an empty separator to concatenate the results directly.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+struct Order {
+    product: &'static str,
+}
+
+fn main() -> Result<(), CollectionError> {
+    let orders = LazyCollection::fromEntries(|| {
+        [("a", "Desk"), ("b", "Lamp"), ("a", "Chair")]
+            .map(|(key, product)| (key, Order { product }))
+    });
+
+    assert_eq!(
+        orders.implodeBy(|order, _| order.product, ", ")?,
+        "Chair, Lamp"
+    );
+    assert_eq!(
+        orders.implodeBy(|order, key| format!("{key}:{}", order.product), " / ")?,
+        "a:Chair / b:Lamp"
+    );
+    Ok(())
+}
+```
+
+A lazy collection materializes its entries before applying the projection. The last item for a repeated key wins and retains the key's original position. A source error returns before any projection runs.
+
 #### Generating and Wrapping Sources {#lazy-generating-sources}
 
 `range` generates integers from the first endpoint toward the second, including the endpoint if the step reaches it. Pass a positive `NonZeroUsize` step. `times` calls the callback with one-based positions and assigns zero-based keys. Calling `take` limits generation. `wrap(Some(item))` yields one item and `wrap(None)` yields none. `fromValue` accepts JSON values, and `unwrap` materializes keyed entries.

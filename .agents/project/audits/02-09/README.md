@@ -229,3 +229,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仅报告既有 Sanctum 排版差异。
 - 固定 `LazyCollection.php` 与 `EnumeratesValues.php` 的显式公开方法名对齐 162／162，Rust raw identifier 按逻辑名称匹配。签名、动态调度与行为仍需逐项复核。
 - 隔离基线 `8a847fb0e`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.16 GB（56.96 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-proxy.xN92w6kw`。
+
+## 集合投影拼接
+
+对照固定 Laravel [implode 文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/collections.md#method-implode)、[实体及惰性共用回归](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php#L2481)和[惰性委托实现](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L635)。旧版 Rust 源码未找到 `implode`，沿用当前实体集合的迭代顺序及键收敛规则。
+
+- Laravel 在 `implode` 接受分隔符、字段键或回调。Rust 的 `implode(glue)` 保持原签名，字段访问和格式化统一用 `implodeBy(project, glue)` 的类型化投影表达，投影结果实现 `Display`。空分隔符表达省略分隔符。
+- 惰性入口先实体化并委托实体集合。重复键取最后的值并保留首次出现的位置，回调按收敛后的顺序接收值及键。空输入返回空字符串，读取失败在任何回调执行前传播。
+- PHP 8.5.12 固定源码与 80 项 Rust 集合用例通过。实际三语共用示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报告既有 Sanctum 排版差异。
+- 隔离基线 `c030e0240`。PHP 容器已回收，清理本批 3.1 GiB Cargo 产物和文档缓存后，项目卷可用 61.13 GB（56.93 GiB），周额度剩余 71%。证据目录为 `/private/tmp/openrust-02-09-implode.0bEsiPFo`。

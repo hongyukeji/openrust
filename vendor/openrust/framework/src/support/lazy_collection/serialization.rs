@@ -5,7 +5,7 @@ use serde::{
 };
 use serde_json::Value;
 
-use super::{Collection, CollectionResult, LazyCollection};
+use super::{ArrayKey, Collection, CollectionResult, LazyCollection};
 use crate::support::{data_get, data_has, escape_html};
 
 #[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
@@ -64,6 +64,18 @@ impl<'de, 'source, T: Deserialize<'de> + Clone + 'source> Deserialize<'de>
 {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         Collection::deserialize(deserializer).map(Into::into)
+    }
+}
+
+#[allow(non_snake_case, reason = "Matches Laravel's LazyCollection API")]
+impl<'source, T: 'source> LazyCollection<'source, T> {
+    /// Materializes keyed entries before projecting and joining them.
+    pub fn implodeBy<U: Display>(
+        &self,
+        project: impl FnMut(&T, &ArrayKey) -> U,
+        glue: &str,
+    ) -> CollectionResult<String> {
+        Ok(Self::collect(self)?.implodeBy(project, glue))
     }
 }
 

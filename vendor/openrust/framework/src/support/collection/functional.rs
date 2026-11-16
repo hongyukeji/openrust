@@ -281,6 +281,19 @@ impl<T> Collection<T> {
         Arr::join(&parts, glue, final_glue)
     }
 
+    /// Projects each item and joins the displayed values in collection order.
+    pub fn implodeBy<U: Display>(
+        &self,
+        mut project: impl FnMut(&T, &ArrayKey) -> U,
+        glue: &str,
+    ) -> String {
+        let parts: Vec<_> = self
+            .iter()
+            .map(|(key, value)| project(value, key).to_string())
+            .collect();
+        parts.join(glue)
+    }
+
     pub fn implode(&self, glue: &str) -> String
     where
         T: Display,

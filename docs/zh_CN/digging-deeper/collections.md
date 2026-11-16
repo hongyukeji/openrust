@@ -396,6 +396,37 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 拼接投影值 {#lazy-implode-by}
+
+用 `implode(glue)` 拼接可显示的值。对记录使用 `implodeBy(project, glue)`，可选择字段或格式化每一项，回调也能读取条目的键。传入空分隔符可直接拼接。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+struct Order {
+    product: &'static str,
+}
+
+fn main() -> Result<(), CollectionError> {
+    let orders = LazyCollection::fromEntries(|| {
+        [("a", "Desk"), ("b", "Lamp"), ("a", "Chair")]
+            .map(|(key, product)| (key, Order { product }))
+    });
+
+    assert_eq!(
+        orders.implodeBy(|order, _| order.product, ", ")?,
+        "Chair, Lamp"
+    );
+    assert_eq!(
+        orders.implodeBy(|order, key| format!("{key}:{}", order.product), " / ")?,
+        "a:Chair / b:Lamp"
+    );
+    Ok(())
+}
+```
+
+惰性集合先实体化，再调用投影。重复键最后一次出现的条目生效，键保持首次出现的位置。读取来源时发生错误会在执行投影前返回。
+
 #### 生成和包装来源 {#lazy-generating-sources}
 
 `range` 从起点向终点生成整数。步长恰好到达终点时包含终点。步长用正数 `NonZeroUsize` 表示。`times` 将从 1 开始的位置传给回调，结果键从 0 开始。`take` 可限制生成数量。`wrap(Some(item))` 产出一项，`wrap(None)` 产生空来源。`fromValue` 接收 JSON 值，`unwrap` 实体化为带键条目。
