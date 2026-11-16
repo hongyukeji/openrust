@@ -501,11 +501,15 @@ fn insert_group<T>(
     }
 }
 
-impl<T> Collection<Collection<T>> {
-    pub fn collapse(self) -> Collection<T> {
+impl<G> Collection<G> {
+    /// Merges one level of groups, reindexing numeric keys and retaining string keys.
+    pub fn collapse<T>(self) -> Collection<T>
+    where
+        G: Into<Collection<T>>,
+    {
         let mut result = Collection::new();
         for (_, values) in self {
-            for (key, value) in values {
+            for (key, value) in values.into() {
                 match key {
                     ArrayKey::Integer(_) => {
                         result

@@ -3381,6 +3381,67 @@ fn verify_one_through<'a>(
     })
 }
 
+async fn verify_collection_collapse(db: &Connection, mysql: bool) {
+    use openrust::support::Collection as BaseCollection;
+
+    let mut authors = Author::queryOn(db)
+        .orderBy("id", "asc")
+        .get()
+        .await
+        .unwrap()
+        .withRelationshipAutoloading();
+    let copy = |index: usize| Author::from_state(authors[index].state().clone());
+    let models = BaseCollection::make([
+        Collection::fromEntries([("shared", copy(0)), ("7", copy(1))]),
+        Collection::fromEntries([("shared", copy(2)), ("12", copy(0))]),
+    ])
+    .collapse();
+    assert_eq!(models.count(), 3);
+    assert_eq!(models.get("shared").unwrap().getKey(), Some(&3.into()));
+    assert_eq!(models.get(0).unwrap().getKey(), Some(&2.into()));
+    assert_eq!(models.get(1).unwrap().getKey(), Some(&1.into()));
+    assert!(models.get(7).is_none() && models.get(12).is_none());
+    let vectors = BaseCollection::make([vec![1, 2], vec![], vec![3]]).collapse();
+    assert_eq!(
+        vectors
+            .into_iter()
+            .map(|(_, value)| value)
+            .collect::<Vec<_>>(),
+        [1, 2, 3]
+    );
+    let nested = BaseCollection::make([BaseCollection::make([vec![1, 2]])]).collapse();
+    assert_eq!(nested.get(0), Some(&vec![1, 2]));
+
+    let baseline = if mysql { select_count(db).await } else { 0 };
+    let mut first = authors.modelAt(0).unwrap();
+    first.getRelationOrLoad("posts", &POSTS).await.unwrap();
+    assert!(authors.iter().all(|author| author.relationLoaded("posts")));
+    let groups = authors.map(|author, _| {
+        author
+            .getRelation::<RelatedCollection<Post>>("posts")
+            .unwrap()
+            .clone()
+    });
+    let expected = groups.iter().flat_map(|(_, group)| group.iter());
+    let flattened = groups.clone().collapse();
+    assert_eq!(flattened.count(), expected.clone().count());
+    assert!(!flattened.isEmpty());
+    for ((_, snapshot), loaded) in flattened.iter().zip(expected) {
+        assert!(Arc::ptr_eq(snapshot, loaded));
+    }
+    let shared = flattened.get(0).unwrap();
+    let mut independent = Post::from_state(shared.state().clone());
+    independent.setAttribute("title", "edited outside the relationship");
+    assert_ne!(
+        independent.getAttribute("title"),
+        shared.getAttribute("title")
+    );
+    assert!(authors[0].toArray().unwrap()["posts"].is_array());
+    if mysql {
+        assert_eq!(select_count(db).await - baseline, 1);
+    }
+}
+
 fn verify_collection_keys<'a>(
     db: &'a Connection,
     other: &'a Connection,
@@ -7369,6 +7430,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
         vec![2.into()]
     );
 
+    Box::pin(verify_collection_collapse(&db, mysql)).await;
     verify_collection_keys(&db, &other).await;
 
     Box::pin(verify_belongs_to_cache(&db, mysql, &p1, &first, &second)).await;

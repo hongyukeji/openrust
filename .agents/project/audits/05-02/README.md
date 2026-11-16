@@ -764,3 +764,9 @@ MySQL 8.4.13 实际 HTTP 验证默认键、升降序、替换既有键排序、�
 以 `4984830e` 为隔离基线。固定 Laravel 用例覆盖带值枚举与标量混合输入、toggle 往返、字符串返回类型及自定义 Pivot 只有创建时间。Rust 用既有 `CastableEnum::intoValue()` 将枚举显式转为数据库值。同步与切换复用关联键声明的整数、字符串或枚举转换，在匹配前转换输入，并在提交前转换解绑报告。未声明转换时沿用输入或数据库键类型。字符串绑定还保留 `01` 与 `1` 的区别，避免 MySQL 的数值比较合并文本键。v0.x 用于对照分组去重和增删改报告。 [固定枚举键用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManyPivotEnumKeyTest.php) · [固定返回类型用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Database/DatabaseEloquentBelongsToManySyncReturnValueTypeTest.php) · [固定时间戳用例](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentPivotWithoutTimestampTest.php)
 
 独立 MySQL 8.4.13 实测类型化枚举同步与切换、UUID、超出 i64 的数字文本、前导零、变化报告类型及 Pivot 默认属性。物理表仅含 `created_at`，实测自定义 Pivot 新增写入创建时间，更新不改变创建时间。关系和查询计数、关系 upsert、实际分页 HTTP 三项定向回归通过。Rust 1.94.0 全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 格式仅在隔离副本调整。测试容器与独占构建产物已回收。
+
+## 折叠模型集合与关系快照
+
+以 `fadc2ff0` 为隔离基线。固定 Laravel 的 Eloquent `collapse` 委托 Support 集合，合并一层数组或集合，数字键重新编号，同名字符串键采用最后一个值。Rust 通过 `From` 将向量、Eloquent 集合及关系缓存集合交给同一 Support 合并实现，分组类型由编译器确定。关系分组转换移动原有 `Arc`，保留共享快照。关系缺失时由显式异步访问执行批量加载及回填，独立模型状态的普通属性各自管理。旧版只找到值数组的折叠工具，固定 Goravel ORM 对照为显式关联查询。 [固定 Laravel Eloquent Collection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Collection.php) · [固定 Laravel Arr](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Arr.php)
+
+独立 MySQL 8.4.13 实测分组层级、空组、数字键重新编号、同名字符串键覆盖、载入后的关系快照指针共享及独立属性状态。父集合按需加载和回填共 1 次 SELECT，折叠及序列化额外 0 次。关系查询计数、实际分页 HTTP、Support 和惰性集合共 14 项回归通过。Rust 1.94.0 严格 Clippy、`./artisan inspire`、三语示例、VitePress 与 18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整。测试容器及独占构建产物已回收。

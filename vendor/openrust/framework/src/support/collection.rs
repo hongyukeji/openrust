@@ -252,6 +252,12 @@ impl<T> Collection<T> {
     }
 }
 
+impl<T> From<Vec<T>> for Collection<T> {
+    fn from(values: Vec<T>) -> Self {
+        values.into_iter().collect()
+    }
+}
+
 impl<T> FromIterator<T> for Collection<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         Self::fromEntries(iter.into_iter().enumerate().map(|(index, value)| {

@@ -1636,6 +1636,12 @@ fn model_dictionary<T>(
     Ok(dictionary)
 }
 
+impl<M: Model> From<Collection<M>> for BaseCollection<M> {
+    fn from(models: Collection<M>) -> Self {
+        models.toBase()
+    }
+}
+
 impl<M: Model> Deref for Collection<M> {
     type Target = [M];
 

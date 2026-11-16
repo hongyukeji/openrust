@@ -163,7 +163,24 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
 
 ### Positional Conversions
 
-`zip` pairs models with values by position and returns a Support collection of tuples. The shorter side is filled with `None`. `flatten` returns the models in a Support collection with consecutive integer keys. Eloquent models are leaves. To collapse nested collections, first project each model to a Support collection and call `collapse` on the result.
+`zip` pairs models with values by position and returns a Support collection of tuples. The shorter side is filled with `None`. `flatten` returns the models in a Support collection with consecutive integer keys. Eloquent models are leaves.
+
+`collapse` merges one level of groups in a Support collection. A group can be a vector, Eloquent collection, Support collection, or a loaded `RelatedCollection`. Numeric keys are reindexed. Later values replace earlier values with the same string key. PHP can mix models and nested arrays in a collection. In Rust, declare the grouped input type before calling `collapse`.
+
+Collapsing loaded relationship groups retains their shared model snapshots and performs no database reads. Use `getRelationOrLoad` on the model’s collection to load and write back missing relations. Independently constructed model states have independent attributes.
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model},
+    support::Collection as BaseCollection,
+};
+
+pub fn collapse_groups<M: Model>(
+    groups: BaseCollection<Collection<M>>,
+) -> BaseCollection<M> {
+    groups.collapse()
+}
+```
 
 Use `zipMany` for a runtime number of extra columns of the same item type. Each row keeps the model separately and contains one optional value per extra column, even when a column is empty.
 

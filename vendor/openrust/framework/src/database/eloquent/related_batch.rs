@@ -88,6 +88,15 @@ impl<M: Model> RelatedCollection<M> {
     }
 }
 
+impl<M: Model> From<RelatedCollection<M>> for BaseCollection<Arc<M>> {
+    fn from(group: RelatedCollection<M>) -> Self {
+        match group.keys {
+            Some(keys) => BaseCollection::fromEntries(keys.into_iter().zip(group.models)),
+            None => group.models.into_iter().collect(),
+        }
+    }
+}
+
 impl<M: Model> Clone for RelatedCollection<M> {
     fn clone(&self) -> Self {
         self.with_models(self.models.clone())

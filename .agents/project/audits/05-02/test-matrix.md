@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | HasOne、HasMany、BelongsTo、HasOneOfMany | `verify`、`verify_singular_identity`、`verify_belongs_to_cache` 验证关联外键、身份、软删除、并列决胜和缓存回填。 | 对照直接关系与反向关系的变体用例逐项核对。 |
 | HasManyThrough、HasOneThrough、MorphTo、MorphToMany | `verify_through_and_morph`、`verify_one_through`、`verify_morph_soft_deletes` 验证穿透、类型隔离和软删除。 | PHP 的隐式类及别名发现需按 Rust 显式注册的职责核对。 |
-| EagerLoadingLimit、LazyEagerLoading、ModelRelationAutoload、MorphEagerLoading | `verify_eager_columns`、`verify_named_paths`、`verify_morph_paths`、`verify_relation_autoload` 验证带列和路径的预加载、查询计数及自动加载。 | PHP 动态属性共享与 Rust 异步回填的对象身份差异需单独对账。 |
+| EagerLoadingLimit、LazyEagerLoading、ModelRelationAutoload、MorphEagerLoading | `verify_eager_columns`、`verify_named_paths`、`verify_morph_paths`、`verify_relation_autoload` 验证带列和路径的预加载、查询计数及自动加载。 | Rust 异步回填及共享关系快照已专项核对，见 [折叠与共享快照](README.md#折叠模型集合与关系快照)。 |
 | BelongsToMany、Pivot、PivotEvents、CustomPivotCast | `verify_custom_pivot`、`verify_pivot_constraints`、`verify_pivot_or_fail`、关系 upsert 验证事件、转换、同步及回滚。 | 枚举 Pivot 键、返回类型与仅创建时间已通过 [MySQL 专项](README.md#pivot-枚举键返回类型与仅创建时间)。剩余的动态对象共享及关联用例继续对账。 |
-| EloquentCollection、CollectionFresh、CollectionLoadMissing、CollectionQueueable | `verify_collection_keys`、`verify_collection_reload`、`verify_collection_factory` 以及既有真实 Worker 恢复记录。 | 集合 `collapse` 的分层输入与方法名、自定义集合运行时子类约定仍需核对。 |
+| EloquentCollection、CollectionFresh、CollectionLoadMissing、CollectionQueueable | `verify_collection_keys`、`verify_collection_reload`、`verify_collection_factory` 以及既有真实 Worker 恢复记录。 | 分层集合 `collapse` 已复验。自定义集合使用 `Model::newCollection` 和扩展 trait，PHP 的运行时子类约定仍需整体验收对账。 |
 | BelongsToManyChunkById、EachById、LazyById 及 Builder 查询转发 | `pagination_on_mysql_and_http` 实测各关系类型的分批、异步流、短路、缺键与 Pivot。 | 关系分页剩余项见 [05-06 测试矩阵](../05-06/test-matrix.md)。 |
 
 当前复验仍按表中边界记录。05-02 的核心账本保持进行中。

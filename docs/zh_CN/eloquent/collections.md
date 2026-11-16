@@ -163,7 +163,24 @@ pub fn persisted_models<M: Model>(models: Collection<M>) -> Collection<M> {
 
 ### 按位置转换集合
 
-`zip` 按位置将模型和值配对，返回由元组组成的 Support 集合。较短的一侧用 `None` 补齐。`flatten` 将模型转为使用连续整数键的 Support 集合，模型本身作为叶节点。要合并嵌套集合，可以先将每个模型投影为 Support 集合，再对结果调用 `collapse`。
+`zip` 按位置将模型和值配对，返回由元组组成的 Support 集合。较短的一侧用 `None` 补齐。`flatten` 将模型转为使用连续整数键的 Support 集合，模型本身作为叶节点。
+
+`collapse` 将 Support 集合中的分组合并一层。分组可以是向量、Eloquent 集合、Support 集合或已加载的 `RelatedCollection`。数字键重新编号，后出现的同名字符串键覆盖先前的值。PHP 集合可以混放模型和嵌套数组，Rust 在调用 `collapse` 前明确声明分组类型。
+
+折叠已加载的关系分组会保留共享模型快照，无需查询数据库。使用模型集合的 `getRelationOrLoad` 加载缺失关系并回填。独立构造的模型状态各自管理属性。
+
+```rust
+use openrust::{
+    database::eloquent::{Collection, Model},
+    support::Collection as BaseCollection,
+};
+
+pub fn collapse_groups<M: Model>(
+    groups: BaseCollection<Collection<M>>,
+) -> BaseCollection<M> {
+    groups.collapse()
+}
+```
 
 额外列数在运行时确定时，用 `zipMany` 配对同一元素类型的多列。每行单独保留模型，并为每个额外列保留一个可选值，空列也占一列。
 
