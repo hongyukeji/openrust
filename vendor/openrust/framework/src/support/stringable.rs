@@ -120,6 +120,53 @@ impl Stringable {
         Self(super::Str::squish(&self.0))
     }
 
+    pub fn r#match(&self, pattern: &str) -> Result<Self, regex::Error> {
+        super::Str::r#match(pattern, &self.0).map(Self::from)
+    }
+
+    pub fn matchAll(&self, pattern: &str) -> Result<Vec<&str>, regex::Error> {
+        super::Str::matchAll(pattern, &self.0)
+    }
+
+    pub fn isMatch(&self, patterns: &[&str]) -> Result<bool, regex::Error> {
+        super::Str::isMatch(patterns, &self.0)
+    }
+
+    pub fn replaceMatches(
+        self,
+        pattern: &str,
+        replacement: &str,
+        count: Option<usize>,
+    ) -> Result<Self, regex::Error> {
+        super::Str::replaceMatches(pattern, replacement, &self.0, count).map(Self)
+    }
+
+    pub fn replaceMatchesWith(
+        self,
+        pattern: &str,
+        replacement: impl FnMut(&regex::Captures<'_>) -> String,
+        count: Option<usize>,
+    ) -> Result<Self, regex::Error> {
+        super::Str::replaceMatchesWith(pattern, replacement, &self.0, count).map(Self)
+    }
+
+    pub fn width(&self) -> usize {
+        super::Str::width(&self.0)
+    }
+
+    pub fn limit(self, columns: usize, end: &str, preserve_words: bool) -> Self {
+        Self(super::Str::limit(&self.0, columns, end, preserve_words))
+    }
+
+    pub fn wordWrap(
+        self,
+        columns: usize,
+        line_break: &str,
+        cut_long_words: bool,
+    ) -> Result<Self, super::WordWrapError> {
+        super::Str::wordWrap(&self.0, columns, line_break, cut_long_words).map(Self)
+    }
+
     pub fn isUuid(&self, version: Option<u8>) -> bool {
         super::Str::isUuid(&self.0, version)
     }

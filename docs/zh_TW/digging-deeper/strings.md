@@ -53,3 +53,18 @@ assert_eq!(password.len(), 24);
 assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
 assert!(Str::isUlid(&Str::ulid().to_string()));
 ```
+
+## 正規表示式與文字排版 {#regex-and-text-layout}
+
+`match` 優先傳回有比對結果的第一個擷取群組，否則傳回完整比對。`matchAll` 在宣告擷取群組時傳回每筆的第一組，未比對的群組使用空字串。正規表示式採用 Rust 語法，例如 `(?i)` 表示忽略大小寫，替換支援 `$1` 或具名擷取。`replaceMatchesWith` 接收 Rust 回呼，無效模式傳回 `regex::Error`。
+
+`width` 和 `limit` 使用 PHP 8.5 的東亞字元寬度表。`wordWrap` 依 Laravel 的 Unicode 純量規則在空格處換行，也可強制拆分長字。`limit` 的保留整字模式會處理基本 HTML 標籤後截斷。
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::matchAll(r"(\d+)", "甲12 乙34")?, ["12", "34"]);
+assert_eq!(Str::replaceMatches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[12] 乙34");
+assert_eq!(Str::limit("中文🙂", 4, "…", false), "中文…");
+assert_eq!(Str::wordWrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
+```

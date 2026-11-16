@@ -3,9 +3,13 @@ use std::{collections::BTreeMap, sync::OnceLock};
 
 use super::{MarkdownOptions, Stringable, markdown};
 
+mod display_width;
+mod pattern;
 mod random;
+mod text_layout;
 
 pub use random::{EmptyPasswordAlphabet, PasswordOptions};
+pub use text_layout::WordWrapError;
 
 /// Unicode string helpers with Laravel-compatible names.
 pub struct Str;
@@ -432,6 +436,53 @@ impl Str {
             .filter(|part| !part.is_empty())
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    pub fn r#match<'a>(pattern: &str, subject: &'a str) -> Result<&'a str, regex::Error> {
+        pattern::first(pattern, subject)
+    }
+
+    pub fn matchAll<'a>(pattern: &str, subject: &'a str) -> Result<Vec<&'a str>, regex::Error> {
+        pattern::all(pattern, subject)
+    }
+
+    pub fn isMatch(patterns: &[&str], subject: &str) -> Result<bool, regex::Error> {
+        pattern::any(patterns, subject)
+    }
+
+    pub fn replaceMatches(
+        pattern: &str,
+        replacement: &str,
+        subject: &str,
+        count: Option<usize>,
+    ) -> Result<String, regex::Error> {
+        pattern::replace(pattern, replacement, subject, count)
+    }
+
+    pub fn replaceMatchesWith(
+        pattern: &str,
+        replacement: impl FnMut(&regex::Captures<'_>) -> String,
+        subject: &str,
+        count: Option<usize>,
+    ) -> Result<String, regex::Error> {
+        pattern::replace_with(pattern, replacement, subject, count)
+    }
+
+    pub fn width(value: &str) -> usize {
+        value.chars().map(text_layout::width).sum()
+    }
+
+    pub fn limit(value: &str, columns: usize, end: &str, preserve_words: bool) -> String {
+        text_layout::limit(value, columns, end, preserve_words)
+    }
+
+    pub fn wordWrap(
+        value: &str,
+        columns: usize,
+        line_break: &str,
+        cut_long_words: bool,
+    ) -> Result<String, WordWrapError> {
+        text_layout::wrap(value, columns, line_break, cut_long_words)
     }
 
     pub fn random(length: usize) -> String {

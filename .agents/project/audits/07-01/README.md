@@ -45,6 +45,12 @@
 
 ## 尚未验收的范围
 
-- Strings 仍需逐项核对正则捕获和替换、展示宽度及换行、slug 和 ICU 严格转写、多语言词形及 COMB 标识符。
+- Strings 仍需逐项核对 slug 和 ICU 严格转写、多语言词形及 COMB 标识符。
 - Helpers 仍有 Arr 余下方法、Number 语言环境格式、日期及 Benchmark、Pipeline、Sleep、Timebox 等工具的实现或 Rust 映射验收。
 - 02-08 依赖仍在账本开放。07-01 继续记录为部分验收。
+
+## 正则与文本排版
+
+- 固定 Laravel Str 和 PHP 8.5.12 实测首捕获、可选捕获为空、替换次数、汉字和 emoji 的展示宽度、整词截断以及多字节换行。Rust 复用锁定的 regex，引入类型化无效模式错误和 Rust 回调。模式及替换采用 Rust 语法，PCRE 分隔符、后向查找和模式内反向引用属于语法差异。旧版字符串代码没有对应实现。 [固定 Str](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Str.php)
+- 宽度数据由 PHP 8.5.12 的 `mb_strwidth` 对每个有效 Unicode 标量枚举，连续双宽标量合并为区间。换行使用标量长度和空格分隔，保留整词时处理基本 HTML 标签。 [PHP 宽度数据](https://github.com/php/php-src/blob/php-8.5.12/ext/mbstring/libmbfl/mbfl/eaw_table.h)
+- 8 项 Strings 定向测试、严格 Clippy 和三语 VitePress 构建通过。实际 Artisan 运行三语示例。实际回环 HTTP 核对可选捕获、CJK 截断和多字节换行。

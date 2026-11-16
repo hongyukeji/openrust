@@ -204,3 +204,63 @@ fn generated_strings_and_ids_respect_their_requested_formats() {
     assert!(Str::of(Str::ulid().to_string()).isUlid());
     assert!(!Str::isUlid("80000000000000000000000000"));
 }
+
+#[test]
+fn regex_projection_replacement_counts_and_callbacks() {
+    assert_eq!(Str::r#match(r"(x)?中", "中").unwrap(), "中");
+    assert_eq!(Str::r#match(r"(\d+)", "no match").unwrap(), "");
+    assert_eq!(Str::matchAll(r"(x)?中", "中 x中").unwrap(), ["", "x"]);
+    assert_eq!(Str::matchAll(r"\p{Han}", "甲 a 乙").unwrap(), ["甲", "乙"]);
+    assert!(Str::isMatch(&["^a", r"\p{Han}"], "乙").unwrap());
+    assert!(!Str::isMatch(&[], "abc").unwrap());
+    assert!(Str::isMatch(&["("], "abc").is_err());
+    assert_eq!(
+        Str::replaceMatches(r"(\d+)", "[$1]", "中12 a34", Some(1)).unwrap(),
+        "中[12] a34"
+    );
+    assert_eq!(
+        Str::replaceMatches(r"(\d+)", "-", "中12", Some(0)).unwrap(),
+        "中12"
+    );
+    assert_eq!(
+        Str::of("甲1 乙2")
+            .replaceMatchesWith(
+                r"(?P<name>\p{Han})(\d+)",
+                |captures| format!("{}[{}]", &captures["name"], &captures[2]),
+                None
+            )
+            .unwrap()
+            .value(),
+        "甲[1] 乙[2]"
+    );
+}
+
+#[test]
+fn display_width_and_wrap_match_the_php_fixture() {
+    assert_eq!(Str::width("e\u{301}🙂中\n"), 7);
+    assert_eq!(Str::limit("中 abc déf", 6, "…", true), "中…");
+    assert_eq!(Str::limit("<b>中文</b> x long", 5, "…", true), "中文…");
+    assert_eq!(Str::limit("e\u{301}🙂中", 4, "…", false), "e\u{301}🙂…");
+    assert_eq!(Str::of("中文").limit(4, "...", false).value(), "中文");
+    for (input, columns, line_break, cut, expected) in [
+        ("中a 🙂b 中c", 3, "|", false, "中a|🙂b|中c"),
+        ("abcdef 中🙂", 3, "|", true, "abc|def|中🙂"),
+        ("α\nβ x", 3, "\n", false, "α\nβ\nx"),
+        ("abc def", 0, "|", false, "abc|def"),
+        (
+            "alpha  beta    gamma",
+            4,
+            "|",
+            true,
+            "alph|a |beta|  |gamm|a",
+        ),
+        ("abcdef", 3, "🙂", true, "abc🙂def"),
+    ] {
+        assert_eq!(
+            Str::wordWrap(input, columns, line_break, cut).unwrap(),
+            expected
+        );
+    }
+    assert!(Str::wordWrap("text", 3, "", false).is_err());
+    assert!(Str::wordWrap("text", 0, "\n", true).is_err());
+}

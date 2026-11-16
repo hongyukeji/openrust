@@ -53,3 +53,18 @@ assert_eq!(password.len(), 24);
 assert!(Str::isUuid(&Str::uuid7().to_string(), Some(7)));
 assert!(Str::isUlid(&Str::ulid().to_string()));
 ```
+
+## Regular expressions and text layout {#regex-and-text-layout}
+
+`match` returns the first capture when it participates, then falls back to the whole match. `matchAll` returns the first capture for each match when the pattern declares one, using an empty string for an unmatched group. Supply Rust regex syntax, such as `(?i)` for case insensitivity. Replacements use `$1` or named captures. Use `replaceMatchesWith` for a Rust callback. Invalid patterns return `regex::Error`.
+
+`width` and `limit` use the PHP 8.5 East Asian width table. `wordWrap` follows Laravel’s scalar-counting wrap and breaks at spaces or cuts long words on request. `limit` can preserve words, trimming basic HTML markup before truncating.
+
+```rust
+use openrust::support::Str;
+
+assert_eq!(Str::matchAll(r"(\d+)", "甲12 乙34")?, ["12", "34"]);
+assert_eq!(Str::replaceMatches(r"(\d+)", "[$1]", "甲12 乙34", Some(1))?, "甲[12] 乙34");
+assert_eq!(Str::limit("中文🙂", 4, "…", false), "中文…");
+assert_eq!(Str::wordWrap("中a 🙂b 中c", 3, "|", false)?, "中a|🙂b|中c");
+```
