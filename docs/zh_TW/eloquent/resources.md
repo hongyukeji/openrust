@@ -26,6 +26,32 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### JSON 回應選項 {#json-response-options}
+
+在資源上實作 `defaultJsonOptions`，即可為單一資源、集合和空分頁宣告編碼格式。依執行個體調整時覆寫 `jsonOptions`。非空集合採用第一個資源的選項。Serde 預設把 `3.0` 這類數字保留為帶小數的寫法。`JsonOptions` 可設定縮排、斜線和 Unicode 跳脫，解碼後的值保持一致。
+
+用 `toJson(request)` 或 `toPrettyJson(request)` 直接序列化資源投影。HTTP 回應會對整份文件套用選項，包括分頁連結和中繼資料。
+
+```rust
+use openrust::http::{
+    Request,
+    resources::json::{JsonOptions, JsonResource, ResourceResult},
+};
+use serde_json::{Value, json};
+
+pub struct ReadingResource(pub f64);
+
+impl JsonResource for ReadingResource {
+    fn toArray(&self, _: &Request) -> ResourceResult<Value> {
+        Ok(json!({"reading_time": self.0, "path": "/café"}))
+    }
+
+    fn defaultJsonOptions() -> JsonOptions {
+        JsonOptions::default().prettyPrint().escapeSlashes().escapeUnicode()
+    }
+}
+```
+
 ### 應用程式層級資源包裝 {#application-resource-wrapping}
 
 在應用程式容器中註冊 `ResourceWrapping`，即可調整該應用程式的預設 `data` 包裝。用 `ResourceWrapping::wrap("items")` 更換包裝鍵，或用 `withoutWrapping()` 關閉一般回應的包裝。資源自訂包裝鍵及單次回應的 `response().wrap(...)`、`withoutWrapping()` 優先。

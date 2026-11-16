@@ -5,12 +5,31 @@ use crate::{
     http::{HttpError, Request, Response, StatusCode},
 };
 
-use super::{ResourceCollection, ResourceItems, ResourceResponse, ResourceResult};
+use super::{JsonOptions, ResourceCollection, ResourceItems, ResourceResponse, ResourceResult};
 
 /// Transforms an application resource for the current request.
 #[allow(non_snake_case, reason = "Matches Laravel's JsonResource API")]
 pub trait JsonResource {
     fn toArray(&self, request: &Request) -> ResourceResult<Value>;
+
+    fn toJson(&self, request: &Request) -> ResourceResult<String> {
+        self.jsonOptions().encode(&self.toArray(request)?)
+    }
+
+    fn toPrettyJson(&self, request: &Request) -> ResourceResult<String> {
+        self.jsonOptions()
+            .prettyPrint()
+            .encode(&self.toArray(request)?)
+    }
+
+    fn jsonOptions(&self) -> JsonOptions {
+        Self::defaultJsonOptions()
+    }
+
+    /// Declares options that also apply to a collection without items.
+    fn defaultJsonOptions() -> JsonOptions {
+        JsonOptions::default()
+    }
 
     fn make<T>(resource: T) -> Self
     where

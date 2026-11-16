@@ -23,14 +23,23 @@ impl Response {
     }
 
     pub fn json(status: StatusCode, data: impl Serialize) -> Result<Self, HttpError> {
+        Self::json_with(status, || {
+            serde_json::to_vec(&data).map_err(|source| HttpError::Internal {
+                source: Box::new(source),
+            })
+        })
+    }
+
+    pub(crate) fn json_with(
+        status: StatusCode,
+        encode: impl FnOnce() -> Result<Vec<u8>, HttpError>,
+    ) -> Result<Self, HttpError> {
         if status.is_informational()
             || matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         {
             return Ok(Self::empty(status));
         }
-        let bytes = serde_json::to_vec(&data).map_err(|source| HttpError::Internal {
-            source: Box::new(source),
-        })?;
+        let bytes = encode()?;
         Ok(Self::new(status, Body::from(bytes))
             .header(CONTENT_TYPE, HeaderValue::from_static("application/json")))
     }

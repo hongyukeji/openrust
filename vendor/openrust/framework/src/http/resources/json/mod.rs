@@ -1,6 +1,7 @@
 //! JSON resource transformation and response metadata.
 
 mod conditional;
+mod json_options;
 mod json_resource;
 mod paginated_resource_response;
 mod resource_collection;
@@ -9,6 +10,7 @@ mod route_response;
 mod transforms_to_resource_collection;
 
 pub use conditional::Conditional;
+pub use json_options::JsonOptions;
 pub use json_resource::{JsonResource, ModelResource};
 pub use paginated_resource_response::PaginatedResourceResponse;
 #[doc(hidden)]

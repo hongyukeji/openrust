@@ -9,7 +9,9 @@ use crate::{
     support::{ArrayKey, Collection},
 };
 
-use super::{JsonResource, PaginatedResourceResponse, PaginationInformation, ResourceResult};
+use super::{
+    JsonOptions, JsonResource, PaginatedResourceResponse, PaginationInformation, ResourceResult,
+};
 
 /// A collection source whose pagination survives resource transformation.
 pub enum ResourceItems<T> {
@@ -189,6 +191,16 @@ impl<T> ResourceCollection<T> {
 }
 
 impl<T: JsonResource> JsonResource for ResourceCollection<T> {
+    fn jsonOptions(&self) -> JsonOptions {
+        self.items()
+            .first()
+            .map_or_else(T::defaultJsonOptions, JsonResource::jsonOptions)
+    }
+
+    fn defaultJsonOptions() -> JsonOptions {
+        T::defaultJsonOptions()
+    }
+
     fn toArray(&self, request: &Request) -> ResourceResult<Value> {
         let values = self
             .items()

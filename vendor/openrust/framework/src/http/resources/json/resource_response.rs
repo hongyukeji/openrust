@@ -104,7 +104,12 @@ pub(super) fn build<R: JsonResource + ?Sized>(
     let mut response = if status == StatusCode::RESET_CONTENT {
         Response::empty(status)
     } else {
-        Response::json(status, payload)?
+        Response::json_with(status, || {
+            resource
+                .jsonOptions()
+                .encode(&payload)
+                .map(String::into_bytes)
+        })?
     };
     resource.withResponse(request, &mut response)?;
     Ok(response)

@@ -19,8 +19,9 @@ use openrust::{
     http::{
         HttpError, HttpFuture, Method, Request, Response,
         resources::json::{
-            Conditional, JsonResource, ModelResource, ResourceCollection, ResourceItems,
-            ResourceResult, ResourceWrapping, TransformsToResourceCollection, UseResource,
+            Conditional, JsonOptions, JsonResource, ModelResource, ResourceCollection,
+            ResourceItems, ResourceResult, ResourceWrapping, TransformsToResourceCollection,
+            UseResource,
         },
     },
     pagination::{LengthAwarePaginator, PaginatorOptions},
@@ -144,6 +145,10 @@ impl JsonResource for IndexedAccounts {
         Some("accounts")
     }
 
+    fn jsonOptions(&self) -> JsonOptions {
+        JsonOptions::default().prettyPrint()
+    }
+
     fn with(&self, request: &Request) -> ResourceResult<Map<String, Json>> {
         let mut fields = self.0.with(request)?;
         fields.insert("source".into(), json!("indexed"));
@@ -204,6 +209,30 @@ impl JsonResource for AccountResource {
 }
 
 struct Plain(Json);
+
+struct FractionalResource(f64);
+
+#[allow(non_snake_case, reason = "Implements the JSON resource contract")]
+impl JsonResource for FractionalResource {
+    fn toArray(&self, _: &Request) -> ResourceResult<Json> {
+        Ok(json!({"reading_time":self.0,"path":"/café/😀"}))
+    }
+
+    fn defaultJsonOptions() -> JsonOptions {
+        JsonOptions::default()
+            .prettyPrint()
+            .escapeSlashes()
+            .escapeUnicode()
+    }
+
+    fn withResponse(&self, _: &Request, response: &mut Response) -> ResourceResult<()> {
+        response
+            .parts_mut()
+            .headers
+            .insert("x-resource", "fractional".parse().unwrap());
+        Ok(())
+    }
+}
 
 struct Preserved(Json);
 
@@ -289,6 +318,15 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/pivots", pivots)?;
     keyed_routes()?;
     resolved_routes()?;
+    Route::get("/encoded/single", || FractionalResource(3.0))?;
+    Route::get("/encoded/list", || {
+        ResourceCollection::new(vec![FractionalResource(3.0)])
+    })?;
+    Route::get("/encoded/page", || {
+        encoded_page(vec![FractionalResource(3.0)], 1)
+    })?;
+    Route::get("/encoded/empty", || encoded_page(Vec::new(), 99))?;
+    Route::get("/encoded/document", encoded_document)?;
     Route::get("/failed", || -> ResourceResult<Plain> {
         Err(HttpError::InvalidRequest)
     })?;
@@ -302,6 +340,38 @@ fn routes() -> Result<(), RoutingError> {
         Ok(new.toResourceWith::<ModelResource<_>>())
     })?;
     Ok(())
+}
+
+fn encoded_page(
+    items: Vec<FractionalResource>,
+    page: u64,
+) -> ResourceCollection<FractionalResource> {
+    ResourceCollection::new(
+        LengthAwarePaginator::new(
+            items,
+            2,
+            1,
+            Some(page),
+            PaginatorOptions {
+                path: Some("/api/encoded/page"),
+                ..PaginatorOptions::default()
+            },
+        )
+        .unwrap(),
+    )
+}
+
+fn encoded_document(request: &mut Request) -> HttpFuture<'_, ResourceResult<Response>> {
+    Box::pin(async move {
+        let resource = Plain(json!({"reading_time":3.0}));
+        Response::json(
+            openrust::http::StatusCode::OK,
+            json!({
+                "compact": resource.toJson(request)?,
+                "pretty": resource.toPrettyJson(request)?,
+            }),
+        )
+    })
 }
 
 fn resolved_routes() -> Result<(), RoutingError> {
@@ -650,6 +720,17 @@ async fn request(
     headers: &str,
     status: u16,
 ) -> (String, Json) {
+    let (header, body) = request_raw(address, method, path, headers, status).await;
+    (header, serde_json::from_str(&body).unwrap())
+}
+
+async fn request_raw(
+    address: SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &str,
+    status: u16,
+) -> (String, String) {
     timeout(Duration::from_secs(5), async {
         let mut stream = TcpStream::connect(address).await.unwrap();
         stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nAccept: application/json\r\nConnection: close\r\n{headers}\r\n").as_bytes()).await.unwrap();
@@ -657,7 +738,7 @@ async fn request(
         stream.read_to_string(&mut response).await.unwrap();
         assert!(response.starts_with(&format!("HTTP/1.1 {status} ")), "{path} {response}");
         let (header, body) = response.split_once("\r\n\r\n").unwrap();
-        (header.to_owned(), serde_json::from_str(body).unwrap())
+        (header.to_owned(), body.to_owned())
     }).await.unwrap()
 }
 
@@ -794,6 +875,7 @@ async fn verify(config: Json) {
     assert!(created["data"].get("password").is_none());
     verify_collection_keys(address).await;
     verify_resolved_resources(address).await;
+    verify_json_options(address).await;
     server.abort();
     connection
         .statement("DROP TABLE resource_accounts", &[])
@@ -805,8 +887,42 @@ async fn verify(config: Json) {
         .unwrap();
 }
 
+async fn verify_json_options(address: SocketAddr) {
+    for endpoint in ["single", "list", "page"] {
+        let (headers, body) =
+            request_raw(address, "GET", &format!("/api/encoded/{endpoint}"), "", 200).await;
+        assert!(headers.contains("content-type: application/json"));
+        assert_eq!(
+            headers.contains("x-resource: fractional"),
+            endpoint == "single"
+        );
+        assert!(body.starts_with("{\n    \"data\":"));
+        assert!(body.contains(r#""reading_time": 3.0"#));
+        assert!(body.contains(r#""path": "\/caf\u00e9\/\ud83d\ude00""#));
+        let data: Json = serde_json::from_str(&body).unwrap();
+        let item = if endpoint == "single" {
+            &data["data"]
+        } else {
+            &data["data"][0]
+        };
+        assert_eq!(item["path"], "/café/😀");
+        if endpoint == "page" {
+            assert_eq!(data["links"]["next"], "/api/encoded/page?page=2");
+            assert!(body.contains(r#""next": "\/api\/encoded\/page?page=2""#));
+        }
+    }
+    let (_, empty) = request_raw(address, "GET", "/api/encoded/empty", "", 200).await;
+    assert!(empty.starts_with("{\n    \"data\": []"));
+    assert!(empty.contains(r#""path": "\/api\/encoded\/page""#));
+    let (_, documents) = request(address, "GET", "/api/encoded/document", "", 200).await;
+    assert_eq!(documents["compact"], "{\"reading_time\":3.0}");
+    assert_eq!(documents["pretty"], "{\n    \"reading_time\": 3.0\n}");
+}
+
 async fn verify_resolved_resources(address: SocketAddr) {
-    let (headers, payload) = request(address, "GET", "/api/resolved", "", 200).await;
+    let (headers, body) = request_raw(address, "GET", "/api/resolved", "", 200).await;
+    assert!(body.starts_with("{\n    \"accounts\":"));
+    let payload: Json = serde_json::from_str(&body).unwrap();
     assert!(headers.contains("x-resource: indexed"));
     assert_eq!(payload["source"], "indexed");
     assert_eq!(payload["accounts"]["10"]["id"], 1);

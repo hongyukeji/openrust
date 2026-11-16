@@ -5,7 +5,7 @@ use crate::{
     http::{Request, Response, StatusCode},
 };
 
-use super::{JsonResource, ResourceCollection, ResourceItems, ResourceResult};
+use super::{JsonOptions, JsonResource, ResourceCollection, ResourceItems, ResourceResult};
 
 /// Declares the default resource associated with an Eloquent model.
 #[allow(non_snake_case, reason = "Matches Laravel's resource API")]
@@ -53,6 +53,13 @@ enum ResolvedCollection<C, R> {
 }
 
 impl<C: JsonResource, R: JsonResource> JsonResource for ResolvedCollection<C, R> {
+    fn jsonOptions(&self) -> JsonOptions {
+        match self {
+            Self::Declared(resource) => resource.jsonOptions(),
+            Self::Empty(resource) => resource.jsonOptions(),
+        }
+    }
+
     fn toArray(&self, request: &Request) -> ResourceResult<Value> {
         match self {
             Self::Declared(resource) => resource.toArray(request),

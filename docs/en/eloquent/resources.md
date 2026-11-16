@@ -26,6 +26,32 @@ impl JsonResource for StatusResource {
 }
 ```
 
+### JSON Response Options {#json-response-options}
+
+Set `defaultJsonOptions` on a resource to choose the wire format for single responses, collections, and empty pages. Override `jsonOptions` for an instance-specific format. A non-empty collection uses its first resource’s options. Serde keeps fractional zeroes such as `3.0` by default. `JsonOptions` can indent output or escape slashes and Unicode characters while leaving decoded values unchanged.
+
+Use `toJson(request)` or `toPrettyJson(request)` to serialize the projected resource directly. HTTP responses apply the options to the whole document, including pagination links and metadata.
+
+```rust
+use openrust::http::{
+    Request,
+    resources::json::{JsonOptions, JsonResource, ResourceResult},
+};
+use serde_json::{Value, json};
+
+pub struct ReadingResource(pub f64);
+
+impl JsonResource for ReadingResource {
+    fn toArray(&self, _: &Request) -> ResourceResult<Value> {
+        Ok(json!({"reading_time": self.0, "path": "/café"}))
+    }
+
+    fn defaultJsonOptions() -> JsonOptions {
+        JsonOptions::default().prettyPrint().escapeSlashes().escapeUnicode()
+    }
+}
+```
+
 ### Application Resource Wrapping {#application-resource-wrapping}
 
 Register `ResourceWrapping` in the application container to change its default `data` wrapper. Use `ResourceWrapping::wrap("items")` for a different key, or `withoutWrapping()` to disable wrapping on ordinary responses. Named resource wrappers and explicit `response().wrap(...)` and `withoutWrapping()` choices take precedence.
