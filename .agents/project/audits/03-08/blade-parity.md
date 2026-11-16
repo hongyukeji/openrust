@@ -25,3 +25,9 @@
 | Extending Blade、Custom Echo Handlers、Custom If Statements | 应用注册 Rust 自定义指令，回调显式返回待转义文本或可信 HTML。 | PHP 表达式生成改用 Rust 回调，面向任意 PHP 对象的自动输出处理和自定义条件指令仍待确定 Rust 接口。 |
 
 03-07 和 03-08 保持部分验收状态。
+
+## 本阶段验收与缓存回收
+
+各批本地提交依次为 `30fd551b`、`ae2ca44a`、`724a5e38`、`35e69a74`、`a06be16d`、`171d8490`、`da5da518`、`7c71b4b1`、`9600a50b`。
+
+结束时使用 `cargo clean --target-dir` 回收隔离 Cargo 编译产物 3.3 GiB。文档站、浏览器及验收临时目录移入废纸篓。项目目录 `df -kP .` 复查可用 112,447,288 KiB（115.15 GB／107.24 GiB）。
