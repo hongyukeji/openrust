@@ -1593,28 +1593,41 @@ impl<M: Model> Builder<'static, M> {
     pub(super) async fn chunk_hydrated<Fut>(
         self,
         count: u64,
-        mut hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()>,
+        hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()> + Send,
         mut callback: impl FnMut(Collection<M>, u64) -> Fut,
     ) -> DatabaseResult<bool>
     where
         Fut: Future<Output = DatabaseResult<bool>>,
     {
-        let key = self.qualifyColumn(M::metadata().primary_key);
-        let (query, hydration) = self.hydration_query()?;
-        let mut query = query.order_for_pagination(&key);
-        let mut pages = query.chunk_pages(count);
+        let mut batches = self.chunk_collections(count, hydrate);
         let mut page = 1;
-        while let Some(rows) = pages.try_next().await? {
-            let mut models = hydration.rows(rows);
-            hydrate(&mut models, &hydration.connection)?;
-            super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
-            load_eager(hydration.eager.clone(), &mut models).await?;
-            if !callback(M::newCollection(models), page).await? {
+        while let Some(models) = batches.try_next().await? {
+            if !callback(models, page).await? {
                 return Ok(false);
             }
             page += 1;
         }
         Ok(true)
+    }
+
+    pub(super) fn chunk_collections<'a>(
+        self,
+        count: u64,
+        mut hydrate: impl FnMut(&mut [M], &Connection) -> DatabaseResult<()> + Send + 'a,
+    ) -> DatabaseCursor<'a, Collection<M>> {
+        Box::pin(async_stream::try_stream! {
+            let key = self.qualifyColumn(M::metadata().primary_key);
+            let (query, hydration) = self.hydration_query()?;
+            let mut query = query.order_for_pagination(&key);
+            let mut pages = query.chunk_pages(count);
+            while let Some(rows) = pages.try_next().await? {
+                let mut models = hydration.rows(rows);
+                hydrate(&mut models, &hydration.connection)?;
+                super::concerns::has_events::retrieved(&mut models, &hydration.connection).await?;
+                load_eager(hydration.eager.clone(), &mut models).await?;
+                yield M::newCollection(models);
+            }
+        })
     }
 
     /// Hydrates models as the query yields rows. Eager relations require a batched query.

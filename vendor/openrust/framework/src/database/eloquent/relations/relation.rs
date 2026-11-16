@@ -252,6 +252,17 @@ impl<P: Model, R: Model> RelationKeys<P, R> {
         })
     }
 
+    pub(super) fn owner_query(&self, child: &P) -> DatabaseResult<Option<Builder<'static, R>>> {
+        let keys = ParentKeys::new(&[child], self.parent)?;
+        if keys.bindings.is_empty() {
+            return Ok(None);
+        }
+        let connection = self.connection(child)?;
+        let query = self.configure(R::queryOn(&connection))?;
+        let owner = query.qualifyColumn(self.related);
+        Ok(Some(query.restrict_relation(&owner, &keys.bindings)))
+    }
+
     pub fn connection(&self, parent: &P) -> DatabaseResult<Connection> {
         if let Some(name) = R::metadata().connection
             && parent.getConnectionName() != Some(name)

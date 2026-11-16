@@ -1277,6 +1277,21 @@ async fn process_children<P: Model, R: Model>(
 }
 ```
 
+反向关系可调用 `BelongsTo::chunk(child, count, callback)` 或 `MorphTo::chunk(parent, count, callback)`。回调收到已持久化的模型。`BelongsTo` 提供类型化的 Eloquent 集合。`MorphTo` 按多态类型选择已注册的目标，提供保留目标模型集合键的通用 `Collection<MorphTarget>`。可用 `alias()` 判断别名，或用 `downcast_ref::<M>()` 取得具体模型。缺少关联记录时没有批次。默认模型由关系加载接口提供。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> DatabaseResult<bool> {
+    subject.chunk(parent, 100, |targets, _page| async move {
+        for (_, target) in targets {
+            println!("{}", target.alias());
+        }
+        Ok(true)
+    }).await
+}
+```
+
 ## 触碰父模型时间戳 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中声明所属关系。新增子模型或保存有变更的子模型时，框架使用已持久化的外键和关系查询作用域更新所属模型的时间戳。找不到所属模型时跳过。所属模型触发 `Saved`，并递归触碰其声明的所属模型。每次保存对同一所属模型只触碰一次。使用 `saveInTransaction` 时，所属模型的查询、写入和事件共享该事务，要求使用同一个连接。

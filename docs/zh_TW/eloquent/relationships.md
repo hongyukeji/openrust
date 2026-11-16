@@ -1277,6 +1277,21 @@ async fn process_children<P: Model, R: Model>(
 }
 ```
 
+反向關聯可呼叫 `BelongsTo::chunk(child, count, callback)` 或 `MorphTo::chunk(parent, count, callback)`。回呼收到已持久化的模型。`BelongsTo` 提供型別化的 Eloquent 集合。`MorphTo` 依多型類型選擇已註冊的目標，提供保留目標模型集合鍵的通用 `Collection<MorphTarget>`。可用 `alias()` 判斷別名，或用 `downcast_ref::<M>()` 取得具體模型。缺少關聯紀錄時沒有批次。預設模型由關聯載入介面提供。
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> DatabaseResult<bool> {
+    subject.chunk(parent, 100, |targets, _page| async move {
+        for (_, target) in targets {
+            println!("{}", target.alias());
+        }
+        Ok(true)
+    }).await
+}
+```
+
 ## 觸碰父模型時間戳記 {#touching-parent-timestamps}
 
 在模型的 `touches()` 方法中宣告所屬關聯。新增子模型或儲存有變更的子模型時，框架使用已持久化的外鍵和關聯查詢作用域更新所屬模型的時間戳記。找不到所屬模型時跳過。所屬模型觸發 `Saved`，並遞迴觸碰其宣告的所屬模型。每次儲存對同一所屬模型只觸碰一次。使用 `saveInTransaction` 時，所屬模型的查詢、寫入和事件共用該交易，且必須使用相同連線。

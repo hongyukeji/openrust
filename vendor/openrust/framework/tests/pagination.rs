@@ -256,6 +256,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/model-cursor", model_cursor_page)?;
     Route::get("/relationship-cursor", relationship_cursor_page)?;
     Route::get("/relationship-chunk", relationship_chunk_page)?;
+    Route::get("/inverse-chunk", inverse_chunk_page)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -1495,6 +1496,145 @@ fn relationship_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, H
     })
 }
 
+fn inverse_chunk_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        use openrust::database::DatabaseError;
+        use std::future::ready;
+
+        async fn verify_batches() -> DatabaseResult<Json> {
+            let article_association = BelongsTo::<Activity, Article>::new("subject_id", "id")
+                .withDefault(|_, _| panic!("query should not create a default model"));
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            assert!(
+                !article_association
+                    .chunk(&activities[0], 1, |models, page| {
+                        assert_eq!(page, 1);
+                        assert_eq!(models.len(), 1);
+                        assert_eq!(id(models[0].getKey()), 1);
+                        ready(Ok(false))
+                    })
+                    .await?
+            );
+            assert!(
+                article_association
+                    .chunk(&activities[4], 1, |_, _| unexpected_batch())
+                    .await?
+            );
+            assert!(matches!(
+                article_association
+                    .chunk(&activities[4], 0, |_, _| unexpected_batch())
+                    .await,
+                Err(DatabaseError::InvalidQuery("chunk size must be positive"))
+            ));
+
+            let subject = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .constrain::<Article>("article", "category", |query| {
+                    query.orderBy("id", "desc").with(
+                        "comments",
+                        HasMany::<Article, Comment>::new("id", "article_id"),
+                    )
+                })
+                .target::<KeyedLabel>("label", "id")
+                .constrain::<Comment>("comment", "id", |mut query| {
+                    query.r#where("visible", "=", 0);
+                    query
+                })
+                .withDefault::<KeyedLabel>("label", |_, _| {
+                    panic!("query should not create a default model")
+                })?
+                .defaultForMissingType("label")?;
+            assert!(
+                subject
+                    .chunk(&activities[4], 1, |_, _| unexpected_batch())
+                    .await?
+            );
+            let mut draft = Activity::newInstance(Attributes::new())?;
+            draft
+                .setAttribute("subject_type", "article")
+                .setAttribute("subject_id", "a");
+            let mut owners = Vec::new();
+            assert!(
+                subject
+                    .chunk(&draft, 1, |models, page| {
+                        assert_eq!(models.count(), 1);
+                        let target = models.first().unwrap();
+                        assert_eq!(target.alias(), "article");
+                        let article = target.downcast_ref::<Article>().unwrap();
+                        assert!(article.relationLoaded("comments"));
+                        owners.push(json!([page, id(article.getKey())]));
+                        ready(Ok(true))
+                    })
+                    .await?
+            );
+
+            assert!(
+                !subject
+                    .chunk(&draft, 1, |_, page| {
+                        assert_eq!(page, 1);
+                        ready(Ok(false))
+                    })
+                    .await?
+            );
+            assert!(matches!(
+                subject
+                    .chunk(&draft, 1, |_, page| {
+                        assert_eq!(page, 1);
+                        ready(Err(DatabaseError::InvalidQuery("inverse callback")))
+                    })
+                    .await,
+                Err(DatabaseError::InvalidQuery("inverse callback"))
+            ));
+
+            subject
+                .chunk(&activities[1], 10, |models, page| {
+                    assert_eq!(page, 1);
+                    let target = models.get("label-2").unwrap();
+                    assert_eq!(target.alias(), "label");
+                    assert_eq!(id(target.downcast_ref::<KeyedLabel>().unwrap().getKey()), 2);
+                    ready(Ok(true))
+                })
+                .await?;
+            draft
+                .setAttribute("subject_type", "label")
+                .setAttribute("subject_id", 999);
+            assert!(subject.chunk(&draft, 1, |_, _| unexpected_batch()).await?);
+            draft
+                .setAttribute("subject_type", "comment")
+                .setAttribute("subject_id", 11);
+            assert!(subject.chunk(&draft, 1, |_, _| unexpected_batch()).await?);
+            draft.setAttribute("subject_id", 16);
+            assert!(subject.chunk(&draft, 1, |_, _| unexpected_batch()).await?);
+            let subject = subject.withTrashed();
+            subject
+                .chunk(&draft, 1, |models, _| {
+                    assert_eq!(
+                        id(models
+                            .first()
+                            .unwrap()
+                            .downcast_ref::<Comment>()
+                            .unwrap()
+                            .getKey()),
+                        16
+                    );
+                    ready(Ok(true))
+                })
+                .await?;
+            draft.setAttribute("subject_type", "unregistered");
+            assert!(matches!(
+                subject.chunk(&draft, 1, |_, _| unexpected_batch()).await,
+                Err(DatabaseError::InvalidQuery("unknown morph type"))
+            ));
+            Ok(json!(owners))
+        }
+
+        fn unexpected_batch() -> std::future::Ready<DatabaseResult<bool>> {
+            panic!("callback invoked for missing rows")
+        }
+
+        Response::json(StatusCode::OK, verify_batches().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2075,6 +2215,10 @@ async fn verify(config: Json) -> DatabaseResult<()> {
         json!([[1, ["red", "blue"]], [2, ["green"]]])
     );
     assert_eq!(chunks["raw"], json!([[1, [3, 4]], [2, [5]]]));
+    assert_eq!(
+        request(address, "/api/inverse-chunk").await,
+        json!([[1, 2], [2, 1]])
+    );
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

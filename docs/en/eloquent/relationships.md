@@ -1277,6 +1277,21 @@ async fn process_children<P: Model, R: Model>(
 }
 ```
 
+For inverse relationships, use `BelongsTo::chunk(child, count, callback)` or `MorphTo::chunk(parent, count, callback)`. The callbacks receive persisted models. `BelongsTo` supplies a typed Eloquent collection. `MorphTo` selects the registered target using the morph type and supplies a support `Collection<MorphTarget>` that preserves the selected model’s collection keys. Use `alias()` or `downcast_ref::<M>()` on each target. Missing references produce zero batches. Configured default models are available through relationship loading.
+
+```rust
+use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
+
+async fn process_subject<P: Model>(parent: &P, subject: &MorphTo<P>) -> DatabaseResult<bool> {
+    subject.chunk(parent, 100, |targets, _page| async move {
+        for (_, target) in targets {
+            println!("{}", target.alias());
+        }
+        Ok(true)
+    }).await
+}
+```
+
 ## Touching parent timestamps {#touching-parent-timestamps}
 
 Declare a typed belongs-to relation in your model’s `touches()` method to update the owner’s timestamp when a child is inserted or saved with changes. OpenRust uses the persisted foreign key and the relationship’s scopes. A missing owner is skipped. The owner emits `Saved` and its own declared owners are touched recursively. Each owner is touched once per save. With `saveInTransaction`, owner queries, writes and events use that transaction, so declared owners must use the same connection.

@@ -32,15 +32,30 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         Self(RelationKeys::new(foreign_key, owner_key), None, None)
     }
 
+    /// Processes persisted owners that match the child's foreign key.
+    pub async fn chunk<Fut>(
+        &self,
+        child: &P,
+        count: u64,
+        callback: impl FnMut(crate::database::eloquent::Collection<R>, u64) -> Fut,
+    ) -> DatabaseResult<bool>
+    where
+        Fut: Future<Output = DatabaseResult<bool>>,
+    {
+        if count == 0 {
+            return Err(DatabaseError::InvalidQuery("chunk size must be positive"));
+        }
+        let Some(query) = self.0.owner_query(child)? else {
+            return Ok(true);
+        };
+        query.chunk(count, callback).await
+    }
+
     /// Streams the persisted owner when a foreign key is present.
     pub fn cursor<'a>(&'a self, child: &'a P) -> DatabaseCursor<'a, R> {
         Box::pin(async_stream::try_stream! {
-            let keys = super::relation::ParentKeys::new(&[child], self.0.parent)?;
-            if !keys.bindings.is_empty() {
-                let connection = self.0.connection(child)?;
-                let query = self.0.configure(R::queryOn(&connection))?;
-                let owner = query.qualifyColumn(self.0.related);
-                let mut models = query.restrict_relation(&owner, &keys.bindings).cursor();
+            if let Some(query) = self.0.owner_query(child)? {
+                let mut models = query.cursor();
                 while let Some(model) = models.try_next().await? {
                     yield model;
                 }
