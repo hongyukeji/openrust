@@ -53,8 +53,6 @@ const LARAVEL: &[(&str, &str)] = &[
     ("dev", "Start the configured development processes"),
     ("dev:list", "Show registered development processes"),
     ("docs", "Open the documentation for a topic"),
-    ("env:decrypt", "Decrypt an encrypted environment file"),
-    ("env:encrypt", "Encrypt an environment file"),
     ("event:cache", "Cache event and listener registrations"),
     ("event:clear", "Remove the cached event registrations"),
     ("key:generate", "Generate an application encryption key"),

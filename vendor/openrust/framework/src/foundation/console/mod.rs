@@ -3,6 +3,7 @@
 mod channel_list_command;
 mod console_make_command;
 mod environment_command;
+mod environment_encryption_command;
 mod event_cache_command;
 mod event_clear_command;
 mod event_list_command;
@@ -92,6 +93,7 @@ impl Kernel {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
                             environment_command::register(&mut self.artisan)?;
+                            environment_encryption_command::register(&mut self.artisan)?;
                             event_cache_command::register(&mut self.artisan)?;
                             event_clear_command::register(&mut self.artisan)?;
                             event_list_command::register(&mut self.artisan)?;

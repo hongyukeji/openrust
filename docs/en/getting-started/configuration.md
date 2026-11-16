@@ -32,6 +32,21 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 Use `Config::set` to change a value in the current application. The `string`, `integer`, `float`, `boolean`, `array`, and `collection` methods check the value type. `array` accepts JSON lists and objects, and `collection` preserves their keys.
 
+## Environment File Encryption {#environment-file-encryption}
+
+Use `env:encrypt` to create an encrypted copy of an environment file. Set `ENV_ENCRYPTION_KEY` in the process environment before running `env:decrypt`, or supply `--key`. If encryption generates a key, copy the displayed `base64:` value to your secret store separately from the encrypted file.
+
+```sh
+./artisan env:encrypt --env=staging --no-interaction
+./artisan env:decrypt --env=staging --force --no-interaction
+```
+
+The default cipher is AES-256-CBC. Supply the same `--cipher` for encryption and decryption when choosing AES-128-CBC, AES-128-GCM or AES-256-GCM. `--env=staging` selects `.env.staging` and `.env.staging.encrypted`. Without `--env`, the encrypted source follows the environment file selected by bootstrap, and decryption writes `.env` by default.
+
+Use `--readable` to encrypt values individually and keep variable names visible. A later readable run with the same key reuses unchanged ciphertext. Use `--force` to replace existing output and `--prune` to remove the source after successful encryption. For decryption, `--path` and `--filename` select the output directory and name.
+
+A supplied key is kept out of command output. When using `--quiet` or `--silent` for encryption, supply a key so you can decrypt the output later.
+
 <a id="determining-the-current-environment"></a>
 
 ## Determining the current environment

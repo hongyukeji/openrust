@@ -32,6 +32,21 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 以 `Config::set` 更新目前應用程式的設定。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 檢查值的型別。`array` 接受 JSON 清單和物件，`collection` 保留集合鍵。
 
+## 環境檔案加密 {#environment-file-encryption}
+
+使用 `env:encrypt` 建立加密副本。執行 `env:decrypt` 前在程序環境中設定 `ENV_ENCRYPTION_KEY`，或傳入 `--key`。若由加密指令產生金鑰，請將輸出的 `base64:` 值儲存至金鑰管理系統，與加密檔案分開保管。
+
+```sh
+./artisan env:encrypt --env=staging --no-interaction
+./artisan env:decrypt --env=staging --force --no-interaction
+```
+
+預設密碼演算法為 AES-256-CBC。選用 AES-128-CBC、AES-128-GCM 或 AES-256-GCM 時，加密與解密需使用相同的 `--cipher`。`--env=staging` 選擇 `.env.staging` 與 `.env.staging.encrypted`。省略 `--env` 時，加密來源由啟動時選擇的環境檔案決定，解密預設寫入 `.env`。
+
+使用 `--readable` 逐項加密，變數名稱保持可見。之後用相同金鑰更新可讀密文，值未改變的項目會沿用原密文。`--force` 覆寫既有輸出，`--prune` 在加密成功後刪除明文。解密時可用 `--path` 和 `--filename` 指定目標目錄與檔名。
+
+指令不會回顯手動傳入的金鑰。加密時使用 `--quiet` 或 `--silent` 需傳入金鑰，以便日後解密。
+
 <a id="determining-the-current-environment"></a>
 
 ## 確定目前環境

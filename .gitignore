@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+!.env.encrypted
+!.env.*.encrypted
 
 # Build output and dependencies
 /target/
