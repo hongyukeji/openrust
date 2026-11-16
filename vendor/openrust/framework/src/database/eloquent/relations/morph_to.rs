@@ -826,6 +826,9 @@ impl<P: Model> MorphTo<P> {
             .targets
             .get_key_value(alias)
             .ok_or(DatabaseError::InvalidQuery("unknown morph type"))?;
+        if alias.is_empty() {
+            return Err(DatabaseError::InvalidQuery("empty morph type"));
+        }
         if target.model_type() != TypeId::of::<R>() {
             return Err(DatabaseError::InvalidQuery(
                 "morph type does not match model",
@@ -844,6 +847,7 @@ impl<P: Model> MorphTo<P> {
             .getAttribute(target.owner_key())
             .filter(|value| !matches!(value, Value::Null))
             .ok_or(DatabaseError::InvalidQuery("relationship owner key"))?;
+        dictionary_key(Some(key))?;
         update_association_cache::<Self>(model, self.relation_name, || {
             Some(Some(MorphTarget {
                 alias,

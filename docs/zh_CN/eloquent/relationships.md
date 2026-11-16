@@ -217,6 +217,8 @@ pub fn subjects<P: Model, R: Model>(
 
 使用 `named("subject")` 为 `MorphTo` 指定关系名，赋值后即可读取该关系。`associate` 设置别名和所有者键，并缓存传入模型的快照。`dissociate` 将两列置空，并缓存已加载的空关系。调用 `save().await?` 持久化父模型。其他已加载关系仍可读取。未命名描述符沿用清除关系缓存的行为。
 
+关联赋值使用该别名登记的所有者键，零值也会写入。只选择部分所有者列时，关联赋值和批量匹配都需要保留该键。所有者键缺失、为 NULL、类型不受支持，或类型别名为空时，调用会在修改子模型和关系缓存前返回错误。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 

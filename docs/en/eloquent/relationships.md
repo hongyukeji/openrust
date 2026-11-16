@@ -217,6 +217,8 @@ pub fn subjects<P: Model, R: Model>(
 
 Name the `MorphTo` descriptor with `named("subject")` to update that relationship immediately. `associate` sets the stored alias and owner key and caches a snapshot of the supplied model. `dissociate` clears both columns and caches an empty relationship. Call `save().await?` to persist the parent. Other loaded relationships remain available. Unnamed descriptors retain the existing cache-clearing behavior.
 
+Association stores the owner key registered for the alias, including zero. When selecting a subset of owner columns, include that key for association and batch matching. A missing, null, or unsupported owner key and an empty alias return an error before the child or its relationship cache is changed.
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 

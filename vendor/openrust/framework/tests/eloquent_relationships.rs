@@ -1105,6 +1105,7 @@ async fn verify_belongs_to_owner_keys(
     );
 
     let subjects = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .named("subject")
         .constrain::<Author>("0", "mentor_id", |query| query.orderBy("id", "asc"))
         .constrain::<Author>("author", "mentor_id", |query| query.orderBy("id", "desc"));
     let mut numeric_alias = Comment::queryOn(db).make(Attributes::new()).unwrap();
@@ -1156,6 +1157,69 @@ async fn verify_belongs_to_owner_keys(
     if mysql {
         assert_eq!(select_count(db).await - baseline, 2);
     }
+
+    let mut record = Comment::queryOn(db)
+        .create(Attributes::from([(
+            "body".into(),
+            "owner key round trip".into(),
+        )]))
+        .await
+        .unwrap();
+    let selected = Author::queryOn(db)
+        .select(["id", "mentor_id"])
+        .findOrFail(first_key.clone())
+        .await
+        .unwrap();
+    subjects.associate(&mut record, "0", &selected).unwrap();
+    assert_eq!(record.getAttribute("subject_id"), Some(&0.into()));
+    assert_eq!(record.getAttribute("subject_type"), Some(&"0".into()));
+    record.save().await.unwrap();
+    let mut stored = Comment::queryOn(db)
+        .findOrFail(record.getKey().unwrap().clone())
+        .await
+        .unwrap();
+    let loaded = stored
+        .getRelationOrLoad("subject", &subjects)
+        .await
+        .unwrap()
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        loaded.downcast_ref::<Author>().unwrap().getKey(),
+        Some(first_key)
+    );
+
+    let projected = MorphTo::<Comment>::new("subject_type", "subject_id").constrain::<Author>(
+        "0",
+        "mentor_id",
+        |q| q.select(["id"]).orderBy("id", "asc"),
+    );
+    let read = projected.getResults(&stored).await.unwrap().unwrap();
+    let read = read.downcast_ref::<Author>().unwrap();
+    assert_eq!(read.getKey(), Some(first_key));
+    assert!(read.getAttribute("mentor_id").is_none());
+    assert!(projected.matchResults(&[&stored]).await.unwrap()[0].is_none());
+
+    let before = stored.toArray().unwrap();
+    assert!(matches!(
+        subjects.associate(&mut stored, "0", read),
+        Err(DatabaseError::InvalidQuery("relationship owner key"))
+    ));
+    let mut invalid = Author::from_state(selected.state().clone());
+    invalid.setAttribute("mentor_id", Value::Json(json!({ "id": 0 })));
+    assert!(matches!(
+        subjects.associate(&mut stored, "0", &invalid),
+        Err(DatabaseError::InvalidQuery("relationship key type"))
+    ));
+    let untyped = MorphTo::<Comment>::new("subject_type", "subject_id")
+        .named("subject")
+        .target::<Author>("", "mentor_id");
+    assert!(matches!(
+        untyped.associate(&mut stored, "", &selected),
+        Err(DatabaseError::InvalidQuery("empty morph type"))
+    ));
+    assert_eq!(stored.toArray().unwrap(), before);
+    record.forceDelete().await.unwrap();
 
     for author in [first, second] {
         db.statement(

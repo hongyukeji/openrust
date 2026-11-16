@@ -217,6 +217,8 @@ pub fn subjects<P: Model, R: Model>(
 
 使用 `named("subject")` 為 `MorphTo` 指定關聯名稱，設定後即可讀取該關聯。`associate` 設定別名及擁有者鍵，並快取傳入模型的快照。`dissociate` 將兩欄設為空值，並快取已載入的空關聯。呼叫 `save().await?` 持久化父模型。其他已載入關聯仍可讀取。未命名的描述符沿用清除關聯快取的行為。
 
+關聯賦值使用該別名登錄的所屬鍵，零值也會寫入。只選取部分所屬欄位時，關聯賦值和批次比對皆須保留該鍵。所屬鍵缺少、為 NULL、型別不受支援，或類型別名為空時，呼叫會在修改子模型與關聯快取前回傳錯誤。
+
 ```rust
 use openrust::database::{DatabaseResult, eloquent::{Model, relations::MorphTo}};
 
