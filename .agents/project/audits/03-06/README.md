@@ -72,3 +72,11 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - Rust 保留同步解析入口。工厂在注册表锁外执行，允许解析同一管理器中其他存储。并发首次解析共享已发布实例，检测同一管理器中的线程等待依赖环。工厂失败后可重试，创建中清除会防止旧实例回写缓存。
 - 基线 `169287c8e`，macOS arm64、Rust 1.94.0。固定 Laravel PHP 对照通过懒加载、配置传入、独立应用、按需创建、替换和清除。Rust 5 项专项验证并发、重入、循环依赖、失败重试及创建中清除。独立工程二进制使用自定义文件缓存驱动完成真实 HTTP 写入与读回，另一个实际 Artisan 进程运行 `cache:clear reports`，HTTP 再次读取未命中。
 - MySQL 8.4.13 与两个 Redis 8.10.3 下共通过 23 项缓存、事件与 memo 回归。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。回收临时夹具，清理本批 4.1 GiB Cargo 产物及文档缓存，磁盘可用 60.63 GB（56.46 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-custom-cache.m6ViKZVf`。
+
+## 空缓存驱动
+
+- 对照固定 Laravel [NullStore](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/NullStore.php)、[NoLock](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/NoLock.php) 和 CacheManager。openrust-v0.x 未提供此驱动，复用当前缓存 Repository、标签代际及锁所有者生成接口。
+- `null` 可按名称或 `CACHE_STORE=null` 解析，未配置默认存储的应用按 Laravel 选择 `null`。根应用的数据库默认值仍由配置提供。读取、批量读取和 pull 总是未命中，写入及续期返回 `false`，清理条目和锁成功。标签操作在不保留代际的存储中使用临时代际，保留失败和清理的可观察结果。
+- 无状态锁遵循 Laravel `NoLock`，获取、等待、续期和释放成功，同名锁没有互斥。Rust 用类型化 `MissingCounter` 表达 PHP 计数失败的 `false`。故障切换把这类结果视为本次操作的终点，避免改动备用存储。空仓库事件的存储名为空，与固定 Laravel 一致。
+- 隔离基线 `feba1f463`。固定 Laravel PHP 对照通过普通、标签、锁及故障切换路径。Rust 使用真实 HTTP 验证写入返回 `false`、后续读取未命中及写入失败事件。独立 Artisan 二进制的 `cache:forget`、按标签清理和批量清锁通过。
+- Rust 1.94.0、macOS arm64，MySQL 8.4.13 与 Redis 8.10.3 下通过 25 项缓存、驱动、事件及 memo 回归，另有 1 项限流回归通过。工作区严格 Clippy、变更文件格式、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告已有的 `sanctum_authentication.rs:1412`。临时夹具已回收，清理 3.9 GiB 隔离 Cargo 产物和文档缓存后，磁盘可用 60.58 GB（56.42 GiB），周额度剩余 70%。证据目录 `/private/tmp/openrust-03-06-null-cache.6XOGuKSd`。

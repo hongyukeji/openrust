@@ -19,8 +19,8 @@ use crate::{
 };
 
 use super::{
-    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, RedisStore,
-    Repository, backend,
+    ArrayStore, CacheError, CacheResult, DatabaseStore, FailoverStore, FileStore, NullStore,
+    RedisStore, Repository, backend,
     memoized_store::{MemoizedRepositories, MemoizedStore},
     store_registry::StoreRegistry,
 };
@@ -46,6 +46,7 @@ pub(super) struct CacheManagerState {
 #[serde(tag = "driver", rename_all = "snake_case")]
 enum Options {
     Array,
+    Null,
     Failover {
         stores: Vec<String>,
     },
@@ -119,7 +120,7 @@ impl CacheManager {
 
     pub fn getDefaultDriver(&self) -> CacheResult<String> {
         match self.inner.config.get("cache.default") {
-            None => Ok("database".into()),
+            None | Some(Value::Null) => Ok("null".into()),
             Some(serde_json::Value::String(name)) if !name.is_empty() => Ok(name),
             _ => Err(CacheError::InvalidConfiguration),
         }
@@ -191,6 +192,9 @@ impl CacheManager {
 
     /// Creates a fresh repository from a named store's configuration.
     pub fn resolve(&self, name: &str) -> CacheResult<Repository> {
+        if name == "null" {
+            return self.build(serde_json::json!({ "driver": "null", "store": "null" }));
+        }
         let mut config = self
             .inner
             .config
@@ -232,12 +236,16 @@ impl CacheManager {
         if let Some(factory) = factory {
             return factory(self, &config);
         }
-        if !matches!(driver, "array" | "file" | "database" | "redis" | "failover") {
+        if !matches!(
+            driver,
+            "array" | "file" | "database" | "redis" | "failover" | "null"
+        ) {
             return Err(CacheError::UnsupportedDriver);
         }
         let options =
             Options::deserialize(&config).map_err(|_| CacheError::InvalidConfiguration)?;
         let store: Arc<dyn Store> = match options {
+            Options::Null => return self.repository(Arc::new(NullStore), &Value::Null),
             Options::Array => Arc::new(ArrayStore::new()),
             Options::Failover { stores } => Arc::new(FailoverStore::new(
                 Arc::downgrade(&self.inner),
@@ -312,10 +320,7 @@ impl CacheManager {
         };
         let repository = Repository::new(store);
         if events {
-            let name = config
-                .get("store")
-                .and_then(Value::as_str)
-                .unwrap_or("ondemand");
+            let name = config.get("store").and_then(Value::as_str);
             Ok(repository.with_events(self.inner.owner.clone(), name))
         } else {
             Ok(repository)

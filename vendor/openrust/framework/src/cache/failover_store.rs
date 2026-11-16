@@ -92,7 +92,9 @@ impl FailoverStore {
                             Err(error) => Err(error),
                         };
                         match &outcome {
-                            Ok(_) => break,
+                            // Laravel stores can return false for a missing counter. It
+                            // ends failover even though Rust represents it as a typed error.
+                            Ok(_) | Err(CacheError::MissingCounter) => break,
                             Err(error) => failed.push(CacheFailedOver {
                                 storeName: name.clone(),
                                 exception: error.to_string(),

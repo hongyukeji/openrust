@@ -331,6 +331,11 @@ async fn mysql_and_redis_failover_retries_errors_and_prefers_the_recovered_prima
 
     db.statement("CREATE TABLE failover_probe (`key` VARCHAR(255) PRIMARY KEY, `value` LONGTEXT NOT NULL, expiration BIGINT NOT NULL)", &[]).await.unwrap();
     assert_eq!(failover.get("cached").await.unwrap(), None);
+    assert!(matches!(
+        failover.increment("new-counter", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert_eq!(backup.get("new-counter").await.unwrap(), None);
     let primary = manager.store(Some("database")).unwrap();
     let recovered = Value::from("mysql recovered");
     assert!(
@@ -538,32 +543,29 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
             .await
     }
 
-    async fn tags_action(action: &str) -> Result<Option<Value>, CacheError> {
-        match action {
-            "/write" => {
-                assert!(store_report().await?);
-                Ok(None)
-            }
-            "/flush" => {
-                Cache::tags(&["daily"])?.flush().await?;
-                Ok(None)
-            }
-            _ => Cache::tags(&["reports", "daily"])?.get("latest").await,
-        }
-    }
-
     fn endpoint(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+        async fn action(path: &str) -> Result<serde_json::Value, CacheError> {
+            match path {
+                "/write" => Ok(serde_json::json!(store_report().await?)),
+                "/flush" => {
+                    Cache::tags(&["daily"])?.flush().await?;
+                    Ok(serde_json::Value::Null)
+                }
+                _ => {
+                    let value = Cache::tags(&["reports", "daily"])?.get("latest").await?;
+                    Ok(serde_json::json!(value.as_ref().and_then(Value::as_str)))
+                }
+            }
+        }
+
         Box::pin(async move {
-            let result =
-                tags_action(request.uri().path())
+            let value =
+                action(request.uri().path())
                     .await
                     .map_err(|source| HttpError::Internal {
                         source: Box::new(source),
                     })?;
-            Response::json(
-                StatusCode::OK,
-                result.and_then(|value| value.as_str().map(str::to_owned)),
-            )
+            Response::json(StatusCode::OK, value)
         })
     }
 
@@ -586,39 +588,41 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
         |_| "CACHE_STORE=array\n".to_owned(),
         |url| format!("CACHE_STORE=redis\nCACHE_PREFIX=tags-http-\nREDIS_URL={url}\n"),
     );
-    let root = Sandbox::new("tags-http", &env);
-    let mut kernel = Kernel::new(
-        Application::configure(root.0.clone())
-            .withConfig(config::load)
-            .withRouting(Routing::new(routes))
-            .create()
-            .unwrap(),
-    );
-    kernel.bootstrap().await.unwrap();
-    let dispatcher = kernel
-        .get_application()
-        .container()
-        .make::<openrust::events::Dispatcher>()
-        .unwrap();
-    let events = dispatcher.fake(&[
-        openrust::cache::events::KeyWritten::NAME,
-        openrust::cache::events::CacheFlushed::NAME,
-    ]);
-    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
-    let address = listener.local_addr().unwrap();
-    let service = transport.with_state(Arc::new(kernel)).into_make_service();
-    let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
+    for (env, persists) in [(env.as_str(), true), ("CACHE_STORE=null\n", false)] {
+        let root = Sandbox::new("tags-http", env);
+        let mut kernel = Kernel::new(
+            Application::configure(root.0.clone())
+                .withConfig(config::load)
+                .withRouting(Routing::new(routes))
+                .create()
+                .unwrap(),
+        );
+        kernel.bootstrap().await.unwrap();
+        let dispatcher = kernel
+            .get_application()
+            .container()
+            .make::<openrust::events::Dispatcher>()
+            .unwrap();
+        let events = dispatcher.fake(&[
+            openrust::cache::events::KeyWritten::NAME,
+            openrust::cache::events::KeyWriteFailed::NAME,
+            openrust::cache::events::CacheFlushed::NAME,
+        ]);
+        let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let service = transport.with_state(Arc::new(kernel)).into_make_service();
+        let server = tokio::spawn(async move { axum::serve(listener, service).await.unwrap() });
 
-    timeout(Duration::from_secs(5), async {
-        for (method, path, expected) in [
-            ("GET", "/read", "null"),
-            ("POST", "/write", "null"),
-            ("GET", "/read", "\"ready\""),
-            ("POST", "/flush", "null"),
-            ("GET", "/read", "null"),
-        ] {
-            let mut stream = TcpStream::connect(address).await.unwrap();
-            stream
+        timeout(Duration::from_secs(5), async {
+            for (method, path, expected) in [
+                ("GET", "/read", "null"),
+                ("POST", "/write", if persists { "true" } else { "false" }),
+                ("GET", "/read", if persists { "\"ready\"" } else { "null" }),
+                ("POST", "/flush", "null"),
+                ("GET", "/read", "null"),
+            ] {
+                let mut stream = TcpStream::connect(address).await.unwrap();
+                stream
                 .write_all(
                     format!(
                         "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\n\r\n"
@@ -627,19 +631,27 @@ async fn cache_tags_facade_writes_reads_and_flushes_over_http() {
                 )
                 .await
                 .unwrap();
-            let mut response = String::new();
-            stream.read_to_string(&mut response).await.unwrap();
-            assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
-            assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected);
-        }
-    })
-    .await
-    .unwrap();
-    server.abort();
-    let _ = server.await;
-    events.assertDispatchedTimes(openrust::cache::events::KeyWritten::NAME, 1);
-    events.assertDispatchedTimes(openrust::cache::events::CacheFlushed::NAME, 1);
-    root.success(&["inspire"]);
+                let mut response = String::new();
+                stream.read_to_string(&mut response).await.unwrap();
+                assert!(response.starts_with("HTTP/1.1 200 "), "{path}: {response}");
+                assert_eq!(response.split_once("\r\n\r\n").unwrap().1, expected);
+            }
+        })
+        .await
+        .unwrap();
+        server.abort();
+        let _ = server.await;
+        events.assertDispatchedTimes(
+            openrust::cache::events::KeyWritten::NAME,
+            usize::from(persists),
+        );
+        events.assertDispatchedTimes(
+            openrust::cache::events::KeyWriteFailed::NAME,
+            usize::from(!persists),
+        );
+        events.assertDispatchedTimes(openrust::cache::events::CacheFlushed::NAME, 1);
+        root.success(&["inspire"]);
+    }
 }
 
 #[tokio::test]
@@ -982,4 +994,130 @@ async fn redis_lock_flush_distinguishes_servers_from_aliases() {
     assert!(!probe.get().await.unwrap());
     assert_eq!(backend.get("locks-db-marker").await.unwrap(), None);
     assert_eq!(cache.get("shared").await.unwrap(), Some("data".into()));
+}
+
+#[tokio::test]
+async fn null_store_discards_values_and_returns_nonexclusive_lock_handles() {
+    let mut fixture = openrust::testing::TestApp::create(|builder| builder).unwrap();
+    fixture.boot().await.unwrap();
+    let manager = fixture.app().container().make::<CacheManager>().unwrap();
+    assert_eq!(manager.getDefaultDriver().unwrap(), "null");
+    let unconfigured = manager.store(None).unwrap();
+    assert!(Arc::ptr_eq(
+        &unconfigured,
+        &manager.store(Some("null")).unwrap()
+    ));
+    assert_eq!(unconfigured.get("unconfigured").await.unwrap(), None);
+
+    let root = Sandbox::new("null-cache", "CACHE_STORE=null\n");
+    let cache = root.cache(None).await;
+    assert!(cache.supportsTags());
+    assert!(cache.supportsFlushingLocks());
+    assert!(
+        !cache
+            .get_store()
+            .lock_flusher()
+            .unwrap()
+            .hasSeparateLockStore()
+    );
+    assert_eq!(cache.get_store().get_prefix(), "");
+    assert_eq!(cache.get("one").await.unwrap(), None);
+    assert_eq!(
+        cache.many(&["one", "two", "one"]).await.unwrap(),
+        [None, None, None]
+    );
+    assert!(
+        !cache
+            .put("one", &1.into(), Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert!(
+        !cache
+            .putMany(&[("one".into(), 1.into())], Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert!(!cache.forever("one", &1.into()).await.unwrap());
+    assert!(!cache.add("one", &1.into(), None).await.unwrap());
+    assert!(!cache.touch("one", Ttl::Seconds(30)).await.unwrap());
+    assert_eq!(cache.pull("one").await.unwrap(), None);
+    assert!(matches!(
+        cache.increment("one", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert!(matches!(
+        cache.decrement("one", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert!(cache.forget("one").await.unwrap());
+    let tagged = cache.tags(&["reports", "reports"]).unwrap();
+    assert!(!tagged.forever("one", &1.into()).await.unwrap());
+    assert_eq!(tagged.get("one").await.unwrap(), None);
+    assert!(tagged.flush().await.unwrap());
+
+    let mut first = cache.lock("no-lock", None, None).unwrap();
+    let mut second = cache.lock("no-lock", None, None).unwrap();
+    assert_ne!(first.owner(), second.owner());
+    assert!(first.get().await.unwrap());
+    assert!(second.get().await.unwrap());
+    assert!(second.refresh(None).await.unwrap());
+    assert!(second.release().await.unwrap());
+    let mut restored = cache.restore_lock("no-lock", first.owner()).unwrap();
+    assert_eq!(restored.owner(), first.owner());
+    restored.block(Duration::ZERO).await.unwrap();
+    restored.force_release().await.unwrap();
+    root.success(&["cache:forget", "reports/latest", "null"]);
+    root.success(&["cache:clear", "null", "--tags=reports"]);
+    root.success(&["cache:clear", "null", "--locks"]);
+    root.success(&["cache:clear", "null"]);
+}
+
+#[tokio::test]
+async fn null_results_end_failover_and_emit_laravel_event_payloads() {
+    use openrust::{
+        cache::events::{CacheFailedOver, CacheMissed, KeyWriteFailed},
+        events::Dispatcher,
+    };
+
+    let root = Sandbox::new("null-failover-cache", "CACHE_STORE=failover\n");
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(|base, env| {
+            let mut values = config::load(base, env)?;
+            values.get_mut("cache").unwrap()["stores"]["failover"]["stores"] =
+                serde_json::json!(["null", "array"]);
+            Ok(values)
+        })
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    let dispatcher = app.container().make::<Dispatcher>().unwrap();
+    let events = dispatcher.fake(&[
+        CacheFailedOver::NAME,
+        CacheMissed::NAME,
+        KeyWriteFailed::NAME,
+    ]);
+    let manager = app.container().make::<CacheManager>().unwrap();
+    let array = manager.store(Some("array")).unwrap();
+    let failover = manager.store(None).unwrap();
+    assert!(
+        !failover
+            .put("one", &1.into(), Some(Ttl::Seconds(30)))
+            .await
+            .unwrap()
+    );
+    assert!(array.forever("two", &2.into()).await.unwrap());
+    assert_eq!(failover.get("two").await.unwrap(), None);
+    assert_eq!(array.get("one").await.unwrap(), None);
+    assert!(matches!(
+        failover.increment("two", 1).await,
+        Err(CacheError::MissingCounter)
+    ));
+    assert_eq!(array.get("two").await.unwrap(), Some(2.into()));
+    events.assertNotDispatched(CacheFailedOver::NAME);
+    let misses = events.dispatched(CacheMissed::NAME);
+    let miss = misses[0].downcast_ref::<CacheMissed>().unwrap();
+    assert_eq!(miss.storeName, None);
+    assert_eq!(miss.key, "two");
+    events.assertDispatchedTimes(KeyWriteFailed::NAME, 1);
 }

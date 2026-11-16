@@ -26,7 +26,7 @@ pub struct Repository {
 #[derive(Clone)]
 struct RepositoryEvents {
     owner: Weak<Container>,
-    store_name: String,
+    store_name: Option<String>,
     tags: Vec<String>,
 }
 
@@ -44,7 +44,7 @@ impl RepositoryEvents {
         };
         dispatcher
             .dispatch(
-                Arc::new(event(Some(self.store_name.clone()), self.tags.clone())),
+                Arc::new(event(self.store_name.clone(), self.tags.clone())),
                 &mut EventContext::new(),
             )
             .await
@@ -76,10 +76,10 @@ impl Repository {
         }
     }
 
-    pub(super) fn with_events(mut self, owner: Weak<Container>, store_name: &str) -> Self {
+    pub(super) fn with_events(mut self, owner: Weak<Container>, store_name: Option<&str>) -> Self {
         self.events = Some(RepositoryEvents {
             owner,
-            store_name: store_name.to_owned(),
+            store_name: store_name.map(str::to_owned),
             tags: Vec::new(),
         });
         self

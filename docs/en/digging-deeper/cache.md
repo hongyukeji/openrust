@@ -8,6 +8,16 @@ The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array`
 ./artisan migrate
 ```
 
+## Null Store {#null-store}
+
+Set `CACHE_STORE=null` to select the `null` store, or use `Cache::store(Some("null"))` for a single operation. The cache manager also uses `null` when the application has no configured default store. Reads always miss. Writes and TTL changes return `false`, and counter operations return `CacheError::MissingCounter`. Forgetting keys, clearing values and clearing locks succeed without keeping state. Both handles for the same lock name can acquire it, so the `null` store provides no mutual exclusion.
+
+```sh
+./artisan cache:forget reports/latest null
+./artisan cache:clear null --tags=reports
+./artisan cache:clear null --locks
+```
+
 ## Cache Usage
 
 Use `Cache::store(Some("file"))` for a named store or call the facade directly for the default store. Entries hold JSON values or bytes. A positive `Ttl::Seconds` sets a lifetime, and `None` stores the value indefinitely. A zero or negative TTL deletes an entry when passed to `put`. `add` atomically inserts a missing entry. `touch` updates its lifetime. `pull` atomically retrieves and removes it.
@@ -39,7 +49,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## Cache Tags {#cache-tags}
 
-Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array`, `redis`, and `failover` stores support tags. Other directly selected stores currently return a tagging error.
+Use `Cache::tags` for the default store or `Cache::store(Some("array"))?.tags(...)` for a named store. The `array`, `redis`, `failover`, and `null` stores accept tags. Other directly selected stores currently return a tagging error.
 
 ```rust
 use openrust::{

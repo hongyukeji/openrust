@@ -64,24 +64,20 @@ impl TagSet {
             return redis.tag_id(name).await;
         }
         let key = self.tagKey(name);
-        loop {
-            if let Some(value) = self.store.get(&key).await? {
-                return value
-                    .as_str()
-                    .filter(|id| uuid::Uuid::parse_str(id).is_ok())
-                    .map(str::to_owned)
-                    .ok_or(CacheError::InvalidValue);
-            }
-
-            let id = generation();
-            if self
-                .store
-                .add(&key, &Value::from(id.as_str()), None)
-                .await?
-            {
-                return Ok(id);
-            }
+        if let Some(value) = self.store.get(&key).await? {
+            return decode_generation(&value);
         }
+        let id = generation();
+        if !self
+            .store
+            .add(&key, &Value::from(id.as_str()), None)
+            .await?
+            && let Some(value) = self.store.get(&key).await?
+        {
+            return decode_generation(&value);
+        }
+        // A store such as NullStore can decline to persist the generation.
+        Ok(id)
     }
 
     pub async fn resetTag(&self, name: &str) -> CacheResult<String> {
@@ -89,13 +85,9 @@ impl TagSet {
             return redis.flush(name).await;
         }
         let id = generation();
-        if !self
-            .store
+        self.store
             .forever(&self.tagKey(name), &Value::from(id.as_str()))
-            .await?
-        {
-            return Err(CacheError::InvalidValue);
-        }
+            .await?;
         Ok(id)
     }
 
@@ -114,6 +106,14 @@ impl TagSet {
             |redis| redis.tag_key(name),
         )
     }
+}
+
+fn decode_generation(value: &Value) -> CacheResult<String> {
+    value
+        .as_str()
+        .filter(|id| uuid::Uuid::parse_str(id).is_ok())
+        .map(str::to_owned)
+        .ok_or(CacheError::InvalidValue)
 }
 
 pub(super) fn generation() -> String {

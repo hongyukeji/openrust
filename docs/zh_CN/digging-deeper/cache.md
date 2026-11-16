@@ -8,6 +8,16 @@
 ./artisan migrate
 ```
 
+## 空缓存存储 {#null-store}
+
+设置 `CACHE_STORE=null` 可选择 `null` 存储，单次操作可用 `Cache::store(Some("null"))` 指定。应用没有配置默认存储时，缓存管理器也会使用 `null`。读取总是未命中，写入与修改 TTL 返回 `false`，计数返回 `CacheError::MissingCounter`。删除、清理条目和清锁仍返回成功。两个同名锁句柄都能获取锁，`null` 存储没有互斥能力。
+
+```sh
+./artisan cache:forget reports/latest null
+./artisan cache:clear null --tags=reports
+./artisan cache:clear null --locks
+```
+
 ## 缓存用法
 
 用 `Cache::store(Some("file"))` 选择具名存储，也可以直接调用门面使用默认存储。缓存值支持 JSON 和字节。正数 `Ttl::Seconds` 设置有效期，`None` 表示永久保存。传给 `put` 的 TTL 为零或负数时会删除该项。`add` 原子插入缺失项，`touch` 延长或调整有效期，`pull` 原子读取并移除。
@@ -39,7 +49,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## 缓存标签 {#cache-tags}
 
-使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array`、`redis` 和 `failover` 支持标签。当前直接选择其他存储会返回标签不受支持的错误。
+使用 `Cache::tags` 操作默认存储，或通过 `Cache::store(Some("array"))?.tags(...)` 指定存储。`array`、`redis`、`failover` 和 `null` 接受标签。当前直接选择其他存储会返回标签不受支持的错误。
 
 ```rust
 use openrust::{

@@ -8,6 +8,16 @@
 ./artisan migrate
 ```
 
+## 空快取儲存 {#null-store}
+
+設定 `CACHE_STORE=null` 即可選擇 `null` 儲存，也可在單次操作用 `Cache::store(Some("null"))` 指定。應用程式未設定預設儲存時，快取管理器也會使用 `null`。讀取一律未命中，寫入及修改 TTL 回傳 `false`，計數回傳 `CacheError::MissingCounter`。刪除、清除項目與清鎖會回傳成功。兩個同名鎖控制代碼都能取得鎖，`null` 儲存沒有互斥能力。
+
+```sh
+./artisan cache:forget reports/latest null
+./artisan cache:clear null --tags=reports
+./artisan cache:clear null --locks
+```
+
 ## 快取用法
 
 用 `Cache::store(Some("file"))` 選擇具名儲存，也可直接呼叫門面使用預設儲存。快取值支援 JSON 和位元組。正數 `Ttl::Seconds` 設定有效期，`None` 表示永久儲存。傳給 `put` 的 TTL 為零或負數時會刪除該項。`add` 原子插入缺少的項目，`touch` 延長或調整有效期，`pull` 原子讀取並移除。
@@ -39,7 +49,7 @@ pub async fn report() -> CacheResult<Option<Value>> {
 
 ## 快取標籤 {#cache-tags}
 
-使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array`、`redis` 和 `failover` 支援標籤。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
+使用 `Cache::tags` 操作預設儲存，或透過 `Cache::store(Some("array"))?.tags(...)` 指定儲存。`array`、`redis`、`failover` 和 `null` 接受標籤。目前直接選擇其他儲存時會回傳不支援標籤的錯誤。
 
 ```rust
 use openrust::{
