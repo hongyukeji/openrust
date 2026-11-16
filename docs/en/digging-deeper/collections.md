@@ -449,6 +449,26 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Combining and Sampling Values {#lazy-combining-and-sampling}
+
+`crossJoin` produces the Cartesian product with the supplied slices. It materializes the primary source on the first pull. `shuffle` also materializes on the first pull and reindexes the shuffled values. `randItem` and `random` sample at the call site. `random(count, preserve_keys)` samples without replacement and returns a collection that replays the chosen entries on every traversal.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let pairs = LazyCollection::from([1, 2]).crossJoin(&[&[10, 20]]);
+    assert_eq!(pairs.first()?, Some(vec![1, 10]));
+
+    let names = LazyCollection::fromEntries(|| [("x", 4), ("y", 7), ("z", 9)]);
+    let sample = names.random(2, true)?;
+    let selected = sample.toJson()?;
+    assert_eq!(sample.count()?, 2);
+    assert_eq!(sample.toJson()?, selected);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

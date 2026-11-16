@@ -2770,3 +2770,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 - 2026-11-17 03:16（北京时间）02-05 [连接表前缀读取](audits/02-05/README.md#连接表前缀读取)。默认连接、具名连接与 Blueprint 的前缀读取经过 SQLite 和 MySQL 实际 Artisan。SQLite 26 项、MySQL 8.4.13 的 25 项 Schema 回归、限定 Schema 清库、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。周额度剩余 72%，无第二窗口读数。两轮临时 MySQL 已回收，清理本批 Cargo 产物和文档缓存后，项目卷可用 70.10 GB（65.28 GiB）。
 
 - 2026-11-17 03:25（北京时间）02-05 [Blueprint 解析器](audits/02-05/README.md#blueprint-解析器)。解析器在当前构建器上初始化操作回调的 Blueprint，SQLite 事务回滚和 MySQL 预演无副作用通过。SQLite 27 项、MySQL 8.4.13 的 26 项 Schema 回归、限定 Schema 清库、实际 Artisan 迁移生命周期、严格 Clippy、三语站点和 18 项浏览器检查通过。周额度剩余 72%，无第二窗口读数。两轮临时 MySQL 已回收，清理本批 Cargo 产物和文档缓存后，项目卷可用 65.11 GB（60.63 GiB）。
+
+- 2026-11-17 03:29（北京时间）02-09 [惰性组合与抽样](audits/02-09/README.md#惰性组合与抽样)。恢复原隔离补丁并对齐最新主线，固定 Laravel PHP 对照、68 项 Rust 集合回归、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。周额度剩余 72%，无第二窗口读数。PHP 容器已回收，清理本批 Cargo 产物和文档缓存后，项目卷可用 64.08 GB（59.68 GiB）。

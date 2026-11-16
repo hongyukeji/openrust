@@ -14,6 +14,7 @@ mod ordering;
 mod pairing;
 mod partition;
 mod projection;
+mod sampling;
 mod serialization;
 mod sets;
 mod sources;

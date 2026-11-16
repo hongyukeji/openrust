@@ -164,3 +164,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `mapSpread` 与 `eachSpread` 用切片及独立键传参。`mapInto` 使用 `From`，需按键构造时可用 `map`。`mergeRecursive`、`replaceRecursive` 和 `multiply` 首次取值时读取完整输入。
 - PHP 8.5.12 固定源码对照、65 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 2026-11-17 02:14（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 62,375,324 KiB（63.87 GB／59.49 GiB）。证据目录 /private/tmp/openrust-lazy-transforms.hujSnpfi。02-09 接续组合与抽样。
+
+## 惰性组合与抽样
+
+对照固定 Laravel 的 [crossJoin](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L327)、[random](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1041)和 [shuffle](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1182)。旧版未找到对应惰性实现，本批复用现有实体集合的笛卡尔积、无放回抽样和洗牌。
+
+- `crossJoin` 和 `shuffle` 在首次取值时实体化输入，来源错误按迭代结果传播。`random(count, preserve_keys)` 在调用时选定样本，后续遍历重放同一结果。`randItem()` 对应 Laravel 的单项抽取，空来源返回类型明确的 `ItemNotFound`。Rust 用切片提供笛卡尔积的其他来源，显式指定抽样数量及是否保留键。
+- 隔离基线更新至 `da9443208`。PHP 8.5.12 的固定 Laravel 对照及 68 项 Rust 集合测试通过，覆盖空来源和空操作数、数量边界、键保留、同一结果重放及错误传播。
+- 三语共用 Rust 示例、`./artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有 Sanctum 排版差异。
+- PHP 临时容器已回收。清理本批 3.3 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 64.08 GB（59.68 GiB）。证据目录为 `/private/tmp/openrust-lazy-sampling.F74fzsJi`。

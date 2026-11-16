@@ -1675,3 +1675,95 @@ fn lazy_multiply_coalesces_input_before_repetition_and_transforms_propagate_erro
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_cross_join_defers_source_reads_and_matches_product_order() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("repeat", 99), ("repeat", 1), ("other", 2)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let columns: &[&[_]] = &[&[3, 4], &[5]];
+    let product = source.crossJoin(columns);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(product.first().unwrap(), Some(vec![1, 3, 5]));
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        product.toJson().unwrap(),
+        "[[1,3,5],[1,4,5],[2,3,5],[2,4,5]]"
+    );
+    assert_eq!(
+        LazyCollection::from([1, 2])
+            .crossJoin(&[&[]])
+            .count()
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn lazy_random_is_immediate_and_replays_the_selected_values() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("x", 10), ("y", 20), ("z", 30)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let retained = source.random(2, true).unwrap();
+    assert_eq!(reads.get(), 3);
+    let sampled = LazyCollection::all(&retained).unwrap();
+    assert_eq!(sampled.len(), 2);
+    assert!(sampled.windows(2).all(|pair| pair[0].1 < pair[1].1));
+    assert!(sampled.iter().all(|(key, value)| {
+        [("x".into(), 10), ("y".into(), 20), ("z".into(), 30)].contains(&(key.clone(), *value))
+    }));
+    assert_eq!(LazyCollection::all(&retained).unwrap(), sampled);
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        source.random(3, false).unwrap().toJson().unwrap(),
+        "[10,20,30]"
+    );
+    assert!(matches!(
+        source.random(4, true),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert!(matches!(
+        LazyCollection::<i32>::empty().randItem(),
+        Err(CollectionError::ItemNotFound)
+    ));
+    assert_eq!(LazyCollection::from([7]).randItem().unwrap(), 7);
+}
+
+#[test]
+fn lazy_shuffle_preserves_membership_and_propagates_source_errors() {
+    let reads = Cell::new(0);
+    let shuffled = LazyCollection::make(|| {
+        [3, 4, 5]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    })
+    .shuffle();
+    let mut iterator = shuffled.getIterator();
+    assert_eq!(reads.get(), 0);
+    let first = iterator.next().unwrap().unwrap();
+    assert_eq!(reads.get(), 3);
+    let mut values = vec![first.1];
+    values.extend(iterator.map(|entry| entry.unwrap().1));
+    values.sort_unstable();
+    assert_eq!(values, [3, 4, 5]);
+
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    assert!(matches!(
+        failing.clone().shuffle().first(),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(
+        failing.clone().crossJoin(&[&[2]]).first(),
+        Err(CollectionError::Source(_))
+    ));
+    assert!(matches!(
+        failing.random(0, false),
+        Err(CollectionError::Source(_))
+    ));
+}

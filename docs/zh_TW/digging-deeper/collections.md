@@ -449,6 +449,26 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 組合與抽樣 {#lazy-combining-and-sampling}
+
+`crossJoin` 與傳入的切片計算笛卡兒積，在第一次取值時實體化主要來源。`shuffle` 同樣在第一次取值時實體化，並為打亂後的值重新編號。`randItem` 和 `random` 在呼叫時抽樣。`random(count, preserve_keys)` 不放回抽樣，傳回的集合每次迭代都重播已選項目。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let pairs = LazyCollection::from([1, 2]).crossJoin(&[&[10, 20]]);
+    assert_eq!(pairs.first()?, Some(vec![1, 10]));
+
+    let names = LazyCollection::fromEntries(|| [("x", 4), ("y", 7), ("z", 9)]);
+    let sample = names.random(2, true)?;
+    let selected = sample.toJson()?;
+    assert_eq!(sample.count()?, 2);
+    assert_eq!(sample.toJson()?, selected);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。
