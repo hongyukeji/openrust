@@ -34,6 +34,18 @@ Use `Config::set` to change a value in the current application. The `string`, `i
 
 Use `Config::getOr("app.name", Value::from("App"))?` for a raw default, or `Config::stringOr("app.name", "App")?` for a typed string. Defaults apply to absent keys. An explicit null is retained by raw lookups, and typed lookups reject incompatible values. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
 
+## Configuration cache {#configuration-caching}
+
+```sh
+./artisan config:show app.name
+./artisan config:cache
+./artisan config:clear
+```
+
+`config:show` accepts a section or a dot-separated key. It displays the active values, which can contain credentials. A missing key exits with status 1.
+
+`config:cache` loads fresh settings and saves the resulting repository to `bootstrap/cache/config.json`. Subsequent HTTP and Artisan processes use the snapshot and skip reading the environment file. Regenerate the cache after changing deployment settings, or run `config:clear` and restart a long-running process to load uncached settings. A failed refresh leaves the existing cache in place. Set `APP_CONFIG_CACHE` in the process environment to select an absolute path or a path relative to the application root. Treat the cache file as private.
+
 ## Environment File Encryption {#environment-file-encryption}
 
 Use `env:encrypt` to create an encrypted copy of an environment file. Set `ENV_ENCRYPTION_KEY` in the process environment before running `env:decrypt`, or supply `--key`. If encryption generates a key, copy the displayed `base64:` value to your secret store separately from the encrypted file.

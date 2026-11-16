@@ -1,5 +1,6 @@
 //! Environment snapshot and application configuration repository.
 
+pub(crate) mod cache;
 mod environment;
 mod error;
 mod repository;

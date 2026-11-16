@@ -1,6 +1,7 @@
 //! Artisan lifecycle for a bootstrapped application.
 
 mod channel_list_command;
+mod configuration_command;
 mod console_make_command;
 mod environment_command;
 mod environment_encryption_command;
@@ -41,8 +42,8 @@ use crate::{
 };
 
 use super::{
-    Application, BootstrapError, Runner, RunnerContext, RuntimeResult, environment_detector,
-    runner::ServiceExit,
+    Application, BootstrapError, Runner, RunnerContext, RuntimeResult,
+    application::ConfigurationCacheMode, environment_detector, runner::ServiceExit,
 };
 use tokio::sync::OnceCell;
 
@@ -79,11 +80,18 @@ impl Kernel {
     fn bootstrap_with_environment<'a>(
         &'a mut self,
         selected: Option<&'a str>,
+        cache_mode: ConfigurationCacheMode,
     ) -> ConsoleFuture<'a, Result<(), BootstrapError>> {
         Box::pin(facades::scope(
             self.application.container_handle(),
             async move {
-                self.application.boot_with_environment(selected).await?;
+                if !matches!(cache_mode, ConfigurationCacheMode::Use) {
+                    self.application
+                        .boot_for_configuration_command(selected, cache_mode)
+                        .await?;
+                } else {
+                    self.application.boot_with_environment(selected).await?;
+                }
                 self.application
                     .loadDeferredProviders()
                     .await
@@ -92,6 +100,7 @@ impl Kernel {
                     .get_or_insert_with(|| {
                         if self.register_planned {
                             self.artisan.register_planned_commands()?;
+                            configuration_command::register(&mut self.artisan)?;
                             environment_command::register(&mut self.artisan)?;
                             environment_encryption_command::register(&mut self.artisan)?;
                             event_cache_command::register(&mut self.artisan)?;
@@ -266,7 +275,7 @@ impl Runner for ManagedCommand {
 
 impl console::Kernel for Kernel {
     fn bootstrap(&mut self) -> ConsoleFuture<'_, Result<(), BootstrapError>> {
-        self.bootstrap_with_environment(None)
+        self.bootstrap_with_environment(None, ConfigurationCacheMode::Use)
     }
 
     fn get_application(&self) -> &Application {
@@ -294,7 +303,12 @@ impl console::Kernel for Kernel {
                         return 1;
                     }
                 };
-                if let Err(error) = self.bootstrap_with_environment(selected).await {
+                let cache_mode = if self.register_planned {
+                    configuration_command::cache_mode(arguments)
+                } else {
+                    ConfigurationCacheMode::Use
+                };
+                if let Err(error) = self.bootstrap_with_environment(selected, cache_mode).await {
                     output.stderr.push_str("Application startup failed: ");
                     self.application
                         .render_console_exception(output, &error)

@@ -34,6 +34,18 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 需要默认值时，可用 `Config::getOr("app.name", Value::from("App"))?` 读取原始值，或用 `Config::stringOr("app.name", "App")?` 直接读取字符串。默认值仅用于缺失键。原始读取保留显式空值，类型化读取遇到不匹配的值会报错。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按输入顺序读取多个键，各自使用默认值。读取整组配置时，为结构体派生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
+## 配置缓存 {#configuration-caching}
+
+```sh
+./artisan config:show app.name
+./artisan config:cache
+./artisan config:clear
+```
+
+`config:show` 接受配置分区或点分键，显示可能含有凭据的生效值。找不到键时以状态码 1 退出。
+
+`config:cache` 重新加载配置，将最终仓储保存到 `bootstrap/cache/config.json`。后续 HTTP 和 Artisan 进程使用快照，跳过环境文件。部署配置变更后重新生成缓存，或执行 `config:clear`，再重启常驻进程以读取未缓存的配置。刷新失败时保留现有缓存。在进程环境中设置 `APP_CONFIG_CACHE` 可指定绝对路径或相对于应用根目录的路径。缓存文件应保持私有。
+
 ## 环境文件加密 {#environment-file-encryption}
 
 使用 `env:encrypt` 创建加密副本。运行 `env:decrypt` 前在进程环境中设置 `ENV_ENCRYPTION_KEY`，或传入 `--key`。如果由加密命令生成密钥，将输出的 `base64:` 值保存到密钥管理系统，和加密文件分开保管。

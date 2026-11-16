@@ -10,6 +10,14 @@ impl LoadEnvironmentVariables {
         base_path: &Path,
         selected_env: Option<&str>,
     ) -> Result<Environment, ConfigError> {
+        Self::snapshot(base_path, selected_env, true)
+    }
+
+    pub(crate) fn snapshot(
+        base_path: &Path,
+        selected_env: Option<&str>,
+        read_file: bool,
+    ) -> Result<Environment, ConfigError> {
         let mut environment = Environment {
             file: base_path.join(".env"),
             values: env::vars_os()
@@ -46,6 +54,9 @@ impl LoadEnvironmentVariables {
         }
 
         environment.file = path.clone();
+        if !read_file {
+            return Ok(environment);
+        }
         let entries = match dotenvy::from_path_iter(&path) {
             Ok(entries) => entries,
             Err(error) if error.not_found() => return Ok(environment),

@@ -11,6 +11,7 @@ pub enum ConfigError {
     InvalidType { key: String, expected: &'static str },
     InvalidEnvironmentName,
     InvalidEnvironmentFile { path: PathBuf },
+    InvalidCache { path: PathBuf },
     ReadFailed { path: PathBuf, source: io::Error },
 }
 
@@ -23,6 +24,9 @@ impl fmt::Display for ConfigError {
             Self::InvalidEnvironmentName => f.write_str("invalid environment name"),
             Self::InvalidEnvironmentFile { path } => {
                 write!(f, "invalid environment file syntax in {}", path.display())
+            }
+            Self::InvalidCache { path } => {
+                write!(f, "invalid configuration cache in {}", path.display())
             }
             Self::ReadFailed { path, source } => {
                 write!(f, "cannot read {}: {source}", path.display())

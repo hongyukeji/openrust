@@ -34,6 +34,18 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 需要預設值時，可用 `Config::getOr("app.name", Value::from("App"))?` 讀取原始值，或用 `Config::stringOr("app.name", "App")?` 直接讀取字串。預設值只用於缺少的鍵。原始讀取會保留顯式空值，型別化讀取遇到不相容的值會回報錯誤。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
 
+## 設定快取 {#configuration-caching}
+
+```sh
+./artisan config:show app.name
+./artisan config:cache
+./artisan config:clear
+```
+
+`config:show` 接受設定區段或以點分隔的鍵，顯示可能包含憑證的生效值。找不到鍵時以狀態碼 1 結束。
+
+`config:cache` 重新載入設定，將最終儲存庫儲存到 `bootstrap/cache/config.json`。後續 HTTP 和 Artisan 程序會使用快照，跳過環境檔。部署設定變更後重新產生快取，或執行 `config:clear`，再重新啟動常駐程序以讀取未快取的設定。重新產生失敗時會保留目前快取。在程序環境中設定 `APP_CONFIG_CACHE` 可指定絕對路徑或相對於應用根目錄的路徑。快取檔應保持私有。
+
 ## 環境檔案加密 {#environment-file-encryption}
 
 使用 `env:encrypt` 建立加密副本。執行 `env:decrypt` 前在程序環境中設定 `ENV_ENCRYPTION_KEY`，或傳入 `--key`。若由加密指令產生金鑰，請將輸出的 `base64:` 值儲存至金鑰管理系統，與加密檔案分開保管。

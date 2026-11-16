@@ -35,15 +35,9 @@ const LARAVEL: &[(&str, &str)] = &[
     ),
     ("completion", "Generate shell completion scripts"),
     (
-        "config:cache",
-        "Compile application configuration into a cache",
-    ),
-    ("config:clear", "Remove the compiled configuration cache"),
-    (
         "config:publish",
         "Copy publishable configuration into the application",
     ),
-    ("config:show", "Display a configuration file or key"),
     ("db", "Open an interactive database client"),
     ("db:monitor", "Check database connection usage"),
     ("db:seed", "Populate the database with seed data"),
