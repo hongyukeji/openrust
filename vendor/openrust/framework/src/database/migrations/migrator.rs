@@ -5,7 +5,14 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::database::{DatabaseError, DatabaseManager, DatabaseResult};
+use crate::database::{
+    DatabaseError, DatabaseManager, DatabaseResult,
+    events::{
+        MigrationEnded, MigrationMethod, MigrationOptions, MigrationSkipped, MigrationStarted,
+        MigrationsEnded, MigrationsPruned, MigrationsStarted, NoPendingMigrations, SchemaDumped,
+        SchemaLoaded,
+    },
+};
 
 use super::{
     DatabaseMigrationRepository, MigrationContext, MigrationEntry, MigrationRegistry,
@@ -22,13 +29,13 @@ pub struct Migrator {
     execution: tokio::sync::Mutex<()>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct RunOptions {
     pub pretend: bool,
     pub step: bool,
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct RollbackOptions {
     pub pretend: bool,
     pub step: Option<u64>,
@@ -187,6 +194,13 @@ impl Migrator {
                 if installed {
                     ran = repository.get_ran().await?;
                 }
+                self.manager
+                    .dispatch_migration_event(SchemaLoaded {
+                        connectionName: connection.getName().to_owned(),
+                        connection,
+                        path,
+                    })
+                    .await?;
                 loaded = true;
             }
         }
@@ -194,12 +208,27 @@ impl Migrator {
             repository.create_repository().await?;
         }
         let ran: BTreeSet<_> = ran.into_iter().collect();
+        let pending: Vec<_> = files
+            .into_iter()
+            .filter(|(name, _)| !ran.contains(name))
+            .collect();
+        let method = MigrationMethod::Up;
+        if pending.is_empty() {
+            self.manager
+                .dispatch_migration_event(NoPendingMigrations { method })
+                .await?;
+            return Ok((Vec::new(), loaded));
+        }
         let mut batch = repository.get_next_batch_number().await?;
-        let mut outcomes = Vec::new();
-        for (name, entry) in files {
-            if ran.contains(&name) {
-                continue;
-            }
+        let mut outcomes = Vec::with_capacity(pending.len());
+        let event_options = MigrationOptions::Up(options);
+        self.manager
+            .dispatch_migration_event(MigrationsStarted {
+                method,
+                options: event_options,
+            })
+            .await?;
+        for (name, entry) in pending {
             let mut context = MigrationContext::new(
                 self.manager
                     .connection(entry.migration.getConnection().or(database))?,
@@ -212,6 +241,11 @@ impl Migrator {
                     .await
                     .map_err(|error| migration_error(&name, error))?
             {
+                self.manager
+                    .dispatch_migration_event(MigrationSkipped {
+                        migrationName: name.clone(),
+                    })
+                    .await?;
                 outcomes.push(MigrationOutcome {
                     name,
                     result: MigrationResult::Skipped,
@@ -219,11 +253,8 @@ impl Migrator {
                 });
                 continue;
             }
-            entry
-                .migration
-                .up(&mut context)
-                .await
-                .map_err(|error| migration_error(&name, error))?;
+            self.run_migration(entry, &name, method, &mut context, options.pretend)
+                .await?;
             if !options.pretend {
                 repository
                     .log(&name, batch)
@@ -241,9 +272,51 @@ impl Migrator {
                 statements: context.take_statements(),
             });
         }
+        self.manager
+            .dispatch_migration_event(MigrationsEnded {
+                method,
+                options: event_options,
+            })
+            .await?;
         Ok((outcomes, loaded))
     }
 
+    async fn run_migration(
+        &self,
+        entry: &MigrationEntry,
+        name: &str,
+        method: MigrationMethod,
+        context: &mut MigrationContext,
+        pretend: bool,
+    ) -> DatabaseResult<()> {
+        let migration = entry.migration;
+        if !pretend {
+            self.manager
+                .dispatch_migration_event(MigrationStarted {
+                    migration,
+                    method,
+                    name: name.to_owned(),
+                })
+                .await?;
+        }
+        match method {
+            MigrationMethod::Up => migration.up(context).await,
+            MigrationMethod::Down => migration.down(context).await,
+        }
+        .map_err(|error| migration_error(name, error))?;
+        if !pretend {
+            self.manager
+                .dispatch_migration_event(MigrationEnded {
+                    migration,
+                    method,
+                    name: name.to_owned(),
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[allow(non_snake_case, reason = "Matches Laravel schema event payloads")]
     pub(crate) async fn dump_schema(
         &self,
         database: Option<&str>,
@@ -278,8 +351,23 @@ impl Migrator {
             None
         };
         schema_state::dump(&connection, &path, ledger.as_deref()).await?;
+        let connectionName = connection.getName().to_owned();
+        self.manager
+            .dispatch_migration_event(SchemaDumped {
+                connection: connection.clone(),
+                connectionName: connectionName.clone(),
+                path,
+            })
+            .await?;
         if prune {
             self.prune_migration_sources()?;
+            self.manager
+                .dispatch_migration_event(MigrationsPruned {
+                    connection,
+                    connectionName,
+                    path: self.root.join("database/migrations"),
+                })
+                .await?;
         }
         Ok(())
     }
@@ -414,8 +502,24 @@ impl Migrator {
         } else {
             repository.get_last().await?
         };
+        let method = MigrationMethod::Down;
+        if records.is_empty() {
+            if !all {
+                self.manager
+                    .dispatch_migration_event(NoPendingMigrations { method })
+                    .await?;
+            }
+            return Ok(Vec::new());
+        }
         let files = self.files(paths)?;
-        let mut outcomes = Vec::new();
+        let event_options = MigrationOptions::Down(options);
+        self.manager
+            .dispatch_migration_event(MigrationsStarted {
+                method,
+                options: event_options,
+            })
+            .await?;
+        let mut outcomes = Vec::with_capacity(records.len());
         for record in records {
             let name = &record.migration;
             let Some(entry) = files.get(name) else {
@@ -431,11 +535,8 @@ impl Migrator {
                     .connection(entry.migration.getConnection().or(database))?,
                 options.pretend,
             );
-            entry
-                .migration
-                .down(&mut context)
-                .await
-                .map_err(|error| migration_error(name, error))?;
+            self.run_migration(entry, name, method, &mut context, options.pretend)
+                .await?;
             if !options.pretend {
                 repository
                     .delete(&record)
@@ -448,6 +549,12 @@ impl Migrator {
                 statements: context.take_statements(),
             });
         }
+        self.manager
+            .dispatch_migration_event(MigrationsEnded {
+                method,
+                options: event_options,
+            })
+            .await?;
         Ok(outcomes)
     }
 

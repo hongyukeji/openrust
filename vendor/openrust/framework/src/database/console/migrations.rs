@@ -14,6 +14,8 @@ use crate::{
     },
     contracts::{container::Container as _, foundation::Application as _},
     database::{
+        DatabaseManager,
+        events::DatabaseRefreshed,
         migrations::{
             MigrationCreator, MigrationOutcome, MigrationResult, Migrator, RollbackOptions,
             RunOptions,
@@ -305,9 +307,6 @@ impl Command for MigrationCommand {
                         .map_err(console_error)?;
                     report(output, down, false, "Nothing to rollback.");
                     report(output, up, false, "Nothing to migrate.");
-                    if matches.get_flag("seed") || matches.contains_id("seeder") {
-                        seed(app, database, matches, output).await?;
-                    }
                 }
                 Kind::Fresh => {
                     if matches.get_flag("drop-types") {
@@ -325,9 +324,6 @@ impl Command for MigrationCommand {
                         .await
                         .map_err(console_error)?;
                     report(output, rows, false, "Nothing to migrate.");
-                    if matches.get_flag("seed") || matches.contains_id("seeder") {
-                        seed(app, database, matches, output).await?;
-                    }
                 }
                 Kind::Wipe => {
                     if matches.get_flag("drop-types") {
@@ -342,6 +338,21 @@ impl Command for MigrationCommand {
                     output.info("Database wiped successfully.");
                 }
                 Kind::Make | Kind::Dump => unreachable!("handled before database commands"),
+            }
+            if matches!(self.kind, Kind::Fresh | Kind::Refresh) {
+                let seeding = matches.get_flag("seed") || matches.contains_id("seeder");
+                app.container()
+                    .get::<DatabaseManager>("db")
+                    .map_err(console_error)?
+                    .dispatch_migration_event(DatabaseRefreshed {
+                        database: database.map(str::to_owned),
+                        seeding,
+                    })
+                    .await
+                    .map_err(console_error)?;
+                if seeding {
+                    seed(app, database, matches, output).await?;
+                }
             }
             Ok(0)
         })

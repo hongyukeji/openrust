@@ -8,7 +8,16 @@ use std::{
 
 use serde_json::Value;
 
-use crate::{container::Container, contracts::config::Repository};
+use crate::{
+    container::Container,
+    contracts::{
+        config::Repository,
+        container::Container as _,
+        events::{Dispatcher as _, Event},
+    },
+    events::{Dispatcher, EventContext},
+    support::facades::application_scope,
+};
 
 use super::{
     Connection, ConnectionResolverInterface, DatabaseError, DatabaseResult,
@@ -45,6 +54,20 @@ impl DatabaseManager {
     pub(super) fn with_container(mut self, container: Weak<Container>) -> Self {
         self.container = container;
         self
+    }
+
+    pub(super) async fn dispatch_migration_event(&self, event: impl Event) -> DatabaseResult<()> {
+        let Some(owner) = self.container.upgrade() else {
+            return Ok(());
+        };
+        let dispatcher = owner
+            .get::<Dispatcher>("events")
+            .map_err(DatabaseError::Unavailable)?;
+        let mut context = EventContext::new();
+        application_scope(owner, dispatcher.dispatch(Arc::new(event), &mut context))
+            .await
+            .map_err(|error| DatabaseError::MigrationEvent(Box::new(error)))?;
+        Ok(())
     }
 
     pub(super) fn set_morph_key_type(&self, kind: MorphKeyType) {

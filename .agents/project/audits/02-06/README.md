@@ -5,7 +5,7 @@
 - 迁移 Provider 注册应用自己的迁移清单和账本。初始应用迁移编译到二进制，包含用户、重置令牌和会话表。`main.rs` 增加根应用数据库模块声明。生成器创建带时间戳的 Rust 文件，手动加入 `MigrationEntry` 后重新构建。
 - 接通 `make:migration`、`migrate`、`migrate:install`、`migrate:status`、`migrate:rollback`、`migrate:reset`、`migrate:refresh`、`migrate:fresh` 和 `db:wipe`。按文件名和批次维护账本，支持指定连接、已编译路径、step、batch 和生产确认。账本只记录成功的迁移。MySQL 清库独占物理会话并恢复外键设置，SQLite 清库复用事务化 Schema 会话。
 - Rust 用 `MigrationContext` 显式传递连接与预演输出。空库预演会准备账本，迁移 SQL 和迁移记录保持未执行。绑定值以占位符显示。SQLite 依赖目录的表重建在预演中返回错误。与固定版的 SQLite/MySQL 语法一致，迁移器不在整个迁移外自动包事务，先成功的语句和批次记录在失败后可见。
-- 未闭合的迁移功能包括非 MySQL 的 Schema dump/load、迁移及 Schema 事件、空文件自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
+- 未闭合的迁移功能包括非 MySQL 的 Schema dump/load、空库自动创建及 Seeder 选项。当前串行锁作用于同一应用的 Migrator。输出使用当前 Artisan 的文本格式。Seeder 选项随 02-07 衔接。
 
 ## 验收
 
@@ -50,4 +50,13 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - `schema:dump` 使用选定写端点的 MySQL 原生客户端。支持 `--database`、`--path`、`--without-migration-data` 和 `--prune`。保存结构及账本记录，排除业务行和自增计数。转储成功后原子替换目标。清理限定编译过的根应用迁移源文件，保留 Rust 模块声明和其他文件。
 - `migrate` 在账本无记录时自动识别默认 `.dump` 或 `.sql` 文件，也可用 `--schema-path`。预演跳过加载。加载成功后按快照账本跳过已执行迁移，继续当前二进制中的剩余迁移。原生客户端返回错误时停止，MySQL 已执行的 DDL 仍遵循其原生提交语义。
 - 使用独立 MySQL 8.4.13，调用同一夹具内的真实 MySQL 8.4.13 客户端。验收覆盖表、视图、触发器和例程，账本数据保留、业务行排除、仅结构导出、清理范围、预演、无效快照失败后重试和已有记录时跳过加载。旧的真实 MySQL 迁移账本和 MySQL／Redis 双进程隔离回归通过。
-- 三语共用的 `./artisan schema:dump --database=mysql`、`./artisan migrate --database=mysql` 及 `./artisan inspire` 已运行。严格 Clippy、变更文件格式、三语站点构建及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 原生快照和 Schema 生命周期事件另随 02-06 验收。
+- 三语共用的 `./artisan schema:dump --database=mysql`、`./artisan migrate --database=mysql` 及 `./artisan inspire` 已运行。严格 Clippy、变更文件格式、三语站点构建及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。SQLite 原生快照另随 02-06 验收。
+
+## 迁移与 Schema 生命周期事件
+
+对照固定 Laravel [迁移事件文档](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/migrations.md#events)、[Migrator 的批次和单项事件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Migrations/Migrator.php#L181)、[FreshCommand 的填充前事件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/Migrations/FreshCommand.php#L105) 和 [DumpCommand 的转储、清理事件](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Console/DumpCommand.php#L55)。旧版未找到对应迁移事件，复用主线应用级 Dispatcher 和已有写库账本。
+
+- 批次事件报告 `MigrationMethod` 及有类型的 `MigrationOptions`，单项事件携带编译登记的迁移实例、方向和名称。按 Laravel 的顺序在迁移成功后、变更记录前触发 `MigrationEnded`。预演触发批次事件，跳过单项事件。主动跳过和没有待处理迁移分别触发 `MigrationSkipped` 和 `NoPendingMigrations`。
+- `DatabaseRefreshed` 在 `migrate:fresh`、`migrate:refresh` 完成迁移后且可选 Seeder 开始前触发。上述事件均可通过 `MigrationEvent::NAME` 订阅。转储、删除源文件和加载快照各自使用 `SchemaDumped`、`MigrationsPruned`、`SchemaLoaded`，载荷含连接、名称与路径。
+- 临时 MySQL 8.4 上的真实 Artisan 集成测试通过。验证预演、失败中止、重试、跳过、空批次、回滚顺序、单项事件时的真实账本状态、Schema 事件及填充前事件。复跑根应用既有 MySQL 迁移账本。快照子进程调用临时容器内的原生客户端。
+- 三语共用监听器示例经实际 Artisan 执行，`main artisan inspire`、严格 Clippy、变更文件格式、三语站点构建和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。日常验收范围为 MySQL，SQLite 快照仍待验收。

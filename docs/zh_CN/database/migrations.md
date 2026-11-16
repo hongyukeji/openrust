@@ -662,3 +662,36 @@ async fn import_order() -> DatabaseResult<()> {
 ```
 
 需要手动切换时，调用 `Schema::session().await?` 或具名连接构建器的 `session().await?` 获取写会话，再在此会话上调用 `disableForeignKeyConstraints` 或 `enableForeignKeyConstraints`，最后用 `close().await?` 归还。SQLite 表重建继续使用连接的 Schema Builder，由它管理重建所需的会话和事务。
+
+## 事件 {#events}
+
+在服务提供者中注册监听器。批次事件为 `MigrationsStarted` 和 `MigrationsEnded`。单项执行触发 `MigrationStarted` 和 `MigrationEnded`。迁移主动跳过时触发 `MigrationSkipped`，执行或回滚没有待处理项时触发 `NoPendingMigrations`。预演触发批次事件，跳过单项执行事件。
+
+`MigrationEnded` 在迁移方法成功后、更新账本前触发。订阅 `contracts::database::events::MigrationEvent::NAME` 可接收迁移生命周期事件。`SchemaDumped`、`MigrationsPruned` 和 `SchemaLoaded` 各自订阅。 `DatabaseRefreshed` 在 `migrate:fresh` 或 `migrate:refresh` 完成迁移后、可选的数据填充前触发。
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::events::MigrationEnded,
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    support::facades::Event,
+};
+
+fn record_migration<'a>(
+    event: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        if let Some(ended) = event.downcast_ref::<MigrationEnded>() {
+            println!("{:?} {}", ended.method, ended.name);
+        }
+        Ok(None)
+    })
+}
+
+fn register_migration_listener() -> EventResult<()> {
+    Event::listen(MigrationEnded::NAME, Arc::new(record_migration), Delivery::Sync)
+}
+```

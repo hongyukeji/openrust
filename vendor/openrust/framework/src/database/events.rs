@@ -278,3 +278,97 @@ transaction_event!(
     TransactionRolledBack,
     "A rollback has restored the indicated transaction level."
 );
+
+/// The direction of a migration operation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MigrationMethod {
+    Up,
+    Down,
+}
+
+/// The options passed to one migration batch.
+#[derive(Clone, Copy, Debug)]
+pub enum MigrationOptions {
+    Up(super::migrations::RunOptions),
+    Down(super::migrations::RollbackOptions),
+}
+
+macro_rules! database_event {
+    ($(#[$meta:meta])* $name:ident { $($field:ident: $ty:ty),+ } $(, $contract:expr)?) => {
+        $(#[$meta])*
+        pub struct $name {
+            $(pub $field: $ty),+
+        }
+
+        impl $name {
+            pub const NAME: &'static str = concat!("OpenRust\\Database\\Events\\", stringify!($name));
+        }
+
+        impl Event for $name {
+            fn name(&self) -> &str {
+                Self::NAME
+            }
+
+            $(
+                fn interfaces(&self) -> &[&str] {
+                    &[$contract]
+                }
+            )?
+        }
+    };
+}
+
+use super::migrations::Migration;
+use crate::contracts::database::events::MigrationEvent;
+
+database_event!(
+    /// A nonempty batch is about to run.
+    MigrationsStarted { method: MigrationMethod, options: MigrationOptions },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// All migrations in the batch have been processed.
+    MigrationsEnded { method: MigrationMethod, options: MigrationOptions },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// A compiled migration is about to execute.
+    MigrationStarted { migration: &'static dyn Migration, method: MigrationMethod, name: String },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// A migration method succeeded, before its ledger is updated.
+    MigrationEnded { migration: &'static dyn Migration, method: MigrationMethod, name: String },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// The command found no pending migrations in this direction.
+    NoPendingMigrations { method: MigrationMethod },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// A migration opted out through its `shouldRun` hook.
+    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    MigrationSkipped { migrationName: String },
+    MigrationEvent::NAME
+);
+database_event!(
+    /// A schema snapshot was persisted at the given path.
+    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    SchemaDumped { connection: Connection, connectionName: String, path: std::path::PathBuf }
+);
+database_event!(
+    /// A schema snapshot was loaded before remaining migrations.
+    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    SchemaLoaded { connection: Connection, connectionName: String, path: std::path::PathBuf }
+);
+database_event!(
+    /// Application migration sources were pruned after a dump.
+    #[allow(non_snake_case, reason = "Matches Laravel migration event payloads")]
+    MigrationsPruned { connection: Connection, connectionName: String, path: std::path::PathBuf }
+);
+database_event!(
+    /// A fresh or refreshed schema is ready, before optional seeding.
+    DatabaseRefreshed { database: Option<String>, seeding: bool },
+    MigrationEvent::NAME
+);

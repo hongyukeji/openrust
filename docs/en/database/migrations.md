@@ -662,3 +662,36 @@ async fn import_order() -> DatabaseResult<()> {
 ```
 
 For manual control, acquire a write session with `Schema::session().await?` or the named builder’s `session().await?`, then call `disableForeignKeyConstraints` or `enableForeignKeyConstraints` on the session and finish with `close().await?`. SQLite operations that rebuild a table continue to use the connection’s Schema Builder, which manages its own session and transaction.
+
+## Events {#events}
+
+Register listeners in a service provider. The batch events are `MigrationsStarted` and `MigrationsEnded`. Individual execution raises `MigrationStarted` and `MigrationEnded`. An opt-out raises `MigrationSkipped`, and an empty run or rollback raises `NoPendingMigrations`. Pretend mode raises batch events and skips individual execution events.
+
+`MigrationEnded` runs after the migration method succeeds and before its ledger changes. Subscribe to `contracts::database::events::MigrationEvent::NAME` to receive the migration lifecycle events. `SchemaDumped`, `MigrationsPruned`, and `SchemaLoaded` have separate subscriptions. `DatabaseRefreshed` runs after `migrate:fresh` or `migrate:refresh` has applied migrations and before optional seeding.
+
+```rust
+use std::sync::Arc;
+
+use openrust::{
+    contracts::events::Event as EventPayload,
+    database::events::MigrationEnded,
+    events::{Delivery, EventContext, EventFuture, EventResult, ListenerResponse},
+    support::facades::Event,
+};
+
+fn record_migration<'a>(
+    event: &'a dyn EventPayload,
+    _: &'a mut EventContext<'_>,
+) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+    Box::pin(async move {
+        if let Some(ended) = event.downcast_ref::<MigrationEnded>() {
+            println!("{:?} {}", ended.method, ended.name);
+        }
+        Ok(None)
+    })
+}
+
+fn register_migration_listener() -> EventResult<()> {
+    Event::listen(MigrationEnded::NAME, Arc::new(record_migration), Delivery::Sync)
+}
+```

@@ -70,6 +70,7 @@ pub enum DatabaseError {
         source: Box<DatabaseError>,
     },
     InvalidMigration(&'static str),
+    MigrationEvent(Box<crate::events::EventError>),
     MigrationFailed {
         migration: String,
         source: Box<DatabaseError>,
@@ -176,6 +177,7 @@ impl std::fmt::Display for DatabaseError {
             Self::InvalidSeeder(part) => write!(formatter, "invalid seeder {part}"),
             Self::SeederFailed { seeder, source } => write!(formatter, "{seeder}: {source}"),
             Self::InvalidMigration(part) => write!(formatter, "invalid migration {part}"),
+            Self::MigrationEvent(_) => formatter.write_str("migration event listener failed"),
             Self::MigrationFailed { migration, source } => {
                 write!(formatter, "{migration}: {source}")
             }
@@ -245,7 +247,9 @@ impl std::error::Error for DatabaseError {
             Self::Driver { source, .. } => Some(source),
             Self::FakerIo(source) => Some(source),
             Self::AfterCommit { source } | Self::AfterRollback { source } => Some(source.as_ref()),
-            Self::ModelEvent(source) | Self::ConnectionEvent(source) => Some(source.as_ref()),
+            Self::ModelEvent(source)
+            | Self::ConnectionEvent(source)
+            | Self::MigrationEvent(source) => Some(source.as_ref()),
             Self::Unavailable(source) => Some(source),
             Self::AttributeEncryption(source) => Some(source),
             Self::AttributeDecryption(source) => Some(source),
