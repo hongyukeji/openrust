@@ -128,3 +128,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `partition` 单次遍历，返回两个实体集合。同一个键可分别存在于通过与未通过组。`pad` 正数延迟右补，负数复用实体集合左补。Rust 对生成整数键超出范围返回错误，PHP 生成器会回绕。
 - PHP 8.5.12 固定源码对照、53 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 2026-11-17 01:52（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 2.7 GiB Cargo 产物及文档缓存。项目卷可用 77,010,220 KiB（78.86 GB／73.44 GiB）。证据目录 /private/tmp/openrust-lazy-partition.BbGsJBgw。02-09 接续序列化和其余公开入口。
+
+## 惰性集合序列化
+
+对照固定 Laravel 的 [序列化](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L1011)、[首个路径值](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L366) 和 [dot 与 undot](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1717)。旧版未发现同契约的惰性集合入口，复用现有实体集合的 Serde 和数据路径实现。
+
+- `toArray`、`jsonSerialize`、`toJson` 和 `toPrettyJson` 按最后一个键值实体化。连续数字键生成数组，稀疏键与命名键生成对象。读取失败与编码失败分别返回原错误。Serde 支持嵌套惰性集合，JSON 解码构造可重播来源。
+- `value` 在第一个包含路径的条目处停止，匹配 null 时保留该值。`dot` 与 `undot` 在首次取值时转换。`join` 与 `implode` 使用实体集合的可显示类型与键规则。
+- PHP 8.5.12 固定源码对照、56 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 2026-11-17 01:58（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 2.7 GiB Cargo 产物及文档缓存。项目卷可用 73,804,060 KiB（75.58 GB／70.39 GiB）。证据目录 /private/tmp/openrust-lazy-serialization.V5dKzjLK。02-09 接续其余公开入口。

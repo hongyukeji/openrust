@@ -1309,3 +1309,86 @@ fn lazy_pad_retains_right_keys_and_uses_materialized_left_padding() {
         Some(Err(CollectionError::IndexOverflow))
     ));
 }
+
+#[test]
+fn lazy_json_preserves_shapes_and_replays_deserialized_sources() {
+    use serde_json::json;
+    let reads = Cell::new(0);
+    let keyed = LazyCollection::fromEntries(|| {
+        [
+            (ArrayKey::from(2), "old"),
+            ("08".into(), "keep"),
+            (2.into(), "new"),
+        ]
+        .into_iter()
+        .inspect(|_| reads.set(reads.get() + 1))
+    });
+    assert_eq!(keyed.toJson().unwrap(), r#"{"2":"new","08":"keep"}"#);
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        keyed.jsonSerialize().unwrap(),
+        json!({"2":"new","08":"keep"})
+    );
+    assert_eq!(
+        keyed.toPrettyJson().unwrap(),
+        "{\n  \"2\": \"new\",\n  \"08\": \"keep\"\n}"
+    );
+    assert_eq!(
+        serde_json::to_value(&keyed).unwrap(),
+        keyed.toArray().unwrap()
+    );
+    assert_eq!(keyed.values().toJson().unwrap(), r#"["old","keep","new"]"#);
+
+    let decoded = LazyCollection::<i32>::fromJson(r#"{"8":1,"08":2}"#).unwrap();
+    assert_eq!(decoded.toJson().unwrap(), r#"{"8":1,"08":2}"#);
+    assert_eq!(decoded.toJson().unwrap(), r#"{"8":1,"08":2}"#);
+    assert!(LazyCollection::<i32>::fromJson("7").is_err());
+    let nested =
+        serde_json::from_str::<LazyCollection<'_, LazyCollection<'_, i32>>>("[[1,2],[]]").unwrap();
+    assert_eq!(serde_json::to_string(&nested).unwrap(), "[[1,2],[]]");
+}
+
+#[test]
+fn lazy_serialization_keeps_read_errors_separate_from_encoding_errors() {
+    let failing = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    assert!(matches!(failing.toJson(), Err(CollectionError::Source(_))));
+    assert!(serde_json::to_string(&failing).is_err());
+    let nonfinite = LazyCollection::from([1.0, f64::NAN]);
+    assert!(matches!(
+        nonfinite.toJson(),
+        Err(CollectionError::Serialization(_))
+    ));
+    assert!(matches!(
+        nonfinite.toArray(),
+        Err(CollectionError::Serialization(_))
+    ));
+}
+
+#[test]
+fn lazy_json_paths_and_join_follow_materialization_boundaries() {
+    use serde_json::json;
+    let read = Cell::new(0);
+    let source = LazyCollection::make(|| {
+        [
+            json!({}),
+            json!({"profile":{"active":null}}),
+            json!({"profile":{"active":true}}),
+        ]
+        .into_iter()
+        .inspect(|_| read.set(read.get() + 1))
+    });
+    assert_eq!(source.value("profile.active").unwrap(), Some(json!(null)));
+    assert_eq!(read.get(), 2);
+    let dotted = source.dot();
+    assert_eq!(read.get(), 2);
+    assert_eq!(dotted.get("2.profile.active").unwrap(), Some(json!(true)));
+    assert_eq!(
+        dotted.undot().get(2).unwrap(),
+        Some(json!({"profile":{"active":true}}))
+    );
+    let names = LazyCollection::fromEntries(|| {
+        [("a", "old"), ("a", "new"), ("b", "second"), ("c", "third")]
+    });
+    assert_eq!(names.join(", ", " and ").unwrap(), "new, second and third");
+    assert_eq!(names.implode("/").unwrap(), "new/second/third");
+}

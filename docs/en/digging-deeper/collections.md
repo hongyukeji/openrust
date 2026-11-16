@@ -361,6 +361,24 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Serializing Values {#lazy-serializing-values}
+
+`toArray` and `jsonSerialize` return a JSON value. `toJson` and `toPrettyJson` return encoded text. Each call materializes the source. Consecutive integer keys starting at zero produce an array, and sparse or named keys produce an object. The last value wins for repeated keys. Use `values()` first to retain each occurrence. `fromJson` decodes arrays or objects into a repeatable source. Nested lazy collections participate in Serde serialization.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(readings.toJson()?, r#"{"a":12,"b":7}"#);
+    assert_eq!(readings.values().toJson()?, "[10,12,7]");
+
+    let decoded = LazyCollection::<i32>::fromJson("[4,5]")?;
+    assert_eq!(decoded.toJson()?, "[4,5]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

@@ -361,6 +361,24 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 序列化值 {#lazy-serializing-values}
+
+`toArray` 和 `jsonSerialize` 返回 JSON 值。`toJson` 与 `toPrettyJson` 返回编码后的文本。每次调用都会实体化来源。从零开始的连续整型键生成数组，稀疏键或命名键生成对象。重复键保留最后一个值。先调用 `values()` 可保留每次出现。`fromJson` 将数组或对象解码成可重复遍历的来源。嵌套的惰性集合支持 Serde 序列化。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(readings.toJson()?, r#"{"a":12,"b":7}"#);
+    assert_eq!(readings.values().toJson()?, "[10,12,7]");
+
+    let decoded = LazyCollection::<i32>::fromJson("[4,5]")?;
+    assert_eq!(decoded.toJson()?, "[4,5]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

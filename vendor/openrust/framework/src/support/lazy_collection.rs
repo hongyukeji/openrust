@@ -13,6 +13,7 @@ mod ordering;
 mod pairing;
 mod partition;
 mod projection;
+mod serialization;
 mod sets;
 mod timing;
 

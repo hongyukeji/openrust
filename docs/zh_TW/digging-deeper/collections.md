@@ -361,6 +361,24 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 序列化值 {#lazy-serializing-values}
+
+`toArray` 和 `jsonSerialize` 傳回 JSON 值。`toJson` 與 `toPrettyJson` 傳回編碼後的文字。每次呼叫都會實體化來源。從零開始的連續整數鍵產生陣列，稀疏鍵或具名鍵產生物件。重複鍵保留最後一個值。先呼叫 `values()` 可保留每次出現。`fromJson` 將陣列或物件解碼成可重複迭代的來源。巢狀的惰性集合支援 Serde 序列化。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 10), ("a", 12), ("b", 7)]);
+    assert_eq!(readings.toJson()?, r#"{"a":12,"b":7}"#);
+    assert_eq!(readings.values().toJson()?, "[10,12,7]");
+
+    let decoded = LazyCollection::<i32>::fromJson("[4,5]")?;
+    assert_eq!(decoded.toJson()?, "[4,5]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。
