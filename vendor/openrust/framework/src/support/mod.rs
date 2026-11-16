@@ -48,7 +48,7 @@ pub use message_bag::MessageBag;
 pub use number::{Number, NumberError, NumberValue};
 pub use service_provider::{ProviderFactory, ProviderResult, ServiceProvider};
 pub use sleep::{Sleep, SleepFake};
-pub use stringable::Stringable;
+pub use stringable::{ScanError, ScanValue, Stringable};
 pub use strings::{
     EmptyPasswordAlphabet, InflectionLanguage, OrderedUuidError, PasswordOptions, Str,
     WordWrapError,

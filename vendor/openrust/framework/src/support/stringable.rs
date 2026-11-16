@@ -6,6 +6,9 @@ use std::ops::Deref;
 use serde::Serialize;
 
 mod operations;
+mod scan;
+
+pub use scan::{ScanError, ScanValue};
 
 /// An owned, chainable string that serializes as a JSON string.
 ///
@@ -301,4 +304,11 @@ impl From<&str> for Stringable {
 
 pub(super) fn trim_character(value: char) -> bool {
     matches!(value, '\0' | '\u{9}'..='\u{d}' | '\u{20}' | '\u{85}' | '\u{a0}' | '\u{ad}' | '\u{34f}' | '\u{61c}' | '\u{115f}'..='\u{1160}' | '\u{1680}' | '\u{17b4}'..='\u{17b5}' | '\u{180e}' | '\u{2000}'..='\u{200f}' | '\u{2028}'..='\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{2060}'..='\u{2065}' | '\u{206a}'..='\u{206f}' | '\u{2800}' | '\u{3000}' | '\u{3164}' | '\u{feff}' | '\u{ffa0}' | '\u{1d159}' | '\u{1d173}'..='\u{1d17a}' | '\u{e0020}')
+}
+
+impl Stringable {
+    /// Scans typed captures using Laravel's byte-oriented PHP format grammar.
+    pub fn scan(&self, format: &str) -> Result<super::Collection<Option<ScanValue>>, ScanError> {
+        scan::scan(&self.0, format)
+    }
 }

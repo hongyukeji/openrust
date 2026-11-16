@@ -136,3 +136,18 @@ assert_eq!(title, "Hello 世界 École");
 assert_eq!(Str::padBoth("中", 6, "é🙂"), "é🙂中é🙂é");
 assert_eq!(Str::excerpt("甲乙中心丙丁", "中心", 1, "…").as_deref(), Some("…乙中心丙…"));
 ```
+
+## 格式扫描 {#format-scanning}
+
+`Stringable::scan` 按格式串读出字段，支持宽度、跳过赋值、指定输出位置和字符集。匹配中断后，未匹配槽位为 `None`。首次转换前遇到输入末尾返回空集合。无效格式返回 `ScanError`。字段宽度与 `%n` 按字节计数，截断 UTF-8 的字段用 `ScanValue::Bytes` 保留。
+
+```rust
+use openrust::support::Str;
+use serde_json::json;
+
+let fields = Str::of("42 甲").scan("%2$d %1$s%n");
+assert!(fields.is_err()); // Positional and sequential output cannot be mixed.
+let fields = Str::of("42 甲").scan("%2$d %1$s")?.toArray()?;
+assert_eq!(fields, json!(["甲", 42]));
+assert_eq!(Str::of("17").scan("%d %s")?.toArray()?, json!([17, null]));
+```

@@ -46,7 +46,7 @@
 ## 尚未验收的范围
 
 - 本轮指定的 Arr、日期、Pipeline、多语言词形和 COMB 批次均已验收。Rust 与 PHP 的运行时适配边界见各批验收记录。
-- 02-08 已闭合。本轮复核确认 `Stringable::scan` 格式串行为、超出当前 RBNF 数据范围的语言拼读及非英语小数拼读仍待验收。07-01 维持部分验收。
+- 02-08 已闭合。`Stringable::scan` 已验收。超出当前 RBNF 数据范围的语言拼读及非英语小数拼读仍待验收。07-01 维持部分验收。
 
 ## 正则与文本排版
 
@@ -107,3 +107,8 @@
 
 - 对照固定 Helpers 的空字符串、null、数字、布尔值和空数组规则。Rust 将 JSON 对象作为键值容器。`Retry` 使用一基尝试序号、固定间隔或退避表及错误谓词，复用异步 Sleep。PHP 任意回调延时属于额外适配边界。`Stringable::hash<D>` 以 Rust Digest 类型提供摘要，保留小写十六进制返回值。核对 v0.x 的同名工具，未找到对应通用实现。 [固定 Helpers](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/helpers.php)
 - PHP 8.5.12 固定 Laravel 通过四组对照。15 项 Rust 锁定离线定向回归和严格 Clippy 通过。实际 Artisan 与回环 HTTP 验证三次尝试及成功返回。三语 VitePress 构建通过。独占验收目录清理，共享 Cargo 缓存保留。
+
+## Stringable 格式扫描
+
+- 固定 Laravel `Stringable::scan` 将 PHP `sscanf` 的结果包装为集合。Rust 对照 PHP 8.5.12 的格式验证及字节扫描，支持位置、宽度、跳过赋值、扫描集合、进制、科学计数、文字和 `%n`。首个转换前的输入不足产生空集合，部分匹配保留空槽。格式错误返回 `ScanError`。UTF-8 被宽度切断时保留原始字节，非有限浮点遵循既有集合序列化边界。旧版仅有日期词法扫描器，契约不同。 [固定 Stringable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Stringable.php) [PHP 8.5.12 扫描器](https://github.com/php/php-src/blob/php-8.5.12/ext/standard/scanf.c)
+- PHP 8.5.12 矩阵覆盖 48 组正常及异常格式。12 项 Rust 锁定离线回归、严格 Clippy、真实 Artisan 和回环 HTTP 及三语站点构建通过。

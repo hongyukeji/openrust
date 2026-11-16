@@ -136,3 +136,18 @@ assert_eq!(title, "Hello 世界 École");
 assert_eq!(Str::padBoth("中", 6, "é🙂"), "é🙂中é🙂é");
 assert_eq!(Str::excerpt("甲乙中心丙丁", "中心", 1, "…").as_deref(), Some("…乙中心丙…"));
 ```
+
+## Format scanning {#format-scanning}
+
+`Stringable::scan` reads fields from a format string. Use width, assignment suppression, numbered fields, and character sets. A mismatch leaves unmatched slots as `None`, while end of input before any conversion returns an empty collection. Invalid formats return `ScanError`. Field widths and `%n` count bytes. A field cut inside UTF-8 is retained as `ScanValue::Bytes`.
+
+```rust
+use openrust::support::Str;
+use serde_json::json;
+
+let fields = Str::of("42 甲").scan("%2$d %1$s%n");
+assert!(fields.is_err()); // Positional and sequential output cannot be mixed.
+let fields = Str::of("42 甲").scan("%2$d %1$s")?.toArray()?;
+assert_eq!(fields, json!(["甲", 42]));
+assert_eq!(Str::of("17").scan("%d %s")?.toArray()?, json!([17, null]));
+```
