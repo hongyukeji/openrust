@@ -24,7 +24,7 @@ use crate::view::{
 
 const PREFIX: &str = "blade-v1-";
 const SUFFIX: &str = ".json";
-const COMPILER_VERSION: u32 = 27;
+const COMPILER_VERSION: u32 = 28;
 
 type Directive = Arc<dyn Fn(&[ViewValue]) -> ViewResult<DirectiveOutput> + Send + Sync>;
 type Condition = Arc<dyn Fn(&[ViewValue]) -> ViewResult<bool> + Send + Sync>;

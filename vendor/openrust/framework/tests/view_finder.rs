@@ -584,6 +584,76 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                         .with("caller", "caller")
                         .with("values", serde_json::json!({"label":"<map>"}))
                 })?;
+                Route::get("/keyed-includes", || {
+                    view("keyed_includes").with("caller", "outer").with(
+                        "candidates",
+                        serde_json::json!({
+                            "include_row": "missing",
+                            "z": "include_row",
+                            "a": "each_empty",
+                        }),
+                    )
+                })?;
+                Route::get("/missing-keyed-includes", || {
+                    view("missing_keyed_includes")
+                        .with("candidates", serde_json::json!({"include_row":"missing"}))
+                })?;
+                Route::get("/section-defaults", || {
+                    view("section_defaults").with("defaultText", "<&")
+                })?;
+                Route::get("/stream-each", || {
+                    use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
+                    let runs = Arc::new(AtomicUsize::new(0));
+                    let pulls = Arc::new(AtomicUsize::new(0));
+                    let empty_runs = Arc::new(AtomicUsize::new(0));
+                    let known_runs = Arc::new(AtomicUsize::new(0));
+                    let known_pulls = Arc::new(AtomicUsize::new(0));
+                    view("stream_each")
+                        .with("caller", "private")
+                        .withIterator("lazy", {
+                            let (runs, pulls) = (runs.clone(), pulls.clone());
+                            move || {
+                                let run = runs.fetch_add(1, Relaxed);
+                                let pulls = pulls.clone();
+                                [("b", "<&"), ("a", "V")]
+                                    .into_iter()
+                                    .map(move |(key, value)| {
+                                        pulls.fetch_add(1, Relaxed);
+                                        (
+                                            key.into(),
+                                            if run == 0 { "count-only" } else { value }.into(),
+                                        )
+                                    })
+                            }
+                        })
+                        .withExactSizeIterator("known", {
+                            let (runs, pulls) = (known_runs.clone(), known_pulls.clone());
+                            move || {
+                                runs.fetch_add(1, Relaxed);
+                                let pulls = pulls.clone();
+                                [("k", "known")].into_iter().map(move |(key, value)| {
+                                    pulls.fetch_add(1, Relaxed);
+                                    (key.into(), value.into())
+                                })
+                            }
+                        })
+                        .withIterator("emptyStream", {
+                            let empty_runs = empty_runs.clone();
+                            move || {
+                                empty_runs.fetch_add(1, Relaxed);
+                                std::iter::empty()
+                            }
+                        })
+                        .withExactSizeIterator("probe", move || {
+                            assert_eq!((runs.load(Relaxed), pulls.load(Relaxed)), (2, 4));
+                            assert_eq!(
+                                (known_runs.load(Relaxed), known_pulls.load(Relaxed)),
+                                (1, 1)
+                            );
+                            assert_eq!(empty_runs.load(Relaxed), 1);
+                            std::iter::empty()
+                        })
+                })?;
                 Route::get("/bad-includes", || view("bad_includes"))?;
                 Route::get("/each", || view("each").with("caller", "private"))?;
                 Route::get("/bad-each", || view("bad_each").with("items", false))?;
@@ -1030,6 +1100,38 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("include_row", "[{{ $app }}:{{ $label }}:{{ $caller }}]"),
+        (
+            "keyed_includes",
+            concat!(
+                "@includeFirst(['include_row' => 'missing', 'z' => 'include_row', 'a' => 'each_empty'], ['label' => 'literal'])",
+                "@includeFirst($candidates, ['label' => 'runtime'])",
+            ),
+        ),
+        ("missing_keyed_includes", "@includeFirst($candidates)"),
+        (
+            "section_defaults",
+            concat!(
+                "@section('present', '0')@section('blank', ' ')@section('real', 'content')",
+                "@hasSection('missing', $defaultText)A@endif",
+                "@sectionMissing('absent', ' 0 ')B@endif",
+                "@sectionMissing('present', 'fallback')C@endif",
+                "@sectionMissing('blank', 'fallback')D@endif",
+                "@hasSection('real', '')E@endif",
+                r#"@hasSection('absent', "\u00a0")F@endif"#,
+                "@sectionMissing('absent', false)G@endif",
+                "@hasSection('absent', true)H@endif",
+                "@yield('unknown', $defaultText)",
+            ),
+        ),
+        (
+            "stream_each",
+            concat!(
+                "@each('each_row', $lazy, 'item')",
+                "@each('each_row', $known, 'item')",
+                "@each('each_row', $emptyStream, 'item', 'each_empty')",
+                "@each('each_row', $probe, 'item', 'raw|<ok>')",
+            ),
+        ),
         ("bad_includes", "@includeFirst(['no_such_view'])"),
         (
             "each",
@@ -1434,6 +1536,25 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         send(second, "/includes", 200).await,
         "[B:&lt;&amp;:caller][B:&lt;map&gt;:caller][B:isolated:]"
     );
+    assert_eq!(
+        send(first, "/keyed-includes", 200).await,
+        "[A:literal:outer][A:runtime:outer]"
+    );
+    assert!(
+        send(first, "/missing-keyed-includes", 500)
+            .await
+            .contains("500")
+    );
+    assert_eq!(
+        send(first, "/section-defaults", 200).await,
+        "ABCDEFGH&lt;&amp;"
+    );
+    let (a, b) = tokio::join!(
+        send(first, "/stream-each", 200),
+        send(second, "/stream-each", 200)
+    );
+    assert_eq!(a, "[A:b:&lt;&amp;:][A:a:V:][A:k:known:]A:<ok>");
+    assert_eq!(b, "[B:b:&lt;&amp;:][B:a:V:][B:k:known:]B:<ok>");
     assert!(send(first, "/bad-includes", 500).await.contains("500"));
     let (a, b) = tokio::join!(send(first, "/each", 200), send(second, "/each", 200));
     assert_eq!(a, "[A:0:&lt;&amp;:][A:name:map:]A:<em>empty</em>");

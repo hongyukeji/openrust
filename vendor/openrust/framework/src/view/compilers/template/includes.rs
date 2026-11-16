@@ -17,7 +17,7 @@ pub(super) struct Include {
 
 #[derive(Serialize, Deserialize)]
 pub(super) struct IncludeFirst {
-    candidates: Candidates,
+    candidates: Expression,
     data: Option<Arguments>,
 }
 
@@ -67,23 +67,61 @@ impl RenderEach {
         output: &mut String,
         context: &RenderContext<'_>,
     ) -> ViewResult<()> {
+        if let Some(create) = registered_iteration(&self.collection, bindings, context) {
+            let (count, entries) = create();
+            return match count {
+                Some(0) => self.render_empty(data, bindings, output, context),
+                Some(_) => self.render_rows(entries, data, bindings, output, context),
+                None if entries.count() == 0 => self.render_empty(data, bindings, output, context),
+                None => self.render_rows(create().1, data, bindings, output, context),
+            };
+        }
         let collection = value(&self.collection, data, bindings);
         if !collection.is_array() && !collection.is_object() {
-            return Err(render_error("Blade @each requires an array or object."));
+            return Err(render_error(
+                "Blade @each requires an array, object, or registered iterator.",
+            ));
         }
         let mut entries = collection_entries(collection.as_ref()).peekable();
         if entries.peek().is_none() {
-            if let Some(empty) = &self.empty {
-                let empty = evaluated_name(empty, data, bindings)?;
-                if let Some(raw) = empty.strip_prefix("raw|") {
-                    output.push_str(raw);
-                } else {
-                    output.push_str(&context.include_isolated(&empty, &ViewData::new())?);
-                }
-            }
-            return Ok(());
+            self.render_empty(data, bindings, output, context)
+        } else {
+            self.render_rows(
+                entries.map(|(key, value)| (key, value.clone())),
+                data,
+                bindings,
+                output,
+                context,
+            )
         }
+    }
 
+    fn render_empty(
+        &self,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+        output: &mut String,
+        context: &RenderContext<'_>,
+    ) -> ViewResult<()> {
+        if let Some(empty) = &self.empty {
+            let empty = evaluated_name(empty, data, bindings)?;
+            if let Some(raw) = empty.strip_prefix("raw|") {
+                output.push_str(raw);
+            } else {
+                output.push_str(&context.include_isolated(&empty, &ViewData::new())?);
+            }
+        }
+        Ok(())
+    }
+
+    fn render_rows(
+        &self,
+        entries: impl Iterator<Item = (ViewValue, ViewValue)>,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+        output: &mut String,
+        context: &RenderContext<'_>,
+    ) -> ViewResult<()> {
         let view = evaluated_name(&self.view, data, bindings)?;
         let item = evaluated_name(&self.item, data, bindings)?;
         if !identifier(&item) {
@@ -92,11 +130,28 @@ impl RenderEach {
         for (key, value) in entries {
             let mut row = ViewData::new();
             row.insert("key".to_owned(), key);
-            row.insert(item.as_ref().to_owned(), value.clone());
+            row.insert(item.as_ref().to_owned(), value);
             output.push_str(&context.include_isolated(&view, &row)?);
         }
         Ok(())
     }
+}
+
+pub(super) fn registered_iteration<'a>(
+    expression: &Expression,
+    bindings: &[(&str, &ViewValue)],
+    context: &'a RenderContext<'_>,
+) -> Option<&'a crate::view::ViewIteration> {
+    let Expression::Variable(path) = expression else {
+        return None;
+    };
+    let [name] = path.as_slice() else {
+        return None;
+    };
+    if bindings.iter().any(|(local, _)| *local == name) {
+        return None;
+    }
+    context.iterations.get(name)
 }
 
 pub(super) fn collection_entries(
@@ -114,12 +169,6 @@ pub(super) fn collection_entries(
         .flatten()
         .map(|(key, value)| (ViewValue::from(key.as_str()), value));
     arrays.chain(objects)
-}
-
-#[derive(Serialize, Deserialize)]
-enum Candidates {
-    List(Vec<Expression>),
-    Value(Expression),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -158,35 +207,32 @@ impl Include {
 impl IncludeFirst {
     pub(super) fn parse(source: &str) -> ViewResult<Self> {
         let (names, data) = parse_arguments(source)?;
-        let candidates = if names.trim_start().starts_with('[') {
-            Candidates::List(
-                array_entries(names)?
-                    .into_iter()
-                    .map(expression_value)
-                    .collect::<ViewResult<_>>()?,
-            )
-        } else {
-            Candidates::Value(expression_value(names)?)
-        };
-        Ok(Self { candidates, data })
+        Ok(Self {
+            candidates: expression_value(names)?,
+            data,
+        })
     }
 
-    pub(super) fn names<'a>(
-        &'a self,
-        data: &'a ViewData,
-        bindings: &[(&str, &'a ViewValue)],
-    ) -> ViewResult<Vec<Cow<'a, str>>> {
-        match &self.candidates {
-            Candidates::List(names) => names
+    pub(super) fn names(
+        &self,
+        data: &ViewData,
+        bindings: &[(&str, &ViewValue)],
+    ) -> ViewResult<Vec<String>> {
+        let candidates = value(&self.candidates, data, bindings);
+        match candidates.as_ref() {
+            ViewValue::Array(names) => names
                 .iter()
-                .map(|name| evaluated_name(name, data, bindings))
+                .map(name_value)
+                .map(|name| name.map(str::to_owned))
                 .collect(),
-            Candidates::Value(names) => value(names, data, bindings)
-                .as_array()
-                .ok_or_else(|| render_error("Blade includeFirst requires a list of view names."))?
-                .iter()
-                .map(|value| name_value(value).map(|name| Cow::Owned(name.to_owned())))
+            ViewValue::Object(names) => names
+                .values()
+                .map(name_value)
+                .map(|name| name.map(str::to_owned))
                 .collect(),
+            _ => Err(render_error(
+                "Blade includeFirst requires an array or object of view names.",
+            )),
         }
     }
 

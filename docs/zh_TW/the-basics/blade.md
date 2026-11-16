@@ -108,10 +108,10 @@ fn article_page(article: Article) -> View {
 
 ### 包含子視圖 {#including-subviews}
 
-傳入映射可以覆蓋繼承的視圖資料。`@includeFirst` 呈現清單中第一個存在的視圖。`@includeIsolated` 只接收明確傳入的資料和視圖工廠的共用資料。
+傳入映射可以覆蓋繼承的視圖資料。`@includeFirst` 依插入順序檢查候選值，可接收範本中的清單或帶鍵映射，也可接收視圖變數。它會呈現第一個存在的視圖，全部缺少時回報錯誤。`@includeIsolated` 只接收明確傳入的資料和視圖工廠的共用資料。
 
 ```html
-@includeFirst(['custom.notice', 'partials.notice'], ['label' => $title])
+@includeFirst(['custom' => 'custom.notice', 'default' => 'partials.notice'], ['label' => $title])
 @includeIsolated('partials.notice', ['label' => 'Opening soon'])
 ```
 
@@ -120,6 +120,8 @@ fn article_page(article: Article) -> View {
 ```html
 @each('partials.job', $jobs, 'job', 'partials.empty')
 ```
+
+`@each` 也接受透過 `withExactSizeIterator` 或 `withIterator` 註冊的集合。已知長度的疊代器會直接提供項目數，並使用同一個疊代器呈現。未知長度的疊代器會先完整讀取以計數，非空時重新開啟疊代器呈現，沿用 Laravel `LazyCollection` 的行為。請提供有限且可重新開啟的疊代器工廠。空集合的備用視圖只接收共用資料。
 
 ### 運算式與條件屬性 {#conditional-attributes}
 
@@ -353,7 +355,13 @@ fn configure_components(factory: &Factory, external: &Path) -> ViewResult<()> {
 @endsection
 ```
 
-用 `@hasSection('content')` 或 `@sectionMissing('content')` 判斷版面區段是否有內容，並用 `@endif` 結束。
+用 `@hasSection` 或 `@sectionMissing` 判斷區段內容，並用 `@endif` 結束。選用的第二個參數與 `@yield` 的預設值相同。已定義的區段優先，即使其內容為空。依 PHP 規則裁剪空白後，空輸出和字串 `0` 都視為缺少。
+
+```html
+@hasSection('content', $fallback)
+    @yield('content', $fallback)
+@endif
+```
 
 用 `@extendsFirst` 選擇第一個可用的版面。兩個繼承指令都可明確傳入視圖資料。用 `@append` 附加區塊或用 `@overwrite` 覆寫區塊。`@stop` 與 `@endsection` 都可結束區塊。
 

@@ -108,10 +108,10 @@ Use `@production` and `@env` to match the application environment. `@env` accept
 
 ### Including Subviews {#including-subviews}
 
-Pass a map to override inherited data. `@includeFirst` renders the first existing view in the list. `@includeIsolated` receives its explicit values and the view factory's shared data.
+Pass a map to override inherited data. `@includeFirst` checks candidate values in insertion order, using a list or keyed map written in the template or supplied by the view. It renders the first existing view and reports an error when none exists. `@includeIsolated` receives its explicit values and the view factory’s shared data.
 
 ```html
-@includeFirst(['custom.notice', 'partials.notice'], ['label' => $title])
+@includeFirst(['custom' => 'custom.notice', 'default' => 'partials.notice'], ['label' => $title])
 @includeIsolated('partials.notice', ['label' => 'Opening soon'])
 ```
 
@@ -120,6 +120,8 @@ Render one partial per entry with `@each`. The partial gets `$key`, the named it
 ```html
 @each('partials.job', $jobs, 'job', 'partials.empty')
 ```
+
+`@each` also accepts collections registered with `withExactSizeIterator` or `withIterator`. An exact-size iterator supplies its count without reading any entries and renders on that iterator. An unknown-length iterator is consumed to count its entries. If non-empty, Blade opens a fresh iterator to render the rows, following Laravel’s `LazyCollection` behavior. Supply a finite iterator factory that can reopen the collection. Empty fallbacks receive shared data only.
 
 ### Expressions and Conditional Attributes {#conditional-attributes}
 
@@ -353,7 +355,13 @@ Place the child template in `resources/views/dashboard.blade.html` and return `v
 @endsection
 ```
 
-Use `@hasSection('content')` or `@sectionMissing('content')`, closed with `@endif`, to test whether a layout section has content.
+Use `@hasSection` or `@sectionMissing`, closed with `@endif`, to test section content. An optional second argument supplies the same default as `@yield`. A defined section takes precedence, even when empty. After trimming PHP’s standard whitespace, empty output and the string `0` count as missing.
+
+```html
+@hasSection('content', $fallback)
+    @yield('content', $fallback)
+@endif
+```
 
 Use `@extendsFirst` to select the first available layout. Both inheritance directives accept a map of explicit view data. Use `@append` or `@overwrite` to change how the current section is stored. `@stop` closes a section like `@endsection`.
 

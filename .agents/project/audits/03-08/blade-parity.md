@@ -7,10 +7,10 @@
 | Introduction、Livewire | 应用从路由返回命名视图。编译器缓存纯 Rust 指令树。 | Livewire 属于独立生态范围。 |
 | Displaying Data、HTML Entity Encoding | 默认转义、可信原样输出、标量、数组表达式、变量和属性读取，应用级 HTML 实体双重编码开关。 | PHP 任意函数调用改由 Rust 处理器、创建器或组合器计算。 |
 | Blade and JavaScript Frameworks、Comments | 字面量转义、`@verbatim`、Blade 注释、`Js::from` 和 `@js` 的脚本表达式输出。 | PHP JSON 标志和自定义序列化对象由 Rust 数据模型替代。 |
-| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断、环境匹配、会话与公开上下文绑定、HTTP 守卫，以及 Rust 视图数据的严格和宽松比较。 | PHP 用户定义对象与比较重载无直接对应。 |
+| If Statements | `@if`、`@elseif`、`@unless`、`@isset`、`@empty`、区段判断及与 `@yield` 共用的显式默认值、环境匹配、会话与公开上下文绑定、HTTP 守卫，以及 Rust 视图数据的严格和宽松比较。 | PHP 用户定义对象与比较重载无直接对应。 |
 | Switch Statements、Loops、The Loop Variable | Switch 的匹配、默认分支、贯穿与跳转。支持 `@foreach`、`@forelse`、键和值、循环元数据、计数 `@for`、`@while` 及带条件或层级的 `@break` / `@continue`。 | 流式集合按已知或未知长度生成循环元数据，提前跳出时停止迭代。PHP 任意可变循环表达式仍通过 Rust 数据准备表达。 |
-| Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 数组支持显式和隐式键、值表达式、下标读取与嵌套。引用、展开和对象重载通过调用方数据准备表达。 |
-| Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。支持 `@includeFirst`、`@includeIsolated` 与 `@each` 的独立集合渲染。 | 集合由物化的 Rust 视图数据提供。 |
+| Conditional Classes and Styles、Additional Attributes | 条件列表、类与样式、布尔 HTML 属性。 | 数组表达式支持显式和隐式键、下标读取与嵌套。固定 Laravel 接受 `@class($classes)`、`@style($styles)` 的运行时集合，Rust 目前要求数组字面量。见 [最终复核](README.md#三项边界与定稿复核)。 |
+| Including Subviews、Rendering Views for Collections | `@include`、`@includeIf`、`@includeWhen`、`@includeUnless` 支持继承和覆盖数据。`@includeFirst` 按列表或带键映射的值和插入顺序查找。支持 `@includeIsolated` 与 `@each` 的独立集合渲染。 | `@each` 接受物化数据或注册的有限迭代器工厂，按精确长度或两次遍历实现 Laravel 的计数与渲染。 |
 | The Once Directive、Raw PHP、Fonts | `@once` 及显式渲染树标识，`@fonts` 支持开发和生产清单、别名及预加载。 | `@php` 和 `@use` 对应调用方 Rust 代码及模块导入。完整 Vite 构建与 Node 插件接线由资产主题验收。 |
 | Components、Index Components、Registering Components | 应用注册 Rust 组件、匿名索引、动态组件、命名空间、额外路径与 `shouldRender`。 | PHP 类自动发现由 Rust 工厂替代。包发布接线继续独立验收。 |
 | Passing Data to Components、Component Attributes、Reserved Keywords | 静态、绑定与简写属性、双冒号客户端绑定、`@props` 默认值、属性包的 `merge`、`class`、`style`、`only`、`except`、前缀筛选与链式调用、属性值和键检查、默认值追加和 Rust 筛选回调。 | Rust 显式暴露组件数据与装配依赖，属性包和插槽由模板保留。 |
@@ -24,7 +24,7 @@
 | Rendering Blade Fragments | 单个、多个、全部和条件响应，保持片段顺序和请求隔离。 | 每个具名项独立渲染同一视图并再次运行组合器，缺失项返回对应的完整输出。全部片段共用一次渲染。见 [验收记录](README.md#具名片段的逐次渲染)。 |
 | Extending Blade、Custom Echo Handlers、Custom If Statements | Rust 自定义指令回调返回待转义文本或可信 HTML。支持自定义条件、否定形式、多分支、Rust `check`、类型化 `stringable` 和集合输出处理器。 | PHP 表达式生成改用 Rust 回调，应用通过 `withStringable` 显式传递类型化值。 |
 
-03-07 和 03-08 按交付计划完成核心闭合。纯 Rust 模板使用显式类型投影、组件注册和渲染回调。Gate 授权指令已通过 [05-09 的专项验收](../05-09/README.md#blade-授权指令)。完整 Vite 工具链及 Livewire 集成按各自主题验收。
+03-07 和 03-08 按交付计划完成核心闭合。纯 Rust 模板使用显式类型投影、组件注册和渲染回调。Gate 授权指令已通过 [05-09 的专项验收](../05-09/README.md#blade-授权指令)。完整 Vite 工具链及 Livewire 集成按各自主题验收。Blade 本体的最终定稿仍有运行时 class/style 集合差异待处理。
 
 ## 本阶段验收与缓存回收
 

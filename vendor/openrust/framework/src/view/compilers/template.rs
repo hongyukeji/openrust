@@ -28,7 +28,7 @@ use attributes::{
 
 use authorization::AuthorizationBranch;
 use expressions::{Expression, expression_value, loose_equal, truthy, value};
-use includes::{Include, IncludeFirst, RenderEach, collection_entries};
+use includes::{Include, IncludeFirst, RenderEach, collection_entries, registered_iteration};
 use loops::{CountedLoop, Jump, JumpKind};
 
 #[derive(Serialize, Deserialize)]
@@ -155,6 +155,7 @@ enum Predicate {
 enum ConditionalValue {
     Expression(Expression),
     Component(ComponentQuery),
+    Section(Expression, Option<Expression>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -975,11 +976,16 @@ impl<'a> Parser<'a> {
         predicate: Predicate,
         end: Stop<'a>,
     ) -> ViewResult<Node> {
-        let arguments = self.arguments()?;
-        let expression = if let Some(query) = parse_component_query(arguments)? {
-            ConditionalValue::Component(query)
+        let expression = if matches!(predicate, Predicate::HasSection | Predicate::SectionMissing) {
+            let (name, default) = self.named_argument()?;
+            ConditionalValue::Section(name, default)
         } else {
-            ConditionalValue::Expression(expression_value(arguments)?)
+            let arguments = self.arguments()?;
+            if let Some(query) = parse_component_query(arguments)? {
+                ConditionalValue::Component(query)
+            } else {
+                ConditionalValue::Expression(expression_value(arguments)?)
+            }
         };
         let (yes, stop) = self.block(depth + 1)?;
         let (no, stop) = match stop {
@@ -1429,6 +1435,20 @@ fn render_nodes<'a>(
                     ConditionalValue::Component(query) => {
                         Cow::Owned(query.resolve(context, data, bindings)?)
                     }
+                    ConditionalValue::Section(expression, default) => {
+                        let name = evaluated_name(expression, data, bindings)?;
+                        let mut section = String::new();
+                        yield_section(
+                            context,
+                            &name,
+                            &mut section,
+                            default
+                                .as_ref()
+                                .map(|default| value(default, data, bindings))
+                                .as_deref(),
+                        );
+                        Cow::Owned(ViewValue::String(section))
+                    }
                 };
                 let value = evaluated.as_ref();
                 let matches = match predicate {
@@ -1436,8 +1456,8 @@ fn render_nodes<'a>(
                     Predicate::Empty => !truthy(value),
                     Predicate::Isset => !value.is_null(),
                     Predicate::HasStack => context.has_stack(name_value(value)?),
-                    Predicate::HasSection => context.has_section(name_value(value)?),
-                    Predicate::SectionMissing => !context.has_section(name_value(value)?),
+                    Predicate::HasSection => section_present(value),
+                    Predicate::SectionMissing => !section_present(value),
                 };
                 render_block!(
                     if matches { yes } else { no },
@@ -1454,15 +1474,7 @@ fn render_nodes<'a>(
                 body,
                 alternative,
             } => {
-                let stream = match expression {
-                    Expression::Variable(path) => match path.as_slice() {
-                        [name] if !bindings.iter().any(|(local, _)| *local == name) => {
-                            context.iterations.get(name)
-                        }
-                        _ => None,
-                    },
-                    _ => None,
-                };
+                let stream = registered_iteration(expression, bindings, context);
                 let collection = value(expression, data, bindings);
                 let (count, entries): (_, Box<dyn Iterator<Item = _>>) = if let Some(stream) =
                     stream
@@ -1606,11 +1618,7 @@ fn render_nodes<'a>(
                 context.extend(vec![name], include.data(data, bindings, true)?)?;
             }
             Node::ExtendsFirst(include) => {
-                let names = include
-                    .names(data, bindings)?
-                    .into_iter()
-                    .map(Cow::into_owned)
-                    .collect();
+                let names = include.names(data, bindings)?;
                 context.extend(names, include.data(data, bindings)?)?;
             }
             Node::Section(expression, nodes, end) => {
@@ -1629,11 +1637,15 @@ fn render_nodes<'a>(
             }
             Node::Yield(expression, default) => {
                 let name = evaluated_name(expression, data, bindings)?;
-                if !context.yield_to(&name, output)
-                    && let Some(default) = default
-                {
-                    echo(output, value(default, data, bindings).as_ref(), true);
-                }
+                yield_section(
+                    context,
+                    &name,
+                    output,
+                    default
+                        .as_ref()
+                        .map(|default| value(default, data, bindings))
+                        .as_deref(),
+                );
             }
             Node::Stack(expression, default) => {
                 let name = evaluated_name(expression, data, bindings)?;
@@ -1829,7 +1841,7 @@ fn render_nodes<'a>(
             }
             Node::IncludeFirst(include) => {
                 let names = include.names(data, bindings)?;
-                let names: Vec<_> = names.iter().map(Cow::as_ref).collect();
+                let names: Vec<_> = names.iter().map(String::as_str).collect();
                 output.push_str(&context.include_first(&names, &include.data(data, bindings)?)?);
             }
             Node::IncludeIsolated(include) => {
@@ -1929,6 +1941,27 @@ fn loop_integer(value: &ViewValue) -> ViewResult<i64> {
     value
         .as_i64()
         .ok_or_else(|| render_error("Blade @for requires a signed integer counter and step."))
+}
+
+fn yield_section(
+    context: &RenderContext<'_>,
+    name: &str,
+    output: &mut String,
+    default: Option<&ViewValue>,
+) {
+    if !context.yield_to(name, output)
+        && let Some(default) = default
+    {
+        echo(output, default, true);
+    }
+}
+
+fn section_present(value: &ViewValue) -> bool {
+    let text = value.as_str().unwrap_or_default();
+    !matches!(
+        text.trim_matches([' ', '\t', '\r', '\n', '\u{000b}', '\0']),
+        "" | "0"
+    )
 }
 
 fn evaluated_name<'a>(
