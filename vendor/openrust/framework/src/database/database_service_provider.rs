@@ -41,7 +41,7 @@ impl ServiceProvider for DatabaseServiceProvider {
             container.singleton::<super::eloquent::relations::MorphMap, _>(|_| {
                 Ok(Arc::new(super::eloquent::relations::MorphMap::default()))
             })?;
-            container.singleton::<super::seeder::SeederRegistry, _>(|_| {
+            container.singletonIf::<super::seeder::SeederRegistry, _>(|_| {
                 Ok(Arc::new(super::seeder::SeederRegistry::default()))
             })?;
             Ok(())

@@ -8,7 +8,7 @@
 ./artisan make:migration create_flights_table
 ```
 
-在 `database/migrations/mod.rs` 登錄產生的模組和 `MigrationEntry`，然後重新建置。登錄時填寫的路徑用於產生帳本名稱，也可以用 `--path` 選擇該遷移。
+在 `database/migrations/mod.rs` 登錄產生的模組和 `MigrationEntry`，然後重新建置。登錄時填寫的路徑用於產生帳本名稱，也可以用 `--path` 選擇該遷移。 應用程式在 `bootstrap/app.rs` 中透過 `withMigrations` 接入這份清單。
 
 ## 遷移結構
 

@@ -2,7 +2,7 @@ use std::error::Error;
 
 use openrust::foundation::{Application, configuration::Routing};
 
-use crate::{app::console::commands, config, routes};
+use crate::{app::console::commands, config, database, routes};
 
 #[allow(non_snake_case, reason = "Preserves application assembly names")]
 pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + Sync>> {
@@ -12,6 +12,8 @@ pub(crate) fn createApplication() -> Result<Application, Box<dyn Error + Send + 
     Application::configure(basePath)
         .withConfig(config::load)
         .withProviders(super::providers::providers())
+        .withMigrations(database::migrations::ENTRIES)
+        .withSeeders(database::seeders::ENTRIES)
         .withCommands(commands::register)
         .withRouting(
             Routing::default()

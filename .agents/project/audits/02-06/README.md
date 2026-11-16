@@ -17,3 +17,7 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-06.UCKIPa` �
 - 三语新增 Rust 示例各在 SQLite 和 MySQL 执行，三语命令块逐条执行，生成器输出的 Rust stub 实际编译。`npm run build` 成功，12 项浏览器组合及 6 次迁移页面与侧栏检查通过。主工作区依赖锁定和 `git diff --check` 通过。
 
 下一批 02-07 数据填充，以当前迁移账本、具名连接和 Artisan 装配为前置。
+
+## Bootstrap 注册复验
+
+应用启动通过 `bootstrap/app.rs` 的 `withMigrations(database::migrations::ENTRIES)` 登记编译期迁移清单。实际 Artisan 子进程在独立 MySQL 8.4.13 上通过 `artisan_migrations_use_a_real_mysql_ledger`，覆盖迁移、状态、预演及回滚。三语文档构建和 12 项浏览器组合通过。

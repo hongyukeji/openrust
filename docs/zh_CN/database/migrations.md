@@ -8,7 +8,7 @@
 ./artisan make:migration create_flights_table
 ```
 
-在 `database/migrations/mod.rs` 中注册生成的模块和 `MigrationEntry`，然后重新构建。注册时填写的路径用于生成账本名称，也可以用 `--path` 选择该迁移。
+在 `database/migrations/mod.rs` 中注册生成的模块和 `MigrationEntry`，然后重新构建。注册时填写的路径用于生成账本名称，也可以用 `--path` 选择该迁移。 应用在 `bootstrap/app.rs` 中通过 `withMigrations` 接入这份清单。
 
 ## 迁移结构
 

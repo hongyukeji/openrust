@@ -17,3 +17,7 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-07.enZkH4` �
 - 三语 Seeder 示例编译进测试应用，其文档命令分别在 SQLite 和 MySQL 执行并核对写入结果。`npm run build` 成功，12 项浏览器组合与 6 次 Seeder 正文及侧栏检查通过。工作区锁定依赖解析和 `git diff --check` 通过。
 
 下一批 02-08 通用集合，以 01-01 应用基础为前置，核对键保留、映射、过滤、聚合、排序、分组和序列化。
+
+## Bootstrap 注册复验
+
+应用启动通过 `bootstrap/app.rs` 的 `withSeeders(database::seeders::ENTRIES)` 登记编译期 Seeder 清单。独立 MySQL 8.4.13 上通过 `application_default_seeder_creates_the_verified_example_user_on_mysql` 和 `artisan_seeders_write_to_real_mysql`。实际 Artisan 子进程验证默认 Seeder、重复插入失败、具名连接和 `migrate --seed`。Rust 1.94.0 工作区严格 Clippy 通过，改动文件格式通过。全仓格式检查仍检出既有 Sanctum 测试格式差异。

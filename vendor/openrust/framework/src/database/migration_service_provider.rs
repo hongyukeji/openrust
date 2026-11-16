@@ -20,7 +20,7 @@ impl ServiceProvider for MigrationServiceProvider {
         Box::pin(async move {
             let root = application.base_path().to_path_buf();
             let container = application.container();
-            container.singleton::<MigrationRegistry, _>(|_| {
+            container.singletonIf::<MigrationRegistry, _>(|_| {
                 Ok(Arc::new(MigrationRegistry::default()))
             })?;
             container.singletonNamed("migrator", move |container| {

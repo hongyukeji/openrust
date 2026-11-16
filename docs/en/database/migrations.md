@@ -8,7 +8,7 @@ Use `make:migration` to create a timestamped Rust source file in `database/migra
 ./artisan make:migration create_flights_table
 ```
 
-Register the generated module and its `MigrationEntry` in `database/migrations/mod.rs` and rebuild. The registered source path supplies the ledger name and can be selected using `--path`.
+Register the generated module and its `MigrationEntry` in `database/migrations/mod.rs` and rebuild. The registered source path supplies the ledger name and can be selected using `--path`. The application passes that list to `withMigrations` in `bootstrap/app.rs`.
 
 ## Migration Structure
 

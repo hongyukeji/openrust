@@ -3,6 +3,11 @@ use std::{collections::BTreeMap, io, path::PathBuf, sync::Arc};
 use super::routing::ChannelRoutes;
 use super::{Exceptions, Middleware, Routing};
 use crate::{
+    contracts::container::Container as _,
+    database::{
+        migrations::{MigrationEntry, MigrationRegistry},
+        seeder::{SeederEntry, SeederRegistry},
+    },
     foundation::{
         Application, BootstrapError, Runner,
         application::{CommandRegistrar, MiddlewareConfigurator, RunnerRegistrar},
@@ -17,6 +22,8 @@ pub struct ApplicationBuilder {
     base_path: PathBuf,
     load_config: ConfigLoader,
     providers: Vec<Box<dyn ServiceProvider>>,
+    migrations: Option<&'static [MigrationEntry]>,
+    seeders: Option<&'static [SeederEntry]>,
     routing: Option<Routing>,
     channels: Option<ChannelRoutes>,
     middleware_configurators: Vec<MiddlewareConfigurator>,
@@ -36,6 +43,8 @@ impl ApplicationBuilder {
             base_path,
             load_config: |_, _| Ok(BTreeMap::new()),
             providers: Vec::new(),
+            migrations: None,
+            seeders: None,
             routing: None,
             channels: None,
             middleware_configurators: Vec::new(),
@@ -53,6 +62,18 @@ impl ApplicationBuilder {
 
     pub fn withProviders(mut self, providers: Vec<Box<dyn ServiceProvider>>) -> Self {
         self.providers.extend(providers);
+        self
+    }
+
+    /// Registers the application's compiled migration entries for Artisan.
+    pub fn withMigrations(mut self, entries: &'static [MigrationEntry]) -> Self {
+        self.migrations = Some(entries);
+        self
+    }
+
+    /// Registers the application's compiled seeder entries for Artisan.
+    pub fn withSeeders(mut self, entries: &'static [SeederEntry]) -> Self {
+        self.seeders = Some(entries);
         self
     }
 
@@ -144,6 +165,17 @@ impl ApplicationBuilder {
             self.commands,
             self.exceptions,
         );
+        let container = &application.shared.container;
+        if let Some(entries) = self.migrations {
+            container
+                .instance(Arc::new(MigrationRegistry(entries)))
+                .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        }
+        if let Some(entries) = self.seeders {
+            container
+                .instance(Arc::new(SeederRegistry(entries)))
+                .map_err(|source| BootstrapError::ContainerFailed { source })?;
+        }
         *application
             .shared
             .grpc_registrar
