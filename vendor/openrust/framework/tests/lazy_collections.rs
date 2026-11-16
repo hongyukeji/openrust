@@ -213,3 +213,81 @@ fn deadlines_and_heartbeats_execute_only_during_traversal() {
     assert!(started.elapsed() >= Duration::from_millis(2));
     assert_eq!(beats.get(), 2);
 }
+
+#[test]
+fn chunk_while_reuses_the_boundary_item_and_preserves_keys() {
+    let reads = Cell::new(0);
+    let groups = LazyCollection::fromEntries(|| {
+        [("first", 'A'), ("again", 'A'), ("next", 'B'), ("last", 'C')]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    })
+    .chunkWhile(|value, _, group| group.last() == Some(value));
+    assert_eq!(reads.get(), 0);
+    let mut iterator = groups.getIterator();
+    let (_, first) = iterator.next().unwrap().unwrap();
+    assert_eq!(first.toJson().unwrap(), r#"{"first":"A","again":"A"}"#);
+    assert_eq!(reads.get(), 3);
+    let (_, second) = iterator.next().unwrap().unwrap();
+    assert_eq!(second.toJson().unwrap(), r#"{"next":"B"}"#);
+    assert_eq!(reads.get(), 4);
+    let (_, last) = iterator.next().unwrap().unwrap();
+    assert_eq!(last.toJson().unwrap(), r#"{"last":"C"}"#);
+    assert!(iterator.next().is_none());
+    assert_eq!(groups.count().unwrap(), 3);
+}
+
+#[test]
+fn sliding_preserves_key_order_and_pulls_only_complete_windows() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("x", 1), ("x", 2), ("y", 3), ("z", 4), ("p", 5), ("q", 6)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let overlap = source.clone().sliding(2, 1).unwrap();
+    assert_eq!(reads.get(), 0);
+    let mut iterator = overlap.getIterator();
+    let (_, first) = iterator.next().unwrap().unwrap();
+    assert_eq!(first.toJson().unwrap(), r#"{"x":2,"y":3}"#);
+    assert_eq!(reads.get(), 3);
+    assert_eq!(
+        iterator.next().unwrap().unwrap().1.toJson().unwrap(),
+        r#"{"y":3,"z":4}"#
+    );
+    assert_eq!(reads.get(), 4);
+    let gapped = source.clone().sliding(2, 3).unwrap().all().unwrap();
+    assert_eq!(gapped.len(), 2);
+    assert_eq!(gapped[1].1.toJson().unwrap(), r#"{"p":5,"q":6}"#);
+    let short = source.clone().sliding(6, 1).unwrap();
+    assert_eq!(short.count().unwrap(), 0);
+    assert!(matches!(
+        source.clone().sliding(0, 1),
+        Err(CollectionError::InvalidArgument)
+    ));
+    assert!(matches!(
+        source.sliding(2, 0),
+        Err(CollectionError::InvalidArgument)
+    ));
+}
+
+#[test]
+fn lazy_grouping_propagates_errors_during_a_group_or_a_window_gap() {
+    let source = LazyCollection::tryMake(|| [Ok(1), Ok(2), Err(source_error()), Ok(4)]);
+    let chunk = source.clone().chunkWhile(|_, _, _| true);
+    let mut groups = chunk.getIterator();
+    assert!(matches!(
+        groups.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(groups.next().is_none());
+
+    let sliding = source.sliding(2, 3).unwrap();
+    let mut windows = sliding.getIterator();
+    assert!(matches!(windows.next(), Some(Ok(_))));
+    assert!(matches!(
+        windows.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(windows.next().is_none());
+}

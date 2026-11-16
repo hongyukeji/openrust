@@ -1,5 +1,7 @@
 use std::{cell::RefCell, collections::VecDeque, iter, rc::Rc, sync::Arc};
 
+use indexmap::IndexMap;
+
 use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable};
 
 mod timing;
@@ -295,6 +297,80 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
                 (!chunk.isEmpty()).then_some(Ok(chunk))
             }))
         })
+    }
+
+    pub fn chunkWhile(
+        self,
+        predicate: impl Fn(&T, &ArrayKey, &Collection<T>) -> bool + 'source,
+    ) -> LazyCollection<'source, Collection<T>> {
+        let predicate = Rc::new(predicate);
+        LazyCollection::from_iterators(move || {
+            let mut iterator = self.getIterator();
+            let predicate = Rc::clone(&predicate);
+            let mut pending = None;
+            index_values(iter::from_fn(move || {
+                let first = pending.take().or_else(|| iterator.next())?;
+                let (key, value) = match first {
+                    Ok(entry) => entry,
+                    Err(error) => return Some(Err(error)),
+                };
+                let mut chunk = Collection::new();
+                chunk.put(key, value);
+                for entry in iterator.by_ref() {
+                    let (key, value) = match entry {
+                        Ok(entry) => entry,
+                        Err(error) => return Some(Err(error)),
+                    };
+                    if !predicate(&value, &key, &chunk) {
+                        pending = Some(Ok((key, value)));
+                        break;
+                    }
+                    chunk.put(key, value);
+                }
+                Some(Ok(chunk))
+            }))
+        })
+    }
+
+    pub fn sliding(
+        self,
+        size: usize,
+        step: usize,
+    ) -> CollectionResult<LazyCollection<'source, Collection<T>>>
+    where
+        T: Clone,
+    {
+        if size == 0 || step == 0 {
+            return Err(CollectionError::InvalidArgument);
+        }
+        Ok(LazyCollection::from_iterators(move || {
+            let mut iterator = self.getIterator();
+            let mut window = IndexMap::new();
+            let mut skip = 0;
+            index_values(iter::from_fn(move || {
+                for _ in 0..skip {
+                    if let Err(error) = iterator.next()? {
+                        return Some(Err(error));
+                    }
+                }
+                while window.len() < size {
+                    match iterator.next()? {
+                        Ok((key, value)) => {
+                            window.insert(key, value);
+                        }
+                        Err(error) => return Some(Err(error)),
+                    }
+                }
+                let output = Collection::fromEntries(
+                    window
+                        .iter()
+                        .map(|(key, value)| (key.clone(), value.clone())),
+                );
+                window.drain(..step.min(size));
+                skip = step.saturating_sub(size);
+                Some(Ok(output))
+            }))
+        }))
     }
 
     pub fn first(&self) -> CollectionResult<Option<T>> {

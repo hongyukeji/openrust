@@ -110,6 +110,27 @@ fn main() -> Result<(), CollectionError> {
 
 `chunk` 每次產生一個已收集的 `Collection`，可選擇保留組內鍵。惰性集合在擁有它的執行緒執行，可以借用執行緒內的區域狀態。
 
+#### 分組與滑動視窗 {#lazy-grouping-and-sliding}
+
+`chunkWhile` 對連續項目分組。回呼收到下一個值、它的鍵和目前的群組。回傳 false 時，該項目成為新群組的第一項。`sliding(size, step)` 只產出完整視窗，視窗大小和步長都須為正數。分組和視窗保留原始鍵，每組以實體化的 `Collection` 回傳。滑動視窗要求值實作 `Clone`，讓各視窗獨立擁有值。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::make(|| [4, 4, 8, 8, 12]);
+    let groups = readings
+        .clone()
+        .chunkWhile(|reading, _, group| group.last() == Some(reading));
+    assert_eq!(groups.count()?, 3);
+
+    let windows = readings.sliding(2, 2)?;
+    assert_eq!(windows.count()?, 2);
+    assert_eq!(windows.first()?.unwrap().toJson()?, "[4,4]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

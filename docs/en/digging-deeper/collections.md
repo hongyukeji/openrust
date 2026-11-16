@@ -110,6 +110,27 @@ Both `Collection` and `LazyCollection` implement `Enumerable` with `map`, `filte
 
 `chunk` emits one materialized `Collection` at a time and can preserve its keys. A lazy collection runs on the thread that owns it and can borrow local state.
 
+#### Grouping and Sliding Windows {#lazy-grouping-and-sliding}
+
+`chunkWhile` groups consecutive items. Its callback receives the next value, its key, and the current group. A false result starts the next group with that item. `sliding(size, step)` yields only complete windows. The window size and step must both be positive. Groups and windows preserve the source keys and are returned as materialized `Collection` values. Sliding windows require `Clone` so each window owns its values.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::make(|| [4, 4, 8, 8, 12]);
+    let groups = readings
+        .clone()
+        .chunkWhile(|reading, _, group| group.last() == Some(reading));
+    assert_eq!(groups.count()?, 3);
+
+    let windows = readings.sliding(2, 2)?;
+    assert_eq!(windows.count()?, 2);
+    assert_eq!(windows.first()?.unwrap().toJson()?, "[4,4]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

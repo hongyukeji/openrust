@@ -188,3 +188,5 @@ Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态
 2026-11-17 00:42（北京时间）02-05 [条件式 Schema 当前主线复验](audits/02-05/README.md#条件式-schema-当前主线复验)。原实现提交 `7d67c94d3` 已在主分支。复验表目录、限定 Schema 清库、条件式变更、实际 Artisan 和严格 Clippy 均通过。正式周额度剩余 76%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。三轮临时 MySQL 夹具均回收，清理本批 3.1 GiB 隔离 Cargo 产物后，项目卷可用 78,009,700 KiB（79.88 GB／74.40 GiB）。实际日志保存在 /private/tmp/openrust-schema-conditional-recheck.r323r8q6。
 
 2026-11-17 00:47（北京时间）02-06 [MySQL migrate:refresh 回滚与默认快照](audits/02-06/README.md#mysql-migraterefresh-回滚与默认快照)。MySQL 8.4.13 验证缺库失败、默认快照及账本恢复、限步保留数据、零步完整重跑。实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 正式周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。回收本批 4 轮临时 MySQL 夹具，清理 14.1 GiB 隔离 Cargo 产物及文档缓存。项目卷可用 81,479,924 KiB（83.44 GB／77.71 GiB）。日志保存在 /private/tmp/openrust-migrate-refresh.SZOCCWQS。其他驱动的快照与缺库行为仍待发布矩阵。核心账本 44/66。
+
+2026-11-17 00:54（北京时间）02-09 [惰性分组和滑动窗口](audits/02-09/README.md#惰性分组和滑动窗口)。固定 Laravel 原生 PHP 对照、20 项集合测试、三语 Rust 示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。回收本批 PHP 容器，清理 2.7 GiB 隔离 Cargo 产物及文档缓存。项目卷可用 77,342,268 KiB（79.20 GB／73.76 GiB）。证据目录 /private/tmp/openrust-lazy-windows.XT6fdwry。核心账本 45/66，02-09 其余同步方法待对照。

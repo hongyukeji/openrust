@@ -30,3 +30,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 固定 [Laravel Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php) 的 `cursor` 应用查询作用域，逐行构造模型并经过模型集合，再返回单条结果。Rust 复用数据库行流和现有模型水合、属性转换与读取事件。游标不执行关系预加载，读取事件内查询需要另一个可用连接。v0.x 的 BatchCursor 表达键集分页位置，固定 Goravel 的 ORM 查询接口作为装配参考。
 
 隔离基线 `38d96054`。MySQL 8.4.13 与 SQLite 通过 TCP 请求验证转换、读取事件、关系预加载边界、提前结束和读取到第三行时传播事件错误。另验证软删除作用域。夹具先启动应用再注册读取事件，以确保数据库管理器已绑定。21 项查询、关系和分页回归，Rust 1.94.0 严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 和 18 项浏览器检查通过。既有 Sanctum 排版仅在隔离副本处理。清理本批 1.9 GiB Cargo 产物及文档构建产物。提交前周额度剩余 99%，项目卷约 119 GiB。关系游标接线仍待验收。
+
+## 惰性分组和滑动窗口
+
+对照固定 Laravel 的 [LazyCollection](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1196) 及 [两类集合共用测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php)。旧版未找到同契约。继续采用现有懒迭代器、键规则和实体块类型，Goravel 的集合仅参考编译期类型。
+
+- `chunkWhile` 用一项前瞻识别下一组，回调可读取当前组，保留键与顺序。
+- `sliding(size, step)` 支持重叠、连续和带间隔的完整窗口，校验正数参数。重复键沿用 Laravel 的覆盖和顺序规则。由 Rust 实体窗口持有输出值，因此值需实现 `Clone`。
+- 定向集合测试 20 项，通过延迟读取、边界复用、重复键、短窗口、无效参数和读取错误传播。PHP 8.5.12 运行固定 Laravel 源码对照。三语共享 Rust 示例、实际 `./artisan inspire`、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 本批针对同步迭代器，不需要数据库夹具。其余同步方法继续逐项对照。

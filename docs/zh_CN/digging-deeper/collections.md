@@ -110,6 +110,27 @@ fn main() -> Result<(), CollectionError> {
 
 `chunk` 每次生成一个已收集的 `Collection`，可选择保留组内键。惰性集合在拥有它的线程运行，可以借用线程内的局部状态。
 
+#### 分组和滑动窗口 {#lazy-grouping-and-sliding}
+
+`chunkWhile` 对连续条目分组。回调接收下一个值、它的键和当前组。返回 false 时，该条目成为新组的首项。`sliding(size, step)` 只产出完整窗口，窗口大小和步长都须为正数。分组和窗口保留原键，每组以实体化的 `Collection` 返回。滑动窗口要求值实现 `Clone`，让各窗口独立拥有值。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::make(|| [4, 4, 8, 8, 12]);
+    let groups = readings
+        .clone()
+        .chunkWhile(|reading, _, group| group.last() == Some(reading));
+    assert_eq!(groups.count()?, 3);
+
+    let windows = readings.sliding(2, 2)?;
+    assert_eq!(windows.count()?, 2);
+    assert_eq!(windows.first()?.unwrap().toJson()?, "[4,4]");
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。
