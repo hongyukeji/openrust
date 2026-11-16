@@ -126,11 +126,18 @@ impl QueryDuration {
 
     pub(super) fn add(&self, duration: Duration) {
         let nanos = u64::try_from(duration.as_nanos()).unwrap_or(u64::MAX);
-        let _ = self
-            .nanos
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |total| {
-                Some(total.saturating_add(nanos))
-            });
+        let mut total = self.nanos.load(Ordering::Relaxed);
+        loop {
+            match self.nanos.compare_exchange_weak(
+                total,
+                total.saturating_add(nanos),
+                Ordering::Relaxed,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => break,
+                Err(current) => total = current,
+            }
+        }
     }
 
     pub(super) fn reset(&self) {
