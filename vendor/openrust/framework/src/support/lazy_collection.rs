@@ -18,6 +18,7 @@ mod serialization;
 mod sets;
 mod sources;
 mod timing;
+mod transforms;
 
 type Entry<T> = (ArrayKey, T);
 type SourceIterator<'source, T> = Box<dyn Iterator<Item = CollectionResult<Entry<T>>> + 'source>;

@@ -155,3 +155,12 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `pipe` 可改变输出类型，`pipeInto` 通过 `From` 转换，`pipeThrough` 串接相同集合类型的步骤。`ensure` 通过 Rust 谓词表达验证，遇首个不合格值停止。`reduceWithKeys` 和 `reduceInto` 逐次保留原键与重复项。
 - PHP 8.5.12 固定源码对照、62 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
 - 2026-11-17 02:08（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 67,441,124 KiB（69.06 GB／64.32 GiB）。证据目录 /private/tmp/openrust-lazy-flow.LZjByIcO。02-09 接续其余公开入口。
+
+## 惰性记录与嵌套行转换
+
+对照固定 Laravel 的 [flip](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L519)、[select](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L986) 和 [展开与类型映射](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L428)。旧版未发现同契约的惰性操作，递归更新及重复使用现有实体集合实现。
+
+- `select` 按需选择 JSON 字段并重排条目键，保留显式 null。`flip` 使用 `ArrayKey` 约束输入值的类型，重复键在实体化时最后一次生效。
+- `mapSpread` 与 `eachSpread` 用切片及独立键传参。`mapInto` 使用 `From`，需按键构造时可用 `map`。`mergeRecursive`、`replaceRecursive` 和 `multiply` 首次取值时读取完整输入。
+- PHP 8.5.12 固定源码对照、65 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+- 2026-11-17 02:14（北京时间）周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 3.0 GiB Cargo 产物及文档缓存。项目卷可用 62,375,324 KiB（63.87 GB／59.49 GiB）。证据目录 /private/tmp/openrust-lazy-transforms.hujSnpfi。02-09 接续组合与抽样。

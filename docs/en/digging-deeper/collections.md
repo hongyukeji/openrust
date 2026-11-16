@@ -421,6 +421,34 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Transforming Records and Nested Rows {#lazy-transforming-records}
+
+`select` extracts the requested JSON fields from each row and reindexes the rows. `flip` exchanges typed `ArrayKey` values and keys. `mapSpread` and `eachSpread` pass a row slice and its key to a callback. `mapInto` converts each value with `From`. `mergeRecursive`, `replaceRecursive`, and `multiply` materialize their inputs on the first pull.
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let fields = LazyCollection::fromEntries(|| [("active", ArrayKey::from("status"))]);
+    assert_eq!(fields.flip().toJson()?, r#"{"status":"active"}"#);
+
+    let records = LazyCollection::from([json!({"status":"active","internal":42})]);
+    assert_eq!(
+        records.select(&["status"]).toJson()?,
+        r#"[{"status":"active"}]"#
+    );
+    let rows = LazyCollection::from([vec![2_u8, 3]]);
+    assert_eq!(
+        rows.mapSpread(|row, _| row.iter().sum::<u8>())
+            .mapInto::<u16>()
+            .first()?,
+        Some(5)
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

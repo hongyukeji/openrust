@@ -421,6 +421,34 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 轉換記錄與巢狀列 {#lazy-transforming-records}
+
+`select` 從每筆記錄中擷取指定 JSON 欄位，並重新編號。`flip` 交換型別為 `ArrayKey` 的值與鍵。`mapSpread` 和 `eachSpread` 把列切片及其鍵傳給回呼。`mapInto` 透過 `From` 轉換每個值。`mergeRecursive`、`replaceRecursive` 和 `multiply` 在第一次取值時實體化輸入。
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let fields = LazyCollection::fromEntries(|| [("active", ArrayKey::from("status"))]);
+    assert_eq!(fields.flip().toJson()?, r#"{"status":"active"}"#);
+
+    let records = LazyCollection::from([json!({"status":"active","internal":42})]);
+    assert_eq!(
+        records.select(&["status"]).toJson()?,
+        r#"[{"status":"active"}]"#
+    );
+    let rows = LazyCollection::from([vec![2_u8, 3]]);
+    assert_eq!(
+        rows.mapSpread(|row, _| row.iter().sum::<u8>())
+            .mapInto::<u16>()
+            .first()?,
+        Some(5)
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

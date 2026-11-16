@@ -421,6 +421,34 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 转换记录和嵌套行 {#lazy-transforming-records}
+
+`select` 从每条记录中提取指定 JSON 字段，并重新编号。`flip` 交换类型为 `ArrayKey` 的值与键。`mapSpread` 和 `eachSpread` 把行切片及其键传给回调。`mapInto` 通过 `From` 转换每个值。`mergeRecursive`、`replaceRecursive` 和 `multiply` 在首次取值时实体化输入。
+
+```rust
+use openrust::support::{ArrayKey, CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let fields = LazyCollection::fromEntries(|| [("active", ArrayKey::from("status"))]);
+    assert_eq!(fields.flip().toJson()?, r#"{"status":"active"}"#);
+
+    let records = LazyCollection::from([json!({"status":"active","internal":42})]);
+    assert_eq!(
+        records.select(&["status"]).toJson()?,
+        r#"[{"status":"active"}]"#
+    );
+    let rows = LazyCollection::from([vec![2_u8, 3]]);
+    assert_eq!(
+        rows.mapSpread(|row, _| row.iter().sum::<u8>())
+            .mapInto::<u16>()
+            .first()?,
+        Some(5)
+    );
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

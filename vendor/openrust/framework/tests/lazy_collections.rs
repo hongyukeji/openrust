@@ -1585,3 +1585,93 @@ fn lazy_validation_and_owned_reductions_preserve_repeated_occurrences() {
         Err(CollectionError::Source(_))
     ));
 }
+
+#[test]
+fn lazy_flip_and_spread_transform_items_without_materializing() {
+    let keys = LazyCollection::fromEntries(|| {
+        [
+            ("a", ArrayKey::from("8")),
+            ("b", "8".into()),
+            ("c", "08".into()),
+        ]
+    });
+    let flipped = keys.flip();
+    assert_eq!(flipped.count().unwrap(), 3);
+    assert_eq!(
+        flipped.collect().unwrap().toJson().unwrap(),
+        r#"{"8":"b","08":"c"}"#
+    );
+
+    let calls = Cell::new(0);
+    let rows = LazyCollection::fromEntries(|| [("x", vec![2_u8, 3]), ("y", vec![4, 5])]);
+    let sums = rows
+        .clone()
+        .mapSpread(|items, _| {
+            calls.set(calls.get() + 1);
+            items.iter().sum::<u8>()
+        })
+        .mapInto::<u16>();
+    assert_eq!(calls.get(), 0);
+    assert_eq!(sums.first().unwrap(), Some(5));
+    assert_eq!(calls.get(), 1);
+    rows.eachSpread(|items, key| {
+        assert_eq!(items, [2, 3]);
+        assert_eq!(key, &ArrayKey::from("x"));
+        false
+    })
+    .unwrap();
+}
+
+#[test]
+fn lazy_json_select_is_row_based_and_recursive_updates_reuse_key_rules() {
+    use serde_json::json;
+    let reads = Cell::new(0);
+    let rows = LazyCollection::fromEntries(|| {
+        [
+            ("same", json!({"a":1,"b":2})),
+            ("same", json!({"a":null})),
+            ("last", json!({"b":3})),
+        ]
+        .into_iter()
+        .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let selected = rows.select(&["a"]);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(selected.first().unwrap(), Some(json!({"a":1})));
+    assert_eq!(reads.get(), 1);
+    assert_eq!(selected.toArray().unwrap(), json!([{"a":1},{"a":null},[]]));
+
+    let base = LazyCollection::fromValue(json!({"profile":{"name":"A","roles":["edit"]}}));
+    let other = LazyCollection::fromValue(json!({"profile":{"name":"B","roles":["view"]}}));
+    assert_eq!(
+        base.clone()
+            .mergeRecursive(other.clone())
+            .toArray()
+            .unwrap(),
+        json!({"profile":{"name":["A","B"],"roles":["edit","view"]}})
+    );
+    assert_eq!(
+        base.replaceRecursive(other).toArray().unwrap(),
+        json!({"profile":{"name":"B","roles":["view"]}})
+    );
+}
+
+#[test]
+fn lazy_multiply_coalesces_input_before_repetition_and_transforms_propagate_errors() {
+    let source = LazyCollection::fromEntries(|| [("same", 1), ("same", 2), ("other", 3)]);
+    assert_eq!(source.multiply(2).toJson().unwrap(), "[2,3,2,3]");
+    let failing = LazyCollection::tryMake(|| [Ok(serde_json::json!({"a":1})), Err(source_error())]);
+    let projected = failing.clone().select(&["a"]);
+    let mut values = projected.getIterator();
+    assert!(matches!(values.next(), Some(Ok(_))));
+    assert!(matches!(
+        values.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(matches!(
+        LazyCollection::fromValue(serde_json::json!({"a":0}))
+            .replaceRecursive(failing)
+            .first(),
+        Err(CollectionError::Source(_))
+    ));
+}
