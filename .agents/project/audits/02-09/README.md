@@ -71,3 +71,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - 去重沿用实体集合的类型化相等比较，`uniqueBy` 每轮遍历独立保留已见的投影值，输出第一次出现的原条目和键。Rust 的 `uniqueStrict` 与默认类型比较相同。
 - `contains` 与 `firstOrFail` 在首个匹配时停止。`hasSole` 和 `hasMany` 最多读取两条匹配。`sole` 在前两条同键时返回后一个值，复现 Laravel 先按键实体化的结果。来源错误只在实际读到时返回。
 - PHP 8.5.12 固定源码对照、32 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性排序与重复项
+
+对照固定 Laravel 的 [lazy passthru](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1935)、[排序接口](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/LazyCollection.php#L1498) 和 [两类集合共用测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php)。旧版未发现同契约的惰性操作。
+
+- 首次取值时实体化来源，再用现有实体集合排序、反转或找重复项。键收敛和稳定排序沿用实体集合，负向 `slice` 复用同一路径。来源读取失败时传播错误，无部分结果。
+- Rust 通过类型化投影或比较回调表达 Laravel 的动态排序参数。`duplicatesBy` 输出重复的投影值及原键，`duplicatesStrict` 使用同样的类型化相等比较。
+- PHP 8.5.12 固定源码对照加载 Symfony 1.43.0 的 `SortDirection` polyfill。35 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

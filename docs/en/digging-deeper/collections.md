@@ -221,6 +221,23 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Sorting and Finding Duplicates {#lazy-sorting-and-duplicates}
+
+`sort`, `sortBy`, `sortKeys`, their descending variants, `reverse`, and `duplicates` materialize the source on the first pull. The last value for each repeated source key is used. Sorting and reversing preserve keys. `duplicatesBy` yields repeated projection values under their original keys.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 12), ("b", 7), ("c", 12)]);
+    let sorted = readings.clone().sort();
+    assert_eq!(sorted.collect()?.toJson()?, r#"{"b":7,"a":12,"c":12}"#);
+    let duplicates = readings.duplicatesBy(|value, _| value / 10);
+    assert_eq!(duplicates.collect()?.toJson()?, r#"{"c":1}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

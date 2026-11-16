@@ -221,6 +221,23 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 排序與尋找重複項目 {#lazy-sorting-and-duplicates}
+
+`sort`、`sortBy`、`sortKeys` 及其降冪版本、`reverse` 和 `duplicates` 都會在第一次取值時實體化來源。同一來源鍵重複出現時使用最後一個值。排序和反轉保留鍵。`duplicatesBy` 傳回重複的投影值，並保留它們的原始鍵。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("a", 12), ("b", 7), ("c", 12)]);
+    let sorted = readings.clone().sort();
+    assert_eq!(sorted.collect()?.toJson()?, r#"{"b":7,"a":12,"c":12}"#);
+    let duplicates = readings.duplicatesBy(|value, _| value / 10);
+    assert_eq!(duplicates.collect()?.toJson()?, r#"{"c":1}"#);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 建立一個共享迭代器，按需保留已讀項目。每次迭代按位置重播，超過快取前綴時繼續從原來源讀取。來源錯誤也會重播。值須實作 `Clone`，讓每次迭代取得擁有所有權的值。快取屬於集合本身，會隨讀取量增長。

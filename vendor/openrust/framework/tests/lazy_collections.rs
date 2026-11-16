@@ -647,3 +647,114 @@ fn lazy_first_and_contains_stop_on_the_first_match_and_propagate_errors() {
         Err(CollectionError::ItemNotFound)
     ));
 }
+
+#[test]
+fn lazy_ordering_defers_materialization_preserves_keys_and_is_stable() {
+    let reads = Cell::new(0);
+    let entries = LazyCollection::fromEntries(|| {
+        [("b", 3), ("a", 2), ("b", 1), ("c", 2)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let sorted = entries.clone().sort();
+    assert_eq!(reads.get(), 0);
+    let mut iterator = sorted.getIterator();
+    assert_eq!(reads.get(), 0);
+    assert_eq!(iterator.next().unwrap().unwrap(), ("b".into(), 1));
+    assert_eq!(reads.get(), 4);
+    assert_eq!(iterator.next().unwrap().unwrap(), ("a".into(), 2));
+    assert_eq!(iterator.next().unwrap().unwrap(), ("c".into(), 2));
+    assert!(iterator.next().is_none());
+    assert_eq!(entries.clone().sortDesc().first().unwrap(), Some(2));
+    assert_eq!(
+        entries.clone().sortUsing(|a, b| b.cmp(a)).first().unwrap(),
+        Some(2)
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .sortBy(|value, _| value % 2)
+            .first()
+            .unwrap(),
+        Some(2)
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .sortByDesc(|value, _| value % 2)
+            .first()
+            .unwrap(),
+        Some(1)
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .sortKeys()
+            .getIterator()
+            .next()
+            .unwrap()
+            .unwrap(),
+        ("a".into(), 2)
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .sortKeysDesc()
+            .getIterator()
+            .next()
+            .unwrap()
+            .unwrap(),
+        ("c".into(), 2)
+    );
+    assert_eq!(
+        entries
+            .clone()
+            .sortKeysUsing(|a, b| b.cmp(a))
+            .all()
+            .unwrap(),
+        vec![("c".into(), 2), ("b".into(), 1), ("a".into(), 2)]
+    );
+    assert_eq!(
+        entries.reverse().all().unwrap(),
+        vec![("c".into(), 2), ("a".into(), 2), ("b".into(), 1)]
+    );
+}
+
+#[test]
+fn lazy_duplicates_use_final_keys_and_projected_values() {
+    let entries = LazyCollection::fromEntries(|| [("x", 3), ("y", 4), ("x", 4), ("z", 9)]);
+    assert_eq!(
+        entries.clone().duplicates().all().unwrap(),
+        vec![("y".into(), 4)]
+    );
+    assert_eq!(
+        entries.clone().duplicatesStrict().all().unwrap(),
+        vec![("y".into(), 4)]
+    );
+    assert_eq!(
+        entries.duplicatesBy(|value, _| value % 2).all().unwrap(),
+        vec![("y".into(), 0)]
+    );
+}
+
+#[test]
+fn lazy_ordering_reports_source_errors_before_comparing_or_emitting() {
+    let compares = Cell::new(0);
+    let source = LazyCollection::tryMake(|| [Ok(3), Ok(1), Err(source_error()), Ok(2)]);
+    let sorted = source.clone().sortUsing(|a, b| {
+        compares.set(compares.get() + 1);
+        a.cmp(b)
+    });
+    let mut iterator = sorted.getIterator();
+    assert_eq!(compares.get(), 0);
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+    assert_eq!(compares.get(), 0);
+    assert!(matches!(
+        source.duplicates().first(),
+        Err(CollectionError::Source(_))
+    ));
+}

@@ -6,6 +6,7 @@ use super::{ArrayKey, Collection, CollectionError, CollectionResult, Enumerable}
 
 mod matching;
 mod nested;
+mod ordering;
 mod pairing;
 mod timing;
 
@@ -97,6 +98,18 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
         Self {
             source: Rc::new(move || Box::new(source())),
         }
+    }
+
+    fn passthru<U: 'source>(
+        self,
+        operation: impl Fn(Collection<T>) -> Collection<U> + 'source,
+    ) -> LazyCollection<'source, U> {
+        LazyCollection::from_iterators(move || -> SourceIterator<'source, U> {
+            match Self::collect(&self) {
+                Ok(items) => Box::new(operation(items).into_iter().map(Ok)),
+                Err(error) => Box::new(iter::once(Err(error))),
+            }
+        })
     }
 
     pub fn getIterator(&self) -> LazyIterator<'source, T> {
@@ -260,12 +273,7 @@ impl<'source, T: 'source> LazyCollection<'source, T> {
 
     pub fn slice(self, offset: isize, length: Option<isize>) -> Self {
         if offset < 0 || length.is_some_and(|length| length < 0) {
-            return Self::from_iterators(move || -> SourceIterator<'source, T> {
-                match Self::collect(&self) {
-                    Ok(items) => Box::new(items.slice(offset, length).into_iter().map(Ok)),
-                    Err(error) => Box::new(iter::once(Err(error))),
-                }
-            });
+            return self.passthru(move |items| items.slice(offset, length));
         }
 
         let skipped = self.skip(offset.unsigned_abs());
