@@ -284,3 +284,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `59e2c3967`。SQLite 22 项和 MySQL 8.4.13 的 24 项 Schema 测试通过。新增 SQLite 回归覆盖长度、精度、未声明类型和五种主键形态，通过实际插入验证自动分配、空值存储及空值拒绝。MySQL 使用隔离副本内 `docker/accept.py --mysql --mysql-schema-admin`，`sh tests/table_catalog.sh` 的写库表目录和限定 Schema 清库通过。
 - SQLite 实际 Artisan 通过三语共用示例。`main artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式检查只报告既有 Sanctum 排版差异。
 - 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.34 GB（66.44 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-columns.DaP8WwVi`。
+
+## SQLite 外键目录
+
+对照固定 Laravel [SQLite 外键查询](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L211)及[外键结果处理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Processors/SQLiteProcessor.php#L83)。旧版未找到对应外键元数据接口，复用现有写连接、SQLite PRAGMA 及 MySQL 信息目录。
+
+- SQLite 外键返回所在 Schema，包括附加库名。按目录的数字编号分组及排序，保留同一约束中的列顺序。SQLite 目录的约束名为 `None`，省略的目标列也按原始位置表示为 `None`。MySQL 继续读取服务器提供的约束名和目标 Schema。
+- 隔离基线 `815689dc7`。SQLite 25 项和 MySQL 8.4.13 的 24 项 Schema 测试通过。新增回归用同一写会话实际附加 SQLite 库，验证 13 个外键在超过一位数时的顺序、带前缀的表名、复合引用、正确写入及无效值拒绝。MySQL 的表目录、限定 Schema 清库及旁库标记行保留通过。
+- 三语共用示例在 SQLite 和 MySQL 的实际 Artisan 中运行，`main artisan inspire`、变更文件格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式检查仅报告既有 Sanctum 排版差异。临时 MySQL 验收入口从 `3d2641c0f` 提取到隔离副本。
+- 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.31 GB（66.42 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-foreign.pWfq2qkS`。

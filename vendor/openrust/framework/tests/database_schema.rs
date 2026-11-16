@@ -152,6 +152,10 @@ async fn verify(db: Connection, mysql: bool) {
     let keys = schema.getForeignKeys("posts").await.unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0].foreign_table, "app_writers");
+    assert_eq!(
+        keys[0].foreign_schema.as_deref(),
+        Some(if mysql { db.getDatabaseName() } else { "main" })
+    );
     assert_eq!(keys[0].columns, ["writer_id"]);
     assert_eq!(keys[0].foreign_columns, [Some("id".into())]);
     assert_eq!(keys[0].on_delete, "set null");
@@ -4323,4 +4327,109 @@ async fn sqlite_reports_base_types_and_primary_key_storage_behavior() {
             .await
             .is_err()
     );
+}
+
+#[tokio::test]
+async fn sqlite_reports_foreign_keys_in_catalog_order_with_the_attached_schema() {
+    use openrust::database::schema::KeySelector;
+
+    let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
+    let mut session = db.getSchemaBuilder().session().await.unwrap();
+    for statement in [
+        "attach database ':memory:' as warehouse",
+        "create table warehouse.app_single (id integer primary key)",
+        "create table warehouse.app_parent (tenant integer, number integer, primary key (tenant, number))",
+        "insert into warehouse.app_parent values (10, 20)",
+    ] {
+        session.statement(statement, &[]).await.unwrap();
+    }
+
+    let children: Vec<_> = (0..12).map(|id| format!("parent_{id}")).collect();
+    let mut definitions: Vec<_> = children
+        .iter()
+        .map(|column| format!("{column} integer references app_single(id)"))
+        .collect();
+    definitions.push("number integer".into());
+    definitions.push("tenant integer".into());
+    definitions.push(
+        "constraint child_parent foreign key (tenant, number) references app_parent on delete cascade on update restrict".into(),
+    );
+
+    session
+        .statement(
+            &format!(
+                "create table warehouse.app_child ({})",
+                definitions.join(", ")
+            ),
+            &[],
+        )
+        .await
+        .unwrap();
+    session
+        .statement(
+            "insert into warehouse.app_child (tenant, number) values (10, 20)",
+            &[],
+        )
+        .await
+        .unwrap();
+    assert!(
+        session
+            .statement(
+                "insert into warehouse.app_child (tenant, number) values (10, 21)",
+                &[],
+            )
+            .await
+            .is_err()
+    );
+
+    let mut schema = session.getSchemaBuilder();
+    let keys = schema.getForeignKeys("warehouse.child").await.unwrap();
+    assert_eq!(keys.len(), children.len() + 1);
+    assert!(
+        keys.iter().all(|key| {
+            key.name.is_none() && key.foreign_schema.as_deref() == Some("warehouse")
+        })
+    );
+    let composite = &keys[0];
+    assert_eq!(composite.foreign_table, "app_parent");
+    assert_eq!(composite.columns, ["tenant", "number"]);
+    assert_eq!(composite.foreign_columns, [None, None]);
+    assert_eq!(composite.on_delete, "cascade");
+    assert_eq!(composite.on_update, "restrict");
+    for (key, column) in keys[1..].iter().zip(children.iter().rev()) {
+        assert_eq!(&key.columns, &[column.to_owned()]);
+        assert_eq!(key.foreign_table, "app_single");
+        assert_eq!(key.foreign_columns, [Some("id".into())]);
+    }
+    assert!(
+        schema
+            .hasForeignKey(
+                "warehouse.child",
+                KeySelector::Columns(&["tenant", "number"])
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasForeignKey(
+                "warehouse.child",
+                KeySelector::Columns(&["number", "tenant"])
+            )
+            .await
+            .unwrap()
+    );
+    assert!(
+        schema
+            .getForeignKeys("main.child")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+
+    session
+        .statement("detach database warehouse", &[])
+        .await
+        .unwrap();
+    session.close().await.unwrap();
 }

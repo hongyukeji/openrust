@@ -524,33 +524,44 @@ impl Builder<'_> {
         let parameters = self.catalog_parameters(&table);
         let (sql, parameters) = if self.grammar.mysql() {
             (
-                "select k.constraint_name as name, k.column_name as column_name, k.referenced_table_schema as foreign_schema, k.referenced_table_name as foreign_table, k.referenced_column_name as foreign_column, lower(r.delete_rule) as on_delete, lower(r.update_rule) as on_update from information_schema.key_column_usage k join information_schema.referential_constraints r on r.constraint_schema = k.constraint_schema and r.constraint_name = k.constraint_name and r.table_name = k.table_name where k.table_schema = coalesce(nullif(?, ''), database()) and k.table_name = ? and k.referenced_table_name is not null order by k.constraint_name, k.ordinal_position",
+                "select k.constraint_name as key_id, k.column_name as column_name, k.referenced_table_schema as foreign_schema, k.referenced_table_name as foreign_table, k.referenced_column_name as foreign_column, lower(r.delete_rule) as on_delete, lower(r.update_rule) as on_update from information_schema.key_column_usage k join information_schema.referential_constraints r on r.constraint_schema = k.constraint_schema and r.constraint_name = k.constraint_name and r.table_name = k.table_name where k.table_schema = coalesce(nullif(?, ''), database()) and k.table_name = ? and k.referenced_table_name is not null order by k.constraint_name, k.ordinal_position",
                 parameters,
             )
         } else {
             let [schema, name] = parameters;
             (
-                "select cast(id as text) as name, \"from\" as column_name, null as foreign_schema, \"table\" as foreign_table, \"to\" as foreign_column, lower(on_delete) as on_delete, lower(on_update) as on_update from pragma_foreign_key_list(?, ?) order by id, seq",
+                r#"select id as key_id, "from" as column_name, ?2 as foreign_schema,
+                          "table" as foreign_table, "to" as foreign_column,
+                          lower(on_delete) as on_delete, lower(on_update) as on_update
+                   from pragma_foreign_key_list(?1, ?2) order by id, seq"#,
                 [name, schema],
             )
         };
-        let mut keys = BTreeMap::<String, ForeignKey>::new();
-        for row in self.select(sql, &parameters).await? {
-            let name = text(&row, "name")?;
-            let key = keys.entry(name.clone()).or_insert(ForeignKey {
-                name: self.grammar.mysql().then_some(name),
-                columns: Vec::new(),
-                foreign_schema: optional_text(&row, "foreign_schema")?,
-                foreign_table: text(&row, "foreign_table")?,
-                foreign_columns: Vec::new(),
-                on_delete: text(&row, "on_delete")?,
-                on_update: text(&row, "on_update")?,
-            });
-            key.columns.push(text(&row, "column_name")?);
-            key.foreign_columns
-                .push(optional_text(&row, "foreign_column")?);
-        }
-        Ok(keys.into_values().collect())
+        let rows = self.select(sql, &parameters).await?;
+        rows.chunk_by(|left, right| left.get("key_id") == right.get("key_id"))
+            .map(|parts| {
+                let row = &parts[0];
+                Ok(ForeignKey {
+                    name: self
+                        .grammar
+                        .mysql()
+                        .then(|| text(row, "key_id"))
+                        .transpose()?,
+                    columns: parts
+                        .iter()
+                        .map(|part| text(part, "column_name"))
+                        .collect::<DatabaseResult<_>>()?,
+                    foreign_schema: optional_text(row, "foreign_schema")?,
+                    foreign_table: text(row, "foreign_table")?,
+                    foreign_columns: parts
+                        .iter()
+                        .map(|part| optional_text(part, "foreign_column"))
+                        .collect::<DatabaseResult<_>>()?,
+                    on_delete: text(row, "on_delete")?,
+                    on_update: text(row, "on_update")?,
+                })
+            })
+            .collect()
     }
 }
 

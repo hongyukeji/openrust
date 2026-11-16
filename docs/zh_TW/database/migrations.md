@@ -737,6 +737,24 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 用 `dropForeignColumns` 依本地欄位刪除外鍵，或用 `dropForeign` 刪除有明確名稱的外鍵。兩種方法都支援內嵌 REFERENCES 和資料表層級外鍵。用 `dropPrimary` 刪除內嵌或資料表層級主鍵。其餘內嵌約束仍然生效。
 
+#### 檢查外鍵 {#inspecting-foreign-keys}
+
+用 `getForeignKeys` 查看本地欄位、目標 Schema 和資料表、目標欄位以及更新和刪除動作。複合外鍵的欄位依照約束定義順序回傳。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn author_schema() -> DatabaseResult<Option<String>> {
+    Ok(Schema::getForeignKeys("books")
+        .await?
+        .into_iter()
+        .find(|key| key.columns == ["author_id"])
+        .and_then(|key| key.foreign_schema))
+}
+```
+
+SQLite 回傳約束所在的 Schema，例如 `main` 或附加資料庫名稱。它的目錄不提供約束名稱。宣告省略目標欄位名稱時，相應項目為 `None`，SQLite 使用目標資料表的主鍵。
+
 #### 切換外鍵檢查 {#toggling-foreign-key-constraints}
 
 用 `Schema::withoutForeignKeyConstraints` 在同一寫入工作階段中暫停外鍵檢查。透過傳入的工作階段執行 SQL，並呼叫其 `getSchemaBuilder()` 操作 Schema。離開範圍時會恢復進入前的設定。

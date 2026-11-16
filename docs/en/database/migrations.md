@@ -737,6 +737,24 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 Use `dropForeignColumns` for a foreign key’s local columns, or `dropForeign` for an explicitly named constraint. Both forms can remove inline REFERENCES or table-level foreign keys. Use `dropPrimary` to remove an inline or table-level primary key. Other inline constraints remain in force.
 
+#### Inspecting Foreign Keys {#inspecting-foreign-keys}
+
+Use `getForeignKeys` to inspect the local columns, target schema and table, target columns, and update and delete actions. A composite key’s columns are returned in constraint order.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn author_schema() -> DatabaseResult<Option<String>> {
+    Ok(Schema::getForeignKeys("books")
+        .await?
+        .into_iter()
+        .find(|key| key.columns == ["author_id"])
+        .and_then(|key| key.foreign_schema))
+}
+```
+
+SQLite reports the containing schema, such as `main` or an attached database name. Its catalog leaves the constraint name unset. When the declaration omits the referenced column names, the corresponding entries are `None` and SQLite uses the referenced table’s primary key.
+
 #### Toggling Foreign Key Constraints {#toggling-foreign-key-constraints}
 
 Use `Schema::withoutForeignKeyConstraints` to run work on a single write session with foreign key checks disabled. Use the supplied session for SQL and its `getSchemaBuilder()` for schema operations. The session restores its original setting on exit.

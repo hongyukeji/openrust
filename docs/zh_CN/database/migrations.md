@@ -737,6 +737,24 @@ async fn relax_owner_reference() -> DatabaseResult<()> {
 
 用 `dropForeignColumns` 按本地列删除外键，或用 `dropForeign` 删除有显式名称的外键。两种方法都支持内联 REFERENCES 和表级外键。用 `dropPrimary` 删除内联或表级主键。其余内联约束继续生效。
 
+#### 检查外键 {#inspecting-foreign-keys}
+
+用 `getForeignKeys` 查看本地列、目标 Schema 和表、目标列以及更新和删除动作。复合外键的列按约束定义顺序返回。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn author_schema() -> DatabaseResult<Option<String>> {
+    Ok(Schema::getForeignKeys("books")
+        .await?
+        .into_iter()
+        .find(|key| key.columns == ["author_id"])
+        .and_then(|key| key.foreign_schema))
+}
+```
+
+SQLite 返回约束所在的 Schema，例如 `main` 或附加数据库名。它的目录不提供约束名称。声明省略目标列名时，相应条目为 `None`，SQLite 使用目标表的主键。
+
 #### 切换外键检查 {#toggling-foreign-key-constraints}
 
 用 `Schema::withoutForeignKeyConstraints` 在同一写会话中暂停外键检查。通过传入的会话执行 SQL，通过它的 `getSchemaBuilder()` 操作 Schema。作用域结束时会恢复进入前的设置。
