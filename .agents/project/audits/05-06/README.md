@@ -73,3 +73,9 @@ MySQL 8.4.13 与 SQLite 的实际 HTTP 分页、6 项关系回归、6 项分页�
 ## 模型集合工厂与页键
 
 固定 Laravel 的偏移分页保留模型集合键，游标分页按位置重新编号。三种 Eloquent 分页已调用模型集合工厂，普通和简易分页透过 `getByKey` 和 JSON 保留键。多对多工厂在 Pivot 水合后运行。双库 HTTP 和三语验收见 [05-02 集合工厂记录](../05-02/README.md#eloquent-分页的集合工厂和键)。本批验证分页与自定义集合的接线，05-02 的整体验收仍待对账。
+
+## 单条和反向关系分页
+
+以 `e11ba9e2` 为隔离基线。固定 Laravel 的 Relation 将分页转发到关联查询，BelongsTo 由子模型外键约束所有者，MorphTo 先选择具体模型。Rust 为 HasOne、MorphOne、BelongsTo 和 MorphTo 提供普通、简易和游标入口及对应 With 选项。固定关系选择和作用域继续生效。缺失反向引用直接构造携带请求元数据的空页，默认模型仍由加载接口提供。MorphTo 映射为 `MorphTarget` 后保留集合键和游标。v0.x 无相应关系入口，复用当前 Builder 的分页、投影和游标规则。 [固定关系转发](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Relations/Relation.php) · [固定多态目标解析](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Concerns/HasRelationships.php)
+
+独立 MySQL 8.4.13 实际 HTTP 核对择一结果、软删除、空引用元数据、无效容量、自定义集合键、多态目标和游标往返。分页 HTTP、关系查询计数、关系批量写入及 Query Builder 四项定向回归通过。Rust 1.94.0 全目标严格 Clippy、`./artisan inspire`、三语示例、VitePress 和 18 项浏览器检查通过。既有 Sanctum 测试格式仅在隔离副本调整，临时容器与构建缓存已清除。05-06 继续跟踪模型级默认页容量与 05-02 核心依赖。 [固定用例矩阵](test-matrix.md#关系转发与默认页容量复核)

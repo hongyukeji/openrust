@@ -17,6 +17,7 @@ mod morph_pivot;
 mod morph_to;
 mod morph_to_many;
 mod one_of_many;
+mod pagination;
 mod pending_has_through_relationship;
 mod pivot;
 mod pivot_constraints;

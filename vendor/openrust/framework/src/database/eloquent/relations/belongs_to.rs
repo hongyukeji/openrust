@@ -51,6 +51,12 @@ impl<P: Model, R: Model> BelongsTo<P, R> {
         query.chunk(count, callback).await
     }
 
+    super::pagination::relation_pages!();
+
+    fn pagination_target(&self, parent: &P) -> DatabaseResult<Option<Builder<'static, R>>> {
+        self.0.owner_query(parent)
+    }
+
     super::key_chunks::lazy_chunks!(R);
 
     pub(super) fn lazy_relation<'a>(

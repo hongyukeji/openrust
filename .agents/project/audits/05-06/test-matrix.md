@@ -13,3 +13,7 @@
 | `{Paginator,Cursor}ResourceTest.php` | 6 | 显式 Resource、自动推断及找不到 Resource 的契约在 05-07 验收。 |
 
 上层关系分页、Blade 渲染、翻译和 Artisan 模板发布的实际入口验收见[本单元记录](README.md)。命名路由链接按计划在 06-01 验证。
+
+## 关系转发与默认页容量复核
+
+单条及反向关系通过 `pagination_on_mysql_and_http` 新增实测，覆盖 `HasOne`、`MorphOne`、`BelongsTo`、`MorphTo` 的分页转发、空引用元数据和多态游标往返。分页链路仍需复核固定 Eloquent Builder 的模型级默认页容量。Laravel 未指定页容量时调用模型的 `getPerPage()`，当前 Rust 使用查询层默认值。命名链接和 Resource 用例继续按原交付单元跟踪。 [固定 Eloquent Builder](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Eloquent/Builder.php#L1177)

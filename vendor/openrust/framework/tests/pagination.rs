@@ -286,6 +286,7 @@ fn routes() -> Result<(), RoutingError> {
     Route::get("/chunk-by-id", chunk_by_id_page)?;
     Route::get("/each-batch", each_batch_page)?;
     Route::get("/lazy-batches", lazy_batch_page)?;
+    Route::get("/singular-pages", singular_relation_pages)?;
     Route::get("/links", pagination_links)?;
     Route::get("/manual", manual_length)?;
     Route::get("/manual-simple", manual_simple)?;
@@ -2292,6 +2293,113 @@ fn lazy_batch_page(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError
     })
 }
 
+fn singular_relation_pages(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async {
+        async fn relation_pages() -> DatabaseResult<Json> {
+            let owner = Article::query()?.findOrFail(1).await?;
+            let one = HasOne::<Article, Comment>::new("id", "article_id").latestOfMany(None);
+            let page = one.paginate(&owner, 2).await?;
+            assert_eq!(page.total(), 1);
+            assert_eq!(id(page.items()[0].getKey()), 15);
+            assert_eq!(
+                id(one.simplePaginate(&owner, 2).await?.items()[0].getKey()),
+                15
+            );
+
+            let morph_one =
+                MorphOne::<Article, Comment>::new("id", "article_id", "subject_type", "article")
+                    .oldestOfMany(None);
+            let first = morph_one.cursorPaginate(&owner, 1).await?;
+            assert_eq!(id(first.items()[0].getKey()), 11);
+            assert!(first.nextCursor().is_none());
+
+            let activities = Activity::query()?.orderBy("id", "asc").get().await?;
+            let belongs_to = BelongsTo::<Activity, Article>::new("subject_id", "id")
+                .withDefault(|_, _| panic!("paginators must read only persisted owners"));
+            assert_eq!(
+                id(belongs_to.simplePaginate(&activities[0], 1).await?.items()[0].getKey()),
+                1
+            );
+            assert_eq!(
+                id(belongs_to.cursorPaginate(&activities[0], 1).await?.items()[0].getKey()),
+                1
+            );
+            let missing = belongs_to
+                .paginateWith(
+                    &activities[4],
+                    PageOptions {
+                        perPage: Some(2),
+                        pageName: "owners",
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            assert_eq!(missing.total(), 0);
+            assert!(missing.items().is_empty());
+            assert!(
+                belongs_to
+                    .simplePaginate(&activities[4], 2)
+                    .await?
+                    .items()
+                    .is_empty()
+            );
+            assert!(matches!(
+                belongs_to.paginate(&activities[4], 0).await,
+                Err(openrust::database::DatabaseError::Pagination(
+                    PaginationError::InvalidPerPage
+                ))
+            ));
+
+            let morph = MorphTo::<Activity>::new("subject_type", "subject_id")
+                .target::<Article>("article", "category")
+                .target::<KeyedLabel>("label", "id")
+                .target::<Comment>("comment", "id");
+            let labels = morph.paginate(&activities[1], 2).await?;
+            assert_eq!(labels.total(), 1);
+            let label = labels.getByKey("label-2").unwrap();
+            assert_eq!(label.alias(), "label");
+            assert_eq!(id(label.downcast_ref::<KeyedLabel>().unwrap().getKey()), 2);
+            assert!(
+                morph
+                    .cursorPaginate(&activities[4], 2)
+                    .await?
+                    .items()
+                    .is_empty()
+            );
+            let mut draft = Activity::newInstance(Attributes::new())?;
+            draft
+                .setAttribute("subject_type", "comment")
+                .setAttribute("subject_id", 16);
+            assert!(morph.simplePaginate(&draft, 2).await?.items().is_empty());
+            let morph = morph.withTrashed();
+            assert_eq!(
+                id(morph.simplePaginate(&draft, 2).await?.items()[0]
+                    .downcast_ref::<Comment>()
+                    .unwrap()
+                    .getKey()),
+                16
+            );
+            draft
+                .setAttribute("subject_type", "article")
+                .setAttribute("subject_id", "a");
+            let cursor = morph
+                .cursorPaginateWith(
+                    &draft,
+                    CursorOptions {
+                        perPage: Some(1),
+                        cursorName: "subjects",
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let cursor = cursor.map(|item| id(item.downcast_ref::<Article>().unwrap().getKey()));
+            Ok(json!({"empty": missing.map(|model| id(model.getKey())), "subjects": cursor}))
+        }
+
+        Response::json(StatusCode::OK, relation_pages().await.map_err(internal)?)
+    })
+}
+
 fn internal(source: openrust::database::DatabaseError) -> HttpError {
     HttpError::Internal {
         source: Box::new(source),
@@ -2897,6 +3005,22 @@ async fn verify(config: Json) -> DatabaseResult<()> {
     );
     let lazy = request(address, "/api/lazy-batches").await;
     assert_eq!(lazy, json!({"descending": [4, 3, 2], "pivot": [3, 2, 1]}));
+    let singular = request(address, "/api/singular-pages?owners=3").await;
+    assert_eq!(singular["empty"]["current_page"], 3);
+    assert_eq!(singular["empty"]["data"], json!([]));
+    assert_eq!(
+        singular["empty"]["prev_page_url"],
+        "/api/singular-pages?owners=2"
+    );
+    assert_eq!(singular["subjects"]["data"], json!([1]));
+    let next = request(
+        address,
+        singular["subjects"]["next_page_url"].as_str().unwrap(),
+    )
+    .await;
+    assert_eq!(next["subjects"]["data"], json!([2]));
+    let previous = request(address, next["subjects"]["prev_page_url"].as_str().unwrap()).await;
+    assert_eq!(previous["subjects"]["data"], json!([1]));
     let model = request(address, "/api/model-cursor").await;
     assert_eq!(model["id"], "17");
     assert_eq!(model["retrieved"], true);

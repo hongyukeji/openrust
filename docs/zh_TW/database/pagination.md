@@ -67,6 +67,26 @@ async fn related_comments<P: Model, R: Model>(
 }
 ```
 
+`HasOne`、`MorphOne`、`BelongsTo` 和 `MorphTo` 同樣提供三種分頁。單筆關聯保留既有的擇一條件。分頁回傳已持久化的紀錄，缺少反向參照時回傳保留請求分頁中繼資料的空頁。`MorphTo` 依多型類型選擇已註冊的目標，回傳由 `MorphTarget` 組成的分頁。
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::{MorphTarget, MorphTo}}},
+    pagination::{CursorOptions, CursorPaginator},
+};
+
+async fn subject_page<P: Model>(
+    child: &P,
+    relation: &MorphTo<P>,
+) -> DatabaseResult<CursorPaginator<MorphTarget>> {
+    relation.cursorPaginateWith(child, CursorOptions {
+        perPage: Some(15),
+        cursorName: "subjects",
+        ..Default::default()
+    }).await
+}
+```
+
 `HasManyThrough` 和 `HasOneThrough` 也支援這三種分頁方法。查詢使用中間資料表連接，預設排除已軟刪除的中間模型。呼叫 `withTrashedParents()` 可包含這些模型。預設只選取關聯模型的欄位。連接的資料表有同名欄位時，自訂排序應加上資料表名稱。
 
 ```rust

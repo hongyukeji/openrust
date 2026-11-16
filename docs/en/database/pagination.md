@@ -67,6 +67,26 @@ async fn related_comments<P: Model, R: Model>(
 }
 ```
 
+The same three methods are available on `HasOne`, `MorphOne`, `BelongsTo` and `MorphTo`. A one-of-many relation keeps its existing selection. These pages contain persisted records. An absent inverse reference produces an empty page with the requested pagination metadata. `MorphTo` uses the registered target selected by the morph type and returns a page of `MorphTarget` values.
+
+```rust
+use openrust::{
+    database::{DatabaseResult, eloquent::{Model, relations::{MorphTarget, MorphTo}}},
+    pagination::{CursorOptions, CursorPaginator},
+};
+
+async fn subject_page<P: Model>(
+    child: &P,
+    relation: &MorphTo<P>,
+) -> DatabaseResult<CursorPaginator<MorphTarget>> {
+    relation.cursorPaginateWith(child, CursorOptions {
+        perPage: Some(15),
+        cursorName: "subjects",
+        ..Default::default()
+    }).await
+}
+```
+
 `HasManyThrough` and `HasOneThrough` also accept these pagination methods. The query applies the intermediate join and excludes soft-deleted intermediate models by default. Call `withTrashedParents()` to include them. The default projection contains only columns from the related model. Qualify custom sort columns when the joined tables share the same column name.
 
 ```rust

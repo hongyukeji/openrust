@@ -6,7 +6,10 @@ use std::{
 use futures_util::TryStreamExt as _;
 use indexmap::IndexMap;
 
-use crate::support::Collection;
+use crate::{
+    pagination::{CursorOptions, CursorPaginator, LengthAwarePaginator, PageOptions, Paginator},
+    support::Collection,
+};
 
 use crate::database::{
     Connection, DatabaseCursor, DatabaseError, DatabaseFuture, DatabaseResult, Transaction, Value,
@@ -206,6 +209,90 @@ impl<P: Model> MorphTo<P> {
             defaults: IndexMap::new(),
             untyped_default: None,
         }
+    }
+
+    pub async fn paginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<LengthAwarePaginator<MorphTarget>> {
+        self.paginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn paginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<LengthAwarePaginator<MorphTarget>> {
+        let Some((alias, target)) = self.selected_target(parent)? else {
+            return super::pagination::empty_length(options);
+        };
+        target
+            .paginate(parent, alias, self.soft_deletes, options)
+            .await
+    }
+
+    pub async fn simplePaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<Paginator<MorphTarget>> {
+        self.simplePaginateWith(
+            parent,
+            PageOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn simplePaginateWith(
+        &self,
+        parent: &P,
+        options: PageOptions<'_>,
+    ) -> DatabaseResult<Paginator<MorphTarget>> {
+        let Some((alias, target)) = self.selected_target(parent)? else {
+            return super::pagination::empty_simple(options);
+        };
+        target
+            .simple_paginate(parent, alias, self.soft_deletes, options)
+            .await
+    }
+
+    pub async fn cursorPaginate(
+        &self,
+        parent: &P,
+        per_page: u64,
+    ) -> DatabaseResult<CursorPaginator<MorphTarget>> {
+        self.cursorPaginateWith(
+            parent,
+            CursorOptions {
+                perPage: Some(per_page),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    pub async fn cursorPaginateWith(
+        &self,
+        parent: &P,
+        options: CursorOptions<'_>,
+    ) -> DatabaseResult<CursorPaginator<MorphTarget>> {
+        let Some((alias, target)) = self.selected_target(parent)? else {
+            return super::pagination::empty_cursor(options);
+        };
+        target
+            .cursor_paginate(parent, alias, self.soft_deletes, options)
+            .await
     }
 
     super::key_chunks::lazy_chunks!(MorphTarget);
@@ -973,6 +1060,27 @@ trait Target<P: Model>: Send + Sync {
         discovered: Option<&DiscoveredMorphs>,
         constraint: Option<&PathConstraint>,
     ) -> DatabaseResult<query::Builder<'static>>;
+    fn paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: PageOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<LengthAwarePaginator<MorphTarget>>>;
+    fn simple_paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: PageOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Paginator<MorphTarget>>>;
+    fn cursor_paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: CursorOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<CursorPaginator<MorphTarget>>>;
     fn cursor<'a>(
         &'a self,
         parent: &'a P,
@@ -1146,6 +1254,60 @@ impl<P: Model, R: Model> Target<P> for RelationKeys<P, R> {
             )?;
             Ok(query.and_expression(predicate))
         }
+    }
+
+    fn paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: PageOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<LengthAwarePaginator<MorphTarget>>> {
+        Box::pin(async move {
+            let Some(query) = self.owner_query(parent)? else {
+                return super::pagination::empty_length(options);
+            };
+            let page = soft_deletes.apply(query).paginateWith(options).await?;
+            Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
+        })
+    }
+
+    fn simple_paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: PageOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<Paginator<MorphTarget>>> {
+        Box::pin(async move {
+            let Some(query) = self.owner_query(parent)? else {
+                return super::pagination::empty_simple(options);
+            };
+            let page = soft_deletes
+                .apply(query)
+                .simplePaginateWith(options)
+                .await?;
+            Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
+        })
+    }
+
+    fn cursor_paginate<'a>(
+        &'a self,
+        parent: &'a P,
+        alias: &'static str,
+        soft_deletes: SoftDeleteMacros,
+        options: CursorOptions<'a>,
+    ) -> DatabaseFuture<'a, DatabaseResult<CursorPaginator<MorphTarget>>> {
+        Box::pin(async move {
+            let Some(query) = self.owner_query(parent)? else {
+                return super::pagination::empty_cursor(options);
+            };
+            let page = soft_deletes
+                .apply(query)
+                .cursorPaginateWith(options)
+                .await?;
+            Ok(page.map(|model| MorphTarget::from_model(alias, Arc::new(model))))
+        })
     }
 
     fn cursor<'a>(

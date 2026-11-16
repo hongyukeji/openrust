@@ -170,6 +170,12 @@ impl<P: Model, R: Model> MorphOne<P, R> {
     }
 
     super::key_chunks::key_chunks!(forward 0);
+    super::pagination::relation_pages!();
+
+    fn pagination_target(&self, parent: &P) -> DatabaseResult<Option<Builder<'static, R>>> {
+        self.0.pagination_target(parent)
+    }
+
     super::key_chunks::lazy_chunks!(forward 0);
 
     pub fn cursor<'a>(&'a self, parent: &'a P) -> DatabaseCursor<'a, R> {

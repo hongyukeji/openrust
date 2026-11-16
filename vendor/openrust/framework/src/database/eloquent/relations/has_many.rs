@@ -179,6 +179,13 @@ impl<P: Model, R: Model> HasMany<P, R> {
         })
     }
 
+    pub(super) fn single_pagination_query(
+        &self,
+        parent: &P,
+    ) -> DatabaseResult<Builder<'static, R>> {
+        self.0.select_one(self.pagination_query(parent)?)
+    }
+
     fn pagination_query(&self, parent: &P) -> DatabaseResult<Builder<'static, R>> {
         let connection = self.0.connection(parent)?;
         let query = self.0.configure(R::queryOn(&connection))?;
