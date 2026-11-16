@@ -616,6 +616,25 @@ async fn remove_import_lookup() -> DatabaseResult<()> {
 }
 ```
 
+#### Inspecting SQLite Primary Keys {#sqlite-primary-indexes}
+
+On SQLite, `getIndexes()` reports the native name for a primary key with a backing index. A rowid primary key without a backing index appears as `primary`. An ordinary index named `primary` can appear alongside it.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn primary_columns() -> DatabaseResult<Vec<Option<String>>> {
+    let indexes = Schema::getIndexes("deliveries").await?;
+    Ok(indexes
+        .into_iter()
+        .find(|index| index.primary)
+        .map(|index| index.columns)
+        .unwrap_or_default())
+}
+```
+
+Use the `primary` flag to identify the constraint and read its columns in key order. `hasIndex("deliveries", "primary")` also recognizes a primary key with a native index name.
+
 #### Raw Indexes {#raw-indexes}
 
 `rawIndex(expression, name)` adds a named index using a database-specific SQL key list. MySQL requires an extra pair of parentheses around each functional key part. SQLite accepts `lower(label)` directly. Supply SQL from your migration code. Drop the index with `dropIndex(name)`.

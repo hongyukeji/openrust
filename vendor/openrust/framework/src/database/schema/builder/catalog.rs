@@ -422,44 +422,35 @@ impl Builder<'_> {
         } else {
             let [schema, name] = parameters;
             (
-                "select i.name, c.name as column_name, null as index_type, i.\"unique\" as unique_key, i.origin = 'pk' as primary_key from pragma_index_list(?, ?) i join pragma_index_info(i.name, ?) c order by i.name, c.seqno",
-                vec![name, schema.clone(), schema],
+                r#"with indexes as (select name, "unique", origin from pragma_index_list(?1, ?2))
+                   select i.name as name, c.name as column_name, null as index_type,
+                          i."unique" as unique_key, i.origin = 'pk' as primary_key, c.seqno as column_order
+                   from indexes i join pragma_index_info(i.name, ?2) c
+                   union all
+                   select 'primary', name, null, 1, 1, pk
+                   from pragma_table_xinfo(?1, ?2)
+                   where pk > 0 and not exists (select 1 from indexes where origin = 'pk')
+                   order by name, primary_key, column_order"#,
+                vec![name, schema],
             )
         };
-        let mut indexes = BTreeMap::<String, Index>::new();
+        let mut indexes = BTreeMap::<(String, bool), Index>::new();
         for row in self.select(sql, &parameters).await? {
             let name = text(&row, "name")?;
             let primary = flag(&row, "primary_key")?;
-            let key = if primary { "primary".to_owned() } else { name };
-            let index = indexes.entry(key.clone()).or_insert(Index {
-                name: key,
+            let name = if primary && self.grammar.mysql() {
+                "primary".to_owned()
+            } else {
+                name
+            };
+            let index = indexes.entry((name.clone(), primary)).or_insert(Index {
+                name,
                 columns: Vec::new(),
                 index_type: optional_text(&row, "index_type")?,
                 unique: flag(&row, "unique_key")?,
                 primary,
             });
             index.columns.push(optional_text(&row, "column_name")?);
-        }
-        if !self.grammar.mysql() && !indexes.contains_key("primary") {
-            let columns: Vec<_> = self
-                .getColumns(table)
-                .await?
-                .into_iter()
-                .filter(|column| column.primary)
-                .map(|column| Some(column.name))
-                .collect();
-            if !columns.is_empty() {
-                indexes.insert(
-                    "primary".into(),
-                    Index {
-                        name: "primary".into(),
-                        columns,
-                        index_type: None,
-                        unique: true,
-                        primary: true,
-                    },
-                );
-            }
         }
         Ok(indexes.into_values().collect())
     }
@@ -495,7 +486,10 @@ impl Builder<'_> {
             });
             matches_type
                 && match selector {
-                    KeySelector::Name(name) => index.name.eq_ignore_ascii_case(name),
+                    KeySelector::Name(name) => {
+                        index.name.eq_ignore_ascii_case(name)
+                            || (index.primary && name.eq_ignore_ascii_case("primary"))
+                    }
                     KeySelector::Columns(columns) => index
                         .columns
                         .iter()

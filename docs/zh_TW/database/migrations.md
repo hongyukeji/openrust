@@ -616,6 +616,25 @@ async fn remove_import_lookup() -> DatabaseResult<()> {
 }
 ```
 
+#### 檢查 SQLite 主鍵索引 {#sqlite-primary-indexes}
+
+SQLite 的 `getIndexes()` 回傳主鍵底層索引的實際名稱。以 rowid 為基礎且沒有獨立索引的主鍵顯示為 `primary`。名為 `primary` 的一般索引可以與它同時出現。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn primary_columns() -> DatabaseResult<Vec<Option<String>>> {
+    let indexes = Schema::getIndexes("deliveries").await?;
+    Ok(indexes
+        .into_iter()
+        .find(|index| index.primary)
+        .map(|index| index.columns)
+        .unwrap_or_default())
+}
+```
+
+用 `primary` 旗標識別主鍵，欄位按主鍵定義順序回傳。`hasIndex("deliveries", "primary")` 也能識別具有實際索引名稱的主鍵。
+
 #### 原生索引運算式 {#raw-indexes}
 
 `rawIndex(expression, name)` 使用資料庫方言的 SQL 鍵清單建立具名索引。MySQL 要求每個函式索引鍵額外包一層括號。SQLite 可直接寫 `lower(label)`。SQL 由遷移程式碼提供。用 `dropIndex(name)` 移除索引。

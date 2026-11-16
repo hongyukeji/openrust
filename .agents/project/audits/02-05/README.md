@@ -266,3 +266,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 实际 Artisan 执行三语共用示例及 `main artisan inspire`，三语站点构建和 18 项浏览器检查通过。临时 MySQL 使用从 `3d2641c0f` 提取的 `docker/accept.py --mysql`。
 - 用户确认恢复后，复用原隔离 Cargo 产物运行 `sh tests/table_catalog.sh`，写库表目录、限定 Schema 清库及保留旁库标记行通过。变更文件格式检查、工作区严格 Clippy 通过，叠加当时主线 `dd304ad1e` 的图像模块已提交改动后再跑严格 Clippy 通过。全仓格式检查只有既有 Sanctum 排版差异。
 - 三轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和本批文档缓存后，项目卷可用 73.89 GB（68.81 GiB）。证据目录为 `/private/tmp/openrust-02-05-blueprint.0B3TbYWv`。
+
+## SQLite 主键索引目录
+
+对照固定 Laravel [SQLite 目录语法](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Grammars/SQLiteGrammar.php#L188)和[索引结果处理](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Processors/SQLiteProcessor.php#L55)。旧版未找到对应索引目录入口，复用现有写连接、SQLite PRAGMA 和有序列表示。
+
+- 一次查询返回 SQLite 原生索引及没有独立索引的行主键。原生主键按实际索引名和键列顺序报告。行主键显示为 `primary`。按名称及主键标志归组，因此普通同名索引和主键各自保留。遇到真实主键索引时仍接受 `hasIndex(table, "primary")` 作为兼容查询。表达式索引继续保留 `None` 键位。
+- 隔离基线 `e018ad1f7`。SQLite 21 项和 MySQL 8.4.13 的 24 项 Schema 用例通过。新增回归覆盖复合主键的键列顺序、普通同名索引与原生及行主键并存、带前缀限定名及缺失表。MySQL 使用隔离副本内 `docker/accept.py --mysql --mysql-schema-admin`，`sh tests/table_catalog.sh` 的写库目录、限定 Schema 清库和旁库标记行保留通过。
+- SQLite 实际 Artisan 通过三语共用示例，`main artisan inspire`、变更文件格式、严格 Clippy、三语站点及 18 项浏览器检查通过。全仓格式检查仅有既有 Sanctum 排版差异。
+- 两轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和文档缓存后，项目卷可用 71.37 GB（66.47 GiB）。证据目录为 `/private/tmp/openrust-02-05-sqlite-index.V614h8M8`。

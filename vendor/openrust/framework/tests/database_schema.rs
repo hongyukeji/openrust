@@ -4185,3 +4185,62 @@ async fn mysql_edits_pending_blueprint_columns_and_creates_named_ids() {
     );
     schema.drop(table_name).await.unwrap();
 }
+
+#[tokio::test]
+async fn sqlite_distinguishes_native_and_synthetic_primary_indexes_from_named_indexes() {
+    use openrust::database::schema::KeySelector;
+
+    let db = connection(json!({"driver": "sqlite", "database": ":memory:", "prefix": "app_"}));
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .create("events", |table| {
+            table.integer("sequence");
+            table.integer("tenant");
+            table.primary(&["tenant", "sequence"], None);
+            table.index(&["sequence"], Some("primary"));
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes("main.events").await.unwrap();
+    let native_primary = indexes.iter().find(|index| index.primary).unwrap();
+    assert_eq!(native_primary.name, "sqlite_autoindex_app_events_1");
+    assert_eq!(
+        native_primary.columns,
+        [Some("tenant".into()), Some("sequence".into())]
+    );
+    assert!(native_primary.unique);
+    assert!(
+        schema
+            .hasIndexWith("events", KeySelector::Name("primary"), Some("primary"))
+            .await
+            .unwrap()
+    );
+    assert!(indexes.iter().any(|index| index.name == "primary"
+        && !index.primary
+        && index.columns == [Some("sequence".into())]));
+
+    schema
+        .table("events", |table| table.dropIndex("primary"))
+        .await
+        .unwrap();
+    schema
+        .create("deliveries", |table| {
+            table.id();
+            table.integer("sequence");
+            table.index(&["sequence"], Some("primary"));
+        })
+        .await
+        .unwrap();
+    let indexes = schema.getIndexes("deliveries").await.unwrap();
+    assert_eq!(indexes.len(), 2);
+    assert!(indexes.iter().all(|index| index.name == "primary"));
+    assert!(
+        indexes
+            .iter()
+            .any(|index| index.primary && index.unique && index.columns == [Some("id".into())])
+    );
+    assert!(indexes.iter().any(|index| !index.primary
+        && !index.unique
+        && index.columns == [Some("sequence".into())]));
+    assert!(schema.getIndexes("missing").await.unwrap().is_empty());
+}
