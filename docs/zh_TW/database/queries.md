@@ -117,7 +117,33 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 ## 進階 WHERE 子句
 
-在同一具名連線上，用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查詢。`selectSub` 加入純量投影，`fromSub` 從衍生資料表讀取。交易內用外層建構器的 `subquery` 建立子查詢，整條陳述式透過外層交易連線執行。
+用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查詢。`selectSub` 加入純量投影，`fromSub` 從衍生資料表讀取。交易內用外層建構器的 `subquery` 建立子查詢，整條陳述式透過外層交易連線執行。
+
+### MySQL 跨資料庫子查詢 {#mysql-cross-schema-subqueries}
+
+兩個 MySQL 連線設定的服務端點一致時，可以組合它們的查詢建構器。框架會為子查詢尚未限定的主資料表加上資料庫名稱，並保留已指定資料庫名稱的資料表。額外的 JOIN 資料表或預先建構的衍生查詢需明確指定資料庫名稱。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+
+async fn active_customers(
+    primary: &Connection,
+    reporting: &Connection,
+) -> DatabaseResult<Vec<Value>> {
+    let active = reporting
+        .table("customer_activity")
+        .select(["customer_id"])
+        .r#where("active", "=", 1);
+    primary
+        .table("customers")
+        .whereInSub("id", &active)?
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
+MySQL 使用外層連線的權限執行整個陳述式。外層連線的帳號需要有權存取引用的資料表。
 
 ## JSON WHERE 子句
 

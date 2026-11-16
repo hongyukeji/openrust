@@ -614,3 +614,123 @@ async fn mysql_upsert_applies_mixed_assignments_with_either_insert_reference() {
         verify_upsert_assignments(connection(json!({"url":url,"use_upsert_alias":alias}))).await;
     }
 }
+
+#[tokio::test]
+async fn mysql_qualifies_subqueries_from_another_schema_without_executing_the_inner_connection() {
+    let Some(url) = mysql_url() else {
+        return;
+    };
+    let db = connection(json!({"url":url}));
+    let mut catalog_url = url::Url::parse(&url).unwrap();
+    catalog_url.set_path("/information_schema");
+    catalog_url
+        .set_password(Some("unused-inner-password"))
+        .unwrap();
+    let catalog = connection(json!({"url":catalog_url.as_str()}));
+    db.unprepared("CREATE TABLE q_cross_catalog (column_name VARCHAR(40) PRIMARY KEY); INSERT INTO q_cross_catalog VALUES ('column_name'), ('unlisted'); CREATE TABLE q_cross_catalog_archive (name VARCHAR(40))").await.unwrap();
+
+    let source = catalog
+        .table("COLUMNS as c")
+        .select(["c.COLUMN_NAME"])
+        .r#where("c.TABLE_SCHEMA", "=", db.getDatabaseName())
+        .r#where("c.TABLE_NAME", "=", "q_cross_catalog");
+    let outer = db
+        .table("q_cross_catalog")
+        .whereInSub("column_name", &source)
+        .unwrap();
+    assert!(
+        outer
+            .toSql()
+            .unwrap()
+            .contains("`information_schema`.`COLUMNS` as `c`")
+    );
+    assert_eq!(
+        outer.getBindings().unwrap(),
+        vec![db.getDatabaseName().into(), "q_cross_catalog".into()]
+    );
+    assert_eq!(
+        outer.pluck("column_name").await.unwrap(),
+        vec!["column_name".into()]
+    );
+    assert_eq!(
+        source
+            .toSql()
+            .unwrap()
+            .matches("`information_schema`")
+            .count(),
+        0
+    );
+
+    let mut tx = db.beginTransaction().await.unwrap();
+    assert_eq!(
+        tx.table("q_cross_catalog_archive")
+            .insertUsing(&["name"], &source)
+            .await
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        tx.table("q_cross_catalog_archive")
+            .value("name")
+            .await
+            .unwrap(),
+        "column_name".into()
+    );
+    tx.rollBack(None).await.unwrap();
+    assert_eq!(
+        db.table("q_cross_catalog_archive")
+            .count("*")
+            .await
+            .unwrap(),
+        0
+    );
+
+    let qualified = catalog
+        .table("information_schema.COLUMNS as c")
+        .select(["c.COLUMN_NAME"]);
+    let sql = db
+        .table("q_cross_catalog")
+        .whereInSub("column_name", &qualified)
+        .unwrap()
+        .toSql()
+        .unwrap();
+    assert_eq!(sql.matches("`information_schema`").count(), 1);
+
+    let prefixed = connection(json!({"url":catalog_url.as_str(),"prefix":"p_"}));
+    let query = prefixed.table("COLUMNS AS c").select(["c.COLUMN_NAME"]);
+    let sql = db
+        .table("q_cross_catalog")
+        .selectSub(&query, "matched")
+        .unwrap()
+        .toSql()
+        .unwrap();
+    assert!(sql.contains("`information_schema`.`p_COLUMNS` as `p_c`"));
+
+    let same_database = connection(json!({"url":url}));
+    let source = same_database
+        .table("q_cross_catalog")
+        .select(["column_name"]);
+    assert_eq!(
+        db.table("q_cross_catalog")
+            .whereInSub("column_name", &source)
+            .unwrap()
+            .count("*")
+            .await
+            .unwrap(),
+        2
+    );
+
+    let port = catalog_url.port_or_known_default().unwrap();
+    catalog_url
+        .set_port(Some(if port == 1 { 2 } else { 1 }))
+        .unwrap();
+    let foreign = connection(json!({"url":catalog_url.as_str(),"acquire_timeout":1}));
+    assert!(matches!(
+        db.table("q_cross_catalog")
+            .whereExists(&foreign.table("COLUMNS")),
+        Err(DatabaseError::InvalidQuery("subquery connection"))
+    ));
+    db.unprepared("DROP TABLE q_cross_catalog_archive; DROP TABLE q_cross_catalog")
+        .await
+        .unwrap();
+}

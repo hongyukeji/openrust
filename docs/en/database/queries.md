@@ -117,7 +117,33 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 ## Advanced Where Clauses
 
-Use `whereExists`, `whereNotExists`, `whereInSub` or `whereSub` with a query on the same named connection. `selectSub` adds a scalar projection and `fromSub` selects from a derived table. Inside a transaction, build the embedded query with `subquery` on the outer builder. The outer query executes the whole statement on its transaction connection.
+Use `whereExists`, `whereNotExists`, `whereInSub` or `whereSub` to embed a query. `selectSub` adds a scalar projection and `fromSub` selects from a derived table. Inside a transaction, build the embedded query with `subquery` on the outer builder. The outer query executes the whole statement on its transaction connection.
+
+### MySQL Subqueries Across Schemas {#mysql-cross-schema-subqueries}
+
+Builders for two MySQL schemas can be combined when their configured server endpoints match. The builder prefixes the inner query’s unqualified primary table with its schema. Tables that already include a schema retain it. Qualify any additional joined tables or prebuilt derived sources explicitly.
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+
+async fn active_customers(
+    primary: &Connection,
+    reporting: &Connection,
+) -> DatabaseResult<Vec<Value>> {
+    let active = reporting
+        .table("customer_activity")
+        .select(["customer_id"])
+        .r#where("active", "=", 1);
+    primary
+        .table("customers")
+        .whereInSub("id", &active)?
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
+MySQL runs the entire statement with the outer connection’s permissions. Grant that connection access to the referenced tables.
 
 ## JSON Where Clauses
 

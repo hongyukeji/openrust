@@ -117,7 +117,33 @@ pub async fn active_count(connection: &Connection) -> DatabaseResult<u64> {
 
 ## 高级 WHERE 子句
 
-在同一具名连接上，用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查询。`selectSub` 添加标量投影，`fromSub` 从派生表读取。事务中用外层构造器的 `subquery` 创建子查询，整条语句通过外层事务连接执行。
+用 `whereExists`、`whereNotExists`、`whereInSub` 或 `whereSub` 引入子查询。`selectSub` 添加标量投影，`fromSub` 从派生表读取。事务中用外层构造器的 `subquery` 创建子查询，整条语句通过外层事务连接执行。
+
+### MySQL 跨库子查询 {#mysql-cross-schema-subqueries}
+
+两个 MySQL 连接配置的服务端点一致时，可以组合它们的查询构建器。框架会给子查询尚未限定的主表加上库名，保留已指定库名的表。额外的 JOIN 表或预先构造的派生查询需显式指定库名。
+
+```rust
+use openrust::database::{Connection, DatabaseResult, Value};
+
+async fn active_customers(
+    primary: &Connection,
+    reporting: &Connection,
+) -> DatabaseResult<Vec<Value>> {
+    let active = reporting
+        .table("customer_activity")
+        .select(["customer_id"])
+        .r#where("active", "=", 1);
+    primary
+        .table("customers")
+        .whereInSub("id", &active)?
+        .orderBy("id", "asc")
+        .pluck("id")
+        .await
+}
+```
+
+MySQL 用外层连接的权限执行整条语句。外层连接的账号需要有权访问引用的表。
 
 ## JSON WHERE 子句
 

@@ -5,7 +5,7 @@
 - 新增联结和 ON 条件、MySQL LATERAL、派生表、相关 EXISTS、IN 和标量子查询、UNION 和 UNION ALL。Rust 用独立方法承载 PHP 重载，嵌入查询校验来源并将 SQL 和绑定一起交给外层构造器，事务内无需第二次借用连接。
 - 新增批量插入、忽略冲突、INSERT SELECT、同次执行返回主键、upsert、条件更新与删除、原子增减、`updateOrInsert`、JSON 更新和清空表。批量 `Record` 使用有序键，SQLite 冲突目标来自调用参数，MySQL 使用表唯一索引，并支持 `use_upsert_alias`。SQLite 的带联结或限制的写入通过 rowid 子查询确定目标。
 - MySQL 排他锁和共享锁由同一事务会话持有。SQLite 按固定语法省略行锁子句。SQLite `truncate` 在写连接上原子清空表并重置序列，可回滚并处理同名临时表。MySQL `truncate` 使用原生语句，Rust 在显式事务内拒绝会隐式提交的调用。
-- 剩余契约包括跨连接的子查询自动限定、向量查询和其他数据库方言。MySQL 全文谓词见 [07-06 验收](../07-06/README.md)，PostgreSQL 全文随对应驱动跟踪。MySQL 的影响行数保留 SQLx 驱动语义。SQLx 在当前版本启用 FOUND_ROWS，匹配但未改变的行数与 PDO 默认值有差异。
+- 剩余契约包括向量查询和其他数据库方言。MySQL 全文谓词见 [07-06 验收](../07-06/README.md)，PostgreSQL 全文随对应驱动跟踪。MySQL 的影响行数保留 SQLx 驱动语义。SQLx 在当前版本启用 FOUND_ROWS，匹配但未改变的行数与 PDO 默认值有差异。
 
 ## 验收
 
@@ -40,3 +40,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-04.OlQOOE` �
 - `whereJsonOverlaps`、`whereJsonDoesntOverlap` 及两种 OR 变体在 MySQL 编译为 `JSON_OVERLAPS`。根文档直接传入，嵌套路径用 `JSON_EXTRACT`，先绑定路径，再绑定 JSON 值或可信 SQL 表达式的参数。SQLite 对这组谓词返回不支持，符合固定 Laravel Grammar 的方言边界。
 - Rust 1.94.0、MySQL 8.4.13 与 SQLite。验证标量、数组及对象、JSON null 与缺失路径、SQL NULL、取反和嵌套 OR、表达式的参数顺序、非法 JSON 路径、带前缀的别名、事务更新与回滚，以及 SQLite 的显式错误。63 项定向回归、严格 Clippy 与变更文件格式检查通过。1 个子进程夹具由父测试启动。
 - 实际 Artisan 运行三语共用示例，校验 MySQL 命中记录与 SQLite 的方言错误。原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合和 6 项 JSON 重叠小节检查通过。
+
+## MySQL 跨库子查询
+
+对照固定 Laravel [Builder::parseSub 与 prependDatabaseNameIfCrossDatabaseQuery](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Query/Builder.php#L426)。旧版保留了连接来源校验，未找到自动加库名的实现。本批沿用子查询 SQL 与绑定合并以及同会话执行。
+
+- 同端点 MySQL 的跨库构建器自动限定内层主表。已限定的主表保持原样，保留表前缀及别名。编译不修改原构建器，数据查询与写入仍由外层连接执行。额外的 JOIN 表和预先构建的派生查询需显式限定。
+- Rust 通过当前连接池的 TCP 或 Unix socket 端点配置核对两侧来源，端点配置不一致时返回错误。两侧需要明确数据库。SQLite 的其他连接仍走既有来源限制。
+- Rust 1.94.0，MySQL 8.4.13 验证查阅另一库、绑定顺序、已限定表、别名和前缀、同库独立连接、其他端口拒绝、内层账号不参与执行、事务内 INSERT SELECT 及回滚。MySQL 与 SQLite 共 64 项定向回归、严格 Clippy 和变更文件格式检查通过。1 个子进程夹具由父测试启动。
+- 三语共用示例通过实际 Artisan 在同一 MySQL 实例的两个独立库中运行。原生 `main artisan inspire`、三语站点构建、12 项站点浏览器组合和 6 项小节检查通过。

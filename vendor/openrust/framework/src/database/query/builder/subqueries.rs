@@ -12,10 +12,14 @@ impl Source {
     pub(super) fn compile(
         &self,
         grammar: &Grammar,
+        database: Option<&str>,
         bindings: &mut Vec<Value>,
     ) -> DatabaseResult<String> {
         match self {
-            Self::Table(table) => grammar.table(table),
+            Self::Table(table) => match database {
+                Some(database) => grammar.table_in_database(table, database),
+                None => grammar.table(table),
+            },
             Self::Query(query, alias) => {
                 bindings.extend_from_slice(&query.bindings);
                 Ok(format!("({}) as {}", query.sql, grammar.table(alias)?))
@@ -62,7 +66,7 @@ impl Join {
             JoinType::Lateral => " inner join lateral ",
             JoinType::LeftLateral => " left join lateral ",
         });
-        sql.push_str(&self.source.compile(grammar, bindings)?);
+        sql.push_str(&self.source.compile(grammar, None, bindings)?);
         if matches!(self.kind, JoinType::Lateral | JoinType::LeftLateral) {
             sql.push_str(" on true");
         } else if !self.clause.0.is_empty() {
@@ -92,14 +96,22 @@ impl Builder<'_> {
     }
 
     pub(super) fn subquery_expression(&self, query: &Builder<'_>) -> DatabaseResult<Expression> {
-        if !self
-            .executor
-            .source()
-            .same_query_source(query.executor.source())
-        {
-            return Err(DatabaseError::InvalidQuery("subquery connection"));
-        }
-        let (sql, bindings) = query.compile(None)?;
+        let outer = self.executor.source();
+        let inner = query.executor.source();
+        let qualification = if outer.same_query_source(inner) {
+            None
+        } else {
+            if !self.grammar.is_mysql() || !query.grammar.is_mysql() {
+                return Err(DatabaseError::InvalidQuery("subquery connection"));
+            }
+            let Some((outer_database, inner_database)) =
+                outer.pools.mysql_schemas_for_subquery(&inner.pools)?
+            else {
+                return Err(DatabaseError::InvalidQuery("subquery connection"));
+            };
+            (outer_database != inner_database).then_some(inner_database)
+        };
+        let (sql, bindings) = query.compile_with_database(None, qualification.as_deref())?;
         Ok(Expression::new(sql).with_bindings(bindings))
     }
 

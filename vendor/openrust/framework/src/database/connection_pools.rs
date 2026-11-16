@@ -1,4 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use tokio::sync::OnceCell;
 
@@ -11,7 +15,41 @@ pub(super) struct PoolGeneration {
     pub established: OnceCell<()>,
 }
 
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum MysqlEndpoint {
+    Tcp(String, u16),
+    Socket(PathBuf),
+}
+
 impl PoolGeneration {
+    fn mysql_endpoints(&self) -> Option<BTreeSet<MysqlEndpoint>> {
+        let Pool::Mysql(writer) = &self.writer else {
+            return None;
+        };
+        let reader = match &self.reader {
+            Some(Pool::Mysql(reader)) => reader.as_ref(),
+            Some(Pool::Sqlite(_)) => return None,
+            None => &[],
+        };
+        Some(
+            writer
+                .iter()
+                .chain(reader)
+                .map(|pool| {
+                    let options = pool.connect_options();
+                    if let Some(path) = options.get_socket() {
+                        MysqlEndpoint::Socket(path.clone())
+                    } else {
+                        MysqlEndpoint::Tcp(
+                            options.get_host().to_ascii_lowercase(),
+                            options.get_port(),
+                        )
+                    }
+                })
+                .collect(),
+        )
+    }
+
     pub(super) fn retire(&self) {
         self.writer.retire();
         if let Some(reader) = &self.reader {
@@ -48,6 +86,31 @@ impl ConnectionPools {
         let generation = Arc::new((self.resolve)()?);
         *current = Some(generation.clone());
         Ok(generation)
+    }
+
+    pub(super) fn mysql_schemas_for_subquery(
+        &self,
+        other: &Self,
+    ) -> DatabaseResult<Option<(String, String)>> {
+        let left = self.generation()?;
+        let right = other.generation()?;
+        let (Pool::Mysql(left_writer), Pool::Mysql(right_writer)) = (&left.writer, &right.writer)
+        else {
+            return Ok(None);
+        };
+        if left
+            .mysql_endpoints()
+            .is_none_or(|endpoints| Some(endpoints) != right.mysql_endpoints())
+        {
+            return Ok(None);
+        }
+        let left = left_writer.first().map(|pool| pool.connect_options());
+        let right = right_writer.first().map(|pool| pool.connect_options());
+        Ok(left
+            .as_ref()
+            .and_then(|options| options.get_database())
+            .zip(right.as_ref().and_then(|options| options.get_database()))
+            .map(|(left, right)| (left.to_owned(), right.to_owned())))
     }
 
     pub(super) fn has_reader(&self) -> bool {

@@ -110,6 +110,23 @@ impl Grammar {
         self.wrap(name, true, true)
     }
 
+    pub(in crate::database::query) fn table_in_database(
+        &self,
+        name: &str,
+        database: &str,
+    ) -> DatabaseResult<String> {
+        let table = self.table(name)?;
+        let relation = name
+            .as_bytes()
+            .windows(4)
+            .position(|part| part.eq_ignore_ascii_case(b" as "))
+            .map_or(name, |alias| &name[..alias]);
+        if relation.contains('.') {
+            return Ok(table);
+        }
+        Ok(format!("{}.{table}", self.quote(database)?))
+    }
+
     pub(crate) fn column(&self, name: &str) -> DatabaseResult<String> {
         self.wrap(name, false, false)
     }

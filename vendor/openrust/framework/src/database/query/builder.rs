@@ -539,10 +539,18 @@ impl<'connection> Builder<'connection> {
     }
 
     fn compile(&self, aggregate: Option<(&str, &str)>) -> DatabaseResult<(String, Vec<Value>)> {
+        self.compile_with_database(aggregate, None)
+    }
+
+    fn compile_with_database(
+        &self,
+        aggregate: Option<(&str, &str)>,
+        database: Option<&str>,
+    ) -> DatabaseResult<(String, Vec<Value>)> {
         if let Some((function, column)) = aggregate
             && !self.unions.is_empty()
         {
-            let (sql, bindings) = self.compile(None)?;
+            let (sql, bindings) = self.compile_with_database(None, database)?;
             let distinct = if self.distinct && column != "*" {
                 "distinct "
             } else {
@@ -582,7 +590,11 @@ impl<'connection> Builder<'connection> {
         }
 
         sql.push_str(" from ");
-        sql.push_str(&self.source.compile(&self.grammar, &mut bindings)?);
+        sql.push_str(
+            &self
+                .source
+                .compile(&self.grammar, database, &mut bindings)?,
+        );
         self.compile_joins(&mut sql, &mut bindings)?;
 
         self.compile_predicates(&mut sql, &mut bindings)?;
