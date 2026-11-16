@@ -14,3 +14,11 @@
 - 在隔离副本验证本单元依赖，并对合并在途 gRPC 后的锁文件单独执行锁定离线 metadata。原有 reqwest、tonic 和 tokio-stream 与 image、webp 均保留。
 
 下一单元 07-06 Search，依赖 05-03、06-04、07-02。
+
+
+## 静态格式补齐
+
+- 固定 Laravel 的 `InterventionDriver` 格式白名单包含 AVIF、HEIC／HEIF 和 JPEG XL。`Image::toFormat` 接受 `heif` 并输出 `heic`。新增 `toFormat`、`toHeic`、`toJxl`，保留原有类型化接口。旧版仅有相关 MIME 映射。 [固定 Image API](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image/Image.php#L280-L323) [固定格式白名单](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Image/Drivers/InterventionDriver.php#L74-L81)
+- AVIF 读取使用 imgalifier-avif，写入继续使用 ravif。HEIC 使用 OxideAV 的纯 Rust HEIF／HEVC 实现。JPEG XL 由 jxl-oxide 解码、zune-jpegxl 无损编码。WebP 写入改用 oxideav-webp，移除 libwebp 绑定并复验质量。各解码路径应用尺寸与像素限制，继续执行原有输入字节限制。
+- Apple Silicon macOS、Rust 1.94.0。5 项 `images` 回归及全工作区严格 Clippy 通过。变更文件格式通过，工作区格式仍报告已有 Sanctum 测试排版。实际 Artisan 双向转换八种格式，并读取由 macOS 系统编解码器独立生成的 AVIF 和 HEIC。系统读取器独立核对全部输出尺寸。损坏输入返回退出码 1。实际 HTTP 使用外部 HEIC 并输出 AVIF、HEIF 别名、JPEG XL、WebP，检查 MIME 和尺寸。三语文档构建和 12 项通用浏览器检查通过。
+- 后续范围包括动画帧、循环次数和时序，以及 JPEG XL 有损质量与平台特定编码差异。

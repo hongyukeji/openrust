@@ -56,13 +56,17 @@ intl = { version = "=0.6.5", default-features = false, features = ["currency", "
 icu_locale_core = { version = "2.4", features = ["alloc"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["rustls", "json", "query", "form", "multipart", "stream"] }
 image = { version = "=0.25.10", default-features = false, features = ["avif", "bmp", "gif", "jpeg", "png", "webp"] }
+imgalifier-avif = "=0.1.0"
 indexmap = "=2.14.2"
 iri-string = "=0.7.14"
 infer = { version = "0.19.0", default-features = false }
+jxl-oxide = { version = "=0.12.6", default-features = false, features = ["image"] }
 lettre = { version = "=0.11.23", default-features = false, features = ["builder", "pool", "smtp-transport", "tokio1-rustls-tls"] }
 md-5 = { version = "=0.11.0", default-features = false }
 mime_guess = "2.0.5"
 multer = "3.1.0"
+oxideav-heif = { version = "=0.0.13", default-features = false, features = ["registry"] }
+oxideav-webp = { version = "=0.3.1", default-features = false }
 percent-encoding = "2.3"
 quick-xml = { version = "0.42", default-features = false }
 pluralizer = "=0.5.0"
@@ -90,7 +94,8 @@ chrono-tz = "=0.10.4"
 croner = "=4.0.3"
 ulid = { version = "=1.2.1", default-features = false, features = ["std"] }
 uuid = { version = "=1.29.2", default-features = false, features = ["std", "v7"] }
-webp = { version = "=0.3.1", default-features = false }
+zune-core = "=0.5.3"
+zune-jpegxl = { version = "=0.5.2", default-features = false, features = ["std"] }
 zeroize = "1.9.0"
 
 [target.'cfg(unix)'.dependencies]

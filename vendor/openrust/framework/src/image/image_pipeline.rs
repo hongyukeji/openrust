@@ -7,6 +7,8 @@ pub enum Format {
     Gif,
     Webp,
     Avif,
+    Heic,
+    Jxl,
     Bmp,
 }
 
@@ -18,22 +20,40 @@ impl Format {
             Self::Gif => "gif",
             Self::Webp => "webp",
             Self::Avif => "avif",
+            Self::Heic => "heic",
+            Self::Jxl => "jxl",
             Self::Bmp => "bmp",
         }
     }
 
     pub fn mime_type(self) -> &'static str {
-        self.native().to_mime_type()
-    }
-
-    pub(super) fn native(self) -> ::image::ImageFormat {
         match self {
-            Self::Jpeg => ::image::ImageFormat::Jpeg,
-            Self::Png => ::image::ImageFormat::Png,
-            Self::Gif => ::image::ImageFormat::Gif,
-            Self::Webp => ::image::ImageFormat::WebP,
-            Self::Avif => ::image::ImageFormat::Avif,
-            Self::Bmp => ::image::ImageFormat::Bmp,
+            Self::Jpeg => "image/jpeg",
+            Self::Png => "image/png",
+            Self::Gif => "image/gif",
+            Self::Webp => "image/webp",
+            Self::Avif => "image/avif",
+            Self::Heic => "image/heic",
+            Self::Jxl => "image/jxl",
+            Self::Bmp => "image/bmp",
+        }
+    }
+}
+
+impl std::str::FromStr for Format {
+    type Err = Error;
+
+    fn from_str(format: &str) -> Result<Self> {
+        match format {
+            "jpg" | "jpeg" => Ok(Self::Jpeg),
+            "png" => Ok(Self::Png),
+            "gif" => Ok(Self::Gif),
+            "webp" => Ok(Self::Webp),
+            "avif" => Ok(Self::Avif),
+            "heic" | "heif" => Ok(Self::Heic),
+            "jxl" => Ok(Self::Jxl),
+            "bmp" => Ok(Self::Bmp),
+            _ => Err(Error::UnsupportedFormat),
         }
     }
 }

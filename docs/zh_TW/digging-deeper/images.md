@@ -32,4 +32,4 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 應用程式預設使用 `image` 驅動。`IMAGE_DRIVER` 可選擇已註冊的驅動。用 `Image::extend` 註冊 `Driver` 實作，用 `using` 為影像選擇驅動。預設限制為每個輸入 32 MiB、每邊 16,384 像素、每張影像 2,400 萬像素。
 
-JPEG、PNG、GIF、WebP 和 BMP 支援讀寫。AVIF 支援寫入。JPEG、WebP 和 AVIF 使用設定的品質值。對動畫輸入的轉換只處理單一影格。
+內建驅動可讀寫 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 與 BMP。可使用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 轉換格式。`heif` 別名輸出副檔名為 `.heic`、MIME 類型為 `image/heic` 的檔案。JPEG、WebP、AVIF 與 HEIC 套用指定品質。JPEG XL 編碼器目前以無損方式寫入。編解碼皆在 Rust 中執行。動畫輸入目前只變換一個畫格。

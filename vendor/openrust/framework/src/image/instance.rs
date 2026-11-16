@@ -135,6 +135,10 @@ impl Image {
         self
     }
 
+    pub fn toFormat(self, format: &str) -> Result<Self> {
+        Ok(self.encode(format.parse()?))
+    }
+
     pub fn toJpeg(self) -> Self {
         self.encode(Format::Jpeg)
     }
@@ -152,6 +156,12 @@ impl Image {
     }
     pub fn toAvif(self) -> Self {
         self.encode(Format::Avif)
+    }
+    pub fn toHeic(self) -> Self {
+        self.encode(Format::Heic)
+    }
+    pub fn toJxl(self) -> Self {
+        self.encode(Format::Jxl)
     }
     pub fn toBmp(self) -> Self {
         self.encode(Format::Bmp)

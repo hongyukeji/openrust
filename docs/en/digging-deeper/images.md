@@ -32,4 +32,4 @@ Use `mimeType`, `extension`, `dimensions`, `width`, and `height` to inspect the 
 
 The application uses the `image` driver by default. `IMAGE_DRIVER` selects a registered driver. Use `Image::extend` to register an implementation of `Driver`, and `using` to choose a driver for an image. The default limits are 32 MiB per input, 16,384 pixels per side, and 24 million pixels per image.
 
-JPEG, PNG, GIF, WebP, and BMP support reading and writing. AVIF supports writing. JPEG, WebP, and AVIF use the requested quality. Transformations on animated inputs operate on a single frame.
+The built-in driver reads and writes JPEG, PNG, GIF, WebP, AVIF, HEIC, JPEG XL, and BMP. Use `toAvif()`, `toHeic()`, `toJxl()`, or `toFormat("heif")` to convert a source. The `heif` alias produces a `.heic` file with MIME type `image/heic`. JPEG, WebP, AVIF, and HEIC use the requested quality. The JPEG XL writer currently encodes losslessly. These codecs run in Rust. Transformations on animated inputs currently operate on a single frame.

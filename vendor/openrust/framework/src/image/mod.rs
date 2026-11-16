@@ -1,5 +1,6 @@
 //! Lazy image loading, transformations, and encoding.
 
+mod codecs;
 mod facade;
 mod image_pipeline;
 mod instance;
@@ -81,6 +82,10 @@ pub enum Error {
     InvalidTransformation,
     Missing,
     Encoding(::image::ImageError),
+    Codec {
+        format: Format,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
     Base64(base64::DecodeError),
     Io(std::io::Error),
     Filesystem(crate::filesystem::FilesystemError),
@@ -102,6 +107,9 @@ impl fmt::Display for Error {
             Self::InvalidTransformation => formatter.write_str("invalid image transformation"),
             Self::Missing => formatter.write_str("image source was not found"),
             Self::Encoding(error) => error.fmt(formatter),
+            Self::Codec { format, source } => {
+                write!(formatter, "{} codec: {source}", format.extension())
+            }
             Self::Base64(error) => error.fmt(formatter),
             Self::Io(error) => error.fmt(formatter),
             Self::Filesystem(error) => error.fmt(formatter),

@@ -1,12 +1,9 @@
-use std::io::Cursor;
-
-use ::image::{
-    DynamicImage, GenericImageView as _, ImageDecoder as _, ImageReader, Rgba, RgbaImage, imageops,
-};
+use ::image::{DynamicImage, GenericImageView as _, Rgba, RgbaImage, imageops};
 use axum::body::Bytes;
 
 use super::{
     Background, Driver, EncodedImage, Error, Format, ImagePipeline, Limits, Result, Transformation,
+    codecs,
 };
 
 pub(super) struct NativeDriver;
@@ -31,30 +28,7 @@ impl Driver for NativeDriver {
                 dimensions,
             });
         }
-        let quality = pipeline.quality.unwrap_or(70);
-        if format == Format::Webp {
-            let rgba = image.into_rgba8();
-            let encoded = webp::Encoder::from_rgba(rgba.as_raw(), dimensions.0, dimensions.1)
-                .encode_simple(false, f32::from(quality))
-                .map_err(|_| Error::WebpEncoding)?;
-            return Ok(EncodedImage {
-                bytes: Bytes::copy_from_slice(&encoded),
-                format,
-                dimensions,
-            });
-        }
-        let mut bytes = Vec::new();
-        match format {
-            Format::Jpeg => image.write_with_encoder(
-                ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality),
-            ),
-            Format::Avif => image.write_with_encoder(
-                ::image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut bytes, 8, quality)
-                    .with_num_threads(Some(1)),
-            ),
-            _ => image.write_to(&mut Cursor::new(&mut bytes), format.native()),
-        }
-        .map_err(Error::Encoding)?;
+        let bytes = codecs::encode(image, format, pipeline.quality.unwrap_or(70))?;
         Ok(EncodedImage {
             bytes: bytes.into(),
             format,
@@ -79,31 +53,11 @@ fn raster(
     pipeline: &ImagePipeline,
     limits: Limits,
 ) -> Result<(DynamicImage, Format)> {
-    let mut reader = ImageReader::new(Cursor::new(contents))
-        .with_guessed_format()
-        .map_err(Error::Io)?;
-    let format = Format::try_from(reader.format().ok_or(Error::UnsupportedFormat)?)?;
-    if format == Format::Avif {
-        return Err(Error::UnsupportedFormat);
-    }
-    let mut decoder_limits = ::image::Limits::default();
-    decoder_limits.max_image_width = Some(limits.max_dimension);
-    decoder_limits.max_image_height = Some(limits.max_dimension);
-    decoder_limits.max_alloc = Some(limits.max_pixels.saturating_mul(12));
-    reader.limits(decoder_limits);
-    let mut decoder = reader.into_decoder().map_err(decode_error)?;
-    let (width, height) = decoder.dimensions();
-    limits.dimensions(width, height)?;
-    let orientation = if pipeline
+    let oriented = pipeline
         .transformations
         .iter()
-        .any(|step| matches!(step, Transformation::Orient))
-    {
-        Some(decoder.orientation().map_err(decode_error)?)
-    } else {
-        None
-    };
-    let mut image = DynamicImage::from_decoder(decoder).map_err(decode_error)?;
+        .any(|step| matches!(step, Transformation::Orient));
+    let (mut image, format, orientation) = codecs::decode(contents, limits, oriented)?;
     let mut orientation = orientation;
     for step in &pipeline.transformations {
         if matches!(step, Transformation::Orient) {
@@ -115,14 +69,6 @@ fn raster(
         }
     }
     Ok((image, format))
-}
-
-fn decode_error(error: ::image::ImageError) -> Error {
-    match error {
-        ::image::ImageError::Limits(_) => Error::DimensionsTooLarge,
-        ::image::ImageError::Unsupported(_) => Error::UnsupportedFormat,
-        error => Error::Encoding(error),
-    }
 }
 
 fn transform(image: DynamicImage, step: &Transformation, limits: Limits) -> Result<DynamicImage> {

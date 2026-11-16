@@ -32,4 +32,4 @@ assert_eq!(thumbnail.mimeType().await?, "image/webp");
 
 应用默认使用 `image` 驱动。`IMAGE_DRIVER` 可选择已注册的驱动。用 `Image::extend` 注册 `Driver` 实现，用 `using` 为图像选择驱动。默认限制为每个输入 32 MiB、每边 16,384 像素、每张图像 2,400 万像素。
 
-JPEG、PNG、GIF、WebP 和 BMP 支持读写。AVIF 支持写入。JPEG、WebP 和 AVIF 使用设置的质量值。对动画输入的变换只处理单帧。
+内置驱动读写 JPEG、PNG、GIF、WebP、AVIF、HEIC、JPEG XL 和 BMP。可用 `toAvif()`、`toHeic()`、`toJxl()` 或 `toFormat("heif")` 转换格式。`heif` 别名输出扩展名为 `.heic`、MIME 类型为 `image/heic` 的文件。JPEG、WebP、AVIF 和 HEIC 应用指定质量。JPEG XL 编码器目前以无损方式写入。编解码均在 Rust 中运行。动画输入目前只变换一帧。

@@ -1,0 +1,209 @@
+use std::io::Cursor;
+
+use ::image::{
+    DynamicImage, ImageDecoder as _, ImageFormat, ImageReader, RgbaImage, metadata::Orientation,
+};
+use zune_core::{bit_depth::BitDepth, colorspace::ColorSpace, options::EncoderOptions};
+
+use super::{Error, Format, Limits, Result};
+
+pub(super) fn identify(bytes: &[u8]) -> Result<Format> {
+    if bytes.starts_with(&[0xff, 0x0a]) || bytes.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n") {
+        return Ok(Format::Jxl);
+    }
+    if let Ok(header) = oxideav_heif::boxes::parse_box_header(bytes, 0)
+        && header.box_type == *b"ftyp"
+        && let Ok(brands) = oxideav_heif::ftyp::FileType::parse(
+            header.box_type,
+            oxideav_heif::boxes::payload(bytes, &header),
+        )
+    {
+        let class = brands.classify();
+        if class.av1 {
+            return Ok(Format::Avif);
+        }
+        if class.hevc || brands.major_brand == *b"mif1" {
+            return Ok(Format::Heic);
+        }
+    }
+    Format::try_from(::image::guess_format(bytes).map_err(decode_error)?)
+}
+
+pub(super) fn decode(
+    contents: &[u8],
+    limits: Limits,
+    oriented: bool,
+) -> Result<(DynamicImage, Format, Option<Orientation>)> {
+    let format = identify(contents)?;
+    let decoder_limits = decoder_limits(limits);
+    let (image, orientation) = match format {
+        Format::Avif => (decode_avif(contents, limits)?, None),
+        Format::Heic => (decode_heic(contents, limits)?, None),
+        Format::Jxl => {
+            let mut decoder = jxl_oxide::integration::JxlDecoder::new(Cursor::new(contents))
+                .map_err(decode_error)?;
+            decoder.set_limits(decoder_limits).map_err(decode_error)?;
+            // JPEG XL's decoder already applies the codestream orientation.
+            decode_native(decoder, limits, false)?
+        }
+        _ => {
+            let mut reader = ImageReader::new(Cursor::new(contents))
+                .with_guessed_format()
+                .map_err(Error::Io)?;
+            reader.limits(decoder_limits);
+            decode_native(
+                reader.into_decoder().map_err(decode_error)?,
+                limits,
+                oriented,
+            )?
+        }
+    };
+    Ok((image, format, orientation))
+}
+
+fn decode_native(
+    mut decoder: impl ::image::ImageDecoder,
+    limits: Limits,
+    oriented: bool,
+) -> Result<(DynamicImage, Option<Orientation>)> {
+    let (width, height) = decoder.dimensions();
+    limits.dimensions(width, height)?;
+    let orientation = oriented
+        .then(|| decoder.orientation().map_err(decode_error))
+        .transpose()?;
+    Ok((
+        DynamicImage::from_decoder(decoder).map_err(decode_error)?,
+        orientation,
+    ))
+}
+
+pub(super) fn decoder_limits(limits: Limits) -> ::image::Limits {
+    let mut decoder = ::image::Limits::default();
+    decoder.max_image_width = Some(limits.max_dimension);
+    decoder.max_image_height = Some(limits.max_dimension);
+    decoder.max_alloc = Some(limits.max_pixels.saturating_mul(12));
+    decoder
+}
+
+fn decode_avif(contents: &[u8], limits: Limits) -> Result<DynamicImage> {
+    let backend = imgalifier_avif::Av1Backend {
+        max_pixels: u32::try_from(limits.max_pixels).unwrap_or(u32::MAX),
+        ..Default::default()
+    };
+    let decoder = imgalifier_avif::Decoder::new(
+        contents,
+        backend,
+        imgalifier_avif::Limits {
+            max_pixels: limits.max_pixels,
+            ..Default::default()
+        },
+    )
+    .map_err(avif_error)?;
+    let info = decoder.info().map_err(avif_error)?;
+    limits.dimensions(info.width, info.height)?;
+    let image = decoder.decode_primary().map_err(avif_error)?;
+    rgba_image(image.width, image.height, image.data, limits)
+}
+
+fn decode_heic(contents: &[u8], limits: Limits) -> Result<DynamicImage> {
+    let options = oxideav_heif::DecodeOptions::default()
+        .with_max_width(Some(limits.max_dimension))
+        .with_max_height(Some(limits.max_dimension))
+        .with_max_pixels(Some(limits.max_pixels))
+        .with_max_bytes(Some(limits.max_input_bytes as u64));
+    let image = oxideav_heif::decode_with(contents, &options).map_err(heic_error)?;
+    limits.dimensions(image.width(), image.height())?;
+    let pixels = image.try_to_rgba8().map_err(heic_error)?;
+    rgba_image(image.width(), image.height(), pixels, limits)
+}
+
+fn rgba_image(width: u32, height: u32, pixels: Vec<u8>, limits: Limits) -> Result<DynamicImage> {
+    limits.dimensions(width, height)?;
+    RgbaImage::from_raw(width, height, pixels)
+        .map(DynamicImage::ImageRgba8)
+        .ok_or(Error::InvalidDimensions)
+}
+
+pub(super) fn encode(image: DynamicImage, format: Format, quality: u8) -> Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    match format {
+        Format::Webp => {
+            let rgba = image.into_rgba8();
+            let (width, height) = rgba.dimensions();
+            let options = oxideav_webp::EncodeOptions::default().with_quality(f32::from(quality));
+            return oxideav_webp::encode_rgba8(width, height, rgba.as_raw(), &options)
+                .map_err(|error| codec_error(format, error));
+        }
+        Format::Heic => {
+            let qp = ((100 - u32::from(quality)) * 51 / 100) as u8;
+            let options = oxideav_heif::EncodeOptions::default().with_qp(qp);
+            return if image.color().has_alpha() {
+                let rgba = image.into_rgba8();
+                let (width, height) = rgba.dimensions();
+                oxideav_heif::encode_rgba8(width, height, rgba.as_raw(), &options)
+            } else {
+                let rgb = image.into_rgb8();
+                let (width, height) = rgb.dimensions();
+                oxideav_heif::encode_rgb8(width, height, rgb.as_raw(), &options)
+            }
+            .map_err(heic_error);
+        }
+        Format::Jxl => {
+            let rgba = image.into_rgba8();
+            let options = EncoderOptions::new(
+                rgba.width() as usize,
+                rgba.height() as usize,
+                ColorSpace::RGBA,
+                BitDepth::Eight,
+            );
+            zune_jpegxl::JxlSimpleEncoder::new(rgba.as_raw(), options)
+                .encode(&mut bytes)
+                .map_err(|error| codec_error(format, error))?;
+            return Ok(bytes);
+        }
+        Format::Jpeg => image.write_with_encoder(
+            ::image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality),
+        ),
+        Format::Avif => image.write_with_encoder(
+            ::image::codecs::avif::AvifEncoder::new_with_speed_quality(&mut bytes, 8, quality)
+                .with_num_threads(Some(1)),
+        ),
+        Format::Png => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Png),
+        Format::Gif => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Gif),
+        Format::Bmp => image.write_to(&mut Cursor::new(&mut bytes), ImageFormat::Bmp),
+    }
+    .map_err(Error::Encoding)?;
+    Ok(bytes)
+}
+
+pub(super) fn decode_error(error: ::image::ImageError) -> Error {
+    match error {
+        ::image::ImageError::Limits(_) => Error::DimensionsTooLarge,
+        ::image::ImageError::Unsupported(_) => Error::UnsupportedFormat,
+        error => Error::Encoding(error),
+    }
+}
+
+fn avif_error(error: imgalifier_avif::Error) -> Error {
+    match error {
+        imgalifier_avif::Error::LimitExceeded(_) => Error::DimensionsTooLarge,
+        error => codec_error(Format::Avif, error),
+    }
+}
+
+fn heic_error(error: oxideav_heif::Error) -> Error {
+    match error {
+        oxideav_heif::Error::LimitExceeded(_) => Error::DimensionsTooLarge,
+        error => codec_error(Format::Heic, error),
+    }
+}
+
+pub(super) fn codec_error(
+    format: Format,
+    source: impl std::error::Error + Send + Sync + 'static,
+) -> Error {
+    Error::Codec {
+        format,
+        source: Box::new(source),
+    }
+}

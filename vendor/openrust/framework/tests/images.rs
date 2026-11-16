@@ -42,20 +42,22 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
         Format::Gif,
         Format::Webp,
         Format::Avif,
+        Format::Heic,
+        Format::Jxl,
         Format::Bmp,
     ] {
         let image = source.clone().cover(5, 5).encode(format).quality(81);
         let encoded = image.toBytes().await.unwrap();
-        assert_eq!(
-            Format::try_from(::image::guess_format(&encoded).unwrap()).unwrap(),
-            format
-        );
         assert_eq!(image.extension().await.unwrap(), format.extension());
         assert_eq!(image.dimensions().await.unwrap(), (5, 5));
-        if format != Format::Avif {
-            let decoded = manager.fromBytes(encoded);
-            assert_eq!(decoded.dimensions().await.unwrap(), (5, 5));
-        }
+        let decoded = manager.fromBytes(encoded);
+        assert_eq!(decoded.mimeType().await.unwrap(), format.mime_type());
+        assert_eq!(decoded.dimensions().await.unwrap(), (5, 5));
+        let pixels = decoded.toFormat("png").unwrap().toBytes().await.unwrap();
+        let pixels = ::image::load_from_memory(&pixels).unwrap().into_rgba8();
+        let left = pixels.get_pixel(0, 2);
+        let right = pixels.get_pixel(4, 2);
+        assert!(left[0] > left[2] && right[2] > right[0], "{format:?}");
     }
     assert_eq!(
         source
@@ -118,6 +120,34 @@ async fn decodes_real_images_and_encodes_each_supported_output() {
             .unwrap()
             .starts_with("data:image/webp;base64,")
     );
+}
+
+#[tokio::test]
+async fn recent_codecs_apply_limits_and_reject_incomplete_contents() {
+    let manager = ImageManager::new(Limits::default());
+    let input = manager.fromBytes(sample());
+    let limited = ImageManager::new(Limits {
+        max_pixels: 50,
+        ..Limits::default()
+    });
+    for converted in [
+        input.clone().toAvif(),
+        input.clone().toFormat("heif").unwrap(),
+        input.toJxl(),
+    ] {
+        let encoded = converted.toBytes().await.unwrap();
+        assert!(matches!(
+            limited.fromBytes(encoded.clone()).dimensions().await,
+            Err(Error::DimensionsTooLarge)
+        ));
+        assert!(
+            manager
+                .fromBytes(encoded.slice(..encoded.len() / 2))
+                .toBytes()
+                .await
+                .is_err()
+        );
+    }
 }
 
 #[tokio::test]
