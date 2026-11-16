@@ -33,3 +33,9 @@ factory.assertSentCount(2);
 ```
 
 用 `pool` 设置非零并发上限，通过 `Pool::r#as` 注册命名请求。结果保留注册顺序及每个请求自己的成功或错误。
+
+## 批次和事件 {#batches-and-events}
+
+用 `Http::batch` 注册具名请求，再用 `send().await` 执行。用 `concurrency` 限制并发数。`before` 在请求开始前运行，`progress` 接收成功响应，`catch` 接收失败。没有失败时运行 `then`。`finally` 按注册顺序接收全部结果。
+
+从 `openrust::http::client::events` 导入 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed` 注册监听。事件名使用 `OpenRust\Http\Client\Events\` 前缀。应用 HTTP 客户端在每次请求尝试时派发事件，包括重试。

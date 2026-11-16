@@ -35,15 +35,30 @@ impl<'a> Pool<'a> {
     }
 
     pub(super) async fn run(self, concurrency: NonZeroUsize) -> IndexMap<String, Result<Response>> {
-        let (keys, requests): (Vec<_>, Vec<_>) = self.requests.into_iter().unzip();
-        let mut responses = stream::iter(requests.into_iter().enumerate())
-            .map(|(index, request)| async move { (index, request.await) })
-            .buffer_unordered(concurrency.get())
-            .collect::<Vec<_>>()
-            .await;
-        responses.sort_unstable_by_key(|(index, _)| *index);
-        keys.into_iter()
-            .zip(responses.into_iter().map(|(_, response)| response))
+        self.run_with(concurrency, |_, _| {}).await
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.requests.len()
+    }
+
+    pub(super) async fn run_with(
+        self,
+        concurrency: NonZeroUsize,
+        mut completed: impl FnMut(&str, &Result<Response>),
+    ) -> IndexMap<String, Result<Response>> {
+        let mut responses = stream::iter(self.requests.into_iter().enumerate())
+            .map(|(index, (key, request))| async move { (index, key, request.await) })
+            .buffer_unordered(concurrency.get());
+        let mut ordered = Vec::new();
+        while let Some((index, key, result)) = responses.next().await {
+            completed(&key, &result);
+            ordered.push((index, key, result));
+        }
+        ordered.sort_unstable_by_key(|(index, _, _)| *index);
+        ordered
+            .into_iter()
+            .map(|(_, key, result)| (key, result))
             .collect()
     }
 }

@@ -275,6 +275,133 @@ async fn serve(router: Router) -> (String, tokio::task::JoinHandle<()>) {
 }
 
 #[tokio::test]
+async fn batch_dispatches_callbacks_and_preserves_registration_order() {
+    use std::{num::NonZeroUsize, sync::Mutex};
+
+    let factory = Factory::new().unwrap();
+    factory.stubUrl(
+        "https://batch.test/ok",
+        Response::new(StatusCode::OK, HeaderMap::new(), b"ok"),
+    );
+    factory.stubUrl(
+        "https://batch.test/fail",
+        Response::new(StatusCode::BAD_GATEWAY, HeaderMap::new(), b"bad"),
+    );
+    factory.preventStrayRequests(true);
+    let calls = Mutex::new(Vec::new());
+    let results = factory
+        .batch(|batch| {
+            batch
+                .concurrency(NonZeroUsize::MIN)
+                .r#as("first", |request| request.get("https://batch.test/ok"))
+                .r#as("second", |request| request.get("https://batch.test/fail"))
+                .r#as("third", |request| request.get("https://batch.test/stray"))
+                .before(|counts| {
+                    assert_eq!(counts.pending_requests, 3);
+                    calls.lock().unwrap().push("before".into());
+                })
+                .progress(|counts, key, _| {
+                    assert_eq!(counts.processedRequests(), 1);
+                    calls.lock().unwrap().push(key.to_owned());
+                })
+                .catch(|counts, key, _| {
+                    assert!(counts.hasFailures());
+                    calls.lock().unwrap().push(key.to_owned());
+                })
+                .then(|_, _| panic!("a failed batch must skip then"))
+                .finally(|counts, results| {
+                    assert_eq!(counts.failed_requests, 2);
+                    assert_eq!(results.len(), 3);
+                    calls.lock().unwrap().push("finally".into());
+                });
+        })
+        .send()
+        .await;
+    assert_eq!(
+        results.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["first", "second", "third"]
+    );
+    assert_eq!(
+        *calls.lock().unwrap(),
+        ["before", "first", "second", "third", "finally"]
+    );
+}
+
+#[tokio::test]
+async fn http_factory_delivers_typed_events_to_its_own_application() {
+    use openrust::{
+        contracts::{container::Container as _, foundation::Application as _},
+        events::Dispatcher,
+        foundation::Application,
+        http::client::events::{
+            ConnectionFailed, ConnectionFailure, RequestSending, ResponseReceived,
+        },
+    };
+
+    let (base, server) = serve(Router::new().route("/ok", get(|| async { "ok" })).route(
+        "/slow",
+        get(|| async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            "slow"
+        }),
+    ))
+    .await;
+    let mut application = Application::configure(std::env::temp_dir())
+        .create()
+        .unwrap();
+    application.boot().await.unwrap();
+    let container = application.container();
+    let events = container.make::<Dispatcher>().unwrap().fake(&[]);
+    let factory = container.make::<Factory>().unwrap();
+    assert!(
+        factory
+            .get(&format!("{base}/ok"))
+            .await
+            .unwrap()
+            .successful()
+    );
+    assert!(matches!(
+        factory
+            .pendingRequest()
+            .timeout(Duration::from_millis(20))
+            .get(&format!("{base}/slow"))
+            .await,
+        Err(Error::Timeout)
+    ));
+    let requests = events.dispatched(r"OpenRust\Http\Client\Events\RequestSending");
+    assert_eq!(requests.len(), 2);
+    assert_eq!(
+        requests[0]
+            .downcast_ref::<RequestSending>()
+            .unwrap()
+            .request
+            .url
+            .path(),
+        "/ok"
+    );
+    let replies = events.dispatched(r"OpenRust\Http\Client\Events\ResponseReceived");
+    assert_eq!(replies.len(), 1);
+    assert_eq!(
+        replies[0]
+            .downcast_ref::<ResponseReceived>()
+            .unwrap()
+            .response
+            .body(),
+        b"ok"
+    );
+    let failures = events.dispatched(r"OpenRust\Http\Client\Events\ConnectionFailed");
+    assert_eq!(failures.len(), 1);
+    assert_eq!(
+        failures[0]
+            .downcast_ref::<ConnectionFailed>()
+            .unwrap()
+            .exception,
+        ConnectionFailure::Timeout
+    );
+    server.abort();
+}
+
+#[tokio::test]
 async fn named_pool_keeps_order_and_per_request_results() {
     let factory = Factory::new().unwrap();
     let sequence = factory.fakeSequence("https://pool.test/slow");

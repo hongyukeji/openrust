@@ -1,11 +1,14 @@
 //! Outbound HTTP requests, responses, and application-local testing.
 
+mod batch;
+pub mod events;
 mod facade;
 mod factory;
 mod pending_request;
 mod pool;
 mod response;
 
+pub use batch::{Batch, BatchProgress, BatchResults};
 pub use facade::{Http, HttpClientServiceProvider};
 pub use factory::{Factory, RecordedRequest, ResponseSequence};
 pub use pending_request::PendingRequest;
@@ -29,6 +32,7 @@ pub enum Error {
     StrayRequest,
     SequenceExhausted,
     RequestFailed(Box<Response>),
+    Event(crate::events::EventError),
     Unavailable(crate::contracts::container::BindingResolutionError),
 }
 
@@ -57,6 +61,7 @@ impl fmt::Display for Error {
                 "outgoing HTTP request returned {}",
                 response.status()
             ),
+            Self::Event(error) => error.fmt(formatter),
             Self::Unavailable(error) => error.fmt(formatter),
         }
     }

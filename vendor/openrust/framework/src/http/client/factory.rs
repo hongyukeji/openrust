@@ -8,9 +8,13 @@ use std::{
 use http::{HeaderMap, Method};
 use url::Url;
 
-use crate::support::Str;
+use crate::{
+    contracts::events::{Dispatcher as _, Event},
+    events::{Dispatcher, EventContext},
+    support::Str,
+};
 
-use super::{Error, PendingRequest, Pool, Response, Result};
+use super::{Batch, Error, PendingRequest, Pool, Response, Result};
 
 pub(super) const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 pub(super) const TIMEOUT: Duration = Duration::from_secs(30);
@@ -23,6 +27,7 @@ type Stub = dyn Fn(&reqwest::Request) -> Option<Result<Response>> + Send + Sync;
 pub struct Factory {
     pub(super) client: reqwest::Client,
     testing: Arc<Mutex<Testing>>,
+    pub(super) events: Option<Arc<Dispatcher>>,
 }
 
 #[derive(Default)]
@@ -128,11 +133,28 @@ impl Factory {
         Ok(Self {
             client: build_client(CONNECT_TIMEOUT, 5)?,
             testing: Arc::default(),
+            events: None,
         })
+    }
+
+    pub(super) async fn emit(&self, event: impl Event) -> Result<()> {
+        if let Some(dispatcher) = &self.events {
+            dispatcher
+                .dispatch(Arc::new(event), &mut EventContext::new())
+                .await
+                .map_err(Error::Event)?;
+        }
+        Ok(())
     }
 
     pub fn pendingRequest(&self) -> PendingRequest {
         PendingRequest::new(self.clone())
+    }
+
+    pub fn batch<'a>(&self, build: impl FnOnce(&mut Batch<'a>)) -> Batch<'a> {
+        let mut batch = Batch::new(self.clone());
+        build(&mut batch);
+        batch
     }
 
     pub async fn get(&self, url: &str) -> Result<Response> {

@@ -16,7 +16,8 @@ use crate::{
 };
 
 use super::{
-    Error, Factory, PendingRequest, Pool, RecordedRequest, Response, ResponseSequence, Result,
+    Batch, Error, Factory, PendingRequest, Pool, RecordedRequest, Response, ResponseSequence,
+    Result,
 };
 
 /// Resolves the HTTP factory from the current application.
@@ -100,6 +101,12 @@ impl Http {
             .await)
     }
 
+    pub fn batch<'a>(build: impl FnOnce(&mut Batch<'a>)) -> Result<Batch<'a>> {
+        Ok(Self::getFacadeRoot()
+            .map_err(Error::Unavailable)?
+            .batch(build))
+    }
+
     pub fn fake(
         callback: impl Fn(&reqwest::Request) -> Option<Result<Response>> + Send + Sync + 'static,
     ) -> Result<()> {
@@ -167,13 +174,14 @@ pub struct HttpClientServiceProvider;
 impl ServiceProvider for HttpClientServiceProvider {
     fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
         Box::pin(async move {
-            app.container().singleton::<Factory, _>(|_| {
-                Factory::new().map(Arc::new).map_err(|source| {
-                    BindingResolutionError::FactoryFailed {
+            app.container().singleton::<Factory, _>(|container| {
+                let mut factory =
+                    Factory::new().map_err(|source| BindingResolutionError::FactoryFailed {
                         service: "http.client",
                         source: Box::new(source),
-                    }
-                })
+                    })?;
+                factory.events = Some(container.make::<crate::events::Dispatcher>()?);
+                Ok(Arc::new(factory))
             })?;
             Ok(())
         })

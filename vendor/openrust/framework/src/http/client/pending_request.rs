@@ -266,6 +266,10 @@ impl PendingRequest {
         self.execute(method, url, None::<&()>).await
     }
 
+    pub fn batch<'a>(&self, build: impl FnOnce(&mut super::Batch<'a>)) -> super::Batch<'a> {
+        self.factory.batch(build)
+    }
+
     async fn execute(
         self,
         method: Method,
@@ -319,12 +323,48 @@ impl PendingRequest {
             for callback in &self.before_sending {
                 callback(&mut request)?;
             }
+            let recorded = self
+                .factory
+                .events
+                .as_ref()
+                .map(|_| super::RecordedRequest::from(&request));
+            if let Some(recorded) = &recorded {
+                self.factory
+                    .emit(super::events::RequestSending {
+                        request: recorded.clone(),
+                    })
+                    .await?;
+            }
             let result = tokio::time::timeout(
                 self.timeout,
                 self.factory.dispatch(&client, request, self.body_limit),
             )
             .await
             .unwrap_or(Err(Error::Timeout));
+            if let Some(request) = recorded {
+                use super::events::{ConnectionFailed, ConnectionFailure, ResponseReceived};
+                match &result {
+                    Ok(response) => {
+                        self.factory
+                            .emit(ResponseReceived {
+                                request,
+                                response: response.clone(),
+                            })
+                            .await?
+                    }
+                    Err(Error::Timeout | Error::Connection) => {
+                        let exception = if matches!(result, Err(Error::Timeout)) {
+                            ConnectionFailure::Timeout
+                        } else {
+                            ConnectionFailure::Connection
+                        };
+                        self.factory
+                            .emit(ConnectionFailed { request, exception })
+                            .await?;
+                    }
+                    Err(_) => {}
+                }
+            }
             let result = result.and_then(|response| {
                 self.after_response
                     .iter()

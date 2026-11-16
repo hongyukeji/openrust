@@ -33,3 +33,9 @@ factory.assertSentCount(2);
 ```
 
 用 `pool` 設定非零並行上限，透過 `Pool::r#as` 註冊具名請求。結果保留註冊順序及各個請求的成功或錯誤。
+
+## 批次和事件 {#batches-and-events}
+
+用 `Http::batch` 註冊具名請求，再用 `send().await` 執行。用 `concurrency` 限制並行數。`before` 在請求開始前執行，`progress` 接收成功回應，`catch` 接收失敗。沒有失敗時執行 `then`。`finally` 按註冊順序接收所有結果。
+
+從 `openrust::http::client::events` 匯入 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed` 註冊監聽。事件名稱使用 `OpenRust\Http\Client\Events\` 前綴。應用 HTTP 用戶端在每次請求嘗試時派發事件，包括重試。

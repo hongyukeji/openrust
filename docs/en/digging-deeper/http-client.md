@@ -33,3 +33,9 @@ factory.assertSentCount(2);
 ```
 
 Use `pool` with a nonzero concurrency limit and `Pool::r#as` to register named futures. Results preserve registration order and keep each request’s success or error.
+
+## Batches and events {#batches-and-events}
+
+Use `Http::batch` to configure named requests and call `send().await` to execute them. Set `concurrency` to bound active requests. `before` runs before requests start, `progress` receives successful responses, and `catch` receives failures. `then` runs when there are no failures. `finally` receives all results in registration order.
+
+Register listeners for `RequestSending`, `ResponseReceived`, and `ConnectionFailed` from `openrust::http::client::events`. Their event names use the `OpenRust\Http\Client\Events\` prefix. An application HTTP client dispatches events for each request attempt, including retries.

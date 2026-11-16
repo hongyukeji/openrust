@@ -4,7 +4,7 @@
 
 `Http` 从应用容器取得 `Factory`。每个应用拥有独立连接池、fake 注册、响应序列和请求记录。配置链生成一次性 `PendingRequest`。支持常用 HTTP 方法、JSON、表单、原始正文、multipart、查询参数、Bearer 与 Basic、重定向开关、请求前和响应后回调、状态判断、有限重试、fake、测试断言及并发池。HTTP 4xx、5xx 由调用方决定是否转换成错误，重试耗尽的行为可配置。并发池的每项结果独立，并按注册顺序返回。
 
-Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可选参数。响应缓冲复用字节存储，默认连接选项复用 reqwest 连接池，自定义连接超时或重定向选项创建独立客户端。重试前校验请求是否可重放，一次性流在启用重试时返回明确错误。请求记录可观察已缓冲的正文，流式上传的正文不可回读。显式查询项覆盖 URL 查询串，编码使用 RFC 3986。原始 `reqwest::Request` 可由请求前回调调整。Laravel 的 Guzzle 专用选项、动态宏、Batch 回调、HTTP 事件及 Digest Auth 尚未对齐。旧版目标白名单、DNS 固定和熔断属于额外传输能力，当前范围未接入这些能力。
+Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可选参数。响应缓冲复用字节存储，默认连接选项复用 reqwest 连接池，自定义连接超时或重定向选项创建独立客户端。重试前校验请求是否可重放，一次性流在启用重试时返回明确错误。请求记录可观察已缓冲的正文，流式上传的正文不可回读。显式查询项覆盖 URL 查询串，编码使用 RFC 3986。原始 `reqwest::Request` 可由请求前回调调整。Laravel 的 Guzzle 专用选项、动态宏及 Digest Auth 仍单独跟踪。旧版目标白名单、DNS 固定和熔断属于额外传输能力，当前范围未接入这些能力。
 
 ## 验收
 
@@ -15,3 +15,13 @@ Rust 使用 `Duration`、类型化 JSON 及分开的配置方法表达 PHP 可�
 - 按隔离副本验证后，独立核对与在途 gRPC 差异合并的工作区锁文件。锁定离线 metadata 保留 reqwest、tonic 和 tokio-stream 的解析。
 
 下一单元 07-03 Processes，前置 01-01 已提交。
+
+## 批次回调与请求事件
+
+对照固定 Laravel 的 [Batch](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Batch.php) 和 [HTTP Client 事件](https://github.com/laravel/framework/tree/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Http/Client/Events)。Rust 批次沿用具名请求池，配置回调持有只读计数快照，`send` 消费批次。五个回调按注册和完成阶段运行，返回值保留每项错误和注册顺序。Rust `Result` 显式传递错误，应用可以区分 HTTP 状态和客户端错误。批次延后执行入口单独跟踪。
+
+应用级工厂接入自己的事件派发器，按请求尝试派发 `RequestSending`、`ResponseReceived` 和 `ConnectionFailed`，沿用公开类型名称。事件用可克隆的请求快照承载已缓冲内容，连接异常区分超时与其他连接失败。连接失败事件发生于请求尝试阶段，HTTP 4xx、5xx 仍派发已收到响应事件。
+
+七项 HTTP 定向回归通过，其中批次验证成功、HTTP 错误、未匹配 fake、失败时跳过 then、finally 及结果顺序。真实回环 HTTP 验证请求事件、成功响应和超时对应的类型化载荷。三语站点构建及两个相对部署路径的十二项通用浏览器检查通过。
+
+以已提交主线 `cd17b297e` 创建隔离验收副本。Rust 1.94.0 全目标严格 Clippy 和本批文件格式检查通过。全仓格式检查只报告既有 Sanctum 断言换行。三语邮件和 HTTP Client 页面在 `/` 与 `/docs/` 下新增章节检查共十二项通过。
