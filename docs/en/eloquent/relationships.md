@@ -682,13 +682,17 @@ pub async fn authors_with_only_mentees(connection: &Connection) -> DatabaseResul
 
 Use `constrain` to configure the related model's query. Call `with` in that closure for nested eager loading. The example filters authors and then loads their matching posts and each post's author. In a related query, `limit` and `offset` apply separately to each parent. Add `orderBy` for a predictable choice of related rows.
 
+For direct, through, and many-to-many eager loads, the database applies the requested limit and offset within each parent’s group. Pivot attributes remain available and the row rank is omitted from the loaded models.
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::{BelongsTo, HasMany}},
 };
 
-pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+pub async fn authors_with_matching_posts<Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id").constrain(|mut query| {
         query.r#where("title", "like", "First%");
         query.with("author", BelongsTo::<Post, Author>::new("author_id", "id"))

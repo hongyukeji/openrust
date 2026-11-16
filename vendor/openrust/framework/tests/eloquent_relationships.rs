@@ -7899,6 +7899,116 @@ async fn verify_chaperone(db: &Connection, mysql: bool, parent: &Author, post: &
     );
 }
 
+async fn verify_eager_limits(db: &Connection, mysql: bool, parents: [&Author; 2]) {
+    let featured = || {
+        FEATURED_POSTS
+            .withPivotValue("label", "rank fixture")
+            .unwrap()
+            .withPivot(["label"])
+    };
+    let mut expected = Vec::new();
+    for owner in parents {
+        let mut posts = Vec::new();
+        let mut comments = Vec::new();
+        for rank in 1..=3 {
+            let post = POSTS
+                .create(
+                    owner,
+                    Attributes::from([("title".into(), format!("rank fixture {rank}").into())]),
+                )
+                .await
+                .unwrap();
+            let mut comment = POST_COMMENTS
+                .create(
+                    &post,
+                    Attributes::from([("body".into(), format!("rank fixture {rank}").into())]),
+                )
+                .await
+                .unwrap();
+            comment.setAttribute("post_id", post.getKey().unwrap().clone());
+            comment.save().await.unwrap();
+            posts.push(post.getKey().unwrap().clone());
+            comments.push(comment.getKey().unwrap().clone());
+        }
+        featured().attach(owner, &posts).await.unwrap();
+        expected.push((posts, comments));
+    }
+    let parent_keys = parents.map(|owner| owner.getKey().unwrap().clone());
+
+    for offset in [0_usize, 1] {
+        let mut query = Author::queryOn(db)
+            .with(
+                "posts",
+                POSTS.constrain(move |mut query| {
+                    query.r#where("title", "like", "rank fixture %");
+                    query.orderBy("id", "desc").limit(2).offset(offset as u64)
+                }),
+            )
+            .with(
+                "featured",
+                featured().constrain(move |query| {
+                    query
+                        .orderBy("relation_posts.id", "desc")
+                        .limit(2)
+                        .offset(offset as u64)
+                }),
+            )
+            .with(
+                "comments",
+                COMMENTS_THROUGH.constrain(move |mut query| {
+                    query.r#where("relation_comments.body", "like", "rank fixture %");
+                    query
+                        .orderBy("relation_comments.id", "desc")
+                        .limit(2)
+                        .offset(offset as u64)
+                }),
+            )
+            .orderBy("id", "asc");
+        query.whereIn("id", parent_keys.to_vec());
+        let baseline = if mysql { select_count(db).await } else { 0 };
+        let loaded = query.get().await.unwrap();
+        if mysql {
+            assert_eq!(select_count(db).await - baseline, 4);
+        }
+        assert_eq!(loaded.modelKeys(), parent_keys);
+        for (author, (post_keys, comment_keys)) in loaded.iter().zip(&expected) {
+            let indexes = [2 - offset, 1 - offset];
+            for name in ["posts", "featured"] {
+                let posts = author.getRelation::<RelatedCollection<Post>>(name).unwrap();
+                assert_eq!(
+                    posts
+                        .iter()
+                        .map(|post| post.getKey().unwrap())
+                        .collect::<Vec<_>>(),
+                    indexes.map(|index| &post_keys[index])
+                );
+                for post in posts {
+                    assert!(post.getAttribute("laravel_row").is_none());
+                    if name == "featured" {
+                        let pivot = post.getRelation::<Pivot>("pivot").unwrap();
+                        assert_eq!(pivot.getAttribute("label"), Some(&"rank fixture".into()));
+                        assert_eq!(pivot.getAttribute("author_id"), author.getKey());
+                    }
+                }
+            }
+            let comments = author
+                .getRelation::<RelatedCollection<Comment>>("comments")
+                .unwrap();
+            assert_eq!(
+                comments
+                    .iter()
+                    .map(|comment| comment.getKey().unwrap())
+                    .collect::<Vec<_>>(),
+                indexes.map(|index| &comment_keys[index])
+            );
+            assert!(comments.iter().all(|comment| {
+                comment.getAttribute("laravel_row").is_none()
+                    && comment.getAttribute("laravel_through_key").is_none()
+            }));
+        }
+    }
+}
+
 async fn verify(db: Connection, other: Connection, mysql: bool) {
     db.unprepared("DROP TABLE IF EXISTS relation_subject_tags; DROP TABLE IF EXISTS relation_comments; DROP TABLE IF EXISTS relation_featured_posts; DROP TABLE IF EXISTS relation_posts; DROP TABLE IF EXISTS relation_authors").await.unwrap();
     let id = if mysql {
@@ -8589,6 +8699,7 @@ async fn verify(db: Connection, other: Connection, mysql: bool) {
     verify_morph_wildcard(&db, mysql).await;
     Box::pin(verify_chaperone(&db, mysql, &first, &p1)).await;
     Box::pin(verify_collection_factory(&db, &first, mysql)).await;
+    Box::pin(verify_eager_limits(&db, mysql, [&first, &second])).await;
     db.statement("DROP TABLE relation_featured_posts", &[])
         .await
         .unwrap();

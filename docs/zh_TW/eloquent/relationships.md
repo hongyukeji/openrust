@@ -682,13 +682,17 @@ pub async fn authors_with_only_mentees(connection: &Connection) -> DatabaseResul
 
 用 `constrain` 設定關聯模型的查詢，並在閉包中使用 `with` 預先載入巢狀關聯。範例先篩選作者，再載入符合的文章及每篇文章的作者。關聯查詢中的 `limit` 和 `offset` 依父模型分別套用。用 `orderBy` 指定每組記錄的順序。
 
+直接、穿透與多對多關聯預先載入時，資料庫依各父模型分別套用限制和位移。載入結果保留 Pivot 屬性，模型中不包含用來計算順序的列號。
+
 ```rust
 use openrust::database::{
     Connection, DatabaseResult,
     eloquent::{Collection, Model, relations::{BelongsTo, HasMany}},
 };
 
-pub async fn authors_with_matching_posts(connection: &Connection) -> DatabaseResult<Collection<Author>> {
+pub async fn authors_with_matching_posts<Author: Model, Post: Model>(
+    connection: &Connection,
+) -> DatabaseResult<Collection<Author>> {
     let posts = HasMany::<Author, Post>::new("id", "author_id").constrain(|mut query| {
         query.r#where("title", "like", "First%");
         query.with("author", BelongsTo::<Post, Author>::new("author_id", "id"))

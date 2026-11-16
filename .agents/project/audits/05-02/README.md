@@ -838,3 +838,9 @@ MySQL 8.4.13／SQLite 实测必填属性取模型默认值、创建与更新事�
 MySQL 8.4.13 和 SQLite 验证只选择默认 Pivot 键时可见普通属性的模型默认值，显式选列时数据库数值与 NULL 覆盖默认值。核对原始快照、无脏属性和 JSON 输出。12 项关系与实际 HTTP 分页回归通过。严格 Clippy、`./artisan inspire`、三语示例编译、VitePress、12 项通用浏览器及三语关系页检查通过。既有 Sanctum 格式差异仅在隔离副本处理。
 
 实际 SQLite 和 MySQL `queue:work` 专项各通过 1 项，覆盖自定义普通与多态 Pivot 的单模型及集合恢复、身份键和回填后的写入。Worker 使用 Rust JSON 标识重新读取数据库记录。
+
+## 05-02 整单元验收
+
+以 `94065ba23` 为整单元复验基线。对照交付计划，逐项复验外键、预加载、N+1 查询计数、集合键与关系写入。关系定义、集合和加载适配见[固定用例矩阵](test-matrix.md)。补验固定 Laravel 的六个每父模型限制场景。HasMany、HasManyThrough 和 BelongsToMany 分别实测按父键取前两条、跳过首条后再取两条。每个场景在 MySQL 只执行四次 SELECT，包括父列表一次、三种关系各一次。SQLite 核对同一选择结果。Pivot 标签和所有者键保持可见，窗口排名和内部穿透键不进入水合属性。v0.x 未发现同类分组排名，沿用当前 Query Builder 的窗口查询。固定 Goravel ORM 对照 `With`、`Limit` 与 `Offset` 调用。 [固定 Laravel 每父限制测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Database/EloquentEagerLoadingLimitTest.php) · [固定 Goravel ORM](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/contracts/database/orm/orm.go)
+
+MySQL 8.4.13 和 SQLite 重跑关系、模型事件、实际 HTTP 模型绑定和三类分页。另跑普通与惰性集合，共 28 项通过。自定义 Pivot 的真实 SQLite 和 MySQL Worker 恢复见 `0a75462fc` 验收。Rust 1.94.0 全目标严格 Clippy、实际 `./artisan inspire`、三语示例编译、VitePress 与 21 项浏览器检查通过。既有 Sanctum 格式差异仅在隔离副本处理。Rust 显式注册多态目标并通过类型化集合和异步关系访问表达 Laravel 的运行时模型与动态属性。已载入关系可以共享快照，独立模型的普通属性各自持有。按计划，05-02 核心闭合。分页器的完整收口按 05-06 核对，Resource 和命名路由链接分别由 05-07、06-01 验收。
