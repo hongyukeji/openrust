@@ -24,6 +24,9 @@ impl<P: ServiceProvider + DeferrableProvider> ServiceProvider for DeferredProvid
     fn provides(&self) -> Vec<ServiceKey> {
         <P as DeferrableProvider>::provides()
     }
+    fn when(&self) -> Vec<&'static str> {
+        <P as DeferrableProvider>::when()
+    }
     #[allow(non_snake_case, reason = "Rust provider type identity adapter")]
     fn providerType(&self) -> TypeId {
         TypeId::of::<P>()

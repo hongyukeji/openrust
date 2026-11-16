@@ -55,6 +55,11 @@ pub trait ServiceProvider: Any + Send + Sync {
         Vec::new()
     }
 
+    /// Event names that load this provider when it is deferred.
+    fn when(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
+
     /// Register bindings without starting services.
     fn register<'a>(
         &'a mut self,

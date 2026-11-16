@@ -5,7 +5,14 @@ use crate::{
         ServiceKey,
         deferred::{DeferredServices, LoadFuture},
     },
-    contracts::{container::BindingResolutionError, foundation::Application as _},
+    contracts::{
+        container::BindingResolutionError,
+        events::{Event, Listener},
+        foundation::Application as _,
+    },
+    events::{
+        Delivery, Dispatcher, EventContext, EventError, EventFuture, EventResult, ListenerResponse,
+    },
     support::{ProviderFactory, ServiceProvider},
 };
 use std::{
@@ -32,10 +39,45 @@ struct Slot {
     provider: AsyncMutex<Option<Box<dyn ServiceProvider>>>,
     factory: Option<Arc<ProviderFactory>>,
     keys: Vec<ServiceKey>,
+    events: Vec<&'static str>,
     name: &'static str,
     phase: AtomicU8,
     early: AtomicBool,
     failure: Mutex<Option<Arc<dyn Error + Send + Sync>>>,
+}
+
+struct LoadOnEvent {
+    repository: Weak<ProviderRepository>,
+    slot: Weak<Slot>,
+    name: &'static str,
+}
+
+impl Listener for LoadOnEvent {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a dyn Event,
+        _: &'a mut EventContext<'_>,
+    ) -> EventFuture<'a, EventResult<Option<ListenerResponse>>> {
+        Box::pin(async move {
+            let (Some(repository), Some(slot)) = (self.repository.upgrade(), self.slot.upgrade())
+            else {
+                return Ok(None);
+            };
+            let boot = repository
+                .application()
+                .map_err(EventError::Unavailable)?
+                .is_booted();
+            repository
+                .initialize(&slot, None, boot)
+                .await
+                .map_err(EventError::Unavailable)?;
+            Ok(Some(ListenerResponse::Value(Box::new(self.name))))
+        })
+    }
 }
 impl Slot {
     fn id(&self) -> usize {
@@ -126,6 +168,7 @@ impl ProviderRepository {
         let mut ordered = Vec::new();
         for provider in providers {
             let keys = provider.provides();
+            let events = provider.when();
             let factory = provider.deferredFactory();
             let name = provider.name();
             let provider = if factory.is_some() {
@@ -137,6 +180,7 @@ impl ProviderRepository {
                 name,
                 factory,
                 keys: keys.clone(),
+                events,
                 provider: AsyncMutex::new(provider),
                 phase: AtomicU8::new(PENDING),
                 early: AtomicBool::new(false),
@@ -158,6 +202,28 @@ impl ProviderRepository {
     }
     pub(super) fn is_empty(&self) -> bool {
         self.services.is_empty()
+    }
+
+    pub(super) fn register_load_events(
+        self: &Arc<Self>,
+        dispatcher: &Dispatcher,
+    ) -> EventResult<()> {
+        dispatcher.register(|listeners| {
+            for slot in &self.ordered {
+                if slot.events.is_empty() {
+                    continue;
+                }
+                let listener = Arc::new(LoadOnEvent {
+                    repository: Arc::downgrade(self),
+                    slot: Arc::downgrade(slot),
+                    name: slot.name,
+                });
+                for event in &slot.events {
+                    listeners.listen(event, listener.clone(), Delivery::Sync)?;
+                }
+            }
+            Ok(())
+        })
     }
     fn application(&self) -> Result<Application, BindingResolutionError> {
         self.application
@@ -208,9 +274,17 @@ impl ProviderRepository {
     async fn initialize(
         &self,
         slot: &Arc<Slot>,
-        key: &ServiceKey,
+        trigger: Option<&ServiceKey>,
         boot: bool,
     ) -> Result<(), BindingResolutionError> {
+        let event_key;
+        let key = match trigger {
+            Some(key) => key,
+            None => {
+                event_key = ServiceKey::named(slot.name);
+                &event_key
+            }
+        };
         let phase = slot.phase.load(Ordering::Acquire);
         if phase == READY || (phase == REGISTERED && !boot) {
             return Ok(());
@@ -233,11 +307,11 @@ impl ProviderRepository {
         if phase == READY || (phase == REGISTERED && !boot) {
             return Ok(());
         }
-        if phase == REGISTRATION_FAILED && !self.contains(key) {
+        if phase == REGISTRATION_FAILED && trigger.is_some_and(|key| !self.contains(key)) {
             return Err(slot.failed());
         }
         let registering = matches!(phase, PENDING | REGISTRATION_FAILED);
-        if registering {
+        if registering && let Some(key) = trigger {
             self.pending
                 .lock()
                 .expect("deferred keys lock poisoned")
@@ -266,7 +340,10 @@ impl ProviderRepository {
                             .register(&app)
                             .await
                             .map_err(|source| slot.failure(source, REGISTRATION_FAILED))?;
-                        slot.early.store(!app.booting_started(), Ordering::Release);
+                        slot.early.store(
+                            trigger.is_some() && !app.booting_started(),
+                            Ordering::Release,
+                        );
                         slot.phase.store(REGISTERED, Ordering::Release);
                         self.registered
                             .lock()
@@ -316,7 +393,7 @@ impl ProviderRepository {
                         .get(key)
                         .is_some_and(|owner| Arc::ptr_eq(owner, slot))
                 {
-                    self.initialize(slot, key, boot).await?;
+                    self.initialize(slot, Some(key), boot).await?;
                 }
             }
         }
@@ -339,11 +416,45 @@ impl ProviderRepository {
                     .first()
                     .cloned()
                     .unwrap_or_else(|| ServiceKey::named(slot.name));
-                self.initialize(&slot, &key, true).await?;
+                self.initialize(&slot, Some(&key), true).await?;
             }
         }
         Ok(())
     }
+
+    pub(super) fn registered_count(&self) -> usize {
+        self.registered
+            .lock()
+            .expect("registered provider list poisoned")
+            .len()
+    }
+
+    pub(super) async fn boot_registration_range(
+        &self,
+        range: std::ops::Range<usize>,
+    ) -> Result<(), BindingResolutionError> {
+        let slots = self
+            .registered
+            .lock()
+            .expect("registered provider list poisoned")[range]
+            .to_vec();
+        for slot in slots {
+            self.boot_slot(&slot).await?;
+        }
+        Ok(())
+    }
+
+    async fn boot_slot(&self, slot: &Arc<Slot>) -> Result<bool, BindingResolutionError> {
+        if slot.early.swap(false, Ordering::AcqRel) && slot.phase.load(Ordering::Acquire) == READY {
+            slot.phase.store(REGISTERED, Ordering::Release);
+        }
+        if slot.phase.load(Ordering::Acquire) != REGISTERED {
+            return Ok(false);
+        }
+        self.initialize(slot, None, true).await?;
+        Ok(true)
+    }
+
     /// Providers first used during bootstrap register immediately and join the boot tail.
     pub(super) async fn boot_registered(&self) -> Result<(), BindingResolutionError> {
         loop {
@@ -354,20 +465,7 @@ impl ProviderRepository {
                 .expect("registered provider list poisoned")
                 .clone();
             for slot in registered {
-                if slot.early.swap(false, Ordering::AcqRel)
-                    && slot.phase.load(Ordering::Acquire) == READY
-                {
-                    slot.phase.store(REGISTERED, Ordering::Release);
-                }
-                if slot.phase.load(Ordering::Acquire) == REGISTERED {
-                    let key = slot
-                        .keys
-                        .first()
-                        .cloned()
-                        .unwrap_or_else(|| ServiceKey::named(slot.name));
-                    self.initialize(&slot, &key, true).await?;
-                    advanced = true;
-                }
+                advanced |= self.boot_slot(&slot).await?;
             }
             if !advanced {
                 return Ok(());
@@ -412,7 +510,7 @@ impl DeferredServices for ProviderRepository {
                 return Ok(());
             };
             let boot = self.application()?.is_booted();
-            self.initialize(slot, key, boot).await
+            self.initialize(slot, Some(key), boot).await
         })
     }
 }

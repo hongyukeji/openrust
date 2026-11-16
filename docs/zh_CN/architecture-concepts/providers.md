@@ -38,7 +38,8 @@ Provider 钩子在所属应用的门面作用域内运行。HTTP 与 Artisan 使
 use std::{error::Error, sync::Arc};
 use openrust::{
     container::ServiceKey,
-    contracts::{container::Container as _, foundation::Application as _, support::DeferrableProvider},
+    contracts::{container::Container as _, events::Dispatcher as _, foundation::Application as _, support::DeferrableProvider},
+    events::{Dispatcher, EventContext, NamedEvent},
     foundation::Application,
     http::HttpFuture,
     support::{DeferredProvider, ProviderResult, ServiceProvider},
@@ -49,6 +50,10 @@ struct ClientProvider;
 impl DeferrableProvider for ClientProvider {
     fn provides() -> Vec<ServiceKey> {
         vec![ServiceKey::typed::<Client>()]
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec!["reports.opened"]
     }
 }
 impl ServiceProvider for ClientProvider {
@@ -70,6 +75,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .create()?;
     app.boot().await?;
     assert!(app.isDeferredService(ServiceKey::typed::<Client>()));
+    let events = app.make::<Dispatcher>().await?;
+    events.dispatch(Arc::new(NamedEvent::new("reports.opened", ())), &mut EventContext::new()).await?;
     let client = app.make::<Client>().await?;
     assert!(Arc::ptr_eq(&client, &app.make::<Client>().await?));
     Ok(())
@@ -80,6 +87,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
 只消费触发键，同一 Provider 的其他键保留到 `loadDeferredProviders()` 成功结束。注册失败保留贡献并消费该键；后续尚未消费的键通过编译型工厂构造新实例重试。如果直接登记已构造对象并覆盖 `isDeferred()`、`provides()`，重试使用原对象；需要重新执行构造时使用 `DeferredProvider`。
 
-在 boot 阶段开始前首次加载的 Provider，同时进入 booting 回调和已注册 Provider 列表，因此 boot 会执行两次，保留固定 Laravel 基线的行为。在普通 Provider 的 boot 中首次使用时，进入剩余启动列表一次；应用 boot 完成后首次使用，会等待注册和 boot 均完成再返回服务。事件触发加载及其他生命周期回调依后续单元推进。
+boot 前由服务键首次触发的 Provider 同时进入 booting 回调和已注册 Provider 列表，因此执行两次 boot。boot 前由事件触发时，Provider 按注册顺序加入普通列表并执行一次 boot。在 boot 钩子中首次触发的 Provider 加入启动列表末尾。应用完成 boot 后，触发入口等待注册和 boot 均完成才返回。
+
+### 按事件加载 Provider {#loading-providers-on-events}
+
+通过 `DeferrableProvider::when()` 声明事件名称。应用在注册应用 Provider 之前安装这些监听器。事件触发注册时保留延迟服务键，事件和服务键并发触发时共用同一注册。分发器将 Provider 的 Rust 类型名称作为监听结果返回，便于 `until` 在此结束。注册失败后可以通过后续事件重试。boot 失败沿用延迟 Provider 的失败状态。
+
+应用创建时从编译进二进制的元数据建立 Provider 目录。
 
 需要让具体类型无需服务工厂即可自动注入时，在 `register` 登记编译构造元数据；它不会把类型标为已绑定，也不会实例化。参阅[自动构造器注入](container.md#自动构造器注入)。

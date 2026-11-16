@@ -38,7 +38,8 @@ Use an [asynchronous factory](container.md#asynchronous-factories) to resolve de
 use std::{error::Error, sync::Arc};
 use openrust::{
     container::ServiceKey,
-    contracts::{container::Container as _, foundation::Application as _, support::DeferrableProvider},
+    contracts::{container::Container as _, events::Dispatcher as _, foundation::Application as _, support::DeferrableProvider},
+    events::{Dispatcher, EventContext, NamedEvent},
     foundation::Application,
     http::HttpFuture,
     support::{DeferredProvider, ProviderResult, ServiceProvider},
@@ -49,6 +50,10 @@ struct ClientProvider;
 impl DeferrableProvider for ClientProvider {
     fn provides() -> Vec<ServiceKey> {
         vec![ServiceKey::typed::<Client>()]
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec!["reports.opened"]
     }
 }
 impl ServiceProvider for ClientProvider {
@@ -70,6 +75,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .create()?;
     app.boot().await?;
     assert!(app.isDeferredService(ServiceKey::typed::<Client>()));
+    let events = app.make::<Dispatcher>().await?;
+    events.dispatch(Arc::new(NamedEvent::new("reports.opened", ())), &mut EventContext::new()).await?;
     let client = app.make::<Client>().await?;
     assert!(Arc::ptr_eq(&client, &app.make::<Client>().await?));
     Ok(())
@@ -80,6 +87,12 @@ An existing explicit instance bypasses an unused loader. Aliases are normalized 
 
 Loading consumes the trigger key only. Sibling keys remain in the deferred directory until `loadDeferredProviders()` completes. Registration errors retain contributions and consume that key; a later unconsumed key retries with a fresh compiled factory instance. Registering an already constructed deferred provider with `isDeferred()` and `provides()` reuses that object on retries; use `DeferredProvider` when constructor behavior matters.
 
-A provider first loaded before the boot phase joins both the booting callbacks and the registered provider list, so its boot hook runs twice, as in the fixed Laravel baseline. First use during an eager provider’s boot joins the remaining provider boot list once. First use after application boot waits for registration and boot before returning the service. Event-based loading and additional provider lifecycle callbacks belong to later delivery units.
+When a service key triggers a provider before boot, the provider joins both the booting callbacks and the registered provider list, so its boot hook runs twice. Before boot, an event trigger instead joins the normal provider list at its registration position and boots once. Providers first used during a boot hook join the boot tail. After application boot, the trigger waits for registration and boot to finish.
+
+### Loading Providers on Events {#loading-providers-on-events}
+
+Declare event names in `DeferrableProvider::when()`. The application installs these listeners before registering application providers. An event that registers the provider preserves its deferred service keys and concurrent service and event triggers share the same registration. The dispatcher returns the registered provider’s Rust type name as a listener value, so `until` can stop at that listener. A failed registration may be retried by another event. A failed boot retains the normal deferred provider failure gate.
+
+The application builds its provider directory from compiled metadata when it is created.
 
 Register compiled constructor metadata in `register` when a concrete type should support automatic injection without a service factory. This does not mark the type bound or instantiate it. See [automatic constructor injection](container.md#automatic-constructor-injection).

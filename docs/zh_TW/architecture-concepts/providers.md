@@ -38,7 +38,8 @@ Provider 鉤子在所屬應用的門面作用域內執行。HTTP 與 Artisan 使
 use std::{error::Error, sync::Arc};
 use openrust::{
     container::ServiceKey,
-    contracts::{container::Container as _, foundation::Application as _, support::DeferrableProvider},
+    contracts::{container::Container as _, events::Dispatcher as _, foundation::Application as _, support::DeferrableProvider},
+    events::{Dispatcher, EventContext, NamedEvent},
     foundation::Application,
     http::HttpFuture,
     support::{DeferredProvider, ProviderResult, ServiceProvider},
@@ -49,6 +50,10 @@ struct ClientProvider;
 impl DeferrableProvider for ClientProvider {
     fn provides() -> Vec<ServiceKey> {
         vec![ServiceKey::typed::<Client>()]
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec!["reports.opened"]
     }
 }
 impl ServiceProvider for ClientProvider {
@@ -70,6 +75,8 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
         .create()?;
     app.boot().await?;
     assert!(app.isDeferredService(ServiceKey::typed::<Client>()));
+    let events = app.make::<Dispatcher>().await?;
+    events.dispatch(Arc::new(NamedEvent::new("reports.opened", ())), &mut EventContext::new()).await?;
     let client = app.make::<Client>().await?;
     assert!(Arc::ptr_eq(&client, &app.make::<Client>().await?));
     Ok(())
@@ -80,6 +87,12 @@ async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
 
 只消耗觸發鍵，同一 Provider 的其他鍵保留到 `loadDeferredProviders()` 成功結束。註冊失敗保留貢獻並消耗該鍵；後續尚未消耗的鍵透過編譯型工廠建構新實例重試。如果直接登記已建構物件並覆寫 `isDeferred()`、`provides()`，重試使用原物件；需要重新執行建構時使用 `DeferredProvider`。
 
-在 boot 階段開始前首次載入的 Provider，同時進入 booting 回呼和已註冊 Provider 清單，因此 boot 會執行兩次，保留固定 Laravel 基線的行為。在一般 Provider 的 boot 中首次使用時，進入剩餘啟動清單一次；應用 boot 完成後首次使用，會等待註冊和 boot 均完成再回傳服務。事件觸發載入及其他生命週期回呼依後續單元推進。
+boot 前由服務鍵首次觸發的 Provider 同時進入 booting 回呼與已註冊 Provider 清單，因此執行兩次 boot。boot 前由事件觸發時，Provider 依註冊順序加入一般清單並執行一次 boot。在 boot 掛鉤中首次觸發的 Provider 加入啟動清單末尾。應用程式完成 boot 後，觸發入口等待註冊與 boot 都完成才回傳。
+
+### 依事件載入 Provider {#loading-providers-on-events}
+
+透過 `DeferrableProvider::when()` 宣告事件名稱。應用程式在註冊應用程式 Provider 之前安裝這些監聽器。事件觸發註冊時保留延遲服務鍵，事件與服務鍵並行觸發時共用同一次註冊。分派器將 Provider 的 Rust 型別名稱當作監聽結果回傳，讓 `until` 可以在此結束。註冊失敗後可以透過後續事件重試。boot 失敗沿用延遲 Provider 的失敗狀態。
+
+應用程式建立時，從編譯進執行檔的中繼資料建立 Provider 目錄。
 
 需要讓具體型別無需服務工廠即可自動注入時，在 `register` 登記編譯建構中繼資料；它不會把型別標為已綁定，也不會實例化。參閱[自動建構式注入](container.md#自動建構式注入)。

@@ -535,6 +535,17 @@ impl Application {
         self.shared.container.clone()
     }
 
+    pub(crate) fn register_deferred_load_events(
+        &self,
+        dispatcher: &crate::events::Dispatcher,
+    ) -> crate::events::EventResult<()> {
+        self.shared
+            .deferred
+            .get()
+            .expect("provider registry initialized")
+            .register_load_events(dispatcher)
+    }
+
     #[allow(
         non_snake_case,
         reason = "Matches Laravel Application::maintenanceMode"
@@ -691,6 +702,12 @@ impl Application {
                 .lock()
                 .expect("provider list lock poisoned"),
         );
+        let deferred = self
+            .shared
+            .deferred
+            .get()
+            .expect("provider registry initialized");
+        let mut boot_positions = Vec::with_capacity(providers.len());
         for provider in &mut providers {
             let (provider_type, name) = (provider.providerType(), provider.name());
             provider.register(self).await.map_err(|source| {
@@ -700,16 +717,22 @@ impl Application {
                     source,
                 }
             })?;
+            boot_positions.push(deferred.registered_count());
         }
         self.shared.booting_started.store(true, Ordering::Release);
-        self.shared
-            .deferred
-            .get()
-            .expect("provider registry initialized")
+        deferred
             .boot_prepared()
             .await
             .map_err(|source| BootstrapError::ContainerFailed { source })?;
-        for provider in &mut providers {
+        let mut previous_position = 0;
+        for (provider, position) in providers.iter_mut().zip(boot_positions) {
+            if previous_position != position {
+                deferred
+                    .boot_registration_range(previous_position..position)
+                    .await
+                    .map_err(|source| BootstrapError::ContainerFailed { source })?;
+                previous_position = position;
+            }
             let (provider_type, name) = (provider.providerType(), provider.name());
             provider
                 .boot(self)
@@ -720,10 +743,7 @@ impl Application {
                     source,
                 })?;
         }
-        self.shared
-            .deferred
-            .get()
-            .expect("provider registry initialized")
+        deferred
             .boot_registered()
             .await
             .map_err(|source| BootstrapError::ContainerFailed { source })?;

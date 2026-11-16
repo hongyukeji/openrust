@@ -10,4 +10,9 @@ pub trait Htmlable {
 /// Static service metadata for a compiled deferred provider factory.
 pub trait DeferrableProvider {
     fn provides() -> Vec<ServiceKey>;
+
+    /// Events that register the provider without resolving a service key.
+    fn when() -> Vec<&'static str> {
+        Vec::new()
+    }
 }

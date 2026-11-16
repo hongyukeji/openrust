@@ -5,9 +5,12 @@ use openrust::{
     contracts::{
         console::Kernel as _,
         container::{BindingResolutionError, Container as _},
+        events::Dispatcher as _,
         foundation::Application as _,
         http::Kernel as _,
+        support::DeferrableProvider,
     },
+    events::{Dispatcher, EventContext, EventError, ListenerResponse, NamedEvent},
     foundation::{Application, configuration::Routing, console, http::Kernel},
     http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
     routing::RoutingError,
@@ -541,10 +544,10 @@ async fn deferred_first_use_during_register_and_boot_preserves_laravel_callback_
                     "eager.register.end",
                     "lazy.boot.begin",
                     "lazy.boot.end",
-                    "eager.boot.begin",
-                    "eager.boot.end",
                     "lazy.boot.begin",
-                    "lazy.boot.end"
+                    "lazy.boot.end",
+                    "eager.boot.begin",
+                    "eager.boot.end"
                 ]
             );
         } else {
@@ -703,4 +706,184 @@ async fn deferred_factory_type_deduplication_keeps_the_first_registration() {
         .unwrap();
     app.boot().await.unwrap();
     assert_eq!(*app.get::<u8>("multiple.first").await.unwrap(), 1);
+}
+
+struct OnSignal {
+    value: u32,
+    trace: Arc<Mutex<Vec<&'static str>>>,
+    fail_first: bool,
+}
+
+impl DeferrableProvider for OnSignal {
+    fn provides() -> Vec<ServiceKey> {
+        vec![ServiceKey::typed::<Service>()]
+    }
+
+    fn when() -> Vec<&'static str> {
+        vec!["probe.load"]
+    }
+}
+
+impl ServiceProvider for OnSignal {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let mut trace = self.trace.lock().unwrap();
+            trace.push("register");
+            if self.fail_first && trace.len() == 1 {
+                return Err("private registration detail".into());
+            }
+            app.container().instance(Arc::new(Service(self.value)))?;
+            Ok(())
+        })
+    }
+
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            self.trace.lock().unwrap().push("boot");
+            Ok(())
+        })
+    }
+}
+
+async fn dispatch_signal(dispatcher: &Dispatcher) -> Result<(), EventError> {
+    let result = dispatcher
+        .until(
+            Arc::new(NamedEvent::new("probe.load", ())),
+            &mut EventContext::new(),
+        )
+        .await?;
+    let Some(ListenerResponse::Value(value)) = result else {
+        panic!("expected provider name from the deferred listener");
+    };
+    assert_eq!(
+        *value.downcast::<&'static str>().unwrap(),
+        std::any::type_name::<OnSignal>()
+    );
+    Ok(())
+}
+
+fn load_from_event(_: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> {
+    Box::pin(async move {
+        let container = openrust::container::Container::getInstance();
+        let dispatcher = container.make::<Dispatcher>().unwrap();
+        dispatch_signal(&dispatcher)
+            .await
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
+        let service = container.make::<Service>().unwrap();
+        Ok(Response::new(
+            StatusCode::OK,
+            Body::from(service.0.to_string()),
+        ))
+    })
+}
+
+fn event_routes() -> Result<(), RoutingError> {
+    Route::get("/event", load_from_event)?;
+    Route::get("/service", read)
+}
+
+fn signal_provider(
+    value: u32,
+    trace: Arc<Mutex<Vec<&'static str>>>,
+    fail_first: bool,
+) -> Box<dyn ServiceProvider> {
+    Box::new(openrust::support::DeferredProvider::new(move || OnSignal {
+        value,
+        trace: trace.clone(),
+        fail_first,
+    }))
+}
+
+#[tokio::test]
+async fn deferred_event_loads_once_per_application_and_retries_registration() {
+    let root = Root::new();
+    let first_trace = Arc::new(Mutex::new(Vec::new()));
+    let second_trace = Arc::new(Mutex::new(Vec::new()));
+    let application = |providers| {
+        Application::configure(root.0.clone())
+            .withConfig(config)
+            .withRouting(Routing::default().web(event_routes))
+            .withProviders(providers)
+            .create()
+            .unwrap()
+    };
+    let (first, a) = server(application(vec![signal_provider(
+        3,
+        first_trace.clone(),
+        false,
+    )]))
+    .await;
+    let (second, b) = server(application(vec![signal_provider(
+        9,
+        second_trace.clone(),
+        true,
+    )]))
+    .await;
+    assert!(first_trace.lock().unwrap().is_empty());
+    assert!(second_trace.lock().unwrap().is_empty());
+
+    let (one, two, service, three) = tokio::join!(
+        send(first, "/event", 200),
+        send(first, "/event", 200),
+        send(first, "/service", 200),
+        send(second, "/event", 500),
+    );
+    assert_eq!(one, "3");
+    assert_eq!(two, "3");
+    assert_eq!(service, "3");
+    assert!(!three.contains("private registration detail"));
+    assert_eq!(send(second, "/event", 200).await, "9");
+    assert_eq!(send(first, "/service", 200).await, "3");
+    assert_eq!(*first_trace.lock().unwrap(), ["register", "boot"]);
+    assert_eq!(
+        *second_trace.lock().unwrap(),
+        ["register", "register", "boot"]
+    );
+    for task in [a, b] {
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+    }
+}
+
+struct EmitDuringRegistration(Arc<Mutex<Vec<&'static str>>>);
+
+impl ServiceProvider for EmitDuringRegistration {
+    fn register<'a>(&'a mut self, app: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            let dispatcher = app.container().make::<Dispatcher>()?;
+            dispatch_signal(&dispatcher).await?;
+            assert!(app.isDeferredService(ServiceKey::typed::<Service>()));
+            assert_eq!(app.container().make::<Service>()?.0, 7);
+            self.0.lock().unwrap().push("eager registered");
+            Ok(())
+        })
+    }
+
+    fn boot<'a>(&'a mut self, _: &'a Application) -> HttpFuture<'a, ProviderResult> {
+        Box::pin(async move {
+            self.0.lock().unwrap().push("eager booted");
+            Ok(())
+        })
+    }
+}
+
+#[tokio::test]
+async fn event_registration_before_boot_joins_the_normal_boot_list_once() {
+    let root = Root::new();
+    let trace = Arc::new(Mutex::new(Vec::new()));
+    let mut app = Application::configure(root.0.clone())
+        .withConfig(config)
+        .withProviders(vec![
+            Box::new(EmitDuringRegistration(trace.clone())),
+            signal_provider(7, trace.clone(), false),
+        ])
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    assert_eq!(
+        *trace.lock().unwrap(),
+        ["register", "eager registered", "boot", "eager booted"]
+    );
 }
