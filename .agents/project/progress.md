@@ -1,12 +1,14 @@
 # 项目进度
 
+本页按日期保存交付、验收和提交证据。历史条目中的进度、额度、磁盘与推送状态以记录当时为准。最新交接见[当前交接](current.md)，核心闭合状态见[核心功能闭合对账](audits/core-closure-ledger.md)。
+
 ## 2026-11-10 启动与 HTTP 主线
 
 | 功能 | 骨架 | 实现 | 验收 |
 |---|---|---|---|
 | Router | `routing::{Router, Route, RouteGroup}` 和 `contracts::routing` | 框架按方法和路径匹配，根应用通过框架注册 `/` 与 `/up`，Axum 接收并发送 HTTP | 真实监听覆盖 GET、HEAD、OPTIONS、404、405 和 `Allow`。集成测试覆盖必填路径参数、UTF-8 百分号解码、注册顺序、同路径方法覆盖及启动失败 |
 | HTTP 中间件 | `contracts::http::Middleware`、`http::Next`、`foundation::configuration::Middleware` | 全局、嵌套路由组、路由级中间件，支持前置、追加、继续与短路 | 集成测试覆盖进入和返回的顺序、短路、路由组作用域，以及全局中间件收到路由错误响应 |
-| Artisan | 框架 Console Kernel 与命令定义按 [Artisan 契约](core/artisan.md) | 根应用装配命令，框架引导应用和分派。保留 `list` 的输出格式、文本帮助和未实现命令的状态。参数错误退出码对齐为 1 | 在 HTTP 端口占用、数据库端口无服务时，通过真实 `./artisan` 和编译后二进制验收列表、JSON 列表、帮助与非法参数 |
+| Artisan | 框架 Console Kernel 与命令定义按 [Artisan 契约](audits/00-03/README.md) | 根应用装配命令，框架引导应用和分派。保留 `list` 的输出格式、文本帮助和未实现命令的状态。参数错误退出码对齐为 1 | 在 HTTP 端口占用、数据库端口无服务时，通过真实 `./artisan` 和编译后二进制验收列表、JSON 列表、帮助与非法参数 |
 
 macOS ARM64 使用 Rust 1.94.0 通过工作区 18 项测试和格式检查。三语文档构建通过，浏览器脚本在 `/` 与 `/docs/` 下共通过 12 项语言与视口组合。
 
@@ -25,7 +27,7 @@ macOS ARM64 上 Rust 1.94.0 的工作区 21 项测试、格式和严格 Clippy �
 
 ## 2026-11-10 根应用启动装配演进
 
-这一节记录早期实现。现行职责见[启动骨架](architecture.md#启动骨架)。
+这一节记录早期实现。现行职责见[启动骨架](architecture.md)。
 
 - `bootstrap/mod.rs` 负责模式分发和退出状态。HTTP 与 Artisan 共用 `bootstrap/app.rs` 的应用配置和 `bootstrap/providers.rs` 的显式 Provider 名单。
 - HTTP 启动调用应用中间件配置入口，把 `routes/api.rs` 挂到 `/api` 与框架 `api` 组，再独立注册健康检查和 Web 路由。默认 `web` 组等待 Cookie、Session 和 CSRF 能力接入。
@@ -64,9 +66,9 @@ macOS ARM64 上使用 Rust 1.94.0 运行 `cargo fmt --all --check`、`cargo test
 
 ## 2026-11-10 启动骨架定稿与独立验收
 
-本节记录先引导、再分发的启动版本。现行职责见[启动骨架](architecture.md#启动骨架)，新版验收见[按 Laravel Kernel 引导](#2026-11-10-按-laravel-kernel-引导)。
+本节记录先引导、再分发的启动版本。现行职责见[启动骨架](architecture.md)，新版验收见[按 Laravel Kernel 引导](#2026-11-10-按-laravel-kernel-引导)。
 
-在 macOS ARM64 上核对[启动文件清单](core/startup-files.txt)，348 个路径与当前二进制编译依赖及构建和启动所需文件一致。将清单文件复制到临时目录，用全新的 `target/` 和本机 Cargo 依赖缓存运行 `cargo +1.94.0 build --workspace --locked --offline`，构建通过，锁文件内容一致。以下结果来自该副本构建后的二进制和 `./artisan`。
+在 macOS ARM64 上核对[启动文件清单](audits/00-01/README.md#文件范围和复现)（当时路径为 `core/startup-files.txt`，历史清单的取得方式见链接），348 个路径与当前二进制编译依赖及构建和启动所需文件一致。将清单文件复制到临时目录，用全新的 `target/` 和本机 Cargo 依赖缓存运行 `cargo +1.94.0 build --workspace --locked --offline`，构建通过，锁文件内容一致。以下结果来自该副本构建后的二进制和 `./artisan`。
 
 | 验收项 | 实测结果 |
 |---|---|
@@ -80,7 +82,7 @@ macOS ARM64 上使用 Rust 1.94.0 运行 `cargo fmt --all --check`、`cargo test
 
 | 骨架 | 实现 | 验收 |
 |---|---|---|
-| [应用入口与装配](architecture.md#启动骨架) | `main.rs` 将 `bootstrap::create` 交给框架。框架先选择入口，再创建应用。HTTP 与 Console Kernel 分别触发引导 | 未知首参在环境文件无效时仍返回用法和退出码 `2`。有效的 HTTP 和 Artisan 入口在配置错误时退出 `1` |
+| [应用入口与装配](architecture.md) | `main.rs` 将 `bootstrap::create` 交给框架。框架先选择入口，再创建应用。HTTP 与 Console Kernel 分别触发引导 | 未知首参在环境文件无效时仍返回用法和退出码 `2`。有效的 HTTP 和 Artisan 入口在配置错误时退出 `1` |
 | HTTP Kernel | 创建时配置 HTTP 中间件，引导后解析路由中间件栈，再打开监听 | `/` 和 `/up` 返回 `200`，HEAD、OPTIONS、404、405 通过。端口占用退出 `1`，SIGTERM 退出 `0` |
 | Console Kernel | 共享引导加载环境、配置、Provider 和路由。引导完成后注册命令，保留 `handle_command` 的执行和终止路径 | HTTP 端口占用期间默认列表、显式列表和帮助均退出 `0`，非法选项退出 `1`。回归测试覆盖共享路由和命令注册顺序，以及 HTTP 中间件配置的隔离 |
 
@@ -99,55 +101,55 @@ macOS ARM64 上使用 Rust 1.94.0，通过 `cargo fmt --all --check`、`cargo te
 
 核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/providers.rs`、`app/providers/app.rs` 和 `vendor/openrust/framework/src/foundation/lifecycle.rs`，沿用显式 Provider 注册，并按 Laravel 的应用位置替换旧版工作目录定位。旧版 `21eaaf6f` 的 `vendor/openrust/framework/src/http/health.rs` 与 `tests/server/bootstrap.rs` 分开处理存活与诊断，本批将存活处理器归框架。健康诊断事件及 Cookie、Session、CSRF 随各自组件接入。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19) · [Laravel 默认 Provider](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/providers.php)
 
-macOS ARM64 上使用 Rust 1.94.0，通过格式检查、24 项工作区测试、严格 Clippy 和锁定构建。仅复制[更新后的 351 个文件](core/startup-files.txt)，使用全新的外置 `CARGO_TARGET_DIR` 通过 `cargo +1.94.0 build --workspace --locked --offline`，并确认编译依赖与清单一致。三语文档构建及 `/`、`/docs/` 的 12 项浏览器检查通过。
+macOS ARM64 上使用 Rust 1.94.0，通过格式检查、24 项工作区测试、严格 Clippy 和锁定构建。仅复制[更新后的 351 个文件](audits/00-01/README.md#文件范围和复现)，使用全新的外置 `CARGO_TARGET_DIR` 通过 `cargo +1.94.0 build --workspace --locked --offline`，并确认编译依赖与清单一致。三语文档构建及 `/`、`/docs/` 的 12 项浏览器检查通过。
 
 ## 2026-11-10 应用装配稳定接口
 
-定稿范围为 `main.rs`、`bootstrap/app.rs`、`bootstrap/mod.rs`、`bootstrap/providers.rs` 及直接对应文档。`main.rs` 保持运行时接线，`bootstrap/` 保持声明式装配。`Routing::web`、`Routing::api` 和 `Routing::health` 由框架组装路由和默认组，后续扩展健康处理器和中间件成员时沿用这些声明。 `Routing::new` 仍接受自定义注册函数。 [启动架构](architecture.md#启动骨架) · [Laravel 路由装配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php#L152-L233)
+定稿范围为 `main.rs`、`bootstrap/app.rs`、`bootstrap/mod.rs`、`bootstrap/providers.rs` 及直接对应文档。`main.rs` 保持运行时接线，`bootstrap/` 保持声明式装配。`Routing::web`、`Routing::api` 和 `Routing::health` 由框架组装路由和默认组，后续扩展健康处理器和中间件成员时沿用这些声明。 `Routing::new` 仍接受自定义注册函数。 [启动架构](architecture.md) · [Laravel 路由装配](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php#L152-L233)
 
 根目录由应用在构建时声明，部署在其他目录时通过绝对路径 `APP_BASE_PATH` 覆盖。框架验证并解析路径。核对了 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的手工组装和 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的工作目录定位。本次将组装收进框架并使用显式应用根目录。 [应用根目录接线](../../bootstrap/app.rs)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、25 项工作区测试、严格 Clippy 和锁定构建通过。回归测试验证了框架为声明的 Web 和 API 路由应用相应的组，健康路由保持独立。只复制 [351 个启动文件](core/startup-files.txt)，从全新的外置 Cargo target 完成锁定离线构建，并核对实际编译依赖。将二进制复制到部署目录并移走临时构建源目录后，显式根目录启动成功，`GET /` 和 `GET /up` 返回 `200`，端口占用时 Artisan 列表和帮助正常执行，非法选项退出 `1`，SIGTERM 退出 `0`。缺失构建根目录和相对部署路径均退出 `1`。三语文档构建和两种部署路径的浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、25 项工作区测试、严格 Clippy 和锁定构建通过。回归测试验证了框架为声明的 Web 和 API 路由应用相应的组，健康路由保持独立。只复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)，从全新的外置 Cargo target 完成锁定离线构建，并核对实际编译依赖。将二进制复制到部署目录并移走临时构建源目录后，显式根目录启动成功，`GET /` 和 `GET /up` 返回 `200`，端口占用时 Artisan 列表和帮助正常执行，非法选项退出 `1`，SIGTERM 退出 `0`。缺失构建根目录和相对部署路径均退出 `1`。三语文档构建和两种部署路径的浏览器检查通过。
 
 ## 2026-11-10 HTTP 异常渲染声明
 
 应用通过 `with_exceptions` 声明 `api/*` 或请求期望 JSON 时渲染为 JSON。框架在原有错误转响应的位置应用策略，保留 HTTP 状态和 `Allow`。核对固定 Laravel 应用的 `withExceptions`，并参考 `v0.x` 提交 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/exceptions.rs` 的策略回调和 `vendor/openrust/framework/src/http/request.rs` 的请求头协商。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L7-L19) · [错误处理文档](../../docs/zh_CN/the-basics/errors.md)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试、严格 Clippy 和锁定构建通过。仅复制 [352 个启动文件](core/startup-files.txt)，使用全新的 `target/` 完成锁定离线构建。实际 HTTP 请求确认 API 路径即使偏好 HTML 也返回 JSON `404`，普通 Web 路径返回 HTML `404`，Web 请求偏好 JSON 时返回 JSON `404`。同时覆盖 Accept 权重、AJAX 与 PJAX、HEAD 正文抑制和 `405 Allow`。`/up` 返回 `200`，端口占用时 Artisan 列表正常。三语文档构建及 12 项浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试、严格 Clippy 和锁定构建通过。仅复制 [352 个启动文件](audits/00-01/README.md#文件范围和复现)，使用全新的 `target/` 完成锁定离线构建。实际 HTTP 请求确认 API 路径即使偏好 HTML 也返回 JSON `404`，普通 Web 路径返回 HTML `404`，Web 请求偏好 JSON 时返回 JSON `404`。同时覆盖 Accept 权重、AJAX 与 PJAX、HEAD 正文抑制和 `405 Allow`。`/up` 返回 `200`，端口占用时 Artisan 列表正常。三语文档构建及 12 项浏览器检查通过。
 
 ## 2026-11-10 Laravel 应用装配接口
 
 按[移植原则](conventions.md#laravel-到-rust-的移植原则)保留 `configure`、`inferBasePath`、`withRouting`、`withMiddleware`、`withExceptions`、`shouldRenderJsonWhen`、`is` 和 `expectsJson` 等上游名称。Rust 用 `Routing` Builder 表达 PHP 的命名参数，默认声明 Web、控制台路由和 `/up`，API 路由按需启用。`withConfig`、`withProviders` 和 `withCommands` 接入编译期注册函数。Console Kernel 引导后先登记命令类型，再加载 `withRouting` 声明的控制台路由。复核 `v0.x` 的 `6d1a8192` 中 `bootstrap/app.rs` 的静态路由注册和 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的启动边界，按固定 Laravel 骨架调整当前接线。 [Laravel 应用骨架](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19)
 
-Rust 1.94.0 通过格式检查、26 项工作区测试、严格 Clippy 和锁定构建。核对编译依赖后，仅复制 [351 个启动文件](core/startup-files.txt)完成独立锁定离线构建。实际 HTTP 请求确认 `/`、`/up` 为 `200`，API 及期望 JSON 的 Web `404` 为 JSON，普通 Web `404` 为 HTML。HTTP 端口占用时 Artisan `list` 与 `help inspire` 正常执行。HTTP 收到 SIGTERM 后退出 `0`。三语文档构建和 12 项浏览器检查通过。
+Rust 1.94.0 通过格式检查、26 项工作区测试、严格 Clippy 和锁定构建。核对编译依赖后，仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)完成独立锁定离线构建。实际 HTTP 请求确认 `/`、`/up` 为 `200`，API 及期望 JSON 的 Web `404` 为 JSON，普通 Web `404` 为 HTML。HTTP 端口占用时 Artisan `list` 与 `help inspire` 正常执行。HTTP 收到 SIGTERM 后退出 `0`。三语文档构建和 12 项浏览器检查通过。
 
 ## 2026-11-10 启动入口定稿
 
-`Application::handleCommand` 与固定版 Laravel 同名。框架入口调用该方法，仍由 Console Kernel 执行和终止命令。项目架构和三语生命周期、Artisan 文档均使用现行名称。 [启动架构](architecture.md#启动骨架) · [Laravel Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php#L1239-L1250)
+`Application::handleCommand` 与固定版 Laravel 同名。框架入口调用该方法，仍由 Console Kernel 执行和终止命令。项目架构和三语生命周期、Artisan 文档均使用现行名称。 [启动架构](architecture.md) · [Laravel Application](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Foundation/Application.php#L1239-L1250)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试和严格 Clippy 通过。仅复制 [351 个启动文件](core/startup-files.txt)完成锁定离线构建。实际请求 `/`、`/up` 返回 `200`，API 与 Web 的 JSON 和 HTML `404` 符合策略。HTTP 端口占用时 Artisan `list`、`help inspire` 退出 `0`，非法选项退出 `1`，HTTP 收到 SIGTERM 后退出 `0`。三语文档构建和 12 项浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、26 项工作区测试和严格 Clippy 通过。仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)完成锁定离线构建。实际请求 `/`、`/up` 返回 `200`，API 与 Web 的 JSON 和 HTML `404` 符合策略。HTTP 端口占用时 Artisan `list`、`help inspire` 退出 `0`，非法选项退出 `1`，HTTP 收到 SIGTERM 后退出 `0`。三语文档构建和 12 项浏览器检查通过。
 
 ## 2026-11-10 开发与发布根目录
 
-沿用 Laravel 显式调用 `Application::configure(base_path)` 的装配边界。`inferBasePath` 优先采用进程环境中的绝对路径 `APP_BASE_PATH`。其余情况由构建约定选择，默认使用源码 crate 目录，启用 `standalone` 时使用解析符号链接后的可执行文件目录。参考固定版 Goravel 的可执行文件定位，以及 `v0.x` 的 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的应用根目录入口。Rust 以显式 Cargo 特性区分部署布局，`cargo run --release` 仍是源码模式。 [Goravel 可执行文件定位](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/support/env/env.go#L126-L144) · [启动架构](architecture.md#启动骨架)
+沿用 Laravel 显式调用 `Application::configure(base_path)` 的装配边界。`inferBasePath` 优先采用进程环境中的绝对路径 `APP_BASE_PATH`。其余情况由构建约定选择，默认使用源码 crate 目录，启用 `standalone` 时使用解析符号链接后的可执行文件目录。参考固定版 Goravel 的可执行文件定位，以及 `v0.x` 的 `6d1a8192` 中 `vendor/openrust/framework/src/foundation/lifecycle.rs` 的应用根目录入口。Rust 以显式 Cargo 特性区分部署布局，`cargo run --release` 仍是源码模式。 [Goravel 可执行文件定位](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/support/env/env.go#L126-L144) · [启动架构](architecture.md)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、默认及全特性各 26 项工作区测试、全特性严格 Clippy 通过。仅复制 [351 个启动文件](core/startup-files.txt)，从外置 Cargo target 完成两种 release 构建。从其他目录运行 `cargo run --release` 及发布二进制均通过。移走源码和构建产物并整体迁移发布目录后，HTTP `/` 和 `/up` 返回 `200`，Artisan `list` 退出 `0`。用故意损坏的 `.env` 验证实际配置来源及绝对路径覆盖优先级，相对和不存在的根目录均退出 `1`。三语文档构建和 12 项浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、默认及全特性各 26 项工作区测试、全特性严格 Clippy 通过。仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)，从外置 Cargo target 完成两种 release 构建。从其他目录运行 `cargo run --release` 及发布二进制均通过。移走源码和构建产物并整体迁移发布目录后，HTTP `/` 和 `/up` 返回 `200`，Artisan `list` 退出 `0`。用故意损坏的 `.env` 验证实际配置来源及绝对路径覆盖优先级，相对和不存在的根目录均退出 `1`。三语文档构建和 12 项浏览器检查通过。
 
 ## 2026-11-10 启动骨架的 Laravel 原文命名
 
 按补充后的[移植原则](conventions.md#laravel-到-rust-的移植原则)，应用装配使用 `basePath` 及 `Application::configure(basePath)`，框架的对应参数和应用根目录字段沿用该名称。`withRouting` 的 `web`、`commands` 和 `health` 对应 PHP 命名参数。配置、Provider 和命令通过静态注册接入，`main.rs` 继续承接 Tokio 和单二进制入口。复核 `v0.x` 的 `6d1a8192` 中 `main.rs` 与 `bootstrap/app.rs` 的入口和静态注册方式。三语目录结构及请求生命周期已同步。 [Laravel 应用装配](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/bootstrap/app.php#L6-L19) · [OpenRust 应用装配](../../bootstrap/app.rs)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、默认及全特性各 26 项工作区测试和全特性严格 Clippy 通过。使用 [351 个启动文件](core/startup-files.txt)完成源码和 `standalone` 的 release 锁定离线构建。从其他目录启动、移走源码后迁移发布目录及使用绝对路径 `APP_BASE_PATH` 覆盖时，实际 HTTP 和 Artisan 验收通过。相对或不存在的根目录退出 `1`。三语站点构建和 12 项浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、默认及全特性各 26 项工作区测试和全特性严格 Clippy 通过。使用 [351 个启动文件](audits/00-01/README.md#文件范围和复现)完成源码和 `standalone` 的 release 锁定离线构建。从其他目录启动、移走源码后迁移发布目录及使用绝对路径 `APP_BASE_PATH` 覆盖时，实际 HTTP 和 Artisan 验收通过。相对或不存在的根目录退出 `1`。三语站点构建和 12 项浏览器检查通过。
 
 ## 2026-11-10 启动入口名称
 
-`main.rs` 通过 `runApplication(bootstrap::createApplication)` 交接进程入口。`createApplication` 对应 PHP 入口加载 `bootstrap/app.php` 并返回应用的动作，Builder 链末尾仍调用 `create()`。`runApplication` 是 OpenRust 单二进制的分发入口。 [启动架构](architecture.md#启动骨架)
+`main.rs` 通过 `runApplication(bootstrap::createApplication)` 交接进程入口。`createApplication` 对应 PHP 入口加载 `bootstrap/app.php` 并返回应用的动作，Builder 链末尾仍调用 `create()`。`runApplication` 是 OpenRust 单二进制的分发入口。 [启动架构](architecture.md)
 
-Rust 1.94.0 的格式检查、全特性 26 项工作区测试及严格 Clippy 通过。仅复制 [351 个启动文件](core/startup-files.txt)完成独立锁定离线构建。实际 `/`、`/up` 返回 `200`，API 与 Web 的 `404` 分别返回 JSON 和 HTML。HTTP 监听期间 Artisan 列表和帮助退出 `0`，非法选项退出 `1`，HTTP 收到 SIGTERM 后退出 `0`。三语文档构建及 12 项浏览器检查通过。
+Rust 1.94.0 的格式检查、全特性 26 项工作区测试及严格 Clippy 通过。仅复制 [351 个启动文件](audits/00-01/README.md#文件范围和复现)完成独立锁定离线构建。实际 `/`、`/up` 返回 `200`，API 与 Web 的 `404` 分别返回 JSON 和 HTML。HTTP 监听期间 Artisan 列表和帮助退出 `0`，非法选项退出 `1`，HTTP 收到 SIGTERM 后退出 `0`。三语文档构建及 12 项浏览器检查通过。
 
 ## 2026-11-10 启动交付文件范围
 
-最终清单共 377 个变更路径。新增 [351 个独立构建和运行文件](core/startup-files.txt) 及 `.gitattributes`、`.env.example`、`artisan.bat`。更新根 `README.md` 和三语各 7 页，涵盖目录结构、请求生命周期、服务提供者、Artisan、错误处理、中间件和路由。删除 `bootstrap/cache/.gitignore`。
+最终清单共 377 个变更路径。新增 [351 个独立构建和运行文件](audits/00-01/README.md#文件范围和复现) 及 `.gitattributes`、`.env.example`、`artisan.bat`。更新根 `README.md` 和三语各 7 页，涵盖目录结构、请求生命周期、服务提供者、Artisan、错误处理、中间件和路由。删除 `bootstrap/cache/.gitignore`。
 
 在 macOS 临时 Git 仓库验证了检出结果。`artisan` 的 Git 模式为 `100755`，使用 LF。`artisan.bat` 的模式为 `100644`，按 `.gitattributes` 检出为 CRLF。临时检出通过 Rust 1.94.0 锁定离线构建，实际 `/` 和 `/up` 返回 `200`，检出的 `artisan list` 退出 `0`。
 
@@ -162,7 +164,7 @@ Rust 1.94.0 的格式检查、全特性 26 项工作区测试及严格 Clippy �
 
 固定 Laravel 默认首页通过视图名称在运行时渲染，OpenRust 默认欢迎页采用编译时嵌入 HTML。`inspire` 保留命令名、说明、随机选择及引言和作者的输出形式，当前使用三条引言和纯文本样式。核对了 `v0.x` 的 `6d1a8192`，旧版首页由服务配置挂载，`routes/web.rs` 只透传路由，控制台路由中没有可直接复用的 `inspire` 实现。 [Laravel Web 路由](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/routes/web.php) · [Laravel 控制台路由](https://github.com/laravel/laravel/blob/06d016a364a37430eec9cbc52209adce3d7667ce/routes/console.php)
 
-macOS ARM64 上 Rust 1.94.0 的格式检查、默认与全特性各 27 项工作区测试和严格 Clippy 通过。仅复制 [352 个启动文件](core/startup-files.txt)完成锁定离线构建，实际验收结果如上。三语文档构建和 12 项浏览器检查通过。
+macOS ARM64 上 Rust 1.94.0 的格式检查、默认与全特性各 27 项工作区测试和严格 Clippy 通过。仅复制 [352 个启动文件](audits/00-01/README.md#文件范围和复现)完成锁定离线构建，实际验收结果如上。三语文档构建和 12 项浏览器检查通过。
 
 ## 2026-11-10 部署产物命名
 
@@ -218,19 +220,19 @@ macOS ARM64 上 Rust 1.94.0 的格式检查、31 项锁定工作区测试和严�
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [广播与 WebSocket](core/broadcasting-websocket.md) | 声明框架公开路径和 trait，预留可选 Reverb 包及应用接线文件 | Rust 1.94.0 格式检查、全目标编译、31 项工作区回归和严格 Clippy 通过。广播协议、频道授权及两个运行模式待实现后验收 |
+| [广播与 WebSocket](plan.md#unit-08-01) | 声明框架公开路径和 trait，预留可选 Reverb 包及应用接线文件 | Rust 1.94.0 格式检查、全目标编译、31 项工作区回归和严格 Clippy 通过。广播协议、频道授权及两个运行模式待实现后验收 |
 
 ## 2026-11-10 加密与哈希骨架
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [加密与哈希](core/encryption-hashing.md) | 声明 Encrypter、HashManager、驱动与公开 trait。预留 `key:generate` 实现文件，记录应用密钥、Cookie、Session 与认证接线 | Rust 1.94.0 格式检查、全目标编译、31 项工作区回归和严格 Clippy 通过。实际加解密、命令写入、Cookie 保护与密码校验待实现后验收 |
+| [加密与哈希](plan.md#unit-03-04) | 声明 Encrypter、HashManager、驱动与公开 trait。预留 `key:generate` 实现文件，记录应用密钥、Cookie、Session 与认证接线 | Rust 1.94.0 格式检查、全目标编译、31 项工作区回归和严格 Clippy 通过。实际加解密、命令写入、Cookie 保护与密码校验待实现后验收 |
 
 ## 2026-11-10 密码重置与邮箱验证骨架
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [密码重置与邮箱验证](core/password-reset-email-verification.md) | 声明代理、令牌仓储和用户能力契约，预留默认迁移、通知、签名验证、认证事件及清理命令 | Rust 1.94.0 格式检查通过。工作区默认编译受静态文件路由缺少 Tokio `io-util` 影响。命令行显式启用该特性后，全目标编译、32 项现有回归和严格 Clippy 通过。令牌和签名行为待实现验收 |
+| [密码重置与邮箱验证](plan.md#unit-06-07) | 声明代理、令牌仓储和用户能力契约，预留默认迁移、通知、签名验证、认证事件及清理命令 | Rust 1.94.0 格式检查通过。工作区默认编译受静态文件路由缺少 Tokio `io-util` 影响。命令行显式启用该特性后，全目标编译、32 项现有回归和严格 Clippy 通过。令牌和签名行为待实现验收 |
 
 ## 2026-11-10 显式挂载静态目录
 
@@ -300,13 +302,13 @@ Rust 1.94.0 格式检查、34 项锁定工作区测试、严格 Clippy 和 stand
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [限流与请求节流](core/rate-limiting.md) | 声明 RateLimiter、Limit、命名回调、普通和 Redis 节流类型，记录 429 与认证流程接线 | Rust 1.94.0 默认配置全目标编译、格式检查、34 项工作区回归及严格 Clippy 通过。实际计数、429、Redis 并发和认证流程待实现验收 |
+| [限流与请求节流](plan.md#unit-04-07) | 声明 RateLimiter、Limit、命名回调、普通和 Redis 节流类型，记录 429 与认证流程接线 | Rust 1.94.0 默认配置全目标编译、格式检查、34 项工作区回归及严格 Clippy 通过。实际计数、429、Redis 并发和认证流程待实现验收 |
 
 ## 2026-11-10 日志与异常处理骨架
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [日志与异常处理](core/logging-exceptions.md) | 声明 LogManager、Logger、上下文、Handler 和公开 trait，记录默认渠道及 HTTP／Console 接线 | Rust 1.94.0 全目标编译、格式检查、34 项工作区回归和严格 Clippy 通过。实际渠道、上下文隔离、报告及完整响应渲染待实现验收 |
+| [日志与异常处理](plan.md#unit-01-03) | 声明 LogManager、Logger、上下文、Handler 和公开 trait，记录默认渠道及 HTTP／Console 接线 | Rust 1.94.0 全目标编译、格式检查、34 项工作区回归和严格 Clippy 通过。实际渠道、上下文隔离、报告及完整响应渲染待实现验收 |
 
 ## 2026-11-10 API、广播频道和 gRPC 路由入口
 
@@ -340,7 +342,7 @@ macOS ARM64 上 Rust 1.94.0 格式检查、36 项锁定离线工作区测试及�
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [视图与模板渲染](core/views-templates.md) | 声明视图、工厂、查找和引擎契约，预留编译器、组件及缓存命令，记录欢迎页和异常视图接线 | Rust 1.94.0 全目标编译、格式检查、36 项工作区回归及严格 Clippy 通过。模板编译、布局、组件、缓存和定制错误页待实现验收 |
+| [视图与模板渲染](plan.md#unit-03-07) | 声明视图、工厂、查找和引擎契约，预留编译器、组件及缓存命令，记录欢迎页和异常视图接线 | Rust 1.94.0 全目标编译、格式检查、36 项工作区回归及严格 Clippy 通过。模板编译、布局、组件、缓存和定制错误页待实现验收 |
 
 ## 2026-11-10 中间件配置回到启动闭包
 
@@ -362,7 +364,7 @@ macOS ARM64 上 Rust 1.94.0 的 37 项锁定离线工作区测试及严格 Clipp
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [URL 生成、重定向与签名](core/url-generation.md) | 声明 URL 生成 trait、参数与签名类型，预留 Redirector，沿用验签中间件占位并记录邮箱验证接线 | Rust 1.94.0 格式检查、全目标编译、37 项工作区回归及严格 Clippy 通过。命名 URL、签名、重定向与邮箱链接行为待实现验收 |
+| [URL 生成、重定向与签名](plan.md#unit-06-01) | 声明 URL 生成 trait、参数与签名类型，预留 Redirector，沿用验签中间件占位并记录邮箱验证接线 | Rust 1.94.0 格式检查、全目标编译、37 项工作区回归及严格 Clippy 通过。命名 URL、签名、重定向与邮箱链接行为待实现验收 |
 
 ## 2026-11-10 异常报告和响应回调接线
 
@@ -374,7 +376,7 @@ Rust 1.94.0 格式检查、39 项锁定工作区测试和严格 Clippy 通过。
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [分页与 API Resources](core/pagination-api-resources.md) | 声明三类分页器、资源与导航契约，预留应用资源目录，记录 Query、Eloquent 和 JSON 接线 | Rust 1.94.0 全目标编译、格式检查、40 项工作区回归及严格 Clippy 通过。数据库分页、游标与资源响应待实现验收 |
+| [分页与 API Resources](plan.md#unit-05-06) | 声明三类分页器、资源与导航契约，预留应用资源目录，记录 Query、Eloquent 和 JSON 接线 | Rust 1.94.0 全目标编译、格式检查、40 项工作区回归及严格 Clippy 通过。数据库分页、游标与资源响应待实现验收 |
 
 ## 2026-11-10 按需安装 API、广播频道和 gRPC 路由
 
@@ -386,7 +388,7 @@ macOS ARM64 上 Rust 1.94.0 的 40 项锁定离线工作区测试和严格 Clipp
 
 | 骨架 | 实现 | 验收 |
 | --- | --- | --- |
-| [集合与惰性集合](core/collections.md) | 声明 Collection、LazyCollection、Enumerable 和键类型，记录 Eloquent、分页器和 API Resources 接线 | Rust 1.94.0 格式检查、全目标编译、40 项工作区回归及严格 Clippy 通过。集合运算与惰性求值待实现验收 |
+| [集合与惰性集合](plan.md#unit-02-08) | 声明 Collection、LazyCollection、Enumerable 和键类型，记录 Eloquent、分页器和 API Resources 接线 | Rust 1.94.0 格式检查、全目标编译、40 项工作区回归及严格 Clippy 通过。集合运算与惰性求值待实现验收 |
 
 ## 2026-11-10 根应用配置目录定稿
 
@@ -2464,3 +2466,283 @@ Sanctum-03 API 安装已本地提交 `4d0b8b031aabeb234ea00ea0c728d9e7d68eccf8`�
 - 2026-11-17 01:42（北京时间）02-09 [惰性查找与相邻值](audits/02-09/README.md#惰性查找与相邻值)。固定 Laravel PHP 对照、47 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 全仓格式仍有既有 Sanctum 差异。
 
 - 2026-11-17 01:47（北京时间）02-09 [惰性值与字段过滤](audits/02-09/README.md#惰性值与字段过滤)。固定 Laravel PHP 对照、50 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 全仓格式仍有既有 Sanctum 差异。
+
+## 2026-11-10 至 11-11 启动阶段与早期交付验收
+
+以下是路线图和分批交付计划中的历史快照及验收记录。
+
+### 启动阶段路线图快照
+
+记录日期为 2026 年 11 月 10 日，11 月 11 日恢复推进。00-01 启动基线与 00-02 默认 HTTP 已完成各自范围的隔离验收，00-03 Artisan 和发布文档也已完成本单元验收，01-01 容器与 Provider 基础也已验收，下一单元为 01-02。按用户最新授权继续依赖已满足的单元，阶段验收后可自主本地提交，推送仍等待授权。
+
+记录时的 Git 基线为 `197e7a0e`。启动、默认 HTTP、Artisan 及基础容器现已按各阶段候选本地提交；其他模块工作区改动保留。
+
+1. 汇总最新版 `config/`、启动装配、默认 Web 和 Artisan 路由的框架依赖、回归测试和三语文档。按最新基线重建最小提交清单，区分运行必需文件与测试、文档，隔离其他模块的改动。
+2. 用干净副本验证锁定离线构建。实测 HTTP 首页、健康检查、静态挂载顺序、HTML／JSON 异常、`./artisan inspire`、帮助和发布版入口。
+3. 核对逐文件 tree 与实际验收结果，按用户最新授权完成本地阶段提交，汇报范围；推送单独授权。
+
+### 交付计划早期验收与复用来源
+
+2026 年 11 月 11 日持续推进。00-01 至 00-03 和 01-01 已完成各自范围验收。01-02 已完成[条件绑定](audits/01-02a/README.md)、[作用域绑定](audits/01-02b/README.md)和[上下文绑定与标签服务](audits/01-02c/README.md)，[解析回调](audits/01-02d/README.md)已验收，[扩展绑定](audits/01-02e/README.md)已验收，[重绑定与配置一致性](audits/01-02f/README.md)已验收，CT-CONFIG-REBIND 已关闭；[按服务键延迟 Provider 装载](audits/01-02g/README.md)已验收，[异步工厂组合](audits/01-02h/README.md)已验收，CT-ASYNC-FACTORY-DEFERRED 已关闭。[工厂参数覆盖](audits/01-02i/README.md)已验收。[静态构造与普通自动注入](audits/01-02j/README.md)已验收，含默认值及可空规则。[变参注入](audits/01-02k/README.md)已验收，含服务数组、标签集合及原始值配置数组。[闭包与方法调用](audits/01-02l/README.md)及[延迟调用闭包](audits/01-02m/README.md)已验收。[绑定目录与清理](audits/01-02n/README.md)已验收。01-02 仍需 SelfBuilding/属性/投影及剩余公开契约；[容器环境解析回调](audits/01-02o/README.md)已验收。[Application 环境检测](audits/01-02p/README.md)已验收，CT-ENV-APPLICATION 已关闭。下一部分核对全局实例与 ArrayAccess 的 Rust 对应。新单元和大型构建前核对额度与空间；阶段验收后自主本地提交，推送另行授权。
+
+2026-11-11 用户确认统一 JSON 响应可复用 `openrust-v0.x`。04-02 先核对旧版 `6d1a8192:vendor/openrust/framework/src/core/error.rs` 的 `ApiResponse`、`PageMeta`、序列化与错误回归，以及 `src/http/response.rs` 的状态与分页适配。统一业务封装作为可选扩展设计；保留 Laravel 默认异常、验证和健康响应契约。旧版全局状态码模式、国际化和请求 ID 依赖分别核对后提取，不能整包搬入。已定位 `tests/unit/core/error_i18n.rs` 的消息翻译、请求隔离及序列化失败脱敏回归，随当前响应入口重新验收；记录复用来源和保留差异。
+
+2026-11-11：01-02 第十二部分完成 Container/Application.call、编译方法声明、bindMethod 及静态重载。方法与构造选参分离；对象/静态类上下文和 Class@method 父上下文按固定 BoundMethod 路径区分。20 项新单元、2 项应用集成与真实 Artisan 验收通过。[19 文件及证据](audits/01-02l/README.md)。下一批核对 wrap 与剩余公开 API，再按依赖补 SelfBuilding/属性/投影；01-02 整体仍未完成。
+
+2026-11-11：01-02 第十三部分完成 Container/Application.factory 与 wrap。创建时不解析服务，执行时读取实时绑定及作用域，参数使用快照，共享回调状态不复制。8 项新单元、1 项新增应用集成、5 次 HTTP 与 lazy:probe 验收通过。[11 文件及证据](audits/01-02m/README.md)。
+
+2026-11-11：01-02 第十四部分完成 getBindings、原工厂句柄与 flush，包括所有活动 scope 缓存解除、正常 scope/flush 的中立析构上下文。13 新单元、6 HTTP 与 directory:probe 通过。[12 文件及证据](audits/01-02n/README.md)。环境解析、全局实例及 ArrayAccess 后续核对，01-02 仍未完成。
+
+2026-11-11：01-02 第十五部分完成基础容器 resolveEnvironmentUsing/currentEnvironmentIs，保留参数形状、bool/string、异常及并发替换语义。9 新单元、6 HTTP 和 environment:probe 通过。[10 文件及证据](audits/01-02o/README.md)。CT-ENV-APPLICATION 未关闭：下一批接配置加载后的默认检测/回调与 CLI --env，须先于环境属性。
+
+2026-11-11，01-02 第十六部分完成 Application 默认环境、容器回调与 Artisan --env。两项新增集成测试、独立发布、三语文档和示例通过。[16 文件及证据](audits/01-02p/README.md)
+
+2026-11-11：04-02 的[可选统一 JSON 业务响应](audits/04-02-api-response/README.md)已从旧版提取并独立验收，响应文档已同步三语。本条记录该小节交付，04-02 整体仍待请求、控制器和其他响应类型完成。
+
+2026-11-11：01-02 [容器全局实例与 ArrayAccess 对应接口](audits/01-02q/README.md)已验收。下一部分核对 SelfBuilding 及类构建，随后是类与参数属性、接口投影和剩余公开契约。
+
+2026-11-11：01-02 [SelfBuilding 与类构建](audits/01-02r/README.md)已验收。下一部分核对类与参数属性及解析回调，接续当前类描述符和环境检测。
+
+2026-11-11：01-02 [上下文属性与解析回调](audits/01-02s/README.md)已验收。后续接类绑定及生命周期属性、框架内置属性和接口投影。
+
+2026-11-11：01-02 [Bind 与 BindWhen](audits/01-02t/README.md)已验收。下一部分使用现有绑定工厂及作用域接 Singleton、Scoped 声明及其与绑定属性的组合。
+
+2026-11-11：01-02 [Singleton 与 Scoped 声明](audits/01-02u/README.md)已验收，包括与 Bind 和 BindWhen 的组合。接续编译接口投影，再核对剩余公开契约和内置上下文属性。
+
+2026-11-11：01-02 [编译接口投影](audits/01-02v/README.md)已验收。接续接口投影在解析回调中的匹配和绑定内部事件传播，然后按依赖接内置上下文属性及剩余公开契约。
+
+2026-11-11：01-02 [接口解析回调与内部事件](audits/01-02w/README.md)已验收。下一部分核对 Config、Give、Tag 和 CurrentResolving 等基础内置上下文属性。
+
+2026-11-11：01-02 [基础内置上下文属性](audits/01-02x/README.md)已验收。下一批核对 RequestAttribute 和 RouteParameter，先确认 HTTP 请求与匹配路由的作用域，再按各组件依赖接入其余内置属性。
+
+2026-11-11：01-02 [请求属性与路由参数注入](audits/01-02y/README.md)已通过 HTTP 分发及 Artisan 验收。下一批核对剩余容器公开契约与属性回调入口。Context、Log、Auth、Cache、DB、Storage 等服务型属性分别以组件契约为前置，响应流作用域随 HTTP 生命周期补齐。
+
+2026-11-11：01-02 [公开属性后置回调](audits/01-02z/README.md)已验收。组件依赖型属性随其所属单元接通，路由动作自动依赖解析随控制器单元接入公开派发。下一批进入以 01-01 为前置的 01-03 日志渠道、默认栈与文件输出。
+
+2026-11-11：01-03 [日志渠道、默认栈与文件输出](audits/01-03/README.md)已通过实际入口验收，闭合三语日志文档的配置、构建日志栈和写入小节。下一批接 01-04 日志轮转与自定义渠道。
+
+2026-11-11：01-04 [日志轮转与自定义渠道](audits/01-04/README.md)通过轮转、保留、临时渠道、混合栈和工厂错误验收。三语日志文档新增轮转与工厂小节。下一批接以 01-03 为前置的 01-05 请求及任务 Context。
+
+2026-11-11：01-05 [请求与任务 Context](audits/01-05/README.md)通过并发 HTTP、Artisan、任务作用域和三语文档验收，公开字段进入独立日志元数据。队列还原随 06-04。下一批接 01-06 异常报告的默认日志。
+
+2026-11-11：01-06 [异常报告接默认日志](audits/01-06/README.md)已通过实际 HTTP、Artisan、并发身份去重及三语验收。下一批接 01-07 异常渲染、自定义响应与脱敏。
+
+2026-11-11：01-07 [异常渲染、自定义响应与脱敏](audits/01-07/README.md)已通过真实 HTTP、生产及调试响应、HEAD/405 和三语文档验收。下一批接 02-01 数据库配置、连接与基本 SQL，以 01-01 及实际 SQLite、MySQL 8.4 环境为前置。
+
+2026-11-11：02-01 [数据库配置、连接与基本 SQL](audits/02-01/README.md)已完成真实 SQLite/MySQL 8.4、HTTP、Artisan 和三语验收。下一批 02-02 接读写路由、多连接管理和事务。
+
+2026-11-11：02-02 [多连接、读写路由和事务](audits/02-02/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-03 以 02-01 的参数化 SQL 为前置。
+
+2026-11-11：02-03 [Query Builder 基础查询](audits/02-03/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-04 以前述查询与事务能力为前置。
+
+2026-11-11：02-04 [高级查询与写入](audits/02-04/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-05 接 Schema，以 02-01 的数据库连接为前置。
+
+2026-11-11：02-05 [Schema 表、列、索引和外键](audits/02-05/README.md)通过 SQLite/MySQL 8.4、Artisan 和三语文档验收。下一批 02-06 以前述 Schema 与事务为前置。
+
+2026-11-11：02-06 [迁移命令与批次账本](audits/02-06/README.md)通过 SQLite/MySQL 8.4、实际 Artisan 和三语文档验收。下一批 02-07 接 Seeder。
+
+2026-11-11：02-07 [数据填充](audits/02-07/README.md)通过 SQLite/MySQL 8.4、实际 Artisan 和三语文档验收。下一批 02-08 接通用集合，工厂与 Seeder 集成留在 05-04。
+
+2026-11-11：02-08 [通用集合](audits/02-08/README.md)通过固定 Laravel 行为对照、真实 HTTP、Artisan 和三语文档验收。下一批 02-09 以键契约及 Enumerable 为前置，验收惰性、短路、重复遍历、错误传播及 remember。
+
+2026-11-11：02-09 [惰性集合](audits/02-09/README.md)通过固定 Laravel 对照、真实文件、Artisan 和三语文档验收。下一单元 03-01 接本地文件系统与公共磁盘，以 01-01 为前置。
+
+2026-11-11：03-01 [本地文件系统与公共磁盘](audits/03-01/README.md)通过真实读写、HTTP、Artisan 和三语文档验收。下一批 03-03 接 S3 兼容驱动，以本批磁盘管理器与适配器契约为前置。
+
+2026-11-11：03-03 [S3 磁盘](audits/03-03/README.md)通过真实 RustFS、SeaweedFS、重试及三语文档验收。公开 URL 和签名临时 URL 留在 04-09、06-01 衔接。下一批 03-04 以 01-01 为前置。
+
+2026-11-11：03-04 [应用加密与密钥轮换](audits/03-04/README.md)通过固定 Laravel 双向互操作、真实 HTTP、Artisan 并发写入及三语验收。下一批 03-05 密码哈希和重哈希以 01-01 为前置。
+
+2026-11-11：03-05 [密码哈希和重哈希](audits/03-05/README.md)通过固定 Laravel 双向互操作、真实 HTTP、计算预算及三语验收。下一批 03-06 以前述数据库连接和本地文件系统为前置。
+
+## 历次交接与资源记录
+
+下列交接记录保留当时的恢复点、额度、磁盘、清理和证据路径。
+
+2026-11-16 13:17（北京时间）按用户确认恢复。正式额度工具显示 Codex 周窗口已用 3%，剩余 97%，北京时间 2026-11-23 09:31 重置。工具无第二窗口数据。项目卷可用 114,437,284 KiB（117.18 GB／109.14 GiB）。沿用本记录的停线规则。05-04 已由 `56f3d215` 闭合，接续 `d33359da` 之后的 05-02 关系与集合固定矩阵。
+
+2026-11-16 13:22（北京时间）05-02 模型集合 `multiply` 已验收并本地提交 `f9546b79`。正式额度工具复核周窗口剩余 97%，北京时间 2026-11-23 09:31 重置。清理独占 Cargo 产物和文档缓存后，项目卷可用 111,522,980 KiB（114.20 GB／106.36 GiB）。下一批按固定 Laravel 核对集合延后计数和嵌套缺失关系。
+
+2026-11-16 14:21（北京时间）按用户确认恢复开发。正式额度工具显示 Codex 周窗口已用 5%，剩余 95%，北京时间 2026-11-23 09:31 重置。无第二窗口数据。项目卷可用 84,492,104 KiB（86.52 GB／80.58 GiB）。沿用现有停线，接续 05-03 属性转换和序列化。
+
+2026-11-16 14:27（北京时间）05-03 的 `AsHtmlString` 已验收并本地提交 `477c066bc`，未推送。正式额度工具复核周窗口剩余 95%，北京时间 2026-11-23 09:31 重置。回收测试容器、隔离 Cargo 产物及文档缓存后，项目卷可用 86,592,944 KiB（88.67 GB／82.58 GiB）。接续固定 Laravel 的加密集合映射和 JSON 编解码定制。05-07 依赖 05-03 完整闭合。
+
+2026-11-16 14:33（北京时间）05-03 加密集合 `of`／`using`／`map` 已验收并本地提交 `0f222106e`，未推送。正式周额度剩余 95%，北京时间 2026-11-23 09:31 重置。回收测试容器、隔离 Cargo 产物及文档缓存后，项目卷可用 82,838,188 KiB（84.83 GB／79.00 GiB）。下一项是固定 Laravel 的 JSON 编解码定制和多应用隔离。
+
+2026-11-16 14:43（北京时间）05-03 属性转换与模型序列化已整单元闭合，本地提交 `d1118284b`，未推送。正式周额度剩余 94%，北京时间 2026-11-23 09:31 重置。回收容器和隔离缓存后，项目卷可用 77,747,656 KiB（79.61 GB／74.15 GiB）。05-07 的 05-03 和 05-06 前置均已满足，接续固定 Laravel API Resources 的推断及条件接口。
+
+2026-11-16 14:50（北京时间）05-07 条件属性、已加载空关系与普通／自定义 Pivot 已验收并本地提交 `2d6d8263e`，未推送。正式周额度剩余 94%，北京时间 2026-11-23 09:31 重置。回收容器、隔离缓存后，项目卷可用 83,396,404 KiB（85.40 GB／79.53 GiB）。接续 Resource 集合键保留与资源推断。
+
+2026-11-16 14:58（北京时间）05-07 资源集合键及分页转接已验收并本地提交 `49e4f699d`，未推送。正式周额度剩余 94%，北京时间 2026-11-23 09:31 重置。回收容器及本批隔离产物后，项目卷可用 83,022,524 KiB（85.02 GB／79.18 GiB）。接续模型、集合和分页器的资源推断。
+
+2026-11-16 15:06（北京时间）05-07 模型、集合及分页资源推断已验收并本地提交 `8fe28a9c2`，未推送。周额度剩余 94%，北京时间 2026-11-23 09:31 重置。回收容器及隔离产物后，项目卷可用 79,715,948 KiB（81.63 GB／76.02 GiB）。下一项是条件值辅助入口和应用级包装，之后核对 JSON:API 章节的交付边界。
+
+2026-11-16 15:13（北京时间）05-07 应用级包装、强制包装及条件值已验收并本地提交 `bdd10f1a5`，未推送。周额度剩余 94%，北京时间 2026-11-23 09:31 重置。回收容器及隔离产物后，项目卷可用 79,976,300 KiB（81.90 GB／76.27 GiB）。接续普通 Resource 响应选项及固定 Laravel JSON:API Resources。
+
+2026-11-16 15:20（北京时间）05-07 普通资源 JSON 响应选项已验收并本地提交 `16df4792c`，未推送。正式周额度剩余 93%，北京时间 2026-11-23 09:31 重置。回收容器及隔离缓存后，项目卷可用 79,641,592 KiB（81.55 GB／75.95 GiB）。继续固定 Laravel 的 JSON:API 媒体类型与资源标识，随后处理关联与 Artisan 生成器。
+
+2026-11-16 15:27（北京时间）05-07 JSON:API 基础文档、标识和稀疏属性已验收并本地提交 `8f6c99aac`，未推送。正式周额度剩余 93%，北京时间 2026-11-23 09:31 重置。回收隔离产物后项目卷可用 80,216,652 KiB（82.14 GB／76.50 GiB）。接续延迟属性、关联标识与 include，随后覆核文档元数据和 Artisan 生成器。
+
+2026-11-16 15:35（北京时间）05-07 JSON:API 延迟属性及嵌套 include 已验收并本地提交 `7bbb54fed`，未推送。正式周额度剩余 93%，北京时间 2026-11-23 09:31 重置。隔离产物回收后，项目卷可用 79,595,380 KiB（81.51 GB／75.91 GiB）。接续关联自动批量加载和应用文档元数据，再处理 Artisan 生成器。
+
+2026-11-16 15:42（北京时间）05-07 JSON:API 自动批量加载已验收并本地提交 `9d4950549`，未推送。周额度剩余 93%，北京时间 2026-11-23 09:31 重置。隔离产物回收后，项目卷可用 79,528,884 KiB（81.44 GB／75.84 GiB）。接续应用级文档元数据、关系深度和请求控制，随后验收 Artisan 生成器。
+
+2026-11-16 15:46（北京时间）按用户确认继续。正式 Codex 周窗口已用 7%，剩余 93%，北京时间 2026-11-23 09:31 重置。无第二窗口数据。项目卷可用 79,486,428 KiB（81.39 GB／75.80 GiB），额度与磁盘均允许继续。接续 05-07 JSON:API 应用级文档元数据、关系深度和查询控制。保留 `routes/web.rs` 已有暂存及工作区改动。
+
+2026-11-16 15:50（北京时间）05-07 JSON:API 应用配置、关系深度和查询控制已验收并本地提交 `8eacfd343`，未推送。正式周窗口已用 8%，剩余 92%，北京时间 2026-11-23 09:31 重置。无第二窗口数据。隔离测试容器、6.5 GiB Cargo 产物及文档缓存已回收，项目卷可用 79,547,072 KiB（81.46 GB／75.86 GiB）。原 `routes/web.rs` 暂存差异保持一致。接续普通及 `--json-api`／`--collection` 的 `make:resource` 和 05-07 最终协议复核。
+
+2026-11-16 15:57（北京时间）05-07 Artisan `make:resource` 已验收并本地提交 `5a16de3ab`，未推送。正式周额度已用 8%，剩余 92%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收 MySQL 验收容器、6.1 GiB 隔离 Cargo 产物与文档缓存，项目卷可用 79,466,332 KiB（81.37 GB／75.78 GiB）。原 `routes/web.rs` 暂存差异保持一致。05-07 下一批处理数组后端资源与固定查询容错矩阵。
+
+2026-11-16 16:04（北京时间）05-07 JSON 对象数据源与查询容错已验收并本地提交 `a73df5a8b`，未推送。保留并复验并行 05-09 授权提交 `6d25220ee` 的账本和授权测试。正式周额度剩余 92%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收容器、6.7 GiB 隔离 Cargo 产物及文档缓存后，项目卷可用 78,067,888 KiB（79.94 GB／74.45 GiB）。原 `routes/web.rs` 暂存差异保持一致。05-07 接续关联解析器返回 ResourceCollection 的嵌套筛选及最终协议复核。
+
+2026-11-16 16:09（北京时间）05-07 API Resources 已整单元验收并本地提交 `c6d44ba80`，未推送。核心账本 33/66。正式周额度剩余 92%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收验收容器、6.3 GiB 隔离 Cargo 产物及文档缓存，卷可用 76,944,976 KiB（78.79 GB／73.38 GiB）。保留 `routes/web.rs` 原暂存。05-08 仍依赖未闭合的 03-05、04-04 和 04-07。回到无前置的 00-01，先核对配置仓库公开访问入口。
+
+2026-11-16 16:18（北京时间）00-01 Config 门面基础读取已归入 `74b73ed17`，类型读取、运行时写入及无缓存重绑定已在最新基线验收并本地提交 `c32f3eb99`，未推送。正式周额度剩余 91%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收 6.8 GiB 隔离 Cargo 产物及文档缓存后磁盘可用 73,813,088 KiB（75.58 GB／70.39 GiB）。保留原 `routes/web.rs` 暂存及并行验收记录。00-01 继续复核配置缓存和环境文件加解密。
+
+2026-11-16 16:30（北京时间）00-01 环境文件加解密已验收并本地提交 `a170d1820`，未推送。正式周额度剩余 91%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收 PHP 互操作容器、6.4 GiB 隔离 Cargo 产物及文档缓存后卷可用 67,847,788 KiB（69.48 GB／64.70 GiB）。保留原 `routes/web.rs` 暂存及其他验收记录。00-01 下一步为配置缓存。
+
+2026-11-16 16:41（北京时间）00-01 配置缓存候选在 `7d0ec11e4` 基线通过实际 HTTP、Artisan、严格 Clippy 和三语文档，隔离源码、验收日志与 15 文件差异保留于 `/private/tmp/openrust-config-cache.AWsSPU33/config-cache-candidate.patch`。提交保护检测到并行未提交的配置缓存实现，涉及 application.rs、load_environment_variables.rs、console/mod.rs、planned.rs、config/error.rs 及三语正文。当前 Git 索引及这些既有工作区改动保持原样，账本不提前闭合。正式周额度剩余 90%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收本批 6.8 GiB Cargo 产物及文档缓存，磁盘可用 63,740,996 KiB（65.27 GB／60.79 GiB）。下一步在并行基线上合并已有配置显示功能与已验证缓存语义，按用户此前决定保留 storage/framework 路径，复验后只提交核定范围。
+
+2026-11-16 16:47（北京时间）00-01 整单元已验收并本地提交 `e8a63a2df`，未推送。整合 `763c4485b` 的 config:show、常规文件保护和验收，缓存默认保存在 storage/framework/config.json，无 bootstrap/cache 跟踪文件。核心账本 35/66（53.0%），2/9 阶段闭合。周额度剩余 89%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。清理 5.9 GiB 隔离 Cargo 产物及文档缓存后项目卷可用 57,537,092 KiB（58.92 GB／54.87 GiB）。原 Git 索引及其他改动保留。下一步接续前置已闭合的 01-02，核对组件依赖型上下文属性。
+
+2026-11-16 16:56（北京时间）01-02aa 服务管理器上下文属性已验收并本地提交 `215a8aef5`，未推送。周额度剩余 88%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。回收本批隔离 Cargo 增量目录约 1.3 GiB、剩余 Cargo 产物 2.2 GiB 和文档缓存，项目卷可用 51,981,340 KiB（53.23 GB／49.57 GiB）。接续 Auth、Authenticated、CurrentUser 的请求作用域契约，01-02 保持在研。
+
+2026-11-16 17:00（北京时间）按用户确认恢复并复核正式额度。Codex 周窗口已用 12%，剩余 88%，北京时间 2026-11-23 09:31 重置，第二窗口无数据。项目卷可用 51,545,112 KiB（52.78 GB／49.16 GiB）。05-04 已由 `56f3d215a` 闭合，`makeOne`、`makeMany` 和 `lazy` 的 MySQL 实际 Seeder、MySQL／SQLite 工厂回归、严格 Clippy 与 Artisan 均有既有验收证据。恢复点为 `215a8aef5` 后的 01-02 认证属性。已核对固定 Laravel 的 Guard 与用户解析契约，以及 v0.x 的属性身份和 null 映射。当前 Guard 借用 `&mut Request`，容器属性解析只有容器与参数，接线须保留真实请求上的会话、默认／具名 Guard 及用户解析缓存。后续用真实 HTTP 验证访客、具名 Guard、并发与应用隔离。共享目标目录有并行验收活动，当前距磁盘停线约 2.78 GB，低于上批同类隔离验收产物约 3.5 GiB，本次未启动大型构建。保留既有改动，无新提交或推送。
+
+2026-11-16 17:11（北京时间）01-02ab 认证上下文属性已验收并本地提交 `a1620b87d`，未推送。正式周额度剩余 87%，北京时间 2026-11-23 09:31 重置，无第二窗口数据。清理本批两个工具链的独占 Cargo 产物（各约 2.1 GiB）、站点缓存、临时可执行示例和 MySQL 探针容器后，项目卷可用 73,893,996 KiB（75.67 GB／70.47 GiB）。保留验收日志、共享缓存和其他改动。下一步以固定 Laravel 的 18 个容器属性、11 个容器测试文件和 Provider 仓库测试核对既有验收，补齐仍缺的证据后再判断 01-02 整单元闭合。
+
+2026-11-16 17:22（北京时间）01-02 已验收并本地提交 `c570cf91d`，未推送。核心账本 37/66（56.1%）。正式周额度剩余 87%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 4.3 GiB 隔离 Cargo 产物、文档缓存和示例二进制后，项目卷可用 70,225,104 KiB（71.91 GB／66.97 GiB）。保留其他工作区内容及验收日志。下一批接续 01-04，既有轮转和工厂已验收，继续比对通道定制入口及 Monolog 边界。
+
+2026-11-16 17:32（北京时间）01-04 日志定制续批已验收并本地提交 `f5b798547`，周额度剩余 86%，北京时间 2026-11-23 09:31 重置。按交接先清理已闲置的 OpenRust 构建产物。用 Cargo clean 清理主工作树 debug target（工具计 62.6 GiB）及本批独占 target（2.1 GiB），另清理本批和旧首页验收副本的可重建文档、Playwright 依赖及示例二进制。项目卷从 63,698,840 KiB（65.23 GB／60.75 GiB）变为 120,016,284 KiB（122.90 GB／114.46 GiB），实测净增 56,317,444 KiB（57.67 GB／53.71 GiB）。旧版工作树和邮件隔离工作树无 target；BuildKit 无构建缓存。保留运行中的邮件验收容器、常驻数据库及卷、共享镜像与下载缓存、仓库文档发布产物、源码、Git、其他改动及验收日志。未开启下一批构建，未推送。
+
+2026-11-16 17:40（北京时间）01-04 handler／action buffering 批次已验收并本地提交 `48af9dfe0`，未推送。正式周额度剩余 86%，北京时间 2026-11-23 09:31 重置。清理本批 2.2 GiB 隔离编译产物、文档缓存及示例二进制后，项目卷可用 113,336,616 KiB（116.06 GB／108.09 GiB）。账本保持 37/66。01-04 下一步以固定 Laravel 的 syslog 和 JsonFormatter 用例为验收基线。
+
+2026-11-16 17:47（北京时间）01-04 Unix syslog 批次已验收并本地提交 `b318216ca`，未推送。正式周额度剩余 86%，北京时间 2026-11-23 09:31 重置。清理本批 2.2 GiB 隔离编译产物、文档缓存、示例二进制和测试套接字后，项目卷可用 122,670,708 KiB（125.61 GB／116.99 GiB）。核心账本 38/66（含独立闭合的 06-06）。01-04 下一项复核固定 Laravel JsonFormatter 的异常链和重复上下文边界。Windows syslog 对应行为单独跟踪。
+
+2026-11-16 17:56（北京时间）01-04 JSON 异常日志已验收并本地提交 `a3e3632be`，未推送。正式周额度剩余 86%，北京时间 2026-11-23 09:31 重置。按验收收尾顺序先存验收记录，确认三个验收进程均结束后清理本批 2.4 GiB 隔离编译产物、文档缓存及示例二进制。项目卷可用从 120,098,272 KiB（122.98 GB）到 122,645,320 KiB（125.59 GB），净增 2,547,048 KiB（2.61 GB）。本批未创建 Docker 资源，保留共享缓存、证据、发布产物和数据卷。01-04 下一步核对 Windows 原生 syslog 对应行为，核心账本保持 38/66。
+
+2026-11-16 18:15（北京时间）01-04 已验收并本地提交 `991ab3ada`，未推送。正式周额度剩余 85%，北京时间 2026-11-23 09:31 重置。验收记录保存后确认两端编译和测试结束，清理本批 macOS／Windows 隔离 target、文档缓存、示例及临时传输文件。宿主项目卷可用由 109,361,588 KiB（111.99 GB）到 111,715,532 KiB（114.40 GB），净增 2,353,944 KiB（2.41 GB）；Windows C 卷从 195,869,626,368 字节到 198,282,412,032 字节，净增 2.41 GB。保留共享缓存、验收日志、发布产物和现有数据卷；本批未创建 Docker 资源。核心 39/66。主线接续 02-01 多结果集，08-02 已交给独立并行子任务。
+
+Windows 验收结束后已正常关闭虚拟机，恢复验收前的停止状态。02-01 已核对固定 Laravel `Connection::selectResultSets` 的绑定、读连接与逐结果集契约。当前 OpenRust 只有单结果集 `select`，v0.x 无可直接复用的多结果集入口。后续先验证 SQLx MySQL 结果集结束标识及空结果集，再接入稳定 API 和真实 MySQL 8.4 过程验收。
+
+2026-11-16 18:21（北京时间）按用户确认恢复。正式 Codex 周窗口已用 16%，剩余 84%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。项目卷可用 108,637,580 KiB（111.24 GB／103.60 GiB）。沿用现有停线。接续 02-01 多结果集查询及实际 MySQL 验收。
+
+2026-11-16 18:23（北京时间）08-02 Redis 集群批次已验收并本地提交 `7bae03448`，未推送。提交前正式 Codex 周额度剩余 84%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。隔离 MySQL 8.4.13、Redis 8.10.3 与三个实际应用进程完成验收。验收进程退出后清理本批 Cargo target 2.2 GiB、三处隔离文档依赖与站点产物及三个临时容器，验证原数据卷继续保留。同期项目卷可用由 104,496,512 KiB（107.00 GB／99.66 GiB） 到 106,679,128 KiB（109.24 GB／101.74 GiB），净增 2,182,616 KiB（2.23 GB／2.08 GiB）。保留验收日志和候选源码、共享缓存与发布产物。08-02 其他边界继续跟踪，不影响主线 02-01。
+
+2026-11-16 18:27（北京时间）02-01 多结果集查询验收通过并本地提交 `85f590ce6e6f753ec7ca32e38f6c9b0a88a55474`，未推送。正式 Codex 周窗口已用 16%、剩余 84%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。保存验收记录后，清理本批 2.7 GiB 隔离 Cargo 产物、文档缓存及两个临时容器，确认数据卷保留。项目卷可用 106169244 KiB（108.72 GB／101.25 GiB），本批清理前后实测净增 2.75 GB。隔离验收日志保存在 /private/tmp/openrust-result-sets.RP1FgojK。02-01 尚有固定 Laravel 文档的命名绑定待补，接续后再判断整单元闭合。
+
+2026-11-16 18:40（北京时间）02-01 命名绑定和 MySQL 证书校验验收通过，整单元闭合并本地提交 `3fa4fa148b1037d207f2a45a2fe21a53a8f501dd`，未推送。核心账本 40/66。正式周额度已用 16%、剩余 84%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。验收进程全部结束后回收本批 3.6 GiB Cargo 产物、文档缓存及三个临时容器，确认两个数据库卷保留。项目卷可用 111893268 KiB（114.58 GB／106.71 GiB），实测净增 3.87 GB。证据保存在 /private/tmp/openrust-named-bindings.jBYzAmuB。后续 02-02 先核对 ConnectionEstablished 及事务生命周期事件。保留原有工作区及索引改动。
+
+2026-11-16 18:55（北京时间）02-02 事务生命周期事件已验收并本地提交 `3e541f03666bb7912a551f39e050c648fbc2f44b`，未推送。核心账本维持 40/66。提交前正式周额度已用 16%、剩余 84%，北京时间 2026-11-23 09:31 重置，第二窗口无读数。39 项定向测试、工作区严格 Clippy、实机 Artisan 和 HTTP、三语示例及站点通过。全工作区在基线也复现的 stub:publish 数量断言停止。已保存记录并回收本批 13.4 GiB 隔离 Cargo 产物、文档缓存和临时 MySQL 容器，数据卷保留。项目卷可用 108404444 KiB（111.01 GB／103.38 GiB），清理前后实测净增 14.39 GB。日志目录 /private/tmp/openrust-db-events.U4BC5a5v。接续 ConnectionEstablished，查询事件、重连及事务回调仍待验收。
+
+2026-11-16 19:02（北京时间）02-02 ConnectionEstablished 已验收并本地提交 `c95190738ebff2414709e35d18fe489a359e096c`，未推送。核心账本 40/66。正式周额度已用 17%、剩余 83%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。42 项定向测试、严格 Clippy、实际 HTTP／Artisan 与三语验收通过。保存证据后清理本批 3.1 GiB 隔离 Cargo 产物、文档缓存及临时 MySQL 容器，保留数据库卷。项目卷可用 107333016 KiB（109.91 GB／102.36 GiB），净增 4.30 GB。证据目录 /private/tmp/openrust-established.TsR7N0lD。下一批核对 QueryExecuted、查询监听和累计耗时。
+
+2026-11-16 19:14（北京时间）02-02 查询事件与累计查询耗时已验收并本地提交 `febd3cea0a173eb56fdf50a4096d58d8adf04c20`，未推送。核心账本 40/66。正式周额度已用 17%、剩余 83%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。44 项定向测试、严格 Clippy、真实 HTTP／Artisan 及三语验收通过。保存证据后清理本批 3.1 GiB 隔离 Cargo 产物、文档缓存及临时 MySQL 容器，保留数据库卷。项目卷可用 105369692 KiB（107.90 GB／100.49 GiB），净增 3.28 GB。证据目录 /private/tmp/openrust-query-events.AZoN91n8。下一批核对 QueryExecuted::toRawSql 等查询诊断，然后处理显式重连及事务回调。
+
+2026-11-16 19:23（北京时间）02-02 查询诊断与日志已验收并本地提交 `66f0109b0bb7f6cc174a15a63b995f7561900948`，未推送。核心账本 40/66。正式周额度已用 17%、剩余 83%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。46 项定向测试、严格 Clippy、实际 Artisan 及三语验收通过。保存证据后清理本批 3.1 GiB 隔离 Cargo 产物、文档缓存及临时 MySQL 容器，保留数据库卷。项目卷可用 105252440 KiB（107.78 GB／100.38 GiB），净增 3.28 GB。证据目录 /private/tmp/openrust-query-diagnostics.ObHAuWiQ。接续显式重连的 disconnect、reconnect、purge 契约，再处理通用预演、查询前回调及事务回调。
+
+2026-11-16 19:34（北京时间）02-02 disconnect、reconnect、purge 已验收并本地提交 `e44b5ee828748ae7ef2c6ee3ffb04207c9f3b64e`，未推送。核心账本 40/66。正式周额度已用 17%、剩余 83%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。50 项定向测试、严格 Clippy、实际 HTTP／Artisan 和三语验收通过。保存证据后清理本批 3.2 GiB 隔离 Cargo 产物、文档缓存和临时 MySQL 容器，保留数据库卷。项目卷可用 105082244 KiB（107.60 GB／100.21 GiB），净增 3.40 GB。证据目录 /private/tmp/openrust-reconnect.0HJTRhUS。下一批核对 beforeStartingTransaction、afterRollBack，再处理运行中的连接丢失及直连配置。
+
+2026-11-16 19:43（北京时间）02-02 beforeStartingTransaction 和 afterRollBack 已验收并本地提交 `1858fa47340873f93f6f59ee209d5772d673d60b`，未推送。核心账本 40/66。正式周额度已用 17%、剩余 83%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。53 项定向测试、严格 Clippy、实际 HTTP／Artisan 和三语验收通过。保存证据后清理本批 3.2 GiB 隔离 Cargo 产物、文档缓存和临时 MySQL 容器，保留数据库卷。项目卷可用 104963636 KiB（107.48 GB／100.10 GiB），净增 3.40 GB。证据目录 /private/tmp/openrust-tx-callbacks.rZszXCoW。下一批核对运行中的连接丢失与语句重放，再继续直连、通用查询预演和查询前回调。
+
+2026-11-16 19:53（北京时间）02-02 执行中断线重放已验收并本地提交 `232590f5e6b2397cda8a748256b7baf7b8542162`，未推送。核心账本 40/66。正式周额度已用 18%、剩余 82%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。55 项定向测试、严格 Clippy、真实 MySQL Artisan 故障验收及三语浏览器检查通过。独立快照和暂存仅取本批 connection.rs 差异，保留同文件 Schema 关联键改动。保存证据后清理 3.2 GiB 隔离 Cargo 产物、文档缓存和临时 MySQL 容器，保留数据库卷。项目卷可用 99556604 KiB（101.95 GB／94.94 GiB），净增 4.17 GB。证据目录 /private/tmp/openrust-lost-connection.HzL2K43j。下一批核对 ::direct，之后继续通用预演及查询前回调。
+
+2026-11-16 20:01（北京时间）02-02 `::direct` 写端点回退已验收并本地提交 `37ce0658e685aff1b97bac67ac5da00765513d97`，未推送。核心账本 40/66。正式周额度已用 18%、剩余 82%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。56 项定向回归、严格 Clippy、MySQL 8.4.13 实际 Artisan 和三语浏览器通过。保留同文件的 Schema 改动和 MySQL 数据卷，清理本批 4.5 GiB 隔离 Cargo 产物、文档缓存及临时容器。项目卷可用 91,280,076 KiB（93.47 GB）。证据目录 /private/tmp/openrust-direct.ja9Zc9TB。接续查询前回调和通用预演，PostgreSQL 独立端点随驱动验收。
+
+2026-11-16 20:08（北京时间）02-02 查询执行前回调已验收。本地提交 `dc9ac8bff235d610b3cc0faf518bc13c429940e5`，未推送。PostgreSQL 独立直连随驱动验收，02-02 接续通用查询预演，核心账本 40/66。58 项定向回归、严格 Clippy、MySQL 8.4.13 与 SQLite 的 Artisan 文档示例及 18 项三语浏览器检查通过。正式周额度已用 18%、剩余 82%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.3 GiB 隔离 Cargo 产物、文档缓存及临时容器，保留 MySQL 卷和其他工作区改动。项目卷可用 90,463,872 KiB（92.64 GB）。证据目录 /private/tmp/openrust-before-executing.SfFTb4TN。 见[验收记录](audits/02-02/README.md#查询执行前回调)。
+
+2026-11-16 20:16（北京时间）02-02 通用查询预演已验收。本地提交 `036bb34252e89401cfa6d69776594c202ffabdc5`，未推送。MySQL 8.4.13 与 SQLite 的 61 项定向回归、严格 Clippy、实际 Artisan 的三语共用例、三语站点及 18 项浏览器检查通过。正式周额度已用 18%、剩余 82%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷和并行改动。项目卷可用 85,254,184 KiB（87.30 GB）。证据目录 /private/tmp/openrust-pretend.QNRwvrma。02-02 仍待 PostgreSQL 独立直连及池化路由，核心账本 40/66。 见[验收记录](audits/02-02/README.md#通用查询预演)。
+
+2026-11-16 20:21（北京时间）02-04 upsert 冲突赋值已验收。本地提交 `71949602bde6318f09008cf11ab05546c01d05c6`，未推送。SQLite 与 MySQL 8.4.13（两种 upsert 别名配置）共 63 项定向回归、严格 Clippy、实际 Artisan 三语共用例、三语站点及 18 项浏览器检查通过。正式周额度已用 18%、剩余 82%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 84,832,020 KiB（86.87 GB）。证据目录 /private/tmp/openrust-upsert.n9m5xLUA。02-04 接续当前驱动的 JSON 谓词和跨库子查询，核心账本 40/66。 见[验收记录](audits/02-04/README.md#upsert-冲突赋值)。
+
+2026-11-16 20:27（北京时间）02-04 JSON 重叠谓词已验收。本地提交 `86afe012904dadf24df9dace286d0e31569cee17`，未推送。MySQL 8.4.13 实际执行 JSON 重叠谓词，SQLite 验证方言错误。63 项定向回归、严格 Clippy、实际 Artisan 三语共用例、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 84,706,044 KiB（86.74 GB）。证据目录 /private/tmp/openrust-json-overlap.BAz3s2bM。02-04 接续同服务跨库子查询自动限定，核心账本 40/66。 见[验收记录](audits/02-04/README.md#json-重叠谓词)。
+
+2026-11-16 20:35（北京时间）02-04 MySQL 跨库子查询已验收。本地提交 `844b00b4254cc2666a038477424864b77bf36c0d`，未推送。MySQL 8.4.13 同端点两库实际 Artisan、64 项定向回归、严格 Clippy、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 81,809,388 KiB（83.77 GB）。证据目录 /private/tmp/openrust-cross-schema.yJKdFcUm。02-04 继续跟踪向量和其他驱动，主线可接续 02-05 Schema；核心账本 40/66。 见[验收记录](audits/02-04/README.md#mysql-跨库子查询)。
+
+2026-11-16 20:43（北京时间）02-05 外键检查会话已验收。本地提交 `6f22b7c83b208d749200886d327057c264fec187`，未推送。SQLite 与 MySQL 8.4.13 验证同会话的外键开关、正常和异常退出恢复、取消恢复、另一个 MySQL 租约隔离。67 项定向回归、严格 Clippy、实际 Artisan 三语共用示例、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 81,261,472 KiB（83.21 GB）。证据目录 /private/tmp/openrust-foreign-key-scope.iGi7u1QW。02-05 继续推进当前数据库的列类型、修饰符及约束，核心账本 40/66。 见[验收记录](audits/02-05/README.md#外键检查会话)。
+
+2026-11-16 20:52（北京时间）02-05 扩展列类型已验收。本地提交 `75dda418511ee7f014ba8e6014c48de000584b37`，未推送。SQLite 与 MySQL 8.4.13 验证列类型、枚举约束、年份默认值、二进制、自增和 SQLite 重建。69 项定向回归、严格 Clippy、两种驱动的 Artisan 三语共用示例、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 79,295,000 KiB（81.20 GB）。证据目录 /private/tmp/openrust-schema-types.eX8KK9Qf。02-05 接续生成列和剩余修饰符，核心账本 40/66。 见[验收记录](audits/02-05/README.md#扩展列类型)。
+
+2026-11-16 21:02（北京时间）02-05 生成列已验收。本地提交 `8bf8cf1eea8deaeba5845bb288ff6e479f39654b`，未推送。SQLite 与 MySQL 8.4.13 验证生成列、JSON 选择器、目录信息与 SQLite 重建。修复 SQLite DDL 后的 SQLx 缓存元数据崩溃，SQLite 读取与游标执行重新准备语句。71 项定向回归、严格 Clippy、两种驱动的 Artisan 三语共用示例、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及其他工作区改动。项目卷可用 78,613,240 KiB（80.50 GB）。证据目录 /private/tmp/openrust-generated-columns.zTJWF5zX。02-05 接续空间列和剩余修饰符，核心账本 40/66。 见[验收记录](audits/02-05/README.md#生成列)。
+
+2026-11-16 21:09（北京时间）02-05 空间列已验收。本地提交 `bb4cdc78e50c7e3d379cead37f7e66d7100f7686`，未推送。MySQL 8.4.13 验证原生类型、SRID 和空间索引，SQLite 验证 GEOMETRY 声明、二进制和索引界限。73 项定向回归、严格 Clippy、实际 Artisan 三语共用示例、三语站点及 18 项浏览器检查通过。正式周额度已用 19%、剩余 81%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及并行的 02-08 记录。项目卷可用 77,799,952 KiB（79.67 GB）。证据目录 /private/tmp/openrust-spatial-columns.TIUEcwKD。02-05 接续池化临时表及剩余修饰符，核心账本 40/66。 见[验收记录](audits/02-05/README.md#空间列)。
+
+2026-11-16 21:18（北京时间）02-05 会话临时表已验收。本地提交 `48f6cd2456dbc5030c07f171e74566a5e5eb8704`，未推送。MySQL 8.4.13 与 SQLite 验证同会话临时表、索引、改名、失败及取消清理，同名永久表保留。75 项定向回归、严格 Clippy、两种驱动的实际 Artisan 示例及 18 项浏览器检查通过。正式周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷及并行的 02-08 记录。项目卷可用 77,057,672 KiB（78.91 GB）。证据目录 /private/tmp/openrust-temporary-tables.nEYUH9k4。02-05 接续 MySQL 表选项及剩余列修饰符，核心账本 40/66。 见[验收记录](audits/02-05/README.md#会话临时表)。
+
+2026-11-16 21:27（北京时间）02-05 表选项与列排序规则已验收。本地提交 `262beeaf46c165e573dd20bd31001e296599600d`，未推送。MySQL 8.4.13 验证表默认及覆盖的引擎、字符集、排序规则和注释。SQLite 验证列排序规则与目录检查、原生比较及重建。77 项定向回归、严格 Clippy、真实 MySQL Artisan 三语共用示例及 18 项浏览器检查通过。正式周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 3.4 GiB 隔离 Cargo 产物、文档缓存和临时容器，保留数据库卷和并行记录。项目卷可用 75,582,992 KiB（77.40 GB）。证据目录 /private/tmp/openrust-schema-options.1B1Rn92i。02-05 接续 SQLite 内联约束和剩余修饰符，核心账本 40/66。 见[验收记录](audits/02-05/README.md#表选项与列排序规则)。
+
+2026-11-16 21:36（北京时间）02-05 SQLite 内联约束已验收。本地提交 `5219448f706ada72c0b186332ece9218461f2d12`，未推送。正式周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。SQLite 和 MySQL 8.4.13 共 79 项定向回归、严格 Clippy、SQLite 实际 Artisan 共用例、Artisan inspire、三语站点和 18 项浏览器检查通过。清理本批 3.4 GiB Cargo 产物、文档缓存和临时容器，保留数据库卷。项目卷可用 75,436,228 KiB（77.25 GB）。核心账本 41/66，02-05 继续核对剩余类型和方言修饰符。证据在 /private/tmp/openrust-inline-constraints.PMtpxvTr。
+
+2026-11-16 21:44（北京时间）02-05 MySQL 即时列变更、锁和自增起始值已验收。本地提交 `354ee5d5089faae91cf8c2c8016514ec6e568bb0`，未推送。官方周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 和 SQLite 的 81 项定向回归、严格 Clippy、实际 MySQL Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，全工作区格式留有既有 Sanctum 断言格式差异。清理本批 13.1 GiB Cargo 产物、文档缓存和临时容器，保留 MySQL 卷。项目卷可用 75,309,348 KiB（77.12 GB）。核心账本 41/66，02-05 接续默认值表达式及其余类型与方言修饰符。证据目录 /private/tmp/openrust-column-ddl.dlyv9C1o。
+
+2026-11-16 21:50（北京时间）02-05 默认值表达式已验收。本地提交 `a3c8be44acf04055cb483d4cc7cab5143d880c88`，未推送。官方周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 与 SQLite 共 83 项定向回归、严格 Clippy、两驱动实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，全工作区格式仍有既有 Sanctum 排版差异。清理本批 11.5 GiB Cargo 产物、文档缓存和临时容器，保留数据库卷。项目卷可用 75,164,196 KiB（76.97 GB）。核心账本 41/66，02-05 接续列组操作与 Laravel 迁移别名。证据目录 /private/tmp/openrust-schema-default.Dck03iJU。
+
+2026-11-16 21:57（北京时间）02-05 列组与迁移别名已验收。本地提交 `82fef64e60dfeca754df8d1f74d8c7a26198e638`，未推送。官方周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 与 SQLite 共 85 项定向回归、严格 Clippy、两驱动实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，全工作区格式仍有既有 Sanctum 排版差异。清理本批 11.7 GiB Cargo 产物、文档缓存和临时容器，保留数据库卷。项目卷可用 75,026,392 KiB（76.83 GB）。核心账本 41/66，02-05 接续模型驱动的外键辅助、其余类型和方言修饰符。证据目录 /private/tmp/openrust-schema-groups.nuhFCBKG。
+
+2026-11-16 22:04（北京时间）02-05 从模型定义外键列已验收。本地提交 `6ec5e01b451d1ef612f69a141a73595067ab79fd`，未推送。官方周额度已用 20%、剩余 80%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 与 SQLite 共 90 项定向回归、严格 Clippy、两驱动实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，全工作区格式仍有既有 Sanctum 排版差异。清理本批 11.7 GiB Cargo 产物、文档缓存和临时容器，保留数据库卷。项目卷可用 75,134,804 KiB（76.94 GB）。核心账本 41/66，02-05 接续列类型与方言修饰符，优先核对 rawColumn 与浮点精度。证据目录 /private/tmp/openrust-model-foreign.iKmXNZvA。
+
+2026-11-16 22:11（北京时间）02-05 浮点精度与原生列定义已验收。本地提交 `a65c35bd27b8df0303d4e7bf47b3980fd21b0bb0`，未推送。官方周额度已用 21%、剩余 79%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 与 SQLite 共 89 项定向回归、严格 Clippy、两驱动实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，全工作区格式仍有既有 Sanctum 排版差异。清理本批 11.5 GiB Cargo 产物、文档缓存和临时容器，保留数据库卷。项目卷可用 74,126,796 KiB（75.91 GB）。核心账本 41/66，02-05 接续方言类型和修饰符的整单元差异清单。证据目录 /private/tmp/openrust-column-types.TjSXrWyZ。
+
+2026-11-16 22:17（北京时间）02-05 索引方法与在线删列已验收。本地提交 `5e29f1ace865fa8722cc4430eb8232996a49d7cf`，未推送。官方周额度已用 21%、剩余 79%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 共 13 项定向回归，严格 Clippy、实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。变更文件格式通过，工作区格式仍有既有 Sanctum 差异。清理本批 10.8 GiB Cargo 产物、文档缓存和临时容器，保留数据卷。项目卷可用从 59,637,904 KiB 增至 69,633,220 KiB（71.30 GB），净增 10.24 GB。核心账本 41/66，02-05 接续 renameTo 及 Schema 目录等剩余差异。证据目录 /private/tmp/openrust-index-ddl.Ylk8y3w8。
+
+2026-11-16 22:23（北京时间）02-05 同时重命名和修改列已验收。本地提交 `f9ff6457ee777441c949ce3b0ebbcae88ea20866`，未推送。官方周额度已用 21%、剩余 79%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 共 14 项定向回归，严格 Clippy、实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。SQLite 路径通过编译检查，工作区格式仍有既有 Sanctum 差异。清理本批 3.0 GiB Cargo 产物、文档缓存和临时容器，保留数据卷。项目卷可用从 58,476,564 KiB 增至 61,484,552 KiB（62.96 GB），净增 3.08 GB。核心账本 41/66，02-05 接续 Schema 目录查询和其余类型、方言修饰符。证据目录 /private/tmp/openrust-column-rename.irWidG1L。
+
+2026-11-16 22:31（北京时间）02-05 Schema 与视图目录已验收。本地提交 `19046edb22e15cc6d45433c857b83f4b7a71c03b`，未推送。官方周额度已用 21%、剩余 79%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 共 15 项定向回归，严格 Clippy、实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。SQLite 路径通过编译检查，工作区格式仍有既有 Sanctum 差异。清理本批 3.0 GiB Cargo 产物、文档缓存和临时容器，保留数据卷。项目卷可用从 53,876,060 KiB 增至 56,942,228 KiB（58.31 GB），净增 3.14 GB。核心账本 42/66，02-05 未整单元闭合，接续表目录范围和其余类型及方言修饰符。证据目录 /private/tmp/openrust-schema-catalog.yhs08Fqa。
+
+2026-11-16 22:38（北京时间）02-05 表目录范围与限定名已验收。本地提交 `5940a04c7feb40d284acf3746ba8bbde4dca3861`，未推送。官方周额度已用 22%、剩余 78%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 共 15 项框架回归及 1 项根应用实际清库验收，严格 Clippy、实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。SQLite 路径通过编译检查，工作区格式仍有既有 Sanctum 差异。清理本批 3.0 GiB Cargo 产物、文档缓存和临时容器，保留数据卷。项目卷可用从 51,485,844 KiB 增至 54,599,940 KiB（55.91 GB），净增 3.19 GB。核心账本 42/66，02-05 继续其余类型及方言修饰符核对。证据目录 /private/tmp/openrust-table-catalog.8O4kVloH。
+
+2026-11-16 22:45（北京时间）02-05 默认列长度与时间精度已验收。本地提交 `834fb838c29ff5ff2cf30358fb0ad2ac1d2b8813`，未推送。官方周额度已用 22%、剩余 78%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。MySQL 8.4.13 共 16 项定向回归，严格 Clippy、实际 Artisan 三语共用示例、Artisan inspire、站点构建和 18 项浏览器检查通过。SQLite 路径通过编译检查，工作区格式仍有既有 Sanctum 差异。清理本批 3.0 GiB Cargo 产物、文档缓存和临时容器，保留数据卷。项目卷可用从 50,484,868 KiB 增至 53,555,680 KiB（54.84 GB），净增 3.14 GB。核心账本 42/66，02-05 继续 Schema 条件方法和剩余方言差异。证据目录 /private/tmp/openrust-schema-defaults.KaDyBz4k。
+
+2026-11-16 22:50（北京时间）02-05 条件式 Schema 变更触发磁盘停线。官方周额度已用 22%、剩余 78%，北京时间 2026-11-23 09:31 重置，暂无第二窗口读数。项目卷最低观测到 47,460,436 KiB（48.60 GB）。已启动的 MySQL 8.4.13 定向回归 17 项、三语站点及 18 项浏览器检查通过。候选代码、测试、三语正文和日志保存在 /private/tmp/openrust-schema-conditional.A9wtUHjj，候选补丁为 candidate.patch，基线为 834fb838c。清理已结束任务的 1.6 GiB Cargo 产物、文档缓存和临时容器，保留 MySQL 数据卷。清理后可用 49,302,612 KiB（50.49 GB），净增 1.89 GB。未启动实际 Artisan 示例或严格 Clippy，未暂存、未提交。等待确认恢复后，先复查额度与磁盘，重用候选补丁，在最新基线完成实际 Artisan、严格 Clippy、适用格式检查和核定范围提交。
+
+2026-11-16 23:02（北京时间）02-05 条件式 Schema 变更已验收。本地提交 `7d67c94d3c67950998fc304381707e769c2d1ae3`，未推送。恢复前项目卷可用 117,346,368 KiB（120.16 GB／111.91 GiB），官方周额度提交前已用 23%、剩余 77%。主分支两个验收脚本已被回退，仅在隔离副本从 `3d2641c0f` 提取使用。`sh tests/table_catalog.sh` 通过 MySQL 8.4.13 的 17 项定向回归及 1 项限定 Schema 清库；`docker/accept.py --mysql` 真机 Artisan 正反向共用示例、原生 inspire、严格 Clippy、三语站点及 18 项浏览器检查通过。工作区格式仍有既有 Sanctum 差异。两批临时 MySQL 容器与专属卷均已回收，清理本批 3.0 GiB 构建产物，项目卷可用 104,424,096 KiB（106.93 GB／99.59 GiB）。核心账本 42/66。证据目录 /private/tmp/openrust-conditional-resume.4jOmupRz。
+
+2026-11-16 23:09（北京时间）02-05 创建和删除数据库已验收。本地提交 `35a921f59c991524c8e3c313d3b7f679e6dbb9d7`，未推送。官方周额度已用 23%、剩余 77%。MySQL 8.4.13 的 18 项 Schema 回归、限定 Schema 清库、实际 Artisan 共用示例、Artisan inspire、严格 Clippy、三语构建和 18 项浏览器检查通过。SQLite 创建不覆盖同名文件，回归已编译，待发布前运行。全工作区格式仍有既有 Sanctum 差异。隔离快照使用历史验收脚本，两轮专属 MySQL 容器和卷已回收，清理本批 3.0 GiB Cargo 产物和文档缓存后项目卷可用 93,048,808 KiB（95.28 GB／88.74 GiB）。核心账本 43/66，02-05 继续清理表／视图的公开接口、其余列类型和方言修饰符。证据目录 /private/tmp/openrust-schema-lifecycle.YzHVsVe2。
+
+2026-11-16 23:15（北京时间）02-05 [清空表和视图](audits/02-05/README.md)，本地提交 `1fc2952026d7ec89dddebf6ba9a1c0862a18fe96`，未推送。临时 MySQL 8.4.13 的 19 项 Schema 回归、1 项 migrate:fresh／db:wipe 限定库回归、实际 Artisan、严格 Clippy 和 18 项三语浏览器检查通过。SQLite 回归已编译，运行留待发布矩阵。全工作区格式检查仍有基线 Sanctum 测试格式差异，改动文件的 rustfmt 已通过。提交前正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。已清理本批 3.0 GiB 隔离 Cargo 产物、文档缓存和临时 MySQL 容器及卷，项目卷可用 93,026,500 KiB（95.26 GB）。验收日志保存在 /private/tmp/openrust-schema-drop-objects.EHoN3OCX。02-05 仍待核对 Schema 类型目录及其他驱动边界，核心账本 43/66。
+
+2026-11-16 23:21（北京时间）02-05 [单列目录](audits/02-05/README.md#单列目录)，本地提交 `2f793eb24924254ea3b602428f2ede752c9304d2`，未推送。固定 Laravel 的 Builder::getColumn 在 Rust 使用 Option<Column> 表达缺失，getColumnType 保留原有错误。MySQL 8.4.13 的 19 项 Schema 回归、1 项限定库清理、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。已清理本批 11.2 GiB 隔离 Cargo 产物及文档缓存，临时 MySQL 实例已回收，日志保存在 /private/tmp/openrust-schema-column.9sOvuKdC。项目卷可用 92,986,176 KiB（95.22 GB）。02-05 接续 rawIndex 等索引能力，getTypes 的原生实现随 PostgreSQL 基础接线和验收。核心账本 43/66。
+
+2026-11-16 23:27（北京时间）02-05 [原生索引表达式](audits/02-05/README.md#原生索引表达式)，本地提交 `e6dfe2deb7e5ce2934356f3fd37a0a8ac5519ad0`，未推送。固定 Laravel 的 Blueprint::rawIndex 透传数据库方言的键列表。MySQL 8.4.13 通过 20 项 Schema 回归、1 项限定库清理、实际 Artisan、严格 Clippy、三语站点构建和 18 项浏览器检查。SQLite 回归已编译，实际运行待发布前。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。已清理本批 12.8 GiB 隔离 Cargo 产物及文档缓存，回收三轮临时 MySQL 夹具，日志保存在 /private/tmp/openrust-schema-raw-index.q4saoPUn。项目卷可用 92,944,368 KiB（95.18 GB）。接续当前 Schema 列表与其余 Blueprint 辅助入口，类型目录及向量随驱动接线验收。核心账本 43/66。
+
+2026-11-16 23:33（北京时间）02-05 [当前 Schema 与 DDL 快捷入口](audits/02-05/README.md#当前-schema-与-ddl-快捷入口)，本地提交 `75613757eab94e5036b02b84aeae46ee2ebf6433`，未推送。固定 Laravel 的当前 Schema 按写连接配置读取，复用多列删除及 InnoDB 表选项。MySQL 8.4.13 的 21 项 Schema 回归、1 项限定库清理、实际 Artisan、严格 Clippy、三语站点和 30 项浏览器检查通过。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 12.7 GiB 隔离 Cargo 产物及文档缓存，三轮临时 MySQL 夹具均回收，日志保存在 /private/tmp/openrust-schema-current.X72XmgCi。项目卷可用 92,912,112 KiB（95.14 GB／88.61 GiB）。接续审计 MySQL 8.4 可验收的剩余 Schema 行为与驱动边界。类型目录、向量及无类型 computed 随对应驱动和版本验收。核心账本 43/66。
+
+2026-11-16 23:38（北京时间）02-05 [按列列表删除索引](audits/02-05/README.md#按列列表删除索引)，本地提交 `b7ed69e223dd331e380205c6bb639e0781033e39`，未推送。按固定 Laravel 规则生成默认索引名并删除普通、唯一、全文和空间索引。MySQL 8.4.13 通过 22 项 Schema 回归、1 项限定库清理、实际 Artisan、严格 Clippy、三语站点与 18 项浏览器检查。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 11.2 GiB 隔离 Cargo 产物与文档缓存，两轮临时 MySQL 夹具均回收，日志保存在 /private/tmp/openrust-schema-index-drop.Pwq6XrUw。项目卷可用 92,885,208 KiB（95.11 GB／88.58 GiB）。02-05 接续限定表名解析及驱动边界，核心账本 43/66。
+
+2026-11-16 23:44（北京时间）02-05 [解析限定表名](audits/02-05/README.md#解析限定表名)，本地提交 `9349da79dc7dcbd66c24a80e9a2e47a739061e42`，未推送。固定 Laravel 的 parseSchemaAndTable 接入 Builder 和 Facade，Rust 用 SchemaFallback 表达回退，复用 DDL 和目录拆分逻辑。MySQL 8.4.13 通过 22 项 Schema 回归、1 项限定库清理、实际 Artisan、严格 Clippy、三语站点与 18 项浏览器检查。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 12.7 GiB 隔离 Cargo 产物与文档缓存，两轮临时 MySQL 夹具均回收，日志保存在 /private/tmp/openrust-schema-parse.C5s0StVW。项目卷可用 92,850,688 KiB（95.08 GB／88.55 GiB）。02-05 保留驱动边界，02-06 跨进程迁移隔离可核对已有缓存锁接线。核心账本 43/66。
+
+2026-11-16 23:51（北京时间）02-06 [跨进程迁移隔离](audits/02-06/README.md#跨进程迁移隔离)，本地提交 `ba1191978fff9d1190a0400f841c8bb1e846b4e8`，未推送。固定 Laravel 的 migrate --isolated 复用 Artisan 调度与共享缓存所有者锁。MySQL 8.4.13 与 Redis 8.10.3 验证真实双进程、默认和指定竞争退出码、失败释放、缓存不可用、数据库缓存锁、实际 Artisan 和原有迁移账本。三语构建、18 项浏览器检查及严格 Clippy 通过。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 10.7 GiB 隔离 Cargo 产物与文档缓存，三轮临时 MySQL／Redis 夹具均回收，日志保存在 /private/tmp/openrust-migrate-isolated.uQGyrDrY。项目卷可用 92,813,520 KiB（95.04 GB／88.51 GiB）。02-06 接续 schema dump/load、迁移事件和空库自动创建。核心账本 43/66。
+
+2026-11-17 00:04（北京时间）02-06 [MySQL Schema 转储与恢复](audits/02-06/README.md#mysql-schema-转储与恢复)，本地提交 `8e715816ea49265473a379d91766ac7aee87ab6d`，未推送。固定 Laravel 的 schema:dump、空账本加载、后续编译期迁移、结构导出和 prune 接线在 MySQL 8.4.13 通过三项实际二进制回归，包含既有迁移账本及 MySQL／Redis 并发隔离。三语 Artisan 命令、严格 Clippy、三语站点与 18 项浏览器检查通过。 正式周额度剩余 77%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 14.6 GiB 隔离 Cargo 产物与文档缓存，临时 MySQL／Redis 夹具均回收，日志保存在 /private/tmp/openrust-schema-dump.hq8CUq9N。项目卷可用 92,867,836 KiB（95.10 GB／88.57 GiB）。02-06 接续 SQLite Schema 快照、迁移及 Schema 事件、空库自动创建。核心账本 43/66。
+
+2026-11-17 00:15（北京时间）02-06 [迁移与 Schema 生命周期事件](audits/02-06/README.md#迁移与-schema-生命周期事件)，本地提交 `f81c507c48e8a29969b119fd5615bb16ed80f92f`，未推送。固定 Laravel 的批次、单项、跳过、空迁移、快照和刷新事件通过真实 MySQL Artisan。覆盖预演、失败、重试、回滚、更新账本前及填充前的触发顺序。三语共用监听器、既有迁移账本、严格 Clippy、三语站点和 18 项浏览器检查通过。 正式周额度剩余 76%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。清理本批 14.8 GiB 隔离 Cargo 产物与文档缓存，临时 MySQL 夹具均回收，日志保存在 /private/tmp/openrust-migration-events.wMv9N6Kd。项目卷可用 92,423,072 KiB（94.64 GB／88.14 GiB）。02-06 接续空库自动创建，SQLite 快照按发布矩阵实库验收。核心账本 43/66。
+
+2026-11-17 00:29（北京时间）02-06 [创建缺失的 MySQL 数据库](audits/02-06/README.md#创建缺失的-mysql-数据库)。按固定 Laravel 验证 MySQL 1049、写端点、生产和缺库确认、无人值守及权限失败。MySQL 8.4.13 的实际 Artisan、账本回归、严格 Clippy、三语站点及 18 项浏览器检查通过。 正式周额度剩余 76%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。删除本批 21.6 GiB 隔离 Cargo 产物和文档缓存，回收本批 MySQL 临时实例。项目卷可用 85,536,744 KiB（87.59 GB／81.57 GiB）。验收日志保存在 /private/tmp/openrust-migration-create-db.mhAAPjOs。02-06 的其他驱动快照及缺库行为仍待发布矩阵，核心账本 44/66。
+
+2026-11-17 00:34（北京时间）02-06 [MySQL migrate:fresh 建库与快照](audits/02-06/README.md#mysql-migratefresh-建库与快照)。按固定 Laravel 复用内部迁移创建缺库及加载显式快照。MySQL 8.4.13 通过无账本保留已有表、生产拒绝、恢复迁移历史、限定库清理及真实 Artisan。三语站点、18 项浏览器检查和严格 Clippy 通过。 正式周额度剩余 76%，北京时间 2026-11-23 09:31 重置。回收本批 MySQL 夹具，删除本批 12.6 GiB 隔离 Cargo 产物和文档缓存。项目卷可用 85,512,488 KiB（87.56 GB／81.55 GiB）。验收日志保存在 /private/tmp/openrust-migrate-fresh.8xqP0cjE。02-06 的其他驱动快照及缺库行为仍待发布矩阵，核心账本 44/66。
+
+2026-11-17 00:42（北京时间）02-05 [条件式 Schema 当前主线复验](audits/02-05/README.md#条件式-schema-当前主线复验)。原实现提交 `7d67c94d3` 已在主分支。复验表目录、限定 Schema 清库、条件式变更、实际 Artisan 和严格 Clippy 均通过。正式周额度剩余 76%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。三轮临时 MySQL 夹具均回收，清理本批 3.1 GiB 隔离 Cargo 产物后，项目卷可用 78,009,700 KiB（79.88 GB／74.40 GiB）。实际日志保存在 /private/tmp/openrust-schema-conditional-recheck.r323r8q6。
+
+2026-11-17 00:47（北京时间）02-06 [MySQL migrate:refresh 回滚与默认快照](audits/02-06/README.md#mysql-migraterefresh-回滚与默认快照)。MySQL 8.4.13 验证缺库失败、默认快照及账本恢复、限步保留数据、零步完整重跑。实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 正式周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。回收本批 4 轮临时 MySQL 夹具，清理 14.1 GiB 隔离 Cargo 产物及文档缓存。项目卷可用 81,479,924 KiB（83.44 GB／77.71 GiB）。日志保存在 /private/tmp/openrust-migrate-refresh.SZOCCWQS。其他驱动的快照与缺库行为仍待发布矩阵。核心账本 44/66。
+
+2026-11-17 00:54（北京时间）02-09 [惰性分组和滑动窗口](audits/02-09/README.md#惰性分组和滑动窗口)。固定 Laravel 原生 PHP 对照、20 项集合测试、三语 Rust 示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。回收本批 PHP 容器，清理 2.7 GiB 隔离 Cargo 产物及文档缓存。项目卷可用 77,342,268 KiB（79.20 GB／73.76 GiB）。证据目录 /private/tmp/openrust-lazy-windows.XT6fdwry。核心账本 45/66，02-09 其余同步方法待对照。
+
+2026-11-17 00:59（北京时间）02-09 [惰性选取与追加](audits/02-09/README.md#惰性选取与追加)。固定 Laravel PHP 对照、23 项 Rust 集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点和 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 夹具已回收，清理 2.7 GiB 本批隔离 Cargo 产物及文档缓存。项目卷可用 77,296,656 KiB（79.15 GB／73.72 GiB）。证据目录 /private/tmp/openrust-lazy-selection.HUEzWiQD。核心账本 45/66，02-09 接续嵌套集合和其余同步适配。
+
+2026-11-17 01:06（北京时间）02-09 [惰性嵌套集合展开](audits/02-09/README.md#惰性嵌套集合展开)。固定 Laravel PHP 对照、26 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理本批 2.7 GiB Cargo 产物及文档缓存。项目卷可用 77,313,536 KiB（79.17 GB／73.73 GiB）。证据目录 /private/tmp/openrust-lazy-nested.M0oFZvFi。核心账本 45/66，02-09 其余同步方法待继续对照。
+
+2026-11-17 01:11（北京时间）02-09 [惰性来源配对](audits/02-09/README.md#惰性来源配对)。固定 Laravel PHP 对照、29 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,290,944 KiB（79.15 GB／73.71 GiB）。证据目录 /private/tmp/openrust-lazy-pairs.Xu0FeJnd。核心账本 45/66，02-09 接续去重和终端判定方法。
+
+2026-11-17 01:16（北京时间）02-09 [惰性去重和终端判定](audits/02-09/README.md#惰性去重和终端判定)。固定 Laravel PHP 对照、32 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,263,108 KiB（79.12 GB／73.68 GiB）。证据目录 /private/tmp/openrust-lazy-matches.c3A0jtNq。核心账本 45/66，02-09 接续其余同步方法。
+
+2026-11-17 01:21（北京时间）02-09 [惰性排序与重复项](audits/02-09/README.md#惰性排序与重复项)。固定 Laravel PHP 对照、35 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,196,992 KiB（79.05 GB／73.62 GiB）。证据目录 /private/tmp/openrust-lazy-ordering.T0Gy551P。核心账本 45/66，02-09 接续聚合及剩余实体化适配。
+
+2026-11-17 01:27（北京时间）02-09 [惰性集合聚合](audits/02-09/README.md#惰性集合聚合)。固定 Laravel PHP 对照、38 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,136,796 KiB（78.99 GB／73.56 GiB）。证据目录 /private/tmp/openrust-lazy-aggregates.rnvntkVF。核心账本 45/66，02-09 接续剩余实体化适配。
+
+2026-11-17 01:32（北京时间）02-09 [惰性集合比较与替换](audits/02-09/README.md#惰性集合比较与替换)。固定 Laravel PHP 对照、41 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,093,520 KiB（78.94 GB／73.52 GiB）。证据目录 /private/tmp/openrust-lazy-sets.o03BbIYu。核心账本 45/66，02-09 接续键筛选与投影。
+
+2026-11-17 01:37（北京时间）02-09 [惰性按键筛选与投影](audits/02-09/README.md#惰性按键筛选与投影)。固定 Laravel PHP 对照、44 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,064,508 KiB（78.91 GB／73.49 GiB）。证据目录 /private/tmp/openrust-lazy-projection.aLC5zrt4。核心账本 45/66，02-09 其余方法继续对照。
+
+2026-11-17 01:42（北京时间）02-09 [惰性查找与相邻值](audits/02-09/README.md#惰性查找与相邻值)。固定 Laravel PHP 对照、47 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 75%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 77,011,172 KiB（78.86 GB／73.44 GiB）。证据目录 /private/tmp/openrust-lazy-lookup.pCIbaKZf。核心账本 45/66，02-09 下一批继续对照过滤方法。
+
+2026-11-17 01:47（北京时间）02-09 [惰性值与字段过滤](audits/02-09/README.md#惰性值与字段过滤)。固定 Laravel PHP 对照、50 项集合测试、三语共用示例、实际 Artisan、严格 Clippy、三语站点及 18 项浏览器检查通过。 周额度剩余 74%，北京时间 2026-11-23 09:31 重置，无第二窗口读数。PHP 临时容器已回收，清理 2.7 GiB 本批 Cargo 产物及文档缓存。项目卷可用 76,962,940 KiB（78.81 GB／73.40 GiB）。证据目录 /private/tmp/openrust-lazy-filter.KC9Zx7ah。核心账本 45/66，02-09 后续接续容器分组和分页等其余方法。

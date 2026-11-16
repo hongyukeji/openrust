@@ -1,7 +1,5 @@
 # 正式版分批交付计划
 
-2026 年 11 月 11 日持续推进。00-01 至 00-03 和 01-01 已完成各自范围验收。01-02 已完成[条件绑定](audits/01-02a/README.md)、[作用域绑定](audits/01-02b/README.md)和[上下文绑定与标签服务](audits/01-02c/README.md)，[解析回调](audits/01-02d/README.md)已验收，[扩展绑定](audits/01-02e/README.md)已验收，[重绑定与配置一致性](audits/01-02f/README.md)已验收，CT-CONFIG-REBIND 已关闭；[按服务键延迟 Provider 装载](audits/01-02g/README.md)已验收，[异步工厂组合](audits/01-02h/README.md)已验收，CT-ASYNC-FACTORY-DEFERRED 已关闭。[工厂参数覆盖](audits/01-02i/README.md)已验收。[静态构造与普通自动注入](audits/01-02j/README.md)已验收，含默认值及可空规则。[变参注入](audits/01-02k/README.md)已验收，含服务数组、标签集合及原始值配置数组。[闭包与方法调用](audits/01-02l/README.md)及[延迟调用闭包](audits/01-02m/README.md)已验收。[绑定目录与清理](audits/01-02n/README.md)已验收。01-02 仍需 SelfBuilding/属性/投影及剩余公开契约；[容器环境解析回调](audits/01-02o/README.md)已验收。[Application 环境检测](audits/01-02p/README.md)已验收，CT-ENV-APPLICATION 已关闭。下一部分核对全局实例与 ArrayAccess 的 Rust 对应。新单元和大型构建前核对额度与空间；阶段验收后自主本地提交，推送另行授权。
-
 固定上游文档使用 [Laravel 13.x 快照](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/documentation.md)。下表以依赖排序，三语导航保持上游目录顺序。表里的 OpenRust 路径链接到英文正文，简体和繁体使用相同的相对路径。链接指向既有正文入口，功能状态以实际验收记录为准。
 
 ## 每批怎样闭合
@@ -9,7 +7,7 @@
 1. 先核对该单元的固定上游章节、源码与测试，再检查 `openrust-v0.x` 的对应实现。记录 Rust 适配、公开契约及需要拆分的差异。
 2. 完成代码与必要的回归。用表中入口验收成功和失败行为，并按[项目规范](conventions.md#验收清单)运行 Rust 检查。
 3. 同一批更新表中对应的英文、简体和繁体正文。实际运行文档里的示例和命令，检查三语导航、链接和站点构建。
-4. 在本地 `progress.md` 按单元编号记录源码基线、文件范围、实际命令、环境和结果。本轮资源阈值、阶段清理和 Git 授权见[持续开发交接记录](current.md)。
+4. 在[项目进度](progress.md)按单元编号记录源码基线、文件范围、实际命令、环境和结果。整单元闭合状态见[核心功能闭合对账](audits/core-closure-ledger.md)，本轮资源阈值与授权见[当前交接](current.md)。
 
 同一页面可分多批补齐。每批只关闭已验收的段落。该页所有关联单元均验收，且 PHP 专属或未纳入范围的内容已有明确映射或范围说明后，才关闭整页。表中锚点是该批的主要对照入口。验收前核对同一页面其余章节，遇到额外契约就分出单元或记录范围决定。
 
@@ -116,7 +114,7 @@
 | <a id="unit-07-06"></a>07-06 Search              | [05-03](#unit-05-03)、[06-04](#unit-06-04)、[07-02](#unit-07-02) | [search](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/search.md)                                                                                                        | [digging-deeper/search.md](../../docs/en/digging-deeper/search.md)                                                                         | 按选定驱动验证索引同步、查询分页、删除和失败重试。                                        |
 | <a id="unit-07-07"></a>07-07 Package Development | [01-02](#unit-01-02)、[03-08](#unit-03-08)、[06-08](#unit-06-08) | [packages](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/packages.md)                                                                                                    | [digging-deeper/packages.md](../../docs/en/digging-deeper/packages.md)                                                                     | 用独立 crate 验证 Provider、配置、资源、命令和扩展安装方式。                              |
 
-## 08 可选服务与发布
+## 08 框架广播、扩展与发布
 
 | 单元                                              | 前置                                                             | Laravel 章节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | OpenRust 三语正文路径                                                                                                                                                                                                                                                                                                                                      | 验收条件                                                                             |
 |---------------------------------------------------|------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
@@ -145,75 +143,3 @@
 | <a id="unit-t-02"></a>T-02 HTTP 与 Artisan 测试指南 | [00-02](#unit-00-02)、[00-03](#unit-00-03) | [http-tests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/http-tests.md)、[console-tests](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/console-tests.md) | [testing/http-tests.md](../../docs/en/testing/http-tests.md)、[testing/console-tests.md](../../docs/en/testing/console-tests.md) | 运行示例，覆盖真实请求、响应正文与头、命令 stdout/stderr 及退出码。                      |
 | <a id="unit-t-03"></a>T-03 数据库测试指南           | [02-06](#unit-02-06)、[02-07](#unit-02-07) | [database-testing](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/database-testing.md)                                                                                                      | [testing/database-testing.md](../../docs/en/testing/database-testing.md)                                                         | 用独立 SQLite 测试库运行迁移、填充与断言，重复执行验证数据隔离。                         |
 | <a id="unit-t-04"></a>T-04 替身与事件假对象         | [01-01](#unit-01-01)、[06-02](#unit-06-02) | [mocking](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/mocking.md)、[events#testing](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/events.md#testing)     | [testing/mocking.md](../../docs/en/testing/mocking.md)、[digging-deeper/events.md](../../docs/en/digging-deeper/events.md)       | 实际验证替换容器绑定、事件断言和两个应用之间的替身隔离；各服务的专用替身随对应批次验证。 |
-
-## 已确认的复用输入
-
-2026-11-11 用户确认统一 JSON 响应可复用 `openrust-v0.x`。04-02 先核对旧版 `6d1a8192:vendor/openrust/framework/src/core/error.rs` 的 `ApiResponse`、`PageMeta`、序列化与错误回归，以及 `src/http/response.rs` 的状态与分页适配。统一业务封装作为可选扩展设计；保留 Laravel 默认异常、验证和健康响应契约。旧版全局状态码模式、国际化和请求 ID 依赖分别核对后提取，不能整包搬入。已定位 `tests/unit/core/error_i18n.rs` 的消息翻译、请求隔离及序列化失败脱敏回归，随当前响应入口重新验收；记录复用来源和保留差异。
-
-2026-11-11：01-02 第十二部分完成 Container/Application.call、编译方法声明、bindMethod 及静态重载。方法与构造选参分离；对象/静态类上下文和 Class@method 父上下文按固定 BoundMethod 路径区分。20 项新单元、2 项应用集成与真实 Artisan 验收通过。[19 文件及证据](audits/01-02l/README.md)。下一批核对 wrap 与剩余公开 API，再按依赖补 SelfBuilding/属性/投影；01-02 整体仍未完成。
-
-2026-11-11：01-02 第十三部分完成 Container/Application.factory 与 wrap。创建时不解析服务，执行时读取实时绑定及作用域，参数使用快照，共享回调状态不复制。8 项新单元、1 项新增应用集成、5 次 HTTP 与 lazy:probe 验收通过。[11 文件及证据](audits/01-02m/README.md)。
-
-2026-11-11：01-02 第十四部分完成 getBindings、原工厂句柄与 flush，包括所有活动 scope 缓存解除、正常 scope/flush 的中立析构上下文。13 新单元、6 HTTP 与 directory:probe 通过。[12 文件及证据](audits/01-02n/README.md)。环境解析、全局实例及 ArrayAccess 后续核对，01-02 仍未完成。
-
-2026-11-11：01-02 第十五部分完成基础容器 resolveEnvironmentUsing/currentEnvironmentIs，保留参数形状、bool/string、异常及并发替换语义。9 新单元、6 HTTP 和 environment:probe 通过。[10 文件及证据](audits/01-02o/README.md)。CT-ENV-APPLICATION 未关闭：下一批接配置加载后的默认检测/回调与 CLI --env，须先于环境属性。
-
-2026-11-11，01-02 第十六部分完成 Application 默认环境、容器回调与 Artisan --env。两项新增集成测试、独立发布、三语文档和示例通过。[16 文件及证据](audits/01-02p/README.md)
-
-2026-11-11：04-02 的[可选统一 JSON 业务响应](audits/04-02-api-response/README.md)已从旧版提取并独立验收，响应文档已同步三语。本条记录该小节交付，04-02 整体仍待请求、控制器和其他响应类型完成。
-
-2026-11-11：01-02 [容器全局实例与 ArrayAccess 对应接口](audits/01-02q/README.md)已验收。下一部分核对 SelfBuilding 及类构建，随后是类与参数属性、接口投影和剩余公开契约。
-
-2026-11-11：01-02 [SelfBuilding 与类构建](audits/01-02r/README.md)已验收。下一部分核对类与参数属性及解析回调，接续当前类描述符和环境检测。
-
-2026-11-11：01-02 [上下文属性与解析回调](audits/01-02s/README.md)已验收。后续接类绑定及生命周期属性、框架内置属性和接口投影。
-
-2026-11-11：01-02 [Bind 与 BindWhen](audits/01-02t/README.md)已验收。下一部分使用现有绑定工厂及作用域接 Singleton、Scoped 声明及其与绑定属性的组合。
-
-2026-11-11：01-02 [Singleton 与 Scoped 声明](audits/01-02u/README.md)已验收，包括与 Bind 和 BindWhen 的组合。接续编译接口投影，再核对剩余公开契约和内置上下文属性。
-
-2026-11-11：01-02 [编译接口投影](audits/01-02v/README.md)已验收。接续接口投影在解析回调中的匹配和绑定内部事件传播，然后按依赖接内置上下文属性及剩余公开契约。
-
-2026-11-11：01-02 [接口解析回调与内部事件](audits/01-02w/README.md)已验收。下一部分核对 Config、Give、Tag 和 CurrentResolving 等基础内置上下文属性。
-
-2026-11-11：01-02 [基础内置上下文属性](audits/01-02x/README.md)已验收。下一批核对 RequestAttribute 和 RouteParameter，先确认 HTTP 请求与匹配路由的作用域，再按各组件依赖接入其余内置属性。
-
-2026-11-11：01-02 [请求属性与路由参数注入](audits/01-02y/README.md)已通过 HTTP 分发及 Artisan 验收。下一批核对剩余容器公开契约与属性回调入口。Context、Log、Auth、Cache、DB、Storage 等服务型属性分别以组件契约为前置，响应流作用域随 HTTP 生命周期补齐。
-
-2026-11-11：01-02 [公开属性后置回调](audits/01-02z/README.md)已验收。组件依赖型属性随其所属单元接通，路由动作自动依赖解析随控制器单元接入公开派发。下一批进入以 01-01 为前置的 01-03 日志渠道、默认栈与文件输出。
-
-2026-11-11：01-03 [日志渠道、默认栈与文件输出](audits/01-03/README.md)已通过实际入口验收，闭合三语日志文档的配置、构建日志栈和写入小节。下一批接 01-04 日志轮转与自定义渠道。
-
-2026-11-11：01-04 [日志轮转与自定义渠道](audits/01-04/README.md)通过轮转、保留、临时渠道、混合栈和工厂错误验收。三语日志文档新增轮转与工厂小节。下一批接以 01-03 为前置的 01-05 请求及任务 Context。
-
-2026-11-11：01-05 [请求与任务 Context](audits/01-05/README.md)通过并发 HTTP、Artisan、任务作用域和三语文档验收，公开字段进入独立日志元数据。队列还原随 06-04。下一批接 01-06 异常报告的默认日志。
-
-2026-11-11：01-06 [异常报告接默认日志](audits/01-06/README.md)已通过实际 HTTP、Artisan、并发身份去重及三语验收。下一批接 01-07 异常渲染、自定义响应与脱敏。
-
-2026-11-11：01-07 [异常渲染、自定义响应与脱敏](audits/01-07/README.md)已通过真实 HTTP、生产及调试响应、HEAD/405 和三语文档验收。下一批接 02-01 数据库配置、连接与基本 SQL，以 01-01 及实际 SQLite、MySQL 8.4 环境为前置。
-
-2026-11-11：02-01 [数据库配置、连接与基本 SQL](audits/02-01/README.md)已完成真实 SQLite/MySQL 8.4、HTTP、Artisan 和三语验收。下一批 02-02 接读写路由、多连接管理和事务。
-
-2026-11-11：02-02 [多连接、读写路由和事务](audits/02-02/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-03 以 02-01 的参数化 SQL 为前置。
-
-2026-11-11：02-03 [Query Builder 基础查询](audits/02-03/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-04 以前述查询与事务能力为前置。
-
-2026-11-11：02-04 [高级查询与写入](audits/02-04/README.md)通过真实 SQLite、MySQL 8.4、HTTP、Artisan 和三语文档验收。下一批 02-05 接 Schema，以 02-01 的数据库连接为前置。
-
-2026-11-11：02-05 [Schema 表、列、索引和外键](audits/02-05/README.md)通过 SQLite/MySQL 8.4、Artisan 和三语文档验收。下一批 02-06 以前述 Schema 与事务为前置。
-
-2026-11-11：02-06 [迁移命令与批次账本](audits/02-06/README.md)通过 SQLite/MySQL 8.4、实际 Artisan 和三语文档验收。下一批 02-07 接 Seeder。
-
-2026-11-11：02-07 [数据填充](audits/02-07/README.md)通过 SQLite/MySQL 8.4、实际 Artisan 和三语文档验收。下一批 02-08 接通用集合，工厂与 Seeder 集成留在 05-04。
-
-2026-11-11：02-08 [通用集合](audits/02-08/README.md)通过固定 Laravel 行为对照、真实 HTTP、Artisan 和三语文档验收。下一批 02-09 以键契约及 Enumerable 为前置，验收惰性、短路、重复遍历、错误传播及 remember。
-
-2026-11-11：02-09 [惰性集合](audits/02-09/README.md)通过固定 Laravel 对照、真实文件、Artisan 和三语文档验收。下一单元 03-01 接本地文件系统与公共磁盘，以 01-01 为前置。
-
-2026-11-11：03-01 [本地文件系统与公共磁盘](audits/03-01/README.md)通过真实读写、HTTP、Artisan 和三语文档验收。下一批 03-03 接 S3 兼容驱动，以本批磁盘管理器与适配器契约为前置。
-
-2026-11-11：03-03 [S3 磁盘](audits/03-03/README.md)通过真实 RustFS、SeaweedFS、重试及三语文档验收。公开 URL 和签名临时 URL 留在 04-09、06-01 衔接。下一批 03-04 以 01-01 为前置。
-
-2026-11-11：03-04 [应用加密与密钥轮换](audits/03-04/README.md)通过固定 Laravel 双向互操作、真实 HTTP、Artisan 并发写入及三语验收。下一批 03-05 密码哈希和重哈希以 01-01 为前置。
-
-2026-11-11：03-05 [密码哈希和重哈希](audits/03-05/README.md)通过固定 Laravel 双向互操作、真实 HTTP、计算预算及三语验收。下一批 03-06 以前述数据库连接和本地文件系统为前置。
