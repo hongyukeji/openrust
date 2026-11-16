@@ -111,3 +111,11 @@ macOS arm64、Rust 1.94.0。在 `/private/tmp/openrust-02-09.vzJ6p7/app-under-te
 - `get` 和 `search` 返回首个匹配，`before` 与 `after` 按输入出现次序取相邻项。`last` 读完来源。未读到的来源错误不影响已经得出的结果。
 - `hasAll` 对应 PHP 的多键 `has`，空键列表时仍检查来源是否非空。Rust 查找沿用规范化的 `ArrayKey` 相等规则，键 `"08"` 和 `8` 保持独立。PHP `get` 的宽松等值差异已在对照中复现。
 - PHP 8.5.12 固定源码对照、47 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。
+
+## 惰性值与字段过滤
+
+对照固定 Laravel 的 [where 系列](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Collections/Traits/EnumeratesValues.php#L655) 与 [两类集合共用测试](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Support/SupportCollectionTest.php)。旧版未发现同契约的惰性操作，沿用当前实体集合的类型化比较和 JSON 路径读取。
+
+- `r#where`、成员过滤和区间过滤保留输入键、重复出现和顺序。区间含两端，区间外要求小于下界或大于上界，NaN 两者都不匹配。严格成员变体共享 Rust 类型比较。
+- 空值过滤支持 `Option` 与 JSON。JSON 路径缺失与显式 null 等价，false 保留为非空。`whereInstanceOf` 使用 Rust `Any` 向下转换，不要求克隆值。
+- PHP 8.5.12 固定源码对照、50 项 Rust 集合测试、实际 Artisan、三语共用示例、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式仍仅报既有 Sanctum 排版。

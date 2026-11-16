@@ -321,6 +321,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### 筛选值和字段 {#lazy-filtering-values}
+
+`r#where` 和 `whereIn` 比较类型化投影返回的值。严格版本使用相同的 Rust 相等规则。`whereBetween` 包含两个端点。`whereNotBetween` 匹配低于下界或高于上界的值。对 JSON，`whereNullAt` 匹配缺失路径或显式空值，`whereNotNullAt` 保留存在且非空的值。这些过滤方法按需读取，并保留原键。
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("low", 1), ("same", 3), ("same", 4)]);
+    let selected = readings.whereBetween(|value| *value, 3..=4).values();
+    assert_eq!(selected.collect()?.toJson()?, "[3,4]");
+
+    let records = LazyCollection::from([json!({}), json!({"status": false})]);
+    assert_eq!(records.whereNotNullAt("status").count()?, 1);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` 创建一个共享迭代器，按需保留已读条目。每次遍历按位置重放，超过缓存前缀时继续从原来源读取。来源错误也会重放。值须实现 `Clone`，以便每次遍历取得拥有所有权的值。缓存属于集合本身，随读取量增长。

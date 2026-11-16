@@ -321,6 +321,25 @@ fn main() -> Result<(), CollectionError> {
 }
 ```
 
+#### Filtering Values and Fields {#lazy-filtering-values}
+
+`r#where` and `whereIn` compare the value returned by a typed projection. Their strict variants use the same Rust equality rules. `whereBetween` includes both endpoints. `whereNotBetween` tests whether a value is below the lower bound or above the upper bound. For JSON, `whereNullAt` matches a missing path or explicit null, while `whereNotNullAt` keeps present non-null values. These filters preserve keys and evaluate only the entries requested.
+
+```rust
+use openrust::support::{CollectionError, LazyCollection};
+use serde_json::json;
+
+fn main() -> Result<(), CollectionError> {
+    let readings = LazyCollection::fromEntries(|| [("low", 1), ("same", 3), ("same", 4)]);
+    let selected = readings.whereBetween(|value| *value, 3..=4).values();
+    assert_eq!(selected.collect()?.toJson()?, "[3,4]");
+
+    let records = LazyCollection::from([json!({}), json!({"status": false})]);
+    assert_eq!(records.whereNotNullAt("status").count()?, 1);
+    Ok(())
+}
+```
+
 #### `remember()`
 
 `remember()` creates one shared iterator and retains entries as they are read. Traversals replay entries by position and resume the source after the cached prefix. A source error also replays. Values must implement `Clone` so each traversal can own the values it receives. The cache is local to the collection and grows with the portion consumed.

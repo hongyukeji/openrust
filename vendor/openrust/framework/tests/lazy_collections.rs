@@ -1095,3 +1095,127 @@ fn lazy_lookup_reports_errors_only_if_needed_for_the_result() {
     assert!(matches!(failing.after(&1), Err(CollectionError::Source(_))));
     assert!(matches!(failing.last(), Err(CollectionError::Source(_))));
 }
+
+#[test]
+fn lazy_filters_preserve_occurrences_and_stop_at_the_requested_match() {
+    let reads = Cell::new(0);
+    let source = LazyCollection::fromEntries(|| {
+        [("low", 0), ("repeat", 2), ("repeat", 2), ("high", 4)]
+            .into_iter()
+            .inspect(|_| reads.set(reads.get() + 1))
+    });
+    let matches = source.clone().whereStrict(|value| *value, 2);
+    assert_eq!(reads.get(), 0);
+    assert_eq!(matches.clone().take(1).first().unwrap(), Some(2));
+    assert_eq!(reads.get(), 2);
+    assert_eq!(matches.count().unwrap(), 2);
+    assert_eq!(
+        source
+            .clone()
+            .whereInStrict(|value| *value, &[0, 4])
+            .count()
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        source
+            .clone()
+            .whereNotInStrict(|value| *value, &[2])
+            .count()
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        source
+            .clone()
+            .whereBetween(|value| *value, 2..=4)
+            .count()
+            .unwrap(),
+        3
+    );
+    assert_eq!(
+        source
+            .whereNotBetween(|value| *value, 2..=4)
+            .first()
+            .unwrap(),
+        Some(0)
+    );
+
+    let floats = LazyCollection::from([f64::NAN, -1.0, 0.0, 1.0, 2.0]);
+    assert_eq!(
+        floats
+            .clone()
+            .whereBetween(|value| *value, 0.0..=1.0)
+            .count()
+            .unwrap(),
+        2
+    );
+    assert_eq!(
+        floats
+            .whereNotBetween(|value| *value, 0.0..=1.0)
+            .count()
+            .unwrap(),
+        2
+    );
+}
+
+#[test]
+fn lazy_null_filters_distinguish_null_from_false_and_missing_paths() {
+    use serde_json::json;
+    let source = LazyCollection::from([
+        json!({"profile":{"active":null}}),
+        json!({"profile":{}}),
+        json!({"profile":{"active":false}}),
+        json!(null),
+    ]);
+    let missing = source.clone().whereNullAt("profile.active");
+    assert_eq!(missing.count().unwrap(), 3);
+    assert_eq!(
+        source
+            .clone()
+            .whereNotNullAt("profile.active")
+            .count()
+            .unwrap(),
+        1
+    );
+    assert_eq!(source.clone().whereNull().count().unwrap(), 1);
+    assert_eq!(source.whereNotNull().count().unwrap(), 3);
+
+    let typed = LazyCollection::fromEntries(|| [("empty", None), ("not_empty", Some(false))]);
+    assert_eq!(
+        typed.clone().whereNull().all().unwrap(),
+        vec![("empty".into(), None)]
+    );
+    assert_eq!(
+        typed.whereNotNull().all().unwrap(),
+        vec![("not_empty".into(), Some(false))]
+    );
+}
+
+#[test]
+fn lazy_downcasting_and_predicates_propagate_source_errors() {
+    use std::any::Any;
+    let source = LazyCollection::tryFromEntries(|| {
+        [
+            Ok(("discard", Box::new(3_i32) as Box<dyn Any>)),
+            Ok(("keep", Box::new(String::from("ready")) as Box<dyn Any>)),
+            Err(source_error()),
+        ]
+    });
+    let filtered = source.whereInstanceOf::<String>();
+    let mut iterator = filtered.getIterator();
+    assert_eq!(
+        iterator.next().unwrap().unwrap(),
+        ("keep".into(), Box::new(String::from("ready")))
+    );
+    assert!(matches!(
+        iterator.next(),
+        Some(Err(CollectionError::Source(_)))
+    ));
+    assert!(iterator.next().is_none());
+    let source = LazyCollection::tryMake(|| [Ok(1), Err(source_error())]);
+    assert!(matches!(
+        source.whereIn(|value| *value, &[2]).first(),
+        Err(CollectionError::Source(_))
+    ));
+}
