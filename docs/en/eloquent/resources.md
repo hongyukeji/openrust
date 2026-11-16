@@ -211,6 +211,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 }
 ```
 
+### JSON Object Sources {#jsonapi-data-sources}
+
+For data you already have as a JSON object, set the resource's associated `Model` type to `serde_json::Map<String, Value>`. The default identifier reads a string or integer `id`. Return custom attributes from `toAttributes` when you need to restrict the fields exposed by the source.
+
+```rust
+use openrust::http::resources::json_api::JsonApiResource;
+use serde_json::{Map, Value};
+
+pub struct ThingResource(pub Map<String, Value>);
+
+impl JsonApiResource for ThingResource {
+    type Model = Map<String, Value>;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+```
+
+Object-backed resources can be returned on their own, in collections, or from a relationship resolver alongside Eloquent resources.
+
+An array or object supplied as `include` is ignored. An array or object supplied as `fields[type]` behaves like an empty fieldset for that type.
+
 ### Lazy Attributes and Included Relationships {#jsonapi-includes}
 
 Return a `JsonApiAttributes` declaration from `lazyAttributes` to calculate fields after applying the sparse fieldset. Declare related resources with `JsonApiRelationships::toOne` or `toMany` in `toRelationships`. Their closures run for requested `include` paths. Resolvers can use relationships loaded by the query or by automatic loading.

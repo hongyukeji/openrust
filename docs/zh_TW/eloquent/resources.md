@@ -211,6 +211,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 }
 ```
 
+### JSON 物件資料來源 {#jsonapi-data-sources}
+
+已有 JSON 物件時，可將資源的關聯型別 `Model` 宣告為 `serde_json::Map<String, Value>`。預設從字串或整數 `id` 取得識別值。需要限制公開欄位時，可以實作 `toAttributes` 自行投影。
+
+```rust
+use openrust::http::resources::json_api::JsonApiResource;
+use serde_json::{Map, Value};
+
+pub struct ThingResource(pub Map<String, Value>);
+
+impl JsonApiResource for ThingResource {
+    type Model = Map<String, Value>;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+```
+
+物件資源可以單獨回傳、放入集合，或由 Eloquent 資源的關聯解析器回傳。
+
+陣列或物件形式的 `include` 會被忽略。該型別的 `fields[type]` 若收到陣列或物件，則按空欄位集處理。
+
 ### 延遲屬性與關聯包含 {#jsonapi-includes}
 
 在 `lazyAttributes` 中回傳 `JsonApiAttributes`，欄位會在稀疏欄位集篩選後計算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 宣告關聯。只有 `include` 請求的關聯才執行閉包。閉包可讀取查詢預載入或框架自動補載的 Eloquent 關聯。

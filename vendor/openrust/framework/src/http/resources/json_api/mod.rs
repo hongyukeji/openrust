@@ -4,11 +4,13 @@ mod configuration;
 mod json_api_resource;
 mod lazy_attributes;
 mod relationships;
+mod source;
 
 pub use configuration::JsonApi;
 pub use json_api_resource::JsonApiResource;
 pub use lazy_attributes::JsonApiAttributes;
 pub use relationships::JsonApiRelationships;
 pub(super) use relationships::add_included;
+pub use source::JsonApiSource;
 
 pub(super) const MEDIA_TYPE: &str = "application/vnd.api+json";

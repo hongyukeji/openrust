@@ -300,6 +300,7 @@ impl JsonApiResource for PersonResource {
                     .collect())
             })
             .toOne::<PersonResource>("manager", || Ok(None))
+            .toOne("thing", || Ok(Some(thing(json!(99)))))
     }
 
     fn toLinks(&self, _: &Request) -> ResourceResult<Map<String, Json>> {
@@ -444,7 +445,30 @@ fn routes() -> Result<(), RoutingError> {
     Ok(())
 }
 
+struct ThingResource(Map<String, Json>);
+
+impl JsonApiResource for ThingResource {
+    type Model = Map<String, Json>;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+
+fn thing(id: Json) -> ThingResource {
+    ThingResource(Map::from_iter([
+        ("id".into(), id),
+        ("name".into(), json!("test")),
+        ("type".into(), json!("reserved")),
+    ]))
+}
+
 fn json_api_routes() -> Result<(), RoutingError> {
+    Route::get("/thing", || thing(json!(99)))?;
+    Route::get("/thing/list", || {
+        ResourceCollection::new(vec![thing(json!(99)), thing(json!("remote-id"))])
+    })?;
+    Route::get("/thing/invalid", || thing(json!(true)))?;
     Route::get("/person/auto", || async {
         let person = Account::findOrFail(1).await.map_err(internal)?;
         Ok(PersonResource::make(person))
@@ -1090,6 +1114,7 @@ async fn verify_json_api_autoload(address: SocketAddr, mysql: Option<&Connection
     for (endpoint, expected_selects, expected_included) in [
         ("/api/person/auto", 1, 0),
         ("/api/person/auto?include=unknown", 1, 0),
+        ("/api/person/auto?include%5B0%5D=reports.reports", 1, 0),
         (
             "/api/person/ignore-query?fields%5Bpeople%5D=name&include=reports.reports",
             1,
@@ -1194,7 +1219,44 @@ async fn verify_json_api(address: SocketAddr) {
         }
     }
     request(address, "GET", "/api/person/invalid", "", 500).await;
+    verify_json_api_data_sources(address).await;
     verify_json_api_includes(address).await;
+}
+
+async fn verify_json_api_data_sources(address: SocketAddr) {
+    let (headers, document) = request(address, "GET", "/api/thing", "", 200).await;
+    assert!(headers.contains("content-type: application/vnd.api+json"));
+    let object = json!({"id":"99","type":"things","attributes":{"name":"test"}});
+    assert_eq!(document, json!({"data":object}));
+    let (_, list) = request(address, "GET", "/api/thing/list", "", 200).await;
+    assert_eq!(list["data"][0], object);
+    assert_eq!(list["data"][1]["id"], "remote-id");
+    let (_, compound) = request(address, "GET", "/api/person?include=thing", "", 200).await;
+    assert_eq!(
+        compound["data"]["relationships"]["thing"]["data"],
+        json!({"id":"99","type":"things"})
+    );
+    assert_eq!(compound["included"], json!([object]));
+
+    let (_, shaped) = request(
+        address,
+        "GET",
+        "/api/thing?fields%5Bthings%5D%5B0%5D=name&include%5B0%5D=unused",
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(shaped, json!({"data":{"id":"99","type":"things"}}));
+    let (_, unrelated) = request(
+        address,
+        "GET",
+        "/api/thing?fields%5Bother%5D%5B0%5D=name",
+        "",
+        200,
+    )
+    .await;
+    assert_eq!(unrelated, document);
+    request(address, "GET", "/api/thing/invalid", "", 500).await;
 }
 
 async fn verify_json_api_includes(address: SocketAddr) {

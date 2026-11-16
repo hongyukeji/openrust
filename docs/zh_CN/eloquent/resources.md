@@ -211,6 +211,29 @@ impl<M: Model> JsonApiResource for PersonResource<M> {
 }
 ```
 
+### JSON 对象数据源 {#jsonapi-data-sources}
+
+已有 JSON 对象时，可将资源的关联类型 `Model` 声明为 `serde_json::Map<String, Value>`。默认从字符串或整数 `id` 取标识。需要限制公开字段时，可以实现 `toAttributes` 自行投影。
+
+```rust
+use openrust::http::resources::json_api::JsonApiResource;
+use serde_json::{Map, Value};
+
+pub struct ThingResource(pub Map<String, Value>);
+
+impl JsonApiResource for ThingResource {
+    type Model = Map<String, Value>;
+
+    fn model(&self) -> &Self::Model {
+        &self.0
+    }
+}
+```
+
+对象资源可以单独返回，也可以放进集合，或作为 Eloquent 资源关联解析的结果。
+
+数组或对象形式的 `include` 会被忽略。该类型的 `fields[type]` 若收到数组或对象，则按空字段集处理。
+
 ### 延迟属性与关联包含 {#jsonapi-includes}
 
 在 `lazyAttributes` 中返回 `JsonApiAttributes`，字段会在稀疏字段集筛选后计算。在 `toRelationships` 中用 `JsonApiRelationships::toOne` 或 `toMany` 声明关联。只有 `include` 请求的关联才执行闭包。闭包可读取查询预加载或框架自动补载的 Eloquent 关联。

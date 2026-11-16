@@ -3,24 +3,21 @@ use std::any::type_name;
 use serde_json::{Map, Value};
 
 use crate::{
-    database::{
-        Value as AttributeValue,
-        eloquent::{Collection, Model},
-    },
     http::{HttpError, HttpFuture, Request, StatusCode},
     support::Str,
 };
 
 use super::super::json::{JsonResource, ResourceResult};
-use super::{JsonApi, JsonApiAttributes, JsonApiRelationships, add_included};
+use super::{JsonApi, JsonApiAttributes, JsonApiRelationships, JsonApiSource, add_included};
 
-/// Projects a model into a JSON:API resource object.
+/// Projects a data source into a JSON:API resource object.
 #[allow(
     non_snake_case,
     reason = "Matches Laravel's JSON:API resource contract"
 )]
 pub trait JsonApiResource: Sized + Send {
-    type Model: Model;
+    /// Eloquent models and JSON object maps are supported data sources.
+    type Model: JsonApiSource;
 
     fn model(&self) -> &Self::Model;
 
@@ -53,14 +50,7 @@ pub trait JsonApiResource: Sized + Send {
     }
 
     fn toAttributes(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
-        let mut attributes =
-            self.model()
-                .attributesToArray()
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
-        attributes.shift_remove(self.model().getKeyName());
-        Ok(attributes)
+        self.model().attributes()
     }
 
     fn toLinks(&self, _request: &Request) -> ResourceResult<Map<String, Value>> {
@@ -81,12 +71,7 @@ pub trait JsonApiResource: Sized + Send {
 
     fn resolveResourceIdentifier(&self, request: &Request) -> ResourceResult<String> {
         self.toId(request)
-            .or_else(|| match self.model().getKey()? {
-                AttributeValue::Text(value) => Some(value.clone()),
-                AttributeValue::Integer(value) => Some(value.to_string()),
-                AttributeValue::Unsigned(value) => Some(value.to_string()),
-                _ => None,
-            })
+            .or_else(|| self.model().identifier())
             .filter(|id| !id.is_empty())
             .ok_or_else(|| HttpError::Internal {
                 source: std::io::Error::other("JSON:API resource identifier is missing or invalid")
@@ -147,22 +132,7 @@ impl<R: JsonApiResource> JsonResource for R {
                     })
                 })
                 .collect::<ResourceResult<Vec<_>>>()?;
-            let mut models = Collection::new(
-                originals
-                    .iter()
-                    .map(|model| R::Model::from_state(model.state().clone()))
-                    .collect(),
-            );
-            models
-                .loadMissingPaths(&paths)
-                .await
-                .map_err(|source| HttpError::Internal {
-                    source: Box::new(source),
-                })?;
-            for (original, mut loaded) in originals.into_iter().zip(models) {
-                *original.state_mut() = std::mem::take(loaded.state_mut());
-            }
-            Ok(())
+            R::Model::loadMissingPaths(originals, paths).await
         }))
     }
 
@@ -181,11 +151,7 @@ impl<R: JsonApiResource> JsonResource for R {
     }
 
     fn status(&self) -> StatusCode {
-        if self.model().state().wasRecentlyCreated() {
-            StatusCode::CREATED
-        } else {
-            StatusCode::OK
-        }
+        self.model().status()
     }
 }
 
@@ -234,8 +200,7 @@ pub(super) fn project<R: JsonApiResource>(
     let selected = fields
         .as_ref()
         .and_then(|fields| fields.get(&resource_type))
-        .map(|fields| fields.as_str().ok_or(HttpError::InvalidRequest))
-        .transpose()?;
+        .map(|fields| fields.as_str().unwrap_or_default());
     let selected =
         |name: &str| selected.is_none_or(|fields| fields.split(',').any(|field| field == name));
     attributes.retain(|name, _| selected(name));
@@ -291,10 +256,10 @@ pub(super) fn project<R: JsonApiResource>(
 }
 
 fn includes(request: &Request, depth: usize) -> ResourceResult<Vec<String>> {
-    let Some(value) = request.query(Some("include"))? else {
+    let value = request.query(Some("include"))?;
+    let Some(value) = value.as_ref().and_then(Value::as_str) else {
         return Ok(Vec::new());
     };
-    let value = value.as_str().ok_or(HttpError::InvalidRequest)?;
     let mut paths = Vec::new();
     for path in value.split(',').filter(|path| !path.is_empty()) {
         if path.split('.').any(str::is_empty) {

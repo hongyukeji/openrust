@@ -67,3 +67,10 @@
 - Rust 生成到 `app/http/resources`，由应用声明 `mod.rs` 后重新编译。普通和 JSON:API 模板用类型化模型实现资源接口。默认集合是 `ResourceCollection` 的类型别名，继承分页及 JSON:API 集合行为。可在 `stubs` 覆盖三种模板。
 - 两项实际 Artisan 生成器测试通过，覆盖帮助、选项优先级、嵌套和应用命名空间、非法路径、模板发布及自定义、重复保护和强制覆盖。隔离副本执行三语文档命令，将生成源码编入实际应用，HTTP 验证普通 JSON、JSON:API 和集合的响应结构、媒体类型以及隐藏字段。SQLite／MySQL 8.4.13 的 11 项资源、分页及 HTTP 回归、严格 Clippy、格式、实际 `./artisan inspire`、VitePress 构建和 15 项浏览器检查通过。既有 Sanctum 格式差异只在隔离副本处理。
 - 最终协议复核仍有差异。固定 Laravel 覆盖顶层与嵌套的数组后端资源，Rust 当前的 `JsonApiResource` 强制关联 `Model`。固定 `JsonApiRequest` 的非字符串 fields/include 容错也需要与现有 HTTP 状态逐项对照。05-07 保持在研。 [固定 Laravel JSON:API 集成矩阵](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiResourceTest.php)
+
+## JSON 对象数据源与查询容错
+
+- 对照固定 Laravel 的顶层及嵌套数组后端资源用例。Rust 用 `JsonApiSource` 将数据源投影与响应装配分开。Eloquent 模型继续提供主键、序列化、创建状态和批量加载，PHP 关联数组对应 Rust 的 `serde_json::Map`，默认从字符串或整数 `id` 取标识。已有模型资源和生成模板继续使用相同的接口。本批复用框架响应和加载，旧版没有 JSON:API 资源实现。 [固定 Laravel JSON:API 集成矩阵](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiResourceTest.php)
+- 非字符串 `include` 按没有请求关联处理。非字符串 `fields[type]` 保留该类型的字段集记录，但投影为空。未指定该类型字段集时保留全部属性。字符串中存在空路径段仍返回 400。 [固定 Laravel 请求矩阵](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/tests/Integration/Http/Resources/JsonApi/JsonApiRequestTest.php)
+- SQLite／MySQL 8.4.13 共 11 项回归通过。真实 HTTP 覆盖对象单资源、集合、嵌入 Eloquent 关联、保留字段、无效标识与非字符串查询。MySQL 确认非字符串 include 只执行读取主资源的一次 SELECT。合入并行完成的 05-09 基线后额外复验 3 项授权测试。Rust 格式、全目标严格 Clippy、实际 `./artisan inspire`、三语代码示例执行、VitePress 和 15 项浏览器检查通过。Sanctum 既有格式差异仅在隔离副本处理。
+- 固定版还覆盖关系闭包返回资源集合并保留嵌套筛选。OpenRust 现有 `toMany` 的输入为 `Vec<R>`。该入口及可见行为纳入 05-07 最终复核。
