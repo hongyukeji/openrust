@@ -71,7 +71,19 @@ impl Blueprint {
     }
 
     pub fn id(&mut self) -> &mut ColumnDefinition {
-        self.bigIncrements("id")
+        self.idWith("id")
+    }
+
+    /// Declares an auto-incrementing primary key with a custom column name.
+    pub fn idWith(&mut self, name: &str) -> &mut ColumnDefinition {
+        self.bigIncrements(name)
+    }
+
+    /// Removes a pending column definition without issuing a drop statement.
+    pub fn removeColumn(&mut self, name: &str) -> &mut Self {
+        self.commands
+            .retain(|command| !matches!(command, Command::Column(column) if column.name == name));
+        self
     }
 
     pub fn tinyIncrements(&mut self, name: &str) -> &mut ColumnDefinition {

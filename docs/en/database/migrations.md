@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` declares a blob. `binaryWith(name, length, fixed)` uses MySQL BINARY or VARBINARY and SQLite BLOB. MySQL uses its native widths for `tinyIncrements`, `smallIncrements`, `mediumIncrements` and the matching unsigned integer helpers. SQLite uses INTEGER. On both drivers, the `Tz` helpers use the corresponding native temporal types.
 
+### Editing a Blueprint {#editing-a-blueprint}
+
+Use `idWith("import_id")` to name an auto-incrementing primary key. It corresponds to Laravel’s `id("import_id")`. Use `id()` for the default name.
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_imports() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.idWith("import_id");
+        table.string("source", 32);
+        table.text("temporary_notes");
+        table.removeColumn("temporary_notes");
+    })
+    .await
+}
+```
+
+Use `removeColumn()` inside a blueprint callback to discard a pending column addition or change. It removes modifiers declared on that column. Explicit indexes and constraints remain in the blueprint. Use `dropColumn()` to drop an existing database column.
+
 ### JSON Columns {#json-columns}
 
 On MySQL, `json()` and `jsonb()` both declare `JSON`. On SQLite, both default to `TEXT`. Set `use_native_json` or `use_native_jsonb` to `true` in the SQLite connection configuration to declare `JSON` or `JSONB` respectively. The options are independent.

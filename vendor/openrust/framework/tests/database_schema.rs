@@ -4108,3 +4108,80 @@ async fn mysql_declares_json_and_jsonb_as_native_json() {
     );
     schema.drop("schema_json_types").await.unwrap();
 }
+
+#[tokio::test]
+async fn mysql_edits_pending_blueprint_columns_and_creates_named_ids() {
+    let Ok(url) = std::env::var("OPENRUST_TEST_MYSQL_URL") else {
+        assert!(std::env::var_os("OPENRUST_REQUIRE_MYSQL").is_none());
+        return;
+    };
+    let db = connection(json!({"url": url, "prefix": "app_", "prefix_indexes": true}));
+    let mut schema = db.getSchemaBuilder();
+    let table_name = "blueprint_items";
+    schema.dropIfExists(table_name).await.unwrap();
+    schema
+        .create(table_name, |table| {
+            table.idWith("item_id").startingValue(10);
+            table.string("label", 32);
+            table.integer("pending").unique();
+            table.string("pending", 32);
+            table.removeColumn("pending").removeColumn("unknown");
+            table.index(&["label"], Some("blueprint_label"));
+        })
+        .await
+        .unwrap();
+    let key = schema
+        .getColumn(table_name, "item_id")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(key.full_type, "bigint unsigned");
+    assert!(key.primary && key.auto_increment);
+    assert!(!schema.hasColumn(table_name, "pending").await.unwrap());
+    assert!(
+        schema
+            .hasIndex(table_name, "blueprint_label")
+            .await
+            .unwrap()
+    );
+    assert!(
+        !schema
+            .hasIndex(table_name, "app_blueprint_items_pending_unique")
+            .await
+            .unwrap()
+    );
+
+    db.statement(
+        "insert into app_blueprint_items (label) values (?)",
+        &["preserved".into()],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        db.table(table_name).value("item_id").await.unwrap(),
+        Value::Unsigned(10)
+    );
+    schema
+        .table(table_name, |table| {
+            table.integer("label").change();
+            table.removeColumn("label").integer("rank").default(1);
+        })
+        .await
+        .unwrap();
+    assert_eq!(
+        schema
+            .getColumnType(table_name, "label", true)
+            .await
+            .unwrap(),
+        "varchar(32)"
+    );
+    assert_eq!(
+        db.table(table_name).value("label").await.unwrap(),
+        "preserved".into()
+    );
+    assert_eq!(
+        db.table(table_name).value("rank").await.unwrap(),
+        Value::Integer(1)
+    );
+    schema.drop(table_name).await.unwrap();
+}

@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 声明 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及对应无符号整数方法采用各自的整数宽度，SQLite 使用 INTEGER。两个驱动的 `Tz` 方法沿用各自的时间类型。
 
+### 编辑 Blueprint {#editing-a-blueprint}
+
+用 `idWith("import_id")` 指定自增主键列名，对应 Laravel 的 `id("import_id")`。默认列名使用 `id()`。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_imports() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.idWith("import_id");
+        table.string("source", 32);
+        table.text("temporary_notes");
+        table.removeColumn("temporary_notes");
+    })
+    .await
+}
+```
+
+在 Blueprint 回调里用 `removeColumn()` 撤销待执行的新增列或修改列，列级修饰符随之移除。显式声明的索引和约束仍留在 Blueprint。删除数据库中已有的列时使用 `dropColumn()`。
+
 ### JSON 列 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都声明为 `JSON`。SQLite 默认都声明为 `TEXT`。在 SQLite 连接配置中分别将 `use_native_json` 或 `use_native_jsonb` 设为 `true`，即可声明 `JSON` 或 `JSONB`。两个选项独立生效。

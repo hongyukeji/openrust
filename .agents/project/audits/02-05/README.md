@@ -256,3 +256,13 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - 隔离基线 `6d8f18109`。使用 `docker/accept.py --mysql --mysql-schema-admin` 验收 MySQL 8.4.13 的 23 项 Schema 用例，新增用例覆盖两种声明都为 JSON、接受有效 JSON 并拒绝无效输入。用 `sh tests/table_catalog.sh` 验收写库目录与限定 Schema 清库。实际 SQLite 测试通过四种配置组合、建表和改表、二进制写入与 JSON 路径读取。
 - 两种驱动均通过实际 Artisan 执行三语共用示例，`main artisan inspire`、严格 Clippy、变更文件格式、三语站点及 18 项浏览器检查通过。全仓格式检查仅报既有 Sanctum 排版差异。验收所用历史 `docker/accept.py` 来自 `3d2641c0f`。两轮临时 MySQL 已回收。
 - 移除本批 3.6 GiB 隔离 Cargo 产物和本批文档缓存后，项目卷可用 55.57 GB（51.75 GiB）。证据目录为 `/private/tmp/openrust-02-05-json.REFu2dP8`。
+
+## 编辑 Blueprint
+
+对照固定 Laravel [命名自增主键](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L769)和[撤销待执行的列定义](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/Blueprint.php#L1901)。旧版未找到对应入口，复用当前 `bigIncrements`、列级修饰符和 Blueprint 命令列表。
+
+- Rust 通过 `idWith(name)` 表达 Laravel `id(name)` 的显式参数，既有 `id()` 使用默认列名。`removeColumn(name)` 撤销该名称的待执行列定义及其列级修饰符。显式索引和约束保持独立。
+- 隔离基线 `399587b88`，MySQL 8.4.13 的 24 项 Schema 回归通过。验证自定义无符号自增主键和起始值、撤销重复的待执行列定义、撤销待执行修改后保留原列类型与数据、独立索引保留。
+- 实际 Artisan 执行三语共用示例及 `main artisan inspire`，三语站点构建和 18 项浏览器检查通过。临时 MySQL 使用从 `3d2641c0f` 提取的 `docker/accept.py --mysql`。
+- 用户确认恢复后，复用原隔离 Cargo 产物运行 `sh tests/table_catalog.sh`，写库表目录、限定 Schema 清库及保留旁库标记行通过。变更文件格式检查、工作区严格 Clippy 通过，叠加当时主线 `dd304ad1e` 的图像模块已提交改动后再跑严格 Clippy 通过。全仓格式检查只有既有 Sanctum 排版差异。
+- 三轮临时 MySQL 已回收。清理本批 3.6 GiB 隔离 Cargo 产物和本批文档缓存后，项目卷可用 73.89 GB（68.81 GiB）。证据目录为 `/private/tmp/openrust-02-05-blueprint.0B3TbYWv`。

@@ -230,6 +230,26 @@ async fn create_events() -> DatabaseResult<()> {
 
 `binary()` 宣告 BLOB。`binaryWith(name, length, fixed)` 在 MySQL 使用 BINARY 或 VARBINARY，在 SQLite 使用 BLOB。MySQL 的 `tinyIncrements`、`smallIncrements`、`mediumIncrements` 及對應無號整數方法採用各自的整數寬度，SQLite 使用 INTEGER。兩個驅動程式的 `Tz` 方法沿用各自的時間型別。
 
+### 編輯 Blueprint {#editing-a-blueprint}
+
+用 `idWith("import_id")` 指定自動遞增主鍵欄位名稱，對應 Laravel 的 `id("import_id")`。預設欄位名稱使用 `id()`。
+
+```rust
+use openrust::{database::DatabaseResult, support::facades::Schema};
+
+async fn create_imports() -> DatabaseResult<()> {
+    Schema::create("imports", |table| {
+        table.idWith("import_id");
+        table.string("source", 32);
+        table.text("temporary_notes");
+        table.removeColumn("temporary_notes");
+    })
+    .await
+}
+```
+
+在 Blueprint 回呼裡用 `removeColumn()` 撤銷待執行的新增欄位或修改欄位，欄位層級修飾符也會一併移除。明確宣告的索引和約束仍留在 Blueprint。刪除資料庫現有欄位時使用 `dropColumn()`。
+
 ### JSON 欄位 {#json-columns}
 
 MySQL 的 `json()` 和 `jsonb()` 都宣告為 `JSON`。SQLite 預設都宣告為 `TEXT`。在 SQLite 連線設定中分別將 `use_native_json` 或 `use_native_jsonb` 設為 `true`，即可宣告 `JSON` 或 `JSONB`。兩個選項獨立生效。
