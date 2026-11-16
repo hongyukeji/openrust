@@ -97,7 +97,16 @@ fn get<'a>(values: &'a BTreeMap<String, Value>, key: &str) -> Option<&'a Value> 
     let mut path = key.split('.');
     let mut value = values.get(path.next()?)?;
     for segment in path {
-        value = value.get(segment)?;
+        value = match value {
+            Value::Array(items) => {
+                let index = segment.parse::<usize>().ok()?;
+                if segment.starts_with('+') || (segment.len() > 1 && segment.starts_with('0')) {
+                    return None;
+                }
+                items.get(index)?
+            }
+            _ => value.get(segment)?,
+        };
     }
     Some(value)
 }

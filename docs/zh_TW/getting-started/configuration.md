@@ -32,6 +32,8 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 以 `Config::set` 更新目前應用程式的設定。`string`、`integer`、`float`、`boolean`、`array` 和 `collection` 檢查值的型別。`array` 接受 JSON 清單和物件，`collection` 保留集合鍵。
 
+需要預設值時，可用 `Config::getOr("app.name", Value::from("App"))?` 讀取原始值，或用 `Config::stringOr("app.name", "App")?` 直接讀取字串。預設值只用於缺少的鍵。原始讀取會保留顯式空值，型別化讀取遇到不相容的值會回報錯誤。`Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` 按輸入順序讀取多個鍵，各自套用預設值。讀取整組設定時，為結構體衍生 `serde::Deserialize`，再用 `Config::deserialize::<MailOptions>("mail")?`。
+
 ## 環境檔案加密 {#environment-file-encryption}
 
 使用 `env:encrypt` 建立加密副本。執行 `env:decrypt` 前在程序環境中設定 `ENV_ENCRYPTION_KEY`，或傳入 `--key`。若由加密指令產生金鑰，請將輸出的 `base64:` 值儲存至金鑰管理系統，與加密檔案分開保管。

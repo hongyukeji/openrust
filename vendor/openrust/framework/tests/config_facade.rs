@@ -100,3 +100,65 @@ async fn config_is_available_in_http_route_handlers() {
         .assertOk()
         .assertContent(r#""HTTP application""#);
 }
+
+#[tokio::test]
+async fn config_defaults_and_serde_distinguish_missing_null_and_invalid_values() {
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct Mail {
+        host: String,
+        port: u16,
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let mut app = Application::configure(root.path().into())
+        .withConfig(|_, _| {
+            Ok([
+                ("mail".into(), json!({"host":"localhost","port":2525})),
+                (
+                    "mixed".into(),
+                    json!({"nullable":null,"number":7,"list":["first"]}),
+                ),
+            ]
+            .into())
+        })
+        .create()
+        .unwrap();
+    app.boot().await.unwrap();
+    app.call(
+        Callback::new(&[], |_| async {
+            assert_eq!(Config::getOr("missing", json!(42))?, json!(42));
+            assert_eq!(Config::getOr("mixed.nullable", json!(42))?, Value::Null);
+            let values = Config::getMany([
+                ("mixed.list.0", json!("default")),
+                ("mixed.nullable", json!(false)),
+                ("missing", json!("fallback")),
+            ])?;
+            assert_eq!(
+                values.into_iter().collect::<Vec<_>>(),
+                vec![
+                    ("mixed.list.0".into(), json!("first")),
+                    ("mixed.nullable".into(), Value::Null),
+                    ("missing".into(), json!("fallback")),
+                ]
+            );
+            assert_eq!(Config::stringOr("missing", "demo").unwrap(), "demo");
+            assert!(Config::stringOr("mixed.nullable", "demo").is_err());
+            assert!(Config::stringOr("mixed.number", "demo").is_err());
+            assert_eq!(
+                Config::deserialize::<Mail>("mail").unwrap(),
+                Mail {
+                    host: "localhost".into(),
+                    port: 2525
+                }
+            );
+            assert!(Config::deserialize::<Mail>("mixed").is_err());
+            assert_eq!(Config::deserializeOr::<u16>("missing", 5).unwrap(), 5);
+            assert!(Config::deserializeOr::<u16>("mixed.nullable", 5).is_err());
+            assert!(Config::deserializeOr::<u16>("mail.host", 5).is_err());
+            Ok(())
+        }),
+        Default::default(),
+    )
+    .await
+    .unwrap();
+}

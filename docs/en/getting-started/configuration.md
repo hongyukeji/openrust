@@ -32,6 +32,8 @@ pub fn application_name() -> Result<Value, BindingResolutionError> {
 
 Use `Config::set` to change a value in the current application. The `string`, `integer`, `float`, `boolean`, `array`, and `collection` methods check the value type. `array` accepts JSON lists and objects, and `collection` preserves their keys.
 
+Use `Config::getOr("app.name", Value::from("App"))?` for a raw default, or `Config::stringOr("app.name", "App")?` for a typed string. Defaults apply to absent keys. An explicit null is retained by raw lookups, and typed lookups reject incompatible values. `Config::getMany([("app.name", Value::from("App")), ("app.debug", Value::Bool(false))])?` reads keys with individual defaults in input order. To read an entire section as a struct, derive `serde::Deserialize` and use `Config::deserialize::<MailOptions>("mail")?`.
+
 ## Environment File Encryption {#environment-file-encryption}
 
 Use `env:encrypt` to create an encrypted copy of an environment file. Set `ENV_ENCRYPTION_KEY` in the process environment before running `env:decrypt`, or supply `--key`. If encryption generates a key, copy the displayed `base64:` value to your secret store separately from the encrypted file.
