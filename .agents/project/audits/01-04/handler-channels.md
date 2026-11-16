@@ -8,4 +8,4 @@
 
 三语示例分别构建运行并检查两条实际落盘记录。VitePress 构建及 18 项浏览器检查通过，包含根路径与 `/docs/` 下三语处理器章节的锚点。 [英文](../../../../docs/en/the-basics/logging.md#handler-channels) · [简体中文](../../../../docs/zh_CN/the-basics/logging.md#handler-channels) · [繁體中文](../../../../docs/zh_TW/the-basics/logging.md#handler-channels)
 
-01-04 仍开放，继续处理固定基线的 syslog 格式化和 JSON 异常上下文。
+Unix syslog 格式化已由[后续批次](syslog.md)验收。01-04 继续跟踪 JSON 异常上下文与 Windows 对应行为。

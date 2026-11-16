@@ -127,6 +127,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Syslog {#syslog-channel}
+
+Set `driver: "syslog"` to send records to a local Unix datagram socket. The channel uses `/var/run/syslog` on macOS and `/dev/log` on Linux by default. Set `socket` to use another receiver. Relative socket paths resolve from the application root. If delivery fails, the same channel can retry on the next record and the failed write follows the emergency log path.
+
+The `facility` defaults to `user`. Use a name such as `local4` or its numeric syslog constant. The wire priority combines the facility and record severity. The tag comes from the application name and process ID. With no formatter specified, the payload uses the framework line format. Set `formatter: "default"` to omit the payload timestamp, or choose a registered formatter. Platforms without Unix datagrams use the emergency log.
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager}};
+use serde_json::json;
+use std::{os::unix::net::UnixDatagram, sync::Arc, time::Duration};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let receiver = UnixDatagram::bind("audit.sock")?;
+    receiver.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let audit = manager.build(&json!({
+        "driver": "syslog",
+        "socket": "audit.sock",
+        "facility": "local4",
+        "formatter": "default",
+    }))?;
+    audit.notice("Import complete", &LogContext::new())?;
+    let mut bytes = [0; 1024];
+    let received = receiver.recv(&mut bytes)?;
+    let packet = std::str::from_utf8(&bytes[..received])?;
+    assert!(packet.starts_with("<165>"));
+    assert!(packet.ends_with("Import complete"));
+    Ok(())
+}
+```
+
 ## Contextual Information
 
 The public fields captured by the [Context facade](../digging-deeper/context.md) appear after a log record's own fields as separate JSON metadata. Custom sinks can implement `logWithContext` to receive both maps. Hidden fields stay in the context repository.

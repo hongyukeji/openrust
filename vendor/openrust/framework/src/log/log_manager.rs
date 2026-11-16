@@ -15,6 +15,7 @@ use super::{
     logger::Emergency,
     rotating::{Period, RotatingFile},
     sink::{FileOptions, Handler, Handlers},
+    syslog,
 };
 
 const DEFAULT_FILE: &str = "storage/logs/openrust.log";
@@ -545,6 +546,34 @@ impl Resolution<'_, '_> {
                 level,
                 bubble: options.bubble,
             },
+            Driver::Syslog { facility, socket } => {
+                let ident = self
+                    .manager
+                    .config
+                    .get("app.name")
+                    .and_then(|name| {
+                        name.as_str()
+                            .map(|name| crate::support::Str::snake(name, "-"))
+                    })
+                    .filter(|name| !name.is_empty())
+                    .unwrap_or_else(|| "openrust".to_owned());
+                let socket = socket
+                    .map_or_else(syslog::default_socket, |path| self.settings.root.join(path));
+                let facility = facility.unwrap_or(syslog::Facility::Number(8)).priority()?;
+                let handler = Handler::Registered {
+                    write: syslog::writer(socket, ident, facility)?,
+                    level,
+                    bubble: options.bubble,
+                };
+                if options.formatter.as_deref() == Some("default") {
+                    Handler::Formatted {
+                        handler: Arc::new(handler),
+                        formatter: Arc::new(|record| Ok(record.format_syslog())),
+                    }
+                } else {
+                    handler
+                }
+            }
             Driver::Null => Handler::Null(level),
             Driver::Monolog {
                 handler,
@@ -735,6 +764,10 @@ enum Driver {
         max_files: Option<usize>,
     },
     Stderr,
+    Syslog {
+        facility: Option<syslog::Facility>,
+        socket: Option<PathBuf>,
+    },
     Null,
     Monolog {
         handler: String,
@@ -821,6 +854,7 @@ fn default_channels() -> Value {
         "daily": { "driver": "daily", "path": DEFAULT_FILE, "max_files": 14, "replace_placeholders": true },
         "monthly": { "driver": "monthly", "path": DEFAULT_FILE, "max_files": 3, "replace_placeholders": true },
         "stderr": { "driver": "stderr", "replace_placeholders": true },
+        "syslog": { "driver": "syslog", "replace_placeholders": true },
         "null": { "driver": "null" }
     })
 }

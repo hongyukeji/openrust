@@ -23,7 +23,13 @@ use serde_json::json;
 struct Root(PathBuf);
 impl Root {
     fn new() -> Self {
-        let path = std::env::temp_dir().join(format!(
+        // The application canonicalizes the root before joining Unix socket paths.
+        let temporary = if cfg!(unix) {
+            PathBuf::from("/tmp")
+        } else {
+            std::env::temp_dir()
+        };
+        let path = temporary.join(format!(
             "openrust-log-{}-{}",
             std::process::id(),
             fastrand::u64(..)
@@ -47,6 +53,85 @@ fn manager(root: &Root, logging: Value) -> (LogManager, Arc<Repository>) {
         ("logging".into(), logging),
     ])));
     (LogManager::new(config.clone(), &root.0), config)
+}
+
+#[cfg(unix)]
+fn syslog_receiver(root: &Root) -> std::os::unix::net::UnixDatagram {
+    let socket = std::os::unix::net::UnixDatagram::bind(root.0.join("ingest.sock")).unwrap();
+    socket
+        .set_read_timeout(Some(Duration::from_secs(2)))
+        .unwrap();
+    socket
+}
+
+#[cfg(unix)]
+fn receive_syslog(socket: &std::os::unix::net::UnixDatagram) -> String {
+    let mut bytes = [0; 4096];
+    let size = socket.recv(&mut bytes).unwrap();
+    String::from_utf8(bytes[..size].to_vec()).unwrap()
+}
+
+#[cfg(unix)]
+#[test]
+fn syslog_formats_real_datagrams_and_recovers_when_the_receiver_returns() {
+    let root = Root::new();
+    let (manager, config) = manager(
+        &root,
+        json!({"channels":{
+            "native":{"driver":"syslog","socket":"ingest.sock","facility":"LOCAL4","name":"orders","formatter":"default","level":"notice"},
+            "normal":{"driver":"syslog","socket":"ingest.sock","facility":8,"name":"orders","replace_placeholders":true},
+            "custom":{"driver":"syslog","socket":"ingest.sock","formatter":"label","formatter_with":{"prefix":"SYSLOG"}},
+            "invalid":{"driver":"syslog","socket":"ingest.sock","facility":9},
+            "emergency":{"path":"fallback.log"}
+        }}),
+    );
+    config.set("app.name", json!("AuditCollector")).unwrap();
+    register_customization(&manager);
+    let native = manager.channel(Some("native")).unwrap();
+    native
+        .warning("receiver unavailable", &LogContext::new())
+        .unwrap();
+    assert!(root.read("fallback.log").contains("receiver unavailable"));
+
+    let socket = syslog_receiver(&root);
+    native.info("below threshold", &LogContext::new()).unwrap();
+    native
+        .notice("fallback recovered", &LogContext::new())
+        .unwrap();
+    let packet = receive_syslog(&socket);
+    assert!(packet.starts_with("<165>"));
+    assert!(packet.ends_with(&format!(
+        " audit-collector[{}]: orders.NOTICE: fallback recovered",
+        std::process::id()
+    )));
+    let normal = manager.channel(Some("normal")).unwrap();
+    normal
+        .error(
+            "order {id}",
+            &LogContext::from_iter([("id".into(), json!(42))]),
+        )
+        .unwrap();
+    let packet = receive_syslog(&socket);
+    assert!(packet.starts_with("<11>"));
+    assert!(packet.contains("]: ["));
+    assert!(packet.ends_with(r#"orders.ERROR: order 42 {"id":42}"#));
+    manager
+        .channel(Some("custom"))
+        .unwrap()
+        .critical("custom", &LogContext::new())
+        .unwrap();
+    assert!(receive_syslog(&socket).ends_with("]: SYSLOG:custom:"));
+    manager
+        .channel(Some("invalid"))
+        .unwrap()
+        .error("invalid facility", &LogContext::new())
+        .unwrap();
+    assert!(root.read("fallback.log").contains("invalid facility"));
+    socket.set_nonblocking(true).unwrap();
+    assert_eq!(
+        socket.recv(&mut [0; 1]).unwrap_err().kind(),
+        std::io::ErrorKind::WouldBlock
+    );
 }
 
 fn register_customization(manager: &LogManager) {
@@ -433,6 +518,7 @@ fn config(_: &Path, _: &Environment) -> Result<BTreeMap<String, Value>, ConfigEr
                     "stack":{"driver":"stack","channels":["single"]},
                     "single":{"driver":"single","path":"storage/logs/openrust.log","replace_placeholders":true},
                     "stderr":{"driver":"stderr"},
+                    "syslog":{"driver":"syslog","socket":"ingest.sock","formatter":"default"},
                     "buffered":{"driver":"monolog","handler":"stream","with":{"stream":"buffered-http.log"},"action_level":"error","stop_buffering":false}
                 }
             }),
@@ -462,6 +548,13 @@ fn record(request: &mut Request) -> HttpFuture<'_, Result<Response, HttpError>> 
         })?;
         let container = openrust::container::Container::getInstance();
         let manager = container.make::<LogManager>().unwrap();
+        #[cfg(unix)]
+        manager
+            .channel(Some("syslog"))
+            .and_then(|logger| logger.warning("syslog HTTP", &context))
+            .map_err(|source| HttpError::Internal {
+                source: source.into(),
+            })?;
         (|| {
             let buffered = manager.channel(Some("buffered"))?;
             buffered.info("before error", &context)?;
@@ -543,12 +636,27 @@ async fn send(address: std::net::SocketAddr, id: u32) {
 async fn real_http_logs_concurrent_requests_to_their_own_application() {
     let first = Root::new();
     let second = Root::new();
+    #[cfg(unix)]
+    let (first_socket, second_socket) = (syslog_receiver(&first), syslog_receiver(&second));
     let (a, first_task) = server(&first).await;
     let (b, second_task) = server(&second).await;
     tokio::join!(send(a, 101), send(a, 102), send(b, 201));
     send(a, 103).await;
     let first_log = first.read("storage/logs/openrust.log");
     let second_log = second.read("storage/logs/openrust.log");
+    #[cfg(unix)]
+    {
+        let records = (0..3)
+            .map(|_| receive_syslog(&first_socket))
+            .collect::<Vec<_>>();
+        for id in [101, 102, 103] {
+            assert!(
+                records.iter().any(|record| record.starts_with("<12>")
+                    && record.contains(&format!("request-{id}")))
+            );
+        }
+        assert!(receive_syslog(&second_socket).contains("request-201"));
+    }
     assert_eq!(first_log.lines().count(), 3);
     assert_eq!(second_log.lines().count(), 1);
     for (log, ids) in [
@@ -595,6 +703,11 @@ fn console_routes() -> Result<(), ConsoleError> {
         )
         .unwrap();
         Log::warning("artisan wrote a file", &LogContext::new()).unwrap();
+        #[cfg(unix)]
+        Log::channel(Some("syslog"))
+            .unwrap()
+            .error("syslog Artisan", &LogContext::new())
+            .unwrap();
         let manager = openrust::container::Container::getInstance()
             .make::<LogManager>()
             .unwrap();
@@ -663,12 +776,16 @@ async fn artisan_logs_to_file_and_stderr() {
         return;
     }
     let root = Root::new();
+    #[cfg(unix)]
+    let syslog = syslog_receiver(&root);
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "artisan_logs_to_file_and_stderr", "--nocapture"])
         .env(CHILD_ROOT, &root.0)
         .output()
         .unwrap();
     let stderr = String::from_utf8(output.stderr).unwrap();
+    #[cfg(unix)]
+    assert!(receive_syslog(&syslog).contains("syslog Artisan"));
     assert!(
         output.status.success(),
         "{}\n{stderr}",

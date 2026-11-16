@@ -127,6 +127,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Syslog 通道 {#syslog-channel}
+
+設定 `driver: "syslog"` 後，透過本機 Unix 資料包通訊端送出記錄。macOS 預設使用 `/var/run/syslog`，Linux 預設使用 `/dev/log`。可透過 `socket` 指定接收端，相對路徑從應用程式根目錄解析。傳送失敗時寫入緊急日誌，同一通道在下一筆記錄到達時可重新傳送。
+
+`facility` 預設為 `user`，可填寫 `local4` 等名稱或對應的 syslog 數值常數。資料包的優先等級由 facility 和記錄等級組成，標籤取自應用程式名稱與處理程序 ID。省略格式化器時，訊息本文採用框架行格式。設定 `formatter: "default"` 可省略本文的時間戳記，也可以指定已註冊的格式化器。缺少 Unix 資料包支援的平台使用緊急日誌。
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager}};
+use serde_json::json;
+use std::{os::unix::net::UnixDatagram, sync::Arc, time::Duration};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let receiver = UnixDatagram::bind("audit.sock")?;
+    receiver.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let audit = manager.build(&json!({
+        "driver": "syslog",
+        "socket": "audit.sock",
+        "facility": "local4",
+        "formatter": "default",
+    }))?;
+    audit.notice("Import complete", &LogContext::new())?;
+    let mut bytes = [0; 1024];
+    let received = receiver.recv(&mut bytes)?;
+    let packet = std::str::from_utf8(&bytes[..received])?;
+    assert!(packet.starts_with("<165>"));
+    assert!(packet.ends_with("Import complete"));
+    Ok(())
+}
+```
+
 ## 上下文資訊
 
 [Context Facade](../digging-deeper/context.md) 擷取的公開欄位以獨立 JSON 中繼資料寫在單筆日誌欄位之後。自訂寫入端可實作 `logWithContext` 接收兩組欄位。隱藏欄位保存在上下文儲存庫中。

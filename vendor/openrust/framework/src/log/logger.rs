@@ -235,19 +235,29 @@ impl<'a> LogRecord<'a> {
 
     pub fn format_line(&self, message: &str) -> String {
         let mut line = format!("[{}] ", self.at.format("%Y-%m-%d %H:%M:%S"));
-        append_single_line(&mut line, &self.channel);
+        self.append_payload(&mut line, message);
+        line.push('\n');
+        line
+    }
+
+    pub(super) fn format_syslog(&self) -> String {
+        let mut line = String::new();
+        self.append_payload(&mut line, &self.message());
+        line
+    }
+
+    fn append_payload(&self, line: &mut String, message: &str) {
+        append_single_line(line, &self.channel);
         line.push('.');
         line.push_str(self.level.label());
         line.push_str(": ");
-        append_single_line(&mut line, message);
+        append_single_line(line, message);
         if !self.context.is_empty() || !self.extra.is_empty() {
-            append_json(&mut line, &self.context);
+            append_json(line, &self.context);
         }
         if !self.extra.is_empty() {
-            append_json(&mut line, &self.extra);
+            append_json(line, &self.extra);
         }
-        line.push('\n');
-        line
     }
 }
 

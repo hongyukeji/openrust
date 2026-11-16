@@ -127,6 +127,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Syslog 渠道 {#syslog-channel}
+
+设置 `driver: "syslog"` 后，通过本地 Unix 数据报套接字发送记录。macOS 默认使用 `/var/run/syslog`，Linux 默认使用 `/dev/log`。可通过 `socket` 指定接收端，相对路径从应用根目录解析。发送失败写入紧急日志，同一渠道在下一条记录到达时可重新发送。
+
+`facility` 默认是 `user`，可填写 `local4` 等名称或对应的 syslog 数值常量。数据报优先级由 facility 和记录级别组成，标签取自应用名与进程 ID。省略格式化器时，消息正文采用框架行格式。设置 `formatter: "default"` 可省略正文中的时间戳，也可以指定已注册的格式化器。缺少 Unix 数据报支持的平台使用紧急日志。
+
+```rust
+use openrust::{config::Repository, log::{LogContext, LogManager}};
+use serde_json::json;
+use std::{os::unix::net::UnixDatagram, sync::Arc, time::Duration};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let receiver = UnixDatagram::bind("audit.sock")?;
+    receiver.set_read_timeout(Some(Duration::from_secs(2)))?;
+    let manager = LogManager::new(
+        Arc::new(Repository::new(Default::default())),
+        std::env::current_dir()?,
+    );
+    let audit = manager.build(&json!({
+        "driver": "syslog",
+        "socket": "audit.sock",
+        "facility": "local4",
+        "formatter": "default",
+    }))?;
+    audit.notice("Import complete", &LogContext::new())?;
+    let mut bytes = [0; 1024];
+    let received = receiver.recv(&mut bytes)?;
+    let packet = std::str::from_utf8(&bytes[..received])?;
+    assert!(packet.starts_with("<165>"));
+    assert!(packet.ends_with("Import complete"));
+    Ok(())
+}
+```
+
 ## 上下文信息
 
 [Context Facade](../digging-deeper/context.md) 捕获的公开字段以独立 JSON 元数据写在单条日志字段之后。自定义写入端可以实现 `logWithContext` 接收两组字段。隐藏字段保存在上下文仓库中。

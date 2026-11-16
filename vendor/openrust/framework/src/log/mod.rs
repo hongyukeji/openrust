@@ -26,6 +26,7 @@ macro_rules! log_methods {
 mod facade;
 mod rotating;
 mod sink;
+mod syslog;
 pub use facade::Log;
 pub use sink::RecordHandler;
 
