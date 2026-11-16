@@ -21,11 +21,11 @@ pub struct SendQueuedMailable;
 #[derive(Deserialize, Serialize)]
 pub(crate) struct PreparedMail {
     mailer: String,
-    envelope: Envelope,
+    pub(super) envelope: Envelope,
     content: Content,
     attachments: Vec<Attachment>,
     headers: Headers,
-    locale: Option<String>,
+    pub(super) locale: Option<String>,
 }
 
 impl PreparedMail {

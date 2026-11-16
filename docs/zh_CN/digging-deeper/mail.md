@@ -50,3 +50,16 @@ pub async fn send_order() -> MailResult<()> {
 ## 邮件入队
 
 让 `Mailable::queue_options` 返回队列选项后，`send` 会将邮件入队。`sendNow` 立即发送。`PendingMail::queue` 接收连接、队列、延迟和可选事务。`after_commit` 将分派延后至事务提交。Worker 用队列中的邮件定义渲染命名视图并发送。用 `./artisan queue:work --stop-when-empty` 消费邮件队列。
+
+## 测试邮件
+
+在测试应用中调用 `Mail::fake()`，可以检查邮件并跳过传输和入队。断言区分即时发送和排队发送。用 `Mailable::kind()` 选择邮件记录，用匹配断言检查信封或队列选项。
+
+```rust
+let mail = Mail::fake()?;
+Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+mail.assertSentMatching(receipt.kind(), |entry| {
+    entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
+});
+mail.assertNothingQueued();
+```

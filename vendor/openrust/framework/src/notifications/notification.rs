@@ -46,6 +46,11 @@ pub trait Notification: Send + Sync {
         self.kind()
     }
 
+    /// Supplies application-specific data for notification fake assertions.
+    fn fake_data(&self) -> serde_json::Value {
+        serde_json::Value::Null
+    }
+
     fn locale(&self) -> Option<&str> {
         None
     }

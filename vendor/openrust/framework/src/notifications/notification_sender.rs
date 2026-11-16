@@ -10,7 +10,8 @@ use crate::{
 };
 
 use super::{
-    ChannelManager, Notifiable, Notification, NotificationResult, SendQueuedNotifications,
+    ChannelManager, Notifiable, Notification, NotificationResult, NotificationRoute,
+    NotificationTarget, RecordedNotification, SendQueuedNotifications,
     channels::ChannelResponse,
     delivery,
     messages::{BroadcastMessage, DatabaseMessage, MailDelivery},
@@ -137,6 +138,12 @@ impl<'a> NotificationSender<'a> {
         for recipient in recipients {
             let channels = notification.via(*recipient)?;
             let prepared = Prepared::new(notification)?;
+            if let Some(fake) = self.manager.active_fake() {
+                if let Some(record) = self.prepare_fake(*recipient, &prepared, channels)? {
+                    fake.record(record);
+                }
+                continue;
+            }
             for channel in channels {
                 self.deliver(
                     *recipient,
@@ -166,12 +173,66 @@ impl<'a> NotificationSender<'a> {
                 _ => notification.via(*recipient)?,
             };
             let prepared = Prepared::new(notification)?;
+            if let Some(fake) = self.manager.active_fake() {
+                if let Some(record) = self.prepare_fake(*recipient, &prepared, channels)? {
+                    fake.record(record);
+                }
+                continue;
+            }
             for channel in channels {
                 self.deliver(*recipient, &prepared, &channel, None, None)
                     .await?;
             }
         }
         Ok(())
+    }
+
+    fn preferred_locale(
+        &self,
+        recipient: &dyn Notifiable,
+        notification: &dyn Notification,
+    ) -> Option<String> {
+        notification
+            .locale()
+            .or(self.locale.as_deref())
+            .or_else(|| recipient.preferred_locale())
+            .map(str::to_owned)
+            .or_else(|| Lang::getLocale().ok())
+    }
+
+    fn prepare_fake(
+        &self,
+        recipient: &dyn Notifiable,
+        notification: &Prepared<'_>,
+        mut channels: Vec<String>,
+    ) -> NotificationResult<Option<RecordedNotification>> {
+        let anonymous = recipient.as_anonymous();
+        channels.retain(|channel| {
+            !(anonymous.is_some() && channel == "database")
+                && notification.inner.should_send(recipient, channel)
+        });
+        if channels.is_empty() {
+            return Ok(None);
+        }
+        let target = if let Some(anonymous) = anonymous {
+            NotificationTarget::OnDemand(anonymous.routes().clone())
+        } else if let Some(key) = recipient.notification_key() {
+            NotificationTarget::Key(key)
+        } else if let Some(NotificationRoute::Database(route)) =
+            recipient.route_notification_for("database", notification)?
+        {
+            NotificationTarget::Database(route)
+        } else {
+            NotificationTarget::Unkeyed
+        };
+        Ok(Some(RecordedNotification {
+            id: notification.id.clone(),
+            kind: notification.kind().into(),
+            channels,
+            locale: self.preferred_locale(recipient, notification),
+            target,
+            data: notification.inner.fake_data(),
+        }))
     }
 
     async fn deliver(
@@ -186,12 +247,7 @@ impl<'a> NotificationSender<'a> {
             return Ok(());
         }
         let driver = self.manager.channel(Some(channel))?;
-        let locale = notification
-            .locale()
-            .or(self.locale.as_deref())
-            .or_else(|| recipient.preferred_locale())
-            .map(str::to_owned)
-            .or_else(|| Lang::getLocale().ok());
+        let locale = self.preferred_locale(recipient, notification);
         let delivery = Delivery {
             id: notification.id.clone(),
             kind: notification.kind().into(),

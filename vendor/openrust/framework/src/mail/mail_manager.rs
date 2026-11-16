@@ -16,7 +16,8 @@ use crate::{
 };
 
 use super::{
-    MailError, MailResult, Mailer, PendingMail,
+    MailError, MailFake, MailResult, Mailer, PendingMail,
+    mail_fake::FakeState,
     mailables::Address,
     transport::{
         ApiProvider, ApiTransport, ArrayTransport, CompositeTransport, LogTransport,
@@ -31,6 +32,7 @@ pub struct MailManager {
     config: Arc<dyn Repository>,
     owner: Weak<Container>,
     mailers: Mutex<HashMap<String, Arc<Mailer>>>,
+    fake: FakeState,
 }
 
 impl MailManager {
@@ -39,7 +41,14 @@ impl MailManager {
             config,
             owner,
             mailers: Mutex::default(),
+            fake: FakeState::default(),
         }
+    }
+
+    pub fn fake(&self) -> Arc<MailFake> {
+        let fake = Arc::new(MailFake::default());
+        *self.fake.write().expect("mail fake lock poisoned") = Some(fake.clone());
+        fake
     }
 
     pub fn mailer(&self, name: Option<&str>) -> MailResult<Arc<Mailer>> {
@@ -56,7 +65,12 @@ impl MailManager {
             .owner
             .upgrade()
             .ok_or_else(|| super::transport("Mail application is unavailable."))?;
-        let (transport, captured) = self.resolve_transport(&container, name, &mut Vec::new())?;
+        let faking = self.fake.read().expect("mail fake lock poisoned").is_some();
+        let (transport, captured): ResolvedTransport = if faking {
+            (Arc::new(ArrayTransport::default()), None)
+        } else {
+            self.resolve_transport(&container, name, &mut Vec::new())?
+        };
         let from = self.config.get("mail.from").and_then(|from| {
             Some(Address {
                 address: from["address"].as_str()?.into(),
@@ -72,8 +86,11 @@ impl MailManager {
             views,
             transport,
             captured,
+            fake: self.fake.clone(),
         });
-        mailers.insert(name.into(), mailer.clone());
+        if !faking {
+            mailers.insert(name.into(), mailer.clone());
+        }
         Ok(mailer)
     }
 

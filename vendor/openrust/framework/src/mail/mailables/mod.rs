@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A mailbox and its optional display name.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Address {
     pub address: String,
     pub name: Option<String>,

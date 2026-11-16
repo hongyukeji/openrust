@@ -9,6 +9,7 @@ mod facade;
 pub mod messages;
 mod notifiable;
 mod notification;
+mod notification_fake;
 mod notification_sender;
 mod notification_service_provider;
 mod send_queued_notifications;
@@ -21,6 +22,7 @@ pub use database_notification::{DatabaseKey, DatabaseNotification, DatabaseRoute
 pub use facade::NotificationFacade;
 pub use notifiable::Notifiable;
 pub use notification::Notification;
+pub use notification_fake::{NotificationFake, NotificationTarget, RecordedNotification};
 pub use notification_sender::{NotificationEvent, NotificationSender};
 pub use notification_service_provider::NotificationServiceProvider;
 pub use send_queued_notifications::SendQueuedNotifications;
@@ -47,7 +49,7 @@ pub enum NotificationError {
 }
 
 /// The address or model relation for a notification channel.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum NotificationRoute {
     Mail(Vec<crate::mail::mailables::Address>),
     Database(DatabaseRoute),

@@ -62,3 +62,17 @@ Notifications::route(
 ## 廣播通知
 
 在 `via` 中加入 `broadcast`。由 `to_broadcast` 回傳 `BroadcastMessage`，或由 `to_array` 回傳物件。用訊息的 `connection` 和 `queue` 選擇廣播事件的佇列連線和佇列名稱。事件預設附加通知 ID 和類型。有資料庫路由的模型預設在由模型類型和鍵組成的私人頻道上接收事件。可覆寫 `receives_broadcast_notifications_on` 自訂私人頻道名稱，或用 `NotificationRoute::Broadcast` 為隨選收件人指定頻道。
+
+## 測試通知
+
+在測試應用程式中呼叫 `Notifications::fake()` 記錄通知分派，管道和佇列不會執行。用 `assertSentToOnce` 斷言模型收件人，用 `assertSentOnDemandOnce` 斷言隨選收件人。比對斷言可檢查管道、語言、路由以及 `Notification::fake_data` 提供的資料。
+
+```rust
+let notifications = Notifications::fake()?;
+let target = Notifications::route(
+    "mail",
+    NotificationRoute::Mail(vec!["ops@example.test".into()]),
+)?;
+target.notify(&notice).await?;
+notifications.assertSentOnDemandOnce(notice.kind());
+```

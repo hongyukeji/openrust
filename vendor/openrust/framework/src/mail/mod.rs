@@ -1,6 +1,7 @@
 //! Mail composition, mailer selection, and delivery.
 
 mod facade;
+mod mail_fake;
 mod mail_manager;
 mod mail_service_provider;
 mod mailable;
@@ -14,6 +15,7 @@ pub mod transport;
 use std::{error::Error, future::Future, pin::Pin};
 
 pub use facade::Mail;
+pub use mail_fake::{MailFake, RecordedMail};
 pub use mail_manager::MailManager;
 pub use mail_service_provider::MailServiceProvider;
 pub use mailable::Mailable;

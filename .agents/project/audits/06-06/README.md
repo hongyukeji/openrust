@@ -40,3 +40,11 @@ Rust 队列载荷显式保存邮件定义或通知渠道载荷及语言，Worker
 - 对照固定 [AnonymousNotifiable](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/AnonymousNotifiable.php)、[BroadcastChannel](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Channels/BroadcastChannel.php) 和 [BroadcastNotificationCreated](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Notifications/Events/BroadcastNotificationCreated.php)。Rust 以枚举保存渠道地址、以 trait 方法覆盖广播类型和载荷。模型默认用数据库路由的类型与主键构成私有频道名。队列含显式事件数据和选定连接，不序列化任意 Rust trait 对象。
 - 实际回环 HTTP 经框架 Kernel 发送按需通知，用内存邮件器核对收件人，用 MySQL 8.4.13 核对按需收件人的数据库渠道被跳过。独立 Artisan `queue:work` 消化指定广播队列，在 log broadcaster 核对私有频道、事件名、通知类型与 ID。
 - 独立 MySQL 8.4.13、Redis 8.10.3 和 Mailpit 1.33.1 回归通过，验证事务提交及回滚边界。真实 `queue:work` 处理两封邮件和一条数据库通知，Mailpit HTTP API 核对两封邮件的收件人和主题。工作区全目标严格 Clippy、三语站点构建及 12 项浏览器检查通过。
+
+## Mail Fake 与 Notification Fake
+
+- 骨架归 `mail::{MailFake, RecordedMail}` 和 `notifications::{NotificationFake, NotificationTarget, RecordedNotification}`。Fake 状态由当前应用的管理器持有。沿用现有 Mail、Notification Facade、命名邮件器和 Dispatcher 契约。
+- 对照固定 [MailFake](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Testing/Fakes/MailFake.php) 和 [NotificationFake](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Support/Testing/Fakes/NotificationFake.php)。沿用旧版 `6d1a81924` 的 `src/mail/mod.rs` 中应用服务内记录、按收件人检查的思路。旧版的 `src/notifications.rs` 使用渠道替身，未提供按通知和收件人断言的 Fake。
+- Rust 的断言读取显式记录。邮件记录提供信封、邮件器、语言、发送结果或队列选项。通知记录提供通知标识、目标、渠道、语言与应用通过 `fake_data` 选择保存的数据。邮件立即发送路径仍组装 MIME，以满足既有 `SentMessage` 返回契约。Fake 不调用真实传输、渠道或队列。应用可为无数据库路由的收件人实现 `notification_key`。
+- 实际 Artisan 子进程核对按类型和条件断言已发、已排队和出站数量、Fake 启用前取得的邮件器、模型与按需通知、渠道过滤和语言。实际回环 HTTP 核对应用内已拦截通知，第二个应用仍可通过 array 邮件器正常投递。三语站点构建和两种部署路径的 12 项浏览器检查通过。
+- 在提交 `c570cf91d` 的隔离副本中叠加本批改动，Rust 1.94.0 定向回归和工作区全目标严格 Clippy 通过。共享工作树中的并行日志改动曾阻止编译，隔离验收保留其现场。

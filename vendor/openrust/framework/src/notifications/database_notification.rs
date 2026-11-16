@@ -26,7 +26,7 @@ impl DatabaseKey {
 }
 
 /// The polymorphic notification relation of a model.
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct DatabaseRoute {
     pub connection: Option<String>,
     pub model_type: String,

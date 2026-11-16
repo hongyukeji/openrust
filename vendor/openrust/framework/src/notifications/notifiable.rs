@@ -16,6 +16,11 @@ pub trait Notifiable: Send + Sync {
         None
     }
 
+    /// Stable identity for assertions when the recipient has no database route.
+    fn notification_key(&self) -> Option<String> {
+        None
+    }
+
     fn as_anonymous(&self) -> Option<&AnonymousNotifiable> {
         None
     }

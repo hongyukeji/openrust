@@ -9,19 +9,21 @@ use crate::{
 };
 
 use super::{
-    Notifiable, Notification, NotificationError, NotificationFuture, NotificationResult,
-    NotificationSender,
+    Notifiable, Notification, NotificationError, NotificationFake, NotificationFuture,
+    NotificationResult, NotificationSender,
     channels::{BroadcastChannel, Channel, DatabaseChannel, MailChannel},
 };
 
 /// Resolves notification channels and dispatches notifications.
 pub struct ChannelManager {
     channels: RwLock<HashMap<String, Arc<dyn Channel>>>,
+    fake: RwLock<Option<Arc<NotificationFake>>>,
 }
 
 impl Default for ChannelManager {
     fn default() -> Self {
         Self {
+            fake: RwLock::default(),
             channels: RwLock::new(
                 [
                     ("mail".into(), Arc::new(MailChannel) as Arc<dyn Channel>),
@@ -42,6 +44,19 @@ impl Default for ChannelManager {
 
 #[allow(non_snake_case, reason = "Matches Laravel's notification API")]
 impl ChannelManager {
+    pub fn fake(&self) -> Arc<NotificationFake> {
+        let fake = Arc::new(NotificationFake::default());
+        *self.fake.write().expect("notification fake lock poisoned") = Some(fake.clone());
+        fake
+    }
+
+    pub(super) fn active_fake(&self) -> Option<Arc<NotificationFake>> {
+        self.fake
+            .read()
+            .expect("notification fake lock poisoned")
+            .clone()
+    }
+
     pub fn extend(&self, name: impl Into<String>, channel: Arc<dyn Channel>) {
         self.channels
             .write()

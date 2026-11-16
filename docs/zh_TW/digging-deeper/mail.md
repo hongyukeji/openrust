@@ -50,3 +50,16 @@ pub async fn send_order() -> MailResult<()> {
 ## 郵件加入佇列
 
 讓 `Mailable::queue_options` 回傳佇列選項後，`send` 會將郵件加入佇列。`sendNow` 立即傳送。`PendingMail::queue` 接收連線、佇列、延遲和選用交易。`after_commit` 將派送延後到交易提交。Worker 用佇列中的郵件定義呈現命名視圖並傳送。用 `./artisan queue:work --stop-when-empty` 消費郵件佇列。
+
+## 測試郵件
+
+在測試應用程式中呼叫 `Mail::fake()`，即可檢查郵件並跳過傳輸和加入佇列。斷言區分即時傳送與排隊傳送。用 `Mailable::kind()` 選擇郵件記錄，用比對斷言檢查信封或佇列選項。
+
+```rust
+let mail = Mail::fake()?;
+Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+mail.assertSentMatching(receipt.kind(), |entry| {
+    entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
+});
+mail.assertNothingQueued();
+```

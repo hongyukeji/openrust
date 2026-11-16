@@ -3,8 +3,8 @@ use std::sync::Arc;
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    AnonymousNotifiable, ChannelManager, Notifiable, Notification, NotificationResult,
-    NotificationRoute, channels::Channel, delivery,
+    AnonymousNotifiable, ChannelManager, Notifiable, Notification, NotificationFake,
+    NotificationResult, NotificationRoute, channels::Channel, delivery,
 };
 
 /// Resolves notifications for the current application.
@@ -20,6 +20,10 @@ impl Facade for NotificationFacade {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Notification facade")]
 impl NotificationFacade {
+    pub fn fake() -> NotificationResult<Arc<NotificationFake>> {
+        Ok(Self::getFacadeRoot().map_err(delivery)?.fake())
+    }
+
     pub fn channel(name: Option<&str>) -> NotificationResult<Arc<dyn Channel>> {
         Self::getFacadeRoot().map_err(delivery)?.channel(name)
     }

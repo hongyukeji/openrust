@@ -50,3 +50,16 @@ In `config/mail.rs`, `failover` keeps the active mailer while it succeeds and sw
 ## Queueing mail
 
 Return queue options from `Mailable::queue_options` to make `send` enqueue delivery. Use `sendNow` for immediate delivery. `PendingMail::queue` accepts connection, queue, delay and an optional transaction. Enable `after_commit` to defer dispatch until commit. The worker composes named views from the queued definition in the worker application, then sends the message. Use `./artisan queue:work --stop-when-empty` to process queued mail.
+
+## Testing mail
+
+Install `Mail::fake()` within the test application to inspect mail without contacting a transport or pushing a queue job. Assertions distinguish immediate mail from queued mail. Use `Mailable::kind()` to select records, and use a matching assertion to inspect the envelope or queue options.
+
+```rust
+let mail = Mail::fake()?;
+Mail::to("ops@example.test")?.sendNow(&receipt).await?;
+mail.assertSentMatching(receipt.kind(), |entry| {
+    entry.envelope.to.iter().any(|to| to.address == "ops@example.test")
+});
+mail.assertNothingQueued();
+```

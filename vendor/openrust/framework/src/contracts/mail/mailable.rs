@@ -5,6 +5,10 @@ use crate::mail::{
 
 /// Describes an application email for a selected mailer.
 pub trait Mailable: Send + Sync {
+    fn kind(&self) -> &str {
+        std::any::type_name::<Self>()
+    }
+
     fn envelope(&self) -> MailResult<Envelope>;
     fn content(&self) -> MailResult<Content>;
     fn attachments(&self) -> MailResult<Vec<Attachment>> {

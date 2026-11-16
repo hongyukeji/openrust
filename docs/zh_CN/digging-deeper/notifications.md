@@ -62,3 +62,17 @@ Notifications::route(
 ## 广播通知
 
 在 `via` 中加入 `broadcast`。由 `to_broadcast` 返回 `BroadcastMessage`，或由 `to_array` 返回对象。用消息的 `connection` 和 `queue` 选择广播事件的队列连接和队列名。事件默认附加通知 ID 和类型。有数据库路由的模型默认在由模型类型和键组成的私有频道上接收事件。可以覆盖 `receives_broadcast_notifications_on` 自定义私有频道名，或用 `NotificationRoute::Broadcast` 为按需收件人指定频道。
+
+## 测试通知
+
+在测试应用中调用 `Notifications::fake()` 记录通知分派，渠道和队列不会执行。用 `assertSentToOnce` 断言模型收件人，用 `assertSentOnDemandOnce` 断言按需收件人。匹配断言可检查渠道、语言、路由以及 `Notification::fake_data` 提供的数据。
+
+```rust
+let notifications = Notifications::fake()?;
+let target = Notifications::route(
+    "mail",
+    NotificationRoute::Mail(vec!["ops@example.test".into()]),
+)?;
+target.notify(&notice).await?;
+notifications.assertSentOnDemandOnce(notice.kind());
+```

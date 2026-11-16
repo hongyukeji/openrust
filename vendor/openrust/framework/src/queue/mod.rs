@@ -401,7 +401,7 @@ impl JobContext<'_> {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct DispatchOptions {
     pub connection: Option<String>,
     pub queue: Option<String>,

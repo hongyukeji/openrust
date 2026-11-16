@@ -25,7 +25,7 @@ use openrust::{
     },
     notifications::{
         DatabaseKey, DatabaseNotification, DatabaseRoute, Notifiable, Notification as Notice,
-        NotificationEvent, NotificationResult, NotificationRoute,
+        NotificationEvent, NotificationResult, NotificationRoute, NotificationTarget,
         messages::{BroadcastMessage, DatabaseMessage, MailDelivery, MailMessage},
     },
     queue::{DispatchOptions, QueueManager},
@@ -136,6 +136,14 @@ impl Notice for Payment {
             after_commit: Some(true),
             ..Default::default()
         })
+    }
+
+    fn should_send(&self, _: &dyn Notifiable, channel: &str) -> bool {
+        channel != "blocked"
+    }
+
+    fn fake_data(&self) -> Json {
+        json!({"paid":true})
     }
 
     fn kind(&self) -> &str {
@@ -299,7 +307,117 @@ impl Command for SendFixture {
     }
 }
 
+struct AssertFakes(CommandDefinition);
+
+impl Command for AssertFakes {
+    fn definition(&self) -> &CommandDefinition {
+        &self.0
+    }
+
+    fn handle<'a>(
+        &'a self,
+        _: &'a Application,
+        _: &'a Input,
+        output: &'a mut Output,
+    ) -> ConsoleFuture<'a, Result<i32, ConsoleError>> {
+        Box::pin(async move {
+            let cached_mailer = Mail::mailer(None).unwrap();
+            let mail = Mail::fake().unwrap();
+            let notifications = Notification::fake().unwrap();
+            let kind = Receipt.kind();
+            mail.assertNothingOutgoing();
+            notifications.assertNothingSent();
+
+            let named = Mail::mailer(Some("unconfigured-provider")).unwrap();
+            let queued = Mail::to("queue@example.test")
+                .unwrap()
+                .locale("fr")
+                .queue(
+                    &Receipt,
+                    DispatchOptions {
+                        queue: Some("mail".into()),
+                        ..Default::default()
+                    },
+                    None,
+                )
+                .await
+                .unwrap();
+            assert!(queued.is_none());
+            Mail::to("sent@example.test")
+                .unwrap()
+                .sendNow(&Receipt)
+                .await
+                .unwrap();
+            named.sendNow(&AddressedReceipt).await.unwrap();
+            cached_mailer.sendNow(&AddressedReceipt).await.unwrap();
+            mail.assertSentOnce(kind)
+                .assertQueuedOnce(kind)
+                .assertOutgoingCount(4)
+                .assertNotOutgoing("unused")
+                .assertSentMatching(kind, |entry| {
+                    entry.envelope.to[0].address == "sent@example.test"
+                })
+                .assertQueuedMatching(kind, |entry| {
+                    entry.locale.as_deref() == Some("fr")
+                        && entry.queue.as_ref().unwrap().queue.as_deref() == Some("mail")
+                });
+            assert!(cached_mailer.sent().unwrap().is_empty());
+
+            let queued_notice = Payment { queued: true };
+            let model = user();
+            let target = NotificationTarget::from(model.route.clone());
+            model
+                .notifyNow(&queued_notice, Some(&["mail", "blocked"]))
+                .await
+                .unwrap();
+            Notification::route(
+                "mail",
+                NotificationRoute::Mail(vec!["ondemand@example.test".into()]),
+            )
+            .unwrap()
+            .notify(&queued_notice)
+            .await
+            .unwrap();
+            notifications
+                .assertSentToOnce(&target, queued_notice.kind())
+                .assertSentToMatching(&target, queued_notice.kind(), |entry| {
+                    entry.channels == ["mail"]
+                        && entry.locale.as_deref() == Some("fr")
+                        && entry.data == json!({"paid":true})
+                })
+                .assertSentOnDemandOnce(queued_notice.kind())
+                .assertSentOnDemandMatching(queued_notice.kind(), |entry| {
+                    entry.channels == ["mail"]
+                        && matches!(entry.target, NotificationTarget::OnDemand(_))
+                })
+                .assertSentTimes(queued_notice.kind(), 2)
+                .assertCount(2);
+            mail.assertOutgoingCount(4);
+            output.comment("mail and notification fakes verified");
+            Ok(0)
+        })
+    }
+}
+
+struct AddressedReceipt;
+
+impl Mailable for AddressedReceipt {
+    fn envelope(&self) -> MailResult<Envelope> {
+        Ok(Envelope {
+            to: vec!["cached@example.test".into()],
+            ..Receipt.envelope()?
+        })
+    }
+
+    fn content(&self) -> MailResult<Content> {
+        Receipt.content()
+    }
+}
+
 fn mail_routes() -> Result<(), ConsoleError> {
+    Artisan::add(Box::new(AssertFakes(CommandDefinition::new(
+        clap::Command::new("fixture:assert-fakes"),
+    ))))?;
     Artisan::add(Box::new(SendFixture(CommandDefinition::new(
         clap::Command::new("fixture:send-mail").arg(clap::Arg::new("mailer").required(true)),
     ))))
@@ -982,8 +1100,9 @@ async fn queued(redis: Option<u16>, mysql: Option<&str>, smtp: Option<u16>) {
     }
 }
 
-#[tokio::test]
-async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
+async fn serve_notify(
+    kernel: Kernel,
+) -> (String, tokio::task::JoinHandle<Result<(), std::io::Error>>) {
     use axum::{Router, extract::State};
 
     async fn transport(
@@ -998,6 +1117,22 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
         axum::response::Response::from_parts(parts, body)
     }
 
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/notify", listener.local_addr().unwrap());
+    let server = tokio::spawn(
+        axum::serve(
+            listener,
+            Router::new()
+                .fallback(transport)
+                .with_state(Arc::new(kernel)),
+        )
+        .into_future(),
+    );
+    (url, server)
+}
+
+#[tokio::test]
+async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
     let Ok(mysql) = std::env::var("OPENRUST_TEST_DELIVERY_MYSQL_URL") else {
         assert!(std::env::var_os("OPENRUST_REQUIRE_DELIVERY_SERVICES").is_none());
         return;
@@ -1027,17 +1162,7 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
         .mailer(None)
         .unwrap();
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let url = format!("http://{}/notify", listener.local_addr().unwrap());
-    let server = tokio::spawn(
-        axum::serve(
-            listener,
-            Router::new()
-                .fallback(transport)
-                .with_state(Arc::new(kernel)),
-        )
-        .into_future(),
-    );
+    let (url, server) = serve_notify(kernel).await;
     let response = reqwest::get(url).await.unwrap();
     assert_eq!(response.status(), 200);
     assert_eq!(
@@ -1082,6 +1207,60 @@ async fn http_on_demand_notification_broadcasts_from_an_artisan_worker() {
     for table in ["notifications", "jobs", "failed_jobs"] {
         db.getSchemaBuilder().dropIfExists(table).await.unwrap();
     }
+    server.abort();
+}
+
+#[tokio::test]
+async fn mail_and_notification_fakes_are_application_local_over_http_and_artisan() {
+    let root = fixture(None, None, None);
+    let output = artisan(&root.0, &["fixture:assert-fakes"]).await;
+    assert!(output.contains("mail and notification fakes verified"));
+
+    let mut kernel = Kernel::new(app(&root.0));
+    kernel.bootstrap().await.unwrap();
+    let container = kernel.get_application().container();
+    let real_mailer = container
+        .make::<openrust::mail::MailManager>()
+        .unwrap()
+        .mailer(None)
+        .unwrap();
+    let mail = container
+        .make::<openrust::mail::MailManager>()
+        .unwrap()
+        .fake();
+    let notifications = container
+        .make::<openrust::notifications::ChannelManager>()
+        .unwrap()
+        .fake();
+    let (url, server) = serve_notify(kernel).await;
+    let response = reqwest::get(url).await.unwrap();
+    assert_eq!(response.status(), 200);
+    notifications
+        .assertSentOnDemandOnce(RoutedNotice.kind())
+        .assertSentOnDemandMatching(RoutedNotice.kind(), |entry| {
+            entry.channels == ["mail", "broadcast"]
+        });
+    mail.assertNothingOutgoing();
+    assert!(real_mailer.sent().unwrap().is_empty());
+
+    let mut independent = app(&root.0);
+    independent.boot().await.unwrap();
+    independent
+        .call(
+            Callback::new(&[], |_| async move {
+                Mail::to("real@example.test")
+                    .unwrap()
+                    .sendNow(&Receipt)
+                    .await
+                    .unwrap();
+                assert_eq!(Mail::mailer(None).unwrap().sent().unwrap().len(), 1);
+                Ok(())
+            }),
+            Default::default(),
+        )
+        .await
+        .unwrap();
+    mail.assertNothingOutgoing();
     server.abort();
 }
 

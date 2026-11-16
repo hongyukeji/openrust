@@ -22,6 +22,7 @@ pub struct Mailer {
     pub(super) views: Arc<view::Factory>,
     pub(super) transport: Arc<dyn Transport>,
     pub(super) captured: Option<Arc<ArrayTransport>>,
+    pub(super) fake: super::mail_fake::FakeState,
 }
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mailer API")]
@@ -72,6 +73,19 @@ impl Mailer {
                 .map_err(super::composition)??,
             None => self.compose(mailable, &recipients)?,
         };
+        let fake = self.fake.read().expect("mail fake lock poisoned").clone();
+        if let Some(fake) = fake {
+            let sent = SentMessage { message };
+            fake.record(super::RecordedMail {
+                kind: mailable.kind().into(),
+                mailer: self.name.clone(),
+                envelope: sent.message.1.envelope.clone(),
+                locale: locale.map(str::to_owned).or_else(|| Lang::getLocale().ok()),
+                message: Some(sent.clone()),
+                queue: None,
+            });
+            return Ok(sent);
+        }
         self.transport.send(&message).await
     }
 
@@ -97,6 +111,19 @@ impl Mailer {
         options: DispatchOptions,
         transaction: Option<&mut Transaction>,
     ) -> MailResult<Option<String>> {
+        let fake = self.fake.read().expect("mail fake lock poisoned").clone();
+        if let Some(fake) = fake {
+            let prepared = super::PreparedMail::prepare(&self.name, mailable, recipients).await?;
+            fake.record(super::RecordedMail {
+                kind: mailable.kind().into(),
+                mailer: self.name.clone(),
+                envelope: prepared.envelope,
+                locale: prepared.locale,
+                message: None,
+                queue: Some(options),
+            });
+            return Ok(None);
+        }
         SendQueuedMailable::dispatch(&self.name, mailable, recipients, options, transaction).await
     }
 }

@@ -3,7 +3,8 @@ use std::sync::Arc;
 use crate::{container::ServiceKey, support::facades::Facade};
 
 use super::{
-    MailManager, MailResult, Mailable, Mailer, PendingMail, SentMessage, mailables::Address,
+    MailFake, MailManager, MailResult, Mailable, Mailer, PendingMail, SentMessage,
+    mailables::Address,
 };
 
 /// Resolves the mail manager for the current application.
@@ -19,6 +20,10 @@ impl Facade for Mail {
 
 #[allow(non_snake_case, reason = "Matches Laravel's Mail facade")]
 impl Mail {
+    pub fn fake() -> MailResult<Arc<MailFake>> {
+        Ok(Self::getFacadeRoot().map_err(super::transport)?.fake())
+    }
+
     pub fn mailer(name: Option<&str>) -> MailResult<Arc<Mailer>> {
         Self::getFacadeRoot()
             .map_err(super::transport)?
