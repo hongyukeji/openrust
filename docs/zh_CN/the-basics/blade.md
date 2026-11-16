@@ -145,6 +145,29 @@ Blade 模板使用 `.blade.html` 后缀。普通 `.html` 视图以 UTF-8 HTML �
 
 `fragments(["summary", "details"])` 按参数顺序返回指定片段。`allFragments()` 返回全部已捕获片段。可以用 `fragmentIf(condition, "summary")` 或 `fragmentsIf(condition, names)` 在条件为假时发送完整模板。OpenRust 每次响应只渲染一次视图，选择多个片段时也一样。
 
+## 渲染内联 Blade 模板 {#rendering-inline-blade-templates}
+
+`Factory::renderInline(source, &data)` 在内存中渲染受信任的模板文本。子视图由同一个工厂解析。
+
+## 扩展 Blade {#extending-blade}
+
+在应用装配时调用 `BladeCompiler::directive` 注册自定义指令。回调接收求值后的视图数据。`DirectiveOutput::Text` 会转义，`DirectiveOutput::Html` 作为可信 HTML 输出。
+
+```rust
+use openrust::view::{ViewResult, compilers::{BladeCompiler, DirectiveOutput}};
+
+fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
+    compiler.directive("formatName", |arguments| {
+        let name = arguments.first().and_then(|value| value.as_str()).unwrap_or_default();
+        Ok(DirectiveOutput::Text(name.to_owned()))
+    })
+}
+```
+
+```html
+<b>@formatName($name)</b>
+```
+
 ## PHP 与 Rust 模板 {#php-and-rust-templates}
 
 PHP 函数调用或 `@php` 代码块需要的值，可以在 Rust 处理器、视图创建器或组合器中准备，再传给视图。PHP 类组件及其动态类发现对应 `Factory::component` 显式注册的 Rust `Component` 工厂。匿名组件从视图查找器解析。

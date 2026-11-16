@@ -231,6 +231,12 @@ impl Factory {
         self.render_with_token(view, None)
     }
 
+    /// Renders a trusted inline Blade template using this application's views.
+    pub fn renderInline(&self, source: &str, data: &ViewData) -> ViewResult<String> {
+        self.compiler()
+            .render_inline("", source, data, &mut RenderContext::new(Some(self)))
+    }
+
     pub(super) fn render_with_token(
         &self,
         view: View,

@@ -1,5 +1,7 @@
 # 03-08 布局、组件、视图组合器
 
+[固定 Laravel Blade 章节对照](blade-parity.md)记录逐节已验收行为和剩余差异。
+
 ## 契约与实现
 
 - 对照固定 Laravel 的 ManagesLayouts、ManagesComponents、ManagesEvents、Factory 和 Blade 组件编译入口。Goravel 的应用级视图服务保存共享数据。复用旧版请求级视图数据与显式覆盖共享默认值的合并规则。 [Laravel Views](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/views.md#view-composers) · [Laravel Blade](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#building-layouts) · [Goravel View](https://github.com/goravel/framework/blob/a554ced468cada50a269780692a0491e5f9e3a11/view/view.go)
@@ -44,3 +46,9 @@
 - 对照固定 [ManagesFragments](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/Concerns/ManagesFragments.php) 和 [View](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/View/View.php)。`@fragment` 捕获已渲染标签，同一视图树内的子视图可贡献片段。Rust 用链式 View 方法选择响应，多个具名片段按参数顺序拼接，整个视图每响应求值一次。Laravel 的具名列表可多次调用 render，Rust 组合器只执行一次。旧版 MiniJinja 无对应的 Blade 片段捕获器。
 - macOS ARM64、Rust 1.94.0。锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。真实 HTTP 覆盖单个、多个、全部、缺失、条件回退、子视图、并发应用隔离及未闭合片段 500。隔离副本通过全工作区格式与严格 Clippy，已有 Sanctum 测试只在副本中格式化。
 - 实际 `./artisan view:cache` 编译三语片段示例，`./artisan view:clear` 清除三个产物并保留无关文件。三语 VitePress 构建、根路径和 `/docs/` 的 12 项通用浏览器检查及 6 项片段章节检查通过。
+
+## 内联模板与 Rust 自定义指令
+
+- 对照固定 [内联模板](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#rendering-inline-blade-templates) 和 [Blade 扩展](https://github.com/laravel/docs/blob/960eedf0911155ad16326ade49c0ea5d18eda0b8/blade.md#extending-blade)。Rust 的 `Factory::renderInline` 在内存中渲染模板，复用应用解析器。自定义指令以已求值的视图值调用应用注册的 Rust 闭包，显式返回待转义文本或可信 HTML。编译产物校验应用的注册名称集合，回调只在运行时解析。旧版 MiniJinja 的自定义注册 ABI 与 Blade 不同。
+- macOS ARM64、Rust 1.94.0，锁定离线 `cargo test -p openrust-framework --test view_finder --test csrf` 八项通过。覆盖直接内联渲染、默认转义、可信标记、已登记指令的非法表达式、注册导致缓存失效以及共用缓存目录的两应用实际 HTTP 隔离。隔离副本通过全工作区格式和严格 Clippy，已有 Sanctum 测试只在副本中格式化。
+- 隔离应用用三语共用的 Rust 文档代码在 Provider 注册示例指令。实际 `./artisan view:cache` 产出三份包含已注册指令的编译产物，`./artisan view:clear` 清除产物并保留无关文件。三语站点构建、根路径与 `/docs/` 的 12 项通用浏览器检查和 6 项扩展章节检查通过。

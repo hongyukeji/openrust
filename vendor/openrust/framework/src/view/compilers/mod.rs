@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 
 use super::ViewResult;
 
-pub use blade_compiler::BladeCompiler;
+pub(in crate::view) use blade_compiler::Directives;
+pub use blade_compiler::{BladeCompiler, DirectiveOutput};
 
 /// Compiles a template and determines when its artifact is stale.
 pub trait Compiler: Send + Sync {

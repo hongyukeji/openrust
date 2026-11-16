@@ -145,6 +145,29 @@ Mark part of a template with `@fragment` and `@endfragment`. Return `view("dashb
 
 `fragments(["summary", "details"])` returns the named fragments in the given order. `allFragments()` returns every captured fragment. Use `fragmentIf(condition, "summary")` or `fragmentsIf(condition, names)` to keep the full template when the condition is false. OpenRust evaluates the view once per response, including when selecting multiple fragments.
 
+## Rendering Inline Blade Templates {#rendering-inline-blade-templates}
+
+`Factory::renderInline(source, &data)` renders trusted template text in memory. Nested views resolve through that factory.
+
+## Extending Blade {#extending-blade}
+
+Call `BladeCompiler::directive` during application setup to register a custom directive. A callback receives evaluated view values. `DirectiveOutput::Text` is escaped, and `DirectiveOutput::Html` is emitted as trusted HTML.
+
+```rust
+use openrust::view::{ViewResult, compilers::{BladeCompiler, DirectiveOutput}};
+
+fn configure_blade(compiler: &BladeCompiler) -> ViewResult<()> {
+    compiler.directive("formatName", |arguments| {
+        let name = arguments.first().and_then(|value| value.as_str()).unwrap_or_default();
+        Ok(DirectiveOutput::Text(name.to_owned()))
+    })
+}
+```
+
+```html
+<b>@formatName($name)</b>
+```
+
 ## PHP and Rust Templates {#php-and-rust-templates}
 
 Prepare values that require PHP function calls or `@php` blocks in a Rust handler, view creator, or composer, then pass them to the view. For PHP class components and dynamic class discovery, register the corresponding Rust `Component` factory with `Factory::component`. Anonymous components resolve through the view finder.

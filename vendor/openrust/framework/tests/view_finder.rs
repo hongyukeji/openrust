@@ -93,7 +93,10 @@ fn finder_rejects_symlinks_outside_a_configured_root() {
 
 #[test]
 fn blade_compiles_escapes_and_refreshes_a_cached_template() {
-    use openrust::view::{Factory, ViewData, compilers::Compiler as _};
+    use openrust::view::{
+        Factory, ViewData,
+        compilers::{Compiler as _, DirectiveOutput},
+    };
     use serde_json::json;
 
     let root = TempDir::new();
@@ -135,6 +138,33 @@ fn blade_compiles_escapes_and_refreshes_a_cached_template() {
     assert!(compiler.isExpired(&blade).unwrap());
     compiler.compile(&blade).unwrap();
     assert!(!compiler.isExpired(&blade).unwrap());
+    fs::write(&blade, "@formatName($user->name)").unwrap();
+    assert_eq!(
+        factory.render("welcome", &data).unwrap(),
+        "@formatName($user->name)"
+    );
+    compiler
+        .directive("formatName", |args| {
+            Ok(DirectiveOutput::Text(args[0].as_str().unwrap().to_owned()))
+        })
+        .unwrap();
+    assert!(compiler.isExpired(&blade).unwrap());
+    compiler.compile(&blade).unwrap();
+    assert!(!compiler.isExpired(&blade).unwrap());
+    assert_eq!(
+        factory.render("welcome", &data).unwrap(),
+        "&lt;&amp;&#039;&quot;"
+    );
+    assert_eq!(
+        factory
+            .renderInline(r#"<b>@formatName($user->name)</b>"#, &data)
+            .unwrap(),
+        "<b>&lt;&amp;&#039;&quot;</b>"
+    );
+    assert!(matches!(
+        factory.renderInline("@formatName($x + 1)", &data),
+        Err(ViewError::CompileFailed(_))
+    ));
     fs::write(&blade, "@unless ($none)updated@endunless").unwrap();
     assert!(compiler.isExpired(&blade).unwrap());
     assert_eq!(factory.render("welcome", &data).unwrap(), "updated");
@@ -295,7 +325,10 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
         foundation::{Application, configuration::Routing, http::Kernel},
         http::{Body, HttpError, HttpFuture, Request, Response, StatusCode},
         support::facades::{Route, View as ViewFacade},
-        view::{Component, ComponentOutput, Factory, ViewData, ViewResult, view},
+        view::{
+            Component, ComponentOutput, Factory, ViewData, ViewResult, compilers::DirectiveOutput,
+            view,
+        },
     };
     use std::{path::PathBuf, sync::Arc};
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
@@ -398,6 +431,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
                     view("expressions").with("ready", true).with("count", 2)
                 })?;
                 Route::get("/invalid-expression", || view("invalid_expression"))?;
+                Route::get("/directive", || view("custom_directive").with("text", "<&"))?;
+                Route::get("/broken-directive", || view("broken_directive"))?;
                 Route::get("/broken", || view("broken"))
             }))
             .create()
@@ -425,6 +460,28 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             }),
         );
         factory.component("badge", |_| Ok(Badge));
+        let openrust::view::engines::Engine::Blade(engine) =
+            factory.getEngineResolver().resolve("blade").unwrap()
+        else {
+            panic!("the default view compiler uses Blade");
+        };
+        if app == "A" {
+            engine
+                .getCompiler()
+                .directive("formatName", move |args| {
+                    Ok(DirectiveOutput::Text(format!(
+                        "{app}:{}",
+                        args[0].as_str().unwrap()
+                    )))
+                })
+                .unwrap();
+        }
+        engine
+            .getCompiler()
+            .directive("htmlBadge", move |_| {
+                Ok(DirectiveOutput::Html(format!("<mark>{app}</mark>")))
+            })
+            .unwrap();
         factory.share("app", app);
         factory.share("title", "shared");
         factory.creator("page", |view| {
@@ -590,6 +647,8 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             ),
         ),
         ("invalid_expression", "@if ($x ===)broken@endif"),
+        ("custom_directive", "<b>@formatName($text)</b>@htmlBadge"),
+        ("broken_directive", "@formatName($text + 1)"),
     ] {
         fs::write(sources.join(format!("{name}.blade.html")), source).unwrap();
     }
@@ -688,6 +747,13 @@ async fn layouts_and_composers_isolate_concurrent_http_requests() {
             .await
             .contains("500")
     );
+    let (a, b) = tokio::join!(
+        send(first, "/directive", 200),
+        send(second, "/directive", 200)
+    );
+    assert_eq!(a, "<b>A:&lt;&amp;</b><mark>A</mark>");
+    assert_eq!(b, "<b>@formatName($text)</b><mark>B</mark>");
+    assert!(send(first, "/broken-directive", 500).await.contains("500"));
     assert_eq!(send(first, "/plain", 200).await, unrelated);
     let (a, b) = tokio::join!(
         send(first, "/contract", 200),

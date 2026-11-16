@@ -3,6 +3,7 @@ use std::{borrow::Cow, fmt::Write as _, sync::Arc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+use super::{DirectiveOutput, Directives};
 use crate::view::{
     ViewData, ViewError, ViewResult, ViewValue,
     rendering::{RenderContext, render_error},
@@ -50,6 +51,7 @@ enum Node {
     Fragment(Expression, Vec<Node>),
     BooleanAttribute(String, Expression),
     ConditionalAttribute(AttributeList, bool),
+    CustomDirective(String, Vec<Expression>),
     Include(Expression),
     IncludeIf(Expression),
     IncludeWhen(Expression, Expression, bool),
@@ -83,10 +85,14 @@ enum OnceId {
 }
 
 impl Template {
-    pub(super) fn compile(source: &str, identity: &str) -> ViewResult<Self> {
-        let mut parser = Parser::new(source, identity);
+    pub(super) fn compile(
+        source: &str,
+        identity: &str,
+        directives: &Directives,
+    ) -> ViewResult<Self> {
+        let mut parser = Parser::new(source, identity, directives);
         let trimmed = source.trim_start();
-        let mut leading = Parser::new(trimmed, identity);
+        let mut leading = Parser::new(trimmed, identity, directives);
         let props = if leading.directive("props") {
             parser = leading;
             Some(parse_props(parser.arguments()?)?)
@@ -151,14 +157,16 @@ enum Stop {
 struct Parser<'a> {
     remaining: &'a str,
     identity: &'a str,
+    directives: &'a Directives,
     once_count: usize,
 }
 
 impl<'a> Parser<'a> {
-    fn new(source: &'a str, identity: &'a str) -> Self {
+    fn new(source: &'a str, identity: &'a str, directives: &'a Directives) -> Self {
         Self {
             remaining: source,
             identity,
+            directives,
             once_count: 0,
         }
     }
@@ -451,9 +459,35 @@ impl<'a> Parser<'a> {
                 }
             }
         } else {
-            return Ok(None);
+            return self.custom_directive();
         };
         Ok(Some(node))
+    }
+
+    fn custom_directive(&mut self) -> ViewResult<Option<Node>> {
+        let Some(rest) = self.remaining.strip_prefix('@') else {
+            return Ok(None);
+        };
+        let end = rest
+            .find(|character: char| !(character.is_alphanumeric() || character == '_'))
+            .unwrap_or(rest.len());
+        let (name, rest) = rest.split_at(end);
+        if !self.directives.contains_key(name) {
+            return Ok(None);
+        }
+        self.remaining = rest;
+        let mut arguments = Vec::new();
+        if self.remaining.trim_start().starts_with('(') {
+            let input = self.arguments()?.trim();
+            if !input.is_empty() {
+                let mut start = 0;
+                for end in separators(input, ",").chain(std::iter::once(input.len())) {
+                    arguments.push(expression_value(&input[start..end])?);
+                    start = end + 1;
+                }
+            }
+        }
+        Ok(Some(Node::CustomDirective(name.to_owned(), arguments)))
     }
 
     fn capture_stack(&mut self, depth: usize, prepend: bool) -> ViewResult<Node> {
@@ -725,7 +759,7 @@ fn push_text(nodes: &mut Vec<Node>, text: &mut String) {
     }
 }
 
-fn identifier(name: &str) -> bool {
+pub(super) fn identifier(name: &str) -> bool {
     let mut characters = name.chars();
     characters
         .next()
@@ -958,6 +992,20 @@ fn render_nodes<'a>(
                 write!(output, "{name}=\"").unwrap();
                 escape_html(output, &text);
                 output.push('"');
+            }
+            Node::CustomDirective(name, arguments) => {
+                let callback = context
+                    .directives
+                    .get(name)
+                    .ok_or_else(|| render_error("Blade directive registration was not found."))?;
+                let arguments = arguments
+                    .iter()
+                    .map(|argument| value(argument, data, bindings).clone())
+                    .collect::<Vec<_>>();
+                match callback(&arguments)? {
+                    DirectiveOutput::Text(text) => escape_html(output, &text),
+                    DirectiveOutput::Html(html) => output.push_str(&html),
+                }
             }
             Node::Include(expression) | Node::IncludeIf(expression) => {
                 let name = name_value(value(expression, data, bindings))?;
