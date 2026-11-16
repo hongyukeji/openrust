@@ -1866,3 +1866,149 @@ async fn sqlite_uses_column_collation_through_rebuild() {
         Some("binary")
     );
 }
+
+#[tokio::test]
+async fn sqlite_rebuild_preserves_inline_constraints_and_can_drop_foreign_keys() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    db.unprepared(
+        "CREATE TABLE inline_parents (id INTEGER PRIMARY KEY);
+         INSERT INTO inline_parents VALUES (1), (2);
+         CREATE TABLE inline_children (
+           id INTEGER CONSTRAINT \"inline primary\" PRIMARY KEY ON CONFLICT FAIL AUTOINCREMENT,
+           owner_id INTEGER CONSTRAINT \"owner link\" REFERENCES inline_parents(id)
+              ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED
+              CONSTRAINT \"owner check\" CHECK (owner_id > 0),
+           second_id INTEGER REFERENCES inline_parents(id) ON DELETE RESTRICT NOT NULL,
+           label TEXT CONSTRAINT \"unique label\" UNIQUE ON CONFLICT IGNORE
+              CONSTRAINT \"valid label\" CHECK (length(trim(label)) > 0)
+         );
+         INSERT INTO inline_children (owner_id, second_id, label) VALUES (1, 2, 'first'), (1, 2, 'second');
+         DELETE FROM inline_children WHERE id = 2",
+    ).await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .table("inline_children", |table| {
+            table.bigInteger("id").change();
+            table.integer("owner_id").nullable().change();
+            table.string("label", 60).change();
+        })
+        .await
+        .unwrap();
+    let keys = schema.getForeignKeys("inline_children").await.unwrap();
+    assert!(keys.iter().any(|key| key.columns == ["owner_id"]
+        && key.on_delete.eq_ignore_ascii_case("set null")
+        && key.on_update.eq_ignore_ascii_case("cascade")));
+    let columns = schema.getColumns("inline_children").await.unwrap();
+    assert!(
+        columns
+            .iter()
+            .any(|column| column.name == "id" && column.primary && column.auto_increment)
+    );
+    assert_eq!(
+        db.scalar(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'inline_children'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        2.into()
+    );
+    assert!(
+        db.insert(
+            "INSERT INTO inline_children (owner_id, second_id, label) VALUES (1, 2, '   ')",
+            &[]
+        )
+        .await
+        .is_err()
+    );
+    db.insert(
+        "INSERT INTO inline_children (owner_id, second_id, label) VALUES (1, 2, 'first')",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert_eq!(db.table("inline_children").count("*").await.unwrap(), 1);
+    db.delete("DELETE FROM inline_parents WHERE id = 1", &[])
+        .await
+        .unwrap();
+    assert_eq!(
+        db.table("inline_children").value("owner_id").await.unwrap(),
+        Value::Null
+    );
+
+    schema
+        .table("inline_children", |table| {
+            table.dropForeign("OWNER LINK");
+            table.dropForeignColumns(&["second_id"]);
+        })
+        .await
+        .unwrap();
+    assert!(
+        schema
+            .getForeignKeys("inline_children")
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        db.insert(
+            "INSERT INTO inline_children (owner_id, second_id, label) VALUES (-1, 99, 'new')",
+            &[]
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        db.insert(
+            "INSERT INTO inline_children (owner_id, label) VALUES (99, 'new')",
+            &[]
+        )
+        .await
+        .is_err()
+    );
+    db.insert(
+        "INSERT INTO inline_children (owner_id, second_id, label) VALUES (99, 99, 'valid')",
+        &[],
+    )
+    .await
+    .unwrap();
+    assert!(
+        schema
+            .table("inline_children", |table| {
+                table.dropForeign("missing");
+            })
+            .await
+            .is_err()
+    );
+    assert_eq!(db.table("inline_children").count("*").await.unwrap(), 2);
+}
+
+#[tokio::test]
+async fn sqlite_can_drop_an_inline_primary_key_without_retaining_a_sequence() {
+    let db = connection(json!({"driver":"sqlite","database":":memory:"}));
+    db.unprepared("CREATE TABLE inline_counter (id INTEGER PRIMARY KEY AUTOINCREMENT CHECK (id > 0)); INSERT INTO inline_counter VALUES (17)").await.unwrap();
+    let mut schema = db.getSchemaBuilder();
+    schema
+        .table("inline_counter", |table| table.dropPrimary())
+        .await
+        .unwrap();
+    assert!(!schema.getColumns("inline_counter").await.unwrap()[0].primary);
+    assert_eq!(
+        db.scalar(
+            "SELECT seq FROM sqlite_sequence WHERE name = 'inline_counter'",
+            &[]
+        )
+        .await
+        .unwrap(),
+        Value::Null
+    );
+    db.insert("INSERT INTO inline_counter VALUES (17)", &[])
+        .await
+        .unwrap();
+    assert!(
+        db.insert("INSERT INTO inline_counter VALUES (-1)", &[])
+            .await
+            .is_err()
+    );
+    assert_eq!(db.table("inline_counter").count("*").await.unwrap(), 2);
+}

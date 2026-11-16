@@ -165,7 +165,7 @@ async fn rebuild_table(
     let mut new_indexes = Vec::new();
     for command in commands {
         match command {
-            Command::Column(column) => {
+            Command::Column(mut column) => {
                 let mut found = None;
                 for (index, definition) in columns.iter().enumerate() {
                     if sql::column_name(definition)?.eq_ignore_ascii_case(&column.name) {
@@ -174,12 +174,36 @@ async fn rebuild_table(
                     }
                 }
                 let index = found.ok_or(DatabaseError::InvalidSchema("unknown SQLite column"))?;
-                if sql::constrained_column(&columns[index])? {
-                    return Err(DatabaseError::UnsupportedSchema(
-                        "SQLite change of an inline constrained column",
-                    ));
+                let constraints = sql::inline_constraints(&columns[index])?;
+                let requested_increment = column.increment;
+                if constraints
+                    .iter()
+                    .any(|constraint| constraint.kind == sql::InlineKind::Primary)
+                {
+                    if requested_increment {
+                        grammar.column(&column)?;
+                    }
+                    column.primary = false;
+                    column.increment = false;
                 }
-                columns[index] = grammar.column(&column)?;
+                if constraints
+                    .iter()
+                    .any(|constraint| constraint.kind == sql::InlineKind::Unique)
+                {
+                    column.unique = false;
+                }
+                let mut definition = grammar.column(&column)?;
+                for constraint in constraints {
+                    definition.push(' ');
+                    definition.push_str(&columns[index][constraint.range]);
+                    if constraint.kind == sql::InlineKind::Primary
+                        && requested_increment
+                        && !constraint.autoincrement
+                    {
+                        definition.push_str(" autoincrement");
+                    }
+                }
+                columns[index] = definition;
                 for (enabled, kind) in [
                     (column.unique, IndexType::Unique),
                     (column.indexed, IndexType::Index),
@@ -205,14 +229,10 @@ async fn rebuild_table(
                 constraints.push(grammar.foreign(table, &foreign)?);
             }
             Command::DropForeign(name) => {
-                remove_constraint(&mut constraints, |sql| {
-                    sql::foreign_matches(sql, Some(&name), &[])
-                })?;
+                remove_foreign(&mut columns, &mut constraints, Some(&name), &[])?;
             }
-            Command::DropForeignColumns(columns) => {
-                remove_constraint(&mut constraints, |sql| {
-                    sql::foreign_matches(sql, None, &columns)
-                })?;
+            Command::DropForeignColumns(names) => {
+                remove_foreign(&mut columns, &mut constraints, None, &names)?;
             }
             Command::Index(index) => {
                 if index.inplace || index.lock.is_some() {
@@ -226,7 +246,14 @@ async fn rebuild_table(
                 ));
             }
             Command::DropIndex(IndexType::Primary, _) => {
-                remove_constraint(&mut constraints, sql::primary)?;
+                let mut removed = 0;
+                for definition in &mut columns {
+                    removed +=
+                        remove_inline(definition, |key| key.kind == sql::InlineKind::Primary)?;
+                }
+                if removed == 0 {
+                    remove_constraint(&mut constraints, sql::primary)?;
+                }
             }
             _ => unreachable!("only table rebuild operations are queued"),
         }
@@ -240,16 +267,13 @@ async fn rebuild_table(
     let temporary_name = format!("__temp__{:016x}", fastrand::u64(..));
     let temporary = format!("{schema}.{}", grammar.identifier(&temporary_name)?);
     columns.extend(constraints);
-    transaction
-        .statement(
-            &format!(
-                "create table {temporary} ({}){}",
-                columns.join("\n, "),
-                definition.suffix
-            ),
-            &[],
-        )
-        .await?;
+    let create = format!(
+        "create table {temporary} ({}){}",
+        columns.join("\n, "),
+        definition.suffix
+    );
+    let restore_sequence = sequence.is_some() && sql::autoincrement_column(&create)?.is_some();
+    transaction.statement(&create, &[]).await?;
     let copy = transaction
         .select(
             "select name from pragma_table_xinfo(?, ?) where hidden = 0 order by cid",
@@ -278,7 +302,7 @@ async fn rebuild_table(
         let sql = sql::qualify_object(text(object, "sql")?, text(object, "type")?, &object_name)?;
         transaction.statement(&sql, &[]).await?;
     }
-    if let Some(sequence) = sequence {
+    if restore_sequence && let Some(sequence) = sequence {
         let name = Value::from(table.name.as_str());
         let updated = transaction.update(
             &format!("update {schema}.sqlite_sequence set seq = max(seq, ?) where name = ? collate nocase"),
@@ -321,6 +345,55 @@ async fn read_sequence(
         )
         .await?;
     Ok((sequence != Value::Null).then_some(sequence))
+}
+
+fn remove_foreign(
+    definitions: &mut [String],
+    constraints: &mut Vec<String>,
+    name: Option<&str>,
+    columns: &[String],
+) -> DatabaseResult<()> {
+    let mut removed = 0;
+    let mut index = 0;
+    while index < constraints.len() {
+        if sql::foreign_matches(&constraints[index], name, columns)? {
+            constraints.remove(index);
+            removed += 1;
+        } else {
+            index += 1;
+        }
+    }
+    for definition in definitions {
+        let column = sql::column_name(definition)?;
+        removed += remove_inline(definition, |constraint| {
+            constraint.kind == sql::InlineKind::Foreign
+                && match name {
+                    Some(name) => constraint
+                        .name
+                        .as_deref()
+                        .is_some_and(|actual| actual.eq_ignore_ascii_case(name)),
+                    None => matches!(columns, [wanted] if column.eq_ignore_ascii_case(wanted)),
+                }
+        })?;
+    }
+    if removed == 0 {
+        return Err(DatabaseError::InvalidSchema("unknown SQLite foreign key"));
+    }
+    Ok(())
+}
+
+fn remove_inline(
+    column: &mut String,
+    mut matches: impl FnMut(&sql::InlineConstraint) -> bool,
+) -> DatabaseResult<usize> {
+    let mut removed = 0;
+    for constraint in sql::inline_constraints(column)?.into_iter().rev() {
+        if matches(&constraint) {
+            column.replace_range(constraint.range, "");
+            removed += 1;
+        }
+    }
+    Ok(removed)
 }
 
 fn remove_constraint(

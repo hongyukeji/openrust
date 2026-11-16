@@ -243,6 +243,24 @@ Schema::table("books", |table| {
 
 `foreignId("author_id").constrained()` 引用 `authors.id`。需要明确指定引用表和列时，使用 `constrainedOn`。先设置列修饰符，再定义外键，最后设置 `cascadeOnDelete()` 等引用动作。用 `getForeignKeys` 查看约束。SQLite 目录提供约束列，`dropForeignColumns` 可按这些列删除表级外键。
 
+#### SQLite 内联约束 {#sqlite-inline-constraints}
+
+变更 SQLite 列时，已有的内联主键、UNIQUE、CHECK 和 REFERENCES 子句会保留。重建后的表仍有自增主键时，也会恢复其自增序列。传入 `change()` 的列定义决定类型、是否可空及默认值。
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn relax_owner_reference() -> DatabaseResult<()> {
+    Schema::table("orders", |table| {
+        table.dropForeignColumns(&["owner_id"]);
+        table.integer("owner_id").nullable().change();
+    })
+    .await
+}
+```
+
+用 `dropForeignColumns` 按本地列删除外键，或用 `dropForeign` 删除有显式名称的外键。两种方法都支持内联 REFERENCES 和表级外键。用 `dropPrimary` 删除内联或表级主键。其余内联约束继续生效。
+
 #### 切换外键检查 {#toggling-foreign-key-constraints}
 
 用 `Schema::withoutForeignKeyConstraints` 在同一写会话中暂停外键检查。通过传入的会话执行 SQL，通过它的 `getSchemaBuilder()` 操作 Schema。作用域结束时会恢复进入前的设置。

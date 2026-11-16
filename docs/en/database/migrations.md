@@ -243,6 +243,24 @@ Use `index`, `unique` or `primary` with a column slice. Pass an explicit name or
 
 Use `foreignId("author_id").constrained()` for a reference to `authors.id`. Use `constrainedOn` to name the referenced table and column explicitly. Apply column modifiers before defining the foreign key, and referential actions such as `cascadeOnDelete()` afterward. Use `getForeignKeys` to inspect constraints. SQLite exposes the constrained columns in its catalog, and `dropForeignColumns` can remove a table-level constraint by those columns.
 
+#### SQLite Inline Constraints {#sqlite-inline-constraints}
+
+Changing a SQLite column preserves its existing inline primary key, UNIQUE, CHECK and REFERENCES clauses. The rebuild also preserves the auto-increment sequence when the rebuilt table retains its auto-increment key. The column definition passed to `change()` controls the type, nullability and default.
+
+```rust
+use openrust::database::{DatabaseResult, schema::Schema};
+
+async fn relax_owner_reference() -> DatabaseResult<()> {
+    Schema::table("orders", |table| {
+        table.dropForeignColumns(&["owner_id"]);
+        table.integer("owner_id").nullable().change();
+    })
+    .await
+}
+```
+
+Use `dropForeignColumns` for a foreign key’s local columns, or `dropForeign` for an explicitly named constraint. Both forms can remove inline REFERENCES or table-level foreign keys. Use `dropPrimary` to remove an inline or table-level primary key. Other inline constraints remain in force.
+
 #### Toggling Foreign Key Constraints {#toggling-foreign-key-constraints}
 
 Use `Schema::withoutForeignKeyConstraints` to run work on a single write session with foreign key checks disabled. Use the supplied session for SQL and its `getSchemaBuilder()` for schema operations. The session restores its original setting on exit.

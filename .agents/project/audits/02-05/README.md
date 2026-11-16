@@ -4,7 +4,7 @@
 
 - 接通应用内 Schema Facade、具名连接及事务 Schema Builder。回调定义表、列、索引和外键，语法编译器负责表前缀、标识符和驱动差异。目录读取走写库，返回结构化表、列、索引与外键。Rust 显式传入字符串长度、精度等参数，使用 `constrainedOn` 表达 PHP 的可选目标参数。
 - 支持创建、重命名和删除表，新增、修改、重命名和删除列，创建、改名和删除索引，以及创建和删除表级外键。MySQL 通过原生 DDL 执行。SQLite 原生 DDL 可在已有事务中运行。需要重建时在独占写会话中暂停外键检查，使用事务复制数据并恢复索引、触发器和序列，提交前检查外键，最后恢复会话设置。调用方取消等待后，由拥有连接的任务完成收尾。SQLite 失败时回滚整次变更。
-- 剩余范围包括其他类型与修饰符、额外数据库方言，以及 SQLite 已有内联约束列的变更。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite 目录无法读取外键名称，按列可移除表级外键。
+- 剩余范围包括其他类型与修饰符以及额外数据库方言。SQLite 表重建需要在活动事务外运行，MySQL 显式事务中的 DDL 返回错误，避免隐式提交。SQLite PRAGMA 外键目录不提供约束名称，具名删除从原始建表语句识别约束。
 
 ## 验收
 
@@ -70,3 +70,12 @@ macOS arm64、Rust 1.94.0。隔离副本 `/private/tmp/openrust-02-05.vsXzlJ` �
 - MySQL 建表按 Blueprint、连接配置顺序选择存储引擎、字符集、排序规则。表注释在创建或修改时生成原生 ALTER，目录返回应用后的引擎、排序规则与注释。两种驱动均支持列级排序规则，MySQL 另外支持列字符集。SQLite 忽略 MySQL 专用表选项，列排序规则可从建表语句读取，并可用列变更替换。
 - Rust 1.94.0、真实 MySQL 8.4.13 与 SQLite。验证默认及覆盖、表注释的单引号和反斜杠、目录值、大小写比较、SQLite 重建前后排序规则、无效选项预先拒绝。77 项定向回归、严格 Clippy 与变更文件格式检查通过。1 个子进程夹具由父测试启动。
 - 三语共用示例在真实 MySQL Artisan 命令中运行。原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合与 6 项表选项小节检查通过。
+
+## SQLite 内联约束
+
+对照固定 Laravel [BlueprintState](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Database/Schema/BlueprintState.php) 的列变更和外键移除机制，并核对 [SQLite 列约束语法](https://www.sqlite.org/syntax/column-constraint.html)。旧版未找到框架内联约束重建实现，本批复用已有 SQLite 目录 token、重建事务及索引和触发器恢复。
+
+- 改列时保留 SQLite 内联主键、UNIQUE、CHECK 和 REFERENCES，沿用原有约束名称、冲突动作与外键延迟模式。可按本地列或显式名称移除内联和表级外键。删除内联主键时只移除主键及其自增修饰符。
+- 重新建成的表仍有自增主键时恢复原序列。移除自增后，保留原列值并清除旧序列记录。删除或变更路径仍由同一 SQLite 重建事务执行。
+- Rust 1.94.0，真实 SQLite 及 MySQL 8.4.13。79 项定向回归、严格 Clippy 和变更文件格式检查通过。覆盖真实约束行为、重建保留旧序列、按名称／列移除、其余约束继续生效、移除主键后的重复值及同表数据。1 个子进程夹具由父测试启动。
+- 实际 SQLite Artisan 运行三语共用示例，原生 `main artisan inspire`、三语 VitePress 构建、12 项站点浏览器组合及 6 项小节检查通过。

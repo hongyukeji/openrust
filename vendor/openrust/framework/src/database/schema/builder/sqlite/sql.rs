@@ -221,24 +221,165 @@ pub(super) fn column_collation(sql: &str) -> DatabaseResult<Option<String>> {
     Ok(None)
 }
 
-pub(super) fn constrained_column(sql: &str) -> DatabaseResult<bool> {
-    let tokens = tokenize(sql)?;
-    let mut depth = 0;
-    for token in tokens.iter().skip(1) {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum InlineKind {
+    Primary,
+    Unique,
+    Check,
+    Foreign,
+}
+
+pub(super) struct InlineConstraint {
+    pub kind: InlineKind,
+    pub name: Option<String>,
+    pub autoincrement: bool,
+    pub range: std::ops::Range<usize>,
+}
+
+fn token_is(tokens: &[Token<'_>], index: usize, value: &str) -> bool {
+    tokens.get(index).is_some_and(|token| token.is(value))
+}
+
+fn parenthesized(tokens: &[Token<'_>], start: usize) -> DatabaseResult<usize> {
+    if !token_is(tokens, start, "(") {
+        return Err(DatabaseError::InvalidSchema("SQLite constraint expression"));
+    }
+    let mut depth = 1;
+    for (index, token) in tokens.iter().enumerate().skip(start + 1) {
         match token.text {
             "(" => depth += 1,
-            ")" => depth -= 1,
-            _ if depth == 0
-                && ["primary", "references", "unique", "check"]
-                    .iter()
-                    .any(|kind| token.is(kind)) =>
-            {
-                return Ok(true);
+            ")" => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(index + 1);
+                }
             }
             _ => {}
         }
     }
-    Ok(false)
+    Err(DatabaseError::InvalidSchema("SQLite constraint expression"))
+}
+
+fn foreign_end(tokens: &[Token<'_>], start: usize) -> DatabaseResult<usize> {
+    if tokens.get(start + 1).is_none() {
+        return Err(DatabaseError::InvalidSchema(
+            "SQLite foreign key definition",
+        ));
+    }
+    let mut end = start + 2;
+    if token_is(tokens, end, "(") {
+        end = parenthesized(tokens, end)?;
+    }
+    loop {
+        if token_is(tokens, end, "on")
+            && (token_is(tokens, end + 1, "delete") || token_is(tokens, end + 1, "update"))
+        {
+            end += 2;
+            end += if token_is(tokens, end, "set") || token_is(tokens, end, "no") {
+                2
+            } else {
+                1
+            };
+        } else if token_is(tokens, end, "match") {
+            end += 2;
+        } else {
+            break;
+        }
+    }
+    if token_is(tokens, end, "not") && token_is(tokens, end + 1, "deferrable") {
+        end += 1;
+    }
+    if token_is(tokens, end, "deferrable") {
+        end += 1;
+        if token_is(tokens, end, "initially") {
+            end += 2;
+        }
+    }
+    Ok(end)
+}
+
+pub(super) fn inline_constraints(sql: &str) -> DatabaseResult<Vec<InlineConstraint>> {
+    let tokens = tokenize(sql)?;
+    let mut constraints = Vec::new();
+    let mut index = 1;
+    while let Some(token) = tokens.get(index) {
+        if token.is("(") {
+            index = parenthesized(&tokens, index)?;
+            continue;
+        }
+        let start = index;
+        let name = if token.is("constraint") {
+            index += 2;
+            Some(
+                tokens
+                    .get(index - 1)
+                    .ok_or(DatabaseError::InvalidSchema(
+                        "SQLite inline constraint name",
+                    ))?
+                    .identifier(),
+            )
+        } else {
+            None
+        };
+        if token_is(&tokens, index, "default") {
+            index += 1;
+            if token_is(&tokens, index, "(") {
+                index = parenthesized(&tokens, index)?;
+            } else {
+                index += if token_is(&tokens, index, "+") || token_is(&tokens, index, "-") {
+                    2
+                } else {
+                    1
+                };
+            }
+            continue;
+        }
+        if token_is(&tokens, index, "collate") {
+            index += 2;
+            continue;
+        }
+        let (kind, end) = if token_is(&tokens, index, "primary")
+            && token_is(&tokens, index + 1, "key")
+        {
+            let mut end = index + 2;
+            if token_is(&tokens, end, "asc") || token_is(&tokens, end, "desc") {
+                end += 1;
+            }
+            if token_is(&tokens, end, "on") && token_is(&tokens, end + 1, "conflict") {
+                end += 3;
+            }
+            if token_is(&tokens, end, "autoincrement") {
+                end += 1;
+            }
+            (InlineKind::Primary, end)
+        } else if token_is(&tokens, index, "unique") {
+            let end =
+                if token_is(&tokens, index + 1, "on") && token_is(&tokens, index + 2, "conflict") {
+                    index + 4
+                } else {
+                    index + 1
+                };
+            (InlineKind::Unique, end)
+        } else if token_is(&tokens, index, "check") && token_is(&tokens, index + 1, "(") {
+            (InlineKind::Check, parenthesized(&tokens, index + 1)?)
+        } else if token_is(&tokens, index, "references") {
+            (InlineKind::Foreign, foreign_end(&tokens, index)?)
+        } else {
+            index += 1;
+            continue;
+        };
+        let last = tokens
+            .get(end - 1)
+            .ok_or(DatabaseError::InvalidSchema("SQLite inline constraint"))?;
+        constraints.push(InlineConstraint {
+            kind,
+            name,
+            autoincrement: kind == InlineKind::Primary && last.is("autoincrement"),
+            range: tokens[start].start..last.end,
+        });
+        index = end;
+    }
+    Ok(constraints)
 }
 
 pub(super) fn primary(sql: &str) -> DatabaseResult<bool> {
