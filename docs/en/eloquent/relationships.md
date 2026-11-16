@@ -849,6 +849,26 @@ pub async fn author_post_count(connection: &Connection, id: i64) -> DatabaseResu
 
 Use `wherePivot` for a comparison, `wherePivotIn` or `wherePivotNotIn` for a list, `wherePivotBetween` or `wherePivotNotBetween` for an inclusive range, and `wherePivotNull` or `wherePivotNotNull` for null checks. The corresponding `orWherePivot…` methods combine alternatives inside the same owner and morph scope. Filters apply to loading, existence queries, and selecting existing links for updates, detach, and sync.
 
+Use `wherePivotWith` and `orWherePivotWith` for grouped conditions on `BelongsToMany` or `MorphToMany`. The closure receives query `Conditions`, which can be passed to a reusable scope function. Unqualified columns inside the group refer to the pivot table, including inside nested groups.
+
+```rust
+use openrust::database::{
+    eloquent::{Model, relations::BelongsToMany},
+    query::Conditions,
+};
+
+fn active(conditions: Conditions) -> Conditions {
+    conditions.r#where("muted", "=", false)
+}
+
+pub fn visible_members<P: Model, R: Model>() -> BelongsToMany<P, R> {
+    BelongsToMany::new("project_user", "project_id", "user_id", "id", "id")
+        .wherePivot("role", "=", "admin")
+        .orWherePivotWith(active)
+}
+```
+
+
 Use `withPivotValue` to apply an equality filter and supply the same value when inserting a link through `attach` or `sync`. Explicit insert attributes take precedence. The default must be non-null and cannot replace relationship keys.
 
 ```rust

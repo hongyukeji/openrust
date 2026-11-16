@@ -127,7 +127,7 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         self.0
     }
 
-    pivot_predicates!(apply_pivot_predicate);
+    pivot_predicates!(apply_pivot_predicate, apply_pivot_group);
 
     fn apply_pivot_predicate(
         self,
@@ -135,6 +135,14 @@ impl<P: Model, R: Model> MorphToMany<P, R> {
         predicate: impl FnOnce(query::Conditions, &str) -> query::Conditions,
     ) -> Self {
         Self(self.0.apply_pivot_predicate(column, predicate))
+    }
+
+    fn apply_pivot_group(
+        self,
+        or: bool,
+        configure: impl FnOnce(query::Conditions) -> query::Conditions,
+    ) -> Self {
+        Self(self.0.apply_pivot_group(or, configure))
     }
 
     /// Filters the relation and supplies the value when inserting new links.

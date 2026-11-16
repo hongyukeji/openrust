@@ -33,6 +33,22 @@ impl PivotConstraints {
         ));
     }
 
+    pub(super) fn add_group(
+        &mut self,
+        table: &str,
+        or: bool,
+        configure: impl FnOnce(query::Conditions) -> query::Conditions,
+    ) {
+        let mut group = configure(query::Conditions::default());
+        group.qualify_columns(table);
+        let conditions = self.conditions.take().unwrap_or_default();
+        self.conditions = Some(if or {
+            conditions.orWhereNested(|_| group)
+        } else {
+            conditions.whereNested(|_| group)
+        });
+    }
+
     pub(super) fn apply<'a>(&self, query: query::Builder<'a>) -> query::Builder<'a> {
         match &self.conditions {
             Some(conditions) => query.whereNested(|_| conditions.clone()),
@@ -42,7 +58,26 @@ impl PivotConstraints {
 }
 
 macro_rules! pivot_predicates {
-    ($apply:ident) => {
+    ($apply:ident, $group:ident) => {
+        /// Filters Pivot rows with a grouped predicate.
+        #[must_use]
+        pub fn wherePivotWith(
+            self,
+            configure: impl FnOnce(query::Conditions) -> query::Conditions,
+        ) -> Self {
+            self.$group(false, configure)
+        }
+
+        /// Adds a grouped alternative within the current Pivot scope.
+        #[must_use]
+        pub fn orWherePivotWith(
+            self,
+            configure: impl FnOnce(query::Conditions) -> query::Conditions,
+        ) -> Self {
+            self.$group(true, configure)
+        }
+
+
         pivot_predicates!(@methods $apply;
             wherePivot => r#where(operator: &str, value: impl Into<Value>),
             orWherePivot => orWhere(operator: &str, value: impl Into<Value>),

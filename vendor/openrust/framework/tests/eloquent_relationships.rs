@@ -765,8 +765,8 @@ async fn verify_through_and_morph(
         "post",
     );
     let post_tags = post_tags
-        .wherePivot("label", "=", "post link")
-        .orWherePivotNull("label");
+        .wherePivotWith(|conditions| conditions.r#where("label", "=", "post link"))
+        .orWherePivotWith(|conditions| conditions.whereNull("label"));
     assert_eq!(post_tags.sync(post, &[]).await.unwrap().detached, vec![key]);
     assert!(tagged_posts.getResults(author).await.unwrap().is_empty());
     assert_eq!(author_tags.getResults(author).await.unwrap().len(), 1);
@@ -4644,9 +4644,66 @@ async fn verify_pivot_constraints(
             .unwrap()
             .is_empty()
     );
-    let changed = selected.sync(first, &[]).await.unwrap();
+    let selected_labels = |conditions: openrust::database::query::Conditions| {
+        conditions.whereNested(|nested| {
+            nested
+                .r#where("label", "=", "selected")
+                .orWhere("label", "=", "grouped")
+        })
+    };
+    let grouped = FEATURED_POSTS.wherePivotWith(|conditions| {
+        selected_labels(conditions).whereColumn("author_id", "=", "post_id")
+    });
+    let alternatives = FEATURED_POSTS
+        .wherePivot("label", "=", "never")
+        .orWherePivotWith(selected_labels);
+    for relation in [&grouped, &alternatives] {
+        assert_eq!(
+            ids(relation.getResults(first).await.unwrap()).as_slice(),
+            std::slice::from_ref(first_key)
+        );
+    }
+    assert_eq!(
+        grouped
+            .updateExistingPivot(
+                first,
+                second_key,
+                Attributes::from([("label".into(), "out of scope".into())]),
+            )
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        grouped
+            .updateExistingPivot(
+                first,
+                first_key,
+                Attributes::from([("label".into(), "grouped".into())]),
+            )
+            .await
+            .unwrap(),
+        1
+    );
+    let changed = alternatives.sync(first, &[]).await.unwrap();
     assert_eq!(changed.detached, vec![first_key.clone()]);
-    assert_eq!(selected.detach(first, None).await.unwrap(), 0);
+    assert_eq!(grouped.detach(first, None).await.unwrap(), 0);
+    assert_eq!(
+        FEATURED_POSTS
+            .wherePivotWith(|group| group.r#where("label", "=", "hidden"))
+            .detach(first, None)
+            .await
+            .unwrap(),
+        1
+    );
+    selected
+        .attachWith(
+            first,
+            std::slice::from_ref(second_key),
+            Attributes::from([("label".into(), "hidden".into())]),
+        )
+        .await
+        .unwrap();
     selected
         .attachWith(
             first,

@@ -849,6 +849,26 @@ pub async fn author_post_count(connection: &Connection, id: i64) -> DatabaseResu
 
 用 `wherePivot` 比较列值，用 `wherePivotIn` 或 `wherePivotNotIn` 匹配列表，用 `wherePivotBetween` 或 `wherePivotNotBetween` 匹配含端点的区间，用 `wherePivotNull` 或 `wherePivotNotNull` 检查空值。对应的 `orWherePivot…` 方法在同一归属和多态范围内组合条件。过滤适用于关系加载、存在性查询，以及更新、解除关联和同步时对已有记录的选择。
 
+在 `BelongsToMany` 或 `MorphToMany` 上，用 `wherePivotWith` 和 `orWherePivotWith` 添加分组条件。闭包接收查询 `Conditions`，可交给可复用的作用域函数。组内未限定的列引用中间表，嵌套组也适用。
+
+```rust
+use openrust::database::{
+    eloquent::{Model, relations::BelongsToMany},
+    query::Conditions,
+};
+
+fn active(conditions: Conditions) -> Conditions {
+    conditions.r#where("muted", "=", false)
+}
+
+pub fn visible_members<P: Model, R: Model>() -> BelongsToMany<P, R> {
+    BelongsToMany::new("project_user", "project_id", "user_id", "id", "id")
+        .wherePivot("role", "=", "admin")
+        .orWherePivotWith(active)
+}
+```
+
+
 用 `withPivotValue` 添加等值过滤，并在 `attach` 或 `sync` 创建关联时填入同一个值。显式写入属性优先。默认值必须非空，且不能覆盖关系键。
 
 ```rust

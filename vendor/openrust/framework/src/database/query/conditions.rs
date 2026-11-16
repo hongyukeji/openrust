@@ -47,6 +47,41 @@ impl Conditions {
         self.0.is_empty()
     }
 
+    pub(crate) fn qualify_columns(&mut self, table: &str) {
+        let qualify = |column: &mut String| {
+            let name = column
+                .split_once("->")
+                .map_or(column.as_str(), |(name, _)| name);
+            if !name.contains('.') {
+                *column = format!("{table}.{column}");
+            }
+        };
+        for (_, predicate) in &mut self.0 {
+            match predicate {
+                Predicate::Value(column, ..)
+                | Predicate::Null(column, ..)
+                | Predicate::In(column, ..)
+                | Predicate::Between(column, ..)
+                | Predicate::Like(column, ..)
+                | Predicate::Date(_, column, ..)
+                | Predicate::JsonContains(column, ..)
+                | Predicate::JsonContainsKey(column, ..)
+                | Predicate::JsonLength(column, ..) => qualify(column),
+                Predicate::Column(first, _, second) => {
+                    qualify(first);
+                    qualify(second);
+                }
+                Predicate::BetweenColumns(column, bounds, _) => {
+                    qualify(column);
+                    bounds.iter_mut().for_each(qualify);
+                }
+                Predicate::FullText(columns, ..) => columns.iter_mut().for_each(qualify),
+                Predicate::Group(conditions, _) => conditions.qualify_columns(table),
+                Predicate::Raw(_) => {}
+            }
+        }
+    }
+
     pub(super) fn compile(
         &self,
         grammar: &Grammar,

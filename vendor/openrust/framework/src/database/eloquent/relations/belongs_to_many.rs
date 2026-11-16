@@ -466,7 +466,7 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
         })
     }
 
-    pivot_predicates!(apply_pivot_predicate);
+    pivot_predicates!(apply_pivot_predicate, apply_pivot_group);
 
     pub(super) fn apply_pivot_predicate(
         mut self,
@@ -475,6 +475,16 @@ impl<P: Model, R: Model> BelongsToMany<P, R> {
     ) -> Self {
         self.pivot_constraints
             .add(self.pivot.table, column, predicate);
+        self
+    }
+
+    pub(super) fn apply_pivot_group(
+        mut self,
+        or: bool,
+        configure: impl FnOnce(query::Conditions) -> query::Conditions,
+    ) -> Self {
+        self.pivot_constraints
+            .add_group(self.pivot.table, or, configure);
         self
     }
 
