@@ -2,13 +2,19 @@
 
 ## 設定
 
-在 `config/cache.rs` 透過 `CACHE_STORE` 選擇預設儲存。`array` 使用應用程式記憶體，`file` 使用本機處理程序可共用的目錄，`database` 使用共用的 SQLite 或 MySQL 資料庫。預設遷移建立 `cache` 和 `cache_locks` 資料表。啟用資料庫儲存前，請在設定的資料庫執行遷移。
-
-```sh
-./artisan migrate
-```
+在 `config/cache.rs` 透過 `CACHE_STORE` 選擇預設儲存。`array` 使用應用程式記憶體，`file` 使用本機處理程序可共用的目錄，`database` 使用共用的 SQLite 或 MySQL 資料庫。
 
 工作階段資料可使用[工作階段快取](../the-basics/session.md#session-cache)。`session` 儲存庫需要有效的 HTTP 工作階段，不支援標籤和快取鎖。
+
+## 資料庫快取資料表 {#database-cache-tables}
+
+對設定的資料庫執行 `./artisan migrate`，套用隨附的 `cache` 和 `cache_locks` 遷移。若缺少該遷移，可用 `make:cache-table` 或別名 `cache:table` 產生。執行產生的 Rust 遷移前須重新建置應用程式。
+
+```sh
+./artisan make:cache-table
+cargo build
+./artisan migrate
+```
 
 ## Memcached {#memcached}
 

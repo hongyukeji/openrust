@@ -1135,3 +1135,58 @@ async fn mysql_artisan_creates_only_confirmed_missing_databases() {
     );
     assert!(existing.getSchemaBuilder().hasTable("users").await.unwrap());
 }
+
+#[test]
+fn artisan_generates_cache_tables_and_rejects_duplicate_migrations() {
+    let root = Root::new();
+    for name in ["make:cache-table", "cache:table"] {
+        let help = success(root.run("local", None, &[name, "--help"]));
+        assert!(help.contains("Create a migration for the cache database table"));
+        assert!(!help.contains("not implemented yet"));
+    }
+
+    let output = success(root.run("local", None, &["cache:table"]));
+    assert!(output.contains("Migration created successfully."));
+    assert!(output.contains("Rebuild the application to include the migration."));
+    let directory = root.0.join("database/migrations");
+    let files: Vec<_> = fs::read_dir(&directory)
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(files.len(), 1);
+    let path = files[0].path();
+    assert!(
+        path.file_name()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with("_create_cache_table.rs")
+    );
+    let source = fs::read_to_string(&path).unwrap();
+    assert!(source.contains("create(\"cache\""));
+    assert!(source.contains("table.mediumText(\"value\");"));
+    assert!(source.contains("create(\"cache_locks\""));
+    assert_eq!(
+        source
+            .matches("table.bigInteger(\"expiration\").index();")
+            .count(),
+        2
+    );
+    assert!(source.contains("dropIfExists(\"cache\")"));
+    assert!(source.contains("dropIfExists(\"cache_locks\")"));
+
+    let duplicate = root.run("local", None, &["make:cache-table"]);
+    assert_eq!(duplicate.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("Migration already exists."));
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+    assert_eq!(fs::read_to_string(path).unwrap(), source);
+
+    let bundled = Root::new();
+    let directory = bundled.0.join("database/migrations");
+    fs::create_dir(&directory).unwrap();
+    let path = directory.join("0001_01_01_000001_create_cache_table.rs");
+    fs::write(&path, "bundled migration").unwrap();
+    let duplicate = bundled.run("local", None, &["cache:table"]);
+    assert_eq!(duplicate.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&duplicate.stderr).contains("Migration already exists."));
+    assert_eq!(fs::read_to_string(path).unwrap(), "bundled migration");
+}

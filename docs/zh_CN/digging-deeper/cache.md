@@ -2,13 +2,19 @@
 
 ## 配置
 
-在 `config/cache.rs` 通过 `CACHE_STORE` 选择默认存储。 `array` 使用应用内存，`file` 使用本机进程可共享的目录，`database` 使用共享的 SQLite 或 MySQL 数据库。默认迁移创建 `cache` 和 `cache_locks` 表。启用数据库存储前，请对配置的数据库运行迁移。
-
-```sh
-./artisan migrate
-```
+在 `config/cache.rs` 通过 `CACHE_STORE` 选择默认存储。 `array` 使用应用内存，`file` 使用本机进程可共享的目录，`database` 使用共享的 SQLite 或 MySQL 数据库。
 
 会话数据可以使用[会话缓存](../the-basics/session.md#session-cache)。`session` 仓库需要活跃的 HTTP 会话，不支持标签和缓存锁。
+
+## 数据库缓存表 {#database-cache-tables}
+
+对配置的数据库运行 `./artisan migrate`，应用自带的 `cache` 和 `cache_locks` 迁移。如果缺少该迁移，用 `make:cache-table` 或别名 `cache:table` 生成。执行生成的 Rust 迁移前需要重新构建应用。
+
+```sh
+./artisan make:cache-table
+cargo build
+./artisan migrate
+```
 
 ## Memcached {#memcached}
 

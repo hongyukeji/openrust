@@ -41,17 +41,7 @@ impl MigrationCreator {
         body: Option<(&str, &str)>,
         root: Option<&Path>,
     ) -> io::Result<PathBuf> {
-        let name = snake_case(name);
-        if name.is_empty()
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
-        {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Invalid migration name.",
-            ));
-        }
+        let name = migration_name(name)?;
         let inferred_create = name
             .strip_prefix("create_")
             .and_then(|name| name.strip_suffix("_table"));
@@ -71,20 +61,7 @@ impl MigrationCreator {
                 "Specify the table to create.",
             ));
         }
-        fs::create_dir_all(directory)?;
-        let suffix = format!("_{name}.rs");
-        for entry in fs::read_dir(directory)? {
-            if entry?.file_name().to_string_lossy().get(17..) == Some(&suffix) {
-                return Err(io::Error::new(
-                    io::ErrorKind::AlreadyExists,
-                    "A migration with this name already exists.",
-                ));
-            }
-        }
-        let path = directory.join(format!(
-            "{}{suffix}",
-            chrono::Utc::now().format("%Y_%m_%d_%H%M%S")
-        ));
+        let path = migration_path(directory, &name)?;
         let (up, down) = body.map(|(up, down)| (up.to_owned(), down.to_owned())).unwrap_or_else(|| match table {
             Some(table) if create => (
                 format!(
@@ -124,17 +101,63 @@ impl MigrationCreator {
                     _ => unreachable!("known placeholder"),
                 }
             });
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&path)?;
-        if let Err(error) = file.write_all(code.as_bytes()) {
-            drop(file);
-            let _ = fs::remove_file(&path);
-            return Err(error);
-        }
-        Ok(path)
+        write_migration(path, &code)
     }
+
+    pub(crate) fn create_from_template(
+        &self,
+        name: &str,
+        directory: &Path,
+        template: &str,
+    ) -> io::Result<PathBuf> {
+        let name = migration_name(name)?;
+        write_migration(migration_path(directory, &name)?, template)
+    }
+}
+
+fn migration_name(name: &str) -> io::Result<String> {
+    let name = snake_case(name);
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Invalid migration name.",
+        ));
+    }
+    Ok(name)
+}
+
+fn migration_path(directory: &Path, name: &str) -> io::Result<PathBuf> {
+    fs::create_dir_all(directory)?;
+    let suffix = format!("_{name}.rs");
+    for entry in fs::read_dir(directory)? {
+        if entry?.file_name().to_string_lossy().get(17..) == Some(&suffix) {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "A migration with this name already exists.",
+            ));
+        }
+    }
+    Ok(directory.join(format!(
+        "{}{suffix}",
+        chrono::Utc::now().format("%Y_%m_%d_%H%M%S")
+    )))
+}
+
+fn write_migration(path: PathBuf, code: &str) -> io::Result<PathBuf> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
+    if let Err(error) = file.write_all(code.as_bytes()) {
+        drop(file);
+        let _ = fs::remove_file(&path);
+        return Err(error);
+    }
+    Ok(path)
 }
 
 fn snake_case(name: &str) -> String {

@@ -2,13 +2,19 @@
 
 ## Configuration
 
-The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array` for application-local memory, `file` for a directory shared by local processes, or `database` for a shared SQLite or MySQL store. The default application migration creates the `cache` and `cache_locks` tables. Run it against the configured database before using the database store.
-
-```sh
-./artisan migrate
-```
+The default store is selected by `CACHE_STORE` in `config/cache.rs`. Use `array` for application-local memory, `file` for a directory shared by local processes, or `database` for a shared SQLite or MySQL store.
 
 Session data can use the [session cache](../the-basics/session.md#session-cache). The `session` store requires an active HTTP session and provides neither tags nor cache locks.
+
+## Database cache tables {#database-cache-tables}
+
+Run `./artisan migrate` against the configured database to apply the bundled migration for `cache` and `cache_locks`. If the migration is missing, generate it with `make:cache-table` or its `cache:table` alias. Rebuild the application before running the generated Rust migration.
+
+```sh
+./artisan make:cache-table
+cargo build
+./artisan migrate
+```
 
 ## Memcached {#memcached}
 

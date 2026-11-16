@@ -117,3 +117,11 @@ Redis 连接及缓存锁按 03-09 推进。标签、通用缓存事件、迁移�
 - 独立工程实际二进制通过 HTTP 写读、独立 `artisan cache:forget` 及 HTTP 未命中，`main artisan inspire` 通过。实际服务为 DynamoDB Local，AWS 托管服务和 IAM 角色部署凭据留待发布验收。
 - MySQL 8.4.13、Redis 8.10.3 的缓存、事件和 memo 回归通过。Memcached、双 Redis 锁服务器、S3 条件用例沿用之前的验收。变更文件格式、严格 Clippy、三语 VitePress 和 18 项浏览器检查通过。全仓格式仅报告既有的 `sanctum_authentication.rs:1412`。
 - 临时进程和容器已回收。清理 4.4 GiB 本批隔离 Cargo 产物和文档缓存后，项目盘可用 57.67 GB（53.71 GiB）。周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-dynamodb.gBg0l79j`。
+
+## 缓存迁移生成
+
+- 对照固定 Laravel [CacheTableCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/CacheTableCommand.php)、[MigrationGeneratorCommand](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Console/MigrationGeneratorCommand.php) 和 [cache.stub](https://github.com/laravel/framework/blob/1449bf241017087fbd38c118ecaabef3f6797fdc/src/Illuminate/Cache/Console/stubs/cache.stub)。openrust-v0.x 未发现对应命令，复用当前 MigrationCreator 的名称、时间戳、查重及写入。
+- `make:cache-table` 和 `cache:table` 生成带时间戳的 `create_cache_table.rs`。已有同名迁移时以退出码 1 拒绝重复生成。模板创建 `cache` 和 `cache_locks`，包含主键和过期索引，值字段遵循固定 Laravel 的 `MEDIUMTEXT`。Rust 应用需要重新构建以注册新迁移。
+- 隔离基线 `c83d3a00e`，Rust 1.94.0、macOS arm64。实际 Artisan 验证主命令、别名帮助、重复保护及原文件逐字节保留，通用 `make:migration` 回归通过。隔离副本移走自带迁移后用实际二进制生成并重建，在 MySQL 8.4.13 上运行 `migrate` 和 `migrate:status`。核对列类型、两张表的主键及过期索引。应用的 `cache:forget` 与 `cache:clear database --locks` 操作生成的表，随后 `migrate:rollback` 删除两张表并保留 `users`。
+- 命令列表与别名、`artisan inspire`、变更文件及模板格式、严格 Clippy、三语站点和 18 项浏览器检查通过。全仓格式只报告既有的 `sanctum_authentication.rs:1412`。
+- 临时 MySQL 和 3.5 GiB 本批隔离 Cargo 产物及本批文档缓存已回收，项目盘可用 57.64 GB（53.68 GiB），周额度剩余 69%，第二窗口无读数。证据目录 `/private/tmp/openrust-03-06-cache-migration.LFPORtAt`。
